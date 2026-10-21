@@ -8,7 +8,7 @@
 //! preserving the along-wall component so you SLIDE along walls instead of sticking.
 //!
 //! Doorways (open, unlocked doors) are gaps you walk through; windows and closed/locked doors block
-//! (you cannot walk through glass, and a shut door is a wall). Y is never touched.
+//! (you cannot walk through glass, and a shut door is a wall). The push-out never moves Y.
 //!
 //! BY HEIGHT (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md, lane M): a segment
 //! stops a body only where it stands across the body's knee-to-eye band (`WallSegment::stops_body`),
@@ -97,7 +97,8 @@ pub fn door_panel_segment(center: Vec3, rotation: Quat, size: Vec3) -> WallSegme
     }
 }
 
-/// Build the STATIC blocking segments from a home: the 4 perimeter walls + each interior wall's SOLID
+/// Build the STATIC blocking segments from a home (and every guard piece placed in it on its own,
+/// ship homes increment 7): the 4 perimeter walls + each interior wall's SOLID
 /// pier spans. DOOR apertures are cut out (so a doorway is a walk-through gap); WINDOW spans stay
 /// solid (you can't walk through glass -- the pane + the sill wall block the whole width). Doors get a
 /// separate LIVE collider in `resolve`'s `doors` arg, because their open state changes every frame.
@@ -118,7 +119,10 @@ pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCu
 /// through glass, but you can SEE through it, so a machine card behind a window stays
 /// visible while one behind a solid pier hides. Door apertures are open here exactly as in
 /// the collision spans; a CLOSED door blocks sight via the live door list the caller adds
-/// (the same split `resolve` uses).
+/// (the same split `resolve` uses). A guard (a balustrade, `InteriorWall::guard`, or a guard
+/// piece placed on its own) is see-through and blocks no sight (ship homes increment 7). The
+/// sight check is across the floor only (`sight_blocked`): a wall on another storey still hides a
+/// nameplate whose line it crosses; the heights are in each segment for when it reads them.
 pub fn sight_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
     segments_impl(home, shell_cuts, true)
 }
@@ -166,6 +170,13 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
         }
     }
     for wall in &home.walls {
+        // A GUARD is a balustrade (ship homes increment 7, `InteriorWall::guard`): posts and
+        // balusters under 100 mm apart and a top rail. It stops a walk like the wall it is, but
+        // it is see-through, so it is no sight blocker: a 1.0 m balustrade round a stairwell does
+        // not hide the nameplates beyond it.
+        if see_through_windows && wall.guard().is_some() {
+            continue;
+        }
         let ht = wall.resolved_thickness() * 0.5;
         let (wy0, wy1) = wall.y_range();
         let (ax, az) = wall.a;
@@ -197,6 +208,30 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
                 });
             }
             cursor = e.max(cursor);
+        }
+    }
+    // A GUARD PLACED ON ITS OWN (the `guard` structure piece, kind Guard, a 1.2 m section; ship
+    // homes increment 7): it stops a walk across its length, from its foot to its rail, like a
+    // guard drawn with the wall tool. Not a sight blocker (a balustrade is see-through). The
+    // segment runs along the piece's width through its middle, turned with it.
+    if !see_through_windows {
+        for ps in &home.structures {
+            let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) else { continue };
+            if ty.kind != crate::ship::structure::StructureKind::Guard {
+                continue;
+            }
+            let (s, c) = ps.rot_deg.to_radians().sin_cos();
+            let hw = ty.size.0 * 0.5;
+            // A piece's local (x, 0) lies at world (x cos, -x sin) from its middle
+            // (`structure::structure_mesh`'s turn).
+            let (dx, dz) = (hw * c, -hw * s);
+            segs.push(WallSegment {
+                a: (ps.pos.0 - dx, ps.pos.2 - dz),
+                b: (ps.pos.0 + dx, ps.pos.2 + dz),
+                half_thickness: (ty.size.2 * 0.5).max(0.03),
+                y0: ps.pos.1,
+                y1: ps.pos.1 + ty.size.1,
+            });
         }
     }
     segs
@@ -763,7 +798,8 @@ mod tests {
 }
 
 /// Ship homes increment 7, Wave 0 (docs/design/ship-homes-increment-7-plan.md section 2): every
-/// blocking segment knows the world heights it stands between, though nothing reads them yet.
+/// blocking segment knows the world heights it stands between, which the sweep reads since lane M
+/// (`WallSegment::stops_body`, `storey_walk_tests` below).
 #[cfg(test)]
 mod storey_height_tests {
     use super::*;
@@ -859,8 +895,9 @@ mod storey_walk_tests {
     /// upstairs stops short of it; across the downstairs wall (z 3) the other way about; across the
     /// wall through the slab (z 7) both stop.
     ///
-    /// Seen red 2026-10-20 with the height test taken out of `resolve_once` (every segment
-    /// stopping every body, the sweep before this lane): <<RED>>.
+    /// Seen red 2026-10-20 with `stops_body` answering true for every segment (every segment
+    /// stopping every body, the sweep before this lane): "downstairs, the wall upstairs (x 5)
+    /// stopped the walk at Vec3(4.67, 1.7, 5.0)".
     #[test]
     fn a_wall_stops_only_the_storey_it_stands_on() {
         let walls = two_storeys();
@@ -890,7 +927,8 @@ mod storey_walk_tests {
     /// segment the walk makes of it (`door_panel_segment`): each stops the body on its own storey
     /// and lets the body on the other walk through its doorway's line.
     ///
-    /// Seen red 2026-10-20 with the height test taken out of `resolve_once`: <<RED>>.
+    /// Seen red 2026-10-20 with `stops_body` answering true for every segment: "the shut door
+    /// upstairs stopped the walk downstairs at Vec3(5.0, 1.7, 4.65)".
     #[test]
     fn a_shut_door_stops_only_its_own_storey() {
         let door_at = |sill: f32| door_panel_segment(Vec3::new(5.0, sill, 5.0), Quat::IDENTITY, Vec3::new(2.0, 2.1, 0.05));
@@ -906,9 +944,48 @@ mod storey_walk_tests {
         assert!(e.z < 5.0 - PLAYER_RADIUS + 0.06, "the shut door upstairs let the walk upstairs through to {e:?}");
     }
 
+    /// A GUARD STOPS A WALK ON ITS STOREY AND HIDES NOTHING. Upstairs on a slab at 3.0: a guard
+    /// drawn with the wall tool (a 1.0 m Steel balustrade wall, material 9, z = 5) and a guard
+    /// piece placed on its own (the 1.2 m `guard` section at (5, 3, 8), across x 4.4 to 5.6). Each
+    /// stops a body walking upstairs into it, lets a body downstairs walk under it, and is no
+    /// sight blocker (a balustrade is see-through), so nameplates beyond it stay shown.
+    ///
+    /// Seen red 2026-10-20 with the placed guard left out of the walking segments: "upstairs, the
+    /// placed guard let the walk through to Vec3(5.0, 4.7, 9.5)"; and with the guard wall kept in
+    /// the sight segments: "the guard wall hides what is beyond it".
+    #[test]
+    fn a_guard_stops_a_walk_on_its_storey_and_hides_nothing() {
+        let body: HomeStructure = ron::from_str(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             walls: [(a: (0.0, 5.0), b: (10.0, 5.0), base: 3.0, height: 1.0, material: 9)], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)], \
+             structures: [(id: \"guard-1\", type_id: \"guard\", pos: (5.0, 3.0, 8.0))])",
+        )
+        .expect("the test body parses");
+        assert!(body.walls[0].guard().is_some(), "material 9 is a guard");
+        let walls = wall_segments(&body);
+        let ends = |y: f32, from: (f32, f32), to: (f32, f32)| walk(Vec3::new(from.0, y, from.1), Vec3::new(to.0, y, to.1), &walls, &[]);
+        let at_the_wall = ((2.0, 3.0), (2.0, 7.0));
+        let at_the_piece = ((5.0, 6.5), (5.0, 9.5));
+        let e = ends(UP, at_the_wall.0, at_the_wall.1);
+        assert!(e.z < 5.0 - PLAYER_RADIUS + 0.05, "upstairs, the guard wall let the walk through to {e:?}");
+        let e = ends(UP, at_the_piece.0, at_the_piece.1);
+        assert!(e.z < 8.0 - PLAYER_RADIUS + 0.05, "upstairs, the placed guard let the walk through to {e:?}");
+        for (from, to) in [at_the_wall, at_the_piece] {
+            let e = ends(DOWN, from, to);
+            assert!((e.z - to.1).abs() < 1e-3, "downstairs, a guard upstairs stopped the walk at {e:?}");
+        }
+        let sight: Vec<[f32; 4]> = sight_segments_with_shell_cuts(&body, &[]).iter().map(|s| [s.a.0, s.a.1, s.b.0, s.b.1]).collect();
+        assert!(!sight_blocked((2.0, 3.0), (2.0, 7.0), &sight), "the guard wall hides what is beyond it");
+        assert!(!sight_blocked((5.0, 6.5), (5.0, 9.5), &sight), "the placed guard hides what is beyond it");
+    }
+
     /// The band itself: a segment stops a body only across its knee (`KNEE_M` over the feet) to
     /// its eye, so a 0.3 m kerb is stepped over, a 2.2 m-high lintel over the head lets it pass,
     /// and a segment of unknown height stops everything.
+    ///
+    /// Seen red 2026-10-20 with `stops_body` answering true for every segment: "a kerb under the
+    /// knee stops the walk".
     #[test]
     fn the_band_runs_from_the_knee_to_the_eye() {
         let seg = |y0: f32, y1: f32| WallSegment { a: (0.0, 0.0), b: (1.0, 0.0), half_thickness: 0.05, y0, y1 };

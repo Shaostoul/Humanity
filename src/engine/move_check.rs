@@ -682,7 +682,8 @@ mod storey_tests {
     ///
     /// Seen red 2026-10-20 with the jump setting x and z only (`teleport_landing` giving the far
     /// pad's x and z at the ground's eye height, where a body walking the ground floor had it):
-    /// <<RED>>.
+    /// "0 frames after the jump to teleporter-2 the feet were at 0, not on its floor at 3" (the
+    /// body stood on the ground floor under the far pad).
     #[test]
     fn a_teleport_between_storeys_lands_on_the_far_pads_floor_and_is_not_a_fall() {
         let mut w = Aboard::two_storeys();
@@ -709,7 +710,8 @@ mod storey_tests {
     /// ladder) neither; on each pad, on its own floor, it is on that pad.
     ///
     /// Seen red 2026-10-20 with pads found across the floor alone (the height test taken out of
-    /// `transit_link_at`): <<RED>>.
+    /// `transit_link_at`): "on the ground floor under the upstairs pad, a body was on it" (left:
+    /// Some("teleporter-2"), right: None).
     #[test]
     fn a_pad_is_found_by_height() {
         let w = Aboard::two_storeys();

@@ -1093,6 +1093,9 @@ mod storey_tests {
 
     /// THE EYE HEIGHT THE SWEEP AND THE FOOTING ASSUME IS THE BODY'S (`wall_collision::EYE_HEIGHT_M`
     /// against `CameraController::eye_height`): both read the feet off the eye with it.
+    ///
+    /// Seen red 2026-10-20 with `EYE_HEIGHT_M` at 1.75: "assertion `left == right` failed" (left:
+    /// 1.7, right: 1.75).
     #[test]
     fn the_sweeps_eye_height_is_the_bodys() {
         assert_eq!(CameraController::new(1.0, 1.0).eye_height(), EYE_HEIGHT_M);
@@ -1108,7 +1111,7 @@ mod storey_tests {
     /// sink through it).
     ///
     /// Seen red 2026-10-20 with the slabs' tops not counted in `floor_under` (`raise(o.1 +
-    /// slab.top)` taken out): <<RED>>.
+    /// slab.top)` taken out): "a body over the slab" (left: Some(0.0), right: Some(3.0)).
     #[test]
     fn a_body_stands_on_the_floor_of_its_own_storey() {
         let mut w = Aboard::two_storeys();
@@ -1135,7 +1138,8 @@ mod storey_tests {
     /// frames a second and at 100 ms frames (moving, so the substeps ask for the ceiling too). In
     /// the half open to the roof the same jump rises its full height.
     ///
-    /// Seen red 2026-10-20 with `keep_head_under_ceiling` doing nothing: <<RED>>.
+    /// Seen red 2026-10-20 with `keep_head_under_ceiling` doing nothing: "at 17 ms frames a jump
+    /// under the slab put the eye at 2.933 m, the head through its underside at 2.75".
     #[test]
     fn a_jump_under_a_slab_does_not_pass_it() {
         for (dt, moving) in [(DT, false), (0.1, true)] {
@@ -1178,7 +1182,8 @@ mod storey_tests {
     ///
     /// Seen red 2026-10-20 with v0.590's ride brought back into `elevator_tick` (stepping on sends
     /// the car to its other end, Space and Shift do nothing, and only a body in the shaft at its
-    /// base calls it): <<RED>>.
+    /// base calls it): "the car left before anyone pressed anything" (left: 0.7499998, right:
+    /// 0.0): stepping on had sent it up.
     #[test]
     fn the_elevator_rides_a_storey_up_and_down_and_comes_when_called_from_upstairs() {
         let mut w = Aboard::two_storeys();
@@ -1231,7 +1236,8 @@ mod storey_tests {
     /// there, and never falls; its walk calls the car, and once the car has come it walks on
     /// onto it. The same at the ground landing with the car at the top.
     ///
-    /// Seen red 2026-10-20 with `elevator_gates` returning no gates: <<RED>>.
+    /// Seen red 2026-10-20 with `elevator_gates` returning no gates: "at the landing at 3, frame
+    /// 16: the body walked into the shaft to Vec3(8.916664, 4.7, 2.0) with the car at 0.000".
     #[test]
     fn a_landing_with_the_car_away_does_not_let_a_body_into_the_shaft() {
         for (storey, car_at) in [(3.0, 0.0), (0.0, 3.0)] {
@@ -1276,7 +1282,8 @@ mod storey_tests {
     /// gate steps onto the ladder's top rungs, the body walks out over the hatch holding on, and
     /// Shift climbs it down to the ground. No landing on the way hurts.
     ///
-    /// Seen red 2026-10-20 with `ladder_gates` returning no gates: <<RED>>.
+    /// Seen red 2026-10-20 with `ladder_gates` returning no gates: "frame 14: the walk upstairs
+    /// went through the hatch's gate to Vec3(2.0, 4.7, 2.2500012)".
     #[test]
     fn the_ladder_hatch_is_shut_to_a_walk_and_open_to_a_climber() {
         let mut w = Aboard::two_storeys();
@@ -1323,7 +1330,8 @@ mod storey_tests {
     /// the floor. Part way up the ladder, Shift climbs down.
     ///
     /// Seen red 2026-10-20 with Shift climbing down at any height in a ladder's reach (the
-    /// `on_ladder` test taken out of `walk_step_moves`): <<RED>>.
+    /// `on_ladder` test taken out of `walk_step_moves`): "Shift on the floor at the ladder's top
+    /// took the body down to 0" (down the ladder, through the slab, to the ground floor).
     #[test]
     fn shift_at_a_ladders_top_on_a_floor_sprints_and_only_shift_on_the_ladder_climbs_down() {
         let mut w = Aboard::two_storeys();
@@ -1358,7 +1366,8 @@ mod storey_tests {
     /// at its top.
     ///
     /// Seen red 2026-10-20 with `ladder_at` choosing by x and z alone (the span test taken out,
-    /// the lib.rs closure before this lane): <<RED>>.
+    /// the lib.rs closure before this lane): "a body on the ground floor under the upstairs
+    /// ladder" (left: Some((3.0, 6.0)), right: None).
     #[test]
     fn the_ladder_is_chosen_by_height() {
         let mut w = Aboard::two_storeys();
@@ -1374,7 +1383,8 @@ mod storey_tests {
     /// replaced asked for each piece's type with `?`, which ended the whole search at the first
     /// unknown one, so a home with one (a mod's piece, a type renamed) had no working ladder.
     ///
-    /// Seen red 2026-10-20 with `ladder_at` asking with `?` again: <<RED>>.
+    /// Seen red 2026-10-20 with `ladder_at` asking with `?` again: "an unknown piece listed first
+    /// hid the ladder" (left: None, right: Some((0.0, 3.0))).
     #[test]
     fn an_unknown_piece_does_not_hide_a_ladder() {
         let mut w = Aboard::two_storeys();
@@ -1388,7 +1398,8 @@ mod storey_tests {
     /// floor), and walking east off its edge drops the metre to the floor, a landing from 1.0 m
     /// (4.4 m/s).
     ///
-    /// Seen red 2026-10-20 with the built pieces' tops not counted in `floor_under`: <<RED>>.
+    /// Seen red 2026-10-20 with the built pieces' tops not counted in `floor_under`: "standing on
+    /// the built piece: frame 26 landed from 1.000 m (4.43 m/s) at Vec3(6.0, 1.7, 9.0)".
     #[test]
     fn a_body_stands_on_a_piece_built_aboard_and_walking_off_it_is_a_fall() {
         let mut w = Aboard::two_storeys();
@@ -1416,7 +1427,8 @@ mod storey_tests {
     /// ground floor, and is not lifted back onto the slab over it.
     ///
     /// Seen red 2026-10-20 with no re-seat (`Footing::reseat` giving None) and the step up measured
-    /// from the floor stood on before after a placement too (`placed_since_walk` false): <<RED>>.
+    /// from the floor stood on before after a placement too (`placed_since_walk` false): "the
+    /// placement onto the upper floor left the body resting on 0".
     #[test]
     fn a_placement_stands_on_the_floor_it_was_put_on() {
         let mut w = Aboard::two_storeys();

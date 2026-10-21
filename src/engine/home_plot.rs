@@ -3479,7 +3479,8 @@ mod storey_tests {
     /// Opened downstairs, a spot under the slab stands them on the ground floor, not on the slab.
     ///
     /// Seen red 2026-10-20 with `editor_pick_at` standing everyone on the zone's floor (its eye at
-    /// the zone's origin y plus the eye height, the close before this lane): <<RED>>.
+    /// the zone's origin y plus the eye height, the close before this lane): "left from upstairs, a
+    /// spot on the upper floor" (left: Vec3(8.0, 1.7, 4.0), right: Vec3(8.0, 4.7, 4.0)).
     #[test]
     fn the_editor_close_stands_you_on_the_storey_you_left_from() {
         let w = Aboard::two_storeys();

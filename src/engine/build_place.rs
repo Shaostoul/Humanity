@@ -1219,7 +1219,7 @@ mod collision_tests {
     /// it stands on it; past the pieces the floor is the room's.
     ///
     /// Seen red 2026-10-20 with the built pieces' tops not counted in `Footing::floor_under`:
-    /// <<RED>>.
+    /// "walking onto the foundation" (left: Some(0.0), right: Some(0.2)).
     #[test]
     fn a_finished_piece_aboard_is_a_floor_within_a_step() {
         use crate::engine::footing::{ElevatorCars, Footing};
