@@ -436,6 +436,15 @@ impl Renderer {
         }
     }
 
+    /// Drop a parked view scratch now (Maps increment 1: the Maps page keeps
+    /// its view's scratch while open and gives it back when it closes). A
+    /// view in flight keeps its scratch.
+    pub fn release_view_scratch(&mut self) {
+        if self.view_scene.state == ViewSceneState::Idle {
+            self.view_scene.spare = None;
+        }
+    }
+
     /// Bytes held by the scene targets (the window's and a parked view
     /// scratch), for the Performance page's render-target slice.
     pub(super) fn scene_target_bytes(&self) -> u64 {

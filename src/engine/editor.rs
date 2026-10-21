@@ -963,6 +963,20 @@ pub(crate) fn try_pick_port(state: &mut EngineState) -> bool {
     if state.port_pick.is_empty() {
         return false;
     }
+    // A selected machine the storey cut-away leaves out (one upstairs, kept selected through a
+    // change of storey) has its handles hidden with it (lib.rs, the PORT gizmos), so they are not
+    // grabbed either (increment 7 follow-ups). By its body's placement, as the cut hides the body;
+    // machine_pick is in placement order with machine_objects.
+    let cut = state.home_draw.cut;
+    let hidden = state
+        .machine_pick
+        .iter()
+        .position(|(id, ..)| *id == sel)
+        .and_then(|i| state.machine_objects.get(i))
+        .is_some_and(|m| cut.is_some_and(|c| c.hides(m.2)));
+    if hidden {
+        return false;
+    }
     let sz = state.window.inner_size();
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));

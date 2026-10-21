@@ -1320,8 +1320,9 @@ Multi-scale map with celestial navigation (nav label "Maps", `GuiPage::Maps`; th
 duplicate `GuiPage::Cosmos` variant merged into it in v0.1145). Real Kepler orbital mechanics (`src/cosmos.rs`,
 one `SolBody` set + one propagator shared by the Maps page, FPS world spawn,
 and the ECS position resolver -- see `src/ecs/cosmos.rs`), a "Focus" button
-(one-shot camera snap-to a body) and a "Track" button (continuous camera
-follow as the body orbits, v0.647.0).
+(since Maps increment 1 a flight to the body that then stays with it; it was a
+one-shot snap-to) and a "Track" button (continuous camera follow as the body
+orbits, v0.647.0).
 - Native: `src/gui/pages/maps/` (Maps increment 0, 2026-10-20: it was
   `src/gui/pages/cosmos.rs`, 3,880 lines, carved by view): `mod.rs` (the page,
   the view tabs, the shared pan and zoom canvas and footer), `system_view.rs`
@@ -1331,6 +1332,29 @@ follow as the body orbits, v0.647.0).
   `sky_events.rs` (conjunctions, eclipses, the forward scan), `time_bar.rs` (the
   page's clock), `tests.rs`; state `GuiState::maps` (`src/gui/state_types/maps.rs`).
   The build order from here: `docs/design/maps-zoom-to-anything.md` section 6.
+- **Opens on you, follows you, draws your ship (Maps increment 1, 2026-10-21).**
+  Opening the page from the game frames your ship (about 1.5 ship lengths, Earth
+  behind it) and follows it as it moves; "Stop following" leaves the camera where
+  it is, a pan or a Focus on a body ends following too, and "Back to me" (or the
+  Home key) flies back and follows again; Settings-style toggle "Open where I left
+  it" on the page (`settings.maps_open_where_left`, persisted). The camera is an
+  anchor plus an f64 offset, 10 m to 1e14 m, the ship's own up at ship scale and
+  the fixed stars beyond Earth orbit, with an interruptible zoom-out, travel,
+  zoom-in flight (`maps/camera.rs`, `maps/controls.rs`). At ship scale and aboard,
+  the backdrop is the real world rendered from the map's camera (the ship from its
+  own meshes, lit by the real Sun, the real Earth behind; half resolution while
+  the camera moves), `src/engine/map_view.rs`; the page says why when it cannot
+  draw it (not aboard, world not loaded, clock off Live). The ship's name and real
+  height, its orbit line (from its own state vector), "You" aboard, and the mining
+  asteroids at their data positions relative to the ship: `maps/you_layer.rs`. The
+  Stations rows come from every `data/stations/*.ron` with a computed altitude
+  (`maps/stations.rs`; the home is 35,870 km up, synchronous with the 24-hour
+  solar day). Everything about the ship comes from the engine, never recomputed:
+  `src/engine/map_feed.rs` (`MapSelf`). The clock opens on Live (the game's own);
+  scrubbing detaches it and hides the world layer. Rig verbs `map`,
+  `map_distance`, `map_ship`, `map_turn`, `map_report` (`debug/map_done.json`);
+  vantages `maps-follow-home*` with the pixel-judged "ship centred" check
+  (`scripts/lib/map-centre-check.js`) and its control; snapshot `maps_follow_home`.
 
 ### Profile Page
 User profile view/edit.

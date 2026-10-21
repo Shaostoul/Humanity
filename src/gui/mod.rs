@@ -4360,6 +4360,8 @@ pub struct SettingsState {
     pub live_weather: bool,
     /// Track the orbital home station (in-world ring + label; the Maps page's Track toggle).
     pub track_station: bool,
+    /// Maps opens where it was left instead of on you (Maps increment 1, decision 2).
+    pub maps_open_where_left: bool,
     /// Read websites inside HumanityOS (the readable web, 2026-09-16). OFF
     /// by default and independent of the privacy tier: a person who wants
     /// no website access from the app never has any. On, a Browser-page
@@ -4596,6 +4598,7 @@ impl Default for SettingsState {
             screen_media: std::collections::BTreeMap::new(),
             ffmpeg_path: String::new(),
             track_station: true,
+            maps_open_where_left: false,
             planet_surface_detail: true,
             water_fft: false,
             water_clarity: default_water_clarity(),

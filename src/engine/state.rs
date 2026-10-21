@@ -481,10 +481,12 @@ pub(crate) struct EngineState {
     /// plant pass can dress towers (helix) and beds/fields (footprint grid).
     pub(crate) grow_positions: Vec<GrowSpot>,
     /// Garden plant meshes (v0.862): merged world-space meshes, one draw each:
-    /// (mesh_idx, mat_idx). A procedural mesh per planted tower or grow
-    /// machine, plus one per machine and hero stage model (2026-09-26). See
+    /// (mesh_idx, mat_idx, the foot of the machine it grows on). A procedural
+    /// mesh per planted tower or grow machine, plus one per machine and hero
+    /// stage model (2026-09-26). The foot is what the build editor's cut-away
+    /// hides it by (home_meshes `push_home_plants`, 2026-10-21). See
     /// rebuild_plant_meshes.
-    pub(crate) plant_objects: Vec<(usize, usize)>,
+    pub(crate) plant_objects: Vec<(usize, usize, Vec3)>,
     /// Change signature of the last plant build; 0 forces a rebuild (hot reload).
     pub(crate) plant_mesh_sig: u64,
     /// The garden's drawing between frames (2026-09-27): the plant pass's
@@ -492,8 +494,8 @@ pub(crate) struct EngineState {
     /// (each mushroom rack's fruiting tent). See home_meshes.
     pub(crate) garden_draw: crate::engine::home_meshes::GardenDraw,
     /// The home's drawing between rebuilds (ship homes increment 7 review, 2026-10-21): the shell's
-    /// spare mesh slots, the editor's cut-away as last drawn, and which doors are elevator
-    /// landings. See home_meshes `HomeDraw`.
+    /// spare mesh slots, the machine bodies' slots, the editor's cut-away as last drawn, and which
+    /// doors are elevator landings. See home_meshes `HomeDraw`.
     pub(crate) home_draw: crate::engine::home_meshes::HomeDraw,
     /// Port pick volumes for viewport DRAG-TO-CONNECT (v0.625): (machine id, port index, the Port,
     /// world gizmo position) for every machine's derived ports. Only the SELECTED machine's ports
@@ -867,6 +869,8 @@ pub(crate) struct EngineState {
     pub(crate) aboard_bounds: Option<crate::ship::ship_space::Aabb>,
     /// The game's half of the relay's speed check (engine/move_check.rs).
     pub(crate) moves: crate::engine::move_check::ClientMoves,
+    /// The Maps page's world layer: its textures and when it last rendered (engine/map_view.rs).
+    pub(crate) map_view: crate::engine::map_view::MapViewGpu,
     /// The pieces the server keeps: ranks, each frame's seq, builds waiting for an answer (engine/shared_build.rs).
     pub(crate) shared_build: crate::engine::shared_build::SharedBuild,
     /// The packs left where the player fell: this frame's body frames, the mesh and the

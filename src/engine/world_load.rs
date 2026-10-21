@@ -330,24 +330,32 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // livestock near the fields below. (v0.751, ladder rung 7)
             let mut machine_world_pos: std::collections::HashMap<String, Vec3> =
                 std::collections::HashMap::new();
-            for inst in &all_instances {
-                let Some(def) = home.catalog.get(&inst.machine) else { continue };
-                // Position formula mirrored by the tested MachineHome::placements (the editor's
-                // live-refresh twin); keep the two in sync. (v0.525/v0.538/v0.754)
-                let pos = if let Some(zones) = zone_rects.as_deref() {
-                    // Zone-local offset at the zone's origin (increment 1a): the same
-                    // `zone_world_pos` placements() uses, so the two cannot drift.
-                    let Some(zr) = crate::machines::resolve_zone_rect(zones, &inst.zone) else { continue };
-                    let (x, y, z) = crate::machines::zone_world_pos(zr, inst.offset);
-                    Vec3::new(x, y, z)
-                } else {
-                    let Some(&(center, floor_y, _ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
-                    Vec3::new(
-                        center.x + inst.offset.0,
-                        floor_y + inst.offset.1,
-                        center.z + inst.offset.2,
-                    )
-                };
+            // Every machine that is placed (its catalog entry known, its zone or room found), with
+            // where it stands, first: their count is how many mesh slots the bodies take.
+            let resolved: Vec<(&crate::machines::MachineInstance, &crate::machines::MachineDef, Vec3)> = all_instances
+                .iter()
+                .filter_map(|inst| {
+                    let def = home.catalog.get(&inst.machine)?;
+                    // Position formula mirrored by the tested MachineHome::placements (the editor's
+                    // live-refresh twin); keep the two in sync. (v0.525/v0.538/v0.754)
+                    let pos = if let Some(zones) = zone_rects.as_deref() {
+                        // Zone-local offset at the zone's origin (increment 1a): the same
+                        // `zone_world_pos` placements() uses, so the two cannot drift.
+                        let zr = crate::machines::resolve_zone_rect(zones, &inst.zone)?;
+                        let (x, y, z) = crate::machines::zone_world_pos(zr, inst.offset);
+                        Vec3::new(x, y, z)
+                    } else {
+                        let &(center, floor_y, _ceiling_y) = rooms.get(inst.room.as_str())?;
+                        Vec3::new(center.x + inst.offset.0, floor_y + inst.offset.1, center.z + inst.offset.2)
+                    };
+                    Some((inst, def, pos))
+                })
+                .collect();
+            // The bodies' slots: last entry's, then the home's spares, then new ones (the
+            // 2026-10-21 follow-ups: every entry used to add a slot per machine, orphaning the
+            // last entry's, so the renderer's mesh list grew by the household at each entry).
+            let slots = crate::engine::home_meshes::take_machine_slots(state, resolved.len());
+            for (&(inst, def, pos), &(mesh_idx, mat)) in resolved.iter().zip(&slots) {
                 let (sx, sy, _sz) = def.size;
                 // GLB model when declared (v0.734); primitive fallback on
                 // any load error. Per-instance parse — see the editor
@@ -380,13 +388,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                             def.size,
                         )
                     });
-                let mesh_idx = state.renderer.add_mesh(mesh);
-                let mat = state.renderer.add_material_typed(
-                    [def.color.0, def.color.1, def.color.2, 1.0],
-                    0.1,
-                    0.7,
-                    0.0,
-                );
+                state.renderer.replace_mesh(mesh_idx, mesh);
+                state.renderer.update_material_typed(mat, [def.color.0, def.color.1, def.color.2, 1.0], 0.1, 0.7, 0.0);
                 // sphere is center-origin; lift it so it rests on the floor.
                 let draw_pos = if def.shape == "sphere" {
                     Vec3::new(pos.x, pos.y + sx, pos.z)
@@ -469,6 +472,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // ── Decoration plants (v0.909) ── only for a home whose start carries them
             // (`place_decorations`).
             place_decorations(state, &machine_world_pos, content.contains(&HomeContent::Decorations));
+        } else {
+            // No machines this load: the bodies' slots from the last go to the home's spares.
+            crate::engine::home_meshes::take_machine_slots(state, 0);
         }
     }
     // The grow machines' plots, lights and plot areas (2026-09-26). This load
@@ -679,6 +685,17 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // parent's Earth-relative position and drawn as a 1-px LineList
     // that the depth buffer occludes behind planets. 96 samples is
     // plenty smooth for an ellipse and a fraction of the tube verts.
+    //
+    // Each ring is the orbit as it lies NOW (the same wall-clock seconds since
+    // J2000 the frame places the bodies by): the Moon's orbit turns, its node a
+    // degree every 19 days, so a J2000 ring would miss the Moon by up to 10
+    // degrees of latitude. Cached once per world entry; a session moves it a
+    // few hundredths of a degree.
+    let ring_sim_t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+        - 946_728_000.0; // Unix secs at J2000.0 epoch
     for b in crate::cosmos::sol_bodies() {
         // Cache EVERY orbiting body's ring, tagged planet/moon so the Sky
         // settings filter at draw time (v0.786). Direct sun-orbiters =
@@ -688,7 +705,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
         // "luna".) Sun has no orbit (sample empty) → skipped naturally.
         let Some(parent) = b.parent.clone() else { continue };
         let kind = if parent == "sun" { "planet" } else { "moon" };
-        let pts_au = crate::cosmos::sample_orbit_points(b, 96);
+        let pts_au = crate::cosmos::sample_orbit_points(b, 96, ring_sim_t);
         if pts_au.len() < 3 { continue; }
         // Keep the vertices in f64 (v0.791): they are ~1.5e11 m and the
         // per-frame offset is the same magnitude with the opposite sign,

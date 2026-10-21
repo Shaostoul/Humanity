@@ -311,7 +311,7 @@ fn shipped_runs() -> (ShipStructure, Vec<ConduitRun>) {
     let ship = ship("p1");
     let home = crate::machines::MachineHome::load(&data_dir().join("machines/home.ron")).expect("the household's machines load");
     let placements = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
-    let picks = port_picks(&home, &placements);
+    let picks = port_picks(&home, &placements, Some(&ship));
     let runs = conduit_runs(Some(&ship), &home, &placements, &picks);
     (ship, runs)
 }
@@ -395,9 +395,9 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
     let hz = ship.home_zone_index();
     let cut = crate::engine::editor::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
     let (o, body) = (ship.zones[hz].origin_vec(), &ship.zones[hz].body);
-    // Over the cut in the home's box, and the edge round it the cut takes with it (a wall unit's
-    // port gizmos stand past the shell: the study's uplink and router risers are at x 55.05), by
-    // the numbers, not by `hides`.
+    // Over the cut in the home's box, and the edge round it the cut takes with it (a door in the
+    // shell stands on its edge; a wall unit's port gizmos stood past it, the study's uplink and
+    // router risers at x 55.05, until `gizmo_room` kept them in), by the numbers, not by `hides`.
     let m = crate::engine::editor::CUT_EDGE_M;
     let over = |p: Vec3| {
         p.y > cut.cut_y + 1e-3 && p.x >= o.x - m && p.x <= o.x + body.width + m && p.z >= o.z - m && p.z <= o.z + body.depth + m
@@ -443,4 +443,222 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
         drawn_under <= whole_under + slack + 0.01 && drawn_under >= whole_under - kept_clear,
         "the cut-away draws {drawn_under:.2} m of runs under its cut, of {whole_under:.2} m ({risers} risers through it)"
     );
+}
+
+/// The household's machines of `file` (under data/machines/) placed on `ship`.
+fn shipped_placements(ship: &ShipStructure, file: &str) -> (crate::machines::MachineHome, Vec<crate::machines::PlacedMachine>) {
+    let home = crate::machines::MachineHome::load(&data_dir().join("machines").join(file)).expect("the household's machines load");
+    let placements = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
+    (home, placements)
+}
+
+/// WORLD ENTRIES AGAIN AND AGAIN KEEP THE MACHINES' SLOTS (ship homes increment 7 follow-ups,
+/// 2026-10-21). The renderer only appends meshes and materials, so the machine bodies must reuse
+/// theirs, as the shell does. On the shipped homestead, six world entries, each drawing the shell
+/// (its families' slots from `assign_slots`, as `apply_homestead_meshes` takes them) and then the
+/// household's machine bodies (`machine_body_slots`, as world_load takes them), with an editor
+/// rebuild after each that removes a machine and one that puts it back (`rebuild_machine_objects`,
+/// the same call), leave the renderer holding as many slots after the sixth entry as after the
+/// first, every slot it made either in use or spare, and none in use twice.
+///
+/// Seen red first (2026-10-21) with a fresh slot per machine at every entry and rebuild, as
+/// world_load took them: "after six world entries the renderer holds 6326 slots; after one it held
+/// 1156 ([1156, 2190, 3224, 4258, 5292, 6326] by entry)".
+#[test]
+fn world_entries_again_and_again_keep_the_machines_slots() {
+    let ship = ship("p1");
+    let (_, placements) = shipped_placements(&ship, "home.ron");
+    let machines = placements.len();
+    assert!(machines > 100, "the shipped household places {machines} machines");
+    let shell = shell_family_needs(&ship.generate_meshes());
+    let mut draw = HomeDraw::default();
+    let mut made = 0usize;
+    let mut shell_slots: Vec<Vec<Slot>> = vec![Vec::new(); 8];
+    let (mut made_by_entry, mut problems) = (Vec::new(), Vec::new());
+    for entry in 0..6 {
+        let (got, _) = assign_slots(&mut draw.spare, shell_slots.into_iter().zip(shell).collect(), || {
+            made += 1;
+            (made, made)
+        });
+        shell_slots = got;
+        for need in [machines, machines - 1, machines] {
+            let (slots, _) = machine_body_slots(&mut draw, need, || {
+                made += 1;
+                (made, made)
+            });
+            if slots.len() != need {
+                problems.push(format!("entry {entry}: {} slots for {need} machines", slots.len()));
+            }
+        }
+        let mut all: Vec<Slot> = shell_slots.iter().flatten().chain(&draw.machine_slots).chain(&draw.spare).copied().collect();
+        let n = all.len();
+        all.sort_unstable();
+        all.dedup();
+        if all.len() != n {
+            problems.push(format!("entry {entry}: a slot is held twice"));
+        }
+        if n != made {
+            problems.push(format!("entry {entry}: {made} slots made, {n} in use or spare"));
+        }
+        made_by_entry.push(made);
+    }
+    assert_eq!(
+        made_by_entry[5], made_by_entry[0],
+        "after six world entries the renderer holds {} slots; after one it held {} ({made_by_entry:?} by entry)",
+        made_by_entry[5], made_by_entry[0]
+    );
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// THE EDITOR'S CUT-AWAY IS DRAWN AGAIN AFTER A WORLD LOAD (ship homes increment 7 follow-ups,
+/// 2026-10-21). With the build editor open on the shipped homestead's ground storey, its
+/// cut-away (the upper floor taken out) is drawn by a rebuild that records the cut it drew
+/// (`HomeDraw::drew_cut`). A world load uploads the whole ship (`apply_homestead_meshes`,
+/// `HomeDraw::drew_whole_ship`), so the cut-away is stale after it and the next frame draws it
+/// again (`HomeDraw::view_stale`, `editor::follow_storey_view`); with the editor closed the whole
+/// ship is what is wanted and nothing is redrawn.
+///
+/// Seen red first (2026-10-21) with the view's record kept apart from the drawing, which a world
+/// load never touched, as `StoreyEditor::drawn` was: "after a world load the editor on the ground
+/// storey shows the whole ship, and its cut-away is not drawn again".
+#[test]
+fn the_cut_away_is_drawn_again_after_a_world_load() {
+    let ship = ship("p1");
+    let want = crate::engine::editor::cut_away_of(&ship, ship.home_zone_index(), 0);
+    assert!(want.is_some(), "the homestead's ground storey has the upper floor over it");
+    let mut draw = HomeDraw::default();
+    assert!(draw.view_stale(want), "the editor opened on the ground storey: its cut-away is to be drawn");
+    // The rebuild that draws it: the upload, then the cut it drew.
+    draw.drew_whole_ship();
+    draw.drew_cut(want);
+    assert!(!draw.view_stale(want), "the cut-away drawn, it is not drawn again every frame");
+    // A world load: the whole ship uploaded.
+    draw.drew_whole_ship();
+    assert!(draw.view_stale(want), "after a world load the editor on the ground storey shows the whole ship, and its cut-away is not drawn again");
+    assert!(!draw.view_stale(None), "with the editor closed after the load, the whole ship is what it shows");
+}
+
+/// THE CUT-AWAY LEAVES OUT THE PLANTS AND GROW TENTS OVER IT (ship homes increment 7 follow-ups,
+/// 2026-10-21). The plants and the tents are drawn from the whole ship like the machines, so with
+/// the shipped homestead's ground-storey cut-away a plant mesh or a tent whose machine stands on
+/// the upper floor (the bedroom's, 3.0 m up) is left out, by its machine's foot as the machine is
+/// (`plant_draws`, `tents_shown`), and one in the greenhouse below is drawn; with no cut both are.
+/// Nothing grows upstairs in the homestead today, but a bed can be put anywhere.
+///
+/// Seen red first (2026-10-21) with both drawn whatever the cut, as they were: "the cut-away draws
+/// the plants of meshes [1, 2]; want [1], the greenhouse's".
+#[test]
+fn the_cut_away_leaves_out_the_plants_and_tents_over_it() {
+    let ship = ship("p1");
+    let hz = ship.home_zone_index();
+    let o = ship.zones[hz].origin_vec();
+    let cut = crate::engine::editor::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
+    let greenhouse = o + Vec3::new(30.0, 0.0, 60.0);
+    let bedroom = o + Vec3::new(38.0, 3.0, 34.0);
+    let plants = vec![(1, 7, greenhouse), (2, 7, bedroom)];
+    let drawn: Vec<usize> = plant_draws(&plants, Some(cut)).iter().map(|r| r.mesh).collect();
+    assert_eq!(drawn, vec![1], "the cut-away draws the plants of meshes {drawn:?}; want [1], the greenhouse's");
+    assert_eq!(plant_draws(&plants, None).len(), 2, "with no cut every plant is drawn");
+    let tents = vec![(greenhouse, 0.0, (1.2, 2.0, 0.6)), (bedroom, 90.0, (1.2, 2.0, 0.6))];
+    let shown: Vec<Vec3> = tents_shown(&tents, Some(cut)).iter().map(|t| t.0).collect();
+    assert_eq!(shown, vec![greenhouse], "the cut-away draws the tents at {shown:?}; want the greenhouse's only");
+    assert_eq!(tents_shown(&tents, None).len(), 2, "with no cut every tent is drawn");
+}
+
+/// EVERY PORT GIZMO STANDS INSIDE ITS HOME AND UNDER THE CEILING OVER ITS MACHINE (ship homes
+/// increment 7 follow-ups, 2026-10-21). A machine's port gizmos (the editor's drag handles, and
+/// where its runs end) ringed it 0.3 m over its top: the study's uplink and router, against the
+/// house's east wall, had theirs past the shell (x 55.02 to 55.05 on a 55 m house), so their
+/// risers ran outside it; and the air handlers hung under the slab (c1, h1 to h4, their tops 1 cm
+/// under it) had theirs over the slab's top, on the upper floor. In both shipped households, every
+/// gizmo now stands inside the shell of the zone its machine stands in (less half the shell's
+/// thickness), over the floor of the machine's storey and under the ceiling over it (`gizmo_room`).
+///
+/// Seen red first (2026-10-21) with the gizmos ringing every machine as they did: "27 of 195 port
+/// gizmos stand outside their home or their storey", among them "home.ron uplink_1 port 0 at
+/// x 55.05, z 36.40: outside the shell (x 0.03 to 54.97, z 0.03 to 88.97)" (the study's server and
+/// router, and the shower room's WC and basin against the same wall, too) and "home.ron
+/// air_handler_c1 port 0 at y 3.04: over the ceiling at 2.75" (c1, h1 to h4, and the mushroom
+/// room's fan at 2.91).
+#[test]
+fn every_port_gizmo_stands_inside_its_home_and_under_its_ceiling() {
+    let ship = ship("p1");
+    let (mut problems, mut checked) = (Vec::new(), 0usize);
+    for file in ["home.ron", "home_solo.ron"] {
+        let (home, placements) = shipped_placements(&ship, file);
+        for (id, i, _port, wp) in port_picks(&home, &placements, Some(&ship)) {
+            let p = placements.iter().find(|p| p.id == id).expect("a gizmo's machine is placed");
+            let foot = machine_foot(p);
+            let Some((o, body)) = zone_holding(&ship, foot) else { continue };
+            checked += 1;
+            let half = body.shell_resolved_thickness() * 0.5;
+            let (x0, x1, z0, z1) = (o.x + half, o.x + body.width - half, o.z + half, o.z + body.depth - half);
+            let name = format!("{file} {id} port {i}");
+            if wp.x < x0 || wp.x > x1 || wp.z < z0 || wp.z > z1 {
+                problems.push(format!(
+                    "{name} at x {:.2}, z {:.2}: outside the shell (x {:.2} to {:.2}, z {:.2} to {:.2})",
+                    wp.x - o.x, wp.z - o.z, x0 - o.x, x1 - o.x, z0 - o.z, z1 - o.z
+                ));
+            }
+            let ceiling = lowest_ceiling_above(&body.floors, body.height, o, foot);
+            let floor = storey_floor_at(Some(&ship), foot, foot.y);
+            if wp.y >= ceiling {
+                problems.push(format!("{name} at y {:.2}: over the ceiling at {:.2}", wp.y - o.y, ceiling - o.y));
+            }
+            if wp.y <= floor {
+                problems.push(format!("{name} at y {:.2}: under its floor at {:.2}", wp.y - o.y, floor - o.y));
+            }
+        }
+    }
+    assert!(checked > 150, "only {checked} port gizmos stand in a zone");
+    assert!(problems.is_empty(), "{} of {checked} port gizmos stand outside their home or their storey: {problems:#?}", problems.len());
+}
+
+/// A HANGER REACHES THE CEILING OVER IT (ship homes increment 7 follow-ups, 2026-10-21). A run's
+/// service levels are per storey of the whole home (`service_levels`), and its hangers reached the
+/// level's ceiling, 2.75 m on the ground storey: right under the slabs, but in the double-height
+/// greenhouse, which has none, every hanger on a ground run stopped at 2.75 m in mid-air under its
+/// 6 m roof. A hanger reaches the ceiling really over it now (`RunSite::hanger_top`): the greenhouse's
+/// roof, a slab's underside elsewhere downstairs, the roof upstairs; outside the home, its level's.
+/// On the shipped homestead every hanger of every run reaches a ceiling, and those in the
+/// greenhouse reach its roof.
+///
+/// Seen red first (2026-10-21) with each hanger reaching its level's ceiling, as it did: "in the
+/// greenhouse a hanger reaches 2.75; its roof is at 6".
+#[test]
+fn a_hanger_reaches_the_ceiling_over_it() {
+    let (ship, runs) = shipped_runs();
+    let site = run_site(Some(&ship));
+    let hz = ship.home_zone_index();
+    let (o, body) = (ship.zones[hz].origin_vec(), &ship.zones[hz].body);
+    let at = |x: f32, y: f32, z: f32| o + Vec3::new(x, y, z);
+    let top = site.hanger_top(at(30.0, 2.45, 60.0), o.y + 2.75) - o.y;
+    assert!((top - 6.0).abs() < 1e-4, "in the greenhouse a hanger reaches {top:.2}; its roof is at 6");
+    let top = site.hanger_top(at(38.0, 2.45, 34.0), o.y + 2.75) - o.y;
+    assert!((top - 2.75).abs() < 1e-4, "in the dining room a hanger reaches {top:.2}; the slab's underside is at 2.75");
+    let top = site.hanger_top(at(38.0, 5.7, 34.0), o.y + 6.0) - o.y;
+    assert!((top - 6.0).abs() < 1e-4, "in the bedroom upstairs a hanger reaches {top:.2}; the roof is at 6");
+    assert_eq!(site.hanger_top(o + Vec3::new(-50.0, 2.45, 10.0), 9.0), 9.0, "outside the home a hanger reaches its level's ceiling");
+    // Every hanger of the shipped runs reaches a ceiling over it: a slab's underside or the roof.
+    let ceilings: Vec<f32> = body.floors.iter().map(|s| o.y + s.underside()).chain(std::iter::once(o.y + body.height)).collect();
+    let (mut problems, mut in_greenhouse) = (Vec::new(), 0usize);
+    for run in &runs {
+        let (route, service_y, ceiling) = route_run(&site, run);
+        for f in route.fittings.iter().filter(|f| matches!(f.kind, crate::ship::conduits::FittingKind::Bracket) && (f.at.y - service_y).abs() <= 0.1) {
+            let top = site.hanger_top(f.at, ceiling);
+            if !ceilings.iter().any(|c| (c - top).abs() < 1e-4) {
+                problems.push(format!("{} {} -> {}: a hanger at {:?} reaches {:.2}, no ceiling", run.kind, run.from, run.to, f.at - o, top - o.y));
+            }
+            let (x, z) = (f.at.x - o.x, f.at.z - o.z);
+            if (10.0..=55.0).contains(&x) && (51.0..=73.0).contains(&z) {
+                in_greenhouse += 1;
+                if (top - (o.y + 6.0)).abs() > 1e-4 {
+                    problems.push(format!("{} {} -> {}: a hanger in the greenhouse reaches {:.2}", run.kind, run.from, run.to, top - o.y));
+                }
+            }
+        }
+    }
+    assert!(in_greenhouse > 0, "no hanger of the shipped runs is in the greenhouse, so this proves nothing there");
+    problems.dedup();
+    assert!(problems.is_empty(), "{problems:#?}");
 }

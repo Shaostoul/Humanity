@@ -1,4 +1,8 @@
-// The player's homestead: a real orbiting station, not a position constant.
+// The ship the players live on, the UHS Mothership: a real orbiting station, not a position
+// constant. Its name is the ship's own (data/fleet.json, "UHS Mothership"); until 2026-10-21 this
+// file called it "Homestead" and the in-world marker "Home Station", three names for one thing
+// (Maps increment 1, decision 8 of docs/design/maps-zoom-to-anything.md). "Homestead" is the
+// name of a start, the home a family lives in aboard it (data/homes/starts.ron), not the ship.
 //
 // Before v0.1225 these numbers lived hardcoded in the engine's frame loop and
 // the orbit was phased off the REAL-WORLD wall clock, so the in-game time of day
@@ -23,7 +27,7 @@
 // frozen-lighting behaviour as a deliberate choice.
 (
     id: "home",
-    name: "Homestead",
+    name: "UHS Mothership",
     parent: "earth",
     orbit: (
         // Synchronous derives the semi-major axis from Earth's rotation period

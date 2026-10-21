@@ -102,7 +102,7 @@ pub fn home(defs: &[StationDef]) -> StationDef {
 pub fn default_home() -> StationDef {
     StationDef {
         id: "home".to_string(),
-        name: "Homestead".to_string(),
+        name: "UHS Mothership".to_string(),
         parent: "earth".to_string(),
         orbit: OrbitDef {
             period: PeriodSpec::Synchronous,
@@ -125,6 +125,9 @@ mod tests {
     /// engine assumes when it says the home hangs over one spot on Earth. A
     /// silent parse failure would fall back to the default and look identical,
     /// so this asserts the FILE parses rather than that some station exists.
+    /// Since Maps increment 1 it also holds the ship to its one name; seen
+    /// red 2026-10-21 with the file's old name: left "Homestead", right "UHS
+    /// Mothership".
     #[test]
     fn shipped_home_station_parses_and_is_synchronous() {
         let p = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -136,6 +139,8 @@ mod tests {
         let def: StationDef = ron::from_str(&text)
             .unwrap_or_else(|e| panic!("data/stations/home.ron must parse: {e}"));
         assert_eq!(def.id, "home");
+        assert_eq!(def.name, "UHS Mothership", "the ship has one name everywhere (data/fleet.json's)");
+        assert_eq!(def.name, default_home().name, "the fallback carries the same name");
         assert_eq!(def.parent, "earth");
         assert_eq!(def.orbit.period, PeriodSpec::Synchronous);
         assert!(

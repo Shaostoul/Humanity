@@ -485,7 +485,10 @@ fn the_stair_meets_the_finding_and_its_headroom_is_clear() {
 /// IRC; these are 1.0 m) or be the stair's top; and a step onto a slab that is no upstairs room
 /// (the lids over the ground rooms) must cross a wall, never a door. The two edges left open are
 /// decision 9 of the plan, both lane M's: the elevator's landing door (opens only with the car at
-/// the landing) and the ladder's 0.6 m access gap (a self-closing gate).
+/// the landing) and the ladder's 0.8 m access gap between G4 and G5, which a gate across the
+/// ladder's top closes (engine/footing.rs `ladder_gates`; the gap was the ladder's own 0.6 m until
+/// the increment's review, too narrow for a 0.6 m body between the balustrades' ends,
+/// docs/design/homestead-upper-floor.md section 12).
 ///
 /// Prints the guards (`--nocapture`) so they can be swapped for lane G's guard piece.
 ///

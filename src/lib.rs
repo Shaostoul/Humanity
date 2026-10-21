@@ -2065,6 +2065,7 @@ mod native_app {
                 ship_air: Default::default(),
                 aboard_bounds: None,
                 moves: Default::default(),
+                map_view: Default::default(),
                 shared_build: Default::default(),
                 death_packs: Default::default(),
                 screenshot_counter: 0,
@@ -3533,11 +3534,12 @@ mod native_app {
                         let station_dist = off.length();
                         if state.gui_state.settings.track_station && station_dist > 1_000.0 {
                             state.gui_state.target_markers.push((
-                                "Home Station".to_string(),
+                                state.station_def.name.clone(),
                                 state.station_off,
                                 station_dist,
                             ));
                         }
+                        crate::engine::map_feed::publish(state, vel); // Maps: where you are, this frame's pose (engine/map_feed.rs)
                     }
 
                     // A station camera park reports only now, after the block above
@@ -7679,30 +7681,15 @@ mod native_app {
                         // editor's cut-away leaves out (home_meshes `push_home_machines`).
                         crate::engine::home_meshes::push_home_machines(state, &mut all_objects);
                         // Procedural plants (v0.862): one merged mesh per planted
-                        // tower, geometry already in world coordinates.
-                        for &(mesh_idx, mat_idx) in &state.plant_objects {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: Vec3::ZERO,
-                                rotation: Quat::IDENTITY,
-                                scale: Vec3::ONE,
-                                mesh: mesh_idx,
-                                material: mat_idx,
-                            });
-                        }
+                        // tower, geometry already in world coordinates; and the
+                        // photoscanned decoration plants (v0.909, CC0 models
+                        // scattered from data/entities/decorations.ron). Those the
+                        // editor's cut-away leaves out are not drawn
+                        // (home_meshes `push_home_plants`).
+                        crate::engine::home_meshes::push_home_plants(state, &mut all_objects);
                         // Grow enclosures (2026-09-27): each mushroom rack's
                         // clear fruiting tent, in the transparent pass.
                         push_grow_enclosures(state, &mut transparent_objects);
-                        // Photoscanned decoration plants (v0.909): CC0 models
-                        // scattered from data/entities/decorations.ron.
-                        for &(mesh_idx, mat_idx, pos, yaw, scl, _anchor) in &state.decoration_objects {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: pos,
-                                rotation: Quat::from_rotation_y(yaw.to_radians()),
-                                scale: Vec3::splat(scl),
-                                mesh: mesh_idx,
-                                material: mat_idx,
-                            });
-                        }
                         }
                         // Connection cylinders (live, colored by kind; follow rooms). (v0.530)
                         if !hide_pipes {
@@ -8825,8 +8812,19 @@ mod native_app {
                             // (from its pick volume centre+radius), so every machine has a helper widget
                             // like the structures. Trims the click margin so the cube ~ the body. (v0.636:
                             // skipped when the Machine type is hidden.)
+                            // Those the storey cut-away leaves out with their machines are not
+                            // drawn (`HomeDraw::cut`, by the machine's placement as the body is;
+                            // machine_pick is in placement order with machine_objects).
                             const MB: [f32; 4] = [0.55, 0.8, 0.95, 0.5];
-                            for (_id, center, radius) in state.machine_pick.iter().filter(|_| !state.gui_state.construction_hidden_types.contains("Machine")) {
+                            let cut = state.home_draw.cut;
+                            let shown_machine = |i: usize| !cut.is_some_and(|c| state.machine_objects.get(i).is_some_and(|m| c.hides(m.2)));
+                            for (_id, center, radius) in state
+                                .machine_pick
+                                .iter()
+                                .enumerate()
+                                .filter(|(i, _)| shown_machine(*i) && !state.gui_state.construction_hidden_types.contains("Machine"))
+                                .map(|(_, m)| m)
+                            {
                                 let r = (radius - 0.3).max(0.2);
                                 let c = *center;
                                 let fc = [(c.x - r, c.z - r), (c.x + r, c.z - r), (c.x + r, c.z + r), (c.x - r, c.z + r)];
@@ -8855,7 +8853,15 @@ mod native_app {
                             };
                             {
                                 let sel = state.gui_state.construction_machine_selected.clone();
-                                if let Some(sel_id) = sel.as_deref() {
+                                // A machine the storey cut-away leaves out (one upstairs, kept
+                                // selected while the ground is edited) has no port gizmos drawn
+                                // either: by the machine, as its body (a greenhouse unit's gizmos
+                                // stand over the cut's height under the 6 m roof, and are shown
+                                // with their machine).
+                                let sel_shown = sel.as_deref().map_or(true, |s| {
+                                    state.machine_pick.iter().position(|(id, ..)| id == s).map_or(true, shown_machine)
+                                });
+                                if let Some(sel_id) = sel.as_deref().filter(|_| sel_shown) {
                                     for (mid, _i, port, wp) in &state.port_pick {
                                         if mid != sel_id {
                                             continue;
@@ -8940,7 +8946,12 @@ mod native_app {
                                 const GRID_TIE: [f32; 4] = [1.0, 0.55, 0.15, 0.95]; // amber service-entrance
                                 let sel_pipe = state.gui_state.construction_conduit_node_selected.as_deref();
                                 let hide_pipe_nodes = state.gui_state.construction_hidden_types.contains("Pipe"); // v0.636
-                                for n in hm.conduit_nodes.iter().filter(|_| !hide_pipe_nodes) {
+                                // Not those the storey cut-away leaves out with the runs over it.
+                                for n in hm
+                                    .conduit_nodes
+                                    .iter()
+                                    .filter(|n| !hide_pipe_nodes && !cut.is_some_and(|c| c.hides(Vec3::new(n.pos.0, n.pos.1, n.pos.2))))
+                                {
                                     let c = [n.pos.0, n.pos.1, n.pos.2];
                                     // TIER sizes the node (v0.632): tier 0 main = a big ring, subs smaller,
                                     // so the trunk-and-branch hierarchy reads at a glance.
@@ -14655,6 +14666,7 @@ mod native_app {
                     // app with vsync off (BUG-077).
                     state.renderer.apply_pending_surface_config();
 
+                    crate::engine::map_view::frame(state, &celestial_objects, &celestial_transparent, &orbit_lines, &all_objects, &transparent_objects, &overlay_objects, &ring_lines); // Maps world layer (engine/map_view.rs)
                     let scene_result = if page_active {
                         // UI-only frame: skip 3D render, clear to dark background
                         state.renderer.acquire_surface_cleared(wgpu::Color {
@@ -14935,11 +14947,7 @@ mod native_app {
                                 // jump the un-shifted vector would light the destination
                                 // planet's wrong hemisphere. At home the correction is
                                 // ~3e-7 rad (GEO vs 1 AU) -- invisible.
-                                let sun_dir_f = {
-                                    let d = (state.sun_world_pos - state.ship_world_pos)
-                                        .normalize_or_zero();
-                                    Vec3::new(d.x as f32, d.y as f32, d.z as f32)
-                                };
+                                let sun_dir_f = crate::engine::ipc::celestial_sun_dir(state); // render frame: the hull's axes aboard (BUG-210)
                                 // The elapsed-seconds arg is the cloud-deck clock
                                 // (shader type 15 animation); app-start-relative so
                                 // f32 stays precise for days of uptime.

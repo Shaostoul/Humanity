@@ -330,7 +330,10 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // whole synchronous orbit shifts the sun direction by 0.03 degrees.
             // A hull only gets a day if it TURNS. This is a lighting control,
             // which is why it sits with the clock and not in Settings.
-            ui.label(RichText::new("Home station").strong().color(theme.accent()));
+            // The ship's own name (data/stations/home.ron, through the Maps feed), not a
+            // second one for the same thing (Maps increment 1, decision 8).
+            let ship = state.maps.me.as_ref().map_or("Your ship", |m| m.ship_name.as_str()).to_string();
+            ui.label(RichText::new(ship).strong().color(theme.accent()));
             ui.add_space(2.0);
             if !state.station_readout.is_empty() {
                 ui.label(

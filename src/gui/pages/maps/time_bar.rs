@@ -33,7 +33,7 @@ pub(crate) fn set_clock_for_snapshot(seconds_since_j2000: Option<f64>) {
 /// Seconds since J2000.0 corresponding to the current real-world clock.
 /// Used to initialize sim_time so the user sees today's planetary
 /// configuration without scrubbing.
-pub(super) fn current_real_time_seconds_since_j2000() -> f64 {
+pub(crate) fn current_real_time_seconds_since_j2000() -> f64 {
     #[cfg(test)]
     if let Some(t) = TEST_NOW_SINCE_J2000.with(|c| c.get()) {
         return t;
@@ -122,13 +122,18 @@ pub(super) fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             );
             ui.separator();
 
-            // ── Now button — jumps sim_time to current real-world time ──
-            if widgets::Button::secondary("Now")
-                .tooltip("Set the date to right now (your system clock). Useful for \
-                          seeing today's planetary configuration vs real-life observations.")
+            // ── Live (Maps increment 1; was "Now"): back on the game's own
+            //    clock, the ship and the planets where the game has them. Any
+            //    scrub, skip or speed change below takes the clock off it. ──
+            if widgets::Button::secondary("Live")
+                .active(state.maps.live)
+                .tooltip("Show the ship and the planets exactly where the game has them, right now. \
+                          Scrubbing or changing the speed leaves Live; press this to come back.")
                 .show(ui, theme)
             {
-                state.maps.sim_time_seconds = current_real_time_seconds_since_j2000();
+                state.maps.live = true;
+                state.maps.sim_speed = 0.0;
+                state.maps.sim_time_seconds = state.maps.me.as_ref().map_or_else(current_real_time_seconds_since_j2000, |m| m.sky_seconds);
             }
             ui.separator();
 
@@ -208,7 +213,7 @@ pub(super) fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             // ── Current speed label ──
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    RichText::new(format!("· {}", format_sim_speed(state.maps.sim_speed)))
+                    RichText::new(if state.maps.live { "· live, the game's own clock".to_string() } else { format!("· {}", format_sim_speed(state.maps.sim_speed)) })
                         .size(theme.font_size_small)
                         .color(theme.text_muted())
                         .italics(),

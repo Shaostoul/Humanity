@@ -166,6 +166,8 @@ const VANTAGES_FILE = path.resolve(opt("--vantages", path.join(REPO, "tests", "v
 // The ground_probe vantage check (BUG-156): where the near trees and the eye
 // stand against the ground drawn under them, judged from the game's readout.
 const TG = require("./lib/tree-ground-check.js");
+// The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
+const MC = require("./lib/map-centre-check.js");
 const WR = require("./lib/write-request.js");
 // The DESCENT LADDER (environment program increment 1): instead of the
 // vantage list, fly one fixed surface column down a rung list from orbit
@@ -1055,10 +1057,15 @@ async function main() {
         // puts the eye inside a hut the post_showcase built
         // (planet-built-inside), which no camera park can do (a park sits
         // tens of metres over the ground).
+        // A LIST is sent one request at a time, each followed by the settle
+        // (Maps increment 1: open the map, THEN move the clock, so the map
+        // has framed the ship before the ship moves).
         if (v.final_showcase) {
-          req("showcase_request.json", v.final_showcase);
-          await sleep((v.final_settle_s ?? 4) * 1000);
-          log(`  final showcase sent: ${JSON.stringify(v.final_showcase)}`);
+          for (const step of Array.isArray(v.final_showcase) ? v.final_showcase : [v.final_showcase]) {
+            req("showcase_request.json", step);
+            await sleep((v.final_settle_s ?? 4) * 1000);
+            log(`  final showcase sent: ${JSON.stringify(step)}`);
+          }
         }
         // Capture window opens: anyone else on this GPU from here to the last
         // shot below invalidates this vantage's timing numbers.
@@ -1110,6 +1117,47 @@ async function main() {
           if (!shot2 || shot2.ok !== true) throw new Error(`screenshot b: ${JSON.stringify(shot2)}`);
           fs.copyFileSync(path.join(RIG, shot2.path), path.join(OUT, `${v.id}-b.png`));
           rec.screenshot_b = `${v.id}-b.png`;
+        }
+        // MAP CENTRE (Maps increment 1, 2026-10-21): a vantage with
+        // `map_centre` asks the game where the Maps canvas is
+        // (debug/map_done.json), captures the map again with the ship left out
+        // of its world layer ({"map_ship":"0"}), and judges the pixels that
+        // changed (scripts/lib/map-centre-check.js): they are the ship, and
+        // they must sit in the middle. `map_centre.expect: "fail"` marks a
+        // control, which passes only by failing the check.
+        if (v.map_centre) {
+          // The costs as they stood at the capture, before the ship-less
+          // renders below fold into them (the map at rest, for the cost table).
+          const fcAt = path.join(RIG, "debug", "frame_costs.json");
+          if (fs.existsSync(fcAt)) fs.copyFileSync(fcAt, path.join(OUT, `${v.id}-costs-at-capture.json`));
+          clearDone("map_done.json");
+          req("showcase_request.json", { map: "report" });
+          const withShip = await waitFile("map_done.json", 20000);
+          if (!withShip) throw new Error("map centre: the game wrote no debug/map_done.json");
+          clearDone("map_done.json");
+          req("showcase_request.json", { map_ship: "0", map_report: "1" });
+          const withoutShip = await waitFile("map_done.json", 20000);
+          // With the world layer drawn, it must have re-rendered without the ship;
+          // with none (the camera too far from the ship, as in the 2-hour control)
+          // the second capture is the map as it is, and that is the comparison.
+          if (!withoutShip || !withoutShip.world || (withoutShip.world.want === "Draw" && withoutShip.world.ship_drawn !== false)) {
+            throw new Error(`map centre: the map did not render without the ship: ${JSON.stringify(withoutShip)}`);
+          }
+          await sleep(600);
+          clearDone("screenshot_done.json");
+          req("screenshot_request.json", {});
+          const shotN = await waitFile("screenshot_done.json", 60000);
+          if (!shotN || shotN.ok !== true) throw new Error(`map centre screenshot: ${JSON.stringify(shotN)}`);
+          const noShip = `${v.id}-noship.png`;
+          fs.copyFileSync(path.join(RIG, shotN.path), path.join(OUT, noShip));
+          req("showcase_request.json", { map_ship: "1" });
+          await sleep(1000); // read before the next vantage writes its own request
+          fs.writeFileSync(path.join(OUT, `${v.id}-map.json`), JSON.stringify({ with_ship: withShip, without_ship: withoutShip }, null, 2));
+          const check = MC.judgeFiles(path.join(OUT, destName), path.join(OUT, noShip), withShip.canvas_px, v.map_centre);
+          const expect = v.map_centre.expect || "pass";
+          const verdict = MC.vantageVerdict(check, expect);
+          rec.map_centre = { ok: verdict.ok, expect, check_ok: check.ok, message: verdict.message, offset_frac: check.offset_frac ?? null, frac: check.frac ?? null };
+          log(`  map centre: ${verdict.ok ? "ok" : "FAILED"}: ${verdict.message}`);
         }
         // PROFILE ATLAS DUMP (the far rung, perf increment 4): a vantage
         // with `dump_cloud_profile: true` asks the engine, after the
@@ -1209,6 +1257,21 @@ async function main() {
         if (rec.ok && rec.ground_probe && !rec.ground_probe.ok) {
           rec.ok = false;
           rec.error = `GROUND PROBE: ${rec.ground_probe.failures.join(" | ")}`;
+        }
+        if (rec.ok && rec.map_centre && !rec.map_centre.ok) {
+          rec.ok = false;
+          rec.error = `MAP CENTRE: ${rec.map_centre.message}`;
+        }
+        // A page a final_showcase opened stays open into the next vantage,
+        // which would then capture the page instead of the world (and the
+        // Maps page carried its dev turn into the next map vantage,
+        // 2026-10-21). Close it once this vantage's captures, gates and costs
+        // file are done.
+        const steps = v.final_showcase ? (Array.isArray(v.final_showcase) ? v.final_showcase : [v.final_showcase]) : [];
+        const pagesOpened = steps.map((s) => s.page).filter(Boolean);
+        if (pagesOpened.length && pagesOpened[pagesOpened.length - 1] !== "none") {
+          req("showcase_request.json", { page: "none" });
+          await sleep(1000);
         }
       } catch (e) {
         rec.error = String(e.message || e);
