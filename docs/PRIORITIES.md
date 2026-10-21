@@ -338,6 +338,13 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     a real build (the save swap broken). Left for later: a second home of your own on one
     computer (the new-home row offers the choice only before your own home is saved), moving
     house, a server-held character. Plan `docs/design/ship-homes-increment-6-plan.md`.
+  - **Increment 7, stacked homes and decks: IN FLIGHT (operator, 2026-10-20: "Sounds like a plan,
+    let's proceed").** Plan `docs/design/ship-homes-increment-7-plan.md` (four code surveys; the
+    contract, seven lanes, five decisions made for the operator). The homestead gets the first
+    floor docs/design/player-home.md already planned (the quiet wing upstairs by a stair off the
+    hall and the elevator at (31, 26); a dining room and a second bedroom downstairs). Wave 0 (the
+    contract), the stairs-and-guards finding with the upper floor's layout draft, and the light
+    budget analysis are running; Wave 1's lanes follow Wave 0's merge.
   - **Media round 5: Waves 0, 1 and 2 are DONE** (released through v0.1494.0): the desktop and
     website item pages and editors, counts, the item page for social sites, the strips, the
     Admin tab, the snapshots, the Reports page's Open. Not built: the browser proof rig
