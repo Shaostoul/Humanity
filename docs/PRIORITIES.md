@@ -355,7 +355,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     close on a stair or in the shaft, E and Take down through doorways, sight by height, a hung
     unit's storey) followed in v0.1535.0. Increment 7 is DONE apart from the follow-ups below.)
   - **Increment 7 follow-ups (found by the 2026-10-21 fixers).** Fixed the same day (the drawing
-    fixer, merged 680525ccf; the movement fixer, c311a3521; both in the next release): the HUD's
+    fixer, merged 680525ccf; the movement fixer, c311a3521; both in v0.1537.0): the HUD's
     labels, the dimension overlay and the 3-D helpers follow the editor's cut-away; plants and tents
     follow it; the room card names the elevator for the whole ride; machine mesh slots are pooled
     across world entries; the cut-away is redrawn after a world load; port gizmos stay under their
