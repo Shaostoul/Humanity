@@ -1912,6 +1912,9 @@ pub struct GuiState {
     /// operate on this zone; gizmos and ray picks convert between world and zone-local space
     /// through its origin.
     pub construction_zone: usize,
+    /// The storey the editor works on in that zone, the floor-slab tools and the selected slab
+    /// (ship homes increment 7, pages/construction/storeys.rs).
+    pub construction_storeys: pages::construction::StoreyEditor,
     /// Two-click delete confirm for the zone selector's "Delete zone" (v0.754): armed by the first
     /// click, executed by "Confirm delete", cleared on cancel / zone switch.
     pub construction_zone_delete_arm: bool,
@@ -1936,6 +1939,9 @@ pub struct GuiState {
     /// drop corner nodes; the first click sets `construction_wall_start`, the second adds the wall
     /// segment and chains (start = the new corner). Escape / right-click exits.
     pub construction_wall_mode: bool,
+    /// The drawing tool draws GUARDS (balustrade walls: the palette's Guard entry, ship homes
+    /// increment 7) instead of walls, while `construction_wall_mode` is on.
+    pub construction_wall_guard: bool,
     /// The pending first corner (x, z metres from the box min corner) while drawing a wall. (v0.534)
     pub construction_wall_start: Option<(f32, f32)>,
     /// The cursor's current floor position (box-local x, z) in build mode (v0.545), set by the engine
@@ -3813,6 +3819,7 @@ impl Default for GuiState {
             construction_unsaved: false,
             ship_structure: None,
             construction_zone: 0,
+            construction_storeys: Default::default(),
             construction_zone_delete_arm: false,
             construction_corridor_from_zone: 0,
             construction_corridor_to_zone: 0,
@@ -3824,6 +3831,7 @@ impl Default for GuiState {
             construction_corridor_error: String::new(),
             construction_structure_dirty: false,
             construction_wall_mode: false,
+            construction_wall_guard: false,
             construction_wall_start: None,
             construction_cursor_world: None,
             construction_wall_selected: None,

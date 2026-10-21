@@ -3520,6 +3520,38 @@ fn snapshot_construction() {
     });
 }
 
+// The B editor (the box home's wall editor, which `snapshot_construction`'s room editor is the
+// fallback of) on storey 2 of a two-storey home with a floor slab selected (ship homes increment
+// 7): the storey selector and the floor-slab tools in the left panel, the slab's detail (label,
+// corners, height, solid or glass, Remove) in the right. `just snapshot construction` renders both.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_construction_storeys() {
+    render_page_png("construction_storeys", 1280, 1200, |ctx, theme, state| {
+        if state.ship_structure.is_none() {
+            let body: crate::ship::home_structure::HomeStructure = ron::from_str(
+                "(width: 20.0, depth: 14.0, height: 6.0, \
+                 walls: [(a: (0.0, 7.0), b: (20.0, 7.0), height: 3.0), (a: (10.0, 0.0), b: (10.0, 7.0), base: 3.0, height: 3.0)], \
+                 floors: [(a: (0.0, 0.0), b: (14.0, 7.0), top: 3.0, label: Some(\"Upper floor\")), \
+                          (a: (14.0, 0.0), b: (20.0, 7.0), top: 3.0, material: Glass)])",
+            )
+            .expect("the snapshot's home parses");
+            let zone = crate::ship::ship_structure::ShipZone {
+                id: "home".into(),
+                label: "Player Home".into(),
+                purpose: "residence".into(),
+                origin: (0.0, 0.0, 0.0),
+                body,
+            };
+            state.ship_structure = Some(crate::ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() });
+        }
+        state.construction_active = true;
+        state.construction_storeys.chosen = 1;
+        state.construction_storeys.slab_selected = Some(0);
+        crate::gui::pages::construction::draw(ctx, theme, state);
+    });
+}
+
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 
