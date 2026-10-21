@@ -234,10 +234,12 @@ pub fn feet_y(eye_y: f32) -> f32 {
 
 /// THE STOREY RULE: true when a thing whose point is at height `thing_y` stands on the storey of a
 /// person whose eyes are at `eye_y`. The point may be anywhere from the thing's own floor up to 2.5
-/// m over it (the relay stands every figure and store a metre up, `ship_world::STANDING_Y_M`; the
-/// game's walk-up label floats 0.4 m over a machine; a player's point is their eye, 1.7 m up), so
-/// it is measured from the person's FEET: from half a metre under them (`STOREY_BAND_BELOW_M`) to
-/// 2.5 m over them (`STOREY_BAND_ABOVE_M`). On the person's own storey such a point rises 0 to 2.5
+/// m over it (the relay stands every figure and store a metre up, `ship_world::STANDING_Y_M`; a
+/// player's point is their eye, 1.7 m up), so it is measured from the person's FEET: from half a
+/// metre under them (`STOREY_BAND_BELOW_M`) to 2.5 m over them (`STOREY_BAND_ABOVE_M`). The game's
+/// walk-up does not use this band where a home says which storey is which: it reads the machine's
+/// FOOT on the home's own storeys (`ship::sight::walk_up_target`), and asks this band, at the foot,
+/// only of a point in no zone. On the person's own storey such a point rises 0 to 2.5
 /// m; on the storey above (3.0 m up) at least 3.0; on the one below at most 2.5 - 3.0 = -0.5, and
 /// never more than that. Comparing the two points directly does NOT work: a store on the floor
 /// above stands 4.0 m up, only 2.3 m over a 1.7 m eye.

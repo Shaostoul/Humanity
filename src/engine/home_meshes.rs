@@ -39,14 +39,73 @@ pub(crate) struct HomeDraw {
     /// shell holds never pass the most it has needed at once. The renderer only appends: before
     /// this, every toggle of the cut-away added the upper floor's slots again.
     spare: Vec<Slot>,
-    /// The build editor's cut-away as last drawn (`rebuild_homestead`), None when the whole ship
-    /// is drawn. The machines, their screens, the door panels and the elevator cars come from the
-    /// whole ship, so they are left out where it says (`CutAway::hides`).
+    /// The mesh and material slot of each machine body, in placement order, from the last world
+    /// entry or machine rebuild (`machine_body_slots`). A machine body's material is its own
+    /// (a model's shared textured material is used instead, but the slot keeps its own), so a slot
+    /// can go to the spares and come back as anything. Before the 2026-10-21 follow-ups the world
+    /// entry asked the renderer for a fresh slot per machine every time, orphaning the last entry's.
+    machine_slots: Vec<Slot>,
+    /// The build editor's cut-away as last drawn, None when the whole ship is drawn: set by every
+    /// upload of the home's shell (`apply_homestead_meshes` draws the whole ship, which a world load
+    /// does; `rebuild_homestead` then records the cut it drew). It is THE record of what is drawn,
+    /// so `editor::follow_storey_view` redraws when it is not what the editor wants
+    /// (`view_stale`). The machines, their screens, the door panels, the elevator cars, the plants
+    /// and the grow tents come from the whole ship, so they are left out where it says
+    /// (`CutAway::hides`).
     pub(crate) cut: Option<crate::engine::editor::CutAway>,
     /// Which door panels stand at an elevator's landing (`footing::lift_landing_open` answers for
     /// them), parallel to `EngineState::door_panels`. Worked out with the doors
     /// (`rebuild_door_panels`), so each frame asks the elevators about these doors only.
     landing_doors: Vec<bool>,
+}
+
+impl HomeDraw {
+    /// The home's shell was just uploaded whole (`apply_homestead_meshes`: every world load, and
+    /// every rebuild before it says which cut it drew).
+    pub(crate) fn drew_whole_ship(&mut self) {
+        self.cut = None;
+    }
+
+    /// The home's shell was just drawn as `cut` (`rebuild_homestead`, after its upload): the
+    /// editor's cut-away, or None for the whole ship.
+    pub(crate) fn drew_cut(&mut self, cut: Option<crate::engine::editor::CutAway>) {
+        self.cut = cut;
+    }
+
+    /// True when the home drawn is not the view `want` (the cut-away the editor should show, None
+    /// for the whole ship), so it must be drawn again (`editor::follow_storey_view`). A world load
+    /// draws the whole ship (`apply_homestead_meshes`), so with the editor open on a storey with
+    /// another over it the cut-away is stale after it, and is drawn again on the next frame.
+    pub(crate) fn view_stale(&self, want: Option<crate::engine::editor::CutAway>) -> bool {
+        self.cut != want
+    }
+}
+
+/// THE SLOTS FOR THE HOME'S MACHINE BODIES: `need` of them, for a world entry or a machine
+/// rebuild (2026-10-21, the increment 7 follow-ups). The machines' slots from last time are kept
+/// first, what is needed beyond them comes from the home's spares (`HomeDraw::spare`, shared with
+/// the shell), and only then from `fresh`; what is no longer needed goes to the spares
+/// (`assign_slots`, one family). Returns the slots, in placement order, and those let go that
+/// nothing took (to park their meshes). The world entry used to ask the renderer for a new slot
+/// per machine on every entry, orphaning the old ones: the renderer only appends, so its lists
+/// grew by the household's machine count at every entry.
+pub(crate) fn machine_body_slots(draw: &mut HomeDraw, need: usize, fresh: impl FnMut() -> Slot) -> (Vec<Slot>, Vec<Slot>) {
+    let prior = std::mem::take(&mut draw.machine_slots);
+    let (mut got, idle) = assign_slots(&mut draw.spare, vec![(prior, need)], fresh);
+    let slots = got.pop().unwrap_or_default();
+    draw.machine_slots = slots.clone();
+    (slots, idle)
+}
+
+/// `machine_body_slots` against the renderer: the slots for `need` machine bodies, a fresh one
+/// holding a stand-in until it is filled, and every slot let go parked (its mesh freed).
+pub(crate) fn take_machine_slots(state: &mut EngineState, need: usize) -> Vec<Slot> {
+    let renderer = &mut state.renderer;
+    let (slots, idle) = machine_body_slots(&mut state.home_draw, need, || new_slot(renderer));
+    for s in idle {
+        park_slot(&mut state.renderer, s);
+    }
+    slots
 }
 
 /// THE SLOTS FOR ONE REBUILD of a set of mesh families (the home's shell: floors, walls, trim,
@@ -148,8 +207,10 @@ fn fill_one(r: &mut crate::renderer::Renderer, slots: &[Slot], mesh: &(Vec<crate
 /// used to be orphaned. A per-frame rebuild during a room drag, or the editor's cut-away shown and
 /// hidden again and again, never grows the renderer's lists (`assign_slots`).
 pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::ship::fibonacci::HomesteadMeshes) {
-    // These meshes are the whole ship unless `rebuild_homestead` says otherwise after this.
-    state.home_draw.cut = None;
+    // These meshes are the whole ship unless `rebuild_homestead` says otherwise after this. A world
+    // load ends here, so the editor's cut-away, if it is open on a storey with another over it, is
+    // drawn again on the next frame (`HomeDraw::view_stale`).
+    state.home_draw.drew_whole_ship();
     let needs = shell_family_needs(&homestead);
     let held = |s: Option<Slot>| s.into_iter().collect::<Vec<_>>();
     let prior: [Vec<Slot>; 8] = [
@@ -325,8 +386,10 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // What else the cut-away leaves out, kept with the meshes it drew (`apply_homestead_meshes`
     // clears it, so a load that draws the whole ship drops it): the machines, their screens, the
     // door panels and the elevator cars, drawn from the whole ship, follow it by where they stand
-    // (`HomeDraw::cut`; increment 7 review, 2026-10-21).
-    state.home_draw.cut = crate::engine::editor::editor_cut(state);
+    // (`HomeDraw::cut`; increment 7 review, 2026-10-21). It is also the record the editor's view
+    // follows (`editor::follow_storey_view`).
+    let drawn = crate::engine::editor::editor_cut(state);
+    state.home_draw.drew_cut(drawn);
     // Room GI follows the rooms (engine/room_gi.rs; a no-op when they did not change).
     crate::engine::room_gi::rooms_changed(state, &room_info);
     // The hull wrap follows the structure (increment D): a zone add/move/resize or a roof
@@ -545,17 +608,87 @@ pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<crate::machi
     Some(home.placements(&rooms, zone_rects.as_deref()))
 }
 
+/// How far over a machine's top (or under its bottom) its port gizmos stand, metres.
+const GIZMO_RISE_M: f32 = 0.3;
+/// How far a port gizmo is kept inside the inner face of its home's shell (metres): the length
+/// of the arrows drawn round it (lib.rs, 0.28 m), so they stay inside too.
+const GIZMO_WALL_CLEAR_M: f32 = 0.3;
+/// How far a port gizmo is kept under the ceiling over its machine and over its floor (metres).
+const GIZMO_CEILING_CLEAR_M: f32 = 0.1;
+
+/// The space a machine's port gizmos keep inside (`port_gizmo_pos`), world metres (increment 7
+/// follow-ups, 2026-10-21): inside the shell of the zone its foot stands in, less
+/// `GIZMO_WALL_CLEAR_M`, and from just over the floor of its storey to just under the ceiling over
+/// it (`lowest_ceiling_above`: the slab over it, else the roof), `GIZMO_CEILING_CLEAR_M` from each.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct GizmoRoom {
+    pub(crate) min: Vec3,
+    pub(crate) max: Vec3,
+}
+
+/// The ceiling over world point `p` in a body whose floor slabs are `slabs`, `height` tall,
+/// standing at `origin` (world metres): the underside of the lowest slab over `p` whose underside
+/// is above it, else the roof. What a hanger reaches (`RunSite::hanger_top`) and what a port gizmo
+/// keeps under (`gizmo_room`). Increment 7 follow-ups, 2026-10-21: in the double-height greenhouse
+/// there is no slab, so the ceiling is the roof at 6 m, where the service level of its storey
+/// (`service_levels`, one per storey of the whole home) says 2.75.
+pub(crate) fn lowest_ceiling_above(slabs: &[crate::ship::home_structure::FloorSlab], height: f32, origin: Vec3, p: Vec3) -> f32 {
+    let (x, y, z) = (p.x - origin.x, p.y - origin.y, p.z - origin.z);
+    origin.y
+        + slabs
+            .iter()
+            .filter(|s| s.contains(x, z) && s.underside() > y + crate::ship::home_structure::STOREY_EPS)
+            .map(|s| s.underside())
+            .fold(height, f32::min)
+}
+
+/// The machine's foot: where it stands (a sphere's placement is its centre, a radius over it).
+fn machine_foot(p: &crate::machines::PlacedMachine) -> Vec3 {
+    let foot = if p.shape == "sphere" { p.pos.1 - p.size.0 } else { p.pos.1 };
+    Vec3::new(p.pos.0, foot, p.pos.2)
+}
+
+/// The `GizmoRoom` of machine `p` aboard `ship`: None when its foot is in no zone (the gizmos
+/// then ring it as they always did).
+pub(crate) fn gizmo_room(ship: Option<&ShipStructure>, p: &crate::machines::PlacedMachine) -> Option<GizmoRoom> {
+    let foot = machine_foot(p);
+    let (o, body) = zone_holding(ship?, foot)?;
+    let inset = body.shell_resolved_thickness() * 0.5 + GIZMO_WALL_CLEAR_M;
+    let span = |lo: f32, len: f32| {
+        let (a, b) = (lo + inset, lo + len - inset);
+        if a <= b { (a, b) } else { (lo + len * 0.5, lo + len * 0.5) }
+    };
+    let ((x0, x1), (z0, z1)) = (span(o.x, body.width), span(o.z, body.depth));
+    let floor = storey_floor_at(ship, foot, foot.y) + GIZMO_CEILING_CLEAR_M;
+    let ceiling = (lowest_ceiling_above(&body.floors, body.height, o, foot) - GIZMO_CEILING_CLEAR_M).max(floor);
+    Some(GizmoRoom { min: Vec3::new(x0, floor, z0), max: Vec3::new(x1, ceiling, z1) })
+}
+
 /// World position of a machine's port gizmo (v0.625, the viewport drag-to-connect handles). Ports
 /// carry no authored anchor (they default to 0,0,0), so spread a machine's N ports in a ring just
 /// ABOVE the body, so each reads as its own grab-able handle that never overlaps the machine mesh.
-pub(crate) fn port_gizmo_pos(p: &crate::machines::PlacedMachine, i: usize, n: usize) -> Vec3 {
-    let top = p.top_y + 0.3;
-    if n <= 1 {
-        return Vec3::new(p.pos.0, top, p.pos.2);
+/// Kept inside `room` (`gizmo_room`; increment 7 follow-ups, 2026-10-21): a ring that would reach
+/// past the home's shell is pulled inside it (the study's uplink, router and server and the shower
+/// room's WC and basin, against the east wall, had gizmos at x 55.02 to 55.15 on a 55 m house, so
+/// their risers ran outside the shell), and a unit hung under a ceiling with no room over it for
+/// the ring (the plant room's and the court's air handlers top out 1 cm under the slab, the
+/// mushroom room's fan stood 2.91 m up under 2.75) has its ring under it instead, where it was
+/// drawn on the floor above.
+/// A run ends at its machine's gizmo (`conduit_runs`), so the runs follow.
+pub(crate) fn port_gizmo_pos(p: &crate::machines::PlacedMachine, i: usize, n: usize, room: Option<GizmoRoom>) -> Vec3 {
+    let mut at = if n <= 1 {
+        Vec3::new(p.pos.0, p.top_y + GIZMO_RISE_M, p.pos.2)
+    } else {
+        let r = (p.size.0.max(p.size.2)) * 0.5 + GIZMO_RISE_M;
+        let a = (i as f32 / n as f32) * std::f32::consts::TAU;
+        Vec3::new(p.pos.0 + r * a.cos(), p.top_y + GIZMO_RISE_M, p.pos.2 + r * a.sin())
+    };
+    let Some(room) = room else { return at };
+    if at.y > room.max.y {
+        let under = machine_foot(p).y - GIZMO_RISE_M;
+        at.y = if under >= room.min.y { under } else { room.max.y };
     }
-    let r = (p.size.0.max(p.size.2)) * 0.5 + 0.3;
-    let a = (i as f32 / n as f32) * std::f32::consts::TAU;
-    Vec3::new(p.pos.0 + r * a.cos(), top, p.pos.2 + r * a.sin())
+    at.clamp(room.min, room.max)
 }
 
 /// Keep the live machine ECS in sync with the editor placements (v0.730).
@@ -652,7 +785,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     // Port pick volumes (v0.625): every machine's derived ports -> a grab-able world gizmo, so the
     // viewport can DRAG a port onto another machine to wire them. Keyed by id (placements may skip a
     // machine whose catalog/room is missing), so zip-by-index is unsafe -- look the type up by id.
-    state.port_pick = port_picks(state.gui_state.home_machines.as_ref().unwrap(), &placements);
+    state.port_pick = port_picks(state.gui_state.home_machines.as_ref().unwrap(), &placements, state.gui_state.ship_structure.as_ref());
     // ── Live ECS sync (v0.730, operator field report): the editor previously
     // rebuilt VISUALS only, so a machine placed in the construction editor had
     // NO entity until the next Enter World — no AutoRefine (a placed vehicle
@@ -720,11 +853,12 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
         rebuild_connection_objects(state);
         return;
     }
-    // Count changed (add / remove) or first build. Reuse prior mesh/material SLOTS where they
-    // exist (replace in place) instead of clear()+re-add, so a single add/remove doesn't orphan
-    // the whole ~100-mesh home; only the growth pushes new slots, and a shrink orphans the tail
-    // once (bounded). (v0.531 -- the renderer free path.)
-    let prior = std::mem::take(&mut state.machine_objects);
+    // Count changed (add / remove) or first build. Reuse the machines' mesh/material SLOTS
+    // (replace in place) instead of clear()+re-add, so a single add/remove doesn't orphan the
+    // whole ~100-mesh home (v0.531 -- the renderer free path). Since the 2026-10-21 follow-ups
+    // a shrink gives its tail to the home's spares (`machine_body_slots`), where it was orphaned.
+    let slots = take_machine_slots(state, placements.len());
+    state.machine_objects.clear();
     state.gui_state.machine_labels.clear();
     state.machine_pick.clear();
     // Catalog type by instance id (placements carry no catalog key): the
@@ -797,32 +931,19 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
         };
         let color = [p.color.0, p.color.1, p.color.2, 1.0];
         let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
-        if let Some(&(mi, ma, _, _)) = prior.get(i) {
-            state.renderer.replace_mesh(mi, mesh);
-            let use_ma = match textured_mat {
-                Some(tm) => tm,
-                None => {
-                    // Only repaint a slot the typed path OWNS: a prior slot
-                    // holding a shared textured material (machine switched
-                    // model -> primitive across rebuilds) gets a fresh typed
-                    // material instead of corrupting its siblings.
-                    let is_shared =
-                        state.machine_model_materials.values().any(|&v| v == ma);
-                    if is_shared {
-                        state.renderer.add_material_typed(color, 0.1, 0.7, 0.0)
-                    } else {
-                        state.renderer.update_material_typed(ma, color, 0.1, 0.7, 0.0);
-                        ma
-                    }
-                }
-            };
-            objs.push((mi, use_ma, pos, p.rotation));
-        } else {
-            let mi = state.renderer.add_mesh(mesh);
-            let ma = textured_mat
-                .unwrap_or_else(|| state.renderer.add_material_typed(color, 0.1, 0.7, 0.0));
-            objs.push((mi, ma, pos, p.rotation));
-        }
+        // The machine's own slot (`machine_body_slots`): its mesh replaced in place, and its own
+        // material painted unless the model's shared textured material draws it. A slot's own
+        // material is never a shared one, so painting it can never repaint a sibling.
+        let (mi, own_ma) = slots[i];
+        state.renderer.replace_mesh(mi, mesh);
+        let use_ma = match textured_mat {
+            Some(tm) => tm,
+            None => {
+                state.renderer.update_material_typed(own_ma, color, 0.1, 0.7, 0.0);
+                own_ma
+            }
+        };
+        objs.push((mi, use_ma, pos, p.rotation));
         // What E does at it (the home's bed sleeps you, first-hour audit F5).
         let on_use = type_by_id
             .get(&p.id)
@@ -1177,6 +1298,12 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
         };
         live.insert(cfg_id.clone());
         pass.wanted.insert(cfg_id.clone(), group_sig);
+        // Where its machine stands, which the build editor's cut-away hides its plants by
+        // (`plant_draws`). A move changes the signature too, so its plants are rebuilt anyway; a
+        // changed foot recollects the draw list either way.
+        if pass.feet.insert(cfg_id.clone(), base) != Some(base) {
+            pass.objects_dirty = true;
+        }
         if pass.groups.get(cfg_id).is_some_and(|g| g.sig == group_sig) || pass.queued(cfg_id, group_sig) {
             continue;
         }
@@ -1244,6 +1371,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
         }
     }
     pass.wanted.retain(|k, _| live.contains(k.as_str()));
+    pass.feet.retain(|k, _| live.contains(k.as_str()));
     if let Some((_, cancel)) = pass.in_flight.take() {
         cancel.store(true, std::sync::atomic::Ordering::Relaxed);
     }
@@ -1354,7 +1482,16 @@ fn drain_plant_work(state: &mut EngineState, pass: &mut PlantPass, t0: std::time
     }
     let r0 = std::time::Instant::now();
     if pass.objects_dirty {
-        state.plant_objects = pass.groups.values().flat_map(|g| g.slots.iter().copied()).collect();
+        // Each mesh with the foot of the machine it grows on (`PlantPass::feet`).
+        let feet = &pass.feet;
+        state.plant_objects = pass
+            .groups
+            .iter()
+            .flat_map(|(key, g)| {
+                let foot = feet.get(key).copied().unwrap_or(Vec3::ZERO);
+                g.slots.iter().map(move |&(mesh, material)| (mesh, material, foot))
+            })
+            .collect();
         pass.objects_dirty = false;
     }
     out.collect_ms = r0.elapsed().as_secs_f64() * 1000.0;
@@ -1523,6 +1660,11 @@ pub(crate) struct PlantPass {
     /// The signature each machine's plants should be built from (the last
     /// plan); a finished build with any other is stale and dropped.
     wanted: std::collections::HashMap<String, u64>,
+    /// Where each machine with plants stands (its placement, world metres),
+    /// by crop group key, from the last plan: the build editor's cut-away
+    /// hides a machine's plants by it, as it hides the machine
+    /// (`plant_draws`; increment 7 follow-ups, 2026-10-21).
+    feet: std::collections::HashMap<String, Vec3>,
     /// The job building now: its generation and its cancel flag.
     in_flight: Option<(u64, std::sync::Arc<std::sync::atomic::AtomicBool>)>,
     generation: u64,
@@ -1882,13 +2024,66 @@ const TENT_COLOR: [f32; 3] = [0.92, 0.95, 0.97];
 const TENT_ALPHA: f32 = 0.18;
 const TENT_ROUGHNESS: f32 = 0.12;
 
+/// The plant meshes to draw: each of `plants` (mesh, material, the foot of the machine it grows on,
+/// world metres; `EngineState::plant_objects`) but those the build editor's cut-away leaves out,
+/// by that foot, as it leaves out the machine (`CutAway::hides`, `push_home_machines`). A plant
+/// mesh's geometry is in world coordinates, so each is drawn at the origin. Increment 7 follow-ups
+/// (2026-10-21): the plants and the grow tents ignored the cut-away, so a grow machine upstairs
+/// would have left its plants in the air over the cut. Nothing grows upstairs in the homestead
+/// today; a player can put a bed anywhere.
+pub(crate) fn plant_draws(plants: &[(usize, usize, Vec3)], cut: Option<crate::engine::editor::CutAway>) -> Vec<RenderObject> {
+    plants
+        .iter()
+        .filter(|(_, _, foot)| !cut.is_some_and(|c| c.hides(*foot)))
+        .map(|&(mesh, material, _)| RenderObject {
+            fade: 0.0,
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+            mesh,
+            material,
+        })
+        .collect()
+}
+
+/// The grow tents to draw: each of `tents` (its machine's floor position, its yaw, its size;
+/// `GardenDraw::tents`) the build editor's cut-away does not leave out (`plant_draws`).
+pub(crate) fn tents_shown(
+    tents: &[(Vec3, f32, (f32, f32, f32))],
+    cut: Option<crate::engine::editor::CutAway>,
+) -> Vec<(Vec3, f32, (f32, f32, f32))> {
+    tents.iter().filter(|(pos, _, _)| !cut.is_some_and(|c| c.hides(*pos))).copied().collect()
+}
+
+/// Push this frame's garden plants (v0.862: one merged world-space mesh per planted machine and
+/// stage model) and the photoscanned decoration plants (v0.909) into `out` (the render loop,
+/// lib.rs), but those the build editor's cut-away leaves out (`HomeDraw::cut`): a plant by the
+/// foot of its machine (`plant_draws`), a decoration by where it stands.
+pub(crate) fn push_home_plants(state: &EngineState, out: &mut Vec<RenderObject>) {
+    let cut = state.home_draw.cut;
+    out.extend(plant_draws(&state.plant_objects, cut));
+    for &(mesh, material, pos, yaw, scl, _anchor) in &state.decoration_objects {
+        if !cut.is_some_and(|c| c.hides(pos)) {
+            out.push(RenderObject {
+                fade: 0.0,
+                position: pos,
+                rotation: Quat::from_rotation_y(yaw.to_radians()),
+                scale: Vec3::splat(scl),
+                mesh,
+                material,
+            });
+        }
+    }
+}
+
 /// Draw every grow enclosure (a fruiting tent around each mushroom rack,
 /// 2026-09-27) into the transparent list: one tent mesh per enclosure size
 /// from `plant_layout::tent_geometry`, placed on its machine with the
 /// machine's yaw. The enclosures come from the grow media
 /// (`enclosure` in data/garden/grow_media.ron), recorded by
 /// [`publish_grow_plots`]; the frame draws them with the machines, so they
-/// hide with them.
+/// hide with them, and the build editor's cut-away leaves them out with
+/// their machines (`tents_shown`, 2026-10-21).
 pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Vec<RenderObject>) {
     if state.garden_draw.tents.is_empty() {
         return;
@@ -1902,8 +2097,8 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Ve
             m
         }
     };
-    for i in 0..state.garden_draw.tents.len() {
-        let (pos, yaw, size) = state.garden_draw.tents[i];
+    // Those the build editor's cut-away leaves out are not drawn (`tents_shown`).
+    for (pos, yaw, size) in tents_shown(&state.garden_draw.tents, state.home_draw.cut) {
         let mesh = match state.garden_draw.tent_meshes.iter().find(|(s, _)| *s == size) {
             Some(&(_, m)) => m,
             None => {
@@ -2044,15 +2239,42 @@ pub(crate) fn conduit_runs(
 pub(crate) struct RunSite {
     levels: Vec<(f32, f32)>,
     origin: Vec3,
+    /// The home zone's box: (width, height, depth), metres.
+    size: (f32, f32, f32),
     slabs: Vec<crate::ship::home_structure::FloorSlab>,
     shell_mat: u32,
     walls: Vec<crate::ship::home_structure::InteriorWall>,
 }
 
+impl RunSite {
+    /// The ceiling a run's hanger at `at` reaches up to (world metres): the ceiling really over it
+    /// in the home (`lowest_ceiling_above`: the slab over it, else the roof), or `level_ceiling`,
+    /// the ceiling of the run's level (`run_level`), outside the home's box. Increment 7 follow-ups,
+    /// 2026-10-21: the levels are per storey of the whole home, so in the double-height greenhouse,
+    /// which has no slab, every hanger on a ground run stopped at the 2.75 m of the slab elsewhere,
+    /// in mid-air; it reaches the greenhouse's roof at 6 m now.
+    pub(crate) fn hanger_top(&self, at: Vec3, level_ceiling: f32) -> f32 {
+        let (w, h, d) = self.size;
+        let o = self.origin;
+        let in_home = at.x >= o.x && at.x <= o.x + w && at.z >= o.z && at.z <= o.z + d && at.y >= o.y && at.y <= o.y + h;
+        if !in_home {
+            return level_ceiling;
+        }
+        lowest_ceiling_above(&self.slabs, h, o, at)
+    }
+}
+
 /// The `RunSite` of `ship`.
 pub(crate) fn run_site(ship: Option<&ShipStructure>) -> RunSite {
     let Some(ship) = ship else {
-        return RunSite { levels: vec![(0.0, 3.0)], origin: Vec3::ZERO, slabs: Vec::new(), shell_mat: 1, walls: Vec::new() };
+        return RunSite {
+            levels: vec![(0.0, 3.0)],
+            origin: Vec3::ZERO,
+            size: (0.0, 0.0, 0.0),
+            slabs: Vec::new(),
+            shell_mat: 1,
+            walls: Vec::new(),
+        };
     };
     let home = &ship.zones[ship.home_zone_index()];
     let mut walls: Vec<crate::ship::home_structure::InteriorWall> = Vec::new();
@@ -2066,7 +2288,14 @@ pub(crate) fn run_site(ship: Option<&ShipStructure>) -> RunSite {
         }));
     }
     let o = home.origin_vec();
-    RunSite { levels: service_levels(&home.body, o), origin: o, slabs: home.body.floors.clone(), shell_mat: home.body.shell_material, walls }
+    RunSite {
+        levels: service_levels(&home.body, o),
+        origin: o,
+        size: (home.body.width, home.body.height, home.body.depth),
+        slabs: home.body.floors.clone(),
+        shell_mat: home.body.shell_material,
+        walls,
+    }
 }
 
 /// How far under its storey's ceiling a run's end is kept (metres; `route_run`).
@@ -2080,9 +2309,11 @@ const END_UNDER_CEILING_M: f32 = 0.05;
 ///   under it, through the floor (sleeved, `conduits::add_slab_passthroughs`), so no run between
 ///   storeys crosses the storey above;
 /// - an end is kept under the ceiling of the storey its machine stands on (`END_UNDER_CEILING_M`):
-///   a port gizmo stands 0.3 m over its machine (`port_gizmo_pos`), which over a unit hung under
-///   the ceiling (the air handlers, 2.5 m up) is in or over the floor above, and a run to it used
-///   to rise through that floor and cross the upper storey.
+///   a port gizmo stood 0.3 m over its machine (`port_gizmo_pos`), which over a unit hung under
+///   the ceiling (the air handlers, 2.5 m up) was in or over the floor above, and a run to it used
+///   to rise through that floor and cross the upper storey. Since the 2026-10-21 follow-ups the
+///   gizmos keep under the ceiling over their machine themselves (`gizmo_room`); this still holds
+///   every end, a conduit node's too, under its level's ceiling.
 pub(crate) fn route_run(site: &RunSite, run: &ConduitRun) -> (crate::ship::conduits::ConduitRoute, f32, f32) {
     use crate::ship::conduits::{add_slab_passthroughs, route_conduit, ConduitKind};
     let kind = ConduitKind::for_resource(&run.kind);
@@ -2160,12 +2391,13 @@ pub(crate) fn parts_under_cut(points: &[Vec3], cut: Option<crate::engine::editor
 }
 
 /// Every machine's port gizmos (v0.625): (machine id, port index, the port, its world position,
-/// `port_gizmo_pos`), for the viewport's drag-to-connect and the runs' ends (`conduit_runs`).
-/// Keyed by id (placements may skip a machine whose catalog entry is missing), the type looked up
-/// by id.
+/// `port_gizmo_pos`, kept inside the machine's home and storey aboard `ship`, `gizmo_room`), for
+/// the viewport's drag-to-connect and the runs' ends (`conduit_runs`). Keyed by id (placements
+/// may skip a machine whose catalog entry is missing), the type looked up by id.
 pub(crate) fn port_picks(
     home: &crate::machines::MachineHome,
     placements: &[crate::machines::PlacedMachine],
+    ship: Option<&ShipStructure>,
 ) -> Vec<(String, usize, crate::utilities::Port, Vec3)> {
     let type_by_id: std::collections::HashMap<String, String> = home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
     let mut pp = Vec::new();
@@ -2174,8 +2406,9 @@ pub(crate) fn port_picks(
         let Some(def) = home.catalog.get(ty) else { continue };
         let ports = def.derive_ports();
         let n = ports.len();
+        let room = gizmo_room(ship, p);
         for (i, port) in ports.into_iter().enumerate() {
-            pp.push((p.id.clone(), i, port, port_gizmo_pos(p, i, n)));
+            pp.push((p.id.clone(), i, port, port_gizmo_pos(p, i, n, room)));
         }
     }
     pp
@@ -2405,9 +2638,10 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                     // Ceiling hanger (a thin post up to the ceiling) for the horizontal service
                     // runs, which hang at the service height; the vertical drops and risers are
                     // held at their ends, so skip them (a riser to a machine upstairs climbs past
-                    // the service height, and a bracket on it is no hanger's).
+                    // the service height, and a bracket on it is no hanger's). Up to the ceiling
+                    // really over it (`RunSite::hanger_top`): the greenhouse's roof at 6 m.
                     if (f.at.y - service_y).abs() <= 0.1 {
-                        let drop = (ceiling - f.at.y).max(0.05);
+                        let drop = (site.hanger_top(f.at, ceiling) - f.at.y).max(0.05);
                         state.connection_objects.push((
                             cyl,
                             fmat,
