@@ -86,7 +86,7 @@ pub(crate) fn frame_json(state: &EngineState) -> serde_json::Value {
         "at_ladder": c.in_climb_zone(),
         "on_lift": c.on_lift(),
         "aboard": state.aboard_station,
-        "room": room_json(crate::gui::pages::hud::room_at(&gs.room_bounds, eye)),
+        "room": room_json(crate::gui::pages::hud::room_card_at(&gs.room_bounds, gs.ship_structure.as_ref(), &gs.keybinds, eye).as_deref()),
         // The HUD (and its room card) is drawn this frame: lib.rs's own conditions for hud::draw.
         "hud_shown": gs.active_page == crate::gui::GuiPage::None && gs.show_hud && !gs.showroom_active && !gs.construction_active,
         "cars": cars_now(gs.ship_structure.as_ref(), &state.elevator_state),
@@ -213,8 +213,8 @@ mod tests {
         }
         let hud = include_str!("../gui/pages/hud.rs").replace("\r\n", "\n");
         assert!(
-            hud.contains("let current_room_info = room_at(&state.room_bounds, cam_pos);"),
-            "the HUD's room card no longer picks its room with room_at, so the probe would report a pick the HUD does not make"
+            hud.contains("let current_room_info = room_card_at(&state.room_bounds, state.ship_structure.as_ref(), &state.keybinds, cam_pos);"),
+            "the HUD's room card no longer picks its place with room_card_at, so the probe would report a pick the HUD does not make"
         );
     }
 }

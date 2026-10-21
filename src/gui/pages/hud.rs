@@ -469,14 +469,15 @@ pub fn draw(
             let dot_dist = state.machine_label_dot_dist.max(0.5) * mul;
             let name_dist = state.machine_label_name_dist.max(0.5) * mul;
             let card_dist = state.machine_label_card_dist.max(0.5) * mul;
-            // Which room is the camera in? (None = outside every room.) `room_at`, the one pick
-            // the dev IPC's storey probe also reads (engine/storey_probe.rs).
-            let current_room_info = room_at(&state.room_bounds, cam_pos);
+            // Which room is the camera in? (None = outside every room.) `room_card_at`, the one
+            // pick the dev IPC's storey probe also reads (engine/storey_probe.rs): the elevator
+            // whose shaft holds it, else the room `room_at` names.
+            let current_room_info = room_card_at(&state.room_bounds, state.ship_structure.as_ref(), &state.keybinds, cam_pos);
 
             // ── Room purpose card (bottom-left): the walkable world now KNOWS what each
             // room is FOR, joined from data/rooms.ron. Name + purpose + the in-room actions
             // (the actions are shown as text for now; a later increment routes [E] to them).
-            if let Some(room) = current_room_info {
+            if let Some(room) = current_room_info.as_deref() {
                 if !room.display_name.is_empty() {
                     let x = screen.left() + 16.0;
                     text_shadowed(
@@ -532,7 +533,14 @@ pub fn draw(
                 );
             }
 
+            // The build editor's cut-away (engine/editor_storeys.rs `editor_cut_of`): a machine it
+            // leaves out is not drawn, so its label is not either (increment 7 follow-ups,
+            // 2026-10-21), by the same rule and at the same point, the machine's foot.
+            let cut = crate::engine::editor::editor_cut_of(state);
             for (i, label) in state.machine_labels.iter().enumerate() {
+                if cut.is_some_and(|c| c.hides(Vec3::new(label.pos.x, label.foot_y, label.pos.z))) {
+                    continue;
+                }
                 // Project at the label's WORLD position: home content rides
                 // the orbital station, so the scene pass shifts it by
                 // station_off - a label projected at the raw local position
@@ -1036,10 +1044,11 @@ pub fn draw(
 /// The room the HUD's room card names for an eye at `eye`: the first room whose box holds it, by
 /// height too, so a room upstairs is named only for an eye upstairs and the room under it only for
 /// an eye below (ship homes increment 7). An eye in no box (against a wall, in a doorway: the
-/// room grid's gap) is in the nearest room on its storey within `ROOM_EDGE_SLACK_M`. The dev
-/// IPC's storey probe asks this same function (engine/storey_probe.rs), so `just verify-storeys`
-/// reads the name the HUD shows, not a copy of the rule, and so does the walk-up station E opens
-/// (lib.rs, the wardrobe and the mirror).
+/// room grid's gap) is in the nearest room on its storey within `ROOM_EDGE_SLACK_M`. The card
+/// itself asks `room_card_at`, which names an elevator's shaft first and then asks this; the dev
+/// IPC's storey probe asks that same function (engine/storey_probe.rs), so `just verify-storeys`
+/// reads the name the HUD shows, not a copy of the rule. The walk-up station E opens (lib.rs, the
+/// wardrobe and the mirror) asks this one: a shaft opens no page.
 pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&crate::gui::RoomBounds> {
     let inside = rooms.iter().find(|r| {
         eye.x >= r.min.x && eye.x <= r.max.x && eye.y >= r.min.y && eye.y <= r.max.y && eye.z >= r.min.z && eye.z <= r.max.z
@@ -1049,6 +1058,12 @@ pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&cr
     }
     // In no box: the nearest one across the floor whose heights hold the eye (its storey), if
     // it is within the slack (the gap the room grid leaves along a wall and in a doorway).
+    room_near(rooms, eye, ROOM_EDGE_SLACK_M)
+}
+
+/// The room on the storey of `eye` (a box whose heights hold it) nearest to it across the floor,
+/// if that is within `reach` metres (0 inside the box).
+fn room_near(rooms: &[crate::gui::RoomBounds], eye: Vec3, reach: f32) -> Option<&crate::gui::RoomBounds> {
     rooms
         .iter()
         .filter(|r| eye.y >= r.min.y && eye.y <= r.max.y)
@@ -1057,9 +1072,93 @@ pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&cr
             let dz = (r.min.z - eye.z).max(eye.z - r.max.z).max(0.0);
             (r, dx.hypot(dz))
         })
-        .filter(|(_, d)| *d <= ROOM_EDGE_SLACK_M)
+        .filter(|(_, d)| *d <= reach)
         .min_by(|a, b| a.1.total_cmp(&b.1))
         .map(|(r, _)| r)
+}
+
+/// THE ROOM CARD'S PLACE for an eye at `eye` (the HUD's card, and the dev IPC's storey probe,
+/// which reports what the card shows): the elevator whose shaft holds the eye (`lift_card`), else
+/// the room `room_at` names. Increment 7 follow-ups, 2026-10-21: riding the homestead's elevator
+/// above 3 m, and standing in its car at the top, left the card blank, because the shaft has no
+/// slab upstairs, so it is in no upstairs room, and the lift lobby's box is about a metre from the
+/// middle of the car, past `ROOM_EDGE_SLACK_M`. In the car at the bottom it named the service way
+/// it stands in; it names the elevator the whole ride now.
+pub(crate) fn room_card_at<'a>(
+    rooms: &'a [crate::gui::RoomBounds],
+    ship: Option<&crate::ship::ship_structure::ShipStructure>,
+    keys: &crate::input::bindings::Keybinds,
+    eye: Vec3,
+) -> Option<std::borrow::Cow<'a, crate::gui::RoomBounds>> {
+    if let Some(card) = ship.and_then(|s| lift_card(s, rooms, keys, eye)) {
+        return Some(std::borrow::Cow::Owned(card));
+    }
+    room_at(rooms, eye).map(std::borrow::Cow::Borrowed)
+}
+
+/// How far from the middle of an elevator's shaft, across the floor, the room a stop serves may
+/// be (metres): half the diagonal of a 1.8 m shaft and the room grid's slack beside it.
+const LIFT_STOP_ROOM_M: f32 = 2.0;
+
+/// The card of the elevator whose shaft holds the eye at `eye` (`room_card_at`), if one does: in
+/// its footprint, from its base to the top of the storey its highest stop is the floor of. Named
+/// by its type ("Elevator"), its purpose the places it stops at (the room nearest each stop, of
+/// `rooms`: "Stops: Service way, Lift lobby"), its actions what a rider presses, by the keys
+/// `keys` binds (`footing::elevator_tick`: Jump, Space unless rebound, sends the car up a stop;
+/// Sprint, Shift, down one). An elevator with one stop goes nowhere, so its card says only its
+/// name. Its box is the shaft's, for the probe's floor; it opens no page.
+pub(crate) fn lift_card(
+    ship: &crate::ship::ship_structure::ShipStructure,
+    rooms: &[crate::gui::RoomBounds],
+    keys: &crate::input::bindings::Keybinds,
+    eye: Vec3,
+) -> Option<crate::gui::RoomBounds> {
+    use crate::input::bindings::{pretty_key_name, GameAction};
+    use crate::ship::home_structure::{storey_index, STOREY_EPS};
+    for lift in crate::engine::footing::lifts(ship) {
+        let base = (lift.base.x, lift.base.y, lift.base.z);
+        if !crate::ship::structure::in_footprint(lift.ty, base, lift.yaw, eye.x, eye.z) {
+            continue;
+        }
+        let Some(zone) = ship.zones.get(lift.key.0) else { continue };
+        let oy = zone.origin_vec().y;
+        let storeys = zone.body.storeys();
+        let top_stop = lift.stops.last().copied().unwrap_or(0.0);
+        let top = oy + storeys[storey_index(&storeys, lift.base.y - oy + top_stop)].top;
+        if eye.y < lift.base.y - STOREY_EPS || eye.y > top {
+            continue;
+        }
+        let mut stops: Vec<String> = Vec::new();
+        for s in &lift.stops {
+            let at = Vec3::new(lift.base.x, lift.base.y + s + 1.0, lift.base.z);
+            if let Some(r) = room_near(rooms, at, LIFT_STOP_ROOM_M).filter(|r| !r.display_name.is_empty()) {
+                if !stops.contains(&r.display_name) {
+                    stops.push(r.display_name.clone());
+                }
+            }
+        }
+        let rides = lift.stops.len() > 1;
+        let (w, _, d) = lift.ty.size;
+        let half = 0.5 * w.hypot(d);
+        return Some(crate::gui::RoomBounds {
+            id: format!("lift-{}-{}", lift.key.0, lift.key.1),
+            min: Vec3::new(lift.base.x - half, lift.base.y, lift.base.z - half),
+            max: Vec3::new(lift.base.x + half, top, lift.base.z + half),
+            display_name: lift.ty.label.clone(),
+            purpose: if rides && stops.len() > 1 { format!("Stops: {}", stops.join(", ")) } else { String::new() },
+            actions: if rides {
+                vec![
+                    format!("{} up a floor", pretty_key_name(keys.pair(GameAction::Jump).0)),
+                    format!("{} down a floor", pretty_key_name(keys.pair(GameAction::Sprint).0)),
+                ]
+            } else {
+                Vec::new()
+            },
+            action_pages: Vec::new(),
+            access: String::new(),
+        });
+    }
+    None
 }
 
 /// How far outside every room box the eye may be and still be in the nearest room on its storey,
@@ -1071,9 +1170,9 @@ pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&cr
 /// standing against a wall (its 0.3 m radius from the face) or walking through a doorway was in
 /// no box and the room card went blank. 0.75 covers a doorway in a wall up to half a metre thick;
 /// the nearest box is the room on the eye's own side of a wall, since the other side's is a wall's
-/// thickness and more further. Riding the elevator is NOT covered: its shaft has no slab upstairs,
-/// so it is in no room on the upper storey, and the lift lobby's box is about a metre from the
-/// middle of the car.
+/// thickness and more further. Riding the elevator is not covered by the slack: its shaft has no
+/// slab upstairs, so it is in no room on the upper storey, and the lift lobby's box is about a
+/// metre from the middle of the car. The card names the elevator there (`room_card_at`).
 pub(crate) const ROOM_EDGE_SLACK_M: f32 = 0.75;
 
 /// Whether the world view's crosshair dot is drawn (lib.rs, the in-game
@@ -1543,15 +1642,46 @@ fn job_shadowed(
     painter.galley(pos, painter.layout_job(job), OUTLINE_INK);
 }
 
+//// Which of the edited body's walls the build editor's dimension overlay labels, storey by storey:
+/// (the storey's floor and top, body-local metres; the indices into `hs.walls` of the walls it
+/// labels there). With the editor open (`editing`) on a body of several storeys, the one storey it
+/// works on (`chosen`, kept in range), with every wall standing in it (`wall_in_storey`, a wall
+/// rising through it from below included): the cut-away hides the storeys above, and the labels,
+/// painted over everything, must not float over what it hides, nor over the storeys below, which
+/// the floor being edited covers. Otherwise (the overlay in play, or one storey) every storey, each
+/// wall with the storey its base is on. Increment 7 follow-ups, 2026-10-21: every wall was
+/// labelled on the ground, an upstairs wall's length and corners too, and its doors at their
+/// height over the ground rather than over their own floor.
+pub(crate) fn overlay_storeys(
+    hs: &crate::ship::home_structure::HomeStructure,
+    editing: bool,
+    chosen: usize,
+) -> Vec<(crate::ship::home_structure::Storey, Vec<usize>)> {
+    use crate::ship::home_structure::{storey_index, wall_in_storey};
+    let storeys = hs.storeys();
+    if editing && storeys.len() > 1 {
+        let k = chosen.min(storeys.len() - 1);
+        let walls = (0..hs.walls.len()).filter(|&i| wall_in_storey(&storeys, &hs.walls[i], k)).collect();
+        return vec![(storeys[k], walls)];
+    }
+    storeys
+        .iter()
+        .enumerate()
+        .map(|(k, s)| (*s, (0..hs.walls.len()).filter(|&i| storey_index(&storeys, hs.walls[i].base) == k).collect()))
+        .collect()
+}
+
 /// Build-mode CAD dimension overlay (v0.545): each interior wall's length at its midpoint, the angle
 /// where two walls meet at a corner, and -- while drawing -- a live length readout by the cursor.
 /// Paint-only, reusing world_to_screen + text_shadowed. Only drawn in the construction editor.
+/// Storey by storey since the increment 7 follow-ups (`overlay_storeys`): each label stands on
+/// its own floor, and with the editor on one storey of several only that storey is labelled.
 pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &GuiState, view_proj: Mat4) {
     let Some(hs) = crate::ship::ship_structure::zone_body(&state.ship_structure, state.construction_zone) else { return };
     // The ACTIVE zone's world origin (v0.754): body coords are zone-local, labels paint in world.
     let zo = crate::ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
     let screen = ctx.screen_rect();
-    let y = hs.height * 0.5; // label height: mid-wall
+    let groups = overlay_storeys(hs, state.construction_active, state.construction_storeys.chosen);
     let norm = |dx: f32, dz: f32| -> Option<(f32, f32)> {
         let l = (dx * dx + dz * dz).sqrt();
         if l > 1e-4 { Some((dx / l, dz / l)) } else { None }
@@ -1561,143 +1691,152 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
     // wants_pointer_input read false over the editor's side panels, so their clicks route to the
     // camera instead (the "panel shows but won't click" regression). A layer_painter only paints and
     // never participates in input routing. (`p` owns it; `painter` is a ref so the body is unchanged.)
-    {
-        let p = ctx.layer_painter(egui::LayerId::new(
-            egui::Order::Foreground,
-            egui::Id::new("construction_dim_overlay"),
-        ));
-        let painter = &p;
-            // Each interior wall's length at the BOTTOM middle of the wall (v0.559, by the floor like
-            // the gizmo orb -- was mid-wall height).
-            for (i, wall) in hs.walls.iter().enumerate() {
-                let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, 0.06, (wall.a.1 + wall.b.1) * 0.5) + zo;
-                let len = ((wall.b.0 - wall.a.0).powi(2) + (wall.b.1 - wall.a.1).powi(2)).sqrt();
-                let col = if state.construction_wall_selected == Some(i) { theme.accent() } else { theme.text_primary() };
-                if let Some(sp) = world_to_screen(mid, view_proj, screen) {
-                    text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{len:.2} m"), 13.0, col);
-                }
+    let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("construction_dim_overlay")));
+    let painter = &p;
+    for (storey, walls) in &groups {
+        let floor = storey.floor;
+        // Each interior wall's length at the BOTTOM middle of the wall (v0.559, by the floor like
+        // the gizmo orb -- was mid-wall height), on its storey's floor.
+        for &i in walls {
+            let wall = &hs.walls[i];
+            let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, floor + 0.06, (wall.a.1 + wall.b.1) * 0.5) + zo;
+            let len = ((wall.b.0 - wall.a.0).powi(2) + (wall.b.1 - wall.a.1).powi(2)).sqrt();
+            let col = if state.construction_wall_selected == Some(i) { theme.accent() } else { theme.text_primary() };
+            if let Some(sp) = world_to_screen(mid, view_proj, screen) {
+                text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{len:.2} m"), 13.0, col);
             }
-            // Pie-slice angles at each corner (v0.551): the angle of EACH slice between consecutive
-            // walls (sorted by heading), labelled ON THE GROUND at the slice's midpoint -- so a join
-            // of 2+ walls shows ALL its angles, not just one, and the number sits in the slice it
-            // measures instead of on the (confusing) wall edge. Pairs with the ground angle-ring.
-            const RING_R: f32 = 1.1;
-            let mut seen: Vec<(f32, f32)> = Vec::new();
-            for wall in &hs.walls {
-                for c in [wall.a, wall.b] {
-                    if seen.iter().any(|s| (s.0 - c.0).abs() < 0.05 && (s.1 - c.1).abs() < 0.05) {
-                        continue;
-                    }
-                    seen.push(c);
-                    let mut headings: Vec<f32> = Vec::new();
-                    for w in &hs.walls {
-                        if (w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05 {
-                            headings.push((w.b.1 - c.1).atan2(w.b.0 - c.0));
-                        }
-                        if (w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05 {
-                            headings.push((w.a.1 - c.1).atan2(w.a.0 - c.0));
-                        }
-                    }
-                    // Also count the box HULL edges at this corner (v0.555): when an interior wall
-                    // ends ON the fixed perimeter, show the angle it makes with the hull on each side
-                    // (the hull was invisible to the angle math before, so hull joins showed nothing).
-                    let (bw, bd) = (hs.width, hs.depth);
-                    let he = 0.05;
-                    if c.1.abs() < he || (c.1 - bd).abs() < he {
-                        if c.0 < bw - he { headings.push(0.0); }
-                        if c.0 > he { headings.push(std::f32::consts::PI); }
-                    }
-                    if c.0.abs() < he || (c.0 - bw).abs() < he {
-                        if c.1 < bd - he { headings.push(std::f32::consts::FRAC_PI_2); }
-                        if c.1 > he { headings.push(-std::f32::consts::FRAC_PI_2); }
-                    }
-                    if headings.len() < 2 {
-                        continue;
-                    }
-                    headings.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                    let nh = headings.len();
-                    for i in 0..nh {
-                        let a0 = headings[i];
-                        let a1 = if i + 1 < nh { headings[i + 1] } else { headings[0] + std::f32::consts::TAU };
-                        let slice = a1 - a0;
-                        if slice < 0.02 {
-                            continue;
-                        }
-                        let mid = a0 + slice * 0.5;
-                        let world = Vec3::new(c.0 + mid.cos() * RING_R * 0.62, 0.12, c.1 + mid.sin() * RING_R * 0.62) + zo;
-                        // Drop labels that fall outside the box footprint (e.g. the exterior slice at a
-                        // hull join) so only the meaningful in-room angles show.
-                        if world.x < zo.x - 0.3 || world.x > zo.x + bw + 0.3 || world.z < zo.z - 0.3 || world.z > zo.z + bd + 0.3 {
-                            continue;
-                        }
-                        if let Some(sp) = world_to_screen(world, view_proj, screen) {
-                            text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{:.0} deg", slice.to_degrees()), 12.0, theme.warning());
-                        }
-                    }
-                }
-            }
-            // Feature distances (v0.547): on the SELECTED wall, the clear GAP in each span between
-            // the wall ends + the openings (so you can place a door exactly N m from a window / wall
-            // end). Labelled near the floor at each gap's midpoint.
-            if let Some(sel) = state.construction_wall_selected {
-                if let Some(wall) = hs.walls.get(sel) {
-                    if !wall.openings.is_empty() {
-                        let (ax, az) = wall.a;
-                        let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
-                        let len = (dx * dx + dz * dz).sqrt();
-                        if let Some((ux, uz)) = norm(dx, dz).filter(|_| len > 1e-4) {
-                            let mut ivals: Vec<(f32, f32)> = wall
-                                .openings
-                                .iter()
-                                .map(|o| (o.at.clamp(0.0, len), (o.at + o.width).clamp(0.0, len)))
-                                .collect();
-                            ivals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-                            let mut cursor = 0.0f32;
-                            for (s, e) in ivals.iter().chain(std::iter::once(&(len, len))) {
-                                let gap = s - cursor;
-                                if gap > 0.05 {
-                                    let mid = cursor + gap * 0.5;
-                                    let world = Vec3::new(ax + ux * mid, 0.35, az + uz * mid) + zo;
-                                    if let Some(sp) = world_to_screen(world, view_proj, screen) {
-                                        text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{gap:.2} m"), 11.0, theme.text_secondary());
-                                    }
-                                }
-                                cursor = e.max(cursor);
-                            }
-                        }
-                    }
-                }
-            }
-            // Door / window LABELS (v0.554): each opening's style + lock state, floating at the
-            // opening so you can read what every door is at a glance (the operator's "text on doors").
-            for wall in &hs.walls {
-                let (ax, az) = wall.a;
-                let (wdx, wdz) = (wall.b.0 - ax, wall.b.1 - az);
-                let wlen = (wdx * wdx + wdz * wdz).sqrt();
-                if wlen < 1e-4 {
+        }
+        // Pie-slice angles at each corner (v0.551): the angle of EACH slice between consecutive
+        // walls (sorted by heading), labelled ON THE GROUND at the slice's midpoint -- so a join
+        // of 2+ walls shows ALL its angles, not just one, and the number sits in the slice it
+        // measures instead of on the (confusing) wall edge. Pairs with the ground angle-ring.
+        // Among this storey's walls only, on its floor.
+        const RING_R: f32 = 1.1;
+        let mut seen: Vec<(f32, f32)> = Vec::new();
+        for &wi in walls {
+            let wall = &hs.walls[wi];
+            for c in [wall.a, wall.b] {
+                if seen.iter().any(|s| (s.0 - c.0).abs() < 0.05 && (s.1 - c.1).abs() < 0.05) {
                     continue;
                 }
-                let (ux, uz) = (wdx / wlen, wdz / wlen);
-                for op in &wall.openings {
-                    let s = op.at + op.width * 0.5;
-                    let world = Vec3::new(ax + ux * s, op.sill + op.height * 0.5, az + uz * s) + zo;
+                seen.push(c);
+                let mut headings: Vec<f32> = Vec::new();
+                for &wj in walls {
+                    let w = &hs.walls[wj];
+                    if (w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05 {
+                        headings.push((w.b.1 - c.1).atan2(w.b.0 - c.0));
+                    }
+                    if (w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05 {
+                        headings.push((w.a.1 - c.1).atan2(w.a.0 - c.0));
+                    }
+                }
+                // Also count the box HULL edges at this corner (v0.555): when an interior wall
+                // ends ON the fixed perimeter, show the angle it makes with the hull on each side
+                // (the hull was invisible to the angle math before, so hull joins showed nothing).
+                let (bw, bd) = (hs.width, hs.depth);
+                let he = 0.05;
+                if c.1.abs() < he || (c.1 - bd).abs() < he {
+                    if c.0 < bw - he { headings.push(0.0); }
+                    if c.0 > he { headings.push(std::f32::consts::PI); }
+                }
+                if c.0.abs() < he || (c.0 - bw).abs() < he {
+                    if c.1 < bd - he { headings.push(std::f32::consts::FRAC_PI_2); }
+                    if c.1 > he { headings.push(-std::f32::consts::FRAC_PI_2); }
+                }
+                if headings.len() < 2 {
+                    continue;
+                }
+                headings.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                let nh = headings.len();
+                for i in 0..nh {
+                    let a0 = headings[i];
+                    let a1 = if i + 1 < nh { headings[i + 1] } else { headings[0] + std::f32::consts::TAU };
+                    let slice = a1 - a0;
+                    if slice < 0.02 {
+                        continue;
+                    }
+                    let mid = a0 + slice * 0.5;
+                    let world = Vec3::new(c.0 + mid.cos() * RING_R * 0.62, floor + 0.12, c.1 + mid.sin() * RING_R * 0.62) + zo;
+                    // Drop labels that fall outside the box footprint (e.g. the exterior slice at a
+                    // hull join) so only the meaningful in-room angles show.
+                    if world.x < zo.x - 0.3 || world.x > zo.x + bw + 0.3 || world.z < zo.z - 0.3 || world.z > zo.z + bd + 0.3 {
+                        continue;
+                    }
                     if let Some(sp) = world_to_screen(world, view_proj, screen) {
-                        let lock = if op.locked { " [locked]" } else { "" };
-                        text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{}{}", op.style, lock), 11.0, theme.text_primary());
+                        text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{:.0} deg", slice.to_degrees()), 12.0, theme.warning());
                     }
                 }
             }
-            // Live readout while drawing: the pending segment length by the cursor.
-            if let (Some(s), Some(cur)) = (state.construction_wall_start, state.construction_cursor_world) {
-                let len = ((cur.0 - s.0).powi(2) + (cur.1 - s.1).powi(2)).sqrt();
-                if let Some(sp) = world_to_screen(Vec3::new(cur.0, y, cur.1) + zo, view_proj, screen) {
-                    text_shadowed(painter, sp + Vec2::new(22.0, -14.0), Align2::LEFT_CENTER, &format!("{len:.2} m"), 15.0, theme.accent());
+        }
+        // Feature distances (v0.547): on the SELECTED wall, the clear GAP in each span between
+        // the wall ends + the openings (so you can place a door exactly N m from a window / wall
+        // end). Labelled near the floor at each gap's midpoint.
+        if let Some(sel) = state.construction_wall_selected.filter(|s| walls.contains(s)) {
+            let wall = &hs.walls[sel];
+            if !wall.openings.is_empty() {
+                let (ax, az) = wall.a;
+                let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
+                let len = (dx * dx + dz * dz).sqrt();
+                if let Some((ux, uz)) = norm(dx, dz).filter(|_| len > 1e-4) {
+                    let mut ivals: Vec<(f32, f32)> = wall
+                        .openings
+                        .iter()
+                        .map(|o| (o.at.clamp(0.0, len), (o.at + o.width).clamp(0.0, len)))
+                        .collect();
+                    ivals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                    let mut cursor = 0.0f32;
+                    for (s, e) in ivals.iter().chain(std::iter::once(&(len, len))) {
+                        let gap = s - cursor;
+                        if gap > 0.05 {
+                            let mid = cursor + gap * 0.5;
+                            let world = Vec3::new(ax + ux * mid, floor + 0.35, az + uz * mid) + zo;
+                            if let Some(sp) = world_to_screen(world, view_proj, screen) {
+                                text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{gap:.2} m"), 11.0, theme.text_secondary());
+                            }
+                        }
+                        cursor = e.max(cursor);
+                    }
                 }
             }
+        }
+        // Door / window LABELS (v0.554): each opening's style + lock state, floating at the
+        // opening so you can read what every door is at a glance (the operator's "text on doors").
+        // An opening's sill is measured from its wall's base; only those on this storey.
+        for &wi in walls {
+            let wall = &hs.walls[wi];
+            let (ax, az) = wall.a;
+            let (wdx, wdz) = (wall.b.0 - ax, wall.b.1 - az);
+            let wlen = (wdx * wdx + wdz * wdz).sqrt();
+            if wlen < 1e-4 {
+                continue;
+            }
+            let (ux, uz) = (wdx / wlen, wdz / wlen);
+            for op in &wall.openings {
+                let bottom = wall.base + op.sill;
+                if bottom < storey.floor - crate::ship::home_structure::STOREY_EPS || bottom >= storey.top {
+                    continue;
+                }
+                let s = op.at + op.width * 0.5;
+                let world = Vec3::new(ax + ux * s, bottom + op.height * 0.5, az + uz * s) + zo;
+                if let Some(sp) = world_to_screen(world, view_proj, screen) {
+                    let lock = if op.locked { " [locked]" } else { "" };
+                    text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{}{}", op.style, lock), 11.0, theme.text_primary());
+                }
+            }
+        }
+    }
+    // Live readout while drawing: the pending segment length by the cursor, mid-way up the storey
+    // being drawn on (the body's middle with one storey).
+    if let (Some(s), Some(cur)) = (state.construction_wall_start, state.construction_cursor_world) {
+        let len = ((cur.0 - s.0).powi(2) + (cur.1 - s.1).powi(2)).sqrt();
+        let y = groups.first().filter(|_| groups.len() == 1).map_or(hs.height * 0.5, |(st, _)| (st.floor + st.top) * 0.5);
+        if let Some(sp) = world_to_screen(Vec3::new(cur.0, y, cur.1) + zo, view_proj, screen) {
+            text_shadowed(painter, sp + Vec2::new(22.0, -14.0), Align2::LEFT_CENTER, &format!("{len:.2} m"), 15.0, theme.accent());
+        }
     }
 }
 
-/// Color a stat readout by its status.
+// Color a stat readout by its status.
 fn stat_status_color(status: &str, theme: &Theme) -> Color32 {
     match status {
         "ok" => theme.success(),
@@ -2111,6 +2250,178 @@ mod room_card_tests {
         // Over every room, and outside the house, still none.
         assert_eq!(at(38.0, 9.5, 34.0), None, "over every room");
         assert_eq!(at(-5.0, 1.7, 34.0), None, "outside the house");
+    }
+
+    /// THE ROOM CARD NAMES THE ELEVATOR THE WHOLE RIDE (ship homes increment 7 follow-ups,
+    /// 2026-10-21). On the shipped ship, the homestead's elevator (elevator-1 at (31, 26), its
+    /// shaft 30.1 to 31.9 by 25.1 to 26.9, no slab over it upstairs): an eye in the car at every
+    /// height of the ride, and anywhere in it at the top, is at the Elevator, whose card says where
+    /// it stops and what a rider presses; stepping off at the top it is in the lift lobby; over
+    /// the roof it is nowhere. The card was blank above 3 m: the shaft is in no upstairs room, and
+    /// the lobby's box is too far from the car's middle for `ROOM_EDGE_SLACK_M`.
+    ///
+    /// Seen red first (2026-10-21) with the card picked by `room_at` alone, as it was: "in the car
+    /// at 4.7 m" (left: None, right: Some("Elevator")); in the car at the bottom it named "Service
+    /// way".
+    #[test]
+    fn the_room_card_names_the_elevator_the_whole_ride() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+        let o = ship.zones[ship.home_zone_index()].origin_vec();
+        let rooms: Vec<RoomBounds> = ship
+            .generate_meshes()
+            .room_info
+            .into_iter()
+            .map(|r| RoomBounds {
+                id: r.id.clone(),
+                min: r.center - r.dimensions * 0.5,
+                max: r.center + r.dimensions * 0.5,
+                display_name: r.label.clone(),
+                purpose: String::new(),
+                actions: Vec::new(),
+                action_pages: Vec::new(),
+                access: String::new(),
+            })
+            .collect();
+        let keys = crate::input::bindings::Keybinds::default();
+        let card = |x: f32, y: f32, z: f32| super::room_card_at(&rooms, Some(&ship), &keys, o + Vec3::new(x, y, z));
+        let name = |x: f32, y: f32, z: f32| card(x, y, z).map(|r| r.display_name.clone());
+        for y in [4.7, 3.2, 5.6, 1.7] {
+            assert_eq!(name(31.0, y, 26.0).as_deref(), Some("Elevator"), "in the car at {y} m");
+        }
+        for (x, z) in [(30.3, 25.3), (31.7, 25.3), (30.3, 26.7), (31.7, 26.7)] {
+            assert_eq!(name(x, 4.7, z).as_deref(), Some("Elevator"), "in the car at the top, at ({x}, {z})");
+        }
+        let c = card(31.0, 4.7, 26.0).expect("the elevator's card");
+        assert_eq!(c.purpose, "Stops: Service way, Lift lobby", "where the elevator stops");
+        assert_eq!(c.actions, vec!["Space up a floor".to_string(), "Left Shift down a floor".to_string()], "what a rider presses");
+        assert_eq!(name(31.0, 4.7, 28.5).as_deref(), Some("Lift lobby"), "stepped off at the top");
+        assert_eq!(name(31.0, 6.5, 26.0), None, "over the roof");
+    }
+}
+
+/// The build editor's storey view and the HUD's labels (ship homes increment 7 follow-ups,
+/// 2026-10-21): what the cut-away hides, no label floats over.
+#[cfg(test)]
+mod cut_away_label_tests {
+    use crate::gui::screen_surface::find_text_in_shapes;
+    use crate::gui::GuiState;
+    use glam::{Mat4, Vec3};
+
+    /// The shipped ship with the home on p1.
+    fn shipped() -> crate::ship::ship_structure::ShipStructure {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles")
+    }
+
+    /// A machine's label as the world load makes it: its anchor 0.4 m over its top, its foot.
+    fn label(name: &str, foot: Vec3, height: f32) -> crate::gui::MachineLabel {
+        crate::gui::MachineLabel {
+            pos: foot + Vec3::new(0.0, height + 0.4, 0.0),
+            foot_y: foot.y,
+            name: name.to_string(),
+            stats: Vec::new(),
+            room: String::new(),
+            machine_id: name.to_string(),
+            on_use: None,
+        }
+    }
+
+    /// Two settle frames of the HUD alone, seen from `eye` looking at `target`; the second's shapes.
+    fn hud_shapes(state: &GuiState, eye: Vec3, target: Vec3) -> Vec<egui::epaint::ClippedShape> {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let screen = egui::vec2(1280.0, 900.0);
+        let view_proj = Mat4::perspective_rh(60f32.to_radians(), screen.x / screen.y, 0.1, 500.0) * Mat4::look_at_rh(eye, target, Vec3::Y);
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), screen)), ..Default::default() };
+            shapes = ctx.run(input, |ctx| super::draw(ctx, &theme, state, 0.0, view_proj, eye)).shapes;
+        }
+        shapes
+    }
+
+    /// THE HUD'S LABELS FOLLOW THE CUT-AWAY. On the shipped homestead, with the build editor on
+    /// the ground storey (its cut-away takes the upper floor out, so a machine standing up there is
+    /// not drawn), the label of a machine on the bedroom's floor is not drawn either, and one in the
+    /// dining room under it is; with the editor on the upper storey (nothing is cut) and with it
+    /// closed, both are. By the machine's foot, the rule the cut-away hides the machine by.
+    ///
+    /// Seen red first (2026-10-21) with the labels drawn whatever the cut, as they were: "the
+    /// editor on the ground storey: the label of the machine upstairs floats over the cut-away".
+    #[test]
+    fn the_huds_labels_follow_the_cut_away() {
+        let ship = shipped();
+        let hz = ship.home_zone_index();
+        let o = ship.zones[hz].origin_vec();
+        let mut state = GuiState::default();
+        state.machine_labels = vec![
+            label("Upstairs bed", o + Vec3::new(37.0, 3.0, 34.0), 0.6),
+            label("Dining table", o + Vec3::new(39.0, 0.0, 34.0), 0.8),
+        ];
+        state.ship_structure = Some(ship);
+        state.construction_zone = hz;
+        let (eye, target) = (o + Vec3::new(38.0, 6.0, 40.0), o + Vec3::new(38.0, 2.5, 34.0));
+        let drawn = |state: &GuiState| {
+            let shapes = hud_shapes(state, eye, target);
+            (find_text_in_shapes(&shapes, "Upstairs bed").is_some(), find_text_in_shapes(&shapes, "Dining table").is_some())
+        };
+        state.construction_active = true;
+        state.construction_storeys.chosen = 0;
+        let (up, down) = drawn(&state);
+        assert!(!up, "the editor on the ground storey: the label of the machine upstairs floats over the cut-away");
+        assert!(down, "the editor on the ground storey: the dining room's label is drawn");
+        state.construction_storeys.chosen = 1;
+        assert_eq!(drawn(&state), (true, true), "the editor on the upper storey cuts nothing");
+        state.construction_active = false;
+        assert_eq!(drawn(&state), (true, true), "the editor closed cuts nothing");
+    }
+
+    /// THE OVERLAY LABELS THE STOREY BEING EDITED, EACH WALL ON ITS FLOOR (`overlay_storeys`). On
+    /// the shipped homestead's body (two storeys, its floor at 3.0): with the editor on the ground
+    /// storey, no wall standing upstairs is labelled (the cut-away hides them, and the overlay's
+    /// text is painted over everything); on the upper storey, no wall standing only downstairs is
+    /// (the floor being edited covers them), every upstairs wall is, on the floor at 3.0; in play
+    /// (the overlay with the editor closed) every wall is labelled once, on its own storey's floor.
+    ///
+    /// Seen red first (2026-10-21) with every wall labelled on the ground, as it was: "the editor on
+    /// the ground storey labels 25 walls standing upstairs" (left: 25, right: 0).
+    #[test]
+    fn the_overlay_labels_the_storey_being_edited() {
+        let design = crate::ship::ship_structure::HomeDesign::built_in_ref("homestead").expect("the homestead is built in");
+        let hs = &design.body;
+        let storeys = hs.storeys();
+        assert_eq!(storeys.len(), 2, "the homestead has two storeys");
+        let up = storeys[1].floor;
+        let upstairs: Vec<usize> = (0..hs.walls.len()).filter(|&i| hs.walls[i].base >= up - 0.01).collect();
+        let below_only: Vec<usize> = (0..hs.walls.len()).filter(|&i| hs.walls[i].base + hs.walls[i].height <= up + 0.01).collect();
+        assert!(upstairs.len() > 10 && below_only.len() > 10, "{} walls upstairs, {} below only", upstairs.len(), below_only.len());
+
+        let ground = super::overlay_storeys(hs, true, 0);
+        assert_eq!(ground.len(), 1, "the editor on the ground storey labels one storey");
+        let wrong = upstairs.iter().filter(|i| ground[0].1.contains(i)).count();
+        assert_eq!(wrong, 0, "the editor on the ground storey labels {wrong} walls standing upstairs");
+        assert!(below_only.iter().all(|i| ground[0].1.contains(i)), "the editor on the ground storey labels every ground wall");
+
+        let upper = super::overlay_storeys(hs, true, 1);
+        assert_eq!(upper.len(), 1, "the editor on the upper storey labels one storey");
+        assert!((upper[0].0.floor - up).abs() < 1e-5, "the upper storey's labels stand on its floor, at {}", upper[0].0.floor);
+        let wrong = below_only.iter().filter(|i| upper[0].1.contains(i)).count();
+        assert_eq!(wrong, 0, "the editor on the upper storey labels {wrong} walls standing only downstairs");
+        assert!(upstairs.iter().all(|i| upper[0].1.contains(i)), "the editor on the upper storey labels every upstairs wall");
+
+        let play = super::overlay_storeys(hs, false, 0);
+        let mut all: Vec<usize> = play.iter().flat_map(|(_, w)| w.iter().copied()).collect();
+        all.sort_unstable();
+        assert_eq!(all, (0..hs.walls.len()).collect::<Vec<_>>(), "in play every wall is labelled once");
+        for (storey, walls) in &play {
+            for &i in walls {
+                let base = hs.walls[i].base;
+                assert!(base >= storey.floor - 0.01 && base < storey.top, "wall {i} (base {base}) labelled on the floor at {}", storey.floor);
+            }
+        }
     }
 }
 

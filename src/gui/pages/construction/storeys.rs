@@ -22,10 +22,6 @@ pub struct StoreyEditor {
     /// is the ground). Kept in range when it is read (`EditStorey::of`), since adding, removing or
     /// moving a slab changes how many storeys there are.
     pub chosen: usize,
-    /// The cut-away the drawn home meshes show: (zone, storey) when the storeys above `storey`
-    /// are taken out of that zone (`editor::storey_cut_key`), None when the whole ship is drawn.
-    /// `editor::follow_storey_view` redraws when this and what should be drawn differ.
-    pub drawn: Option<(usize, usize)>,
     /// Index into the edited body's `floors` of the selected slab, whose detail fills the right
     /// panel. Every pick of something else lets go of it.
     pub slab_selected: Option<usize>,
