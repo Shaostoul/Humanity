@@ -48,7 +48,10 @@ struct GiHeader {
     // x = room count, y = probe count, z = irradiance tiles per atlas row,
     // w = depth tiles per atlas row.
     info: vec4<u32>,
-    // x = atlas width, y = atlas height, z = first row of the depth region.
+    // x = atlas width, y = atlas height, z = first row of the depth region,
+    // w = how many solid FLOOR SLABS follow the rooms (ship homes increment 7,
+    // the slab rows below; 0 for a one-storey home and with the dev switch
+    // showcase {"slab_occlusion":"0"}).
     atlas: vec4<u32>,
 };
 
@@ -250,4 +253,94 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     return vec4<f32>(gi_sample_room(u32(ri), p, n), 1.0);
+}
+
+// ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
+//
+// A solid floor slab keeps lamp light and sunlight on its own side. The slabs
+// ride in the room table AFTER the rooms, as GiRoom-sized rows of which only
+// bmin.xyz and bmax.xyz (the slab's box, render space) are read:
+//   rows [info.x, info.x + atlas.w)   every solid slab once (the sun's list);
+//   then, per scene light, the RUN of slabs its range reaches, copied, which
+//   the light names as (first, count) in cone_inner.yz, first counted from
+//   info.x + atlas.w (light::gpu_packed_with_slabs, room_probes_gpu).
+// Glass slabs pass light and have no row. No layout change: the table is the
+// one every pipeline already binds at group 0 binding 7.
+//
+// The test, for a point q (a lamp) or the sun along d: the fragment and the
+// light on opposite sides of the slab's mid-plane, and the crossing inside the
+// slab's rectangle shrunk by SLAB_EDGE_TOL (so a fragment on the slab's own
+// edge face is not shadowed by its own slab).
+//
+// CPU TWIN: room_probes::OccluderSlab::blocks_segment / blocks_ray and
+// room_probes::sun_blocked_by_slabs. LOCKSTEP with SLAB_EDGE_TOL_M and
+// SLAB_SUN_REACH_M there.
+//
+// Read only through the two guarded call sites (frag_tail's light loop and
+// sun_shadow_offset), both behind HAS_SLAB_OCCLUSION. The probe update shader
+// compiles these functions as part of this shared text and calls none of them:
+// a room box never holds a solid slab (room_probes::light_irradiance says why).
+const SLAB_EDGE_TOL: f32 = 0.01;
+const SLAB_SUN_REACH: f32 = 1.0;
+
+// The crossing point c lies inside row r's rectangle, shrunk by the tolerance.
+fn slab_rect_holds(r: u32, c: vec3<f32>) -> bool {
+    let bmin = room_gi.rooms[r].bmin.xyz;
+    let bmax = room_gi.rooms[r].bmax.xyz;
+    return c.x > bmin.x + SLAB_EDGE_TOL && c.x < bmax.x - SLAB_EDGE_TOL
+        && c.z > bmin.z + SLAB_EDGE_TOL && c.z < bmax.z - SLAB_EDGE_TOL;
+}
+
+// Row r's slab stands between p and the point q.
+fn slab_segment_blocks(r: u32, p: vec3<f32>, q: vec3<f32>) -> bool {
+    let m = (room_gi.rooms[r].bmin.y + room_gi.rooms[r].bmax.y) * 0.5;
+    let dp = p.y - m;
+    let dq = q.y - m;
+    if (dp * dq >= 0.0) {
+        return false;
+    }
+    // Opposite signs, so dp - dq is never 0.
+    let t = dp / (dp - dq);
+    return slab_rect_holds(r, p + (q - p) * t);
+}
+
+// Row r's slab stands between p and the sun along d (any length).
+fn slab_ray_blocks(r: u32, p: vec3<f32>, d: vec3<f32>) -> bool {
+    let m = (room_gi.rooms[r].bmin.y + room_gi.rooms[r].bmax.y) * 0.5;
+    let dp = p.y - m;
+    if (dp * d.y >= 0.0) {
+        return false;
+    }
+    let t = -dp / d.y;
+    return slab_rect_holds(r, p + d * t);
+}
+
+// The light loop's test: does any slab of the light's run (count rows from
+// `first`) stand between p and the light at q?
+fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, first: u32, count: u32) -> bool {
+    let base = room_gi.header.info.x + room_gi.header.atlas.w + first;
+    for (var k = 0u; k < count; k = k + 1u) {
+        if (slab_segment_blocks(base + k, p, q)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The sun's test: does any solid slab stand between p and the sun along d?
+// Only within SLAB_SUN_REACH of the box around every room (the header's gmin
+// and gmax, written whether or not room GI is on), so a planet's trees, seen
+// from orbit, never walk the list.
+fn slab_sun_blocked(p: vec3<f32>, d: vec3<f32>) -> bool {
+    let h = room_gi.header;
+    let reach = vec3<f32>(SLAB_SUN_REACH);
+    if (any(p < h.gmin.xyz - reach) || any(p > h.gmax.xyz + reach)) {
+        return false;
+    }
+    for (var k = 0u; k < h.atlas.w; k = k + 1u) {
+        if (slab_ray_blocks(h.info.x + k, p, d)) {
+            return true;
+        }
+    }
+    return false;
 }

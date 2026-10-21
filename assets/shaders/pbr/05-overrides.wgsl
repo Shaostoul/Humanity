@@ -65,3 +65,14 @@ override HAS_OCEAN_BRANCH: bool = true;
 // terrain, water, shell and cloud PSOs, which never draw a fragment in one.
 override HAS_ROOM_GI: bool = true;
 
+// HAS_SLAB_OCCLUSION (ship homes increment 7, lane L): the floors between a
+// home's storeys keep lamp light and sunlight on their own side. Two guards,
+// both on the room GI table's slab rows (85-room-gi.wgsl): the light loop in
+// frag_tail tests each light's run of slabs right after its range reject, and
+// sun_shadow_offset (00-bindings-vertex.wgsl) tests the sun against every slab
+// ahead of the shadow map, so the tail's sun term and every in-entry
+// sun_shadow call (leaf and grass transmission, the type-19 lobe: the BUG-060
+// rule) are blocked alike. Live where room GI is, in the surface and vegetation
+// PSOs, the classes that draw a home's inside; folded out of every other.
+override HAS_SLAB_OCCLUSION: bool = true;
+

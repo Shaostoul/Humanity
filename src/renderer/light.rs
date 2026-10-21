@@ -237,12 +237,26 @@ pub fn strip_emission_segments(points: &[Vec3], subdivision: u32) -> Vec<(Vec3, 
 /// [cos_inner, 0, 0, 0]. The ONE packer: the scene light buffer
 /// (`Renderer::set_point_lights`) and the room GI probe update both use it,
 /// so the fragment loop and the probes can never read a light differently.
+/// A light packed this way names no floor slab (`gpu_packed_with_slabs`).
 pub fn gpu_packed(l: &RoomLight) -> [f32; 16] {
+    gpu_packed_with_slabs(l, 0, 0)
+}
+
+/// `gpu_packed` with the light's RUN of floor-slab rows (ship homes increment
+/// 7, lane L): `cone_inner.y` = the run's first row counted from the start of
+/// the runs in the room GI table, `cone_inner.z` = how many rows
+/// (`room_probes::slabs_touched`, laid out by `Renderer::update_room_gi`).
+/// The frag_tail light loop tests the light's path against exactly those slabs.
+/// Both are whole numbers in f32, exact below 2^24 (the shader reads them with
+/// `u32()`); 0 rows (`gpu_packed`) skips the test.
+pub fn gpu_packed_with_slabs(l: &RoomLight, first: u32, count: u32) -> [f32; 16] {
+    const EXACT: u32 = 1 << 24;
+    let (first, count) = if first < EXACT && count < EXACT { (first, count) } else { (0, 0) };
     [
         l.pos.x, l.pos.y, l.pos.z, l.intensity,
         l.color[0], l.color[1], l.color[2], l.range,
         l.dir.x, l.dir.y, l.dir.z, l.cos_outer,
-        l.cos_inner, 0.0, 0.0, 0.0,
+        l.cos_inner, first as f32, count as f32, 0.0,
     ]
 }
 

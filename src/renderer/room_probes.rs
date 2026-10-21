@@ -486,9 +486,21 @@ pub fn trace_box(p: Vec3, d: Vec3, min: Vec3, max: Vec3) -> (f32, usize) {
 
 /// The irradiance ONE light delivers to a surface at `p` with normal `n`: the
 /// fragment loop in 80-fragment-shared.wgsl without the BRDF (the same line
-/// light closest point, range cut, `intensity / (1 + d^2)` falloff with the
-/// linear range window, spot cone, and the 0.001 attenuation floor).
-pub fn light_irradiance(l: &RoomLight, p: Vec3, n: Vec3) -> Vec3 {
+/// light closest point, range cut, the floor slabs that stand between,
+/// `intensity / (1 + d^2)` falloff with the linear range window, spot cone,
+/// and the 0.001 attenuation floor), in that order.
+///
+/// `slabs` is the light's RUN of floor slabs (`slabs_touched`), exactly the rows
+/// its GPU record points at (`cone_inner.yz`, `light::gpu_packed_with_slabs`):
+/// a light whose path to `p` crosses one of them delivers nothing. Empty for a
+/// light no solid slab is near (every light of a one-storey home), and for the
+/// probe update (`Twin::ray_radiance`, and `cs_trace` in
+/// room_probes_update.wgsl, which tests no slab): a room box never holds a solid
+/// slab, because `engine::room_gi` puts a room's lid at the underside of the
+/// slab over it and its floor at the top of the slab under it, so a lamp inside
+/// a box and a point on that box are always on the same side of every slab
+/// (pinned by `engine::room_gi::tests::no_room_box_straddles_a_solid_slab`).
+pub fn light_irradiance(l: &RoomLight, slabs: &[OccluderSlab], p: Vec3, n: Vec3) -> Vec3 {
     let mut pos = l.pos;
     if l.cos_outer < -1.5 {
         pos = line_light_closest_point(l.pos, l.dir, p);
@@ -496,6 +508,11 @@ pub fn light_irradiance(l: &RoomLight, p: Vec3, n: Vec3) -> Vec3 {
     let to_light = pos - p;
     let dist = to_light.length();
     if dist >= l.range {
+        return Vec3::ZERO;
+    }
+    // A floor between storeys: the WGSL tests the light's run right here, after
+    // the range reject (`slab_blocks_light`).
+    if slabs.iter().any(|s| s.blocks_segment(p, pos)) {
         return Vec3::ZERO;
     }
     let dir = to_light / dist.max(0.001);
@@ -553,6 +570,193 @@ pub fn sun_path(room: &RoomBox, h: Vec3, n: Vec3, sun_dir: Vec3) -> f32 {
         room.lid_transmittance
     } else {
         0.0
+    }
+}
+
+// ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
+//
+// WHAT WAS WRONG. Point, spot and strip lights had no occlusion at all, and the
+// home never casts into the sun shadow map, so with a second storey a lamp in
+// the upstairs bedroom lit the dining room under it through the floor, and the
+// sun through the glass roof lit every ground room under a solid floor. A floor
+// slab is the one occluder in a home whose shape is exact and simple: a level
+// box. So the renderer tests it exactly, in the fragment's light loop and at the
+// sun term (docs/design/ship-homes-increment-7-plan.md section 6, the light-
+// budget analysis), and nowhere else.
+//
+// THE TEST. A slab blocks the straight path from a point to a light when the two
+// are on opposite sides of the slab's MID-PLANE and the path crosses that plane
+// inside the slab's rectangle. The mid-plane rather than the box because it is
+// one plane and one crossing: a path through the slab's top or underside crosses
+// it, and a path that only clips a 0.25 m edge corner is the one case it lets
+// by. The rectangle is shrunk by `SLAB_EDGE_TOL_M` so a fragment ON the slab's
+// own edge face, whose crossing lands on the rectangle's border to within
+// rounding, is not shadowed by its own slab. (The slab's top and underside need
+// no tolerance: a light on the far side of either face already lies behind it,
+// n.l < 0.)
+//
+// WHERE THE ROWS LIVE. In the room GI table every pipeline binds (group 0
+// binding 7), after the rooms (`room_probes_gpu::RoomGi`): first each solid
+// slab once (`GiHeader::atlas.w` of them, the sun's list), then for each scene
+// light the RUN of slabs its range touches, copied, so a light's record names
+// its run as (first, count) in `cone_inner.yz`. A light no slab is near carries
+// (0, 0) and the fragment skips the test with one compare.
+//
+// CPU TWIN: this section (`OccluderSlab::blocks_segment` / `blocks_ray`,
+// `sun_blocked_by_slabs`) and `slab_segment_blocks` / `slab_ray_blocks` /
+// `slab_sun_blocked` in 85-room-gi.wgsl. LOCKSTEP: change one, change both.
+
+/// A crossing counts only this far inside the slab's rectangle (metres), so a
+/// fragment on the slab's own edge face is not shadowed by its own slab. 1 cm:
+/// the light it lets round a floor's edge is a 1 cm band.
+pub const SLAB_EDGE_TOL_M: f32 = 0.01;
+
+/// The sun test runs only for points within this distance of the box around
+/// every room (`GiHeader` gmin/gmax, metres). A floor's shadow outside the ship's
+/// rooms would land on the hull or in space, which nothing else aboard shadows
+/// either, and planet vegetation seen from orbit skips the loop entirely.
+pub const SLAB_SUN_REACH_M: f32 = 1.0;
+
+/// A SOLID floor slab as the light sees it: an axis-aligned box from the
+/// slab's underside to its top. Built by `engine::room_gi::occluder_slabs` in
+/// the home frame and shifted into render space each frame with the rooms. A
+/// glass slab passes light and is never one (`FloorSlab::passes_light`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OccluderSlab {
+    pub min: Vec3,
+    pub max: Vec3,
+}
+
+impl OccluderSlab {
+    /// The same slab moved by `off` (home frame to render space).
+    pub fn shifted(&self, off: Vec3) -> OccluderSlab {
+        OccluderSlab { min: self.min + off, max: self.max + off }
+    }
+
+    /// The height of the plane the crossing test uses.
+    pub fn mid_y(&self) -> f32 {
+        (self.min.y + self.max.y) * 0.5
+    }
+
+    /// Distance from `p` to the slab's box (0 inside).
+    pub fn outside_distance(&self, p: Vec3) -> f32 {
+        (self.min - p).max(p - self.max).max(Vec3::ZERO).length()
+    }
+
+    /// True when the crossing point `c` lies inside the rectangle, shrunk by
+    /// `SLAB_EDGE_TOL_M` (WGSL `slab_rect_holds`).
+    fn rect_holds(&self, c: Vec3) -> bool {
+        c.x > self.min.x + SLAB_EDGE_TOL_M
+            && c.x < self.max.x - SLAB_EDGE_TOL_M
+            && c.z > self.min.z + SLAB_EDGE_TOL_M
+            && c.z < self.max.z - SLAB_EDGE_TOL_M
+    }
+
+    /// True when the slab stands between `p` and the point `q` (a lamp): they
+    /// are on opposite sides of its mid-plane and the path crosses it inside
+    /// the rectangle. WGSL `slab_segment_blocks`.
+    pub fn blocks_segment(&self, p: Vec3, q: Vec3) -> bool {
+        let m = self.mid_y();
+        let (dp, dq) = (p.y - m, q.y - m);
+        if dp * dq >= 0.0 {
+            return false;
+        }
+        // dp and dq have opposite signs, so dp - dq is never 0.
+        let t = dp / (dp - dq);
+        self.rect_holds(p + (q - p) * t)
+    }
+
+    /// True when the slab stands between `p` and the sun, which lies along `d`
+    /// at infinity (any length; the crossing does not depend on it). WGSL
+    /// `slab_ray_blocks`.
+    pub fn blocks_ray(&self, p: Vec3, d: Vec3) -> bool {
+        let dp = p.y - self.mid_y();
+        if dp * d.y >= 0.0 {
+            return false;
+        }
+        // Opposite signs again: d.y is not 0.
+        let t = -dp / d.y;
+        self.rect_holds(p + d * t)
+    }
+}
+
+/// The slabs (indices into `slabs`) a light's range can reach past: the box is
+/// nearer the light than its range (a point or spot light's sphere; for a line
+/// light, conservatively, the segment's bounding box grown by the range). A
+/// slab further away cannot change anything the light lights, because the
+/// light's range window is already 0 there. Nearest first. These are the rows
+/// the light's run copies (`room_probes_gpu`).
+pub fn slabs_touched(l: &RoomLight, slabs: &[OccluderSlab]) -> Vec<usize> {
+    let mut out: Vec<(f32, usize)> = Vec::new();
+    for (i, s) in slabs.iter().enumerate() {
+        let d = if l.cos_outer < -1.5 {
+            // The segment's box grown by the range against the slab's box:
+            // a superset of the true capsule test, which is all a run needs.
+            let (lo, hi) = (l.pos.min(l.dir) - Vec3::splat(l.range), l.pos.max(l.dir) + Vec3::splat(l.range));
+            if lo.cmple(s.max).all() && hi.cmpge(s.min).all() {
+                s.outside_distance((l.pos + l.dir) * 0.5)
+            } else {
+                continue;
+            }
+        } else {
+            let d = s.outside_distance(l.pos);
+            if d >= l.range {
+                continue;
+            }
+            d
+        };
+        out.push((d, i));
+    }
+    out.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    out.into_iter().map(|(_, i)| i).collect()
+}
+
+/// True when a floor slab stands between `p` and the sun (direction `sun_dir`,
+/// toward the sun): the CPU twin of `slab_sun_blocked` in 85-room-gi.wgsl,
+/// which `sun_shadow_offset` applies ahead of the shadow map, so it holds with
+/// sun shadows switched off (a floor is not a quality option). `rooms_box` is
+/// the room table's (gmin, gmax): only a point within `SLAB_SUN_REACH_M` of it
+/// is tested.
+pub fn sun_blocked_by_slabs(slabs: &[OccluderSlab], rooms_box: (Vec3, Vec3), p: Vec3, sun_dir: Vec3) -> bool {
+    let reach = Vec3::splat(SLAB_SUN_REACH_M);
+    if p.cmplt(rooms_box.0 - reach).any() || p.cmpgt(rooms_box.1 + reach).any() {
+        return false;
+    }
+    slabs.iter().any(|s| s.blocks_ray(p, sun_dir))
+}
+
+/// Merge slabs whose union is exactly one box: the same underside and top, and
+/// a whole shared edge (side by side in x over the same z span, or in z over
+/// the same x span). Exact, so the union covers the same floor and nothing
+/// more; it only shortens the lists every fragment walks. The homestead's
+/// upper floor (19 slabs, 16 solid) merges to 13: the plant room, forge and
+/// workshop roofs become one, and the mushroom and aquaponics roofs another.
+pub fn merge_slabs(mut slabs: Vec<OccluderSlab>) -> Vec<OccluderSlab> {
+    const EPS: f32 = 1e-4;
+    let near = |a: f32, b: f32| (a - b).abs() <= EPS;
+    loop {
+        let mut merged = None;
+        'scan: for i in 0..slabs.len() {
+            for j in i + 1..slabs.len() {
+                let (a, b) = (slabs[i], slabs[j]);
+                if !(near(a.min.y, b.min.y) && near(a.max.y, b.max.y)) {
+                    continue;
+                }
+                let same_z = near(a.min.z, b.min.z) && near(a.max.z, b.max.z);
+                let same_x = near(a.min.x, b.min.x) && near(a.max.x, b.max.x);
+                let x_touch = near(a.max.x, b.min.x) || near(b.max.x, a.min.x);
+                let z_touch = near(a.max.z, b.min.z) || near(b.max.z, a.min.z);
+                if (same_z && x_touch) || (same_x && z_touch) {
+                    merged = Some((i, j, OccluderSlab { min: a.min.min(b.min), max: a.max.max(b.max) }));
+                    break 'scan;
+                }
+            }
+        }
+        let Some((i, j, m)) = merged else {
+            return slabs;
+        };
+        slabs[i] = m;
+        slabs.remove(j);
     }
 }
 
@@ -725,6 +929,18 @@ pub fn pack_room(
     }
 }
 
+/// Pack one floor slab as a row of the room table (ship homes increment 7):
+/// a `GiRoomGpu`-sized row whose bmin.xyz and bmax.xyz are the slab's box and
+/// nothing else is read (85-room-gi.wgsl, "FLOORS BETWEEN STOREYS"). Rows of
+/// the one record type, so the table every pipeline binds keeps its layout.
+pub fn pack_slab(s: &OccluderSlab) -> GiRoomGpu {
+    GiRoomGpu {
+        bmin: [s.min.x, s.min.y, s.min.z, 0.0],
+        bmax: [s.max.x, s.max.y, s.max.z, 0.0],
+        ..GiRoomGpu::default()
+    }
+}
+
 // ── The CPU twin ──
 
 /// What lights the room surfaces the probes see. `Scene` is the real thing
@@ -856,7 +1072,9 @@ impl Twin {
         let e = match &r.direct {
             DirectSource::Uniform(e0) => *e0,
             DirectSource::Scene { lights, sun } => {
-                let mut e = lights.iter().fold(Vec3::ZERO, |acc, l| acc + light_irradiance(l, h, n));
+                // No slab run: a room box never holds a solid slab (see
+                // `light_irradiance`), so the update, like `cs_trace`, tests none.
+                let mut e = lights.iter().fold(Vec3::ZERO, |acc, l| acc + light_irradiance(l, &[], h, n));
                 if let Some(s) = sun {
                     let tr = sun_path(&r.room, h, n, s.dir);
                     e += Vec3::from(s.color) * s.intensity * n.dot(s.dir).max(0.0) * tr;
@@ -1173,7 +1391,7 @@ mod tests {
                         FACE_NEG_Z => Vec3::new(u, v, 0.0),
                         _ => Vec3::new(u, v, size),
                     };
-                    e_sum += light_irradiance(&lamp, p, n).x;
+                    e_sum += light_irradiance(&lamp, &[], p, n).x;
                 }
             }
         }
@@ -1449,5 +1667,217 @@ mod tests {
         assert_eq!(HEADER_BYTES, 64);
         assert_eq!(ROOM_BYTES, 160);
         assert_eq!(std::mem::size_of::<GiParamsGpu>(), 128);
+    }
+
+    // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
+
+    /// A slab of the homestead's upper floor: top 3.0, 0.25 m thick.
+    fn floor_slab(x0: f32, z0: f32, x1: f32, z1: f32) -> OccluderSlab {
+        OccluderSlab { min: Vec3::new(x0, 2.75, z0), max: Vec3::new(x1, 3.0, z1) }
+    }
+
+    /// The upper bedroom's warm lamp, 0.4 m under the 6 m roof, over a
+    /// 10 x 10 m floor at 3.0.
+    fn upstairs_lamp() -> RoomLight {
+        RoomLight::point(Vec3::new(5.0, 5.6, 5.0), [1.0, 0.85, 0.6], 4.0, 7.0)
+    }
+
+    /// A LAMP ABOVE A SOLID FLOOR DOES NOT REACH THE ROOM UNDER IT. The lamp
+    /// lights the dining room's floor 5.1 m below it with no slab between (the
+    /// light loop as it was before storeys), and delivers exactly nothing once
+    /// the slab is in its run. The fragment faces the lamp (n.l = 1), so the
+    /// zero is the floor's doing and nothing else's; and the slab's own top,
+    /// which the lamp faces, stays lit. Seen red first (2026-10-20) with the
+    /// slab test switched off in `light_irradiance` (`if false && ...`): "a
+    /// solid floor between them: got [0.040196758, 0.034167245, 0.024118057]".
+    #[test]
+    fn a_lamp_above_a_solid_floor_does_not_reach_the_room_under_it() {
+        let lamp = upstairs_lamp();
+        let slab = floor_slab(0.0, 0.0, 10.0, 10.0);
+        let below = Vec3::new(5.0, 0.5, 5.0);
+        let open = light_irradiance(&lamp, &[], below, Vec3::Y);
+        assert!(open.x > 0.01, "with no floor the lamp lights the room below: {open}");
+        assert_eq!(slabs_touched(&lamp, &[slab]), vec![0], "the lamp's range reaches the floor");
+        let got = light_irradiance(&lamp, &[slab], below, Vec3::Y);
+        assert_eq!(got, Vec3::ZERO, "a solid floor between them: got {got}");
+        // The floor's own top, under the lamp: lit as before.
+        let top = Vec3::new(5.0, 3.0, 5.0);
+        assert_eq!(light_irradiance(&lamp, &[slab], top, Vec3::Y), light_irradiance(&lamp, &[], top, Vec3::Y));
+        // And a lamp downstairs does not light the room above: the upstairs
+        // wall a metre over the floor, facing down toward it.
+        let dining = RoomLight::point(Vec3::new(5.0, 2.6, 5.0), [1.0, 0.85, 0.6], 4.0, 4.0);
+        let up_wall = Vec3::new(6.0, 4.0, 5.0);
+        assert!(light_irradiance(&dining, &[], up_wall, Vec3::NEG_Y).x > 0.0);
+        assert_eq!(light_irradiance(&dining, &[slab], up_wall, Vec3::NEG_Y), Vec3::ZERO);
+    }
+
+    /// THROUGH THE STAIRWELL IT DOES. The upper floor as two slabs with the
+    /// stairwell between them (x 4 to 6, the whole depth): a lamp over the gap
+    /// lights the stair below it exactly as it would with no floor at all,
+    /// while a point under either slab is dark. And a fragment on the slab's
+    /// own edge face, facing into the stairwell, is not shadowed by its own
+    /// slab (the crossing lands on the rectangle's border, inside the 1 cm
+    /// tolerance). Seen red first (2026-10-20) with the rectangle test
+    /// answering yes to any crossing of the mid-plane (which closes the gap):
+    /// "the lamp over the stairwell lights the stair: got [0, 0, 0], without a
+    /// floor [0.093045644, 0.0790888, 0.05582739]".
+    #[test]
+    fn a_lamp_over_the_stairwell_lights_the_stair_below() {
+        let west = floor_slab(0.0, 0.0, 4.0, 10.0);
+        let east = floor_slab(6.0, 0.0, 10.0, 10.0);
+        let slabs = [west, east];
+        let lamp = RoomLight::point(Vec3::new(5.0, 5.6, 5.0), [1.0, 0.85, 0.6], 4.0, 7.0);
+        let run: Vec<OccluderSlab> = slabs_touched(&lamp, &slabs).iter().map(|&i| slabs[i]).collect();
+        assert_eq!(run.len(), 2, "the lamp's range reaches both slabs");
+        let stair = Vec3::new(5.0, 1.5, 5.0);
+        let open = light_irradiance(&lamp, &[], stair, Vec3::Y);
+        let got = light_irradiance(&lamp, &run, stair, Vec3::Y);
+        assert!(open.x > 0.01);
+        assert_eq!(got, open, "the lamp over the stairwell lights the stair: got {got}, without a floor {open}");
+        // Under either slab: dark.
+        for p in [Vec3::new(2.0, 0.5, 5.0), Vec3::new(8.0, 0.5, 5.0)] {
+            assert_eq!(light_irradiance(&lamp, &run, p, Vec3::Y), Vec3::ZERO, "under a slab at {p}");
+        }
+        // The west slab's edge face at x = 4, mid-thickness and a little below
+        // the mid-plane, facing +x into the stairwell, lit from above it: the
+        // crossing is at x = 4.0 plus rounding, on the border.
+        let edge = Vec3::new(4.0, 2.8, 5.0);
+        assert_eq!(light_irradiance(&lamp, &run, edge, Vec3::X), light_irradiance(&lamp, &[], edge, Vec3::X));
+    }
+
+    /// THE SUN UNDER A SOLID FLOOR IS BLOCKED, and where no slab is over a
+    /// point (the stairwell, the greenhouse, outside the rooms' box) it is
+    /// not. A high sun from the south-east; the room under the floor is dark,
+    /// the stair under the opening is lit, and so is the floor's own top. A
+    /// LOW sun from the stairwell's side reaches under the slab's edge for
+    /// exactly as far as the geometry says. Seen red first (2026-10-20) with
+    /// `sun_blocked_by_slabs` never blocking (`false && ...`): it panicked
+    /// with "the room under the floor is in the floor's shadow".
+    #[test]
+    fn the_sun_under_a_solid_floor_is_blocked() {
+        let west = floor_slab(0.0, 0.0, 4.0, 10.0);
+        let east = floor_slab(6.0, 0.0, 10.0, 10.0);
+        let slabs = [west, east];
+        let rooms_box = (Vec3::ZERO, Vec3::new(10.0, 6.0, 10.0));
+        let high = Vec3::new(0.1, 1.0, 0.05);
+        assert!(sun_blocked_by_slabs(&slabs, rooms_box, Vec3::new(2.0, 0.0, 5.0), high), "the room under the floor is in the floor's shadow");
+        assert!(!sun_blocked_by_slabs(&slabs, rooms_box, Vec3::new(5.0, 0.0, 5.0), high), "the stair under the opening is in the sun");
+        assert!(!sun_blocked_by_slabs(&slabs, rooms_box, Vec3::new(2.0, 3.0, 5.0), high), "the floor's top is in the sun");
+        // A sun 45 degrees up from +x: from the floor at x = 3.5 the path to it
+        // rises 2.875 m to the mid-plane in 2.875 m of x, crossing at 6.375,
+        // under the east slab: blocked. From x = 2.0 it crosses at 4.875, in
+        // the opening: lit.
+        let low = Vec3::new(1.0, 1.0, 0.0);
+        assert!(sun_blocked_by_slabs(&slabs, rooms_box, Vec3::new(3.5, 0.0, 5.0), low));
+        assert!(!sun_blocked_by_slabs(&slabs, rooms_box, Vec3::new(2.0, 0.0, 5.0), low));
+        // Outside the rooms' box (grown by SLAB_SUN_REACH_M) nothing is tested.
+        assert!(!sun_blocked_by_slabs(&slabs, rooms_box, Vec3::new(2.0, -5.0, 5.0), high));
+        // No slabs, no shadow.
+        assert!(!sun_blocked_by_slabs(&[], rooms_box, Vec3::new(2.0, 0.0, 5.0), high));
+    }
+
+    /// A ONE-STOREY HOME IS EXACTLY AS BEFORE. With no slab in a light's run
+    /// `light_irradiance` is the pre-storey light loop, and a slab the path
+    /// does not cross changes nothing, bit for bit, at every point of a room;
+    /// a light with no run packs exactly the record it always did (cone_inner
+    /// = [cos_inner, 0, 0, 0], which the shader's `cone_inner.z > 0.5` guard
+    /// skips); and a run packs as whole numbers the shader reads back with
+    /// `u32()`. The other half, the shader taking the same path with no slab
+    /// rows, is pinned by `pipeline::permutation_tests::
+    /// the_floor_slab_tests_are_guarded_by_their_switch` (both guards test a
+    /// count first). Seen red first (2026-10-20) with the run packed in
+    /// `cone_inner.zw` instead of `yz`: "the run rides in cone_inner.yz,
+    /// left: (0, 5), right: (5, 7)" (the no-run record still read as before,
+    /// which is why the run's own read-back is the check).
+    #[test]
+    fn a_home_with_no_floor_slabs_is_lit_exactly_as_before() {
+        let lamp = RoomLight::point(Vec3::new(1.5, 2.6, 1.5), [1.0, 0.9, 0.8], 6.0, 8.0);
+        let spot = RoomLight::spot(Vec3::new(2.0, 2.7, 2.0), [1.0, 1.0, 1.0], 12.0, 10.0, Vec3::NEG_Y, 18.0, 28.0);
+        let strip = RoomLight::line(Vec3::new(0.5, 2.6, 0.5), Vec3::new(3.5, 2.6, 0.5), [0.9, 0.95, 1.0], 6.0, 5.0);
+        // A slab off to one side, never between: 20 m east.
+        let aside = floor_slab(20.0, 0.0, 30.0, 10.0);
+        for l in [lamp, spot, strip] {
+            for i in 0..64 {
+                let p = Vec3::new((i % 4) as f32, (i / 16) as f32 * 0.8, ((i / 4) % 4) as f32);
+                let n = fibonacci_ray(i, 64);
+                assert_eq!(light_irradiance(&l, &[aside], p, n), light_irradiance(&l, &[], p, n), "at {p}");
+            }
+            let packed = super::super::light::gpu_packed(&l);
+            assert_eq!(&packed[12..], &[l.cos_inner, 0.0, 0.0, 0.0], "a light with no run packs as before");
+        }
+        let run = super::super::light::gpu_packed_with_slabs(&lamp, 5, 7);
+        assert_eq!((run[13] as u32, run[14] as u32), (5, 7), "the run rides in cone_inner.yz");
+        assert_eq!(run[12], lamp.cos_inner);
+    }
+
+    /// WHICH SLABS A LIGHT'S RUN HOLDS: every slab its range reaches, nearest
+    /// first, and none it cannot reach (its range window is 0 there). A line
+    /// light's segment box grown by its range. Seen red first (2026-10-20)
+    /// with the range test switched off in `slabs_touched` (every slab
+    /// listed): "left: [0, 1, 2, 3], right: [0, 1]".
+    #[test]
+    fn a_light_lists_the_slabs_its_range_reaches_nearest_first() {
+        let slabs = [
+            floor_slab(0.0, 0.0, 10.0, 10.0),  // under the lamp: 2.6 m
+            floor_slab(10.0, 0.0, 20.0, 10.0), // 5.6 m from it
+            floor_slab(12.0, 0.0, 22.0, 10.0), // 7.5 m: out of its 7 m range
+            floor_slab(40.0, 0.0, 50.0, 10.0), // far
+        ];
+        let lamp = upstairs_lamp();
+        assert_eq!(slabs_touched(&lamp, &slabs), vec![0, 1]);
+        // A strip from x 16 to 44: its box grown by its 5 m range reaches x 11
+        // to 49, so slabs 1 to 3 and not slab 0.
+        let strip = RoomLight::line(Vec3::new(16.0, 5.6, 5.0), Vec3::new(44.0, 5.6, 5.0), [1.0; 3], 6.0, 5.0);
+        let got = slabs_touched(&strip, &slabs);
+        assert!(got.contains(&1) && got.contains(&2) && got.contains(&3) && !got.contains(&0), "{got:?}");
+    }
+
+    /// THE MERGE IS EXACT. The homestead's upper floor (docs/design/homestead-
+    /// upper-floor.md section 1, its 16 solid slabs) merges to 13: the plant
+    /// room, forge and workshop roofs become one, the mushroom and aquaponics
+    /// roofs another; nothing else shares a whole edge. The merged boxes cover
+    /// exactly the same floor (the same area, every merged box a union of
+    /// originals). Seen red first (2026-10-20) with the edge test accepting a
+    /// partial shared edge (`x_touch` alone, without `same_z`): 8 boxes, the
+    /// first of them (0, 2.75, 0) to (55, 3, 51), covering the stairwell, the
+    /// shaft, the hatch and two glass roofs ("left: 8, right: 13").
+    #[test]
+    fn merging_slabs_covers_exactly_the_same_floor() {
+        let solid = [
+            (20.0, 0.0, 55.0, 22.0),
+            (0.0, 22.0, 30.1, 30.0),
+            (30.1, 22.0, 34.0, 25.1),
+            (31.9, 25.1, 34.0, 26.9),
+            (30.1, 26.9, 32.5, 30.0),
+            (32.5, 28.1, 34.0, 30.0),
+            (0.0, 30.0, 12.0, 51.0),
+            (12.0, 30.0, 20.0, 51.0),
+            (20.0, 30.0, 34.0, 51.0),
+            (34.0, 30.0, 55.0, 38.0),
+            (34.0, 38.0, 36.5, 39.3),
+            (40.5, 38.0, 55.0, 39.3),
+            (34.0, 39.3, 55.0, 51.0),
+            (0.0, 51.0, 10.0, 61.0),
+            (0.0, 61.0, 10.0, 73.0),
+            (40.0, 73.0, 55.0, 89.0),
+        ];
+        let slabs: Vec<OccluderSlab> = solid.iter().map(|&(a, b, c, d)| floor_slab(a, b, c, d)).collect();
+        let area = |v: &[OccluderSlab]| v.iter().map(|s| (s.max.x - s.min.x) * (s.max.z - s.min.z)).sum::<f32>();
+        let merged = merge_slabs(slabs.clone());
+        assert_eq!(merged.len(), 13, "{merged:?}");
+        assert!((area(&merged) - area(&slabs)).abs() < 0.01, "merged {} m2, the floor {} m2", area(&merged), area(&slabs));
+        assert!(merged.contains(&floor_slab(0.0, 30.0, 34.0, 51.0)), "plant room + forge + workshop");
+        assert!(merged.contains(&floor_slab(0.0, 51.0, 10.0, 73.0)), "mushroom room + aquaponics");
+        // Every original lies inside exactly one merged box.
+        for s in &slabs {
+            let holders = merged
+                .iter()
+                .filter(|m| m.min.cmple(s.min + Vec3::splat(1e-4)).all() && m.max.cmpge(s.max - Vec3::splat(1e-4)).all())
+                .count();
+            assert_eq!(holders, 1, "{s:?}");
+        }
+        // Different thicknesses never merge.
+        let thin = OccluderSlab { min: Vec3::new(10.0, 2.9, 0.0), max: Vec3::new(20.0, 3.0, 10.0) };
+        assert_eq!(merge_slabs(vec![floor_slab(0.0, 0.0, 10.0, 10.0), thin]).len(), 2);
     }
 }

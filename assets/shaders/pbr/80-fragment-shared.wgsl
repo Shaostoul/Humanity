@@ -332,6 +332,21 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
         // (the linear range window below hits zero at dist == radius).
         if (dist >= radius) { continue; }
 
+        // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
+        // A lamp upstairs must not light the room under it through the floor.
+        // The light names the run of solid floor slabs its range reaches
+        // (cone_inner.y = first row, .z = how many; 0 for every light no slab
+        // is near, which skips this with one compare); if any of them stands
+        // between this fragment and the light's point, the light adds nothing
+        // here (85-room-gi.wgsl, CPU twin room_probes::light_irradiance). After
+        // the range reject, so a light out of range costs nothing more.
+        // HAS_SLAB_OCCLUSION is live in the surface and vegetation PSOs only.
+        if (HAS_SLAB_OCCLUSION && scene_lights[i].cone_inner.z > 0.5) {
+            if (slab_blocks_light(in.world_position, light_pos, u32(scene_lights[i].cone_inner.y), u32(scene_lights[i].cone_inner.z))) {
+                continue;
+            }
+        }
+
         let light_dir = to_light / max(dist, 0.001);
 
         // Attenuation: inverse square with radius falloff

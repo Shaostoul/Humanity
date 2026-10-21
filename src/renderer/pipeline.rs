@@ -2194,14 +2194,26 @@ pub const ALL_BRANCH_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRAN
 /// room. The guard is `if (HAS_ROOM_GI && ...)`, switch first, like every other.
 pub const FEATURE_ROOM_GI: &str = "HAS_ROOM_GI";
 
-/// Every feature switch (see `FEATURE_ROOM_GI`).
-pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI];
+/// The floors between storeys (ship homes increment 7, lane L): a solid floor
+/// slab keeps lamp light and sunlight on its own side. A FEATURE switch with
+/// TWO guards, both on the room GI table's slab rows: the light loop in
+/// frag_tail (each light's run of slabs, after its range reject) and
+/// `sun_shadow_offset` (the sun against every slab, ahead of the shadow map,
+/// so the tail's sun term and every in-entry `sun_shadow` call are blocked
+/// alike). Live in the same classes as room GI, the ones that draw a home's
+/// inside, and compiled out of the terrain, water, shell and cloud pipelines.
+pub const FEATURE_SLAB_OCCLUSION: &str = "HAS_SLAB_OCCLUSION";
+
+/// Every feature switch (see `FEATURE_ROOM_GI`, `FEATURE_SLAB_OCCLUSION`), in
+/// declaration order.
+pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION];
 
 /// Every switch the megashader declares, in declaration order: the shell
 /// switches, then the feature switches. The permutation tests and
 /// `shader_loader::validate_wgsl` require each one to exist with a `= true`
 /// default, so every pipeline that does NOT name a switch keeps its code.
-pub const ALL_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI];
+pub const ALL_SWITCHES: &[&str] =
+    &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION];
 
 /// The fragment entry of the two alpha-cutout sun-shadow PSOs: ONE union
 /// twin of the class entries' cutout discards (pinned to them by
@@ -2310,8 +2322,8 @@ impl ShaderClass {
 
     /// The FEATURE switches this class's pipelines keep ON (frag_tail reads
     /// them, so every class compiles the guard and each class's permutation
-    /// decides whether it folds away). Room GI lives in the classes that draw
-    /// room interiors.
+    /// decides whether it folds away). Room GI and the floors between storeys
+    /// live in the classes that draw room interiors.
     pub const fn live_features(self) -> &'static [&'static str] {
         match self {
             ShaderClass::Surface | ShaderClass::Vegetation => ALL_FEATURE_SWITCHES,
@@ -2326,10 +2338,12 @@ impl ShaderClass {
     pub const fn dead_branches(self) -> &'static [&'static str] {
         match self {
             ShaderClass::Surface | ShaderClass::Vegetation => ALL_BRANCH_SWITCHES,
-            ShaderClass::Terrain => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI],
-            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI],
-            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI],
-            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI],
+            ShaderClass::Terrain => {
+                &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION]
+            }
+            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION],
+            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION],
+            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION],
         }
     }
 
@@ -2908,6 +2922,91 @@ mod permutation_tests {
         for row in PSO_REGISTRY {
             let live = row.class.is_some_and(|c| owners.contains(&c));
             assert_eq!(!row.dead.contains(&FEATURE_ROOM_GI), live, "{}: room GI live = {live}", row.label);
+        }
+    }
+
+    /// THE FLOORS BETWEEN STOREYS (ship homes increment 7, lane L): one switch,
+    /// two guards, each with the switch as its FIRST operand.
+    /// - The lamp guard sits in frag_tail's light loop AFTER the range reject
+    ///   (a light out of range costs nothing more) and before the attenuation,
+    ///   and the line after it calls `slab_blocks_light`.
+    /// - The sun guard sits in `sun_shadow_offset`, ahead of the shadow map
+    ///   (`sun_map_offset`), and that function never reads the map's switch
+    ///   (`shadow_u.params.x`): a floor blocks the sun with sun shadows off.
+    ///   Every sun-derived term reaches the sun through `sun_shadow_offset`
+    ///   (the tail directly, the type-19 lobe and the three vegetation
+    ///   transmission terms through `sun_shadow`), so `sun_map_offset` must be
+    ///   called from exactly that one place: a term calling the map directly
+    ///   would glow under a solid floor, the BUG-060 failure.
+    /// - The switch is live in exactly the room GI classes (surface,
+    ///   vegetation) and compiled out of every other PSO.
+    /// Seen red first (2026-10-20) with the switch missing from
+    /// `live_features` (Surface and Vegetation keeping room GI only): "left:
+    /// [], right: [Surface, Vegetation]".
+    #[test]
+    fn the_floor_slab_tests_are_guarded_by_their_switch() {
+        let main = code_only(class_entries_side());
+        let s = FEATURE_SLAB_OCCLUSION;
+        // (a) The lamp guard.
+        let lamp = format!("if ({s} && scene_lights[i].cone_inner.z > 0.5) {{");
+        let sites: Vec<usize> = main.match_indices(&lamp).map(|(p, _)| p).collect();
+        assert_eq!(sites.len(), 1, "exactly one {lamp:?}, found {}", sites.len());
+        let (t0, t1) = function_body(&main, "frag_tail");
+        assert!(sites[0] > t0 && sites[0] < t1, "the lamp guard must be inside frag_tail");
+        let tail = &main[t0..t1];
+        let reject = t0 + tail.find("if (dist >= radius) { continue; }").expect("the light loop's range reject");
+        let atten = t0 + tail.find("var attenuation").expect("the light loop's attenuation");
+        assert!(
+            reject < sites[0] && sites[0] < atten,
+            "the lamp guard (line {}) must come after the range reject (line {}) and before the attenuation (line {})",
+            line_of(&main, sites[0]),
+            line_of(&main, reject),
+            line_of(&main, atten)
+        );
+        let next = main[sites[0] + lamp.len()..].lines().nth(1).unwrap_or("").trim();
+        assert!(next.contains("slab_blocks_light("), "the line after the lamp guard must call slab_blocks_light, found {next:?}");
+        // (b) The sun guard.
+        let sun = format!("if ({s} && room_gi.header.atlas.w > 0u) {{");
+        let sites: Vec<usize> = main.match_indices(&sun).map(|(p, _)| p).collect();
+        assert_eq!(sites.len(), 1, "exactly one {sun:?}, found {}", sites.len());
+        let (o0, o1) = function_body(&main, "sun_shadow_offset");
+        assert!(sites[0] > o0 && sites[0] < o1, "the sun guard must be inside sun_shadow_offset");
+        let next = main[sites[0] + sun.len()..].lines().nth(1).unwrap_or("").trim();
+        assert!(next.contains("slab_sun_blocked("), "the line after the sun guard must call slab_sun_blocked, found {next:?}");
+        let body = &main[o0..o1];
+        let map = o0 + body.find("sun_map_offset(").expect("sun_shadow_offset ends in the shadow map");
+        assert!(sites[0] < map, "the floors are tested before the shadow map");
+        assert!(
+            !body.contains("shadow_u.params.x"),
+            "sun_shadow_offset must not read the shadow map's switch: a floor blocks the sun with shadows off"
+        );
+        let (s0, s1) = function_body(&main, "sun_shadow");
+        assert!(main[s0..s1].contains("sun_shadow_offset("), "sun_shadow goes through sun_shadow_offset");
+        // (c) Each guarded function, and the map's half, has exactly one caller.
+        for (func, owner) in [
+            ("slab_blocks_light", "frag_tail"),
+            ("slab_sun_blocked", "sun_shadow_offset"),
+            ("sun_map_offset", "sun_shadow_offset"),
+        ] {
+            let uses: Vec<usize> =
+                identifier_sites(&main, func).into_iter().filter(|&p| !main[..p].ends_with("fn ")).collect();
+            assert_eq!(
+                uses.len(),
+                1,
+                "{func} must be called in exactly one place (inside {owner}), found {} at lines {:?}",
+                uses.len(),
+                uses.iter().map(|p| line_of(&main, *p)).collect::<Vec<_>>()
+            );
+            let (b0, b1) = function_body(&main, owner);
+            assert!(uses[0] > b0 && uses[0] < b1, "{func}'s one call must be inside {owner}");
+        }
+        // (d) Live in the room GI classes, off everywhere else.
+        let owners: Vec<ShaderClass> =
+            ShaderClass::ALL.iter().copied().filter(|c| c.live_features().contains(&s)).collect();
+        assert_eq!(owners, vec![ShaderClass::Surface, ShaderClass::Vegetation]);
+        for row in PSO_REGISTRY {
+            let live = row.class.is_some_and(|c| owners.contains(&c));
+            assert_eq!(!row.dead.contains(&s), live, "{}: slab occlusion live = {live}", row.label);
         }
     }
 

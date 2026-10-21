@@ -650,12 +650,14 @@ mod tests {
     /// PSOs' constants bind to nothing. (Stripping the declaration alone
     /// leaves the guard referencing an undefined identifier, which naga
     /// refuses as a parse error on its own; that half-pruned shape needs no
-    /// gate of ours.)
+    /// gate of ours.) Every guard goes: a shell switch guards one dispatch,
+    /// but a feature switch may guard several blocks (the floors between
+    /// storeys guard the light loop and the sun, ship homes increment 7).
     fn without_switch(src: &str, name: &str) -> String {
         let decl = format!("override {name}: bool = true;");
         let guard_use = format!("{name} && ");
         assert!(src.contains(&decl), "the source declares {name}");
-        assert_eq!(src.matches(&guard_use).count(), 1, "the source guards ONE dispatch with {name}");
+        assert!(src.matches(&guard_use).count() >= 1, "the source guards at least one block with {name}");
         src.replace(&decl, "").replace(&guard_use, "")
     }
 
@@ -669,7 +671,7 @@ mod tests {
     /// declared but defaulting to `false`.
     #[test]
     fn validate_wgsl_refuses_a_megashader_missing_a_permutation_switch() {
-        use super::super::pipeline::{ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_GI};
+        use super::super::pipeline::{ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION};
         let intact = super::assembled_pbr_source();
         super::validate_wgsl(intact).expect("the embedded megashader passes the gate");
 
@@ -680,6 +682,17 @@ mod tests {
         assert!(naga_alone_accepts(&gi_gone), "a megashader without HAS_ROOM_GI is valid WGSL");
         let err = super::validate_wgsl(&gi_gone).expect_err("a megashader without HAS_ROOM_GI must be refused");
         assert!(err.contains(FEATURE_ROOM_GI), "the refusal must name HAS_ROOM_GI: {err}");
+
+        // And the floors between storeys' (ship homes increment 7): a stale
+        // tree without it would hand the terrain, water, shell and cloud
+        // fragments the slab walks, silently. Seen fail first (2026-10-20)
+        // with FEATURE_SLAB_OCCLUSION left out of ALL_SWITCHES (the gate then
+        // never looked for it): "a megashader without HAS_SLAB_OCCLUSION must
+        // be refused: ()", the source accepted.
+        let slabs_gone = without_switch(intact, FEATURE_SLAB_OCCLUSION);
+        assert!(naga_alone_accepts(&slabs_gone), "a megashader without HAS_SLAB_OCCLUSION is valid WGSL");
+        let err = super::validate_wgsl(&slabs_gone).expect_err("a megashader without HAS_SLAB_OCCLUSION must be refused");
+        assert!(err.contains(FEATURE_SLAB_OCCLUSION), "the refusal must name HAS_SLAB_OCCLUSION: {err}");
 
         // One switch gone: naga alone accepts it; the gate refuses it and
         // names the switch.

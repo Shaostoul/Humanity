@@ -1006,6 +1006,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             state.renderer.room_gi.probe_count()
         );
     }
+    // {"slab_occlusion":"0"} lets lamp light and sunlight through the floors
+    // between storeys again (ship homes increment 7, lane L; renderer::
+    // room_probes, "FLOORS BETWEEN STOREYS"): no slab rows are written and no
+    // light names a run, so the shader's two slab tests are skipped exactly as
+    // in a one-storey home. "1" restores them. The same-boot A/B for the look
+    // (what a floor takes away) and the cost (the gpu.scene and
+    // gpu.transparent difference). Sticky until "1", like room_gi.
+    if let Some(t) = grab("slab_occlusion") {
+        state.renderer.room_gi.slabs_off = t == "0";
+        log::info!(
+            "Showcase: slab_occlusion -> {} ({} solid floor slabs)",
+            if state.renderer.room_gi.slabs_off { "OFF (light passes every floor)" } else { "on" },
+            state.renderer.room_gi.slab_count()
+        );
+    }
     // {"hull":"0"} hides the ship's hull and "1" shows it again (2026-10-05): what the H key and
     // Settings > Graphics > "Show hull (H)" do (`GuiState::show_hull`, never saved), so a rig sees
     // the ship the way a player who pressed H does. The hull's plating covers every plot but the
