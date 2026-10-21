@@ -578,9 +578,10 @@ The data follows this draft, with these differences, each decided or found while
   kind of fixture, and every fixture of the kind shares it (`household_use` in
   data/machines/home.ron and home_solo.ron; `MachineHome::household_share` and the plumbing
   tick's `HouseholdUse`). Section 9 item 5 is closed: the shower room adds no water.
-- **ramp-1 is not moved and the `ramp` row is unchanged** (the lane touched only the stairs
-  row of structure_types.ron, beside lane G's guard rows). Section 7's change stands as the
-  plan: the ramp row to `size: (1.8, 0.4, 6.8)` and ramp-1 to `(48.0, 0.0, 17.4)` at 180
-  degrees. Until it lands, ramp-1's 1.2 m top in the vehicle bay has 1.55 m to the bay's lid.
+- **ramp-1 became the train platform's boarding ramp in a follow-up commit** (a3e55a85b,
+  2026-10-20; lane C1 itself touched only the stairs row of structure_types.ron, beside lane
+  G's guard rows). Section 7's change is built as planned: the `ramp` row is
+  `size: (1.8, 0.4, 6.8)`, 1:17, and ramp-1 stands at `(48.0, 0.0, 17.4)` at 180 degrees, so
+  the 1.2 m ramp with 1.55 m to the bay's lid is gone.
 - **The checks of section 10 are tests now**: src/ship/homestead_layout_tests.rs, run with
   `node scripts/lib-tests.js homestead_layout_tests`.
