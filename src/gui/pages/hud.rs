@@ -1120,7 +1120,8 @@ pub(crate) fn lift_card(
         if !crate::ship::structure::in_footprint(lift.ty, base, lift.yaw, eye.x, eye.z) {
             continue;
         }
-        let Some(zone) = ship.zones.get(lift.key.0) else { continue };
+        // Keyed by the zone's id since the elevator-key follow-up (`footing::LiftKey`).
+        let Some(zone) = ship.zones.iter().find(|z| z.id == lift.key.0) else { continue };
         let oy = zone.origin_vec().y;
         let storeys = zone.body.storeys();
         let top_stop = lift.stops.last().copied().unwrap_or(0.0);
