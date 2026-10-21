@@ -48,6 +48,16 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### RESUME FIRST: in flight at the weekly usage cap (2026-10-21, ~2 PM Pacific)
+
+Five pieces are committed in their own worktrees, not merged: Maps increment 2 (built and tested,
+its rig sweep not run), bounced light's ambient level and probe streaming (WIP; its commit skipped
+the pre-commit hook, run lints first), the sky bodies list (WIP, all seven seen fixed in captures),
+recovery through trusted people (WIP, tests pass, three red-first runs and the browser check left),
+and the Sun's real body (not started; the operator asked for it). Worktree, commit, state and the
+next command for each: `docs/history/2026-10-21-in-flight.md`. Merge main into each worktree,
+finish, verify, release one at a time.
+
 ### THIS WEEK (planned 2026-10-02): playable multiplayer, proven with two people
 
 Planned by a five-reader survey, three competing week plans and a judge, with
