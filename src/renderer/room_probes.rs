@@ -634,9 +634,11 @@ pub fn sun_path(room: &RoomBox, h: Vec3, n: Vec3, sun_dir: Vec3) -> f32 {
 // its run as (first, count) in `cone_inner.yz`. A light no slab is near carries
 // (0, 0) and the fragment skips the test with one compare.
 //
-// CPU TWIN: this section (`OccluderSlab::blocks_segment` / `blocks_ray`,
-// `sun_blocked_by_slabs`) and `slab_segment_blocks` / `slab_ray_blocks` /
-// `slab_sun_blocked` in 85-room-gi.wgsl. LOCKSTEP: change one, change both.
+// CPU TWIN: this section and 85-room-gi.wgsl. The lamp test
+// `OccluderSlab::blocks_segment` is `slab_segment_blocks`; the sun's walk
+// `sun_walk` over `sun_rows`' layered packing is `slab_sun_blocked`, and its
+// answer equals the per-slab reference `sun_blocked_by_slabs` (`blocks_ray`
+// on every slab). LOCKSTEP: change one, change both.
 
 /// A crossing counts only this far inside the slab's rectangle (metres), so a
 /// fragment on the slab's own edge face is not shadowed by its own slab. 1 cm:
@@ -699,8 +701,8 @@ impl OccluderSlab {
     }
 
     /// True when the slab stands between `p` and the sun, which lies along `d`
-    /// at infinity (any length; the crossing does not depend on it). WGSL
-    /// `slab_ray_blocks`.
+    /// at infinity (any length; the crossing does not depend on it). The
+    /// per-slab reference the GPU's layered walk (`sun_walk`) must equal.
     pub fn blocks_ray(&self, p: Vec3, d: Vec3) -> bool {
         let dp = p.y - self.mid_y();
         if dp * d.y >= 0.0 {
@@ -744,17 +746,93 @@ pub fn slabs_touched(l: &RoomLight, slabs: &[OccluderSlab]) -> Vec<usize> {
 }
 
 /// True when a floor slab stands between `p` and the sun (direction `sun_dir`,
-/// toward the sun): the CPU twin of `slab_sun_blocked` in 85-room-gi.wgsl,
-/// which `sun_shadow_offset` applies ahead of the shadow map, so it holds with
-/// sun shadows switched off (a floor is not a quality option). `rooms_box` is
-/// the room table's (gmin, gmax): only a point within `SLAB_SUN_REACH_M` of it
-/// is tested.
+/// toward the sun): the per-slab REFERENCE for `slab_sun_blocked` in
+/// 85-room-gi.wgsl (which walks layers, `sun_walk`, to the same answer), which
+/// `sun_shadow_offset` applies ahead of the shadow map, so it holds with sun
+/// shadows switched off (a floor is not a quality option). `rooms_box` is the
+/// room table's (gmin, gmax): only a point within `SLAB_SUN_REACH_M` of it is
+/// tested.
 pub fn sun_blocked_by_slabs(slabs: &[OccluderSlab], rooms_box: (Vec3, Vec3), p: Vec3, sun_dir: Vec3) -> bool {
     let reach = Vec3::splat(SLAB_SUN_REACH_M);
     if p.cmplt(rooms_box.0 - reach).any() || p.cmpgt(rooms_box.1 + reach).any() {
         return false;
     }
     slabs.iter().any(|s| s.blocks_ray(p, sun_dir))
+}
+
+/// THE SUN'S LIST AS THE GPU WALKS IT (2026-10-21). Every slab with the same
+/// underside and top shares one mid-plane, so a fragment's path to the sun
+/// crosses all of them at ONE point. The rows are grouped into LAYERS: a
+/// layer row (`bmin`/`bmax` = the union box of its slabs, `counts.x` = how
+/// many slab rows follow) and then its slabs, nearest the eye first, the
+/// layers too. A fragment computes the crossing once per layer and skips the
+/// whole layer when the point falls outside the union box, which is where a
+/// low sun's path goes: at the dawn park console-face-6 the per-slab walk read
+/// gpu.scene +0.47 ms with the floors on (13 crossings for every fragment, none
+/// blocking) and +0.24 ms at home-overview-noon. Exactly the per-slab answer
+/// (`sun_blocked_by_slabs`), pinned by `the_layered_sun_walk_answers_as_every_slab_would`.
+pub fn sun_rows(slabs: &[OccluderSlab], eye: Vec3) -> Vec<GiRoomGpu> {
+    let mut layers: Vec<(f32, f32, Vec<OccluderSlab>)> = Vec::new();
+    for s in slabs {
+        match layers.iter_mut().find(|(lo, hi, _)| (lo - s.min.y).abs() <= 1e-4 && (hi - s.max.y).abs() <= 1e-4) {
+            Some(l) => l.2.push(*s),
+            None => layers.push((s.min.y, s.max.y, vec![*s])),
+        }
+    }
+    let near = |v: &[OccluderSlab]| v.iter().map(|s| s.outside_distance(eye)).fold(f32::INFINITY, f32::min);
+    for l in &mut layers {
+        l.2.sort_by(|a, b| a.outside_distance(eye).total_cmp(&b.outside_distance(eye)));
+    }
+    layers.sort_by(|a, b| near(&a.2).total_cmp(&near(&b.2)));
+    let mut rows = Vec::with_capacity(slabs.len() + layers.len());
+    for (_, _, members) in &layers {
+        let (lo, hi) = members.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), s| (a.min(s.min), b.max(s.max)));
+        rows.push(GiRoomGpu {
+            bmin: [lo.x, lo.y, lo.z, 0.0],
+            bmax: [hi.x, hi.y, hi.z, 0.0],
+            counts: [members.len() as u32, 0, 0, 0],
+            ..GiRoomGpu::default()
+        });
+        rows.extend(members.iter().map(pack_slab));
+    }
+    rows
+}
+
+/// The CPU transcription of `slab_sun_blocked` in 85-room-gi.wgsl, walking
+/// `sun_rows`' packing exactly as the GPU does: whether a slab stands between
+/// `p` and the sun along `d`, and how many rows the walk read (the cost). With
+/// `rooms_box` the room table's (gmin, gmax).
+pub fn sun_walk(rows: &[GiRoomGpu], rooms_box: (Vec3, Vec3), p: Vec3, d: Vec3) -> (bool, u32) {
+    let reach = Vec3::splat(SLAB_SUN_REACH_M);
+    if p.cmplt(rooms_box.0 - reach).any() || p.cmpgt(rooms_box.1 + reach).any() {
+        return (false, 0);
+    }
+    let (mut k, mut read) = (0usize, 0u32);
+    while k < rows.len() {
+        let l = &rows[k];
+        let n = l.counts[0] as usize;
+        read += 1;
+        let (lmin, lmax) = (Vec3::new(l.bmin[0], l.bmin[1], l.bmin[2]), Vec3::new(l.bmax[0], l.bmax[1], l.bmax[2]));
+        let dp = p.y - (lmin.y + lmax.y) * 0.5;
+        if dp * d.y < 0.0 {
+            let c = p + d * (-dp / d.y);
+            if c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z {
+                for j in 1..=n {
+                    read += 1;
+                    let s = &rows[k + j];
+                    let slab = OccluderSlab {
+                        min: Vec3::new(s.bmin[0], s.bmin[1], s.bmin[2]),
+                        max: Vec3::new(s.bmax[0], s.bmax[1], s.bmax[2]),
+                    };
+                    if slab.rect_holds(c) {
+                        return (true, read);
+                    }
+                }
+            }
+        }
+        k += 1 + n;
+    }
+    (false, read)
 }
 
 /// Merge slabs whose union is exactly one box: the same underside and top, and
@@ -1911,5 +1989,86 @@ mod tests {
         // Different thicknesses never merge.
         let thin = OccluderSlab { min: Vec3::new(10.0, 2.9, 0.0), max: Vec3::new(20.0, 3.0, 10.0) };
         assert_eq!(merge_slabs(vec![floor_slab(0.0, 0.0, 10.0, 10.0), thin]).len(), 2);
+    }
+
+    /// The homestead upper floor's 16 solid slabs (homestead-upper-floor.md
+    /// section 1), merged.
+    fn homestead_floor() -> Vec<OccluderSlab> {
+        let solid = [
+            (20.0, 0.0, 55.0, 22.0),
+            (0.0, 22.0, 30.1, 30.0),
+            (30.1, 22.0, 34.0, 25.1),
+            (31.9, 25.1, 34.0, 26.9),
+            (30.1, 26.9, 32.5, 30.0),
+            (32.5, 28.1, 34.0, 30.0),
+            (0.0, 30.0, 12.0, 51.0),
+            (12.0, 30.0, 20.0, 51.0),
+            (20.0, 30.0, 34.0, 51.0),
+            (34.0, 30.0, 55.0, 38.0),
+            (34.0, 38.0, 36.5, 39.3),
+            (40.5, 38.0, 55.0, 39.3),
+            (34.0, 39.3, 55.0, 51.0),
+            (0.0, 51.0, 10.0, 61.0),
+            (0.0, 61.0, 10.0, 73.0),
+            (40.0, 73.0, 55.0, 89.0),
+        ];
+        merge_slabs(solid.iter().map(|&(a, b, c, d)| floor_slab(a, b, c, d)).collect())
+    }
+
+    /// THE LAYERED SUN WALK ANSWERS AS EVERY SLAB WOULD. `sun_rows` groups the
+    /// slabs by mid-plane behind a layer row each, and `sun_walk` (the WGSL's
+    /// `slab_sun_blocked`, transcribed) must give the per-slab reference's
+    /// answer (`sun_blocked_by_slabs`) at every point of a grid through the
+    /// house, on both storeys and above the roof, for a noon sun, low dawn suns
+    /// from either side, a steep sun and a sun below the deck, with two layers
+    /// (the homestead's floor at 3.0 and a test floor at 6.0). And the reason
+    /// for the layers: a dawn sun from the console room reads the two layer
+    /// rows and no slab (the per-slab walk tested all 14 slabs there). Seen red
+    /// first (2026-10-21) with a layer's union box taken from its nearest slab
+    /// alone (`members[0]`): "the walk and the reference differ at [0, 0, 0]
+    /// toward [1, 0.08, 0.1]: false against true".
+    #[test]
+    fn the_layered_sun_walk_answers_as_every_slab_would() {
+        let mut slabs = homestead_floor();
+        slabs.push(OccluderSlab { min: Vec3::new(10.0, 5.75, 40.0), max: Vec3::new(30.0, 6.0, 60.0) });
+        let rooms_box = (Vec3::ZERO, Vec3::new(55.0, 9.0, 89.0));
+        let eye = Vec3::new(45.0, 1.7, 45.0);
+        let rows = sun_rows(&slabs, eye);
+        assert_eq!(rows.len(), slabs.len() + 2, "two layers, each behind its own row");
+        let suns = [
+            Vec3::new(0.1, 1.0, 0.05),
+            Vec3::new(1.0, 0.08, 0.1),
+            Vec3::new(-1.0, 0.06, -0.2),
+            Vec3::new(0.0, 0.5, -1.0),
+            Vec3::new(0.2, -1.0, 0.1),
+        ];
+        let mut checked = 0;
+        for xi in 0..=37 {
+            for zi in 0..=60 {
+                for y in [0.0f32, 1.2, 2.7, 3.0, 4.5, 6.5] {
+                    let p = Vec3::new(xi as f32 * 1.5, y, zi as f32 * 1.5);
+                    for d in suns {
+                        let walk = sun_walk(&rows, rooms_box, p, d).0;
+                        let reference = sun_blocked_by_slabs(&slabs, rooms_box, p, d);
+                        assert_eq!(
+                            walk, reference,
+                            "the walk and the reference differ at {p} toward {d}: {walk} against {reference}"
+                        );
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(checked, 38 * 61 * 6 * 5);
+        // The cost at the dawn park: the path from the console room misses both
+        // layers' union boxes, so the walk reads the two layer rows and stops.
+        let (blocked, read) = sun_walk(&rows, rooms_box, Vec3::new(45.0, 1.0, 45.0), Vec3::new(1.0, 0.08, 0.1));
+        assert!(!blocked);
+        assert_eq!(read, 2, "a dawn sun reads the layer rows only");
+        // Under the floor at noon the nearest slab blocks first: the layer row,
+        // then the slab over the eye.
+        let (blocked, read) = sun_walk(&rows, rooms_box, Vec3::new(45.0, 1.0, 45.0), Vec3::new(0.1, 1.0, 0.05));
+        assert!(blocked);
+        assert_eq!(read, 2, "the slab nearest the eye is the first slab row");
     }
 }

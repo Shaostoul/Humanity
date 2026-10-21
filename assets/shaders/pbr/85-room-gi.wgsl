@@ -49,9 +49,9 @@ struct GiHeader {
     // w = depth tiles per atlas row.
     info: vec4<u32>,
     // x = atlas width, y = atlas height, z = first row of the depth region,
-    // w = how many solid FLOOR SLABS follow the rooms (ship homes increment 7,
-    // the slab rows below; 0 for a one-storey home and with the dev switch
-    // showcase {"slab_occlusion":"0"}).
+    // w = how many rows the sun's list of FLOOR SLABS takes after the rooms,
+    // layer rows included (ship homes increment 7, the slab rows below; 0 for
+    // a one-storey home and with the dev switch {"slab_occlusion":"0"}).
     atlas: vec4<u32>,
 };
 
@@ -260,7 +260,8 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
 // A solid floor slab keeps lamp light and sunlight on its own side. The slabs
 // ride in the room table AFTER the rooms, as GiRoom-sized rows of which only
 // bmin.xyz and bmax.xyz (the slab's box, render space) are read:
-//   rows [info.x, info.x + atlas.w)   every solid slab once (the sun's list);
+//   rows [info.x, info.x + atlas.w)   the sun's list: every solid slab once,
+//     grouped into layers behind a layer row each (slab_sun_blocked);
 //   then, per scene light, the RUN of slabs its range reaches, copied, which
 //   the light names as (first, count) in cone_inner.yz, first counted from
 //   info.x + atlas.w (light::gpu_packed_with_slabs, room_probes_gpu).
@@ -272,9 +273,10 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
 // slab's rectangle shrunk by SLAB_EDGE_TOL (so a fragment on the slab's own
 // edge face is not shadowed by its own slab).
 //
-// CPU TWIN: room_probes::OccluderSlab::blocks_segment / blocks_ray and
-// room_probes::sun_blocked_by_slabs. LOCKSTEP with SLAB_EDGE_TOL_M and
-// SLAB_SUN_REACH_M there.
+// CPU TWIN: room_probes::OccluderSlab::blocks_segment (the lamp test) and
+// room_probes::sun_walk (the sun's walk over sun_rows' packing), whose answer
+// equals the per-slab reference room_probes::sun_blocked_by_slabs. LOCKSTEP
+// with SLAB_EDGE_TOL_M and SLAB_SUN_REACH_M there.
 //
 // Read only through the two guarded call sites (frag_tail's light loop and
 // sun_shadow_offset), both behind HAS_SLAB_OCCLUSION. The probe update shader
@@ -304,17 +306,6 @@ fn slab_segment_blocks(r: u32, p: vec3<f32>, q: vec3<f32>) -> bool {
     return slab_rect_holds(r, p + (q - p) * t);
 }
 
-// Row r's slab stands between p and the sun along d (any length).
-fn slab_ray_blocks(r: u32, p: vec3<f32>, d: vec3<f32>) -> bool {
-    let m = (room_gi.rooms[r].bmin.y + room_gi.rooms[r].bmax.y) * 0.5;
-    let dp = p.y - m;
-    if (dp * d.y >= 0.0) {
-        return false;
-    }
-    let t = -dp / d.y;
-    return slab_rect_holds(r, p + d * t);
-}
-
 // The light loop's test: does any slab of the light's run (count rows from
 // `first`) stand between p and the light at q?
 fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, first: u32, count: u32) -> bool {
@@ -327,20 +318,45 @@ fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, first: u32, count: u32) -> bool
     return false;
 }
 
-// The sun's test: does any solid slab stand between p and the sun along d?
-// Only within SLAB_SUN_REACH of the box around every room (the header's gmin
-// and gmax, written whether or not room GI is on), so a planet's trees, seen
-// from orbit, never walk the list.
+// The sun's test: does any solid slab stand between p and the sun along d
+// (any length)? Only within SLAB_SUN_REACH of the box around every room (the
+// header's gmin and gmax, written whether or not room GI is on), so a planet's
+// trees, seen from orbit, never walk the list.
+//
+// The sun's list is grouped into LAYERS (room_probes::sun_rows): a layer row
+// (bmin/bmax = the union box of its slabs, counts.x = how many slab rows
+// follow), then its slabs. Every slab of a layer has the same mid-plane, so
+// the path crosses them all at one point c, computed once; a c outside the
+// layer's union box skips the whole layer, which is where a low sun's path
+// goes. Exactly the per-slab answer. CPU twin: room_probes::sun_walk.
 fn slab_sun_blocked(p: vec3<f32>, d: vec3<f32>) -> bool {
     let h = room_gi.header;
     let reach = vec3<f32>(SLAB_SUN_REACH);
     if (any(p < h.gmin.xyz - reach) || any(p > h.gmax.xyz + reach)) {
         return false;
     }
-    for (var k = 0u; k < h.atlas.w; k = k + 1u) {
-        if (slab_ray_blocks(h.info.x + k, p, d)) {
-            return true;
+    var k = 0u;
+    loop {
+        if (k >= h.atlas.w) {
+            break;
         }
+        let lr = h.info.x + k;
+        let n = room_gi.rooms[lr].counts.x;
+        let lmin = room_gi.rooms[lr].bmin.xyz;
+        let lmax = room_gi.rooms[lr].bmax.xyz;
+        let dp = p.y - (lmin.y + lmax.y) * 0.5;
+        if (dp * d.y < 0.0) {
+            // Opposite sides of the layer's plane, so d.y is not 0.
+            let c = p + d * (-dp / d.y);
+            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z) {
+                for (var j = 1u; j <= n; j = j + 1u) {
+                    if (slab_rect_holds(lr + j, c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        k = k + 1u + n;
     }
     return false;
 }

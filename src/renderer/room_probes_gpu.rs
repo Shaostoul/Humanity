@@ -24,7 +24,8 @@
 //! acre holds about 19k probes, so a far room is refreshed every few frames.
 //!
 //! THE FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ride in the same
-//! room table, after the rooms: every solid floor slab once, then each scene
+//! room table, after the rooms: every solid floor slab once, grouped into
+//! layers for the sun (`room_probes::sun_rows`), then each scene
 //! light's RUN of the slabs its range reaches, copied, which `update_room_gi`
 //! names in the light's record (`light::gpu_packed_with_slabs`) and rewrites
 //! the scene light buffer with. The fragments read them through
@@ -37,7 +38,7 @@ use glam::Vec3;
 
 use super::light::{gpu_packed, gpu_packed_with_slabs};
 use super::room_probes::{
-    assign_lights, lattice_for, pack_room, pack_slab, pick_order, ray_rotation, slabs_touched, AtlasLayout, GiHeaderGpu,
+    assign_lights, lattice_for, pack_room, pack_slab, pick_order, ray_rotation, slabs_touched, sun_rows, AtlasLayout, GiHeaderGpu,
     GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M, ROOM_BYTES,
     SKY_LIGHTING_EXPOSURE,
 };
@@ -631,16 +632,21 @@ impl Renderer {
         // same station offset as the rooms here and as the lights, which lib.rs
         // offset by it before `set_point_lights` earlier this frame. Written
         // whether or not room GI is on: a floor is lighting, not bounce.
-        let mut render_slabs: Vec<OccluderSlab> =
+        let render_slabs: Vec<OccluderSlab> =
             if gi.slabs_off { Vec::new() } else { gi.slabs.iter().map(|s| s.shifted(station_off)).collect() };
-        // NEAREST THE EYE FIRST. The sun's walk (`slab_sun_blocked`) stops at
-        // the first slab that blocks, and most of what is on screen stands
-        // under the slab nearest the eye, so most fragments stop at the first
-        // row. In the merge order the mushroom room's slab was the 12th of 13:
-        // home-racks-noon read gpu.scene +1.25 ms with the floors on against
-        // off (2026-10-21). The runs below are copies, so any order serves.
-        render_slabs.sort_by(|a, b| a.outside_distance(eye).total_cmp(&b.outside_distance(eye)));
-        table.extend(render_slabs.iter().map(pack_slab));
+        // The sun's list (`room_probes::sun_rows`): the slabs grouped into
+        // layers behind a layer row each, so a fragment crosses each layer's
+        // plane once and skips a layer its path misses (a low sun's), and
+        // NEAREST THE EYE FIRST, because the walk stops at the first slab that
+        // blocks and most of what is on screen stands under the nearest one.
+        // Measured 2026-10-21 with the upper-floor layout's slabs, floors on
+        // against off, same boot: in the merge order home-racks-noon read
+        // gpu.scene +1.25 ms (the mushroom room's slab was the 12th of 13);
+        // sorted, +0.0, while the dawn park console-face-6 still read +0.47
+        // (13 crossings, none blocking) until the layers. The runs below are
+        // copies, so any order serves them.
+        let sun_list = if render_slabs.is_empty() { Vec::new() } else { sun_rows(&render_slabs, eye) };
+        table.extend(sun_list.iter().copied());
         let mut runs: Vec<[u32; 2]> = Vec::new();
         if !render_slabs.is_empty() {
             let mut first = 0usize;
@@ -663,8 +669,8 @@ impl Renderer {
                 );
             }
         }
-        gi.last_slab_rows = render_slabs.len() as u32;
-        gi.last_run_rows = (table.len() - render_rooms.len() - render_slabs.len()) as u32;
+        gi.last_slab_rows = sun_list.len() as u32;
+        gi.last_run_rows = (table.len() - render_rooms.len() - sun_list.len()) as u32;
         if table.is_empty() {
             table.push(GiRoomGpu::default());
         }
@@ -691,7 +697,7 @@ impl Renderer {
             gmin: [gmin.x, gmin.y, gmin.z, if on { 1.0 } else { 0.0 }],
             gmax: [gmax.x, gmax.y, gmax.z, 0.0],
             info: [render_rooms.len() as u32, gi.total, gi.layout.irr_per_row, gi.layout.depth_per_row],
-            atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, render_slabs.len() as u32],
+            atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, sun_list.len() as u32],
         };
         if grew {
             self.rebuild_camera_bind_groups();
