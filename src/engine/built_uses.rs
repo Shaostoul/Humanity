@@ -218,6 +218,7 @@ mod tests {
         let home = MachineHome::load(&dir.join("home.ron")).unwrap();
         let label = |machine: &str, name: &str| crate::gui::MachineLabel {
             pos: Vec3::ZERO,
+            foot_y: 0.0,
             name: name.into(),
             stats: Vec::new(),
             room: "room-bedroom".into(),

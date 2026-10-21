@@ -694,6 +694,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
             state.machine_objects[i].2 = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
             state.machine_objects[i].3 = p.rotation; // keep the yaw in sync on a position-only update
             state.gui_state.machine_labels[i].pos = Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2);
+            state.gui_state.machine_labels[i].foot_y = p.pos.1;
             // Keep the pick volume in sync (v0.553) -- else a move WITHOUT a count change (a room
             // drag, a clamp-on-resize) leaves the click ray-test + the highlight ring at the OLD
             // position. Same math as the slow-path build below.
@@ -844,6 +845,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
             .and_then(crate::engine::built_uses::machine_use);
         state.gui_state.machine_labels.push(crate::gui::MachineLabel {
             pos: Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2),
+            foot_y: p.pos.1,
             name: p.label.clone(),
             stats: p.stats.clone(),
             room: p.room.clone(),

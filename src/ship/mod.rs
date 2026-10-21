@@ -42,5 +42,8 @@ pub mod standing;
 /// each builds, who lives there and what a new character carries; and the `game_home` wire.
 pub mod starts;
 pub mod structure;
+/// What the eye can see aboard, in three dimensions: the walk-up target and the HUD's labels
+/// (ship homes increment 7 review). Walls block across their own heights, solid slabs block.
+pub mod sight;
 pub mod wall_collision;
 pub mod room_types;

@@ -2826,16 +2826,12 @@ mod native_app {
                                 // reworded, and the first attempt at this compared against the
                                 // raw action ids, so it matched nothing and stayed just as dead
                                 // as the room-id version it replaced.
-                                let p = state.camera.position;
-                                let pages = state
-                                    .gui_state
-                                    .room_bounds
-                                    .iter()
-                                    .find(|r| {
-                                        p.x >= r.min.x && p.x <= r.max.x
-                                            && p.y >= r.min.y && p.y <= r.max.y
-                                            && p.z >= r.min.z && p.z <= r.max.z
-                                    })
+                                //
+                                // The room is the one the HUD's room card names (`hud::room_at`),
+                                // so the station works wherever the card says "Here: Change
+                                // Outfit", against a wall included (review of ship homes
+                                // increment 7: a room box stops short of its walls).
+                                let pages = crate::gui::pages::hud::room_at(&state.gui_state.room_bounds, state.camera.position)
                                     .map(|r| r.action_pages.clone())
                                     .unwrap_or_default();
                                 let opens = |page: &str| pages.iter().any(|x| x == page);
@@ -5471,26 +5467,65 @@ mod native_app {
                     state.data_store.insert("camera_forward", forward);
                     state.data_store.insert("camera_yaw", state.camera.yaw);
 
-                    // Walk-up interaction (v0.431): the machine the player is looking at,
-                    // nearest within range inside a look-cone. Drives the [E] prompt + card.
+                    // ── Sight blockers (v0.975, nameplate-through-wall polish; in three
+                    // dimensions since the review of ship homes increment 7, ship/sight.rs):
+                    // the static sight spans (windows open) + live CLOSED opaque doors, each
+                    // standing between its own heights, + the SOLID floor slabs, translated
+                    // into the frame the HUD projects labels in (label.pos + station_off).
+                    // The HUD hides a machine card or crew nameplate whose camera->anchor
+                    // line meets one, so cards no longer bleed through the house's walls or
+                    // its floors, and the walk-up target below must be in sight by the same
+                    // test (built here, ahead of it, for that). Skipped in the build editor:
+                    // its orbit camera is above the roofline, where the walls and the solid
+                    // floors would wrongly hide everything.
+                    state.gui_state.sight_blockers.clear();
+                    if !state.gui_state.construction_active
+                        && !state.sight_colliders.is_empty()
+                        && (!state.gui_state.machine_labels.is_empty()
+                            || !state.gui_state.crew_labels.is_empty())
                     {
-                        let cp = state.camera.position;
-                        let cf = state.camera.forward();
-                        let mut best: Option<(usize, f32)> = None;
-                        for (i, label) in state.gui_state.machine_labels.iter().enumerate() {
-                            let to = label.pos - cp;
-                            let dist = to.length();
-                            if !(0.05..=5.0).contains(&dist) {
+                        // Engine-side station_off: updated earlier THIS frame (the
+                        // gui_state copy syncs later, with the crew labels).
+                        let off = state.station_off;
+                        let blockers = &mut state.gui_state.sight_blockers;
+                        blockers.walls.extend(state.sight_colliders.iter().map(|s| s.moved(off)));
+                        if let Some(ship) = state.gui_state.ship_structure.as_ref() {
+                            blockers.slabs.extend(crate::ship::sight::ship_solid_slabs(ship).map(|b| b.moved(off)));
+                        }
+                        for (i, (p, open)) in state.door_panels.iter().enumerate() {
+                            // Same blocking rule as the collision doors, except
+                            // window PANES never block sight (glass).
+                            let locked = door_locked_now(p, state.door_locks.get(i));
+                            if p.is_window || (*open >= 0.5 && !locked) {
                                 continue;
                             }
-                            if (to / dist).dot(cf) < 0.9 {
-                                continue; // outside the ~25-degree look cone
-                            }
-                            if best.map_or(true, |b| dist < b.1) {
-                                best = Some((i, dist));
-                            }
+                            // From its sill to its head, as the walk's door: a door shut
+                            // upstairs hides nothing on the ground floor.
+                            blockers.walls.push(crate::ship::wall_collision::door_panel_segment(p.center + off, p.rotation, p.size));
                         }
-                        state.gui_state.targeted_machine = best.map(|b| b.0);
+                    }
+
+                    // Walk-up interaction (v0.431): the machine the player is looking at,
+                    // nearest within range inside a look-cone. Drives the [E] prompt + card.
+                    // Since the review of ship homes increment 7 only a machine within the
+                    // relay's reach, on the player's storey (the home's own storeys, read at
+                    // the machine's foot and the player's feet) and in sight (no wall across
+                    // the line at its height, no solid floor between): E used to reach up
+                    // through the dining room's ceiling and sleep in the bed upstairs. Labels
+                    // and the ship are home-local; the camera is in the frame the home is
+                    // drawn at, station_off from it (as the HUD projects).
+                    {
+                        let off = state.station_off;
+                        let feet = state.camera.position.y - state.controller.eye_height();
+                        let ship = state.gui_state.ship_structure.as_ref();
+                        state.gui_state.targeted_machine = crate::ship::sight::walk_up_target(
+                            state.camera.position,
+                            feet,
+                            state.camera.forward(),
+                            state.gui_state.machine_labels.iter().map(|l| (l.pos + off, l.foot_y + off.y)),
+                            &state.gui_state.sight_blockers,
+                            |p| ship.and_then(|s| crate::ship::sight::storey_floor(s, p - off)).map(|f| f + off.y),
+                        );
                     }
 
                     // Walk-up to a VEHICLE (Stage 3 take-over, v0.690): the nearest
@@ -13713,47 +13748,9 @@ mod native_app {
                         }
                     }
 
-                    // ── HUD sight blockers (v0.975, nameplate-through-wall polish):
-                    // the static sight spans (windows open) + live CLOSED opaque
-                    // doors, translated into the frame the HUD projects labels in
-                    // (label.pos + station_off). The HUD hides a machine card or
-                    // crew nameplate whose camera->anchor line crosses one of
-                    // these, so cards no longer bleed through the house walls.
-                    // Skipped in the build editor: its orbit camera is above the
-                    // roofline and the 2D test would wrongly hide everything.
-                    state.gui_state.sight_blockers.clear();
-                    if !state.gui_state.construction_active
-                        && !state.sight_colliders.is_empty()
-                        && (!state.gui_state.machine_labels.is_empty()
-                            || !state.gui_state.crew_labels.is_empty())
-                    {
-                        // Engine-side station_off: updated earlier THIS frame (the
-                        // gui_state copy syncs later, with the crew labels).
-                        let off = state.station_off;
-                        state.gui_state.sight_blockers.extend(
-                            state.sight_colliders.iter().map(|s| {
-                                [s.a.0 + off.x, s.a.1 + off.z, s.b.0 + off.x, s.b.1 + off.z]
-                            }),
-                        );
-                        let door_locks = state.door_locks.clone();
-                        for (i, (p, open)) in state.door_panels.iter().enumerate() {
-                            // Same blocking rule as the collision doors, except
-                            // window PANES never block sight (glass).
-                            let locked = door_locked_now(p, door_locks.get(i));
-                            if p.is_window || (*open >= 0.5 && !locked) {
-                                continue;
-                            }
-                            let half_w = p.size.x * 0.5;
-                            let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
-                            let c = p.center + off;
-                            state.gui_state.sight_blockers.push([
-                                c.x - dir.x * half_w,
-                                c.z - dir.z * half_w,
-                                c.x + dir.x * half_w,
-                                c.z + dir.z * half_w,
-                            ]);
-                        }
-                    }
+                    // (The HUD's sight blockers are built earlier this frame, ahead of the
+                    // walk-up target, which tests its line of sight with them too: search
+                    // "Sight blockers (v0.975".)
 
                     // ── Pinned-card auto-recipe selector (v0.725, info-window
                     // overhaul part 2): publish the E-opened machine's

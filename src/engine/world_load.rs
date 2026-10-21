@@ -427,6 +427,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
                 state.gui_state.machine_labels.push(crate::gui::MachineLabel {
                     pos: Vec3::new(pos.x, top_y + 0.4, pos.z),
+                    foot_y: pos.y,
                     name,
                     // A grow machine's food line is computed from its crops.
                     stats: home.stats_for(&inst.machine),

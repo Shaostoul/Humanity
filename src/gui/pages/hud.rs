@@ -459,7 +459,9 @@ pub fn draw(
             // dot within dot_dist -> +name within name_dist -> +card within card_dist.
             // A label hides when a wall stands between the camera and the machine
             // (v0.975 sightline test against gui_state.sight_blockers: solid piers and
-            // closed doors block; doorways and window glass pass). Hold Tab to reveal
+            // closed doors block; doorways and window glass pass; each only across its
+            // own heights, and a solid floor blocks while a glass one does not, so a
+            // storey's cards never show through the floor: `ship::sight`). Hold Tab to reveal
             // markers through walls at x3 distance. v0.429 room filter retired: its
             // containment box was the whole house, so every card bled through the
             // interior partitions (homestead increment 1 field note).
@@ -541,14 +543,10 @@ pub fn draw(
                     continue; // beyond the coarsest level of detail
                 }
                 // Sightline occlusion (v0.975): a wall or closed door between the
-                // camera and the machine hides the label. Tab still reveals all.
-                if !state.reveal_held
-                    && crate::ship::wall_collision::sight_blocked(
-                        (cam_pos.x, cam_pos.z),
-                        (wpos.x, wpos.z),
-                        &state.sight_blockers,
-                    )
-                {
+                // camera and the machine hides the label, at the height the line
+                // crosses it, and so does a solid floor (in 3-D since the review of
+                // ship homes increment 7, `ship::sight`). Tab still reveals all.
+                if !state.reveal_held && state.sight_blockers.blocked(cam_pos, wpos) {
                     continue;
                 }
                 let Some(sp) = world_to_screen(wpos, view_proj, screen) else { continue };
@@ -641,13 +639,7 @@ pub fn draw(
                 let Some((name, activity)) = crew_label_lines(&label.name, &label.activity, cam_dist) else {
                     continue;
                 };
-                if !state.reveal_held
-                    && crate::ship::wall_collision::sight_blocked(
-                        (cam_pos.x, cam_pos.z),
-                        (label.pos.x, label.pos.z),
-                        &state.sight_blockers,
-                    )
-                {
+                if !state.reveal_held && state.sight_blockers.blocked(cam_pos, label.pos) {
                     continue;
                 }
                 let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
@@ -1041,23 +1033,55 @@ pub fn draw(
         });
 }
 
+/// The room the HUD's room card names for an eye at `eye`: the first room whose box holds it, by
+/// height too, so a room upstairs is named only for an eye upstairs and the room under it only for
+/// an eye below (ship homes increment 7). An eye in no box (against a wall, in a doorway: the
+/// room grid's gap) is in the nearest room on its storey within `ROOM_EDGE_SLACK_M`. The dev
+/// IPC's storey probe asks this same function (engine/storey_probe.rs), so `just verify-storeys`
+/// reads the name the HUD shows, not a copy of the rule, and so does the walk-up station E opens
+/// (lib.rs, the wardrobe and the mirror).
+pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&crate::gui::RoomBounds> {
+    let inside = rooms.iter().find(|r| {
+        eye.x >= r.min.x && eye.x <= r.max.x && eye.y >= r.min.y && eye.y <= r.max.y && eye.z >= r.min.z && eye.z <= r.max.z
+    });
+    if inside.is_some() {
+        return inside;
+    }
+    // In no box: the nearest one across the floor whose heights hold the eye (its storey), if
+    // it is within the slack (the gap the room grid leaves along a wall and in a doorway).
+    rooms
+        .iter()
+        .filter(|r| eye.y >= r.min.y && eye.y <= r.max.y)
+        .map(|r| {
+            let dx = (r.min.x - eye.x).max(eye.x - r.max.x).max(0.0);
+            let dz = (r.min.z - eye.z).max(eye.z - r.max.z).max(0.0);
+            (r, dx.hypot(dz))
+        })
+        .filter(|(_, d)| *d <= ROOM_EDGE_SLACK_M)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(r, _)| r)
+}
+
+/// How far outside every room box the eye may be and still be in the nearest room on its storey,
+/// metres: 0.75 (`room_at`; review of ship homes increment 7). A room's box is the cells of a
+/// 0.5 m grid its flood fill reached (`HomeStructure::detect_rooms`), and every cell whose centre
+/// is within half a cell and half the wall of a wall is left out of every room, so a box can stop
+/// up to half a cell plus half the wall short of the wall's face, and further either side of a
+/// doorway, which lies on the wall's line: up to 0.5 m and half the wall from both boxes. A body
+/// standing against a wall (its 0.3 m radius from the face) or walking through a doorway was in
+/// no box and the room card went blank. 0.75 covers a doorway in a wall up to half a metre thick;
+/// the nearest box is the room on the eye's own side of a wall, since the other side's is a wall's
+/// thickness and more further. Riding the elevator is NOT covered: its shaft has no slab upstairs,
+/// so it is in no room on the upper storey, and the lift lobby's box is about a metre from the
+/// middle of the car.
+pub(crate) const ROOM_EDGE_SLACK_M: f32 = 0.75;
+
 /// Whether the world view's crosshair dot is drawn (lib.rs, the in-game
 /// overlay pass). Only on the bare world view, and only while the HUD is
 /// shown: the movie mode's `hide_hud` (src/engine/movie.rs) turns the HUD
 /// off for a recording, and a dot left in the middle of every frame of a
 /// clip is HUD. (2026-10-04: it sat over the sky of the landing page's
 /// night-to-sunrise clip.)
-/// The room the HUD's room card names for an eye at `eye`: the first room whose box holds it, by
-/// height too, so a room upstairs is named only for an eye upstairs and the room under it only for
-/// an eye below (ship homes increment 7). The dev IPC's storey probe asks this same function
-/// (engine/storey_probe.rs), so `just verify-storeys` reads the name the HUD shows, not a copy of
-/// the rule.
-pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&crate::gui::RoomBounds> {
-    rooms.iter().find(|r| {
-        eye.x >= r.min.x && eye.x <= r.max.x && eye.y >= r.min.y && eye.y <= r.max.y && eye.z >= r.min.z && eye.z <= r.max.z
-    })
-}
-
 pub fn crosshair_visible(state: &GuiState) -> bool {
     state.active_page == crate::gui::GuiPage::None && state.show_hud
 }
@@ -2033,6 +2057,64 @@ mod crosshair_tests {
 }
 
 #[cfg(test)]
+mod room_card_tests {
+    use super::room_at;
+    use crate::gui::RoomBounds;
+    use glam::Vec3;
+
+    /// The shipped homestead's rooms as the HUD holds them (engine/world_load.rs builds
+    /// `RoomBounds` the same way from `detect_rooms`), in the home's own coordinates.
+    fn homestead_rooms() -> Vec<RoomBounds> {
+        let design = crate::ship::ship_structure::HomeDesign::built_in_ref("homestead").expect("the homestead is built in");
+        design
+            .body
+            .detect_rooms()
+            .into_iter()
+            .map(|r| RoomBounds {
+                id: r.id.clone(),
+                min: r.center - r.dimensions * 0.5,
+                max: r.center + r.dimensions * 0.5,
+                display_name: r.label.clone(),
+                purpose: String::new(),
+                actions: Vec::new(),
+                action_pages: Vec::new(),
+                access: String::new(),
+            })
+            .collect()
+    }
+
+    /// THE ROOM CARD NAMES THE ROOM BESIDE A WALL AND IN A DOORWAY (review of ship homes
+    /// increment 7, item 3). A room's box comes from a 0.5 m grid that keeps every cell within
+    /// half a cell (and half the wall) of a wall out of every room, so a body standing against a
+    /// wall, as close as its 0.3 m radius lets it, or in a doorway, was in no box and the card
+    /// went blank. It now names the nearest room on the eye's storey within `ROOM_EDGE_SLACK_M`:
+    /// against the dining room's walls, the second bedroom's, the bedroom's upstairs, and in
+    /// the doorway between the bedroom and the dressing room. Inside a room and far from every
+    /// room nothing changed, and an eye over every room is still in none.
+    ///
+    /// Seen red first (2026-10-21) with `room_at` testing the boxes alone: "against the dining
+    /// room's west wall" (left: None, right: Some("room-dining")).
+    #[test]
+    fn the_room_card_names_the_room_beside_a_wall_and_in_a_doorway() {
+        let rooms = homestead_rooms();
+        let at = |x: f32, y: f32, z: f32| room_at(&rooms, Vec3::new(x, y, z)).map(|r| r.id.as_str());
+        assert_eq!(at(38.0, 1.7, 34.0), Some("room-dining"), "in the middle of the dining room");
+        assert_eq!(at(38.0, 4.7, 34.0), Some("room-bedroom"), "in the middle of the bedroom over it");
+        // Against the walls, as close as a body comes (0.3 m and half the wall from its line).
+        assert_eq!(at(34.4, 1.7, 34.0), Some("room-dining"), "against the dining room's west wall");
+        assert_eq!(at(41.6, 1.7, 34.0), Some("room-dining"), "against the dining room's east wall");
+        assert_eq!(at(42.4, 1.7, 34.0), Some("room-bedroom-2"), "against the second bedroom's west wall");
+        assert_eq!(at(41.6, 4.7, 32.0), Some("room-bedroom"), "against the bedroom's east wall, upstairs");
+        // In the doorway between the bedroom and the dressing room (x 42, z 35.0..35.9).
+        let door = at(42.0, 4.7, 35.45);
+        assert!(matches!(door, Some("room-bedroom") | Some("room-dressing")), "in the bedroom's doorway: {door:?}");
+        // Over every room, and outside the house, still none.
+        assert_eq!(at(38.0, 9.5, 34.0), None, "over every room");
+        assert_eq!(at(-5.0, 1.7, 34.0), None, "outside the house");
+    }
+}
+
+#[cfg(test)]
 mod crew_label_tests {
     use super::*;
 
@@ -2640,6 +2722,7 @@ mod counter_card_tests {
         let mut gs = GuiState::default();
         gs.machine_labels = vec![crate::gui::MachineLabel {
             pos: Vec3::new(2.0, 1.2, 0.6),
+            foot_y: 0.0,
             name: "Serving counter".into(),
             stats: Vec::new(),
             room: "mess-hall".into(),

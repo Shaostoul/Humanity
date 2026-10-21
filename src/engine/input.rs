@@ -299,6 +299,7 @@ mod tests {
     fn a_label() -> crate::gui::MachineLabel {
         crate::gui::MachineLabel {
             pos: glam::Vec3::ZERO,
+            foot_y: 0.0,
             name: "Trading post".into(),
             stats: Vec::new(),
             room: "room-vehicle".into(),
