@@ -103,10 +103,10 @@ is CPU-projected through `project_to_screen` (cosmos.rs:381) and painted with eg
   +Y by `planet_spin_from_time`. A map that drew Earth with its real 23.4 degree tilt
   would show the synchronous ship hanging over the wrong place. The map must use the
   engine's spin, and gets the tilt for free the day the engine has it.
-- BUG-140 (OPEN, `docs/BUGS.md:3218`): the orbit model maps the ecliptic into the world
-  with a reflection, so the planets go round the Sun the wrong way. The Maps page
-  inherits it. A map whose whole point is "real positions" is the most visible place
-  for it.
+- BUG-140 (FIXED 2026-10-21, v0.1534.0; see its entry in `docs/BUGS.md`): the orbit model
+  mapped the ecliptic into the world with a reflection, so the planets went round the Sun the
+  wrong way. It is a rotation now, held to JPL Horizons; the Moon's node and perigee turn at
+  JPL's rates since v0.1536.0.
 
 **The web mirror** (`web/pages/maps.html`) is ahead in one way and behind in others: it
 already has a continuous zoom (galaxy, stellar, system, globe, map tiles, cross-faded by
@@ -575,7 +575,7 @@ Built as planned above, with these differences, each for a stated reason:
 
 ### Increment 2: a solar system that looks real
 
-- **Fix BUG-140 first**, as its own lane: map the ecliptic with a proper rotation and
+- **Fix BUG-140 first** (DONE 2026-10-21, v0.1534.0), as its own lane: map the ecliptic with a proper rotation and
   follow every reader the bug names (the spin's sun azimuth, the station's phase and
   `over_its_longitude`, the travel tool, the hologram, the page). Proved against JPL
   Horizons positions for three dates, compared as numbers only.

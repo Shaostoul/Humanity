@@ -390,8 +390,36 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     temporary bridges were deleted (5aac163bb, 2026-10-21).
   - **DONE 2026-10-20: Maps increment 0** (docs/design/maps-zoom-to-anything.md section 6):
     src/gui/pages/cosmos.rs is src/gui/pages/maps/, one file per view, its state one
-    `GuiState::maps`; the three Maps snapshots rendered byte-identical. Next: increment 1, the map
-    opens on you, follows you, and draws your ship.
+    `GuiState::maps`; the three Maps snapshots rendered byte-identical.
+  - **DONE 2026-10-21: Maps increment 1** (v0.1536.0): the page opens on your ship at ~1.5 ship
+    lengths with Earth behind it and follows it (Stop following, Back to me, the Home key, an "Open
+    where I left it" toggle); the real world drawn behind the symbols from the map's own camera
+    (`engine/map_view.rs`, `render_view_onto_kept`, half resolution while moving, at most once a
+    second at rest, aboard and within 60 km only); the ship named UHS Mothership; station rows from
+    data with computed altitudes (35,870 km: the game's synchronous orbit keeps pace with the 24 h
+    solar day, the real geostationary 35,786 km with the sidereal day; the row says so); the
+    overview looks down from ecliptic north; Lagrange points and reference rings fixed. BUG-210
+    (the sun direction in the hull frame for the celestial pass and god rays) fixed on the way.
+    Next: increment 2, a solar system that looks real (the diagram toggle and a map light were
+    left for it). Found, not fixed: **Earth's north pole faces the ship** (from the equatorial
+    orbit the rendered Earth shows its pole under the ship where the equator at 122 W should be;
+    older than BUG-140 and BUG-210); SSAO takes its focal length from the window height, wrong for
+    the map's canvas; point lights are picked by distance from the player, so from 1.5 km some
+    hull lights are missing; `cpu.frame_total` and `cpu.present_wait` are recorded only on game
+    frames; switching back to Live or the System view shows one frame of the old backdrop; the
+    upcoming-events list may report one conjunction several times (Jupiter and the Moon three times
+    within a day; unconfirmed).
+  - **DONE 2026-10-21: the Moon's node and perigee turn** (v0.1536.0): JPL's rates on any body that
+    carries them; the Moon within 0.34 degrees of Horizons in latitude and 2.5 in longitude over
+    2000 to 2040; the Maps page finds exactly NASA's four solar eclipses of 2026 and 2027 (it now
+    allows for the Moon's parallax). Lunar eclipses are not predicted on the page yet.
+  - **DONE 2026-10-21: rigs take turns** (v0.1536.0): verify-runtime's gate clock starts at the
+    game's boot, not while waiting for a quiet machine (that wait refuses with exit 1 after 60 min,
+    never a false FAIL); a machine-wide boot lock (`scripts/lib/boot-lock.js`) so two rigs never
+    boot at once; worktrees find the DXC compiler in the main checkout. Gaps: `just launch-bg` and
+    hand-typed boots skip the lock; other rigs still ignore unknown flags; perf-report does not yet
+    refuse an FXC sweep. Flaky under load (passed alone): `engine::file_transfer` "one dial one
+    allocation", `net::webrtc::turn` wrong credentials.
   - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
     Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase
