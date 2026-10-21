@@ -422,9 +422,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
     Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase
     from a hash), the Sun on the ground is unchanged. Left (BUG-140's entry in BUGS.md): from the
-    ground at night the Moon is drawn black (the sun light's transmittance at the camera and the
-    night day-factor also gate sky bodies beyond the air, lib.rs ~11415 and ~11466), so its phase
-    shows only from space; the Moon's node and perigee are held at their J2000 values (latitude up
+    ground at night the Moon is drawn black (FIXED 2026-10-21 as BUG-212: a body in the sky takes
+    its own sun, the ground keeps the camera's; BUG-211 the same day, Earth's pole toward the
+    ship); the Moon's node and perigee are held at their J2000 values (latitude up
     to ~10 degrees off, eclipse seasons ~3 weeks off; add JPL's two rates).
   - **Recovery through trusted people is half built (found 2026-10-20 from the operator's
     screenshot of the Recovery page):** the relay has only lookups (`/api/v2/recovery/setup`,

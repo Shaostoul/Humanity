@@ -983,11 +983,14 @@ pub(crate) struct EngineState {
     /// starburst at the feet. The subtraction and rotation stay f64; only the
     /// final small delta is cast down.
     pub(crate) cloud_prev_cam_local: Option<glam::DVec3>,
-    /// Previous frame's planet spin angle (radians) - pairs with
+    /// Previous frame's planet rotation into render space (the spin, and
+    /// aboard the hull frame: lib.rs `rot_d`) - pairs with
     /// cloud_prev_cam_local so the resolve's spin-aware reprojection
     /// (v0.1251) can split content rotation from camera translation
-    /// exactly, both in f64.
-    pub(crate) cloud_prev_spin: Option<f64>,
+    /// exactly, both in f64. It was the spin angle alone until 2026-10-21,
+    /// so aboard the synchronous station, where the hull's turn cancels the
+    /// spin in the render frame, the clouds were reprojected as if turning.
+    pub(crate) cloud_prev_rot: Option<glam::DQuat>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

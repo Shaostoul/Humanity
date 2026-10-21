@@ -94,6 +94,21 @@ pub(crate) fn body_render_rot(station_ride: bool, station_world_rot: DQuat, spin
     crate::station::hull_frame_rot(station_ride, station_world_rot) * DQuat::from_rotation_y(spin)
 }
 
+/// The f32 rotation every draw of a body carries (its uniform sphere, its
+/// terrain patches, its cloud deck and atmosphere dome, the trees, OSM
+/// buildings and water on it): [`body_render_rot`] narrowed at the end.
+///
+/// Until 2026-10-21 the draws carried the spin alone
+/// (`Quat::from_rotation_y(spin)`) while their positions went through the
+/// hull frame (`rot_d`, v0.1225). Off the station the two agree; aboard, the
+/// hull frame was missing from the ORIENTATION, so the type-12 shader (which
+/// reads a fragment's lat/lon through the inverse model matrix) drew world +Y,
+/// Earth's north pole, along the hull's up: straight at the ship, where the
+/// equator at -122.3 belongs (`body_rot_tests`).
+pub(crate) fn body_model_rot(station_ride: bool, station_world_rot: DQuat, spin: f64) -> glam::Quat {
+    body_render_rot(station_ride, station_world_rot, spin).as_quat()
+}
+
 /// What the frame needs to know about the player, read from the engine in
 /// this ONE place so everything that follows is pure (and tested without a
 /// window). On a planet the camera stays parked while the ship frame moves
@@ -1041,6 +1056,71 @@ mod tests {
 #[cfg(test)]
 #[path = "planet_floor_tests.rs"]
 mod floor_tests;
+
+#[cfg(test)]
+mod body_rot_tests {
+    use super::*;
+    use crate::station::orbit;
+
+    /// FROM THE SHIP, EARTH FACES IT WITH ITS EQUATOR (2026-10-21). Aboard the
+    /// UHS Mothership (data/stations/home.ron: synchronous, equatorial, over
+    /// -122.3) the point of Earth nearest the ship must be drawn at latitude 0,
+    /// longitude -122.3, and Earth's north pole must point where the world's
+    /// north does, turned into the hull's axes. Driven through the engine's
+    /// own chain: the orbit (re-phased by the sun's azimuth, BUG-090), the
+    /// LVLH attitude, the planet's spin from the clock, Earth's centre placed
+    /// by `station::to_hull` (lib.rs "HULL FRAME, site 1"), the rotation the
+    /// draws carry ([`body_model_rot`]), and the type-12 shader's own read of
+    /// a fragment (`inv(model) * (fragment - centre)`, then
+    /// `dir_to_latlon_deg`, the shader's lat/lon). Four dates (the sun's
+    /// azimuth creeps a turn a year) and five hours. Off the station the
+    /// rotation stays the plain spin.
+    ///
+    /// Seen red 2026-10-21 with the draws turned by the spin alone
+    /// (`Quat::from_rotation_y(spin)`, lib.rs since v0.1225): "sun azimuth 0,
+    /// hour 0: the point under the ship is drawn at latitude 90.000, longitude
+    /// -18.435, not on the equator at -122.3": the north pole faced the ship
+    /// (a longitude at the pole means nothing).
+    #[test]
+    fn from_the_ship_earth_shows_its_equator_under_the_ship_and_its_pole_to_the_north() {
+        let def = crate::station::default_home();
+        let day = crate::systems::time::EARTH_DAY_S;
+        let wrap = |d: f64| (d + 180.0).rem_euclid(360.0) - 180.0;
+        for sun_az_deg in [0.0_f64, 93.0, 183.0, 271.0] {
+            let sun_az = sun_az_deg.to_radians();
+            let o = orbit::over_its_longitude(&def.orbit, sun_az);
+            for hour in [0.0_f64, 6.0, 12.0, 20.15, 23.5] {
+                let t = orbit::sim_seconds(hour * 3600.0, day);
+                let (ship, vel) = orbit::propagate(&o, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, t, day);
+                let ship_rot = orbit::attitude(&def.attitude, ship, vel);
+                let spin = crate::dev_travel::planet_spin_from_time(hour, sun_az);
+                // Earth's centre in the render frame, exactly as site 1 places it.
+                let centre = crate::station::to_hull(true, ship_rot, DVec3::ZERO - ship);
+                let m = body_model_rot(true, ship_rot, spin);
+                // The fragment nearest the ship, read the way the type-12 shader reads it.
+                let toward_ship = (-centre).normalize().as_vec3();
+                let local = m.inverse() * toward_ship;
+                let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg(local);
+                assert!(
+                    lat.abs() < 0.01 && wrap(lon as f64 - -122.3).abs() < 0.01,
+                    "sun azimuth {sun_az_deg}, hour {hour}: the point under the ship is drawn at latitude {lat:.3}, longitude {lon:.3}, not on the equator at -122.3"
+                );
+                let pole = m * Vec3::Y;
+                let north = crate::station::to_hull(true, ship_rot, DVec3::Y).as_vec3();
+                assert!(
+                    (pole - north).length() < 1.0e-4,
+                    "sun azimuth {sun_az_deg}, hour {hour}: Earth's north pole is drawn toward {pole:?}, the world's north is {north:?} in the hull's axes"
+                );
+                // Off the station the draws keep the world's axes: the plain spin.
+                let off = body_model_rot(false, ship_rot, spin);
+                let plain = glam::Quat::from_rotation_y(spin as f32);
+                for v in [Vec3::X, Vec3::Y, Vec3::Z] {
+                    assert!((off * v - plain * v).length() < 1.0e-5, "off the station the rotation is the spin");
+                }
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod site_collision_tests {

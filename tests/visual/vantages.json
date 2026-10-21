@@ -13521,7 +13521,11 @@
     {
       "id": "maps-follow-home",
       "desc": "Aboard the UHS Mothership at local noon, then the Maps page opened the way the game opens it: following you.",
-      "expect": "The ship's hull fills the middle of the map, lit from above, with Earth's day side behind and below it; the label UHS Mothership, your home, 35,870 km up; the ship's orbit line through it; Following you at the top left.",
+      "expect": "The ship's hull fills the middle of the map, lit from above, with Earth's day side behind and below it; the label UHS Mothership, your home, 35,870 km up; the ship's orbit line through it; Following you at the top left. Earth faces the ship with its EQUATOR: open Pacific under the ship with the noon sun glint, Mexico and Baja California at one side of the disc and Colombia and Ecuador further round, never the Arctic ice cap in the middle (BUG-211). The planets' orbit rings run parallel to the ship's own orbit line (the game has no axial tilt, so the ecliptic is the equator's plane).",
+      "regressions": [
+        "Earth seen from the ship shows its equator under the ship, never its north pole (BUG-211)",
+        "aboard, the planets' orbit rings lie in the ship's orbital plane, not across it (BUG-211)"
+      ],
       "_why": "Maps increment 1 (docs/design/maps-zoom-to-anything.md, 2026-10-21). Operator 2026-10-20: \"Can we get the maps page to zoom in to where the ship the player is living on in orbit of Earth? If the ship moves we want the map to always zoom in to the player's position.\" The page now opens on you, follows you, and draws your ship from its real meshes (engine/map_view.rs renders the world from the map's camera).",
       "camera": {
         "station": "home",

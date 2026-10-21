@@ -286,14 +286,13 @@ impl Renderer {
 // ladder per pixel, the A/B twin (renderer field `cloud_light`).
 //
 // Frame agreement, one silent dependency worth knowing: the cloud shell
-// render object is rotated by `Quat::from_rotation_y(spin as f32)` (lib.rs,
-// the cloud fill block) while the feed below uses the f64 twin
-// `DQuat::from_rotation_y(spin)`. They agree because `current_planet_spin`
-// is kept wrapped to [0, 2 pi) (frame_lock.rs): the f32 ulp of a wrapped
-// angle is ~5e-7 rad, ~3 m at the surface, under 2% of a fine cell. An
-// UNWRAPPED spin accumulator (thousands of radians) would widen that gap
-// to whole cells and quietly shift the window against the bake; wrap it
-// or feed the f32 angle here too.
+// render object is rotated by `planet_build::body_model_rot` (lib.rs, the
+// cloud fill block), the f32 narrowing of the f64 rotation the feed below
+// uses (`body_render_rot`: the spin, and aboard the hull frame; the spin
+// alone until 2026-10-21, which drew Earth's pole toward the ship). They
+// agree to the f32 rounding of one composed quaternion, ~1e-7, a metre at
+// the surface. `current_planet_spin` is kept wrapped to [0, 2 pi)
+// (frame_lock.rs) so the f64 angle never grows large either.
 
 use glam::DVec3;
 
