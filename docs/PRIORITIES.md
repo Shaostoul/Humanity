@@ -351,8 +351,14 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     Wave 1's lanes G, M, R, C1, C2 merged and proven in the running game (verify-storeys 76/76,
     verify-falls 88/88); three critics found 2 HIGH and ~20 lesser seams, fixed by six fixers
     merged the same morning (f5e0a2a32 to aa1d32c27) and released in v0.1534.0 with BUG-140.
-    Lane L, slabs stopping lamps and sun in the room GI, is still in its worktree: next release.)
-  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** placed box pieces (the
+    Lane L, slabs stopping lamps and sun in the room GI, and a seam critic's six findings (the editor's
+    close on a stair or in the shaft, E and Take down through doorways, sight by height, a hung
+    unit's storey) followed in v0.1535.0. Increment 7 is DONE apart from the follow-ups below.)
+  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** a shut home door does
+    not stop E or Take down (the live door list is local to lib.rs's collision block); a built box
+    taller than a step is not solid to the editor's close (its walls push a body out, possibly
+    through a wall); upstairs, slab occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull
+    runs per light tile: docs/design/room-gi.md, Floors between storeys); placed box pieces (the
     "wall" piece, raised decks, slabs) still do not collide; the HUD's labels float over upstairs
     machines the editor's cut-away hides; plants and grow tents ignore the cut-away; the HUD's room
     card is blank in the elevator above 3 m (the shaft has no upstairs room box); `moves::on_my_storey`

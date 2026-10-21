@@ -225,15 +225,15 @@
 // 1.98 m/s (the 0.20 m step from the hold, which cannot hurt) and no wound; the placement beside the
 // deck fell 2.97 m and reached no body; "removed structure #8" after. The planet legs as before.
 //
-// ONE GPU (CLAUDE.md): waits (bounded, --wait-min, 20 by default) while another HumanityOS.exe
-// runs, the operator's own game included, and refuses if it is still up; never sets the
-// take-focus env var.
+// ONE GPU (CLAUDE.md): waits (bounded, --wait-min, 60 by default) while another HumanityOS.exe
+// runs, the operator's own game included, or another rig holds the machine-wide boot lock, and
+// refuses if it is still up; never sets the take-focus env var.
 //
 // Usage:
 //   node scripts/verify-falls.js [--exe PATH] [--keep-open] [--timeout-min N] [--wait-min N]
 //                                [--allow-other-build "<reason>"]
 // --wait-min: how long to wait for another HumanityOS (another session's rig) to close before
-// refusing, minutes (default 20).
+// refusing, minutes (default 60, lib/machine-guard.js WAIT_MIN_DEFAULT).
 //   node scripts/verify-falls.js --dry-verdict <manifest.json>   re-judge, nothing booted
 // Exit 0 = every check passed. 1 = refused (nothing booted). 2 = a check failed, a panic, or a
 // data file served from the copy built into the exe (BUILT-IN DATA).
@@ -387,14 +387,21 @@ if (DRY) {
 // it, bounded (lib/machine-guard.js `waitForFree`, games only: a build beside this rig only slows
 // its frames, and the judge reads the drop each walk really made), and refuses if it is still up.
 // Its own leftover copy (.probe-rig/falls) is never a reason to wait: setupRig kills it.
-const WAIT_MIN = Number(opt("--wait-min", "20"));
-const wait = MG.waitForFree({ own: { exe: path.join(RIG, "HumanityOS.exe"), gameOnly: true }, label: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
+// The wait ends by taking the machine-wide boot lock (lib/boot-lock.js), and one that gives up is
+// the one refusal every rig gives (exit 1, "the machine never went quiet in N min; nothing was
+// booted"). --wait-min defaults to lib/machine-guard.js WAIT_MIN_DEFAULT (it was 20 here, 40
+// elsewhere, until 2026-10-21).
+const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
+if (!(WAIT_MIN > 0)) refuse([`verify-falls: REFUSED - --wait-min must be a number of minutes above 0, got "${opt("--wait-min", "")}". Nothing was booted.`]);
+const wait = MG.waitForFree({ own: { exe: path.join(RIG, "HumanityOS.exe"), gameOnly: true }, label: "verify-falls", rig: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
 if (!wait.free) {
-  refuse([
-    `REFUSED: HumanityOS is still running after a ${wait.waited_s} s wait (${wait.blockers.map(MG.describe).join("; ")}).`,
-    "One GPU, one instance (CLAUDE.md). Close it (taskkill //PID <pid>, then //F if it is still",
-    "there 15 s later), or wait for the rig that started it, then run again (--wait-min N waits longer).",
-  ]);
+  MG.refuseBusy(wait, {
+    rig: "verify-falls",
+    hint: [
+      "What to do: close it (taskkill //PID <pid>, then //F if it is still there 15 s later), or wait for the",
+      "rig that started it, then run again (--wait-min N waits longer).",
+    ],
+  });
 }
 if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
 const FRESH = runFreshGate(EXE, args, { cwd: REPO });

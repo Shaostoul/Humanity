@@ -16,16 +16,37 @@
 // asset shaped.
 //
 // Usage:
-//   node scripts/verify-runtime.js [--exe PATH] [--timeout-min N] [--keep-open]
+//   node scripts/verify-runtime.js [--exe PATH] [--timeout-min N] [--wait-min N]
+//                                  [--game-only] [--keep-open]
 //                                  [--operator-config [--operator-config-path F]]
-//                                  [--allow-other-build "<reason>"]
+//                                  [--allow-other-build "<reason>"] [--rig DIR]
 //   (--allow-other-build runs a build that is NOT this tree, on purpose, e.g. a
 //   red check against an old build: passed to scripts/check-fresh-exe.js and
 //   recorded in the sweep manifest as other_build)
 //   node scripts/verify-runtime.js --dry-verdict <manifest.json> [--log <run.log>]
 // Exit 0 = every vantage reached the world and captured, zero panics.
-// Exit 1 = refused to run (stale binary, missing vantage, rig already busy).
+// Exit 1 = refused to run (stale binary, missing vantage, rig already busy, an
+//          unknown flag, a machine that never went quiet): nothing was judged.
 // Exit 2 = the app failed the runtime gate. Read the lines above the verdict.
+//
+// TWO CLOCKS (2026-10-21). Before the game starts, the sweep waits for the
+// machine (lib/machine-guard.js: other games, builds, another rig's boot lock),
+// up to --wait-min (60). That wait is NOT the gate's business: a machine that
+// never goes quiet is "REFUSED: the machine never went quiet in N min; nothing
+// was booted", exit 1. The gate's own clock, --timeout-min (12), starts when
+// the game process starts (lib/game-launch.js spawnGame tells this script
+// through HUMANITY_RIG_BOOT_SIGNAL) and times boot, world entry and the
+// vantages. It used to start with the recipe, so on 2026-10-21, with other
+// agents building, the guard waited 577 s to 12 min, the gate killed the probe
+// before anything booted, and printed "FAIL ... A hang here is a boot or
+// world-entry hang, not slowness": two false failures, neither of which booted.
+//
+// --game-only (forwarded to the sweep): wait only for other games and rigs, not
+// for builds. The gate reads panics and captures, not timings, so a build
+// beside it only slows it down. It was silently dropped here until 2026-10-21;
+// every flag this script does not know is now refused, not ignored.
+// --rig DIR: the rig folder (default .probe-rig/verify). For the tests, so a
+// test never touches a real gate's rig.
 //
 // --dry-verdict re-reads an EXISTING sweep manifest and prints the same verdict
 // without booting anything. It is how the verdict logic itself gets proven (feed
@@ -44,6 +65,8 @@ const { spawn, spawnSync, execSync } = require("child_process");
 // gating on the GAME only (listInstances); the sweep it spawns applies the
 // wider build-aware guard to its own capture windows.
 const MG = require("./lib/machine-guard.js");
+// Which shader compiler the probe's game ran, for the verdict (FXC is minutes slower).
+const DXC = require("./lib/dxc-dlls.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the other_build record for the manifest (BUG-133).
 const { runFreshGate, otherBuildNotice, allowOtherFrom } = require("./lib/src-fingerprint.js");
@@ -54,17 +77,69 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
+// Every flag this gate knows. Anything else is REFUSED, not ignored: an
+// ignored flag is a check that silently did not run (`--game-only` was dropped
+// here, unread, until 2026-10-21).
+const VALUE_FLAGS = [
+  "--exe",
+  "--timeout-min",
+  "--wait-min",
+  "--rig",
+  "--operator-config-path",
+  "--allow-other-build",
+  "--dry-verdict",
+  "--dry-exit",
+  "--log",
+];
+const BOOL_FLAGS = ["--keep-open", "--operator-config", "--game-only"];
+function unknownArgs(argv) {
+  const bad = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (BOOL_FLAGS.includes(a)) continue;
+    if (VALUE_FLAGS.includes(a)) {
+      // --allow-other-build without a reason is the freshness gate's to refuse.
+      if (a === "--allow-other-build" && (argv[i + 1] === undefined || argv[i + 1].startsWith("--"))) continue;
+      i++;
+      continue;
+    }
+    bad.push(a);
+  }
+  return bad;
+}
+{
+  const bad = unknownArgs(args);
+  if (bad.length) {
+    refuse([
+      `verify-runtime: REFUSED - unknown argument(s): ${bad.join(" ")}. Nothing was booted.`,
+      "An argument this gate does not read would be silently ignored, and the run would not be the one asked for.",
+      `Known: ${[...VALUE_FLAGS.map((f) => `${f} <value>`), ...BOOL_FLAGS].join("  ")}`,
+    ]);
+  }
+}
 const KEEP_OPEN = args.includes("--keep-open");
+const GAME_ONLY = args.includes("--game-only");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
-const TIMEOUT_MS = Number(opt("--timeout-min", "12")) * 60 * 1000;
+const TIMEOUT_MIN = Number(opt("--timeout-min", "12"));
+const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
+for (const [flag, v] of [["--timeout-min", TIMEOUT_MIN], ["--wait-min", WAIT_MIN]]) {
+  // NaN would make setTimeout fire at once: the gate would kill its own probe.
+  if (!(v > 0)) refuse([`verify-runtime: REFUSED - ${flag} must be a number of minutes above 0, got "${opt(flag, "")}". Nothing was booted.`]);
+}
+/** The gate's clock: from the moment the game process starts. */
+const TIMEOUT_MS = TIMEOUT_MIN * 60 * 1000;
+/** The sweep's wait for the machine, before the game starts: not on the gate's clock. */
+const WAIT_MS = WAIT_MIN * 60 * 1000;
+/** Ours only if the sweep's own --wait-min refusal never comes (a hung process query). */
+const MACHINE_BACKSTOP_MS = WAIT_MS + 10 * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const DRY_EXIT = Number(opt("--dry-exit", "0"));
 
 // Its OWN rig, not .probe-rig: two or three Claude sessions share this checkout
 // and a concurrent `just probe-sweep` would fight this run over the same exe
 // copy and the same debug/*.json IPC files. Nested inside .probe-rig so the
-// existing gitignore entry covers it.
-const RIG = path.join(REPO, ".probe-rig", "verify");
+// existing gitignore entry covers it. --rig for the tests only.
+const RIG = path.resolve(opt("--rig", path.join(REPO, ".probe-rig", "verify")));
 
 // THE GATE SET. Small on purpose (a gate nobody runs protects nothing) and
 // fixed on purpose (no --only flag, so the gate cannot be quietly shrunk to
@@ -132,6 +207,17 @@ let LOG = path.join(RIG, "logs", "run.log");
 // build through; null otherwise (and always null in --dry-verdict mode, which
 // reads the record back out of the manifest instead).
 let OTHER_BUILD = null;
+// THE TWO CLOCKS (see the top). Declared here, before --dry-verdict calls
+// report(), which reads them. PHASE is "waiting" until the sweep says the game
+// has started, then "booted"; REFUSAL is the sweep's own refusal record (a
+// machine that never went quiet); TIMED_OUT names which clock ran out.
+let PHASE = "waiting";
+let BOOTED = null;
+let REFUSAL = null;
+let TIMED_OUT = null;
+let GATE_START = null;
+const T0 = Date.now();
+const fmt = MG.fmtSpan;
 
 // ── 1b. --dry-verdict: verdict logic only, nothing boots ─────────────────────
 if (DRY) {
@@ -188,6 +274,10 @@ const sweepArgs = [
   "--only", RUNTIME_VANTAGES.join(","),
 ];
 if (KEEP_OPEN) sweepArgs.push("--keep-open");
+// The sweep's wait for the machine has its own limit and its own refusal; the
+// gate passes its number down so both say the same thing.
+sweepArgs.push("--wait-min", String(WAIT_MIN));
+if (GAME_ONLY) sweepArgs.push("--game-only");
 // probe-sweep runs the freshness gate itself (BUG-133: every script that
 // boots the game does), so a build this gate let through ON PURPOSE must
 // reach it with the same reason, or the sweep would refuse what was allowed.
@@ -204,26 +294,82 @@ if (opCfgPath) sweepArgs.push("--operator-config-path", opCfgPath);
 
 console.log(`[gate] rig ${rel(RIG)}`);
 console.log(`[gate] vantages ${RUNTIME_VANTAGES.join(", ")}`);
+console.log(
+  `[gate] the wait for the machine (up to ${fmt(WAIT_MS)}${GAME_ONLY ? ", other games and rigs only" : ", builds included"}) is not timed;` +
+    ` the ${fmt(TIMEOUT_MS)} gate clock starts when the game does`
+);
 console.log("");
 
-const child = spawn(process.execPath, sweepArgs, { cwd: REPO, stdio: "inherit" });
+// Where the sweep says what phase it is in (lib/machine-guard.js signalPhase).
+const SIGNAL = path.join(RIG, "boot-signal.json");
+fs.mkdirSync(RIG, { recursive: true });
+fs.rmSync(SIGNAL, { force: true });
+// The sweep writes the game's pid here right after it starts it; one left by an
+// earlier run would read as this run's boot.
+const PID_FILE = path.join(RIG, "probe_pid.txt");
+fs.rmSync(PID_FILE, { force: true });
 
-let timedOut = false;
-const watchdog = setTimeout(() => {
-  timedOut = true;
-  console.error(`\n[gate] TIMEOUT after ${TIMEOUT_MS / 60000} min - killing the probe.`);
+const child = spawn(process.execPath, sweepArgs, { cwd: REPO, stdio: "inherit", env: { ...process.env, [MG.BOOT_SIGNAL_ENV]: SIGNAL } });
+
+function killProbe() {
   try {
     execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
   } catch {}
   // probe-sweep spawns the game detached, so killing node is not enough.
   try {
-    const pid = fs.readFileSync(path.join(RIG, "probe_pid.txt"), "utf8").trim();
+    const pid = fs.readFileSync(PID_FILE, "utf8").trim();
     if (pid) execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
   } catch {}
-}, TIMEOUT_MS);
+}
+
+// Clock 1, the machine: only a backstop. The sweep refuses by itself at
+// --wait-min; this fires only if it never does, and still means nothing booted.
+const machineWatchdog = setTimeout(() => {
+  if (PHASE !== "waiting") return;
+  TIMED_OUT = "machine";
+  console.error(`\n[gate] the probe was still short of booting ${fmt(MACHINE_BACKSTOP_MS)} after it started (its own wait ends at ${fmt(WAIT_MS)}) - stopping it. Nothing was booted.`);
+  killProbe();
+}, MACHINE_BACKSTOP_MS);
+
+// Clock 2, the gate: from the moment the game process exists. The sweep's
+// spawnGame writes "booted" to SIGNAL; a probe_pid.txt written during this run
+// counts too (the sweep writes it right after the spawn), so a signal that
+// failed to write can never leave a booted game untimed.
+let gateWatchdog = null;
+function readPhase(atExit = false) {
+  const s = MG.readPhase(SIGNAL);
+  if (s && s.phase === "refused") REFUSAL = s;
+  let booted = s && s.phase === "booted" ? s : null;
+  if (!booted) {
+    try {
+      booted = { phase: "booted", game_pid: Number(fs.readFileSync(PID_FILE, "utf8").trim()) || null, from: "probe_pid.txt" };
+    } catch {}
+  }
+  if (!booted || PHASE !== "waiting") return;
+  PHASE = "booted";
+  BOOTED = booted;
+  GATE_START = Date.now();
+  clearTimeout(machineWatchdog);
+  // Seen only as the probe exited (a game that died within a poll): it did boot, so the
+  // verdict below is about the build; there is no clock left to start.
+  if (atExit) return;
+  console.log(
+    `[gate] the game started (pid ${booted.game_pid}) ${Math.round((GATE_START - T0) / 1000)} s after the probe did;` +
+      ` that wait is not timed. The ${fmt(TIMEOUT_MS)} gate clock starts now.`
+  );
+  gateWatchdog = setTimeout(() => {
+    TIMED_OUT = "gate";
+    console.error(`\n[gate] TIMEOUT: ${fmt(TIMEOUT_MS)} since the game started - killing the probe.`);
+    killProbe();
+  }, TIMEOUT_MS);
+}
+const phasePoll = setInterval(readPhase, 250);
 
 child.on("exit", (code) => {
-  clearTimeout(watchdog);
+  clearInterval(phasePoll);
+  readPhase(true); // a phase written just before the exit
+  clearTimeout(machineWatchdog);
+  clearTimeout(gateWatchdog);
   report(code === null ? -1 : code);
 });
 
@@ -240,7 +386,11 @@ function panicExcerpt() {
     .join("\n");
 }
 function logTail(n) {
-  if (!fs.existsSync(LOG)) return "(no run.log at all - the exe never started)";
+  if (!fs.existsSync(LOG)) {
+    return PHASE === "booted"
+      ? "(no run.log at all - the game process started but never wrote its log)"
+      : "(no run.log at all - the exe never started)";
+  }
   return fs.readFileSync(LOG, "utf8").split(/\r?\n/).filter(Boolean).slice(-n).join("\n");
 }
 
@@ -250,6 +400,49 @@ function report(sweepExit) {
   const manifestPath = path.join(OUT, "manifest.json");
   console.log("");
   console.log("-".repeat(72));
+  // WHICH SHADER COMPILER the game ran (2026-10-21): FXC's pipeline build takes
+  // minutes, so a run on it is said loudly, here in the verdict, and not only in
+  // a setup line long scrolled away. From the sweep's manifest, else from the
+  // "booted" signal spawnGame wrote (a run that died before its manifest).
+  let manifestCompiler = null;
+  try {
+    manifestCompiler = JSON.parse(fs.readFileSync(manifestPath, "utf8")).shader_compiler || null;
+  } catch {}
+  const compiler = manifestCompiler || (BOOTED && BOOTED.shader_compiler) || null;
+  if (compiler === "FXC") {
+    for (const l of DXC.fxcBanner({ exe: path.join(RIG, "HumanityOS.exe"), pid: BOOTED && BOOTED.game_pid, rig: "the probe", where: DXC.pairHome(REPO) })) console.log(l);
+  } else if (compiler) {
+    console.log(`shader compiler  ${compiler}`);
+  }
+
+  if (!fs.existsSync(manifestPath) && !DRY && PHASE === "waiting") {
+    // NOTHING BOOTED: the sweep stopped before it started the game. Not a
+    // verdict on the build in either direction, and never exit 2: on
+    // 2026-10-21 this branch did not exist, and a run killed while it waited
+    // for other agents' builds read "FAIL ... a boot or world-entry hang".
+    const why = REFUSAL
+      ? String(REFUSAL.headline || "").replace(/^.*?REFUSED:\s*/, "")
+      : TIMED_OUT === "machine"
+        ? `the probe's wait for the machine had not ended after ${fmt(MACHINE_BACKSTOP_MS)} and was stopped; nothing was booted.`
+        : `the probe stopped before it started the game (probe exit ${sweepExit}); nothing was booted.`;
+    console.log(`${VERDICT}REFUSED  ${why}`);
+    console.log("");
+    if (REFUSAL && REFUSAL.blockers && REFUSAL.blockers.length) {
+      console.log(`Still up after ${REFUSAL.waited_s} s of waiting:`);
+      for (const b of REFUSAL.blockers) console.log(`  ${b}`);
+      console.log("");
+    } else if (!REFUSAL && TIMED_OUT !== "machine") {
+      console.log("Its reason is in the probe's lines above (the freshness gate, the rig setup, or the start itself).");
+      console.log("");
+    }
+    console.log("This is not a verdict on the build: it never ran, so it neither passed nor failed.");
+    if (REFUSAL) {
+      console.log("Run again when the machine is quieter; --wait-min N waits longer, and --game-only stops");
+      console.log("waiting on builds (this gate reads panics and captures, not timings).");
+    }
+    console.log("-".repeat(72));
+    process.exit(1);
+  }
 
   if (!fs.existsSync(manifestPath)) {
     // probe-sweep throws (and writes no manifest) when boot or world entry
@@ -263,9 +456,12 @@ function report(sweepExit) {
     }
     console.log(`${VERDICT}FAIL  the probe never got far enough to write a manifest (probe exit ${sweepExit}).`);
     console.log("");
-    if (timedOut) {
-      console.log(`The run was killed after ${TIMEOUT_MS / 60000} minutes. A hang here is a boot or`);
-      console.log("world-entry hang, not slowness: a healthy sweep of 3 vantages takes ~3 minutes.");
+    if (TIMED_OUT === "gate") {
+      // Only the gate's own clock gets here, and it starts with the game, so
+      // this IS a hang of the game: the wait in front of it was not counted.
+      console.log(`The run was killed ${fmt(TIMEOUT_MS)} after the game started (the ${Math.round((GATE_START - T0) / 1000)} s before that,`);
+      console.log("waiting for the machine and setting up the rig, are not counted). A hang here is a boot or");
+      console.log("world-entry hang, not slowness or a busy machine: a healthy sweep of 3 vantages takes ~3 minutes.");
     } else {
       console.log("The app failed to boot or failed to enter the world. That is the exact class of");
       console.log("bug `just verify` cannot see, so treat it as a release blocker, not rig flake.");

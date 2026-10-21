@@ -10,8 +10,10 @@
 // check CLAUDE.md names for every renderer change, did not: so its boots, and every number read
 // off them, were FXC's.
 //
-// Uses the one shared lookup (the exe's folder, then the repo root; both files from the same
-// folder). With no pair anywhere it says so and exits 0: the game still boots, only slower.
+// Uses the one shared lookup (the exe's folder, then the repo root, then, in a git worktree, the
+// main checkout's root, where the pair actually lives: it is not in git, so a worktree never holds
+// one; both files from the same folder). With no pair anywhere it says so and exits 0: the game
+// still boots, only slower.
 "use strict";
 const fs = require("fs");
 const path = require("path");

@@ -43,9 +43,29 @@
 //   4. holdBuilds()    - for the length of a capture, hold every running build
 //                        at BelowNormal priority and put each back afterwards.
 //                        See the section above it for what it may and may not do.
+//
+// And, since 2026-10-21, the boot lock and the refusal (lib/boot-lock.js):
+//   5. waitForFree() takes the machine-wide boot lock when the machine goes
+//      quiet, and counts another rig's held lock as NOT quiet, so rigs that
+//      were all waiting on the same builds cannot all boot in the same poll.
+//   6. refuseBusy()    - the one way a rig says its wait gave up: "REFUSED: the
+//                        machine never went quiet in N min; nothing was
+//                        booted", exit 1 (refused, the code every rig uses for
+//                        "did not run"), never 2 (a check failed).
+//   7. signalPhase()   - tells a parent gate (verify-runtime) when the game has
+//                        started, so the gate's clock times the game and not
+//                        the wait in front of it.
 
 const fs = require("fs");
+const path = require("path");
 const { execSync, execFileSync } = require("child_process");
+const BL = require("./boot-lock.js");
+
+/// How long a rig waits for the machine before it refuses, minutes. One number
+/// for every rig (2026-10-21; they had 20, 40 and a 12 that was really the
+/// verify-runtime gate's clock running out while it waited). Each rig takes
+/// --wait-min N to change it for a run.
+const WAIT_MIN_DEFAULT = 60;
 
 /// Processes that make a frame-time reading meaningless.
 ///
@@ -183,47 +203,194 @@ function foreignProcs(own = {}) {
   });
 }
 
-/// One-line description of a contender, for a log line or a manifest note.
-const describe = (p) => `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (${p.exe})` : ""}`;
+/// One-line description of a contender, for a log line or a manifest note. A
+/// held boot lock (waitForFree) is described as the rig holding it.
+const describe = (p) =>
+  p && p.lock
+    ? `the rig boot lock, held by ${BL.describeHolder(p.lock)}`
+    : `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (${p.exe})` : ""}`;
 
-/// Wait, bounded, for the machine to be free of contenders.
+/// Is the process list faked (a test, or the manual red proof)?
+const fakeInUse = () => !!lister || !!process.env.HUMANITY_MACHINE_GUARD_FAKE;
+
+/// The boot lock this process would take: lib/boot-lock.js lockPath, which
+/// leaves the real one alone under a fake process list or a test run unless
+/// HUMANITY_RIG_LOCK names one.
+const bootLockPath = () => BL.lockPath({ fake: fakeInUse() });
+
+/// A span for a person: "60 min", "1.5 min", "30 s", "0.3 s".
+function fmtSpan(ms) {
+  if (!(ms >= 0)) return "?";
+  if (ms >= 60 * 1000) return `${+(ms / 60000).toFixed(1)} min`;
+  if (ms >= 10 * 1000) return `${Math.round(ms / 1000)} s`;
+  return `${+(ms / 1000).toFixed(1)} s`;
+}
+
+/// Wait, bounded, for the machine to be free of contenders, then take the boot
+/// lock (lib/boot-lock.js) so no other rig boots beside this one.
 ///
-/// Returns { free, waited, waited_s, blockers } and NEVER throws. `waited` says whether it
-/// had to wait at all: waited_s is ROUNDED, so a wait under half a second reads 0 and must not
-/// be taken for "no wait" (2026-10-04: probe-sweep skipped its re-check after such a wait).
-/// the caller decides
-/// whether a timeout is fatal (verify-screens refuses, probe-sweep proceeds but
-/// records the wait). Logs on entry and on exit when it actually waited,
-/// because "how long did this sweep sit waiting" is evidence about the machine,
-/// not noise - a sweep that waited 150 s ran next to somebody, just not during.
+/// opt.own        what is ours (see foreignProcs), incl. gameOnly
+/// opt.timeoutMs  how long to wait before giving up (WAIT_MIN_DEFAULT)
+/// opt.pollMs     how often to look (30 s; HUMANITY_MACHINE_GUARD_POLL_MS for a test)
+/// opt.lock       false = do not take the boot lock (default: take it)
+/// opt.lockFile   the lock file (default bootLockPath(): none under a fake list or a test)
+/// opt.procs      false = look only at the boot lock, not at the process list
+///                (spawnGame: the rig has done its own process check)
+/// opt.rig        the name the lock records (default the running script's)
+///
+/// Returns { free, waited, waited_s, blockers } and NEVER throws, plus `lock`
+/// (the record) when this call holds the boot lock, `limit_ms` when it gave up,
+/// and `lock_error` when the lock file could not be written at all. `waited` says
+/// whether it had to wait at all: waited_s is ROUNDED, so a wait under half a
+/// second reads 0 and must not be taken for "no wait" (2026-10-04: probe-sweep
+/// skipped its re-check after such a wait). The caller decides what a give-up
+/// means; every rig that boots refuses (refuseBusy). Logs on entry and on exit
+/// when it actually waited, because "how long did this sweep sit waiting" is
+/// evidence about the machine, not noise - a sweep that waited 150 s ran next to
+/// somebody, just not during.
 function waitForFree(opt = {}) {
   const own = opt.own || {};
-  const timeoutMs = opt.timeoutMs != null ? opt.timeoutMs : 40 * 60 * 1000; // machine rule: up to 40 min
+  const timeoutMs = opt.timeoutMs != null ? opt.timeoutMs : WAIT_MIN_DEFAULT * 60 * 1000;
   // HUMANITY_MACHINE_GUARD_POLL_MS: a test's shorter poll (with
   // HUMANITY_MACHINE_GUARD_FAKE, so a wait can be exercised in a second).
   const envPoll = Number(process.env.HUMANITY_MACHINE_GUARD_POLL_MS);
   const pollMs = opt.pollMs != null ? opt.pollMs : envPoll > 0 ? envPoll : 30 * 1000;
   const log = opt.log || ((m) => console.log(m));
   const label = opt.label || "boot";
+  const lockFile = opt.lock === false ? null : opt.lockFile !== undefined ? opt.lockFile : bootLockPath();
   const t0 = Date.now();
-  let blockers = foreignProcs(own);
-  if (!blockers.length) return { free: true, waited: false, waited_s: 0, blockers: [] };
-  log(`[machine-guard] ${label}: WAITING - ${blockers.length} process(es) competing for this machine:`);
-  for (const p of blockers) log(`[machine-guard]   ${describe(p)}`);
-  log(`[machine-guard] one machine, one measurement. Polling every ${Math.round(pollMs / 1000)} s.`);
-  while (Date.now() - t0 < timeoutMs) {
-    sleepSync(pollMs);
-    blockers = foreignProcs(own);
-    const waited = Math.round((Date.now() - t0) / 1000);
-    if (!blockers.length) {
-      log(`[machine-guard] ${label}: clear after ${waited} s.`);
-      return { free: true, waited: true, waited_s: waited, blockers: [] };
+  let took = null;
+  // One look: the processes first (a rig never takes the lock while it could not
+  // boot anyway), then the lock. Quiet means both.
+  const look = () => {
+    const procs = opt.procs === false ? [] : foreignProcs(own);
+    if (procs.length || !lockFile) return { blockers: procs };
+    const r = BL.tryAcquire(lockFile, { rig: opt.rig });
+    if (r.ok) {
+      took = r;
+      return { blockers: [] };
     }
-    log(`[machine-guard] ${label}: still waiting (${waited} s) on ${blockers.map(describe).join("; ")}`);
+    if (r.error) return { blockers: [], error: r.error };
+    return { blockers: [{ pid: r.holder.pid, name: "", exe: "", lock: r.holder }] };
+  };
+  const done = (extra) => {
+    const out = { ...extra };
+    if (took) {
+      out.lock = took.record;
+      if (took.stale) log(`[machine-guard] ${label}: took over a stale boot lock from ${BL.describeHolder(took.stale)} (that process is gone)`);
+    }
+    return out;
+  };
+  let seen = look();
+  if (seen.error) return { free: false, waited: false, waited_s: 0, blockers: [], lock_error: seen.error, lock_file: lockFile };
+  if (!seen.blockers.length) return done({ free: true, waited: false, waited_s: 0, blockers: [] });
+  log(`[machine-guard] ${label}: WAITING - the machine is busy, ${seen.blockers.length} in the way:`);
+  for (const p of seen.blockers) log(`[machine-guard]   ${describe(p)}`);
+  log(`[machine-guard] one machine, one boot at a time. Polling every ${fmtSpan(pollMs)}, for up to ${fmtSpan(timeoutMs)}.`);
+  while (Date.now() - t0 < timeoutMs) {
+    sleepSync(Math.min(pollMs, Math.max(0, timeoutMs - (Date.now() - t0))));
+    seen = look();
+    const waited = Math.round((Date.now() - t0) / 1000);
+    if (seen.error) return { free: false, waited: true, waited_s: waited, blockers: [], lock_error: seen.error, lock_file: lockFile };
+    if (!seen.blockers.length) {
+      log(`[machine-guard] ${label}: clear after ${waited} s.`);
+      return done({ free: true, waited: true, waited_s: waited, blockers: [] });
+    }
+    log(`[machine-guard] ${label}: still waiting (${waited} s) on ${seen.blockers.map(describe).join("; ")}`);
   }
   const waited = Math.round((Date.now() - t0) / 1000);
-  log(`[machine-guard] ${label}: GAVE UP after ${waited} s; still up: ${blockers.map(describe).join("; ")}`);
-  return { free: false, waited: true, waited_s: waited, blockers };
+  log(`[machine-guard] ${label}: GAVE UP after ${waited} s; still up: ${seen.blockers.map(describe).join("; ")}`);
+  return { free: false, waited: true, waited_s: waited, blockers: seen.blockers, limit_ms: timeoutMs };
+}
+
+// ── A WAIT THAT GAVE UP: ONE REFUSAL FOR EVERY RIG (2026-10-21) ─────────────
+//
+// verify-runtime's 12-minute gate used to run its clock over the machine wait
+// in front of the boot, so on a busy afternoon (other agents building) the
+// gate killed its own probe while it was still waiting and printed "FAIL ...
+// A hang here is a boot or world-entry hang, not slowness". Nothing had hung
+// and nothing had booted: two false failures on 2026-10-21. A wait that gives
+// up is not a verdict on the build, so every rig now says so the same way, and
+// exits 1 (refused: nothing ran), never 2 (a check failed).
+
+/// The refusal for a wait that gave up (or a lock that could not be written).
+///   opt.rig   the rig's name, first on the line
+///   opt.hint  lines saying what the reader can do (a rig's own flags)
+function refusalLines(w, opt = {}) {
+  const rig = opt.rig || "rig";
+  if (w && w.lock_error) {
+    return [
+      `${rig}: REFUSED: the machine-wide rig boot lock could not be written (${w.lock_error}); nothing was booted.`,
+      "Without it this rig could boot beside another one on the one GPU. The lock lives in",
+      `${w.lock_file || BL.DEFAULT_PATH}; HUMANITY_RIG_LOCK=<path> names another file.`,
+    ];
+  }
+  const lines = [`${rig}: REFUSED: the machine never went quiet in ${fmtSpan(w && w.limit_ms)}; nothing was booted.`];
+  const blockers = (w && w.blockers) || [];
+  if (blockers.length) {
+    lines.push(`Still up after ${w.waited_s} s of waiting:`);
+    for (const b of blockers) lines.push(`  ${describe(b)}`);
+  }
+  lines.push("This says nothing about the build: it never ran. One machine, one boot at a time (CLAUDE.md).");
+  if (blockers.some((b) => b.lock && b.lock.pid)) {
+    const b = blockers.find((x) => x.lock && x.lock.pid);
+    lines.push(`If that rig is a leftover nobody is waiting on: taskkill //PID ${b.lock.pid} (its lock then goes stale and is taken over).`);
+  }
+  for (const h of opt.hint || []) lines.push(h);
+  return lines;
+}
+
+/// Print the refusal, tell a parent gate (signalPhase), exit 1.
+function refuseBusy(w, opt = {}) {
+  const lines = refusalLines(w, opt);
+  console.error("");
+  for (const l of lines) console.error(l);
+  console.error("");
+  signalPhase("refused", {
+    rig: opt.rig || null,
+    reason: w && w.lock_error ? "lock" : "machine",
+    headline: lines[0],
+    waited_s: (w && w.waited_s) || 0,
+    limit_ms: (w && w.limit_ms) || null,
+    blockers: ((w && w.blockers) || []).map(describe),
+  });
+  process.exit(1);
+}
+
+// ── TELLING A PARENT GATE WHAT PHASE A RIG IS IN (2026-10-21) ────────────────
+//
+// verify-runtime runs probe-sweep as a child and times it. The child's machine
+// wait must not count against the gate, so the child writes its phase to the
+// file named by HUMANITY_RIG_BOOT_SIGNAL (set by the parent; absent in a plain
+// run, when this does nothing): "booted" from lib/game-launch.js spawnGame the
+// moment the game process exists, "refused" from refuseBusy. Written to a temp
+// name and renamed, so the parent never reads half a file.
+
+const BOOT_SIGNAL_ENV = "HUMANITY_RIG_BOOT_SIGNAL";
+
+/// Record a phase for the parent gate, when there is one. Never throws.
+function signalPhase(phase, extra = {}) {
+  const file = process.env[BOOT_SIGNAL_ENV];
+  if (!file) return false;
+  try {
+    const rec = { phase, at: new Date().toISOString(), pid: process.pid, ...extra };
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(tmp, JSON.stringify(rec, null, 2));
+    fs.renameSync(tmp, file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/// Read a phase record a child wrote, or null.
+function readPhase(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 // Blocking sleep. The guard runs in the middle of an async sweep but must not
@@ -606,6 +773,15 @@ module.exports = {
   listInstances,
   foreignProcs,
   waitForFree,
+  // 2026-10-21: the boot lock, the one refusal, the phase a parent gate reads.
+  WAIT_MIN_DEFAULT,
+  fmtSpan,
+  bootLockPath,
+  refusalLines,
+  refuseBusy,
+  BOOT_SIGNAL_ENV,
+  signalPhase,
+  readPhase,
   mergeForeign,
   markCapture,
   describe,

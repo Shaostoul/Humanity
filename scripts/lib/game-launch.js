@@ -42,13 +42,37 @@
 //      sandbox's config.json right before it spawns (lib/rig-gameplay.js), and
 //      REFUSES to start a game whose config still names a server off this
 //      computer.
+//
+//   5. Another rig booted in the same moment (2026-10-21, BUG-140's fixer: the
+//      builds on the machine ended, every rig waiting on them woke in the same
+//      poll, and their games fought over the 12 GB card). spawnGame will not
+//      start a game without the machine-wide boot lock (lib/boot-lock.js): a rig
+//      whose machine guard already took it goes straight on; any other rig waits
+//      here, bounded, while another rig holds it, and refuses (exit 1, nothing
+//      started) if it never comes free. Then it tells a parent gate the game has
+//      started (machine-guard.js signalPhase "booted"), which is when
+//      verify-runtime's clock begins.
+//
+//   6. The game compiled its shaders with FXC (2026-10-21): no DXC pair beside
+//      the exe, so its pipeline build took ~170 s of a 180 s autopilot wait,
+//      and the rig's verdict did not say so. spawnGame checks the pair beside
+//      the exe it starts (the game's own test, src/renderer/mod.rs), records it
+//      on the watch (shader_compiler) and in the "booted" signal, and on FXC
+//      prints lib/dxc-dlls.js fxcBanner as the rig's last lines.
 
 const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 const { spawn, execSync } = require("child_process");
 const { requireBootCopy } = require("./src-fingerprint.js");
 const MG = require("./machine-guard.js");
 const RG = require("./rig-gameplay.js");
+const DXC = require("./dxc-dlls.js");
+
+/** The checkout these scripts belong to (where a missing DXC pair is to go, or its main checkout). */
+const REPO = path.resolve(__dirname, "..", "..");
+/** The FXC banner is printed once per rig process, however many games it starts. */
+let fxcBannerArmed = false;
 
 /** The marker src/embedded_data.rs BUILTIN_COPY_MARKER writes (a test pins the two). */
 const BUILTIN_COPY_MARKER = "[built-in data copy]";
@@ -114,12 +138,16 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
  *            detached, stdio (default "ignore"), handoffPattern (default /HumanityOS/i),
  *            log (default console.log), gameplay (default {}: lib/rig-gameplay.js; a rig
  *            may ask for fresh_world_each_launch, and a rig with a throwaway relay
- *            names it as server_url, which must be on this computer) }
+ *            names it as server_url, which must be on this computer),
+ *            lockWaitMs (how long to wait for another rig's boot lock; the
+ *            machine guard's WAIT_MIN_DEFAULT) }
  * Refuses (exit 1, nothing started) unless `exe` is byte-identical to the exe the
  * gate judged. Always sets HUMANITY_NO_HANDOFF=1. Pins the Dev play mode, the
  * default home every launch, the rig's server and no saved servers into the config
  * of the sandbox `exe` runs in, and refuses (exit 1, nothing started) when that
- * config still names a server off this computer.
+ * config still names a server off this computer. Holds the machine-wide boot lock
+ * before it starts anything (point 5), refusing (exit 1) if another rig holds it
+ * past lockWaitMs.
  * Returns the watch: {
  *   child, pid,
  *   gameplay      what was pinned ({ path, gameplay, changed }), null outside a sandbox
@@ -146,6 +174,13 @@ function spawnGame(exe, args, opts = {}) {
     console.error(`${rigName}: REFUSED - nothing was booted.`);
     process.exit(1);
   }
+  // ONE BOOT AT A TIME (point 5). Last before the spawn, so nothing above can
+  // leave the lock held by a rig that then refused for another reason (its
+  // process exit releases it either way). Only the lock is looked at: the rig
+  // made its own check for other games before it built its folder, and a rig
+  // with a throwaway relay (one more HumanityOS.exe, ours) would wait on itself.
+  const lk = MG.waitForFree({ procs: false, label: `${rigName}: boot lock`, rig: rigName, log, timeoutMs: opts.lockWaitMs });
+  if (!lk.free) MG.refuseBusy(lk, { rig: rigName, hint: ["Another rig has held the boot lock all that time: wait for it, then run again."] });
   let child;
   try {
     child = spawn(exe, args || [], {
@@ -159,12 +194,33 @@ function spawnGame(exe, args, opts = {}) {
     // (spawn throws, "spawn UNKNOWN"): nothing was started, say so plainly.
     throw new Error(`${rigName}: could not start ${exe} (${e.message}); nothing booted`);
   }
+  // WHICH SHADER COMPILER (point 6): by the game's own test, the DXC pair beside
+  // the exe it runs. FXC is said at the boot, as the rig's LAST lines (its
+  // verdict is printed by then) and to a parent gate.
+  const compiler = MG.isGameName(path.basename(exe)) ? DXC.compilerFor(exe) : null;
+  if (compiler) log(`[${rigName}] shader compiler: ${compiler}${compiler === "FXC" ? ` (no ${DXC.DXC_DLLS.join(" + ")} beside ${exe}; boot is minutes slower)` : ""}`);
+  // Not inside `node --test` (NODE_TEST_CONTEXT): tests start node under the game's name in folders
+  // with no dlls, and a banner at the end of `just rig-tests` would read as a real rig on FXC. The
+  // test of the banner itself runs its rig without that variable.
+  if (compiler === "FXC" && child.pid && !process.env.NODE_TEST_CONTEXT) {
+    const banner = DXC.fxcBanner({ exe, pid: child.pid, rig: rigName, where: DXC.pairHome(REPO) });
+    if (!fxcBannerArmed) {
+      fxcBannerArmed = true;
+      process.on("exit", () => {
+        for (const l of banner) console.error(l);
+      });
+    }
+  }
+  // The game exists: a parent gate's clock starts now (verify-runtime). No pid
+  // means the start failed (an 'error' event follows): no boot to time.
+  if (child.pid) MG.signalPhase("booted", { rig: rigName, game_pid: child.pid, shader_compiler: compiler });
   const pattern = opts.handoffPattern || /HumanityOS/i;
   let expected = false;
   const w = {
     child,
     pid: child.pid,
     gameplay,
+    shader_compiler: compiler, // "DXC" | "FXC" (null: not the game, or not Windows)
     exit: null,
     code: null,
     handoff: [],

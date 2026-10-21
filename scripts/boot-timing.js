@@ -21,7 +21,7 @@
 //   node scripts/boot-timing.js [--runs N] [--exe PATH] [--rig DIR]
 //                               [--label NAME] [--out FILE]
 //                               [--cold] [--keep-cache] [--timeout-min N]
-//                               [--allow-other-build "<reason>"]
+//                               [--wait-min N] [--allow-other-build "<reason>"]
 //                               [--clouds-wait-s N]
 //
 //   --runs N        how many boots to average (default 3).
@@ -86,6 +86,13 @@ const RIG = path.resolve(opt("--rig", path.join(REPO, ".probe-rig", "boot")));
 const LABEL = opt("--label", "run");
 const COLD = args.includes("--cold");
 const TIMEOUT_MS = Number(opt("--timeout-min", "6")) * 60 * 1000;
+// --wait-min N: how long each boot waits for a quiet machine before refusing
+// (lib/machine-guard.js WAIT_MIN_DEFAULT, the one number every rig uses).
+const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
+if (!(WAIT_MIN > 0)) {
+  console.error(`boot-timing: REFUSED - --wait-min must be a number of minutes above 0, got "${opt("--wait-min", "")}". Nothing was booted.`);
+  process.exit(1);
+}
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
 const OUT = path.resolve(opt("--out", path.join(RIG, `boot-timing-${LABEL}.json`)));
@@ -197,10 +204,14 @@ async function oneRun(n) {
 
   // ONE MACHINE: a boot beside another instance or a release build measures
   // the other process as much as this one.
-  const waited = MG.waitForFree({ label: `boot ${n}`, timeoutMs: 40 * 60 * 1000 });
+  // The wait ends by taking the machine-wide boot lock (lib/boot-lock.js), held
+  // until this script ends, so no other rig boots between this script's boots.
+  const waited = MG.waitForFree({ label: `boot ${n}`, rig: "boot-timing", timeoutMs: WAIT_MIN * 60 * 1000 });
   if (!waited.free) {
-    console.error("ERROR: the machine never went quiet; a boot measured beside a build is not data.");
-    process.exit(2);
+    // Exit 1, refused: a boot measured beside a build or another game is not
+    // data, and a boot that never happened is not a slow one (it was exit 2,
+    // a failure, until 2026-10-21).
+    MG.refuseBusy(waited, { rig: "boot-timing", hint: ["What to do: run again when they are done; --wait-min N waits longer."] });
   }
 
   const t0 = Date.now();

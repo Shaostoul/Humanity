@@ -479,6 +479,8 @@ verify-relay:
 #     main pass a feature worktree's check). Edited-after-the-build and
 #     built-in-another-checkout both refuse, naming the files that differ.
 #   - another verify-runtime probe is already running
+#   - the machine never went quiet in --wait-min (see TWO CLOCKS below)
+#   - an argument it does not know
 #
 # A red check against an old or other build on purpose:
 #   just verify-runtime --exe v0.1444.0_HumanityOS.exe --allow-other-build "red check: <why>"
@@ -500,6 +502,18 @@ verify-relay:
 # graphics settings instead of the rig's (heavier on every axis: render_distance
 # 2000 vs 500, tree_model_distance 300 vs 120). Either way the verdict now
 # prints WHICH settings it is a verdict about.
+#
+# TWO CLOCKS (2026-10-21). Before the boot the sweep waits for a quiet machine
+# (other games, builds, another rig's machine-wide boot lock) for up to
+# --wait-min N (60); if it never comes: "REFUSED: the machine never went quiet
+# in N min; nothing was booted", exit 1, which is not a verdict on the build.
+# The gate's own --timeout-min N (12) starts when the GAME starts and times
+# boot, world entry and the vantages, so a timeout is a real hang. (The clock
+# used to start with the recipe: twice on 2026-10-21 it ran out during the
+# wait for other agents' builds and printed a false "boot or world-entry hang".)
+# --game-only waits for other games and rigs but not builds (this gate reads
+# panics and captures, not timings). An argument the gate does not know is
+# refused, never ignored.
 #
 # Boot the real binary, enter the world, fail on any panic or missed capture.
 [positional-arguments]
@@ -701,9 +715,20 @@ check-encoding *ARGS:
 # jump through the slab, an elevator that does not ride or jumps its rider, the HUD naming the wrong
 # storey, and a placement passed off as a walk; a layout that moved what the route walks refuses
 # before anything boots; the two REAL runs in tests/fixtures/storeys/ are judged as they were.
+# And the machine-wide rig boot lock (scripts/lib/boot-lock.js, 2026-10-21): two rigs woken by the
+# same build ending (real processes, same moment) never boot together; another rig's held lock is a
+# busy machine to the guard; a lock whose holder was killed, or whose pid now belongs to another
+# process, is taken over; spawnGame will not start a game without it; probe-sweep waits for it.
+# And verify-runtime's two clocks (verify-runtime-gate.test.js): a machine wait longer than the gate
+# does not trip it, a game that hangs after it starts still does (node, stamped, as the "game");
+# a machine that never goes quiet is REFUSED (exit 1), not FAIL; --game-only reaches the sweep; an
+# unknown flag or a non-number time is refused, not ignored. Every lock here is the test's own file.
+# And the DXC pair from a worktree (dxc-dlls.test.js, 2026-10-21): a worktree's rig finds the pair in
+# the main checkout's root (found as `git rev-parse --git-common-dir` finds it, checked against git),
+# dxc-beside-exe.js too, and a rig whose game boots on FXC ends its output with a banner saying so.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js scripts/tests/storeys-judge.test.js scripts/tests/map-centre-check.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js scripts/tests/storeys-judge.test.js scripts/tests/map-centre-check.test.js scripts/tests/boot-lock.test.js scripts/tests/verify-runtime-gate.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
