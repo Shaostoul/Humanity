@@ -601,6 +601,11 @@
       "date": "2026-10-21",
       "decision": "Released v0.1538.0: BUG-211 (aboard, every body's f32 draw rotation was the spin alone while its position and terrain went through the hull frame, so Earth's north pole pointed at the ship; now body_model_rot, and the cloud reprojection and the planets' orbit rings follow the hull frame) and BUG-212 (every non-frame body carries its own sun before any air, coloured by the air on the camera's line to it; sky bodies skip the near-scene haze; the Moon lit at its true phase from the ground at night). Verified: runtime 3/3, storeys 76/76, falls 88/88, the Maps follow-home sweep; the capture shows the Pacific under the ship.",
       "why": "Seen by the Maps builder in its own view and confirmed in the live game; a visible wrongness in the first thing the new map shows."
+    },
+    {
+      "date": "2026-10-21",
+      "decision": "Dispatched after v0.1538.0, beside Maps increment 2 (running since v0.1536.0): bounced light (the per-room ambient lowest level promised on 2026-10-20, then probe streaming's design and first increment), sky bodies (each body its own rotation from data so the Moon keeps one face to Earth, the daytime Moon seen through the sky rather than hidden by the dome, fog hiding sky bodies, other bodies' clouds and air with their own sun, the night-side check from low orbit, the point drawn over the Moon, the compass N aboard), and recovery through trusted people (threshold shares of the recovery phrase encrypted to friends' Kyber768 keys as recovery_share_v1 objects, a request made from a new device and confirmed out of band, shares returned to a one-time key, restore from the rebuilt phrase; the deleted key_rotation_v1 call removed).",
+      "why": "Each is on PRIORITIES and the operator's own asks (the ambient level was promised; probe streaming answered his question; recovery was found from his screenshot); disjoint files, so they run together."
     }
   ],
   "active_scopes_to_avoid": [
@@ -630,7 +635,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-21T14:20:00-07:00",
+  "last_updated": "2026-10-21T14:40:00-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
