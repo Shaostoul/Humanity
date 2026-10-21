@@ -1935,6 +1935,7 @@ mod native_app {
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
+                shut_doors: Vec::new(),
                 pending_sfx: Vec::new(),
                 sight_colliders: Vec::new(),
                 connection_objects: Vec::new(),
@@ -3628,7 +3629,7 @@ mod native_app {
                     // are the storey floors its shaft spans. A rider sends it up a stop with Space
                     // and down one with Shift (and Space does not jump while riding), and a body at
                     // any landing calls it there. Runtime state lives in `elevator_state` keyed by
-                    // (zone index, structure index) (not saved). First person, not build. Every
+                    // (zone id, elevator id) (not saved). First person, not build. Every
                     // ZONE's elevators run, at world positions (v0.754). The footing sampler below
                     // reads the updated car height so the rider rides.
                     let lift_press = state.controller.take_lift_press();
@@ -5248,6 +5249,9 @@ mod native_app {
                     // are open + unlocked are gaps; closed or locked doors block; windows are part of
                     // their wall span. Skipped in the build editor (orbit cam) + when there are no
                     // home walls (legacy layout / showroom -> wall_colliders empty).
+                    // The doors shut this frame, the one list the walk sweeps against and E and F's
+                    // reach reads (engine/built_uses.rs `refresh_shut_doors`, `reach_blockers`).
+                    crate::engine::built_uses::refresh_shut_doors(state);
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
                         // Dev fly mode is noclip (v0.791.x): walls must not pin
@@ -5257,8 +5261,10 @@ mod native_app {
                         // v0.881: the walls are wherever the home is.
                         && state.aboard_station
                     {
-                        let door_locks = state.door_locks.clone();
-                        // LIVE door segments, rebuilt per frame from the animated open fractions.
+                        // LIVE door segments, rebuilt per frame from the animated open fractions
+                        // (`state.shut_doors`, refreshed above: a door blocks only when closed or
+                        // locked, v0.570; windows are handled by their uncut wall span; each from
+                        // its sill to its head, so a door shut on one storey is no wall on another).
                         // This deliberately stays SEPARATE from `state.wall_colliders` (which only
                         // rebuilds on structure edits): a door's blocking state changes every frame
                         // as it animates, and rebuilding the whole ship's static segment list per
@@ -5268,22 +5274,7 @@ mod native_app {
                         // together span the full aperture (each contributes its own half-width
                         // segment), so a shut corridor door is impassable; open, both drop out and
                         // the mouth is the walk-through gap the shell cut left.
-                        let mut doors: Vec<crate::ship::wall_collision::WallSegment> = state
-                            .door_panels
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(i, (p, open))| {
-                                // Windows are handled by their (uncut) wall span; a door blocks only
-                                // when closed or locked (v0.570: lock-list aware).
-                                let locked = door_locked_now(p, door_locks.get(i));
-                                if p.is_window || (*open >= 0.5 && !locked) {
-                                    return None;
-                                }
-                                // From its sill to its head, so a door shut on one storey is no
-                                // wall on another (ship homes increment 7).
-                                Some(crate::ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
-                            })
-                            .collect();
+                        let mut doors = state.shut_doors.clone();
                         // The elevators' landing doors and the ladder hatches' gates (ship homes
                         // increment 7, engine/footing.rs `shut_gates`).
                         doors.extend(crate::engine::footing::shut_gates(
@@ -7690,30 +7681,15 @@ mod native_app {
                         // editor's cut-away leaves out (home_meshes `push_home_machines`).
                         crate::engine::home_meshes::push_home_machines(state, &mut all_objects);
                         // Procedural plants (v0.862): one merged mesh per planted
-                        // tower, geometry already in world coordinates.
-                        for &(mesh_idx, mat_idx) in &state.plant_objects {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: Vec3::ZERO,
-                                rotation: Quat::IDENTITY,
-                                scale: Vec3::ONE,
-                                mesh: mesh_idx,
-                                material: mat_idx,
-                            });
-                        }
+                        // tower, geometry already in world coordinates; and the
+                        // photoscanned decoration plants (v0.909, CC0 models
+                        // scattered from data/entities/decorations.ron). Those the
+                        // editor's cut-away leaves out are not drawn
+                        // (home_meshes `push_home_plants`).
+                        crate::engine::home_meshes::push_home_plants(state, &mut all_objects);
                         // Grow enclosures (2026-09-27): each mushroom rack's
                         // clear fruiting tent, in the transparent pass.
                         push_grow_enclosures(state, &mut transparent_objects);
-                        // Photoscanned decoration plants (v0.909): CC0 models
-                        // scattered from data/entities/decorations.ron.
-                        for &(mesh_idx, mat_idx, pos, yaw, scl, _anchor) in &state.decoration_objects {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: pos,
-                                rotation: Quat::from_rotation_y(yaw.to_radians()),
-                                scale: Vec3::splat(scl),
-                                mesh: mesh_idx,
-                                material: mat_idx,
-                            });
-                        }
                         }
                         // Connection cylinders (live, colored by kind; follow rooms). (v0.530)
                         if !hide_pipes {
@@ -8836,8 +8812,19 @@ mod native_app {
                             // (from its pick volume centre+radius), so every machine has a helper widget
                             // like the structures. Trims the click margin so the cube ~ the body. (v0.636:
                             // skipped when the Machine type is hidden.)
+                            // Those the storey cut-away leaves out with their machines are not
+                            // drawn (`HomeDraw::cut`, by the machine's placement as the body is;
+                            // machine_pick is in placement order with machine_objects).
                             const MB: [f32; 4] = [0.55, 0.8, 0.95, 0.5];
-                            for (_id, center, radius) in state.machine_pick.iter().filter(|_| !state.gui_state.construction_hidden_types.contains("Machine")) {
+                            let cut = state.home_draw.cut;
+                            let shown_machine = |i: usize| !cut.is_some_and(|c| state.machine_objects.get(i).is_some_and(|m| c.hides(m.2)));
+                            for (_id, center, radius) in state
+                                .machine_pick
+                                .iter()
+                                .enumerate()
+                                .filter(|(i, _)| shown_machine(*i) && !state.gui_state.construction_hidden_types.contains("Machine"))
+                                .map(|(_, m)| m)
+                            {
                                 let r = (radius - 0.3).max(0.2);
                                 let c = *center;
                                 let fc = [(c.x - r, c.z - r), (c.x + r, c.z - r), (c.x + r, c.z + r), (c.x - r, c.z + r)];
@@ -8866,7 +8853,15 @@ mod native_app {
                             };
                             {
                                 let sel = state.gui_state.construction_machine_selected.clone();
-                                if let Some(sel_id) = sel.as_deref() {
+                                // A machine the storey cut-away leaves out (one upstairs, kept
+                                // selected while the ground is edited) has no port gizmos drawn
+                                // either: by the machine, as its body (a greenhouse unit's gizmos
+                                // stand over the cut's height under the 6 m roof, and are shown
+                                // with their machine).
+                                let sel_shown = sel.as_deref().map_or(true, |s| {
+                                    state.machine_pick.iter().position(|(id, ..)| id == s).map_or(true, shown_machine)
+                                });
+                                if let Some(sel_id) = sel.as_deref().filter(|_| sel_shown) {
                                     for (mid, _i, port, wp) in &state.port_pick {
                                         if mid != sel_id {
                                             continue;
@@ -8951,7 +8946,12 @@ mod native_app {
                                 const GRID_TIE: [f32; 4] = [1.0, 0.55, 0.15, 0.95]; // amber service-entrance
                                 let sel_pipe = state.gui_state.construction_conduit_node_selected.as_deref();
                                 let hide_pipe_nodes = state.gui_state.construction_hidden_types.contains("Pipe"); // v0.636
-                                for n in hm.conduit_nodes.iter().filter(|_| !hide_pipe_nodes) {
+                                // Not those the storey cut-away leaves out with the runs over it.
+                                for n in hm
+                                    .conduit_nodes
+                                    .iter()
+                                    .filter(|n| !hide_pipe_nodes && !cut.is_some_and(|c| c.hides(Vec3::new(n.pos.0, n.pos.1, n.pos.2))))
+                                {
                                     let c = [n.pos.0, n.pos.1, n.pos.2];
                                     // TIER sizes the node (v0.632): tier 0 main = a big ring, subs smaller,
                                     // so the trunk-and-branch hierarchy reads at a glance.

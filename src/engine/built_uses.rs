@@ -186,6 +186,61 @@ mod tests {
         }
     }
 
+    /// A SHUT HOME DOOR STOPS E AND TAKE DOWN; AN OPEN ONE DOES NOT (the increment 7 follow-ups,
+    /// 2026-10-21). On the shipped homestead (on p1, at the ship's origin), a chest 2 m inside the
+    /// pantry, looked at from the hall through the 0.9 m door in wall 12 (x 36.0 to 36.9, z 43):
+    /// with every door of the ship shut, the shut doors as the walk makes them
+    /// (`shut_door_segments`, the list lib.rs keeps as `EngineState::shut_doors`) hide it from E and
+    /// from F; with the pantry's door open, E and F reach it. And the game hands E and F those same
+    /// doors (`reach_blockers` reads `shut_doors`, which lib.rs fills from `shut_door_segments` and
+    /// the walk sweeps against).
+    ///
+    /// Seen red first (2026-10-21) with the reach test reading the walls and the slabs only (the
+    /// live doors local to lib.rs's collision block): "[\"the pantry's door shut: E finds
+    /// Some(Store)\", \"the pantry's door shut: take down finds a piece\"]".
+    #[test]
+    fn a_shut_home_door_stops_e_and_take_down() {
+        use crate::systems::construction::uses::{first_in_view, looked_at};
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).unwrap();
+        assert_eq!(ship.zones[ship.home_zone_index()].origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");
+        let walls = crate::ship::wall_collision::ship_wall_segments(&ship);
+        let placements = crate::ship::door_panels::ship_panel_placements(&ship);
+        let pantry = placements
+            .iter()
+            .position(|p| !p.is_window && (p.center - Vec3::new(36.45, 0.0, 43.0)).length() < 0.2)
+            .expect("the pantry's door, its bottom middle at (36.45, 0, 43)");
+        let reg = shipped_blueprints();
+        let bp = reg.get("storage_chest").expect("a storage chest in basic.ron");
+        let mut world = hecs::World::new();
+        let tf = crate::systems::construction::placement::placement_pose(bp, Vec3::new(36.45, 0.0, 45.0), 0, &world, &reg, None);
+        world.spawn((tf, Structure { blueprint_id: "storage_chest".into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }));
+        let eye = Vec3::new(36.45, 1.7, 41.5);
+        let dir = (Vec3::new(36.45, 0.8, 45.0) - eye).normalize();
+        let mut wrong = Vec::new();
+        for pantry_open in [false, true] {
+            let panels: Vec<_> = placements.iter().enumerate().map(|(i, p)| (p.clone(), if i == pantry && pantry_open { 1.0 } else { 0.0 })).collect();
+            let shut: Vec<_> = shut_door_segments(&panels, &[]).collect();
+            let here = crate::ship::sight::ReachBlockers { walls: &walls, doors: &shut, ship: Some(&ship) };
+            let what = if pantry_open { "the pantry's door open" } else { "the pantry's door shut" };
+            let e = looked_at(&world, Some(&reg), eye, dir, REACH_M, None, here).map(|h| h.1);
+            if e.is_some() != pantry_open {
+                wrong.push(format!("{what}: E finds {e:?}"));
+            }
+            let f = first_in_view(&world, Some(&reg), eye, dir, 8.0, None, here);
+            if f.is_some() != pantry_open {
+                wrong.push(format!("{what}: take down finds {}", if f.is_some() { "a piece" } else { "None" }));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:?}");
+        // Wired: E and F get the doors the walk sweeps against.
+        let here = include_str!("built_uses.rs").replace("\r\n", "\n");
+        assert!(here.contains("doors: &state.shut_doors"), "reach_blockers does not hand E and F the shut doors");
+        let lib = include_str!("../lib.rs").replace("\r\n", "\n");
+        assert!(lib.contains("crate::engine::built_uses::refresh_shut_doors(state)"), "lib.rs does not refresh the shut doors each frame");
+        assert!(lib.contains("let mut doors = state.shut_doors.clone();"), "the walk does not sweep against the shut doors E and F read");
+    }
+
     /// THE BEDROOM'S OWN BED SLEEPS YOU, AS A BED YOU BUILT DOES (first-hour audit F5,
     /// 2026-10-04). Its card always said "sleep here", but E only opened the card: only a
     /// built bed slept. In both shipped homes the bed's def now says `provides: Some("rest")`,
@@ -285,13 +340,43 @@ fn target(state: &EngineState) -> Option<(hecs::Entity, uses::StructureUse, Stri
 
 /// What stands between the player's hand and a built piece it reaches for (E here, F's take-down
 /// in engine/build_place.rs): aboard (`aboard`, the player's frame is the home's), the walls the
-/// walk meets (`EngineState::wall_colliders`, ship frame, the frame the camera walks in) and the
-/// ship's floor slabs; at a planet site, nothing of the home's.
+/// walk meets (`EngineState::wall_colliders`, ship frame, the frame the camera walks in), the doors
+/// shut now as the walk meets them (`EngineState::shut_doors`, the increment 7 follow-ups of
+/// 2026-10-21) and the ship's floor slabs; at a planet site, nothing of the home's.
 pub(crate) fn reach_blockers(state: &EngineState, aboard: bool) -> crate::ship::sight::ReachBlockers<'_> {
     if !aboard {
         return Default::default();
     }
-    crate::ship::sight::ReachBlockers { walls: &state.wall_colliders, ship: state.gui_state.ship_structure.as_ref() }
+    crate::ship::sight::ReachBlockers { walls: &state.wall_colliders, doors: &state.shut_doors, ship: state.gui_state.ship_structure.as_ref() }
+}
+
+/// THE HOME'S DOORS THAT ARE SHUT NOW, as the walk meets them (lib.rs, the wall sweep): every door
+/// panel `panels` (each with its open fraction, `EngineState::door_panels`) that is not a window and
+/// is less than half open or locked (`home_meshes::door_locked_now`, with its live lock states
+/// `locks`, `EngineState::door_locks`), as the segment of its panel from its sill to its head
+/// (`wall_collision::door_panel_segment`), so a door shut on one storey is no wall on another.
+/// A window is not here: its wall's span is solid to the walk without it.
+pub(crate) fn shut_door_segments<'a>(
+    panels: &'a [(crate::ship::door_panels::PanelPlacement, f32)],
+    locks: &'a [Vec<crate::ship::lock_types::LockState>],
+) -> impl Iterator<Item = crate::ship::wall_collision::WallSegment> + 'a {
+    panels.iter().enumerate().filter_map(move |(i, (p, open))| {
+        let locked = crate::engine::home_meshes::door_locked_now(p, locks.get(i));
+        if p.is_window || (*open >= 0.5 && !locked) {
+            return None;
+        }
+        Some(crate::ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
+    })
+}
+
+/// Once a frame, before the walk (lib.rs): the home's doors shut now (`shut_door_segments`) into
+/// `EngineState::shut_doors`, the one list the walk's sweep and the hand's reach (`reach_blockers`:
+/// E at a built piece, F's take-down) both read, so a door that stops the body stops the hand.
+pub(crate) fn refresh_shut_doors(state: &mut EngineState) {
+    let mut shut = std::mem::take(&mut state.shut_doors);
+    shut.clear();
+    shut.extend(shut_door_segments(&state.door_panels, &state.door_locks));
+    state.shut_doors = shut;
 }
 
 /// What E does at a home machine instead of opening its card (first-hour audit F5,

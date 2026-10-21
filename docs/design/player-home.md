@@ -20,7 +20,9 @@ players contribute to.
 The player's home is one zone in `data/blueprints/ship_structure.ron`: a box
 **55 m by 89 m by 3 m**, 4,895 square metres, which is 1.21 acres. That is
 already the operator's "1 acre or whatever it is for that specific ship design",
-so the shell was never the problem.
+so the shell was never the problem. (The box is 6 m tall since ship homes
+increment 7, 2026-10-20: two storeys, see "The plan". The design now lives in
+`data/homes/homestead.ron`.)
 
 What was wrong was the inside. Before this pass the acre held 19 interior walls,
 all crowded into a 16 by 23 m corner, partitioning about 330 m2. The other **4,565
@@ -35,6 +37,16 @@ The new plan partitions the whole acre. Twenty-three rooms, every one of them
 named and functional, and no unclaimed floor left over.
 
 ## The plan
+
+**Two storeys since ship homes increment 7 (2026-10-20).** The plan below is
+the ground floor. A floor slab at 3.0 m covers the whole acre but the
+greenhouse, which rises to the 6 m roof, and three openings (the stairwell, the
+elevator shaft and a ladder hatch): over the house's north half it is the upper
+floor, everywhere else a lid nobody walks on, the ceiling of the room under it
+at 2.75 m. The quiet wing went upstairs and the dining room and a second bedroom
+took its ground floor. The full layout, and what was built differently from its
+draft, is [homestead-upper-floor.md](homestead-upper-floor.md), section 12 "As
+built".
 
 ```
         x=0        12   20        34                      55
@@ -63,21 +75,34 @@ it alive, and the ratio is the point: this is a homestead, not a house with a
 garden.
 
 Inside the house (x 34..55, z 30..51), entered from the ship's corridor on the
-east wall at z 39..41:
+east wall at z 39..41. The ground floor, its rooms 2.75 m to the ceiling:
 
 | Room | Rect (x, z) | Size |
 |---|---|---|
 | Entry | 52..55, 38..43 | 3 x 5 |
-| Hall | 34..52, 38..43 | 18 x 5 |
+| Hall (the stair up along its north wall, x 36.5..41) | 34..52, 38..43 | 18 x 5 |
+| Dining room | 34..42, 30..38 | 8 x 8 |
+| Second bedroom | 42..50, 30..38 | 8 x 8 |
+| Shower room | 50..55, 30..34 | 5 x 4 |
+| Boot room | 50..55, 34..38 | 5 x 4 |
+| Pantry | 34..42, 43..46 | 8 x 3 |
+| Kitchen | 34..42, 46..51 | 8 x 5 |
+| Great room | 42..52, 43..51 | 10 x 8 |
+| Console room | 52..55, 43..51 | 3 x 8 |
+
+The upper floor, 3.0 m up, over the house's north half and the workshop's and the
+service way's edges, its rooms 3 m to the glass roof:
+
+| Room | Rect (x, z) | Size |
+|---|---|---|
 | Bedroom | 34..42, 30..38 | 8 x 8 |
 | Dressing room | 42..45, 30..38 | 3 x 8 |
 | Bathroom | 45..50, 30..34 | 5 x 4 |
 | Wet room | 45..50, 34..38 | 5 x 4 |
 | Study | 50..55, 30..38 | 5 x 8 |
-| Pantry | 34..42, 43..46 | 8 x 3 |
-| Kitchen | 34..42, 46..51 | 8 x 5 |
-| Great room | 42..52, 43..51 | 10 x 8 |
-| Console room | 52..55, 43..51 | 3 x 8 |
+| Upper hall (the stair arrives at its west end) | 34..55, 38..40.5 | 21 x 2.5 |
+| Back corridor | 32..34, 30..40.5 | 2 x 10.5 |
+| Lift lobby (the elevator and the ladder arrive here) | 30..34, 26.9..30 | 4 x 3.1 |
 
 ## Walking through it
 
@@ -88,14 +113,19 @@ opens up.
 
 Ahead of you, west, the wall opens into the **Hall**. This is not a corridor. It
 is 18 m long and 5 m wide, a gallery with two rugs, a bench, bookshelves and a
-light strip running its length, and every room in the house opens off it, so you
-never cross one room to reach another. On its north side, doors to the bedroom,
-the dressing room and the wet room. On its south side, a door to the pantry and a
+light strip running its length, and the ground floor's rooms open off it or off
+the entry, so you never cross one room to reach another (the shower room aside,
+which is reached through a bedroom or the boot room).
+Along its north side the **stair** rises west, between the hall's north wall and
+a wall of its own, its foot on your right 12.5 m in; past it, at the hall's west
+end, a wide sliding door into the dining room, and east of the stair's foot a
+door into the second bedroom. On its south side, a door to the pantry and a
 4 m cased opening into the great room. At its far west end, a door straight into
 the workshop, which is why the work wing does not have to be reached through the
 kitchen.
 
-Turn south through that opening and the ceiling stays at 3 m but the room widens:
+Turn south through that opening and the ceiling stays where it is, 2.75 m under
+the floor above, but the room widens:
 the **Great room**, 10 by 8 m, with the whole south wall in tempered glass
 looking into the greenhouse. Couches face the north wall, where the stream screen
 hangs, so the glass is behind you and never glares. The dining table sits at the
@@ -114,16 +144,28 @@ greenhouse glows at the end of the room. Six screens used to be crammed in here;
 now there are two and a desk monitor, and the room is a place to sit rather than
 a display case.
 
-**North of the hall is the quiet half.** The **Bedroom** is 8 by 8 m with the bed
-against the west wall, a desk under the north window and a standing mirror by the
-door. Its north windows and its own garden door look into the **Orchard court**,
-an 8 m deep planted strip between the house and the works, which exists so that
-the bedroom does not look at a forge. Through the bedroom's east door is the
-**Dressing room**, a 3 by 8 m walk-through with three wardrobes, and beyond that
-the **Bathroom** and the **Wet room**. That is the classic sequence: bed, clothes,
-water, and you can do the whole morning without crossing the house. At the
-north-east corner, off the entry, the **Study**: desk, three bookcases, the home
-server and the network uplink.
+**North of the hall, on the ground floor, the shared rooms.** The **Dining
+room**, 8 by 8 m, has the old bedroom's windows and its garden door into the
+**Orchard court**, an 8 m deep planted strip between the house and the works,
+which exists so that the house does not look at a forge. The **Second bedroom**
+beside it is a double of the same size, the one bedroom you reach without the
+stair. Beyond it the **Shower room**, the ground floor's WC, reached through the
+bedroom or through the **Boot room** off the entry, where coats and boots come
+off.
+
+**Up the stair is the quiet half.** The flight arrives at the west end of the
+**Upper hall**, a 2.5 m gallery over the ground hall's north half, an oak
+balustrade along the stairwell. The **Bedroom**, the old bedroom's 8 by 8 m
+exactly over the dining room, has the bed against the west wall, a desk under the
+north window and a standing mirror; its north windows look out over the court's
+glass roof. Through the bedroom's east door is the **Dressing room**, a 3 by 8 m
+walk-through with three wardrobes, and 3.5 m along the hall the **Wet room**, with
+the **Bathroom** through it. That is the classic sequence: bed, clothes, water,
+and you can do the whole morning without leaving the floor. At the north-east
+corner, off the upper hall, the **Study**: desk, three bookcases, the home server
+and the network uplink. West of the stair top, a **Back corridor** on the
+workshop's roof leads to the **Lift lobby**, where the elevator from the service
+way arrives and a ladder climbs through a hatch, the way up that needs no power.
 
 **West of the house** the hall's back door puts you in the **Workshop**, 14 by
 21 m, benches under a screen playing whatever clip you left running. Through a
@@ -139,7 +181,8 @@ to the **Power terrace** (the solar array and the wind turbine, placed at the
 terrace's south end so the cable run to the batteries is 12 m instead of the 20 m
 it used to be).
 
-**South of the house** is the **Greenhouse**, 990 m2 of glass-roofed growing:
+**South of the house** is the **Greenhouse**, 990 m2 of glass-roofed growing,
+the one room that rises the home's full 6 m:
 eighteen potato beds, ten oilseed beds, eight grain trays, a 24-tower block, a
 potting bench, and a pair of chairs and a table at the east end, because a
 greenhouse you cannot sit in is a factory. The planting calendar hangs on the

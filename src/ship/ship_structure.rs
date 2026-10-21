@@ -3095,9 +3095,13 @@ mod tests {
     /// as the walk does, so the wall over every doorway and corridor cut and the wall under and over
     /// every window stand in them with their heights: 274 sight segments before the split (169
     /// while every opening was open at every height), and a homestead's bare shell 178 (108).
-    const WALL_SEGMENTS_BEFORE: usize = 272;
+    /// Since placed box pieces collide (the increment 7 follow-ups, 2026-10-21) the home's train
+    /// platform, train-1, adds 9 collision segments (`wall_collision::box_faces`: its four sides,
+    /// the stadium of its core and a circle in each corner; 0.4 m tall at the floor, it stops
+    /// nobody walking on the deck): 281 and 208, from 272 and 199. Sight is unchanged.
+    const WALL_SEGMENTS_BEFORE: usize = 281;
     const SIGHT_SEGMENTS_BEFORE: usize = 274;
-    const HOME_SEGMENTS_BEFORE: usize = 199;
+    const HOME_SEGMENTS_BEFORE: usize = 208;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
     /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
@@ -3177,8 +3181,9 @@ mod tests {
         assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
         // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
         // 305 since increment 7's review (2026-10-21): the same 180 walls and guards, 72 lintels
-        // over the doorways and the corridors' cuts, and stairs-1's 53 faces.
-        assert_eq!(ship_wall_segments(&ship).len(), 305, "the whole ship's collision segments");
+        // over the doorways and the corridors' cuts, and stairs-1's 53 faces. 314 since placed box
+        // pieces collide (2026-10-21): train-1's 9 (`HOME_SEGMENTS_BEFORE`).
+        assert_eq!(ship_wall_segments(&ship).len(), 314, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);

@@ -257,11 +257,13 @@ pub(crate) fn seed_build_avatar(state: &mut EngineState) {
 /// stands the player on the ground floor at the spawn, and the footing steps a body up no more than
 /// a step from there, so a spot over a stair's flight where its steps are higher than that is a
 /// spawn inside the flight, from which every world entry after the Save was pushed out sideways
-/// through the wall beside it. The spawn written is the nearest place to stand on the ground storey
-/// with the flights kept out (ship/standing.rs `nearest_standing_clear_of`, `stair_keep_outs`); a
-/// spot that is one is written as it is.
+/// through the wall beside it. The same for a placed box taller than a step (a platform, a deck, the
+/// wall piece; the increment 7 follow-ups, 2026-10-21), whose top the spawn never stands on either.
+/// The spawn written is the nearest place to stand on the ground storey with the flights and the
+/// boxes kept out (ship/standing.rs `nearest_standing_clear_of`, `solid_keep_outs`); a spot that is
+/// one is written as it is.
 pub(crate) fn spawn_from_avatar(g: &GuiState) -> Option<(f32, f32)> {
-    use crate::ship::standing::{nearest_standing_clear_of, stair_keep_outs};
+    use crate::ship::standing::{nearest_standing_clear_of, solid_keep_outs};
     let spot = g.build_char_pos?;
     let hs = zone_body(&g.ship_structure, g.construction_zone)?;
     let k = EditStorey::of(hs, g.construction_storeys.chosen).index;
@@ -269,7 +271,7 @@ pub(crate) fn spawn_from_avatar(g: &GuiState) -> Option<(f32, f32)> {
     if !(moved && k == 0) {
         return None;
     }
-    nearest_standing_clear_of(hs, 0, spot.0, spot.1, &stair_keep_outs(hs, 0))
+    nearest_standing_clear_of(hs, 0, spot.0, spot.1, &solid_keep_outs(hs, 0))
 }
 
 /// The ray distance at which wall `w` is hit (its zone's origin at world `zo`), or None. A wall is
@@ -575,11 +577,16 @@ pub(crate) fn cut_away_ship(ship: &ShipStructure, zone: usize, k: usize) -> Opti
 /// Which cut-away the editor should be drawing now: (zone, storey) while it is open on a storey
 /// with others above, else None (the whole ship).
 pub(crate) fn storey_cut_key(state: &EngineState) -> Option<(usize, usize)> {
-    if !state.gui_state.construction_active {
+    storey_cut_key_of(&state.gui_state)
+}
+
+/// `storey_cut_key` from the GUI state alone (the HUD and its overlay ask it).
+pub(crate) fn storey_cut_key_of(g: &GuiState) -> Option<(usize, usize)> {
+    if !g.construction_active {
         return None;
     }
-    let es = edit_storey(state)?;
-    es.has_above().then_some((state.gui_state.construction_zone, es.index))
+    let es = zone_body(&g.ship_structure, g.construction_zone).map(|hs| EditStorey::of(hs, g.construction_storeys.chosen))?;
+    es.has_above().then_some((g.construction_zone, es.index))
 }
 
 /// The ship the editor should DRAW (engine/home_meshes.rs `rebuild_homestead` asks): the cut-away
@@ -590,9 +597,9 @@ pub(crate) fn editor_cut_away(state: &EngineState) -> Option<ShipStructure> {
 }
 
 /// How far outside the cut zone's box a thing may stand and still be cut with it (metres): a door
-/// in the shell stands on the box's edge, and the port gizmos of a unit against the shell
-/// (`home_meshes::port_gizmo_pos`, a ring round the machine) and the risers to them stand just past
-/// it (the study's uplink and router, x 55.05 on a 55 m box).
+/// in the shell stands on the box's edge. (The port gizmos of a unit against the shell, and the
+/// risers to them, stood just past it too, the study's uplink and router at x 55.05 on a 55 m box,
+/// until the 2026-10-21 follow-ups kept every gizmo inside its home, `home_meshes::gizmo_room`.)
 pub(crate) const CUT_EDGE_M: f32 = 0.3;
 
 /// THE CUT-AWAY FOR WHAT IS NOT IN THE BODY (ship homes increment 7 review): the home's machines,
@@ -634,21 +641,30 @@ pub(crate) fn cut_away_of(ship: &ShipStructure, zone: usize, k: usize) -> Option
 /// The cut-away the editor should draw now (`storey_cut_key`), as `CutAway`; None for the whole
 /// ship. engine/home_meshes.rs `rebuild_homestead` keeps it with the meshes it draws.
 pub(crate) fn editor_cut(state: &EngineState) -> Option<CutAway> {
-    let (zone, k) = storey_cut_key(state)?;
-    cut_away_of(state.gui_state.ship_structure.as_ref()?, zone, k)
+    editor_cut_of(&state.gui_state)
+}
+
+/// `editor_cut` from the GUI state alone: what the HUD's machine labels and the build editor's
+/// overlay follow, so they hide with what the cut-away hides.
+pub(crate) fn editor_cut_of(g: &GuiState) -> Option<CutAway> {
+    let (zone, k) = storey_cut_key_of(g)?;
+    cut_away_of(g.ship_structure.as_ref()?, zone, k)
 }
 
 /// Per frame (from `construction_history_tick`): when the cut-away that should be drawn is not
-/// the one that was, redraw the home. Choosing a storey, another zone, adding the slab that makes
-/// a storey above, or closing the editor all come here. The redraw is called directly, not through
-/// the dirty flags, so it is no edit: it arms no autosave and makes no undo step (the way
-/// `editor_restore` rebuilds); and when an edit's own rebuild is due this frame, that one draws it.
+/// the one that was (`HomeDraw::view_stale`, the record every upload of the home keeps), redraw
+/// the home. Choosing a storey, another zone, adding the slab that makes a storey above, closing
+/// the editor, and a world load with the editor open on a storey with another over it (the load
+/// draws the whole ship; until the 2026-10-21 follow-ups the view kept its own record, which a
+/// load never touched, so the cut-away stayed away until the storey changed) all come here. The
+/// redraw is called directly, not through the dirty flags, so it is no edit: it arms no autosave
+/// and makes no undo step (the way `editor_restore` rebuilds); and when an edit's own rebuild is
+/// due this frame, that one draws it.
 pub(crate) fn follow_storey_view(state: &mut EngineState) {
-    let want = storey_cut_key(state);
-    if state.gui_state.construction_storeys.drawn == want {
+    let want = editor_cut(state);
+    if !state.home_draw.view_stale(want) {
         return;
     }
-    state.gui_state.construction_storeys.drawn = want;
     if !state.gui_state.construction_structure_dirty && state.gui_state.ship_structure.is_some() {
         rebuild_homestead(state);
     }

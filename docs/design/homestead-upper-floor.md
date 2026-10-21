@@ -620,3 +620,31 @@ The data follows this draft, with these differences, each decided or found while
   opening now stops a body whose head is over the slab's underside while its feet are more than
   a step under its top (engine/footing.rs `slab_edges`); within a step it steps up onto the slab
   as before (the stair's top, the ladder's).
+
+The movement and editor follow-ups (2026-10-21, after v0.1535.0), each with a test seen red first:
+
+- **Placed box pieces are solid.** Only stairs, ramps and guards had collision, so a placed wall
+  piece, a raised deck, a road or a platform was walked through. Every piece of the Box or Slab
+  shape (`structure::solid_box_height`) is now four sides and a core, standing from its foot to its
+  top by the stair's rule (`wall_collision::box_faces`, `SegmentKind::Step`): a body more than a
+  step under its top is stopped, one within a step steps onto it (the footing already stood bodies
+  on box tops), and one under a deck overhead walks under it. A jump under a raised deck bumps
+  its head on the deck (`Footing::ceiling_over` counts a box's foot as a ceiling), and a body that
+  comes down inside a box too tall to step onto (a running jump over its edge) is settled out of
+  its nearest side by the core. The homestead's only such piece, train-1, is 0.4 m tall at the
+  floor and stops nobody.
+- **A solid box is solid to the editor's close and to the spawn a Save writes.** ship/standing.rs
+  reads every solid piece, not only stairs (`solids_from`, `solid_at`, `top_at`,
+  `solid_keep_outs`, `NoStanding::InPiece`): the close stands the player on a box's top when it is
+  a floor with room over it, else at the nearest place outside it reached without crossing a wall;
+  the spawn is kept off every box taller than a step.
+- **A shut door stops E and Take down.** The doors shut each frame are one list,
+  `EngineState::shut_doors` (engine/built_uses.rs `shut_door_segments`, `refresh_shut_doors`),
+  which the walk sweeps against and `ReachBlockers` reads.
+- **Elevator cars are keyed by the zone's id and the elevator's own id** (engine/footing.rs
+  `LiftKey`), not by list positions, so an edit that removes an earlier piece no longer hands one
+  elevator's car to another.
+- **A spot exactly on a wall's centre line** is no longer moved through that wall by the editor
+  close's search: the strict crossing test counted no crossing from a spot on the line, so either
+  side passed. The search now starts from where the walk puts a body standing on the line
+  (`wall_collision::resolve`), on stairs-1's wall 10 the hall side, not the dining room.

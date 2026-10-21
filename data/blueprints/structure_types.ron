@@ -54,7 +54,7 @@
         id: "guard", label: "Guard (balustrade)", category: "Structure",
         kind: Guard, shape: Balustrade, size: (1.2, 1.0, 0.06), color: (0.55, 0.57, 0.62), steps: 0,
         guard: Some((post_m: 0.05, post_spacing_m: 1.2, baluster_m: 0.02, opening_m: 0.1, rail: (0.06, 0.05), shoe_m: 0.04)),
-        note: "A guard where a floor edge drops: posts, upright balusters closer than the 100 mm sphere the building rules name (no rails a child can climb), and a top rail. Draw one with the wall tool as a Steel balustrade or Oak balustrade wall, as tall as the guard: at least 0.914 m (the IRC), 1.0 m in the homestead. Placed on its own it is a 1.2 m section that does not stop anyone yet. Sources: docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md.",
+        note: "A guard where a floor edge drops: posts, upright balusters closer than the 100 mm sphere the building rules name (no rails a child can climb), and a top rail. Draw one with the wall tool as a Steel balustrade or Oak balustrade wall, as tall as the guard: at least 0.914 m (the IRC), 1.0 m in the homestead. Placed on its own it is a 1.2 m section that stops a walk the same way. Sources: docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md.",
     ),
     (
         id: "handrail", label: "Handrail", category: "Structure",

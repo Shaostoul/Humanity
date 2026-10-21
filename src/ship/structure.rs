@@ -46,7 +46,8 @@ pub enum StructureKind {
     /// `form` (a wall of "Steel balustrade", data/blueprints/wall_materials.ron), from the wall's base
     /// to its top, so it stands, collides and parts rooms exactly as that wall does (a 1.0 m wall
     /// parts none, `home_structure::ROOM_DIVIDER_MIN_M`). Placed on its own it is a free-standing
-    /// section of its row's length, which nothing collides with yet.
+    /// section of its row's length, which stops a walk as a guard drawn with the wall tool does
+    /// (`wall_collision::guard_piece_segment`).
     Guard,
     /// A HANDRAIL: a round rail on wall brackets, its ends returned to the wall. Every stair (the
     /// Steps shape) carries the `handrail` row's rails (`stair_handrails`); placed on its own it is a
@@ -555,9 +556,8 @@ fn local_mesh(ty: &StructureType) -> (Vec<Vertex>, Vec<u32>) {
     let (hw, hd) = (w * 0.5, d * 0.5);
     let mut out = (Vec::new(), Vec::new());
     match ty.shape {
-        MeshShape::Box => aabb_box(Vec3::new(-hw, 0.0, -hd), Vec3::new(hw, h.max(0.05), hd), &mut out),
-        MeshShape::Slab => {
-            let t = h.clamp(0.02, 0.3);
+        MeshShape::Box | MeshShape::Slab => {
+            let t = solid_box_height(ty).unwrap_or(h);
             aabb_box(Vec3::new(-hw, 0.0, -hd), Vec3::new(hw, t, hd), &mut out);
         }
         MeshShape::Steps => {
@@ -903,6 +903,20 @@ pub fn in_footprint(ty: &StructureType, pos: (f32, f32, f32), yaw_rad: f32, px: 
     lx.abs() <= w * 0.5 + 0.05 && lz.abs() <= d * 0.5 + 0.05
 }
 
+/// How tall a SOLID BOX piece is over its foot, metres, as it is drawn (`local_mesh`), stood on
+/// (`walk_surface`) and walked into (`wall_collision`'s box faces, the increment 7 follow-ups of
+/// 2026-10-21): a Box its row's height (at least 0.05), a Slab its row's height held between 0.02
+/// and 0.3. None for every other shape: a flight or a ramp is solid by its steps, and a frame, a
+/// ladder, a guard or a handrail is no box.
+pub fn solid_box_height(ty: &StructureType) -> Option<f32> {
+    let h = ty.size.1;
+    match ty.shape {
+        MeshShape::Box => Some(h.max(0.05)),
+        MeshShape::Slab => Some(h.clamp(0.02, 0.3)),
+        _ => None,
+    }
+}
+
 /// The WALKABLE-surface world height at (px,pz) for a piece placed at `pos`/`yaw_rad`, or None if
 /// (px,pz) is outside the footprint or the piece has no standable top (a hollow Frame -- elevator /
 /// teleporter -- or a Ladder, which you climb). For Steps it's the top of the step under you; for a
@@ -917,8 +931,7 @@ pub fn walk_surface(ty: &StructureType, pos: (f32, f32, f32), yaw_rad: f32, px: 
     let surf = match ty.shape {
         // Nobody stands on a ladder (it is climbed), in a frame, on a guard or on a handrail.
         MeshShape::Frame | MeshShape::Ladder | MeshShape::Balustrade | MeshShape::Handrail => return None,
-        MeshShape::Box => h.max(0.05),
-        MeshShape::Slab => h.clamp(0.02, 0.3),
+        MeshShape::Box | MeshShape::Slab => solid_box_height(ty)?,
         MeshShape::Steps => {
             let n = ty.steps.max(1);
             let tread = d / n as f32;

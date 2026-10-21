@@ -354,28 +354,26 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     Lane L, slabs stopping lamps and sun in the room GI, and a seam critic's six findings (the editor's
     close on a stair or in the shaft, E and Take down through doorways, sight by height, a hung
     unit's storey) followed in v0.1535.0. Increment 7 is DONE apart from the follow-ups below.)
-  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** a shut home door does
-    not stop E or Take down (the live door list is local to lib.rs's collision block); a built box
-    taller than a step is not solid to the editor's close (its walls push a body out, possibly
-    through a wall); upstairs, slab occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull
-    runs per light tile: docs/design/room-gi.md, Floors between storeys); placed box pieces (the
-    "wall" piece, raised decks, slabs) still do not collide; the HUD's labels float over upstairs
-    machines the editor's cut-away hides; plants and grow tents ignore the cut-away; the HUD's room
-    card is blank in the elevator above 3 m (the shaft has no upstairs room box); `moves::on_my_storey`
-    and `stands_in_storey_of` (relay reach, quests) still assume 3 m storeys; the build editor's close
-    can step onto a piece 0.6 m up; world_load orphans every machine's mesh slot each world entry
-    (the shell families are pooled now, machines not); the editor's cut-away is not redrawn after a
-    world load until the storey changes; air handlers c1 and h1 to h4 top out 1 cm under the slab, so
-    their port gizmos draw above the upper floor when selected; the study's uplink and router ports
-    sit outside the east wall; service levels are per home, not per room (hangers stop mid-air in
-    the greenhouse); elevator cars are keyed by structure index, which an edit can shift; a jump
-    from the stair's seventh step can slip past a slab edge (walled by G1 in the homestead); the
-    family mushroom tents settle at 68 to 82% humidity, under the oyster's 85% (known); docs:
-    `homestead_layout_tests.rs` ~483 still says a 0.6 m gap, `wall_collision.rs` ~117-125 and
-    `moves.rs` ~225 comments are stale, player-home.md's plan table and walkthrough are single-storey.
-    Also: `verify-runtime` boots rigs together when the machine's builds end and its gate clock
-    includes waiting for them (BUG-140's fixer saw an out-of-VRAM boot and a stalled frame loop
-    that passed on a lone rerun): toolsmith work.
+  - **Increment 7 follow-ups (found by the 2026-10-21 fixers).** Fixed the same day (the drawing
+    fixer, merged 680525ccf; the movement fixer, c311a3521; both in the next release): the HUD's
+    labels, the dimension overlay and the 3-D helpers follow the editor's cut-away; plants and tents
+    follow it; the room card names the elevator for the whole ride; machine mesh slots are pooled
+    across world entries; the cut-away is redrawn after a world load; port gizmos stay under their
+    ceiling and inside the shell; hangers reach the real ceiling (the greenhouse roof); placed box
+    pieces collide by their box and height (a raised deck is a ceiling too); a built box is solid to
+    the editor's close and to the spawn a Save writes; a shut door stops E and Take down; elevator
+    cars are keyed by ids; a spot on a wall's centre line is no longer moved through that wall;
+    stale comments and player-home.md's plan and walkthrough. Still open: `moves::on_my_storey` and
+    `stands_in_storey_of` (relay reach, quests) assume 3 m storeys (the relay holds no slabs);
+    upstairs, slab occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull runs per light
+    tile: docs/design/room-gi.md, Floors between storeys); a jump from the stair's seventh step can
+    slip past a slab edge (walled by G1 in the homestead); the editor's close can step onto a piece
+    0.6 m up; on the ground floor a spot exactly on an interior wall still counts as a place to
+    stand (only upper floors check room edges); teleporter and elevator frame posts have no
+    collision (hollow frames); box pieces and stairs do not hide HUD labels; runs to the
+    greenhouse's g1 and g2 end at 2.70 m (the per-storey end clamp); a machine selection survives a
+    storey change (its handles hidden); the family mushroom tents settle at 68 to 82% humidity,
+    under the oyster's 85% (known); `just launch-bg` and hand-typed boots skip the rigs' boot lock.
   - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
     the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on
@@ -390,8 +388,36 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     temporary bridges were deleted (5aac163bb, 2026-10-21).
   - **DONE 2026-10-20: Maps increment 0** (docs/design/maps-zoom-to-anything.md section 6):
     src/gui/pages/cosmos.rs is src/gui/pages/maps/, one file per view, its state one
-    `GuiState::maps`; the three Maps snapshots rendered byte-identical. Next: increment 1, the map
-    opens on you, follows you, and draws your ship.
+    `GuiState::maps`; the three Maps snapshots rendered byte-identical.
+  - **DONE 2026-10-21: Maps increment 1** (v0.1536.0): the page opens on your ship at ~1.5 ship
+    lengths with Earth behind it and follows it (Stop following, Back to me, the Home key, an "Open
+    where I left it" toggle); the real world drawn behind the symbols from the map's own camera
+    (`engine/map_view.rs`, `render_view_onto_kept`, half resolution while moving, at most once a
+    second at rest, aboard and within 60 km only); the ship named UHS Mothership; station rows from
+    data with computed altitudes (35,870 km: the game's synchronous orbit keeps pace with the 24 h
+    solar day, the real geostationary 35,786 km with the sidereal day; the row says so); the
+    overview looks down from ecliptic north; Lagrange points and reference rings fixed. BUG-210
+    (the sun direction in the hull frame for the celestial pass and god rays) fixed on the way.
+    Next: increment 2, a solar system that looks real (the diagram toggle and a map light were
+    left for it). Found, not fixed: **Earth's north pole faces the ship** (from the equatorial
+    orbit the rendered Earth shows its pole under the ship where the equator at 122 W should be;
+    older than BUG-140 and BUG-210); SSAO takes its focal length from the window height, wrong for
+    the map's canvas; point lights are picked by distance from the player, so from 1.5 km some
+    hull lights are missing; `cpu.frame_total` and `cpu.present_wait` are recorded only on game
+    frames; switching back to Live or the System view shows one frame of the old backdrop; the
+    upcoming-events list may report one conjunction several times (Jupiter and the Moon three times
+    within a day; unconfirmed).
+  - **DONE 2026-10-21: the Moon's node and perigee turn** (v0.1536.0): JPL's rates on any body that
+    carries them; the Moon within 0.34 degrees of Horizons in latitude and 2.5 in longitude over
+    2000 to 2040; the Maps page finds exactly NASA's four solar eclipses of 2026 and 2027 (it now
+    allows for the Moon's parallax). Lunar eclipses are not predicted on the page yet.
+  - **DONE 2026-10-21: rigs take turns** (v0.1536.0): verify-runtime's gate clock starts at the
+    game's boot, not while waiting for a quiet machine (that wait refuses with exit 1 after 60 min,
+    never a false FAIL); a machine-wide boot lock (`scripts/lib/boot-lock.js`) so two rigs never
+    boot at once; worktrees find the DXC compiler in the main checkout. Gaps: `just launch-bg` and
+    hand-typed boots skip the lock; other rigs still ignore unknown flags; perf-report does not yet
+    refuse an FXC sweep. Flaky under load (passed alone): `engine::file_transfer` "one dial one
+    allocation", `net::webrtc::turn` wrong credentials.
   - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
     Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase

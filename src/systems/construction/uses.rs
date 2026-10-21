@@ -168,7 +168,8 @@ pub fn looked_at(
 /// front hides what is behind it, so a piece behind a rising wall cannot be
 /// taken down through it. `blockers` are what stands in the frame between a
 /// hand and what it reaches for (`ship::sight::ReachBlockers`: aboard, the
-/// home's walls by height and its floors; nothing at a planet site): one
+/// home's walls by height, its shut doors and its floors; nothing at a planet
+/// site): one
 /// between the eye and where the ray meets the piece hides it, so a chest in
 /// the next room cannot be opened or taken down through the wall, nor one on
 /// the floor below through the floor, while one seen through a doorway can
@@ -700,11 +701,11 @@ mod tests {
         let wall = |a: (f32, f32), b: (f32, f32)| crate::ship::wall_collision::WallSegment::at_every_height(a, b, 0.1);
         assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers::default()).is_some());
         let between = [wall((-2.0, -1.5), (2.0, -1.5))];
-        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers { walls: &between, ship: None }).is_none(), "the wall hides the chest");
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers { walls: &between, doors: &[], ship: None }).is_none(), "the wall hides the chest");
         let beside = [wall((1.0, -5.0), (1.0, 5.0))];
-        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers { walls: &beside, ship: None }).is_some(), "a wall beside the ray");
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers { walls: &beside, doors: &[], ship: None }).is_some(), "a wall beside the ray");
         let past = [wall((-2.0, -6.0), (2.0, -6.0))];
-        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers { walls: &past, ship: None }).is_some(), "a wall past the chest");
+        assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, ReachBlockers { walls: &past, doors: &[], ship: None }).is_some(), "a wall past the chest");
     }
 
     /// E AND TAKE DOWN REACH A PIECE THROUGH A DOORWAY, NOT THROUGH A WALL OR A FLOOR (the seams
@@ -734,7 +735,7 @@ mod tests {
         assert_eq!(ship.zones[ship.home_zone_index()].origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");
         let walls = crate::ship::wall_collision::ship_wall_segments(&ship);
         // What lib.rs hands E and F aboard (engine/built_uses.rs `target`, build_place.rs `take_down`).
-        let here = ReachBlockers { walls: &walls, ship: Some(&ship) };
+        let here = ReachBlockers { walls: &walls, doors: &[], ship: Some(&ship) };
         let reg = shipped();
         let mut wrong = Vec::new();
         // (what, the chest's spot on the floor, the eye, whether it is reached)
