@@ -484,10 +484,17 @@ fn the_stair_meets_the_finding_and_its_headroom_is_clear() {
 ///
 /// Prints the guards (`--nocapture`) so they can be swapped for lane G's guard piece.
 ///
+/// The shell counts as closed only where it stands on the upper storey (ship homes increment 7
+/// review, finding 1): the plot door's cut through the east wall opens it from the floor to
+/// 2.2 m, and over that the shell stands.
+///
 /// Seen red 2026-10-20 on the single-storey homestead: "the homestead has no upper floor:
 /// [Storey { floor: 0.0, top: 3.0 }]"; and on the built layout with guard G1 (the gallery's edge
 /// along the stairwell) left out: "open edges upstairs:
-/// [\"(36.55..40.35, 39.30..39.30)\"]".
+/// [\"(36.55..40.35, 39.30..39.30)\"]". Seen red first (2026-10-21), reading the shell by
+/// storey, with the plot door's cut open at every height: "open edges upstairs:
+/// [\"(55.00..55.00, 39.15..40.35)\"]" (upstairs the upper hall opened through the shell over
+/// the front door into the corridor, 3 m down).
 #[test]
 fn every_open_edge_upstairs_is_guarded_and_no_way_leads_onto_the_roofs() {
     let h = home();
@@ -518,6 +525,17 @@ fn every_open_edge_upstairs_is_guarded_and_no_way_leads_onto_the_roofs() {
         ("the ladder's access gap", (ladder.pos.0 - lw * 0.5, 28.1), (ladder.pos.0 + lw * 0.5, 28.1)),
     ];
     let excused = |mx: f32, mz: f32| exceptions.iter().any(|(_, a, bb)| seg_dist(mx, mz, *a, *bb).0 <= 0.06);
+    // The shell, read by storey (ship homes increment 7 review, finding 1): the walls the walk
+    // sweeps (`wall_collision::wall_segments_with_shell_cuts`) with the plot door's cut through
+    // the east wall, which opens the shell only from its foot to its head, 2.2 m. A step across
+    // the shell's line upstairs is closed only where a segment there stops a body standing on
+    // the upper floor; this check used to count every shell edge as closed, so a cut open at
+    // every height could never be seen.
+    let shell = shell_walls(&h);
+    let upper_eye = storeys[1].floor + crate::ship::wall_collision::EYE_HEIGHT_M;
+    let shell_stands = |mx: f32, mz: f32| {
+        shell.iter().any(|s| s.stops_body(upper_eye) && seg_dist(mx, mz, s.a, s.b).0 <= s.half_thickness + 0.06)
+    };
 
     let (mut drops, mut roofs) = (Vec::new(), Vec::new());
     let cell = 0.1f32;
@@ -532,10 +550,15 @@ fn every_open_edge_upstairs_is_guarded_and_no_way_leads_onto_the_roofs() {
                 }
                 for (dx, dz) in [(cell, 0.0), (-cell, 0.0), (0.0, cell), (0.0, -cell)] {
                     let (qx, qz) = (px + dx, pz + dz);
-                    if qx <= 0.0 || qz <= 0.0 || qx >= b.width || qz >= b.depth {
-                        continue; // the shell's own wall
-                    }
                     let (mx, mz) = ((px + qx) * 0.5, (pz + qz) * 0.5);
+                    if qx <= 0.0 || qz <= 0.0 || qx >= b.width || qz >= b.depth {
+                        // Out through the shell: a drop to the corridor or the yard outside,
+                        // unless the shell stands there on this storey.
+                        if !shell_stands(mx, mz) {
+                            drops.push((mx, mz));
+                        }
+                        continue;
+                    }
                     if !floor_at(qx, qz) {
                         if !(stops(mx, mz) || stair_top(mx, mz) || excused(mx, mz)) {
                             drops.push((mx, mz));
@@ -571,6 +594,17 @@ fn every_open_edge_upstairs_is_guarded_and_no_way_leads_onto_the_roofs() {
     }
     assert!(drops.is_empty(), "open edges upstairs: {:?}", describe(&drops));
     assert!(roofs.is_empty(), "ways onto the roofs from upstairs: {:?}", describe(&roofs));
+}
+
+/// The homestead's walls as the walk sweeps them, home-local, with the shell cut the plot's door
+/// corridor makes through its east wall: the shipped ship with the homestead on p1, whose home
+/// stands at the ship's origin.
+fn shell_walls(h: &HomeDesign) -> Vec<crate::ship::wall_collision::WallSegment> {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+    let cuts = ship.shell_cuts_for_zone(ship.home_zone_index());
+    assert!(!cuts.is_empty(), "the plot's door corridor cuts no hole in the homestead's shell");
+    crate::ship::wall_collision::wall_segments_with_shell_cuts(&h.body, &cuts)
 }
 
 /// A machine's height, metres (`MachineDef::size`: a sphere's is its radius).

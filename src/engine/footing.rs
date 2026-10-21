@@ -359,7 +359,7 @@ pub fn elevator_tick(ship: &ShipStructure, cars: &mut ElevatorCars, feet: Vec3, 
 fn footprint_sides(pos: Vec3, yaw: f32, w: f32, d: f32, y0: f32) -> [WallSegment; 4] {
     let (hw, hd) = (w * 0.5, d * 0.5);
     let c = [to_world(pos, yaw, -hw, -hd), to_world(pos, yaw, hw, -hd), to_world(pos, yaw, hw, hd), to_world(pos, yaw, -hw, hd)];
-    std::array::from_fn(|k| WallSegment { a: c[k], b: c[(k + 1) % 4], half_thickness: 0.05, y0, y1: y0 + GATE_HEIGHT_M })
+    std::array::from_fn(|k| WallSegment { a: c[k], b: c[(k + 1) % 4], half_thickness: 0.05, y0, y1: y0 + GATE_HEIGHT_M, kind: wall_collision::SegmentKind::Wall })
 }
 
 /// THE LANDING DOORS (plan decision 9): at every stop of every elevator where its car is not
@@ -434,6 +434,7 @@ pub fn ladder_gates(ship: &ShipStructure) -> Vec<WallSegment> {
                 half_thickness: hd.max(0.05),
                 y0: o.y + top,
                 y1: o.y + top + GATE_HEIGHT_M,
+                kind: wall_collision::SegmentKind::Wall,
             });
         }
     }
@@ -928,7 +929,9 @@ pub(crate) mod test_aboard {
     /// in the slabs: elevator-1's shaft (the elevator at (10, 0, 2), its 1.8 m footprint, x 9.1 to
     /// 10.9 and z 1.1 to 2.9) and a ladder hatch (x 1.5 to 2.5, z 0.9 to 2.1), with ladder-1 at
     /// (2, 0, 2) on the hatch's south edge, guarded upstairs by 1.0 m walls (base 3.0) on three
-    /// sides and on the fourth either side of the ladder's 0.6 m. The hatch, as the homestead's
+    /// sides and on the fourth either side of an 0.8 m gap at the ladder (the ladder's own 0.6 m,
+    /// which the sweep, since ship homes increment 7's review, lets no 0.6 m body through between
+    /// two 0.06 m walls: wall_collision.rs `resolve`). The hatch, as the homestead's
     /// (docs/design/homestead-upper-floor.md section 5), is climbed facing south and stepped off
     /// south over the ladder's top. Teleporter-1 on the ground at (4, 0, 9) is paired with
     /// teleporter-2 upstairs at (6, 3, 4). Not the homestead: another lane is writing its layout.
@@ -947,8 +950,8 @@ pub(crate) mod test_aboard {
             (a: (1.5, 0.9), b: (1.5, 2.1), base: 3.0, height: 1.0),
             (a: (2.5, 0.9), b: (2.5, 2.1), base: 3.0, height: 1.0),
             (a: (1.5, 0.9), b: (2.5, 0.9), base: 3.0, height: 1.0),
-            (a: (1.5, 2.1), b: (1.7, 2.1), base: 3.0, height: 1.0),
-            (a: (2.3, 2.1), b: (2.5, 2.1), base: 3.0, height: 1.0),
+            (a: (1.5, 2.1), b: (1.6, 2.1), base: 3.0, height: 1.0),
+            (a: (2.4, 2.1), b: (2.5, 2.1), base: 3.0, height: 1.0),
         ],
         structures: [
             (id: "elevator-1", type_id: "elevator", pos: (10.0, 0.0, 2.0)),
@@ -1277,7 +1280,7 @@ mod storey_tests {
     }
 
     /// THE LADDER HATCH IS SHUT TO A WALK AND OPEN TO A CLIMBER (plan decision 9). Upstairs, a body
-    /// walking north at the hatch's gap (the ladder's 0.6 m in the guard) is stopped at the gate
+    /// walking north at the hatch's gap (0.8 m in the guard at the ladder) is stopped at the gate
     /// across the ladder's top and does not fall 3 m. From below, a climb (Space) goes through it,
     /// and walking south off the top stands the body on the upper floor. From above, Space at the
     /// gate steps onto the ladder's top rungs, the body walks out over the hatch holding on, and

@@ -3082,13 +3082,19 @@ mod tests {
         ("room-wetroom", [47.5, 4.5, 36.0], [4.0, 3.0, 3.0]),
         ("room-workshop", [27.0, 1.5, 40.5], [13.0, 3.0, 20.0]),
     ];
-    /// Whole-ship wall segments before the split (collision 154, sight 169), and the home's
-    /// own share (101). Before the homestead's upper floor (2026-10-20): 122, 135 and 69. The
-    /// sight lines see through the upper floor's five balustrade guards (src/ship/wall_collision.rs
-    /// `sight_segments_with_shell_cuts`), so a homestead's bare shell is 108 sight segments.
-    const WALL_SEGMENTS_BEFORE: usize = 154;
+    /// Whole-ship wall segments before the split (collision 272, sight 169), and the home's
+    /// own share (199). Before the homestead's upper floor (2026-10-20): 122, 135 and 69; before
+    /// increment 7's review (2026-10-21) 154 and 101. The review opened every doorway and every
+    /// corridor's cut only from its foot to its head, so the wall over each one is a segment of its
+    /// own (a lintel, `wall_collision::SegmentKind::Lintel`: 45 in the home, over its doors and
+    /// the plot door's cut, 65 in the ship before the split), and gave stairs-1 its collision (53 faces of its steps,
+    /// `SegmentKind::Step`); the home's 96 walls and 5 guards are as they were. The sight lines are
+    /// unchanged: they see through the upper floor's five balustrade guards (src/ship/
+    /// wall_collision.rs `sight_segments_with_shell_cuts`), open every doorway at every height and
+    /// hide nothing behind a stair, so a homestead's bare shell is 108 sight segments.
+    const WALL_SEGMENTS_BEFORE: usize = 272;
     const SIGHT_SEGMENTS_BEFORE: usize = 169;
-    const HOME_SEGMENTS_BEFORE: usize = 101;
+    const HOME_SEGMENTS_BEFORE: usize = 199;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
     /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
@@ -3167,7 +3173,9 @@ mod tests {
         assert_eq!(all.len(), 48, "the whole ship's rooms");
         assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
         // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
-        assert_eq!(ship_wall_segments(&ship).len(), 180, "the whole ship's collision segments");
+        // 305 since increment 7's review (2026-10-21): the same 180 walls and guards, 72 lintels
+        // over the doorways and the corridors' cuts, and stairs-1's 53 faces.
+        assert_eq!(ship_wall_segments(&ship).len(), 305, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
