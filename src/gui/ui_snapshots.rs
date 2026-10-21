@@ -3414,14 +3414,26 @@ fn snapshot_donate() {
     });
 }
 
-/// Platform fold with Notes + Calendar rescued into the section nav (v0.847.x).
-/// Renders the Notes section so both the new sidebar entries and the page draw.
+/// The Dev tab (2026-10-20, replaced the Platform tab): the side list of the five developer
+/// tools, opened on its first section, Bugs.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
-fn snapshot_platform_notes() {
-    render_page_png("platform_notes", 1280, 800, |ctx, theme, state| {
-        state.active_platform_section = "notes".into();
-        crate::gui::pages::platform::draw(ctx, theme, state);
+fn snapshot_dev_tab() {
+    render_page_png("dev_tab", 1280, 800, |ctx, theme, state| {
+        crate::gui::pages::dev_tab::draw(ctx, theme, state);
+    });
+}
+
+/// Settings > Account > Recovery through trusted people (2026-10-20, was the Platform tab's
+/// Recovery page): what it is, "Not finished yet", the two lookups, your account ID.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_recovery() {
+    render_page_png("settings_recovery", 960, 900, |ctx, theme, state| {
+        state.profile_public_key = "07".repeat(1952);
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::settings::recovery::draw(ui, theme, state, theme.info())
+        });
     });
 }
 
@@ -3432,7 +3444,7 @@ fn snapshot_platform_notes() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_planet_tuner() {
     render_page_png("planet_tuner", 1280, 2200, |ctx, theme, state| {
-        state.active_platform_section = "planet_tuner".into();
+        state.active_dev_section = "planet_tuner".into();
         state.settings.play_mode = crate::config::PlayMode::Dev;
         theme.cheats_enabled = true;
         let def: crate::terrain::planet::PlanetDef = ron::from_str(
@@ -3466,7 +3478,7 @@ fn snapshot_planet_tuner() {
         t.current = Some(def.clone());
         t.working = Some(def);
         t.working_body = "mars".into();
-        crate::gui::pages::platform::draw(ctx, theme, state);
+        crate::gui::pages::dev_tab::draw(ctx, theme, state);
     });
 }
 

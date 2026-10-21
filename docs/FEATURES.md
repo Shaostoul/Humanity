@@ -95,7 +95,15 @@ Mandatory `subject_class_v1` declaration + `controlled_by_v1` operator binding. 
 - API: `GET /api/v2/ai-status/{did}` in `src/relay/api_v2_ai.rs`
 
 ### Social Key Recovery
-Shamir-shared seed via guardians. Server stores opaque ciphertext only.
+Shamir-shared seed via guardians. Server stores opaque ciphertext only. HALF BUILT
+(2026-10-20): the server has the lookups only; there is no screen to choose guardians or
+split the phrase, and the people-facing words say so ("Recovery through trusted people",
+"Not finished yet"). The two lookups work on both sides.
+- Native: `src/gui/pages/settings/recovery.rs`, Settings > Account > "Recovery through
+  trusted people", right after Security (2026-10-20; it was the Platform tab's Recovery page,
+  whose two lookups set flags nothing read). An account is named by its `did:hum:` id
+  (`account_id`, the server's own `did_for_pubkey`), your own when the field is empty.
+- Web: `web/pages/recovery.html`, linked from the website's Settings > Security.
 - Storage: `src/relay/storage/recovery.rs`
 - API: `/api/v2/recovery/setup/{holder_did}`, `/api/v2/recovery/shares-held-by/{guardian_did}`, `/api/v2/recovery/request/{request_object_id}` in `src/relay/api_v2_recovery.rs`
 
@@ -3911,8 +3919,19 @@ your own home has no save yet.
 - Native: `src/gui/pages/showroom.rs`, `src/gui/pages/where_you_live.rs` (`draw_server`, `draw_choice`), `src/engine/save_slot.rs` (`ask_where_you_live`, `choose_on_server_gui`, `enter_pairing_gui`)
 - Server: `src/relay/api.rs` (`get_server_info`), `src/relay/handlers/home_plots.rs` (`handle_home`)
 
+### Dev Tab (the developer tools, 2026-10-20)
+One top-menu tab, Dev, holding the developer tools in a side list: Bugs, Testing, Performance,
+Dev and Planet Tuner (all permanent: perpetual development). It replaced the Platform tab, which
+the operator called redundant on 2026-10-20: Platform's Calculator, Notes, Calendar and Browser
+are HumanityOS tools on the Apps page, its Recovery is in Settings > Account.
+- Native: `src/gui/pages/dev_tab.rs` (`SECTIONS`, `GuiPage::Dev`, page id "dev"); tests in
+  `dev_tab_tests.rs` (the five listed and nothing else; the top menu says Dev, never Platform)
+- Web: `web/pages/dev.html` (the Dev Workbench) carries the same list of five; the top menu's
+  Dev tab opens it; `web/pages/platform.html` retired (removed from the live site by
+  `scripts/sync-web-root.sh`)
+
 ### Dev Page: Spawn Any Creature + Walk-Up Editor
-Platform > Dev (cheats-gated, like every dev affordance): searchable list of all 92
+The Dev tab's Dev section (cheats-gated, like every dev affordance): searchable list of all 92
 creatures.csv species, Spawn drops one ~2 m ahead (passive species keep the anchored
 livestock graze - no AIBehavior; hunt species spawn as predators), Despawn-all + live
 count. Walk-up editor: look at any creature, press G - rename, health (0 = kill via

@@ -25,7 +25,7 @@ use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
 use crate::terrain::planet::PlanetDef;
 
-/// Live values mirrored from the engine each frame while the Platform page
+/// Live values mirrored from the engine each frame while the Dev tab
 /// is open. Written by frame_lock::publish_planet_tuner_readout; read here.
 #[derive(Default, Clone)]
 pub struct PlanetTunerReadout {

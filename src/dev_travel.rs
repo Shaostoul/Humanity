@@ -1,4 +1,4 @@
-//! Dev travel math (v0.791.x, Platform > Dev > Travel) - pure helpers for the
+//! Dev travel math (v0.791.x, Dev > Dev > Travel) - pure helpers for the
 //! teleport tool that lets the operator inspect any solar body up close.
 //!
 //! Coordinate model recap (see the celestial pass in lib.rs): the local scene

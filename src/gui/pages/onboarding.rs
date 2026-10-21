@@ -218,10 +218,11 @@ fn page_from_link(link: &str) -> Option<GuiPage> {
         "civilization" => Some(GuiPage::Humanity),
         "guilds" => Some(GuiPage::Guilds),
         "apps" => Some(GuiPage::Apps),
-        // Library and Platform became top-level tabs in v0.1063; without these
-        // a quest step pointing at either would silently do nothing.
+        // Library became a top-level tab in v0.1063; without this a quest step
+        // pointing at it would silently do nothing. "dev" is the Dev tab, which
+        // replaced the Platform tab on 2026-10-20.
         "library" => Some(GuiPage::Library),
-        "platform" => Some(GuiPage::Platform),
+        "dev" => Some(GuiPage::Dev),
         "quests" => Some(GuiPage::Quests),
         "studio" => Some(GuiPage::Studio),
         "inventory" => Some(GuiPage::Inventory),

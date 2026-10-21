@@ -340,9 +340,9 @@ pub enum GuiPage {
     Governance,
     /// Location-aware rules + rights, nested Humanity -> locality (v0.496).
     Laws,
-    /// Social key recovery setup + active recovery requests.
-    /// Mirrors the web `/recovery` page.
-    Recovery,
+    // 2026-10-20: the Recovery variant went with the Platform tab. Recovery
+    // through trusted people is a subsection of Settings > Account now
+    // (pages/settings/recovery.rs); the website keeps /recovery.
     // v0.197.0: removed Agents and AiUsage GuiPage variants. Operator
     // 2026-05-08: "That AI Agents page also seems useless. As well as
     // the AI usage." Multi-AI orchestration is handled via
@@ -371,9 +371,11 @@ pub enum GuiPage {
     // v0.415.0: removed the Play GuiPage variant (the v0.360 tab that folded
     // Crafting + Studio). Both are top-level tabs now and nothing navigated to
     // it; the nav's Play button is GuiPage::None (FPS mode), unrelated.
-    /// Platform — the software-itself tab (v0.360): section_nav folds Settings,
-    /// Recovery, Bugs, Testing, Browser.
-    Platform,
+    /// Dev, the developer tools tab (2026-10-20): a section_nav over Bugs,
+    /// Testing, Performance, Dev and Planet Tuner (pages/dev_tab.rs). It
+    /// replaced the Platform tab (v0.360), whose Calculator, Notes, Calendar
+    /// and Browser are on the Apps page and whose Recovery is in Settings.
+    Dev,
     /// Humanity — the collective / mission tab (v0.360): section_nav folds the
     /// Community/Mission Dashboard (Civilization) + Governance, Directory
     /// (Identity), Donate. What the H button opens, and the first-boot landing.
@@ -398,8 +400,20 @@ pub enum GuiPage {
     // OverviewSettings. Settings content lives in `settings.rs` (its own
     // internal SettingsCategory router, still fully reachable via the
     // top-level Settings tab); the stranded working pages Calculator/Files
-    // (now in Platform) and Trade/Guilds (now in Real) were rehomed in the
+    // (then in Platform; on Apps since the Platform tab went, 2026-10-20) and Trade/Guilds (now in Real) were rehomed in the
     // same release. See the 2026-07-04 page-access audit.
+}
+
+#[cfg(feature = "native")]
+impl GuiPage {
+    /// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file
+    /// that day, still compares against `GuiPage::Platform` at its Dev-page
+    /// creature count. The Platform tab is gone and that check means the Dev
+    /// tab. Delete this const in the commit that changes lib.rs to
+    /// `GuiPage::Dev`. Nothing else may use it.
+    #[allow(non_upper_case_globals)]
+    #[doc(hidden)]
+    pub const Platform: GuiPage = GuiPage::Dev;
 }
 
 /// Pages that can be selected as the startup boot page.
@@ -493,7 +507,7 @@ pub struct GuiState {
     /// the connected server's last `game_home` answer (where you live there, and what is free).
     pub save_slot: crate::persistence::SaveSlot,
     pub home_answer: Option<crate::ship::starts::HomeAnswer>,
-    /// Dev spawn tool (v0.777, Platform > Dev): when Some(def_id), lib.rs spawns
+    /// Dev spawn tool (v0.777, the Dev tab's Dev section): when Some(def_id), lib.rs spawns
     /// that creature/NPC in front of the player next frame and clears it. The
     /// generic "spawn any creature/NPC" the operator asked for; species come
     /// from CreatureRegistry (data/creatures.csv, 92 rows).
@@ -540,7 +554,7 @@ pub struct GuiState {
     pub dev_edit_species: String,
     /// Despawn the edited creature next frame (from the editor's Despawn button).
     pub pending_dev_edit_despawn: bool,
-    /// Dev travel (v0.791.x, Platform > Dev > Travel): when Some(body_id),
+    /// Dev travel (v0.791.x, the Dev tab's Dev section > Travel): when Some(body_id),
     /// lib.rs teleports the viewpoint next frame -- it moves ship_world_pos
     /// (f64 Earth-centred metres; planets are up to 4.5e12 m away, far past
     /// f32 camera coordinates) to a sunlit vantage ~4 body radii out, aims the
@@ -1050,9 +1064,9 @@ pub struct GuiState {
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
-    /// Selected section for the folded Platform tab ("settings"/"recovery"/
-    /// "bugs"/"testing"/"browser").
-    pub active_platform_section: String,
+    /// Selected section of the Dev tab (an id from `pages::dev_tab::SECTIONS`:
+    /// "bugs", "testing", "performance", "dev", "planet_tuner").
+    pub active_dev_section: String,
     /// Selected section for the folded Humanity tab ("civilization"/
     /// "governance"/"identity"/"onboarding"/"donate"/"resources").
     pub active_humanity_section: String,
@@ -2808,7 +2822,7 @@ pub struct GuiState {
     pub chat_left_panel_width: f32,
     pub chat_right_panel_width: f32,
 
-    // ── Identity / Governance / Recovery page state (v0.115.0) ──
+    // ── Identity / Governance page state (v0.115.0), and Settings' Recovery lookups ──
     /// DID being looked up on the Identity page.
     pub identity_lookup_did: String,
     /// Set to true when the Identity page wants to issue a fresh fetch.
@@ -2868,14 +2882,10 @@ pub struct GuiState {
     pub laws_category: String,
     /// Active filter tab on the Governance page (0=Open, 1=All).
     pub governance_filter_tab: usize,
-    /// DID being looked up on the Recovery page.
-    pub recovery_lookup_did: String,
-    /// Set to true when the Recovery page wants to fetch a setup.
-    pub recovery_lookup_pending: bool,
-    /// Guardian DID being looked up on the Recovery page.
-    pub recovery_guardian_did: String,
-    /// Set to true when the Recovery page wants to fetch held shares.
-    pub recovery_guardian_pending: bool,
+    /// Settings > Account > Recovery through trusted people: its two lookups
+    /// (an account's guardians, the pieces a guardian keeps), each with what
+    /// was typed and the server's answer (pages/settings/recovery.rs).
+    pub recovery: crate::gui::pages::settings::recovery::RecoveryLookups,
 
     // v0.197.0: AI Usage page form state removed (page deleted).
 }
@@ -3358,7 +3368,7 @@ impl Default for GuiState {
             // Profile page opens with no sidebar item highlighted (the old
             // "inventory" default was removed from the list long ago).
             active_real_section: "body".to_string(),
-            active_platform_section: "recovery".to_string(),
+            active_dev_section: crate::gui::pages::dev_tab::FIRST_SECTION.to_string(),
             active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,
             map_zoom: 1.0,
@@ -4099,7 +4109,7 @@ impl Default for GuiState {
             chat_left_panel_width: 220.0,
             chat_right_panel_width: 220.0,
 
-            // Identity / Governance / Recovery page state (v0.115.0)
+            // Identity / Governance page state (v0.115.0), and Settings' Recovery lookups
             identity_lookup_did: String::new(),
             identity_lookup_pending: false,
             governance_scope_tab: 0,
@@ -4123,10 +4133,7 @@ impl Default for GuiState {
             laws_filter_tab: 0,
             laws_category: String::new(),
             governance_filter_tab: 0,
-            recovery_lookup_did: String::new(),
-            recovery_lookup_pending: false,
-            recovery_guardian_did: String::new(),
-            recovery_guardian_pending: false,
+            recovery: Default::default(),
 
             // v0.197.0: AI Usage page form state removed (page deleted).
         }

@@ -33,7 +33,14 @@ pub mod profile;
 pub mod real;
 // v0.415.0: play module removed (the dead v0.360 Crafting/Studio fold —
 // nothing navigated to GuiPage::Play; the nav's Play button is GuiPage::None).
-pub mod platform;
+// The Platform tab (v0.360) was retired on 2026-10-20: its developer tools are
+// the Dev tab (dev_tab.rs), its Calculator, Notes, Calendar and Browser are on
+// Apps, its Recovery is in Settings > Account.
+// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file that
+// day, still lists `platform` in its `use crate::gui::pages::{..}` (unused
+// there). Delete this line in the same commit that drops `platform,` from it.
+#[doc(hidden)]
+pub use dev_tab as platform;
 pub mod humanity;
 pub mod library;
 pub mod quests;
@@ -85,7 +92,13 @@ pub mod fleet_ledger;
 pub mod identity;
 pub mod governance;
 pub mod laws;
-pub mod recovery;
+// Recovery through trusted people moved into Settings > Account with the
+// Platform tab's retirement (2026-10-20): pages/settings/recovery.rs.
+// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file that
+// day, still lists `recovery` in its `use crate::gui::pages::{..}` (unused
+// there). Delete this line in the same commit that drops `recovery,` from it.
+#[doc(hidden)]
+pub use settings::recovery;
 // The Maps page (was cosmos.rs until Maps increment 0, 2026-10-20): a folder,
 // one file per view. `crate::cosmos` is the Sol model, not this page.
 pub mod maps;
@@ -102,7 +115,10 @@ pub mod browser;
 pub mod dev;
 pub mod planet_tuner;
 // Resource budgets increment 1: the live GPU/CPU/VRAM/RAM pies, shown as a
-// section of the Platform tab (the page-sized sibling of the F2 overlay).
+// section of the Dev tab (the page-sized sibling of the F2 overlay).
 pub mod performance;
+// Dev, the developer tools tab (2026-10-20, replaced the Platform tab): Bugs,
+// Testing, Performance, Dev and Planet Tuner in one side list.
+pub mod dev_tab;
 // v0.699.0: category_overview + settings_pages modules removed with the dead
 // two-tier-nav category-browse subsystem (5 Overview* + 12 Settings* pages).
