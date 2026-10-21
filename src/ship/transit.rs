@@ -80,11 +80,17 @@ impl ShipStructure {
         out
     }
 
-    /// The link whose entry pad the point stands in (across the floor), if any: where a person
-    /// walking there is jumped to.
+    /// The link whose entry pad a person with their eye at `p` stands in, if any: where a person
+    /// walking there is jumped to. In the pad's footprint across the floor AND on its storey (ship
+    /// homes increment 7): the shared storey rule (`moves::on_my_storey`, the pad's floor from half
+    /// a metre under the feet to 2.5 m over them), which is the rule the relay checks a declared
+    /// jump with (src/relay/handlers/move_check.rs), so the game never makes a jump the relay
+    /// corrects. A pad upstairs does not jump someone walking under it, nor one downstairs someone
+    /// walking over it; a body in the air over a pad (a jump) goes when it lands.
     pub fn transit_link_at(&self, p: Vec3) -> Option<TransitLink> {
         self.transit_links().into_iter().find(|l| {
-            structure_type("teleporter").is_some_and(|ty| in_footprint(ty, (l.from_at.x, l.from_at.y, l.from_at.z), l.from_yaw, p.x, p.z))
+            crate::ship::moves::on_my_storey(p.y, l.from_at.y)
+                && structure_type("teleporter").is_some_and(|ty| in_footprint(ty, (l.from_at.x, l.from_at.y, l.from_at.z), l.from_yaw, p.x, p.z))
         })
     }
 
