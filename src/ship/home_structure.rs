@@ -294,6 +294,10 @@ pub struct FloorSlab {
     /// How thick the slab is, metres down from `top`.
     #[serde(default = "default_slab_thickness")]
     pub thickness: f32,
+    /// Solid (the default, left out of the file) or glass: whether sunlight and lamp light pass
+    /// through it (`passes_light`). Either kind is a floor and a lid alike.
+    #[serde(default, skip_serializing_if = "SlabMaterial::is_solid")]
+    pub material: SlabMaterial,
     /// An optional name for the editor ("upper floor", "landing").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
@@ -325,6 +329,33 @@ impl FloorSlab {
     /// True when this slab is the floor of `storey`: its top is that storey's floor.
     pub fn is_floor_of(&self, storey: &Storey) -> bool {
         (self.top - storey.floor).abs() < STOREY_EPS
+    }
+
+    /// True when sunlight and lamp light pass through the slab (a glass slab); a solid one blocks
+    /// both. Either kind is still a floor to stand on and a lid on the room under it: it confines
+    /// that room's air and its bounced-light probes (`detect_rooms` caps a room at either).
+    pub fn passes_light(&self) -> bool {
+        self.material == SlabMaterial::Glass
+    }
+}
+
+/// What a floor slab is made of, as far as light is concerned (ship homes increment 7,
+/// docs/design/homestead-upper-floor.md section 9 item 1: the power terrace, the orchard court and
+/// the fields live on sunlight through the glass roof, and their lids must not shade them).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlabMaterial {
+    /// Opaque: blocks sunlight and lamp light. The default, and left out of the file.
+    #[default]
+    Solid,
+    /// Glass: a floor and a lid like a solid slab (it confines its room's air and bounced-light
+    /// probes) that lets sunlight and lamp light through.
+    Glass,
+}
+
+impl SlabMaterial {
+    /// Serde's "leave it out" test: a solid slab is written without a material.
+    pub fn is_solid(&self) -> bool {
+        *self == SlabMaterial::Solid
     }
 }
 
@@ -362,6 +393,30 @@ pub fn wall_in_storey(storeys: &[Storey], wall: &InteriorWall, k: usize) -> bool
     let (base, top) = wall.y_range();
     let on = storey_index(storeys, base);
     k == on || (k > on && k < storeys.len() && top > storeys[k].floor + STOREY_EPS)
+}
+
+/// How much of a storey a wall must stand through to part it into rooms, metres: 2.0. A lower wall
+/// is a guard, a half wall, a counter or a screen. The tallest guard the dated finding records is
+/// 1100 mm (England, at a roof edge; docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md),
+/// and the upper floor's guards are 1.0 m walls (docs/design/homestead-upper-floor.md, "Guards"),
+/// while 2 m is the headroom England asks over a stair, the height a person stands up in. Air,
+/// light and voices go over a wall lower than that, so it is one room on both sides of it, and a
+/// guard round a stairwell must not cut the hall it stands in into pieces. Every shipped wall is
+/// 2.5 or 3.0 m tall, so no room that exists today changes.
+pub const ROOM_DIVIDER_MIN_M: f32 = 2.0;
+
+/// True when `wall` parts storey `k` into rooms (`detect_rooms`): it stands in that storey
+/// (`wall_in_storey`) and rises through at least `ROOM_DIVIDER_MIN_M` of it, or through all of it
+/// when the storey is lower than that. Only the part inside the storey counts, so a ground wall
+/// that rises a metre past the slab is a parapet upstairs, not a partition.
+pub fn wall_divides_storey(storeys: &[Storey], wall: &InteriorWall, k: usize) -> bool {
+    if !wall_in_storey(storeys, wall, k) {
+        return false;
+    }
+    let s = storeys[k];
+    let (base, top) = wall.y_range();
+    let stands = top.min(s.top) - base.max(s.floor);
+    stands >= ROOM_DIVIDER_MIN_M.min(s.height()) - STOREY_EPS
 }
 
 /// A home (or any structure): a FIXED outer box + freely-placed interior walls.
@@ -474,6 +529,15 @@ pub struct Zone {
     /// small diff, which matters in a checkout several sessions share.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub room_type: Option<String>,
+}
+
+impl Zone {
+    /// True when the point (x, z) is inside the zone's footprint, half-open on the max edge so a
+    /// point exactly on a shared boundary belongs to one zone only. The one footprint test the room
+    /// join (`name_rooms_from_zones`) and the upper storeys' flood (`detect_rooms`) both use.
+    pub fn contains_xz(&self, x: f32, z: f32) -> bool {
+        x >= self.origin.0 && x < self.origin.0 + self.size.0 && z >= self.origin.2 && z < self.origin.2 + self.size.2
+    }
 }
 
 /// A road-graph junction (v0.586): a point on the ground the road network routes through.
@@ -1539,19 +1603,29 @@ impl HomeStructure {
     /// arbitrary, non-rectangular, L-shaped regions (grid flood-fill, not planar-graph faces).
     ///
     /// STOREY BY STOREY (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md section
-    /// 2). Each storey (`storeys`) is flooded on its own, with only the walls standing in it
-    /// (`wall_in_storey`: the walls whose base is on it, and the taller walls rising through it), and
-    /// only where it has a FLOOR: the ground storey everywhere, a storey above only over its slabs.
-    /// Where an upper storey has no slab (a stairwell, an elevator shaft, the air over a room open to
-    /// the roof) there is nothing to stand on, so no room is made there: a room is a place you can
-    /// be in, and every later reader (footing, the HUD, the lights) takes a room's floor as real.
+    /// 2, and docs/design/homestead-upper-floor.md section 9 item 3). Each storey (`storeys`) is
+    /// flooded on its own:
+    /// - Only the walls that DIVIDE it block (`wall_divides_storey`): the walls standing in it
+    ///   (`wall_in_storey`: those whose base is on it, and the taller walls rising through it) that
+    ///   rise at least `ROOM_DIVIDER_MIN_M` (2.0 m) through it. A 1.0 m guard round a stairwell is
+    ///   one room on both sides, so it does not cut the upper hall into pieces.
+    /// - The ground storey floods everywhere, exactly as before storeys.
+    /// - A storey above floods only where it has a FLOOR (one of its slabs) AND a ZONE of its own
+    ///   storey (`storey_of_zone`) says a room is there. Where there is no slab (a stairwell, an
+    ///   elevator shaft, the air over the greenhouse) there is nothing to stand on; where there is a
+    ///   slab but no zone of that storey, it is a lid nobody uses (the 3,650 m2 between the ground
+    ///   rooms' lids and the roof), and as a room it would cost bounced-light probes and air nobody
+    ///   breathes. A room is a place you can be in, and every later reader (footing, the HUD, the
+    ///   lights, the air) takes a room as real.
     /// Each room gets its storey's floor (the bottom of its box), and its ceiling at the next
-    /// storey up whose floor lies over ANY of its cells; a room with no floor over it anywhere (the
-    /// greenhouse under the glass roof) rises to the body's top, so it keeps its full height.
+    /// storey up that has a slab, solid or glass, over ANY of its cells (zone or no zone: a lid is a
+    /// lid); a room with nothing over it anywhere (the greenhouse under the glass roof) rises to the
+    /// body's top, so it keeps its full height.
     ///
-    /// With no slabs there is one storey, 0 to the height, every wall stands in it, and the output
-    /// is exactly what it was before storeys (`no_slab_rooms_are_what_they_were` keeps the old code as
-    /// its reference and compares every shipped home and ship zone).
+    /// With no slabs there is one storey, 0 to the height, every shipped wall divides it (all are
+    /// 2.5 or 3.0 m), and the output is exactly what it was before storeys
+    /// (`no_slab_rooms_are_what_they_were` keeps the old code as its reference and compares every
+    /// shipped home and ship zone).
     pub fn detect_rooms(&self) -> Vec<RoomInfo> {
         let w = self.width.max(1.0);
         let d = self.depth.max(1.0);
@@ -1601,12 +1675,26 @@ impl HomeStructure {
         let mut room_storeys: Vec<usize> = Vec::new();
         let mut stack: Vec<(usize, usize)> = Vec::new();
         for (k, storey) in storeys.iter().enumerate() {
-            let walls: Vec<&InteriorWall> = self.walls.iter().filter(|wall| wall_in_storey(&storeys, wall, k)).collect();
-            // A cell with no floor on this storey is closed to its flood. Then block every cell
-            // within a wall's half-thickness of a wall standing in this storey. The grid is coarse
-            // (0.5 m), so even a 1 mm wall still blocks (the CELL term dominates) and rooms stay
-            // separated -- per-wall thickness only widens fat walls. (v0.556)
-            let mut blocked: Vec<bool> = has_floor[k].iter().map(|f| !f).collect();
+            let walls: Vec<&InteriorWall> = self.walls.iter().filter(|wall| wall_divides_storey(&storeys, wall, k)).collect();
+            // Above the ground, a room only where this storey's own zones say so.
+            let zones_here: Vec<&Zone> = self.zones.iter().filter(|z| storey_index(&storeys, z.origin.1) == k).collect();
+            // A cell with no floor on this storey (or, above the ground, in no zone of it) is
+            // closed to its flood. Then block every cell within a wall's half-thickness of a wall
+            // dividing this storey. The grid is coarse (0.5 m), so even a 1 mm wall still blocks
+            // (the CELL term dominates) and rooms stay separated -- per-wall thickness only widens
+            // fat walls. (v0.556)
+            let mut blocked: Vec<bool> = (0..nx * nz)
+                .map(|i| {
+                    if !has_floor[k][i] {
+                        return true;
+                    }
+                    if k == 0 {
+                        return false;
+                    }
+                    let (px, pz) = (((i % nx) as f32 + 0.5) * CELL, ((i / nx) as f32 + 0.5) * CELL);
+                    !zones_here.iter().any(|z| z.contains_xz(px, pz))
+                })
+                .collect();
             for cz in 0..nz {
                 for cx in 0..nx {
                     let idx = cz * nx + cx;
@@ -1717,9 +1805,10 @@ impl HomeStructure {
     ///   brushes a room does not rename it, and an L-shaped room picks the zone its centre sits in.
     /// - A zone names only a room on ITS OWN STOREY (ship homes increment 7): the storey its floor,
     ///   its origin's y, is on (`storey_index`), matched against the storey the room was flooded on
-    ///   (`room_storeys`, beside `rooms`). So the upstairs bedroom's zone does not name the hall
-    ///   under it, whose centre lies in the same footprint. With one storey every zone and room is
-    ///   on it, as before.
+    ///   (`room_storeys`, beside `rooms`). So the upstairs bedroom's zone does not name the dining
+    ///   room under it, though both are 8 x 8 m on the same x/z (homestead-upper-floor.md), which
+    ///   the smallest-footprint rule below would tie. With one storey every zone and room is on
+    ///   it, as before.
     /// - When several zones contain a centre (a district zone around a house full of room zones),
     ///   the SMALLEST footprint wins: the most specific label is the useful one.
     /// - A zone names at most ONE room (the largest it covers); any other room whose centre also
@@ -1742,13 +1831,7 @@ impl HomeStructure {
                 .zones
                 .iter()
                 .enumerate()
-                .filter(|(zi, z)| {
-                    zone_storeys[*zi] == room_storeys[ri]
-                        && cx >= z.origin.0
-                        && cx < z.origin.0 + z.size.0
-                        && cz >= z.origin.2
-                        && cz < z.origin.2 + z.size.2
-                })
+                .filter(|(zi, z)| zone_storeys[*zi] == room_storeys[ri] && z.contains_xz(cx, cz))
                 .min_by(|(_, a), (_, b)| {
                     (a.size.0 * a.size.2)
                         .partial_cmp(&(b.size.0 * b.size.2))
@@ -3063,7 +3146,7 @@ mod storey_tests {
     }
 
     fn slab(a: (f32, f32), b: (f32, f32), top: f32) -> FloorSlab {
-        FloorSlab { a, b, top, thickness: 0.25, label: None }
+        FloorSlab { a, b, top, thickness: 0.25, material: SlabMaterial::Solid, label: None }
     }
 
     fn zone(id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> Zone {
@@ -3076,13 +3159,16 @@ mod storey_tests {
     }
 
     /// The two-storey test body: 10 x 10 x 6 m, a slab over the north half (z 0..5) at 3.0, a
-    /// ground-floor wall along z 5 under the slab's edge, and an upstairs wall along x 5 on the
-    /// slab, which parts the upper floor in two and must not part the ground floor.
+    /// ground-floor wall along z 5 under the slab's edge, an upstairs wall along x 5 on the slab,
+    /// which parts the upper floor in two and must not part the ground floor, and an upstairs zone
+    /// on each side of it (above the ground a room exists only where a zone of its storey says).
     fn two_storeys() -> HomeStructure {
         body(
             "(width: 10.0, depth: 10.0, height: 6.0, \
              walls: [(a: (0.0, 5.0), b: (10.0, 5.0)), (a: (5.0, 0.0), b: (5.0, 5.0), base: 3.0)], \
-             floors: [(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)])",
+             floors: [(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)], \
+             zones: [(id: \"up-west\", type_id: \"residential\", origin: (0.0, 3.0, 0.0), size: (5.0, 3.0, 5.0)), \
+                     (id: \"up-east\", type_id: \"residential\", origin: (5.0, 3.0, 0.0), size: (5.0, 3.0, 5.0))])",
         )
     }
 
@@ -3140,7 +3226,8 @@ mod storey_tests {
     ///
     /// Seen red 2026-10-20 with `wall_in_storey` putting a wall in its base's storey and every storey
     /// BELOW it: "two rooms on each storey", left 5, the upstairs wall parting the ground floor's
-    /// north room into two 4.5 m halves.
+    /// north room into two 4.5 m halves. Seen red again, the same output, after the upstairs zones
+    /// were added to the fixture.
     #[test]
     fn each_storey_floods_with_its_own_walls() {
         let rooms = two_storeys().detect_rooms();
@@ -3168,37 +3255,135 @@ mod storey_tests {
     ///
     /// Seen red 2026-10-20 with the same fault (a wall never stands in a storey above its base, the
     /// plan's rule taken literally for the flood): "the tall wall parts each storey in two", left (2, 1).
+    /// Seen red again, the same output, after the upstairs zone was added to the fixture.
     #[test]
     fn a_wall_from_the_ground_to_the_roof_parts_both_storeys() {
         let rooms = body(
             "(width: 10.0, depth: 10.0, height: 6.0, \
              walls: [(a: (5.0, 0.0), b: (5.0, 10.0), height: 6.0)], \
-             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)])",
+             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)], \
+             zones: [(id: \"upstairs\", type_id: \"residential\", origin: (0.0, 3.0, 0.0), size: (10.0, 3.0, 10.0))])",
         )
         .detect_rooms();
         let per_floor = |y: f32| rooms.iter().filter(|r| floor_of(r) == y).count();
         assert_eq!((per_floor(0.0), per_floor(3.0)), (2, 2), "the tall wall parts each storey in two");
     }
 
-    /// A ZONE NAMES ONLY A ROOM ON ITS OWN STOREY (`name_rooms_from_zones`). The upstairs
-    /// bedroom's zone lies over the hall's footprint and is the smaller of the two, so without the
-    /// storey rule it would name the hall under it; and the hall's footprint covers the upstairs
-    /// east room, which it must not name either.
+    /// A ZONE NAMES ONLY A ROOM ON ITS OWN STOREY (`name_rooms_from_zones`), the homestead's own
+    /// case (docs/design/homestead-upper-floor.md, sections 2 and 4): the dining room and the
+    /// bedroom above it are both 8 x 8 m on the same x/z, so the smallest-footprint rule ties, and
+    /// without the storey rule the first of the two in the list would name the ground room and the
+    /// other would name nothing. Each names the room on its own storey.
     ///
-    /// Seen red 2026-10-20 with the storey test dropped from the zone filter: "the ground room under
-    /// the bedroom is the hall", left Some("bedroom").
+    /// Seen red 2026-10-20 with the storey test dropped from the zone filter: "the ground room is
+    /// the dining room, not the bedroom over it", left ["room-bedroom"].
     #[test]
     fn a_zone_names_only_a_room_on_its_own_storey() {
-        let mut b = two_storeys();
-        b.zones = vec![zone("hall", (0.0, 0.0, 0.0), (10.0, 3.0, 5.0)), zone("bedroom", (0.0, 3.0, 0.0), (6.0, 3.0, 5.0))];
+        let mut b = body("(width: 8.0, depth: 8.0, height: 6.0, floors: [(a: (0.0, 0.0), b: (8.0, 8.0), top: 3.0)])");
+        b.zones = vec![zone("room-bedroom", (0.0, 3.0, 0.0), (8.0, 3.0, 8.0)), zone("room-dining", (0.0, 0.0, 0.0), (8.0, 3.0, 8.0))];
         let rooms = b.detect_rooms();
-        let at = |floor: f32, x: f32| {
-            rooms.iter().find(|r| floor_of(r) == floor && r.center.z < 5.0 && (r.center.x - x).abs() < 1.0).map(|r| r.id.clone())
+        let on = |floor: f32| rooms.iter().filter(|r| floor_of(r) == floor).map(|r| r.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(on(0.0), ["room-dining"], "the ground room is the dining room, not the bedroom over it");
+        assert_eq!(on(3.0), ["room-bedroom"], "the room upstairs is the bedroom");
+    }
+
+    /// A GUARD DOES NOT DIVIDE A ROOM (`wall_divides_storey`, `ROOM_DIVIDER_MIN_M`). The upper
+    /// floor's guards are 1.0 m walls standing on the slab (homestead-upper-floor.md, "Guards"): one
+    /// across the middle of an upstairs room leaves it one room, where a 3 m wall on the same line
+    /// makes two. A ground wall rising a metre past the slab parts the ground floor and is only a
+    /// parapet upstairs; and a wall the whole height of a space lower than 2 m still divides it.
+    ///
+    /// Seen red 2026-10-20 with every wall standing in a storey dividing it, whatever its height: "a
+    /// 1.0 m guard across the loft leaves it one room", left 2.
+    #[test]
+    fn a_guard_does_not_divide_a_room() {
+        let with = |wall: &str| {
+            body(&format!(
+                "(width: 10.0, depth: 10.0, height: 6.0, walls: [{wall}], \
+                 floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)], \
+                 zones: [(id: \"loft\", type_id: \"residential\", origin: (0.0, 3.0, 0.0), size: (10.0, 3.0, 10.0))])"
+            ))
+            .detect_rooms()
         };
-        assert_eq!(at(0.0, 5.0).as_deref(), Some("hall"), "the ground room under the bedroom is the hall");
-        assert_eq!(at(3.0, 2.25).as_deref(), Some("bedroom"), "the upstairs room in the bedroom's footprint is the bedroom");
-        let east = at(3.0, 7.75);
-        assert!(east.as_deref().is_some_and(|id| id.starts_with("room_")), "the hall is downstairs, so the upstairs east room is not it: {east:?}");
+        let on = |rooms: &[RoomInfo], floor: f32| rooms.iter().filter(|r| floor_of(r) == floor).count();
+        let guard = with("(a: (5.0, 0.0), b: (5.0, 10.0), base: 3.0, height: 1.0)");
+        assert_eq!(on(&guard, 3.0), 1, "a 1.0 m guard across the loft leaves it one room");
+        let wall = with("(a: (5.0, 0.0), b: (5.0, 10.0), base: 3.0, height: 3.0)");
+        assert_eq!(on(&wall, 3.0), 2, "a 3.0 m wall on the same line makes two");
+        let parapet = with("(a: (5.0, 0.0), b: (5.0, 10.0), height: 4.0)");
+        assert_eq!((on(&parapet, 0.0), on(&parapet, 3.0)), (2, 1), "a ground wall rising 1 m past the slab parts the ground floor, not the loft");
+        let low = body("(width: 10.0, depth: 10.0, height: 1.5, walls: [(a: (5.0, 0.0), b: (5.0, 10.0), height: 1.5)])").detect_rooms();
+        assert_eq!(low.len(), 2, "a wall the whole height of a 1.5 m space divides it");
+    }
+
+    /// AN UPSTAIRS ZONE MAKES A ROOM THERE, AND ONLY THERE (homestead-upper-floor.md section 9
+    /// item 3): over a lid that covers the whole body, a zone of the upper storey 4 m wide makes
+    /// one upstairs room exactly its footprint, named after it, and the ground zone under the lid
+    /// names the 3 m room below.
+    ///
+    /// Seen red 2026-10-20 with every floored cell above the ground open, zone or not: "the room
+    /// upstairs is the loft's footprint, not the whole lid", left ("room_2", 10.0, 10.0).
+    #[test]
+    fn an_upstairs_zone_makes_a_room_there_and_only_there() {
+        let mut b = body("(width: 10.0, depth: 10.0, height: 6.0, floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)])");
+        b.zones = vec![zone("hall", (0.0, 0.0, 0.0), (10.0, 3.0, 10.0)), zone("loft", (0.0, 3.0, 0.0), (4.0, 3.0, 10.0))];
+        let rooms = b.detect_rooms();
+        let upstairs: Vec<&RoomInfo> = rooms.iter().filter(|r| floor_of(r) == 3.0).collect();
+        assert_eq!(upstairs.len(), 1, "one room upstairs");
+        assert_eq!(
+            (upstairs[0].id.as_str(), upstairs[0].dimensions.x, upstairs[0].dimensions.z),
+            ("loft", 4.0, 10.0),
+            "the room upstairs is the loft's footprint, not the whole lid"
+        );
+        let ground: Vec<&RoomInfo> = rooms.iter().filter(|r| floor_of(r) == 0.0).collect();
+        assert!(ground.len() == 1 && ground[0].id == "hall" && ground[0].dimensions.y == 3.0, "the ground room under the lid is the hall, 3 m tall");
+    }
+
+    /// THE EMPTY SPACE OVER A LID IS NOT A ROOM (homestead-upper-floor.md section 9 item 3). Over
+    /// the ground rooms' lids, where no zone of the upper storey is, there is no room, not even
+    /// where a ground zone rises 6 m through the lid (a zone belongs to the storey its floor is
+    /// on). In the homestead that space is about 3,650 m2, which as a room would carry
+    /// bounced-light probes and air nobody breathes. The rooms under the lid keep their 3 m.
+    ///
+    /// Seen red 2026-10-20 with the same fault: "a room over the lid: (id, floor, height) [("tall",
+    /// 0.0, 3.0), ("room_2", 0.0, 3.0), ("room_3", 3.0, 3.0)]".
+    #[test]
+    fn the_empty_space_over_a_lid_is_not_a_room() {
+        let mut b = body(
+            "(width: 10.0, depth: 10.0, height: 6.0, walls: [(a: (5.0, 0.0), b: (5.0, 10.0))], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)])",
+        );
+        b.zones = vec![zone("tall", (0.0, 0.0, 0.0), (5.0, 6.0, 10.0))];
+        let rooms = b.detect_rooms();
+        let summary: Vec<_> = rooms.iter().map(|r| (r.id.clone(), floor_of(r), r.dimensions.y)).collect();
+        assert!(rooms.iter().all(|r| floor_of(r) == 0.0), "a room over the lid: (id, floor, height) {summary:?}");
+        assert_eq!(rooms.len(), 2, "{summary:?}");
+        assert!(rooms.iter().all(|r| r.dimensions.y == 3.0), "the rooms under the lid are 3 m tall: {summary:?}");
+    }
+
+    /// A GLASS SLAB LETS LIGHT THROUGH AND IS STILL A LID (`SlabMaterial`, homestead-upper-floor.md
+    /// section 9 item 1): a slab is solid unless it says glass, a solid one is written without a
+    /// material, a glass one survives a save, only glass passes light, and a glass lid caps the
+    /// room under it at 3 m just as a solid one does.
+    ///
+    /// Seen red 2026-10-20 with `material` written even when solid: "a solid slab is written without a
+    /// material: (a:(0.0,0.0),b:(10.0,10.0),top:3.0,thickness:0.25,material:Solid)".
+    #[test]
+    fn a_glass_slab_lets_light_through_and_is_still_a_lid() {
+        let solid: FloorSlab = ron::from_str("(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)").unwrap();
+        let glass: FloorSlab = ron::from_str("(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0, material: Glass)").unwrap();
+        assert_eq!((solid.material, glass.material), (SlabMaterial::Solid, SlabMaterial::Glass));
+        let solid_text = ron::ser::to_string(&solid).unwrap();
+        assert!(!solid_text.contains("material"), "a solid slab is written without a material: {solid_text}");
+        let glass_text = ron::ser::to_string(&glass).unwrap();
+        let back: FloorSlab = ron::from_str(&glass_text).unwrap();
+        assert_eq!(back, glass, "a glass slab survives a save: {glass_text}");
+        assert!(!solid.passes_light() && glass.passes_light(), "only glass lets light through");
+        let mut b = body("(width: 10.0, depth: 10.0, height: 6.0)");
+        b.floors = vec![glass];
+        let rooms = b.detect_rooms();
+        let ground: Vec<f32> = rooms.iter().filter(|r| floor_of(r) == 0.0).map(|r| r.dimensions.y).collect();
+        assert_eq!(ground, [3.0], "a glass lid caps the room under it at 3 m");
     }
 
     /// A BODY THAT USES NO STOREYS IS WRITTEN AS BEFORE: no `floors` and no `base` in its file (so
