@@ -3648,9 +3648,11 @@ mod native_app {
                         state.controller.set_on_lift(riding);
                     } else {
                         state.controller.set_on_lift(false);
-                        if !state.elevator_state.is_empty() {
-                            state.elevator_state.clear(); // reset when leaving play (build mode / other cam)
-                        }
+                        // Out of first person (another camera, the build editor, off the ship):
+                        // nobody rides and every car stays where it is, so a rider who changes
+                        // camera at the top is still on the car when they come back (it used to
+                        // reset every car to the bottom: a 3 m fall on return).
+                        crate::engine::footing::pause_elevators(&mut state.elevator_state);
                     }
 
                     // Keep the player grounded on the floor of whatever room they are in

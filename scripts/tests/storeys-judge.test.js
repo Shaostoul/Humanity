@@ -345,7 +345,7 @@ test("the tree's own data reads, and the route the rig walks fits the homestead 
   assert.deepStrictEqual(P.bedroom, { id: "room-bedroom", name: "Bedroom" });
   assert.deepStrictEqual(E.stops, [0, 3], "elevator-1 stops at the ground and the upper floor");
   assert.strictEqual(P.jump_under.underside_m, 2.75, "the gallery's slab: top 3.0, 0.25 thick");
-  assert.deepStrictEqual(L.gate, { a: [32.7, 28], b: [33.3, 28] }, "the gate across ladder-1's top");
+  assert.deepStrictEqual(L.gate, { a: [32.6, 28], b: [33.4, 28] }, "the gate across ladder-1's top, the guards' whole 0.8 m gap");
   assert.strictEqual(P.head_m, 0.12);
   assert.strictEqual(R, 0.3);
   assert.strictEqual(EYE, 1.7);
@@ -465,8 +465,9 @@ test("a guard that lets the body over the stairwell's edge fails the guard leg",
 });
 
 test("THE GATE, NOT THE GUARDS' ENDS: a body held only by the guards beside the ladder fails the hatch leg", () => {
-  // The ends of G4 and G5 either side of the ladder's 0.6 m gap hold a body about 0.24 m off the
-  // gate's line on their own; a looser slack would have credited the gate with it.
+  // The ends of G4 and G5 either side of the ladder's gap, when it was 0.6 m (until 2026-10-21; it
+  // is 0.8 m now and they no longer touch a body in line with the ladder), held a body about 0.24
+  // m off the gate's line on their own; a looser slack would have credited the gate with it.
   const run = greenRun();
   legOf(run, "hatch_gate").segments = [seg("held", heldFrames(P.hatch_from, [P.hatch_from[0], P.hatch_from[1] - 3], L.gate.a, L.gate.b, 0.24, UP))];
   assert.deepStrictEqual(failed(run), ["hatch_gate.held"]);

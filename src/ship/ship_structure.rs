@@ -4106,9 +4106,11 @@ mod storey_fields_tests {
             // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165. Then ramp-1
             // became the train platform's 1:17 boarding ramp (2026-10-21; it was 069cc7d553362752
-            // and 6d0d37b140c4343b).
-            "3c5231aeb7eda208",
-            "747cdf9e8cf1d567",
+            // and 6d0d37b140c4343b). Then the ladder hatch's guards G4 and G5 moved apart to leave
+            // a 0.8 m gap over the ladder (the increment's review, 2026-10-21; it was
+            // 3c5231aeb7eda208 and 747cdf9e8cf1d567).
+            "eac0a8f5a294577e",
+            "6b799735fb73131b",
             "da22405ff5cb9a36",
             "ffb704a6e5cf699b",
         ];

@@ -129,8 +129,8 @@ pub fn neighbour_panel_placements(ship: &crate::ship::ship_structure::ShipStruct
 /// actors once per frame).
 ///
 /// Every actor is given by its FEET, and only one whose feet are on the door's storey counts (ship
-/// homes increment 7, `door_anim::feet_reach_door`: between the door's sill and its head, give or
-/// take a step), so a door upstairs does not open for a body walking under it, nor a ground door
+/// homes increment 7, `door_anim::feet_reach_door`: from a step under the door's sill up to a knee
+/// under its head), so a door upstairs does not open for a body walking under it, nor a ground door
 /// for one on the floor over it. The horizontal reach is the same as ever.
 pub fn door_actor_distance(p: &PanelPlacement, camera: Option<Vec3>, others: &[Vec3], animals: &[Vec3]) -> f32 {
     let (sill, head) = (p.center.y, p.center.y + p.size.y);

@@ -64,8 +64,8 @@ const LIMITS = {
   /// A body held by a wall or a gate stands its radius plus the blocker's half thickness off its
   /// line (each recorded frame is after the sweep's push-out), so it is never nearer than the
   /// radius less this. Tight on purpose: at the ladder hatch the ends of the guards either side of
-  /// the ladder's 0.6 m gap would hold a body about 0.24 m off the gate's line on their own, and a
-  /// looser slack would credit the gate with what the guards did.
+  /// the gap (0.6 m until 2026-10-21, 0.8 m since) held a body about 0.24 m off the gate's line on
+  /// their own, and a looser slack would credit the gate with what guards like those did.
   SIDE_SLACK_M: 0.02,
   /// A body walked into a blocker ends within this of its line: it reached it and was stopped there,
   /// not short of it.
@@ -152,7 +152,7 @@ const ROUTE = {
   lift_out: [31.0, 28.4],
   lift_call_from: [31.0, 29.2],
   /// The ladder: climbed from inside the hatch (north of the ladder, which stands on the hatch's
-  /// south edge), then walked off south over its top through the guards' 0.6 m gap onto the lobby
+  /// south edge), then walked off south over its top through the guards' 0.8 m gap onto the lobby
   /// floor, and west out of the ladder's reach (1.2 m from it: within it a body off the floor holds
   /// on, 0.2 m up), into the lobby's middle. Straight south out of reach would end within half a
   /// metre of the lobby's south wall, where the HUD names no room (the final green attempt of
@@ -351,6 +351,9 @@ function inReach(fp, x, z, margin) {
 }
 /// The elevator's call reach past its shaft's edge, metres (engine/footing.rs CALL_REACH_M).
 const CALL_REACH_M = 1.0;
+/// How much wider than its ladder a hatch's gate is each side, metres (engine/footing.rs
+/// HATCH_SIDE_CLEAR_M): the gap the guards leave over the 0.6 m ladder is 0.8 m.
+const HATCH_SIDE_CLEAR_M = 0.1;
 const slabContains = (s, x, z) => x >= Math.min(s.a[0], s.b[0]) && x <= Math.max(s.a[0], s.b[0]) && z >= Math.min(s.a[1], s.b[1]) && z <= Math.max(s.a[1], s.b[1]);
 const zoneContains = (zn, x, y, z) =>
   x >= zn.origin[0] && x <= zn.origin[0] + zn.size[0] && z >= zn.origin[2] && z <= zn.origin[2] + zn.size[2] && y >= zn.origin[1] - 1e-6 && y < zn.origin[1] + zn.size[1];
@@ -530,12 +533,13 @@ function buildPlan(tree) {
     hudPoint("the elevator's way out", ROUTE.lift_out, upper);
   }
 
-  // The ladder and the gate across its top.
+  // The ladder and the gate across its top: the ladder's width and HATCH_SIDE_CLEAR_M each side,
+  // the whole gap the guards leave (engine/footing.rs `ladder_gates`).
   const ld = piece(ROUTE.ladder, "Ladder");
   let ladder = null;
   if (ld) {
-    const gateA = toWorld(ld.pos, ld.yaw, -ld.w / 2, 0);
-    const gateB = toWorld(ld.pos, ld.yaw, ld.w / 2, 0);
+    const gateA = toWorld(ld.pos, ld.yaw, -ld.w / 2 - HATCH_SIDE_CLEAR_M, 0);
+    const gateB = toWorld(ld.pos, ld.yaw, ld.w / 2 + HATCH_SIDE_CLEAR_M, 0);
     ladder = { ...ld, top_m: ld.pos[1] + ld.h, gate: { a: gateA, b: gateB }, hang_eye_m: ld.pos[1] + ld.h + eye + 0.2 };
     if (Math.abs(ladder.top_m - upper) > 1e-6) problems.push(`"${ld.id}"'s top (${ladder.top_m}) is not the upper floor (${upper})`);
     if (slabAt(ROUTE.ladder_from[0], ROUTE.ladder_from[1])) problems.push(`a slab stands over the ladder's climbing point ${fmtPt(ROUTE.ladder_from)}: it is not in the hatch`);

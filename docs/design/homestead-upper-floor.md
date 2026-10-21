@@ -161,8 +161,8 @@ the court is a roof), and U2, U3 and U10 to U13 are new.
 | G1 | (36.5, 39.3) | (40.5, 39.3) | oak balustrade (10) | the stairwell's long edge, along the gallery: up to 2.6 m down to the treads |
 | G2 | (40.5, 38.0) | (40.5, 39.3) | oak balustrade (10) | the stairwell's east end, over the flight's foot |
 | G3 | (32.5, 26.9) | (32.5, 28.1) | steel balustrade (9) | the ladder hatch's west side, 3.0 m down to the service way |
-| G4 | (32.5, 28.1) | (32.7, 28.1) | steel balustrade (9) | the hatch's south side, west of the ladder |
-| G5 | (33.3, 28.1) | (34.0, 28.1) | steel balustrade (9) | the hatch's south side, east of the ladder |
+| G4 | (32.5, 28.1) | (32.6, 28.1) | steel balustrade (9) | the hatch's south side, west of the ladder |
+| G5 | (33.4, 28.1) | (34.0, 28.1) | steel balustrade (9) | the hatch's south side, east of the ladder |
 
 **Which piece draws a guard: a balustrade wall** (lane G, merged 2026-10-20). A guard
 is an interior wall with `base: 3.0` and `height: 1.0` whose material is a
@@ -322,9 +322,10 @@ reaches the upper floor. Why it leaves the plant room: under the lid rule the pl
 room is 3 m with a ceiling at 2.75, so a 3 m ladder there would run into its
 ceiling; given a hatch, it would put a person onto the roof, which then needs a
 guard at every edge that drops (section 6). The hatch is guarded on its west side
-(G3) and on its south side except the ladder's own 0.6 m (G4, G5); its north and
-east sides are the lobby's walls. The ladder's 0.6 m gap is the one walkable 3 m
-drop left aboard. A real ladderway closes it with a self-closing gate, and the game
+(G3) and on its south side except a 0.8 m gap over the 0.6 m ladder (G4, G5; it was
+the ladder's own 0.6 m, which a body cannot pass, section 12); its north and east
+sides are the lobby's walls. The ladder's gap is the one walkable 3 m drop left
+aboard. A real ladderway closes it with a self-closing gate, and the game
 has no gate piece (section 9, request 4). The builder must check which way the
 climb's step-off goes (camera.rs); the placement assumes "forward, over the top".
 
@@ -585,3 +586,18 @@ The data follows this draft, with these differences, each decided or found while
   the 1.2 m ramp with 1.55 m to the bay's lid is gone.
 - **The checks of section 10 are tests now**: src/ship/homestead_layout_tests.rs, run with
   `node scripts/lib-tests.js homestead_layout_tests`.
+- **The ladder's gap is 0.8 m, not its own 0.6 m** (the increment's review, 2026-10-21). A body
+  is 0.6 m across and each balustrade end reaches 0.03 m into the gap, so a climber needs 0.66
+  m to pass between G4 and G5; the 0.6 m gap let one through only while the wall sweep failed
+  to settle at large frame steps, and held them (hanging at the ladder's top, or on the lobby
+  side going down) at 90 frames a second or more, or at 60 when walking slowly. G4 now ends at
+  x 32.6 and G5 starts at 33.4, and the gate across the ladder's top spans the whole gap
+  (engine/footing.rs `HATCH_SIDE_CLEAR_M`, `ladder_gates`). Tested at 30, 60 and 144 frames a
+  second, at 3 and 5 m/s (`the_homesteads_ladder_hatch_lets_a_climber_off_and_on_at_any_frame_rate_and_pace`).
+- **A slab's edge stops a head risen beside it** (the same review). The ceiling a jump stops
+  under counts a slab only while the eye is under it, so a body whose head had risen beside an
+  opening (a jump on the stair's lower steps, a climb part way up the ladder) could move under
+  the slab with its head through the floor overhead. Every edge of a slab that borders an
+  opening now stops a body whose head is over the slab's underside while its feet are more than
+  a step under its top (engine/footing.rs `slab_edges`); within a step it steps up onto the slab
+  as before (the stair's top, the ladder's).
