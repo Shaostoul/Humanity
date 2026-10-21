@@ -38,9 +38,9 @@ use glam::Vec3;
 
 use super::light::{gpu_packed, gpu_packed_with_slabs};
 use super::room_probes::{
-    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, slabs_touched, AtlasLayout, GiHeaderGpu,
-    GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M, ROOM_BYTES,
-    SKY_LIGHTING_EXPOSURE,
+    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, run_plane, slabs_touched,
+    AtlasLayout, GiHeaderGpu, GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M,
+    ROOM_BYTES, SKY_LIGHTING_EXPOSURE,
 };
 use super::bounced_light_detail::{mb_words, probe_memory_bytes};
 use super::room_probes::{ProbeBudget, PROBE_SPACING_M};
@@ -648,21 +648,23 @@ impl Renderer {
         // copies, so any order serves them.
         let sun_list = if render_slabs.is_empty() { Vec::new() } else { layered_rows(&render_slabs, eye) };
         table.extend(sun_list.iter().copied());
-        let mut runs: Vec<[u32; 2]> = Vec::new();
+        // Per scene light: (first row, rows, the one layer's plane).
+        let mut runs: Vec<(u32, u32, f32)> = Vec::new();
         if !render_slabs.is_empty() {
             let mut first = 0usize;
             let mut capped = 0usize;
             for l in &self.cur_lights {
                 let touched: Vec<OccluderSlab> = slabs_touched(l, &render_slabs).iter().map(|&k| render_slabs[k]).collect();
-                // Layered like the sun's list, nearest the light first: a lamp
-                // on the fragment's own storey costs one row per layer.
+                // Layered like the sun's list, nearest the light first, and the
+                // one layer's plane in the light's record (`run_plane`): a lamp
+                // on the fragment's own storey then reads no row at all.
                 let rows = if touched.is_empty() { Vec::new() } else { layered_rows(&touched, light_anchor(l)) };
                 if first + rows.len() > MAX_SLAB_RUN_ROWS {
                     capped += 1;
-                    runs.push([0, 0]);
+                    runs.push((0, 0, 0.0));
                     continue;
                 }
-                runs.push([first as u32, rows.len() as u32]);
+                runs.push((first as u32, rows.len() as u32, run_plane(&rows)));
                 first += rows.len();
                 table.extend(rows);
             }
@@ -696,7 +698,7 @@ impl Renderer {
         // when any light names one, or when one did last frame (so no stale run
         // survives). A home with no slabs never rewrites it.
         let rewrite_lights = !runs.is_empty() || gi.slab_runs_live;
-        gi.slab_runs_live = runs.iter().any(|r| r[1] > 0);
+        gi.slab_runs_live = runs.iter().any(|r| r.1 > 0);
         let header = GiHeaderGpu {
             gmin: [gmin.x, gmin.y, gmin.z, if on { 1.0 } else { 0.0 }],
             gmax: [gmax.x, gmax.y, gmax.z, 0.0],
@@ -715,8 +717,8 @@ impl Renderer {
                 .iter()
                 .enumerate()
                 .map(|(i, l)| {
-                    let [first, count] = runs.get(i).copied().unwrap_or([0, 0]);
-                    gpu_packed_with_slabs(l, first, count)
+                    let (first, count, plane) = runs.get(i).copied().unwrap_or((0, 0, 0.0));
+                    gpu_packed_with_slabs(l, first, count, plane)
                 })
                 .collect();
             self.queue.write_buffer(&self.lights_buffer, 0, bytemuck::cast_slice(&packed));
@@ -857,6 +859,25 @@ mod tests {
             assert!(UPDATE_SHADER.contains(&irr), "85-room-gi.wgsl must declare {irr}");
             assert!(UPDATE_SHADER.contains(&depth), "85-room-gi.wgsl must declare {depth}");
         }
+    }
+
+    /// The floors' constants are the same number in the WGSL and the Rust twin
+    /// (85-room-gi.wgsl is the head of this shader, so UPDATE_SHADER holds
+    /// them): the edge tolerance, the sun's reach, and the many-layers
+    /// sentinel the light record carries. Seen red first (2026-10-21) with
+    /// SLAB_EDGE_TOL set to 0.02 in the WGSL: "left: 0.02, right: 0.01".
+    #[test]
+    fn the_floor_constants_match_the_cpu_twin() {
+        use super::super::room_probes::{RUN_MANY_LAYERS, SLAB_EDGE_TOL_M, SLAB_SUN_REACH_M};
+        let value = |name: &str| -> f32 {
+            let decl = format!("const {name}: f32 = ");
+            let at = UPDATE_SHADER.find(&decl).unwrap_or_else(|| panic!("85-room-gi.wgsl declares {decl}"));
+            let rest = &UPDATE_SHADER[at + decl.len()..];
+            rest[..rest.find(';').expect("the declaration ends")].trim().parse().expect("a number")
+        };
+        assert_eq!(value("SLAB_EDGE_TOL"), SLAB_EDGE_TOL_M);
+        assert_eq!(value("SLAB_SUN_REACH"), SLAB_SUN_REACH_M);
+        assert_eq!(value("SLAB_RUN_MANY_LAYERS"), RUN_MANY_LAYERS);
     }
 
     /// The scratch holds one update's worth of tiles, and fits the texture limit.

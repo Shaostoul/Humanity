@@ -274,11 +274,12 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
 // slab's rectangle shrunk by SLAB_EDGE_TOL (so a fragment on the slab's own
 // edge face is not shadowed by its own slab).
 //
-// CPU TWIN: room_probes::segment_walk (the lamp's walk) and
-// room_probes::sun_walk (the sun's), both over layered_rows' packing, whose
-// answers equal the per-slab references (OccluderSlab::blocks_segment, which
-// light_irradiance uses, and sun_blocked_by_slabs). LOCKSTEP with
-// SLAB_EDGE_TOL_M and SLAB_SUN_REACH_M there.
+// CPU TWIN: room_probes::run_blocks (the lamp's test: the one-layer
+// shortcut, then segment_walk) and room_probes::sun_walk (the sun's), both
+// over layered_rows' packing, whose answers equal the per-slab references
+// (OccluderSlab::blocks_segment, which light_irradiance uses, and
+// sun_blocked_by_slabs). LOCKSTEP with SLAB_EDGE_TOL_M, SLAB_SUN_REACH_M and
+// RUN_MANY_LAYERS there (room_probes_gpu::tests checks the three).
 //
 // Read only through the two guarded call sites (frag_tail's light loop and
 // sun_shadow_offset), both behind HAS_SLAB_OCCLUSION. The probe update shader
@@ -295,15 +296,26 @@ fn slab_rect_holds(r: u32, c: vec3<f32>) -> bool {
         && c.z > bmin.z + SLAB_EDGE_TOL && c.z < bmax.z - SLAB_EDGE_TOL;
 }
 
-// The light loop's test: does any slab of the light's run (`count` rows from
-// `first`) stand between p and the light at q? The run is LAYERED like the
+// The light loop's test: does any slab of the light's run stand between p and
+// the light at q? `run` is the light's cone_inner: y = the run's first row,
+// z = how many rows, w = the mid-plane height of the run's one layer, or
+// SLAB_RUN_MANY_LAYERS when it has several (light::gpu_packed_with_slabs,
+// room_probes::run_plane). A lamp on the fragment's own side of a one-layer
+// run's plane (a lamp on its own storey, the usual case) is settled by that
+// height without reading a row (measured 2026-10-21 on the shipped
+// homestead: reading the layer row for every in-range lamp cost the upstairs
+// bedroom gpu.scene +0.59 ms). Otherwise the run is walked, LAYERED like the
 // sun's list (room_probes::layered_rows): a layer row (the union box of its
 // slabs, counts.x = how many slab rows follow), then its slabs, nearest the
-// light first. A light on the fragment's own side of a layer's plane (the
-// usual case: a lamp on its own storey) is settled by that one row. CPU
-// twin: room_probes::segment_walk.
-fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, first: u32, count: u32) -> bool {
-    let base = room_gi.header.info.x + room_gi.header.atlas.w + first;
+// light first. CPU twin: room_probes::run_blocks.
+const SLAB_RUN_MANY_LAYERS: f32 = -3.0e38;
+fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, run: vec4<f32>) -> bool {
+    let plane = run.w;
+    if (plane > -1.0e38 && (p.y - plane) * (q.y - plane) >= 0.0) {
+        return false;
+    }
+    let count = u32(run.z);
+    let base = room_gi.header.info.x + room_gi.header.atlas.w + u32(run.y);
     var k = 0u;
     loop {
         if (k >= count) {

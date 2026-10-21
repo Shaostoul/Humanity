@@ -88,8 +88,9 @@ struct MaterialUniforms {
 // One scene light in the UNCAPPED storage-buffer list (v0.782). Packing
 // matches light::gpu_packed_with_slabs: pos_intensity = [pos.xyz, intensity],
 // color_range = [rgb, range], spot = [aim.xyz, cos_outer (-1 = no cone)],
-// cone_inner = [cos_inner, first slab row, slab row count, 0] (the light's run
-// of floor slabs, ship homes increment 7; 0 rows for a light no floor is near).
+// cone_inner = [cos_inner, first slab row, slab row count, its one layer's
+// plane height] (the light's run of floor slabs, ship homes increment 7; 0
+// rows for a light no floor is near; slab_blocks_light in 85-room-gi.wgsl).
 // The light0..7 fields above are legacy (unused, kept so no uniform byte
 // offset shifts); camera.light_count.x bounds the loop over this buffer.
 struct GpuLight {

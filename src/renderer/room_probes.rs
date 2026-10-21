@@ -635,8 +635,9 @@ pub fn sun_path(room: &RoomBox, h: Vec3, n: Vec3, sun_dir: Vec3) -> f32 {
 // (0, 0) and the fragment skips the test with one compare.
 //
 // CPU TWIN: this section and 85-room-gi.wgsl. Both walks go over
-// `layered_rows`' packing: the lamp's `segment_walk` is `slab_blocks_light`
-// and the sun's `sun_walk` is `slab_sun_blocked`, and their answers equal the
+// `layered_rows`' packing: the lamp's `run_blocks` (the one-layer shortcut,
+// then `segment_walk`) is `slab_blocks_light` and the sun's `sun_walk` is
+// `slab_sun_blocked`, and their answers equal the
 // per-slab references (`OccluderSlab::blocks_segment`, which
 // `light_irradiance` uses, and `sun_blocked_by_slabs`). LOCKSTEP: change one,
 // change both.
@@ -807,8 +808,38 @@ pub fn layered_rows(slabs: &[OccluderSlab], near: Vec3) -> Vec<GiRoomGpu> {
     rows
 }
 
-/// The CPU transcription of `slab_blocks_light` in 85-room-gi.wgsl, walking a
-/// light's run (`layered_rows` of its `slabs_touched`, nearest the light first)
+/// A run's `cone_inner.w` when it has more than one layer: below every real
+/// height, so the shader's one-layer shortcut (`plane > -1e38`) is off and it
+/// walks the rows. WGSL `SLAB_RUN_MANY_LAYERS`.
+pub const RUN_MANY_LAYERS: f32 = -3.0e38;
+
+/// The mid-plane height of a run's one layer (`layered_rows` packing), or
+/// `RUN_MANY_LAYERS` when it has several (or none). A two-storey home has one
+/// floor layer, so every run there has one, and the light record carries it
+/// (`light::gpu_packed_with_slabs`): a lamp on the fragment's own side of it
+/// is settled without reading a row (measured 2026-10-21 on the shipped
+/// homestead: the upstairs bedroom read gpu.scene +0.59 ms with the floors on,
+/// every in-range lamp reading its layer row on every fragment).
+pub fn run_plane(rows: &[GiRoomGpu]) -> f32 {
+    match rows.first() {
+        Some(l) if l.counts[0] as usize + 1 == rows.len() => (l.bmin[1] + l.bmax[1]) * 0.5,
+        _ => RUN_MANY_LAYERS,
+    }
+}
+
+/// The CPU transcription of `slab_blocks_light` in 85-room-gi.wgsl: the
+/// one-layer shortcut on the light record's `plane` (`run_plane`), then the
+/// walk over the run (`segment_walk`). Whether a slab stands between `p` and
+/// the lamp at `q`, and how many rows were read.
+pub fn run_blocks(rows: &[GiRoomGpu], plane: f32, p: Vec3, q: Vec3) -> (bool, u32) {
+    if plane > -1.0e38 && (p.y - plane) * (q.y - plane) >= 0.0 {
+        return (false, 0);
+    }
+    segment_walk(rows, p, q)
+}
+
+/// The walk half of `slab_blocks_light` in 85-room-gi.wgsl, over a light's
+/// run (`layered_rows` of its `slabs_touched`, nearest the light first)
 /// exactly as the GPU does: whether a slab stands between `p` and the lamp at
 /// `q`, and how many rows the walk read (the cost).
 pub fn segment_walk(rows: &[GiRoomGpu], p: Vec3, q: Vec3) -> (bool, u32) {
@@ -1958,8 +1989,9 @@ mod tests {
             let packed = super::super::light::gpu_packed(&l);
             assert_eq!(&packed[12..], &[l.cos_inner, 0.0, 0.0, 0.0], "a light with no run packs as before");
         }
-        let run = super::super::light::gpu_packed_with_slabs(&lamp, 5, 7);
+        let run = super::super::light::gpu_packed_with_slabs(&lamp, 5, 7, 2.875);
         assert_eq!((run[13] as u32, run[14] as u32), (5, 7), "the run rides in cone_inner.yz");
+        assert_eq!(run[15], 2.875, "and its one layer's plane in cone_inner.w");
         assert_eq!(run[12], lamp.cos_inner);
     }
 
@@ -2119,8 +2151,9 @@ mod tests {
     /// console room's panel downstairs, a lamp upstairs over the stairwell, the
     /// lift lobby's panel by the shaft and the hatch, the workshop's 15 m
     /// panel, the upper hall's strip), the light's run (`slabs_touched`, packed
-    /// by `layered_rows`) walked as the GPU walks it (`segment_walk`, the WGSL's
-    /// `slab_blocks_light` transcribed) must give the per-slab answer over EVERY
+    /// by `layered_rows`) taken as the GPU takes it (`run_blocks`: the record's
+    /// one-layer plane, then the walk; the WGSL's `slab_blocks_light`
+    /// transcribed) must give the per-slab answer over EVERY
     /// slab, at every point of a grid through both storeys within the lamp's
     /// range. That also proves the run never leaves out a slab that matters: a
     /// path to a point in range crosses only slabs within range of the lamp.
@@ -2129,6 +2162,9 @@ mod tests {
     /// each of its slabs. Seen red first (2026-10-21) with a layer row counting
     /// one slab fewer than follow it (`members.len() - 1`): "the walk and every
     /// slab differ at [32.5, 2.8, 37.5] for the lamp at [38.5, 5.6, 38.6]: false
+    /// against true"; and, once the one-layer shortcut joined it, with the
+    /// shortcut's side test inverted (`<= 0.0`): "the walk and every slab
+    /// differ at [38.75, 2.9, 42.5] for the lamp at [45, 2.7, 45]: false
     /// against true".
     #[test]
     fn the_layered_lamp_walk_answers_as_every_slab_would() {
@@ -2145,6 +2181,7 @@ mod tests {
         for l in lamps {
             let touched: Vec<OccluderSlab> = slabs_touched(&l, &slabs).iter().map(|&i| slabs[i]).collect();
             let run = layered_rows(&touched, light_anchor(&l));
+            let plane = run_plane(&run);
             for xi in 0..=44 {
                 for zi in 0..=71 {
                     for y in [0.2f32, 1.5, 2.8, 2.9, 3.0, 4.5, 6.2] {
@@ -2153,7 +2190,7 @@ mod tests {
                         if (q - p).length() >= l.range {
                             continue;
                         }
-                        let walk = segment_walk(&run, p, q).0;
+                        let walk = run_blocks(&run, plane, p, q).0;
                         let every = slabs.iter().any(|s| s.blocks_segment(p, q));
                         assert_eq!(walk, every, "the walk and every slab differ at {p} for the lamp at {}: {walk} against {every}", l.pos);
                         checked += 1;
@@ -2171,5 +2208,13 @@ mod tests {
         let (blocked, read) = segment_walk(&run, Vec3::new(44.0, 0.5, 46.0), panel.pos);
         assert!(!blocked);
         assert_eq!(read, 1, "one layer, one row, for {} slabs", touched.len());
+        // And with the light record's plane (a one-layer run), no row at all;
+        // a run reaching both layers (the workshop's 15 m panel reaches the 6 m
+        // test floor) carries no plane and walks.
+        assert!((run_plane(&run) - 2.875).abs() < 1e-6, "the floor's mid-plane");
+        assert_eq!(run_blocks(&run, run_plane(&run), Vec3::new(44.0, 0.5, 46.0), panel.pos), (false, 0));
+        let workshop = lamps[3];
+        let wt: Vec<OccluderSlab> = slabs_touched(&workshop, &slabs).iter().map(|&i| slabs[i]).collect();
+        assert_eq!(run_plane(&layered_rows(&wt, workshop.pos)), RUN_MANY_LAYERS, "two layers: no shortcut");
     }
 }
