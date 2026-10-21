@@ -691,10 +691,11 @@ pub(crate) struct EngineState {
     /// teleport pad; counts down each frame so standing on the destination pad doesn't ping-pong.
     pub(crate) teleport_cooldown: f32,
     /// ELEVATOR runtime state (v0.590), keyed by (ship-zone index, placed-structure index)
-    /// (v0.754 -- every zone's elevators run): (anim 0..1 between base + top, target 0/1,
-    /// was_riding). Pure runtime -- not saved with the home; resynced each frame during play.
-    /// An idle elevator stays put (anim == target); stepping on toggles the target (ride to
-    /// the other end); waiting in the shaft at floor level recalls the car.
+    /// (v0.754 -- every zone's elevators run): (the car's height over the shaft's base in
+    /// metres, the target stop's height in metres, someone riding). Pure runtime -- not saved
+    /// with the home; resynced each frame during play. Since ship homes increment 7 the stops
+    /// are the storey floors the shaft spans (`footing::lifts`): anyone at any landing calls the
+    /// car, and while riding Space goes up a stop and Shift down (`footing::elevator_tick`).
     pub(crate) elevator_state: std::collections::HashMap<(usize, usize), (f32, f32, bool)>,
     /// Cached unit-box mesh + material for the moving elevator CAR slab (v0.590), scaled + posed
     /// per elevator per frame so the moving floor never leaks a mesh.

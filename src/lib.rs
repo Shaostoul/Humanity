@@ -774,8 +774,10 @@ mod native_app {
     /// Returns true if one was grabbed. (v0.546)
     fn try_grab_opening(state: &mut EngineState) -> bool {
         let zo = active_zone_origin(state);
+        // The openings of the storey being edited (ship homes increment 7, engine/editor_storeys.rs).
+        let chosen = state.gui_state.construction_storeys.chosen;
         let gizmos = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-            Some(hs) => opening_gizmos(hs, zo),
+            Some(hs) => opening_gizmos_on_storey(hs, zo, EditStorey::of(hs, chosen).index),
             None => return false,
         };
         if gizmos.is_empty() {
@@ -809,8 +811,10 @@ mod native_app {
     /// true (so the click doesn't also grab the move-cube or a wall).
     fn try_grab_opening_resize(state: &mut EngineState) -> bool {
         let zo = active_zone_origin(state);
+        // The openings of the storey being edited (ship homes increment 7).
+        let chosen = state.gui_state.construction_storeys.chosen;
         let handles = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-            Some(hs) => opening_resize_handles(hs, zo),
+            Some(hs) => opening_resize_handles_on_storey(hs, zo, EditStorey::of(hs, chosen).index),
             None => return false,
         };
         if handles.is_empty() {
@@ -832,6 +836,7 @@ mod native_app {
         if let Some((id, _)) = best {
             state.construction_opening_resize = Some(id);
             state.gui_state.construction_wall_selected = Some(id.0); // show the wall on the panel
+            state.gui_state.construction_storeys.slab_selected = None; // ... in place of a floor slab's
             true
         } else {
             false
@@ -846,7 +851,9 @@ mod native_app {
             return;
         };
         // Copy the wall axis to locals so the cursor calls below don't conflict with the home borrow.
-        let (ax, az, ux, uz, len, wall_h) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).and_then(|hs| hs.walls.get(wi)) {
+        // `wall_base`: where the wall stands (ship homes increment 7); an opening's sill and height
+        // are measured from it, so a window upstairs is dragged against its own wall.
+        let (ax, az, ux, uz, len, wall_h, wall_base) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).and_then(|hs| hs.walls.get(wi)) {
             Some(wall) => {
                 let (ax, az) = wall.a;
                 let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
@@ -854,14 +861,15 @@ mod native_app {
                 if len < 1e-4 {
                     return;
                 }
-                (ax, az, dx / len, dz / len, len, wall.height)
+                (ax, az, dx / len, dz / len, len, wall.height, wall.base)
             }
             None => return,
         };
         let zo = active_zone_origin(state); // wall data is zone-local; the cursor/ray are world (v0.754)
         let grid = state.gui_state.construction_grid_snap;
         let val = if edge <= 1 {
-            let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+            // On the plan of the storey being edited (ship homes increment 7).
+            let Some(StoreyFloorHit { x: hx, z: hz, .. }) = cursor_storey_hit(state) else {
                 return;
             };
             let (hx, hz) = (hx - zo.x, hz - zo.z);
@@ -883,7 +891,8 @@ mod native_app {
             if t < 0.0 {
                 return;
             }
-            let mut y = ((origin + ddir * t).y - zo.y).clamp(0.0, wall_h);
+            // A sill is measured from the wall's base (ship homes increment 7).
+            let mut y = ((origin + ddir * t).y - zo.y - wall_base).clamp(0.0, wall_h);
             if grid {
                 y = (y * 4.0).round() / 4.0;
             }
@@ -3109,6 +3118,9 @@ mod native_app {
                                 // Clicked a PIPE/WIRE (v0.626): select that connection -> its detail +
                                 // a Remove button show on the right panel. After machines (so a machine
                                 // under the cursor wins) but before walls (pipes are in the foreground).
+                            } else if state.gui_state.ship_structure.is_some() && try_pick_slab(state) {
+                                // Clicked a FLOOR SLAB's outline (ship homes increment 7): select it;
+                                // its detail shows on the right and its corner handles appear.
                             } else if !lock_wall && state.gui_state.ship_structure.is_some() && try_pick_wall(state) {
                                 // Clicked a WALL SURFACE (v0.573): select that wall for editing --
                                 // unambiguous vs hunting for the right corner orb at an intersection.
@@ -3124,12 +3136,10 @@ mod native_app {
                             // instead of moving it (v0.549). Click to inspect, click-and-hold to move.
                             if state.construction_grab_press.is_some() {
                                 if let Some(c) = state.construction_node_grab {
-                                    let sel = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).and_then(|hs| {
-                                        hs.walls.iter().position(|w| {
-                                            ((w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05)
-                                                || ((w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05)
-                                        })
-                                    });
+                                    // A wall of the storey being edited (ship homes increment 7).
+                                    let chosen = state.gui_state.construction_storeys.chosen;
+                                    let sel = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+                                        .and_then(|hs| storey_wall_at_corner(hs, EditStorey::of(hs, chosen).index, c));
                                     if let Some(i) = sel {
                                         state.gui_state.construction_wall_selected = Some(i);
                                         state.gui_state.construction_machine_selected = None;
@@ -3614,67 +3624,32 @@ mod native_app {
                     state.controller.fly_speed_mult =
                         state.gui_state.dev_fly_speed_mult.clamp(1.0, 1.0e9);
 
-                    // ELEVATOR tick (v0.590): animate each elevator car toward its target end, and
-                    // CALL it -- stepping onto the car toggles its destination (ride to the other end),
-                    // and waiting in the shaft at floor level recalls the car down to you. Runtime state
-                    // lives in `elevator_state` keyed by (zone index, structure index) (not saved).
-                    // First person, not build. Every ZONE's elevators run, at world positions (v0.754).
-                    // The footing sampler below reads the updated car height so the rider rides.
-                    const ELEVATOR_TRAVEL: f32 = crate::engine::footing::ELEVATOR_TRAVEL_M; // one storey
-                    const ELEVATOR_RATE: f32 = 0.5; // anim units / s (0..1 over the full travel ~2 s)
+                    // ELEVATOR tick (v0.590; ship homes increment 7, engine/footing.rs
+                    // `elevator_tick`): each car runs toward the stop it is heading for; its stops
+                    // are the storey floors its shaft spans. A rider sends it up a stop with Space
+                    // and down one with Shift (and Space does not jump while riding), and a body at
+                    // any landing calls it there. Runtime state lives in `elevator_state` keyed by
+                    // (zone index, structure index) (not saved). First person, not build. Every
+                    // ZONE's elevators run, at world positions (v0.754). The footing sampler below
+                    // reads the updated car height so the rider rides.
+                    let lift_press = state.controller.take_lift_press();
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
                         // v0.881: home elevators only exist where the home is.
                         && state.aboard_station
                     {
                         let p = state.camera.position;
-                        let feet = p.y - state.controller.eye_height();
-                        // Collect the elevator keys + WORLD poses first (immutable borrow), then update
-                        // the runtime map (mutable) -- avoids overlapping borrows of state.
-                        let elevators: Vec<((usize, usize), (f32, f32, f32), f32, bool)> = state
-                            .gui_state
-                            .ship_structure
-                            .as_ref()
-                            .map(|ship| {
-                                ship.zones
-                                    .iter()
-                                    .enumerate()
-                                    .flat_map(|(zi, zone)| {
-                                        let o = zone.origin;
-                                        zone.body.structures.iter().enumerate().filter_map(move |(i, ps)| {
-                                            let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                            if ty.kind != crate::ship::structure::StructureKind::Elevator {
-                                                return None;
-                                            }
-                                            let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
-                                            let inside = crate::ship::structure::in_footprint(
-                                                ty, wpos, ps.rot_deg.to_radians(), p.x, p.z,
-                                            );
-                                            Some(((zi, i), wpos, ty.size.1, inside))
-                                        })
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let live: std::collections::HashSet<(usize, usize)> = elevators.iter().map(|e| e.0).collect();
-                        state.elevator_state.retain(|k, _| live.contains(k));
-                        for (i, pos, _h, inside) in elevators {
-                            let e = state.elevator_state.entry(i).or_insert((0.0, 0.0, false));
-                            let (anim, target, was_riding) = *e;
-                            let car_floor = pos.1 + anim * ELEVATOR_TRAVEL;
-                            let riding = inside && (feet - car_floor).abs() < 0.45;
-                            let mut new_target = target;
-                            if riding && !was_riding {
-                                new_target = if target < 0.5 { 1.0 } else { 0.0 }; // toggle on board
-                            } else if inside && (feet - pos.1).abs() < 0.45 && anim > 0.15 {
-                                new_target = 0.0; // a waiter at the base recalls the car down
-                            }
-                            let step = ELEVATOR_RATE * dt;
-                            let new_anim = anim + (new_target - anim).clamp(-step, step);
-                            *e = (new_anim, new_target, riding);
+                        let feet = Vec3::new(p.x, p.y - state.controller.eye_height(), p.z);
+                        let riding = match state.gui_state.ship_structure.as_ref() {
+                            Some(ship) => crate::engine::footing::elevator_tick(ship, &mut state.elevator_state, feet, lift_press, dt),
+                            None => false,
+                        };
+                        state.controller.set_on_lift(riding);
+                    } else {
+                        state.controller.set_on_lift(false);
+                        if !state.elevator_state.is_empty() {
+                            state.elevator_state.clear(); // reset when leaving play (build mode / other cam)
                         }
-                    } else if !state.elevator_state.is_empty() {
-                        state.elevator_state.clear(); // reset when leaving play (build mode / other cam)
                     }
 
                     // Keep the player grounded on the floor of whatever room they are in
@@ -3686,17 +3661,37 @@ mod native_app {
                     // substeps (BUG-207, `update_camera_with_floor` below).
                     // v0.881: only ABOARD - on a planet the surface branch owns
                     // footing, and in free space there is no home floor below.
+                    // Ship homes increment 7: found by height (slabs, built pieces), the ceiling
+                    // a jump stops under with it, and measured from the feet when something else
+                    // put the body somewhere since the walk left it (a placement).
+                    let built_aboard = if state.aboard_station {
+                        crate::engine::build_place::built_piece_boxes(
+                            &state.game_world.world,
+                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+                            None,
+                        )
+                    } else {
+                        Vec::new()
+                    };
                     if state.aboard_station {
                         let p = state.camera.position;
-                        if let Some(floor) = crate::engine::footing::floor_under(
-                            &state.gui_state.room_bounds,
-                            state.gui_state.ship_structure.as_ref(),
-                            &state.elevator_state,
-                            p,
-                            state.controller.step_up_from(p.y),
-                        ) {
+                        let footing = crate::engine::footing::Footing {
+                            rooms: &state.gui_state.room_bounds,
+                            ship: state.gui_state.ship_structure.as_ref(),
+                            cars: &state.elevator_state,
+                            built: &built_aboard,
+                        };
+                        let step_from = if state.controller.placed_since_walk(p.y) {
+                            p.y - state.controller.eye_height()
+                        } else {
+                            state.controller.step_up_from(p.y)
+                        };
+                        if let Some(floor) = footing.floor_under(p, step_from) {
                             state.controller.set_ground_floor(floor);
                         }
+                        state.controller.set_ceiling(footing.ceiling_over(p));
+                    } else {
+                        state.controller.set_ceiling(None);
                     }
 
                     // Teleporter pads (v0.584): stepping onto a teleporter that has a linked pair jumps
@@ -3711,28 +3706,10 @@ mod native_app {
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
                     {
+                        // v0.754: EVERY zone's ladders, at world positions; since ship homes
+                        // increment 7 the one whose span holds the feet (engine/footing.rs).
                         let p = state.camera.position;
-                        // v0.754: EVERY zone's ladders, at world positions.
-                        let zone = state.gui_state.ship_structure.as_ref().and_then(|ship| {
-                            for z in &ship.zones {
-                                let o = z.origin;
-                                for ps in &z.body.structures {
-                                    let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                    if ty.kind != crate::ship::structure::StructureKind::Ladder {
-                                        continue;
-                                    }
-                                    let (dx, dz) = (p.x - (ps.pos.0 + o.0), p.z - (ps.pos.2 + o.2));
-                                    // Generous reach (v0.589 review fix): a ladder mounted flush against a
-                                    // wall gets the player pushed ~radius+half_thickness off the wall by the
-                                    // XZ collider; a wider zone keeps them ON the ladder instead of dropping.
-                                    let reach = ty.size.0.max(ty.size.2) * 0.5 + 0.9;
-                                    if dx * dx + dz * dz <= reach * reach {
-                                        return Some((ps.pos.1 + o.1, ps.pos.1 + o.1 + ty.size.1));
-                                    }
-                                }
-                            }
-                            None
-                        });
+                        let zone = state.gui_state.ship_structure.as_ref().and_then(|ship| crate::engine::footing::ladder_at(ship, p));
                         state.controller.set_climb_zone(zone);
                     } else {
                         state.controller.set_climb_zone(None);
@@ -3747,18 +3724,24 @@ mod native_app {
                     // controller used to freeze all below-FTL-cap movement.
                     state.controller.surface_translation_owned = state.surface_owns_translation;
                     if state.aboard_station {
-                        // The floor between a long frame's substeps (BUG-207): the same footing
-                        // as above, read where the walls will have held the body
-                        // (`footing::floor_along`), with the walls only where the sweep below
-                        // applies them (not in the build editor).
+                        // The floor (and the ceiling) between a long frame's substeps (BUG-207):
+                        // the same footing as above, read where the walls and the shut gates will
+                        // have held the body (`footing::Footing::along`), with the walls only
+                        // where the sweep below applies them (not in the build editor).
                         let walls: &[crate::ship::wall_collision::WallSegment] =
                             if state.gui_state.construction_active { &[] } else { &state.wall_colliders[..] };
-                        let rooms = &state.gui_state.room_bounds;
-                        let ship = state.gui_state.ship_structure.as_ref();
-                        let cars = &state.elevator_state;
-                        let mut floor_at = |at: Vec3, step_from: f32| {
-                            crate::engine::footing::floor_along(rooms, ship, cars, walls, prev_cam_pos, at, step_from)
+                        let gates = if state.gui_state.construction_active {
+                            Vec::new()
+                        } else {
+                            crate::engine::footing::shut_gates(state.gui_state.ship_structure.as_ref(), &state.elevator_state, state.controller.on_ladder(prev_cam_pos.y))
                         };
+                        let footing = crate::engine::footing::Footing {
+                            rooms: &state.gui_state.room_bounds,
+                            ship: state.gui_state.ship_structure.as_ref(),
+                            cars: &state.elevator_state,
+                            built: &built_aboard,
+                        };
+                        let mut floor_at = |at: Vec3, step_from: f32| footing.along(walls, &gates, prev_cam_pos, at, step_from);
                         state.controller.update_camera_with_floor(&mut state.camera, dt, Some(&mut floor_at));
                     } else {
                         state.controller.update_camera(&mut state.camera, dt);
@@ -5295,19 +5278,18 @@ mod native_app {
                                 if p.is_window || (*open >= 0.5 && !locked) {
                                     return None;
                                 }
-                                let half_w = p.size.x * 0.5;
-                                let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
-                                let c = p.center;
-                                Some(crate::ship::wall_collision::WallSegment {
-                                    a: (c.x - dir.x * half_w, c.z - dir.z * half_w),
-                                    b: (c.x + dir.x * half_w, c.z + dir.z * half_w),
-                                    half_thickness: (p.size.z * 0.5).max(0.05),
-                                    // The panel stands from its sill (its anchor's y) to its head.
-                                    y0: c.y,
-                                    y1: c.y + p.size.y,
-                                })
+                                // From its sill to its head, so a door shut on one storey is no
+                                // wall on another (ship homes increment 7).
+                                Some(crate::ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
                             })
                             .collect();
+                        // The elevators' landing doors and the ladder hatches' gates (ship homes
+                        // increment 7, engine/footing.rs `shut_gates`).
+                        doors.extend(crate::engine::footing::shut_gates(
+                            state.gui_state.ship_structure.as_ref(),
+                            &state.elevator_state,
+                            state.controller.on_ladder(state.camera.position.y),
+                        ));
                         // Built pieces are solid too (2026-09-28, build_place::built_piece_segments).
                         doors.extend(crate::engine::build_place::built_piece_segments(
                             &state.game_world.world,
@@ -6986,8 +6968,10 @@ mod native_app {
                         // spot when B was pressed, at roughly chest height -- so you start editing near
                         // yourself, not the home centre. Start zoomed in close; you can dolly out to the
                         // whole home (distance_max scales with the box).
+                        // At chest height over the feet, so on an upper floor the build cam opens
+                        // on that storey, not on the ground under it (ship homes increment 7).
                         let focus = state.construction_return_pos;
-                        state.camera.orbit_target = Vec3::new(focus.x, 1.2, focus.z);
+                        state.camera.orbit_target = Vec3::new(focus.x, focus.y - state.controller.eye_height() + 1.2, focus.z);
                         state.camera.orbit_distance = 12.0;
                         state.camera.orbit_distance_max = (size * 4.0).max(400.0);
                     } else if !state.gui_state.construction_active && state.construction_cam_active {
@@ -7001,9 +6985,31 @@ mod native_app {
                         // editor was open), or off their own plot, leaves them there instead
                         // (home_plot.rs `editor_close_spot`, ship homes 1b and 4); a pick it takes is
                         // declared as the editor's in the next update, so the relay passes the jump.
+                        // The build-mode avatar stands on the storey the player left from (ship
+                        // homes increment 7, home_plot.rs `editor_pick_at`); the home's spawn is
+                        // on its ground floor.
                         let zo = active_zone_origin(state);
-                        let chosen = match state.gui_state.build_char_pos {
-                            Some((x, z)) => Some(Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z)),
+                        let built = crate::engine::build_place::built_piece_boxes(
+                            &state.game_world.world,
+                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+                            None,
+                        );
+                        let footing = crate::engine::footing::Footing {
+                            rooms: &state.gui_state.room_bounds,
+                            ship: state.gui_state.ship_structure.as_ref(),
+                            cars: &state.elevator_state,
+                            built: &built,
+                        };
+                        let pick = state.gui_state.build_char_pos.zip(zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone));
+                        let chosen = match pick {
+                            Some((xz, body)) => Some(crate::engine::home_plot::editor_pick_at(
+                                &footing,
+                                xz,
+                                zo,
+                                body,
+                                state.construction_return_pos,
+                                state.controller.eye_height(),
+                            )),
                             None => state.gui_state.ship_structure.as_ref().and_then(|s| {
                                 let home = &s.zones[s.home_zone_index()];
                                 home.body.spawn.map(|(x, z)| {
@@ -7023,6 +7029,7 @@ mod native_app {
                             crate::engine::move_check::declare(state, crate::ship::moves::MoveDecl::Editor);
                         }
                         state.camera.position = close.at;
+                        crate::engine::home_plot::reseat_floor(state);
                         if close.held_back {
                             state.gui_state.pending_notices.push(
                                 crate::engine::home_plot::EDITOR_HELD_BACK.to_string(),
@@ -7082,7 +7089,8 @@ mod native_app {
                         // wall, snap the preview to the same grid/endpoint/edge the placed node
                         // will use, so the selector visibly snaps (v0.559 -- it tracked the raw cursor).
                         let azo = active_zone_origin(state);
-                        let hit = cursor_floor_hit(state).map(|(_, hx, hz)| (hx - azo.x, hz - azo.z));
+                        // On the plan of the storey being edited (ship homes increment 7).
+                        let hit = cursor_storey_hit(state).map(|h| (h.x - azo.x, h.z - azo.z));
                         state.gui_state.construction_cursor_world = hit.map(|(hx, hz)| {
                             if state.gui_state.construction_wall_mode {
                                 if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
@@ -7912,8 +7920,10 @@ mod native_app {
                                             if ty.kind != crate::ship::structure::StructureKind::Elevator {
                                                 return None;
                                             }
-                                            let anim = es.get(&(zi, i)).map_or(0.0, |e| e.0);
-                                            let car_top = ps.pos.1 + o.y + anim * 3.0; // ELEVATOR_TRAVEL
+                                            // The car's height over its base, metres: the same
+                                            // travel the rider stands on (engine/footing.rs).
+                                            let travel = es.get(&(zi, i)).map_or(0.0, |e| e.0);
+                                            let car_top = ps.pos.1 + o.y + travel;
                                             let (w, _h, d) = ty.size;
                                             let thick = 0.15;
                                             // box_xyz is y-bottom-origin + XZ-centered: place the slab so its
@@ -7969,8 +7979,8 @@ mod native_app {
                             }
                             let ghost = state.construction_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
                             if let Some((mesh_idx, mat)) = ghost {
-                                if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
-                                    let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                                // On the floor of the storey being edited (ship homes increment 7).
+                                if let Some(StoreyFloorHit { x: hx, y: floor_y, z: hz, .. }) = cursor_storey_hit(state) {
                                     transparent_objects.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(hx, floor_y, hz),
                                         rotation: Quat::IDENTITY,
@@ -8017,10 +8027,10 @@ mod native_app {
                             }
                             let ghost = state.construction_structure_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
                             if let Some((mesh_idx, mat)) = ghost {
-                                if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
+                                if let Some(StoreyFloorHit { x: hx, y: floor_y, z: hz, .. }) = cursor_storey_hit(state) {
                                     // Show the ghost at the place-height (v0.588) so you see where a deck
-                                    // lands at an upper level; a faint riser line marks the lift.
-                                    let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                                    // lands at an upper level; a faint riser line marks the lift. On the
+                                    // floor of the storey being edited (ship homes increment 7).
                                     let py = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
                                     if py > floor_y + 0.01 {
                                         crate::renderer::line::push_polyline(
@@ -8059,8 +8069,9 @@ mod native_app {
                         }
                         let mesh = state.wall_tool_mesh.unwrap();
                         let mat = state.wall_tool_mat.unwrap();
-                        if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
-                            let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+                        // On the plan of the storey being edited (ship homes increment 7), even
+                        // where a new floor has no room yet.
+                        if let Some(StoreyFloorHit { x: hx, y: floor_y, z: hz, .. }) = cursor_storey_hit(state) {
                             // Corner-node marker: a slim post where the next click lands. (box_xyz is
                             // y-bottom-origin, so position at floor_y -> the post spans [floor, +3].)
                             transparent_objects.push(RenderObject { fade: 0.0,
@@ -8080,8 +8091,8 @@ mod native_app {
                                 let dz = b.z - a.z;
                                 let len = (dx * dx + dz * dz).sqrt();
                                 if len > 0.05 {
-                                    let height = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
-                                        .map_or(3.0, |h| h.height);
+                                    // As tall as the storey it stands on (ship homes increment 7).
+                                    let height = edit_storey(state).map_or(3.0, |es| es.storey.height());
                                     let dir = Vec3::new(dx, 0.0, dz) / len;
                                     let rot = Quat::from_rotation_arc(Vec3::X, dir);
                                     // box_xyz is y-bottom-origin -> position at floor_y so the preview
@@ -8093,6 +8104,21 @@ mod native_app {
                                         mesh,
                                         material: mat,
                                     });
+                                }
+                            }
+                        }
+                        // The FLOOR-SLAB tool's rectangle (ship homes increment 7): from its first
+                        // corner to the cursor on the storey's plan, and the same outline at the
+                        // height the slab will go when that is another (a floor drawn above).
+                        if let Some((pts, top_y)) = slab_draw_preview(state) {
+                            const SLAB_TOOL: [f32; 4] = [0.25, 0.8, 1.0, 0.95];
+                            let ring: Vec<[f32; 3]> = pts.iter().chain(pts.first()).map(|p| [p.x, p.y, p.z]).collect();
+                            crate::renderer::line::push_polyline(&mut ring_lines, &ring, SLAB_TOOL);
+                            if (top_y - pts[0].y).abs() > 0.01 {
+                                let lid: Vec<[f32; 3]> = pts.iter().chain(pts.first()).map(|p| [p.x, top_y, p.z]).collect();
+                                crate::renderer::line::push_polyline(&mut ring_lines, &lid, SLAB_TOOL);
+                                for p in &pts {
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[p.x, p.y, p.z], [p.x, top_y, p.z]], [0.25, 0.8, 1.0, 0.4]);
                                 }
                             }
                         }
@@ -8140,19 +8166,24 @@ mod native_app {
                         let grabbed = state.construction_node_grab;
                         // The ACTIVE zone's origin shifts every gizmo into world space (v0.754).
                         let zo = active_zone_origin(state);
-                        let corners = {
+                        // The corners of the storey being edited, on its floor (ship homes
+                        // increment 7, engine/editor_storeys.rs `storey_wall_corners`).
+                        let (corners, floor) = {
                             let hs = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).unwrap();
-                            unique_corners(hs)
+                            let es = EditStorey::of(hs, state.gui_state.construction_storeys.chosen);
+                            (storey_wall_corners(hs, es.index), zo.y + es.storey.floor)
                         };
+                        let slab_grab = state.gui_state.construction_storeys.corner_grab;
                         for c in &corners {
-                            let hot = grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
+                            // A slab corner's drag rides the node grab: only a wall corner is hot then.
+                            let hot = slab_grab.is_none() && grabbed.map_or(false, |g| (g.0 - c.0).abs() < 0.05 && (g.1 - c.1).abs() < 0.05);
                             let hovered = hover == HoverGizmo::Corner(c.0, c.1);
                             let r = 0.05; // operator: orbs at 0.05 m; state shown by COLOUR (active = RGB), not size
                             // The orb's TOP touches the wall-corner BASE (operator note): centre at -r
                             // so the top vertex is at the floor. Overlay pass -> visible through walls
                             // + the floor it sits under. (v0.560). Idle -> hover -> active by colour (v0.569).
                             overlay_objects.push(RenderObject { fade: 0.0,
-                                position: Vec3::new(c.0 + zo.x, zo.y - r, c.1 + zo.z),
+                                position: Vec3::new(c.0 + zo.x, floor - r, c.1 + zo.z),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(r),
                                 mesh: node_mesh,
@@ -8163,8 +8194,20 @@ mod native_app {
                             // thickened with radius. Radius 1.1 matches the overlay's RING_R; the per-slice
                             // angle labels are painted separately by the egui overlay.
                             crate::renderer::line::push_circle(
-                                &mut ring_lines, [c.0 + zo.x, zo.y + 0.1, c.1 + zo.z], 1.1, [0.30, 0.85, 1.0, 0.85], 48,
+                                &mut ring_lines, [c.0 + zo.x, floor + 0.1, c.1 + zo.z], 1.1, [0.30, 0.85, 1.0, 0.85], 48,
                             );
+                        }
+                        // The SELECTED FLOOR SLAB's corner handles (ship homes increment 7): drag one
+                        // to resize the slab (`try_grab_slab_corner`); the grabbed one shifts RGB.
+                        for (c, p) in slab_corner_handles(state) {
+                            let hot = slab_grab.is_some_and(|(_, gc)| gc == c);
+                            overlay_objects.push(RenderObject { fade: 0.0,
+                                position: p,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(0.09),
+                                mesh: node_mesh,
+                                material: if hot { hot_mat } else { hover_mat },
+                            });
                         }
                         // Wall-SELECT orbs (v0.573): a RED sphere at each wall's bottom-middle. Click
                         // anywhere on a wall (its surface or this orb) to select it -- unambiguous at a
@@ -8177,20 +8220,25 @@ mod native_app {
                         }
                         let wall_mat = state.construction_wall_mat.unwrap();
                         let sel_wall = state.gui_state.construction_wall_selected;
-                        let wall_mids: Vec<(usize, f32, f32)> =
+                        // The walls of the storey being edited, each at its own base (ship homes
+                        // increment 7).
+                        let wall_mids: Vec<(usize, f32, f32, f32)> =
                             zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
                             .map(|h| {
+                                let es = EditStorey::of(h, state.gui_state.construction_storeys.chosen);
+                                let storeys = h.storeys();
                                 h.walls
                                     .iter()
                                     .enumerate()
-                                    .map(|(i, w)| (i, (w.a.0 + w.b.0) * 0.5 + zo.x, (w.a.1 + w.b.1) * 0.5 + zo.z))
+                                    .filter(|(_, w)| crate::ship::home_structure::storey_index(&storeys, w.base) == es.index)
+                                    .map(|(i, w)| (i, (w.a.0 + w.b.0) * 0.5 + zo.x, zo.y + w.base, (w.a.1 + w.b.1) * 0.5 + zo.z))
                                     .collect()
                             })
                             .unwrap_or_default();
-                        for (i, mx, mz) in &wall_mids {
+                        for (i, mx, my, mz) in &wall_mids {
                             let selected = sel_wall == Some(*i);
                             overlay_objects.push(RenderObject { fade: 0.0,
-                                position: Vec3::new(*mx, zo.y - 0.07, *mz), // orb top at the floor base
+                                position: Vec3::new(*mx, *my - 0.07, *mz), // orb top at the floor base
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(0.07),
                                 mesh: node_mesh,
@@ -8457,12 +8505,15 @@ mod native_app {
                         // so a spotlight draws a CONE instead of the omni range sphere (v0.582, operator).
                         // ACTIVE zone's lights (the editable set), shifted to world by its origin (v0.754).
                         let lzo = active_zone_origin(state);
+                        // Not the lights of the storeys the cut-away hides (ship homes increment 7).
+                        let cut = edit_storey(state);
                         let lights: Vec<(usize, Vec3, f32, Option<(Vec3, f32)>)> =
                             zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
                             .map(|h| {
                                 h.lights
                                     .iter()
                                     .enumerate()
+                                    .filter(|(_, l)| cut.map_or(true, |es| es.shows(l.pos.1)))
                                     .map(|(i, l)| {
                                         let t = crate::renderer::light::light_type(&l.type_id);
                                         let range = l.range.or_else(|| t.map(|t| t.range)).unwrap_or(4.0);
@@ -8672,25 +8723,38 @@ mod native_app {
                             // Helper gizmos draw the ACTIVE zone's body, shifted into world by its
                             // origin (v0.754). Baked into the `wire` closure + each loop below.
                             let zo = active_zone_origin(state);
-                            let wire = |lines: &mut Vec<crate::renderer::line::LineVertex>, a: (f32, f32), b: (f32, f32), h: f32| {
+                            // Each wall from its base (`base` and `h` body-local; ship homes increment 7).
+                            let wire = |lines: &mut Vec<crate::renderer::line::LineVertex>, a: (f32, f32), b: (f32, f32), base: f32, h: f32| {
                                 let (a, b) = ((a.0 + zo.x, a.1 + zo.z), (b.0 + zo.x, b.1 + zo.z));
-                                let (y0, y1) = (zo.y, zo.y + h);
+                                let (y0, y1) = (zo.y + base, zo.y + base + h);
                                 crate::renderer::line::push_polyline(lines, &[[a.0, y0, a.1], [b.0, y0, b.1]], WF); // bottom
                                 crate::renderer::line::push_polyline(lines, &[[a.0, y1, a.1], [b.0, y1, b.1]], WF); // top
                                 crate::renderer::line::push_polyline(lines, &[[a.0, y0, a.1], [a.0, y1, a.1]], WF); // vert @a
                                 crate::renderer::line::push_polyline(lines, &[[b.0, y0, b.1], [b.0, y1, b.1]], WF); // vert @b
                             };
                             let (bw, bd, bh) = (hs.width, hs.depth, hs.height);
-                            wire(&mut ring_lines, (0.0, 0.0), (bw, 0.0), bh);
-                            wire(&mut ring_lines, (bw, 0.0), (bw, bd), bh);
-                            wire(&mut ring_lines, (bw, bd), (0.0, bd), bh);
-                            wire(&mut ring_lines, (0.0, bd), (0.0, 0.0), bh);
-                            for w in &hs.walls {
-                                wire(&mut ring_lines, w.a, w.b, w.height.max(0.1));
+                            wire(&mut ring_lines, (0.0, 0.0), (bw, 0.0), 0.0, bh);
+                            wire(&mut ring_lines, (bw, 0.0), (bw, bd), 0.0, bh);
+                            wire(&mut ring_lines, (bw, bd), (0.0, bd), 0.0, bh);
+                            wire(&mut ring_lines, (0.0, bd), (0.0, 0.0), 0.0, bh);
+                            // What the storey cut-away hides is not outlined either (ship homes
+                            // increment 7): no wall standing above it, none higher than its top.
+                            let es = EditStorey::of(hs, state.gui_state.construction_storeys.chosen);
+                            let cap = if es.has_above() { es.storey.top } else { f32::INFINITY };
+                            for w in hs.walls.iter().filter(|w| es.shows(w.base)) {
+                                wire(&mut ring_lines, w.a, w.b, w.base, w.height.min(cap - w.base).max(0.1));
+                            }
+                            // FLOOR SLABS (ship homes increment 7): each drawn in the cut-away outlined
+                            // at its top, the selected one bright (its corner handles are drawn with the
+                            // corner orbs).
+                            for (pts, selected) in slab_outlines(state) {
+                                let col: [f32; 4] = if selected { [1.0, 0.85, 0.25, 0.95] } else { [0.45, 0.85, 1.0, 0.6] };
+                                let ring: Vec<[f32; 3]> = pts.iter().chain(pts.first()).map(|p| [p.x, p.y, p.z]).collect();
+                                crate::renderer::line::push_polyline(&mut ring_lines, &ring, col);
                             }
                             for (i, ps) in hs.structures.iter().enumerate() {
                                 let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) else { continue };
-                                if ty.kind == crate::ship::structure::StructureKind::Wall {
+                                if ty.kind == crate::ship::structure::StructureKind::Wall || !es.shows(ps.pos.1) {
                                     continue;
                                 }
                                 let (w, h, d) = ty.size;
@@ -8766,7 +8830,7 @@ mod native_app {
                             // coloured wire box from its origin to origin+size, so the mothership layout
                             // reads at a glance. Edited in the Zones panel.
                             let sel_zone = state.gui_state.construction_zone_selected.as_deref();
-                            for z in &hs.zones {
+                            for z in hs.zones.iter().filter(|z| es.shows(z.origin.1)) {
                                 let (ox, oy, oz) = (z.origin.0 + zo.x, z.origin.1 + zo.y, z.origin.2 + zo.z);
                                 let (sw, sh, sd) = z.size;
                                 let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
@@ -9045,9 +9109,11 @@ mod native_app {
                         let grabbed_op = state.construction_opening_grab;
                         let resize_grab = state.construction_opening_resize;
                         let ozo = active_zone_origin(state); // gizmo world positions (v0.754)
-                        let gizmos = {
+                        // The openings of the storey being edited (ship homes increment 7).
+                        let (gizmos, storey_k) = {
                             let hs = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).unwrap();
-                            opening_gizmos(hs, ozo)
+                            let k = EditStorey::of(hs, state.gui_state.construction_storeys.chosen).index;
+                            (opening_gizmos_on_storey(hs, ozo, k), k)
                         };
                         const S: f32 = 0.35;
                         let hs = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).unwrap();
@@ -9077,7 +9143,7 @@ mod native_app {
                         // edges (left/right resize width, top/bottom resize height); centred on the seam
                         // between the opening and the wall/frame. The grabbed one shifts RGB.
                         const RS: f32 = 0.16;
-                        for ((wi, oi, edge), p) in opening_resize_handles(hs, ozo) {
+                        for ((wi, oi, edge), p) in opening_resize_handles_on_storey(hs, ozo, storey_k) {
                             let yaw = hs.walls.get(wi).map_or(0.0, |w| (w.b.1 - w.a.1).atan2(w.b.0 - w.a.0));
                             let m = if resize_grab == Some((wi, oi, edge)) { hot_mat } else { node_mat };
                             all_objects.push(RenderObject { fade: 0.0,
@@ -12413,6 +12479,9 @@ mod native_app {
                             }
                         }
                         state.camera.position = state.fps_spawn;
+                        // On the floor under the spawn, whatever storey the player died on (ship
+                        // homes increment 7): the door is on the ground floor, under a slab.
+                        crate::engine::home_plot::reseat_floor(state);
                         // Out of the truck (its seat freed) and off the follow cam, either
                         // of which would put the camera back on its vehicle next frame.
                         crate::engine::home_plot::step_out_of_vehicles(

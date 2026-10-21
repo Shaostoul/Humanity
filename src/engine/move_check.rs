@@ -128,12 +128,15 @@ pub(crate) fn teleport_rearm(cooldown: f32, on_a_pad: bool, dt: f32) -> (f32, bo
 }
 
 /// The teleporter pads, once a frame (lib.rs): every zone's teleporters (v0.754), as transit
-/// links by id (ship homes increment 4, src/ship/transit.rs). Standing in a pad's footprint, in
-/// first person, not building and not in Dev fly mode (flying through a pad must not yank the
-/// traveller across the ship), with the pads re-armed (`teleport_rearm`), jumps the player to the
-/// partner pad; the next position update declares it (`declare`), so the relay passes the jump
-/// instead of correcting it. A jump ends the rig's walk where it lands: that walk was planned
-/// from the other side.
+/// links by id (ship homes increment 4, src/ship/transit.rs). Standing in a pad's footprint (on
+/// its storey, `transit_link_at`), in first person, not building and not in Dev fly mode (flying
+/// through a pad must not yank the traveller across the ship), with the pads re-armed
+/// (`teleport_rearm`), jumps the player to the partner pad: onto its floor, which may be another
+/// storey (`teleport_landing`), standing on the floor there at once (`home_plot::reseat_floor`,
+/// the pad's own floor if nothing else is under it), so a jump up a storey does not pop through a
+/// slab and a jump down one is not a fall. The next position update declares it (`declare`), so
+/// the relay passes the jump instead of correcting it. A jump ends the rig's walk where it lands:
+/// that walk was planned from the other side.
 pub(crate) fn teleporter_tick(state: &mut EngineState, dt: f32) {
     let p = state.camera.position;
     let link = state.gui_state.ship_structure.as_ref().and_then(|ship| ship.transit_link_at(p));
@@ -141,11 +144,21 @@ pub(crate) fn teleporter_tick(state: &mut EngineState, dt: f32) {
     state.teleport_cooldown = cooldown;
     let walking_in_person = state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson && !state.gui_state.construction_active && !state.controller.fly_mode;
     let Some(link) = link.filter(|_| armed && walking_in_person) else { return };
-    state.camera.position.x = link.to_at.x;
-    state.camera.position.z = link.to_at.z;
+    let at = teleport_landing(&link, state.controller.eye_height());
+    state.camera.position = at;
+    let floor = crate::engine::home_plot::floor_for_placement(state, at).unwrap_or(link.to_at.y);
+    state.controller.set_ground_floor(floor);
     state.teleport_cooldown = TELEPORT_REARM_S;
     state.moves.walk = None;
     declare(state, link.declaration());
+}
+
+/// Where a teleporter jump through `link` stands a person (ship homes increment 7): the far pad's
+/// middle, their eye `eye_height` over its floor (`TransitLink::to_at`, the pad's placed height
+/// plus its zone's), so a jump to a pad upstairs lands upstairs. It used to set x and z only and
+/// keep the height the person had, which put them under or over the far pad's floor.
+pub(crate) fn teleport_landing(link: &crate::ship::transit::TransitLink, eye_height: f32) -> Vec3 {
+    link.to_at + Vec3::Y * eye_height
 }
 
 /// The `moved` and `correction` fields of one outgoing update: the declared move (taken), else
@@ -639,5 +652,73 @@ mod tests {
         assert!(!over);
         let strode = (p.at - facing_the_way.at).length();
         assert!(strode > 0.0 && strode <= 6.0 * 0.1 + 1e-5, "a two-second frame strode {strode} m");
+    }
+}
+
+/// Teleporters between storeys (ship homes increment 7, lane M), in the two-storey test home of
+/// engine/footing.rs (`test_aboard::TWO_STOREYS`: teleporter-1 on the ground at (4, 0, 9),
+/// teleporter-2 upstairs at (6, 3, 4) on the slab over the ground floor).
+#[cfg(test)]
+mod storey_tests {
+    use super::*;
+    use crate::engine::footing::test_aboard::*;
+    use crate::ship::wall_collision::EYE_HEIGHT_M as EYE;
+
+    /// The jump `teleporter_tick` makes from where the body's eye is, as it makes it: the link
+    /// found there, the body stood at its landing, and the floor re-seated there (the far pad's own
+    /// floor if nothing else is under it). The link it took.
+    fn jump(ctl: &mut crate::renderer::camera::CameraController, cam: &mut crate::renderer::camera::Camera, w: &Aboard) -> crate::ship::transit::TransitLink {
+        let link = w.ship.transit_link_at(cam.position).expect("the body stands on a pad");
+        let at = teleport_landing(&link, ctl.eye_height());
+        cam.position = at;
+        ctl.set_ground_floor(w.footing().reseat(at).unwrap_or(link.to_at.y));
+        link
+    }
+
+    /// A TELEPORT BETWEEN PADS ON DIFFERENT STOREYS LANDS ON THE FAR PAD'S FLOOR AND IS NOT A FALL.
+    /// From the ground pad the jump lands upstairs on the far pad, its feet on the slab (3.0), and
+    /// a second standing there is no fall and no sinking through the floor; the jump back lands on
+    /// the ground pad, on the ground floor, and is no fall either.
+    ///
+    /// Seen red 2026-10-20 with the jump setting x and z only (`teleport_landing` giving the far
+    /// pad's x and z at the ground's eye height, where a body walking the ground floor had it):
+    /// "0 frames after the jump to teleporter-2 the feet were at 0, not on its floor at 3" (the
+    /// body stood on the ground floor under the far pad).
+    #[test]
+    fn a_teleport_between_storeys_lands_on_the_far_pads_floor_and_is_not_a_fall() {
+        let mut w = Aboard::two_storeys();
+        let (mut ctl, mut cam) = body_at(Vec3::new(4.0, EYE, 9.0));
+        for (to, floor) in [("teleporter-2", 3.0), ("teleporter-1", 0.0)] {
+            for _ in 0..5 {
+                live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            }
+            let link = jump(&mut ctl, &mut cam, &w);
+            assert_eq!(link.to, to);
+            for k in 0..60 {
+                live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+                let feet = cam.position.y - ctl.eye_height();
+                assert!((feet - floor).abs() < 1e-4, "{k} frames after the jump to {to} the feet were at {feet}, not on its floor at {floor}");
+                assert_eq!(ctl.take_landing(), None, "the jump to {to} was a fall");
+            }
+            let (x, z) = (link.to_at.x, link.to_at.z);
+            assert!((cam.position.x - x).abs() < 1e-4 && (cam.position.z - z).abs() < 1e-4, "the jump to {to} stood the body at {:?}", cam.position);
+        }
+    }
+
+    /// A PAD IS FOUND BY HEIGHT (`ShipStructure::transit_link_at`). Standing on the ground floor
+    /// under the upstairs pad, a body is on no pad, and 3 m over the ground pad (on a slab, a
+    /// ladder) neither; on each pad, on its own floor, it is on that pad.
+    ///
+    /// Seen red 2026-10-20 with pads found across the floor alone (the height test taken out of
+    /// `transit_link_at`): "on the ground floor under the upstairs pad, a body was on it" (left:
+    /// Some("teleporter-2"), right: None).
+    #[test]
+    fn a_pad_is_found_by_height() {
+        let w = Aboard::two_storeys();
+        let from = |eye: Vec3| w.ship.transit_link_at(eye).map(|l| l.from);
+        assert_eq!(from(Vec3::new(6.0, EYE, 4.0)), None, "on the ground floor under the upstairs pad, a body was on it");
+        assert_eq!(from(Vec3::new(4.0, 3.0 + EYE, 9.0)), None, "3 m over the ground pad, a body was on it");
+        assert_eq!(from(Vec3::new(6.0, 3.0 + EYE, 4.0)).as_deref(), Some("teleporter-2"), "on the upstairs pad");
+        assert_eq!(from(Vec3::new(4.0, EYE, 9.0)).as_deref(), Some("teleporter-1"), "on the ground pad");
     }
 }

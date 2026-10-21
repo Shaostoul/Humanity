@@ -72,11 +72,26 @@ const MAX_WALK_SUBSTEPS: u32 = 16;
 /// `engine::footing::tests::every_stair_riser_is_a_step_down` holds the data to it.
 pub const STEP_DOWN_M: f32 = 0.3;
 
-/// The floor under a point, for the aboard walk's substeps (BUG-207): given the point the walk has
-/// reached and the height a step up is measured from (`CameraController::step_up_from`), the floor
-/// there, or None for none (the walk keeps the floor it has). The main loop's is
-/// `engine::footing::floor_along`.
-pub type FloorAt<'a> = &'a mut dyn FnMut(Vec3, f32) -> Option<f32>;
+/// A head's crown over the eye, metres (ship homes increment 7): a jump or a climb under a floor
+/// slab stops with the eye this far under the slab's underside (`CameraController::set_ceiling`),
+/// so the head touches it and goes no further. An adult's eye is 11 to 12 cm under the top of the
+/// head.
+pub const HEAD_ABOVE_EYE_M: f32 = 0.12;
+
+/// What is under and over a point of the aboard walk (BUG-207; ship homes increment 7): the floor
+/// there, or None for none (the walk keeps the floor it has), and the underside of a floor slab
+/// over the body's head, or None for none (`CameraController::set_ceiling`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Underfoot {
+    pub floor: Option<f32>,
+    pub ceiling: Option<f32>,
+}
+
+/// The floor and the ceiling at a point, for the aboard walk's substeps (BUG-207): given the point
+/// the walk has reached and the height a step up is measured from
+/// (`CameraController::step_up_from`), what is under and over it there. The main loop's is
+/// `engine::footing::Footing::along`.
+pub type FloorAt<'a> = &'a mut dyn FnMut(Vec3, f32) -> Underfoot;
 
 /// Flight roll rate (rad/s) for the Q/E bank keys in dev fly mode (v0.890).
 /// ~80 deg/s: a full barrel roll in ~4.5 s, fast enough to frame a shot,
@@ -843,6 +858,16 @@ pub struct CameraController {
     /// same on the body when the landing is too soft to hurt (scripts/verify-falls.js).
     landings_taken: u32,
     last_landing_m_s: Option<f32>,
+    /// The underside of the floor slab over the body's head (world Y), or None (ship homes
+    /// increment 7): a jump, or a climb, stops with the eye `HEAD_ABOVE_EYE_M` under it.
+    /// Set each frame by the main loop and between a long frame's substeps (`Underfoot`).
+    ceiling: Option<f32>,
+    /// The body rides an elevator car (`engine::footing::elevator_tick`): Space and Shift choose
+    /// its floor, so Space does not jump (plan decision 5). Set each frame by the main loop.
+    on_lift: bool,
+    /// The elevator's keys pressed since the main loop last took them (`take_lift_press`): +1 for
+    /// Space, -1 for Shift, 0 for neither; the newer press wins.
+    lift_press: i8,
 }
 
 /// More than this between where the walk left the body and where it starts the next frame,
@@ -899,6 +924,9 @@ impl CameraController {
             surface_r: None,
             landings_taken: 0,
             last_landing_m_s: None,
+            ceiling: None,
+            on_lift: false,
+            lift_press: 0,
         }
     }
 
@@ -957,8 +985,19 @@ impl CameraController {
             A::MoveBack => self.backward = pressed,
             A::MoveLeft => self.left = pressed,
             A::MoveRight => self.right = pressed,
-            A::Jump => self.ascend = pressed,
-            A::Sprint => self.descend = pressed,
+            // A press (not a key repeat while held) is also an elevator key (`take_lift_press`).
+            A::Jump => {
+                if pressed && !self.ascend {
+                    self.lift_press = 1;
+                }
+                self.ascend = pressed;
+            }
+            A::Sprint => {
+                if pressed && !self.descend {
+                    self.lift_press = -1;
+                }
+                self.descend = pressed;
+            }
             // Mode switches (on press only)
             A::ToggleView if pressed => self.switch_fp_tp = true,
             A::OrbitCamera if pressed => self.switch_orbit = true,
@@ -991,6 +1030,7 @@ impl CameraController {
         self.descend = false;
         self.roll_left = false;
         self.roll_right = false;
+        self.lift_press = 0;
     }
 
     /// Process a mouse button event from winit.
@@ -1209,6 +1249,43 @@ impl CameraController {
         self.climb_zone.is_some()
     }
 
+    /// Is the body ON the ladder (ship homes increment 7): at one (`in_climb_zone`) with its eye
+    /// at `eye_y` off the floor it rests on, climbing or holding on. Standing at a ladder's foot
+    /// or at its top on a floor is not. A ladder hatch's gate lets only such a body through
+    /// (`engine::footing::ladder_gates`), and only such a body climbs DOWN with Shift: on a floor,
+    /// Shift is a sprint.
+    pub fn on_ladder(&self, eye_y: f32) -> bool {
+        self.climb_zone.is_some() && eye_y > self.ground_y + PLACED_M
+    }
+
+    /// Set (or clear) the underside of the floor slab over the body's head (world Y; ship homes
+    /// increment 7, `engine::footing::Footing::ceiling_over`): the walk keeps the eye
+    /// `HEAD_ABOVE_EYE_M` under it, so a jump under a floor bumps its head and comes down.
+    pub fn set_ceiling(&mut self, ceiling: Option<f32>) {
+        self.ceiling = ceiling;
+    }
+
+    /// The body rides an elevator car (`engine::footing::elevator_tick`): Space and Shift choose
+    /// its floor while it does, so Space does not jump.
+    pub fn set_on_lift(&mut self, on: bool) {
+        self.on_lift = on;
+    }
+
+    /// The elevator key pressed since the last call, and forgotten: +1 Space, -1 Shift, 0 none.
+    /// The main loop takes it every frame and the elevators act on it only for a rider
+    /// (`engine::footing::elevator_tick`), so a jump pressed elsewhere is never saved up for one.
+    pub fn take_lift_press(&mut self) -> i8 {
+        std::mem::take(&mut self.lift_press)
+    }
+
+    /// True when something other than this walk moved the body's height since the walk last left
+    /// it (a welcome, a correction, Respawn, a teleporter, the rig): the test the falls use to tell
+    /// a placement from a fall. The main loop then measures the step up from the feet where the
+    /// body was put (`engine::footing::Footing::reseat`), not from the floor it stood on before.
+    pub fn placed_since_walk(&self, eye_y: f32) -> bool {
+        self.body_y.is_some_and(|y| (eye_y - y).abs() > PLACED_M)
+    }
+
     /// The walking gait (2026-09-27): whether a walk key is held, and whether
     /// Shift (sprint on foot) is held with it. The body heat model bills a
     /// standing, walking or sprinting body by it (`engine::survival_env`).
@@ -1400,9 +1477,11 @@ impl CameraController {
             if i > 0 {
                 if let Some(f) = floor_at.as_deref_mut() {
                     let step_from = self.step_up_from(camera.position.y);
-                    if let Some(floor) = f(camera.position, step_from) {
+                    let under = f(camera.position, step_from);
+                    if let Some(floor) = under.floor {
                         self.set_ground_floor(floor);
                     }
+                    self.ceiling = under.ceiling;
                 }
             }
             self.walk_step(camera, wish, move_speed, step_dt);
@@ -1412,8 +1491,33 @@ impl CameraController {
     /// One step of the aboard walk, `dt` seconds of it: a whole frame, or a share of a long one
     /// (`update_first_person`'s substeps, BUG-207). WASD moves the body along `wish` at
     /// `move_speed`; then a ladder holds it, or Space jumps and gravity brings it down onto the
-    /// floor (`ground_y`).
+    /// floor (`ground_y`); and whichever it was, the head stays under the slab over it
+    /// (`keep_head_under_ceiling`, ship homes increment 7).
     fn walk_step(&mut self, camera: &mut Camera, wish: Option<Vec3>, move_speed: f32, dt: f32) {
+        self.walk_step_moves(camera, wish, move_speed, dt);
+        self.keep_head_under_ceiling(camera);
+    }
+
+    /// THE HEAD CLAMP (ship homes increment 7, plan section 3): with a floor slab over the body
+    /// (`ceiling`), the eye goes no higher than `HEAD_ABOVE_EYE_M` under its underside, and a body
+    /// rising into it stops rising, so a jump under the upper floor bumps its head and comes down
+    /// instead of passing up through 0.25 m of floor (at 1 g a jump lifts the eye 1.27 m, the head
+    /// to about 3.1 m, over the 2.75 m underside of a slab at 3.0). Never below the floor the body
+    /// rests on: a body standing up into a slab (a placement under a low one) is not pushed down
+    /// through its own floor. The highest a fall is measured from comes down with it, so a bumped
+    /// jump lands from the height it really reached.
+    fn keep_head_under_ceiling(&mut self, camera: &mut Camera) {
+        let Some(ceiling) = self.ceiling else { return };
+        let max_eye = (ceiling - HEAD_ABOVE_EYE_M).max(self.ground_y);
+        if camera.position.y > max_eye {
+            camera.position.y = max_eye;
+            self.vertical_velocity = self.vertical_velocity.min(0.0);
+            self.fall_top = self.fall_top.map(|t| t.min(max_eye));
+        }
+    }
+
+    /// `walk_step` without the head clamp: the move, the ladder, the jump and gravity.
+    fn walk_step_moves(&mut self, camera: &mut Camera, wish: Option<Vec3>, move_speed: f32, dt: f32) {
         if let Some(wish) = wish {
             let velocity = wish * move_speed * dt;
             // Horizontal only — gravity owns Y so a sprint can't cancel a jump.
@@ -1433,12 +1537,17 @@ impl CameraController {
             // from above or arrived from below, fall through to gravity and LAND first, so the clamp
             // never teleport-snaps you onto the ladder. (v0.589 review fix)
             let near = camera.position.y >= lo - 0.5 && camera.position.y <= hi + 0.5;
-            if near && (self.ascend || self.descend) {
+            // SHIFT CLIMBS DOWN ONLY ON THE LADDER (ship homes increment 7): standing on a floor
+            // at a ladder's top (or its foot), Shift is a sprint like anywhere else, so walking
+            // past the top of a ladder on the upper floor never takes you down it. To go down from
+            // the top, press Space to step onto its top rungs first (`engine::footing::ladder_gates`).
+            let descend = self.descend && self.on_ladder(camera.position.y);
+            if near && (self.ascend || descend) {
                 let climb = self.speed * 0.6 * dt;
                 if self.ascend {
                     camera.position.y += climb;
                 }
-                if self.descend {
+                if descend {
                     camera.position.y -= climb;
                 }
                 camera.position.y = camera.position.y.clamp(lo, hi);
@@ -1484,8 +1593,9 @@ impl CameraController {
         // ── Gravity + jump (grounded on the room floor) ──
         // Space launches a jump only when grounded, at the carried load's
         // share of the launch speed (BUG-136): none at all when overloaded in
-        // the Realistic carrying mode, so the player stays on the floor.
-        if self.ascend && self.is_grounded && self.jump_scale > 0.0 {
+        // the Realistic carrying mode, so the player stays on the floor. Not
+        // while riding an elevator: there Space chooses the floor (`on_lift`).
+        if self.ascend && self.is_grounded && self.jump_scale > 0.0 && !self.on_lift {
             self.vertical_velocity = self.jump_speed * self.jump_scale.min(1.0);
             self.is_grounded = false;
         }
