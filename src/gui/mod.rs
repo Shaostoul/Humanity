@@ -353,7 +353,8 @@ pub enum GuiPage {
     // rendered the identical cosmos::draw page since v0.203.2, so nav
     // highlight and back-stack behaved differently by entry path. "Maps"
     // is the one name (nav map open item 1, operator call 2026-08-16);
-    // "cosmos" persists only as the legacy config string parsed to Maps.
+    // The "cosmos" config string that still parsed to Maps went in Maps
+    // increment 0 (2026-10-20): nobody uses the app yet, so no alias.
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
@@ -439,8 +440,6 @@ pub fn config_str_to_page(s: &str) -> GuiPage {
         "maps" => GuiPage::Maps,
         "notes" => GuiPage::Notes,
         "calendar" => GuiPage::Calendar,
-        // Legacy config value: the Cosmos variant merged into Maps (v0.1145).
-        "cosmos" => GuiPage::Maps,
         "library" => GuiPage::Library,
         // Retired pages saved in old configs land on their successors:
         // the Resources directory lives in the Library; the onboarding
@@ -1342,7 +1341,7 @@ pub struct GuiState {
     /// GUI -> ECS: summon this vehicle (entity bits) to drive itself to the
     /// player; bridged into the "summon_vehicle" channel.
     pub pending_summon_vehicle: Option<u64>,
-    /// Cosmos -> Inventory jump (unified map slice 2): an asteroid id whose
+    /// Maps -> Inventory jump (unified map slice 2): an asteroid id whose
     /// mining modal should open when the Inventory page next draws.
     pub pending_open_mining_modal: Option<String>,
     /// GUI -> engine: chase-cam this vehicle (entity bits) while it self-drives;
@@ -2399,84 +2398,10 @@ pub struct GuiState {
     /// prompt, the steps of turning it on, and a one-shot permission (engine/protected.rs).
     pub protected: crate::net::protected::ProtectedUi,
 
-    // ── Cosmos page state (v0.203.0, Phase 3) ──
-    /// Which view the Cosmos page is currently rendering.
-    pub cosmos_view: crate::gui::pages::cosmos::CosmosView,
-    /// Pan offset (screen pixels). Updated by click-drag on the canvas.
-    pub cosmos_pan: egui::Vec2,
-    /// Zoom factor — 1.0 = default, > 1.0 = zoomed in, < 1.0 = zoomed out.
-    /// Updated by mouse wheel scroll. Clamped in allocate_canvas.
-    pub cosmos_zoom: f32,
-    /// Currently selected body id in the System view (for the right-side
-    /// details panel + map highlight). v0.203.2 — populated by clicking
-    /// a body in the left-side browser sidebar OR clicking it on the map.
-    pub cosmos_selected_body: Option<String>,
-    /// Which planet groups are expanded in the body browser sidebar.
-    /// Stored as ids of planets whose moon list is expanded. v0.203.2.
-    pub cosmos_expanded_planets: std::collections::HashSet<String>,
-    /// Pending focus request — when Some, the next System view render
-    /// computes the pan needed to center this body on screen, then
-    /// clears the request. Set by sidebar click or "Focus" button.
-    /// v0.205.0 (operator pushback on zoom always centering on Sun).
-    pub cosmos_focus_request: Option<String>,
-    /// Body id the camera continuously follows across frames as it moves
-    /// along its orbit, or `None` for no auto-follow. Unlike
-    /// `cosmos_focus_request` (a one-shot snap-to), this re-centers every
-    /// frame. Set by the body detail card's "Track"/"Stop Tracking" action;
-    /// cleared automatically by any other Focus request (see
-    /// `gui/pages/cosmos.rs`'s focus-consumption site).
-    pub cosmos_tracked_body: Option<String>,
-    /// 3D camera state for System view (Phase 4, v0.206.0).
-    /// Yaw + pitch + distance + look-at target define the camera; mouse
-    /// drag rotates, scroll zooms, sidebar click re-centers the target.
-    pub cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera,
-
-    /// Cosmos sim-time in seconds since the J2000.0 epoch
-    /// (2000-01-01 12:00:00 UTC). Drives Kepler-evolved body positions.
-    /// Initialized to "current real-world time" on first cosmos page
-    /// open so the user immediately sees today's planetary configuration.
-    /// v0.208.0.
-    pub cosmos_sim_time_seconds: f64,
-    /// Sim speed multiplier — 0 = paused, 1 = real-time (1 second sim =
-    /// 1 second real), 86400 = 1 day per real second, etc. Negative
-    /// values rewind. v0.208.0.
-    pub cosmos_sim_speed: f64,
-    /// Wall-clock Instant of the previous frame, used to compute dt for
-    /// sim_time advancement. None on first frame. v0.208.0.
-    #[allow(clippy::type_complexity)]
-    pub cosmos_last_real_instant: Option<std::time::Instant>,
-    /// Whether the cosmos sim_time has been initialized (sets to "now"
-    /// on first cosmos page draw). v0.208.0.
-    pub cosmos_sim_time_initialized: bool,
-    /// Which body's pill is currently expanded into an info card on the
-    /// 3D System view. Only one body can be expanded at a time — clicking
-    /// a different body's pill swaps the expansion; clicking the same
-    /// pill collapses it. Independent of `cosmos_selected_body` which
-    /// drives the right-side details panel. v0.209.0.
-    pub cosmos_expanded_body: Option<String>,
-    /// Whether to render Lagrange-point overlay markers (L1-L5 for
-    /// Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs).
-    /// Off by default to keep the wide view clean. Toggled from the
-    /// cosmos canvas overlay button. v0.211.0.
-    pub cosmos_show_lagrange: bool,
-    /// Whether to render reference-orbit rings (LEO/MEO/GEO/etc) around
-    /// supported planets when zoomed close enough. Off by default —
-    /// rings only appear when the user explicitly enables AND the camera
-    /// is close enough that they're not microscopic on screen. v0.212.0.
-    pub cosmos_show_reference_orbits: bool,
-    /// Cached forward Sky-Events scan (Phase 4d-quad, v0.248). The scan
-    /// is O(days × bodies²) so it must NOT run every frame like the
-    /// instant detector — it's recomputed lazily when sim_time drifts
-    /// far from `cosmos_upcoming_scan_origin`, throttled by
-    /// `cosmos_upcoming_last_scan`. Each entry: when (sim seconds since
-    /// J2000), human label, severity (0 info / 1 notable / 2 major).
-    pub cosmos_upcoming_events: Vec<crate::gui::pages::cosmos::UpcomingSkyEvent>,
-    /// sim_time the cached forward scan was computed at. Recompute when
-    /// the live sim_time moves more than ~12h away from this.
-    pub cosmos_upcoming_scan_origin: f64,
-    /// Wall-clock instant of the last forward scan — throttles recompute
-    /// so fast-forward / scrubbing can't trigger a scan every frame.
-    pub cosmos_upcoming_last_scan: Option<std::time::Instant>,
+    /// The Maps page: which view is open, its camera and selection, its own
+    /// clock, its overlays and the cached sky-events scan (`gui/state_types/maps.rs`).
+    /// Twenty `cosmos_*` fields until Maps increment 0 (2026-10-20).
+    pub maps: MapsState,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -4040,24 +3965,7 @@ impl Default for GuiState {
             chat_muted_requested: false,
             server_settings_draft: None,
             server_settings_changed_underneath: false,
-            cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
-            cosmos_pan: egui::Vec2::ZERO,
-            cosmos_zoom: 1.0,
-            cosmos_selected_body: None,
-            cosmos_expanded_planets: std::collections::HashSet::new(),
-            cosmos_focus_request: None,
-            cosmos_tracked_body: None,
-            cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera::default(),
-            cosmos_sim_time_seconds: 0.0,
-            cosmos_sim_speed: 0.0, // Paused by default — operator scrubs / plays.
-            cosmos_last_real_instant: None,
-            cosmos_sim_time_initialized: false,
-            cosmos_upcoming_events: Vec::new(),
-            cosmos_upcoming_scan_origin: f64::NAN, // forces first scan
-            cosmos_upcoming_last_scan: None,
-            cosmos_expanded_body: None,
-            cosmos_show_lagrange: false,
-            cosmos_show_reference_orbits: false,
+            maps: MapsState::default(),
             new_group_name: String::new(),
             new_group_share_history: false,
             create_group_ticket: None,
@@ -4453,7 +4361,7 @@ pub struct SettingsState {
     /// in-game sky; background fetch + disk cache; procedural fallback
     /// wherever the satellite map has no data.
     pub live_weather: bool,
-    /// Track the orbital home station (in-world ring + label; Cosmos toggle).
+    /// Track the orbital home station (in-world ring + label; the Maps page's Track toggle).
     pub track_station: bool,
     /// Read websites inside HumanityOS (the readable web, 2026-09-16). OFF
     /// by default and independent of the privacy tier: a person who wants

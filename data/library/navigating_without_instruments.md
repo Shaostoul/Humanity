@@ -689,7 +689,7 @@ October 2026.
   Device items and the Navigation skill, as described in [Knowing Which
   Way Is North](/library#knowing-which-way-is-north) and
   [Coordinates](/library#coordinates). The Maps page's planet view and Track
-  switch: `src/gui/pages/cosmos.rs`. The Home Station ring and its
+  switch: `src/gui/pages/maps/planet_view.rs` and `src/gui/pages/maps/body_list.rs`. The Home Station ring and its
   distance label, shown beyond a kilometre from the station
   (`src/lib.rs`), placed by direction and pinned to the screen's edge
   when out of view (`marker_placement` and `marker_distance` in

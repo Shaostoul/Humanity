@@ -48,7 +48,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Settings | `settings.rs` | Router into the Settings sections (single-page sidebar layout; the list is the `SettingsCategory` enum in `src/gui/mod.rs`). Gameplay holds **Where you live** (ship homes increment 6, 2026-10-12; `where_you_live.rs`): "In this world you live in a Homestead (a family of three).", the household choice for the live save, and where to go to live somewhere else. It replaced Home Design (Family / Solo, one setting per install). | everyone | both |
 | Inventory | `inventory.rs` | Inventory grid + equipment slots + weight + item details. From `data/inventory/equipment_slots.json`. | everyone | both |
 | Tasks | `tasks.rs` | Three-column kanban (Todo / In Progress / Done) with project selector. | everyone | both |
-| Maps | `cosmos.rs` | THE map page (nav button "Maps"; heading "Maps" since v0.1145). Views: Solar System (3D orbits + planet details), Galaxy (real-catalog stars from data/stars-map.bin, light-year scale), Night Sky (celestial sphere + constellations); a Planet GPS view (OSM roads/buildings) is the ladder's next rung. The duplicate `GuiPage::Cosmos` variant was MERGED into Maps in v0.1145 (both drew the identical page since v0.203.2, splitting nav highlight + back-stack by entry path); the module keeps the cosmos.rs name. | everyone | both |
+| Maps | `maps/mod.rs` | THE map page (nav button "Maps"; heading "Maps" since v0.1145). Views: Planet (OpenStreetMap regions, GPS style), Solar System (3D orbits + planet details), Galaxy (real-catalog stars from data/stars-map.bin, light-year scale), Night Sky (celestial sphere + constellations). One file per view in `src/gui/pages/maps/` (`maps/system_view.rs`, `maps/planet_view.rs`, `maps/galaxy_view.rs`, `maps/night_sky.rs`, with `maps/body_list.rs`, `maps/sky_events.rs`, `maps/time_bar.rs`); its state is one `GuiState::maps` (`gui/state_types/maps.rs`). It was `gui/pages/cosmos.rs` until Maps increment 0 (2026-10-20, docs/design/maps-zoom-to-anything.md); `crate::cosmos` is the Sol model, not the page. The duplicate `GuiPage::Cosmos` variant was MERGED into Maps in v0.1145. | everyone | both |
 | Market | `market.rs` | Marketplace: browse, search, create listings. Sidebar category filter, card grid. | everyone | both |
 | Profile | `profile.rs` | Player profile with privacy-tiered sidebar sections. | everyone | both |
 | Chat | `chat.rs` | 3-panel chat: server/channel browser, messages, member list. | everyone | both |
@@ -180,7 +180,7 @@ Plus mirrors of native pages: `humanity.html` (the Humanity tab hub: mission + l
 
 **Retired 2026-07-30:** `resources.html` + `resources-app.js`. It rendered `data/resources.json`, a curation that shared only 17 URLs with the `data/resources/catalog.json` the native Library rendered. Both files and `data/tools/catalog.json` merged into a single `data/external/catalog.json` (24 categories, 103 entries, 18 duplicate URLs collapsed) rendered by the Tools page on both sides, and since 2026-10-19 (desktop) and 2026-10-20 (website) by the Apps page. The in-game "sim" half of `resources.json` was not external at all and was preserved to `data/onboarding/sim_guides.json`, which still needs a render surface.
 
-**Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape) and the merged super-tabs (Real/Humanity; Platform gained a web hub 2026-07-30, see above). (The 5 category-Overview landing pages and the 12 Settings sub-page variants that used to be listed here were removed from native in v0.699.0; web's `settings.html` remains a single page covering the same Settings ground.)
+**Not mirrored on web at all:** the Construction/Build Editor (3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape) and the merged super-tabs (Real/Humanity; Platform gained a web hub 2026-07-30, see above). (The 5 category-Overview landing pages and the 12 Settings sub-page variants that used to be listed here were removed from native in v0.699.0; web's `settings.html` remains a single page covering the same Settings ground.)
 
 ## Web hubs (entry points outside `web/pages/`)
 
@@ -219,7 +219,7 @@ here as the canonical grouping reference rather than duplicated.
 | Top tier | Color token | Sub-pages |
 |----------|-------------|-----------|
 | **Reality** | `nav_reality` (red) | Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity |
-| **Sim** | `nav_sim` (purple) | Cosmos, Inventory, Crafting, Studio, Guilds, Trade |
+| **Sim** | `nav_sim` (purple) | Inventory, Crafting, Studio, Guilds, Trade |
 | **Tools** | `nav_tools` (blue) | Calculator, Calendar, Notes, Library, Apps, Browser |
 | **Settings** | `nav_settings` (gray) | Account, Appearance, Animations, Widgets, Notifications, Wallet, Audio, Graphics, Controls, Privacy, Data, Updates, Server Admin |
 | **Dev** | `nav_dev` (amber) | Testing, Bugs, Data files |

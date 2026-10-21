@@ -20,8 +20,8 @@
 //! either drawn by this table or explicitly listed as engine-bound.
 
 use super::pages::{
-    apps, browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, governance,
-    guilds, homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
+    apps, browser, bugs, calculator, calendar, chat, crafting, donate, governance,
+    guilds, homes, humanity, identity, inventory, laws, library, maps, market, notes, platform, profile, quests,
     files, real, recovery, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
 };
@@ -76,8 +76,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Governance => governance::draw(ctx, theme, state),
         GuiPage::Laws => laws::draw(ctx, theme, state),
         GuiPage::Recovery => recovery::draw(ctx, theme, state),
-        // Maps and the old Cosmos variant merged (v0.1145); cosmos.rs is the module.
-        GuiPage::Maps => cosmos::draw(ctx, theme, state),
+        GuiPage::Maps => maps::draw(ctx, theme, state),
         GuiPage::Testing => testing::draw(ctx, theme, state),
         GuiPage::Browser => browser::draw(ctx, theme, state),
     }

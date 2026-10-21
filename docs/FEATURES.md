@@ -1308,20 +1308,21 @@ a need shows once below half; air and body temperature whenever out of range) / 
 - Native: `src/gui/pages/hud.rs`
 
 ### Maps Page
-Multi-scale map with celestial navigation (nav label "Maps"; internally the
-`GuiPage::Cosmos`/`GuiPage::Maps` enum variants are aliases that both render
-the same page, since v0.203.2). Real Kepler orbital mechanics (`src/cosmos.rs`,
+Multi-scale map with celestial navigation (nav label "Maps", `GuiPage::Maps`; the
+duplicate `GuiPage::Cosmos` variant merged into it in v0.1145). Real Kepler orbital mechanics (`src/cosmos.rs`,
 one `SolBody` set + one propagator shared by the Maps page, FPS world spawn,
 and the ECS position resolver -- see `src/ecs/cosmos.rs`), a "Focus" button
 (one-shot camera snap-to a body) and a "Track" button (continuous camera
 follow as the body orbits, v0.647.0).
-- Native: `src/gui/pages/cosmos.rs` (the OLDER `src/gui/pages/maps.rs` is dead
-  code as of this fix -- zero callers anywhere; `GuiPage::Maps` has forwarded
-  to `cosmos::draw` since v0.203.2, found + corrected 2026-07-01 during the
-  overnight autonomous-loop broader stub sweep, which had already found this
-  same "superseded file left in place" pattern 3 times this session --
-  `src/renderer/sky.rs`, `src/systems/navigation/orbital.rs`,
-  `src/systems/skills/learning.rs`)
+- Native: `src/gui/pages/maps/` (Maps increment 0, 2026-10-20: it was
+  `src/gui/pages/cosmos.rs`, 3,880 lines, carved by view): `mod.rs` (the page,
+  the view tabs, the shared pan and zoom canvas and footer), `system_view.rs`
+  (the 3D Solar System view, its camera `MapCamera`, the reference-orbit and
+  Lagrange overlays, a body's card with Focus and Track), `body_list.rs` (its two
+  side panels), `planet_view.rs`, `galaxy_view.rs`, `night_sky.rs`,
+  `sky_events.rs` (conjunctions, eclipses, the forward scan), `time_bar.rs` (the
+  page's clock), `tests.rs`; state `GuiState::maps` (`src/gui/state_types/maps.rs`).
+  The build order from here: `docs/design/maps-zoom-to-anything.md` section 6.
 
 ### Profile Page
 User profile view/edit.
@@ -1375,7 +1376,7 @@ Generator scripts/build-stars-map-bin.js (just build-stars-map) is
 self-verifying (31 checks) and the Rust parser locks it with
 shipped_stars_map_bin_is_real (Sirius 8.6 ly, Vega 25 ly, sort order).
 Ladder: docs/design/maps-ladder.md (OSM planet GPS next).
-- Native: src/gui/pages/cosmos.rs (map_stars/parse_stars_map/draw_galactic_view)
+- Native: src/gui/pages/maps/galaxy_view.rs (map_stars/parse_stars_map/draw_galactic_view)
 
 ### Maps Planet View: OpenStreetMap Regions (v0.1146)
 The Maps page's first view is Planet: real Earth regions as GPS-style 2D
@@ -1389,7 +1390,7 @@ scale bar, viewport culling. Demo region: Seattle Center (8,966 roads,
 1,457 buildings, byte-deterministic rebuilds). Rust lock:
 shipped_seattle_region_is_real (Pike Street, Rainier Square Tower 259 m).
 Ladder: docs/design/maps-ladder.md rung 3 (next: 3D extrusion in-world).
-- Native: src/gui/pages/cosmos.rs (parse_region/map_regions/draw_planet_view)
+- Native: src/gui/pages/maps/planet_view.rs (map_regions/draw_planet_view; the parser, parse_region, is src/terrain/osm_region.rs)
 - Generator: scripts/fetch-osm-region.mjs
 
 ### Map Label Placement (2026-09-27)
@@ -1405,8 +1406,8 @@ attribution the licence requires) sits on a themed backing chip. The web Maps
 page runs the same placer for its star labels and puts its attribution on the
 same chip, from theme variables.
 - Native: `src/gui/widgets/label_placer.rs` (`LabelPlacer`, `point_candidates`,
-  `along_polyline`, `LABEL_GAP`, unit tests), `src/gui/pages/cosmos.rs`
-  (`label_stars`, `label_rings`, `MapFooter`)
+  `along_polyline`, `LABEL_GAP`, unit tests), `src/gui/pages/maps/galaxy_view.rs`
+  (`label_stars`, `label_rings`) and `src/gui/pages/maps/mod.rs` (`MapFooter`)
 - Web: `web/shared/label-placer.js`, `web/pages/maps.html` (`renderStellar`,
   `#attribution`)
 
@@ -1449,7 +1450,7 @@ under. The 2D Planet view draws the same polygons (ear-clipped fills,
 island repaint, named-water labels). Rust locks: 7 water_carve tests +
 shipped-file locks (Dyes Inlet sea area > 5 km2, Island Lake + its Clark
 Island hole, Lake Union in Seattle Center).
-- Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
+- Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/maps/planet_view.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
 ### The Sharp Converged Sky (v0.1165, phase 8)

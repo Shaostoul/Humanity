@@ -1494,7 +1494,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // The selected item's inline expand-in-place card records its quick action here
     // (Eat/Drink/Plant/Equip/Drop); applied to GuiState after the panel closes (the
     // card only borrows an inventory snapshot, never GuiState mid-render).
-    // Cosmos map jump (unified map slice 2): open the clicked asteroid's
+    // Maps page jump (unified map slice 2): open the clicked asteroid's
     // mining modal as this page draws.
     if let Some(ast_id) = state.pending_open_mining_modal.take() {
         with_mining_edit(|m| m.open = Some(ast_id));
@@ -2875,9 +2875,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_sm);
                     draw_mining_map(ui, theme, &asts, &state.drones);
                     // Unified map (v0.688): this mini-map is a preview; the
-                    // Cosmos page carries the same Home marker, asteroid fan,
+                    // Maps page carries the same Home marker, asteroid fan,
                     // and drone dot on the REAL solar-system map.
-                    if ui.link(RichText::new("Open the full map (Cosmos)").size(theme.font_size_small).color(theme.accent())).clicked() {
+                    if ui.link(RichText::new("Open the full map on the Maps page").size(theme.font_size_small).color(theme.accent())).clicked() {
                         state.active_page = crate::gui::GuiPage::Maps;
                     }
                 }

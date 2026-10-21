@@ -3167,12 +3167,12 @@ fn snapshot_chat_group_private_files() {
 /// (843,782,400 s after J2000.0); unpinned, the picture changed on every run.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
-fn snapshot_cosmos() {
-    crate::gui::pages::cosmos::set_clock_for_snapshot(Some(843_782_400.0));
-    render_page_png("cosmos", 1280, 900, |ctx, theme, state| {
-        crate::gui::pages::cosmos::draw(ctx, theme, state);
+fn snapshot_maps_system() {
+    crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("maps_system", 1280, 900, |ctx, theme, state| {
+        crate::gui::pages::maps::draw(ctx, theme, state);
     });
-    crate::gui::pages::cosmos::set_clock_for_snapshot(None);
+    crate::gui::pages::maps::set_clock_for_snapshot(None);
 }
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
@@ -3561,8 +3561,8 @@ page_snapshot!(snapshot_market, "market", market, 1280, 900);
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_maps_galaxy() {
     render_page_png("maps_galaxy", 1280, 900, |ctx, theme, state| {
-        state.cosmos_view = crate::gui::pages::cosmos::CosmosView::Galactic;
-        crate::gui::pages::cosmos::draw(ctx, theme, state);
+        state.maps.view = crate::gui::pages::maps::MapView::Galactic;
+        crate::gui::pages::maps::draw(ctx, theme, state);
     });
 }
 
@@ -3710,9 +3710,9 @@ fn snapshot_picker_new_home() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_maps_planet() {
     render_page_png("maps_planet", 1280, 900, |ctx, theme, state| {
-        state.cosmos_view = crate::gui::pages::cosmos::CosmosView::Planet;
-        state.cosmos_zoom = 2.0;
-        crate::gui::pages::cosmos::draw(ctx, theme, state);
+        state.maps.view = crate::gui::pages::maps::MapView::Planet;
+        state.maps.zoom = 2.0;
+        crate::gui::pages::maps::draw(ctx, theme, state);
     });
 }
 

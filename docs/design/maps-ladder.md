@@ -7,7 +7,7 @@
 > and eventually multiple galaxies... I'd love to some day visualize the
 > cosmic web."
 >
-> One page ("Maps", `cosmos.rs`), one view ladder, every rung backed by REAL
+> One page ("Maps", `src/gui/pages/maps/`), one view ladder, every rung backed by REAL
 > data. This doc is the build order; PRIORITIES.md ranks when.
 
 ## The ladder (surface scales, small to large)
@@ -119,5 +119,10 @@ galaxy view has had its second polish pass.
 
 Page = **Maps** everywhere (button, heading, web route /maps). Views =
 Solar System | Galaxy | Night Sky (+ Planet when rung 3 lands). The
-`GuiPage::Cosmos` duplicate variant is deleted; "Cosmos" survives only as
-the module filename and the legacy config string.
+`GuiPage::Cosmos` duplicate variant is deleted. Maps increment 0
+(2026-10-20, docs/design/maps-zoom-to-anything.md) finished the job: the
+module is `src/gui/pages/maps/` (one file per view), the state is
+`GuiState::maps`, the types are `MapView` and `MapCamera`, the System view's
+snapshot is `maps_system`, and the "cosmos" config string is gone.
+`crate::cosmos` (`src/cosmos.rs`) keeps its name because it is the Sol
+model the page and the game both read, not the page.

@@ -475,7 +475,7 @@ the public domain. Web pages were read on 3 October 2026.
   shown to three decimals by `draw_container` in
   `src/gui/pages/inventory.rs`.
 - The Planet view's footer: `draw_planet_view` in
-  `src/gui/pages/cosmos.rs`; the two regions, `data/maps/regions/`.
+  `src/gui/pages/maps/planet_view.rs`; the two regions, `data/maps/regions/`.
 - Metres per degree: `M_PER_DEG_LAT` and `M_PER_DEG_LON_EQUATOR` in
   `src/terrain/osm_region.rs`; the regions built into the 3D Earth
   within 40 kilometres (`BUILD_RANGE_M` in `src/engine/region_meshes.rs`).

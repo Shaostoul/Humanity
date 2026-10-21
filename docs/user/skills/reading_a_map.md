@@ -717,7 +717,7 @@ public domain. Web pages were read on 3 October 2026.
 
 ### Inside this project
 
-- The Maps page and its Planet view: `src/gui/pages/cosmos.rs`
+- The Maps page and its Planet view: `src/gui/pages/maps/planet_view.rs`
   (`draw_planet_view`: north up, the round-number scale bar from 10 m to
   5 km, the footer with the region's origin latitude and longitude and
   the OpenStreetMap notice, road names on hover, water names from zoom

@@ -1,5 +1,6 @@
 //! Canonical Sol-system model (v0.262.8 — extracted from
-//! `gui/pages/cosmos.rs` so it is the SINGLE source of truth).
+//! the Maps page, then `gui/pages/cosmos.rs`, now `gui/pages/maps/`, so it is
+//! the SINGLE source of truth).
 //!
 //! Before this module the solar system existed as **four drifted
 //! copies**: this Keplerian model (Maps page, accurate), a log-scaled
@@ -16,7 +17,7 @@
 //! does.
 //!
 //! Nothing here touches egui — it is pure data + orbital mechanics.
-//! The Maps page (`gui/pages/cosmos.rs`) now `use`s these symbols
+//! The Maps page (`gui/pages/maps/`) now `use`s these symbols
 //! instead of defining its own; behavior is byte-for-byte identical
 //! (same struct, same fn signatures, same `&'static` caching).
 

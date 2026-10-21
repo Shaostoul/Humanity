@@ -51,6 +51,13 @@ use super::*;
 mod garden;
 pub use garden::*;
 
+// The Maps page's state (`GuiState::maps`), in state_types/maps.rs since Maps
+// increment 0 (2026-10-20). Native only: it names the page's own types.
+#[cfg(feature = "native")]
+mod maps;
+#[cfg(feature = "native")]
+pub use maps::*;
+
 /// Item slot data bridged from ECS Inventory for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
