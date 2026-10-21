@@ -491,6 +491,10 @@ pub(crate) struct EngineState {
     /// meshes, its worker thread and upload queue, and the grow enclosures
     /// (each mushroom rack's fruiting tent). See home_meshes.
     pub(crate) garden_draw: crate::engine::home_meshes::GardenDraw,
+    /// The home's drawing between rebuilds (ship homes increment 7 review, 2026-10-21): the shell's
+    /// spare mesh slots, the editor's cut-away as last drawn, and which doors are elevator
+    /// landings. See home_meshes `HomeDraw`.
+    pub(crate) home_draw: crate::engine::home_meshes::HomeDraw,
     /// Port pick volumes for viewport DRAG-TO-CONNECT (v0.625): (machine id, port index, the Port,
     /// world gizmo position) for every machine's derived ports. Only the SELECTED machine's ports
     /// render + are grab-able, but building all is cheap. Drag a port onto another machine to wire

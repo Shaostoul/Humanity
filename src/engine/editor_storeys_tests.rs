@@ -292,3 +292,66 @@ fn the_editors_save_writes_the_spawn_only_from_an_avatar_moved_onto_the_ground()
     g.construction_storeys.chosen = 0;
     assert_eq!(spawn_from_avatar(&g), Some((6.0, 8.0)), "seeded upstairs, then taken down to the ground floor");
 }
+
+/// THE CUT-AWAY LEAVES OUT WHAT STANDS OVER IT, NOT ONLY WHAT IS IN THE BODY (ship homes increment
+/// 7 review, 2026-10-21). The machines, their screens (which share the machine's position), the
+/// door panels and the elevator cars are drawn from the whole ship, not the cut body, so `CutAway`
+/// decides them by where they stand. On the shipped homestead (the home on p1), the ground storey's
+/// cut hides every machine of the upper floor (the bed, the study's desk and its screens, the
+/// bathroom) and nothing else; it hides exactly the door panels the cut body has none of (the doors
+/// it shows are `cut_away_ship`'s own); and it agrees with `cut_away_body` on every piece and light
+/// of the body. Nothing is over the upper floor, so it has no cut.
+///
+/// Seen red first (2026-10-21) with `CutAway::hides` answering false, everything drawn as it was:
+/// "35 of 345 machines are drawn wrong in the cut-away", the first "desk_1 at (50.6, 3.0, 34.5)
+/// (upstairs, drawn)".
+#[test]
+fn the_cut_away_leaves_out_what_stands_over_it() {
+    use std::collections::HashMap;
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+    let hz = ship.home_zone_index();
+    let cut = cut_away_of(&ship, hz, 0).expect("the homestead's ground storey has the upper floor over it");
+    assert!(cut_away_of(&ship, hz, 1).is_none(), "nothing is over the upper floor");
+    let o = ship.zones[hz].origin_vec();
+
+    // Machines: hidden exactly when the layout puts them on the home's upper floor.
+    let home = crate::machines::MachineHome::load(&data.join("machines/home.ron")).expect("the household's machines load");
+    let rects = ship.zone_rects();
+    let upstairs: std::collections::HashSet<String> = home
+        .all_instances()
+        .into_iter()
+        .filter(|i| i.offset.1 >= 3.0 - STOREY_EPS)
+        .filter(|i| crate::machines::resolve_zone_rect(&rects, &i.zone).is_some_and(|z| z.id == ship.zones[hz].id))
+        .map(|i| i.id)
+        .collect();
+    assert!(upstairs.contains("bed_1") && upstairs.contains("desk_monitor_1"), "the bed and the study's monitor are upstairs");
+    let placed = home.placements(&HashMap::new(), Some(&rects));
+    let wrong: Vec<String> = placed
+        .iter()
+        .filter(|p| cut.hides(Vec3::new(p.pos.0, p.pos.1, p.pos.2)) != upstairs.contains(&p.id))
+        .map(|p| format!("{} at {:?} ({})", p.id, p.pos, if upstairs.contains(&p.id) { "upstairs, drawn" } else { "not upstairs, hidden" }))
+        .collect();
+    assert!(wrong.is_empty(), "{} of {} machines are drawn wrong in the cut-away: {wrong:#?}", wrong.len(), placed.len());
+
+    // Door panels: the ones shown are the cut body's own.
+    let key = |p: &crate::ship::door_panels::PanelPlacement| {
+        ((p.center.x * 100.0).round() as i64, (p.center.y * 100.0).round() as i64, (p.center.z * 100.0).round() as i64)
+    };
+    let all = crate::ship::door_panels::ship_panel_placements(&ship);
+    let mut shown: Vec<_> = all.iter().filter(|p| !cut.hides(p.center)).map(key).collect();
+    let cut_ship = cut_away_ship(&ship, hz, 0).expect("the cut ship");
+    let mut own: Vec<_> = crate::ship::door_panels::ship_panel_placements(&cut_ship).iter().map(key).collect();
+    shown.sort_unstable();
+    own.sort_unstable();
+    assert!(all.len() > own.len(), "the cut body has fewer doors than the whole ship ({} vs {})", own.len(), all.len());
+    assert_eq!(shown, own, "the doors the cut-away shows are not the cut body's");
+
+    // The body's pieces and lights: the same rule as `cut_away_body`.
+    let body = &ship.zones[hz].body;
+    let cut_body = cut_away_body(body, 0).expect("the cut body");
+    let shown_pieces = body.structures.iter().filter(|s| !cut.hides(o + Vec3::new(s.pos.0, s.pos.1, s.pos.2))).count();
+    assert_eq!(shown_pieces, cut_body.structures.len(), "pieces: the cut-away and `cut_away_body` disagree");
+    let shown_lights = body.lights.iter().filter(|l| !cut.hides(o + Vec3::new(l.pos.0, l.pos.1, l.pos.2))).count();
+    assert_eq!(shown_lights, cut_body.lights.len(), "lights: the cut-away and `cut_away_body` disagree");
+}

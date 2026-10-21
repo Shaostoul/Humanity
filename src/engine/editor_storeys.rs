@@ -577,6 +577,55 @@ pub(crate) fn editor_cut_away(state: &EngineState) -> Option<ShipStructure> {
     cut_away_ship(state.gui_state.ship_structure.as_ref()?, zone, k)
 }
 
+/// How far outside the cut zone's box a thing may stand and still be cut with it (metres): a door
+/// in the shell stands on the box's edge, and the port gizmos of a unit against the shell
+/// (`home_meshes::port_gizmo_pos`, a ring round the machine) and the risers to them stand just past
+/// it (the study's uplink and router, x 55.05 on a 55 m box).
+pub(crate) const CUT_EDGE_M: f32 = 0.3;
+
+/// THE CUT-AWAY FOR WHAT IS NOT IN THE BODY (ship homes increment 7 review): the home's machines,
+/// their screens, its door panels and its elevator cars are drawn from the whole ship, not from
+/// the cut body, so they follow the cut by where they stand. World metres: the cut zone's footprint
+/// and the cut's height, the top of the storey being edited.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CutAway {
+    pub(crate) min: (f32, f32),
+    pub(crate) max: (f32, f32),
+    pub(crate) cut_y: f32,
+}
+
+impl CutAway {
+    /// True when the cut-away takes out a thing standing at world point `at` (its foot: a machine's
+    /// placement, a door panel's bottom, an elevator car's floor): in the cut zone's box and at or
+    /// over the cut, the rule `cut_away_body` keeps the body's pieces and lights by.
+    pub(crate) fn hides(&self, at: Vec3) -> bool {
+        at.y >= self.cut_y - STOREY_EPS
+            && at.x >= self.min.0 - CUT_EDGE_M
+            && at.x <= self.max.0 + CUT_EDGE_M
+            && at.z >= self.min.1 - CUT_EDGE_M
+            && at.z <= self.max.1 + CUT_EDGE_M
+    }
+}
+
+/// The cut-away of storey `k` of zone `zone` (`CutAway`): None when nothing is above that storey,
+/// as `cut_away_body`.
+pub(crate) fn cut_away_of(ship: &ShipStructure, zone: usize, k: usize) -> Option<CutAway> {
+    let z = ship.zones.get(zone)?;
+    let storeys = z.body.storeys();
+    if k + 1 >= storeys.len() {
+        return None;
+    }
+    let o = z.origin_vec();
+    Some(CutAway { min: (o.x, o.z), max: (o.x + z.body.width, o.z + z.body.depth), cut_y: o.y + storeys[k].top })
+}
+
+/// The cut-away the editor should draw now (`storey_cut_key`), as `CutAway`; None for the whole
+/// ship. engine/home_meshes.rs `rebuild_homestead` keeps it with the meshes it draws.
+pub(crate) fn editor_cut(state: &EngineState) -> Option<CutAway> {
+    let (zone, k) = storey_cut_key(state)?;
+    cut_away_of(state.gui_state.ship_structure.as_ref()?, zone, k)
+}
+
 /// Per frame (from `construction_history_tick`): when the cut-away that should be drawn is not
 /// the one that was, redraw the home. Choosing a storey, another zone, adding the slab that makes
 /// a storey above, or closing the editor all come here. The redraw is called directly, not through

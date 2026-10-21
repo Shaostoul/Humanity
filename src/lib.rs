@@ -1931,6 +1931,7 @@ mod native_app {
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
                 garden_draw: Default::default(),
+                home_draw: Default::default(),
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
@@ -7646,21 +7647,9 @@ mod native_app {
                     let hide_pipes = state.gui_state.construction_hidden_types.contains("Pipe");
                     if !showroom {
                         if !hide_machines {
-                        for &(mesh_idx, mat_idx, pos, yaw) in &state.machine_objects {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: pos,
-                                rotation: Quat::from_rotation_y(yaw.to_radians()), // v0.633 machine yaw
-                                scale: Vec3::ONE,
-                                mesh: mesh_idx,
-                                material: mat_idx,
-                            });
-                        }
-                        // In-world screens (rung 2): the display quad of every
-                        // placed machine with a `screen` def, drawn with the
-                        // body's own position + yaw (type-24 emitter material
-                        // bound to the surface texture). Hidden with the
-                        // machines, since each sits on a machine body.
-                        state.screens.push_render_objects(&mut all_objects);
+                        // The machines and their in-world screens (rung 2), but those the build
+                        // editor's cut-away leaves out (home_meshes `push_home_machines`).
+                        crate::engine::home_meshes::push_home_machines(state, &mut all_objects);
                         // Procedural plants (v0.862): one merged mesh per planted
                         // tower, geometry already in world coordinates.
                         for &(mesh_idx, mat_idx) in &state.plant_objects {
@@ -7868,39 +7857,14 @@ mod native_app {
                         }
                         let car_mesh = state.elevator_car_mesh.unwrap();
                         let car_mat = state.elevator_car_mat.unwrap();
-                        // EVERY zone's elevator cars, at world positions, keyed (zone, idx) (v0.754).
+                        // EVERY elevator's car at its height, its footprint less a 2 cm running
+                        // clearance, none the editor's cut-away hides (home_meshes
+                        // `elevator_car_poses`, the same lifts the cars ride on).
                         let cars: Vec<(Vec3, Quat, Vec3)> = state
                             .gui_state
                             .ship_structure
                             .as_ref()
-                            .map(|ship| {
-                                ship.zones
-                                    .iter()
-                                    .enumerate()
-                                    .flat_map(|(zi, zone)| {
-                                        let o = zone.origin_vec();
-                                        let es = &state.elevator_state;
-                                        zone.body.structures.iter().enumerate().filter_map(move |(i, ps)| {
-                                            let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                            if ty.kind != crate::ship::structure::StructureKind::Elevator {
-                                                return None;
-                                            }
-                                            // The car's height over its base, metres: the same
-                                            // travel the rider stands on (engine/footing.rs).
-                                            let travel = es.get(&(zi, i)).map_or(0.0, |e| e.0);
-                                            let car_top = ps.pos.1 + o.y + travel;
-                                            let (w, _h, d) = ty.size;
-                                            let thick = 0.15;
-                                            // box_xyz is y-bottom-origin + XZ-centered: place the slab so its
-                                            // TOP sits at car_top (the standing surface).
-                                            let pos = Vec3::new(ps.pos.0 + o.x, car_top - thick, ps.pos.2 + o.z);
-                                            let scale = Vec3::new(w * 0.85, thick, d * 0.85);
-                                            let rot = Quat::from_rotation_y(ps.rot_deg.to_radians());
-                                            Some((pos, rot, scale))
-                                        })
-                                    })
-                                    .collect()
-                            })
+                            .map(|ship| crate::engine::home_meshes::elevator_car_poses(ship, &state.elevator_state, state.home_draw.cut))
                             .unwrap_or_default();
                         for (position, rotation, scale) in cars {
                             all_objects.push(RenderObject { fade: 0.0, position, rotation, scale, mesh: car_mesh, material: car_mat });
