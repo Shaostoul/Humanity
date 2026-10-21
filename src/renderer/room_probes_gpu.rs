@@ -150,6 +150,12 @@ pub struct RoomGi {
     /// runs, so lamps and the sun pass every floor as they did before storeys.
     /// The same-boot A/B of what the floors take away and what they cost.
     pub slabs_off: bool,
+    /// Which half of the floors' test runs while they are on: the sun's
+    /// (`"sun"` writes no light runs) or the lamps' (`"lamps"` writes no sun
+    /// list), both by default. For attributing the floors' cost at runtime,
+    /// where a shader variant would change the code generation it measures.
+    pub slabs_sun: bool,
+    pub slabs_lamps: bool,
     /// Some light in the scene light buffer names a run. A frame with none
     /// must then rewrite the buffer once: a light `set_point_lights` did not
     /// repack this frame would otherwise keep a run whose rows now hold
@@ -316,6 +322,8 @@ impl RoomGi {
             bind_groups: None,
             slabs: Vec::new(),
             slabs_off: false,
+            slabs_sun: true,
+            slabs_lamps: true,
             slab_runs_live: false,
             last_slab_rows: 0,
             last_run_rows: 0,
@@ -646,11 +654,12 @@ impl Renderer {
         // sorted, +0.0, while the dawn park console-face-6 still read +0.47
         // (13 crossings, none blocking) until the layers. The runs below are
         // copies, so any order serves them.
-        let sun_list = if render_slabs.is_empty() { Vec::new() } else { layered_rows(&render_slabs, eye) };
+        let sun_list =
+            if render_slabs.is_empty() || !gi.slabs_sun { Vec::new() } else { layered_rows(&render_slabs, eye) };
         table.extend(sun_list.iter().copied());
         // Per scene light: (first row, rows, the one layer's plane).
         let mut runs: Vec<(u32, u32, f32)> = Vec::new();
-        if !render_slabs.is_empty() {
+        if !render_slabs.is_empty() && gi.slabs_lamps {
             let mut first = 0usize;
             let mut capped = 0usize;
             for l in &self.cur_lights {

@@ -1061,12 +1061,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // in a one-storey home. "1" restores them. The same-boot A/B for the look
     // (what a floor takes away) and the cost (the gpu.scene and
     // gpu.transparent difference). Sticky until "1", like room_gi.
+    // "sun" and "lamps" run one half of the test alone, to attribute its cost
+    // at runtime (a shader variant would change the code generation it
+    // measures).
     if let Some(t) = grab("slab_occlusion") {
-        state.renderer.room_gi.slabs_off = t == "0";
+        let gi = &mut state.renderer.room_gi;
+        gi.slabs_off = t == "0";
+        gi.slabs_sun = t != "lamps";
+        gi.slabs_lamps = t != "sun";
         log::info!(
             "Showcase: slab_occlusion -> {} ({} solid floor slabs)",
-            if state.renderer.room_gi.slabs_off { "OFF (light passes every floor)" } else { "on" },
-            state.renderer.room_gi.slab_count()
+            match t.as_str() {
+                "0" => "OFF (light passes every floor)",
+                "sun" => "the sun's test only",
+                "lamps" => "the lamps' test only",
+                _ => "on",
+            },
+            gi.slab_count()
         );
     }
     // {"hull":"0"} hides the ship's hull and "1" shows it again (2026-10-05): what the H key and
