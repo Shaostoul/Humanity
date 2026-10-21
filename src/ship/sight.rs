@@ -325,7 +325,7 @@ mod tests {
     /// "a wall upstairs hid a label downstairs".
     #[test]
     fn a_wall_hides_only_across_its_own_height() {
-        let upstairs = WallSegment { a: (5.0, 0.0), b: (5.0, 10.0), half_thickness: 0.075, y0: 3.0, y1: 6.0 };
+        let upstairs = WallSegment { a: (5.0, 0.0), b: (5.0, 10.0), half_thickness: 0.075, y0: 3.0, y1: 6.0, kind: crate::ship::wall_collision::SegmentKind::Wall };
         let ground = WallSegment { y0: 0.0, y1: 3.0, ..upstairs };
         let every = WallSegment::at_every_height(upstairs.a, upstairs.b, 0.075);
         let one = |w: WallSegment| SightBlockers { walls: vec![w], slabs: Vec::new() };
