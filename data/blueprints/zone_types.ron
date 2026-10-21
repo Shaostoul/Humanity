@@ -209,6 +209,23 @@
         purpose: "Sit, talk, read, watch; the room a household gathers in when nothing needs doing.",
         default_size: (5.0, 3.0, 5.0),
     ),
+    // The two rooms the homestead's upper floor frees downstairs (ship homes increment 7,
+    // docs/design/homestead-upper-floor.md section 4); their functions are data/rooms.ron's
+    // "dining" and "guest_bedroom".
+    (
+        id: "room_dining",
+        label: "Dining room",
+        color: (0.88, 0.66, 0.42),
+        purpose: "A table to eat at together and the sideboard beside it.",
+        default_size: (5.0, 3.0, 5.0),
+    ),
+    (
+        id: "room_guest_bedroom",
+        label: "Second bedroom",
+        color: (0.60, 0.64, 0.86),
+        purpose: "A bedroom on the entrance floor: for a guest, or for whoever cannot take the stair.",
+        default_size: (4.0, 3.0, 4.0),
+    ),
     // Shared-place zones (docs/design/ship-homes-and-logistics.md section 2.8). The mess hall
     // came first, in increment 3: the crew eat there and the ship's food stores stand there
     // (data/food/ship_stores.ron). Its tables, chairs and serving counter are machine rows in

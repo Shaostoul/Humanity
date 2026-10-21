@@ -18,6 +18,9 @@ pub mod door_panels;
 pub mod door_points;
 pub mod fibonacci;
 pub mod home_structure;
+/// The homestead's upper floor checked as the shipped design carries it (ship homes increment 7).
+#[cfg(test)]
+mod homestead_layout_tests;
 pub mod hull;
 pub mod layout;
 pub mod lock_types;

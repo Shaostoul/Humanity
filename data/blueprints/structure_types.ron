@@ -12,8 +12,8 @@
     ),
     (
         id: "stairs", label: "Stairs", category: "Structure",
-        kind: Stairs, shape: Steps, size: (1.4, 3.0, 3.6), color: (0.55, 0.55, 0.58), steps: 14,
-        note: "A staircase climbing one storey. Walk up it (the ground-height sampler lifts you step to step).",
+        kind: Stairs, shape: Steps, size: (1.2, 3.0, 4.5), color: (0.55, 0.55, 0.58), steps: 16,
+        note: "A staircase climbing one 3.0 m storey: 16 risers of 187.5 mm on 281 mm treads, 33.7 degrees, 1.2 m wide, inside the 2021 IRC and England's Approved Document K (docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md). It has no handrails yet, which both codes ask for. Walk up it (the ground-height sampler lifts you step to step).",
     ),
     (
         id: "ramp", label: "Ramp", category: "Structure",

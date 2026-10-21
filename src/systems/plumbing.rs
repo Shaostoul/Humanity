@@ -7,7 +7,8 @@
 //!
 //! Each tick, per `PlumbingCircuit.island`:
 //!   1. Sum production from powered `WaterProducer`s (L/min).
-//!   2. Sum demand from powered `WaterConsumer`s (L/min).
+//!   2. Sum demand from powered `WaterConsumer`s (L/min); before that, the irrigation's consumers
+//!      take the garden's draw and a household's fixtures their shares of its use (`HouseholdUse`).
 //!   3. Integrate the net flow into the island's `WaterTank`s (clamped 0..capacity), sequential bite.
 //!   4. Aggregate across islands into a live `WaterStatus` for the GUI.
 //!
@@ -91,6 +92,20 @@ impl System for PlumbingSystem {
                 world.query_mut::<(&crate::ecs::components::Irrigator, &mut WaterConsumer)>()
             {
                 c.lpm = demand.max(0.0) / n;
+            }
+        }
+        // 0b. A household's fixtures share its water (2026-10-20, ship homes
+        //     increment 7, decision 7): each of the n fixtures of one kind in
+        //     one household draws 1/n of the household's use of that kind
+        //     (`HouseholdUse`), so a second shower room adds taps, not a
+        //     second day of showers.
+        let mut kinds: HashMap<String, f32> = HashMap::new();
+        for (_, h) in world.query::<&crate::ecs::components::HouseholdUse>().iter() {
+            *kinds.entry(h.kind.clone()).or_default() += 1.0;
+        }
+        if !kinds.is_empty() {
+            for (_, (h, c)) in world.query_mut::<(&crate::ecs::components::HouseholdUse, &mut WaterConsumer)>() {
+                c.lpm = h.household_lpm / kinds.get(&h.kind).copied().unwrap_or(1.0).max(1.0);
             }
         }
         // Hand watering draws from the tanks too: litres FarmingSystem
@@ -341,6 +356,44 @@ mod tests {
         }
         let left = world.get::<&WaterTank>(tank).unwrap().liters;
         assert!((7000.0 - left - 10.2).abs() < 0.01, "an hour at 0.17 L/min takes 10.2 L: {left}");
+    }
+
+    /// A HOUSEHOLD'S FIXTURES SHARE ITS WATER (2026-10-20, ship homes increment 7, decision 7 of
+    /// docs/design/ship-homes-increment-7-plan.md; `machines::MachineDef::household_use`). Two
+    /// showers of one household each draw half of the household's showering, so the second shower
+    /// room adds taps and no second day of water; a toilet, another kind, keeps the household's
+    /// flushing whole; a third shower makes it three ways; and a shower of another zone's (another
+    /// household) is not part of this one's share. Seen red 2026-10-20 with the share step left out
+    /// of the tick: "the household draws 0.17501001 L/min, not its showering and flushing once
+    /// (0.10209)".
+    #[test]
+    fn a_households_fixtures_share_its_water() {
+        use crate::ecs::components::HouseholdUse;
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        let fixture = |world: &mut hecs::World, lpm: f32, kind: &str| {
+            world.spawn((WaterConsumer { lpm, needs_power: false }, HouseholdUse { household_lpm: lpm, kind: kind.into() }, PlumbingCircuit { island: 0 }))
+        };
+        let (showering, flushing) = (0.07292_f32, 0.02917_f32); // the family's 105 L and 42 L a day
+        let showers = [fixture(&mut world, showering, "home/shower"), fixture(&mut world, showering, "home/shower")];
+        let toilet = fixture(&mut world, flushing, "home/toilet");
+        let mut sys = PlumbingSystem::new();
+        sys.tick(&mut world, 60.0, &data);
+        let demand = status(&data).demand_lpm;
+        assert!((demand - (showering + flushing)).abs() < 1e-5, "the household draws {demand} L/min, not its showering and flushing once ({})", showering + flushing);
+        for e in showers {
+            let lpm = world.get::<&WaterConsumer>(e).unwrap().lpm;
+            assert!((lpm - showering / 2.0).abs() < 1e-6, "each of two showers draws {lpm}, not half the household's {showering}");
+        }
+        assert!((world.get::<&WaterConsumer>(toilet).unwrap().lpm - flushing).abs() < 1e-6, "the one toilet draws the household's flushing");
+        let third = fixture(&mut world, showering, "home/shower");
+        let elsewhere = fixture(&mut world, showering, "commons/shower");
+        sys.tick(&mut world, 60.0, &data);
+        assert!((world.get::<&WaterConsumer>(third).unwrap().lpm - showering / 3.0).abs() < 1e-6, "three showers share it three ways");
+        assert!((world.get::<&WaterConsumer>(elsewhere).unwrap().lpm - showering).abs() < 1e-6, "another household's shower is not in this one's share");
+        let demand = status(&data).demand_lpm;
+        assert!((demand - (2.0 * showering + flushing)).abs() < 1e-5, "two households' showering and one's flushing, {demand}");
     }
 
     /// A tank never overfills or drains below zero.

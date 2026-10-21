@@ -136,6 +136,38 @@
         min_size_m: (1.5, 2.5, 2.0),
         tags: ["rest", "personal"],
     ),
+    // The two rooms the homestead's upper floor frees downstairs (ship homes increment 7,
+    // docs/design/homestead-upper-floor.md section 4). The second bedroom is not a "bedroom":
+    // that type carries the standing mirror's `customize_appearance`, and the home has exactly
+    // one appearance room (src/ship/room_types.rs).
+    "dining": (
+        name: "Dining Room",
+        purpose: "A table to eat at together, chairs round it and a sideboard",
+        actions: ["eat", "gather"],
+        access: "shared",
+        default_color: (0.88, 0.66, 0.42, 1.0),
+        default_material: "wood_panel",
+        equipment: ["table", "chair", "sideboard"],
+        power_draw_watts: 40,
+        requires_life_support: true,
+        ambient_sound: "ambient.space_station",
+        min_size_m: (3.0, 2.5, 3.0),
+        tags: ["food", "social"],
+    ),
+    "guest_bedroom": (
+        name: "Second Bedroom",
+        purpose: "A bedroom on the entrance floor, for a guest or for whoever cannot take the stair",
+        actions: ["sleep", "personal_storage"],
+        access: "private",
+        default_color: (0.5, 0.4, 0.3, 1.0),
+        default_material: "wood_panel",
+        equipment: ["bed", "wardrobe", "nightstand", "desk"],
+        power_draw_watts: 50,
+        requires_life_support: true,
+        ambient_sound: "ambient.space_station",
+        min_size_m: (2.5, 2.5, 3.0),
+        tags: ["rest", "personal"],
+    ),
     "hall": (
         name: "Hall",
         purpose: "The route through the home: every room opens off it, and nothing has to be crossed to reach another",

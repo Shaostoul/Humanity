@@ -113,9 +113,10 @@ mod tests {
     const PHASES: usize = 12;
 
     /// A 20 x 20 m room with one piece of the homestead's "stairs" (data/blueprints/
-    /// structure_types.ron: 3.0 m high, 14 steps up 3.6 m, so 0.214 m risers on 0.257 m treads)
-    /// centred at z = 6, climbing +Z from its foot at z = 4.2 to its top at z = 7.8, with
-    /// nothing beyond the top: the homestead's `stairs-1` leads to no upper floor either.
+    /// structure_types.ron: 3.0 m high, 16 steps up 4.5 m, so 0.1875 m risers on 0.281 m treads,
+    /// since ship homes increment 7) centred at z = 6, climbing +Z from its foot at z = 3.75 to
+    /// its top at z = 8.25, with nothing beyond the top. The homestead's own `stairs-1` now
+    /// arrives on its upper floor; this test room keeps an open top to fall from.
     struct Room {
         rooms: Vec<RoomBounds>,
         ship: ShipStructure,
@@ -141,7 +142,7 @@ mod tests {
         Room { rooms: vec![room], ship: ShipStructure { zones: vec![zone], ..Default::default() }, cars: ElevatorCars::new() }
     }
 
-    /// The stairs' tread heights, bottom to top: 3.0 / 14 each.
+    /// The stairs' tread heights, bottom to top: 3.0 / 16 each.
     fn tread_heights() -> Vec<f32> {
         let ty = structure::structure_type("stairs").expect("the stairs type");
         (1..=ty.steps).map(|k| k as f32 * ty.size.1 / ty.steps as f32).collect()
@@ -267,7 +268,8 @@ mod tests {
 
     /// A SLOW FRAME WALKS UP EVERY STAIR TREAD (BUG-207). Walking up the 3.0 m stairs at 54 ms
     /// frames (walking and sprinting) and at 100 ms frames, from every starting point, the body
-    /// stands on each of the 14 treads, the top one included, as it does at a high frame rate.
+    /// stands on each of the 16 treads (14 before ship homes increment 7), the top one included, as
+    /// it does at a high frame rate.
     ///
     /// Seen red 2026-10-20 on the walk before the fix: "43 slow walks up the stairs skipped a
     /// tread: [\"walking at 54 ms from z = 2.000: never stood on [\\\"0.857\\\"]\", ... (7 of the
@@ -279,7 +281,7 @@ mod tests {
     #[test]
     fn walking_up_the_stairs_at_a_low_frame_rate_stands_on_every_tread() {
         let treads = tread_heights();
-        assert_eq!(treads.len(), 14, "the homestead's stairs have 14 steps");
+        assert_eq!(treads.len(), 16, "the homestead's stairs have 16 steps");
         let mut wrong = Vec::new();
         for (dt, sprint) in [(0.054, false), (0.054, true), (0.1, false), (0.1, true)] {
             for k in 0..PHASES {

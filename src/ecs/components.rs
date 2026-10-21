@@ -1377,6 +1377,19 @@ pub struct WaterConsumer {
     pub needs_power: bool,
 }
 
+/// A HOUSEHOLD FIXTURE's share of the household's water (2026-10-20, ship homes increment 7,
+/// decision 7; `machines::MachineDef::household_use`): `household_lpm` is what the household draws
+/// at fixtures of this kind, and every entity of the same `kind` shares it, so each one's
+/// `WaterConsumer` draws `household_lpm / n` (`PlumbingSystem` sets it every tick, the way the
+/// irrigation's consumers share the garden's draw). A second shower room adds taps, not a second
+/// day of showers. `kind` names the zone and the machine ("home/shower"), so a fixture of another
+/// household's never shares this one's.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HouseholdUse {
+    pub household_lpm: f32,
+    pub kind: String,
+}
+
 /// The plumbing ISLAND (connected water-pipe component) a water entity belongs to (v0.608). Parallels
 /// `PowerCircuit`: the `PlumbingSystem` balances production/storage/demand PER ISLAND so water cannot
 /// teleport between unconnected pipe runs. Entities without it share the `None` bucket.

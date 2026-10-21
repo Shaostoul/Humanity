@@ -254,6 +254,12 @@ pub(crate) fn spawn_home_machine_entity(
         let dem = def.water_demand_lpm();
         if dem > 0.0 {
             let _ = world.insert_one(e, WaterConsumer { lpm: dem, needs_power });
+            // A household fixture draws its share of the household's use of its kind, split
+            // among every fixture of that kind each tick (2026-10-20, ship homes increment 7).
+            if def.household_use {
+                let kind = format!("{}/{}", inst.zone, inst.machine);
+                let _ = world.insert_one(e, crate::ecs::components::HouseholdUse { household_lpm: dem, kind });
+            }
         }
         if def.irrigates {
             let _ = world.insert_one(e, crate::ecs::components::Irrigator);

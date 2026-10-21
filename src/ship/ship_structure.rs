@@ -4063,8 +4063,10 @@ mod storey_fields_tests {
             "effbdfbec3360115",
             "effbdfbec3360115",
             "2f24b7a1c04beedd",
-            "7f2c00ab2c30e0ce",
-            "d015569462471165",
+            // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
+            // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165.
+            "f157103c47ff3d8f",
+            "8027554eda990922",
             "da22405ff5cb9a36",
             "ffb704a6e5cf699b",
         ];

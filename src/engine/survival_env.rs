@@ -548,6 +548,11 @@ mod tests {
     ///
     /// Seen red 2026-10-04 on the code before the fix: "the elevator's car at the top (elevator-1),
     /// the eye at [31, 4.7, 26], breathes Outside".
+    ///
+    /// The places moved with the upper floor (ship homes increment 7, 2026-10-20,
+    /// docs/design/homestead-upper-floor.md): stairs-1 left the vehicle bay for the hall, its top
+    /// tread at x 36.5 to 36.8, z 38.65; ladder-1 left the plant room for the service way beside
+    /// the elevator, its climber 0.5 m north of it under the hatch into the lift lobby.
     #[test]
     fn the_top_of_the_homesteads_own_elevator_breathes_the_homes_air() {
         use glam::Vec3;
@@ -558,8 +563,8 @@ mod tests {
         let jump_rise = crate::renderer::camera::JUMP_SPEED_MPS.powi(2) / (2.0 * 9.81);
         let places = [
             ("the elevator's car at the top (elevator-1)", Vec3::new(31.0, 3.0 + eye, 26.0)),
-            ("the ladder's top (ladder-1)", Vec3::new(11.0, 3.0 + eye + 0.2, 32.0)),
-            ("the stairs' top step (stairs-1)", Vec3::new(34.0, 3.0 + eye, 5.7)),
+            ("the ladder's top (ladder-1)", Vec3::new(33.0, 3.0 + eye + 0.2, 27.5)),
+            ("the stairs' top step (stairs-1)", Vec3::new(36.6, 3.0 + eye, 38.65)),
             ("a jump from the elevator's top", Vec3::new(31.0, 3.0 + eye + jump_rise, 26.0)),
         ];
         for (what, p) in places {
