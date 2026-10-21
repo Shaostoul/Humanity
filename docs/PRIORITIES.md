@@ -58,6 +58,14 @@ and the Sun's real body (not started; the operator asked for it). Worktree, comm
 next command for each: `docs/history/2026-10-21-in-flight.md`. Merge main into each worktree,
 finish, verify, release one at a time.
 
+**Also queued (operator's question, 2026-10-21: "Do rooms not automatically calculate their
+volumes on the fly?").** They do (the flood fill, live), but the static power meters charge a
+controller-driven machine its hand-measured `average_watts` (src/machines.rs `average_load_watts`),
+re-measured by a person whenever a room changes; a player's own rooms will never have one. Make the
+meters read the simulation's actual duty over the last game day (the data figure only as a
+first-day estimate), and stop hand-quoting room volumes in data comments and Library guides
+(generate them from the data, or describe the method).
+
 ### THIS WEEK (planned 2026-10-02): playable multiplayer, proven with two people
 
 Planned by a five-reader survey, three competing week plans and a judge, with
