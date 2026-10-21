@@ -1585,7 +1585,10 @@ fn fs_terrain(in: VertexOutput) -> @location(0) vec4<f32> {
             // true radiance (real glint radiance is sun radiance x Fresnel,
             // ~1000x sky). Wind still redistributes: storm peaks ~0.28,
             // wide and dim, which is what storm glitter does from orbit.
-            let old_glint = camera.sun_color.rgb * camera.sun_direction.w
+            // The camera's sun, or this body's own when it is in the sky
+            // (body_sun, 80-fragment-shared.wgsl).
+            let glint_sun = body_sun();
+            let old_glint = glint_sun.rgb * glint_sun.w
                 * WATER_SPEC_GAIN * 5.0 * f_h_g * spec * day;
             var presence = 0.0;
             if (has_tex && detail_on) {

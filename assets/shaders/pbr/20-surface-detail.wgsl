@@ -1316,7 +1316,10 @@ fn water_shade(
     sun_shadow_f: f32,
 ) -> vec3<f32> {
     let sun_l = normalize(camera.sun_direction.xyz);
-    let sun_i = camera.sun_direction.w;
+    // The camera's sun, or a sky body's own (Earth's sea seen from the Moon's
+    // night side): body_sun in 80-fragment-shared.wgsl.
+    let bsun = body_sun();
+    let sun_i = bsun.w;
     // Sun elevation from the GEOMETRIC normal - this is the day/night and
     // terminator factor, and it must NOT follow the waves or a wave tilted
     // toward a set sun would light up at night.
@@ -1368,7 +1371,7 @@ fn water_shade(
     let horizon = vec3<f32>(0.20, 0.36, 0.55);
     let zenith = vec3<f32>(0.04, 0.14, 0.38);
     var sky = mix(horizon, zenith, pow(elev, 0.6));
-    sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.18;
+    sky = sky + bsun.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.18;
     var sky_term = sky * (day * sun_i * WATER_SKY_GAIN);
     // The REAL sky, when this frame LUT is valid (shadow_u.params2.y is the
     // rendered-this-frame flag, the same gate the atmosphere uses). No daylight
@@ -1448,7 +1451,7 @@ fn water_shade(
         );
         sky_term = mix(sky_term, fog_rgb_w, w_fog_w);
     }
-    let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI) * sun_shadow_f;
+    let body = albedo * bsun.rgb * (sun_i * day_facet / PI) * sun_shadow_f;
     let h = normalize(view_dir + sun_l);
     // GLITTER WIDTH FROM THE WIND (v0.1055, operator: "the sun reflects but
     // there is some weird hard lines"). WATER_SPEC_POWER is a fixed 900-power
@@ -1519,7 +1522,7 @@ fn water_shade(
     let anchor_p = 220.0;
     let anchor = ((anchor_p + 2.0) / (2.0 * PI))
         * pow(max(dot(n_geo, h), 0.0), anchor_p) / denom * (0.06 * resolved);
-    let spec = camera.sun_color.rgb * sun_i * WATER_SPEC_GAIN * f_h
+    let spec = bsun.rgb * sun_i * WATER_SPEC_GAIN * f_h
         * (sparkle + anchor) * day * sun_shadow_f;
     return body * (1.0 - f) + sky_term * f + spec + albedo * 0.005;
 }

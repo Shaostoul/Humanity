@@ -3461,7 +3461,7 @@ happening anywhere on Earth, not where you stand. The web Maps page uses none
 of this model (see above).
 
 **Also found on the way, and not BUG-140: from the ground at night the Moon is
-drawn BLACK.** The rig frame of 2026-10-21 (below) has the Moon exactly where
+drawn BLACK (FIXED 2026-10-21 as BUG-212).** The rig frame of 2026-10-21 (below) has the Moon exactly where
 the fixed model puts it, but as a black disc you can only see by the orbit lines
 it hides. Two camera-local gates switch the Sun off for everything the frame
 draws once the Sun is below the observer's horizon, the Moon's own sphere
@@ -6562,3 +6562,113 @@ station it keeps the world's axes. The red message is in the test's comment. The
 
 **Lanes:** the renderer's lighting lane (2026-10-21) owns `renderer/light.rs` and the room GI, not
 this call; the change is the direction's frame at the two call sites, nothing in the renderer.
+
+## BUG-211: from the ship, Earth showed its north pole where its equator should face (FIXED 2026-10-21, found 2026-10-21)
+
+**Seen:** Maps increment 1's builder, in its map view and in the live game: from the UHS
+Mothership, in a synchronous equatorial orbit over -122.3 (`data/stations/home.ron`), the Earth
+behind and below the ship showed the Arctic ice cap, Greenland, Canada and Siberia round it, where
+the Pacific on the equator at 122 W belongs.
+
+**Cause:** aboard, the render frame is the hull's body frame (v0.1225). Every body's POSITION went
+through it (`station::to_hull`, lib.rs "HULL FRAME, site 1") and so did `rot_d`, the f64 rotation
+the frame places terrain points with (`planet_build::body_render_rot`). But the ORIENTATION every
+draw of a body carries, the f32 `rotation` in the celestial loop, stayed
+`Quat::from_rotation_y(spin)`: the spin alone. The uniform sphere, the patches, the cloud deck and
+the atmosphere dome, the trees, OSM buildings and water on a planet were all turned by it, and the
+type-12 shader reads a fragment's latitude and longitude through the inverse model matrix
+(`inv(model) * (fragment - centre)`). So aboard, Earth's +Y, its north pole, was drawn along the
+hull's +Y, which under LVLH is straight up through the floor at the ship. Off the station the hull
+frame is the identity, which is why every planet-surface and dev-travel view was right. It
+predates BUG-140 and BUG-210.
+
+**Fix:** `planet_build::body_model_rot` is `body_render_rot` narrowed to f32, and the celestial
+loop's `rotation` comes from it (lib.rs, beside `spin_f64`), so the draws' orientation and the
+placement are the same formula. The cloud deck's reprojection used the spin alone too
+(`frame_shells`, the planet-local camera and the resolve's content rotation `M`): it now takes the
+view's f64 rotation (`ShellView::rot64`), and `M = R_prev * R_now^-1` from the previous frame's
+whole rotation (`EngineState::cloud_prev_rot`, was `cloud_prev_spin`), which off the station is
+the old `Ry(-(spin - prev))` exactly, and aboard the synchronous station is nearly the identity
+(the hull's turn cancels the spin in the render frame) instead of a spurious spin.
+
+**Also on the way, the same miss: the orbit rings aboard.** The planets' and the Moon's orbit
+lines were drawn in the world's axes while their bodies went through the hull frame, so aboard a
+ring missed its own body and lay across the sky (lib.rs, the orbit paths' `world` closure). They
+now go through `station::to_hull` like the bodies.
+
+**Test:** `engine::planet_build::body_rot_tests::from_the_ship_earth_shows_its_equator_under_the_ship_and_its_pole_to_the_north`,
+through the engine's own chain (the orbit re-phased by the sun's azimuth, the LVLH attitude, the
+spin from the clock, Earth's centre by `to_hull`, the draws' rotation, the shader's lat/lon) at
+four dates and five hours: the point under the ship at latitude 0, longitude -122.3, and Earth's
+pole along the world's north in the hull's axes. Seen red on the spin-only rotation: "sun azimuth
+0, hour 0: the point under the ship is drawn at latitude 90.000, longitude -18.435, not on the
+equator at -122.3".
+
+**Seen in the running game, 2026-10-21 about 17:30 and 18:20 UTC** (probe rig, `maps-follow-home`;
+the before is the main checkout's build of 9783d012b, which differed from the fixed tree only in
+the fix's files): before, the Arctic ice cap fills the middle of Earth's disc under the ship;
+after, the open Pacific with the noon sun glint, Mexico and Baja California at one side of the
+disc and Colombia and Ecuador further round, as the equator at 122 W should look. The planets'
+rings now run parallel to the ship's own orbit line (no axial tilt in the game, so the ecliptic
+is the equator's plane); before, one crossed it. `home-clock-noon` shows the rings through the
+zenith along the orbit, where they were across the horizon.
+
+## BUG-212: from the ground at night the Moon was drawn black (FIXED 2026-10-21, found 2026-10-21)
+
+**Seen:** BUG-140's rig frame over Silverdale at night had the Moon exactly where the model put
+it, but black, visible only by the orbit lines it hid (see BUG-140, "Also found on the way").
+
+**Cause:** the celestial pass has one sun, and it is the sun AT THE CAMERA. lib.rs multiplies its
+colour by the air's transmittance toward the Sun from the camera (`sun_transmittance`, v0.915 and
+v0.1004) and the pass scales its strength by the camera's day factor (`celestial_sun_day`, BUG-057
+#1). After sunset both are zero, which is right for the ground and the near scene and wrong for a
+body in the sky, which the Sun lights whatever time it is where the camera stands. On top of
+that, the near scene's aerial haze (`aerial_apply`) was applied to the Moon as if it stood in the
+air: the haze alone left 0.42 of it 40 degrees up at sea level, while the atmosphere dome drawn
+over it already dims it by the extinction on its own line of sight.
+
+**Fix:** a body that is not the frame body (the one the camera stands on or flies over) carries
+its own sunlight in its material's `params2`: the Sun before any air at the celestial pass's full
+strength (`key_lights::SUN_RGB`, `CELESTIAL_SUN_I`), coloured by the air on the camera's line of
+sight TO THAT BODY (`atmosphere::sun_transmittance` at its own elevation), only the colour, since
+the dome's grey alpha on that line supplies the brightness (`renderer::key_lights::sky_body_sun`,
+`sky_body_params`; lib.rs collects every body surface drawn, `BodyDraw`, and writes them after the
+sun's tint). A material the frame body uses keeps zeros, the camera's sun. The shader's
+`body_sun()` and `is_sky_body()` (80-fragment-shared.wgsl, Rust twin `celestial_sun_for`) light
+the shared tail, the sea's `water_shade` and the type-12 ocean glint with it, and a sky body skips
+`aerial_apply`. The cloud deck (type 15) uses `params2` for its slab and is never a sky body.
+
+**Tests** (each seen red, the red message in its doc comment):
+`renderer::key_lights::sky_body_tests::from_the_ground_at_night_the_moon_is_lit_by_the_sun_and_the_ground_is_not`
+(Earth's air from the shipped earth.ron, the Sun 20.6 degrees down, the Moon 39.6 up: the camera's
+sun shut, the Moon at full strength, and through the dome's grey the Moon gets the line's own
+transmittance channel for channel; red: "from the ground at night the Moon is lit at strength
+0.000, colour [0.0, 0.0, 0.0]: drawn black"),
+`each_drawn_material_takes_the_sun_its_bodies_need` (red: "4 materials drawn, 0 given a sun") and
+`the_shader_lights_a_sky_body_with_its_own_sun` (red: "80-fragment-shared.wgsl has no fn
+body_sun()").
+
+**Seen in the running game, 2026-10-21 about 17:35 and 18:20 UTC** (probe rig, Silverdale at the
+Moon's transit, local 20.3 h, the Sun about 22.5 degrees down, the Moon 42 degrees up due south,
+about 124.5 degrees east of the Sun, 78% lit; the vantages are written for the moment of the run by the
+scratchpad's `skybodies/gen_night_moon.js`, because the Moon's place depends on the date): before,
+a black disc, the brightest 5% of the pixels round it at luminance 26 (the orbit lines); after, a
+waxing gibbous Moon lit on the right, toward the west where the Sun set, its terminator on the
+left, the brightest 5% at luminance 156, slightly warm (rgb 166, 155, 136) through 1.5 airmasses.
+The planets in the evening sky, black dots before, are lit too.
+
+**Still not right, found on the way:**
+
+- Every body is turned by EARTH's spin (the celestial loop's one `rotation` and `rot_d` for all of
+  them), so the Moon is not tidally locked: the face it shows turns with Earth's day.
+- The atmosphere dome hides the Moon like the stars: its alpha is raised to 0.985 by day and by
+  the sky's brightness at twilight (`30-atmosphere.wgsl`, the star-occlusion rule), so the daytime
+  and twilight Moon, which is plainly visible in life, is nearly invisible.
+- Weather fog on the dome changes its colour but not its alpha, so at night the stars, and now
+  the Moon (no longer hazed by `aerial_apply`), show through fog that should hide them.
+- Another body's cloud deck and atmosphere (Earth's, seen from the Moon's night side) still take
+  the camera's day factor: those materials are not given a sky body's sun.
+- By reading the code, not yet seen in a picture: the frame body itself, seen from low orbit
+  while the frame lock holds it (below its blend altitude) over its night side, takes the
+  camera's day factor across its whole disc, so the day side past the terminator would be drawn
+  dark too.

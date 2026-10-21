@@ -562,12 +562,12 @@ Built as planned above, with these differences, each for a stated reason:
   render a second; the map while the camera turns about 0.85 ms GPU and 5.2 ms CPU a
   frame at half resolution; `cpu.maps_feed` 0.002 ms. The CPU cost is the scene's draw
   submission (`cpu.scene` about 3 ms, the same as the game's).
-- **Seen in the captures, not fixed here:** from the home (an equatorial synchronous
-  orbit) the rendered Earth shows its NORTH POLE under the ship, where the equator at
-  122 degrees west should be. `terrain::planet_heightmap::latlon_to_dir` puts north at
-  model +Y, the spin turns about +Y and the orbit lies in the XZ plane, so the far
-  Earth's mesh or texture orientation disagrees with that convention somewhere. Present
-  before BUG-140 and BUG-210 alike. Renderer and planet code, outside this increment.
+- **Seen in the captures, not fixed here (FIXED 2026-10-21 as BUG-211):** from the home
+  (an equatorial synchronous orbit) the rendered Earth shows its NORTH POLE under the
+  ship, where the equator at 122 degrees west should be. Present before BUG-140 and
+  BUG-210 alike. The cause: aboard, every draw of a body was turned by the spin alone
+  while its placement went through the hull frame; `planet_build::body_model_rot` now
+  narrows the one f64 rotation. `maps-follow-home` shows the Pacific under the ship.
 - **BUG-140's follow-ups in this view** (found by its fixer): the Lagrange points now
   take the orbit normal from the child's own motion (L4 leads, L5 trails, on every date);
   the overview looking down from ecliptic north with the planets going round

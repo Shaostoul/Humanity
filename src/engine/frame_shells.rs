@@ -114,9 +114,9 @@ pub(crate) struct ShellState<'a> {
     /// Camera position in the planet-local frame last frame, for the
     /// reprojection delta.
     pub cloud_prev_cam_local: &'a mut Option<DVec3>,
-    /// The planet's spin last frame, so the resolve can split content
-    /// rotation from camera translation exactly.
-    pub cloud_prev_spin: &'a mut Option<f64>,
+    /// The planet's rotation into render space last frame, so the resolve
+    /// can split content rotation from camera translation exactly.
+    pub cloud_prev_rot: &'a mut Option<glam::DQuat>,
     /// The reference-march frame stash the cloud dev panel reads back.
     pub cloud_ref_frame: &'a mut Option<String>,
 }
@@ -126,9 +126,10 @@ pub(crate) struct ShellState<'a> {
 pub(crate) struct ShellView {
     /// Planet centre in render space (the floating origin moves it).
     pub render_off: DVec3,
-    /// The planet's spin angle in f64, range-reduced.
-    pub spin_f64: f64,
-    /// The same spin as the f32 model rotation the shells are drawn with.
+    /// The planet's rotation into render space in f64 (lib.rs `rot_d`: the
+    /// spin, and aboard the hull frame too).
+    pub rot64: glam::DQuat,
+    /// The same rotation narrowed to f32, the one the shells are drawn with.
     pub rotation: Quat,
     /// The radius the body is DRAWN at: its true radius, or the far-body
     /// minimum-angular-size floor, whichever is larger.
@@ -155,7 +156,7 @@ pub(crate) fn push_planet_shells(
     // below stays line for line what it was inline.
     let ShellView {
         render_off,
-        spin_f64,
+        rot64,
         rotation,
         visual_scale,
         position,
@@ -850,8 +851,8 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
         // subtraction and both rotations
         // stay f64 (exact at these
         // magnitudes); only the final
-        // small delta is cast to f32.
-        let rot64 = glam::DQuat::from_rotation_y(spin_f64);
+        // small delta is cast to f32. The
+        // rotation is the view's `rot64`.
         let cam_l64 = glam::DVec3::new(
             cam_p.x as f64,
             cam_p.y as f64,
@@ -885,20 +886,17 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
         // translation. All f64 until the final
         // small casts (the v0.1238 lattice
         // lesson).
-        let prev_spin =
-            state.cloud_prev_spin.replace(spin_f64);
+        // M = R_prev * R_now^-1 (R = rot64,
+        // the spin and aboard the hull frame;
+        // off the station Ry(-(spin - prev))).
+        let prev_rot =
+            state.cloud_prev_rot.replace(rot64);
         state.renderer.cloud_resolve_motion.set(
-            match (prev_l, prev_spin) {
-                (Some(p), Some(s_prev)) => {
-                    let dphi = spin_f64 - s_prev;
-                    let m = glam::DQuat::from_rotation_y(
-                        -dphi,
-                    );
+            match (prev_l, prev_rot) {
+                (Some(p), Some(r_prev)) => {
+                    let m = r_prev * rot64.inverse();
                     let e_cur = cam_l64 - render_off;
-                    let e_prev =
-                        glam::DQuat::from_rotation_y(
-                            s_prev,
-                        ) * p;
+                    let e_prev = r_prev * p;
                     let dpos = e_prev - e_cur;
                     let s_off = m * e_cur - e_cur;
                     let mx = m * glam::DVec3::X;

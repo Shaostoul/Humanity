@@ -2081,7 +2081,7 @@ mod native_app {
                 weather_anchor: None,
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
-                cloud_prev_spin: None,
+                cloud_prev_rot: None,
                 cloud_map_sun_epoch: glam::DVec3::ZERO,
                 sea_state_override: None,
                 // Rig determinism pins, both off by default (showcase_request
@@ -9382,11 +9382,19 @@ mod native_app {
                             as u32;
                         let viewport_h = state.renderer.surface_size().1 as f32;
                         let fov_deg = state.camera.fov_degrees;
-                        let rotation = Quat::from_rotation_y(spin_f64 as f32);
+                        // Every body's draws carry this one rotation (the uniform sphere,
+                        // the patches, the shells, the trees and buildings on it), and
+                        // `rot_d` below is the same in f64. Aboard it includes the hull
+                        // frame: the spin alone turned Earth's north pole toward the ship
+                        // (2026-10-21, `body_rot_tests` in engine/planet_build.rs).
+                        let rotation = crate::engine::planet_build::body_model_rot(state.station_ride, state.station_world_rot, spin_f64);
                         // Chunked-LOD patch builds are budgeted PER FRAME
                         // across all bodies (in practice at most one body
                         // is ever close enough to be chunk-active).
                         let mut patch_builds_this_frame = 0usize;
+                        // Every body surface drawn this frame, for the sun each one is lit
+                        // by (renderer::key_lights::sky_body_params, after the light block).
+                        let mut body_draws: Vec<crate::renderer::key_lights::BodyDraw> = Vec::new();
 
                         // Temporal clouds (phase 4): cleared each frame; the
                         // cloud branch below re-arms it for the (single)
@@ -9444,11 +9452,12 @@ mod native_app {
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
                             );
-                            // Planet model rotation this frame: the SAME spin the uniform
-                            // body uses, composed in f64 with the hull frame (v0.1225): a
-                            // point at planet-local p renders at render_off + R_hull *
-                            // R_spin * p. ONE binding: the terrain, the near trees, the OSM
-                            // buildings and the pieces built on the planet all use it.
+                            // Planet model rotation this frame: the spin composed in f64
+                            // with the hull frame (v0.1225): a point at planet-local p
+                            // renders at render_off + R_hull * R_spin * p. ONE binding: the
+                            // terrain, the near trees, the OSM buildings and the pieces
+                            // built on the planet all use it, and `rotation` above (every
+                            // draw's orientation) is the same formula narrowed to f32.
                             let rot_d = crate::engine::planet_build::body_render_rot(state.station_ride, state.station_world_rot, spin_f64);
                             crate::engine::planet_build::note_body(state, &b.id, render_off, rot_d); // pieces built on it draw here
                             // Distance from the CAMERA, not the frame origin
@@ -9476,6 +9485,10 @@ mod native_app {
                                 state.camera.position.z as f64,
                             );
                             let dist = (render_off - cam_rel).length().max(1.0);
+                            // Its surface draws below, for key_lights::sky_body_params.
+                            let frame_body = state.frame_lock_body.as_deref() == Some(b.id.as_str());
+                            let body_dir = (render_off - cam_rel).normalize_or_zero();
+                            let body_draw = move |material: usize| crate::renderer::key_lights::BodyDraw { material, frame_body, dir: body_dir };
                             let radius_m = (b.radius_km * 1000.0) as f64;
 
                             // Visibility floor: without a bloom/billboard
@@ -10277,6 +10290,7 @@ mod native_app {
                                     }
                                     state.renderer.patch_draws = batched;
                                     chunked_drawn = true;
+                                    body_draws.push(body_draw(patch_material));
                                 }
                                 // ── Near-field REAL trees (v0.911) ──
                                 // The harvest, the draw plan and the card-hide
@@ -11011,6 +11025,7 @@ mod native_app {
                                         mesh: body_mesh,
                                         material,
                                     });
+                                    body_draws.push(body_draw(material));
                                 }
                                 // Sun corona halo (v0.886): radial-glow shell
                                 // (type 17) on a 3x sphere over the emissive
@@ -11083,12 +11098,12 @@ mod native_app {
                                             cloud_map_regime: &mut state.cloud_map_regime,
                                             cloud_prev_cam_local:
                                                 &mut state.cloud_prev_cam_local,
-                                            cloud_prev_spin: &mut state.cloud_prev_spin,
+                                            cloud_prev_rot: &mut state.cloud_prev_rot,
                                             cloud_ref_frame: &mut state.cloud_ref_frame,
                                         },
                                         crate::engine::frame_shells::ShellView {
                                             render_off,
-                                            spin_f64,
+                                            rot64: rot_d,
                                             rotation,
                                             visual_scale,
                                             position,
@@ -11210,7 +11225,9 @@ mod native_app {
                                     Some((i0, bp)) if i0 == i => bp,
                                     _ => pts_m[i],
                                 };
-                                let w = p + off_d;
+                                // Into the render frame like every body (HULL FRAME site
+                                // 1): aboard, a ring in the world's axes missed its body.
+                                let w = crate::station::to_hull(state.station_ride, state.station_world_rot, p + off_d);
                                 [w.x as f32, w.y as f32, w.z as f32]
                             };
                             for si in 0..n.saturating_sub(1) {
@@ -11272,7 +11289,7 @@ mod native_app {
                         } else {
                             (
                                 Vec3::new(sun_dir.x as f32, sun_dir.y as f32, sun_dir.z as f32),
-                                [1.0, 0.97, 0.92],
+                                crate::renderer::key_lights::SUN_RGB,
                             )
                         };
                         // Sky-arc stage 3a (v0.945): keep the atmosphere LUTs
@@ -11407,6 +11424,31 @@ mod native_app {
                         } else {
                             light_color
                         };
+                        // ── A BODY IN THE SKY TAKES ITS OWN SUN (2026-10-21) ──
+                        // The sun just built, and the day factor below, are the camera's:
+                        // shut after sunset, which is right for the ground and the near
+                        // scene and drew the Moon black at night. Every other body's
+                        // surface carries the Sun before any air, coloured by the air on
+                        // the camera's line of sight to it (renderer::key_lights).
+                        {
+                            let air = state
+                                .frame_lock_body
+                                .as_deref()
+                                .and_then(|b| state.planet_defs.get(b))
+                                .and_then(|d| d.atmosphere_color.map(|ac| (d, ac)))
+                                .map(|(d, ac)| {
+                                    let (rp, h) = crate::renderer::atmosphere::shell_packing(d.atmosphere_scale, d.scale_height_or_default(), d.radius);
+                                    // The same camera radius as the sun's tint above.
+                                    let shell_r_m = d.radius * (1.0 + d.atmosphere_scale.max(0.005) as f64 * 2.0);
+                                    let cam_r = ((state.frame_lock_anchor.length() / shell_r_m.max(1.0)) as f32).clamp(rp, 1.0);
+                                    let up_w = glam::DQuat::from_rotation_y(state.current_spin) * state.frame_lock_anchor.normalize_or_zero();
+                                    let up = crate::station::to_hull(state.station_ride, state.station_world_rot, up_w);
+                                    crate::renderer::key_lights::CameraAir { cam_r, rp, h, color: ac, up }
+                                });
+                            for (m, p2) in crate::renderer::key_lights::sky_body_params(&body_draws, air.as_ref()) {
+                                state.renderer.update_material_params2(m, p2);
+                            }
+                        }
                         if light_dir != Vec3::ZERO {
                             state.renderer.set_sun_light(
                                 light_dir,
@@ -11436,8 +11478,10 @@ mod native_app {
                                 let up_w = glam::DQuat::from_rotation_y(state.current_spin)
                                     * state.frame_lock_anchor.normalize_or_zero();
                                 let mu = up_w.dot(sun_dir) as f32;
+                                // The ground's gate; a body in the sky ignores it
+                                // (its own sun, the block before set_sun_light).
                                 state.renderer.celestial_sun_day =
-                                    ((mu + 0.02) / 0.27).clamp(0.0, 1.0);
+                                    crate::renderer::key_lights::camera_day_factor(mu);
                             }
                             crate::terrain::planet_chunks::GRASS_DENSITY_BITS.store(
                                 state.gui_state.settings.grass_density.to_bits(),

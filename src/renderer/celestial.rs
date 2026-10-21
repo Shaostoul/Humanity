@@ -518,7 +518,9 @@ impl Renderer {
             // all types except terrain's 12) was sunlit at midnight. The
             // shaders read w as 2.5 * day and normalize with * 0.4 where they
             // need the plain day factor.
-            let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32 * self.celestial_sun_day];
+            // A body in the sky ignores both this and the tinted colour below
+            // and takes its own sun from its material (key_lights::sky_body_params).
+            let sd = [sun_dir.x, sun_dir.y, sun_dir.z, super::key_lights::CELESTIAL_SUN_I * self.celestial_sun_day];
             // w carries the cloud clock (written above at 636); this full
             // vec4 write would stomp it back to a constant otherwise.
             // RGB is the TRANSMITTANCE-TINTED sun (cur_sun.1, fed by

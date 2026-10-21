@@ -199,6 +199,30 @@ fn frag_prologue(in: VertexOutput) -> FragSetup {
     return s;
 }
 
+// ── THE SUN A BODY IN THE SKY IS LIT BY (2026-10-21) ──
+// camera.sun_color and camera.sun_direction.w are the sun AT THE CAMERA:
+// lib.rs tints the colour by the air toward the Sun from where the camera
+// stands and the celestial pass scales the strength by the camera's day
+// factor, so both go to zero after sunset. Right for the ground and the near
+// scene; wrong for another body in the sky, which the Sun lights whatever the
+// hour here (the Moon was drawn black at night, its phase unseen). Such a
+// body's material carries its own sunlight in params2 (rgb, w = strength;
+// lib.rs from renderer::key_lights::sky_body_params). Every other material has
+// params2 zero, read as absent; the cloud deck (type 15) uses params2 for its
+// slab and is never a sky body. Rust twin: key_lights::celestial_sun_for.
+fn is_sky_body() -> bool {
+    let t = material.params.z;
+    return material.params2.w > 0.0 && !(t >= 14.5 && t < 15.5);
+}
+
+// The sun this fragment is lit by: rgb, w = strength (2.5 at full day).
+fn body_sun() -> vec4<f32> {
+    if (is_sky_body()) {
+        return material.params2;
+    }
+    return vec4<f32>(camera.sun_color.rgb, camera.sun_direction.w);
+}
+
 // The shared PBR lighting tail every surface class ends with. Reads the
 // setup as the class entry left it and returns the final tone-mapped colour
 // with the output alpha. The locals below carry the fs_main names so the
@@ -247,8 +271,11 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // above the local sphere really does see the sun a little past geometric
     // sunset - while ruling out light from a sun a degree or more under.
     let sun_ndl = dot(normal, normalize(camera.sun_direction.xyz));
+    // A body in the sky takes its own sun (body_sun above), never the
+    // camera's, which is shut at night.
+    let bsun = body_sun();
     var lo = evaluate_light(
-        camera.sun_direction.xyz, camera.sun_color.rgb, camera.sun_direction.w,
+        camera.sun_direction.xyz, bsun.rgb, bsun.w,
         normal, view_dir, albedo, metallic, roughness, f0)
         * sun_shadow_offset(in.world_position, sun_ndl, normal)
         * sun_gate;
@@ -463,7 +490,14 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // noon sun and orbit views clear: looking up exits the haze layer in a
     // few km, so only long, flat sightlines accumulate fog. sigma = 0 (off
     // in space, at night the color also darkens) makes this a no-op.
-    color = aerial_apply(color, in.world_position);
+    // NOT on a body in the sky (2026-10-21): the haze is the near scene's
+    // air, and the atmosphere dome drawn over a sky body already dims it by
+    // the extinction on its own line of sight. With both it was dimmed twice:
+    // the haze alone left 0.42 of the Moon 40 degrees up at sea level
+    // (sigma 2.2e-5 /m over the 25.5 km cap's 39.7 km slant).
+    if (!is_sky_body()) {
+        color = aerial_apply(color, in.world_position);
+    }
     // Underwater extinction AFTER aerial haze: above water the aerial term is
     // the atmosphere, below it the water column is what attenuates, and the two
     // are mutually exclusive in practice (aerial sigma is a surface-air value).
