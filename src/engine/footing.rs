@@ -499,7 +499,7 @@ mod tests {
         room.ship = ShipStructure { zones: vec![zone], ..Default::default() };
         // A wall across the room at z = 10, and a 0.2 m deck (4 m square, z 10 to 14) against
         // its far side. The frame began 0.6 m short of the wall; a substep's point is past it.
-        let wall = WallSegment { a: (0.0, 10.0), b: (20.0, 10.0), half_thickness: 0.075 };
+        let wall = WallSegment::at_every_height((0.0, 10.0), (20.0, 10.0), 0.075);
         let (start, through) = (Vec3::new(10.0, 1.7, 9.4), Vec3::new(10.0, 1.7, 10.4));
         let raw = floor_under(&room.rooms, Some(&room.ship), &room.cars, through, 0.0);
         assert_eq!(raw, Some(0.2), "the deck is under the point past the wall");

@@ -789,6 +789,7 @@ pub(crate) fn try_place_wall_node(state: &mut EngineState) {
                     hs.walls.push(crate::ship::home_structure::InteriorWall {
                         a: start,
                         b: p,
+                        base: 0.0,
                         height,
                         material,
                         openings: Vec::new(),

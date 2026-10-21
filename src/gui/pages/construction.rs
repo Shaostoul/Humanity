@@ -1787,7 +1787,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             let height = h.height;
             h.walls.push(crate::ship::home_structure::InteriorWall {
-                a: (x1, z1), b: (x2, z2), height, material: mat, openings: Vec::new(), thickness: None, layers: Vec::new(),
+                a: (x1, z1), b: (x2, z2), base: 0.0, height, material: mat, openings: Vec::new(), thickness: None, layers: Vec::new(),
             });
             state.construction_structure_dirty = true;
             format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat}", h.walls.len())

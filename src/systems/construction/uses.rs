@@ -716,7 +716,7 @@ mod tests {
         let mut world = hecs::World::new();
         place(&mut world, &reg, "storage_chest", 0.0, -3.0, 0);
         let eye = Vec3::new(0.0, 0.5, 0.0);
-        let wall = |a: (f32, f32), b: (f32, f32)| WallSegment { a, b, half_thickness: 0.1 };
+        let wall = |a: (f32, f32), b: (f32, f32)| WallSegment::at_every_height(a, b, 0.1);
         assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, &[]).is_some());
         let between = [wall((-2.0, -1.5), (2.0, -1.5))];
         assert!(first_in_view(&world, Some(&reg), eye, Vec3::NEG_Z, 8.0, None, &between).is_none(), "the wall hides the chest");

@@ -785,12 +785,14 @@ const STEP_OVER_M: f32 = 0.4;
 fn segment_of_box(lo: Vec3, hi: Vec3) -> WallSegment {
     let (cx, cz) = ((lo.x + hi.x) * 0.5, (lo.z + hi.z) * 0.5);
     let (half_x, half_z) = ((hi.x - lo.x) * 0.5, (hi.z - lo.z) * 0.5);
+    // The segment stands as tall as the box (ship homes increment 7's `WallSegment::y0`/`y1`).
+    let (y0, y1) = (lo.y, hi.y);
     if half_x >= half_z {
         let run = half_x - half_z;
-        WallSegment { a: (cx - run, cz), b: (cx + run, cz), half_thickness: half_z }
+        WallSegment { a: (cx - run, cz), b: (cx + run, cz), half_thickness: half_z, y0, y1 }
     } else {
         let run = half_z - half_x;
-        WallSegment { a: (cx, cz - run), b: (cx, cz + run), half_thickness: half_x }
+        WallSegment { a: (cx, cz - run), b: (cx, cz + run), half_thickness: half_x, y0, y1 }
     }
 }
 

@@ -58,7 +58,7 @@ pub enum OpeningKind {
 /// `wall_collision::wall_segments`: 0 = the z=0 edge (from (0,0) to (w,0)), 1 = the x=w edge
 /// (from (w,0) to (w,d)), 2 = the z=d edge (from (w,d) to (0,d)), 3 = the x=0 edge (from (0,d)
 /// to (0,0)). `at` is metres along the edge FROM ITS START in that winding; the cut spans
-/// [at, at+width] along the edge and [floor, height] vertically. Produced by
+/// [at, at+width] along the edge and [base, base + height] vertically, body-local. Produced by
 /// `ShipStructure::shell_cuts_for_zone` (one door-sized aperture where each corridor tube meets
 /// the box), consumed by `generate_meshes_with_shell_cuts` (mesh) and
 /// `wall_collision::wall_segments_with_shell_cuts` (collision) so a corridor is genuinely
@@ -68,6 +68,11 @@ pub struct ShellCut {
     pub edge: usize,
     pub at: f32,
     pub width: f32,
+    /// Where the cut's foot is, metres above the body's floor (ship homes increment 7): the deck
+    /// of the corridor that makes it, less the body's own floor. 0 for every corridor today (they
+    /// run level with the zones they join). Nothing reads it yet: the mesh and the collider still
+    /// open every cut from the floor, until the geometry lane builds walls per storey.
+    pub base: f32,
     pub height: f32,
 }
 
@@ -81,7 +86,9 @@ pub struct Opening {
     /// Left edge of the opening along the wall, metres from the wall's corner `a`.
     pub at: f32,
     pub width: f32,
-    /// Sill height above the floor (0 for a door; > 0 for a window).
+    /// Sill height above the wall's BASE (0 for a door; > 0 for a window). The base is the floor
+    /// the wall stands on (`InteriorWall::base`, 0 for a ground-floor wall), so a window upstairs
+    /// keeps the same sill as one downstairs (ship homes increment 7).
     #[serde(default)]
     pub sill: f32,
     /// Aperture height (door/window opening height).
@@ -166,12 +173,22 @@ pub fn quantize_corner(p: (f32, f32)) -> (f32, f32) {
 }
 
 /// An interior wall: a straight segment in the floor plan, from corner node `a` to `b` (each is
-/// (x, z) metres from the box's min corner), rising `height` metres from the floor. Openings
-/// (doors/windows) come in a later stage.
+/// (x, z) metres from the box's min corner), rising `height` metres from its `base` (the floor it
+/// stands on: 0, the body's floor, unless it is upstairs). Doors and windows are its `openings`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InteriorWall {
     pub a: (f32, f32),
     pub b: (f32, f32),
+    /// Where the wall stands, metres above the body's floor (ship homes increment 7,
+    /// docs/design/ship-homes-increment-7-plan.md section 2): it rises from `base` to
+    /// `base + height`. A wall upstairs stands on the top of the slab under it (3.0). Every wall
+    /// written before storeys is on the ground, 0, and is left out of the file while it is 0, so
+    /// those files are written exactly as before. The storey a wall belongs to is the one its base
+    /// is on (`HomeStructure::storey_of_wall`); an opening's `sill` is measured from here. Nothing
+    /// draws or walks by it yet (Wave 0 adds only the shape): the mesh still raises every wall
+    /// from 0 until the geometry lane builds walls per storey.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub base: f32,
     #[serde(default = "default_wall_height")]
     pub height: f32,
     /// Material id (matches RoomConfig.material_type: 0=grid, 1=steel/metal, 2=concrete, 3=wood).
@@ -225,6 +242,126 @@ impl InteriorWall {
     pub fn total_thickness(&self) -> f32 {
         self.resolved_thickness() + self.layers.iter().map(|l| l.thickness_m.max(0.0)).sum::<f32>()
     }
+
+    /// The wall's top, metres above the body's floor: its base plus its height (a negative height
+    /// counts as none).
+    pub fn top(&self) -> f32 {
+        self.base + self.height.max(0.0)
+    }
+
+    /// The heights the wall stands between, (base, top), body-local metres. The one place a wall's
+    /// vertical extent is worked out (its collision segment, `wall_collision::segments_impl`, and
+    /// the storey it stands in, `wall_in_storey`, both read it).
+    pub fn y_range(&self) -> (f32, f32) {
+        (self.base, self.top())
+    }
+}
+
+/// How far apart two heights may be and still be one level (metres): two slabs whose tops differ
+/// by less than this are one floor, and a wall's base or a zone's floor this close under a
+/// storey's floor stands on it (a 2.999 typed for 3.0 is the 3.0 floor). Ship homes increment 7.
+pub const STOREY_EPS: f32 = 0.01;
+
+/// A floor slab's thickness when its file does not say (metres): 0.25, which leaves a 3.0 m storey
+/// 2.75 m of room under the next floor (docs/design/ship-homes-increment-7-plan.md, decision 2).
+fn default_slab_thickness() -> f32 {
+    0.25
+}
+
+/// Serde's "leave it out" test for a height that defaults to 0 (`InteriorWall::base`): a file that
+/// never uses it is written byte for byte as before, so no ship's hash moves.
+fn is_zero(v: &f32) -> bool {
+    *v == 0.0
+}
+
+/// A FLOOR SLAB (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md section 2): a
+/// level box from `top - thickness` up to `top`, over the rectangle whose corners are `a` and `b`
+/// (body-local (x, z) metres, either way round). `top` is the walking surface, body-local y.
+///
+/// A storey above the ground is one or more slabs at the same `top`; a stairwell or an elevator
+/// shaft is simply where no slab is, so nothing is ever cut out of a floor. One slab is four things
+/// at once: the floor the storey above stands on, the ceiling of the room under it, the lid on that
+/// room's air and light, and what keeps the sun off the storey below. Storeys are DERIVED from the
+/// slabs (`HomeStructure::storeys`), never declared, so there is no list of levels to keep in step.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FloorSlab {
+    /// One corner of the footprint, (x, z) body-local metres.
+    pub a: (f32, f32),
+    /// The opposite corner.
+    pub b: (f32, f32),
+    /// The walking surface, metres above the body's floor.
+    pub top: f32,
+    /// How thick the slab is, metres down from `top`.
+    #[serde(default = "default_slab_thickness")]
+    pub thickness: f32,
+    /// An optional name for the editor ("upper floor", "landing").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl FloorSlab {
+    /// The footprint as (min x, min z, max x, max z), whichever way round its corners were written.
+    pub fn rect(&self) -> (f32, f32, f32, f32) {
+        (self.a.0.min(self.b.0), self.a.1.min(self.b.1), self.a.0.max(self.b.0), self.a.1.max(self.b.1))
+    }
+
+    /// True when the point (x, z) is over the slab, its edges included.
+    pub fn contains(&self, x: f32, z: f32) -> bool {
+        let (x0, z0, x1, z1) = self.rect();
+        x >= x0 && x <= x1 && z >= z0 && z <= z1
+    }
+
+    /// The underside: the top less the thickness (a negative thickness counts as none). It is the
+    /// ceiling of the room under the slab.
+    pub fn underside(&self) -> f32 {
+        self.top - self.thickness.max(0.0)
+    }
+
+    /// The slab's vertical extent, (underside, top).
+    pub fn y_range(&self) -> (f32, f32) {
+        (self.underside(), self.top)
+    }
+
+    /// True when this slab is the floor of `storey`: its top is that storey's floor.
+    pub fn is_floor_of(&self, storey: &Storey) -> bool {
+        (self.top - storey.floor).abs() < STOREY_EPS
+    }
+}
+
+/// One STOREY of a body: the band of height from `floor` up to `top` (body-local metres), derived
+/// from the floor slabs by `HomeStructure::storeys`. A body with no slabs has exactly one, from 0
+/// to its height.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Storey {
+    /// Its floor: 0 for the ground storey, else the top of the slabs it stands on.
+    pub floor: f32,
+    /// Where it ends: the next storey's floor, or the body's height for the top storey.
+    pub top: f32,
+}
+
+impl Storey {
+    /// Floor to the next floor (or to the body's top), metres.
+    pub fn height(&self) -> f32 {
+        self.top - self.floor
+    }
+}
+
+/// Which of `storeys` the body-local height `y` is on: the highest whose floor is at or below it
+/// (within `STOREY_EPS`). Below the ground is the ground storey and above the top the top one, so
+/// every wall and zone belongs to some storey. `storeys` is `HomeStructure::storeys`' answer, passed
+/// in so a loop over many walls works it out once.
+pub fn storey_index(storeys: &[Storey], y: f32) -> usize {
+    storeys.iter().rposition(|s| s.floor <= y + STOREY_EPS).unwrap_or(0)
+}
+
+/// True when `wall` stands in storey `k`: the storey its base is on (`storey_index` of its base)
+/// and every storey above that it rises into, so a wall from the ground to the roof of a two-storey
+/// room parts both storeys. A wall that reaches only to a storey's floor (a ground-floor wall under
+/// the slab it holds up) is not in that storey.
+pub fn wall_in_storey(storeys: &[Storey], wall: &InteriorWall, k: usize) -> bool {
+    let (base, top) = wall.y_range();
+    let on = storey_index(storeys, base);
+    k == on || (k > on && k < storeys.len() && top > storeys[k].floor + STOREY_EPS)
 }
 
 /// A home (or any structure): a FIXED outer box + freely-placed interior walls.
@@ -245,6 +382,12 @@ pub struct HomeStructure {
     /// The editable interior walls (segments in the floor plan).
     #[serde(default)]
     pub walls: Vec<InteriorWall>,
+    /// FLOOR SLABS (ship homes increment 7): the floors of the storeys above the ground, each a
+    /// level box (`FloorSlab`). The storeys come from them (`storeys`). Empty for a one-storey
+    /// body, which is every home and ship zone written before storeys, and left out of the file
+    /// while it is empty, so those files (and the ship's hash) are exactly as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub floors: Vec<FloorSlab>,
     /// Shell (perimeter + floor) thickness in metres. None -> the shell material's default. (v0.556)
     #[serde(default)]
     pub shell_thickness: Option<f32>,
@@ -746,6 +889,43 @@ impl HomeStructure {
         self.roof_material == 4
     }
 
+    /// The body's STOREYS, bottom up (ship homes increment 7, plan section 2): the bands between 0,
+    /// each distinct slab top, and the body's height. Slab tops within `STOREY_EPS` of each other
+    /// are one floor, and a slab at the ground or at the roof starts no storey. Never empty: with
+    /// no slabs it is the one storey from 0 to the height, which is every home and ship zone
+    /// written before storeys. The height is the one every mesh and room builder uses, `height`
+    /// but never under 1 m.
+    pub fn storeys(&self) -> Vec<Storey> {
+        let h = self.height.max(1.0);
+        let mut tops: Vec<f32> = self.floors.iter().map(|s| s.top).filter(|t| *t > STOREY_EPS && *t < h - STOREY_EPS).collect();
+        tops.sort_by(f32::total_cmp);
+        tops.dedup_by(|later, kept| (*later - *kept).abs() < STOREY_EPS);
+        let mut out = Vec::with_capacity(tops.len() + 1);
+        let mut floor = 0.0;
+        for top in tops {
+            out.push(Storey { floor, top });
+            floor = top;
+        }
+        out.push(Storey { floor, top: h });
+        out
+    }
+
+    /// Which storey (an index into `storeys`) the body-local height `y` is on (`storey_index`).
+    pub fn storey_of_y(&self, y: f32) -> usize {
+        storey_index(&self.storeys(), y)
+    }
+
+    /// The storey a wall belongs to: the one its base is on. (A wall that rises through the floor
+    /// above stands in that storey too: `wall_in_storey`.)
+    pub fn storey_of_wall(&self, wall: &InteriorWall) -> usize {
+        self.storey_of_y(wall.base)
+    }
+
+    /// The storey a zone belongs to: the one its floor, its origin's y, is on.
+    pub fn storey_of_zone(&self, zone: &Zone) -> usize {
+        self.storey_of_y(zone.origin.1)
+    }
+
     /// Resolved shell (perimeter + floor) thickness in metres. (v0.556)
     pub fn shell_resolved_thickness(&self) -> f32 {
         self.shell_thickness
@@ -1188,6 +1368,9 @@ impl HomeStructure {
             shell_material: self.shell_material,
             roof_material: self.shell_material,
             walls: self.walls.clone(),
+            // The slabs are shell too (a neighbour's upper floor is seen from outside); nothing
+            // draws them until the geometry lane of ship homes increment 7.
+            floors: self.floors.clone(),
             shell_thickness: self.shell_thickness,
             lights: Vec::new(),
             spawn: None,
@@ -1354,13 +1537,27 @@ impl HomeStructure {
     /// returns one RoomInfo (AABB + centroid) per connected open region. An EMPTY box -> one "home"
     /// room (unchanged); each wall that fully partitions the space splits off another room. Robust to
     /// arbitrary, non-rectangular, L-shaped regions (grid flood-fill, not planar-graph faces).
+    ///
+    /// STOREY BY STOREY (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md section
+    /// 2). Each storey (`storeys`) is flooded on its own, with only the walls standing in it
+    /// (`wall_in_storey`: the walls whose base is on it, and the taller walls rising through it), and
+    /// only where it has a FLOOR: the ground storey everywhere, a storey above only over its slabs.
+    /// Where an upper storey has no slab (a stairwell, an elevator shaft, the air over a room open to
+    /// the roof) there is nothing to stand on, so no room is made there: a room is a place you can
+    /// be in, and every later reader (footing, the HUD, the lights) takes a room's floor as real.
+    /// Each room gets its storey's floor (the bottom of its box), and its ceiling at the next
+    /// storey up whose floor lies over ANY of its cells; a room with no floor over it anywhere (the
+    /// greenhouse under the glass roof) rises to the body's top, so it keeps its full height.
+    ///
+    /// With no slabs there is one storey, 0 to the height, every wall stands in it, and the output
+    /// is exactly what it was before storeys (`no_slab_rooms_are_what_they_were` keeps the old code as
+    /// its reference and compares every shipped home and ship zone).
     pub fn detect_rooms(&self) -> Vec<RoomInfo> {
         let w = self.width.max(1.0);
         let d = self.depth.max(1.0);
         let h = self.height.max(1.0);
-        // No interior walls -> the whole box is one room (keeps the empty-box behavior identical).
-        if self.walls.is_empty() {
-            return vec![RoomInfo {
+        let whole_box = || {
+            vec![RoomInfo {
                 id: "home".to_string(),
                 center: Vec3::new(w * 0.5, h * 0.5, d * 0.5),
                 dimensions: Vec3::new(w, h, d),
@@ -1368,109 +1565,147 @@ impl HomeStructure {
                 is_spawn_room: true,
                 room_type: None,
                 label: String::new(),
-            }];
+            }]
+        };
+        // No interior walls and no upper floor -> the whole box is one room (keeps the empty-box
+        // behavior identical).
+        if self.walls.is_empty() && self.floors.is_empty() {
+            return whole_box();
         }
 
         const CELL: f32 = 0.5;
         let nx = (w / CELL).ceil() as usize;
         let nz = (d / CELL).ceil() as usize;
-        // Block every cell within a wall's half-thickness of any interior wall segment. The grid is
-        // coarse (0.5 m), so even a 1 mm wall still blocks (the CELL term dominates) and rooms stay
-        // separated -- per-wall thickness only widens fat walls. (v0.556)
-        let mut blocked = vec![false; nx * nz];
-        for cz in 0..nz {
-            for cx in 0..nx {
-                let px = (cx as f32 + 0.5) * CELL;
-                let pz = (cz as f32 + 0.5) * CELL;
-                for wall in &self.walls {
-                    let half = wall.resolved_thickness() * 0.5 + CELL * 0.5;
-                    if point_seg_dist(px, pz, wall.a, wall.b) < half {
-                        blocked[cz * nx + cx] = true;
-                        break;
-                    }
+        let storeys = self.storeys();
+        // has_floor[k][cell]: storey k has something to stand on over this cell (its centre). The
+        // ground storey has the shell's floor everywhere; a storey above has only its slabs.
+        let has_floor: Vec<Vec<bool>> = storeys
+            .iter()
+            .enumerate()
+            .map(|(k, storey)| {
+                if k == 0 {
+                    return vec![true; nx * nz];
                 }
-            }
-        }
+                let slabs: Vec<&FloorSlab> = self.floors.iter().filter(|s| s.is_floor_of(storey)).collect();
+                (0..nx * nz)
+                    .map(|i| {
+                        let (px, pz) = (((i % nx) as f32 + 0.5) * CELL, ((i / nx) as f32 + 0.5) * CELL);
+                        slabs.iter().any(|s| s.contains(px, pz))
+                    })
+                    .collect()
+            })
+            .collect();
 
-        // Flood-fill the open cells into connected components; each is a room.
-        let mut comp = vec![usize::MAX; nx * nz];
         let mut rooms: Vec<RoomInfo> = Vec::new();
+        // The storey each room was flooded on, beside `rooms` (the zone join matches on it).
+        let mut room_storeys: Vec<usize> = Vec::new();
         let mut stack: Vec<(usize, usize)> = Vec::new();
-        let mut next = 0usize;
-        for sz in 0..nz {
-            for sx in 0..nx {
-                let idx = sz * nx + sx;
-                if blocked[idx] || comp[idx] != usize::MAX {
-                    continue;
-                }
-                comp[idx] = next;
-                stack.clear();
-                stack.push((sx, sz));
-                let (mut minx, mut minz, mut maxx, mut maxz) = (sx, sz, sx, sz);
-                let mut count = 0usize;
-                while let Some((x, z)) = stack.pop() {
-                    count += 1;
-                    minx = minx.min(x);
-                    maxx = maxx.max(x);
-                    minz = minz.min(z);
-                    maxz = maxz.max(z);
-                    let neigh = [(x.wrapping_sub(1), z), (x + 1, z), (x, z.wrapping_sub(1)), (x, z + 1)];
-                    for (nxp, nzp) in neigh {
-                        if nxp < nx && nzp < nz {
-                            let ni = nzp * nx + nxp;
-                            if !blocked[ni] && comp[ni] == usize::MAX {
-                                comp[ni] = next;
-                                stack.push((nxp, nzp));
-                            }
+        for (k, storey) in storeys.iter().enumerate() {
+            let walls: Vec<&InteriorWall> = self.walls.iter().filter(|wall| wall_in_storey(&storeys, wall, k)).collect();
+            // A cell with no floor on this storey is closed to its flood. Then block every cell
+            // within a wall's half-thickness of a wall standing in this storey. The grid is coarse
+            // (0.5 m), so even a 1 mm wall still blocks (the CELL term dominates) and rooms stay
+            // separated -- per-wall thickness only widens fat walls. (v0.556)
+            let mut blocked: Vec<bool> = has_floor[k].iter().map(|f| !f).collect();
+            for cz in 0..nz {
+                for cx in 0..nx {
+                    let idx = cz * nx + cx;
+                    if blocked[idx] {
+                        continue;
+                    }
+                    let px = (cx as f32 + 0.5) * CELL;
+                    let pz = (cz as f32 + 0.5) * CELL;
+                    for wall in &walls {
+                        let half = wall.resolved_thickness() * 0.5 + CELL * 0.5;
+                        if point_seg_dist(px, pz, wall.a, wall.b) < half {
+                            blocked[idx] = true;
+                            break;
                         }
                     }
                 }
-                next += 1;
-                // Ignore rasterization slivers (a cell or two pinched off by a wall).
-                if count >= 4 {
-                    let (x0, x1) = (minx as f32 * CELL, (maxx + 1) as f32 * CELL);
-                    let (z0, z1) = (minz as f32 * CELL, (maxz + 1) as f32 * CELL);
-                    rooms.push(RoomInfo {
-                        // Anonymous until the zone join below names it (a covering zone lends
-                        // its id + room_type); rooms no zone covers keep this room_N id.
-                        id: format!("room_{}", rooms.len() + 1),
-                        center: Vec3::new((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5),
-                        dimensions: Vec3::new(x1 - x0, h, z1 - z0),
-                        is_hologram_room: false,
-                        is_spawn_room: false,
-                        room_type: None,
-                        label: String::new(),
-                    });
+            }
+
+            // Flood-fill the open cells into connected components; each is a room.
+            let mut comp = vec![usize::MAX; nx * nz];
+            let mut next = 0usize;
+            for sz in 0..nz {
+                for sx in 0..nx {
+                    let idx = sz * nx + sx;
+                    if blocked[idx] || comp[idx] != usize::MAX {
+                        continue;
+                    }
+                    comp[idx] = next;
+                    stack.clear();
+                    stack.push((sx, sz));
+                    let (mut minx, mut minz, mut maxx, mut maxz) = (sx, sz, sx, sz);
+                    let mut count = 0usize;
+                    // The first storey above this one whose floor is over any cell of the room:
+                    // its ceiling. `storeys.len()` while none is (the room is open to the roof).
+                    let mut ceiling = storeys.len();
+                    while let Some((x, z)) = stack.pop() {
+                        count += 1;
+                        minx = minx.min(x);
+                        maxx = maxx.max(x);
+                        minz = minz.min(z);
+                        maxz = maxz.max(z);
+                        let ci = z * nx + x;
+                        if let Some(j) = (k + 1..ceiling).find(|&j| has_floor[j][ci]) {
+                            ceiling = j;
+                        }
+                        let neigh = [(x.wrapping_sub(1), z), (x + 1, z), (x, z.wrapping_sub(1)), (x, z + 1)];
+                        for (nxp, nzp) in neigh {
+                            if nxp < nx && nzp < nz {
+                                let ni = nzp * nx + nxp;
+                                if !blocked[ni] && comp[ni] == usize::MAX {
+                                    comp[ni] = next;
+                                    stack.push((nxp, nzp));
+                                }
+                            }
+                        }
+                    }
+                    next += 1;
+                    // Ignore rasterization slivers (a cell or two pinched off by a wall).
+                    if count >= 4 {
+                        let (x0, x1) = (minx as f32 * CELL, (maxx + 1) as f32 * CELL);
+                        let (z0, z1) = (minz as f32 * CELL, (maxz + 1) as f32 * CELL);
+                        // Storeys are contiguous, so the storey under the ceiling ends at its floor.
+                        let (y0, y1) = (storey.floor, storeys[ceiling - 1].top);
+                        rooms.push(RoomInfo {
+                            // Anonymous until the zone join below names it (a covering zone lends
+                            // its id + room_type); rooms no zone covers keep this room_N id.
+                            id: format!("room_{}", rooms.len() + 1),
+                            center: Vec3::new((x0 + x1) * 0.5, (y0 + y1) * 0.5, (z0 + z1) * 0.5),
+                            dimensions: Vec3::new(x1 - x0, y1 - y0, z1 - z0),
+                            is_hologram_room: false,
+                            is_spawn_room: false,
+                            room_type: None,
+                            label: String::new(),
+                        });
+                        room_storeys.push(k);
+                    }
                 }
             }
         }
 
         if rooms.is_empty() {
             // Fully walled-in / degenerate -> fall back to the whole box as one room.
-            return vec![RoomInfo {
-                id: "home".to_string(),
-                center: Vec3::new(w * 0.5, h * 0.5, d * 0.5),
-                dimensions: Vec3::new(w, h, d),
-                is_hologram_room: false,
-                is_spawn_room: true,
-                room_type: None,
-                label: String::new(),
-            }];
+            return whole_box();
         }
-        // Give the rooms their identity: a zone that covers a room's centre lends it its id,
-        // label and room_type (the rooms.ron join). Rooms no zone covers keep room_N.
-        self.name_rooms_from_zones(&mut rooms);
-        // Spawn in the largest room.
-        let best = rooms
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| {
-                (a.dimensions.x * a.dimensions.z)
-                    .partial_cmp(&(b.dimensions.x * b.dimensions.z))
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .map(|(i, _)| i)
-            .unwrap_or(0);
+        // Give the rooms their identity: a zone on the same storey that covers a room's centre
+        // lends it its id, label and room_type (the rooms.ron join). Rooms no zone covers keep room_N.
+        self.name_rooms_from_zones(&mut rooms, &room_storeys, &storeys);
+        // Spawn in the largest room on the ground storey (where the front door is), else in the
+        // largest room of all. `max_by` keeps the LAST of equal rooms, as it always has.
+        let area = |r: &RoomInfo| r.dimensions.x * r.dimensions.z;
+        let largest = |ground_only: bool| {
+            rooms
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !ground_only || room_storeys[*i] == 0)
+                .max_by(|(_, a), (_, b)| area(a).partial_cmp(&area(b)).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(i, _)| i)
+        };
+        let best = largest(true).or_else(|| largest(false)).unwrap_or(0);
         rooms[best].is_spawn_room = true;
         rooms
     }
@@ -1480,28 +1715,36 @@ impl HomeStructure {
     /// zone's id, label and `room_type`. Rules that keep it predictable:
     /// - Containment is by the room's CENTRE, not by overlap, so a district-sized zone that merely
     ///   brushes a room does not rename it, and an L-shaped room picks the zone its centre sits in.
+    /// - A zone names only a room on ITS OWN STOREY (ship homes increment 7): the storey its floor,
+    ///   its origin's y, is on (`storey_index`), matched against the storey the room was flooded on
+    ///   (`room_storeys`, beside `rooms`). So the upstairs bedroom's zone does not name the hall
+    ///   under it, whose centre lies in the same footprint. With one storey every zone and room is
+    ///   on it, as before.
     /// - When several zones contain a centre (a district zone around a house full of room zones),
     ///   the SMALLEST footprint wins: the most specific label is the useful one.
     /// - A zone names at most ONE room (the largest it covers); any other room whose centre also
     ///   falls in it keeps its room_N, so room ids stay unique for every id-keyed lookup.
     /// Rooms no zone covers are untouched (still "room_N").
-    fn name_rooms_from_zones(&self, rooms: &mut [RoomInfo]) {
+    fn name_rooms_from_zones(&self, rooms: &mut [RoomInfo], room_storeys: &[usize], storeys: &[Storey]) {
         if self.zones.is_empty() {
             return;
         }
+        let zone_storeys: Vec<usize> = self.zones.iter().map(|z| storey_index(storeys, z.origin.1)).collect();
         // zone index -> index of the room it names (the largest room whose centre it contains).
         let mut claims: Vec<Option<usize>> = vec![None; self.zones.len()];
         let area = |r: &RoomInfo| r.dimensions.x * r.dimensions.z;
         for (ri, room) in rooms.iter().enumerate() {
             let (cx, cz) = (room.center.x, room.center.z);
-            // The smallest zone whose x/z footprint contains this room's centre (half-open on
-            // the max edge so a centre exactly on a shared boundary belongs to one zone only).
+            // The smallest zone on this room's storey whose x/z footprint contains its centre
+            // (half-open on the max edge so a centre exactly on a shared boundary belongs to one
+            // zone only).
             let best_zone = self
                 .zones
                 .iter()
                 .enumerate()
-                .filter(|(_, z)| {
-                    cx >= z.origin.0
+                .filter(|(zi, z)| {
+                    zone_storeys[*zi] == room_storeys[ri]
+                        && cx >= z.origin.0
                         && cx < z.origin.0 + z.size.0
                         && cz >= z.origin.2
                         && cz < z.origin.2 + z.size.2
@@ -1999,7 +2242,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() }
     }
 
     /// v0.631 superstructure M1: zones add/remove with unique ids, the zone_types registry parses, and a
@@ -2065,7 +2308,7 @@ mod tests {
             shell_material: 1,
             roof_material: 4,
             walls: Vec::new(),
-            shell_thickness: None,
+            shell_thickness: None, floors: Vec::new(),
             lights: Vec::new(),
             spawn: None,
             structures: Vec::new(),
@@ -2244,14 +2487,14 @@ mod tests {
     }
 
     fn wall(a: (f32, f32), b: (f32, f32), openings: Vec<Opening>) -> InteriorWall {
-        InteriorWall { a, b, height: 3.0, material: 1, openings, thickness: None, layers: Vec::new() }
+        InteriorWall { a, b, base: 0.0, height: 3.0, material: 1, openings, thickness: None, layers: Vec::new() }
     }
 
     #[test]
     fn road_centerline_curves_through_a_through_node_but_stays_straight_when_isolated() {
         let mut h = HomeStructure {
             width: 30.0, depth: 30.0, height: 3.0, shell_material: 1, roof_material: 4,
-            walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
+            walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None,
             structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         // A right-angle chain A(0,0) - B(10,0) - C(10,10): B is a degree-2 through-node.
@@ -2280,7 +2523,7 @@ mod tests {
     fn paired_train_platforms_render_a_rail_track_once() {
         let mut h = HomeStructure {
             width: 40.0, depth: 40.0, height: 3.0, shell_material: 1, roof_material: 4,
-            walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
+            walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None,
             structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let base = wall_vcount(&h.generate_meshes());
@@ -2302,7 +2545,7 @@ mod tests {
     fn road_graph_meshes_edges_and_node_removal_prunes() {
         let mut h = HomeStructure {
             width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4,
-            walls: Vec::new(), shell_thickness: None, lights: Vec::new(), spawn: None,
+            walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None,
             structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let n1 = h.unique_road_node_id();
@@ -2339,8 +2582,8 @@ mod tests {
     fn clip_pulls_a_mid_span_t_back_to_the_face() {
         // M runs along +X at z=0, 0.4 m thick (half 0.2). W comes up from (5,-3) and its end (5,0.1)
         // lands INSIDE M's body; it should clip back to M's NEAR face at z = -0.2.
-        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
-        let w = InteriorWall { a: (5.0, -3.0), b: (5.0, 0.1), height: 3.0, material: 1, openings: vec![], thickness: Some(0.1), layers: Vec::new() };
+        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
+        let w = InteriorWall { a: (5.0, -3.0), b: (5.0, 0.1), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: Some(0.1), layers: Vec::new() };
         let walls = vec![m, w];
         let (clipped, dist) = clip_end_to_walls((5.0, 0.1), (5.0, -3.0), 1, &walls);
         assert!((clipped.1 + 0.2).abs() < 1e-3, "clipped to M near face z=-0.2, got {clipped:?}");
@@ -2349,7 +2592,7 @@ mod tests {
 
     #[test]
     fn clip_leaves_a_free_end_alone() {
-        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
+        let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
         let walls = vec![m];
         let (clipped, dist) = clip_end_to_walls((5.0, 5.0), (5.0, 3.0), 99, &walls);
         assert_eq!(dist, 0.0, "a free end in open space is unchanged");
@@ -2450,7 +2693,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let tmp = std::env::temp_dir().join(format!("humanity_home_structure_rt_{}.ron", std::process::id()));
         h.save(&tmp).expect("save");
@@ -2488,7 +2731,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::ship::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![
@@ -2534,7 +2777,7 @@ mod tests {
     #[test]
     fn introspection_json_is_valid_with_a_derived_block() {
         let mut h = box_only();
-        h.walls = vec![InteriorWall { a: (5.0, 5.0), b: (10.0, 5.0), height: 3.0, material: 1, openings: vec![], thickness: None, layers: Vec::new() }];
+        h.walls = vec![InteriorWall { a: (5.0, 5.0), b: (10.0, 5.0), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: None, layers: Vec::new() }];
         let s = h.to_introspection_json();
         let v: serde_json::Value = serde_json::from_str(&s).expect("valid JSON");
         let d = &v["derived"];
@@ -2799,12 +3042,397 @@ mod tests {
     #[test]
     fn the_shipped_home_bakes_into_a_shell_with_its_door_cut() {
         let h = shipped_home_body();
-        let door = ShellCut { edge: 1, at: 39.0, width: 2.0, height: 2.2 };
+        let door = ShellCut { edge: 1, at: 39.0, width: 2.0, base: 0.0, height: 2.2 };
         let shut = h.bake_shell_groups(&[]);
         let open = h.bake_shell_groups(&[door]);
         let verts = |g: &[(Vec<Vertex>, Vec<u32>, [f32; 3])]| g.iter().map(|(v, _, _)| v.len()).sum::<usize>();
         assert!(verts(&shut) > 0 && shut.iter().all(|(v, i, _)| !v.is_empty() && i.len() % 3 == 0), "the real home bakes real, triangulated geometry");
         assert_eq!(open.len(), shut.len(), "the door cut keeps every colour group");
         assert_ne!(verts(&open), verts(&shut), "the door is cut through the shell ({} vertices shut, {} open)", verts(&shut), verts(&open));
+    }
+}
+
+/// Ship homes increment 7, Wave 0 (docs/design/ship-homes-increment-7-plan.md sections 2 and 5):
+/// the storey shapes, and the proof that a body using none of them is exactly what it was.
+#[cfg(test)]
+mod storey_tests {
+    use super::*;
+
+    fn body(text: &str) -> HomeStructure {
+        ron::from_str(text).expect("the test body parses")
+    }
+
+    fn slab(a: (f32, f32), b: (f32, f32), top: f32) -> FloorSlab {
+        FloorSlab { a, b, top, thickness: 0.25, label: None }
+    }
+
+    fn zone(id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> Zone {
+        Zone { id: id.into(), type_id: "residential".into(), origin, size, label: String::new(), room_type: None }
+    }
+
+    /// Where a room's floor is: the bottom of its box.
+    fn floor_of(r: &RoomInfo) -> f32 {
+        r.center.y - r.dimensions.y * 0.5
+    }
+
+    /// The two-storey test body: 10 x 10 x 6 m, a slab over the north half (z 0..5) at 3.0, a
+    /// ground-floor wall along z 5 under the slab's edge, and an upstairs wall along x 5 on the
+    /// slab, which parts the upper floor in two and must not part the ground floor.
+    fn two_storeys() -> HomeStructure {
+        body(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             walls: [(a: (0.0, 5.0), b: (10.0, 5.0)), (a: (5.0, 0.0), b: (5.0, 5.0), base: 3.0)], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)])",
+        )
+    }
+
+    /// STOREYS COME FROM THE SLABS: with none there is one storey, the ground to the roof; slab
+    /// tops a few mm apart are one floor; a slab at the ground or the roof starts no storey; a
+    /// height, a wall and a zone each belong to a storey (within `STOREY_EPS`, clamped at both
+    /// ends); a wall stands in its base's storey and every storey it rises into; and a slab reads
+    /// its default thickness, its corners either way round, its edges inside.
+    ///
+    /// Seen red 2026-10-20 with the de-duplication of slab tops removed from `storeys`: "two slabs
+    /// 4 mm apart are one floor, and a slab at the ground or the roof starts no storey", left
+    /// [Storey { floor: 0.0, top: 3.0 }, Storey { floor: 3.0, top: 3.004 }, Storey { floor: 3.004, top: 6.0 }].
+    #[test]
+    fn storeys_come_from_the_slabs() {
+        let mut b = body("(width: 10.0, depth: 10.0, height: 6.0)");
+        assert_eq!(b.storeys(), vec![Storey { floor: 0.0, top: 6.0 }], "with no slabs there is one storey, the ground to the roof");
+        b.floors = vec![
+            slab((0.0, 0.0), (10.0, 5.0), 3.0),
+            slab((10.0, 10.0), (6.0, 5.0), 3.004),
+            slab((0.0, 0.0), (2.0, 2.0), 0.0),
+            slab((0.0, 0.0), (2.0, 2.0), 6.0),
+        ];
+        assert_eq!(
+            b.storeys(),
+            vec![Storey { floor: 0.0, top: 3.0 }, Storey { floor: 3.0, top: 6.0 }],
+            "two slabs 4 mm apart are one floor, and a slab at the ground or the roof starts no storey"
+        );
+        for (y, k) in [(-1.0, 0), (0.0, 0), (2.9, 0), (2.995, 1), (3.0, 1), (5.0, 1), (9.0, 1)] {
+            assert_eq!(b.storey_of_y(y), k, "the height {y} is on storey {k}");
+        }
+        let ground: InteriorWall = ron::from_str("(a: (0.0, 1.0), b: (4.0, 1.0))").unwrap();
+        let upstairs: InteriorWall = ron::from_str("(a: (0.0, 1.0), b: (4.0, 1.0), base: 3.0)").unwrap();
+        let tall: InteriorWall = ron::from_str("(a: (0.0, 1.0), b: (4.0, 1.0), height: 6.0)").unwrap();
+        assert_eq!((b.storey_of_wall(&ground), b.storey_of_wall(&upstairs), b.storey_of_wall(&tall)), (0, 1, 0), "a wall is on the storey its base is on");
+        assert_eq!((ground.y_range(), upstairs.y_range(), tall.y_range()), ((0.0, 3.0), (3.0, 6.0), (0.0, 6.0)));
+        let st = b.storeys();
+        let stands = |w: &InteriorWall| [wall_in_storey(&st, w, 0), wall_in_storey(&st, w, 1)];
+        assert_eq!(stands(&ground), [true, false], "a ground wall up to the slab is not upstairs");
+        assert_eq!(stands(&upstairs), [false, true], "an upstairs wall is not downstairs");
+        assert_eq!(stands(&tall), [true, true], "a wall from the ground to the roof parts both storeys");
+        assert_eq!((b.storey_of_zone(&zone("a", (0.0, 0.0, 0.0), (1.0, 3.0, 1.0))), b.storey_of_zone(&zone("b", (0.0, 3.0, 0.0), (1.0, 3.0, 1.0)))), (0, 1));
+        let read: FloorSlab = ron::from_str("(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)").unwrap();
+        assert_eq!((read.thickness, read.label.as_deref()), (0.25, None), "a slab's file may leave out its thickness and label");
+        assert_eq!((read.underside(), read.y_range()), (2.75, (2.75, 3.0)));
+        assert!(read.contains(5.0, 2.5) && read.contains(10.0, 5.0) && !read.contains(5.0, 5.1), "the edges are inside, past them is not");
+        assert!(b.floors[1].contains(8.0, 7.0) && !b.floors[1].contains(5.0, 7.0), "corners written the other way round");
+        assert!(read.is_floor_of(&st[1]) && !read.is_floor_of(&st[0]));
+    }
+
+    /// EACH STOREY FLOODS WITH ITS OWN WALLS, ONLY WHERE IT HAS A FLOOR (`detect_rooms`). In the
+    /// two-storey body the upstairs wall parts the upper floor and not the hall under it; the
+    /// ground room under the slab has its ceiling at the slab, the one beside it (no floor over it)
+    /// rises to the roof; upstairs there is a room only over the slab, none over the open half; and
+    /// you arrive on the ground storey.
+    ///
+    /// Seen red 2026-10-20 with `wall_in_storey` putting a wall in its base's storey and every storey
+    /// BELOW it: "two rooms on each storey", left 5, the upstairs wall parting the ground floor's
+    /// north room into two 4.5 m halves.
+    #[test]
+    fn each_storey_floods_with_its_own_walls() {
+        let rooms = two_storeys().detect_rooms();
+        let summary: Vec<_> = rooms.iter().map(|r| (floor_of(r), r.dimensions.y, r.center.x, r.center.z, r.dimensions.x)).collect();
+        assert_eq!(rooms.len(), 4, "two rooms on each storey, got (floor, height, x, z, width) {summary:?}");
+        let ground: Vec<&RoomInfo> = rooms.iter().filter(|r| floor_of(r) == 0.0).collect();
+        let upstairs: Vec<&RoomInfo> = rooms.iter().filter(|r| floor_of(r) == 3.0).collect();
+        assert_eq!((ground.len(), upstairs.len()), (2, 2), "{summary:?}");
+        let north = ground.iter().find(|r| r.center.z < 5.0).expect("a ground room under the slab");
+        let south = ground.iter().find(|r| r.center.z > 5.0).expect("a ground room beside it");
+        assert_eq!(north.dimensions.x, 10.0, "the upstairs wall does not part the ground floor: {summary:?}");
+        assert_eq!(north.dimensions.y, 3.0, "a room under the slab has its ceiling at the slab");
+        assert_eq!(south.dimensions.y, 6.0, "a room with no floor over it rises to the roof");
+        for r in &upstairs {
+            assert!(r.center.z < 5.0, "an upstairs room is only over the slab, never over the open half: {summary:?}");
+            assert_eq!((r.dimensions.x, r.dimensions.y), (4.5, 3.0), "the upstairs wall parts the upper floor in two: {summary:?}");
+        }
+        let spawns: Vec<&RoomInfo> = rooms.iter().filter(|r| r.is_spawn_room).collect();
+        assert!(spawns.len() == 1 && floor_of(spawns[0]) == 0.0, "you arrive on the ground storey: {summary:?}");
+    }
+
+    /// A WALL FROM THE GROUND TO THE ROOF PARTS BOTH STOREYS (`wall_in_storey`): the plan's "a wall
+    /// belongs to the band its base is in" is `storey_of_wall`, but a 6 m wall through the slab
+    /// must part the upper floor too, or upstairs would flood through it.
+    ///
+    /// Seen red 2026-10-20 with the same fault (a wall never stands in a storey above its base, the
+    /// plan's rule taken literally for the flood): "the tall wall parts each storey in two", left (2, 1).
+    #[test]
+    fn a_wall_from_the_ground_to_the_roof_parts_both_storeys() {
+        let rooms = body(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             walls: [(a: (5.0, 0.0), b: (5.0, 10.0), height: 6.0)], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)])",
+        )
+        .detect_rooms();
+        let per_floor = |y: f32| rooms.iter().filter(|r| floor_of(r) == y).count();
+        assert_eq!((per_floor(0.0), per_floor(3.0)), (2, 2), "the tall wall parts each storey in two");
+    }
+
+    /// A ZONE NAMES ONLY A ROOM ON ITS OWN STOREY (`name_rooms_from_zones`). The upstairs
+    /// bedroom's zone lies over the hall's footprint and is the smaller of the two, so without the
+    /// storey rule it would name the hall under it; and the hall's footprint covers the upstairs
+    /// east room, which it must not name either.
+    ///
+    /// Seen red 2026-10-20 with the storey test dropped from the zone filter: "the ground room under
+    /// the bedroom is the hall", left Some("bedroom").
+    #[test]
+    fn a_zone_names_only_a_room_on_its_own_storey() {
+        let mut b = two_storeys();
+        b.zones = vec![zone("hall", (0.0, 0.0, 0.0), (10.0, 3.0, 5.0)), zone("bedroom", (0.0, 3.0, 0.0), (6.0, 3.0, 5.0))];
+        let rooms = b.detect_rooms();
+        let at = |floor: f32, x: f32| {
+            rooms.iter().find(|r| floor_of(r) == floor && r.center.z < 5.0 && (r.center.x - x).abs() < 1.0).map(|r| r.id.clone())
+        };
+        assert_eq!(at(0.0, 5.0).as_deref(), Some("hall"), "the ground room under the bedroom is the hall");
+        assert_eq!(at(3.0, 2.25).as_deref(), Some("bedroom"), "the upstairs room in the bedroom's footprint is the bedroom");
+        let east = at(3.0, 7.75);
+        assert!(east.as_deref().is_some_and(|id| id.starts_with("room_")), "the hall is downstairs, so the upstairs east room is not it: {east:?}");
+    }
+
+    /// A BODY THAT USES NO STOREYS IS WRITTEN AS BEFORE: no `floors` and no `base` in its file (so
+    /// an editor Save is a small diff and the ship's hash does not move), and when they are used
+    /// they are written and read back, a slab's missing label left out.
+    ///
+    /// Seen red 2026-10-20 with `floors` written even when empty (`#[serde(default)]` alone): "unused
+    /// storey fields are written: (width:10.0,depth:10.0,height:3.0,...,floors:[],...)".
+    #[test]
+    fn a_body_that_uses_no_storeys_is_written_as_before() {
+        let plain = body("(width: 10.0, depth: 10.0, height: 3.0, walls: [(a: (0.0, 5.0), b: (10.0, 5.0))])");
+        let text = ron::ser::to_string(&plain).unwrap();
+        assert!(!text.contains("floors:") && !text.contains("base:"), "unused storey fields are written: {text}");
+        let mut used = plain.clone();
+        used.walls[0].base = 3.0;
+        used.floors.push(FloorSlab { label: Some("landing".into()), ..slab((0.0, 0.0), (10.0, 5.0), 3.0) });
+        used.floors.push(slab((0.0, 5.0), (10.0, 10.0), 3.0));
+        let text = ron::ser::to_string(&used).unwrap();
+        let back: HomeStructure = ron::from_str(&text).unwrap();
+        assert_eq!(back.walls[0].base, 3.0, "a wall's base survives a save: {text}");
+        assert_eq!(back.floors, used.floors, "slabs survive a save: {text}");
+        assert_eq!(text.matches("label:").count(), 1, "a slab with no label is written without one: {text}");
+    }
+
+    /// WITH NO SLABS, THE ROOMS ARE WHAT THEY WERE. Every shipped home (the designs built into the
+    /// exe and this checkout's own copies) and every zone of the ship (the file, and the ship
+    /// assembled with the homestead on its default plot) gives exactly, field for field and bit
+    /// for bit, the rooms `detect_rooms` gave before storeys: `reference_detect_rooms` below IS
+    /// that code (commit 510d91c8f, `self` renamed `home`), kept here only as the reference. A body
+    /// with slabs is not the old shape and is skipped; the test insists it still compared homes
+    /// with walls and homes without (the two paths the old code had), so it cannot pass empty.
+    /// Cross-check on the day: the 13 bodies' rooms hashed d62e115f673df379 (FNV-1a of their Debug
+    /// text) on the code before Wave 0 and on the code after it.
+    ///
+    /// Seen red 2026-10-20 with the no-walls early return dropped (as if the flood "handles" a bare
+    /// box): "shipped cabin: the rooms are not what they were", now id "room-cabin" 3.5 m wide (the
+    /// 0.5 m grid's rounding of the 3.15 m box, then named by its zone), then id "home" 3.15 m wide.
+    #[test]
+    fn no_slab_rooms_are_what_they_were() {
+        use crate::ship::ship_structure::{HomeDesign, ShipStructure};
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut bodies: Vec<(String, HomeStructure)> = Vec::new();
+        for kind in ["homestead", "cabin"] {
+            bodies.push((format!("shipped {kind}"), HomeDesign::built_in(kind).expect("the shipped design is built in").body));
+            bodies.push((format!("own {kind}"), HomeDesign::load(&data, kind).expect("the own design loads").body));
+        }
+        for z in ShipStructure::load_ship_file(&data).expect("the ship file loads").zones {
+            bodies.push((format!("ship {}", z.id), z.body));
+        }
+        for z in ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles").zones {
+            bodies.push((format!("assembled {}", z.id), z.body));
+        }
+        let (mut walled, mut bare) = (0, 0);
+        for (name, b) in &bodies {
+            if !b.floors.is_empty() {
+                continue;
+            }
+            let (now, then) = (format!("{:?}", b.detect_rooms()), format!("{:?}", reference_detect_rooms(b)));
+            assert!(now == then, "{name}: the rooms are not what they were\n now: {now}\nthen: {then}");
+            if b.walls.is_empty() {
+                bare += 1;
+            } else {
+                walled += 1;
+            }
+        }
+        assert!(walled > 0 && bare > 0, "compared {walled} bodies with walls and {bare} without: both paths must be seen");
+    }
+
+    // ---- The reference: `detect_rooms` and `name_rooms_from_zones` as they were before storeys
+    // ---- (commit 510d91c8f), verbatim but for `self` -> `home`. Do not edit; see above.
+
+    fn reference_detect_rooms(home: &HomeStructure) -> Vec<RoomInfo> {
+        let w = home.width.max(1.0);
+        let d = home.depth.max(1.0);
+        let h = home.height.max(1.0);
+        // No interior walls -> the whole box is one room (keeps the empty-box behavior identical).
+        if home.walls.is_empty() {
+            return vec![RoomInfo {
+                id: "home".to_string(),
+                center: Vec3::new(w * 0.5, h * 0.5, d * 0.5),
+                dimensions: Vec3::new(w, h, d),
+                is_hologram_room: false,
+                is_spawn_room: true,
+                room_type: None,
+                label: String::new(),
+            }];
+        }
+
+        const CELL: f32 = 0.5;
+        let nx = (w / CELL).ceil() as usize;
+        let nz = (d / CELL).ceil() as usize;
+        // Block every cell within a wall's half-thickness of any interior wall segment. The grid is
+        // coarse (0.5 m), so even a 1 mm wall still blocks (the CELL term dominates) and rooms stay
+        // separated -- per-wall thickness only widens fat walls. (v0.556)
+        let mut blocked = vec![false; nx * nz];
+        for cz in 0..nz {
+            for cx in 0..nx {
+                let px = (cx as f32 + 0.5) * CELL;
+                let pz = (cz as f32 + 0.5) * CELL;
+                for wall in &home.walls {
+                    let half = wall.resolved_thickness() * 0.5 + CELL * 0.5;
+                    if point_seg_dist(px, pz, wall.a, wall.b) < half {
+                        blocked[cz * nx + cx] = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Flood-fill the open cells into connected components; each is a room.
+        let mut comp = vec![usize::MAX; nx * nz];
+        let mut rooms: Vec<RoomInfo> = Vec::new();
+        let mut stack: Vec<(usize, usize)> = Vec::new();
+        let mut next = 0usize;
+        for sz in 0..nz {
+            for sx in 0..nx {
+                let idx = sz * nx + sx;
+                if blocked[idx] || comp[idx] != usize::MAX {
+                    continue;
+                }
+                comp[idx] = next;
+                stack.clear();
+                stack.push((sx, sz));
+                let (mut minx, mut minz, mut maxx, mut maxz) = (sx, sz, sx, sz);
+                let mut count = 0usize;
+                while let Some((x, z)) = stack.pop() {
+                    count += 1;
+                    minx = minx.min(x);
+                    maxx = maxx.max(x);
+                    minz = minz.min(z);
+                    maxz = maxz.max(z);
+                    let neigh = [(x.wrapping_sub(1), z), (x + 1, z), (x, z.wrapping_sub(1)), (x, z + 1)];
+                    for (nxp, nzp) in neigh {
+                        if nxp < nx && nzp < nz {
+                            let ni = nzp * nx + nxp;
+                            if !blocked[ni] && comp[ni] == usize::MAX {
+                                comp[ni] = next;
+                                stack.push((nxp, nzp));
+                            }
+                        }
+                    }
+                }
+                next += 1;
+                // Ignore rasterization slivers (a cell or two pinched off by a wall).
+                if count >= 4 {
+                    let (x0, x1) = (minx as f32 * CELL, (maxx + 1) as f32 * CELL);
+                    let (z0, z1) = (minz as f32 * CELL, (maxz + 1) as f32 * CELL);
+                    rooms.push(RoomInfo {
+                        // Anonymous until the zone join below names it (a covering zone lends
+                        // its id + room_type); rooms no zone covers keep this room_N id.
+                        id: format!("room_{}", rooms.len() + 1),
+                        center: Vec3::new((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5),
+                        dimensions: Vec3::new(x1 - x0, h, z1 - z0),
+                        is_hologram_room: false,
+                        is_spawn_room: false,
+                        room_type: None,
+                        label: String::new(),
+                    });
+                }
+            }
+        }
+
+        if rooms.is_empty() {
+            // Fully walled-in / degenerate -> fall back to the whole box as one room.
+            return vec![RoomInfo {
+                id: "home".to_string(),
+                center: Vec3::new(w * 0.5, h * 0.5, d * 0.5),
+                dimensions: Vec3::new(w, h, d),
+                is_hologram_room: false,
+                is_spawn_room: true,
+                room_type: None,
+                label: String::new(),
+            }];
+        }
+        // Give the rooms their identity: a zone that covers a room's centre lends it its id,
+        // label and room_type (the rooms.ron join). Rooms no zone covers keep room_N.
+        reference_name_rooms(home, &mut rooms);
+        // Spawn in the largest room.
+        let best = rooms
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| {
+                (a.dimensions.x * a.dimensions.z)
+                    .partial_cmp(&(b.dimensions.x * b.dimensions.z))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        rooms[best].is_spawn_room = true;
+        rooms
+    }
+
+    fn reference_name_rooms(home: &HomeStructure, rooms: &mut [RoomInfo]) {
+        if home.zones.is_empty() {
+            return;
+        }
+        // zone index -> index of the room it names (the largest room whose centre it contains).
+        let mut claims: Vec<Option<usize>> = vec![None; home.zones.len()];
+        let area = |r: &RoomInfo| r.dimensions.x * r.dimensions.z;
+        for (ri, room) in rooms.iter().enumerate() {
+            let (cx, cz) = (room.center.x, room.center.z);
+            // The smallest zone whose x/z footprint contains this room's centre (half-open on
+            // the max edge so a centre exactly on a shared boundary belongs to one zone only).
+            let best_zone = home
+                .zones
+                .iter()
+                .enumerate()
+                .filter(|(_, z)| {
+                    cx >= z.origin.0
+                        && cx < z.origin.0 + z.size.0
+                        && cz >= z.origin.2
+                        && cz < z.origin.2 + z.size.2
+                })
+                .min_by(|(_, a), (_, b)| {
+                    (a.size.0 * a.size.2)
+                        .partial_cmp(&(b.size.0 * b.size.2))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(zi, _)| zi);
+            if let Some(zi) = best_zone {
+                match claims[zi] {
+                    Some(prev) if area(&rooms[prev]) >= area(room) => {}
+                    _ => claims[zi] = Some(ri),
+                }
+            }
+        }
+        for (zi, claim) in claims.iter().enumerate() {
+            if let Some(ri) = claim {
+                let z = &home.zones[zi];
+                let room = &mut rooms[*ri];
+                room.id = z.id.clone();
+                room.label = z.label.clone();
+                room.room_type = z.room_type.clone();
+            }
+        }
     }
 }

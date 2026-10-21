@@ -318,17 +318,14 @@ impl NeighbourView {
 
     /// `segments` for the neighbours `keep` keeps.
     fn segments_where(&self, sight: bool, keep: impl Fn(&Neighbour) -> bool) -> Vec<crate::ship::wall_collision::WallSegment> {
-        use crate::ship::wall_collision::{corridor_side_walls, sight_segments_with_shell_cuts, wall_segments_with_shell_cuts, WallSegment};
+        use crate::ship::wall_collision::{corridor_side_walls, sight_segments_with_shell_cuts, wall_segments_with_shell_cuts};
         let mut out = Vec::new();
         for n in self.neighbours.iter().filter(|n| keep(n)) {
             let cuts: Vec<ShellCut> = own_cut(n).into_iter().collect();
-            let (ox, oz) = (n.plot.origin.0, n.plot.origin.2);
+            let origin = glam::Vec3::new(n.plot.origin.0, n.plot.origin.1, n.plot.origin.2);
             let own = if sight { sight_segments_with_shell_cuts(&n.design.body, &cuts) } else { wall_segments_with_shell_cuts(&n.design.body, &cuts) };
-            out.extend(own.into_iter().map(|s| WallSegment {
-                a: (s.a.0 + ox, s.a.1 + oz),
-                b: (s.b.0 + ox, s.b.1 + oz),
-                half_thickness: s.half_thickness,
-            }));
+            // Body-local to world, heights included (`WallSegment::moved`).
+            out.extend(own.into_iter().map(|s| s.moved(origin)));
             if let Some(g) = &n.tube {
                 out.extend(corridor_side_walls(g));
             }

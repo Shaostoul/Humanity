@@ -16,12 +16,42 @@ use glam::Vec3;
 /// Player capsule radius (metres) for the horizontal push-out.
 pub const PLAYER_RADIUS: f32 = 0.3;
 
-/// A blocking wall segment in the XZ plane (a..b), inflated by `half_thickness`.
+/// A blocking wall segment in the XZ plane (a..b), inflated by `half_thickness`, standing between
+/// the world heights `y0` and `y1`.
 #[derive(Clone, Copy, Debug)]
 pub struct WallSegment {
     pub a: (f32, f32),
     pub b: (f32, f32),
     pub half_thickness: f32,
+    /// The world heights the segment stands between, its foot and its top (ship homes increment 7,
+    /// Wave 0 of docs/design/ship-homes-increment-7-plan.md). Every builder fills them: a home's
+    /// wall from its base to its top, the perimeter from the floor to the roof, a corridor's sides
+    /// from its deck to its lid, a door panel from its sill to its head, a built piece its box.
+    /// NOTHING READS THEM YET: `resolve` still pushes out in x and z at every height, until the
+    /// movement lane makes a wall stop only a body whose knee-to-eye band it overlaps (the rule the
+    /// built pieces already follow). A blocker whose heights are not known stands at every height
+    /// (`WallSegment::at_every_height`), which is what every segment did before it had them.
+    pub y0: f32,
+    pub y1: f32,
+}
+
+impl WallSegment {
+    /// A segment standing at every height (`y0` minus infinity, `y1` plus infinity): for a blocker
+    /// whose heights are not known, which then stops a body at any height.
+    pub fn at_every_height(a: (f32, f32), b: (f32, f32), half_thickness: f32) -> Self {
+        WallSegment { a, b, half_thickness, y0: f32::NEG_INFINITY, y1: f32::INFINITY }
+    }
+
+    /// This segment moved by `by`: a body's walls (body-local) placed at its origin in the world.
+    pub fn moved(self, by: Vec3) -> Self {
+        WallSegment {
+            a: (self.a.0 + by.x, self.a.1 + by.z),
+            b: (self.b.0 + by.x, self.b.1 + by.z),
+            half_thickness: self.half_thickness,
+            y0: self.y0 + by.y,
+            y1: self.y1 + by.y,
+        }
+    }
 }
 
 /// Build the STATIC blocking segments from a home: the 4 perimeter walls + each interior wall's SOLID
@@ -53,6 +83,8 @@ pub fn sight_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellC
 fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_windows: bool) -> Vec<WallSegment> {
     let mut segs = Vec::new();
     let (w, d) = (home.width.max(1.0), home.depth.max(1.0));
+    // The perimeter stands from the body's floor to its roof (the height the mesh draws it to).
+    let (py0, py1) = (0.0, home.height.max(1.0));
     let st = home.shell_resolved_thickness() * 0.5;
     // Perimeter edges in the same winding `ShellCut.edge` indexes (0: z=0, 1: x=w, 2: z=d, 3: x=0).
     for (ei, (a, b)) in [
@@ -71,7 +103,7 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
             .map(|c| (c.at.clamp(0.0, len), (c.at + c.width).clamp(0.0, len)))
             .collect();
         if cuts.is_empty() {
-            segs.push(WallSegment { a, b, half_thickness: st });
+            segs.push(WallSegment { a, b, half_thickness: st, y0: py0, y1: py1 });
             continue;
         }
         cuts.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -83,6 +115,8 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
                     a: (a.0 + ux * cursor, a.1 + uz * cursor),
                     b: (a.0 + ux * s, a.1 + uz * s),
                     half_thickness: st,
+                    y0: py0,
+                    y1: py1,
                 });
             }
             cursor = e.max(cursor);
@@ -90,6 +124,7 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
     }
     for wall in &home.walls {
         let ht = wall.resolved_thickness() * 0.5;
+        let (wy0, wy1) = wall.y_range();
         let (ax, az) = wall.a;
         let (bx, bz) = wall.b;
         let len = ((bx - ax).powi(2) + (bz - az).powi(2)).sqrt();
@@ -114,6 +149,8 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
                     a: (ax + ux * cursor, az + uz * cursor),
                     b: (ax + ux * s, az + uz * s),
                     half_thickness: ht,
+                    y0: wy0,
+                    y1: wy1,
                 });
             }
             cursor = e.max(cursor);
@@ -126,7 +163,9 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
 /// zone's segments (from the unchanged per-body `wall_segments`) translated by that zone's world
 /// origin, all concatenated. Collision stays a 2D XZ push-out (Y is never touched), so zones at a
 /// different deck height share the same segment plane -- honest for the single-deck v1; multi-deck
-/// stacking is explicitly out of scope (design doc section E).
+/// stacking is explicitly out of scope (design doc section E). Since ship homes increment 7 each
+/// segment carries its world heights (`y0`, `y1`, the zone's origin y added), ready for the
+/// movement lane to make collision storey-aware; until then nothing reads them.
 ///
 /// Increment B adds corridors: each zone's perimeter gets a door-width GAP where a corridor tube
 /// meets it (`ShipStructure::shell_cuts_for_zone`), and each valid corridor contributes its two
@@ -172,9 +211,11 @@ pub(crate) fn corridor_side_walls(g: &crate::ship::ship_structure::CorridorGeom)
     use crate::ship::ship_structure::{CorridorAxis, CORRIDOR_WALL_THICKNESS};
     let hw = g.width * 0.5;
     let ht = CORRIDOR_WALL_THICKNESS * 0.5;
+    // The side walls stand from the corridor's deck to its lid.
+    let (y0, y1) = (g.floor_y, g.floor_y + g.height);
     [-1.0f32, 1.0].map(|s| match g.axis {
-        CorridorAxis::X => WallSegment { a: (g.start, g.lat + hw * s), b: (g.end, g.lat + hw * s), half_thickness: ht },
-        CorridorAxis::Z => WallSegment { a: (g.lat + hw * s, g.start), b: (g.lat + hw * s, g.end), half_thickness: ht },
+        CorridorAxis::X => WallSegment { a: (g.start, g.lat + hw * s), b: (g.end, g.lat + hw * s), half_thickness: ht, y0, y1 },
+        CorridorAxis::Z => WallSegment { a: (g.lat + hw * s, g.start), b: (g.lat + hw * s, g.end), half_thickness: ht, y0, y1 },
     })
 }
 
@@ -195,18 +236,15 @@ fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: 
         if ship.is_away_home(zi) {
             continue;
         }
-        let (ox, oz) = (zone.origin.0, zone.origin.2);
+        let origin = Vec3::new(zone.origin.0, zone.origin.1, zone.origin.2);
         let mut cuts = ship.shell_cuts_for_zone(zi);
         match neighbours {
             Some((n, true)) => cuts.extend(n.zone_cuts(zi)),
             Some((n, false)) => cuts.extend(n.zone_cuts_of(zi, open)),
             None => {}
         }
-        segs.extend(segments_impl(&zone.body, &cuts, sight).into_iter().map(|s| WallSegment {
-            a: (s.a.0 + ox, s.a.1 + oz),
-            b: (s.b.0 + ox, s.b.1 + oz),
-            half_thickness: s.half_thickness,
-        }));
+        // Body-local to world, heights included (a zone on a higher deck has its walls up there).
+        segs.extend(segments_impl(&zone.body, &cuts, sight).into_iter().map(|s| s.moved(origin)));
     }
     for c in &ship.corridors {
         let Ok(g) = ship.corridor_geometry(c) else {
@@ -327,10 +365,11 @@ mod tests {
             height: 3.0,
             shell_material: 1,
             roof_material: 4,
-            shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
             walls: vec![InteriorWall {
                 a: (0.0, 5.0),
                 b: (10.0, 5.0),
+                base: 0.0,
                 height: 3.0,
                 material: 1,
                 thickness: Some(0.2),
@@ -428,7 +467,7 @@ mod tests {
 
     #[test]
     fn closed_door_blocks_open_door_passes() {
-        let door = WallSegment { a: (4.0, 5.0), b: (6.0, 5.0), half_thickness: 0.05 };
+        let door = WallSegment::at_every_height((4.0, 5.0), (6.0, 5.0), 0.05);
         let blocked = at(Vec3::new(5.0, 1.7, 5.0), &[], &[door]);
         assert!((blocked.z - 5.0).abs() > 0.2, "closed door blocks, got z={}", blocked.z);
         let passes = at(Vec3::new(5.0, 1.7, 5.0), &[], &[]);
@@ -607,6 +646,8 @@ mod tests {
                     a: (p.center.x - dir.x * half_w, p.center.z - dir.z * half_w),
                     b: (p.center.x + dir.x * half_w, p.center.z + dir.z * half_w),
                     half_thickness: (p.size.z * 0.5).max(0.05),
+                    y0: p.center.y,
+                    y1: p.center.y + p.size.y,
                 }
             })
             .collect();
@@ -680,5 +721,57 @@ mod tests {
         assert_eq!(flat(ship_sight_segments(&open)), flat(ship_sight_segments(&closed)), "opening p1 changed the sight lines");
         let p3_door = Vec3::new(60.0, 1.7, 238.0);
         assert!(!pushed(p3_door + Vec3::new(0.0, 0.0, 1.5), &walls), "p3, not open, collides");
+    }
+}
+
+/// Ship homes increment 7, Wave 0 (docs/design/ship-homes-increment-7-plan.md section 2): every
+/// blocking segment knows the world heights it stands between, though nothing reads them yet.
+#[cfg(test)]
+mod storey_height_tests {
+    use super::*;
+
+    /// EVERY SEGMENT KNOWS HOW HIGH IT STANDS. In a two-storey body the perimeter stands floor to
+    /// roof, a ground wall 0..3 and an upstairs wall 3..6; on a deck 10 m up, the ship's segments
+    /// stand 10 m higher with their x and z where they were. In the shipped ship every segment
+    /// (neighbours' and corridors' included) has a foot under its top, and every corridor's cut
+    /// through a shell opens from that body's floor (`ShellCut::base` 0), so the geometry lane
+    /// reading `base` changes nothing for a shipped home.
+    ///
+    /// Seen red 2026-10-20 with `WallSegment::moved` not adding the zone's height: "on a deck 10 m
+    /// up the walls stand 10 m up", left [(0.0, 6.0) four times, (0.0, 3.0), (3.0, 6.0)].
+    #[test]
+    fn every_segment_knows_how_high_it_stands() {
+        use crate::ship::ship_structure::{ShipStructure, ShipZone};
+        let body: HomeStructure = ron::from_str(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             walls: [(a: (0.0, 5.0), b: (10.0, 5.0)), (a: (5.0, 0.0), b: (5.0, 5.0), base: 3.0)], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 5.0), top: 3.0)])",
+        )
+        .expect("the test body parses");
+        let heights = |segs: &[WallSegment]| segs.iter().map(|s| (s.y0, s.y1)).collect::<Vec<_>>();
+        let local = wall_segments(&body);
+        assert_eq!(heights(&local), [vec![(0.0, 6.0); 4], vec![(0.0, 3.0), (3.0, 6.0)]].concat(), "perimeter, ground wall, upstairs wall");
+        let ship = ShipStructure {
+            zones: vec![ShipZone { id: "deck".into(), label: String::new(), purpose: "residence".into(), origin: (100.0, 10.0, 20.0), body }],
+            ..Default::default()
+        };
+        let placed = ship_wall_segments(&ship);
+        assert_eq!(heights(&placed), [vec![(10.0, 16.0); 4], vec![(10.0, 13.0), (13.0, 16.0)]].concat(), "on a deck 10 m up the walls stand 10 m up");
+        for (l, p) in local.iter().zip(&placed) {
+            assert_eq!((p.a, p.b, p.half_thickness), ((l.a.0 + 100.0, l.a.1 + 20.0), (l.b.0 + 100.0, l.b.1 + 20.0), l.half_thickness), "x and z move as before");
+        }
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let shipped = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
+        for s in everyones_walls(&shipped) {
+            assert!(s.y0.is_finite() && s.y1.is_finite() && s.y0 < s.y1, "a shipped segment stands nowhere: {s:?}");
+        }
+        for zi in 0..shipped.zones.len() {
+            for c in shipped.shell_cuts_for_zone(zi) {
+                assert_eq!(c.base, 0.0, "zone {}: a corridor's cut does not open from the floor: {c:?}", shipped.zones[zi].id);
+            }
+        }
+        let anywhere = WallSegment::at_every_height((0.0, 0.0), (1.0, 0.0), 0.1);
+        assert!(anywhere.y0 == f32::NEG_INFINITY && anywhere.y1 == f32::INFINITY);
+        assert_eq!(anywhere.moved(Vec3::new(1.0, 5.0, 2.0)).y1, f32::INFINITY, "an unknown height stays every height when moved");
     }
 }

@@ -5302,6 +5302,9 @@ mod native_app {
                                     a: (c.x - dir.x * half_w, c.z - dir.z * half_w),
                                     b: (c.x + dir.x * half_w, c.z + dir.z * half_w),
                                     half_thickness: (p.size.z * 0.5).max(0.05),
+                                    // The panel stands from its sill (its anchor's y) to its head.
+                                    y0: c.y,
+                                    y1: c.y + p.size.y,
                                 })
                             })
                             .collect();

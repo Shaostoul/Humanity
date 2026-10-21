@@ -948,7 +948,9 @@ pub(crate) fn end_mouth_cut(o: Vec3, w: f32, d: f32, h: f32, g: &CorridorGeom, e
         CorridorAxis::Z if other.z > end.z => (2, w - ((g.lat - o.x) + dw * 0.5)),
         CorridorAxis::Z => (0, (g.lat - o.x) - dw * 0.5),
     };
-    ShellCut { edge, at, width: dw, height: dh.min(h) }
+    // The cut's foot is the corridor's deck, body-local (0 while corridors run level with the
+    // boxes they join, which every shipped one does).
+    ShellCut { edge, at, width: dw, base: g.floor_y - o.y, height: dh.min(h) }
 }
 
 /// The corridor resolve on two BOXES (zones, or a plot standing in for its home): the
@@ -1169,6 +1171,7 @@ impl ShipStructure {
                                         edge,
                                         at,
                                         width: dw,
+                                        base: g.floor_y - o.y,
                                         height: dh.min(zone.body.height),
                                     });
                                 }
@@ -1187,6 +1190,7 @@ impl ShipStructure {
                                         edge,
                                         at,
                                         width: dw,
+                                        base: g.floor_y - o.y,
                                         height: dh.min(zone.body.height),
                                     });
                                 }
@@ -4013,5 +4017,63 @@ mod plot_handout_tests {
         let text = |s: &ShipStructure| ron::ser::to_string_pretty(s, ron::ser::PrettyConfig::default()).unwrap();
         assert_eq!(text(&open.ship_file()), text(&closed.ship_file()), "the ship file is the same");
         assert_eq!(text(&open), text(&closed), "the assembled ship's own text is the same");
+    }
+}
+
+/// Ship homes increment 7, Wave 0 (docs/design/ship-homes-increment-7-plan.md section 2): the
+/// storey fields leave every shipped file, and so the ship's hash, exactly as they were.
+#[cfg(test)]
+mod storey_fields_tests {
+    use super::*;
+
+    /// THE STOREY FIELDS MOVE NO SHIPPED FILE. `HomeStructure::floors` and `InteriorWall::base`
+    /// are left out of a file while unused, so the ship file and every shipped home design
+    /// re-serialize byte for byte as they did, and the ship hashes as it did: a game built before
+    /// storeys still meets this ship as the same ship.
+    ///
+    /// The values are PINNED, computed on the code before Wave 0 (commit 510d91c8f, 2026-10-20) by
+    /// a throwaway capture over the same calls, to prove the new fields do not move them. They are
+    /// FNV-1a 64 of the RON text: compact (`ron::ser::to_string`, what `ship_hash` hashes) and
+    /// pretty with struct names off (what an editor Save writes). When a shipped file changes ON
+    /// PURPOSE (lane R grows the homestead plots in the ship file, lane C1 gives the homestead its
+    /// upper floor), replace that file's pins with the values this test prints and say why in the
+    /// commit; a pin that moves when nobody meant to change the file is the bug it is here for.
+    ///
+    /// Seen red 2026-10-20 with `floors` written even when empty: all seven moved, among them
+    /// "ship_hash, data/blueprints/ship_structure.ron: pinned effbdfbec3360115, now a327f9b37c384935"
+    /// and "homes/shipped/homestead.ron, compact: pinned 7f2c00ab2c30e0ce, now 2272e8546b075515".
+    #[test]
+    fn the_storey_fields_move_no_shipped_file() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let pretty = || ron::ser::PrettyConfig::default().struct_names(false);
+        let fnv = |text: String| format!("{:016x}", fnv1a64(text.as_bytes()));
+        let ship = ShipStructure::load_ship_file(&data).expect("the ship file loads");
+        let built_in: ShipStructure = ron::from_str(crate::embedded_data::SHIP_STRUCTURE_RON).expect("the built-in ship parses");
+        let mut now: Vec<(String, String)> = vec![
+            ("ship_hash, data/blueprints/ship_structure.ron".into(), ship.ship_hash()),
+            ("ship_hash, the ship built into the exe".into(), built_in.ship_hash()),
+            ("ship file, pretty".into(), fnv(ron::ser::to_string_pretty(&ship, pretty()).unwrap())),
+        ];
+        for kind in ["homestead", "cabin"] {
+            let design = HomeDesign::built_in(kind).expect("the shipped design is built in");
+            now.push((format!("homes/shipped/{kind}.ron, compact"), fnv(ron::ser::to_string(&design).unwrap())));
+            now.push((format!("homes/shipped/{kind}.ron, pretty"), fnv(ron::ser::to_string_pretty(&design, pretty()).unwrap())));
+        }
+        const PINNED: [&str; 7] = [
+            "effbdfbec3360115",
+            "effbdfbec3360115",
+            "2f24b7a1c04beedd",
+            "7f2c00ab2c30e0ce",
+            "d015569462471165",
+            "da22405ff5cb9a36",
+            "ffb704a6e5cf699b",
+        ];
+        let moved: Vec<String> = now
+            .iter()
+            .zip(PINNED)
+            .filter(|((_, got), pin)| got != pin)
+            .map(|((what, got), pin)| format!("  {what}: pinned {pin}, now {got}"))
+            .collect();
+        assert!(moved.is_empty(), "a shipped file no longer serializes as it did:\n{}", moved.join("\n"));
     }
 }
