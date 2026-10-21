@@ -374,12 +374,13 @@ test("without the walker's timing, on_time fails rather than passing unchecked",
 // hold different plots by the order they joined, the game's camera is inside
 // the plot the game should hold, and every position the game drew for the
 // walker is inside the walker's plot. The shapes below are the shipped
-// layout (docs/design/ship-homes-and-logistics.md section 2.4).
+// layout (docs/design/ship-homes-and-logistics.md section 2.4). A homestead plot is 6 m tall
+// since ship homes increment 7 (two 3 m storeys).
 
 const { judgePlots, forwardLegStart, readShipPlots, inPlot } = require("../lib/copresence-judge.js");
 const PLOTS = [
-  { id: "p1", kind: "homestead", origin: [0, 0, 0], size: [55, 3, 89] },
-  { id: "p2", kind: "homestead", origin: [0, 0, 99], size: [55, 3, 89] },
+  { id: "p1", kind: "homestead", origin: [0, 0, 0], size: [55, 6, 89] },
+  { id: "p2", kind: "homestead", origin: [0, 0, 99], size: [55, 6, 89] },
 ];
 const P1_SPAWN = [53.5, 1.7, 40.5];
 const P2_SPAWN = [53.5, 1.7, 139.5];
@@ -416,7 +417,7 @@ test("plots: the 1a shape (no plots handed out, the game still at p1) FAILS came
   const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
   assert.ok(failed.includes("camera_in_p2"), explain(r));
   assert.ok(failed.includes("plot_ids_differ") && failed.includes("plots_by_join_order"), explain(r));
-  assert.match(r.checks.find((c) => c.id === "camera_in_p2").detail, /OUTSIDE p2 \(x 0\.\.55, y 0\.\.3, z 99\.\.188\)/);
+  assert.match(r.checks.find((c) => c.id === "camera_in_p2").detail, /OUTSIDE p2 \(x 0\.\.55, y 0\.\.6, z 99\.\.188\)/);
 });
 
 // The shape the first 1b build left (the critic's findings 1 and 3): the home
@@ -467,7 +468,8 @@ test("plots: the ship file's plots read the way the game has them", () => {
   // The twelve plots along First Street (2026-10-04): p3 to p12 down its west side, 99 m apart.
   const read = all.filter((p) => p.kind === "homestead");
   assert.deepEqual(read.map((p) => p.id), Array.from({ length: 12 }, (_, k) => `p${k + 1}`));
-  for (const [k, p] of read.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["homestead", [0, 0, 99 * k], [55, 3, 89]], p.id);
+  // 6 m tall since ship homes increment 7: two 3 m storeys (the cabins below stay one).
+  for (const [k, p] of read.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["homestead", [0, 0, 99 * k], [55, 6, 89]], p.id);
   // And since ship homes increment 6, after them, sixteen cabins along the cabin block's hall east
   // of First Street, 2.5 m apart.
   const cabins = all.slice(12);

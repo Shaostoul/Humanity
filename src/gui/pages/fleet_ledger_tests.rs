@@ -154,6 +154,36 @@ fn one_give_waits_at_a_time() {
     assert_eq!(waiting_give(&gs), None, "a give held for another server does not block this one");
 }
 
+/// A FLEET STORE IS IN REACH ONLY ON YOUR FLOOR (ship homes increment 7): a store standing a storey
+/// up (3.0 m), right over the player's head and inside 5 m, is not one they can take a meal from or
+/// give to, and the panel says it is on another floor; a store on their floor 4 m away is the one
+/// the panel picks, though the one upstairs is nearer through the slab; and upstairs, the store
+/// under their feet is out of reach. The relay applies the same rule (src/ship/moves.rs `in_reach`).
+///
+/// Seen red 2026-10-20 on the reach before storeys (the 5 m sphere): "a store one storey up was
+/// in reach: Err(\"Not connected to the server.\")" (the reach check passed it, and only the
+/// missing connection stopped the ask).
+#[test]
+fn a_fleet_store_is_in_reach_only_on_your_floor() {
+    let mut gs = GuiState::default();
+    gs.copresence_active = true;
+    let upstairs = FleetStore { entity_id: 12, name: "The upstairs stores".into(), position: [68.0, 4.0, 22.0] };
+    gs.fleet.stores = vec![upstairs.clone()];
+    gs.fleet.my_position = Some([68.0, 1.7, 22.0]);
+    let up = take_meal_at_nearest(&gs);
+    assert!(matches!(&up, Err(why) if why == "The upstairs stores is on another floor: go up to it to take a meal."), "a store one storey up was in reach: {up:?}");
+    gs.inventory_items = vec![bread_slot(3)];
+    assert_eq!(start_give(&mut gs, "bread_0", 1), "The upstairs stores is on another floor: go up to it to give.");
+    // A store on the player's floor 4 m away is the nearest that counts.
+    gs.fleet.stores = vec![upstairs, FleetStore { entity_id: 13, name: "The mess hall's stores".into(), position: [72.0, 1.0, 22.0] }];
+    assert_eq!(nearest_store(&gs.fleet).map(|(s, _)| s.entity_id), Some(13), "the store on your floor, not the one over your head");
+    assert_eq!(take_meal_at_nearest(&gs), Err("Not connected to the server.".into()), "in reach: only the connection is missing");
+    // Upstairs, the store under the feet.
+    gs.fleet.stores = vec![FleetStore { entity_id: 13, name: "The mess hall's stores".into(), position: [68.0, 1.0, 22.0] }];
+    gs.fleet.my_position = Some([68.0, 4.7, 22.0]);
+    assert_eq!(take_meal_at_nearest(&gs), Err("The mess hall's stores is on another floor: go down to it to take a meal.".into()));
+}
+
 /// THE WEB'S GAME ADMIN WINDOW OFFERS THE SAME FLEET SUPPLY CONTROL: the same two modes under
 /// the same names, the same message, and app.js keeps the mode and the totals it shows; it says
 /// when the totals are held back.

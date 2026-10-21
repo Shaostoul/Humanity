@@ -332,11 +332,20 @@ pub(crate) fn hull_geom(ship: &ShipStructure, profile: &HullProfile) -> Option<H
     // docs/design/ship-homes-and-logistics.md, src/ship/neighbours.rs): the hull wraps every plot,
     // whoever holds it, so it is the same hull in every player's game, and no neighbour's home
     // stands out through the plating. World (x0, z0, x1, z1, floor, top, glass lid) for each.
+    //
+    // A plot is wrapped to the top of its BOX, not of the home standing in it (ship homes increment
+    // 7): a home never rises past its plot (`design_fits_plot`), so no home of any design stands
+    // out, and the hull does not depend on which design a player chose. The player's own plot is
+    // wrapped the same way as a neighbour's, so the hull is the same in every player's game.
     let mut extra: Vec<(f32, f32, f32, f32, f32, f32, bool)> = Vec::new();
+    if let Some(own) = ship.home_plot() {
+        let (lo, hi) = own.aabb();
+        extra.push((lo.x, lo.z, hi.x, hi.z, lo.y, hi.y, false));
+    }
     let view = crate::ship::neighbours::neighbour_view(ship);
     for n in &view.neighbours {
         let (lo, hi) = n.plot.aabb();
-        extra.push((lo.x, lo.z, hi.x, hi.z, lo.y, lo.y + n.design.body.height, false));
+        extra.push((lo.x, lo.z, hi.x, hi.z, lo.y, hi.y.max(lo.y + n.design.body.height), false));
         if let Some(g) = &n.tube {
             let hwc = g.width * 0.5;
             let (x0, z0, x1, z1) = match g.axis {
