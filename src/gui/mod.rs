@@ -4503,6 +4503,10 @@ pub struct SettingsState {
     /// Tiled light lists (clustering L1b): bounds per-pixel light cost by
     /// screen tile, lifting the light cap 256 -> 2048. Off = classic loop.
     pub lights_tiled: bool,
+    /// Bounced light detail: a level id from data/gui/bounced_light_detail.json
+    /// (the room light probes' spacing and cap, `renderer::room_probes_gpu`).
+    /// Applies live through `engine::room_gi`.
+    pub bounced_light_detail: String,
     pub master_volume: f32,
     pub music_volume: f32,
     pub sfx_volume: f32,
@@ -4688,6 +4692,7 @@ impl Default for SettingsState {
             far_tree_sheet: false,
             cloud_quality: "high".to_string(),
             lights_tiled: false,
+            bounced_light_detail: crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string(),
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

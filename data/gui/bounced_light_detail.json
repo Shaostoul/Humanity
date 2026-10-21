@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "_comment": "Settings > Graphics > Light and sky > Bounced light detail (2026-10-20). Each level is the two numbers the room light probes are laid out to (src/renderer/room_probes.rs lattice_for, docs/design/room-gi.md): spacing_m, how far apart the probes in the player's own home aim to be, in metres; and max_probes, the most probes the whole ship may hold. The rest of the ship coarsens first, into what the home leaves. Video memory is max_probes x 3,392 bytes (each probe's 10x10 light tile and 18x18 depth tile, 8 bytes a texel); the Settings page computes and shows it. The work each frame is the same at every level (4,096 probes an update), so a finer level costs memory, not frame time, and takes longer to relight far rooms. 'high' is the design (1 m, 32,768) and the default; src/config.rs falls back to it for an id not listed here. Values are clamped on load: spacing to 0.25 to 64 m, max_probes to what one atlas texture can hold. Changing this file takes effect at the next start.",
+  "levels": [
+    {
+      "id": "low",
+      "name": "Low",
+      "spacing_m": 2.0,
+      "max_probes": 8192,
+      "note": "Probes 2 m apart: soft, broad bounced light."
+    },
+    {
+      "id": "medium",
+      "name": "Medium",
+      "spacing_m": 1.5,
+      "max_probes": 16384,
+      "note": "Probes 1.5 m apart."
+    },
+    {
+      "id": "high",
+      "name": "High",
+      "spacing_m": 1.0,
+      "max_probes": 32768,
+      "note": "Probes 1 m apart: the design."
+    },
+    {
+      "id": "ultra",
+      "name": "Ultra",
+      "spacing_m": 0.75,
+      "max_probes": 65536,
+      "note": "Probes 0.75 m apart: the finest, and the nearby rooms finer too."
+    }
+  ]
+}

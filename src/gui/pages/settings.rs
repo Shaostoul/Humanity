@@ -2670,6 +2670,7 @@ pub fn apply_graphics_preset(state: &mut GuiState, p: &GraphicsPreset) {
         let s = &mut state.settings;
         let ok = match k.as_str() {
             "cloud_quality" => { if let Some(x) = v.as_str() { s.cloud_quality = x.to_string(); true } else { false } }
+            "bounced_light_detail" => { if let Some(x) = v.as_str().filter(|x| crate::renderer::bounced_light_detail::is_detail_level(x)) { s.bounced_light_detail = x.to_string(); true } else { false } }
             "cloud_res_div" => { if let Some(x) = v.as_u64() { state.cloud_dev_res_div = (x as u32).clamp(1, 4); true } else { false } }
             "planet_detail" => { if let Some(x) = b(v) { s.planet_detail = x; true } else { false } }
             "planet_chunked" => { if let Some(x) = b(v) { s.planet_chunked = x; true } else { false } }
@@ -2713,6 +2714,37 @@ pub fn apply_graphics_preset(state: &mut GuiState, p: &GraphicsPreset) {
     }
     state.settings_dirty = true;
     log::info!("[GraphicsPreset] applied {}", p.id);
+}
+
+/// Settings > Graphics > Light and sky > Bounced light detail (2026-10-20):
+/// how finely the room light probes are laid out (`renderer::room_probes_gpu`,
+/// the levels in data/gui/bounced_light_detail.json). One row per level with
+/// its cap and its video memory, both worked out from the level's numbers;
+/// then the graphics card's own memory and a warning when the chosen level
+/// would take more than a twentieth of it. Applies live through
+/// `engine::room_gi` the next frame.
+fn draw_bounced_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate::gui::HintDisplay) {
+    use crate::renderer::bounced_light_detail as gi;
+    ui.label(RichText::new("Bounced light detail").color(theme.text_secondary()).strong());
+    // A grid, so the four memory figures line up for comparing.
+    egui::Grid::new("bounced_light_detail_levels").num_columns(2).show(ui, |ui| {
+        for level in gi::detail_levels() {
+            let sel = state.settings.bounced_light_detail == level.id;
+            if ui.selectable_label(sel, RichText::new(level.name.as_str()).size(theme.font_size_small)).clicked() && !sel {
+                state.settings.bounced_light_detail = level.id.clone();
+                state.settings_dirty = true;
+            }
+            ui.label(RichText::new(level.words()).color(theme.text_muted()).size(theme.font_size_small));
+            ui.end_row();
+        }
+    });
+    widgets::setting_hint(ui, theme, hint, "How finely the light that bounces off walls, floors and ceilings is worked out indoors. Higher: finer bounced light in your home and nearby rooms, and more video memory. The work each frame is the same at every level; a finer level only takes longer to relight rooms far from you. Changes apply live: a short pause, then a few seconds while the bounced light fills back in.");
+    let level = gi::detail_level(&state.settings.bounced_light_detail);
+    let (card, warning) = gi::memory_check(level, gi::adapter_memory());
+    ui.label(RichText::new(card).color(theme.text_muted()).size(theme.font_size_small));
+    if let Some(w) = warning {
+        ui.label(RichText::new(w).color(theme.warning()).size(theme.font_size_small));
+    }
 }
 
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -3038,6 +3070,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Lets the scene show far more lamps, fires, and glowing objects lit at the same time (up to 2048 instead of 256) by sorting lights into screen tiles so each pixel only weighs the ones near it - the renderer calls this tiled light lists. Turn it on if lights stop lighting things when several are close together. Off is the classic loop: fine for a handful of lights and slightly cheaper. Experimental.");
+        draw_bounced_light_detail(ui, theme, state, hint);
         if widgets::labeled_slider(ui, theme, "Shadow strength", &mut state.settings.shadow_strength, 0.0..=1.0) {
             state.settings_dirty = true;
         }

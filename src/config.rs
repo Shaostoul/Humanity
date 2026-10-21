@@ -555,6 +555,11 @@ pub struct AppConfig {
     /// Tiled light lists (clustering L1b).
     #[serde(default)]
     pub lights_tiled: bool,
+    /// Settings > Graphics > Bounced light detail (2026-10-20): a level id
+    /// from data/gui/bounced_light_detail.json. An id the file does not list
+    /// loads as "high", the design.
+    #[serde(default = "default_bounced_light_detail")]
+    pub bounced_light_detail: String,
     /// Learn-by-doing quest progress, "chain_id:step_id" -> done (v0.1066).
     /// GuiState has claimed since v0.415 that this was "persisted via
     /// AppConfig", but no such field existed: every tick a person made in the
@@ -1128,6 +1133,7 @@ fn default_water_detail_depth() -> f32 { 20.0 }
 fn default_fps_foreground() -> u32 { 120 }
 fn default_fps_background() -> u32 { 30 }
 fn default_cloud_quality() -> String { "high".to_string() }
+fn default_bounced_light_detail() -> String { crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
@@ -1567,6 +1573,7 @@ impl AppConfig {
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
             lights_tiled: state.settings.lights_tiled,
+            bounced_light_detail: state.settings.bounced_light_detail.clone(),
             onboarding_quest_progress: state.onboarding_quest_progress.clone(),
             vsync: state.settings.vsync,
             fps_foreground: state.settings.fps_foreground,
@@ -1769,6 +1776,20 @@ impl AppConfig {
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);
         state.settings.lights_tiled = self.lights_tiled;
+        // Checked against the SAME list the Settings chooser draws (the levels
+        // file), never a list of its own: cloud_quality's separate whitelist
+        // turned "ultra" back into "high" on every boot (see below).
+        state.settings.bounced_light_detail =
+            if crate::renderer::bounced_light_detail::is_detail_level(&self.bounced_light_detail) {
+                self.bounced_light_detail.clone()
+            } else {
+                log::warn!(
+                    "config: unknown bounced_light_detail {:?}, falling back to {}",
+                    self.bounced_light_detail,
+                    default_bounced_light_detail()
+                );
+                default_bounced_light_detail()
+            };
         state.onboarding_quest_progress = self.onboarding_quest_progress.clone();
         state.settings.vsync = self.vsync;
         // Clamp hand-edited values to the UI's range (a 1 FPS cap would
@@ -2783,6 +2804,38 @@ mod saved_servers_tests {
                  and the Settings chooser have drifted apart"
             );
         }
+    }
+
+    /// Settings > Graphics > Bounced light detail through a restart: every
+    /// level the chooser offers (the levels file, the list the chooser draws)
+    /// goes out through `from_gui_state`, to JSON, and back in as itself; an
+    /// id the file does not list, and a config that never held the field,
+    /// load as High.
+    ///
+    /// Seen red 2026-10-20 with the save leg writing the default instead of
+    /// the setting: "bounced light detail 'low' did not survive a restart".
+    #[test]
+    fn every_offered_bounced_light_detail_survives_a_restart() {
+        let levels = crate::renderer::bounced_light_detail::detail_levels();
+        assert!(levels.len() >= 4, "the shipped file offers Low to Ultra");
+        for level in levels {
+            let mut before = crate::gui::GuiState::default();
+            before.settings.bounced_light_detail = level.id.clone();
+            let json = serde_json::to_string(&AppConfig::from_gui_state(&before)).expect("config serializes");
+            let cfg: AppConfig = serde_json::from_str(&json).expect("config parses");
+            let mut after = crate::gui::GuiState::default();
+            cfg.apply_to_gui_state(&mut after);
+            assert_eq!(
+                after.settings.bounced_light_detail, level.id,
+                "bounced light detail '{}' did not survive a restart",
+                level.id
+            );
+        }
+        let cfg: AppConfig = serde_json::from_str(r#"{"bounced_light_detail":"retina"}"#).expect("config parses");
+        let mut st = crate::gui::GuiState::default();
+        cfg.apply_to_gui_state(&mut st);
+        assert_eq!(st.settings.bounced_light_detail, "high", "an unknown level loads as High");
+        assert_eq!(AppConfig::default().bounced_light_detail, "high", "a fresh install is on High");
     }
 }
 

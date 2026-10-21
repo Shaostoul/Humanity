@@ -52,11 +52,22 @@ pub(crate) fn rooms_changed(state: &mut EngineState, room_info: &[RoomInfo]) {
             );
         }
     }
+    // The level first, so the rooms are laid out once, at the chosen detail.
+    apply_detail(state);
     state.renderer.set_room_gi_rooms(boxes);
+}
+
+/// Settings > Graphics > Bounced light detail (or the dev request
+/// `{"bounced_light_detail":"low"}`) to the renderer: a no-op while it is
+/// unchanged, a relayout of the probes and their atlas the frame it changes.
+fn apply_detail(state: &mut EngineState) {
+    let budget = crate::renderer::bounced_light_detail::detail_level(&state.gui_state.settings.bounced_light_detail).budget();
+    state.renderer.set_room_gi_budget(budget);
 }
 
 /// Once a frame, before the scene pass (lib.rs).
 pub(crate) fn before_scene(state: &mut EngineState) {
+    apply_detail(state);
     // The sky table's up is the celestial pass's (`aerial_up`, world frame);
     // the rooms live in the HULL frame, the same turn the sun direction takes.
     let sky_up = state.renderer.sky_view_uniform.is_some().then(|| {
@@ -263,7 +274,7 @@ mod tests {
     /// figures come from.
     #[test]
     fn the_shipped_home_keeps_its_designed_probe_spacing() {
-        use crate::renderer::room_probes::{lattice_for, probe_counts, MAX_PROBES_PER_ROOM, MAX_TOTAL_PROBES, PROBE_SPACING_M};
+        use crate::renderer::room_probes::{lattice_for, probe_counts, ProbeBudget, MAX_PROBES_PER_ROOM, MAX_TOTAL_PROBES, PROBE_SPACING_M};
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
@@ -271,7 +282,7 @@ mod tests {
         let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
         let meshes = ship.generate_meshes();
         let boxes = room_boxes(Some(&ship), &meshes.room_info);
-        let lat = lattice_for(&boxes);
+        let lat = lattice_for(&boxes, ProbeBudget::default());
         let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
         let at_1m: u64 = boxes.iter().map(|b| n(probe_counts(b.size(), PROBE_SPACING_M))).sum();
         for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate() {
@@ -309,6 +320,50 @@ mod tests {
         }
         assert!(!lat.home_coarsened);
         assert!(lat.total() <= MAX_TOTAL_PROBES as u64, "{} probes", lat.total());
+    }
+
+    /// Every Bounced light detail level on the shipped ship (the same room
+    /// set as above): within the level's cap, the home at the level's spacing
+    /// in every room its per-room cap allows and never coarsened, the rest of
+    /// the ship coarser than the home. `--nocapture` prints each level's
+    /// home and ship spacing: where the room-gi.md level table comes from.
+    #[test]
+    fn every_bounced_light_detail_level_fits_the_shipped_ship() {
+        use crate::renderer::room_probes::{lattice_for, probe_counts};
+        use crate::renderer::bounced_light_detail::{detail_levels, mb_words};
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
+        let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
+        let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+        let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
+        let meshes = ship.generate_meshes();
+        let boxes = room_boxes(Some(&ship), &meshes.room_info);
+        let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
+        for level in detail_levels() {
+            let budget = level.budget();
+            let lat = lattice_for(&boxes, budget);
+            println!(
+                "{:<7} {:.2} m, cap {:>6} ({}): {} probes; home {} at {:?} m, others {} at {:?} m",
+                level.name,
+                level.spacing_m,
+                level.max_probes,
+                mb_words(level.memory_bytes()),
+                lat.total(),
+                lat.total_where(&boxes, true),
+                lat.home_spacing,
+                lat.total_where(&boxes, false),
+                lat.other_spacing
+            );
+            assert!(lat.total() <= level.max_probes as u64, "{}: {} probes", level.id, lat.total());
+            assert!(!lat.home_coarsened, "{}: the home alone outgrew the cap", level.id);
+            for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate().filter(|(_, (_, b))| b.home) {
+                let want = probe_counts(b.size(), level.spacing_m);
+                if n(want) <= budget.per_room() as u64 {
+                    assert_eq!(lat.counts[i], want, "{}: home room {} keeps {} m", level.id, r.id, level.spacing_m);
+                }
+            }
+            assert!(lat.other_spacing.unwrap() >= lat.home_spacing.unwrap(), "{}", level.id);
+        }
     }
 
     /// A room beside an oak partition takes the oak's colour on that face and
