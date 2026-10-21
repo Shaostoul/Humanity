@@ -98,14 +98,24 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
     let min = r.center - r.dimensions * 0.5;
     let max = r.center + r.dimensions * 0.5;
     let zone = ship.and_then(|s| {
-        s.zones.iter().find(|z| {
+        s.zones.iter().position(|z| {
             let o = z.origin_vec();
             let top = o + Vec3::new(z.body.width, z.body.height, z.body.depth);
             r.center.cmpge(o - Vec3::splat(0.01)).all() && r.center.cmple(top + Vec3::splat(0.01)).all()
         })
     });
-    let Some(z) = zone else {
-        return RoomBox { min, max, refl: [[DEFAULT_REFL; 3]; 6], lid_transmittance: 0.0 };
+    // The player's OWN home: the rooms of the home zone (`home_zone_index`:
+    // the zone named "home", else zone 0), or every room when no ship stands
+    // around the home. Its rooms keep the designed probe spacing while the
+    // rest of the ship coarsens to fit the cap (`room_probes::lattice_for`).
+    // A corridor tube stands in no zone, so it counts with the rest.
+    let home = match (ship, zone) {
+        (None, _) => true,
+        (Some(s), Some(zi)) => zi == s.home_zone_index() && !s.is_away_home(zi),
+        (Some(_), None) => false,
+    };
+    let Some(z) = ship.zip(zone).map(|(s, zi)| &s.zones[zi]) else {
+        return RoomBox { min, max, refl: [[DEFAULT_REFL; 3]; 6], lid_transmittance: 0.0, home };
     };
     let body = &z.body;
     let o = z.origin_vec();
@@ -125,7 +135,7 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
     for (a, b) in [((0.0, 0.0), (w, 0.0)), ((w, 0.0), (w, d)), ((w, d), (0.0, d)), ((0.0, d), (0.0, 0.0))] {
         segs.push(Seg { a: (a.0 + o.x, a.1 + o.z), b: (b.0 + o.x, b.1 + o.z), half, refl: shell });
     }
-    let mut out = RoomBox { min, max, refl: [shell; 6], lid_transmittance: 0.0 };
+    let mut out = RoomBox { min, max, refl: [shell; 6], lid_transmittance: 0.0, home };
     // The four walls, each from the UNSNAPPED box so the faces do not depend
     // on the order they are visited in.
     for face in [FACE_NEG_X, FACE_POS_X, FACE_NEG_Z, FACE_POS_Z] {
@@ -241,6 +251,64 @@ mod tests {
             }
         }
         assert!(glass > 0, "the home's glass roof reaches the probes");
+    }
+
+    /// The shipped ship's probe lattice (ship homes increment 7 plan, section
+    /// 6): the player's own home keeps the designed 1 m spacing in every room
+    /// the per-room cap allows, the rest of the ship coarsens into what the
+    /// home leaves, and the whole ship stays within `MAX_TOTAL_PROBES`. The
+    /// room set is built exactly the way `rooms_changed` gets it (the ship
+    /// file, the shipped homestead on the default plot p1, `generate_meshes`,
+    /// `room_boxes`). `--nocapture` prints every room: where the room-gi.md
+    /// figures come from.
+    #[test]
+    fn the_shipped_home_keeps_its_designed_probe_spacing() {
+        use crate::renderer::room_probes::{lattice_for, probe_counts, MAX_PROBES_PER_ROOM, MAX_TOTAL_PROBES, PROBE_SPACING_M};
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
+        let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
+        let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+        let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
+        let meshes = ship.generate_meshes();
+        let boxes = room_boxes(Some(&ship), &meshes.room_info);
+        let lat = lattice_for(&boxes);
+        let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
+        let at_1m: u64 = boxes.iter().map(|b| n(probe_counts(b.size(), PROBE_SPACING_M))).sum();
+        for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate() {
+            let s = b.size();
+            println!(
+                "{:<28} home {:<5} {:>7.2} x {:>5.2} x {:>7.2} m  at 1 m {:>6}  now {:?} = {:>5} at {:.2} m",
+                r.id, b.home, s.x, s.y, s.z, n(probe_counts(s, PROBE_SPACING_M)), lat.counts[i], lat.probes_in(i), lat.spacing[i]
+            );
+        }
+        println!(
+            "{} rooms ({} the home's), {} probes at 1 m; lattice {} of {}: home {} at {:?} m, others {} at {:?} m, home coarsened {}",
+            boxes.len(),
+            boxes.iter().filter(|b| b.home).count(),
+            at_1m,
+            lat.total(),
+            MAX_TOTAL_PROBES,
+            lat.total_where(&boxes, true),
+            lat.home_spacing,
+            lat.total_where(&boxes, false),
+            lat.other_spacing,
+            lat.home_coarsened
+        );
+        assert!(boxes.iter().any(|b| b.home), "the homestead's rooms are the home's");
+        assert!(boxes.iter().any(|b| !b.home), "the street, the commons and the corridors are not");
+        // Every home room is in the home zone, and only those are.
+        let home_zone = &ship.zones[ship.home_zone_index()];
+        for (r, b) in meshes.room_info.iter().zip(&boxes) {
+            assert_eq!(b.home, !r.id.contains(':') && !r.id.starts_with("corridor_"), "{} (home zone '{}')", r.id, home_zone.id);
+        }
+        for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate().filter(|(_, (_, b))| b.home) {
+            let design = probe_counts(b.size(), PROBE_SPACING_M);
+            if n(design) <= MAX_PROBES_PER_ROOM as u64 {
+                assert_eq!(lat.counts[i], design, "home room {} keeps its 1 m lattice", r.id);
+            }
+        }
+        assert!(!lat.home_coarsened);
+        assert!(lat.total() <= MAX_TOTAL_PROBES as u64, "{} probes", lat.total());
     }
 
     /// A room beside an oak partition takes the oak's colour on that face and

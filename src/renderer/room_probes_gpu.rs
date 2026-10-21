@@ -64,7 +64,9 @@ pub struct RoomGi {
     counts: Vec<[u32; 3]>,
     first: Vec<u32>,
     total: u32,
-    /// Probe spacing actually used (1 m unless the ship outgrew the cap).
+    /// The finest probe spacing in the player's own home (the rest of the
+    /// ship's when no room is the home's): 1 m unless the home alone outgrew
+    /// the cap (`room_probes::lattice_for`).
     pub spacing: f32,
     layout: AtlasLayout,
     _atlas: wgpu::Texture,
@@ -281,7 +283,8 @@ impl RoomGi {
         if rooms == self.rooms {
             return;
         }
-        let (spacing, counts) = lattice_for(&rooms);
+        let lattice = lattice_for(&rooms);
+        let counts = lattice.counts.clone();
         let mut first = Vec::with_capacity(rooms.len());
         let mut total = 0u32;
         for c in &counts {
@@ -316,17 +319,31 @@ impl RoomGi {
             self.rebind = true;
             self.bind_groups = None;
         }
+        // The home's spacing and the rest of the ship's, separately: the home
+        // keeps the design spacing and the others coarsen first (`lattice_for`).
+        let group = |rooms_in: usize, probes: u64, s: Option<f32>| match s {
+            Some(s) => format!("{rooms_in} rooms, {probes} probes at {s:.2} m"),
+            None => "no rooms".to_string(),
+        };
+        let home_rooms = rooms.iter().filter(|r| r.home).count();
         log::info!(
-            "[RoomGI] {} rooms, {} probes at {:.2} m spacing",
+            "[RoomGI] {} rooms, {} probes of {}: home {}, others {}{}",
             rooms.len(),
             total,
-            spacing
+            super::room_probes::MAX_TOTAL_PROBES,
+            group(home_rooms, lattice.total_where(&rooms, true), lattice.home_spacing),
+            group(rooms.len() - home_rooms, lattice.total_where(&rooms, false), lattice.other_spacing),
+            if lattice.home_coarsened {
+                " (the home alone holds more than the cap, so it coarsened too)"
+            } else {
+                ""
+            }
         );
         self.rooms = rooms;
         self.counts = counts;
         self.first = first;
         self.total = total;
-        self.spacing = spacing;
+        self.spacing = lattice.home_spacing.or(lattice.other_spacing).unwrap_or(super::room_probes::PROBE_SPACING_M);
         self.cursor = 0;
         self.cam_cursor = 0;
         self.needs_clear = true;

@@ -61,9 +61,22 @@ reflects `alpha * colour`. Every reflectance is clamped to 0.95.
 **Lattice.** 1 m target spacing, `ceil(size / 1 m) + 1` probes per axis (never
 fewer than 2), probes at cell centres so none sits on a surface. The mushroom
 room is 11 x 4 x 11. A room that alone would hold more than 8,192 probes
-coarsens by itself (the 8 m commons hall, 17,640 at 1 m, runs at 1.46 m), so
-one hall cannot coarsen every bedroom; the whole ship is then capped at 32,768
-(the shipped ship holds 31,874: 34 rooms, the acre's all at 1 m).
+coarsens by itself (the 8 m commons hall holds 17,640 at 1 m, the 1.1 km street
+60,555), so one hall cannot coarsen every bedroom. The whole ship is capped at
+32,768, and the player's OWN HOME comes first (`lattice_for`, 2026-10-20): its
+rooms keep 1 m, the rest of the ship takes the finest common spacing that fits
+in what the home leaves, and only a home that alone holds more than the cap
+coarsens too, which the `[RoomGI] N rooms, M probes of 32768: home ..., others
+...` log line then says. The shipped ship on 2026-10-20 (the ship file with the
+shipped homestead on plot p1, counted by
+`engine::room_gi::tests::the_shipped_home_keeps_its_designed_probe_spacing`
+with `--nocapture`, which prints every room): 41 rooms that would hold 109,497
+probes at 1 m; the home's 23 rooms hold 22,092 at 1 m, the other 18 hold 9,878
+at 2.50 m (6,630 of them the street's), 31,970 in all. Before the priority,
+the rooms added elsewhere on 2026-10-05 (the street, the second commons, the
+cabins) had coarsened every room together to 1.33 m, 26,804 probes, the home
+included, without anyone choosing that. The 31,874 this paragraph gave until
+then was the 34-room ship of 2026-10-03.
 
 **Storage.** One Rgba16Float atlas, 8100 texels wide: every probe's 8x8
 octahedral irradiance tile (10x10 with the 1-texel border) in the top region,
