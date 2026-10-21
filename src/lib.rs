@@ -212,9 +212,9 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, bugs, donate, studio,
-        onboarding, server_settings, identity, governance, recovery, testing,
-        browser, cosmos, real,
-        platform, humanity, library, quests, homes,
+        onboarding, server_settings, identity, governance, testing,
+        browser, real,
+        humanity, library, quests, homes,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -6163,9 +6163,9 @@ mod native_app {
                         log::info!("Dev: despawned {n} creatures");
                     }
                     // Live creature count for the Dev page. Only refreshed while the
-                    // Platform page is open (its only consumer) -- no reason to walk
+                    // Dev tab is open (its only consumer) -- no reason to walk
                     // the archetypes at 60fps during normal play. (v0.779)
-                    if state.gui_state.active_page == GuiPage::Platform {
+                    if state.gui_state.active_page == GuiPage::Dev {
                         state.gui_state.dev_creature_count = state
                             .game_world
                             .world

@@ -404,18 +404,6 @@ pub enum GuiPage {
     // same release. See the 2026-07-04 page-access audit.
 }
 
-#[cfg(feature = "native")]
-impl GuiPage {
-    /// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file
-    /// that day, still compares against `GuiPage::Platform` at its Dev-page
-    /// creature count. The Platform tab is gone and that check means the Dev
-    /// tab. Delete this const in the commit that changes lib.rs to
-    /// `GuiPage::Dev`. Nothing else may use it.
-    #[allow(non_upper_case_globals)]
-    #[doc(hidden)]
-    pub const Platform: GuiPage = GuiPage::Dev;
-}
-
 /// Pages that can be selected as the startup boot page.
 #[cfg(feature = "native")]
 pub const BOOT_PAGE_OPTIONS: &[(GuiPage, &str)] = &[

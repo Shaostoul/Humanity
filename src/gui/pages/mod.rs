@@ -36,11 +36,6 @@ pub mod real;
 // The Platform tab (v0.360) was retired on 2026-10-20: its developer tools are
 // the Dev tab (dev_tab.rs), its Calculator, Notes, Calendar and Browser are on
 // Apps, its Recovery is in Settings > Account.
-// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file that
-// day, still lists `platform` in its `use crate::gui::pages::{..}` (unused
-// there). Delete this line in the same commit that drops `platform,` from it.
-#[doc(hidden)]
-pub use dev_tab as platform;
 pub mod humanity;
 pub mod library;
 pub mod quests;
@@ -94,19 +89,9 @@ pub mod governance;
 pub mod laws;
 // Recovery through trusted people moved into Settings > Account with the
 // Platform tab's retirement (2026-10-20): pages/settings/recovery.rs.
-// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file that
-// day, still lists `recovery` in its `use crate::gui::pages::{..}` (unused
-// there). Delete this line in the same commit that drops `recovery,` from it.
-#[doc(hidden)]
-pub use settings::recovery;
 // The Maps page (was cosmos.rs until Maps increment 0, 2026-10-20): a folder,
 // one file per view. `crate::cosmos` is the Sol model, not this page.
 pub mod maps;
-// TEMPORARY lane bridge (2026-10-20): src/lib.rs, another lane's file that
-// day, still lists `cosmos` in its `use crate::gui::pages::{..}` (unused
-// there). Delete this line in the same commit that drops `cosmos,` from it.
-#[doc(hidden)]
-pub use maps as cosmos;
 // v0.197.0: agents and ai_usage page modules removed. The multi-AI
 // orchestration infrastructure (data/coordination/* + relay
 // agent_sessions table) is unaffected — only the UI surface is gone.
