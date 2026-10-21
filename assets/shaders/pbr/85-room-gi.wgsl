@@ -262,7 +262,8 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
 // bmin.xyz and bmax.xyz (the slab's box, render space) are read:
 //   rows [info.x, info.x + atlas.w)   the sun's list: every solid slab once,
 //     grouped into layers behind a layer row each (slab_sun_blocked);
-//   then, per scene light, the RUN of slabs its range reaches, copied, which
+//   then, per scene light, the RUN of slabs its range reaches, copied and
+//     layered the same way (slab_blocks_light), which
 //   the light names as (first, count) in cone_inner.yz, first counted from
 //   info.x + atlas.w (light::gpu_packed_with_slabs, room_probes_gpu).
 // Glass slabs pass light and have no row. No layout change: the table is the
@@ -273,10 +274,11 @@ fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
 // slab's rectangle shrunk by SLAB_EDGE_TOL (so a fragment on the slab's own
 // edge face is not shadowed by its own slab).
 //
-// CPU TWIN: room_probes::OccluderSlab::blocks_segment (the lamp test) and
-// room_probes::sun_walk (the sun's walk over sun_rows' packing), whose answer
-// equals the per-slab reference room_probes::sun_blocked_by_slabs. LOCKSTEP
-// with SLAB_EDGE_TOL_M and SLAB_SUN_REACH_M there.
+// CPU TWIN: room_probes::segment_walk (the lamp's walk) and
+// room_probes::sun_walk (the sun's), both over layered_rows' packing, whose
+// answers equal the per-slab references (OccluderSlab::blocks_segment, which
+// light_irradiance uses, and sun_blocked_by_slabs). LOCKSTEP with
+// SLAB_EDGE_TOL_M and SLAB_SUN_REACH_M there.
 //
 // Read only through the two guarded call sites (frag_tail's light loop and
 // sun_shadow_offset), both behind HAS_SLAB_OCCLUSION. The probe update shader
@@ -293,27 +295,39 @@ fn slab_rect_holds(r: u32, c: vec3<f32>) -> bool {
         && c.z > bmin.z + SLAB_EDGE_TOL && c.z < bmax.z - SLAB_EDGE_TOL;
 }
 
-// Row r's slab stands between p and the point q.
-fn slab_segment_blocks(r: u32, p: vec3<f32>, q: vec3<f32>) -> bool {
-    let m = (room_gi.rooms[r].bmin.y + room_gi.rooms[r].bmax.y) * 0.5;
-    let dp = p.y - m;
-    let dq = q.y - m;
-    if (dp * dq >= 0.0) {
-        return false;
-    }
-    // Opposite signs, so dp - dq is never 0.
-    let t = dp / (dp - dq);
-    return slab_rect_holds(r, p + (q - p) * t);
-}
-
-// The light loop's test: does any slab of the light's run (count rows from
-// `first`) stand between p and the light at q?
+// The light loop's test: does any slab of the light's run (`count` rows from
+// `first`) stand between p and the light at q? The run is LAYERED like the
+// sun's list (room_probes::layered_rows): a layer row (the union box of its
+// slabs, counts.x = how many slab rows follow), then its slabs, nearest the
+// light first. A light on the fragment's own side of a layer's plane (the
+// usual case: a lamp on its own storey) is settled by that one row. CPU
+// twin: room_probes::segment_walk.
 fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, first: u32, count: u32) -> bool {
     let base = room_gi.header.info.x + room_gi.header.atlas.w + first;
-    for (var k = 0u; k < count; k = k + 1u) {
-        if (slab_segment_blocks(base + k, p, q)) {
-            return true;
+    var k = 0u;
+    loop {
+        if (k >= count) {
+            break;
         }
+        let lr = base + k;
+        let n = room_gi.rooms[lr].counts.x;
+        let lmin = room_gi.rooms[lr].bmin.xyz;
+        let lmax = room_gi.rooms[lr].bmax.xyz;
+        let m = (lmin.y + lmax.y) * 0.5;
+        let dp = p.y - m;
+        let dq = q.y - m;
+        if (dp * dq < 0.0) {
+            // Opposite sides, so dp - dq is never 0.
+            let c = p + (q - p) * (dp / (dp - dq));
+            if (c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z) {
+                for (var j = 1u; j <= n; j = j + 1u) {
+                    if (slab_rect_holds(lr + j, c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        k = k + 1u + n;
     }
     return false;
 }
@@ -323,7 +337,7 @@ fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, first: u32, count: u32) -> bool
 // header's gmin and gmax, written whether or not room GI is on), so a planet's
 // trees, seen from orbit, never walk the list.
 //
-// The sun's list is grouped into LAYERS (room_probes::sun_rows): a layer row
+// The sun's list is grouped into LAYERS (room_probes::layered_rows): a layer row
 // (bmin/bmax = the union box of its slabs, counts.x = how many slab rows
 // follow), then its slabs. Every slab of a layer has the same mid-plane, so
 // the path crosses them all at one point c, computed once; a c outside the

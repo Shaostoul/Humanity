@@ -25,7 +25,7 @@
 //!
 //! THE FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ride in the same
 //! room table, after the rooms: every solid floor slab once, grouped into
-//! layers for the sun (`room_probes::sun_rows`), then each scene
+//! layers for the sun (`room_probes::layered_rows`), then each scene
 //! light's RUN of the slabs its range reaches, copied, which `update_room_gi`
 //! names in the light's record (`light::gpu_packed_with_slabs`) and rewrites
 //! the scene light buffer with. The fragments read them through
@@ -38,7 +38,7 @@ use glam::Vec3;
 
 use super::light::{gpu_packed, gpu_packed_with_slabs};
 use super::room_probes::{
-    assign_lights, lattice_for, pack_room, pack_slab, pick_order, ray_rotation, slabs_touched, sun_rows, AtlasLayout, GiHeaderGpu,
+    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, slabs_touched, AtlasLayout, GiHeaderGpu,
     GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M, ROOM_BYTES,
     SKY_LIGHTING_EXPOSURE,
 };
@@ -50,8 +50,9 @@ use super::{pipeline, Renderer};
 pub const MAX_UPDATES_PER_FRAME: u32 = 4096;
 
 /// The most rows the lights' slab runs may take in one frame. The homestead's
-/// upper floor and its 49 lights (a strip counts once per segment) take 149,
-/// the longest run 11 of its 13 merged slabs (counted by
+/// upper floor and its 49 lights (a strip counts once per segment) take 197
+/// (149 slab rows and 48 layer rows; 34 KB a frame with the sun's 14), the
+/// longest run 11 of its 13 merged slabs (counted by
 /// `engine::room_gi::tests::the_homestead_upper_floor_fits_the_light_runs`
 /// with `--nocapture`); this bounds the dev stress test
 /// (showcase `lights:N` puts up to 2048 lights round the camera) to 1.3 MB a
@@ -634,7 +635,7 @@ impl Renderer {
         // whether or not room GI is on: a floor is lighting, not bounce.
         let render_slabs: Vec<OccluderSlab> =
             if gi.slabs_off { Vec::new() } else { gi.slabs.iter().map(|s| s.shifted(station_off)).collect() };
-        // The sun's list (`room_probes::sun_rows`): the slabs grouped into
+        // The sun's list (`room_probes::layered_rows`): the slabs grouped into
         // layers behind a layer row each, so a fragment crosses each layer's
         // plane once and skips a layer its path misses (a low sun's), and
         // NEAREST THE EYE FIRST, because the walk stops at the first slab that
@@ -645,22 +646,25 @@ impl Renderer {
         // sorted, +0.0, while the dawn park console-face-6 still read +0.47
         // (13 crossings, none blocking) until the layers. The runs below are
         // copies, so any order serves them.
-        let sun_list = if render_slabs.is_empty() { Vec::new() } else { sun_rows(&render_slabs, eye) };
+        let sun_list = if render_slabs.is_empty() { Vec::new() } else { layered_rows(&render_slabs, eye) };
         table.extend(sun_list.iter().copied());
         let mut runs: Vec<[u32; 2]> = Vec::new();
         if !render_slabs.is_empty() {
             let mut first = 0usize;
             let mut capped = 0usize;
             for l in &self.cur_lights {
-                let touched = slabs_touched(l, &render_slabs);
-                if first + touched.len() > MAX_SLAB_RUN_ROWS {
+                let touched: Vec<OccluderSlab> = slabs_touched(l, &render_slabs).iter().map(|&k| render_slabs[k]).collect();
+                // Layered like the sun's list, nearest the light first: a lamp
+                // on the fragment's own storey costs one row per layer.
+                let rows = if touched.is_empty() { Vec::new() } else { layered_rows(&touched, light_anchor(l)) };
+                if first + rows.len() > MAX_SLAB_RUN_ROWS {
                     capped += 1;
                     runs.push([0, 0]);
                     continue;
                 }
-                runs.push([first as u32, touched.len() as u32]);
-                first += touched.len();
-                table.extend(touched.iter().map(|&k| pack_slab(&render_slabs[k])));
+                runs.push([first as u32, rows.len() as u32]);
+                first += rows.len();
+                table.extend(rows);
             }
             static CAPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
             if capped > 0 && !CAPPED.swap(true, std::sync::atomic::Ordering::Relaxed) {

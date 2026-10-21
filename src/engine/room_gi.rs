@@ -530,7 +530,7 @@ mod tests {
     // ── STOREYS (ship homes increment 7, lane L) ──
 
     use crate::renderer::light::RoomLight;
-    use crate::renderer::room_probes::{light_irradiance, slabs_touched, sun_blocked_by_slabs};
+    use crate::renderer::room_probes::{layered_rows, light_anchor, light_irradiance, slabs_touched, sun_blocked_by_slabs};
     use crate::ship::ship_structure::ShipZone;
 
     /// The two-storey test ship: one zone, 10 x 10 x 6 m, a glass roof, a
@@ -731,9 +731,10 @@ mod tests {
     /// merge to 13 occluders, and with the home's own lights (as
     /// `home_lights` makes them) a light's run lists every one its range
     /// reaches. That is the measurement behind runs rather than the light-
-    /// budget analysis' three slab slots per light: measured 2026-10-20, 49
-    /// lights (a strip counts once per segment), 149 run rows (26 KB a frame
-    /// with the 13 slab rows), and 12 lights whose range reaches more than
+    /// budget analysis' three slab slots per light: measured 2026-10-21, 49
+    /// lights (a strip counts once per segment), 197 run rows layered (149
+    /// slabs and 48 layer rows; 34 KB a frame with the sun's 14 rows), and 12
+    /// lights whose range reaches more than
     /// three slabs, the workshop's 15 m panels up to 11 of the 13; three slots
     /// would let those light the upper floor through every unlisted slab.
     /// `--nocapture` prints each light's run and the rows a frame writes.
@@ -750,16 +751,21 @@ mod tests {
         let mut most = 0usize;
         for l in &lights {
             let run = slabs_touched(l, &slabs);
-            rows += run.len();
+            let touched: Vec<OccluderSlab> = run.iter().map(|&i| slabs[i]).collect();
+            // What the frame writes: the run layered (`layered_rows`), a layer
+            // row before each layer's slabs.
+            rows += if touched.is_empty() { 0 } else { layered_rows(&touched, light_anchor(l)).len() };
             most = most.max(run.len());
             println!("light at ({:.1}, {:.1}, {:.1}) range {:>4.1}: {} slabs {:?}", l.pos.x, l.pos.y, l.pos.z, l.range, run.len(), run);
         }
+        let sun_rows = layered_rows(&slabs, Vec3::ZERO).len();
         println!(
-            "{} lights, {} occluder slabs, {} run rows ({} bytes a frame), the longest run {}; {} rooms",
+            "{} lights, {} occluder slabs ({} sun rows), {} run rows ({} bytes a frame), the longest run {} slabs; {} rooms",
             lights.len(),
             slabs.len(),
+            sun_rows,
             rows,
-            (slabs.len() + rows) * 160,
+            (sun_rows + rows) * 160,
             most,
             rooms.len()
         );

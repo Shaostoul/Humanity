@@ -634,11 +634,12 @@ pub fn sun_path(room: &RoomBox, h: Vec3, n: Vec3, sun_dir: Vec3) -> f32 {
 // its run as (first, count) in `cone_inner.yz`. A light no slab is near carries
 // (0, 0) and the fragment skips the test with one compare.
 //
-// CPU TWIN: this section and 85-room-gi.wgsl. The lamp test
-// `OccluderSlab::blocks_segment` is `slab_segment_blocks`; the sun's walk
-// `sun_walk` over `sun_rows`' layered packing is `slab_sun_blocked`, and its
-// answer equals the per-slab reference `sun_blocked_by_slabs` (`blocks_ray`
-// on every slab). LOCKSTEP: change one, change both.
+// CPU TWIN: this section and 85-room-gi.wgsl. Both walks go over
+// `layered_rows`' packing: the lamp's `segment_walk` is `slab_blocks_light`
+// and the sun's `sun_walk` is `slab_sun_blocked`, and their answers equal the
+// per-slab references (`OccluderSlab::blocks_segment`, which
+// `light_irradiance` uses, and `sun_blocked_by_slabs`). LOCKSTEP: change one,
+// change both.
 
 /// A crossing counts only this far inside the slab's rectangle (metres), so a
 /// fragment on the slab's own edge face is not shadowed by its own slab. 1 cm:
@@ -760,18 +761,24 @@ pub fn sun_blocked_by_slabs(slabs: &[OccluderSlab], rooms_box: (Vec3, Vec3), p: 
     slabs.iter().any(|s| s.blocks_ray(p, sun_dir))
 }
 
-/// THE SUN'S LIST AS THE GPU WALKS IT (2026-10-21). Every slab with the same
-/// underside and top shares one mid-plane, so a fragment's path to the sun
-/// crosses all of them at ONE point. The rows are grouped into LAYERS: a
-/// layer row (`bmin`/`bmax` = the union box of its slabs, `counts.x` = how
-/// many slab rows follow) and then its slabs, nearest the eye first, the
-/// layers too. A fragment computes the crossing once per layer and skips the
-/// whole layer when the point falls outside the union box, which is where a
-/// low sun's path goes: at the dawn park console-face-6 the per-slab walk read
-/// gpu.scene +0.47 ms with the floors on (13 crossings for every fragment, none
-/// blocking) and +0.24 ms at home-overview-noon. Exactly the per-slab answer
-/// (`sun_blocked_by_slabs`), pinned by `the_layered_sun_walk_answers_as_every_slab_would`.
-pub fn sun_rows(slabs: &[OccluderSlab], eye: Vec3) -> Vec<GiRoomGpu> {
+/// SLABS AS THE GPU WALKS THEM (2026-10-21), the sun's list and every light's
+/// run alike. Every slab with the same underside and top shares one
+/// mid-plane, so a path (to the sun, or to a lamp) crosses all of them at ONE
+/// point. The rows are grouped into LAYERS: a layer row (`bmin`/`bmax` = the
+/// union box of its slabs, `counts.x` = how many slab rows follow) and then its
+/// slabs, nearest `near` first (the eye for the sun, the light for a run), the
+/// layers too. A fragment tests the layer's plane once, skips the whole layer
+/// when it and the light are on the same side of it (a lamp on the fragment's
+/// own storey) or when the crossing falls outside the union box (a low sun's
+/// path), and only then tests the slabs. Measured with the upper-floor
+/// layout's slabs, floors on against off: the per-slab walks read gpu.scene
+/// +0.47 ms at the dawn park console-face-6 (the sun's 13 crossings, none
+/// blocking) and, with the sun layered, +0.3 ms there (each lamp testing every
+/// slab of its run). Exactly the per-slab answer (`sun_blocked_by_slabs`,
+/// `OccluderSlab::blocks_segment`), pinned by
+/// `the_layered_sun_walk_answers_as_every_slab_would` and
+/// `the_layered_lamp_walk_answers_as_every_slab_would`.
+pub fn layered_rows(slabs: &[OccluderSlab], near: Vec3) -> Vec<GiRoomGpu> {
     let mut layers: Vec<(f32, f32, Vec<OccluderSlab>)> = Vec::new();
     for s in slabs {
         match layers.iter_mut().find(|(lo, hi, _)| (lo - s.min.y).abs() <= 1e-4 && (hi - s.max.y).abs() <= 1e-4) {
@@ -779,6 +786,7 @@ pub fn sun_rows(slabs: &[OccluderSlab], eye: Vec3) -> Vec<GiRoomGpu> {
             None => layers.push((s.min.y, s.max.y, vec![*s])),
         }
     }
+    let eye = near;
     let near = |v: &[OccluderSlab]| v.iter().map(|s| s.outside_distance(eye)).fold(f32::INFINITY, f32::min);
     for l in &mut layers {
         l.2.sort_by(|a, b| a.outside_distance(eye).total_cmp(&b.outside_distance(eye)));
@@ -786,7 +794,8 @@ pub fn sun_rows(slabs: &[OccluderSlab], eye: Vec3) -> Vec<GiRoomGpu> {
     layers.sort_by(|a, b| near(&a.2).total_cmp(&near(&b.2)));
     let mut rows = Vec::with_capacity(slabs.len() + layers.len());
     for (_, _, members) in &layers {
-        let (lo, hi) = members.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), s| (a.min(s.min), b.max(s.max)));
+        let (lo, hi) =
+            members.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), s| (a.min(s.min), b.max(s.max)));
         rows.push(GiRoomGpu {
             bmin: [lo.x, lo.y, lo.z, 0.0],
             bmax: [hi.x, hi.y, hi.z, 0.0],
@@ -798,8 +807,42 @@ pub fn sun_rows(slabs: &[OccluderSlab], eye: Vec3) -> Vec<GiRoomGpu> {
     rows
 }
 
+/// The CPU transcription of `slab_blocks_light` in 85-room-gi.wgsl, walking a
+/// light's run (`layered_rows` of its `slabs_touched`, nearest the light first)
+/// exactly as the GPU does: whether a slab stands between `p` and the lamp at
+/// `q`, and how many rows the walk read (the cost).
+pub fn segment_walk(rows: &[GiRoomGpu], p: Vec3, q: Vec3) -> (bool, u32) {
+    let (mut k, mut read) = (0usize, 0u32);
+    while k < rows.len() {
+        let l = &rows[k];
+        let n = l.counts[0] as usize;
+        read += 1;
+        let (lmin, lmax) = (Vec3::new(l.bmin[0], l.bmin[1], l.bmin[2]), Vec3::new(l.bmax[0], l.bmax[1], l.bmax[2]));
+        let m = (lmin.y + lmax.y) * 0.5;
+        let (dp, dq) = (p.y - m, q.y - m);
+        if dp * dq < 0.0 {
+            let c = p + (q - p) * (dp / (dp - dq));
+            if c.x > lmin.x && c.x < lmax.x && c.z > lmin.z && c.z < lmax.z {
+                for j in 1..=n {
+                    read += 1;
+                    let s = &rows[k + j];
+                    let slab = OccluderSlab {
+                        min: Vec3::new(s.bmin[0], s.bmin[1], s.bmin[2]),
+                        max: Vec3::new(s.bmax[0], s.bmax[1], s.bmax[2]),
+                    };
+                    if slab.rect_holds(c) {
+                        return (true, read);
+                    }
+                }
+            }
+        }
+        k += 1 + n;
+    }
+    (false, read)
+}
+
 /// The CPU transcription of `slab_sun_blocked` in 85-room-gi.wgsl, walking
-/// `sun_rows`' packing exactly as the GPU does: whether a slab stands between
+/// `layered_rows`' packing exactly as the GPU does: whether a slab stands between
 /// `p` and the sun along `d`, and how many rows the walk read (the cost). With
 /// `rooms_box` the room table's (gmin, gmax).
 pub fn sun_walk(rows: &[GiRoomGpu], rooms_box: (Vec3, Vec3), p: Vec3, d: Vec3) -> (bool, u32) {
@@ -2015,7 +2058,7 @@ mod tests {
         merge_slabs(solid.iter().map(|&(a, b, c, d)| floor_slab(a, b, c, d)).collect())
     }
 
-    /// THE LAYERED SUN WALK ANSWERS AS EVERY SLAB WOULD. `sun_rows` groups the
+    /// THE LAYERED SUN WALK ANSWERS AS EVERY SLAB WOULD. `layered_rows` groups the
     /// slabs by mid-plane behind a layer row each, and `sun_walk` (the WGSL's
     /// `slab_sun_blocked`, transcribed) must give the per-slab reference's
     /// answer (`sun_blocked_by_slabs`) at every point of a grid through the
@@ -2033,7 +2076,7 @@ mod tests {
         slabs.push(OccluderSlab { min: Vec3::new(10.0, 5.75, 40.0), max: Vec3::new(30.0, 6.0, 60.0) });
         let rooms_box = (Vec3::ZERO, Vec3::new(55.0, 9.0, 89.0));
         let eye = Vec3::new(45.0, 1.7, 45.0);
-        let rows = sun_rows(&slabs, eye);
+        let rows = layered_rows(&slabs, eye);
         assert_eq!(rows.len(), slabs.len() + 2, "two layers, each behind its own row");
         let suns = [
             Vec3::new(0.1, 1.0, 0.05),
@@ -2070,5 +2113,63 @@ mod tests {
         let (blocked, read) = sun_walk(&rows, rooms_box, Vec3::new(45.0, 1.0, 45.0), Vec3::new(0.1, 1.0, 0.05));
         assert!(blocked);
         assert_eq!(read, 2, "the slab nearest the eye is the first slab row");
+    }
+
+    /// THE LAYERED LAMP WALK ANSWERS AS EVERY SLAB WOULD. For five lamps (the
+    /// console room's panel downstairs, a lamp upstairs over the stairwell, the
+    /// lift lobby's panel by the shaft and the hatch, the workshop's 15 m
+    /// panel, the upper hall's strip), the light's run (`slabs_touched`, packed
+    /// by `layered_rows`) walked as the GPU walks it (`segment_walk`, the WGSL's
+    /// `slab_blocks_light` transcribed) must give the per-slab answer over EVERY
+    /// slab, at every point of a grid through both storeys within the lamp's
+    /// range. That also proves the run never leaves out a slab that matters: a
+    /// path to a point in range crosses only slabs within range of the lamp.
+    /// And the reason for the layers: the console room's panel and a fragment
+    /// in its own room read one row, the layer's, where the per-slab run tested
+    /// each of its slabs. Seen red first (2026-10-21) with a layer row counting
+    /// one slab fewer than follow it (`members.len() - 1`): "the walk and every
+    /// slab differ at [32.5, 2.8, 37.5] for the lamp at [38.5, 5.6, 38.6]: false
+    /// against true".
+    #[test]
+    fn the_layered_lamp_walk_answers_as_every_slab_would() {
+        let mut slabs = homestead_floor();
+        slabs.push(OccluderSlab { min: Vec3::new(10.0, 5.75, 40.0), max: Vec3::new(30.0, 6.0, 60.0) });
+        let lamps = [
+            RoomLight::point(Vec3::new(45.0, 2.7, 45.0), [1.0, 0.95, 0.85], 9.0, 7.0),
+            RoomLight::point(Vec3::new(38.5, 5.6, 38.6), [1.0, 0.85, 0.6], 4.0, 7.0),
+            RoomLight::point(Vec3::new(32.0, 5.7, 28.5), [1.0, 0.95, 0.85], 9.0, 7.0),
+            RoomLight::point(Vec3::new(24.0, 2.7, 33.0), [0.8, 0.9, 1.0], 11.0, 15.0),
+            RoomLight::line(Vec3::new(34.5, 5.6, 39.9), Vec3::new(54.5, 5.6, 39.9), [0.9, 0.95, 1.0], 7.0, 6.0),
+        ];
+        let mut checked = 0;
+        for l in lamps {
+            let touched: Vec<OccluderSlab> = slabs_touched(&l, &slabs).iter().map(|&i| slabs[i]).collect();
+            let run = layered_rows(&touched, light_anchor(&l));
+            for xi in 0..=44 {
+                for zi in 0..=71 {
+                    for y in [0.2f32, 1.5, 2.8, 2.9, 3.0, 4.5, 6.2] {
+                        let p = Vec3::new(xi as f32 * 1.25, y, zi as f32 * 1.25);
+                        let q = if l.cos_outer < -1.5 { line_light_closest_point(l.pos, l.dir, p) } else { l.pos };
+                        if (q - p).length() >= l.range {
+                            continue;
+                        }
+                        let walk = segment_walk(&run, p, q).0;
+                        let every = slabs.iter().any(|s| s.blocks_segment(p, q));
+                        assert_eq!(walk, every, "the walk and every slab differ at {p} for the lamp at {}: {walk} against {every}", l.pos);
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        // 6,007 grid points lie in the five lamps' ranges (2026-10-21).
+        assert!(checked > 5_000, "{checked} points in range");
+        // The cost for a lamp on the fragment's own storey: one row per layer.
+        let panel = lamps[0];
+        let touched: Vec<OccluderSlab> = slabs_touched(&panel, &slabs).iter().map(|&i| slabs[i]).collect();
+        let run = layered_rows(&touched, panel.pos);
+        assert!(touched.len() >= 2, "the panel's range reaches several slabs ({})", touched.len());
+        let (blocked, read) = segment_walk(&run, Vec3::new(44.0, 0.5, 46.0), panel.pos);
+        assert!(!blocked);
+        assert_eq!(read, 1, "one layer, one row, for {} slabs", touched.len());
     }
 }
