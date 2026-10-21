@@ -174,14 +174,13 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // rebuild_homestead regrows it on every structure edit.
     rebuild_hull(state);
 
-    // Room ceiling lights
-    let auto_lights = room_info.iter().map(|r| {
-        let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
-        let room_size = r.dimensions.x.max(r.dimensions.z);
-        let intensity = (room_size * 0.5).clamp(2.0, 15.0);
-        let radius = room_size * 1.5;
-        crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, radius)
-    }).collect();
+    // Room ceiling lights: the one shared fill (home_meshes.rs `auto_room_lights`), which hangs a
+    // room's light under the slab over it (ship homes increment 7). This copy of the arithmetic
+    // used to live here too and put the light inside the slab.
+    let auto_lights = crate::engine::home_meshes::auto_room_lights(
+        state.gui_state.ship_structure.as_ref(),
+        room_info.iter().map(|r| (r.center, r.dimensions)),
+    );
     // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
     state.room_lights = home_lights(state.gui_state.ship_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
 
