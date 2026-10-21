@@ -2150,8 +2150,8 @@
             (
                 id: "ramp-1",
                 type_id: "ramp",
-                pos: (38.0, 0.0, 4.0),
-                rot_deg: 0.0,
+                pos: (48.0, 0.0, 17.4),
+                rot_deg: 180.0,
                 pair: None,
             ),
             (

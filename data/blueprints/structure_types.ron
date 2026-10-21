@@ -17,8 +17,8 @@
     ),
     (
         id: "ramp", label: "Ramp", category: "Structure",
-        kind: Stairs, shape: Ramp, size: (1.8, 1.2, 4.5), color: (0.5, 0.5, 0.52), steps: 0,
-        note: "A smooth inclined ramp -- cart / wheelchair friendly. Walk straight up the slope.",
+        kind: Stairs, shape: Ramp, size: (1.8, 0.4, 6.8), color: (0.5, 0.5, 0.52), steps: 0,
+        note: "A smooth inclined ramp, 0.4 m up over 6.8 m (1:17): cart and wheelchair friendly, within England's Approved Document K (about 1:16.8 at that going). Walk straight up the slope. Low enough to need no handrail or guard.",
     ),
     (
         id: "ladder", label: "Ladder", category: "Structure",
