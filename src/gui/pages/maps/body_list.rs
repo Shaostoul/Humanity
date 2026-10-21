@@ -99,30 +99,10 @@ pub(super) fn draw_body_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
     );
     ui.add_space(theme.spacing_sm);
 
-    // ── Stations (v0.885, target-marker arc) ── the orbital home first:
-    // tracking it draws the in-world ring + label (hud target_markers).
-    // Colony ships and other stations join this list as they exist.
-    ui.label(
-        RichText::new("Stations")
-            .size(theme.font_size_small)
-            .color(theme.accent())
-            .strong(),
-    );
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new("Home Station · 400 km LEO")
-                .size(theme.font_size_body)
-                .color(theme.text_primary()),
-        );
-        if crate::gui::widgets::toggle(ui, theme, "Track", &mut state.settings.track_station) {
-            state.settings_dirty = true;
-        }
-    });
-    ui.label(
-        RichText::new("Tracking shows a ring and label on the station in-world, so you can always find home.")
-            .size(theme.font_size_small)
-            .color(theme.text_muted()),
-    );
+    // ── Stations (v0.885, target-marker arc; from data since Maps increment
+    // 1, `stations.rs`) ── tracking the home draws the in-world ring + label
+    // (hud target_markers). Every data/stations/*.ron is a row.
+    super::stations::draw_station_rows(ui, theme, state);
     ui.add_space(theme.spacing_xs);
 
     ScrollArea::vertical().show(ui, |ui| {

@@ -863,6 +863,8 @@ pub(crate) struct EngineState {
     pub(crate) aboard_bounds: Option<crate::ship::ship_space::Aabb>,
     /// The game's half of the relay's speed check (engine/move_check.rs).
     pub(crate) moves: crate::engine::move_check::ClientMoves,
+    /// The Maps page's world layer: its textures and when it last rendered (engine/map_view.rs).
+    pub(crate) map_view: crate::engine::map_view::MapViewGpu,
     /// The pieces the server keeps: ranks, each frame's seq, builds waiting for an answer (engine/shared_build.rs).
     pub(crate) shared_build: crate::engine::shared_build::SharedBuild,
     /// The packs left where the player fell: this frame's body frames, the mesh and the

@@ -1,6 +1,6 @@
 {
  "id": "sol",
- "catalog_version": 4,
+ "catalog_version": 5,
  "name": "Solar System",
  "primary_star": "sun",
  "galaxy_position_ly": [
@@ -18,7 +18,8 @@
    "temperature": "K",
    "gravity": "m/s^2",
    "rotation": "hours",
-   "orbital_period": "days",
+   "orbital_period": "days (sidereal: the mean longitude's period)",
+   "precession": "Julian years per turn, signed, in orbit.longitude_ascending_node_precession_years and orbit.argument_perihelion_precession_years: + the angle grows, - it shrinks, absent = held at epoch",
    "pressure": "atm in atmosphere.surface_pressure_atm, Pa in physical.surface_pressure_pa",
    "magnetic_field": "T (tesla) in physical.magnetic_field_t, equatorial surface or cloud-top field; 0 = no significant global field or not yet sourced"
   }
@@ -190,7 +191,9 @@
     "mean_anomaly_deg": 135.27,
     "longitude_ascending_node_deg": 125.08,
     "argument_perihelion_deg": 318.15,
-    "elements_source": "Node, perigee and mean anomaly: JPL SSD Planetary Satellite Mean Elements (https://ssd.jpl.nasa.gov/sats/elem/, Moon 301, ecliptic frame, epoch 2000-01-01.5 TDB, read 2026-10-21). Period: NASA Moon Fact Sheet sidereal revolution period (nssdc.gsfc.nasa.gov, updated 2024-01-11). The node regresses and the perigee advances (18.6 and 8.85 year cycles); the model holds both at their J2000 values (BUG-140)."
+    "longitude_ascending_node_precession_years": -18.6,
+    "argument_perihelion_precession_years": 5.997,
+    "elements_source": "Node, argument of perigee, mean anomaly and their precession periods: JPL SSD Planetary Satellite Mean Elements (https://ssd.jpl.nasa.gov/sats/elem/, Moon 301, DE405/LE405, ecliptic frame, epoch 2000-01-01.5 TDB; page last modified 2026-10-06, read 2026-10-21): node 125.08, w 318.15, M 135.27, 'P apsis' (argument of periapsis precession period) 5.997 yr, 'P node' (longitude of the ascending node precession period) 18.600 yr. JPL lists the periods unsigned; the node regresses (-18.6) and the argument advances (+5.997), as JPL Horizons' own daily Moon vectors 2000 to 2041 show (node -19.355 deg/yr, perigee +40.671 deg/yr, measured 2026-10-21). Period: NASA Moon Fact Sheet sidereal revolution period (nssdc.gsfc.nasa.gov, updated 2024-01-11); with the rates, the mean anomaly runs at the anomalistic rate (BUG-140 follow-up, 2026-10-21)."
    },
    "physical": {
     "mass_kg": 7.342e+22,

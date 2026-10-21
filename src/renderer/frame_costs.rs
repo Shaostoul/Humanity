@@ -761,7 +761,32 @@ struct FrameEnd {
     resolve: Option<(Vec<(&'static str, u32)>, u32)>,
 }
 
+/// Set by `Renderer::mark_view_frame`, taken at the next frame boundary.
+static VIEW_FRAME: AtomicBool = AtomicBool::new(false);
+
+/// A world view was rendered in the frame in progress.
+pub(crate) fn note_view_frame() {
+    VIEW_FRAME.store(true, Ordering::Relaxed);
+}
+
+/// Whether a world view was rendered since the last boundary (and clear it).
+pub(crate) fn take_view_frame() -> bool {
+    VIEW_FRAME.swap(false, Ordering::Relaxed)
+}
+
+/// At a frame boundary: is the frame that just ended published (a world frame,
+/// or a page frame that rendered a world view) rather than discarded?
+pub(crate) fn publish_cpu_frame(world: bool) -> bool {
+    world || take_view_frame()
+}
+
 impl TimerState {
+    /// The frame in progress drew a world view: publish its batch as a world
+    /// frame's when it closes (`Renderer::mark_view_frame`).
+    fn mark_world(&mut self) {
+        self.frame_world = true;
+    }
+
     /// Claim a begin/end slot pair for `id`, returning the begin index, or
     /// count the refusal when the ring is full.
     fn take_pair(&mut self, id: &'static str) -> Option<u32> {
@@ -989,6 +1014,21 @@ pub fn texture_bytes(tex: &wgpu::Texture) -> u64 {
 use super::Renderer;
 
 impl Renderer {
+    /// This frame rendered a view of the WORLD although it is a UI-only frame
+    /// (Maps increment 1: the Maps page's world layer, `engine/map_view.rs`).
+    /// Without it the page frame's costs were thrown away like any menu's,
+    /// so the map's render could never be measured. Marks both halves: the
+    /// GPU passes timed so far this frame are published, and the CPU stages
+    /// are folded in at the next frame boundary instead of discarded.
+    pub(crate) fn mark_view_frame(&self) {
+        note_view_frame();
+        if let Some(t) = self.gpu_timers.as_ref() {
+            if let Ok(mut st) = t.state.lock() {
+                st.mark_world();
+            }
+        }
+    }
+
     /// Timestamp writes for one render pass, or `None` when the adapter has no
     /// timestamp queries. Call sites read:
     ///     timestamp_writes: self.pass_timer("gpu.celestial"),
@@ -1032,7 +1072,9 @@ impl Renderer {
     /// and the GPU column EMA'd every world pass toward zero while the page
     /// (a UI-only page) was open.
     pub(crate) fn frame_costs_begin(&self, world: bool) {
-        if world {
+        // A UI-only frame that rendered a world VIEW (the Maps page's world
+        // layer, `mark_view_frame`) is a world frame for its costs.
+        if publish_cpu_frame(world) {
             begin_frame();
         } else {
             discard_frame();
@@ -1323,6 +1365,35 @@ mod tests {
         st.mark_in_flight(batch, end.world);
         let (_, harvested_world) = st.take_in_flight();
         assert!(!harvested_world, "a UI-only batch must be harvested as UI-only, so it is discarded");
+    }
+
+    /// A UI-only frame that rendered a world VIEW (the Maps page's world
+    /// layer) publishes like a world frame: its GPU batch is tagged world
+    /// when it closes, and its CPU stages fold in at the boundary rather
+    /// than being discarded. One mark covers one frame only.
+    ///
+    /// Seen red 2026-10-21 with `mark_world` a no-op: "the map's render was
+    /// thrown away with the page frame"; and with `publish_cpu_frame` reading
+    /// only `world` (the CPU half, after the critic review found it untested):
+    /// "the map's CPU stages were thrown away with the page frame".
+    #[test]
+    fn a_page_frame_that_drew_a_world_view_counts() {
+        let mut st = TimerState::default();
+        st.close_frame(false); // a page is open: UI-only frames
+        assert_eq!(st.take_pair("gpu.celestial"), Some(0));
+        st.mark_world(); // the Maps world layer rendered in this frame
+        let end = st.close_frame(false);
+        assert!(end.world, "the map's render was thrown away with the page frame");
+        let (batch, _) = end.resolve.expect("a free ring resolves it");
+        st.mark_in_flight(batch, end.world);
+        let _ = st.take_in_flight();
+        assert!(!st.close_frame(false).world, "the next page frame drew nothing and stays UI-only");
+        // The CPU half, through the decision frame_costs_begin makes.
+        assert!(!publish_cpu_frame(false), "a page frame that drew nothing is discarded");
+        note_view_frame();
+        assert!(publish_cpu_frame(false), "the map's CPU stages were thrown away with the page frame");
+        assert!(!publish_cpu_frame(false), "and only that one frame");
+        assert!(publish_cpu_frame(true), "a world frame is always published");
     }
 
     /// A pass that asks for a slot pair after the ring is full runs untimed.

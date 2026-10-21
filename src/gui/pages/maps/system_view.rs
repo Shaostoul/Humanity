@@ -1,98 +1,32 @@
-//! The Maps page's Solar System view: Sol in 3D through a turntable camera
-//! (`MapCamera`), with the reference-orbit (LEO, GEO...) and Lagrange-point
-//! overlays, the "You · Home" marker with the mining asteroids, the sky-events
-//! readout, and the info card a body's pill opens (Focus, Track).
-//! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20).
+//! The Maps page's Solar System view: the Sun's family in 3D through the
+//! map's camera (`camera.rs`: an anchor, an f64 offset, 10 m to 1e14 m), over
+//! the WORLD layer the engine renders for it at ship scale (`you_layer.rs`,
+//! `engine/map_view.rs`), with the reference-orbit (LEO, GEO...) and
+//! Lagrange-point overlays, you and your ship, the sky-events readout, and the
+//! info card a body's pill opens (Focus, Track).
+//! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20). Maps
+//! increment 1 (2026-10-21) moved it from AU around the Sun to metres around
+//! Earth, the engine's own frame, so the ship and the planets are placed by
+//! one set of numbers.
 
 use egui::{Align2, Color32, Pos2, Rect, RichText, Rounding, Sense, Stroke, Vec2};
 
-use crate::cosmos::{body_world_position_3d_au, find_body, sample_orbit_points, sol_bodies, SolBody, KM_PER_AU};
+use crate::cosmos::{body_world_position_3d_au, find_body, sample_orbit_points, sol_bodies, SolBody};
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
 
+use super::camera::{MapProjector, MapScene, FOV_Y_RAD};
 use super::sky_events::{
     detect_sky_events, format_geo, scan_upcoming_sky_events, subpoint_lat_lon_deg, ConjunctionTightness,
 };
 use super::time_bar::{current_real_time_seconds_since_j2000, draw_time_controls, format_sim_time};
-use super::{body_color, format_km, format_with_commas, titlecase};
+use super::{body_color, controls, format_km, format_with_commas, titlecase, you_layer};
 
-// ─────────────────────── 3D camera (Phase 4, v0.206.0) ─────────────────────
-
-/// 3D orbital camera for the System view. Looks at `target` from
-/// `distance_au` units away, rotated by `yaw_rad` (azimuth around Y)
-/// and `pitch_rad` (elevation). Standard turntable camera convention
-/// (Blender / KSP / Star Citizen).
-#[derive(Debug, Clone, Copy)]
-pub struct MapCamera {
-    /// Look-at point in AU, in the system frame (Sun at origin).
-    pub target_au: glam::DVec3,
-    /// Azimuthal angle around the Y (vertical) axis. Radians.
-    pub yaw_rad: f64,
-    /// Elevation angle. Radians. Clamped to (-π/2, π/2) excl. poles.
-    pub pitch_rad: f64,
-    /// Distance from target in AU. Effective zoom — smaller = closer.
-    pub distance_au: f64,
-    /// Vertical field of view in radians.
-    pub fov_rad: f64,
+/// How far to stand from a body a Focus flies to: its disc about a sixth of
+/// the view's height (and never inside 10 km).
+fn focus_distance_m(body: &SolBody) -> f64 {
+    (body.radius_km * 1000.0 / (FOV_Y_RAD * 0.5).tan() * 6.0).max(1.0e4)
 }
-
-impl Default for MapCamera {
-    fn default() -> Self {
-        // Default: looking down at the ecliptic from a slight tilt,
-        // 60 AU away — frames the whole solar system out to Pluto.
-        Self {
-            target_au: glam::DVec3::ZERO,
-            yaw_rad: 0.0,
-            pitch_rad: -1.2,                       // ~ -69° (looking down at the ecliptic)
-            distance_au: 60.0,
-            fov_rad: 60.0_f64.to_radians(),
-        }
-    }
-}
-
-impl MapCamera {
-    /// Camera world position derived from target + spherical offset.
-    pub fn position(&self) -> glam::DVec3 {
-        let cp = self.pitch_rad.cos();
-        let offset = glam::DVec3::new(
-            self.distance_au * cp * self.yaw_rad.cos(),
-            self.distance_au * self.pitch_rad.sin(),
-            self.distance_au * cp * self.yaw_rad.sin(),
-        );
-        self.target_au + offset
-    }
-}
-
-/// Perspective-project a 3D world position (AU) to a 2D screen pixel.
-/// Returns Some((screen_pos, depth)) where depth is camera-space Z
-/// (used for back-to-front sorting) or None if the point is behind
-/// the camera (clipped).
-fn project_to_screen(pos_au: glam::DVec3, cam: &MapCamera, rect: Rect) -> Option<(Pos2, f64)> {
-    let cam_pos = cam.position();
-    // View matrix — look from cam_pos to target, with +Y as up. f64 throughout.
-    let view = glam::DMat4::look_at_rh(cam_pos, cam.target_au, glam::DVec3::Y);
-    let aspect = (rect.width() / rect.height().max(1.0)) as f64;
-    let proj = glam::DMat4::perspective_rh(cam.fov_rad, aspect, 0.01_f64, 10_000.0_f64);
-
-    let view_pos = view.transform_point3(pos_au);
-    if view_pos.z >= 0.0 {
-        // Behind camera (RH look_at puts forward as -Z).
-        return None;
-    }
-    let clip = proj * glam::DVec4::new(view_pos.x, view_pos.y, view_pos.z, 1.0);
-    if clip.w.abs() < 1e-6 { return None; }
-    let ndc = glam::DVec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
-    // NDC y is up; screen y is down — flip.
-    let sx = rect.left() + ((ndc.x as f32 + 1.0) * 0.5) * rect.width();
-    let sy = rect.top() + ((1.0 - (ndc.y as f32 + 1.0) * 0.5)) * rect.height();
-    Some((Pos2::new(sx, sy), -view_pos.z))
-}
-
-// Kepler solver + `body_position_relative_au` /
-// `body_world_position_3d_au` / `sample_orbit_points` + the `KM_PER_AU`
-// constant moved to `crate::cosmos` (v0.262.8) — imported above. The
-// orbital math is byte-for-byte the same; the FPS world + in-home
-// orrery now call these exact functions so all three views agree.
 
 // ─────────────────────── System view ────────────────────────────────────────
 
@@ -101,126 +35,64 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     //    so the user immediately sees today's planetary configuration
     //    (operator 2026-05-10: "if we could have all the planets line
     //    up in real life as they are today on May 12, 2026 then we
-    //    could see what it'd look like on a great conjunction"). v0.208.0. ──
+    //    could see what it'd look like on a great conjunction"). v0.208.0.
+    //    While Live (the default since Maps increment 1) the feed keeps it
+    //    on the engine's own sky clock instead; `controls::advance` runs the
+    //    page's clock when it is detached. ──
     if !state.maps.sim_time_initialized {
         state.maps.sim_time_seconds = current_real_time_seconds_since_j2000();
         state.maps.sim_time_initialized = true;
     }
-    // Advance sim_time by real-time delta × sim_speed.
-    let now = std::time::Instant::now();
-    if let Some(last) = state.maps.last_real_instant {
-        let dt_real = now.duration_since(last).as_secs_f64();
-        state.maps.sim_time_seconds += dt_real * state.maps.sim_speed;
+
+    // ── Time controls panel — top of the canvas area. Any scrub, skip or
+    //    speed change takes the clock off Live (design 5.9); "Live" puts it
+    //    back. ──
+    let clock_before = (state.maps.sim_time_seconds, state.maps.sim_speed, state.maps.live);
+    draw_time_controls(ui, theme, state);
+    if state.maps.live && clock_before.2 && (state.maps.sim_time_seconds, state.maps.sim_speed) != (clock_before.0, clock_before.1) {
+        state.maps.live = false;
     }
-    state.maps.last_real_instant = Some(now);
-    // Capture sim_time for this frame.
     let sim_time = state.maps.sim_time_seconds;
 
-    // ── Time controls panel — top of the canvas area ──
-    draw_time_controls(ui, theme, state);
-
-    // ── Allocate the canvas + handle 3D camera input ──
+    // ── The canvas. The camera input is applied at the END of the draw
+    //    (`controls`), so everything below is drawn from the same pose the
+    //    engine rendered the world layer from this frame. ──
     let available = ui.available_size();
     let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
     let paint = ui.painter_at(rect);
     paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(8, 8, 14));  // theme-exempt: deep-space backdrop
-
-    // Mouse-drag controls:
-    //   - plain drag: rotate camera (yaw + pitch)
-    //   - shift+drag: pan target in the camera's local plane
-    //   - middle-drag: same as shift (alternative for trackpads)
-    if response.dragged() {
-        let modifiers = ui.input(|i| i.modifiers);
-        let middle = response.dragged_by(egui::PointerButton::Middle);
-        if modifiers.shift || middle {
-            // Pan target in screen-relative XZ plane scaled by camera distance.
-            // Drag right → camera looks further right → target moves left.
-            let drag = response.drag_delta();
-            let scale = (state.maps.camera.distance_au * 0.002) as f32;
-            let yaw = state.maps.camera.yaw_rad as f32;
-            // Camera right vector = perpendicular to forward in XZ plane.
-            let right = glam::DVec3::new(-yaw.sin() as f64, 0.0, yaw.cos() as f64);
-            let up = glam::DVec3::new(0.0, 1.0, 0.0);
-            state.maps.camera.target_au -= right * (drag.x * scale) as f64;
-            state.maps.camera.target_au += up    * (drag.y * scale) as f64;
-        } else {
-            // Rotate. Sensitivity: 1 px = 0.005 rad (~0.3°).
-            let drag = response.drag_delta();
-            state.maps.camera.yaw_rad   -= (drag.x * 0.005) as f64;
-            state.maps.camera.pitch_rad += (drag.y * 0.005) as f64;
-            // Clamp pitch to (-π/2 + ε, π/2 - ε) to avoid gimbal flip.
-            let lim = std::f64::consts::FRAC_PI_2 - 0.01;
-            state.maps.camera.pitch_rad = state.maps.camera.pitch_rad.clamp(-lim, lim);
-        }
-    }
-
-    // Scroll = multiplicative zoom (decreases distance).
-    let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
-    if scroll_delta != 0.0 && ui.rect_contains_pointer(rect) {
-        let factor = (1.0015_f64).powf(-scroll_delta as f64);
-        state.maps.camera.distance_au = (state.maps.camera.distance_au * factor)
-            .clamp(0.001, 10_000.0);
-    }
+    controls::note_canvas(ui, rect, state);
+    let me = state.maps.me.clone();
+    let scene = MapScene::new(me.as_ref(), sim_time, state.maps.live);
+    let proj = MapProjector::new(state.maps.camera.pose(&scene), rect);
+    let world_drawn = you_layer::draw_world_backdrop(&paint, rect, &state.maps);
 
     let bodies = sol_bodies();
 
-    // ── Handle focus requests BEFORE projection (so the request takes
-    //    effect on this frame's render, not next frame). Focus simply
-    //    moves the camera target to the body's world position; the user
-    //    can adjust distance with scroll. ──
+    // ── Focus requests fly the camera to the body and anchor it there, so
+    //    it follows the body round its orbit. ──
     if let Some(focus_id) = state.maps.focus_request.take() {
         if focus_should_clear_tracking(state.maps.tracked_body.as_deref(), &focus_id) {
             state.maps.tracked_body = None;
         }
         if let Some(body) = find_body(&focus_id) {
-            state.maps.camera.target_au = body_world_position_3d_au(body, sim_time);
-            // For moons (small bodies orbiting close to their parent),
-            // also auto-zoom in close so the moon is meaningfully visible.
-            // Without this, focusing on Phobos would just put Mars in
-            // the center — Phobos itself sub-pixel.
-            if body.body_type == "moon" && body.semi_major_axis_km > 0.0 {
-                let moon_orbit_au = body.semi_major_axis_km / KM_PER_AU;
-                // 8x the moon's orbital radius gives a comfortable view.
-                state.maps.camera.distance_au = (moon_orbit_au * 8.0).max(0.001);
-            } else if body.semi_major_axis_au > 0.0 {
-                // For planets — auto-distance proportional to AU so Mercury
-                // doesn't end up the same view-distance as Pluto.
-                let auto_d = (body.semi_major_axis_au * 0.3).clamp(0.5, 80.0);
-                // Only shrink, never grow — preserves user's preferred
-                // wide view if they were already zoomed out.
-                if state.maps.camera.distance_au > auto_d * 5.0 {
-                    state.maps.camera.distance_au = auto_d;
-                }
-            }
+            state.maps.camera.focus_body(&focus_id, focus_distance_m(body), &scene);
         }
         ui.ctx().request_repaint();
     }
 
-    // ── Continuous tracking: unlike Focus (a one-shot snap-to), Track keeps
-    //    the camera centered on the body every frame as it moves along its
-    //    orbit. Silently does nothing if the tracked id no longer resolves
-    //    (e.g. stale data) rather than panicking. ──
-    if let Some(tracked_id) = state.maps.tracked_body.clone() {
-        if let Some(body) = find_body(&tracked_id) {
-            state.maps.camera.target_au = body_world_position_3d_au(body, sim_time);
-        }
-    }
-
     // ── Project all bodies, sort by depth for back-to-front draw ──
-    // Re-read the camera AFTER focus may have moved the target on this frame.
-    let cam = state.maps.camera;
-    let _cam_pos = cam.position(); // computed once for any future overlays
     struct ProjectedBody<'a> {
         body: &'a SolBody,
         screen: Pos2,
         depth: f64,
-        world_au: glam::DVec3,
+        world_m: glam::DVec3,
     }
     let mut projected: Vec<ProjectedBody> = Vec::with_capacity(bodies.len());
     for body in bodies {
-        let world = body_world_position_3d_au(body, sim_time);
-        if let Some((screen, depth)) = project_to_screen(world, &cam, rect) {
-            projected.push(ProjectedBody { body, screen, depth, world_au: world });
+        let Some(world) = scene.body_m(&body.id) else { continue };
+        if let Some((screen, depth)) = proj.project(world) {
+            projected.push(ProjectedBody { body, screen, depth, world_m: world });
         }
     }
     // Back-to-front: largest depth first (farther from camera).
@@ -231,9 +103,13 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     //    node). Uses sample_orbit_points for the math; same code path
     //    handles direct sun-orbiters AND moons because both are just
     //    "body in parent's frame" — the parent's world position is
-    //    folded in by adding it after projection.
+    //    folded in by adding it after projection. An orbit far bigger than
+    //    the view is left out (design 5.4's size fade, its first rung): at
+    //    ship scale Earth's 96-chord orbit would cross the view as a line
+    //    tens of thousands of km off Earth. ──
+    let earth_au = scene.earth_helio_au();
     for body in bodies {
-        let parent_world = if let Some(parent_id) = &body.parent {
+        let parent_au = if let Some(parent_id) = &body.parent {
             if parent_id == "sun" {
                 glam::DVec3::ZERO
             } else if let Some(parent) = find_body(parent_id) {
@@ -244,8 +120,12 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         } else {
             continue; // Sun has no orbit
         };
+        let a_m = if body.semi_major_axis_au > 0.0 { body.semi_major_axis_au * crate::cosmos::M_PER_AU } else { body.semi_major_axis_km * 1000.0 };
+        if a_m > proj.pose.distance * 2.0e4 {
+            continue;
+        }
         let n = if body.body_type == "moon" { 48 } else { 96 };
-        let points = sample_orbit_points(body, n);
+        let points = sample_orbit_points(body, n, sim_time);
         if points.is_empty() { continue; }
         let stroke = if body.body_type == "moon" {
             Stroke::new(0.4, Color32::from_rgb(35, 35, 55))  // theme-exempt: moon orbit — faintest
@@ -254,8 +134,8 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         };
         let mut prev: Option<Pos2> = None;
         for p in &points {
-            let world_pos = parent_world + *p;
-            if let Some((pp, _)) = project_to_screen(world_pos, &cam, rect) {
+            let world_pos = (parent_au + *p - earth_au) * crate::cosmos::M_PER_AU;
+            if let Some((pp, _)) = proj.project(world_pos) {
                 if let Some(prev_p) = prev {
                     paint.line_segment([prev_p, pp], stroke);
                 }
@@ -284,7 +164,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
             };
             let names = ["L1", "L2", "L3", "L4", "L5"];
             for (i, pt) in points.iter().enumerate() {
-                if let Some((screen, _depth)) = project_to_screen(*pt, &cam, rect) {
+                if let Some((screen, _depth)) = proj.project(scene.au_to_m(*pt)) {
                     // Render the marker — small "×" via two crossed segments.
                     let s = 5.0_f32;
                     let color = theme.info();
@@ -304,11 +184,11 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
                     // in enough that markers aren't tightly clustered.
                     // (Heuristic: skip labels when parent-child screen
                     // distance is < 40 px.)
-                    let Some((parent_screen, _)) = project_to_screen(
-                        body_world_position_3d_au(parent, sim_time), &cam, rect)
+                    let Some((parent_screen, _)) = proj.project(
+                        scene.au_to_m(body_world_position_3d_au(parent, sim_time)))
                     else { continue; };
-                    let Some((child_screen, _)) = project_to_screen(
-                        body_world_position_3d_au(child, sim_time), &cam, rect)
+                    let Some((child_screen, _)) = proj.project(
+                        scene.au_to_m(body_world_position_3d_au(child, sim_time)))
                     else { continue; };
                     let pair_screen_dist = (child_screen - parent_screen).length();
                     if pair_screen_dist > 50.0 {
@@ -335,7 +215,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
                 };
                 let names = ["L1", "L2", "L3", "L4", "L5"];
                 for (i, pt) in points.iter().enumerate() {
-                    if let Some((screen, _depth)) = project_to_screen(*pt, &cam, rect) {
+                    if let Some((screen, _depth)) = proj.project(scene.au_to_m(*pt)) {
                         if (hp - screen).length() < 10.0 {
                             let lname = names[i];
                             let notable_text = pair.notable.iter()
@@ -495,19 +375,23 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     // PASS A — compute body radii up front (no paint yet). We need radii
     // before we can lay out pills (the pill height matches the body's
     // diameter so the body becomes the pill's left cap).
+    // Maps increment 1: the disc is TRUE size over a minimum (no more 40 px
+    // ceiling, so Earth behind the ship is Earth-sized), while the pill
+    // keeps a capped copy for its layout; over the world layer a disc bigger
+    // than the icon floor is not painted at all, because the real globe is
+    // there (design 5.3).
     let mut body_radii_px: Vec<f32> = Vec::with_capacity(projected.len());
+    let mut disc_radii_px: Vec<f32> = Vec::with_capacity(projected.len());
     for pb in &projected {
-        let body_radius_au = pb.body.radius_km / KM_PER_AU;
-        let apparent_rad = (body_radius_au / pb.depth).abs();
-        let pixels_per_rad = (rect.height() as f64) / (cam.fov_rad);
-        let mut r_px = (apparent_rad * pixels_per_rad) as f32;
+        let true_r = proj.radius_px(pb.body.radius_km * 1000.0, pb.depth);
         let min_r = if pb.body.id == "sun" { 8.0 }
                     else if pb.body.body_type == "moon" { 1.5 }
                     else if pb.body.body_type == "asteroid" { 1.0 }
                     else { 2.5 };
         let max_r = if pb.body.id == "sun" { 80.0 } else { 40.0 };
-        r_px = r_px.max(min_r).min(max_r);
-        body_radii_px.push(r_px);
+        body_radii_px.push(true_r.max(min_r).min(max_r));
+        let globe_shown = world_drawn && true_r > you_layer::ICON_FLOOR_PX;
+        disc_radii_px.push(if globe_shown { 0.0 } else { true_r.max(min_r).min(rect.width().max(rect.height()) * 2.0) });
     }
 
     // PASS B — hit-test hover/click on body screen positions (still no
@@ -526,7 +410,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
             }
         }
     }
-    let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_au);
+    let _suppress_unused: Option<glam::DVec3> = projected.first().map(|p| p.world_m);
 
     // PASS C — build pill input list. Decide visibility (priority tier
     // or forced via hover/select/expand) before any rendering happens.
@@ -556,6 +440,14 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         let is_forced = is_hovered || is_selected || is_expanded;
         let should_show = priority <= 2 || is_forced;
         if !should_show { continue; }
+        // Over the world layer's real globe a pill would paint its dark cap
+        // onto the globe (a black disc in the middle of Earth in the first
+        // rig capture, 2026-10-21): the globe is the body, so it gets a plain
+        // label instead.
+        if disc_radii_px[i] == 0.0 {
+            paint.text(pb.screen, Align2::CENTER_CENTER, &pb.body.name, egui::FontId::proportional(13.0), theme.text_primary());
+            continue;
+        }
         pills.push(BodyPill {
             id: pb.body.id.as_str(),
             name: pb.body.name.as_str(),
@@ -598,7 +490,9 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     for (i, pb) in projected.iter().enumerate() {
         let r_px = body_radii_px[i];
 
-        paint.circle_filled(pb.screen, r_px, body_color(&pb.body.name));
+        if disc_radii_px[i] > 0.0 {
+            paint.circle_filled(pb.screen, disc_radii_px[i], body_color(&pb.body.name));
+        }
         // Note: removed the v0.214-era selected accent ring at r_px + 3
         // (operator feedback 2026-05-12 — "the orange circle around the
         // sprite was smaller than the pill top-left corner"). The pill
@@ -666,8 +560,8 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
             if reference_orbits_for(pb.body.id.as_str()).is_empty() { continue; }
             let r_px = body_radii_px[i];
             if let Some(hit) = draw_reference_orbits(
-                &paint, theme, pb.body, pb.world_au, pb.screen, r_px,
-                &cam, rect, hover_pos,
+                &paint, theme, pb.body, pb.world_m, r_px,
+                &proj, hover_pos,
             ) {
                 ref_orbit_hover = Some(hit);
             }
@@ -692,59 +586,17 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     // an orange ring" when the user is interacting with it.
     let clicked_pill = paint_pill_overlays(ui, &paint, theme, &pill_layout, "maps_pill");
 
-    // Fan-marker positions, kept for the click chain below (slice 2:
-    // clicking an asteroid marker jumps to its mining modal).
-    let mut asteroid_markers: Vec<(String, Pos2)> = Vec::new();
-    if let Some(earth) = projected.iter().find(|p| p.body.id == "earth") {
-        let home = earth.screen;
-        paint.circle_stroke(home, 9.0, Stroke::new(1.6, theme.accent()));
-        paint.text(
-            home + egui::vec2(0.0, -14.0),
-            egui::Align2::CENTER_BOTTOM,
-            "You · Home",
-            egui::FontId::proportional(11.0),
-            theme.accent(),
-        );
-        let slots: [(f32, f32); 5] =
-            [(36.0, -0.5), (46.0, 0.55), (40.0, 1.6), (50.0, 2.6), (44.0, 3.7)];
-        let mut slot_pos: std::collections::HashMap<String, Pos2> =
-            std::collections::HashMap::new();
-        for (i, ast) in state.asteroids.iter().take(slots.len()).enumerate() {
-            let (r, ang) = slots[i];
-            let p = home + egui::vec2(ang.cos() * r, ang.sin() * r);
-            paint.circle_filled(p, 3.0, crate::gui::widgets::swatch_color(&ast.classification));
-            paint.text(
-                p + egui::vec2(6.0, 0.0),
-                egui::Align2::LEFT_CENTER,
-                format!("{} · {:.0} km", ast.name, ast.distance),
-                egui::FontId::proportional(9.5),
-                theme.text_secondary(),
-            );
-            slot_pos.insert(ast.id.clone(), p);
-            asteroid_markers.push((ast.id.clone(), p));
-        }
-        // Drone in flight: track along the Home <-> target leg by phase.
-        for drone in &state.drones {
-            if let Some(&target) = slot_pos.get(&drone.target) {
-                let t = drone.phase_progress.clamp(0.0, 1.0);
-                let dp = match drone.phase.as_str() {
-                    "Outbound" => home + (target - home) * t,
-                    "Returning" => target + (home - target) * t,
-                    _ => target, // Mining (and Done, momentarily) sits at the rock
-                };
-                paint.circle_filled(dp, 2.5, theme.info());
-                paint.text(
-                    dp + egui::vec2(5.0, -4.0),
-                    egui::Align2::LEFT_BOTTOM,
-                    "Drone",
-                    egui::FontId::proportional(9.0),
-                    theme.info(),
-                );
-            }
+    // ── You and your ship (Maps increment 1, `you_layer.rs`): its name and
+    //    real height, its orbit ring, "You" aboard, the mining asteroids
+    //    where the data puts them (their markers feed the click chain below:
+    //    clicking one jumps to its mining modal), and, at ship scale with no
+    //    world layer, why the ship is not drawn for real. ──
+    let asteroid_markers = you_layer::draw_you(&paint, theme, &proj, &scene, state, world_drawn);
+    if !world_drawn && you_layer::near_the_ship(&state.maps) {
+        if let Some(why) = you_layer::world_layer_want(&state.maps).reason() {
+            paint.text(rect.center_top() + Vec2::new(0.0, 44.0), Align2::CENTER_TOP, why, egui::FontId::proportional(12.0), theme.text_secondary());
         }
     }
-
-
 
     // Apply click selection. Asteroid fan markers claim clicks FIRST (tiny
     // 10 px zones; when zoomed in, Earth's body/pill otherwise eats every fan
@@ -772,6 +624,10 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         // pill will appear because the body is now selected (forced=true).
         state.maps.selected_body = Some(b.id.clone());
     }
+
+    // The camera's mouse and keys, now that everything is drawn from the
+    // pose the world layer was rendered from (`controls`).
+    controls::handle_input(ui, &response, rect, state);
 
     // ── Hover tooltip ──
     if let (Some(body), Some(_)) = (hovered_body, hover_pos) {
@@ -809,8 +665,8 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     let hud_wrap = (rect.width() - 16.0).max(40.0);
     let cam_galley = ui.fonts(|f| {
         f.layout(
-            format!("Cam: {:.1} AU from target · yaw {:+.0}° · pitch {:+.0}°",
-                cam.distance_au, cam.yaw_rad.to_degrees(), cam.pitch_rad.to_degrees()),
+            format!("Camera {} from {} · yaw {:+.0}° · pitch {:+.0}°",
+                format_distance(proj.pose.distance), anchor_name(&state.maps), state.maps.camera.yaw.to_degrees(), state.maps.camera.pitch.to_degrees()),
             hud_font.clone(),
             theme.text_muted(),
             hud_wrap,
@@ -818,7 +674,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     });
     let help_galley = ui.fonts(|f| {
         f.layout(
-            "Drag to rotate · scroll to zoom · shift+drag to pan target · click body to select · Focus button in details panel".to_string(),
+            "Drag to turn · scroll to zoom · shift+drag to pan (stops following) · Home: back to me · click a body to select".to_string(),
             hud_font.clone(),
             theme.text_muted(),
             hud_wrap,
@@ -959,6 +815,36 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
             *color,
         );
     }
+
+    // The follow row over the canvas, then the flight and the detached
+    // clock move on for the next frame (`controls`).
+    controls::draw_follow_row(ui, theme, state, rect);
+    controls::advance(state);
+}
+
+/// A distance as the HUD says it: metres, km, or AU.
+fn format_distance(m: f64) -> String {
+    if m < 1.0e4 {
+        format!("{m:.0} m")
+    } else if m < 1.0e9 {
+        format!("{} km", format_with_commas((m / 1000.0).round() as i64))
+    } else {
+        format!("{:.2} AU", m / crate::cosmos::M_PER_AU)
+    }
+}
+
+/// What the camera is anchored on, as the HUD names it.
+fn anchor_name(maps: &crate::gui::state_types::MapsState) -> String {
+    use super::camera::MapAnchor;
+    match &maps.camera.anchor {
+        MapAnchor::Me => match maps.me.as_ref() {
+            Some(me) if me.aboard => format!("{} (following you)", me.ship_name),
+            Some(_) => "you (following)".to_string(),
+            None => "the Sun".to_string(),
+        },
+        MapAnchor::Body(id) => find_body(id).map(|b| b.name.clone()).unwrap_or_else(|| id.clone()),
+        MapAnchor::Point { body, .. } => format!("a point near {}", titlecase(body)),
+    }
 }
 
 // ─────────────────────── Reference orbits (Phase 4d-ref, v0.212.0) ─────────
@@ -1003,28 +889,22 @@ fn reference_orbits_for(body_id: &str) -> &'static [ReferenceOrbit] {
     }
 }
 
-/// Render reference-orbit rings around the focused body. The rings live
-/// in the body's equatorial plane — for our (ecliptic ≈ equatorial)
-/// approximation we use the orbital normal of the body's own orbit.
-/// At MVP we use the ecliptic z-axis (good enough; Earth's axial tilt
-/// of 23.4° is the worst case and the rings still read clearly).
-#[allow(clippy::too_many_arguments)]
+/// Render reference-orbit rings around the focused body, in its equatorial
+/// plane. The game has no axial tilt (`renderer/sky_frame.rs`), so every
+/// body's equator is the world's XZ plane, the plane the home station's own
+/// orbit lies in; until Maps increment 1 these rings were drawn in the XY
+/// plane, standing on edge to the orbits they name.
 fn draw_reference_orbits(
     paint: &egui::Painter,
     theme: &Theme,
     body: &SolBody,
-    body_world_au: glam::DVec3,
-    body_screen: Pos2,
+    body_world_m: glam::DVec3,
     body_radius_px: f32,
-    cam: &MapCamera,
-    rect: Rect,
+    proj: &MapProjector,
     hover_pos: Option<Pos2>,
 ) -> Option<(&'static str, &'static str)> {
     let rings = reference_orbits_for(body.id.as_str());
     if rings.is_empty() { return None; }
-
-    // Body radius in AU for orbit-radius scaling.
-    let body_radius_au = body.radius_km / KM_PER_AU;
 
     // Threshold — only render rings when the body's apparent radius is
     // > ~12 px (otherwise rings would overlap the body itself or be
@@ -1032,33 +912,19 @@ fn draw_reference_orbits(
     if body_radius_px < 12.0 { return None; }
 
     let mut hovered_info: Option<(&'static str, &'static str)> = None;
+    let body_radius_m = body.radius_km * 1000.0;
 
-    // Sample each ring at N points (uniform in true anomaly, here circular
-    // so just uniform angle). Project each through the camera.
+    // Sample each ring at N points (circular, so uniform in angle) and
+    // project each through the map's camera.
     for ring in rings {
-        let r_au = body_radius_au + ring.altitude_km / KM_PER_AU;
-        // Use the body's orbital inclination as a rough equatorial tilt.
-        // Real obliquity (Earth = 23.4°) differs but ecliptic-aligned is
-        // good enough for a navigation overlay.
-        let n = 96;
+        let r_m = body_radius_m + ring.altitude_km * 1000.0;
         let mut prev: Option<Pos2> = None;
         let mut first: Option<Pos2> = None;
         let mut closest_to_hover: Option<(Pos2, f32)> = None;
-        for i in 0..n {
-            let theta = (i as f64) * std::f64::consts::TAU / (n as f64);
-            // Ring in body's local XY plane (approximately equatorial).
-            let local = glam::DVec3::new(
-                r_au * theta.cos(),
-                r_au * theta.sin(),
-                0.0,
-            );
-            let world = body_world_au + local;
-            if let Some((p, _)) = project_to_screen(world, cam, rect) {
+        for world in reference_ring_points(body_world_m, r_m, 96) {
+            if let Some((p, _)) = proj.project(world) {
                 if let Some(prev_p) = prev {
-                    paint.line_segment(
-                        [prev_p, p],
-                        Stroke::new(0.6, theme.info()),
-                    );
+                    paint.line_segment([prev_p, p], Stroke::new(0.6, theme.info()));
                 }
                 if first.is_none() { first = Some(p); }
                 prev = Some(p);
@@ -1076,10 +942,8 @@ fn draw_reference_orbits(
         if let (Some(prev_p), Some(first_p)) = (prev, first) {
             paint.line_segment([prev_p, first_p], Stroke::new(0.6, theme.info()));
         }
-        // Ring label — placed at the screen position of theta=0 (right
-        // side of body). Only if visible.
-        let label_world = body_world_au + glam::DVec3::new(r_au, 0.0, 0.0);
-        if let Some((label_p, _)) = project_to_screen(label_world, cam, rect) {
+        // Ring label at theta = 0. Only if visible.
+        if let Some((label_p, _)) = proj.project(body_world_m + glam::DVec3::new(r_m, 0.0, 0.0)) {
             paint.text(
                 label_p + Vec2::new(6.0, 0.0),
                 Align2::LEFT_CENTER,
@@ -1096,9 +960,18 @@ fn draw_reference_orbits(
             }
         }
     }
-
-    let _ = body_screen; // silence unused warning — kept for future use
     hovered_info
+}
+
+/// A reference ring of radius `r_m` round `centre`, `n` points in the
+/// body's equatorial plane: the world's XZ plane (the game has no axial tilt).
+pub(super) fn reference_ring_points(centre: glam::DVec3, r_m: f64, n: usize) -> Vec<glam::DVec3> {
+    (0..n)
+        .map(|i| {
+            let theta = i as f64 * std::f64::consts::TAU / n as f64;
+            centre + glam::DVec3::new(r_m * theta.cos(), 0.0, r_m * theta.sin())
+        })
+        .collect()
 }
 
 // ─────────────────────── Lagrange points (Phase 4d-soi, v0.211.0) ──────────
@@ -1167,7 +1040,7 @@ const LAGRANGE_PAIRS: &[LagrangePair] = &[
 /// (good to ~1% for μ < 0.01, which covers all our pairs since even
 /// Jupiter/Sun is ~0.001). L4 and L5 are the exact 60°-ahead/behind
 /// equilateral triangles in the child's orbit plane.
-fn compute_lagrange_points(
+pub(super) fn compute_lagrange_points(
     parent: &SolBody,
     child: &SolBody,
     sim_time_seconds: f64,
@@ -1192,17 +1065,18 @@ fn compute_lagrange_points(
     let l2 = parent_pos + to_child * l2_dist;
     let l3 = parent_pos - to_child * l3_dist;
 
-    // L4 / L5 = 60° rotation in the child's orbit plane.
-    // Approximate orbit-plane normal as: cross of to_child with reference up.
-    // For most of our pairs the orbit normal is ~+Z (ecliptic-aligned), so
-    // we can use to_child × Z as a starting tangent and reconstruct.
-    let ecliptic_up = glam::DVec3::new(0.0, 0.0, 1.0);
-    let normal = to_child.cross(ecliptic_up).cross(to_child).normalize();
-    // Actually we want the orbit normal (perpendicular to orbit plane):
-    // for an orbit roughly in the ecliptic, that IS +Z. But Earth-Moon's
-    // orbit is tilted ~5° — the eclipsing math elsewhere handles this; for
-    // a Lagrange overlay this approximation is fine (sub-arcminute error).
-    let orbit_normal = to_child.cross(normal).normalize();
+    // L4 / L5 = 60° rotation in the child's orbit plane, about its orbit
+    // normal r x v, so a positive turn goes the way the child moves: L4
+    // leads, L5 trails. The velocity is the child's own motion round the
+    // parent over an hour. (Until Maps increment 1 this used "ecliptic up =
+    // +Z", which lies IN the ecliptic of the engine's Y-up frame: L4 and L5
+    // swapped every half orbit and went NaN on the Z axis.)
+    let later = body_world_position_3d_au(child, sim_time_seconds + 3600.0)
+        - body_world_position_3d_au(parent, sim_time_seconds + 3600.0);
+    let orbit_normal = separation.cross(later - separation).normalize_or_zero();
+    if orbit_normal == glam::DVec3::ZERO {
+        return None;
+    }
 
     // Rotate `separation` by +60° and -60° about orbit_normal.
     let angle_rad = 60.0_f64.to_radians();

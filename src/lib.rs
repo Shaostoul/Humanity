@@ -2064,6 +2064,7 @@ mod native_app {
                 ship_air: Default::default(),
                 aboard_bounds: None,
                 moves: Default::default(),
+                map_view: Default::default(),
                 shared_build: Default::default(),
                 death_packs: Default::default(),
                 screenshot_counter: 0,
@@ -3532,11 +3533,12 @@ mod native_app {
                         let station_dist = off.length();
                         if state.gui_state.settings.track_station && station_dist > 1_000.0 {
                             state.gui_state.target_markers.push((
-                                "Home Station".to_string(),
+                                state.station_def.name.clone(),
                                 state.station_off,
                                 station_dist,
                             ));
                         }
+                        crate::engine::map_feed::publish(state, vel); // Maps: where you are, this frame's pose (engine/map_feed.rs)
                     }
 
                     // A station camera park reports only now, after the block above
@@ -14673,6 +14675,7 @@ mod native_app {
                     // app with vsync off (BUG-077).
                     state.renderer.apply_pending_surface_config();
 
+                    crate::engine::map_view::frame(state, &celestial_objects, &celestial_transparent, &orbit_lines, &all_objects, &transparent_objects, &overlay_objects, &ring_lines); // Maps world layer (engine/map_view.rs)
                     let scene_result = if page_active {
                         // UI-only frame: skip 3D render, clear to dark background
                         state.renderer.acquire_surface_cleared(wgpu::Color {
@@ -14953,11 +14956,7 @@ mod native_app {
                                 // jump the un-shifted vector would light the destination
                                 // planet's wrong hemisphere. At home the correction is
                                 // ~3e-7 rad (GEO vs 1 AU) -- invisible.
-                                let sun_dir_f = {
-                                    let d = (state.sun_world_pos - state.ship_world_pos)
-                                        .normalize_or_zero();
-                                    Vec3::new(d.x as f32, d.y as f32, d.z as f32)
-                                };
+                                let sun_dir_f = crate::engine::ipc::celestial_sun_dir(state); // render frame: the hull's axes aboard (BUG-210)
                                 // The elapsed-seconds arg is the cloud-deck clock
                                 // (shader type 15 animation); app-start-relative so
                                 // f32 stays precise for days of uptime.

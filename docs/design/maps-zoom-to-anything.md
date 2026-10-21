@@ -437,6 +437,9 @@ name: it means the model, not the page.
 
 ### Increment 1: the map opens on you, follows you, and draws your ship
 
+**BUILT 2026-10-21** (status, what differs from the plan below, and the
+measurements: "Increment 1 as built" at the end of this section).
+
 The operator's first ask.
 
 What changes:
@@ -487,6 +490,88 @@ Proof:
   which must fail the "ship centred" check.
 - Costs: `HUMANITY_FRAME_COSTS=1` with the page open at rest and while dragging, against
   the game at the same place.
+
+#### Increment 1 as built (2026-10-21)
+
+Built as planned above, with these differences, each for a stated reason:
+
+- **The altitude is 35,870 km, not 35,786 km.** The station block (lib.rs) makes the
+  home synchronous with the 24-hour SOLAR day on purpose ("synchronous with the
+  day/night cycle the player actually sees"), so `orbit::semi_major_axis_m` gives
+  42,241 km from Earth's centre, 35,870 km over the game's 6,371 km Earth. Real
+  geostationary satellites (35,786 km over the equator, 42,164 km from the centre) keep
+  pace with the 23 h 56 min sidereal day. The Stations row, the ship's label and the F11
+  card all show the game's number; the row's hover says why it differs from real GEO.
+  Section 1's "42,164 km ... (35,786 km up)" was the sidereal figure.
+- **The feed's call line sits at the end of the station block, not after it**, because
+  the velocity it copies (`vel`) is local to that block. The map view's call line sits
+  just before the page/world branch rather than inside it, so it also runs on the frame
+  the page closes and gives back its textures and view buffers.
+- **The world layer is drawn aboard only, within 60 km of the ship**
+  (`camera::WORLD_LAYER_MAX_M`, the "Ship" band). Aboard, the draw lists in the page
+  branch are already in the render frame (`station_off` is zero while riding); off the
+  ship they are not, and the cloud history is fitted to the player's camera, which a map
+  camera far away would smear (risk 1). Beyond the band the ship is an icon on its orbit
+  line, as section 4 has it. Near space with the real Earth is increment 2's.
+- **Rendered with the screenshot's passes, keeping its view buffers**: a new
+  `ipc::render_view_onto_kept` (the old `render_view_onto` keeps its behaviour), and
+  `Renderer::release_view_buffers` when the page closes.
+- **Costs are measurable on a page frame**: `Renderer::mark_view_frame`
+  (`renderer/frame_costs.rs`) makes a UI-only frame that rendered the world layer publish
+  its GPU passes and CPU stages, which until now were thrown away with every menu frame.
+  The world layer's passes keep the live frame's ids (`gpu.scene`, `gpu.celestial`, ...)
+  so they compare directly with the game at the same place; `cpu.map_view` is the whole
+  render (a listed remainder, since its parts are rows) and `cpu.maps_feed` the copy.
+  Known limit: `cpu.frame_total` and `cpu.present_wait` are recorded only by the live
+  branch, so on a map frame they decay; read the pass ids, not the frame total.
+- **Not built in this increment**: the Diagram toggle (decision 5) is increment 2's, with
+  the solar-system work it simplifies; the Map light toggle (decision 4) needs a fill
+  light set for one view only, which belongs to the renderer's lighting, a lane being
+  changed today, so it waits; the ship goes dark in Earth's shadow as decided.
+- **Renamed** (decision 8, the names-sync rule): `data/stations/home.ron` and its built-in
+  fallback are "UHS Mothership" (was "Homestead"); the in-world target marker takes the
+  station's own name (was the literal "Home Station"); the F11 card's heading reads the
+  ship's name (was "Home station"); the HUD tests follow. "Homestead" stays the name of a
+  start (`data/homes/starts.ron`), which it means. Code names (`station_def`,
+  `track_station`, `station_world_pos`) mean the orbiting object and kept their names.
+- **Two dev verbs beyond the plan**: `map_turn` (the camera turns round the ship as a drag
+  does, so the rig can measure the world layer while the camera moves) and `map_report`
+  (`debug/map_done.json`: the canvas on the window, where the ship landed, the world
+  layer's state).
+- **Two controls, not one**: `maps-follow-home-unfollowed` is the plan's (2-hour jump);
+  there the camera is 22,000 km from the ship and the world layer is off, so it fails the
+  check on a map of symbols only. `maps-follow-home-unfollowed-near` jumps 10 seconds:
+  the ship goes about 30 km, out of the view but within the world layer's band, so the
+  check fails on rendered pixels with Earth drawn behind. Both must fail.
+- **What the first rig run found, and fixed:** BUG-210 (aboard, the celestial pass lit
+  Earth and the planets with a world-axes Sun against hull-frame bodies, so at local noon
+  Earth showed its terminator through the middle; one function, `ipc::celestial_sun_dir`,
+  for the live frame and every view); a label's pill cap painted over the real globe
+  (now a plain label); the Maps page staying open from one vantage into the next with its
+  dev turn still running (`home` resets the dev switches, the sweep closes what it
+  opened); the centred judge counting the star field's twinkle (solid 3x3 patches only).
+  `maps-closed-after` came back identical to `home-clock-noon`.
+- **The rig, second run (merged with main, 2026-10-21, sweep `20261021-145646`), 7 of 7
+  captured, no panics:** `maps-follow-home` and `-later` pass "ship centred" (the hull's
+  pixels 1.5 to 1.6% of the canvas, their centre 38 to 39 px, 3.1% of its height, from
+  the canvas centre); both controls fail it as they must (0.00% changed); Earth below the
+  ship fully lit at local noon after BUG-210. Costs, read from `HUMANITY_FRAME_COSTS=1`
+  but marked CONTAMINATED by other sessions' builds and a second rig on the machine, so
+  indicative only: the game at the same place (`home-clock-noon`) about 4.7 ms GPU a
+  frame; the map at rest about 2.4 ms GPU and 5.7 ms CPU (`cpu.map_view`) per render, one
+  render a second; the map while the camera turns about 0.85 ms GPU and 5.2 ms CPU a
+  frame at half resolution; `cpu.maps_feed` 0.002 ms. The CPU cost is the scene's draw
+  submission (`cpu.scene` about 3 ms, the same as the game's).
+- **Seen in the captures, not fixed here:** from the home (an equatorial synchronous
+  orbit) the rendered Earth shows its NORTH POLE under the ship, where the equator at
+  122 degrees west should be. `terrain::planet_heightmap::latlon_to_dir` puts north at
+  model +Y, the spin turns about +Y and the orbit lies in the XZ plane, so the far
+  Earth's mesh or texture orientation disagrees with that convention somewhere. Present
+  before BUG-140 and BUG-210 alike. Renderer and planet code, outside this increment.
+- **BUG-140's follow-ups in this view** (found by its fixer): the Lagrange points now
+  take the orbit normal from the child's own motion (L4 leads, L5 trails, on every date);
+  the overview looking down from ecliptic north with the planets going round
+  counter-clockwise, and the reference rings in the equatorial plane, are held by tests.
 
 ### Increment 2: a solar system that looks real
 

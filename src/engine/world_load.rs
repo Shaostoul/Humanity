@@ -685,6 +685,17 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // parent's Earth-relative position and drawn as a 1-px LineList
     // that the depth buffer occludes behind planets. 96 samples is
     // plenty smooth for an ellipse and a fraction of the tube verts.
+    //
+    // Each ring is the orbit as it lies NOW (the same wall-clock seconds since
+    // J2000 the frame places the bodies by): the Moon's orbit turns, its node a
+    // degree every 19 days, so a J2000 ring would miss the Moon by up to 10
+    // degrees of latitude. Cached once per world entry; a session moves it a
+    // few hundredths of a degree.
+    let ring_sim_t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+        - 946_728_000.0; // Unix secs at J2000.0 epoch
     for b in crate::cosmos::sol_bodies() {
         // Cache EVERY orbiting body's ring, tagged planet/moon so the Sky
         // settings filter at draw time (v0.786). Direct sun-orbiters =
@@ -694,7 +705,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
         // "luna".) Sun has no orbit (sample empty) → skipped naturally.
         let Some(parent) = b.parent.clone() else { continue };
         let kind = if parent == "sun" { "planet" } else { "moon" };
-        let pts_au = crate::cosmos::sample_orbit_points(b, 96);
+        let pts_au = crate::cosmos::sample_orbit_points(b, 96, ring_sim_t);
         if pts_au.len() < 3 { continue; }
         // Keep the vertices in f64 (v0.791): they are ~1.5e11 m and the
         // per-frame offset is the same magnitude with the opposite sign,

@@ -1380,7 +1380,7 @@ pub(crate) struct MarkerPlacement {
 /// `world_to_screen` drops anything outside the camera's depth range. That
 /// is right for a machine label a few metres away and wrong for a waypoint:
 /// the gameplay camera's far plane is the Render distance (500 m by default,
-/// 2,000 m at most) and the Home Station is about 36,000 km up, so its
+/// 2,000 m at most) and the UHS Mothership is about 36,000 km up, so its
 /// marker was dropped on every frame, from the ground and from anywhere else
 /// farther than that.
 ///
@@ -1423,7 +1423,7 @@ pub(crate) fn marker_placement(world: Vec3, view_proj: Mat4, screen: Rect, margi
 
 /// The distance a tracked marker shows: metres below a kilometre, tenths of a
 /// kilometre below ten, then whole kilometres in groups of three ("36,000
-/// km", about how far the Home Station is from the ground).
+/// km", about how far the UHS Mothership is from the ground).
 pub(crate) fn marker_distance(dist_m: f64) -> String {
     if dist_m < 1_000.0 {
         format!("{:.0} m", dist_m.max(0.0))
@@ -2790,13 +2790,13 @@ mod marker_and_mode_tests {
         shapes
     }
 
-    /// Track the Home Station at `pos` (render space, metres), as lib.rs
+    /// Track the UHS Mothership at `pos` (render space, metres), as lib.rs
     /// does from the station's orbit each frame.
     fn track(state: &mut GuiState, pos: Vec3) {
-        state.target_markers = vec![("Home Station".to_string(), pos, pos.length() as f64)];
+        state.target_markers = vec![("UHS Mothership".to_string(), pos, pos.length() as f64)];
     }
 
-    /// BUG-148: the tracked Home Station, 36,000 km straight ahead of a
+    /// BUG-148: the tracked UHS Mothership, 36,000 km straight ahead of a
     /// player standing on the ground, draws its ring and its label with the
     /// distance, at the middle of the screen. The marker was projected
     /// through the camera's depth range, whose far plane is the Render
@@ -2810,9 +2810,9 @@ mod marker_and_mode_tests {
         let cam = ground_camera();
         let mut state = GuiState::default();
         track(&mut state, cam.forward() * 3.6e7);
-        let found = find_text_in_shapes(&hud_shapes(&state, &cam), "Home Station")
+        let found = find_text_in_shapes(&hud_shapes(&state, &cam), "UHS Mothership")
             .expect("the tracked station draws its label: none was drawn");
-        assert_eq!(found.text, "Home Station · 36,000 km", "the label says how far it is");
+        assert_eq!(found.text, "UHS Mothership · 36,000 km", "the label says how far it is");
         // The label sits just right of the ring, which is at the screen's
         // middle because the station is dead ahead.
         let mid = SCREEN * 0.5;
@@ -2838,7 +2838,7 @@ mod marker_and_mode_tests {
         let mut state = GuiState::default();
         let behind_right = (-cam.forward() * 3.0 + cam.right()).normalize();
         track(&mut state, behind_right * 3.6e7);
-        let found = find_text_in_shapes(&hud_shapes(&state, &cam), "Home Station")
+        let found = find_text_in_shapes(&hud_shapes(&state, &cam), "UHS Mothership")
             .expect("a station behind the player still draws its marker: none was drawn");
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN);
         assert!(screen.contains_rect(found.rect), "the label is on screen: {:?}", found.rect);

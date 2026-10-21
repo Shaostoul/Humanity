@@ -12,9 +12,11 @@
 //!   enum `MapView`, and what more than one view shares: the pan and zoom
 //!   canvas, the footer, the body and star colours, the catalog reader, and
 //!   the number formatting.
-//! - `system_view.rs`: the 3D Solar System view, its turntable camera
-//!   `MapCamera`, the reference-orbit and Lagrange overlays, and a body's
-//!   info card with Focus and Track.
+//! - `system_view.rs`: the 3D Solar System view, the reference-orbit and
+//!   Lagrange overlays, and a body's info card with Focus and Track.
+//! - `camera.rs` (increment 1): `MapCamera`, an anchor plus an f64 offset;
+//!   `controls.rs` its mouse, keys and follow row; `you_layer.rs` the world
+//!   layer and you and your ship; `stations.rs` the Stations rows.
 //! - `body_list.rs`: the System view's two side panels, the body list on the
 //!   left and the selected body's details on the right.
 //! - `planet_view.rs`: the 2D OpenStreetMap region view.
@@ -37,17 +39,23 @@ use crate::gui::widgets;
 use crate::gui::GuiState;
 
 mod body_list;
+pub mod camera;
+mod controls;
 mod galaxy_view;
 mod night_sky;
 mod planet_view;
 mod sky_events;
+mod stations;
 mod system_view;
 mod time_bar;
+pub mod you_layer;
 #[cfg(test)]
 mod tests;
 
 pub use sky_events::UpcomingSkyEvent;
-pub use system_view::MapCamera;
+pub use camera::MapCamera;
+pub use stations::{parent_constants, StationRow};
+pub(crate) use time_bar::current_real_time_seconds_since_j2000;
 #[cfg(test)]
 pub(crate) use time_bar::set_clock_for_snapshot;
 
@@ -175,7 +183,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_md);
                     let hint = match state.maps.view {
                         MapView::Planet    => "2D map · scroll to zoom · click-drag to pan",
-                        MapView::System    => "3D camera · drag to rotate · scroll to zoom · shift+drag to pan",
+                        MapView::System    => "3D camera · drag to turn · scroll to zoom · Home: back to me",
                         MapView::Galactic  => "2D top-down · scroll to zoom · click-drag to pan",
                         MapView::NightSky  => "2D celestial sphere · scroll to zoom · click-drag to pan",
                     };

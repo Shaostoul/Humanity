@@ -173,8 +173,9 @@ async function park(v, armShowcase) {
   const re = await waitFile("camera_done.json", 60000);
   if (!re || re.ok !== true) throw new Error(`re-park: ${JSON.stringify(re)}`);
   await sleep(v.hold_altitude ? 900 : 6000);
-  if (v.final_showcase) {
-    req("showcase_request.json", v.final_showcase);
+  // A list is sent one request at a time, as probe-sweep sends it.
+  for (const step of v.final_showcase ? (Array.isArray(v.final_showcase) ? v.final_showcase : [v.final_showcase]) : []) {
+    req("showcase_request.json", step);
     await sleep((v.final_settle_s ?? 4) * 1000);
   }
 }
