@@ -376,9 +376,13 @@ pub(super) fn scan_upcoming_sky_events(start_sim: f64) -> Vec<UpcomingSkyEvent> 
     out
 }
 
-/// Mean obliquity of the ecliptic at J2000.0 (IAU 1976), degrees. This
-/// is a single physical constant for Earth — not infinite-of-X data.
-const EARTH_OBLIQUITY_DEG: f64 = 23.439_291_1;
+/// Earth's mean obliquity (IAU 2006): 84381.406" at J2000, -46.836769" per
+/// Julian century, in degrees. Physical constants, not infinite-of-X data.
+const OBLIQUITY_J2000_DEG: f64 = 23.439_279_444;
+const OBLIQUITY_PER_CENTURY_DEG: f64 = -0.013_010_214;
+/// General precession in longitude (IAU 2006), arcseconds per century and
+/// per century squared: how far the equinox of date has slid from J2000's.
+const PRECESSION_ARCSEC: (f64, f64) = (5028.796_195, 1.105_434_8);
 
 /// Geographic latitude & longitude (degrees, +N / +E) of the point on
 /// Earth's surface directly beneath `target_pos` — i.e. where `target`
@@ -386,45 +390,39 @@ const EARTH_OBLIQUITY_DEG: f64 = 23.439_291_1;
 /// position gives the sub-lunar point, which is (to ~1°) where the
 /// shadow axis pierces Earth and the eclipse is overhead.
 ///
-/// Honest-approximation notes (this is an educational readout, not a
-/// Besselian-element ephemeris):
-///   • ignores lunar parallax topocentric shift, Earth oblateness,
-///     atmospheric refraction and ΔT (UT1−TT). Good to roughly a degree.
-///   • uses the model's J2000 mean obliquity + the standard IAU GMST
-///     polynomial, both of which the sim's J2000 time base supports
-///     exactly — so latitude is solid; longitude inherits GMST accuracy.
+/// An educational readout, not a Besselian-element ephemeris: it ignores
+/// lunar parallax, Earth's oblateness, refraction, nutation, aberration and
+/// UT1-UTC. Against JPL Horizons it is within 0.025 degree for the Sun and
+/// Mars (`sky_events_tests.rs`); the Moon's own place is the larger error.
 ///
-/// Frame: the orbital model is Y-up, ecliptic plane = XZ, +X = vernal
-/// equinox, +Z = ecliptic longitude 90°. The celestial north pole is
-/// therefore P̂ = (0, cos ε, sin ε); the equatorial Y axis (for RA) is
-/// Ŷ_eq = P̂ × X̂ = (0, sin ε, −cos ε). Validated against sub-solar
-/// latitude hitting ±23.44° at the solstices (see tests below).
+/// Frame (BUG-140, 2026-10-21): the world vector goes back into the J2000
+/// ecliptic through `cosmos::ecliptic_from_world`, the inverse of the orbit
+/// model's own mapping, so the two cannot disagree again. (This used to
+/// restate the mapping as "+Z = ecliptic longitude 90" and build the RA axis
+/// as P x X in that mirrored frame, which turned right ascension backwards.)
+/// The longitude is then precessed to the equinox of date, because sidereal
+/// time is measured from that equinox (0.37 degree by 2026), and turned to
+/// right ascension and declination with the obliquity of date.
 pub(super) fn subpoint_lat_lon_deg(
     target_pos: glam::DVec3,
     earth_pos: glam::DVec3,
     sim_time_seconds: f64,
 ) -> (f64, f64) {
-    let d = (target_pos - earth_pos);
+    let d = target_pos - earth_pos;
     let len = d.length();
     if len <= 0.0 {
         return (0.0, 0.0);
     }
-    let d = d / len; // ecliptic unit vector, Earth → target
-    let eps = EARTH_OBLIQUITY_DEG.to_radians();
-    let (se, ce) = eps.sin_cos();
-
-    // Declination = geographic latitude of the sub-point.
-    // sin δ = d · P̂,  P̂ = (0, cos ε, sin ε).
-    let sin_dec = (d.y * ce + d.z * se).clamp(-1.0, 1.0);
-    let dec_rad = sin_dec.asin();
-    let lat_deg = dec_rad.to_degrees();
-
-    // Right ascension about the celestial pole, measured from +X.
-    //   x_eq = d · X̂      = d.x
-    //   y_eq = d · Ŷ_eq   = d.y·sin ε − d.z·cos ε
-    let x_eq = d.x;
-    let y_eq = d.y * se - d.z * ce;
-    let ra_deg = y_eq.atan2(x_eq).to_degrees().rem_euclid(360.0);
+    let e = crate::cosmos::ecliptic_from_world(d / len); // Earth -> target
+    let t_cy = sim_time_seconds / 86_400.0 / 36_525.0;
+    let precession = (PRECESSION_ARCSEC.0 * t_cy + PRECESSION_ARCSEC.1 * t_cy * t_cy) / 3600.0;
+    let lambda = e.y.atan2(e.x) + precession.to_radians();
+    let beta = e.z.clamp(-1.0, 1.0).asin();
+    let (se, ce) = (OBLIQUITY_J2000_DEG + OBLIQUITY_PER_CENTURY_DEG * t_cy).to_radians().sin_cos();
+    // Ecliptic to equatorial of date: a turn about the equinox by epsilon.
+    let (x, y, z) = (beta.cos() * lambda.cos(), beta.cos() * lambda.sin(), beta.sin());
+    let lat_deg = (y * se + z * ce).clamp(-1.0, 1.0).asin().to_degrees();
+    let ra_deg = (y * ce - z * se).atan2(x).to_degrees().rem_euclid(360.0);
 
     // Greenwich Mean Sidereal Time (IAU 1982), degrees. D = days since
     // J2000.0 (= sim seconds / 86400 — the model's exact time base).
@@ -445,3 +443,7 @@ pub(super) fn format_geo(lat_deg: f64, lon_deg: f64) -> String {
     let (ew, lon) = if lon_deg >= 0.0 { ('E', lon_deg) } else { ('W', -lon_deg) };
     format!("{lat:.1}°{ns} {lon:.1}°{ew}")
 }
+
+#[cfg(test)]
+#[path = "sky_events_tests.rs"]
+mod tests;

@@ -314,8 +314,12 @@ pub fn generate_hologram_from_data(data: &SolarSystemData) -> SolarSystemHologra
 /// the REAL current configuration. Orbit *radii* are still log-scaled
 /// to fit the ~5 m room (you cannot show Neptune 30× farther than
 /// Earth at true ratio indoors — that compression is correct and
-/// kept); only the fake angle is replaced with the real ecliptic
-/// longitude `atan2(z, x)` of each body's live heliocentric position.
+/// kept); only the fake angle is replaced with each body's real
+/// direction in the world's ecliptic plane (XZ), copied unturned, so the
+/// orrery goes round the way the sky does: counter-clockwise seen from
+/// above since BUG-140 (2026-10-21), when the world stopped mirroring the
+/// ecliptic. (The real ecliptic longitude is `atan2(-z, x)`; see
+/// `cosmos::world_from_ecliptic`.)
 ///
 /// Output is the SAME `SolarSystemHologram` shape as the old path, so
 /// the lib.rs consumption loop (meshes / orbit rings / pins) is
@@ -376,7 +380,8 @@ pub fn generate_hologram_from_cosmos(sim_time_seconds: f64) -> SolarSystemHologr
             (0.0, Vec3::ZERO)
         } else {
             let helio = crate::cosmos::body_world_position_3d_au(b, sim_time_seconds);
-            // Ecliptic plane is XZ here; real longitude = atan2(z, x).
+            // The body's direction in the ecliptic plane (world XZ), as an
+            // angle in the room's XZ: the same direction, not a longitude.
             let angle = (helio.z as f32).atan2(helio.x as f32);
             let r = orbit_to_hologram(b.semi_major_axis_au * m_per_au, min_orbit, max_orbit);
             (r, Vec3::new(r * angle.cos(), 0.0, r * angle.sin()))
