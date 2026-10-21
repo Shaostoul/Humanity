@@ -352,6 +352,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
     the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on
     cards that support it is the later upgrade, with probes kept as the fallback.
+  - **A "per-room ambient" lowest level for Bounced light detail** (promised to the operator,
+    2026-10-20, after he asked why not just brighten textures): one ambient colour per room from
+    that room's own lamps and windows, no probe lattice, about a tenth of the probes' memory; it
+    follows lamps and keeps rooms apart but is flat within a room. A shader change (the room GI
+    sample), so it follows lane L's merge; the live setting being built now has probe-spacing
+    levels only.
   - **Media round 5: Waves 0, 1 and 2 are DONE** (released through v0.1494.0): the desktop and
     website item pages and editors, counts, the item page for social sites, the strips, the
     Admin tab, the snapshots, the Reports page's Open. Not built: the browser proof rig
