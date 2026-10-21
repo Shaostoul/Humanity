@@ -29,6 +29,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   // the release is the default level. A change relays the probes out, so allow the light a few
   // seconds to settle after it.
   bounced_light_detail: "high",
+  // Floors between storeys (increment 7 lane L, 2026-10-21): "0" off, "sun" or "lamps" runs one
+  // half alone; "1" is both, as released.
+  slab_occlusion: "1",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

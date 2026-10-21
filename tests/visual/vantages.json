@@ -902,6 +902,27 @@
       "settle_s": 10
     },
     {
+      "id": "home-upstairs-bedroom-noon",
+      "desc": "The homestead's upstairs bedroom (ship homes increment 7, over the dining room) at 12:00 station time; the lane L measurement pose.",
+      "expect": "A lit room on the upper floor standing on its solid floor: no light from the dining room's lamps below leaks up through the floor, and nothing lit from below shows on this room's walls.",
+      "_why": "Lane L of increment 7 (docs/design/room-gi.md, Floors between storeys): solid floor slabs stop lamp light and sunlight in the room GI and the lighting. Upstairs is where the remaining cost of that test sits (the ground floor's lamps reach up through the glass lids): +0.53 ms at 2560x1387 on 2026-10-21, same-boot showcase slab_occlusion 0/1.",
+      "_pair_note": "Same-boot A/B: showcase slab_occlusion 0/1 (or sun/lamps to run one half alone) through scripts/probe-hot-ab.js with same_park.",
+      "regressions": [
+        "a solid floor stops the light of the storey under it"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "38,4.7,37,0.8,-0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "home-racks-dawn",
       "desc": "The mushroom room racks (25b pose) at 06:00 station time.",
       "expect": "Low sun: long shadows from the walls and racks across the floor.",
