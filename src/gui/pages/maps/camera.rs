@@ -36,7 +36,7 @@
 
 use glam::{DQuat, DVec3};
 
-use crate::cosmos::{body_world_position_3d_au, find_body, M_PER_AU};
+use crate::cosmos::M_PER_AU;
 use crate::gui::state_types::MapSelf;
 
 /// The closest the camera comes to its anchor, metres.
@@ -63,8 +63,13 @@ pub const OPEN_SHIP_LENGTHS: f64 = 1.5;
 /// straight below the ship, inside the 60 degree view).
 pub const OPEN_YAW_RAD: f64 = 20.0 * std::f64::consts::PI / 180.0;
 pub const OPEN_PITCH_RAD: f64 = -68.0 * std::f64::consts::PI / 180.0;
+/// The far edge of near space (the design's table, section 4): Earth and the
+/// Moon as globes, the ship an icon on its orbit. Beyond it the solar system.
+pub const NEAR_SPACE_MAX_M: f64 = 2.0e9;
 /// The overview the page opens on when nothing says where you are.
 pub const OVERVIEW_DISTANCE_M: f64 = 60.0 * M_PER_AU;
+/// The Diagram's overview: its whole family, Neptune at about 3 AU.
+pub const DIAGRAM_OVERVIEW_M: f64 = 9.0 * M_PER_AU;
 pub const OVERVIEW_PITCH_RAD: f64 = -70.0 * std::f64::consts::PI / 180.0;
 /// van Wijk and Nuij's rho: the trade between zooming and panning. 1.42 is
 /// the value their user study preferred (and Mapbox's default curve).
@@ -143,65 +148,8 @@ impl Default for MapCamera {
     }
 }
 
-/// Where everything is, for one draw: the engine's feed (if any) and the
-/// page's clock.
-#[derive(Debug, Clone, Copy)]
-pub struct MapScene<'a> {
-    pub me: Option<&'a MapSelf>,
-    /// Seconds since J2000.0 the bodies are placed at.
-    pub sim_time: f64,
-    /// The clock is on the engine's own sky clock (the Sun then comes from
-    /// the engine, exactly; off it, from the page's clock).
-    pub live: bool,
-}
-
-impl<'a> MapScene<'a> {
-    pub fn new(me: Option<&'a MapSelf>, sim_time: f64, live: bool) -> Self {
-        Self { me, sim_time, live }
-    }
-
-    /// Earth's place around the Sun, AU (`cosmos`), at the scene's time.
-    pub fn earth_helio_au(&self) -> DVec3 {
-        find_body("earth").map(|e| body_world_position_3d_au(e, self.sim_time)).unwrap_or(DVec3::ZERO)
-    }
-
-    /// A heliocentric AU position (`cosmos`) in the map's frame: metres from
-    /// Earth's centre.
-    pub fn au_to_m(&self, p_au: DVec3) -> DVec3 {
-        (p_au - self.earth_helio_au()) * M_PER_AU
-    }
-
-    /// A body's centre in the map's frame. The Sun comes from the engine
-    /// while live (`MapSelf::sun_pos_m`), exactly as the game placed it.
-    pub fn body_m(&self, id: &str) -> Option<DVec3> {
-        if id == "earth" {
-            return Some(DVec3::ZERO);
-        }
-        if id == "sun" && self.live {
-            // Not before the world has placed it: until then the engine's
-            // sun sits at the origin, which is Earth's centre.
-            if let Some(me) = self.me.filter(|m| m.sun_pos_m.length() > 1.0e9) {
-                return Some(me.sun_pos_m);
-            }
-        }
-        find_body(id).map(|b| self.au_to_m(body_world_position_3d_au(b, self.sim_time)))
-    }
-
-    /// Where "you" are for the camera: your ship's centre while aboard it,
-    /// else your own position. None with no feed.
-    pub fn me_m(&self) -> Option<DVec3> {
-        self.me.map(|m| if m.aboard { m.ship_centre_m() } else { m.you_world_m })
-    }
-
-    /// The anchor's position, if it can be found.
-    pub fn anchor_m(&self, anchor: &MapAnchor) -> Option<DVec3> {
-        match anchor {
-            MapAnchor::Me => self.me_m(),
-            MapAnchor::Body(id) => self.body_m(id),
-            MapAnchor::Point { body, offset_m } => self.body_m(body).map(|b| b + *offset_m),
-        }
-    }
-}
+/// Where everything is for one draw now lives in `scene.rs`.
+pub use super::scene::MapScene;
 
 /// How much of the ship's own frame the camera turns with at `distance`
 /// metres: 1 up to `SHIP_FRAME_FULL_M`, 0 from `STARS_FRAME_FULL_M`, a
@@ -243,6 +191,20 @@ impl MapPose {
 }
 
 impl MapCamera {
+    /// The Sun's family from ecliptic north at `distance` metres, tilted 15
+    /// degrees off straight down so the orbits read as a 3D system (the
+    /// rig's overview vantage, Maps increment 2).
+    pub fn overview(distance: f64) -> Self {
+        Self {
+            anchor: MapAnchor::Body("sun".to_string()),
+            log_distance: distance.clamp(MIN_DISTANCE_M, MAX_DISTANCE_M).ln(),
+            yaw: 0.0,
+            pitch: -75.0_f64.to_radians(),
+            frame: MapFrame::Auto,
+            fly: None,
+        }
+    }
+
     /// Distance from the anchor, metres.
     pub fn distance(&self) -> f64 {
         self.log_distance.exp()

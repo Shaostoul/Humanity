@@ -43,6 +43,22 @@
             attribution_required: false,
             shown_in: ["Credits"],
         ),
+        // The Maps page's asteroid belts (Maps increment 2, 2026-10-21). The MPC
+        // asserts copyright in its data files and permits software to include
+        // MPCORB on three conditions: its header shipped with the data (it is,
+        // data/maps/MPCORB-header.txt), attribution to the MPC, and where to
+        // get updated copies (both in the notice below and in the file). The
+        // research, quoted and dated: docs/reference/findings/2026-10-21-mpc-orbit-data.md.
+        (
+            id: "mpc_mpcorb",
+            name: "Minor Planet Center (MPCORB)",
+            used_for: "The asteroid belts, the Hildas, Jupiter's trojans and the Kuiper belt on the Maps page: the real orbits of 20,000 minor planets (data/maps/belts.json, built by scripts/build-belts.js).",
+            licence: "MPC data terms (the MPCORB header: software may include the data with its header, attribution and how to get updates)",
+            notice: "Asteroid orbits: Minor Planet Center, International Astronomical Union (MPCORB, downloaded 2026-10-21). Updated copies: https://www.minorplanetcenter.org/iau/MPCORB/MPCORB.DAT",
+            url: "https://minorplanetcenter.net/iau/MPCORB.html",
+            attribution_required: true,
+            shown_in: ["Maps solar system view (belts credit line)", "Web Maps page (belts credit line)", "Credits"],
+        ),
         (
             id: "nasa_blue_marble",
             name: "NASA Blue Marble",

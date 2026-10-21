@@ -575,6 +575,9 @@ Built as planned above, with these differences, each for a stated reason:
 
 ### Increment 2: a solar system that looks real
 
+**BUILT 2026-10-21** (status, what differs from the plan below, and the
+measurements: "Increment 2 as built" at the end of this section).
+
 - **Fix BUG-140 first** (DONE 2026-10-21, v0.1534.0), as its own lane: map the ecliptic with a proper rotation and
   follow every reader the bug names (the spin's sun azimuth, the station's phase and
   `over_its_longitude`, the travel tool, the hologram, the page). Proved against JPL
@@ -607,6 +610,139 @@ Proof: snapshots `maps_system_overview` and `maps_earth_moon`; the rig vantage
 longitude against Horizons within 0.5 degrees on three dates, and the orbit direction
 counter-clockwise seen from ecliptic north); `cpu.maps_symbology` under 1 ms at the
 overview.
+
+#### Increment 2 as built (2026-10-21)
+
+Built as planned above, file by file, with these differences, each for a stated reason.
+
+- **Bodies** (`src/gui/pages/maps/bodies.rs`). Each body is a small mesh of rings
+  whose vertices are shaded by Lambert's law against the Sun's direction in the
+  camera's frame, so the phase (crescent, quarter, gibbous) comes from the real
+  Sun-body-camera geometry at any size; the night side keeps a tenth of the
+  day side's light so the disc still reads against black (a map convention,
+  said in the module doc). The icon floor is a minimum RADIUS by kind (Sun 5 px,
+  planets 3.5, dwarf planets 3, moons 2.4, the rest 2); the hand-off to the real
+  globe fades the icon out between 5 and 8 px across, and only where the world
+  layer draws globes. The colour is `SolBody::map_color` through an exposure
+  curve (`icon_lit_linear`: the brightest channel `m` becomes `m^0.4`, hue kept),
+  because true reflectances run from 4% to 99% and a linear picture drew most of
+  the family as near-black dots. The Sun is limb-darkened (`1 - 0.6 (1 - mu)`)
+  with a point-spread glare round it (the two far terms of Spencer, Shirley,
+  Zimmerman and Greenberg's 1995 glare function, at an exposure of 0.1), drawn
+  in the symbol layer because the solar-system band's world layer is the star
+  sky alone (below), and left out where the world layer draws the real Sun.
+- **Colours** (`scripts/build-body-colors.js`, `data/star_systems/sol.json`,
+  catalog version 6). Every body has a `map_color` and a `map_color_source`.
+  Earth, the Moon, Mars and Pluto are the area-weighted (cos latitude),
+  linear-light mean of their albedo maps; the Sun is its G2V colour; Mercury,
+  Venus and the giants keep the page's old hand palette, SAID SO in their source
+  field, until increment 5 brings their maps; every other body is a neutral grey
+  at its own albedo. `body_color` is gone. Earth's mean of the cloud-free Blue
+  Marble is a dark grey-blue (`#46474e`); through the exposure curve it reads as
+  the pale blue-grey of a far Earth, but the true disc colour of Earth is
+  whiter (clouds), which the cloud-free map cannot give.
+- **Orbits** (`maps/orbits.rs`). Trail fade bright at the body to a floor of 22%
+  half an orbit behind, measured in mean anomaly (time). The body's own eccentric
+  anomaly is the first and last sample. 64 even steps, then a piece is split
+  while its middle strays a third of a pixel from its chord, only on or near the
+  canvas (at most 2,048 points). Size fade: gone under about 8 px across,
+  thinning from 4 screens wide and gone at 200, measured at the nearer of the
+  orbit's centre and its body (the first near-space snapshot drew Earth's orbit
+  as a bright line straight through Earth because it was measured at the Sun).
+  Drawn as one anti-aliased mesh with a colour per vertex, each faded in GAMMA
+  space (`bodies::faded`): egui's own `from_rgba_unmultiplied` premultiplies in
+  linear light, so a point at 8% opacity still added a quarter of its colour,
+  the trails barely faded and the belts piled up into a solid blob. **Not in
+  the plan, found by the snapshots:** the orbits of the asteroids and comets in
+  sol.json (Vesta, Bennu, Halley and the rest) crossed the inner system as a
+  dozen eccentric ellipses, the "bunch of lines" itself; they, and those bodies'
+  icons, now show only when the body is hovered, selected or looked at, or the
+  camera is in the solar-system band within 1.5 AU (the belts' dust stands for
+  them otherwise); a moon's icon is left out while it sits on its own planet.
+  And a SCALE fade beside the size fade: an orbit 300 to 3,000 times wider than
+  the camera's distance fades out, so 1.5 km from the ship the Moon's and the
+  planets' orbits are not lines across the view. The ship's own orbit stays as
+  increment 1 drew it (`you_layer.rs`), through `MapScene::ship_place` for the
+  Diagram.
+- **Names** (`maps/labels.rs`). Through `label_placer.rs` in the design's order:
+  you (the ship's name, never dropped), the anchor and anything hovered or
+  selected, the Sun, planets bigger on screen first, dwarf planets, moons once
+  they stand 22 px clear of their planet, asteroids and comets within 1.5 AU.
+  Each name has a one-pixel dark edge (`map_label_halo`). The pills went; the one
+  body whose card is open keeps its pill, since the card hangs from it, and a
+  name is clickable to open it. **Not in the plan, found by the first overview
+  snapshot:** the overlays' own names (L1 to L5, the ring names) are placed AFTER
+  the bodies' (the Sun-Earth L1 and L2 labels had taken Earth's and Venus's
+  spots), and an L point within 8 px of either of its bodies is left out.
+- **Belts** (`maps/belts.rs`, `data/maps/belts.json`, `data/maps/MPCORB-header.txt`,
+  `scripts/build-belts.js`). The findings document came first:
+  `docs/reference/findings/2026-10-21-mpc-orbit-data.md` (the MPCORB header lets
+  software include the data with its header, attribution and the update address;
+  the MPC asserts copyright, so the file carries its terms, not the project's
+  licence: `LICENSES.md`, `data/credits.ron`). The file is the brightest 13,000 of
+  the main belt, 1,500 Hildas, 2,500 Jupiter trojans and 3,000 distant objects of
+  the 1,575,913 orbits in MPCORB on 2026-10-21, by the MPC's own orbit-type flag,
+  each row keeping its reference and orbit computer; 2.1 MB of JSON (JSON, not
+  CSV, because the website's deploy copies only `data/**/*.json`). Moved to the
+  page's date when the clock has moved six hours or the Diagram switched; drawn
+  as one small triangle per point in one mesh, each class thinned by the square
+  of how small it looks (full strength from 150 px of median orbit radius on
+  screen), so the page's 60 AU overview shows the inner belts as a haze, not a
+  blob. The credit line shows on the map whenever the dust is drawn.
+- **The world layer behind the solar system** (`engine/map_view.rs`,
+  `engine/ipc.rs` `ViewPasses::SkyOnly`, `maps/world_layer.rs`). Wherever the whole
+  world cannot be drawn but is loaded (the solar-system band, the Diagram, away
+  from the ship, off Live) the world layer renders the star pass alone, at night
+  whatever the player's own sky, from the map camera's direction (the star pass
+  depends on direction only, so it is exact at any distance), re-rendered when
+  the view turns and once a second. **The Sun's glare is not from that render**,
+  unlike the plan: the celestial pass cannot be run from a camera an AU from the
+  ship (the render frame is the ship's, and the celestial files are another
+  lane's), so the glare is the symbol layer's point-spread function above. The
+  WHOLE world (`Draw`) now reaches out to the edge of near space (2 million km)
+  instead of 60 km, as increment 1 left for this one; the ship's own draw lists
+  go in only within 60 km, where it is more than a pixel.
+- **Overlays as data** (`maps/overlays.rs`, `data/maps/layers.ron`,
+  `reference_orbits.ron`, `lagrange_pairs.ron`). Five layers (orbits, names,
+  belts, reference orbits, Lagrange points), each with the bands it shows in; the
+  bar of switches is drawn from the file and offers only what the band can show.
+  A reference ring now shows when the RING stands clear of the body's disc on
+  screen (GEO round a 4 px Earth), not only once the body is 12 px across.
+- **Diagram** (`maps/diagram.rs`, `MapScene` in the new `maps/scene.rs`). Distance
+  from the Sun `r' = K ln(1 + r / 0.25 AU)`, K so that 1 AU stays 1 AU (Neptune at
+  2.98 AU); bodies `0.012 AU x (radius / Earth's)^0.45`; anything round a planet
+  spaced logarithmically from its enlarged surface. Everything goes through
+  `MapScene`, so the camera, the orbits, the bodies, the belts and the ship move
+  together; the world layer shows only the star sky; a banner says "Diagram:
+  distances and sizes are not to scale". Switching it on flies to its overview.
+- **Theme tokens** `map_space`, `map_orbit_planet`, `map_orbit_moon`,
+  `map_orbit_minor`, `map_label`, `map_label_minor`, `map_label_halo`, `map_belt`,
+  `map_belt_outer`, `map_reference`, `map_orbit_width`, `map_label_size`
+  (`data/gui/theme.ron`, `src/gui/theme.rs`, Settings > Appearance "Maps colors"
+  and Widgets "Maps: ..."); the web's `--map-*` variables from
+  `scripts/gen-theme-css.js` (dark in both themes: the map is space).
+- **Cost** `cpu.maps_symbology` (`data/performance/budget_systems.ron` row
+  "Maps: symbols"), the whole build of the view's symbols; the report
+  (`debug/map_done.json`) carries the page's own measure and what was drawn.
+- **Code moved to keep the line budgets**: `MapScene` to `maps/scene.rs`, the
+  world-layer want to `maps/world_layer.rs`, the rig's verbs, report and
+  `apply_verb` to `engine/map_rig.rs`; new rig verbs `map: overview`,
+  `map_layer`, `map_diagram`.
+- **The web** (`web/pages/maps.html`, `web/shared/sol-orbits.js`, the web twin of
+  the orbit model). The planets now stand at their REAL places on today's date
+  (they were at a golden-angle spread), in their map colours, half lit toward the
+  Sun, with fading orbit trails from their real ellipses, the real belts from
+  the same belts.json, the Sun's glare from the same function, and names through
+  `web/shared/label-placer.js`. Its distances stay compressed (it always used a
+  log scale), so it says "distances not to scale". The belts and trails are
+  drawn into an offscreen layer and reused while the view holds (0.6 ms a frame
+  at rest, 12 ms on a frame the view moves, measured in the browser pane).
+  Not mirrored, and why: the layer switches, reference orbits and Lagrange
+  points (their files are RON and the deploy copies only JSON; the web page has
+  none of those overlays yet); the real star sky behind (the web has no star
+  renderer; its galaxy backdrop image stays). Test:
+  `scripts/tests/sol-orbits-web.test.js`.
+
 
 ### Increment 3: into the ship, deck by deck
 

@@ -320,3 +320,14 @@ what we will say about it.
   standard, not a building regulation. The game's staircase broke the IRC riser
   limit and every rail rule; a 3.0 m storey needs 16 risers. The 2024 IRC
   renumbered the stair sections to R318 (its text not read).
+- [`2026-10-21-mpc-orbit-data.md`](2026-10-21-mpc-orbit-data.md),
+  whether the project may ship a file of about 20,000 asteroid orbits derived
+  from the Minor Planet Center's MPCORB to draw the belts on the Maps page.
+  Yes, on the three conditions the MPCORB header itself sets for software: ship
+  the header (a separate file is fine), attribute the MPC, say where updated
+  copies are. The MPC's website policy, read the same day, says data files are
+  copyrighted and "may be redistributed as long as the source for the data is
+  clearly specified"; that page was reworded between 25 September and 21 October
+  2026, and a new nested line could be read more broadly (the finding reads it
+  as about circulars). JPL's small-body API gives only a citation request, and
+  Lowell's astorb was down. Two open points, one message to the MPC settles both.

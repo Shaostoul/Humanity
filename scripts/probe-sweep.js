@@ -168,6 +168,8 @@ const VANTAGES_FILE = path.resolve(opt("--vantages", path.join(REPO, "tests", "v
 const TG = require("./lib/tree-ground-check.js");
 // The Maps "ship centred" check (Maps increment 1): the vantage's `map_centre`.
 const MC = require("./lib/map-centre-check.js");
+// The Maps overview check (Maps increment 2): the vantage's `map_overview`.
+const MO = require("./lib/map-overview-check.js");
 const WR = require("./lib/write-request.js");
 // The DESCENT LADDER (environment program increment 1): instead of the
 // vantage list, fly one fixed surface column down a rung list from orbit
@@ -1159,6 +1161,26 @@ async function main() {
           rec.map_centre = { ok: verdict.ok, expect, check_ok: check.ok, message: verdict.message, offset_frac: check.offset_frac ?? null, frac: check.frac ?? null };
           log(`  map centre: ${verdict.ok ? "ok" : "FAILED"}: ${verdict.message}`);
         }
+        // MAP OVERVIEW (Maps increment 2, 2026-10-21): a vantage with
+        // `map_overview` asks the game what the Solar System view drew
+        // (debug/map_done.json: the star-sky world layer, belt points, orbits,
+        // bodies, names, the symbols' own time) and judges it with the frame
+        // costs captured with the picture (cpu.maps_symbology under 1 ms), in
+        // scripts/lib/map-overview-check.js. `expect: "fail"` marks a control.
+        if (v.map_overview) {
+          clearDone("map_done.json");
+          req("showcase_request.json", { map: "report" });
+          const rep = await waitFile("map_done.json", 20000);
+          if (!rep) throw new Error("map overview: the game wrote no debug/map_done.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-map.json`), JSON.stringify(rep, null, 2));
+          const fcAt = path.join(RIG, "debug", "frame_costs.json");
+          const costs = fs.existsSync(fcAt) ? JSON.parse(fs.readFileSync(fcAt, "utf8")) : null;
+          const check = MO.judgeOverview(rep, v.map_overview, costs);
+          const expect = v.map_overview.expect || "pass";
+          const verdict = MO.vantageVerdict(check, expect);
+          rec.map_overview = { ok: verdict.ok, expect, check_ok: check.ok, message: verdict.message };
+          log(`  map overview: ${verdict.ok ? "ok" : "FAILED"}: ${verdict.message}`);
+        }
         // PROFILE ATLAS DUMP (the far rung, perf increment 4): a vantage
         // with `dump_cloud_profile: true` asks the engine, after the
         // capture(s), to write every slice of the cloud PROFILE atlas as
@@ -1261,6 +1283,10 @@ async function main() {
         if (rec.ok && rec.map_centre && !rec.map_centre.ok) {
           rec.ok = false;
           rec.error = `MAP CENTRE: ${rec.map_centre.message}`;
+        }
+        if (rec.ok && rec.map_overview && !rec.map_overview.ok) {
+          rec.ok = false;
+          rec.error = `MAP OVERVIEW: ${rec.map_overview.message}`;
         }
         // A page a final_showcase opened stays open into the next vantage,
         // which would then capture the page instead of the world (and the

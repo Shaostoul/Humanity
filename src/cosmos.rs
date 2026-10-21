@@ -111,6 +111,33 @@ pub struct SolBody {
     pub discoverer: String,
     /// IDs of bodies orbiting this one (e.g. moons of a planet).
     pub children: Vec<String>,
+    /// The body's colour on the Maps page, sRGB (Maps increment 2): sol.json's
+    /// `map_color`, which `scripts/build-body-colors.js` computes as the mean of
+    /// the body's albedo map where it has one (Earth, the Moon, Mars, Pluto),
+    /// a neutral grey at its albedo where it has none, or a hand value with its
+    /// source said (the Sun, the giants). A body with none in the data is a
+    /// neutral grey at its albedo here too, so a new body needs no code.
+    pub map_color: [u8; 3],
+}
+
+/// "#rrggbb" to sRGB bytes; None for anything else.
+fn parse_hex_rgb(s: &str) -> Option<[u8; 3]> {
+    let h = s.strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    let byte = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
+    Some([byte(0)?, byte(2)?, byte(4)?])
+}
+
+/// The neutral grey of a surface reflecting `albedo` of the light (sRGB
+/// encoded), the colour a body with no colour map is given. The same curve
+/// as `scripts/build-body-colors.js`.
+pub fn grey_at_albedo(albedo: f64) -> [u8; 3] {
+    let c = albedo.clamp(0.0, 1.0);
+    let s = if c <= 0.003_130_8 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 };
+    let g = (s * 255.0).round() as u8;
+    [g, g, g]
 }
 
 static SOL_BODIES: OnceLock<Vec<SolBody>> = OnceLock::new();
@@ -306,6 +333,13 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
                 })
                 .unwrap_or_default();
             let description = body.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let map_color = body
+                .get("map_color")
+                .and_then(|v| v.as_str())
+                .and_then(parse_hex_rgb)
+                .unwrap_or_else(|| {
+                    grey_at_albedo(physical.and_then(|p| p.get("albedo")).and_then(|v| v.as_f64()).unwrap_or(0.3))
+                });
             let (discovery_year, discoverer) = body.get("discovery")
                 .and_then(|d| {
                     let y = d.get("year").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
@@ -325,6 +359,7 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
                 magnetic_field_t, surface_pressure_pa,
                 atmosphere_summary, description, discovery_year, discoverer,
                 children: Vec::new(), // populated in second pass below
+                map_color,
             });
         }
     }
@@ -520,6 +555,49 @@ pub fn body_world_position_3d_au(body: &SolBody, sim_time_seconds: f64) -> glam:
     }
 }
 
+/// The orbit's semi-major axis in AU (moons store theirs in km), or None for a
+/// body with no orbit (the Sun).
+pub fn semi_major_axis_au(body: &SolBody) -> Option<f64> {
+    if body.semi_major_axis_au > 0.0 {
+        Some(body.semi_major_axis_au)
+    } else if body.semi_major_axis_km > 0.0 {
+        Some(body.semi_major_axis_km / KM_PER_AU)
+    } else {
+        None
+    }
+}
+
+/// The body's eccentric anomaly at `sim_time_seconds`, radians: where on its
+/// ellipse it is, in the parameter `orbit_point_au` takes. The Maps page's
+/// orbit lines put this exact point in as a vertex, so a body always sits on
+/// its own line (Maps increment 2, design 5.4).
+pub fn eccentric_anomaly_at(body: &SolBody, sim_time_seconds: f64) -> f64 {
+    kepler_solve(mean_anomaly_deg_at(body, sim_time_seconds).to_radians(), body.eccentricity.clamp(0.0, 0.99))
+}
+
+/// The point at eccentric anomaly `ea` (radians) on the body's orbit as it lies
+/// at `sim_time_seconds`, relative to its parent, in AU and world axes: the
+/// same ellipse `body_position_relative_au` moves the body along, so
+/// `orbit_point_au(b, eccentric_anomaly_at(b, t), t)` IS the body's place.
+pub fn orbit_point_au(body: &SolBody, ea: f64, sim_time_seconds: f64) -> glam::DVec3 {
+    let Some(a_au) = semi_major_axis_au(body) else { return glam::DVec3::ZERO };
+    let e = body.eccentricity.clamp(0.0, 0.99);
+    let (p, q) = perifocal_axes_ecliptic(body, sim_time_seconds);
+    world_from_ecliptic(p * (a_au * (ea.cos() - e)) + q * (a_au * (1.0 - e * e).sqrt() * ea.sin()))
+}
+
+/// The orbit as it lies at `sim_time_seconds`, ready to sample fast: (A, B,
+/// e) in AU and world axes, such that the point at eccentric anomaly E is
+/// `A * (cos E - e) + B * sin E` relative to the parent, the same point
+/// `orbit_point_au` gives, with its rotation worked out once instead of per
+/// point (the Maps page samples every orbit each frame). None with no orbit.
+pub fn orbit_axes_au(body: &SolBody, sim_time_seconds: f64) -> Option<(glam::DVec3, glam::DVec3, f64)> {
+    let a_au = semi_major_axis_au(body)?;
+    let e = body.eccentricity.clamp(0.0, 0.99);
+    let (p, q) = perifocal_axes_ecliptic(body, sim_time_seconds);
+    Some((world_from_ecliptic(p) * a_au, world_from_ecliptic(q) * (a_au * (1.0 - e * e).sqrt()), e))
+}
+
 /// Sample a body's orbit at N points around the orbital ellipse, in the
 /// PARENT's frame (parent at origin). Returns positions in AU.
 /// Used by orbit-line rendering.
@@ -577,6 +655,55 @@ mod tests {
         // The four bodies all three views must agree on.
         for id in ["sun", "earth", "mars", "moon"] {
             assert!(find_body(id).is_some(), "canonical model missing '{id}'");
+        }
+    }
+
+    /// Every shipped body carries its Maps colour in the data, read as
+    /// written: Mars from its albedo map is red, the Moon's map is a neutral
+    /// grey, Enceladus (99% albedo, no map) is near white and a 4% comet dark.
+    ///
+    /// Seen red 2026-10-21 with the loader ignoring `map_color` (every body
+    /// fell back to grey at its albedo): "Mars's map colour [137, 137, 137]
+    /// is not red".
+    #[test]
+    fn the_shipped_bodies_carry_their_map_colours() {
+        let json = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/star_systems/sol.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        for b in parsed["bodies"].as_array().unwrap() {
+            let c = b["map_color"].as_str().unwrap_or_default();
+            assert!(parse_hex_rgb(c).is_some(), "{} has no map_color in sol.json ({c:?})", b["id"]);
+            assert!(b["map_color_source"].as_str().is_some_and(|s| !s.is_empty()), "{} does not say where its colour came from", b["id"]);
+        }
+        let mars = find_body("mars").unwrap().map_color;
+        assert!(mars[0] as u32 > mars[1] as u32 + 60 && mars[0] > mars[2], "Mars's map colour {mars:?} is not red");
+        let moon = find_body("moon").unwrap().map_color;
+        assert!(moon[0].abs_diff(moon[2]) < 12, "the Moon's map colour {moon:?} is not grey");
+        assert!(find_body("enceladus").unwrap().map_color[0] > 240);
+        assert!(find_body("halley").unwrap().map_color[0] < 70);
+        assert_eq!(parse_hex_rgb("#b85d41"), Some([0xb8, 0x5d, 0x41]));
+        assert_eq!(parse_hex_rgb("b85d41"), None);
+    }
+
+    /// The fast form of an orbit the Maps page samples with (`orbit_axes_au`)
+    /// gives the same points as `orbit_point_au`, and the body's own place at
+    /// its own eccentric anomaly, for a planet, a moon whose node turns, and a
+    /// comet.
+    ///
+    /// Seen red 2026-10-21 with the B axis scaled by `a` instead of `b` (the
+    /// minor axis): "mars at E 1: the fast form is 0.0056 AU off".
+    #[test]
+    fn the_fast_orbit_form_gives_the_same_points() {
+        let t = 843_782_400.0;
+        for id in ["mars", "moon", "halley"] {
+            let b = find_body(id).unwrap();
+            let (ax, bx, e) = orbit_axes_au(b, t).unwrap();
+            for ea in [0.0, 1.0, 2.5, 4.0] {
+                let fast = ax * (f64::cos(ea) - e) + bx * f64::sin(ea);
+                let off = (fast - orbit_point_au(b, ea, t)).length();
+                assert!(off < 1e-12, "{id} at E {ea}: the fast form is {off:.4} AU off");
+            }
+            let at = orbit_point_au(b, eccentric_anomaly_at(b, t), t);
+            assert!((at - body_position_relative_au(b, t)).length() < 1e-12, "{id} is not on its own orbit");
         }
     }
 

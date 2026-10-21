@@ -46,6 +46,39 @@ pub struct Theme {
     /// (v0.786). Default = the operator-chosen teal #224444.
     #[serde(default = "default_constellation_line")]
     pub constellation_line: C,
+    // ── The Maps page's symbols (Maps increment 2, docs/design/maps-zoom-to-anything.md):
+    // the space behind the Solar System view, its orbit lines by kind of body, its names and
+    // the dark edge that keeps a name readable over a bright globe, the belts' dust (rock and
+    // ice) and the reference rings and Lagrange markers. Body colours are DATA, not theme
+    // (sol.json `map_color`): Mars is red whatever the theme.
+    #[serde(default = "default_map_space")]
+    pub map_space: C,
+    #[serde(default = "default_map_orbit_planet")]
+    pub map_orbit_planet: C,
+    #[serde(default = "default_map_orbit_moon")]
+    pub map_orbit_moon: C,
+    #[serde(default = "default_map_orbit_minor")]
+    pub map_orbit_minor: C,
+    #[serde(default = "default_map_label")]
+    pub map_label: C,
+    #[serde(default = "default_map_label_minor")]
+    pub map_label_minor: C,
+    #[serde(default = "default_map_label_halo")]
+    pub map_label_halo: C,
+    #[serde(default = "default_map_belt")]
+    pub map_belt: C,
+    #[serde(default = "default_map_belt_outer")]
+    pub map_belt_outer: C,
+    #[serde(default = "default_map_reference")]
+    pub map_reference: C,
+    /// A planet's orbit line width on the Maps page, points (moons draw at 80%,
+    /// minor bodies at 65%).
+    #[serde(default = "default_map_orbit_width")]
+    pub map_orbit_width: f32,
+    /// The size of a planet's name on the Maps page, points (moons and minor
+    /// bodies draw at 85%).
+    #[serde(default = "default_map_label_size")]
+    pub map_label_size: f32,
     pub border: C,
     pub border_focus: C,
     pub badge_admin: C,
@@ -409,6 +442,16 @@ impl Theme {
     pub fn info(&self) -> Color32 { Self::c32(&self.info) }
     pub fn orbit_line(&self) -> Color32 { Self::c32(&self.orbit_line) }
     pub fn constellation_line(&self) -> Color32 { Self::c32(&self.constellation_line) }
+    pub fn map_space(&self) -> Color32 { Self::c32(&self.map_space) }
+    pub fn map_orbit_planet(&self) -> Color32 { Self::c32(&self.map_orbit_planet) }
+    pub fn map_orbit_moon(&self) -> Color32 { Self::c32(&self.map_orbit_moon) }
+    pub fn map_orbit_minor(&self) -> Color32 { Self::c32(&self.map_orbit_minor) }
+    pub fn map_label(&self) -> Color32 { Self::c32(&self.map_label) }
+    pub fn map_label_minor(&self) -> Color32 { Self::c32(&self.map_label_minor) }
+    pub fn map_label_halo(&self) -> Color32 { Self::c32(&self.map_label_halo) }
+    pub fn map_belt(&self) -> Color32 { Self::c32(&self.map_belt) }
+    pub fn map_belt_outer(&self) -> Color32 { Self::c32(&self.map_belt_outer) }
+    pub fn map_reference(&self) -> Color32 { Self::c32(&self.map_reference) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
     pub fn border_focus(&self) -> Color32 { Self::c32(&self.border_focus) }
 
@@ -703,6 +746,18 @@ fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
 fn default_text_strong() -> C { (1.0, 1.0, 1.0, 1.0) } // #ffffff, one step above text_primary
 fn default_orbit_line() -> C { (0.0078, 0.0118, 0.0196, 1.0) } // #020305 near-black
 fn default_constellation_line() -> C { (0.133, 0.267, 0.267, 1.0) } // #224444 teal
+fn default_map_space() -> C { (0.012, 0.012, 0.024, 1.0) } // near-black with a little blue
+fn default_map_orbit_planet() -> C { (0.42, 0.58, 0.86, 0.85) } // steel blue
+fn default_map_orbit_moon() -> C { (0.56, 0.60, 0.70, 0.70) } // grey-blue
+fn default_map_orbit_minor() -> C { (0.70, 0.58, 0.42, 0.70) } // muted amber
+fn default_map_label() -> C { (0.88, 0.89, 0.93, 1.0) }
+fn default_map_label_minor() -> C { (0.64, 0.66, 0.72, 1.0) }
+fn default_map_label_halo() -> C { (0.0, 0.0, 0.0, 0.80) }
+fn default_map_belt() -> C { (0.82, 0.74, 0.62, 0.7) } // rock dust
+fn default_map_belt_outer() -> C { (0.62, 0.74, 0.88, 0.7) } // ice dust
+fn default_map_reference() -> C { (0.35, 0.62, 0.95, 0.85) }
+fn default_map_orbit_width() -> f32 { 1.2 }
+fn default_map_label_size() -> f32 { 12.5 }
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
 fn default_badge_padding() -> f32 { 6.0 }
@@ -791,6 +846,18 @@ fn default_theme() -> Theme {
         info: (0.2, 0.5, 0.9, 1.0),
         orbit_line: default_orbit_line(),
         constellation_line: default_constellation_line(),
+        map_space: default_map_space(),
+        map_orbit_planet: default_map_orbit_planet(),
+        map_orbit_moon: default_map_orbit_moon(),
+        map_orbit_minor: default_map_orbit_minor(),
+        map_label: default_map_label(),
+        map_label_minor: default_map_label_minor(),
+        map_label_halo: default_map_label_halo(),
+        map_belt: default_map_belt(),
+        map_belt_outer: default_map_belt_outer(),
+        map_reference: default_map_reference(),
+        map_orbit_width: default_map_orbit_width(),
+        map_label_size: default_map_label_size(),
         border: (0.165, 0.165, 0.208, 1.0),            // #2a2a35
         border_focus: (0.929, 0.549, 0.141, 1.0),      // #ED8C24
         badge_admin: (0.9, 0.5, 0.13, 1.0),

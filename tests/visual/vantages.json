@@ -13702,6 +13702,124 @@
           "page": "none"
         }
       ]
+    },
+    {
+      "id": "maps-system-overview",
+      "desc": "Aboard the UHS Mothership, the Maps page opened on the solar-system overview: the camera 11 AU above the Sun, tilted 15 degrees off straight down.",
+      "expect": "The real star sky and the Milky Way behind (the world layer, star sky only); the Sun's glare at the centre; every planet a small phase-lit disc of its real colour with its orbit fading behind it; the main belt, the Hildas and Jupiter's two trojan swarms as dust; the planets named, no two names overlapping; the layer switches at the top right.",
+      "_why": "Maps increment 2 (docs/design/maps-zoom-to-anything.md, 2026-10-21), \"a solar system that looks real\". Operator 2026-10-20: \"I don't know exactly how we should improve the solar system appearance but, we need to figure something out. It just looks like a bunch of lines with a few colored dots for planets/moons/asteroids.\" The map_overview check judges what the page drew (debug/map_done.json) and cpu.maps_symbology (under 1 ms) from the costs captured with the picture.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "overview"
+        }
+      ],
+      "map_overview": {
+        "expect": "pass",
+        "min_belt_points": 10000,
+        "min_orbits": 8,
+        "min_bodies": 12,
+        "min_labels": 6,
+        "max_symbology_ms": 1.0
+      }
+    },
+    {
+      "id": "maps-near-space",
+      "desc": "Aboard the UHS Mothership, the Maps page following you, zoomed out to 400,000 km: near space.",
+      "expect": "The real Earth from the world layer (its day side, clouds and night side, not a flat disc), the Moon a small phase-lit icon or globe on its orbit trail, the ship an orange icon on its synchronous ring with its name, the real star sky behind. No icon painted over the real Earth's globe.",
+      "_why": "Maps increment 2 (2026-10-21) takes the whole world layer out from the ship band (60 km) to the edge of near space (2 million km), as increment 1 left for it, with the icons handing off to the real globes over about 6 px. This is the vantage that shows the hand-off on rendered pixels.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home",
+          "map_distance": "400000000"
+        }
+      ]
+    },
+    {
+      "id": "maps-closed-after-near",
+      "desc": "The parked view of home-clock-noon after the Maps page was opened, zoomed out to near space (the whole world rendered from 400,000 km) and closed again.",
+      "expect": "The same picture as home-clock-noon and maps-closed-after: the clouds and Earth through the deck glass unsmeared.",
+      "_why": "Maps increment 2, the design's risk 1 again: the world layer now renders the cloud passes from as far as 2 million km, so leaving the map from near space is a bigger camera cut than leaving it from the ship. Compare with home-clock-noon.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home",
+          "map_distance": "400000000"
+        },
+        {
+          "page": "none"
+        }
+      ]
+    },
+    {
+      "id": "maps-system-overview-nobelts",
+      "desc": "THE CONTROL: maps-system-overview with the belts layer switched off.",
+      "expect": "The same overview without the dust. The overview check must FAIL here (no belt points), or it cannot fail anywhere.",
+      "_why": "Maps increment 2, 2026-10-21. A check that cannot fail proves nothing (memory feedback_checks_that_cannot_fail): this vantage passes only when the map_overview check fails.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "overview",
+          "map_layer": "belts=0"
+        }
+      ],
+      "map_overview": {
+        "expect": "fail",
+        "min_belt_points": 10000,
+        "min_orbits": 8,
+        "min_bodies": 12,
+        "min_labels": 6,
+        "max_symbology_ms": 1.0
+      }
     }
   ],
   "ladder": {

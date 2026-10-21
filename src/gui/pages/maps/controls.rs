@@ -29,7 +29,7 @@ const ZOOM_PER_PT: f64 = 1.0015;
 /// flies back to you. Any of them takes hold of a flight in progress.
 pub(super) fn handle_input(ui: &egui::Ui, response: &egui::Response, rect: Rect, state: &mut GuiState) {
     let me = state.maps.me.clone();
-    let scene = MapScene::new(me.as_ref(), state.maps.sim_time_seconds, state.maps.live);
+    let scene = MapScene::new(me.as_ref(), state.maps.sim_time_seconds, state.maps.live).with_diagram(state.maps.diagram);
     let cam = &mut state.maps.camera;
     if response.dragged() {
         let d = response.drag_delta();
@@ -54,7 +54,7 @@ pub(super) fn draw_follow_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
     let row = Rect::from_min_size(rect.min + Vec2::new(8.0, 8.0), Vec2::new((rect.width() - 300.0).max(200.0), 24.0));
     let mut ui = ui.new_child(egui::UiBuilder::new().max_rect(row).layout(egui::Layout::left_to_right(egui::Align::Center)));
     let me = state.maps.me.clone();
-    let scene = MapScene::new(me.as_ref(), state.maps.sim_time_seconds, state.maps.live);
+    let scene = MapScene::new(me.as_ref(), state.maps.sim_time_seconds, state.maps.live).with_diagram(state.maps.diagram);
     if me.is_some() {
         if state.maps.camera.follows_me() {
             ui.label(RichText::new("Following you").size(theme.font_size_small).color(theme.accent()).strong());
@@ -86,7 +86,7 @@ pub(super) fn advance(state: &mut GuiState) {
     if state.maps.turn_dps != 0.0 {
         // The rig's dev turn (`MapVerb::turn_dps`): a steady drag round the anchor.
         let me = state.maps.me.clone();
-        let scene = MapScene::new(me.as_ref(), state.maps.sim_time_seconds, state.maps.live);
+        let scene = MapScene::new(me.as_ref(), state.maps.sim_time_seconds, state.maps.live).with_diagram(state.maps.diagram);
         state.maps.camera.rotate_by(state.maps.turn_dps.to_radians() * dt, 0.0, &scene);
     }
     if state.maps.live {

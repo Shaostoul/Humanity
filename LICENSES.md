@@ -50,6 +50,29 @@ the ODbL text disagree, the licence governs.
 NASA imagery is generally public domain and carries no attribution requirement.
 It is credited anyway.
 
+## Minor Planet Center orbits (the Maps page's asteroid belts)
+
+`data/maps/belts.json` holds the orbits of 20,000 real minor planets (the main
+belt, the Hildas, Jupiter's trojans, the Kuiper belt and beyond), derived by
+`scripts/build-belts.js` from the Minor Planet Center's `MPCORB.DAT`
+(downloaded 2026-10-21). It is **not** under the project's own licence: the MPC
+asserts copyright in its data files, and the header of `MPCORB.DAT` lets
+software include the data on three conditions, all met here:
+
+- **the header ships with the data**: `data/maps/MPCORB-header.txt`, byte for
+  byte as the MPC wrote it;
+- **attribution to the Minor Planet Center**: on the Maps page wherever the
+  belts are drawn (app and website), in `data/credits.ron` and here;
+- **how to get updated copies**: <https://www.minorplanetcenter.org/iau/MPCORB/MPCORB.DAT>,
+  updated daily; rerun `node scripts/build-belts.js` to refresh the file.
+
+Every row keeps its `ref` and `computer` columns, which is how the header says
+the people who computed each orbit are credited. The research behind this,
+with the MPC's own words quoted and dated, is in
+`docs/reference/findings/2026-10-21-mpc-orbit-data.md` (a reading of public
+sources, not legal advice; it names the one message to the MPC that would
+settle its two open points).
+
 ## Star catalogues - the second share-alike source
 
 The app ships THREE star catalogues and lets the player choose between them in

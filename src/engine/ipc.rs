@@ -853,7 +853,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // {"map":"home|follow|unfollow|report","map_distance":"<m>","map_ship":"0|1"} (Maps
     // increment 1): the Maps page's camera and world layer, for the rig's map vantages
     // (engine/map_view.rs `showcase`). Permanent dev tooling.
-    crate::engine::map_view::showcase(state, &text);
+    crate::engine::map_rig::showcase(state, &text);
     // {"accept_request":"<key>"} (ship homes 5b): accept that person's contact request, as the
     // Requests list's Accept does (engine/reach.rs `accept_request`, the protected setup's gate
     // included): they become a friend, and get a friendship pass. verify-copresence --household
@@ -1983,6 +1983,13 @@ pub(crate) enum ViewPasses {
     /// any window; a planet in a camera's window is a later rung (it needs
     /// a second temporal history keyed per camera).
     SceneOnly,
+    /// The star sky alone (galaxy glow, stars, halos), at NIGHT whatever the
+    /// player's own sky is doing: the Maps page's world layer in the
+    /// solar-system band (Maps increment 2, engine/map_view.rs), where the
+    /// map's camera is an AU or more from anything the other passes draw.
+    /// The star pass depends only on the camera's direction, so it is exact
+    /// from any distance; nothing after it runs.
+    SkyOnly,
 }
 
 /// THE DAYLIGHT GATE for the star pass (v0.1059), shared by the live frame
@@ -2194,7 +2201,7 @@ pub(crate) fn render_view_onto_kept(
     // keying it as a "screen" would misattribute a screenshot to the
     // camera wall.
     let who = match passes {
-        ViewPasses::Everything => crate::renderer::frame_costs::SceneView::Main,
+        ViewPasses::Everything | ViewPasses::SkyOnly => crate::renderer::frame_costs::SceneView::Main,
         ViewPasses::SceneOnly => crate::renderer::frame_costs::SceneView::Screen,
     };
     // The view's own depth buffer goes in; the window's is parked, not
@@ -2208,8 +2215,11 @@ pub(crate) fn render_view_onto_kept(
     let target = &scratch;
     // The same daylight the live frame computes for its star pass: a camera
     // draws no sky over its stars, so without this a daytime window would
-    // show stars (the rung-3 reviewer's finding).
-    let daylight = sky_daylight(state);
+    // show stars (the rung-3 reviewer's finding). The map's sky-only view is
+    // out in space, where there is no daytime sky: every star, every layer.
+    let sky_only = passes == ViewPasses::SkyOnly;
+    let daylight = !sky_only && sky_daylight(state);
+    let fades = if sky_only { crate::renderer::sky_frame::SkyFades::FULL } else { star_fades(state) };
 
     // Pass 1: sky -- galaxy glow, stars, halos, constellations -- exactly as
     // the live frame draws it (clear to black + star renderer). If the star
@@ -2222,7 +2232,7 @@ pub(crate) fn render_view_onto_kept(
         let (sky_gpu, sky_cpu) = who.sky_ids();
         let _cost = crate::renderer::frame_costs::stage(sky_cpu);
         if let Some(ref star_r) = state.star_renderer {
-            star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), star_fades(state));
+            star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), fades);
         }
         let mut encoder = state.renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("View Star Encoder") },
@@ -2282,13 +2292,15 @@ pub(crate) fn render_view_onto_kept(
         state.renderer.render_godrays_onto(camera, sun_dir_f, target, godray_scale(state));
         state.renderer.render_ssao_onto(camera, target);
     }
-    state.renderer.render_scene_onto(camera, lists.opaque, target, who);
-    state.renderer.render_transparent_onto(camera, lists.transparent, target, who);
-    // Same `who` for the overlay and the ring lines: a camera screen's draws
-    // publish under `gpu.screen_overlay` / `gpu.screen_lines`, not the live
-    // frame's ids (the 2026-09-18 review found them summed into the Main ones).
-    state.renderer.render_overlay_onto(camera, lists.overlay, target, who);
-    state.renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
+    if !sky_only {
+        state.renderer.render_scene_onto(camera, lists.opaque, target, who);
+        state.renderer.render_transparent_onto(camera, lists.transparent, target, who);
+        // Same `who` for the overlay and the ring lines: a camera screen's draws
+        // publish under `gpu.screen_overlay` / `gpu.screen_lines`, not the live
+        // frame's ids (the 2026-09-18 review found them summed into the Main ones).
+        state.renderer.render_overlay_onto(camera, lists.overlay, target, who);
+        state.renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
+    }
 
     // Present the scratch into the caller's target, timed as this view's
     // present (`gpu.present` for the screenshot, `gpu.screen_present` for a

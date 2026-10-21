@@ -150,6 +150,21 @@ function buildCss(tokens) {
   lines.push(`  --badge-donor: ${c('badge_donor')};`);
   lines.push(`  --badge-live: ${c('badge_live')};`);
   lines.push('');
+  lines.push('  /* Maps page symbols (Maps increment 2): space, orbit lines by kind of body, names,');
+  lines.push('     the dark edge behind a name, the belts\' dust (rock, ice), reference rings and L points */');
+  lines.push(`  --map-space: ${c('map_space')}; /* theme-exempt: space is dark in both themes, the map draws over it */`);
+  lines.push(`  --map-orbit-planet: ${c('map_orbit_planet')};`);
+  lines.push(`  --map-orbit-moon: ${c('map_orbit_moon')};`);
+  lines.push(`  --map-orbit-minor: ${c('map_orbit_minor')};`);
+  lines.push(`  --map-label: ${c('map_label')};`);
+  lines.push(`  --map-label-minor: ${c('map_label_minor')};`);
+  lines.push(`  --map-label-halo: ${c('map_label_halo')};`);
+  lines.push(`  --map-belt: ${c('map_belt')};`);
+  lines.push(`  --map-belt-outer: ${c('map_belt_outer')};`);
+  lines.push(`  --map-reference: ${c('map_reference')};`);
+  lines.push(`  --map-orbit-width: ${n(t.map_orbit_width, 1.2)}px;`);
+  lines.push(`  --map-label-size: ${n(t.map_label_size, 12.5)}px;`);
+  lines.push('');
   lines.push('  /* Radii */');
   lines.push(`  --radius-sm: ${n(t.border_radius_widget, 3)}px;`);
   lines.push(`  --radius: ${n(t.border_radius, 4)}px;`);
@@ -326,6 +341,19 @@ const LIGHT = {
   '--section-magenta': '#9c2c90',
   '--section-yellow-bg': '#f6f0d6',
   '--section-yellow': '#7f6200',
+  // The Maps page's space is black in both themes (it is space; the line that
+  // defines --map-space says so with theme-exempt), and its symbols sit on it,
+  // so all of them keep their dark-theme colours.
+  '--map-space': 'same',
+  '--map-orbit-planet': 'same',
+  '--map-orbit-moon': 'same',
+  '--map-orbit-minor': 'same',
+  '--map-label': 'same',
+  '--map-label-minor': 'same',
+  '--map-label-halo': 'same',
+  '--map-belt': 'same',
+  '--map-belt-outer': 'same',
+  '--map-reference': 'same',
 };
 
 /** Emit the light block, refusing to run if it does not cover every colour
@@ -333,7 +361,8 @@ const LIGHT = {
 function buildLight(rootLines, light = LIGHT) {
   const colourVars = [];
   for (const line of rootLines) {
-    const m = /^\s*(--[\w-]+):\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\));\s*$/.exec(line);
+    // A trailing /* comment */ is allowed (the theme-exempt note on --map-space).
+    const m = /^\s*(--[\w-]+):\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\));\s*(\/\*.*\*\/)?\s*$/.exec(line);
     if (m) colourVars.push(m[1]);
   }
   const missing = colourVars.filter((v) => !(v in light));

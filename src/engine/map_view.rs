@@ -16,13 +16,18 @@
 //!   line) the lists are still in the HOME frame: lib.rs adds `station_off`
 //!   only in the live branch. Riding, the station is the frame's origin and
 //!   `station_off` is zero, so home frame and render frame agree; that is why
-//!   the world layer is drawn only aboard (`you_layer::world_layer_want`).
+//!   the whole world is drawn only aboard (`maps/world_layer.rs`).
 //! * The render. `engine::ipc::render_view_onto_kept` with
 //!   `ViewPasses::Everything` (the hi-res screenshot's passes: sky, planet and
 //!   clouds, celestial lines, god rays, SSAO, scene, transparent, overlay),
 //!   into a display-format texture registered with the window's egui
 //!   renderer. Its view buffers are kept while the page is open (the same
-//!   size again next render) and released when it closes.
+//!   size again next render) and released when it closes. Maps increment 2:
+//!   the whole world reaches out to the edge of near space (2 million km, the
+//!   ship's own lists only within 60 km), and wherever it cannot be drawn but
+//!   the world is loaded (the solar-system band, the Diagram, away from the
+//!   ship, off Live) the layer is the STAR SKY alone, `ViewPasses::SkyOnly`,
+//!   exact from any distance because the star pass reads only the direction.
 //! * When. Only when something changed: the camera moved (in the render
 //!   frame: following a ship that hangs over one place, it does not), the
 //!   canvas resized, the ship was hidden or shown, or a second passed (the
@@ -39,8 +44,9 @@
 //! Cloud history (the design's risk 1): the cloud passes keep a temporal map
 //! indexed by direction from the camera. At ship scale the map's camera is a
 //! kilometre or two from the player's and the clouds are 36,000 km off, so
-//! the history fits both; the world layer is limited to that band
-//! (`camera::WORLD_LAYER_MAX_M`).
+//! the history fits both. Increment 2 takes the whole world out to near space;
+//! the rig's `maps-closed-after` vantage is the check that leaving the map
+//! does not smear the player's clouds.
 
 use std::time::{Duration, Instant};
 
@@ -50,7 +56,7 @@ use crate::engine::ipc::{render_view_onto_kept, ViewPasses};
 use crate::engine::state::{EngineState, SceneDrawLists};
 use crate::gui::pages::maps::camera::{MapPose, MapScene};
 use crate::gui::pages::maps::you_layer::{world_layer_want, WorldLayerWant};
-use crate::gui::{MapSelf, MapVerb};
+use crate::gui::MapSelf;
 use crate::gui::GuiPage;
 use crate::renderer::camera::Camera;
 use crate::renderer::line::LineVertex;
@@ -61,8 +67,6 @@ const REFINE_AFTER: Duration = Duration::from_millis(250);
 /// The longest the layer goes unrendered at rest (the clock, the clouds,
 /// an edit to the ship all show within this).
 const REST_REFRESH: Duration = Duration::from_millis(1000);
-/// Where the rig's report goes.
-const REPORT_PATH: &str = "debug/map_done.json";
 
 /// One texture the world is rendered into.
 pub(crate) struct Target {
@@ -94,6 +98,7 @@ struct ViewKey {
     up: [u32; 3],
     size: (u32, u32),
     draw_ship: bool,
+    sky_only: bool,
 }
 
 impl ViewKey {
@@ -147,27 +152,35 @@ pub(crate) fn frame(
 ) {
     if state.gui_state.active_page != GuiPage::Maps {
         release(state);
-        write_report_if_due(state, None);
+        crate::engine::map_rig::write_report_if_due(state, None);
         return;
     }
     let want = world_layer_want(&state.gui_state.maps);
-    if want == WorldLayerWant::Draw && state.world_loaded {
+    if state.world_loaded && (want == WorldLayerWant::Draw || want.draws_sky()) {
         let lists = SceneDrawLists { celestial, celestial_transparent, orbit_lines, opaque, transparent, overlay, ring_lines };
-        render_if_due(state, &lists);
+        render_if_due(state, &lists, want != WorldLayerWant::Draw);
     }
-    write_report_if_due(state, Some(want));
+    crate::engine::map_rig::write_report_if_due(state, Some(want));
 }
 
-fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists) {
+/// Render the world layer if anything it depends on changed: the whole world
+/// (`sky_only` false: aboard, live, within near space), or the star sky alone
+/// (Maps increment 2: the solar-system band, the Diagram, away from the ship).
+fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool) {
     let maps = &state.gui_state.maps;
     let (Some(me), Some([w_pt, h_pt])) = (maps.me.clone(), maps.canvas_points) else { return };
     let ppp = maps.pixels_per_point.max(0.25);
     let full = (((w_pt * ppp).round() as u32).max(16), ((h_pt * ppp).round() as u32).max(16));
-    let scene = MapScene::new(Some(&me), maps.sim_time_seconds, maps.live);
+    let scene = MapScene::new(Some(&me), maps.sim_time_seconds, maps.live).with_diagram(maps.diagram);
     let pose = maps.camera.pose(&scene);
-    let draw_ship = maps.draw_ship;
+    // The ship's meshes only in the ship band: beyond it the ship is under a
+    // pixel and its draw lists would cost their submission for nothing.
+    let in_ship_band = (pose.eye - me.ship_centre_m()).length() <= crate::gui::pages::maps::camera::WORLD_LAYER_MAX_M;
+    let draw_ship = maps.draw_ship && in_ship_band && !sky_only;
     let cam_full = render_camera(&pose, &me, full.0 as f32 / full.1 as f32);
-    let key = ViewKey { eye: bits(cam_full.position), fwd: bits(cam_full.forward()), up: bits(cam_full.up), size: full, draw_ship };
+    // The sky depends on the direction only: where the eye is does not count.
+    let eye = if sky_only { Vec3::ZERO } else { cam_full.position };
+    let key = ViewKey { eye: bits(eye), fwd: bits(cam_full.forward()), up: bits(cam_full.up), size: full, draw_ship, sky_only };
 
     let now = Instant::now();
     let mv = &mut state.map_view;
@@ -177,7 +190,7 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists) {
     }
     let half = mv.last_move.is_some_and(|t| now.duration_since(t) < REFINE_AFTER);
     let due = moved
-        || mv.last_key.map_or(true, |k| k.size != key.size || k.draw_ship != key.draw_ship)
+        || mv.last_key.map_or(true, |k| k.size != key.size || k.draw_ship != key.draw_ship || k.sky_only != key.sky_only)
         || (mv.last_half && !half)
         || mv.last_render.map_or(true, |t| now.duration_since(t) >= REST_REFRESH);
     if !due {
@@ -197,7 +210,8 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists) {
         overlay: if draw_ship { lists.overlay } else { &empty_objects },
         ring_lines: if draw_ship { lists.ring_lines } else { &empty_lines },
     };
-    render_view_onto_kept(state, &cam_full, &target.0, size, &ship_lists, ViewPasses::Everything, true);
+    let passes = if sky_only { ViewPasses::SkyOnly } else { ViewPasses::Everything };
+    render_view_onto_kept(state, &cam_full, &target.0, size, &ship_lists, passes, true);
     state.renderer.mark_view_frame();
     let mv = &mut state.map_view;
     mv.buffers_kept = true;
@@ -210,6 +224,7 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists) {
     world.half = half;
     world.renders += 1;
     world.ship_drawn = draw_ship;
+    world.sky_only = sky_only;
     world.rendered_seq = state.gui_state.maps.frame_seq;
 }
 
@@ -271,114 +286,6 @@ fn release(state: &mut EngineState) {
     world.renders = 0;
 }
 
-/// The showcase verbs for the map (`engine/ipc.rs` `poll_showcase_request`):
-/// `{"map":"home"|"follow"|"unfollow"|"report"}`, `{"map_distance":"<m>"}`,
-/// `{"map_ship":"0"|"1"}`, `{"map_turn":"<deg/s>"}`. Queued for the feed, which applies them after its
-/// page-open handling. Permanent dev tooling (the rig's map vantages).
-pub(crate) fn showcase(state: &mut EngineState, text: &str) {
-    match parse_map_verb(|k| crate::engine::ipc::showcase_value(text, k)) {
-        Ok(Some(verb)) => {
-            log::info!("Showcase: map -> {verb:?}");
-            state.gui_state.maps.pending.push(verb);
-        }
-        Ok(None) => {}
-        Err(why) => log::warn!("Showcase: {why}"),
-    }
-}
-
-/// Read the map verbs out of a showcase request. None when it has none.
-pub(crate) fn parse_map_verb(get: impl Fn(&str) -> Option<String>) -> Result<Option<MapVerb>, String> {
-    let mut verb = MapVerb::default();
-    let mut any = false;
-    if let Some(m) = get("map") {
-        any = true;
-        match m.trim() {
-            "home" => verb.home = true,
-            "follow" => verb.follow = Some(true),
-            "unfollow" => verb.follow = Some(false),
-            "report" => verb.report = true,
-            other => return Err(format!("map wants home, follow, unfollow or report, not {other:?}")),
-        }
-    }
-    if let Some(d) = get("map_distance") {
-        any = true;
-        match d.trim().parse::<f64>() {
-            Ok(m) if m.is_finite() && m > 0.0 => verb.distance_m = Some(m),
-            _ => return Err(format!("map_distance wants metres above 0, not {d:?}")),
-        }
-    }
-    if let Some(s) = get("map_ship") {
-        any = true;
-        verb.ship = Some(match s.trim() {
-            "1" => true,
-            "0" => false,
-            other => return Err(format!("map_ship wants 0 or 1, not {other:?}")),
-        });
-    }
-    if let Some(t) = get("map_turn") {
-        any = true;
-        match t.trim().parse::<f64>() {
-            Ok(dps) if dps.is_finite() && dps.abs() <= 360.0 => verb.turn_dps = Some(dps),
-            _ => return Err(format!("map_turn wants degrees a second, -360 to 360, not {t:?}")),
-        }
-    }
-    // A report rides along with any other verb when asked for.
-    if get("map_report").as_deref() == Some("1") {
-        any = true;
-        verb.report = true;
-    }
-    Ok(any.then_some(verb))
-}
-
-/// Write `debug/map_done.json` once the rig's report request has been
-/// drawn: the page drew at or after the request, and with the world layer
-/// wanted, it rendered at or after it too. `want` is None when the page is
-/// not open (written at once, saying so).
-fn write_report_if_due(state: &mut EngineState, want: Option<WorldLayerWant>) {
-    let maps = &state.gui_state.maps;
-    let Some(after) = maps.report_after_seq else { return };
-    if let Some(w) = want {
-        let drawn = maps.drawn_seq >= after;
-        let rendered = w != WorldLayerWant::Draw || maps.world.rendered_seq >= after;
-        if !(drawn && rendered) {
-            return;
-        }
-    }
-    let report = report_json(&state.gui_state.maps, want, state.gui_state.active_page == GuiPage::Maps);
-    let _ = std::fs::create_dir_all("debug");
-    let _ = std::fs::write(REPORT_PATH, report.to_string());
-    state.gui_state.maps.report_after_seq = None;
-}
-
-/// The report's body (pure, so its shape is pinned without an engine).
-pub(crate) fn report_json(maps: &crate::gui::MapsState, want: Option<WorldLayerWant>, open: bool) -> serde_json::Value {
-    use crate::gui::pages::maps::camera::MapAnchor;
-    let anchor = match &maps.camera.anchor {
-        MapAnchor::Me => "me".to_string(),
-        MapAnchor::Body(id) => format!("body:{id}"),
-        MapAnchor::Point { body, .. } => format!("point:{body}"),
-    };
-    serde_json::json!({
-        "ok": true,
-        "page_open": open,
-        "follow_me": maps.camera.follows_me(),
-        "anchor": anchor,
-        "distance_m": maps.camera.distance(),
-        "live": maps.live,
-        "aboard": maps.me.as_ref().map(|m| m.aboard),
-        "world": {
-            "want": want.map(|w| format!("{w:?}")),
-            "renders": maps.world.renders,
-            "size": maps.world.size,
-            "half": maps.world.half,
-            "ship_drawn": maps.world.ship_drawn,
-        },
-        "canvas_px": maps.canvas_px,
-        "ship_px": maps.ship_px,
-        "frame_seq": maps.frame_seq,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,27 +343,5 @@ mod tests {
                 assert!(checked >= 3, "hour {hour}, view {view}: only {checked} hull points were on the canvas to compare");
             }
         }
-    }
-
-    /// The rig's verbs parse, and a typo is refused with the reason.
-    ///
-    /// Seen red 2026-10-21 with "unfollow" read as follow: left `follow:
-    /// Some(true)`, right `follow: Some(false)`.
-    #[test]
-    fn the_map_verbs_parse() {
-        let get = |pairs: &'static [(&'static str, &'static str)]| {
-            move |k: &str| pairs.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string())
-        };
-        assert_eq!(parse_map_verb(get(&[])), Ok(None));
-        assert_eq!(
-            parse_map_verb(get(&[("map", "unfollow"), ("map_distance", "1500")])),
-            Ok(Some(MapVerb { follow: Some(false), distance_m: Some(1500.0), ..Default::default() }))
-        );
-        assert_eq!(
-            parse_map_verb(get(&[("map_ship", "0"), ("map_report", "1")])),
-            Ok(Some(MapVerb { ship: Some(false), report: true, ..Default::default() }))
-        );
-        assert!(parse_map_verb(get(&[("map", "hoem")])).is_err());
-        assert!(parse_map_verb(get(&[("map_distance", "-3")])).is_err());
     }
 }

@@ -35,6 +35,19 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-21: MAPS INCREMENT 2'S NEW FILES JOIN ("a solar system that looks
+///   real", docs/design/maps-zoom-to-anything.md). Each part of the picture is a
+///   file of its own beside the view, at its size plus about 3%:
+///   `maps/bodies.rs` 344 (phase-lit discs, the Sun and its glare),
+///   `maps/orbits.rs` 278 (trails, adaptive sampling), `maps/belts.rs` 372 (the
+///   MPCORB dust), `maps/labels.rs` 154, `maps/overlays.rs` 458 (the layers,
+///   reference orbits and Lagrange pairs as data), `maps/diagram.rs` 114,
+///   `maps/scene.rs` 139 (MapScene, out of camera.rs), `maps/world_layer.rs` 165
+///   (out of you_layer.rs), and `engine/map_rig.rs` 277 (the rig's verbs and
+///   report, out of map_view.rs and map_feed.rs). The files the code left go
+///   DOWN: `maps/system_view.rs` 1_245 -> 790, `maps/camera.rs` 580 -> 540,
+///   `maps/you_layer.rs` 325 -> 275, `engine/map_view.rs` 480 -> 355,
+///   `engine/map_feed.rs` 300 -> 265.
 /// - 2026-10-21: MAPS INCREMENT 1'S NEW FILES JOIN (docs/design/maps-zoom-to-anything.md).
 ///   The camera, its controls, the you-and-your-ship layer and the Stations rows
 ///   landed in new files beside the carved page, as increment 0 meant them to:
@@ -419,14 +432,23 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/mod.rs", 4_800),
     ("src/gui/state_types.rs", 1_850),
     ("src/gui/pages/maps/mod.rs", 355),
-    ("src/gui/pages/maps/system_view.rs", 1_245),
+    ("src/gui/pages/maps/system_view.rs", 790),
     ("src/gui/pages/maps/body_list.rs", 365),
-    ("src/gui/pages/maps/camera.rs", 580),
+    ("src/gui/pages/maps/camera.rs", 540),
     ("src/gui/pages/maps/controls.rs", 125),
-    ("src/gui/pages/maps/you_layer.rs", 325),
+    ("src/gui/pages/maps/you_layer.rs", 275),
+    ("src/gui/pages/maps/world_layer.rs", 170),
     ("src/gui/pages/maps/stations.rs", 125),
-    ("src/engine/map_feed.rs", 300),
-    ("src/engine/map_view.rs", 480),
+    ("src/gui/pages/maps/bodies.rs", 355),
+    ("src/gui/pages/maps/orbits.rs", 290),
+    ("src/gui/pages/maps/belts.rs", 385),
+    ("src/gui/pages/maps/labels.rs", 160),
+    ("src/gui/pages/maps/overlays.rs", 470),
+    ("src/gui/pages/maps/diagram.rs", 120),
+    ("src/gui/pages/maps/scene.rs", 145),
+    ("src/engine/map_feed.rs", 265),
+    ("src/engine/map_view.rs", 355),
+    ("src/engine/map_rig.rs", 280),
     ("src/gui/pages/maps/planet_view.rs", 435),
     ("src/gui/pages/maps/galaxy_view.rs", 395),
     ("src/gui/pages/maps/night_sky.rs", 265),

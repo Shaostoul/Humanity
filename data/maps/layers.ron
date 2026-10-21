@@ -1,0 +1,52 @@
+// The Maps page's overlay LAYERS (Maps increment 2,
+// docs/design/maps-zoom-to-anything.md 5.4): every switch over the Solar System
+// view is a row here, and the page draws its buttons from this file, so a new
+// overlay is a new row plus the code that paints it, never a new hard-coded
+// button. Read by src/gui/pages/maps/overlays.rs.
+//
+// `bands` is where a layer shows, by the camera's distance from what it looks
+// at (section 4's table): Ship (up to 60 km), NearSpace (60 km to 2 million
+// km) and SolarSystem (beyond). A layer outside its bands draws nothing and
+// its button is hidden, so the bar only offers what can be seen.
+//
+// `default_on` is how the page opens; a person's switch lasts until the game
+// closes.
+(
+    layers: [
+        (
+            id: "orbits",
+            label: "Orbits",
+            help: "Each body's path round what it orbits, bright where the body is and fading behind it, so you can see which way everything moves.",
+            bands: [Ship, NearSpace, SolarSystem],
+            default_on: true,
+        ),
+        (
+            id: "names",
+            label: "Names",
+            help: "Names beside the bodies, placed so no two overlap: the most important first (you, what you are looking at, the Sun, the planets by size, then dwarf planets and moons as you come closer).",
+            bands: [Ship, NearSpace, SolarSystem],
+            default_on: true,
+        ),
+        (
+            id: "belts",
+            label: "Belts",
+            help: "The asteroid belt, the Hildas, Jupiter's trojans and the Kuiper belt, drawn from the real orbits of 20,000 real minor planets (Minor Planet Center data).",
+            bands: [SolarSystem],
+            default_on: true,
+        ),
+        (
+            id: "reference_orbits",
+            label: "Reference orbits",
+            help: "Named orbits round a planet: LEO, MEO, GEO and the rest round Earth, their kin round Mars, Jupiter and the Moon. Shown when the planet is big enough on screen to tell them apart.",
+            bands: [Ship, NearSpace],
+            default_on: false,
+        ),
+        (
+            id: "lagrange",
+            label: "Lagrange points",
+            help: "The five balance points L1 to L5 of a pair such as the Sun and Earth, where a spacecraft or an asteroid can keep pace with the smaller body. Hover a marker for what is parked there.",
+            bands: [NearSpace, SolarSystem],
+            default_on: false,
+        ),
+    ],
+)
