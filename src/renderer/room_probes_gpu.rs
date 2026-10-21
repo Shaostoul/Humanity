@@ -631,8 +631,15 @@ impl Renderer {
         // same station offset as the rooms here and as the lights, which lib.rs
         // offset by it before `set_point_lights` earlier this frame. Written
         // whether or not room GI is on: a floor is lighting, not bounce.
-        let render_slabs: Vec<OccluderSlab> =
+        let mut render_slabs: Vec<OccluderSlab> =
             if gi.slabs_off { Vec::new() } else { gi.slabs.iter().map(|s| s.shifted(station_off)).collect() };
+        // NEAREST THE EYE FIRST. The sun's walk (`slab_sun_blocked`) stops at
+        // the first slab that blocks, and most of what is on screen stands
+        // under the slab nearest the eye, so most fragments stop at the first
+        // row. In the merge order the mushroom room's slab was the 12th of 13:
+        // home-racks-noon read gpu.scene +1.25 ms with the floors on against
+        // off (2026-10-21). The runs below are copies, so any order serves.
+        render_slabs.sort_by(|a, b| a.outside_distance(eye).total_cmp(&b.outside_distance(eye)));
         table.extend(render_slabs.iter().map(pack_slab));
         let mut runs: Vec<[u32; 2]> = Vec::new();
         if !render_slabs.is_empty() {
