@@ -53,6 +53,9 @@ const G = require("../rig-graphics.js");
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hos-rig-gameplay-test-"));
 process.on("exit", () => fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
+// spawnGame takes the machine-wide rig boot lock (lib/boot-lock.js): this file's lock is its own,
+// so it never waits on, or holds up, a real rig running on this machine meanwhile.
+process.env.HUMANITY_RIG_LOCK = path.join(tmpRoot, "rig-boot.lock");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let n = 0;
 const dir = (name) => {

@@ -15,6 +15,7 @@
 //   node scripts/probe-sweep.js [--rig DIR] [--exe PATH] [--out DIR]
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
 //                               [--width PX] [--shipped-assets] [--game-only]
+//                               [--wait-min N]
 //                               [--operator-config [--operator-config-path F]]
 //                               [--allow-other-build "<reason>"] [--vantages FILE]
 //
@@ -41,6 +42,13 @@
 //   "does it enter the world with no panic" while agents are compiling.
 //   Captures beside a build are still marked contaminated, so no timing from
 //   such a run is ever graded as a reading.
+// --wait-min N (default 60, lib/machine-guard.js WAIT_MIN_DEFAULT): how long
+//   that pre-boot wait lasts. It ends by taking the machine-wide boot lock
+//   (lib/boot-lock.js: another rig's held lock counts as a busy machine, so
+//   rigs woken by the same build ending never boot together). If the machine
+//   never goes quiet the sweep REFUSES, exit 1, "REFUSED: the machine never
+//   went quiet in N min; nothing was booted" (it used to boot anyway, beside
+//   whatever was still up).
 // Defaults: rig = .probe-rig, exe = target/release/HumanityOS.exe,
 //           out = .probe-rig/sweeps/<timestamp>/, width = 2560
 // Writes <out>/manifest.json  [{id, desc, screenshot, fps, frame_ms, expect,
@@ -82,6 +90,8 @@
 // vantage failed to capture, came back at the wrong width, or (in
 // --shipped-assets mode) the log proves the run was not actually testing a
 // shipped build. The visual/perf layers still read the manifest either way.
+// Exit 1 = refused before booting (the freshness gate, a machine that never
+// went quiet, a rig that could not start the game): nothing was judged.
 
 const fs = require("fs");
 const path = require("path");
@@ -133,6 +143,15 @@ const flag = (name) => args.includes(name);
 // same volume as the repo (so the per-entry hard links below work), and has no
 // data/ directory anywhere up its parent chain.
 const SHIPPED_ASSETS = flag("--shipped-assets");
+// --wait-min N: how long the pre-boot wait for the machine lasts before the
+// sweep refuses (lib/machine-guard.js WAIT_MIN_DEFAULT, 60). verify-runtime
+// passes its own.
+const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
+if (!(WAIT_MIN > 0)) {
+  console.error(`probe-sweep: REFUSED - --wait-min must be a number of minutes above 0, got "${opt("--wait-min", "")}". Nothing was booted.`);
+  process.exit(1);
+}
+const WAIT_MS = WAIT_MIN * 60 * 1000;
 const DEFAULT_RIG = SHIPPED_ASSETS
   ? path.join(process.env.LOCALAPPDATA || require("os").tmpdir(), "HumanityOS-probe-rig-shipped")
   : path.join(REPO, ".probe-rig");
@@ -635,15 +654,27 @@ async function main() {
   // --game-only: wait for other game instances only, not builds (a panics-
   // only boot check; lib/machine-guard.js `gameOnly`). Captures beside a
   // build are still marked contaminated below, so no timing is graded.
+  // The wait ends by taking the machine-wide boot lock (lib/boot-lock.js), so
+  // two rigs that were waiting on the same builds cannot boot in the same poll.
+  // A wait that gives up REFUSES (exit 1, nothing booted, 2026-10-21). It used
+  // to boot anyway beside whatever was still up, the operator's own game or
+  // another rig's included, which broke the one-GPU rule and produced a sweep
+  // perf-report refuses to grade anyway.
   const preBoot = MG.waitForFree({
-    own: { exe: rigExePath, gameOnly: args.includes("--game-only") },
+    own: { exe: rigExePath, gameOnly: flag("--game-only") },
     label: "pre-boot",
+    rig: "probe-sweep",
+    timeoutMs: WAIT_MS,
     log: (m) => console.log(m),
   });
   if (!preBoot.free) {
-    log(`  !! BOOTING ANYWAY beside ${preBoot.blockers.length} competing process(es) after a ${preBoot.waited_s} s wait:`);
-    for (const p of preBoot.blockers) log(`  !!   ${MG.describe(p)}`);
-    log(`  !! Every capture in this sweep will be marked contaminated and perf-report will refuse to grade it.`);
+    MG.refuseBusy(preBoot, {
+      rig: "probe-sweep",
+      hint: [
+        `What to do: wait for those to finish and run again; --wait-min N waits longer (now ${MG.fmtSpan(WAIT_MS)});`,
+        "--game-only stops waiting on builds, for a run that judges panics and captures rather than timings.",
+      ],
+    });
   }
   // THE GATE AGAIN, after a real wait (critic review, 2026-10-03). What we
   // waited for may have been a cargo build of this very exe; a rebuild always
@@ -1261,6 +1292,10 @@ async function main() {
     // Lines of run.log where a loader served the copy built into the exe
     // instead of the tree's data file; any at all fails the sweep.
     builtin_data: builtinData,
+    // DXC or FXC, by the game's own test (the pair beside the rig's exe;
+    // lib/game-launch.js). FXC's pipeline build takes minutes: every boot time
+    // and frame time in a sweep on it is FXC's before it is the build's.
+    shader_compiler: game.shader_compiler,
     captured: results.filter((r) => r.ok).length,
     total: results.length,
     // ONE-MACHINE provenance for this run. `contaminated` counts vantages whose

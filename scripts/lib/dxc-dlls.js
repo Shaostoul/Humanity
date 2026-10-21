@@ -35,10 +35,24 @@
 // that boots a rig, carries a lookup of its own:
 //
 //   1. the exe's own folder, then
-//   2. the repo root,
+//   2. the repo root, then
+//   3. the MAIN checkout's root, when the repo is a git worktree,
 //
 // taking the first folder that holds BOTH files, and saying which it used, or
 // that it found neither, in the rig's output.
+//
+// The third folder since 2026-10-21. The pair is not in git (it is Microsoft's
+// binary, placed by hand in C:\Humanity), so a worktree never holds one, and a
+// rig run from a worktree's target/release booted on FXC: its ~170 s pipeline
+// build nearly overran the 180 s autopilot wait (the room-GI lane), and
+// BUG-140's fixer copied the pair in by hand to get on. The main checkout is
+// found the way `git rev-parse --git-common-dir` finds it (mainCheckoutRoot).
+//
+// And a rig that boots on FXC anyway now says so in its verdict, not only in a
+// setup line that has scrolled away by then: lib/game-launch.js spawnGame
+// checks the pair beside the exe it starts (the game's own test) and, when it
+// is missing, prints fxcBanner() as the rig's last lines and tells a parent
+// gate (verify-runtime), which prints it in its own verdict.
 //
 // Why a folder must hold both rather than taking each file from wherever it
 // turns up first: dxil.dll validates and signs what dxcompiler.dll produces,
@@ -63,29 +77,65 @@ function sameDir(a, b) {
 }
 
 /**
+ * The main checkout's root when `repo` is a git worktree: the parent of the
+ * folder `git rev-parse --git-common-dir` names. null for the main checkout
+ * itself, or for a folder that is not a git checkout at all.
+ *
+ * Read from the files git keeps rather than by running git (no git on PATH
+ * needed, nothing to time out): a worktree's `.git` is a FILE, "gitdir: <its
+ * folder under the main .git/worktrees/>", and that folder's `commondir` file
+ * names the shared .git folder relative to it (git-worktree(1), "DETAILS").
+ * scripts/tests/dxc-dlls.test.js checks the answer against git's own.
+ */
+function mainCheckoutRoot(repo, { readFile = (p) => fs.readFileSync(p, "utf8"), isDir = (p) => fs.statSync(p).isDirectory() } = {}) {
+  if (!repo) return null;
+  try {
+    const dotgit = path.join(path.resolve(repo), ".git");
+    if (isDir(dotgit)) return null; // the main checkout itself
+    const m = readFile(dotgit).match(/^gitdir:\s*(.+?)\s*$/m);
+    if (!m) return null;
+    const gitdir = path.resolve(repo, m[1]);
+    const common = readFile(path.join(gitdir, "commondir")).trim();
+    return path.dirname(path.resolve(gitdir, common));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The folders to search, in order, without repeats. An exe that already sits
  * in the repo root (an archived v*_HumanityOS.exe) gives one folder, not the
- * same folder twice under two names.
+ * same folder twice under two names. `mainRoot` is the main checkout's root
+ * when `repo` is a worktree (mainCheckoutRoot), searched last.
  */
-function searchDirs(exe, repo) {
-  const dirs = [{ dir: path.dirname(path.resolve(exe)), where: "beside the exe" }];
-  if (repo && !sameDir(repo, dirs[0].dir)) dirs.push({ dir: path.resolve(repo), where: "in the repo root" });
+function searchDirs(exe, repo, mainRoot = null) {
+  const dirs = [];
+  const add = (dir, where) => {
+    if (dir && !dirs.some((d) => sameDir(d.dir, dir))) dirs.push({ dir: path.resolve(dir), where });
+  };
+  add(path.dirname(path.resolve(exe)), "beside the exe");
+  add(repo, "in the repo root");
+  add(mainRoot, "in the main checkout's root");
   return dirs;
 }
 
 /**
- * Find the pair. Pure: `exists` is the only contact with the disk.
+ * Find the pair. Pure when `mainRoot` is given (null for none): `exists` is
+ * then the only contact with the disk. Left out, the main checkout is found
+ * from `repo` (mainCheckoutRoot).
  *
  * Returns { found, dir, where, paths, searched }:
  *   found    true when some folder holds both files
  *   dir      that folder (null when none does)
- *   where    "beside the exe" or "in the repo root" (null when none does)
+ *   where    "beside the exe", "in the repo root" or "in the main checkout's
+ *            root" (null when none does)
  *   paths    { "dxcompiler.dll": full path, "dxil.dll": full path } (null when none does)
  *   searched every folder looked at, with the dlls it does hold, so a report
  *            can name a half pair rather than just say "missing"
  */
-function findDxcDlls({ exe, repo, exists = fs.existsSync }) {
-  const searched = searchDirs(exe, repo).map((d) => ({
+function findDxcDlls({ exe, repo, mainRoot, exists = fs.existsSync }) {
+  const main = mainRoot === undefined ? mainCheckoutRoot(repo) : mainRoot;
+  const searched = searchDirs(exe, repo, main).map((d) => ({
     ...d,
     has: DXC_DLLS.filter((dll) => exists(path.join(d.dir, dll))),
   }));
@@ -119,10 +169,45 @@ function describeDxc(result, { staleInRig = false } = {}) {
   if (staleInRig) {
     return `${head} The rig folder still holds a pair copied by an earlier run, so the game will use that (DXC).`;
   }
+  // The folder to fix is the last one searched: the main checkout's root when the run is
+  // in a worktree (every worktree looks there), else the repo root.
+  const home = result.searched[result.searched.length - 1];
   return (
     `${head} The game will compile its shaders with FXC, which takes minutes on a first boot. ` +
-    `Put both dlls in the repo root (from the Windows SDK bin folder or a DirectXShaderCompiler release).`
+    `Put both dlls ${home && home.where !== "beside the exe" ? `${home.where}, ${home.dir}` : "in the repo root"} ` +
+    `(from the Windows SDK bin folder or a DirectXShaderCompiler release).`
   );
+}
+
+/**
+ * Which compiler the game at `exe` will use, by the game's own test
+ * (src/renderer/mod.rs dxc_dlls_beside_exe: BOTH dlls in the exe's folder):
+ * "DXC" or "FXC". null off Windows, where there is no DX12.
+ */
+function compilerFor(exe, { exists = fs.existsSync, platform = process.platform } = {}) {
+  if (platform !== "win32") return null;
+  const dir = path.dirname(path.resolve(exe));
+  return DXC_DLLS.every((dll) => exists(path.join(dir, dll))) ? "DXC" : "FXC";
+}
+
+/**
+ * The lines a rig ends with when its game compiled its shaders with FXC: loud,
+ * because every timing and every timeout in such a run is FXC's before it is
+ * the build's (2026-10-21: ~170 s of pipeline build against a 180 s autopilot
+ * wait). `where` is the folder to put the pair in (the main checkout's root
+ * from a worktree, else the repo root).
+ */
+function fxcBanner({ exe, pid = null, rig = "rig", where = null } = {}) {
+  return [
+    "!! ".padEnd(72, "!"),
+    `!! SHADER COMPILER: FXC. The game ${rig} started${pid ? ` (pid ${pid})` : ""} compiled its shaders with`,
+    `!! FXC, the slow fallback: no ${DXC_DLLS.join(" + ")} pair beside ${exe || "its exe"}.`,
+    "!! FXC's pipeline build takes minutes (about 170 s on 2026-10-21, against a 180 s autopilot",
+    "!! wait): a timeout, a slow boot or a frame time from this run may be FXC's, not the build's.",
+    `!! Fix: put both dlls in ${where || "the repo root"} (from the Windows SDK bin folder or a`,
+    "!! DirectXShaderCompiler release), then run again. Every rig looks there, worktrees included.",
+    "!! ".padEnd(72, "!"),
+  ];
 }
 
 /**
@@ -132,8 +217,8 @@ function describeDxc(result, { staleInRig = false } = {}) {
  *
  * `exists` and `copy` default to the real file system; tests may pass fakes.
  */
-function copyDxcDlls({ exe, repo, dest, log = console.log, exists = fs.existsSync, copy = fs.copyFileSync }) {
-  const result = findDxcDlls({ exe, repo, exists });
+function copyDxcDlls({ exe, repo, mainRoot, dest, log = console.log, exists = fs.existsSync, copy = fs.copyFileSync }) {
+  const result = findDxcDlls({ exe, repo, mainRoot, exists });
   if (result.found) {
     for (const dll of DXC_DLLS) copy(result.paths[dll], path.join(dest, dll));
     log(describeDxc(result));
@@ -144,4 +229,10 @@ function copyDxcDlls({ exe, repo, dest, log = console.log, exists = fs.existsSyn
   return result;
 }
 
-module.exports = { DXC_DLLS, findDxcDlls, describeDxc, copyDxcDlls, searchDirs };
+/** Where a person should put the pair, for a message: the main checkout's root
+ *  when `repo` is a worktree, else the repo root. */
+function pairHome(repo) {
+  return mainCheckoutRoot(repo) || (repo ? path.resolve(repo) : null);
+}
+
+module.exports = { DXC_DLLS, findDxcDlls, describeDxc, copyDxcDlls, searchDirs, mainCheckoutRoot, compilerFor, fxcBanner, pairHome };

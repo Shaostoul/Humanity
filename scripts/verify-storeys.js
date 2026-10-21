@@ -65,11 +65,12 @@
 // against the one the run meant. The evidence still goes to .probe-rig/storeys/runs/, the folder
 // named <stamp>-sandbox. The manifest records DIR as `sandbox_data` and the verdict says so.
 //
-// ONE GPU (CLAUDE.md): waits (up to 40 min, --no-wait to refuse at once) while any HumanityOS runs,
-// another rig's or the operator's own game, and never sets the take-focus env var.
+// ONE GPU (CLAUDE.md): waits (up to 60 min, --wait-min N; --no-wait to refuse at once) while any
+// HumanityOS runs, another rig's or the operator's own game, or another rig holds the machine-wide
+// boot lock, and never sets the take-focus env var.
 //
 // Usage:
-//   node scripts/verify-storeys.js [--exe PATH] [--keep-open] [--timeout-min N] [--no-wait]
+//   node scripts/verify-storeys.js [--exe PATH] [--keep-open] [--timeout-min N] [--no-wait] [--wait-min N]
 //                                  [--data DIR] [--allow-other-build "<reason>"]
 //   node scripts/verify-storeys.js --dry-verdict <manifest.json>   re-judge, nothing booted
 // Exit 0 = every check passed. 1 = refused (nothing booted). 2 = a check failed, a panic, or a
@@ -101,6 +102,13 @@ const opt = (name, def) => {
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const KEEP_OPEN = args.includes("--keep-open");
 const NO_WAIT = args.includes("--no-wait");
+// --wait-min N: how long to wait for another HumanityOS before refusing (lib/machine-guard.js
+// WAIT_MIN_DEFAULT, the one number every rig uses). Checked before anything else is read.
+const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
+if (!(WAIT_MIN > 0)) {
+  console.error(`verify-storeys: REFUSED - --wait-min must be a number of minutes above 0, got "${opt("--wait-min", "")}". Nothing was booted.`);
+  process.exit(1);
+}
 const DRY = opt("--dry-verdict", null);
 const TIMEOUT_MS = Number(opt("--timeout-min", "12")) * 60 * 1000;
 const SANDBOX = opt("--data", null) ? path.resolve(opt("--data", null)) : null;
@@ -205,8 +213,15 @@ const OTHER_BUILD = FRESH.other_build;
       "One GPU, one instance (CLAUDE.md). Close it (taskkill //PID <pid>, then //F if it is still there 15 s later), or wait for the rig that started it.",
     ]);
   }
-  const w = MG.waitForFree({ own: { gameOnly: true }, label: "verify-storeys", log });
-  if (!w.free) refuse([`REFUSED: HumanityOS was still running after ${w.waited_s} s of waiting. One GPU, one instance (CLAUDE.md). Nothing was booted.`]);
+  // Ends by taking the machine-wide boot lock (lib/boot-lock.js); a wait that gives up is the one
+  // refusal every rig gives (exit 1, "the machine never went quiet in N min; nothing was booted").
+  const w = MG.waitForFree({ own: { gameOnly: true }, label: "verify-storeys", rig: "verify-storeys", timeoutMs: WAIT_MIN * 60 * 1000, log });
+  if (!w.free) {
+    MG.refuseBusy(w, {
+      rig: "verify-storeys",
+      hint: ["What to do: wait for it (or close it: taskkill //PID <pid>, then //F if it is still there 15 s later), then run again; --wait-min N waits longer."],
+    });
+  }
 }
 
 // ── the rig ──────────────────────────────────────────────────────────────────────────────────────
