@@ -140,11 +140,14 @@ impl QuestRegistry {
 // ── Travel destinations (v0.979; where the player stands, 2026-10-04; the
 //    ship's shared places, 2026-10-12) ──────
 
-/// One named world destination a Travel objective can point at. Positions are
-/// XZ in the homestead-world frame (the same frame `entities/wild_spawns.ron`
-/// uses), so a destination can mark a spawn cluster, a field, or any landmark.
-/// A destination that is no fixed place (the player's own front door, the
-/// nearest mess hall) names what it resolves to in `at` instead (2026-10-04).
+/// One named world destination a Travel objective can point at. A fixed place's
+/// `pos` is XZ in the homestead-world frame (the same frame
+/// `entities/wild_spawns.ron` uses), so a destination can mark a spawn cluster,
+/// a field, or any landmark: it has no height, and is reached from any height
+/// over it. A destination that is no fixed place (the player's own front door,
+/// the nearest mess hall) names what it resolves to in `at` instead
+/// (2026-10-04); those places have a floor, and are reached only on its storey
+/// (ship homes increment 7, `DestinationDef::distance_from`).
 #[derive(Debug, Clone, Deserialize)]
 pub struct DestinationDef {
     /// The id Travel(destination: ...) references.
@@ -191,34 +194,53 @@ pub enum DestinationAnchor {
     /// home reaches every shared place along First Street, so the nearest by
     /// line is the nearest on foot; a ship where the two differ needs the walk
     /// along its corridors here instead.
+    ///
+    /// ON THE PLAYER'S STOREY (ship homes increment 7): the distance is
+    /// measured on the storey of the point it is measured from (the front
+    /// door's floor, else the player's feet). Of the volumes of the type, the
+    /// nearest of those on that storey is taken (`ShipVolume::on_its_storey`);
+    /// only when none is on it, the nearest across the floor on any storey. And
+    /// a volume is reached only standing on its storey: one on the floor above
+    /// is never reached from under it, however near across the floor.
     NearestVolume { zone_type: String },
 }
 
 impl DestinationDef {
     /// The volume aboard this place is now, for a `NearestVolume` place: the
-    /// nearest of its type to the player's own front door, or to `player_xz`
-    /// when there is none. None for any other kind of place, and when no
-    /// volume of the type is aboard.
-    pub fn volume<'a>(&self, aboard: Aboard<'a>, player_xz: (f32, f32)) -> Option<&'a ShipVolume> {
+    /// nearest of its type to the player's own front door (on the door's
+    /// floor), or to the player (`player`, where their eyes are, ship metres)
+    /// when there is none, measured on that storey (`ShipPlaces::nearest`).
+    /// None for any other kind of place, and when no volume of the type is
+    /// aboard.
+    pub fn volume<'a>(&self, aboard: Aboard<'a>, player: glam::Vec3) -> Option<&'a ShipVolume> {
         match &self.at {
             Some(DestinationAnchor::NearestVolume { zone_type }) => {
-                let from = aboard.front_door.map_or(player_xz, |d| d.door);
+                let feet = glam::Vec3::new(player.x, crate::ship::moves::feet_y(player.y), player.z);
+                let from = aboard.front_door.map_or(feet, |d| glam::Vec3::new(d.door.0, d.floor, d.door.1));
                 aboard.places?.nearest(zone_type, from)
             }
             _ => None,
         }
     }
 
-    /// How far `player_xz` stands from this place now, metres: from `pos` or
-    /// the doorstep, or from the edge of a volume's floor (0 on it). None when
-    /// the place does not resolve (a guest's front door; a kind of room the
-    /// ship does not have), so nobody stands in it.
-    pub fn distance_from(&self, player_xz: (f32, f32), aboard: Aboard<'_>) -> Option<f32> {
-        let to = |c: (f32, f32)| (player_xz.0 - c.0).hypot(player_xz.1 - c.1);
+    /// How far the player (`player`, where their eyes are, ship metres) stands
+    /// from this place now, metres across the floor: from `pos` or the
+    /// doorstep, or from the edge of a volume's floor (0 on it). A place with a
+    /// floor (the front door, a volume) is measured only on its storey (ship
+    /// homes increment 7: the feet from half a metre under its floor to half a
+    /// metre under its top, src/ship/moves.rs `stands_in_storey_of`): from any
+    /// other storey it is infinitely far, so a place on the floor above is
+    /// never reached by standing under it. A fixed place (`pos`) has no height.
+    /// None when the place does not resolve (a guest's front door; a kind of
+    /// room the ship does not have), so nobody stands in it.
+    pub fn distance_from(&self, player: glam::Vec3, aboard: Aboard<'_>) -> Option<f32> {
+        let to = |c: (f32, f32)| (player.x - c.0).hypot(player.z - c.1);
+        let feet = crate::ship::moves::feet_y(player.y);
+        let on_storey = |d: f32, there: bool| if there { d } else { f32::INFINITY };
         match &self.at {
             None => Some(to(self.pos)),
-            Some(DestinationAnchor::OwnFrontDoor { out_m }) => aboard.front_door.map(|d| to(d.doorstep(*out_m))),
-            Some(DestinationAnchor::NearestVolume { .. }) => self.volume(aboard, player_xz).map(|v| v.distance_from(player_xz)),
+            Some(DestinationAnchor::OwnFrontDoor { out_m }) => aboard.front_door.map(|d| on_storey(to(d.doorstep(*out_m)), d.on_its_storey(feet))),
+            Some(DestinationAnchor::NearestVolume { .. }) => self.volume(aboard, player).map(|v| on_storey(v.distance_from(player), v.on_its_storey(feet))),
         }
     }
 }
@@ -253,8 +275,10 @@ impl DestinationList {
     }
 }
 
-/// The ids of the destinations the player stands in now, at `player_xz`
-/// (pure, for tests). A Travel step is done while the player stands in its
+/// The ids of the destinations the player stands in now, at `player` (where
+/// their eyes are, ship metres; `player_position`) (pure, for tests). A place
+/// with a floor counts only on its storey (`DestinationDef::distance_from`).
+/// A Travel step is done while the player stands in its
 /// place and it is the step they are on (2026-10-04). It used to be an event
 /// fired on ENTERING the place and counted from the moment the quest was
 /// accepted, so the opening's last step, out of your own front door, would
@@ -262,14 +286,14 @@ impl DestinationList {
 /// and would have finished the moment the step before it did, wherever the
 /// player was.
 pub fn destinations_here(
-    player_xz: (f32, f32),
+    player: glam::Vec3,
     dests: &DestinationList,
     aboard: Aboard<'_>,
 ) -> std::collections::HashSet<String> {
     dests
         .destinations
         .iter()
-        .filter(|d| d.distance_from(player_xz, aboard).is_some_and(|m| m <= d.radius))
+        .filter(|d| d.distance_from(player, aboard).is_some_and(|m| m <= d.radius))
         .map(|d| d.id.clone())
         .collect()
 }
@@ -278,7 +302,9 @@ pub fn destinations_here(
 
 /// One labelled volume of the ship as the quests see it: a row of a zone
 /// body's `zones` in the ship file (the Commons' "mess-hall"), with its floor
-/// in ship metres, the frame "camera_position" is in.
+/// and its height in ship metres, the frame "camera_position" is in. It keeps
+/// its height since ship homes increment 7: a place on an upper storey is
+/// reached only on that storey (`on_its_storey`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShipVolume {
     /// The volume's id, also a room id of the relay's world ("mess-hall").
@@ -290,17 +316,33 @@ pub struct ShipVolume {
     /// The label of the ship zone it stands in ("The Commons"), its id when
     /// it has none.
     pub zone_label: String,
-    /// The floor's corners, XZ: the smaller x and z, then the larger.
+    /// The floor's corners across the floor, (x, z): the smaller x and z,
+    /// then the larger.
     pub min: (f32, f32),
     pub max: (f32, f32),
+    /// The floor's height, y, ship metres (the zone's origin plus the
+    /// volume's own).
+    pub floor: f32,
+    /// How tall the volume is, metres.
+    pub height: f32,
 }
 
 impl ShipVolume {
-    /// How far `xz` is from this floor, metres: 0 anywhere on it.
-    pub fn distance_from(&self, xz: (f32, f32)) -> f32 {
-        let dx = (self.min.0 - xz.0).max(xz.0 - self.max.0).max(0.0);
-        let dz = (self.min.1 - xz.1).max(xz.1 - self.max.1).max(0.0);
+    /// How far `p` is from this floor across the floor (x and z), metres: 0
+    /// anywhere over it. Its height is not looked at (`on_its_storey` does).
+    pub fn distance_from(&self, p: glam::Vec3) -> f32 {
+        let dx = (self.min.0 - p.x).max(p.x - self.max.0).max(0.0);
+        let dz = (self.min.1 - p.z).max(p.z - self.max.1).max(0.0);
         dx.hypot(dz)
+    }
+
+    /// True when feet at height `feet_y` stand on this volume's storey (ship
+    /// homes increment 7): from half a metre under its floor to half a metre
+    /// under its top, or under one storey's top when it is lower than a storey
+    /// (src/ship/moves.rs `stands_in_storey_of`, the rule every place with a
+    /// floor uses).
+    pub fn on_its_storey(&self, feet_y: f32) -> bool {
+        crate::ship::moves::stands_in_storey_of(feet_y, self.floor, self.height)
     }
 
     /// The zone it stands in as it reads inside a sentence: "the Commons".
@@ -338,6 +380,8 @@ impl ShipPlaces {
                         zone_label: zone_label.clone(),
                         min,
                         max: (min.0 + v.size.0, min.1 + v.size.2),
+                        floor: z.origin.1 + v.origin.1,
+                        height: v.size.1,
                     }
                 })
             })
@@ -345,14 +389,18 @@ impl ShipPlaces {
         ShipPlaces { volumes }
     }
 
-    /// The volume of type `zone_type` nearest `from` (XZ), to the edge of its
-    /// floor; of two as near, the first in the ship file. None when the ship
-    /// has none of that type.
-    pub fn nearest(&self, zone_type: &str, from: (f32, f32)) -> Option<&ShipVolume> {
+    /// The volume of type `zone_type` nearest `from` (a floor point: the
+    /// front door's, or the player's feet), to the edge of its floor, ON THE
+    /// STOREY OF `from` (ship homes increment 7): of the volumes on that
+    /// storey (`ShipVolume::on_its_storey`) the nearest across the floor, and
+    /// only when none is on it the nearest across the floor on any storey; of
+    /// two as near, the first in the ship file. None when the ship has none of
+    /// that type.
+    pub fn nearest(&self, zone_type: &str, from: glam::Vec3) -> Option<&ShipVolume> {
         self.volumes
             .iter()
             .filter(|v| v.type_id == zone_type)
-            .min_by(|a, b| a.distance_from(from).total_cmp(&b.distance_from(from)))
+            .min_by(|a, b| b.on_its_storey(from.y).cmp(&a.on_its_storey(from.y)).then(a.distance_from(from).total_cmp(&b.distance_from(from))))
     }
 }
 
@@ -376,8 +424,12 @@ pub fn in_a_sentence(label: &str) -> String {
 /// frame "camera_position" is in.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FrontDoor {
-    /// The door, XZ: where the plot's door corridor leaves the home's shell.
+    /// The door across the floor, (x, z): where the plot's door corridor
+    /// leaves the home's shell.
     pub door: (f32, f32),
+    /// The door's floor, y, ship metres: the corridor's deck (ship homes
+    /// increment 7: the doorstep is reached only on its storey).
+    pub floor: f32,
     /// The way out, a unit XZ direction along the corridor, away from home.
     pub outward: (f32, f32),
     /// What the door opens on: the label of the zone its corridor leads to
@@ -386,9 +438,16 @@ pub struct FrontDoor {
 }
 
 impl FrontDoor {
-    /// The doorstep `out_m` metres out of the door (XZ).
+    /// The doorstep `out_m` metres out of the door, across the floor (x, z).
     pub fn doorstep(&self, out_m: f32) -> (f32, f32) {
         (self.door.0 + self.outward.0 * out_m, self.door.1 + self.outward.1 * out_m)
+    }
+
+    /// True when feet at height `feet_y` stand on the door's storey: its
+    /// floor, by the rule every place with a floor uses (src/ship/moves.rs
+    /// `stands_in_storey_of`, one storey tall).
+    pub fn on_its_storey(&self, feet_y: f32) -> bool {
+        crate::ship::moves::stands_in_storey_of(feet_y, self.floor, crate::ship::moves::STOREY_M)
     }
 
     /// What the door opens on, as it reads inside a sentence: "the Commons"
@@ -416,7 +475,7 @@ pub fn front_door_of(ship: &crate::ship::ship_structure::ShipStructure) -> Optio
         return None;
     }
     let opens_on = ship.zones.get(g.to_zone_idx)?.label.clone();
-    Some(FrontDoor { door: (g.end_from.x, g.end_from.z), outward: (out.x, out.y), opens_on })
+    Some(FrontDoor { door: (g.end_from.x, g.end_from.z), floor: g.floor_y, outward: (out.x, out.y), opens_on })
 }
 
 /// Publish where the quests' places aboard are, from the ship the game runs
@@ -473,8 +532,10 @@ pub fn step_text(description: &str, data: &DataStore) -> String {
     description.replace(FRONT_DOOR_OPENS_ON, &place)
 }
 
-/// Where the player stands, as (x, z) in the frame destinations use, for the
-/// Travel emitter (2026-10-04, the first-hour audit's B5). In first person the
+/// Where the player is, their eyes (the camera) in the frame destinations use,
+/// for the Travel emitter (2026-10-04, the first-hour audit's B5; all three
+/// coordinates since ship homes increment 7, so a place with a floor is
+/// reached only on its storey). In first person the
 /// camera IS the player: walking moves the camera, and the player entity's
 /// Transform keeps wherever spawning or a teleport last put it, so reading the
 /// Transform meant a Travel step never fired however far the player walked.
@@ -482,15 +543,15 @@ pub fn step_text(description: &str, data: &DataStore) -> String {
 /// camera its proximity checks read, the walk-up interaction among them), and
 /// this reads it; the controlled entity's Transform is the fallback only where
 /// nothing publishes one (a headless world, a test).
-pub fn player_xz(world: &hecs::World, data: &DataStore) -> Option<(f32, f32)> {
+pub fn player_position(world: &hecs::World, data: &DataStore) -> Option<glam::Vec3> {
     if let Some(p) = data.get::<glam::Vec3>("camera_position") {
-        return Some((p.x, p.z));
+        return Some(*p);
     }
     world
         .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
         .iter()
         .next()
-        .map(|(_, (tf, _))| (tf.position.x, tf.position.z))
+        .map(|(_, (tf, _))| tf.position)
 }
 
 /// Stable quest key for an NPC display name: lowercase, every non-alphanumeric
@@ -774,10 +835,10 @@ impl System for QuestSystem {
         // destinations (data/entities/destinations.ron) they are inside this
         // tick, the player's own front door and the ship's shared places
         // among them when the game published them (`Aboard`). Where the player
-        // is comes from the walking camera (`player_xz`): the entity's
+        // is comes from the walking camera (`player_position`): the entity's
         // Transform never moved when they walked.
-        let here = match (data.get::<DestinationList>("quest_destinations"), player_xz(world, data)) {
-            (Some(dests), Some(xz)) => destinations_here(xz, dests, Aboard::of(data)),
+        let here = match (data.get::<DestinationList>("quest_destinations"), player_position(world, data)) {
+            (Some(dests), Some(at)) => destinations_here(at, dests, Aboard::of(data)),
             _ => std::collections::HashSet::new(),
         };
 
@@ -1075,15 +1136,16 @@ mod quest_tests {
                 },
             ],
         };
-        let door = FrontDoor { door: (55.0, 139.0), outward: (1.0, 0.0), opens_on: "First Street".into() };
+        let door = FrontDoor { door: (55.0, 139.0), floor: 0.0, outward: (1.0, 0.0), opens_on: "First Street".into() };
         let aboard = Aboard { front_door: Some(&door), places: None };
-        let here = |xz| destinations_here(xz, &dests, aboard);
+        // Where the player's eyes are, standing on the deck.
+        let here = |xz: (f32, f32)| destinations_here(glam::Vec3::new(xz.0, 1.7, xz.1), &dests, aboard);
         assert!(here((30.0, 30.0)).is_empty(), "out in the open");
         assert_eq!(here((11.0, 11.0)), ["fields".to_string()].into_iter().collect(), "in the fields");
         assert_eq!(here((56.5, 139.0)), ["front_door".to_string()].into_iter().collect(), "on the doorstep, 1.5 m out of the door");
         assert!(here((53.5, 139.5)).is_empty(), "just inside the door is not out of it");
         assert!(here((0.0, 0.0)).is_empty(), "the front door's unused pos is no place");
-        assert!(destinations_here((56.5, 139.0), &dests, Aboard::default()).is_empty(), "no door published, no doorstep");
+        assert!(destinations_here(glam::Vec3::new(56.5, 1.7, 139.0), &dests, Aboard::default()).is_empty(), "no door published, no doorstep");
         assert_eq!(door.opens_on_in_a_sentence(), "First Street");
         let commons = FrontDoor { opens_on: "The Commons".into(), ..door };
         assert_eq!(commons.opens_on_in_a_sentence(), "the Commons", "\"The\" is lowered inside a sentence");
@@ -1111,6 +1173,8 @@ mod quest_tests {
             zone_label: zone.into(),
             min,
             max,
+            floor: 0.0,
+            height: 3.0,
         };
         let places = ShipPlaces {
             volumes: vec![
@@ -1127,9 +1191,9 @@ mod quest_tests {
                 at: Some(DestinationAnchor::NearestVolume { zone_type: "mess_hall".into() }),
             }],
         };
-        let cabin_door = FrontDoor { door: (80.5, 89.25), outward: (-1.0, 0.0), opens_on: "Cabin Block A".into() };
+        let cabin_door = FrontDoor { door: (80.5, 89.25), floor: 0.0, outward: (-1.0, 0.0), opens_on: "Cabin Block A".into() };
         let aboard = Aboard { front_door: Some(&cabin_door), places: Some(&places) };
-        let here = |xz: (f32, f32), aboard: Aboard<'_>| destinations_here(xz, &dests, aboard).contains("mess_hall");
+        let here = |xz: (f32, f32), aboard: Aboard<'_>| destinations_here(glam::Vec3::new(xz.0, 1.7, xz.1), &dests, aboard).contains("mess_hall");
         assert!(here((67.0, 22.0), aboard), "the stores' end of the mess hall is in it");
         assert!(here((80.0, 24.0), aboard), "its middle");
         assert!(here((80.0, 28.9), aboard), "within a metre of its edge");
@@ -1137,8 +1201,65 @@ mod quest_tests {
         assert!(!here((89.0, 774.0), aboard), "the cabin's mess hall is the Commons', not the South Commons'");
         let guest = Aboard { front_door: None, places: Some(&places) };
         assert!(here((89.0, 774.0), guest), "a guest is sent to the one nearest where they stand");
-        assert_eq!(dests.destinations[0].volume(guest, (89.0, 790.0)).map(|v| v.zone_in_a_sentence()), Some("the South Commons".into()));
+        assert_eq!(dests.destinations[0].volume(guest, glam::Vec3::new(89.0, 1.7, 790.0)).map(|v| v.zone_in_a_sentence()), Some("the South Commons".into()));
         assert!(!here((80.0, 24.0), Aboard { front_door: Some(&cabin_door), places: None }), "no places published, no place");
+    }
+
+    /// A PLACE ON THE UPPER FLOOR IS NOT REACHED FROM UNDER IT (ship homes
+    /// increment 7): the quests' places keep their height. A recreation room on
+    /// a storey at 3.0 m is reached standing on its floor (eyes at 4.7 m), not
+    /// from the floor under it (eyes at 1.7 m, 0 m from it across the floor)
+    /// nor from the floor over it. The front door's doorstep is on the door's
+    /// floor, so the floor over the doorstep is not out of the door. And a
+    /// NearestVolume is chosen on the storey it is measured from: a guest on
+    /// the ground floor is sent to the hall on their floor 20 m away, not the
+    /// one right over their head; upstairs, to the one upstairs.
+    ///
+    /// Seen red 2026-10-20 with `stands_in_storey_of` answering true (every
+    /// height counts, the rule before storeys): "the upper floor's recreation
+    /// room was reached from under it".
+    #[test]
+    fn a_quest_place_on_the_upper_floor_is_not_reached_from_under_it() {
+        let room = |id: &str, type_id: &str, min: (f32, f32), max: (f32, f32), floor: f32| ShipVolume {
+            id: id.into(),
+            type_id: type_id.into(),
+            label: id.into(),
+            zone_label: "The Commons".into(),
+            min,
+            max,
+            floor,
+            height: 3.0,
+        };
+        let places = ShipPlaces {
+            volumes: vec![
+                room("rec-up", "recreation", (10.0, 10.0), (20.0, 20.0), 3.0),
+                room("hall-up", "mess_hall", (40.0, 10.0), (50.0, 20.0), 3.0),
+                room("hall-down", "mess_hall", (40.0, 30.0), (50.0, 40.0), 0.0),
+            ],
+        };
+        let place = |id: &str, ty: &str| DestinationDef { id: id.into(), label: id.into(), pos: (0.0, 0.0), radius: 1.0, at: Some(DestinationAnchor::NearestVolume { zone_type: ty.into() }) };
+        let dests = DestinationList {
+            destinations: vec![
+                place("recreation", "recreation"),
+                DestinationDef { id: "front_door".into(), label: "your front door".into(), pos: (0.0, 0.0), radius: 1.5, at: Some(DestinationAnchor::OwnFrontDoor { out_m: 1.5 }) },
+            ],
+        };
+        let door = FrontDoor { door: (55.0, 40.0), floor: 0.0, outward: (1.0, 0.0), opens_on: "The Commons".into() };
+        let aboard = Aboard { front_door: Some(&door), places: Some(&places) };
+        let here = |x: f32, eye_y: f32, z: f32| destinations_here(glam::Vec3::new(x, eye_y, z), &dests, aboard);
+        assert!(!here(15.0, 1.7, 15.0).contains("recreation"), "the upper floor's recreation room was reached from under it");
+        assert!(here(15.0, 4.7, 15.0).contains("recreation"), "on its floor");
+        assert!(here(15.0, 4.7 + 1.2, 15.0).contains("recreation"), "jumping in it");
+        assert!(!here(15.0, 7.7, 15.0).contains("recreation"), "from the floor over it");
+        assert!(here(56.5, 1.7, 40.0).contains("front_door"), "on the doorstep");
+        assert!(!here(56.5, 4.7, 40.0).contains("front_door"), "the floor over the doorstep is not out of the door");
+        // Nearest on the storey it is measured from.
+        let halls = place("mess_hall", "mess_hall");
+        let guest = Aboard { front_door: None, places: Some(&places) };
+        let nearest = |eye_y: f32| halls.volume(guest, glam::Vec3::new(45.0, eye_y, 15.0)).map(|v| v.id.clone());
+        assert_eq!(nearest(1.7).as_deref(), Some("hall-down"), "on the ground floor, the hall on your floor, not the one over your head");
+        assert_eq!(nearest(4.7).as_deref(), Some("hall-up"), "upstairs, the one upstairs");
+        assert_eq!(halls.volume(aboard, glam::Vec3::new(45.0, 4.7, 15.0)).map(|v| v.id.as_str()), Some("hall-down"), "from the front door, on its floor");
     }
 
     #[test]
@@ -1693,7 +1814,7 @@ mod quest_tests {
         // The last step, out of the front door (the opening's own test walks there).
         data.insert(
             FRONT_DOOR_KEY,
-            FrontDoor { door: (55.0, 40.0), outward: (1.0, 0.0), opens_on: "The Commons".into() },
+            FrontDoor { door: (55.0, 40.0), floor: 0.0, outward: (1.0, 0.0), opens_on: "The Commons".into() },
         );
         data.insert(
             "quest_destinations",

@@ -50,4 +50,16 @@
         kind: Deck, shape: Slab, size: (4.0, 0.2, 4.0), color: (0.5, 0.52, 0.55), steps: 0,
         note: "A flat upper-level floor. Set 'Place at height' to the top of a staircase, then walk up onto it.",
     ),
+    (
+        id: "guard", label: "Guard (balustrade)", category: "Structure",
+        kind: Guard, shape: Balustrade, size: (1.2, 1.0, 0.06), color: (0.55, 0.57, 0.62), steps: 0,
+        guard: Some((post_m: 0.05, post_spacing_m: 1.2, baluster_m: 0.02, opening_m: 0.1, rail: (0.06, 0.05), shoe_m: 0.04)),
+        note: "A guard where a floor edge drops: posts, upright balusters closer than the 100 mm sphere the building rules name (no rails a child can climb), and a top rail. Draw one with the wall tool as a Steel balustrade or Oak balustrade wall, as tall as the guard: at least 0.914 m (the IRC), 1.0 m in the homestead. Placed on its own it is a 1.2 m section that does not stop anyone yet. Sources: docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md.",
+    ),
+    (
+        id: "handrail", label: "Handrail", category: "Structure",
+        kind: Handrail, shape: Handrail, size: (1.2, 0.93, 0.092), color: (0.52, 0.36, 0.21), steps: 0,
+        handrail: Some((diameter_m: 0.042, clearance_m: 0.05, bracket_spacing_m: 1.2, min_risers: 4, both_sides_from_m: 1.0)),
+        note: "A round wall rail, its top 0.93 m over the floor, 50 mm off the wall, its ends turned back to the wall. Every stair carries this rail on both sides at 0.93 m over the line of its tread edges (one side when it is under 1 m wide, none under four risers), inside both the IRC (864 to 965 mm) and England (900 to 1000 mm). Sources: docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md.",
+    ),
 ]

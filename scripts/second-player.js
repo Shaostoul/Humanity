@@ -190,9 +190,13 @@ const CHAT_CHANNEL = "general";
 // A start id the relay reads from a join or a choice (src/ship/starts.rs `is_start_id`): 1 to 32
 // of a-z, 0-9, - and _. A row of data/homes/starts.ron: "cabin", "homestead".
 const START_ID_RULE = /^[a-z0-9_-]{1,32}$/;
-// How near a player stands to take a meal from a food store, metres (src/relay/handlers/
-// ship_stores.rs STORE_REACH_M; a test holds the two equal).
-const STORE_REACH_M = 5;
+// How near a player stands to take a meal from a food store, metres, and on their own floor (ship
+// homes increment 7): the relay's reach rule, src/ship/moves.rs `in_reach`, with its INTERACT_REACH_M,
+// STOREY_M and STOREY_BAND_BELOW_M, and src/surface_walk.rs EYE_HEIGHT_M (a test holds them equal).
+const INTERACT_REACH_M = 5;
+const STOREY_M = 3;
+const STOREY_BAND_BELOW_M = 0.5;
+const EYE_HEIGHT_M = 1.7;
 // The game_home wire (src/ship/starts.rs HOME_REQUEST, CHOOSE_HOME, HOME_ANSWER; a test reads them).
 const HOME_REQUEST = "game_home_request";
 const CHOOSE_HOME = "game_choose_home";
@@ -286,7 +290,7 @@ And where it lives on the ship, and a meal (ship homes increment 6):
   choose-home <start>   choose a home of that kind while holding none (cabin, homestead);
                         logged "home chosen: <plot> <kind>" or "home refused: <why>: <words>"
   take-meal             take a free crew meal from the nearest food store within
-                        ${STORE_REACH_M} m that this walker knows of; logged "meal taken: <item>"
+                        ${INTERACT_REACH_M} m on its floor that this walker knows of; logged "meal taken: <item>"
                         or "meal refused: <why>"
 `;
 
@@ -916,12 +920,21 @@ function isFoodStore(e) {
   return !!e && e.entity_type === "food_store" && Number.isSafeInteger(e.entity_id) && Array.isArray(e.position) && e.position.length >= 3;
 }
 
-/** The nearest of `stores` within `reach` metres of `pos`, or null. Pure. */
-function nearestStore(stores, pos, reach = STORE_REACH_M) {
+/** True when a thing whose point is at height `thingY` stands on the storey of a person whose eyes
+ *  are at `eyeY`: from half a metre under their feet to 2.5 m over them (src/ship/moves.rs
+ *  `on_my_storey`, the relay's rule). Pure. */
+function onMyStorey(eyeY, thingY) {
+  const rise = thingY - (eyeY - EYE_HEIGHT_M);
+  return rise >= -STOREY_BAND_BELOW_M && rise <= STOREY_M - STOREY_BAND_BELOW_M;
+}
+
+/** The nearest of `stores` within `reach` metres of `pos` (the walker's eyes) and on its floor
+ *  (`onMyStorey`), or null: what the relay would take a meal from. Pure. */
+function nearestStore(stores, pos, reach = INTERACT_REACH_M) {
   let best = null;
   for (const s of stores) {
     const d = Math.hypot(s.position[0] - pos[0], s.position[1] - pos[1], s.position[2] - pos[2]);
-    if (d <= reach && (!best || d < best.distance)) best = { ...s, distance: d };
+    if (d <= reach && onMyStorey(pos[1], s.position[1]) && (!best || d < best.distance)) best = { ...s, distance: d };
   }
   return best;
 }
@@ -2195,7 +2208,7 @@ async function main() {
         const here = walker.position();
         const store = nearestStore([...stores.values()], here);
         if (!store) {
-          log(`meal refused: none_in_reach (no food store within ${STORE_REACH_M} m of ${fmt(here)} that this walker knows of)`);
+          log(`meal refused: none_in_reach (no food store within ${INTERACT_REACH_M} m of ${fmt(here)} on its floor that this walker knows of)`);
         } else {
           log(`sent take-meal: store ${store.id}, ${store.distance.toFixed(2)} m away`);
           client.send(takeMealMessage(store.id));
@@ -2327,7 +2340,11 @@ module.exports = {
   DM_PUT_REFUSED_RE,
   // Where it lives, and a meal (ship homes increment 6).
   START_ID_RULE,
-  STORE_REACH_M,
+  INTERACT_REACH_M,
+  STOREY_M,
+  STOREY_BAND_BELOW_M,
+  EYE_HEIGHT_M,
+  onMyStorey,
   HOME_REQUEST,
   CHOOSE_HOME,
   HOME_ANSWER,

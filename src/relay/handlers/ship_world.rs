@@ -149,12 +149,13 @@ pub fn room_contains(room: &ShipRoom, p: [f32; 3]) -> bool {
     (0..3).all(|k| p[k] >= room.position[k] && p[k] <= room.position[k] + room.size[k])
 }
 
-/// The plot whose floor plan holds `p` (x and z, edges included), if any. Across the floor
-/// only: a figure standing over a plot at any height is on that plot.
+/// The plot whose box holds `p`, if any: over its floor plan (x and z, edges included) and from a
+/// metre under its floor up to its top. A figure over a plot but above its top is not on it (ship
+/// homes increment 7); every point inside a plot's box, 3 m or 6 m, keeps the answer it had. The
+/// one box rule of the build frames (src/ship/build_frames.rs `box_holds`).
 pub fn plot_at(plots: &[PlotArrival], p: [f32; 3]) -> Option<&PlotArrival> {
-    plots.iter().find(|pl| {
-        p[0] >= pl.origin.0 && p[0] <= pl.origin.0 + pl.size.0 && p[2] >= pl.origin.2 && p[2] <= pl.origin.2 + pl.size.2
-    })
+    use glam::Vec3;
+    plots.iter().find(|pl| crate::ship::build_frames::box_holds(Vec3::from(pl.origin), Vec3::from(pl.size), Vec3::from(p)))
 }
 
 /// A point of a room at standing height, from room-local (x, z) metres (None: its middle).
@@ -540,6 +541,27 @@ mod tests {
         assert_eq!(world.room_for_position([90.0, 1.7, 50.0]).map(|r| r.id).as_deref(), Some("commons"));
         assert_eq!(world.room_for_position([70.0, 1.7, 150.0]).map(|r| r.id).as_deref(), Some("street-1"));
         assert_eq!(world.room_for_position([53.5, 1.7, 40.5]).map(|r| r.id), None, "p1's door is in no room of the ship");
+    }
+
+    /// A FIGURE ABOVE A PLOT'S TOP IS NOT ON IT (ship homes increment 7): the relay's `plot_at`
+    /// takes the plot's box, so a figure 6.5 m over p1 (a 6 m homestead plot) stands on no plot;
+    /// one at its door, on its upper floor at eye height (4.7 m) and jumping there (5.9 m) is on
+    /// p1; over a 3 m cabin plot, 3.5 m up is on none. The same rule as the build frames
+    /// (src/ship/build_frames.rs `box_holds`).
+    ///
+    /// Seen red 2026-10-20 with `plot_at` across the floor only: "a figure 6.5 m over p1 is on
+    /// Some(\"p1\")".
+    #[test]
+    fn a_figure_above_a_plots_top_is_not_on_it() {
+        let world = GameWorld::new();
+        let on = |p: [f32; 3]| plot_at(&world.ship_plots.plots, p).map(|pl| pl.id.clone());
+        let v = on([30.0, 6.5, 40.0]);
+        assert_eq!(v, None, "a figure 6.5 m over p1 is on {v:?}");
+        for (what, p) in [("at its door", [53.5, 1.7, 40.5]), ("on its upper floor", [30.0, 4.7, 40.0]), ("jumping there", [30.0, 5.9, 40.0])] {
+            assert_eq!(on(p).as_deref(), Some("p1"), "{what}");
+        }
+        assert_eq!(on([82.0, 3.5, 89.0]), None, "over a cabin's 3 m top");
+        assert_eq!(on([82.0, 1.7, 89.0]).as_deref(), Some("c1"), "in a cabin");
     }
 
     /// NO CHORE TARGET LIES INSIDE A PLOT BOX (the design's proof for increment 3), read from

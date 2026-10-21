@@ -21,10 +21,12 @@
 //! home, which already stands inside its plot, so the home is part of its plot's frame. A guest's
 //! home put away is left out the same way. Corridors are no frame: nothing is built in one.
 //!
-//! WHAT LIES INSIDE ONE. A piece belongs to the frame whose floor holds its centre, and all of
-//! its turned footprint must lie on that floor, give or take [`EDGE_SLACK_M`]. Height is not
-//! bounded by the frame's box (a roof on walls stands at 3.0 to 3.2 m over a 3 m plot); only a
-//! sanity range is ([`MIN_LOCAL_Y_M`], [`MAX_LOCAL_Y_M`]). The rule moved here from
+//! WHAT LIES INSIDE ONE. A piece belongs to the frame whose box holds its position (the middle
+//! of its footprint, at its base: [`box_holds`], over the floor plan and from a metre under the
+//! floor up to the box's top, ship homes increment 7), and all of its turned footprint must lie on
+//! that floor, give or take [`EDGE_SLACK_M`]. What the piece itself reaches up to is not bounded
+//! by the box (a wall standing on a 6 m plot's upper floor at 3.0 m reaches 6.2 with its roof);
+//! only a sanity range is ([`MIN_LOCAL_Y_M`], [`MAX_LOCAL_Y_M`]). The rule moved here from
 //! engine/build_place.rs (`outside_own_plot`, increment 1a) so the relay and the game hold one
 //! copy of it.
 //!
@@ -65,6 +67,19 @@ pub const MIN_LOCAL_Y_M: f32 = -1.0;
 /// The highest a piece may reach in a frame, metres from the frame's floor. Well over a roof on
 /// walls on a foundation (3.4 m); a stop for absurd poses, not a building height limit.
 pub const MAX_LOCAL_Y_M: f32 = 40.0;
+
+/// THE BOX RULE (ship homes increment 7): does the box with min corner `origin` and `size` (a plot's
+/// or a zone's, ship metres) hold the ship point `p`? Over its floor plan, x and z, edges included,
+/// as before storeys, AND from [`MIN_LOCAL_Y_M`] under its floor up to its top, both included. A
+/// figure over a plot but above its top is not on it: when plots stack (a cabin block or an
+/// apartment over another home, the gate increment 7 opens), the point is on the plot whose box it
+/// is in, never on every plot under it. Every point inside a 3 m box keeps the answer it had, and
+/// so does every point inside a homestead plot, now 6 m tall. One rule for a build frame
+/// (`BuildFrame::holds_point`) and the relay's plots (relay/handlers/ship_world.rs `plot_at`).
+pub fn box_holds(origin: Vec3, size: Vec3, p: Vec3) -> bool {
+    let hi = origin + size;
+    p.x >= origin.x && p.x <= hi.x && p.z >= origin.z && p.z <= hi.z && p.y >= origin.y + MIN_LOCAL_Y_M && p.y <= hi.y
+}
 
 /// Which kind of place a frame is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -136,12 +151,10 @@ impl BuildFrame {
         Transform { position: local.position + self.origin, rotation: local.rotation, scale: local.scale }
     }
 
-    /// Does this frame's floor hold the ship point `p`: is it over the box, on x and z, edges
-    /// included? Height is not looked at (every frame is on the one deck today; stacked decks,
-    /// increment 7, will add the storey).
+    /// Does this frame hold the ship point `p`: over its floor plan (x and z, edges included) and
+    /// between a metre under its floor and its top ([`box_holds`], ship homes increment 7)?
     pub fn holds_point(&self, p: Vec3) -> bool {
-        let (lo, hi) = (self.origin, self.origin + self.size);
-        p.x >= lo.x && p.x <= hi.x && p.z >= lo.z && p.z <= hi.z
+        box_holds(self.origin, self.size, p)
     }
 
     /// How far the ship point `p` is from this frame's floor, metres along the deck (x and z): 0
@@ -204,8 +217,9 @@ impl BuildFrames {
         self.frames.iter().find(|f| f.id == id)
     }
 
-    /// The frame whose floor holds the ship point `p` (a piece's position, which is the middle
-    /// of its footprint), or None: a corridor, the gap between two plots, off the ship. The
+    /// The frame whose box holds the ship point `p` (a piece's position, which is the middle
+    /// of its footprint at its base; [`box_holds`]), or None: a corridor, the gap between two
+    /// plots, off the ship, over a frame's top. The
     /// ship file's validation refuses overlapping plots and zones, so at most one frame holds a
     /// point, unless two frames share an edge and `p` lies on it, when the first in the list
     /// does.
@@ -273,7 +287,8 @@ mod tests {
         let street = frames.get("zone:street-1").unwrap();
         assert_eq!((street.origin, street.size), (Vec3::new(65.0, 0.0, 85.0), Vec3::new(10.0, 4.0, 1100.0)));
         let p3 = frames.get("plot:p3").unwrap();
-        assert_eq!((p3.kind, p3.origin, p3.size), (FrameKind::Plot, Vec3::new(0.0, 0.0, 198.0), Vec3::new(55.0, 3.0, 89.0)));
+        // 6 m tall since ship homes increment 7 (two storeys).
+        assert_eq!((p3.kind, p3.origin, p3.size), (FrameKind::Plot, Vec3::new(0.0, 0.0, 198.0), Vec3::new(55.0, 6.0, 89.0)));
         assert_eq!((p3.place_id(), p3.plot_id(), commons.plot_id()), ("p3", Some("p3"), None));
 
         // Where a point stands.
@@ -322,6 +337,30 @@ mod tests {
         assert!((dist("zone:street-1") - (11.5f32 * 11.5 + 44.5 * 44.5).sqrt()).abs() < 1e-4);
     }
 
+    /// A FIGURE ABOVE A PLOT'S TOP IS NOT ON IT (ship homes increment 7): a frame holds a point
+    /// over its floor plan only from a metre under its floor up to its top. Over p1, a 6 m
+    /// homestead plot, a point at 6.5 m is on no frame, one at 5.9 m (a person jumping on its upper
+    /// floor) and one at its floor are p1's; over c1, a 3 m cabin plot, 3.5 m is on none and 2.9 m
+    /// is c1's; 1.5 m under a floor is on none. Every point inside the boxes keeps its answer.
+    ///
+    /// Seen red 2026-10-20 with the rule before storeys (across the floor only): "a point 6.5 m
+    /// over p1 is on Some(\"plot:p1\")".
+    #[test]
+    fn a_figure_above_a_plots_top_is_not_on_it() {
+        let frames = BuildFrames::of_ship(&ShipStructure::ship_for_relay(&data_dir()).unwrap());
+        let at = |x: f32, y: f32, z: f32| frames.frame_at(Vec3::new(x, y, z)).map(|f| f.id.clone());
+        assert_eq!(frames.get("plot:p1").unwrap().size.y, 6.0, "p1 is a two-storey plot");
+        let v = at(30.0, 6.5, 40.0);
+        assert_eq!(v, None, "a point 6.5 m over p1 is on {v:?}");
+        assert_eq!(at(30.0, 5.9, 40.0).as_deref(), Some("plot:p1"), "jumping on p1's upper floor");
+        assert_eq!(at(30.0, 6.0, 40.0).as_deref(), Some("plot:p1"), "its top is its own");
+        assert_eq!(at(30.0, 0.0, 40.0).as_deref(), Some("plot:p1"), "its floor");
+        assert_eq!(at(30.0, -1.5, 40.0), None, "under its floor");
+        assert_eq!(at(82.0, 3.5, 89.0), None, "over a cabin's 3 m top");
+        assert_eq!(at(82.0, 2.9, 89.0).as_deref(), Some("plot:c1"), "inside a cabin");
+        assert!(box_holds(Vec3::ZERO, Vec3::new(55.0, 6.0, 89.0), Vec3::new(55.0, 6.0, 89.0)), "the box's far corner is inside it");
+    }
+
     /// A FOOTPRINT OVER THE PLOT LINE IS OUTSIDE (the plot cases of engine/build_place.rs's
     /// `a_piece_goes_aboard_only_inside_your_own_plot`, moved here with the rule). On p1
     /// (0..55 x 0..89), with real blueprints placed the way the ghost places them: a foundation
@@ -366,7 +405,7 @@ mod tests {
 
         // Heights: no plot box bounds them, a sanity range does.
         let roof = p1.to_local(&Transform { position: Vec3::new(20.0, 3.2, 20.0), ..pose("roof", 20.0, 20.0, 0) });
-        assert!(p1.height_inside(&roof), "a roof on walls on a foundation, over the 3 m plot box");
+        assert!(p1.height_inside(&roof), "a roof on walls on a foundation, inside the 6 m plot box");
         let sunk = Transform { position: Vec3::new(20.0, -1.5, 20.0), ..roof.clone() };
         let high = Transform { position: Vec3::new(20.0, 39.9, 20.0), ..roof.clone() };
         assert!(!p1.height_inside(&sunk) && !p1.height_inside(&high), "below the deck, or reaching past 40 m");

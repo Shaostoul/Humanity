@@ -13,7 +13,8 @@
 //!     ONE meal from the store at that place. An empty store means a missed meal
 //!     (`meals_missed`) and another try in `empty_store_retry_minutes` (game minutes);
 //!   - a PLAYER takes one with the `take_meal` action on the store, standing within 5 m of it
-//!     (`handle_take_meal`, the same reach as every interaction), one draw on the same stock,
+//!     on its floor (`handle_take_meal`, the same reach as every interaction), one draw on the
+//!     same stock,
 //!     and one a meal interval, by their key (`GameWorld::player_next_meal`): the "free,
 //!     metered" meal of the design's question 11, so no one person can empty the crew's stock.
 //!     A taken meal is counted on the player (`meals_taken`, which is what an AI agent sees) and
@@ -57,6 +58,7 @@ use std::sync::Arc;
 
 use super::game_state::GameWorld;
 use super::ship_world::{plot_at, room_point};
+use crate::ship::moves::INTERACT_REACH_M;
 use crate::relay::relay::RelayState;
 
 /// One store of the ship (data/food/ship_stores.ron).
@@ -202,13 +204,23 @@ impl FleetSupply {
     }
 }
 
-/// How near a player stands to use a store (take a meal, give to the fleet): 5 m, the reach of
-/// every interaction with the world.
-pub const STORE_REACH_M: f32 = 5.0;
-
 /// Straight-line distance between two points of the ship, metres.
 pub fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+}
+
+/// Whether a player whose eyes are at `player` can use the store at `store` (take a meal, give to
+/// the fleet), and if not, the refusal: `too_far` with how far it is and whether it is on their
+/// floor (`same_floor`). The shared reach rule (src/ship/moves.rs `in_reach`): within
+/// `INTERACT_REACH_M` (5 m) in a straight line AND on the player's storey, so a store on the floor
+/// above, 2.3 m over their eyes, is out of reach (ship homes increment 7). The interaction and
+/// entity-detail handlers (msg_handlers.rs) use the same rule.
+pub fn store_out_of_reach(player: [f32; 3], store: [f32; 3]) -> Option<serde_json::Value> {
+    let (eye, at) = (glam::Vec3::from(player), glam::Vec3::from(store));
+    if crate::ship::moves::in_reach(eye, at, INTERACT_REACH_M) {
+        return None;
+    }
+    Some(serde_json::json!({ "distance": distance(player, store), "same_floor": crate::ship::moves::on_my_storey(eye.y, at.y) }))
 }
 
 const SECONDS_PER_DAY: f64 = 86_400.0;
@@ -420,11 +432,12 @@ impl GameWorld {
 }
 
 /// A player's `take_meal` on a store (game_interact with that action, msg_handlers.rs
-/// `handle_game_interact`): one meal from it if they stand within 5 m, it holds one, and their
-/// meal time has come (one a meal interval per person, like the crew). The reply is a
-/// `game_interact_result` with `meals_left` (null when the fleet is unlimited: the stock is not
-/// drawn on) and `supply`; a refusal names why (`not_in_game`, `entity_not_found`,
-/// `not_a_store`, `too_far`, `not_yet` with `next_meal_in_s` game seconds, `empty`). A meal
+/// `handle_game_interact`): one meal from it if they stand within 5 m of it on its floor
+/// (`store_out_of_reach`), it holds one, and their meal time has come (one a meal interval per
+/// person, like the crew). The reply is a `game_interact_result` with `meals_left` (null when the
+/// fleet is unlimited: the stock is not drawn on) and `supply`; a refusal names why
+/// (`not_in_game`, `entity_not_found`, `not_a_store`, `too_far` with `distance` and `same_floor`,
+/// `not_yet` with `next_meal_in_s` game seconds, `empty`). A meal
 /// taken is a "used" line of the player's fleet ledger (fleet_ledger.rs
 /// `take_meal_and_record`), and the reply carries the ledger's answer as `ledger`.
 pub async fn handle_take_meal(state: &Arc<RelayState>, my_key: &str, entity_id: u64) {
@@ -444,10 +457,10 @@ pub fn take_meal(world: &mut GameWorld, my_key: &str, entity_id: u64) -> serde_j
     if store.entity_type != "food_store" {
         return fail("not_a_store");
     }
-    let dist = distance(world.entities[&player].position, store.position);
-    if dist > STORE_REACH_M {
+    if let Some(why) = store_out_of_reach(world.entities[&player].position, store.position) {
         let mut r = fail("too_far");
-        r["distance"] = serde_json::json!(dist);
+        r["distance"] = why["distance"].clone();
+        r["same_floor"] = why["same_floor"].clone();
         return r;
     }
     // One meal a meal interval per person (the review of increment 3, finding 4): the crew are
@@ -645,6 +658,33 @@ mod tests {
         let other = *world.entities.iter().find(|(_, e)| e.entity_type == "dining_table").map(|(id, _)| id).expect("a dining table");
         assert_eq!(take_meal(&mut world, "e11e00ac", other)["error"], "not_a_store");
         assert_eq!(take_meal(&mut world, "e11e00ac", 999_999)["error"], "entity_not_found");
+    }
+
+    /// A STORE ONE STOREY UP IS OUT OF REACH (ship homes increment 7): the mess hall's store raised
+    /// a storey (3.0 m, as on an upper floor) right over a player standing a metre from where it
+    /// was, 2.3 m over their eyes and inside the old 5 m sphere, is too far, and says it is not on
+    /// their floor; brought back down, the same player takes a meal; and a player upstairs cannot
+    /// take one from the store under their feet.
+    ///
+    /// Seen red 2026-10-20 on the reach before storeys (the 5 m sphere alone): "a store one storey
+    /// up was in reach: {\"action\":\"take_meal\",...\"success\":true...}".
+    #[test]
+    fn a_store_one_storey_up_is_out_of_reach() {
+        let mut world = GameWorld::new();
+        let store = stores(&world)[0];
+        let at = world.entities[&store].position;
+        world.spawn_player("e11e00ad", [at[0] + 1.0, 1.7, at[2]]);
+        world.entities.get_mut(&store).unwrap().position = [at[0], at[1] + crate::ship::moves::STOREY_M, at[2]];
+        let up = take_meal(&mut world, "e11e00ad", store);
+        assert_eq!(up["error"], "too_far", "a store one storey up was in reach: {up}");
+        assert_eq!(up["same_floor"], false, "{up}");
+        world.entities.get_mut(&store).unwrap().position = at;
+        let here = take_meal(&mut world, "e11e00ad", store);
+        assert_eq!(here["success"], true, "a store on your floor: {here}");
+        let upstairs = world.spawn_player("e11e00ae", [at[0] - 1.0, 1.7 + crate::ship::moves::STOREY_M, at[2]]);
+        let down = take_meal(&mut world, "e11e00ae", store);
+        assert_eq!(down["error"], "too_far", "the store under an upstairs player's feet: {down}");
+        let _ = upstairs;
     }
 
     /// NPC HOMESTEADS MOSTLY PROVIDE FOR THEMSELVES (the operator, 2026-10-04): an NPC of a

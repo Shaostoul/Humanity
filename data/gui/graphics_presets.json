@@ -8,6 +8,7 @@
       "note": "The rig's reference: cloud march at half resolution, constructed cloud bodies, every surface and lighting feature on at its physical strength.",
       "values": {
         "cloud_quality": "ultra",
+        "bounced_light_detail": "high",
         "cloud_res_div": 2,
         "planet_detail": true,
         "planet_chunked": true,
@@ -50,6 +51,7 @@
       "note": "Above the reference: the cloud march at full resolution (4x the reference cost), triple grass, air and occlusion past their physical strength. For finding the ceiling.",
       "values": {
         "cloud_quality": "ultra",
+        "bounced_light_detail": "ultra",
         "cloud_res_div": 1,
         "planet_detail": true,
         "planet_chunked": true,

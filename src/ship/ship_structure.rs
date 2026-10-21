@@ -3755,7 +3755,8 @@ mod plot_handout_tests {
         assert_eq!(street.label, "First Street");
         let design = HomeDesign::built_in("homestead").expect("the shipped homestead is built in");
         for p in &file.plots {
-            assert_eq!((p.kind.as_str(), p.size), ("homestead", (55.0, 3.0, 89.0)), "{} is a homestead plot", p.id);
+            // 6 m tall since ship homes increment 7: two 3.0 m storeys.
+            assert_eq!((p.kind.as_str(), p.size), ("homestead", (55.0, 6.0, 89.0)), "{} is a homestead plot", p.id);
             if p.id != "p1" {
                 assert_eq!(p.door.zone, "street-1", "{}'s door opens onto First Street", p.id);
                 // West of the street, its east wall facing it across a clear gap.
@@ -4042,6 +4043,13 @@ mod storey_fields_tests {
     /// Seen red 2026-10-20 with `floors` written even when empty: all seven moved, among them
     /// "ship_hash, data/blueprints/ship_structure.ron: pinned effbdfbec3360115, now a327f9b37c384935"
     /// and "homes/shipped/homestead.ron, compact: pinned 7f2c00ab2c30e0ce, now 2272e8546b075515".
+    ///
+    /// MOVED ON PURPOSE 2026-10-20 (lane R of increment 7): the twelve homestead plots grew from
+    /// 3.0 to 6.0 m in the ship file, so its three pins changed: "ship_hash, ...ship_structure.ron:
+    /// pinned effbdfbec3360115, now 507bc93bce4f4dbf", the same for the ship built into the exe, and
+    /// "ship file, pretty: pinned 2f24b7a1c04beedd, now f25a9d8398e84427". The home designs' four
+    /// pins did not move. effbdfbec3360115 is now an older game's ship
+    /// (`an_older_game_is_refused_as_another_ship`).
     #[test]
     fn the_storey_fields_move_no_shipped_file() {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
@@ -4060,9 +4068,9 @@ mod storey_fields_tests {
             now.push((format!("homes/shipped/{kind}.ron, pretty"), fnv(ron::ser::to_string_pretty(&design, pretty()).unwrap())));
         }
         const PINNED: [&str; 7] = [
-            "effbdfbec3360115",
-            "effbdfbec3360115",
-            "2f24b7a1c04beedd",
+            "507bc93bce4f4dbf",
+            "507bc93bce4f4dbf",
+            "f25a9d8398e84427",
             // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165.
             "f157103c47ff3d8f",
@@ -4077,5 +4085,80 @@ mod storey_fields_tests {
             .map(|((what, got), pin)| format!("  {what}: pinned {pin}, now {got}"))
             .collect();
         assert!(moved.is_empty(), "a shipped file no longer serializes as it did:\n{}", moved.join("\n"));
+    }
+
+    /// A TWO-STOREY HOMESTEAD FITS ITS PLOT (ship homes increment 7, plan decision 3): every
+    /// homestead plot of the ship file is 6.0 m tall, so the homestead body at 6.0 m (two 3.0 m
+    /// storeys, lane C1's upper floor) fits each of them and a 6.5 m one fits none; the cabin
+    /// plots stay one 3.0 m storey, and a 6 m body fits none of them. An older game, whose ship
+    /// file still has 3 m plots, hashes differently, so a relay running this file meets it as a
+    /// different ship (`ship_hash`, checked in the game's welcome), which is the refusal the
+    /// increment accepts while nobody is using the ship.
+    ///
+    /// Seen red 2026-10-20 on the ship file before the plots grew: "a 6 m homestead does not fit
+    /// p1: Err(\"the homestead design (55 x 89 x 6 m) does not fit plot 'p1' ((55.0, 3.0, 89.0))\")".
+    #[test]
+    fn a_two_storey_homestead_fits_its_plot() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = ShipStructure::load_ship_file(&data).expect("the ship file loads");
+        let mut design = HomeDesign::built_in("homestead").expect("the shipped homestead");
+        let homesteads: Vec<&Plot> = ship.plots.iter().filter(|p| p.kind == "homestead").collect();
+        assert_eq!(homesteads.len(), 12, "twelve homestead plots");
+        for plot in &homesteads {
+            design.body.height = 6.0;
+            let fits = design_fits_plot(&design, plot);
+            assert!(fits.is_ok(), "a 6 m homestead does not fit {}: {fits:?}", plot.id);
+            design.body.height = 6.5;
+            assert!(design_fits_plot(&design, plot).is_err(), "a 6.5 m homestead fits {}", plot.id);
+        }
+        let mut cabin = HomeDesign::built_in("cabin").expect("the shipped cabin");
+        for plot in ship.plots.iter().filter(|p| p.kind == "cabin") {
+            assert_eq!(plot.size.1, 3.0, "{} stays one storey", plot.id);
+            assert!(design_fits_plot(&cabin, plot).is_ok(), "the shipped cabin fits {}", plot.id);
+            cabin.body.height = 6.0;
+            assert!(design_fits_plot(&cabin, plot).is_err(), "a 6 m cabin fits {}", plot.id);
+            cabin.body.height = 3.0;
+        }
+        // The same file with the plots as they were before increment 7 is another ship.
+        let mut before = ship.clone();
+        for p in before.plots.iter_mut().filter(|p| p.kind == "homestead") {
+            p.size.1 = 3.0;
+        }
+        assert_ne!(before.ship_hash(), ship.ship_hash(), "an older game's 3 m plots are another ship");
+    }
+
+    /// AN OLDER GAME IS REFUSED AS ANOTHER SHIP (ship homes increment 7): growing the homestead
+    /// plots changed the ship's hash, and the game's welcome check (engine/home_plot.rs
+    /// `plan_welcome`) refuses any relay whose hash is not its own, in the one plain sentence,
+    /// without giving up a plot. Both ways round: a game built before the plots grew (its ship is
+    /// this one with 3 m homestead plots, whose hash is the Wave 0 pin, the hash of the ship file
+    /// before increment 7) meeting a relay running this file, and this game meeting an older relay.
+    /// The same ship is never refused as another.
+    ///
+    /// Proven green 2026-10-20 (the existing behaviour, held with the new hash): the refusal does
+    /// not depend on which way the hash moved.
+    #[cfg(feature = "native")]
+    #[test]
+    fn an_older_game_is_refused_as_another_ship() {
+        use crate::engine::home_plot::{plan_welcome, WelcomeContext, WelcomeHome};
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let now = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
+        let mut older = now.clone();
+        for p in older.plots.iter_mut().filter(|p| p.kind == "homestead") {
+            p.size.1 = 3.0;
+        }
+        assert_eq!(older.ship_hash(), "effbdfbec3360115", "the older game's ship is the ship file before increment 7");
+        let welcome = |hash: &str| serde_json::json!({ "type": "game_welcome", "player_id": 7, "world_snapshot": [], "home_plot": null, "ship": { "id": now.id, "hash": hash }, "rejoin": false });
+        let ctx = WelcomeContext { arrived_on: None, server: "http://127.0.0.1:3210", camera: Vec3::new(53.5, 1.7, 40.5), data_dir: None, other_kind: None };
+        for (what, game, relay) in [("an older game, this relay", &older, now.ship_hash()), ("this game, an older relay", &now, older.ship_hash())] {
+            match plan_welcome(Some(game), &welcome(&relay), &ctx) {
+                WelcomeHome::Refuse { sentence, give_up_plot } => {
+                    assert_eq!(sentence, OTHER_SHIP_SENTENCE, "{what}");
+                    assert!(!give_up_plot, "{what}: a plot that is not ours to give");
+                }
+                other => panic!("{what}: another ship must be refused: {other:?}"),
+            }
+        }
+        assert!(!matches!(plan_welcome(Some(&now), &welcome(&now.ship_hash()), &ctx), WelcomeHome::Refuse { .. }), "the same ship is not refused");
     }
 }

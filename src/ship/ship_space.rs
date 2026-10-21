@@ -66,10 +66,65 @@ pub fn aboard_at(bounds: Option<Aabb>, rel: glam::DVec3) -> bool {
     }
 }
 
-/// A home's own air, m3: its body's box, floor to roof (the homestead: 55 by 89 by 3 m, 14,685
-/// m3, where one 14,000 m3 space used to stand for every home).
+/// A home's own air, m3: what its rooms hold, storey by storey (ship homes increment 7,
+/// docs/design/ship-homes-increment-7-plan.md section 3: "the home's air volume is the sum of its
+/// rooms per storey").
+///
+/// - The ground storey is all air, its whole footprint from the floor to the floor above, less
+///   the slab over each place (a slab's 0.25 m is concrete, not air).
+/// - A storey above holds air where a room of it is, a slab under the place and a zone of that
+///   storey over it (the rooms `detect_rooms` floods there), and where the air below rises into it
+///   through no floor at all (the greenhouse's upper half, a stairwell, an elevator shaft). The
+///   space over a lid nobody uses is no one's air (docs/design/homestead-upper-floor.md section 9
+///   item 3(b): about 11,000 m3 of it over the homestead's lids).
+///
+/// With no slab it is the body's box, floor to roof, exactly as before storeys: the homestead's
+/// 55 by 89 by 3 m, 14,685 m3, where one 14,000 m3 space used to stand for every home. Measured on
+/// the same 0.5 m grid the rooms are flooded on.
 pub fn home_air_volume_m3(body: &HomeStructure) -> f32 {
-    (body.width * body.depth * body.height).max(0.0)
+    if body.floors.is_empty() {
+        return (body.width * body.depth * body.height).max(0.0);
+    }
+    const CELL: f32 = 0.5;
+    let (w, d) = (body.width.max(0.0), body.depth.max(0.0));
+    let (nx, nz) = ((w / CELL).ceil() as usize, (d / CELL).ceil() as usize);
+    let storeys = body.storeys();
+    // The thickest slab that is storey k's floor over (x, z), None where none is.
+    let slab_at = |k: usize, x: f32, z: f32| -> Option<f32> {
+        body.floors.iter().filter(|s| s.is_floor_of(&storeys[k]) && s.contains(x, z)).map(|s| s.thickness.max(0.0)).reduce(f32::max)
+    };
+    let zones: Vec<(usize, &crate::ship::home_structure::Zone)> =
+        body.zones.iter().map(|z| (crate::ship::home_structure::storey_index(&storeys, z.origin.1), z)).collect();
+    let mut volume = 0.0f64;
+    // Which cells are air on the storey under the one being summed (under the ground: all).
+    let mut below = vec![true; nx * nz];
+    for (k, storey) in storeys.iter().enumerate() {
+        let mut here = vec![false; nx * nz];
+        for cz in 0..nz {
+            for cx in 0..nx {
+                let (x, z) = ((cx as f32 + 0.5) * CELL, (cz as f32 + 0.5) * CELL);
+                let ci = cz * nx + cx;
+                let air = if k == 0 {
+                    true
+                } else if slab_at(k, x, z).is_some() {
+                    zones.iter().any(|(zk, zone)| *zk == k && zone.contains_xz(x, z))
+                } else {
+                    below[ci]
+                };
+                if !air {
+                    continue;
+                }
+                here[ci] = true;
+                // The cell's own area (the last row and column may be cut short by the box).
+                let cw = ((cx as f32 + 1.0) * CELL).min(w) - cx as f32 * CELL;
+                let cd = ((cz as f32 + 1.0) * CELL).min(d) - cz as f32 * CELL;
+                let lid = if k + 1 < storeys.len() { slab_at(k + 1, x, z).unwrap_or(0.0) } else { 0.0 };
+                volume += f64::from(cw * cd * (storey.height() - lid).max(0.0));
+            }
+        }
+        below = here;
+    }
+    volume as f32
 }
 
 /// How high above its floor a space's AIR reaches (the box whose air a person breathes): its roof,
@@ -81,13 +136,22 @@ pub fn home_air_volume_m3(body: &HomeStructure) -> f32 {
 /// The review of increment 4, P2: the box stopped at the roof (3 m for the homestead), so its own
 /// elevator, ladder and stairs, which climb a storey, carried a person's eye to 4.7 m, out of
 /// every air space: vacuum, hypoxia after 20 s. Before increment 4 the box around every room
-/// reached the Commons' 8 m. The air's VOLUME stays the space's own box, floor to roof
-/// (`home_air_volume_m3`): this is only where a person counts as in it.
+/// reached the Commons' 8 m. The air's VOLUME is the space's rooms (`home_air_volume_m3`): this
+/// is only where a person counts as in it.
+///
+/// Ship homes increment 7: a floor slab is a floor like the ground (a person stands on its top and
+/// jumps: its top plus `HEADROOM_M`), and the rooms zoned on a storey above the ground reach their
+/// own tops. A body with no slab has no storey above the ground, so this is what it always was.
 pub fn air_top(body: &HomeStructure) -> f32 {
-    body.structures
+    let storeys = body.storeys();
+    let pieces = body.structures.iter().filter_map(|s| crate::ship::structure::structure_type(&s.type_id).map(|t| s.pos.1 + t.size.1 + HEADROOM_M));
+    let slabs = body.floors.iter().map(|s| s.top + HEADROOM_M);
+    let upper_rooms = body
+        .zones
         .iter()
-        .filter_map(|s| crate::ship::structure::structure_type(&s.type_id).map(|t| s.pos.1 + t.size.1 + HEADROOM_M))
-        .fold(body.height, f32::max)
+        .filter(|z| crate::ship::home_structure::storey_index(&storeys, z.origin.1) > 0)
+        .map(|z| z.origin.1 + z.size.1);
+    pieces.chain(slabs).chain(upper_rooms).fold(body.height, f32::max)
 }
 
 /// The ship's air spaces as this game sees them (`ShipStructure::air_spaces`).
@@ -311,6 +375,65 @@ mod tests {
                 assert_eq!(air.at(mid), AirAt::Ship, "with the home on {}, the neighbour's plot {} is the ship's air", p.id, q.id);
             }
         }
+    }
+
+    /// A body to test with: `width` x `depth` x `height`, nothing in it.
+    fn bare(width: f32, depth: f32, height: f32) -> HomeStructure {
+        ron::from_str(&format!("(width: {width}, depth: {depth}, height: {height})")).expect("a bare body parses")
+    }
+
+    /// A solid 0.25 m floor slab over a-b, its top at `top`.
+    fn slab(a: (f32, f32), b: (f32, f32), top: f32) -> crate::ship::home_structure::FloorSlab {
+        ron::from_str(&format!("(a: ({}, {}), b: ({}, {}), top: {top})", a.0, a.1, b.0, b.1)).expect("a slab parses")
+    }
+
+    /// A zone of a room on a storey: its min corner and size, a room type of none.
+    fn zone(id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> crate::ship::home_structure::Zone {
+        crate::ship::home_structure::Zone { id: id.into(), type_id: "room_hall".into(), origin, size, label: String::new(), room_type: None }
+    }
+
+    /// AIR REACHES OVER A SLAB AND THE ROOMS ON IT (ship homes increment 7, plan section 3:
+    /// `air_top` counts slab tops and upper zones' tops). In a 3 m body with a mezzanine slab at
+    /// 2.5 m, a person standing on the slab and jumping reaches 2.5 + `HEADROOM_M`, so the air does;
+    /// a room zoned on that storey 4 m tall reaches 6.5 m. A body with no slab and no piece keeps its
+    /// roof, and a zone on its ground storey (every zone written before storeys) changes nothing.
+    ///
+    /// Seen red 2026-10-20 with main's air_top put back (slabs and zones not counted): "the air over a 2.5 m slab stops
+    /// at 3".
+    #[test]
+    fn air_reaches_over_a_slab_and_its_upper_rooms() {
+        let mut body = bare(10.0, 10.0, 3.0);
+        body.zones.push(zone("ground", (0.0, 0.0, 0.0), (10.0, 5.0, 10.0)));
+        assert_eq!(air_top(&body), 3.0, "a one-storey body's air stops at its roof");
+        body.floors.push(slab((0.0, 0.0), (4.0, 10.0), 2.5));
+        assert!((air_top(&body) - (2.5 + HEADROOM_M)).abs() < 1e-5, "the air over a 2.5 m slab stops at {}", air_top(&body));
+        body.zones.push(zone("mezzanine", (0.0, 2.5, 0.0), (4.0, 4.0, 10.0)));
+        assert!((air_top(&body) - 6.5).abs() < 1e-5, "the air over the mezzanine's room stops at {}", air_top(&body));
+    }
+
+    /// A HOME'S AIR IS ITS ROOMS, STOREY BY STOREY (plan section 3: "the home's air volume is the
+    /// sum of its rooms per storey"; docs/design/homestead-upper-floor.md section 9 item 3(b): the
+    /// space over a lid nobody uses is no one's air). A 10 x 10 x 6 m body with a 0.25 m slab at 3.0
+    /// over its north half and an upstairs room on half of that slab holds: the ground storey's
+    /// 300 m3 less the slab's 12.5, the upstairs room's 25 m2 by 3 m, and the south half's upper
+    /// 3 m, open to the room below as a stairwell or the greenhouse is: 512.5 m3. The lid's other
+    /// half, with no room on it, holds none. A body with no slab is its box, as it always was, and
+    /// so is a body whose only zones are on the ground.
+    ///
+    /// Seen red 2026-10-20 with main's volume put back (the box, whatever its storeys): "the two-storey body holds
+    /// 600 m3, want 512.5".
+    #[test]
+    fn a_homes_air_is_its_rooms_storey_by_storey() {
+        let mut body = bare(10.0, 10.0, 6.0);
+        assert_eq!(home_air_volume_m3(&body), 600.0, "a body with no slab is its box");
+        body.floors.push(slab((0.0, 0.0), (10.0, 5.0), 3.0));
+        body.zones.push(zone("upstairs", (0.0, 3.0, 0.0), (10.0, 3.0, 2.5)));
+        let v = home_air_volume_m3(&body);
+        assert!((v - 512.5).abs() < 1e-3, "the two-storey body holds {v} m3, want 512.5");
+        // Without the upstairs room, the lid's whole top is no one's air.
+        body.zones.clear();
+        let v = home_air_volume_m3(&body);
+        assert!((v - 437.5).abs() < 1e-3, "with nobody upstairs the body holds {v} m3, want 437.5");
     }
 
     /// A CABIN BREATHES THE SHIP'S AIR (ship homes increment 6, plan 3.7): its start says

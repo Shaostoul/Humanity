@@ -185,6 +185,74 @@ pub fn floor_distance(a: Vec3, b: Vec3) -> f32 {
     ((a.x - b.x).powi(2) + (a.z - b.z).powi(2)).sqrt()
 }
 
+// ── Reach by storey (ship homes increment 7) ──────────────────────────────────────────────────
+//
+// A home can have more than one storey now (docs/design/ship-homes-increment-7-plan.md), so "within
+// 5 m" is no longer enough to say a person can reach something: a store on the floor above, 2.3 m
+// over their head through a 0.25 m slab, is inside a 5 m sphere. What follows is the one rule both
+// sides use for it (the relay's stores, fleet gives, interactions and entity details; the game's
+// serving counter and Inventory > The fleet), so the game never offers what the relay refuses.
+
+/// The reach of every interaction with the world, metres: 5, the walk-up card's own reach. A
+/// store, a serving counter and anything the relay lets a player interact with are in reach within
+/// this, in a straight line, AND on the person's storey (`in_reach`). One number for the relay and
+/// the game since increment 7 (each kept its own copy before).
+pub const INTERACT_REACH_M: f32 = 5.0;
+
+/// One STOREY aboard, floor to floor, metres: 3.0 (docs/design/ship-homes-increment-7-plan.md,
+/// decision 2: a 3.0 m storey under a 0.25 m slab leaves 2.75 m of room). The relay holds no copy
+/// of anyone's home, so it has no list of a home's storeys; where it needs one (shutting the build
+/// editor on an upper floor of a plot) it takes this.
+pub const STOREY_M: f32 = 3.0;
+
+/// How far below the floor a person stands on a thing still counts as on their storey, metres:
+/// half a metre (what a step off a low stage or a crouch puts between them).
+pub const STOREY_BAND_BELOW_M: f32 = 0.5;
+
+/// How far above the floor a person stands on a thing still counts as on their storey, metres:
+/// 2.5, half a metre short of the next floor (`STOREY_M`), so nothing standing on the storey above
+/// is ever on theirs.
+pub const STOREY_BAND_ABOVE_M: f32 = STOREY_M - STOREY_BAND_BELOW_M;
+
+/// Where a person's feet are, from where their eyes are (metres, y). Every position a game sends
+/// and the relay holds for a player is the eye, the camera: the floor plus
+/// `surface_walk::EYE_HEIGHT_M` (1.7 m).
+pub fn feet_y(eye_y: f32) -> f32 {
+    eye_y - crate::surface_walk::EYE_HEIGHT_M as f32
+}
+
+/// THE STOREY RULE: true when a thing whose point is at height `thing_y` stands on the storey of a
+/// person whose eyes are at `eye_y`. The point may be anywhere from the thing's own floor up to 2.5
+/// m over it (the relay stands every figure and store a metre up, `ship_world::STANDING_Y_M`; the
+/// game's walk-up label floats 0.4 m over a machine; a player's point is their eye, 1.7 m up), so
+/// it is measured from the person's FEET: from half a metre under them (`STOREY_BAND_BELOW_M`) to
+/// 2.5 m over them (`STOREY_BAND_ABOVE_M`). On the person's own storey such a point rises 0 to 2.5
+/// m; on the storey above (3.0 m up) at least 3.0; on the one below at most 2.5 - 3.0 = -0.5, and
+/// never more than that. Comparing the two points directly does NOT work: a store on the floor
+/// above stands 4.0 m up, only 2.3 m over a 1.7 m eye.
+pub fn on_my_storey(eye_y: f32, thing_y: f32) -> bool {
+    let rise = thing_y - feet_y(eye_y);
+    (-STOREY_BAND_BELOW_M..=STOREY_BAND_ABOVE_M).contains(&rise)
+}
+
+/// True when a person whose eyes are at `eye` can reach the thing at `thing` (both ship metres):
+/// within `reach_m` in a straight line AND on their storey (`on_my_storey`). The one reach rule of
+/// the relay and the game (see above).
+pub fn in_reach(eye: Vec3, thing: Vec3, reach_m: f32) -> bool {
+    eye.distance(thing) <= reach_m && on_my_storey(eye.y, thing.y)
+}
+
+/// THE STOREY OF A PLACE: true when someone whose feet are at `feet_y` stands in the place whose
+/// floor is at `floor_y` and which is `height` tall (a labelled volume of the ship, the doorstep of
+/// a front door): from half a metre under its floor to half a metre under its top, or under the
+/// top of one storey (`STOREY_M`) when it is lower than that. So a person on the floor above a 3 m
+/// place (feet 3.0 m up) is not in it, nor one on the floor below, and a place two storeys tall
+/// holds both. The quests' places use it (src/systems/quests).
+pub fn stands_in_storey_of(feet_y: f32, floor_y: f32, height: f32) -> bool {
+    let rise = feet_y - floor_y;
+    rise >= -STOREY_BAND_BELOW_M && rise <= height.max(STOREY_M) - STOREY_BAND_BELOW_M
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,6 +314,40 @@ mod tests {
         assert_eq!(MoveDecl::from_json(&serde_json::json!({"by": "warp"})), None);
         assert_eq!(MoveDecl::from_json(&serde_json::json!({"by": "link", "zone": "home"})), None, "a link without its ends");
         assert_eq!(MoveDecl::from_json(&serde_json::json!(null)), None);
+    }
+
+    /// REACH STOPS AT THE STOREY (ship homes increment 7): a store the relay stands a metre over
+    /// its floor and a serving counter's label (0.9 m counter, 0.4 m over it) are in reach from
+    /// the person's own floor, 1.7 m eyes beside them; the same things one storey up (3.0 m), right
+    /// over the person's head and well inside 5 m, are not, nor the ones one storey down for a
+    /// person upstairs; and a jump or a crouch beside a counter keeps it in reach. A place's storey
+    /// (`stands_in_storey_of`) holds a person on its floor and not one on the floor above or below
+    /// it; a place two storeys tall holds both.
+    ///
+    /// Seen red 2026-10-20 with `on_my_storey` answering true (the 5 m sphere alone, today's rule):
+    /// "a store one storey up, 2.3 m over the eye, was in reach".
+    #[test]
+    fn reach_stops_at_the_storey() {
+        let eye = Vec3::new(10.0, 1.7, 10.0);
+        let store = Vec3::new(10.5, 1.0, 10.0);
+        let label = Vec3::new(11.0, 1.3, 10.0);
+        assert!(in_reach(eye, store, INTERACT_REACH_M), "a store on your floor");
+        assert!(in_reach(eye, label, INTERACT_REACH_M), "a counter on your floor");
+        let up = Vec3::new(0.0, STOREY_M, 0.0);
+        assert!(!in_reach(eye, store + up, INTERACT_REACH_M), "a store one storey up, {:.1} m over the eye, was in reach", store.y + STOREY_M - eye.y);
+        assert!(!in_reach(eye, label + up, INTERACT_REACH_M), "a counter one storey up was in reach");
+        assert!(!in_reach(eye + up, store, INTERACT_REACH_M), "a store one storey down was in reach from upstairs");
+        assert!(in_reach(eye + up, store + up, INTERACT_REACH_M), "upstairs, a store on that floor");
+        assert!(in_reach(eye + Vec3::new(0.0, 1.2, 0.0), store, INTERACT_REACH_M), "jumping beside it");
+        assert!(in_reach(Vec3::new(10.0, 1.0, 10.0), store, INTERACT_REACH_M), "crouching beside it");
+        assert!(!in_reach(eye, Vec3::new(16.0, 1.0, 10.0), INTERACT_REACH_M), "6 m away on your floor");
+        // A place's storey, from the feet.
+        assert!(stands_in_storey_of(0.0, 0.0, 3.0), "on a 3 m place's floor");
+        assert!(stands_in_storey_of(1.2, 0.0, 3.0), "jumping in it");
+        assert!(!stands_in_storey_of(3.0, 0.0, 3.0), "on the floor above it");
+        assert!(!stands_in_storey_of(-3.0, 0.0, 3.0), "on the floor below it");
+        assert!(stands_in_storey_of(3.0, 0.0, 6.0), "a mezzanine inside a 6 m place");
+        assert!(stands_in_storey_of(0.0, 0.0, 2.2), "a place lower than a storey still holds its floor");
     }
 
     /// THE ON-FOOT LIMIT COVERS THE FASTEST LEGITIMATE WALK: the walk and the sprint the

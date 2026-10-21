@@ -1289,6 +1289,8 @@ test("the walker's public key line is read whole, and never from the shortened o
 
 const STARTS_RS = fs.readFileSync(path.join(REPO, "src", "ship", "starts.rs"), "utf8");
 const SHIP_STORES_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "ship_stores.rs"), "utf8");
+const MOVES_RS = fs.readFileSync(path.join(REPO, "src", "ship", "moves.rs"), "utf8");
+const SURFACE_WALK_RS = fs.readFileSync(path.join(REPO, "src", "surface_walk.rs"), "utf8");
 const FLEET_LEDGER_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "fleet_ledger.rs"), "utf8");
 /** A `pub const NAME: &str = "..."` of starts.rs. */
 const startsConst = (name) => {
@@ -1386,9 +1388,17 @@ test("a game_home answer is logged in the lines a rig reads", () => {
 // nearestStore taking the first store in reach (`if (d <= reach && !best)`). FAILED at "the nearer
 // of the two": actual [11, 4], expected [12, 3].
 test("take-meal goes to the nearest food store in reach, and its answer is logged", () => {
-  const reach = SHIP_STORES_RS.match(/pub const STORE_REACH_M: f32 = ([0-9.]+);/);
-  assert.ok(reach, "ship_stores.rs defines STORE_REACH_M");
-  assert.equal(sp.STORE_REACH_M, Number(reach[1]), "the walker's reach is the relay's");
+  // The relay's reach rule (src/ship/moves.rs `in_reach`, ship homes increment 7): its numbers.
+  for (const [name, file, re] of [
+    ["INTERACT_REACH_M", MOVES_RS, /pub const INTERACT_REACH_M: f32 = ([0-9.]+);/],
+    ["STOREY_M", MOVES_RS, /pub const STOREY_M: f32 = ([0-9.]+);/],
+    ["STOREY_BAND_BELOW_M", MOVES_RS, /pub const STOREY_BAND_BELOW_M: f32 = ([0-9.]+);/],
+    ["EYE_HEIGHT_M", SURFACE_WALK_RS, /pub const EYE_HEIGHT_M: f64 = ([0-9.]+);/],
+  ]) {
+    const m = file.match(re);
+    assert.ok(m, `the Rust source defines ${name}`);
+    assert.equal(sp[name], Number(m[1]), `the walker's ${name} is the relay's`);
+  }
 
   const welcome = {
     type: "game_welcome",
@@ -1407,6 +1417,13 @@ test("take-meal goes to the nearest food store in reach, and its answer is logge
   assert.deepEqual([near.id, near.distance], [12, 3], "the nearer of the two");
   assert.equal(sp.nearestStore(stores, [0, 1.7, -6]), null, "none within 5 m: nothing is sent");
   assert.equal(sp.nearestStore(stores, [9, 1.7, 0]).id, 11, "exactly 5 m is in reach");
+  // A store one storey up, right over the walker and inside 5 m, is not on its floor (ship homes
+  // increment 7). Red run 2026-10-20 with `onMyStorey` answering true: "a store one storey up" (the
+  // store, id 16, came back instead of null).
+  const upstairs = [{ id: 16, position: [0, 4.0, 1] }];
+  assert.equal(sp.nearestStore(upstairs, [0, 1.7, 0]), null, "a store one storey up");
+  assert.equal(sp.nearestStore(upstairs, [0, 4.7, 0]).id, 16, "upstairs, on its floor");
+  assert.ok(sp.onMyStorey(1.7, 1.0) && !sp.onMyStorey(1.7, 4.0) && !sp.onMyStorey(4.7, 1.0), "the storey rule");
   assert.ok(sp.isFoodStore({ entity_id: 15, entity_type: "food_store", position: [1, 2, 3] }), "a store coming into view counts");
 
   // The message the relay's interact handler takes a meal by.

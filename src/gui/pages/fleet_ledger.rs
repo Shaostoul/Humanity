@@ -38,9 +38,10 @@ use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
 use crate::systems::inventory::FleetHeld;
 
-/// How near a player stands to use a fleet store (the relay's ship_stores.rs `STORE_REACH_M`,
-/// the reach of every interaction; the relay checks it, this only says so first).
-pub const STORE_REACH_M: f32 = 5.0;
+// How near a player stands to use a fleet store: the reach of every interaction, 5 m, and on
+// their own floor (src/ship/moves.rs `in_reach`, the relay's own rule, ship homes increment 7;
+// the relay checks it, this only says so first).
+use crate::ship::moves::INTERACT_REACH_M;
 
 /// One of the fleet's stores in the shared world (from the welcome's snapshot).
 #[derive(Debug, Clone, PartialEq)]
@@ -308,13 +309,34 @@ pub fn when_text(game_time: f64, real_day: i64) -> String {
     format!("Day {day} ({})", &date[..10.min(date.len())])
 }
 
-/// The fleet store nearest the player, and how far it is.
+/// The fleet store nearest the player, and how far it is in a straight line: the nearest of the
+/// stores on the player's own floor (src/ship/moves.rs `on_my_storey`, ship homes increment 7), and
+/// only when none is on it the nearest on any floor, so a store over the player's head never hides
+/// the one across the room, and the panel can still say where the nearest is.
 pub fn nearest_store(view: &FleetView) -> Option<(&FleetStore, f32)> {
-    let me = view.my_position?;
+    let me = glam::Vec3::from(view.my_position?);
     view.stores
         .iter()
-        .map(|s| (s, ((s.position[0] - me[0]).powi(2) + (s.position[1] - me[1]).powi(2) + (s.position[2] - me[2]).powi(2)).sqrt()))
-        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|s| (s, me.distance(glam::Vec3::from(s.position)), crate::ship::moves::on_my_storey(me.y, s.position[1])))
+        .min_by(|a, b| b.2.cmp(&a.2).then(a.1.total_cmp(&b.1)))
+        .map(|(s, d, _)| (s, d))
+}
+
+/// Why the player cannot use `store` (`dist` metres from them) for what `to_do` says ("to take a
+/// meal", "to give"), as a sentence with what to do about it; None when it is in reach. The shared
+/// reach rule (src/ship/moves.rs `in_reach`): within 5 m AND on the player's floor, which is what
+/// the relay checks too.
+pub fn out_of_reach_sentence(view: &FleetView, store: &FleetStore, dist: f32, to_do: &str) -> Option<String> {
+    let me = glam::Vec3::from(view.my_position?);
+    let at = glam::Vec3::from(store.position);
+    if crate::ship::moves::in_reach(me, at, INTERACT_REACH_M) {
+        return None;
+    }
+    if !crate::ship::moves::on_my_storey(me.y, at.y) {
+        let way = if at.y > me.y { "up" } else { "down" };
+        return Some(format!("{} is on another floor: go {way} to it {to_do}.", store.name));
+    }
+    Some(format!("Walk within {} m of {} {to_do} (you are {:.0} m away).", INTERACT_REACH_M, store.name, dist))
 }
 
 /// How many of `item_id` the backpack has free to give: less what a give asked this frame
@@ -362,8 +384,8 @@ pub fn take_meal_at_nearest(state: &GuiState) -> Result<serde_json::Value, Strin
     let Some((store, dist)) = nearest_store(&state.fleet) else {
         return Err("No fleet store is known in this world yet.".into());
     };
-    if dist > STORE_REACH_M {
-        return Err(format!("Walk within {} m of {} to take a meal (you are {:.0} m away).", STORE_REACH_M, store.name, dist));
+    if let Some(why) = out_of_reach_sentence(&state.fleet, store, dist, "to take a meal") {
+        return Err(why);
     }
     let msg = serde_json::json!({ "type": "game_interact", "entity_id": store.entity_id, "action": "take_meal" });
     if send(state, &msg) {
@@ -391,8 +413,8 @@ pub fn start_give(state: &mut GuiState, item_id: &str, qty: u32) -> String {
     let Some((store, dist)) = nearest_store(&state.fleet).map(|(s, d)| (s.clone(), d)) else {
         return "No fleet store is known in this world.".into();
     };
-    if dist > STORE_REACH_M {
-        return format!("Walk within {} m of {} to give (you are {:.0} m away).", STORE_REACH_M, store.name, dist);
+    if let Some(why) = out_of_reach_sentence(&state.fleet, &store, dist, "to give") {
+        return why;
     }
     if qty == 0 {
         return "Choose how many to give.".into();
@@ -551,12 +573,16 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::subsection_label(ui, theme, "At a fleet store");
     let near = nearest_store(&state.fleet).map(|(s, d)| (s.clone(), d));
     let in_reach = match &near {
-        Some((s, d)) if *d <= STORE_REACH_M => {
+        Some((s, d)) if out_of_reach_sentence(&state.fleet, s, *d, "").is_none() => {
             widgets::body_hint(ui, theme, &format!("You are at {} ({:.1} m away).", s.name, d));
             Some(s.clone())
         }
+        Some((s, _)) if state.fleet.my_position.is_some_and(|me| !crate::ship::moves::on_my_storey(me[1], s.position[1])) => {
+            widgets::body_hint(ui, theme, &format!("The nearest fleet store is {}, on another floor. Go to its floor to take a meal or give.", s.name));
+            None
+        }
         Some((s, d)) => {
-            widgets::body_hint(ui, theme, &format!("The nearest fleet store is {}, {:.0} m away. Walk within {} m of it to take a meal or give.", s.name, d, STORE_REACH_M));
+            widgets::body_hint(ui, theme, &format!("The nearest fleet store is {}, {:.0} m away. Walk within {} m of it to take a meal or give.", s.name, d, INTERACT_REACH_M));
             None
         }
         None => {

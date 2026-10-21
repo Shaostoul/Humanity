@@ -182,6 +182,28 @@ fn a_give_is_a_contributed_line_recorded_once() {
     drop(db);
 }
 
+#[test]
+fn a_give_reaches_a_store_only_on_your_floor() {
+    // A GIVE REACHES A STORE ONLY ON YOUR FLOOR (ship homes increment 7): the store raised a
+    // storey over a player a metre from it (2.3 m over their eyes, inside the old 5 m sphere) is
+    // too far for a give, and records nothing; on their floor the same give is taken.
+    //
+    // Seen red 2026-10-20 on the reach before storeys: "a give to a store a storey up was taken:
+    // {\"already\":false,...\"success\":true,...}".
+    let db = temp_db("storey");
+    let mut world = GameWorld::new();
+    let (store, at) = store_of(&world);
+    let key = "e11e00b9";
+    player_at_store(&mut world, key);
+    world.entities.get_mut(&store).unwrap().position = [at[0], at[1] + crate::ship::moves::STOREY_M, at[2]];
+    let up = give(&world, &db, key, &give_msg("g-up", store, "bread_0", 1));
+    assert_eq!(up["error"], "too_far", "a give to a store a storey up was taken: {up}");
+    assert!(lines_of(&db, key).is_empty(), "nothing recorded");
+    world.entities.get_mut(&store).unwrap().position = at;
+    let here = give(&world, &db, key, &give_msg("g-here", store, "bread_0", 1));
+    assert_eq!(here["success"], true, "on your floor: {here}");
+}
+
 /// A REFUSED GIVE RECORDS NOTHING (so the game takes nothing): not in the world, no such
 /// store, not a store, too far, no item, a quantity of 0 or past the cap, an item the fleet has
 /// no price for, a give id that is no id. After all of them, the ledger is empty.

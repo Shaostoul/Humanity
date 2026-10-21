@@ -61,9 +61,62 @@ reflects `alpha * colour`. Every reflectance is clamped to 0.95.
 **Lattice.** 1 m target spacing, `ceil(size / 1 m) + 1` probes per axis (never
 fewer than 2), probes at cell centres so none sits on a surface. The mushroom
 room is 11 x 4 x 11. A room that alone would hold more than 8,192 probes
-coarsens by itself (the 8 m commons hall, 17,640 at 1 m, runs at 1.46 m), so
-one hall cannot coarsen every bedroom; the whole ship is then capped at 32,768
-(the shipped ship holds 31,874: 34 rooms, the acre's all at 1 m).
+coarsens by itself (the 8 m commons hall holds 17,640 at 1 m, the 1.1 km street
+60,555), so one hall cannot coarsen every bedroom. The whole ship is capped at
+32,768, and the player's OWN HOME comes first (`lattice_for`, 2026-10-20): its
+rooms keep 1 m, the rest of the ship takes the finest common spacing that fits
+in what the home leaves, and only a home that alone holds more than the cap
+coarsens too, which the `[RoomGI] N rooms, M probes of 32768: home ..., others
+...` log line then says. The shipped ship on 2026-10-20 (the ship file with the
+shipped homestead on plot p1, counted by
+`engine::room_gi::tests::the_shipped_home_keeps_its_designed_probe_spacing`
+with `--nocapture`, which prints every room): 41 rooms that would hold 109,497
+probes at 1 m; the home's 23 rooms hold 22,092 at 1 m, the other 18 hold 9,878
+at 2.50 m (6,630 of them the street's), 31,970 in all. Before the priority,
+the rooms added elsewhere on 2026-10-05 (the street, the second commons, the
+cabins) had coarsened every room together to 1.33 m, 26,804 probes, the home
+included, without anyone choosing that. The 31,874 this paragraph gave until
+then was the 34-room ship of 2026-10-03.
+
+**Bounced light detail (2026-10-20).** The 1 m spacing and the 32,768 cap are
+the defaults of a setting, Settings > Graphics > Light and sky > Bounced light
+detail, not constants: `lattice_for(rooms, budget)` takes a `ProbeBudget`
+(the home's target spacing and the ship's cap; one room's cap is a quarter of
+the ship's, 8,192 at the default). The levels are data,
+`data/gui/bounced_light_detail.json`, read once at start and held to what the
+atlas can hold (spacing 0.25 to 64 m, a cap whose atlas stays within 8,192
+texels, about 156,000 probes). Each probe takes 3,392 bytes of video memory
+(its 10 x 10 and 18 x 18 tiles at 8 bytes a texel), so a level's memory is its
+cap x 3,392 bytes, which the setting shows beside each level. On the shipped
+ship (2026-10-20, `engine::room_gi::tests::every_bounced_light_detail_level_fits_the_shipped_ship`
+with `--nocapture`; the real atlas is up to one more row of each tile kind,
+under 1.8 MB, above the figure shown):
+
+| Level | Home spacing | Cap | Memory | Probes laid out | The home | The rest of the ship |
+| --- | --- | --- | --- | --- | --- | --- |
+| Low | 2 m | 8,192 | 27 MB | 8,178 | 4,806 at 2.00 m | 3,372 at 3.90 m |
+| Medium | 1.5 m | 16,384 | 53 MB | 16,331 | 8,328 at 1.50 m | 8,003 at 2.12 m |
+| High (default) | 1 m | 32,768 | 106 MB | 31,970 | 22,092 at 1.00 m | 9,878 at 2.50 m |
+| Ultra | 0.75 m | 65,536 | 212 MB | 65,522 | 49,280 at 0.75 m | 16,242 at 2.00 m |
+
+High is exactly the lattice this section describes above.
+
+The frame's work does not change with the level: the update traces at most
+4,096 probes a frame whatever the count, so a finer level costs memory, and
+the rooms far from the camera are relit less often (every 16 frames at Ultra's
+cap instead of every 8). A change applies the next frame (`engine::room_gi`
+hands the level to `Renderer::set_room_gi_budget` before every rooms
+hand-over and once a frame): the rooms are laid out again, the atlas is made
+again at the new level's size (smaller too: a lower level is chosen to give
+the memory back, `atlas_probes_after`), the camera bind groups are rebuilt,
+and the cleared probes fill back in over the next updates. The setting also
+names the graphics card and its own memory, and warns when a level would take
+more than a twentieth of it: wgpu 24 reports no memory size, so on Windows it
+is read from the card's driver install record
+(`HardwareInformation.qwMemorySize` under the Display class key, matched by
+PCI vendor and device id, read only), recorded once at renderer start
+(`bounced_light_detail::note_adapter`). An integrated GPU shares main memory and is
+not checked.
 
 **Storage.** One Rgba16Float atlas, 8100 texels wide: every probe's 8x8
 octahedral irradiance tile (10x10 with the 1-texel border) in the top region,
@@ -168,7 +221,10 @@ fragment keeps the old floor) and skips the dispatch, so a capture and its
 room-GI-off twin in one boot differ by exactly the light the probes add, and the
 cost is `gpu.room_probes` plus the difference in `gpu.scene` and
 `gpu.transparent`. `{"room_gi_vis":"1"}` forces the visibility test on in every
-room. The rigs: `node scripts/photograph-home.js --ab room_gi` photographs every
+room. `{"bounced_light_detail":"low"}` sets the Bounced light detail level
+(any id the levels file lists; the rigs release it to `"high"` between
+vantages, `scripts/lib/showcase-pins.js`), so one boot can photograph and time
+every level; give the light a few seconds to settle after each change. The rigs: `node scripts/photograph-home.js --ab room_gi` photographs every
 home vantage both ways (`--vantages FILE` tries poses without touching the
 shipped list), the home vantage `25c-oyster-rack-close` is the close shelf-and-
 block pose the acceptance reads, and the probe-sweep vantage
@@ -178,8 +234,10 @@ switch between vantages with the other sticky pins). The Performance page counts
 the atlas with the render targets.
 
 **Files.** `src/renderer/room_probes.rs` (layout, math, CPU twin, tests),
-`src/renderer/room_probes_gpu.rs` (atlas, table, update, bind group rebuild),
-`src/engine/room_gi.rs` (rooms to boxes, the per-frame hook),
+`src/renderer/room_probes_gpu.rs` (atlas, table, update, bind group rebuild,
+`RoomGi::set_budget`), `src/renderer/bounced_light_detail.rs` (the Bounced
+light detail levels, their memory and words, the card's own memory),
+`src/engine/room_gi.rs` (rooms to boxes, the per-frame hook, the level),
 `assets/shaders/pbr/85-room-gi.wgsl`, `assets/shaders/room_probes_update.wgsl`,
 and one line each in `lib.rs`, `world_load.rs`, `home_meshes.rs`.
 
@@ -206,7 +264,17 @@ seen failing first against a deliberate mutation, recorded in its comment):
   updated permutation tests; `shader_loader` refuses a megashader without
   `HAS_ROOM_GI`.
 - `engine::room_gi::tests`: the shipped ship's rooms become sane boxes; a face
-  takes the wall it stands against.
+  takes the wall it stands against; every Bounced light detail level fits the
+  shipped ship with the home at its spacing.
+- Bounced light detail (`bounced_light_detail::tests`): each level's spacing
+  and cap reach `lattice_for`; the words beside each level are its cap x 3,392
+  bytes; the levels file is held to what the atlas can hold; a level over a
+  twentieth of the card is warned about; a card finds its own install record.
+  `room_probes_gpu::tests`: a level change marks the atlas for rebuild, smaller
+  as well as bigger (and, ignored because it needs a GPU,
+  `a_level_change_remakes_the_atlas_on_a_real_device` drives
+  `RoomGi::set_budget` itself).
+  `config::saved_servers_tests::every_offered_bounced_light_detail_survives_a_restart`.
 
 ## 4. Measured
 

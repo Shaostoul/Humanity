@@ -89,12 +89,43 @@ pub const ROOM_PICK_MARGIN_M: f32 = 0.25;
 /// Atlas width in texels: a multiple of both tile sizes (10 and 18), under the
 /// 8192 texture-dimension floor `wgpu::Limits::default()` guarantees.
 pub const ATLAS_WIDTH: u32 = 8100;
-/// Upper bound on probes across the whole ship: the default ship holds 31,874
-/// (the acre about 22k at 1 m, the commons the rest); past this every room's
-/// spacing grows until the lattice fits, so the atlas stays under about 110 MB.
+/// Upper bound on probes across the whole ship, so the atlas stays under
+/// about 110 MB. The shipped ship (2026-10-20, counted by
+/// `engine::room_gi::tests::the_shipped_home_keeps_its_designed_probe_spacing`
+/// with `--nocapture`: the ship file, the shipped homestead on plot p1) has
+/// 41 rooms that would hold 109,497 probes at 1 m: the home's 23 rooms
+/// 22,092, and the 1.1 km street alone 60,555. So it never fits at 1 m;
+/// `lattice_for` keeps the home at 1 m and coarsens the rest to fit. (The
+/// 31,874 this comment gave was the 34-room ship of 2026-10-03.)
 pub const MAX_TOTAL_PROBES: u32 = 32_768;
-/// Upper bound on one room's probes; a bigger room coarsens alone.
-pub const MAX_PROBES_PER_ROOM: u32 = 8_192;
+/// Upper bound on one room's probes; a bigger room coarsens alone. A quarter
+/// of the ship's cap (`ProbeBudget::per_room`); this is the default budget's.
+pub const MAX_PROBES_PER_ROOM: u32 = MAX_TOTAL_PROBES / 4;
+
+/// The two numbers `lattice_for` works to: the spacing the player's home's
+/// probes aim for and the cap on probes across the whole ship. Settings >
+/// Graphics > Bounced light detail picks one per level
+/// (`bounced_light_detail::DetailLevel`, data/gui/bounced_light_detail.json); the
+/// default is the design's, `PROBE_SPACING_M` and `MAX_TOTAL_PROBES`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ProbeBudget {
+    pub spacing_m: f32,
+    pub max_probes: u32,
+}
+
+impl Default for ProbeBudget {
+    fn default() -> Self {
+        ProbeBudget { spacing_m: PROBE_SPACING_M, max_probes: MAX_TOTAL_PROBES }
+    }
+}
+
+impl ProbeBudget {
+    /// One room's cap: a quarter of the ship's, so one hall can never take
+    /// the whole budget (`MAX_PROBES_PER_ROOM` at the default).
+    pub fn per_room(&self) -> u32 {
+        (self.max_probes / 4).max(8)
+    }
+}
 /// The six faces of a room box, in the order every per-face array uses.
 pub const FACE_NEG_X: usize = 0;
 pub const FACE_POS_X: usize = 1;
@@ -117,6 +148,11 @@ pub struct RoomBox {
     /// renderer draws glass with an alpha blend that passes `1 - alpha` of
     /// whatever is behind the pane, so that is what the engine passes here.
     pub lid_transmittance: f32,
+    /// True for a room of the player's OWN home (the zone at
+    /// `ShipStructure::home_zone_index`, or every room when there is no ship
+    /// around the home). Its rooms keep the designed `PROBE_SPACING_M` while
+    /// the rest of the ship coarsens to fit `MAX_TOTAL_PROBES` (`lattice_for`).
+    pub home: bool,
 }
 
 impl RoomBox {
@@ -166,34 +202,135 @@ pub fn probe_grid(counts: [u32; 3], local: u32) -> [u32; 3] {
     [local % counts[0], (local / counts[0]) % counts[1], local / (counts[0] * counts[1])]
 }
 
-/// Probe counts for every room. Each room starts at `PROBE_SPACING_M`; a room
-/// that alone would hold more than `MAX_PROBES_PER_ROOM` (the 8 m tall commons
-/// hall, 17,640 at 1 m) coarsens by itself, so one hall cannot coarsen every
-/// bedroom; then, only if the ship still does not fit `MAX_TOTAL_PROBES`,
-/// every room coarsens together. Returns (the finest spacing used, counts per
-/// room).
-pub fn lattice_for(rooms: &[RoomBox]) -> (f32, Vec<[u32; 3]>) {
+/// Probe counts for every room, the player's own home first.
+///
+/// - A room that alone would hold more than `MAX_PROBES_PER_ROOM` at
+///   `PROBE_SPACING_M` (the 8 m tall commons hall, 17,640 at 1 m; the 1.1 km
+///   street, 60,555) coarsens by itself, so one hall cannot coarsen every
+///   bedroom.
+/// - The home's rooms (`RoomBox::home`) keep `PROBE_SPACING_M`. The rest of
+///   the ship takes the finest common spacing that fits `MAX_TOTAL_PROBES`
+///   in what the home leaves.
+/// - Only when the home ALONE does not fit (its rooms at the design spacing,
+///   the rest at `MAX_PROBE_SPACING_M`) does the home coarsen too, to the
+///   finest spacing that fits, and `Lattice::home_coarsened` says so.
+///
+/// WHY (2026-10-20, ship homes increment 7 plan, section 6). Until then every
+/// room coarsened TOGETHER past the cap, so rooms added elsewhere on the ship
+/// on 2026-10-05 (the 1.1 km street, the second commons, the cabins) took the
+/// home off its 1 m lattice to 1.33 m without anyone choosing that. The home
+/// is where the player lives and the lit rooms they look at most; a street
+/// they walk through can take the coarser lattice.
+///
+/// `budget` (2026-10-20) is the Settings level's: its spacing stands where
+/// `PROBE_SPACING_M` does above, its cap where `MAX_TOTAL_PROBES` does, and
+/// `ProbeBudget::default()` is exactly those two.
+pub fn lattice_for(rooms: &[RoomBox], budget: ProbeBudget) -> Lattice {
     let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
-    let mut spacing: Vec<f32> = rooms
-        .iter()
-        .map(|r| {
-            let mut s = PROBE_SPACING_M;
-            while n(probe_counts(r.size(), s)) > MAX_PROBES_PER_ROOM as u64 && s < 64.0 {
-                s *= 1.1;
-            }
-            s
-        })
-        .collect();
-    loop {
-        let counts: Vec<[u32; 3]> = rooms.iter().zip(&spacing).map(|(r, s)| probe_counts(r.size(), *s)).collect();
-        let total: u64 = counts.iter().map(|c| n(*c)).sum();
-        let finest = spacing.iter().copied().fold(f32::INFINITY, f32::min);
-        if total <= MAX_TOTAL_PROBES as u64 || finest > 64.0 {
-            return (if finest.is_finite() { finest } else { PROBE_SPACING_M }, counts);
+    let cap = budget.max_probes as u64;
+    let design = budget.spacing_m;
+    // Each room's own floor: the finest spacing at which it ALONE fits the
+    // per-room cap (the 8 m commons hall, the 1.1 km street).
+    let own: Vec<f32> =
+        rooms.iter().map(|r| finest_fitting(design, budget.per_room() as u64, |s| n(probe_counts(r.size(), s)))).collect();
+    // Every room's spacing with the home at `home` and the rest of the ship at
+    // `rest`, never finer than the room's own floor.
+    let spacing_at = |home: f32, rest: f32| -> Vec<f32> {
+        rooms.iter().zip(&own).map(|(r, o)| o.max(if r.home { home } else { rest })).collect()
+    };
+    let total = |sp: &[f32]| -> u64 { rooms.iter().zip(sp).map(|(r, s)| n(probe_counts(r.size(), *s))).sum() };
+    // 1. The home at its design spacing; the rest of the ship at the finest
+    //    common spacing that fits in what the home leaves.
+    let rest = finest_fitting(design, cap, |c| total(&spacing_at(design, c)));
+    let mut spacing = spacing_at(design, rest);
+    // 2. The last resort: even with the rest at its coarsest the home does not
+    //    fit, so the home coarsens too, to the finest spacing that does.
+    let home_coarsened = total(&spacing) > cap && rooms.iter().any(|r| r.home);
+    if home_coarsened {
+        let home = finest_fitting(design, cap, |c| total(&spacing_at(c, MAX_PROBE_SPACING_M)));
+        spacing = spacing_at(home, MAX_PROBE_SPACING_M);
+    }
+    let counts = rooms.iter().zip(&spacing).map(|(r, s)| probe_counts(r.size(), *s)).collect();
+    Lattice::new(rooms, spacing, counts, home_coarsened)
+}
+
+/// The coarsest spacing `lattice_for` takes any room to (metres). A ship that
+/// does not fit the cap even here keeps it, and `Lattice::total` says by how
+/// much it is over.
+pub const MAX_PROBE_SPACING_M: f32 = 64.0;
+
+/// The finest spacing in `[finest, MAX_PROBE_SPACING_M]` (`finest` is the
+/// budget's spacing) at which
+/// `probes(spacing)` is at most `budget`, or `MAX_PROBE_SPACING_M` when even
+/// that does not fit. `probes` must never grow as the spacing grows, which
+/// holds for any sum of `probe_counts` products (each axis is a ceiling of
+/// size / spacing), so a bisection finds the threshold: 32 halvings of the
+/// 63 m range leave it within 15 nm, past f32's own resolution near 1 m.
+/// The 1.1x steps this replaced (2026-10-20) cut a box's probes by up to
+/// 1.1^3 = 1.33x a step, so they could leave a quarter of the budget unused.
+fn finest_fitting(finest: f32, budget: u64, probes: impl Fn(f32) -> u64) -> f32 {
+    let (mut lo, mut hi) = (finest.min(MAX_PROBE_SPACING_M), MAX_PROBE_SPACING_M);
+    if probes(lo) <= budget {
+        return lo;
+    }
+    if probes(hi) > budget {
+        return hi;
+    }
+    // Invariant: probes(lo) > budget >= probes(hi).
+    for _ in 0..32 {
+        let mid = 0.5 * (lo + hi);
+        if probes(mid) <= budget {
+            hi = mid;
+        } else {
+            lo = mid;
         }
-        for s in &mut spacing {
-            *s *= 1.1;
-        }
+    }
+    hi
+}
+
+/// What `lattice_for` chose for a set of rooms.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lattice {
+    /// Probes per axis, one entry per room, in the order the rooms were given.
+    pub counts: Vec<[u32; 3]>,
+    /// Each room's spacing (metres). The probes sit at the centres of
+    /// `counts` equal cells, so this is the spacing asked for; the cells are
+    /// that or a little finer.
+    pub spacing: Vec<f32>,
+    /// The finest spacing among the player's own home's rooms (`RoomBox::home`),
+    /// None when no room is the home's.
+    pub home_spacing: Option<f32>,
+    /// The finest spacing among every other room's, None when there are none.
+    pub other_spacing: Option<f32>,
+    /// True when the home ALONE did not fit: its rooms at the design spacing
+    /// with the rest of the ship at its coarsest still held more than
+    /// `MAX_TOTAL_PROBES`, so the home gave up its design spacing too.
+    pub home_coarsened: bool,
+}
+
+impl Lattice {
+    fn new(rooms: &[RoomBox], spacing: Vec<f32>, counts: Vec<[u32; 3]>, home_coarsened: bool) -> Self {
+        let finest = |home: bool| {
+            rooms.iter().zip(&spacing).filter(|(r, _)| r.home == home).map(|(_, s)| *s).reduce(f32::min)
+        };
+        Lattice { home_spacing: finest(true), other_spacing: finest(false), counts, spacing, home_coarsened }
+    }
+
+    /// Probes in room `i`.
+    pub fn probes_in(&self, i: usize) -> u32 {
+        let c = self.counts[i];
+        c[0] * c[1] * c[2]
+    }
+
+    /// Probes in every room.
+    pub fn total(&self) -> u64 {
+        (0..self.counts.len()).map(|i| self.probes_in(i) as u64).sum()
+    }
+
+    /// Probes in the rooms whose `RoomBox::home` is `home` (`rooms` is the
+    /// set this lattice was made for).
+    pub fn total_where(&self, rooms: &[RoomBox], home: bool) -> u64 {
+        rooms.iter().enumerate().filter(|(_, r)| r.home == home).map(|(i, _)| self.probes_in(i) as u64).sum()
     }
 }
 
@@ -940,7 +1077,7 @@ mod tests {
     use super::*;
 
     fn grey_box(min: Vec3, max: Vec3, rho: f32) -> RoomBox {
-        RoomBox { min, max, refl: [[rho; 3]; 6], lid_transmittance: 0.0 }
+        RoomBox { min, max, refl: [[rho; 3]; 6], lid_transmittance: 0.0, home: false }
     }
 
     /// The octahedral map round-trips: every texel centre decodes to a
@@ -1252,15 +1389,89 @@ mod tests {
             grey_box(Vec3::ZERO, Vec3::new(200.0, 3.0, 200.0), 0.5),
             grey_box(Vec3::ZERO, Vec3::new(10.0, 3.0, 10.0), 0.5),
         ];
-        let (_, counts) = lattice_for(&huge);
+        let counts = lattice_for(&huge, ProbeBudget::default()).counts;
         let n = |c: [u32; 3]| c[0] * c[1] * c[2];
         assert!(n(counts[0]) <= MAX_PROBES_PER_ROOM, "the hall holds {}", n(counts[0]));
         assert_eq!(counts[1], [11, 4, 11], "the small room keeps 1 m");
         // A ship too big for the total cap coarsens everywhere instead of overflowing.
         let many: Vec<RoomBox> = (0..8).map(|i| grey_box(Vec3::new(i as f32 * 50.0, 0.0, 0.0), Vec3::new(i as f32 * 50.0 + 40.0, 3.0, 40.0), 0.5)).collect();
-        let (spacing, counts) = lattice_for(&many);
-        let total: u32 = counts.iter().map(|c| n(*c)).sum();
-        assert!(spacing > 1.0 && total <= MAX_TOTAL_PROBES, "spacing {spacing}, {total} probes");
+        let lat = lattice_for(&many, ProbeBudget::default());
+        let spacing = lat.other_spacing.unwrap();
+        assert!(spacing > 1.0 && lat.total() <= MAX_TOTAL_PROBES as u64, "spacing {spacing}, {} probes", lat.total());
+    }
+
+    /// A home of `rooms` rooms 10 x 3 x 10 m (484 probes each at 1 m) beside a
+    /// ship of 8 rooms 40 x 3 x 40 m that alone hold more than the cap at 1 m.
+    fn home_beside_a_big_ship(rooms: usize) -> Vec<RoomBox> {
+        let mut out: Vec<RoomBox> = (0..rooms)
+            .map(|i| {
+                let x = -20.0 - i as f32 * 12.0;
+                RoomBox { home: true, ..grey_box(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 10.0, 3.0, 10.0), 0.5) }
+            })
+            .collect();
+        out.extend((0..8).map(|i| grey_box(Vec3::new(i as f32 * 50.0, 0.0, 0.0), Vec3::new(i as f32 * 50.0 + 40.0, 3.0, 40.0), 0.5)));
+        out
+    }
+
+    /// The player's own home keeps the design spacing: the rest of the ship
+    /// coarsens first, into what the home leaves, and the ship fits the cap.
+    /// Before 2026-10-20 every room coarsened together, so a street or a hall
+    /// added anywhere on the ship took the home off its 1 m lattice.
+    #[test]
+    fn the_home_keeps_its_spacing_while_the_rest_coarsens() {
+        let rooms = home_beside_a_big_ship(6);
+        let lat = lattice_for(&rooms, ProbeBudget::default());
+        for (i, r) in rooms.iter().enumerate() {
+            println!("room {i} home {} counts {:?} spacing {:.3}", r.home, lat.counts[i], lat.spacing[i]);
+        }
+        println!("total {} (home {}, others {})", lat.total(), lat.total_where(&rooms, true), lat.total_where(&rooms, false));
+        for (i, r) in rooms.iter().enumerate().filter(|(_, r)| r.home) {
+            assert_eq!(lat.counts[i], [11, 4, 11], "home room {i} keeps its 1 m lattice");
+        }
+        assert_eq!(lat.home_spacing, Some(PROBE_SPACING_M));
+        assert!(!lat.home_coarsened);
+        let other = lat.other_spacing.unwrap();
+        assert!(other > PROBE_SPACING_M, "the rest of the ship coarsens ({other} m)");
+        assert!(lat.total() <= MAX_TOTAL_PROBES as u64, "{} probes", lat.total());
+        // The rest takes the FINEST spacing that fits what the home leaves:
+        // its rooms a hair finer would no longer fit.
+        let finer: u64 = rooms
+            .iter()
+            .filter(|r| !r.home)
+            .map(|r| probe_counts(r.size(), other * 0.98))
+            .map(|c| c[0] as u64 * c[1] as u64 * c[2] as u64)
+            .sum();
+        assert!(lat.total_where(&rooms, true) + finer > MAX_TOTAL_PROBES as u64, "{other} m is not the finest that fits");
+    }
+
+    /// A home that alone holds more than the cap still fits: the rest of the
+    /// ship goes to its coarsest first, then the home coarsens, and says so.
+    #[test]
+    fn an_oversized_home_still_fits_the_cap() {
+        // 80 rooms of 484 probes: 38,720 at 1 m, over the 32,768 cap alone.
+        let rooms = home_beside_a_big_ship(80);
+        let lat = lattice_for(&rooms, ProbeBudget::default());
+        println!(
+            "total {} (home {} at {:?} m, others {} at {:?} m), home coarsened {}",
+            lat.total(),
+            lat.total_where(&rooms, true),
+            lat.home_spacing,
+            lat.total_where(&rooms, false),
+            lat.other_spacing,
+            lat.home_coarsened
+        );
+        assert!(lat.total() <= MAX_TOTAL_PROBES as u64, "{} probes", lat.total());
+        assert!(lat.home_coarsened, "the home could not keep 1 m and the lattice says so");
+        let home = lat.home_spacing.unwrap();
+        assert!(home > PROBE_SPACING_M);
+        // The home still keeps the finer lattice: the others went first.
+        assert!(lat.other_spacing.unwrap() >= home, "others {:?} m, home {home} m", lat.other_spacing);
+        // Every room still has a probe pair on each axis.
+        assert!(lat.counts.iter().all(|c| c.iter().all(|&k| k >= 2)));
+        // No ship at all (every room the home's): the same, and still within the cap.
+        let alone: Vec<RoomBox> = rooms.iter().map(|r| RoomBox { home: true, ..r.clone() }).collect();
+        let lat = lattice_for(&alone, ProbeBudget::default());
+        assert!(lat.total() <= MAX_TOTAL_PROBES as u64 && lat.home_coarsened && lat.other_spacing.is_none(), "{lat:?}");
     }
 
     /// The GPU records are the sizes the WGSL structs have, which naga checks

@@ -42,6 +42,11 @@
 // plot" copies the last one, past it) needs First Street to reach past its door. First Street has
 // no lights of its own, as before: it is lit through its glass roof, and every zone's lights are
 // charged to each player's home meter today (lib.rs, the house lighting consumer).
+// The twelve homestead plots are 6.0 m tall (ship homes increment 7, 2026-10-20,
+// docs/design/ship-homes-increment-7-plan.md decision 3): two 3.0 m storeys, the homestead's ground
+// floor and the upper floor of docs/design/homestead-upper-floor.md, and the greenhouse's 6 m back.
+// The cabin plots stay 3.0 m (one storey). Growing them changed the ship's hash, so a game built
+// before this meets a relay running it as a different ship until it is updated.
 //
 // THE CABIN BLOCK (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md section
 // 3.3). East of First Street's north end, a block of sixteen cabins on one hall:
@@ -1170,7 +1175,7 @@
             id: "p1",
             kind: "homestead",
             origin: (0.0, 0.0, 0.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "commons",
                 lat: 40.0,
@@ -1184,7 +1189,7 @@
             id: "p2",
             kind: "homestead",
             origin: (0.0, 0.0, 99.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 139.0,
@@ -1198,7 +1203,7 @@
             id: "p3",
             kind: "homestead",
             origin: (0.0, 0.0, 198.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 238.0,
@@ -1212,7 +1217,7 @@
             id: "p4",
             kind: "homestead",
             origin: (0.0, 0.0, 297.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 337.0,
@@ -1226,7 +1231,7 @@
             id: "p5",
             kind: "homestead",
             origin: (0.0, 0.0, 396.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 436.0,
@@ -1240,7 +1245,7 @@
             id: "p6",
             kind: "homestead",
             origin: (0.0, 0.0, 495.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 535.0,
@@ -1254,7 +1259,7 @@
             id: "p7",
             kind: "homestead",
             origin: (0.0, 0.0, 594.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 634.0,
@@ -1268,7 +1273,7 @@
             id: "p8",
             kind: "homestead",
             origin: (0.0, 0.0, 693.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 733.0,
@@ -1282,7 +1287,7 @@
             id: "p9",
             kind: "homestead",
             origin: (0.0, 0.0, 792.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 832.0,
@@ -1296,7 +1301,7 @@
             id: "p10",
             kind: "homestead",
             origin: (0.0, 0.0, 891.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 931.0,
@@ -1310,7 +1315,7 @@
             id: "p11",
             kind: "homestead",
             origin: (0.0, 0.0, 990.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 1030.0,
@@ -1324,7 +1329,7 @@
             id: "p12",
             kind: "homestead",
             origin: (0.0, 0.0, 1089.0),
-            size: (55.0, 3.0, 89.0),
+            size: (55.0, 6.0, 89.0),
             door: (
                 zone: "street-1",
                 lat: 1129.0,

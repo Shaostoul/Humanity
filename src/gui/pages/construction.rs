@@ -18,6 +18,10 @@ use crate::ship::ship_structure::{zone_body, zone_body_mut};
 // districts), in pages/construction/ship_tools.rs.
 mod ship_tools;
 use ship_tools::{draw_corridor_section, draw_plots_and_districts, draw_ship_zone_selector};
+// The storey selector, the floor-slab tools and the slab detail panel (ship homes increment 7),
+// in pages/construction/storeys.rs.
+mod storeys;
+pub use storeys::{SlabDraw, StoreyEditor};
 
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
@@ -750,16 +754,24 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
                         .size(theme.font_size_small).color(theme.text_muted()));
                 }
+                // STOREYS (ship homes increment 7): which storey of the zone the tools work on, and
+                // the floor-slab tools that make storeys (pages/construction/storeys.rs).
+                storeys::draw_storey_section(ui, theme, state);
                 ui.add_space(theme.spacing_sm);
 
                 // Wall drawing + all structural pieces moved to the footer "Structure" palette
                 // (v0.583, operator: a dedicated section to the left of Defense). This panel keeps the
-                // live status hint so the active tool's flow is always visible.
-                if state.construction_wall_mode {
+                // live status hint so the active tool's flow is always visible. (The floor-slab
+                // tool, a shape of the drawing tool, shows its own hint in the storey section.)
+                if state.construction_storeys.draw.is_some() {
+                    // Its hint is above, under the storey selector.
+                } else if state.construction_wall_mode {
+                    // A guard (the palette's Guard, increment 7) is drawn the way a wall is.
+                    let what = if state.construction_wall_guard { "guard" } else { "wall" };
                     let hint = if state.construction_wall_start.is_some() {
-                        "Drawing wall: click the next corner. Right-click to finish."
+                        format!("Drawing a {what}: click the next corner. Right-click to finish.")
                     } else {
-                        "Drawing wall: click the first corner on the floor."
+                        format!("Drawing a {what}: click the first corner on the floor.")
                     };
                     ui.label(RichText::new(hint).size(theme.font_size_small).color(theme.accent()));
                 } else if state.construction_structure_type.is_some() {
@@ -900,6 +912,12 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 draw_held_structure_info(ui, theme, state);
                 return;
             }
+            // A selected FLOOR SLAB takes the panel (increment 7): every pick of something else lets
+            // go of it, except a wall chosen by its door or window handle, which wins.
+            if state.construction_storeys.slab_selected.is_some() && state.construction_wall_selected.is_none() {
+                storeys::draw_slab_detail(ui, theme, state);
+                return;
+            }
             // A selected ROAD / CONDUIT node takes the panel (v0.597): clicked its list row / gizmo.
             // Gate on NO other object being selected so a viewport pick of a wall/light/etc. (which
             // doesn't clear the browser's node selection) is never SHADOWED by a stale node detail --
@@ -982,6 +1000,10 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Height").color(theme.text_muted()));
                     changed |= ui.add(egui::DragValue::new(&mut wall.height).speed(0.1).range(0.1..=hmax)).changed();
+                    // Where it stands (ship homes increment 7): the floor of its storey, 0 on the
+                    // ground, 3.0 on a floor 3 m up. A new wall takes the storey being edited's.
+                    ui.label(RichText::new("Base").color(theme.text_muted()));
+                    changed |= ui.add(egui::DragValue::new(&mut wall.base).speed(0.1).range(0.0..=(hmax - 0.1).max(0.0)).suffix(" m")).changed();
                 });
                 // Material picker (v0.552): pick a real material; the wall re-colors to match and the
                 // panel shows its real properties so the builder learns while building.
@@ -1748,6 +1770,10 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "rm_road_node <id>", desc: "Remove road node Nid + any edges touching it." },
     ConsoleVerb { usage: "add_road <fromN> <toN> <class> [width]", desc: "Wire a road edge of a class (footpath/residential/highway/runway)." },
     ConsoleVerb { usage: "rm_road <n>", desc: "Remove road edge #n (1-based)." },
+    ConsoleVerb { usage: "storey [n]", desc: "List the storeys, or work on storey n (1-based, 1 is the ground): walls, lights and pieces go on it." },
+    ConsoleVerb { usage: "add_slab <x0> <z0> <x1> <z1> [above|here]", desc: "Add a floor slab: the floor of the storey above the chosen one (default), or more of the chosen storey's floor." },
+    ConsoleVerb { usage: "rm_slab <n>", desc: "Remove floor slab #n (1-based); a storey whose last slab it was goes with it." },
+    ConsoleVerb { usage: "slab_glass <n> <on|off>", desc: "Make floor slab #n glass (lets light through) or solid." },
 ];
 
 /// Execute a construction console command against the LIVE home (v0.578) and return a result string.
@@ -1775,22 +1801,26 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             s
         }
         "list" => match zone_body(&state.ship_structure, state.construction_zone) {
-            Some(h) => format!("{} walls, {} openings, {} lights. Full JSON: debug/home_snapshot.json",
-                h.walls.len(), h.walls.iter().map(|w| w.openings.len()).sum::<usize>(), h.lights.len()),
+            Some(h) => format!("{} walls, {} openings, {} lights, {} floor slabs, {} storeys. Full JSON: debug/home_snapshot.json",
+                h.walls.len(), h.walls.iter().map(|w| w.openings.len()).sum::<usize>(), h.lights.len(), h.floors.len(), h.storeys().len()),
             None => "No home loaded.".into(),
         },
+        // Storeys and floor slabs (increment 7), in pages/construction/storeys.rs.
+        "storey" | "add_slab" | "rm_slab" | "slab_glass" => storeys::exec_storey_command(state, &parts),
         "add_wall" => {
             let (Some(x1), Some(z1), Some(x2), Some(z2)) = (f(1), f(2), f(3), f(4)) else {
                 return "usage: add_wall x1 z1 x2 z2 [mat]".into();
             };
             let mat = u(5).unwrap_or(1) as u32;
+            let chosen = state.construction_storeys.chosen;
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
-            let height = h.height;
-            h.walls.push(crate::ship::home_structure::InteriorWall {
-                a: (x1, z1), b: (x2, z2), base: 0.0, height, material: mat, openings: Vec::new(), thickness: None, layers: Vec::new(),
-            });
+            // On the storey being worked on, as the wall tool places it (increment 7).
+            let es = crate::engine::editor::EditStorey::of(h, chosen);
+            let mut wall = crate::engine::editor::new_wall_on_storey(h, es, (x1, z1), (x2, z2));
+            wall.material = mat;
+            h.walls.push(wall);
             state.construction_structure_dirty = true;
-            format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat}", h.walls.len())
+            format!("added wall #{} ({x1},{z1})->({x2},{z2}) mat {mat} on {}", h.walls.len(), crate::engine::editor::storey_name(es.index).to_lowercase())
         }
         "rm_wall" => {
             let Some(i) = u(1) else { return "usage: rm_wall <n>".into(); };
@@ -2848,6 +2878,8 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Machine(String),
         RoadNode(u32),
         ConduitNode(String),
+        /// A floor slab (increment 7): index into the body's `floors`.
+        Slab(usize),
     }
     struct Row {
         tag: &'static str,
@@ -2903,6 +2935,13 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         for n in &hs.road_nodes {
             rows.push(Row { tag: "Road", key: Key::RoadNode(n.id), name: format!("Node N{}", n.id), pos: (n.pos.0, 0.0, n.pos.1), selected: state.construction_road_node_selected == Some(n.id), removable: true, on: None, at: world((n.pos.0, 0.0, n.pos.1), zo) });
         }
+        // Floor slabs (increment 7), each named with the storey it is the floor of.
+        for (i, s) in hs.floors.iter().enumerate() {
+            let (x0, z0, x1, z1) = s.rect();
+            let c = ((x0 + x1) * 0.5, s.top, (z0 + z1) * 0.5);
+            let name = format!("{}, {}", crate::engine::editor::slab_name(i, s), crate::engine::editor::storey_name(hs.storey_of_y(s.top)).to_lowercase());
+            rows.push(Row { tag: "Floor", key: Key::Slab(i), name, pos: c, selected: state.construction_storeys.slab_selected == Some(i), removable: true, on: None, at: world(c, zo) });
+        }
     }
     if let Some(h) = state.home_machines.as_ref() {
         // DIRECT instances can be removed; ARRAY-derived ones (from all_instances() but not in
@@ -2939,6 +2978,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Key::Machine(id) => format!("Machine:{id}"),
             Key::RoadNode(id) => format!("Road:{id}"),
             Key::ConduitNode(id) => format!("Pipe:{id}"),
+            Key::Slab(i) => format!("Floor:{i}"),
         }
     }
     // Snapshot the multi-set + locked/hidden-types so the row loop can read them without borrowing state.
@@ -3004,7 +3044,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let filter = state.construction_object_filter.to_lowercase();
             {
                 // Group rows by type into collapsible sub-headers, in a stable order. (v0.598)
-                for (tag, plural) in [("Wall", "Walls"), ("Struct", "Structures"), ("Machine", "Machines"), ("Light", "Lights"), ("Road", "Road nodes"), ("Pipe", "Pipe nodes")] {
+                for (tag, plural) in [("Wall", "Walls"), ("Floor", "Floor slabs"), ("Struct", "Structures"), ("Machine", "Machines"), ("Light", "Lights"), ("Road", "Road nodes"), ("Pipe", "Pipe nodes")] {
                     let group: Vec<&Row> = rows.iter()
                         .filter(|r| r.tag == tag && (filter.is_empty() || r.name.to_lowercase().contains(filter.as_str())))
                         .collect();
@@ -3092,6 +3132,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         s.construction_conduit_node_selected = None;
         s.construction_connection_selected = None; // v0.626: a list select drops the pipe highlight
         s.construction_zone_selected = None; // v0.634: ... and the zone highlight
+        s.construction_storeys.slab_selected = None; // increment 7: ... and the floor slab
     };
     match act {
         Some(Act::Select(k)) => {
@@ -3104,6 +3145,8 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 Key::Machine(id) => state.construction_machine_selected = Some(id),
                 Key::RoadNode(id) => state.construction_road_node_selected = Some(id),
                 Key::ConduitNode(id) => state.construction_conduit_node_selected = Some(id),
+                // And works on the storey it is the floor of, so it is in view.
+                Key::Slab(i) => crate::engine::editor::select_slab(state, i),
             }
         }
         Some(Act::ToggleMulti(key)) => {
@@ -3186,6 +3229,8 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.construction_conduit_node_selected = None;
                     state.construction_machines_dirty = true;
                 }
+                // Its storey goes with it when it was that floor's last slab.
+                Key::Slab(i) => crate::engine::editor::remove_slab_in_editor(state, i),
             }
         }
         None => {}
@@ -3199,10 +3244,12 @@ fn group_delete(state: &mut GuiState) {
     let keys: Vec<String> = state.construction_multi.iter().cloned().collect();
     let (mut wall_idx, mut struct_idx, mut light_idx) = (Vec::new(), Vec::new(), Vec::new());
     let (mut machine_ids, mut road_ids, mut pipe_ids) = (Vec::new(), Vec::new(), Vec::new());
+    let mut slab_idx: Vec<usize> = Vec::new();
     for k in &keys {
         let Some((tag, rest)) = k.split_once(':') else { continue };
         match tag {
             "Wall" => if let Ok(i) = rest.parse::<usize>() { wall_idx.push(i); },
+            "Floor" => if let Ok(i) = rest.parse::<usize>() { slab_idx.push(i); },
             "Struct" => if let Ok(i) = rest.parse::<usize>() { struct_idx.push(i); },
             "Light" => if let Ok(i) = rest.parse::<usize>() { light_idx.push(i); },
             "Machine" => machine_ids.push(rest.to_string()),
@@ -3231,7 +3278,18 @@ fn group_delete(state: &mut GuiState) {
             if i < hs.lights.len() { hs.lights.remove(i); }
         }
         for id in &road_ids { hs.remove_road_node(*id); }
-        struct_dirty = !struct_idx.is_empty() || !wall_idx.is_empty() || !light_idx.is_empty() || !road_ids.is_empty();
+        slab_idx.sort_unstable();
+        slab_idx.dedup();
+        for &i in slab_idx.iter().rev() {
+            crate::engine::editor::remove_floor_slab(hs, i);
+        }
+        struct_dirty = !struct_idx.is_empty() || !wall_idx.is_empty() || !light_idx.is_empty() || !road_ids.is_empty() || !slab_idx.is_empty();
+    }
+    if !slab_idx.is_empty() {
+        // The storeys may have gone with their floors: keep the chosen one in range.
+        state.construction_storeys.slab_selected = None;
+        let k = state.construction_storeys.chosen;
+        crate::engine::editor::choose_storey(state, k);
     }
     if let Some(h) = state.home_machines.as_mut() {
         for id in &machine_ids { h.remove_instance(id); }
@@ -3264,6 +3322,12 @@ fn group_nudge(state: &mut GuiState, dx: f32, dz: f32) {
                 },
                 "Light" => if let Ok(i) = rest.parse::<usize>() {
                     if let Some(l) = hs.lights.get_mut(i) { l.pos.0 += dx; l.pos.2 += dz; struct_dirty = true; }
+                },
+                "Floor" => if let Ok(i) = rest.parse::<usize>() {
+                    if let Some(s) = hs.floors.get_mut(i) {
+                        s.a.0 += dx; s.a.1 += dz; s.b.0 += dx; s.b.1 += dz;
+                        struct_dirty = true;
+                    }
                 },
                 "Road" => if let Ok(id) = rest.parse::<u32>() {
                     if let Some(n) = hs.road_nodes.iter_mut().find(|n| n.id == id) { n.pos.0 += dx; n.pos.1 += dz; struct_dirty = true; }
@@ -3617,9 +3681,16 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             // Structure category, "held" tracks the structure type OR -- for the
                             // Wall tool -- the wall-DRAW mode (Wall is drawn, not placed). (v0.583)
                             let is_wall_tool = is_structure && id == "wall";
+                            // The Guard entry DRAWS guards with the wall tool (ship homes increment
+                            // 7): a guard is a wall in a balustrade material, and a loose guard
+                            // section placed on its own would stop nobody.
+                            let is_guard_tool = is_structure && id == crate::engine::editor::GUARD_TYPE;
                             let is_lights = state.construction_palette_category == "Lights";
-                            let held = if is_wall_tool {
+                            let held = if is_wall_tool || is_guard_tool {
+                                // The drawing tool draws floors instead while the slab tool is on.
                                 state.construction_wall_mode
+                                    && state.construction_storeys.draw.is_none()
+                                    && state.construction_wall_guard == is_guard_tool
                             } else if is_structure {
                                 state.construction_structure_type.as_deref() == Some(id.as_str())
                             } else if is_lights {
@@ -3638,9 +3709,12 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             if ui.add_sized([92.0, 30.0], btn).clicked() {
                                 // Toggle: click the held item to cancel; click another to switch.
                                 // Selecting any one tool clears the others (can't hold two at once).
-                                if is_wall_tool {
+                                if is_wall_tool || is_guard_tool {
                                     state.construction_wall_mode = !held;
+                                    state.construction_wall_guard = !held && is_guard_tool;
                                     state.construction_wall_start = None;
+                                    state.construction_storeys.draw = None; // walls, not floors
+                                    state.construction_storeys.draw_start = None;
                                     state.construction_place_type = None;
                                     state.construction_structure_type = None;
                                     state.construction_place_light = None;

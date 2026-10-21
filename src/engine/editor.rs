@@ -8,6 +8,12 @@ use crate::engine::home_meshes::{rebuild_homestead, rebuild_machine_objects};
 use crate::engine::state::*;
 use crate::ship::ship_structure::{zone_body, zone_body_mut, zone_origin};
 
+// STOREYS (ship homes increment 7): the storey the editor works on, the cut-away above it, the
+// floor pick and placing on it, and the floor-slab tools. A child file of this module.
+#[path = "editor_storeys.rs"]
+mod storeys;
+pub(crate) use storeys::*;
+
 /// Which of the SELECTED light's rotation rings the cursor ray is over, if any: the shared
 /// pick test behind BOTH the click grab (try_pick_light_ring) and the per-frame hover
 /// highlight, so hover and grab can never disagree (v0.792). Returns the axis index
@@ -99,6 +105,10 @@ pub(crate) fn arms_autosave(edited: bool, entry_rebuild: bool) -> bool {
 /// drag -- a gizmo OR a slider -- into ONE undo step by checkpointing only while the left mouse
 /// button is NOT held, plus once on release if an edit happened during the hold.
 pub(crate) fn construction_history_tick(state: &mut EngineState, edited: bool) {
+    // The storey cut-away follows the storey chosen, the zone, the slabs and the editor being
+    // open (increment 7). Its redraw is no edit, so it runs here, at the per-frame choke point,
+    // ahead of the history it must stay out of (`follow_storey_view`).
+    follow_storey_view(state);
     let active = state.gui_state.construction_active;
     let prev_active = state.construction_history.prev_active;
     state.construction_history.prev_active = active;
@@ -464,29 +474,12 @@ pub(crate) fn try_begin_room_grab(state: &mut EngineState) {
 }
 
 /// Cast a ray from the cursor onto the room floors; return (room_bounds index, hit_x, hit_z) of
-/// the nearest room under the cursor. Used by ghost placement (v0.529).
+/// the nearest room under the cursor. Used by ghost placement (v0.529). With storeys (ship homes
+/// increment 7) only the rooms on the storey being edited count, so the ground can be picked
+/// through the floor above it (`cursor_storey_hit`, which also takes a new upper floor's plane
+/// where it has no room yet; this one answers only where there is a room).
 pub(crate) fn cursor_floor_hit(state: &EngineState) -> Option<(usize, f32, f32)> {
-    let sz = state.window.inner_size();
-    let (origin, dir) =
-        state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-    if dir.y.abs() < 1e-6 {
-        return None;
-    }
-    let mut best: Option<(usize, f32, f32, f32)> = None; // (i, t, hx, hz)
-    for (i, rb) in state.gui_state.room_bounds.iter().enumerate() {
-        let t = (rb.min.y - origin.y) / dir.y;
-        if t <= 0.0 {
-            continue;
-        }
-        let hx = origin.x + dir.x * t;
-        let hz = origin.z + dir.z * t;
-        if hx >= rb.min.x && hx <= rb.max.x && hz >= rb.min.z && hz <= rb.max.z {
-            if best.map_or(true, |(_, bt, _, _)| t < bt) {
-                best = Some((i, t, hx, hz));
-            }
-        }
-    }
-    best.map(|(i, _, hx, hz)| (i, hx, hz))
+    cursor_storey_hit(state).and_then(|h| h.room.map(|r| (r, h.x, h.z)))
 }
 
 /// The construction editor's ACTIVE zone world origin (v0.754, ship-superstructure increment A):
@@ -634,23 +627,30 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
     let Some(mtype) = state.gui_state.construction_place_type.clone() else {
         return;
     };
-    let Some((rb_i, hx, hz)) = cursor_floor_hit(state) else {
+    let Some(hit) = cursor_storey_hit(state) else {
         return;
     };
-    let rb = &state.gui_state.room_bounds[rb_i];
-    let room_id = rb.id.clone();
+    let (hx, hz) = (hit.x, hit.z);
+    let box_mode = state.gui_state.ship_structure.is_some();
+    let zone = active_zone_id(state);
+    // The room is advisory in a box home (`MachineInstance::room`); a new upper floor has no room
+    // until a zone of its storey makes one, so the machine is tagged with its zone there.
+    let room = hit.room.and_then(|i| state.gui_state.room_bounds.get(i));
+    let Some(room_id) = room.map(|rb| rb.id.clone()).or_else(|| box_mode.then(|| zone.clone())) else {
+        return;
+    };
     // v0.538: in a box home, store the ABSOLUTE world floor-hit so the machine survives
     // flood-fill room-id churn. The legacy ship layout keeps the room-center-relative offset.
     // v0.754: the machine is tagged with the ACTIVE zone (the zone selector's choice) and
     // placement clamps it into that zone's footprint -- so tools operate on the selected zone.
-    let box_mode = state.gui_state.ship_structure.is_some();
-    let zone = active_zone_id(state);
     let offset = if box_mode {
         // Zone-local (increment 1a): metres from the active zone's corner, so the machine
-        // rides its home's plot.
+        // rides its home's plot; its height is the floor of the storey being edited (increment 7).
         let zo = active_zone_origin(state);
-        (hx - zo.x, 0.0, hz - zo.z)
+        let floor = edit_storey(state).map_or(0.0, |es| es.storey.floor);
+        (hx - zo.x, floor, hz - zo.z)
     } else {
+        let Some(rb) = room else { return };
         let cx = (rb.min.x + rb.max.x) * 0.5;
         let cz = (rb.min.z + rb.max.z) * 0.5;
         (hx - cx, 0.0, hz - cz)
@@ -700,24 +700,25 @@ pub(crate) fn try_place_held_light(state: &mut EngineState) {
     let Some(tid) = state.gui_state.construction_place_light.clone() else {
         return;
     };
-    let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+    let Some(hit) = cursor_storey_hit(state) else {
         return;
     };
     let zo = active_zone_origin(state);
+    let (lx, lz) = (hit.x - zo.x, hit.z - zo.z);
+    let storey = edit_storey(state);
     let Some(hs) = crate::ship::ship_structure::zone_body_mut(
         &mut state.gui_state.ship_structure,
         state.gui_state.construction_zone,
     ) else {
         return;
     };
-    let y = if tid == "warm_lamp" {
-        0.8
-    } else {
-        (hs.height - 0.3).max(0.3)
-    };
+    // On the storey being edited (increment 7): a lamp 0.8 m up its floor, a ceiling type 0.3 m
+    // under the ceiling over that spot (the slab above, else the roof).
+    let es = storey.unwrap_or_else(|| EditStorey::of(hs, 0));
+    let y = light_height_on_storey(hs, es, lx, lz, &tid);
     hs.lights.push(crate::ship::home_structure::PlacedLight {
         type_id: tid,
-        pos: (hx - zo.x, y, hz - zo.z),
+        pos: (lx, y, lz),
         dir: (0.0, -1.0, 0.0),
         on: true,
         color: None,
@@ -741,11 +742,12 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
     if crate::ship::structure::structure_type(&tid).is_none() {
         return;
     }
-    let Some((rb_i, hx, hz)) = cursor_floor_hit(state) else {
+    let Some(hit) = cursor_storey_hit(state) else {
         return;
     };
+    let (hx, hz) = (hit.x, hit.z);
     let zo = active_zone_origin(state); // world floor hit -> active-zone-local body coords (v0.754)
-    let floor_y = state.gui_state.room_bounds[rb_i].min.y;
+    let floor_y = hit.y; // the floor of the storey being edited (increment 7)
     let place_y = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
     if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
         hs.structures.push(crate::ship::home_structure::PlacedStructure {
@@ -765,11 +767,17 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
 /// point comes from the floor raycast, snapped to 0.25 m, converted into the ACTIVE zone's local
 /// coords (v0.754: world x/z equals box-local x/z only for a zone at the world origin).
 pub(crate) fn try_place_wall_node(state: &mut EngineState) {
-    let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+    // The drawing tool draws a floor slab instead while the slab tool is on (increment 7).
+    if state.gui_state.construction_storeys.draw.is_some() {
+        try_place_slab_corner(state);
+        return;
+    }
+    // On the storey being edited (increment 7): its plan, even where a new floor has no room yet.
+    let Some(hit) = cursor_storey_hit(state) else {
         return;
     };
     let zo = active_zone_origin(state);
-    let (hx, hz) = (hx - zo.x, hz - zo.z); // active-zone-local (v0.754)
+    let (hx, hz) = (hit.x - zo.x, hit.z - zo.z); // active-zone-local (v0.754)
     // v0.541: snap a drawn corner to an existing corner / the box edge / the grid (same rules as
     // dragging), so successive walls share corners + reach the perimeter for an airtight seal.
     // (NaN "grabbed" sentinel skips nothing, so a new corner CAN snap onto an existing one.)
@@ -783,19 +791,16 @@ pub(crate) fn try_place_wall_node(state: &mut EngineState) {
         Some(start) => {
             // Ignore a zero-length segment (a double-click on the same spot).
             if (start.0 - p.0).abs() > 0.05 || (start.1 - p.1).abs() > 0.05 {
+                let chosen = state.gui_state.construction_storeys.chosen;
+                let guard = state.gui_state.construction_wall_guard;
                 if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
-                    let height = hs.height;
-                    let material = hs.shell_material;
-                    hs.walls.push(crate::ship::home_structure::InteriorWall {
-                        a: start,
-                        b: p,
-                        base: 0.0,
-                        height,
-                        material,
-                        openings: Vec::new(),
-                        thickness: None,
-                        layers: Vec::new(),
-                    });
+                    // It stands on the storey's floor and rises to the next floor (increment 7); the
+                    // palette's Guard draws a guard there instead (a balustrade wall, 1.0 m).
+                    let es = EditStorey::of(hs, chosen);
+                    let wall = if guard { new_guard_on_storey(es, start, p) } else { Some(new_wall_on_storey(hs, es, start, p)) };
+                    let Some(wall) = wall else { return };
+                    hs.walls.push(wall);
+                    state.gui_state.construction_storeys.slab_selected = None;
                     state.gui_state.construction_structure_dirty = true;
                     state.gui_state.construction_wall_selected = Some(hs.walls.len() - 1);
                     state.gui_state.construction_machine_selected = None; // keep selection exclusive
@@ -837,17 +842,19 @@ pub(crate) fn compute_construction_hover(state: &EngineState) -> HoverGizmo {
         if (p - (origin + dir * t)).length() < pick_r { Some(t) } else { None }
     };
     let zo = active_zone_origin(state); // gizmos live at zone-local + origin (v0.754)
+    // The storey being edited (increment 7): its walls' corners on its floor, its openings.
+    let es = EditStorey::of(hs, state.gui_state.construction_storeys.chosen);
     let mut best_t = f32::INFINITY;
     let mut best = HoverGizmo::None;
-    for c in unique_corners(hs) {
-        if let Some(t) = test(Vec3::new(c.0 + zo.x, zo.y - 0.05, c.1 + zo.z), 0.45) {
+    for c in storey_wall_corners(hs, es.index) {
+        if let Some(t) = test(Vec3::new(c.0 + zo.x, zo.y + es.storey.floor - 0.05, c.1 + zo.z), 0.45) {
             if t < best_t {
                 best_t = t;
                 best = HoverGizmo::Corner(c.0, c.1);
             }
         }
     }
-    for (idx, p) in opening_gizmos(hs, zo) {
+    for (idx, p) in opening_gizmos_on_storey(hs, zo, es.index) {
         if let Some(t) = test(p, 0.4) {
             if t < best_t {
                 best_t = t;
@@ -868,10 +875,20 @@ pub(crate) fn compute_construction_hover(state: &EngineState) -> HoverGizmo {
 /// On a build-mode click, try to grab the nearest corner-node gizmo under the cursor (ray vs the
 /// pin position). Returns true if a node was grabbed. (v0.541)
 pub(crate) fn try_grab_node(state: &mut EngineState) -> bool {
+    // The selected floor slab's corner handles come first (increment 7): a slab corner is a
+    // corner node too, and its drag rides this grab (`try_grab_slab_corner`).
+    if try_grab_slab_corner(state) {
+        return true;
+    }
     // Compute the gizmo set as owned values so the home_structure borrow ends before the
-    // mutable grab assignment below.
+    // mutable grab assignment below. The corners are the storey's being edited, on its floor
+    // (increment 7); with one storey, every corner on the deck, as before.
+    let chosen = state.gui_state.construction_storeys.chosen;
     let (top_y, corners) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-        Some(hs) => (-0.05, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.568)
+        Some(hs) => {
+            let es = EditStorey::of(hs, chosen);
+            (es.storey.floor - 0.05, storey_wall_corners(hs, es.index)) // orb centre (top-at-floor); matches the render (v0.568)
+        }
         None => return false,
     };
     let zo = active_zone_origin(state); // corners are zone-local; the orb renders at +origin (v0.754)
@@ -895,6 +912,7 @@ pub(crate) fn try_grab_node(state: &mut EngineState) -> bool {
     if let Some((c, _)) = best {
         state.construction_node_grab = Some(c);
         state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag (v0.549)
+        state.gui_state.construction_storeys.slab_selected = None; // a wall's corner, not the slab's
         true
     } else {
         false
@@ -915,9 +933,10 @@ pub(crate) fn try_pick_machine(state: &mut EngineState) -> bool {
     // only a Dev save writes their file (`MachineHome::is_locked`): they are not picked, so they
     // cannot be selected, dragged, turned, duplicated or removed.
     let locked = state.gui_state.home_machines.as_ref().map(|h| h.locked_ids()).unwrap_or_default();
+    let band = storey_pick_band(state); // the storey being edited (increment 7)
     let mut best: Option<(String, f32)> = None;
     for (id, center, radius) in &state.machine_pick {
-        if locked.contains(id) {
+        if locked.contains(id) || !in_storey_band(band, center.y) {
             continue;
         }
         let t = (*center - origin).dot(dir);
@@ -938,6 +957,7 @@ pub(crate) fn try_pick_machine(state: &mut EngineState) -> bool {
         state.gui_state.construction_wall_selected = None;
         state.gui_state.construction_light_selected = None;
         state.gui_state.construction_structure_selected = None;
+        state.gui_state.construction_storeys.slab_selected = None;
         true
     } else {
         false
@@ -1028,6 +1048,7 @@ pub(crate) fn try_pick_connection(state: &mut EngineState) -> bool {
     if let Some((_, from, to)) = best {
         let g = &mut state.gui_state;
         g.construction_connection_selected = Some((from, to));
+        g.construction_storeys.slab_selected = None;
         g.construction_machine_selected = None;
         g.construction_wall_selected = None;
         g.construction_light_selected = None;
@@ -1045,8 +1066,11 @@ pub(crate) fn try_pick_connection(state: &mut EngineState) -> bool {
 /// drag. Runs LAST in the pick chain (before the room grab) so a zone -- a big background volume --
 /// never steals a click from a machine / wall / node in front of it. Returns true on a hit.
 pub(crate) fn try_pick_zone(state: &mut EngineState) -> bool {
+    // The zones of the storey being edited (increment 7): their floors are on it.
+    let band = storey_pick_band(state);
+    let zy = active_zone_origin(state).y;
     let zones: Vec<(String, (f32, f32, f32), (f32, f32, f32))> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-        Some(hs) => hs.zones.iter().map(|z| (z.id.clone(), z.origin, z.size)).collect(),
+        Some(hs) => hs.zones.iter().filter(|z| in_storey_band(band, zy + z.origin.1)).map(|z| (z.id.clone(), z.origin, z.size)).collect(),
         None => return false,
     };
     if zones.is_empty() {
@@ -1100,6 +1124,7 @@ pub(crate) fn try_pick_zone(state: &mut EngineState) -> bool {
             .unwrap_or(true);
         let g = &mut state.gui_state;
         g.construction_zone_selected = Some(id.clone());
+        g.construction_storeys.slab_selected = None;
         g.construction_machine_selected = None;
         g.construction_wall_selected = None;
         g.construction_light_selected = None;
@@ -1124,41 +1149,25 @@ pub(crate) fn try_pick_zone(state: &mut EngineState) -> bool {
 /// hit lies within the wall's length + height. Returns true (so the click doesn't also grab a room).
 pub(crate) fn try_pick_wall(state: &mut EngineState) -> bool {
     let zo = active_zone_origin(state); // wall coords are zone-local; test in world (v0.754)
-    let walls: Vec<(usize, Vec3, Vec3, f32)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-        Some(hs) => hs
-            .walls
-            .iter()
-            .enumerate()
-            .map(|(i, w)| (i, Vec3::new(w.a.0, 0.0, w.a.1) + zo, Vec3::new(w.b.0, 0.0, w.b.1) + zo, w.height))
-            .collect(),
-        None => return false,
-    };
     let sz = state.window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+    let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) else {
+        return false;
+    };
+    // The walls standing in the storey being edited, each from its BASE to its top and no higher
+    // than the cut-away's top, where the view cuts it (increment 7, `ray_hits_wall`). With one
+    // storey: every wall, from the deck to its top, as before.
+    let es = EditStorey::of(hs, state.gui_state.construction_storeys.chosen);
+    let storeys = hs.storeys();
+    let cap = if es.has_above() { es.storey.top } else { f32::INFINITY };
     let mut best: Option<(usize, f32)> = None; // (wall index, ray t)
-    for (i, a, b, h) in &walls {
-        let along = *b - *a;
-        let len = along.length();
-        if len < 1e-4 {
+    for (i, w) in hs.walls.iter().enumerate() {
+        if !crate::ship::home_structure::wall_in_storey(&storeys, w, es.index) {
             continue;
         }
-        let along_n = along / len;
-        // Horizontal normal of the (vertical) wall plane.
-        let normal = Vec3::new(-along_n.z, 0.0, along_n.x);
-        let denom = dir.dot(normal);
-        if denom.abs() < 1e-6 {
-            continue; // ray parallel to the wall face
-        }
-        let t = (*a - origin).dot(normal) / denom;
-        if t < 0.0 {
-            continue; // behind the camera
-        }
-        let hit = origin + dir * t;
-        let s = (hit - *a).dot(along_n); // distance along the wall from a
-        // Height window relative to the zone's deck (a.y == the zone origin y, v0.754).
-        if s >= -0.1 && s <= len + 0.1 && hit.y >= a.y - 0.1 && hit.y <= a.y + *h + 0.1 {
+        if let Some(t) = ray_hits_wall(w, zo, origin, dir, cap) {
             if best.map_or(true, |(_, bt)| t < bt) {
-                best = Some((*i, t));
+                best = Some((i, t));
             }
         }
     }
@@ -1166,6 +1175,7 @@ pub(crate) fn try_pick_wall(state: &mut EngineState) -> bool {
         state.gui_state.construction_wall_selected = Some(i);
         state.gui_state.construction_machine_selected = None;
         state.gui_state.construction_light_selected = None;
+        state.gui_state.construction_storeys.slab_selected = None;
         true
     } else {
         false
@@ -1177,12 +1187,14 @@ pub(crate) fn try_pick_wall(state: &mut EngineState) -> bool {
 /// pick a wall / grab a room.
 pub(crate) fn try_pick_light(state: &mut EngineState) -> bool {
     let zo = active_zone_origin(state); // lights are zone-local; test in world (v0.754)
+    let band = storey_pick_band(state); // the storey being edited's lights (increment 7)
     let lights: Vec<(usize, Vec3)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
         Some(hs) => hs
             .lights
             .iter()
             .enumerate()
             .map(|(i, l)| (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo))
+            .filter(|(_, p)| in_storey_band(band, p.y))
             .collect(),
         None => return false,
     };
@@ -1210,6 +1222,7 @@ pub(crate) fn try_pick_light(state: &mut EngineState) -> bool {
         state.gui_state.construction_wall_selected = None;
         state.gui_state.construction_machine_selected = None;
         state.gui_state.construction_structure_selected = None;
+        state.gui_state.construction_storeys.slab_selected = None;
         true
     } else {
         false
@@ -1340,6 +1353,7 @@ pub(crate) fn try_pick_light_ring(state: &mut EngineState) -> bool {
 pub(crate) fn try_pick_structure(state: &mut EngineState) -> bool {
     use crate::ship::structure::{rotated_half_extents, structure_type, StructureKind};
     let zo = active_zone_origin(state); // pieces are zone-local; test in world (v0.754)
+    let band = storey_pick_band(state); // the pieces standing on the storey being edited (increment 7)
     let pieces: Vec<(usize, Vec3, Vec3)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
         Some(hs) => hs
             .structures
@@ -1347,7 +1361,7 @@ pub(crate) fn try_pick_structure(state: &mut EngineState) -> bool {
             .enumerate()
             .filter_map(|(i, ps)| {
                 let ty = structure_type(&ps.type_id)?;
-                if ty.kind == StructureKind::Wall {
+                if ty.kind == StructureKind::Wall || !in_storey_band(band, zo.y + ps.pos.1) {
                     return None;
                 }
                 let (hw, h, hd) = rotated_half_extents(ty, ps.rot_deg.to_radians());
@@ -1379,6 +1393,7 @@ pub(crate) fn try_pick_structure(state: &mut EngineState) -> bool {
         state.gui_state.construction_wall_selected = None;
         state.gui_state.construction_machine_selected = None;
         state.gui_state.construction_light_selected = None;
+        state.gui_state.construction_storeys.slab_selected = None;
         true
     } else {
         false
@@ -1430,6 +1445,7 @@ pub(crate) fn try_pick_node(state: &mut EngineState) -> bool {
         return false;
     };
     // Clear every selection, then set the picked node + arm its grab.
+    state.gui_state.construction_storeys.slab_selected = None;
     state.gui_state.construction_wall_selected = None;
     state.gui_state.construction_structure_selected = None;
     state.gui_state.construction_light_selected = None;
@@ -1475,7 +1491,7 @@ pub(crate) fn try_grab_char(state: &mut EngineState) -> bool {
 /// Per-frame while the avatar is grabbed: move it to the cursor's floor hit, converted into the
 /// ACTIVE zone's local coords (v0.754) and clamped into that zone's box.
 pub(crate) fn apply_char_drag(state: &mut EngineState) {
-    if let Some((_, hx, hz)) = cursor_floor_hit(state) {
+    if let Some(StoreyFloorHit { x: hx, z: hz, .. }) = cursor_storey_hit(state) {
         let zo = active_zone_origin(state);
         let (hx, hz) = (hx - zo.x, hz - zo.z);
         let (bw, bd) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
@@ -1488,6 +1504,10 @@ pub(crate) fn apply_node_drag(state: &mut EngineState) {
     let Some(grabbed) = state.construction_node_grab else {
         return;
     };
+    // A floor slab's corner rides this grab (increment 7, `try_grab_slab_corner`).
+    if apply_slab_corner_drag(state) {
+        return;
+    }
     // Tap-vs-drag (v0.549): hold the corner still until the cursor leaves the press point, so a
     // tap selects (handled on release) and only click-and-drag moves it.
     if let Some(press) = state.construction_grab_press {
@@ -1497,7 +1517,8 @@ pub(crate) fn apply_node_drag(state: &mut EngineState) {
         }
         state.construction_grab_press = None; // armed: this is now a drag
     }
-    let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+    // On the plan of the storey being edited (increment 7).
+    let Some(StoreyFloorHit { x: hx, z: hz, .. }) = cursor_storey_hit(state) else {
         return;
     };
     // World floor hit -> the ACTIVE zone's local coords (the grabbed corner is local). (v0.754)
@@ -1511,15 +1532,12 @@ pub(crate) fn apply_node_drag(state: &mut EngineState) {
     if (snapped.0 - grabbed.0).abs() < 1e-4 && (snapped.1 - grabbed.1).abs() < 1e-4 {
         return; // no movement this frame
     }
+    // Every wall end at the corner moves, on this storey only: a wall of another storey under or
+    // over the same (x, z) stays (`move_storey_corner`).
+    let chosen = state.gui_state.construction_storeys.chosen;
     if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
-        for wall in hs.walls.iter_mut() {
-            if (wall.a.0 - grabbed.0).abs() < 0.05 && (wall.a.1 - grabbed.1).abs() < 0.05 {
-                wall.a = snapped;
-            }
-            if (wall.b.0 - grabbed.0).abs() < 0.05 && (wall.b.1 - grabbed.1).abs() < 0.05 {
-                wall.b = snapped;
-            }
-        }
+        let k = EditStorey::of(hs, chosen).index;
+        move_storey_corner(hs, k, grabbed, snapped);
     }
     state.construction_node_grab = Some(snapped);
     state.gui_state.construction_structure_dirty = true;
@@ -1579,7 +1597,8 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
         }
         state.construction_grab_press = None; // armed: this is now a drag
     }
-    let Some((bi, hx, hz)) = cursor_floor_hit(state) else {
+    // On the plan of the storey being edited (increment 7).
+    let Some(StoreyFloorHit { x: hx, y: hy, z: hz, .. }) = cursor_storey_hit(state) else {
         return;
     };
     // Handles with their OWN projection math run BEFORE the generic grid/alignment snap
@@ -1597,8 +1616,7 @@ pub(crate) fn apply_object_drag(state: &mut EngineState) {
         ObjectGrab::LightAim { light, axis, prev_angle } => {
             state.construction_snap_x = None;
             state.construction_snap_z = None;
-            // The floor hit as a 3D point: the room bound the ray landed in supplies the y.
-            let hy = state.gui_state.room_bounds.get(bi).map(|rb| rb.min.y).unwrap_or(0.0);
+            // The floor hit as a 3D point: the floor the ray landed on supplies the y.
             apply_light_aim_drag(state, light, axis, prev_angle, Vec3::new(hx, hy, hz));
             return;
         }
@@ -1815,7 +1833,9 @@ pub(crate) fn apply_light_aim_drag(state: &mut EngineState, li: usize, axis_idx:
 }
 
 /// World positions of every door/window opening gizmo: ((wall index, opening index), centre).
-/// `zo` is the owning zone's world origin (body coords are zone-local, v0.754). (v0.546)
+/// `zo` is the owning zone's world origin (body coords are zone-local, v0.754). (v0.546) An
+/// opening's sill is from its wall's base, so an upstairs door's handle is upstairs (increment 7);
+/// `opening_gizmos_on_storey` keeps to one storey.
 pub(crate) fn opening_gizmos(hs: &crate::ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize), Vec3)> {
     let mut out = Vec::new();
     for (wi, wall) in hs.walls.iter().enumerate() {
@@ -1828,7 +1848,7 @@ pub(crate) fn opening_gizmos(hs: &crate::ship::home_structure::HomeStructure, zo
         let (ux, uz) = (dx / len, dz / len);
         for (oi, op) in wall.openings.iter().enumerate() {
             let s = (op.at + op.width * 0.5).clamp(0.0, len);
-            let cy = op.sill + op.height * 0.5;
+            let cy = wall.base + op.sill + op.height * 0.5;
             out.push(((wi, oi), Vec3::new(ax + ux * s, cy, az + uz * s) + zo));
         }
     }
@@ -1849,7 +1869,7 @@ pub(crate) fn apply_opening_drag(state: &mut EngineState) {
         }
         state.construction_grab_press = None;
     }
-    let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+    let Some(StoreyFloorHit { x: hx, z: hz, .. }) = cursor_storey_hit(state) else {
         return;
     };
     // World floor hit -> the active zone's local coords (wall data is zone-local). (v0.754)
@@ -1897,11 +1917,13 @@ pub(crate) fn opening_resize_handles(hs: &crate::ship::home_structure::HomeStruc
             let s_l = op.at.clamp(0.0, len);
             let s_r = (op.at + op.width).clamp(0.0, len);
             let s_c = (op.at + op.width * 0.5).clamp(0.0, len);
-            let cy_c = op.sill + op.height * 0.5;
+            // From the wall's base (increment 7): an opening's sill is measured from it.
+            let sill = wall.base + op.sill;
+            let cy_c = sill + op.height * 0.5;
             out.push(((wi, oi, 0), Vec3::new(ax + ux * s_l, cy_c, az + uz * s_l) + zo));
             out.push(((wi, oi, 1), Vec3::new(ax + ux * s_r, cy_c, az + uz * s_r) + zo));
-            out.push(((wi, oi, 2), Vec3::new(ax + ux * s_c, op.sill + op.height, az + uz * s_c) + zo));
-            out.push(((wi, oi, 3), Vec3::new(ax + ux * s_c, op.sill, az + uz * s_c) + zo));
+            out.push(((wi, oi, 2), Vec3::new(ax + ux * s_c, sill + op.height, az + uz * s_c) + zo));
+            out.push(((wi, oi, 3), Vec3::new(ax + ux * s_c, sill, az + uz * s_c) + zo));
         }
     }
     out
@@ -2039,6 +2061,8 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
     state.gui_state.construction_place_type = None;
     state.gui_state.construction_place_light = None; // v0.784
     state.gui_state.construction_place_conduit_node = false; // v0.629
+    state.gui_state.construction_storeys.draw = None; // and the floor-slab tool (increment 7)
+    state.gui_state.construction_storeys.draw_start = None;
     state.construction_ghost = None;
     state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
     if state.gui_state.construction_active {

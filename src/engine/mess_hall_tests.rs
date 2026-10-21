@@ -187,4 +187,17 @@ fn only_a_serving_counter_offers_a_meal() {
     let d = nearest_counter_m(Some(&home), &labels, glam::Vec3::new(0.0, 1.2, 0.0)).expect("a counter");
     assert!((d - 4.0).abs() < 1e-5, "measured from the counter, not the nearer {other}: {d}");
     assert_eq!(nearest_counter_m(Some(&home), &labels[..1], glam::Vec3::ZERO), None);
+
+    // A COUNTER ONE STOREY UP IS NOT YOURS (ship homes increment 7): its label 1.3 m over a floor
+    // 3.0 m up (0.9 m counter, 0.4 m over it), right over a player whose eyes are 1.7 m up, is out
+    // of reach though 2.6 m away; on the player's floor, 1 m away across the floor, it is in reach;
+    // and from upstairs the counter under the feet is not. Seen red 2026-10-20 on the reach before
+    // storeys (the distance alone): "a counter one storey up was the nearest: Some(2.6)".
+    let at = |y: f32| vec![crate::gui::MachineLabel { pos: glam::Vec3::new(1.0, y, 0.0), ..label("mess-hall-counter", 1.0) }];
+    let eye = glam::Vec3::new(1.0, 1.7, 0.0);
+    let up = nearest_counter_m(Some(&home), &at(3.0 + 1.3), eye);
+    assert_eq!(up, None, "a counter one storey up was the nearest: {up:?}");
+    let here = nearest_counter_m(Some(&home), &at(1.3), eye + glam::Vec3::new(1.0, 0.0, 0.0));
+    assert!(here.is_some_and(|d| d <= INTERACT_REACH_M), "a counter on your floor: {here:?}");
+    assert_eq!(nearest_counter_m(Some(&home), &at(1.3), eye + glam::Vec3::new(0.0, 3.0, 0.0)), None, "the counter under an upstairs player");
 }

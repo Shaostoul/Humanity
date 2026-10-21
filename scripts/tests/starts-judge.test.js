@@ -253,7 +253,7 @@ test("the rig reads the tree's data it judges against, and every piece of it is 
   assert.equal(c.volume.type_id, "mess_hall");
   for (const p of [c.centre, c.stand, c.store.at]) assert.ok(p[0] >= c.volume.min[0] && p[0] <= c.volume.max[0] && p[2] >= c.volume.min[2] && p[2] <= c.volume.max[2], `${JSON.stringify(p)} is in the mess hall`);
   const gap = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
-  assert.ok(gap(c.stand, c.store.at) < SP.STORE_REACH_M - 1, "the game's place is well in reach of the food store");
+  assert.ok(gap(c.stand, c.store.at) < SP.INTERACT_REACH_M - 1, "the game's place is well in reach of the food store");
   assert.ok(Math.abs(gap(c.stand, c.centre) - (c.size[2] / 2 + SJ.STAND_FRONT_M)) < 1e-6 || Math.abs(gap(c.stand, c.centre) - (c.size[0] / 2 + SJ.STAND_FRONT_M)) < 1e-6, "1.5 m in front of its front face");
   assert.ok(Number.isFinite(DATA.default_credits) && DATA.default_credits > 0, "a new character's credits");
   assert.ok(typeof DATA.meal_good === "string" && DATA.meal_good.length > 0, "the meal's good");
