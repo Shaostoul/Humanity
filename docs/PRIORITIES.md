@@ -344,7 +344,14 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     floor docs/design/player-home.md already planned (the quiet wing upstairs by a stair off the
     hall and the elevator at (31, 26); a dining room and a second bedroom downstairs). Wave 0 (the
     contract), the stairs-and-guards finding with the upper floor's layout draft, and the light
-    budget analysis are running; Wave 1's lanes follow Wave 0's merge.
+    budget analysis are running; Wave 1's lanes follow Wave 0's merge. (Update, same evening:
+    Wave 0 merged; Wave 1's lanes G, M, R, C1, C2 and L running; the home's probe priority merged,
+    home 22,092 probes at 1.00 m, the rest of the ship 9,878 at 2.50 m, the GPU cost unchanged;
+    a live "Bounced light detail" setting in Settings > Graphics being built.)
+  - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
+    other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
+    the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on
+    cards that support it is the later upgrade, with probes kept as the fallback.
   - **Media round 5: Waves 0, 1 and 2 are DONE** (released through v0.1494.0): the desktop and
     website item pages and editors, counts, the item page for social sites, the strips, the
     Admin tab, the snapshots, the Reports page's Open. Not built: the browser proof rig
