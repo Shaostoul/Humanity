@@ -33,7 +33,7 @@ use crate::renderer::room_probes::{
     merge_slabs, OccluderSlab, RoomBox, FACE_FLOOR, FACE_LID, FACE_NEG_X, FACE_NEG_Z, FACE_POS_X, FACE_POS_Z,
 };
 use crate::ship::fibonacci::RoomInfo;
-use crate::ship::home_structure::{FloorSlab, HomeStructure, ROOM_DIVIDER_MIN_M, STOREY_EPS};
+use crate::ship::home_structure::{FloorSlab, HomeStructure, OPAQUE_CEILING_RGBA, ROOM_DIVIDER_MIN_M, STOREY_EPS};
 use crate::ship::ship_structure::ShipStructure;
 
 /// The glass material a glass floor slab is made of (`FloorSlab` carries only
@@ -240,7 +240,13 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
     };
     let glass = HomeStructure::material_color(GLASS_SLAB_MATERIAL);
     let glass_t = (1.0 - glass[3]).clamp(0.0, 1.0);
-    let slab_refl = |s: &FloorSlab| if s.passes_light() { surface_refl(glass) } else { shell };
+    // What each face of a slab reflects, as `HomeStructure::generate_meshes`
+    // draws it: a solid slab's TOP in the floor's material (the shell's) and
+    // its UNDERSIDE in the opaque ceiling's concrete; a glass slab both ways
+    // in the roof's glass, two faces that together pass what one roof pane
+    // does (`glass_slab_face_alpha`), so its light is the roof glass's.
+    let slab_top_refl = |s: &FloorSlab| if s.passes_light() { surface_refl(glass) } else { shell };
+    let slab_under_refl = |s: &FloorSlab| if s.passes_light() { surface_refl(glass) } else { surface_refl(OPAQUE_CEILING_RGBA) };
     let lid_slabs: Vec<(&FloorSlab, f32)> = body
         .floors
         .iter()
@@ -274,7 +280,7 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
                 let (x0, z0, x1, z1) = s.rect();
                 t_sum += a * glass_t * above(fx0.max(x0), fz0.max(z0), fx1.min(x1), fz1.min(z1));
             }
-            let r = slab_refl(s);
+            let r = slab_under_refl(s);
             for k in 0..3 {
                 refl[k] += r[k] * a;
             }
@@ -292,7 +298,7 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
         let (mut refl, mut covered) = ([0.0f32; 3], 0.0f32);
         for s in body.floors.iter().filter(|s| (s.top + o.y - min.y).abs() < SLAB_LEVEL_EPS) {
             let a = overlap(s);
-            let r = slab_refl(s);
+            let r = slab_top_refl(s);
             for k in 0..3 {
                 refl[k] += r[k] * a;
             }
@@ -569,7 +575,7 @@ mod tests {
 
     /// ROOM BOXES PER STOREY. The ground room under the solid slab is lidded
     /// by it: opaque, its lid at the slab's underside (2.75), reflecting as
-    /// the slab does. The ground room under the glass quarter and the open
+    /// that underside is drawn (the opaque ceiling's concrete). The ground room under the glass quarter and the open
     /// stairwell passes the light the glass and the roof above it pass, over
     /// the half of its footprint the glass covers. An upstairs room stands on
     /// the solid slab (its floor reflects as the slab does), keeps the roof as
@@ -593,7 +599,10 @@ mod tests {
         assert_eq!(north.lid_transmittance, 0.0, "a solid floor is an opaque lid");
         assert!((north.max.y - 2.75).abs() < 1e-5, "the lid is the slab's underside: {}", north.max.y);
         let close = |a: [f32; 3], b: [f32; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-5);
-        assert!(close(north.refl[FACE_LID], shell), "the lid reflects as a solid slab does");
+        assert!(
+            close(north.refl[FACE_LID], surface_refl(OPAQUE_CEILING_RGBA)),
+            "the lid reflects as a solid slab's underside is drawn, the opaque ceiling's concrete"
+        );
         let oak = surface_refl(HomeStructure::material_color(3));
         // Overlap-weighted (`face_walls`), so equal to rounding.
         assert!(close(north.refl[FACE_POS_Z], oak), "the north ground room's +z face is the oak wall: {:?}", north.refl[FACE_POS_Z]);
