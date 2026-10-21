@@ -348,24 +348,9 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // (Machine placement + pipes + hologram/spawn still resolve at load_world; they refresh
     // on the next relaunch -- a follow-up will make them live too.)
     let room_types = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-    state.gui_state.room_bounds = room_info
-        .iter()
-        .map(|r| {
-            // The function join: a zone-named room resolves through its zone's room_type
-            // (rooms.ron); a legacy id joins on itself; an anonymous room_N gets its id as name.
-            let f = room_types.function_for(r);
-            crate::gui::RoomBounds {
-                id: r.id.clone(),
-                min: r.center - r.dimensions * 0.5,
-                max: r.center + r.dimensions * 0.5,
-                display_name: f.display_name,
-                purpose: f.purpose,
-                actions: f.actions,
-                action_pages: room_types.action_pages(r),
-                access: f.access,
-            }
-        })
-        .collect();
+    // The function join (rooms.ron) and the boxes the grow rooms' air is published from
+    // (RoomTypeRegistry::room_bounds, shared with world entry and the life-support tests).
+    state.gui_state.room_bounds = room_types.room_bounds(&room_info);
     // Room geometry changed, so the machines in those rooms must follow (a moved/resized room
     // carries its machines). Refresh the machine meshes from the new room bounds. (v0.525)
     rebuild_machine_objects(state);

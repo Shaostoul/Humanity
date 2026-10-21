@@ -123,26 +123,31 @@ fn a_powered_heater_warms_its_room_to_the_steady_state_worked_by_hand() {
 }
 
 /// ONE SPACE HEATER BARELY WARMS A GREENHOUSE THE SIZE OF THE FAMILY HOME'S
-/// (45 x 3 x 22 m, 2,970 m3, data/homes/homestead.ron `room-greenhouse`), on
-/// its own leakage with nothing else in it: by hand its walls and ceiling,
-/// 2 x (45 + 22) x 3 + 45 x 22 = 1,392 m2, lose 8,686 W a degree and its
-/// leakage 501 W, so the heater, flat out and never near 24 C, adds 0.163 C.
-/// The figure humidity.ron and the heating guide quote: a heater has to match
-/// the heat a space loses. Red with no heater found (the code before this fix
-/// in effect): 0.
+/// (the room the game publishes for data/homes/homestead.ron's
+/// `room-greenhouse`: 44.5 x 6 x 21 m inside its walls, 5,607 m3, open to the
+/// 6 m roof since the homestead's upper floor), on its own leakage with
+/// nothing else in it: by hand its walls and ceiling, 2 x (44.5 + 21) x 6 +
+/// 44.5 x 21 = 1,720.5 m2, lose 10,736 W a degree, and its leakage, half an
+/// air change an hour of its lowest 3 m storey (humidity.ron,
+/// `leak_air_changes_per_hour`), 473 W, so the heater, flat out and never
+/// near 24 C, adds 0.134 C. The figure humidity.ron and the heating guide
+/// quote: a heater has to match the heat a space loses. Red with no heater
+/// found (the code before this fix in effect): 0. It was a 45 x 3 x 22 m room
+/// (0.163 C) until 2026-10-21, the storey-tall zone; with the room leaking
+/// half its whole 6 m box an hour it would read 0.128.
 #[test]
 fn one_heater_barely_warms_a_greenhouse_the_size_of_the_family_homes() {
-    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [45.0, 3.0, 22.0], ..Default::default() };
+    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [44.5, 6.0, 21.0], ..Default::default() };
     let bed = GrowPlot { id: "bed_a".into(), pos: [20.0, 0.0, 10.0], ..Default::default() };
     let data = store(vec![greenhouse], vec![bed]);
     let mut world = hecs::World::new();
     let e = heater(&mut world, [20.0, 0.5, 10.0], 1500.0, 24.0, true);
     let mut sys = FarmingSystem::new();
     run(&mut sys, &mut world, &data, 30, 5.0);
-    let g = 6.24 * (2.0 * (45.0 + 22.0) * 3.0 + 45.0 * 22.0) + air_j_m3_k(21.0) * 0.5 * 2970.0 / 3600.0;
+    let g = 6.24 * (2.0 * (44.5 + 21.0) * 6.0 + 44.5 * 21.0) + air_j_m3_k(21.0) * 0.25 * 5607.0 / 3600.0;
     let r = room(&world, "room-greenhouse");
     assert!((r.warmed_k - 1500.0 / g).abs() < 1e-6, "warmed {} K, by hand {}", r.warmed_k, 1500.0 / g);
-    assert!((r.warmed_k - 0.163).abs() < 0.0005, "{}", r.warmed_k);
+    assert!((r.warmed_k - 0.134).abs() < 0.0005, "{}", r.warmed_k);
     assert_eq!(r.heater, 1.0, "never near 24 C, so flat out");
     assert!((draw(&world, e) - 1500.0).abs() < 1e-3);
 }
@@ -338,7 +343,7 @@ fn the_time_away_charges_a_heater_what_its_thermostat_ran_it_at() {
         .find_map(|m| m.enclosure)
         .expect("the shipped fruiting tent");
     assert_eq!((tent.size, tent.substrate_kg), ((1.3, 1.9, 0.7), 22.7), "the tent this test's hand numbers are for");
-    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [45.0, 3.0, 22.0], ..Default::default() };
+    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [44.5, 6.0, 21.0], ..Default::default() };
     let bed = GrowPlot { id: "bed_a".into(), pos: [20.0, 0.0, 10.0], ..Default::default() };
     let rack = GrowPlot { id: "rack_a".into(), pos: [60.0, 0.0, 5.0], enclosure: Some(tent.clone()), ..Default::default() };
     let data = store(vec![greenhouse], vec![bed, rack]);
@@ -598,19 +603,21 @@ fn wood_kg(world: &hecs::World, stove: hecs::Entity) -> f64 {
     f64::from(c.current_qty) * log - s.burned_kg
 }
 
-/// The family home's greenhouse, 45 x 3 x 22 m, with one grow bed: by hand
-/// (the second test above) it loses 1,392 m2 x 6.24 W/(m2 K) through its
-/// walls and ceiling and half its 2,970 m3 an hour, 9,187.5 W a degree, so
-/// even the wood stove's 13,040 W never brings it to 24 C and it burns flat
-/// out there.
+/// The family home's greenhouse, the room the game publishes for it (44.5 x 6
+/// x 21 m, 5,607 m3, open to the 6 m roof), with one grow bed: by hand (the
+/// second test above) it loses 1,720.5 m2 x 6.24 W/(m2 K) through its walls
+/// and ceiling and half an air change an hour of its lowest 3 m storey,
+/// 11,209 W a degree, so even the wood stove's 13,040 W never brings it to
+/// 24 C and it burns flat out there. (A 45 x 3 x 22 m room, 9,187.5 W a
+/// degree, until 2026-10-21.)
 fn greenhouse_store() -> DataStore {
-    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [45.0, 3.0, 22.0], ..Default::default() };
+    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [44.5, 6.0, 21.0], ..Default::default() };
     let bed = GrowPlot { id: "bed_a".into(), pos: [20.0, 0.0, 10.0], ..Default::default() };
     store(vec![greenhouse], vec![bed])
 }
 
 fn greenhouse_w_k() -> f64 {
-    6.24 * (2.0 * (45.0 + 22.0) * 3.0 + 45.0 * 22.0) + air_j_m3_k(21.0) * 0.5 * 2970.0 / 3600.0
+    6.24 * (2.0 * (44.5 + 21.0) * 6.0 + 44.5 * 21.0) + air_j_m3_k(21.0) * 0.25 * 5607.0 / 3600.0
 }
 
 /// A HEAT PUMP PUTS ITS COP TIMES ITS DRAW INTO THE AIR, AND IS CHARGED ONLY
@@ -696,11 +703,13 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
 /// heat on 4.07 kg of wood an hour), spawned with its box the way the engine
 /// spawns it, one Wood Log (8 kg) stored in the box, in the family-sized
 /// greenhouse. It has no power and needs none. By hand: flat out (it cannot
-/// bring 9,187.5 W a degree to 24 C), the greenhouse settles 13,040 / 9,187.5
-/// = 1.419 C over within an hour, when 4.07 kg of the log has burned and the
-/// log is still in the box. The log is gone at 8 / 4.07 = 1.966 hours; by 3
-/// hours the box is empty, the stove has stopped, the air has cooled back to
-/// its own temperature, and the Garden panel says why.
+/// bring 11,209 W a degree to 24 C), the greenhouse heads for 13,040 / 11,209
+/// = 1.163 C over, and is within 0.3% of it after an hour (its 5,607 m3 of air
+/// takes 6.82 MJ a degree, a time constant of about ten minutes), when 4.07 kg
+/// of the log has burned and the log is still in the box. The log is gone at
+/// 8 / 4.07 = 1.966 hours; by 3 hours the box is empty, the stove has stopped,
+/// the air has cooled back to within half a percent of its warmth (about six
+/// time constants after the last log), and the Garden panel says why.
 ///
 /// Seen red (2026-10-20) with `heat::heaters` reading no fuel in any box (a
 /// stove never lit): "the greenhouse warmed 0 K, by hand 1.4193214327218364
@@ -717,7 +726,8 @@ fn a_wood_stove_warms_the_air_while_it_has_wood_and_stops_when_its_box_is_empty(
     load_logs(&mut world, &data, stove, 1);
     let mut sys = FarmingSystem::new();
     run(&mut sys, &mut world, &data, 10, 5.0);
-    let want = 13040.0 / greenhouse_w_k();
+    // An hour of game time (10 ticks of 5 s at 72x) toward its steady 13,040 / G.
+    let want = 13040.0 / greenhouse_w_k() * (1.0 - (-3600.0 * greenhouse_w_k() / (air_j_m3_k(21.0) * 5607.0)).exp());
     let r = room(&world, "room-greenhouse");
     assert!((r.warmed_k - want).abs() < 1e-3, "the greenhouse warmed {} K, by hand {want} K", r.warmed_k);
     assert_eq!(r.heater, 1.0, "flat out");
@@ -737,7 +747,7 @@ fn a_wood_stove_warms_the_air_while_it_has_wood_and_stops_when_its_box_is_empty(
     }
     assert_eq!(wood_kg(&world, stove), 0.0);
     let r = room(&world, "room-greenhouse");
-    assert!(r.warmed_k < 1e-3, "with no wood the greenhouse cools back: {} K over", r.warmed_k);
+    assert!(r.warmed_k < 0.005 * 13040.0 / greenhouse_w_k(), "with no wood the greenhouse cools back: {} K over", r.warmed_k);
     assert_eq!(r.heater, 0.0, "the stove is out");
     let out = line(&world);
     assert!(out.contains("stove off (no wood), the air at 21.0 °C"), "{out}");

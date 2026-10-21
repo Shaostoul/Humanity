@@ -202,6 +202,26 @@ impl HumidityData {
         self.dry_air_gas_constant / self.vapour_weight_ratio
     }
 
+    /// A room's own air changes an hour with the air around it, its fans
+    /// apart: a tent's fresh air (`GrowRoom::air_changes_per_hour`), else its
+    /// leakage, `base_air_changes_per_hour` of the air in its lowest
+    /// `home_storey_m` (2026-10-21). A grow room trades air with the home's
+    /// own air through the walls between them, which stand on the storey the
+    /// home's air is taken to fill, so a room that rises past it (the
+    /// homestead's greenhouse, open through the floor slabs to the 6 m roof)
+    /// leaks what its storey-tall walls with the home pass, not half its whole
+    /// box an hour (humidity.ron, HOW THE AIR IS EXCHANGED). A room a storey
+    /// tall or less leaks as it always has.
+    pub fn leak_air_changes_per_hour(&self, room: &GrowRoom) -> f64 {
+        if let Some(ach) = room.air_changes_per_hour {
+            return ach.max(0.0);
+        }
+        let height = f64::from(room.max[1] - room.min[1]);
+        let storey = self.home_storey_m.max(0.1);
+        let share = if height > storey { storey / height } else { 1.0 };
+        self.base_air_changes_per_hour.max(0.0) * share
+    }
+
     /// Grams of water vapour per m3 in air at relative humidity `rh` (0..1)
     /// and `t_c`: the ideal gas law, rho = e / (R_v T).
     pub fn vapour_at(&self, rh: f64, t_c: f64) -> f64 {
@@ -479,6 +499,22 @@ where
     }
 }
 
+/// Publish the engine's rooms (`RoomTypeRegistry::room_bounds`) as the grow rooms'
+/// boxes: lib.rs every frame, and the life-support tests that measure the
+/// shipped homes' air, through this one call so the two cannot drift
+/// (2026-10-21: the tests had built the boxes from the zones).
+#[cfg(feature = "native")]
+pub fn publish_room_bounds(data: &DataStore, rooms: &[crate::gui::RoomBounds]) {
+    publish_rooms(data, rooms.iter().map(|r| (r.id.as_str(), r.display_name.as_str(), r.min.to_array(), r.max.to_array())));
+}
+
+/// Is a published room one of the player's own home's? `ShipStructure::generate_meshes` names
+/// every other zone's rooms "<zone id>:<room>" and its corridor tubes "corridor_<n>", and keeps
+/// the home zone's ids as they are (2026-10-21).
+pub fn is_home_room(id: &str) -> bool {
+    !id.contains(':') && !id.starts_with("corridor_")
+}
+
 /// What to call a room in a notice. The engine's display name is the room's
 /// TYPE ("Garden" for the greenhouse and the mushroom room alike), so a zone
 /// id ("room-greenhouse", "room-mushroom") is read instead where there is
@@ -617,11 +653,14 @@ impl AirMap {
         }
         // Its own volume: the sealed home less the grow rooms that keep their
         // own air (tents stand inside rooms and are not subtracted), never
-        // below a tenth of it. Its rooms count as modules for the leak.
+        // below a tenth of it. Its rooms count as modules for the leak: the
+        // home's own, not every room of the ship the engine publishes
+        // (2026-10-21: the Commons', the street's and the corridors' made the
+        // shipped homestead's 30 rooms 48, and its leak 0.96 kg a day).
         let grow: f64 = (0..map.rooms.len()).filter(|i| map.parent[*i].is_none()).map(|i| map.rooms[i].volume_m3()).sum();
         let whole = f64::from(volume).max(0.0);
         map.home_volume_m3 = (whole - grow).max(whole * 0.1);
-        map.modules = (boxes.len() as f64).max(1.0);
+        map.modules = (boxes.iter().filter(|r| is_home_room(&r.id)).count() as f64).max(1.0);
         map.outdoor_rh = data
             .get::<Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| f64::from(w.humidity).clamp(0.0, 1.0)));
@@ -1143,7 +1182,7 @@ pub fn step_rooms(
             let t_room = room_temp_at(d, st.warmed_k);
             let sat = d.vapour_at(1.0, t_room);
             let hum_set = d.humidifier_setpoint_rh.clamp(0.0, 1.0) * sat;
-            let base = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0);
+            let base = d.leak_air_changes_per_hour(room);
             // Its carbon dioxide's sources at the slice's start (with the
             // life-support data): what its tents vented into it, its fungi's
             // breath, less its crops' uptake at their light and its CO2.
@@ -1501,7 +1540,7 @@ pub fn ventilate(world: &mut hecs::World, data: &DataStore, d: &HumidityData, ar
     let fan_max = |co2: bool| -> f64 {
         fans.iter().filter(|f| Some(f.room) == ri && f.powered && f.on_co2() == co2).map(|f| f.airflow).sum::<f64>() / volume
     };
-    let n = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0)
+    let n = d.leak_air_changes_per_hour(&room)
         + st.fan_speed * fan_max(false)
         + st.co2_fan * fan_max(true);
     let target = before.min(d.notice_above_rh * d.vapour_at(1.0, t_room));

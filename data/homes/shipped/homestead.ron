@@ -2353,7 +2353,7 @@
                 id: "room-greenhouse",
                 type_id: "room_garden",
                 origin: (10.0, 0.0, 51.0),
-                size: (45.0, 3.0, 22.0),
+                size: (45.0, 6.0, 22.0),
                 label: "Greenhouse",
                 room_type: Some("garden"),
             ),

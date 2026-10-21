@@ -6513,7 +6513,7 @@ mod native_app {
                         }
                     }
                     crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
-                    crate::systems::farming::humidity::publish_rooms(&state.data_store, state.gui_state.room_bounds.iter().map(|r| (r.id.as_str(), r.display_name.as_str(), r.min.to_array(), r.max.to_array()))); // grow rooms' air
+                    crate::systems::farming::humidity::publish_room_bounds(&state.data_store, &state.gui_state.room_bounds); // grow rooms' air
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
                     crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
                     crate::systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());

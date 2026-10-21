@@ -133,6 +133,36 @@ impl RoomTypeRegistry {
             .collect()
     }
 
+    /// The engine's rooms, as it keeps them (2026-10-21): every room the ship's flood fill found
+    /// (`RoomInfo`, from `ShipStructure::generate_meshes`), boxed from its centre and size, with
+    /// its function joined here (`function_for`, `action_pages`). The ONE place a detected room
+    /// becomes a `RoomBounds`: world entry (engine::world_load), every structure rebuild
+    /// (engine::home_meshes), and the life-support tests that hold the grow rooms' air
+    /// (systems::farming::life_support_tests), so the air boxes those tests measure are the ones
+    /// the running game publishes. They had drifted: the tests built the boxes from the zones, and
+    /// the greenhouse's zone stayed a storey tall while its room rose to the 6 m roof.
+    #[cfg(feature = "native")]
+    pub fn room_bounds(&self, rooms: &[RoomInfo]) -> Vec<crate::gui::RoomBounds> {
+        rooms
+            .iter()
+            .map(|r| {
+                // A zone-named room resolves through its zone's room_type (rooms.ron); a legacy id
+                // joins on itself; an anonymous room_N gets its id as its name.
+                let f = self.function_for(r);
+                crate::gui::RoomBounds {
+                    id: r.id.clone(),
+                    min: r.center - r.dimensions * 0.5,
+                    max: r.center + r.dimensions * 0.5,
+                    display_name: f.display_name,
+                    purpose: f.purpose,
+                    actions: f.actions,
+                    action_pages: self.action_pages(r),
+                    access: f.access,
+                }
+            })
+            .collect()
+    }
+
     /// Look up a room TYPE by its rooms.ron key. None also logs a warning: a `Zone::room_type`
     /// that matches no entry is a typo in the data, and a silent blank would hide it.
     pub fn lookup_type(&self, room_type: &str) -> Option<&RoomTypeDef> {

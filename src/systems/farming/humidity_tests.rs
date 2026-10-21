@@ -234,6 +234,49 @@ fn an_exhaust_fan_holds_the_room_at_its_setpoint() {
     assert!(rh(&world, "room-a") > d.notice_above_rh, "shed, it no longer holds: {}", rh(&world, "room-a"));
 }
 
+/// A GROW ROOM TALLER THAN A STOREY TRADES AIR WITH THE HOME THROUGH THE
+/// WALLS IT SHARES WITH THE HOME'S AIR, which are a storey tall (2026-10-21,
+/// ship homes increment 7's review). The homestead's greenhouse rises through
+/// an opening in the floor slabs to the 6 m roof, but the house it leaks into
+/// is one 3 m storey beside it: above that the greenhouse meets only the glass
+/// lids over the house and the hull, which hold no air of the home's. Leakage
+/// goes through the walls between two airs (England's Approved Document L
+/// rates a building's airtightness as "the air leakage rate per hour per m2 of
+/// envelope area", humidity.ron cites it), so raising the room's roof does not
+/// raise the air it trades with the house. Two rooms on
+/// the same 10 x 10 m floor and the same two units of tomatoes, one 3 m tall
+/// and one 6 m, settle at the same vapour over the home's air: each trades
+/// the 150 m3 an hour that half an air change of a storey of it is.
+///
+/// Seen red first (2026-10-21) with every room leaking half its whole volume
+/// an hour: "the 6 m room settles 0.64 g/m3 over the home's air, the 3 m room
+/// 1.28".
+#[test]
+fn a_grow_room_taller_than_a_storey_trades_the_air_of_one_storey() {
+    let mut data = store(0.5, 1.0, 0.0);
+    *data.get::<Mutex<Vec<GrowRoom>>>(humidity::ROOMS_KEY).unwrap().lock().unwrap() = vec![
+        GrowRoom { id: "room-a".into(), name: "Low room".into(), min: [0.0, 0.0, 0.0], max: [10.0, 3.0, 10.0], ..Default::default() },
+        GrowRoom { id: "room-b".into(), name: "Tall room".into(), min: [20.0, 0.0, 0.0], max: [30.0, 6.0, 10.0], ..Default::default() },
+    ];
+    data.insert(units::PLOT_AREA_KEY, HashMap::from([("bed_a".to_string(), 1.0_f32), ("bed_b".to_string(), 1.0_f32)]));
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    world.spawn((Irrigator,));
+    for slot in 0..2 {
+        world.spawn((crop(&data, "tomato", "bed_a", slot),));
+        world.spawn((crop(&data, "tomato", "bed_b", slot),));
+    }
+    // 2,000 ticks of a second at the store's 72x: 40 game hours, ten of the
+    // tall room's 4-hour time constants.
+    run(&mut sys, &mut world, &data, 2000, 1.0);
+    let d = shipped_air();
+    let home = d.vapour_at(f64::from(0.4f32), f64::from(293.0f32) - 273.15);
+    let (low, tall) = (room(&world, "room-a").vapour_g_m3 - home, room(&world, "room-b").vapour_g_m3 - home);
+    assert!(low > 0.1 && low < 0.5 * (d.room_saturation() - home), "the low room settles {low} g/m3 over the home's air, short of saturation");
+    assert!((tall - low).abs() < 0.01 * low, "the 6 m room settles {tall:.2} g/m3 over the home's air, the 3 m room {low:.2}");
+    assert_eq!(d.home_storey_m, 3.0, "a storey of the homestead");
+}
+
 /// A disease builds only where its humidity condition is met. Tomatoes (a
 /// gray mold host, OSU) in a closed, saturated Greenhouse and in a Plant
 /// room held at the home's drier air, for twenty garden days: gray mold

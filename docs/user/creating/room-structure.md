@@ -75,10 +75,16 @@ per buildable piece.
    ```
        (
            id: "stairs", label: "Stairs", category: "Structure",
-           kind: Stairs, shape: Steps, size: (1.4, 3.0, 3.6), color: (0.55, 0.55, 0.58), steps: 14,
-           note: "A staircase climbing one storey. Walk up it (the ground-height sampler lifts you step to step).",
+           kind: Stairs, shape: Steps, size: (1.2, 3.0, 4.5), color: (0.55, 0.55, 0.58), steps: 16,
+           note: "A staircase climbing one 3.0 m storey: 16 risers of 187.5 mm on 281 mm treads, 33.7 degrees, 1.2 m wide, inside the 2021 IRC and England's Approved Document K (docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md). Both codes ask for handrails, and it carries them on both sides (the handrail row below). Walk up it (the ground-height sampler lifts you step to step).",
        ),
    ```
+
+   The numbers in it are a real stair's: 3.0 m climbed in 16 steps is
+   a 187.5 mm rise per step, and 4.5 m of floor is a 281 mm tread, both
+   inside the building rules the note names. If you make a steeper or
+   shallower stair of your own, keep each step's rise and tread inside
+   those rules too, or people trip on it in real life.
 
 4. **Copy that entry.** Select the whole block, from its opening `(` to
    the closing `),` and copy it. Paste the copy directly below the
@@ -142,15 +148,19 @@ Each entry in `structure_types.ron` has these fields:
 - `label`: the name players see in the build menu, in quotes.
 - `category`: which build-menu group it appears in; use `"Structure"`.
 - `kind`: what the piece DOES in the game (Wall, Stairs, Ladder,
-  Elevator, Teleporter, Train, Road, or Deck), no quotes.
+  Elevator, Teleporter, Train, Road, Deck, Guard, or Handrail), no
+  quotes.
 - `shape`: which placeholder 3D shape is drawn (Box, Steps, Ramp,
-  Ladder, Frame, or Slab), no quotes.
+  Ladder, Frame, Slab, Balustrade, or Handrail), no quotes.
 - `size`: three numbers in parentheses: width, height, depth, in meters.
 - `color`: three numbers in parentheses: red, green, blue, each from
   0.0 (none) to 1.0 (full).
 - `steps`: how many steps or rungs it has; use 0 for pieces without any.
 - `note`: a short sentence shown to players explaining the piece, in
   quotes.
+- `guard` and `handrail`: only on the Guard and Handrail entries, the
+  measurements of their parts (posts, balusters, the rail). Leave them
+  out of any other piece.
 
 Want to go deeper? The design rule behind all of this ("anything that
 can exist more than once is a data file, not code") is explained in

@@ -4107,10 +4107,11 @@ mod storey_fields_tests {
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165. Then ramp-1
             // became the train platform's 1:17 boarding ramp (2026-10-21; it was 069cc7d553362752
             // and 6d0d37b140c4343b). Then the ladder hatch's guards G4 and G5 moved apart to leave
-            // a 0.8 m gap over the ladder (the increment's review, 2026-10-21; it was
+            // a 0.8 m gap over the ladder, and the greenhouse's zone rose to the 6 m roof with its
+            // room (the increment's review, 2026-10-21, homestead-upper-floor.md section 12; it was
             // 3c5231aeb7eda208 and 747cdf9e8cf1d567).
-            "eac0a8f5a294577e",
-            "6b799735fb73131b",
+            "2cc6884c34f201cf",
+            "cdbe1eb1e7b9cdb4",
             "da22405ff5cb9a36",
             "ffb704a6e5cf699b",
         ];

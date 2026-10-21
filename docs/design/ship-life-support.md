@@ -282,7 +282,8 @@ mushrooms' CO2 fans (section 7); a figure that moved shows what it was.
   breathe in more oxygen than the carbon dioxide they breathe out (respiratory
   quotient 0.87), and the leak takes a little. Once the carbon settles the
   family home loses about 0.4 kg of oxygen a day and the solo home about 0.2,
-  out of about 2,900 kg in the home's air: years before it matters, but not
+  out of about 3,100 kg of oxygen in the home's own air (11,160 m3 since
+  2026-10-21, section 9; it was quoted as 2,900): years before it matters, but not
   closed. An electrolyser would make it back for about 6.5 kWh per kg (2.6 and
   1.3 kWh a day); neither home carries one yet.
 - **The mushroom tents' carbon dioxide.** FIXED on a game's first days
@@ -616,3 +617,71 @@ numbered 0, the home's). In `life_support_tests.rs`,
 reactor (red with the feed left out) and
 `station_supplied_life_support_changes_only_who_pays` holds the same draw in
 both modes.
+
+## 9. 2026-10-21: the greenhouse's real air
+
+The balances in sections 4 and 7 were measured on rooms the test built from the home's
+ZONES. The running game never reads a zone for air: it publishes the rooms its flood fill
+finds (`RoomTypeRegistry::room_bounds`, then `humidity::publish_room_bounds`, one pair of calls the
+game and `the_shipped_homes_hold_their_air_and_return_their_water` now share). Since the
+homestead's upper floor (ship homes increment 7) the greenhouse has no slab over it and rises
+to the 6 m glass roof: 44.5 x 6 x 21 m inside its walls, 5,607 m3, where its storey-tall zone
+said 2,970. Every other room is also a little smaller inside its walls than its zone (the
+mushroom room 256.5 m3, not 300; the court 430.5). The home's own air, the sealed home less
+its grow rooms, is 11,160 m3. Run on those rooms with the old leak, the greenhouse traded half
+its whole box an hour with the house and the house's four air handlers held 52.6%, not 50%:
+the state homestead-upper-floor.md section 12 had recorded as red was the one the game ran.
+
+What changed, and why:
+
+- **A grow room leaks through the walls it shares with the home's air, which are a storey
+  tall** (`HumidityData::leak_air_changes_per_hour`, data/garden/humidity.ron, HOW THE AIR IS
+  EXCHANGED). Above 3 m the greenhouse meets only the glass lids over the house and the hull,
+  which hold none of the home's air, and leakage goes with the area of a boundary, not the
+  volume behind it (England's Approved Document L, Volume 1, Appendix A: airtightness is "the
+  air leakage rate per hour per m2 of envelope area"). So a room taller than `home_storey_m`
+  leaks 0.5 air changes an hour of its lowest storey's air: 0.25 of the greenhouse's box, about
+  1,400 m3 an hour, what its storey-tall wall with the house passed before it rose. No fifth
+  air handler for the house and no vestibule were needed; both stay levers.
+- **The home's leak counts the home's own rooms**, 30, not every room of the ship the engine
+  publishes (48 with the Commons', the street's and the corridors'), which had made it 0.96 kg a
+  day instead of 0.60.
+- **The greenhouse's zone rises with its room** to 6.0 m in both copies of the homestead.
+
+Re-measured (both homes at full planting, a day to settle and a day measured, the home at 50%):
+
+| | Family home | Solo home |
+|---|---|---|
+| Greenhouse / home humidity | 75% / 50.0% | 75% / 50.0% |
+| Condensed and returned: greenhouse / court / home, L a day | 367 / 79 / 242 (was 357 / 75 / 257) | 25 / 16 / 213 (was 15 / 12 / 227) |
+| Total returned, of what was put in the air | 689 of 689 | 254 of 254 |
+| Drawn by the irrigation / the garden's net draw | 780 / 91 | 297 / 43 |
+| Water the grow rooms leak into the house's air | about 200 L a day (was about 215) | about 200 L a day (was about 215) |
+| Home air CO2 over the day | 445 to 495 ppm (was 443 to 509) | 401 to 421 ppm (was 395 to 423) |
+| CO2 taken up by the crops, of what is breathed out | 4.98 of 5.89 kg | 1.86 of 1.96 kg |
+| Air leaked overboard | 0.60 kg (30 rooms) | 0.60 kg (30 rooms) |
+| Air handlers at 50% | 1,536 W, 36.9 kWh a day (was 1,574, 37.8) | 961 W, 23.1 kWh a day (was 1,005, 24.1) |
+| Air handlers at 60% | 950 W, 22.8 kWh a day (was 965, 23.2) | 450 W, 10.8 kWh a day (was 461, 11.1) |
+| Tent humidifiers at 50% / 60% | 121 / 88 W | 34 / 25 W |
+| CO2 fans: the room's / the tents' | 50 W, on 72% of the time (was 44 on 2026-10-20's zones) / 10 W | 1.6 W, on 2% (was idle) / 3 W |
+| Mushroom room / tents CO2 | held at 600 / 900 ppm | held at 600 / 900 ppm |
+
+The catalog's measured average draws followed (`average_watts`): the family air handler
+219.4 W (was 224.8), the family room CO2 fan 50.4 (was 44.1), the solo air handler 192.3
+(was 201.1), the solo room CO2 fan 1.6 (was 0). The family tent fan's and tent humidifier's
+measured 1.65 and 20.1 W are within the test's tolerance of the 1.7 and 20.4 they carry, which
+ship.ron shares, and were left. The Energy loops follow the meter: the family home 24.0 kWh a
+day Station-supplied and 60.85 Realistic (was 23.8 and 61.6), the solo home 8.7 and 31.8 (was
+8.6 and 32.8). Neither closes in either mode, as before.
+
+The family home's air once its carbon dioxide settles, and the mushroom fans at other
+setpoints, are re-measured by the ignored `print_the_shipped_homes_with_the_home_air_at_its_settled_co2`
+(now started at 700 and 800 for the family home) and `print_the_mushroom_co2_fans_at_other_setpoints`;
+the Air loops of data/machines/home.ron and home_solo.ron quote them. The family home's air
+settles near 670 ppm (was 675): started at 700 its day ran 595 to 658 with the crops taking up
+5.71 kg, started at 800 645 to 714 and 5.93, of the 5.89 breathed out. There the mushroom room
+sits at 690 to 810 ppm with its fan flat out and the tents fall to 68 to 82% humidity (was 71
+to 82%): the mushrooms still cannot fruit in the air they enrich, as section 7 found. The solo
+home's settles near 465 ppm as before (started at 450: 430 to 452, 1.92 kg taken up) and its
+tents still hold 90%. Holding the family mushroom room at 550 instead of 600 runs its fan all
+but 0.3% of the time and the room still reaches 593 ppm.

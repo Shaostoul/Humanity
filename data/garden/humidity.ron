@@ -105,6 +105,10 @@
 //   NIST       NIST Chemistry WebBook, carbon dioxide,
 //              https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389 ; CODATA
 //              molar gas constant, https://physics.nist.gov/cgi-bin/cuu/Value?r
+//   ADL Vol 1  HM Government, "Approved Document L: Conservation of fuel and
+//              power, Volume 1: Dwellings", 2021 edition incorporating 2023
+//              amendments, Appendix A: Key terms (read 2026-10-21),
+//              https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/1133079/Approved_Document_L__Conservation_of_fuel_and_power__Volume_1_Dwellings__2021_edition_incorporating_2023_amendments.pdf
 //
 // Added 2026-09-27 (STALE AIR, THE FUNGI'S BREATH and THE CO2 FANS, at the
 // end), each read on 2026-09-27:
@@ -208,13 +212,35 @@
     // home's grow rooms are indoors, out of the wind altogether, so the low
     // end of the tightest construction is taken.
     //
+    // A ROOM TALLER THAN A STOREY (2026-10-21) leaks 0.5 air changes an hour
+    // of its lowest home_storey_m (below) of air, not of its whole box
+    // (humidity.rs, HumidityData::leak_air_changes_per_hour). A grow room
+    // trades air with the home's own air through the walls between them, and
+    // leakage goes with the area of a boundary, not the volume behind it:
+    // England's building regulations rate a building's airtightness as "the
+    // air leakage rate per hour per m2 of envelope area at the test reference
+    // pressure differential of 50Pa or 4Pa" (ADL Vol 1, Appendix A: Key
+    // terms, "Air permeability"; its "Envelope area" is "The total area of all
+    // floors, walls and ceilings bordering the internal volume that is the
+    // subject of a pressure test"). The homestead's greenhouse rises through
+    // an opening in the floor slabs to the 6 m roof (5,607 m3 inside its
+    // walls), but above 3 m it meets only the glass lids over the house and
+    // the hull, which hold none of the home's air: its boundary with the home
+    // is the same storey-tall wall it had when it was a 3 m room. So it trades
+    // 0.25 of its box an hour, about 1,400 m3, as that wall did; at 0.5 of its
+    // whole box it put twice the water into the house and the house's air
+    // handlers held 53% instead of 50% (src/systems/farming/
+    // life_support_tests.rs, the_shipped_homes_hold_their_air_and_return_their_water).
+    // Every room a storey tall or less leaks 0.5, as before.
+    //
     // With that alone the home's 3-person greenhouse does not stay healthy: at
-    // its full planting (about 540 L a day breathed out into 2,970 m3) the
-    // balance settles above saturation, so it runs at 100% with water
-    // condensing. The home therefore carries one exhaust fan there (the
-    // "exhaust_fan" machine in data/machines/home.ron). The one-person home's
-    // greenhouse (about 200 L a day) settles near 68% on its leakage alone and
-    // carries none.
+    // its full planting (about 540 L a day breathed out into 5,607 m3 that
+    // trade about 1,400 m3 an hour with the home) the balance settles above
+    // saturation, so it runs at 100% with water condensing. The home therefore
+    // carries one exhaust fan there (the "exhaust_fan" machine in
+    // data/machines/home.ron), and two air handlers that hold it at 75%. The
+    // one-person home's greenhouse, the same room (about 200 L a day), settles
+    // near 70% on its leakage alone.
     base_air_changes_per_hour: 0.5,
 
     // THE EXHAUST FAN'S CONTROLLER. The fan in the machine catalog is a 12 inch
@@ -639,18 +665,24 @@
     //
     // home_storey_m 3.0: the home's own air has no box of its own (it is the home
     // less its grow rooms), so its walls and roof are taken as those of one storey
-    // this high holding its volume on a square floor. 3.0 is the shipped
-    // homestead's height (data/homes/homestead.ron, `height: 3.0`).
+    // this high holding its volume on a square floor. 3.0 is each storey of the
+    // shipped homestead (data/homes/homestead.ron: its body is 6.0 m, two 3.0 m
+    // storeys, since its upper floor of 2026-10-20), and its own air is nearly all
+    // one storey: of its 11,160 m3, the upper floor's rooms are about 740. The
+    // same storey is the height of the walls a grow room trades air with the home
+    // through (HOW THE AIR IS EXCHANGED, above).
     //
     // WHAT ONE HEATER DOES: the 1,500 W heater in data/machines, its thermostat at
     // 24 C. In a 300 m3 room (10 x 3 x 10 m) the walls and ceiling lose 1,373 W
     // for each degree it is warmer and its leakage 51 W, so flat out the heater
     // holds the room 1.05 C over the air around it and never reaches 24 C. In a
-    // room the size of the family home's greenhouse (45 x 3 x 22 m, 2,970 m3)
-    // it adds 0.163 C. src/systems/farming/heat_tests.rs measures both, and the
-    // thermostat holding 24 C in a small room. The same arithmetic gives the rest:
-    // in the family home's own air (about 10,500 m3, so about 4,200 m2 of walls
-    // and roof), about 0.05 C; and in a mushroom rack's 1.73 m3 fruiting tent,
+    // room the size of the family home's greenhouse (44.5 x 6 x 21 m inside its
+    // walls, 5,607 m3: 1,720.5 m2 of walls and roof losing 10,736 W a degree, and
+    // its leakage, 0.25 of it an hour, 473 W) it adds 0.134 C.
+    // src/systems/farming/heat_tests.rs measures both, and the thermostat holding
+    // 24 C in a small room. The same arithmetic gives the rest: in the family
+    // home's own air (about 11,160 m3, so about 4,450 m2 of walls and roof), about
+    // 0.05 C; and in a mushroom rack's 1.73 m3 fruiting tent,
     // which loses about 61 W a degree (its walls and top 53, its fresh air 8),
     // it would run the tent about 25 C over its room if its thermostat did not
     // stop it at 24 C, which it holds by running about an eighth of the time.

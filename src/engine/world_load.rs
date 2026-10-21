@@ -310,24 +310,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // the walkable world finally knows what each room is for.
             let room_types =
                 crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-            state.gui_state.room_bounds = room_info
-                .iter()
-                .map(|r| {
-                    // Zone-named rooms resolve through their zone's room_type; legacy ids
-                    // join on themselves (see RoomTypeRegistry::function_for).
-                    let f = room_types.function_for(r);
-                    crate::gui::RoomBounds {
-                        id: r.id.clone(),
-                        min: r.center - r.dimensions * 0.5,
-                        max: r.center + r.dimensions * 0.5,
-                        display_name: f.display_name,
-                        purpose: f.purpose,
-                        actions: f.actions,
-                        action_pages: room_types.action_pages(r),
-                        access: f.access,
-                    }
-                })
-                .collect();
+            // Zone-named rooms resolve through their zone's room_type; legacy ids join on
+            // themselves (RoomTypeRegistry::room_bounds, the one place a room becomes a RoomBounds).
+            state.gui_state.room_bounds = room_types.room_bounds(&room_info);
             let mut placed = 0usize;
             // v0.538: a box home positions machines by coords in its zone (zone-local since
             // increment 1a, kept inside the footprint) and skips NO machine on a stale room id -- mirrors

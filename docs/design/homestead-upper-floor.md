@@ -541,7 +541,9 @@ every new door's swing, and the stair's foot landing is clear.
   floor either" becomes untrue.
 - [player-home.md](player-home.md)'s plan table, its walkthrough (the quiet half, the
   loading dock with stairs and a ramp) and "What a second storey needs" describe the
-  single-storey home and should point here once the data lands.
+  single-storey home and should point here once the data lands. ("What a second storey
+  needs" does since 2026-10-21; the plan table and the walkthrough still describe the
+  single storey.)
 - Both copies, `data/homes/homestead.ron` and `data/homes/shipped/homestead.ron`, get
   every change (they differ only in how a teleporter names its pair).
 
@@ -560,12 +562,29 @@ The data follows this draft, with these differences, each decided or found while
 - **The elevator shaft is enclosed upstairs** on its north, east and west sides (three
   3.0 m steel walls, base 3.0). Without them a rider at the top could step off the car onto
   the lids, and section 6's rule is that a reachable lid makes every lid a roof.
-- **The greenhouse's zone stays 3.0 m tall** though its room rises to the 6.0 m roof (its walls
-  rise with it, base 3.0). The zone is also the greenhouse's air box in the life-support model,
-  and a 6.0 m box doubled the humid air it leaks into the house at the model's 0.5 air changes
-  an hour: the house's four air handlers then held 53% instead of their 50%
-  (`the_shipped_homes_hold_their_air_and_return_their_water`, 2026-10-20). Raising the zone is
-  the Air loop's call: more handling for the house's air, or a tighter greenhouse.
+- **The greenhouse's zone rises to the 6.0 m roof with its room** (its walls rise with it, base
+  3.0). Corrected 2026-10-21, after the review of this lane: the lane kept the zone 3.0 m tall,
+  believing the zone was the greenhouse's air box, because a 6.0 m box doubled the humid air it
+  leaked into the house at the model's 0.5 air changes an hour and the house's four air handlers
+  then held 53% instead of their 50%. But only the life-support TEST read the zones. The running
+  game publishes the flood-filled rooms (`RoomTypeRegistry::room_bounds`, then
+  `humidity::publish_room_bounds`), and the greenhouse's room has no slab over it, so it rises
+  to the home's top: 44.5 x 6 x 21 m, 5,607 m3, against the zone's 2,970. The game was running
+  the state recorded here as red. The fix follows the geometry: (1) the tests now publish the
+  game's rooms through the same two calls, so the two cannot drift again (seen red at 52.6%);
+  (2) the zone matches its room, 6.0 m (`the_homestead_has_two_storeys_and_no_two_rooms_overlap`
+  now holds every zone to its room's ceiling); (3) a grow room trades air with the house
+  through the walls between them, and those are a storey tall: above 3 m the greenhouse meets
+  only the glass lids over the house and the hull, which hold none of the home's air. Leakage
+  goes by the area of the boundary (England's Approved Document L rates airtightness as "the
+  air leakage rate per hour per m2 of envelope area"), so the model now leaks a room taller
+  than a storey at 0.5 air changes an hour of its lowest storey's air
+  (`HumidityData::leak_air_changes_per_hour`, data/garden/humidity.ron), 0.25 of the
+  greenhouse's whole box: the same 1,400 m3 an hour its storey-tall wall with the house passed
+  before it rose. No extra air handler or vestibule was needed; the balance is in
+  data/machines/home.ron's Air and Energy loops. The same review found the home's leak counted
+  every room of the ship the engine publishes (48: the Commons', the street's, the corridors')
+  as the home's modules; it counts the home's own 30 now.
 - **The guards are balustrades** (lane G's guard piece, merged the same day): G1 and G2 oak
   (wall material 10), G3 to G5 steel (9), base 3.0, 1.0 m tall, at the positions in the table
   of section 2. Each draws posts, balusters and a top rail and collides as the wall it is.
