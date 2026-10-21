@@ -145,7 +145,38 @@ that walks up the stairs into the upstairs bedroom.
 6. Every ground-floor room except the greenhouse keeps a 3 m room under a slab at 3.0 (a slab
    nobody walks on is that room's ceiling); only the greenhouse rises to 6 m. Lidding them adds
    about 830 bounced-light probes; 6 m rooms everywhere would add about 16,700 (the light-budget
-   analysis, below).
+   analysis, below). **Revised the same day:** the lids over rooms NOT under the upstairs are
+   GLASS (`FloorSlab.material: Glass`), so those rooms keep exactly today's look and daylight; the
+   rooms under the upstairs get its solid floor. Put to the operator as three options (rise to 6 m;
+   3 m under glass; 3 m under a solid ceiling) with glass recommended; the layout builder made the
+   same recommendation on its own (the solar array, fields and orchard court need the sun).
+7. A household's water is used per person and SHARED by its fixtures: a second shower room does not
+   add a second day's draw (the layout's downstairs shower room would otherwise add about 162 L a
+   day to the meter for the same people). Real use follows the people, not the number of taps.
+8. A guard is a real piece, not a wall: posts, balusters at the finding's spacing and a top rail at
+   its height; and stairs get handrails. Both are new structure-drawing work (lane G), and until
+   then the layout's guards are 1.0 m walls with base 3.0.
+9. The elevator's landing door is interlocked (it opens only with the car at that landing) and the
+   ladder hatch has a self-closing gate: otherwise each is a walk-in 3 m drop (lane M).
+10. The falls rig's aboard walk-off-the-top leg moves to a deck the rig places for itself: the
+    stairs now lead to a floor, and no unguarded 3 m edge remains in the home by design.
+
+## 7. The layout and the finding (C1, 2026-10-20)
+
+`docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md` (the IRC 2021 through
+Washington's adoption and the Stairway Manufacturers' Association's licensed copy; Approved
+Document K 2013; ICC's own reader refused the script with a captcha, and the 2024 IRC's R318 text
+was not readable) and `docs/design/homestead-upper-floor.md` (every coordinate checked by a
+script). The present stairs break the IRC's 196 mm riser (214.3 mm), have no nosing, handrails or
+guards and no top landing; a 3.0 m storey takes 16 risers of 187.5 mm on 281.25 mm treads
+(33.7 degrees). The layout: 19 slabs at 3.0 leaving the stairwell, the elevator shaft, a ladder
+hatch and the greenhouse open; the quiet wing's five rooms keep their ids and rectangles and rise
+3.0 m; an upper hall, a back corridor and a lift lobby; stairs-1 moves to the hall's north wall
+(type (1.2, 3.0, 4.5), 16 steps, headroom 2.229 m); downstairs a dining room, a second bedroom
+(room types `dining`, `guest_bedroom`), a shower room and a boot room; ladder-1 beside the elevator
+into the lift lobby; ramp-1 becomes train-1's 1:17 boarding ramp (the old 1:3.75 ramp's "wheelchair
+friendly" note was false). Moving stairs-1 and ladder-1 breaks verify-falls' walk-off-the-top leg
+and `src/engine/survival_env.rs`'s pinned top positions (both listed in the layout document).
 
 ## 6. The light-budget analysis (perf-expert, 2026-10-20, read-only)
 
