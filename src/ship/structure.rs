@@ -40,6 +40,18 @@ pub enum StructureKind {
     Road,
     /// A flat walkable FLOOR placed at a height -- an upper-level landing the stairs lead onto. (v0.588)
     Deck,
+    /// A GUARD (balustrade) along a floor edge that drops (ship homes increment 7, plan decision 8;
+    /// docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md, "Guards"): posts, vertical
+    /// balusters and a top rail. It is drawn along a WALL whose material names this row as its
+    /// `form` (a wall of "Steel balustrade", data/blueprints/wall_materials.ron), from the wall's base
+    /// to its top, so it stands, collides and parts rooms exactly as that wall does (a 1.0 m wall
+    /// parts none, `home_structure::ROOM_DIVIDER_MIN_M`). Placed on its own it is a free-standing
+    /// section of its row's length, which nothing collides with yet.
+    Guard,
+    /// A HANDRAIL: a round rail on wall brackets, its ends returned to the wall. Every stair (the
+    /// Steps shape) carries the `handrail` row's rails (`stair_handrails`); placed on its own it is a
+    /// straight wall rail of its row's length.
+    Handrail,
 }
 
 /// The parametric placeholder GEOMETRY for a piece. Each maps to a builder below so a new shape is a
@@ -60,6 +72,60 @@ pub enum MeshShape {
     Frame,
     /// A thin flat slab on the floor (a road / pad surface), height clamped thin.
     Slab,
+    /// A guard along the X width: posts, balusters and a top rail, by the row's `guard` spec
+    /// (`balustrade_into`).
+    Balustrade,
+    /// A round wall rail along the X width at the row's height, standing `clearance_m` off the wall
+    /// at the -Z edge, by the row's `handrail` spec.
+    Handrail,
+}
+
+/// How much narrower than the guard's sphere (`GuardSpec::opening_m`) every clear gap between two
+/// members of a guard is built, metres: 5 mm, so a gap is under the limit by the margin a builder's
+/// tolerance would leave, not by a rounding error.
+pub const GUARD_GAP_MARGIN_M: f32 = 0.005;
+
+/// What a GUARD (balustrade) is built from (ship homes increment 7; the dated finding
+/// docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md, "Guards"). The guard's height
+/// is the wall's it is drawn along (or the row's `size.1` when placed on its own).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct GuardSpec {
+    /// A post's square section, metres.
+    pub post_m: f32,
+    /// The furthest apart two posts stand, metres: one at each end of the guard and as many
+    /// between as this asks for.
+    pub post_spacing_m: f32,
+    /// A baluster's square section, metres.
+    pub baluster_m: f32,
+    /// The sphere no opening may let through, metres: the finding's 100 mm (England's Approved
+    /// Document K 3.3; the IRC's R312.1.3 asks 4 in, 102 mm). The balusters are vertical, as the
+    /// finding asks wherever children under five may live (no climbable horizontal rails), and
+    /// spaced so every clear gap is under this by `GUARD_GAP_MARGIN_M`.
+    pub opening_m: f32,
+    /// The top rail's (width across the run, depth down from the guard's top), metres.
+    pub rail: (f32, f32),
+    /// The shoe the balusters stand in, on the floor, metres tall.
+    pub shoe_m: f32,
+}
+
+/// What a HANDRAIL is built from (ship homes increment 7; the finding's "Handrail" row). The
+/// `handrail` row's `size.1` is the height of the rail's top above the line through the treads'
+/// nosings (on a stair) or above the floor (placed on its own).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct HandrailSpec {
+    /// The rail's diameter, metres: a round rail a hand closes round (the IRC's Type I handrail,
+    /// 1 1/4 to 2 in, 32 to 51 mm).
+    pub diameter_m: f32,
+    /// The clear space between the rail and the wall it is fixed to, metres (the IRC's
+    /// R311.7.8.2: at least 1 1/2 in, 38 mm).
+    pub clearance_m: f32,
+    /// The furthest apart two brackets stand along the rail, metres.
+    pub bracket_spacing_m: f32,
+    /// A stair with fewer risers than this has no handrail (the IRC's R311.7.8: four or more).
+    pub min_risers: u32,
+    /// A stair at least this wide has a handrail on both sides, else on one (England's Approved
+    /// Document K 1.34: 1000 mm).
+    pub both_sides_from_m: f32,
 }
 
 /// One structural piece TYPE. `id` is what a `PlacedStructure.type_id` stores.
@@ -79,6 +145,12 @@ pub struct StructureType {
     #[serde(default)]
     pub steps: u32,
     pub note: String,
+    /// A Guard row's balustrade: what its posts, balusters and rails are (ship homes increment 7).
+    #[serde(default)]
+    pub guard: Option<GuardSpec>,
+    /// A Handrail row's rail (ship homes increment 7).
+    #[serde(default)]
+    pub handrail: Option<HandrailSpec>,
 }
 
 /// The structural-type registry, parsed once + embedded at compile time (same pattern as
@@ -438,6 +510,12 @@ pub fn palette_categories() -> Vec<(String, Vec<(String, String)>)> {
 
 /// An axis-aligned box between two corners, with correct outward face normals. Local space.
 fn aabb_box(min: Vec3, max: Vec3, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    aabb_faces(min, max, true, out);
+}
+
+/// `aabb_box`, its top and bottom faces left out unless `caps`: a guard's baluster stands in the
+/// shoe and under the top rail, so its ends could never be seen and are not drawn.
+fn aabb_faces(min: Vec3, max: Vec3, caps: bool, out: &mut (Vec<Vertex>, Vec<u32>)) {
     let (x0, y0, z0) = (min.x, min.y, min.z);
     let (x1, y1, z1) = (max.x, max.y, max.z);
     // 6 faces, each its own 4 verts so normals are flat. (pos, normal) per face.
@@ -456,6 +534,9 @@ fn aabb_box(min: Vec3, max: Vec3, out: &mut (Vec<Vertex>, Vec<u32>)) {
         ([Vec3::new(x0, y0, z0), Vec3::new(x1, y0, z0), Vec3::new(x1, y1, z0), Vec3::new(x0, y1, z0)], [0.0, 0.0, -1.0]),
     ];
     for (quad, n) in faces {
+        if !caps && n[1] != 0.0 {
+            continue;
+        }
         let base = out.0.len() as u32;
         for (i, p) in quad.iter().enumerate() {
             let uv = [(i == 1 || i == 2) as i32 as f32, (i >= 2) as i32 as f32];
@@ -528,8 +609,248 @@ fn local_mesh(ty: &StructureType) -> (Vec<Vertex>, Vec<u32>) {
             // Top lintel.
             aabb_box(Vec3::new(-hw, h - t, -hd), Vec3::new(hw, h, hd), &mut out);
         }
+        MeshShape::Balustrade => match &ty.guard {
+            Some(spec) => balustrade_local(spec, -hw, w, h, &mut out),
+            None => aabb_box(Vec3::new(-hw, 0.0, -hd), Vec3::new(hw, h.max(0.05), hd), &mut out),
+        },
+        MeshShape::Handrail => match &ty.handrail {
+            // Along X, its top at the row's height, standing `clearance_m` off a wall at -Z.
+            Some(spec) => {
+                let r = spec.diameter_m * 0.5;
+                let z = -hd + spec.clearance_m + r;
+                wall_rail(spec, Vec3::new(-hw, h - r, z), Vec3::new(hw, h - r, z), -hd, &mut out);
+            }
+            None => aabb_box(Vec3::new(-hw, 0.0, -hd), Vec3::new(hw, h.max(0.05), hd), &mut out),
+        },
     }
     out
+}
+
+/// A guard (balustrade) by `spec` in its own frame, into `out`: along X from `x0` for `len`
+/// metres, centred on Z, from y 0 to its top `h`. A post at each end and between them at most
+/// `post_spacing_m` apart, a shoe on the floor and the top rail over everything, both the whole
+/// length, and between each two posts the fewest vertical balusters that leave every clear gap under
+/// `opening_m - GUARD_GAP_MARGIN_M`, evenly spaced. Every part is a box wound to face out; the
+/// balusters have no end faces (the shoe and the rail cover them).
+fn balustrade_local(spec: &GuardSpec, x0: f32, len: f32, h: f32, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    if len < 0.01 || h < 0.05 {
+        return;
+    }
+    let rail_w = spec.rail.0.max(0.01);
+    let rail_d = spec.rail.1.clamp(0.01, h * 0.3);
+    let under_rail = h - rail_d;
+    let shoe = spec.shoe_m.clamp(0.0, h * 0.2);
+    let post = spec.post_m.max(0.01).min(len);
+    let bal = spec.baluster_m.max(0.005);
+    // The top rail and the shoe, end to end.
+    aabb_box(Vec3::new(x0, under_rail, -rail_w * 0.5), Vec3::new(x0 + len, h, rail_w * 0.5), out);
+    if shoe > 0.005 {
+        let sw = (bal * 2.0).min(rail_w);
+        aabb_box(Vec3::new(x0, 0.0, -sw * 0.5), Vec3::new(x0 + len, shoe, sw * 0.5), out);
+    }
+    // The posts: one flush with each end, the rest evenly between.
+    let spans = ((len - post) / spec.post_spacing_m.max(0.1)).ceil().max(1.0) as usize;
+    let pitch = (len - post) / spans as f32;
+    let centres: Vec<f32> = (0..=spans).map(|k| x0 + post * 0.5 + k as f32 * pitch).collect();
+    for &c in &centres {
+        aabb_box(Vec3::new(c - post * 0.5, 0.0, -post * 0.5), Vec3::new(c + post * 0.5, under_rail, post * 0.5), out);
+    }
+    // The balusters, standing in the shoe, between each two posts' faces.
+    let gap_max = (spec.opening_m - GUARD_GAP_MARGIN_M).max(0.01);
+    for pair in centres.windows(2) {
+        let (from, to) = (pair[0] + post * 0.5, pair[1] - post * 0.5);
+        let clear = to - from;
+        if clear < gap_max {
+            continue; // the posts alone leave no gap the sphere fits
+        }
+        // The fewest n with (clear - n * bal) / (n + 1) < gap_max.
+        let n = ((clear - gap_max) / (bal + gap_max)).floor() as usize + 1;
+        let gap = (clear - n as f32 * bal) / (n + 1) as f32;
+        for k in 0..n {
+            let x = from + gap * (k + 1) as f32 + bal * k as f32;
+            aabb_faces(Vec3::new(x, shoe, -bal * 0.5), Vec3::new(x + bal, under_rail, bal * 0.5), false, out);
+        }
+    }
+}
+
+/// A guard by `spec` along the straight run `a` -> `b` ((x, z) metres) from the floor at `y0` up to
+/// its top at `y1`, into `out` in the same metres: `balustrade_local` turned to face the run (the
+/// yaw `structure_mesh` uses: local +X along it) and moved there.
+pub fn balustrade_into(spec: &GuardSpec, a: (f32, f32), b: (f32, f32), y0: f32, y1: f32, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    let (dx, dz) = (b.0 - a.0, b.1 - a.1);
+    let len = (dx * dx + dz * dz).sqrt();
+    if len < 0.01 || y1 - y0 < 0.05 {
+        return;
+    }
+    let mut local = (Vec::new(), Vec::new());
+    balustrade_local(spec, 0.0, len, y1 - y0, &mut local);
+    yawed_into(local, Vec3::new(a.0, y0, a.1), (-dz).atan2(dx), out);
+}
+
+/// A straight wall rail by `spec` from `p0` to `p1` (its centre line), on the wall at `wall_z` (a
+/// plane of constant z, the rail running along X): the round rail, each end returned to the wall
+/// (the IRC's R311.7.8.3: handrail ends "shall be returned or shall terminate in newel posts or
+/// safety terminals"), and a bracket under it at least every `bracket_spacing_m`.
+fn wall_rail(spec: &HandrailSpec, p0: Vec3, p1: Vec3, wall_z: f32, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    let r = spec.diameter_m * 0.5;
+    tube_into(p0, p1, r, RAIL_SIDES, out);
+    for p in [p0, p1] {
+        tube_into(p, Vec3::new(p.x, p.y, wall_z), r, RAIL_SIDES, out);
+    }
+    let gaps = (p0.distance(p1) / spec.bracket_spacing_m.max(0.3)).ceil() as usize;
+    for k in 1..gaps {
+        let c = p0.lerp(p1, k as f32 / gaps as f32);
+        rail_bracket(c, r, RailWall::AlongZ(wall_z), out);
+    }
+}
+
+/// How many sides a rail's round section is drawn with.
+const RAIL_SIDES: u32 = 8;
+
+/// Where the wall a rail is fixed to stands, off the rail: a plane of constant z (a wall rail
+/// along X) or of constant x (a stair's side, the rail running along Z).
+#[derive(Clone, Copy)]
+enum RailWall {
+    AlongZ(f32),
+    AlongX(f32),
+}
+
+/// A rail bracket under the rail at `c` (a point of its centre line, radius `r`): a flat arm from
+/// the rail's underside across to the wall.
+fn rail_bracket(c: Vec3, r: f32, wall: RailWall, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    const ARM_W: f32 = 0.025;
+    const ARM_H: f32 = 0.03;
+    let (y0, y1) = (c.y - r - ARM_H, c.y - r);
+    match wall {
+        RailWall::AlongZ(z) => {
+            aabb_box(Vec3::new(c.x - ARM_W * 0.5, y0, z.min(c.z)), Vec3::new(c.x + ARM_W * 0.5, y1, z.max(c.z)), out)
+        }
+        RailWall::AlongX(x) => {
+            aabb_box(Vec3::new(x.min(c.x), y0, c.z - ARM_W * 0.5), Vec3::new(x.max(c.x), y1, c.z + ARM_W * 0.5), out)
+        }
+    }
+}
+
+/// A round tube of radius `r` and `sides` sides from `p0` to `p1`, capped at both ends, every face
+/// wound to face out, into `out`.
+fn tube_into(p0: Vec3, p1: Vec3, r: f32, sides: u32, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    let axis = p1 - p0;
+    let len = axis.length();
+    if len < 1e-5 || r <= 0.0 {
+        return;
+    }
+    let a = axis / len;
+    // Two unit vectors across the axis with e1 x e2 = a, so the ring's order winds outward.
+    let helper = if a.y.abs() < 0.9 { Vec3::Y } else { Vec3::X };
+    let e1 = a.cross(helper).normalize();
+    let e2 = a.cross(e1);
+    let ring = |k: u32| {
+        let t = k as f32 / sides as f32 * std::f32::consts::TAU;
+        e1 * t.cos() + e2 * t.sin()
+    };
+    let base = out.0.len() as u32;
+    for k in 0..=sides {
+        let n = ring(k);
+        let u = k as f32 / sides as f32 * std::f32::consts::TAU * r;
+        for (p, v) in [(p0, 0.0), (p1, len)] {
+            let q = p + n * r;
+            out.0.push(Vertex { position: [q.x, q.y, q.z], normal: [n.x, n.y, n.z], uv: [u, v] });
+        }
+    }
+    for k in 0..sides {
+        let (s0, e0, s1, e1i) = (base + 2 * k, base + 2 * k + 1, base + 2 * k + 2, base + 2 * k + 3);
+        out.1.extend_from_slice(&[s0, s1, e1i, s0, e1i, e0]);
+    }
+    // The caps: a fan round each end's centre, facing along the axis.
+    for (p, n, outward) in [(p0, -a, false), (p1, a, true)] {
+        let c = out.0.len() as u32;
+        out.0.push(Vertex { position: [p.x, p.y, p.z], normal: [n.x, n.y, n.z], uv: [0.0, 0.0] });
+        for k in 0..sides {
+            let q = p + ring(k) * r;
+            out.0.push(Vertex { position: [q.x, q.y, q.z], normal: [n.x, n.y, n.z], uv: [0.0, 0.0] });
+        }
+        for k in 0..sides {
+            let (i0, i1) = (c + 1 + k, c + 1 + (k + 1) % sides);
+            if outward {
+                out.1.extend_from_slice(&[c, i0, i1]);
+            } else {
+                out.1.extend_from_slice(&[c, i1, i0]);
+            }
+        }
+    }
+}
+
+/// Local-frame geometry turned by `yaw_rad` about Y and moved to `pos`, appended to `out`: the
+/// transform `structure_mesh` uses (local +X maps to (cos yaw, -sin yaw)), normals turned too.
+fn yawed_into(local: (Vec<Vertex>, Vec<u32>), pos: Vec3, yaw_rad: f32, out: &mut (Vec<Vertex>, Vec<u32>)) {
+    let (s, c) = yaw_rad.sin_cos();
+    let rot = |x: f32, z: f32| (x * c + z * s, -x * s + z * c);
+    let base = out.0.len() as u32;
+    out.0.extend(local.0.into_iter().map(|mut v| {
+        let (px, pz) = rot(v.position[0], v.position[2]);
+        v.position = [px + pos.x, v.position[1] + pos.y, pz + pos.z];
+        let (nx, nz) = rot(v.normal[0], v.normal[2]);
+        v.normal = [nx, v.normal[1], nz];
+        v
+    }));
+    out.1.extend(local.1.into_iter().map(|i| i + base));
+}
+
+/// The `handrail` row: the house rule for a stair's handrails (ship homes increment 7). None
+/// while the row or its spec is missing, and then no stair has rails.
+pub fn handrail_type() -> Option<(&'static StructureType, &'static HandrailSpec)> {
+    let t = structure_type("handrail")?;
+    Some((t, t.handrail.as_ref()?))
+}
+
+/// A stair's HANDRAILS (ship homes increment 7, plan decision 8; the finding's "Handrail": on a
+/// flight of `min_risers` or more risers, on both sides when the stair is `both_sides_from_m` or
+/// wider, the rail's top the `handrail` row's height above the line through the treads' nosings),
+/// for a Steps piece of `ty` at `pos` and `yaw_rad`: the vertices, indices and the rails' colour
+/// (the `handrail` row's). Each rail runs over the flight from directly above its lowest riser to
+/// directly above its top one, `clearance_m` in from the stair's side (where the wall the stair
+/// runs beside stands), returned to that side at both ends, on brackets between. None for any
+/// other shape, a short flight, or no `handrail` row.
+///
+/// The top of a sloped round rail seen in a vertical line is its radius over cos(pitch) above its
+/// centre line (the vertical section through a sloped cylinder is an ellipse), so the centre line
+/// stands that much under the height the rule names.
+pub fn stair_handrails(ty: &StructureType, pos: Vec3, yaw_rad: f32) -> Option<(Vec<Vertex>, Vec<u32>, (f32, f32, f32))> {
+    if ty.shape != MeshShape::Steps {
+        return None;
+    }
+    let (rail, spec) = handrail_type()?;
+    let n = ty.steps.max(1);
+    if n < spec.min_risers.max(2) {
+        return None;
+    }
+    let (w, h, d) = ty.size;
+    let (hw, hd) = (w * 0.5, d * 0.5);
+    let (tread, riser) = (d / n as f32, h / n as f32);
+    let r = spec.diameter_m * 0.5;
+    let cos_pitch = tread / (tread * tread + riser * riser).sqrt();
+    let above = rail.size.1 - r / cos_pitch;
+    let sides: &[f32] = if w >= spec.both_sides_from_m { &[-1.0, 1.0] } else { &[-1.0] };
+    let mut local = (Vec::new(), Vec::new());
+    for &side in sides {
+        let x = side * (hw - spec.clearance_m - r);
+        let wall_x = side * hw;
+        // The nosing line: the first tread's front edge (z -hd, y one riser) to the last's.
+        let p0 = Vec3::new(x, riser + above, -hd);
+        let p1 = Vec3::new(x, n as f32 * riser + above, -hd + (n - 1) as f32 * tread);
+        tube_into(p0, p1, r, RAIL_SIDES, &mut local);
+        for p in [p0, p1] {
+            tube_into(p, Vec3::new(wall_x, p.y, p.z), r, RAIL_SIDES, &mut local);
+        }
+        let gaps = (p0.distance(p1) / spec.bracket_spacing_m.max(0.3)).ceil() as usize;
+        for k in 1..gaps {
+            let c = p0.lerp(p1, k as f32 / gaps as f32);
+            rail_bracket(c, r, RailWall::AlongX(wall_x), &mut local);
+        }
+    }
+    let mut out = (Vec::new(), Vec::new());
+    yawed_into(local, pos, yaw_rad, &mut out);
+    Some((out.0, out.1, rail.color))
 }
 
 fn push_quad(out: &mut (Vec<Vertex>, Vec<u32>), a: Vertex, b: Vertex, c: Vertex, d: Vertex, n: [f32; 3]) {
@@ -594,7 +915,8 @@ pub fn walk_surface(ty: &StructureType, pos: (f32, f32, f32), yaw_rad: f32, px: 
         return None;
     }
     let surf = match ty.shape {
-        MeshShape::Frame | MeshShape::Ladder => return None,
+        // Nobody stands on a ladder (it is climbed), in a frame, on a guard or on a handrail.
+        MeshShape::Frame | MeshShape::Ladder | MeshShape::Balustrade | MeshShape::Handrail => return None,
         MeshShape::Box => h.max(0.05),
         MeshShape::Slab => h.clamp(0.02, 0.3),
         MeshShape::Steps => {

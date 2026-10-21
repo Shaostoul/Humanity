@@ -11,6 +11,17 @@ use crate::renderer::mesh::Mesh;
 use crate::renderer::RenderObject;
 use crate::ship::ship_structure::{zone_body, ShipStructure};
 
+/// The glass roof's (metallic, roughness, emissive): the roof, and a glass floor slab drawn like
+/// it (ship homes increment 7). Its colour and shader type are `home_structure::GLASS_ROOF_RGBA`
+/// and `GLASS_ROOF_TYPE`.
+const GLASS_ROOF_LOOK: (f32, f32, f32) = (0.0, 0.05, 0.0);
+
+/// The opaque ceiling's (rgba, metallic, roughness, shader type): the roof when it is not glass,
+/// and the same look a solid slab's underside is drawn in (`home_structure::OPAQUE_CEILING_RGBA`,
+/// uploaded through the floors with the same metallic and roughness).
+const OPAQUE_CEILING_LOOK: ([f32; 4], f32, f32, f32) =
+    (crate::ship::home_structure::OPAQUE_CEILING_RGBA, 0.0, 0.8, crate::ship::home_structure::OPAQUE_CEILING_TYPE as f32);
+
 /// Upload a freshly generated set of homestead meshes into the renderer + state slots
 /// (v0.455). Shared by the initial world load AND the construction editor's live rebuild.
 /// v0.531: REUSES the prior mesh/material slots in place (replace_mesh / update_material) so a
@@ -22,9 +33,13 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
     // a multi-second drag was orphaning ~15-20 buffers/frame. Only an ADDED room/family pushes a
     // new slot; a REMOVED one leaves one orphaned slot (one-time, bounded).
     // Floors (one mesh + material per room): reuse the prior slot at index i when it exists.
+    // A GLASS floor slab (ship homes increment 7, see-through: its colour's alpha under 1) is not
+    // one of them: the render loop draws `homestead_floors` in the opaque pass, so it goes with the
+    // glass walls into the transparent list below, in the glass roof's material.
     let prior_floors = std::mem::take(&mut state.homestead_floors);
     let mut floors = Vec::with_capacity(homestead.floors.len());
-    for (i, (verts, indices, color, material_type)) in homestead.floors.into_iter().enumerate() {
+    let (opaque_floors, glass_floors): (Vec<_>, Vec<_>) = homestead.floors.into_iter().partition(|f| f.2[3] >= 0.999);
+    for (i, (verts, indices, color, material_type)) in opaque_floors.into_iter().enumerate() {
         let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
         if let Some(&(mi, ma)) = prior_floors.get(i) {
             state.renderer.replace_mesh(mi, mesh);
@@ -70,6 +85,23 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
             let mi = state.renderer.add_mesh(mesh);
             let ma = state.renderer.add_material_full(color, met, rough, mtype, emis);
             material_walls.push((mi, ma, transparent));
+        }
+    }
+    // The glass floor slabs, after the walls in the same list (their slots reused the same way), in
+    // the glass roof's metallic, roughness and emissive (the colour, a face's share of the roof's
+    // opacity, comes with the mesh: `home_structure::glass_slab_face_alpha`).
+    for (verts, indices, color, material_type) in glass_floors {
+        let i = material_walls.len();
+        let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
+        let (met, rough, emis) = GLASS_ROOF_LOOK;
+        if let Some(&(mi, ma, _)) = prior_mw.get(i) {
+            state.renderer.replace_mesh(mi, mesh);
+            state.renderer.update_material_full(ma, color, met, rough, material_type as f32, emis);
+            material_walls.push((mi, ma, true));
+        } else {
+            let mi = state.renderer.add_mesh(mesh);
+            let ma = state.renderer.add_material_full(color, met, rough, material_type as f32, emis);
+            material_walls.push((mi, ma, true));
         }
     }
     state.homestead_material_walls = material_walls;
@@ -127,8 +159,9 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
         let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1);
         // (color, metallic, roughness, material_type, emissive) for glass; (color, m, r, type) opaque.
         // Glass roof emissive zeroed (v0.780) -- same night-glow fix as the windows.
-        let (gcol, gmet, grough, gtype, gemis) = ([0.55, 0.78, 0.92, 0.22], 0.0, 0.05, 1.0, 0.0);
-        let (ocol, omet, orough, otype) = ([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+        let (gmet, grough, gemis) = GLASS_ROOF_LOOK;
+        let (gcol, gtype) = (crate::ship::home_structure::GLASS_ROOF_RGBA, crate::ship::home_structure::GLASS_ROOF_TYPE as f32);
+        let (ocol, omet, orough, otype) = OPAQUE_CEILING_LOOK;
         if let Some((mi, ma)) = prior {
             state.renderer.replace_mesh(mi, mesh);
             if roof_glass {
@@ -153,7 +186,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
             &homestead.ceilings_opaque.0,
             &homestead.ceilings_opaque.1,
         );
-        let (ocol, omet, orough, otype) = ([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+        let (ocol, omet, orough, otype) = OPAQUE_CEILING_LOOK;
         if let Some((mi, ma)) = prior {
             state.renderer.replace_mesh(mi, mesh);
             state.renderer.update_material_typed(ma, ocol, omet, orough, otype);
@@ -257,7 +290,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // material change regrows the exterior shell in the same rebuild.
     rebuild_hull(state);
     // Refresh lights + sealed bounds from the new room_info (height edits move them).
-    let auto_lights = auto_room_lights(room_info.iter().map(|r| (r.center, r.dimensions)));
+    let auto_lights = auto_room_lights(state.gui_state.ship_structure.as_ref(), room_info.iter().map(|r| (r.center, r.dimensions)));
     // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
     state.room_lights = home_lights(state.gui_state.ship_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
     state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
@@ -303,11 +336,18 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
 }
 
 /// The crude one-per-room fill light (`home_lights`' `auto`): a warm point near each room's
-/// ceiling, sized by the room. Each room is its (centre, dimensions).
-pub(crate) fn auto_room_lights(rooms: impl Iterator<Item = (Vec3, Vec3)>) -> Vec<crate::renderer::light::RoomLight> {
+/// ceiling, sized by the room. Each room is its (centre, dimensions). The ceiling is the room's
+/// own (ship homes increment 7, `ceiling_over`): under a floor slab the light hangs under the
+/// slab's underside, not inside the slab at the room box's top.
+pub(crate) fn auto_room_lights(
+    ship: Option<&ShipStructure>,
+    rooms: impl Iterator<Item = (Vec3, Vec3)>,
+) -> Vec<crate::renderer::light::RoomLight> {
     rooms
         .map(|(center, dims)| {
-            let light_pos = Vec3::new(center.x, center.y + dims.y * 0.5 - 0.1, center.z);
+            let top = center.y + dims.y * 0.5;
+            let ceiling = ship.map_or(top, |s| ceiling_over(s, center, top));
+            let light_pos = Vec3::new(center.x, ceiling - 0.1, center.z);
             let room_size = dims.x.max(dims.z);
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
             crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
@@ -338,7 +378,7 @@ pub(crate) fn open_plots_changed(state: &mut EngineState) {
     };
     state.wall_colliders = crate::ship::wall_collision::ship_wall_segments(ship);
     let placements = crate::ship::door_panels::ship_panel_placements(ship);
-    let auto = auto_room_lights(state.gui_state.room_bounds.iter().map(|r| ((r.min + r.max) * 0.5, r.max - r.min)));
+    let auto = auto_room_lights(Some(ship), state.gui_state.room_bounds.iter().map(|r| ((r.min + r.max) * 0.5, r.max - r.min)));
     state.room_lights = home_lights(Some(ship), auto, state.gui_state.gi_enabled);
     if !swap_door_placements(&mut state.door_panels, placements) {
         // A different door count means the structure changed under us: the full rebuild.
@@ -1871,6 +1911,75 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Ve
     }
 }
 
+/// Each storey's SERVICE LEVEL in a body standing at `origin` (world metres), bottom up: (its floor,
+/// the ceiling its pipes hang from: the underside of the floor slabs over it, or the roof for the
+/// top storey). Ship homes increment 7: pipes run under their own storey's ceiling, never through
+/// the floor above. A body with no slab has the one level it always had, floor to roof.
+pub(crate) fn service_levels(body: &crate::ship::home_structure::HomeStructure, origin: Vec3) -> Vec<(f32, f32)> {
+    let storeys = body.storeys();
+    storeys
+        .iter()
+        .enumerate()
+        .map(|(k, s)| {
+            let lid = storeys
+                .get(k + 1)
+                .map_or(0.0, |above| body.floors.iter().filter(|f| f.is_floor_of(above)).map(|f| f.thickness.max(0.0)).fold(0.0, f32::max));
+            (origin.y + s.floor, origin.y + s.top - lid)
+        })
+        .collect()
+}
+
+/// Where a run between `a` and `b` (world metres) hangs: (its service height, the ceiling its
+/// hangers reach), on the higher of the two ends' levels (`service_levels`): a pipe from a machine
+/// downstairs to one upstairs rises through the floor and runs under the upper ceiling. The service
+/// height is 0.3 m under the ceiling, never under 0.6 m over the floor.
+pub(crate) fn run_level(levels: &[(f32, f32)], a: Vec3, b: Vec3) -> (f32, f32) {
+    let on = |p: Vec3| levels.iter().rposition(|(floor, _)| *floor <= p.y + crate::ship::home_structure::STOREY_EPS).unwrap_or(0);
+    let (floor, ceiling) = levels.get(on(a).max(on(b))).copied().unwrap_or((0.0, 3.0));
+    ((ceiling - 0.3).max(floor + 0.6), ceiling)
+}
+
+/// The zone of `ship` whose box holds `p` (world metres): its origin and its body. A home put away
+/// holds nothing aboard.
+fn zone_holding(ship: &ShipStructure, p: Vec3) -> Option<(Vec3, &crate::ship::home_structure::HomeStructure)> {
+    ship.zones.iter().enumerate().filter(|(zi, _)| !ship.is_away_home(*zi)).find_map(|(_, z)| {
+        let (o, b) = (z.origin_vec(), &z.body);
+        let inside = p.x >= o.x
+            && p.x <= o.x + b.width
+            && p.z >= o.z
+            && p.z <= o.z + b.depth
+            && p.y >= o.y - crate::ship::home_structure::STOREY_EPS
+            && p.y <= o.y + b.height.max(1.0);
+        inside.then_some((o, b))
+    })
+}
+
+/// The floor of the storey `p` stands on (world metres, ship homes increment 7): in the zone whose
+/// box holds it, the highest of that zone's storey floors at or under it. `fallback` (the
+/// placement's own floor, its zone's) outside every zone. A machine's pipes leave from here.
+pub(crate) fn storey_floor_at(ship: Option<&ShipStructure>, p: Vec3, fallback: f32) -> f32 {
+    let Some((o, body)) = ship.and_then(|s| zone_holding(s, p)) else {
+        return fallback;
+    };
+    let storeys = body.storeys();
+    o.y + storeys[crate::ship::home_structure::storey_index(&storeys, p.y - o.y)].floor
+}
+
+/// The ceiling over a room centred at `center` whose box tops out at `top` (world metres, ship homes
+/// increment 7): the underside of a floor slab of its zone over the centre whose top is that height
+/// (a room under a floor ends at the floor's top, `detect_rooms`, but its ceiling is the floor's
+/// underside), else `top`.
+pub(crate) fn ceiling_over(ship: &ShipStructure, center: Vec3, top: f32) -> f32 {
+    let Some((o, body)) = zone_holding(ship, center) else {
+        return top;
+    };
+    body.floors
+        .iter()
+        .filter(|s| (o.y + s.top - top).abs() < crate::ship::home_structure::STOREY_EPS && s.contains(center.x - o.x, center.z - o.z))
+        .map(|s| o.y + s.underside())
+        .fold(top, f32::min)
+}
+
 /// Rebuild the home connection cylinders from the live machine layout (gui_state.home_machines
 /// + room_bounds): one routed run per connection, between the two machines' pipe anchors. Uses
 /// a cached unit cylinder + a material cached per material, so a per-frame rebuild never leaks.
@@ -1922,10 +2031,22 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         Some(h) => (h.placements(&rooms, zone_rects.as_deref()), h.connections.clone()),
         None => return,
     };
-    // Low pipe-height anchor per machine id (the fixture port the conduit drops to).
+    // The floor of the storey each machine stands on (ship homes increment 7): its placement's
+    // floor is its zone's, which upstairs is the storey below. A sphere's position is its centre,
+    // so its foot is a radius under it.
+    let storey_floor: HashMap<String, f32> = placements
+        .iter()
+        .map(|p| {
+            let foot = if p.shape == "sphere" { p.pos.1 - p.size.0 } else { p.pos.1 };
+            let at = Vec3::new(p.pos.0, foot, p.pos.2);
+            (p.id.clone(), storey_floor_at(state.gui_state.ship_structure.as_ref(), at, p.floor_y))
+        })
+        .collect();
+    // Low pipe-height anchor per machine id (the fixture port the conduit drops to), off its own
+    // storey's floor.
     let anchors: HashMap<String, Vec3> = placements
         .iter()
-        .map(|p| (p.id.clone(), Vec3::new(p.pos.0, p.floor_y + 0.35, p.pos.2)))
+        .map(|p| (p.id.clone(), Vec3::new(p.pos.0, storey_floor[&p.id] + 0.35, p.pos.2)))
         .collect();
     // Combined routing list (v0.581): both the legacy point-to-point connections AND the conduit
     // NODE GRAPH edges (machine/node -> machine/node) become (a, b, kind) routes, fed through the
@@ -1956,7 +2077,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     };
     {
         let placement_tuples: Vec<(String, (f32, f32, f32), f32)> =
-            placements.iter().map(|p| (p.id.clone(), p.pos, p.floor_y)).collect();
+            placements.iter().map(|p| (p.id.clone(), p.pos, storey_floor[&p.id])).collect();
         let end_id = |e: &crate::machines::ConduitEnd| match e {
             crate::machines::ConduitEnd::Machine(id) => id.clone(),
             crate::machines::ConduitEnd::Node(id) => format!("node:{id}"),
@@ -2020,23 +2141,29 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     // the single-deck v1; per-zone service heights land with corridors, increment B), and the
     // wall-passthrough list is EVERY zone's walls shifted to WORLD coords so a run through any
     // zone gaskets where it crosses that zone's walls.
-    let (home_h, shell_mat, walls) = match &state.gui_state.ship_structure {
+    // Ship homes increment 7: the service level is per STOREY of the home zone (`service_levels`,
+    // `run_level`): a run hangs under its own storey's ceiling, the underside of the floor above,
+    // and a run to a machine upstairs rises through that floor (sleeved, `add_slab_passthroughs`).
+    // A wall's heights move to the world with its zone, so a run gaskets only through the walls it
+    // passes at its own height. With no slab there is the one level there always was.
+    let (levels, home_origin, home_slabs, shell_mat, walls) = match &state.gui_state.ship_structure {
         Some(ship) => {
             let home = &ship.zones[ship.home_zone_index()];
             let mut walls: Vec<crate::ship::home_structure::InteriorWall> = Vec::new();
             for z in &ship.zones {
-                let (ox, oz) = (z.origin.0, z.origin.2);
+                let (ox, oy, oz) = z.origin;
                 walls.extend(z.body.walls.iter().cloned().map(|mut w| {
                     w.a = (w.a.0 + ox, w.a.1 + oz);
                     w.b = (w.b.0 + ox, w.b.1 + oz);
+                    w.base += oy;
                     w
                 }));
             }
-            (home.body.height, home.body.shell_material, walls)
+            let o = home.origin_vec();
+            (service_levels(&home.body, o), o, home.body.floors.clone(), home.body.shell_material, walls)
         }
-        None => (3.0, 1, Vec::new()),
+        None => (vec![(0.0, 3.0)], Vec3::ZERO, Vec::new(), 1, Vec::new()),
     };
-    let service_y = (home_h - 0.3).max(0.6);
     const CYL_R: f32 = 0.05; // the unit cylinder's modeled radius
     // Dedup the support fittings ACROSS all connections (v0.626): many pipes share the same service-
     // height run, so without this their ceiling hangers + wall gaskets stack at the SAME spot --
@@ -2048,7 +2175,9 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     for ((a, b, kind_str, from_id, to_id), content) in routes.iter().zip(&contents) {
         let (a, b) = (*a, *b);
         let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
-        let route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
+        let (service_y, ceiling) = run_level(&levels, a, b);
+        let mut route = crate::ship::conduits::route_conduit(a, b, kind, service_y, shell_mat, &walls);
+        crate::ship::conduits::add_slab_passthroughs(&mut route, &home_slabs, home_origin);
         // Stash the routed path + the from/to ids, so the SELECTED machine's connections animate
         // their flow markers (v0.623) while every other pipe stays a quiet static line.
         if route.points.len() >= 2 {
@@ -2117,7 +2246,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                     // Ceiling hanger (a thin post up to the ceiling) for the horizontal service
                     // runs; the short vertical drops are held at their ends, so skip them.
                     if f.at.y >= service_y - 0.1 {
-                        let drop = (home_h - f.at.y).max(0.05);
+                        let drop = (ceiling - f.at.y).max(0.05);
                         state.connection_objects.push((
                             cyl,
                             fmat,
@@ -2416,13 +2545,18 @@ pub(crate) fn render_door_panels(
     // actually aboard (the same gate the wall-collision system uses).
     // Kept apart by kind (ship homes increment 2 review, finding 8): a neighbour's corridor door
     // opens for the other players only (`door_panels::door_actor_distance`).
-    let camera_actor = state.aboard_station.then_some(state.camera.position);
+    // Each actor by its FEET (ship homes increment 7: a door opens only for a body on its storey,
+    // `door_panels::door_actor_distance`): the camera and the other players are eyes (the camera's
+    // own eye height; another player's position is the eye their game sends), an animal's position
+    // is where it stands.
+    let camera_actor = state.aboard_station.then_some(state.camera.position - Vec3::Y * state.controller.eye_height());
+    let remote_eye = crate::surface_walk::EYE_HEIGHT_M as f32;
     let others: Vec<Vec3> = state
         .game_world
         .world
         .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
         .iter()
-        .map(|(_e, (t, _))| t.position)
+        .map(|(_e, (t, _))| t.position - Vec3::Y * remote_eye)
         .collect();
     let animals: Vec<Vec3> = state
         .game_world
@@ -2454,8 +2588,9 @@ pub(crate) fn render_door_panels(
         // radius, instead of a polygon strip that thickened as open_dist grew.
         if show_widgets && operable && p.auto_open {
             const RING_COL: [f32; 4] = [0.35, 0.85, 1.0, 0.9]; // cyan
+            // On the door's own floor (ship homes increment 7: an upstairs door's ring upstairs).
             crate::renderer::line::push_circle(
-                ring_lines, [p.center.x, 0.04, p.center.z], p.open_dist, RING_COL, 72,
+                ring_lines, [p.center.x, p.center.y + 0.04, p.center.z], p.open_dist, RING_COL, 72,
             );
         }
         // Wall-mounted CONTROL PANEL beside a manual/controlled door (v0.567): a glowing tech panel

@@ -70,8 +70,8 @@ pub struct ShellCut {
     pub width: f32,
     /// Where the cut's foot is, metres above the body's floor (ship homes increment 7): the deck
     /// of the corridor that makes it, less the body's own floor. 0 for every corridor today (they
-    /// run level with the zones they join). Nothing reads it yet: the mesh and the collider still
-    /// open every cut from the floor, until the geometry lane builds walls per storey.
+    /// run level with the zones they join). The mesh opens the cut from here
+    /// (`generate_meshes_with_shell_cuts`); the collider's twin is `wall_collision`'s.
     pub base: f32,
     pub height: f32,
 }
@@ -184,9 +184,9 @@ pub struct InteriorWall {
     /// `base + height`. A wall upstairs stands on the top of the slab under it (3.0). Every wall
     /// written before storeys is on the ground, 0, and is left out of the file while it is 0, so
     /// those files are written exactly as before. The storey a wall belongs to is the one its base
-    /// is on (`HomeStructure::storey_of_wall`); an opening's `sill` is measured from here. Nothing
-    /// draws or walks by it yet (Wave 0 adds only the shape): the mesh still raises every wall
-    /// from 0 until the geometry lane builds walls per storey.
+    /// is on (`HomeStructure::storey_of_wall`); an opening's `sill` is measured from here. The mesh
+    /// builds the wall, its openings, its mitres and its corner columns from here
+    /// (`generate_meshes_with_shell_cuts`), and its door panels hang from here (door_panels.rs).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub base: f32,
     #[serde(default = "default_wall_height")]
@@ -255,6 +255,55 @@ impl InteriorWall {
     pub fn y_range(&self) -> (f32, f32) {
         (self.base, self.top())
     }
+
+    /// The guard (balustrade) this wall is drawn as (ship homes increment 7, plan decision 8): its
+    /// material's `form`, when that names a structure_types.ron row of kind Guard with a guard spec
+    /// (a wall of "Steel balustrade"). None for every other wall, which is drawn solid. A guard
+    /// wall still stands, collides and parts rooms as the wall it is (one 1.0 m tall parts none,
+    /// `ROOM_DIVIDER_MIN_M`); only how it is drawn changes.
+    pub fn guard(&self) -> Option<&'static crate::ship::structure::GuardSpec> {
+        let form = wall_material(self.material)?.form.as_deref()?;
+        let ty = crate::ship::structure::structure_type(form)?;
+        if ty.kind != crate::ship::structure::StructureKind::Guard {
+            return None;
+        }
+        ty.guard.as_ref()
+    }
+}
+
+/// True when two heights spans (bottom, top) share more than `STOREY_EPS` of height: two walls
+/// that do are joined at a shared corner (mitred, clipped, given a column); two that do not, a
+/// wall and the one on the storey above it, are not.
+fn spans_overlap(a: (f32, f32), b: (f32, f32)) -> bool {
+    a.1.min(b.1) - a.0.max(b.0) > STOREY_EPS
+}
+
+/// How far above its walking surface a slab's top is DRAWN, metres: 1 cm. The ground walls rise
+/// to the slab's top (through its thickness: docs/design/homestead-upper-floor.md section 1), so
+/// their tops would lie in the floor's plane and flicker through it upstairs (coplanar faces
+/// z-fight); a centimetre up, the floor covers them. The corridor floors use the same lift against
+/// a zone's floor (`ship_structure::CORRIDOR_SURFACE_EPS`). Walking reads the slab's `top`, never
+/// this.
+pub const SLAB_DRAW_LIFT_M: f32 = 0.01;
+
+/// The opaque ceiling's look, rgba: the roof drawn when it is not glass (engine/home_meshes.rs), a
+/// neighbour's roof (`bake_shell_groups`), and a solid slab's underside and edges, the structural
+/// slab the room below and a stairwell see.
+pub const OPAQUE_CEILING_RGBA: [f32; 4] = [0.60, 0.62, 0.68, 1.0];
+/// The opaque ceiling's material type in the shader (2, concrete).
+pub const OPAQUE_CEILING_TYPE: u32 = 2;
+
+/// The glass roof's look, rgba (engine/home_meshes.rs draws the roof in it): a GLASS slab is drawn
+/// in it too, so a room under a glass lid sees glass like the roof's.
+pub const GLASS_ROOF_RGBA: [f32; 4] = [0.55, 0.78, 0.92, 0.22];
+/// The glass roof's material type in the shader (1, as the roof has always been drawn).
+pub const GLASS_ROOF_TYPE: u32 = 1;
+
+/// One face's opacity on a glass slab. A slab is looked through two faces (its top and its
+/// underside), and blending the roof's 0.22 twice would read as 0.39, a darker pane than the roof;
+/// each face carries 1 - sqrt(1 - 0.22) instead, so the slab blends as one pane of the roof.
+pub fn glass_slab_face_alpha() -> f32 {
+    1.0 - (1.0 - GLASS_ROOF_RGBA[3]).sqrt()
 }
 
 /// How far apart two heights may be and still be one level (metres): two slabs whose tops differ
@@ -754,6 +803,14 @@ pub struct WallMaterial {
     /// framed/poured materials are thick). Real-ish figures, so thickness teaches too. (v0.556)
     pub default_thickness_m: f32,
     pub note: String,
+    /// What a wall of this material is drawn AS, when it is not a solid wall: a
+    /// data/blueprints/structure_types.ron row (ship homes increment 7). "guard" (the Steel and Oak
+    /// balustrades) draws the wall as that row's guard, posts, balusters and a top rail, from the
+    /// wall's base to its top (`InteriorWall::guard`). None, every other material: a solid wall.
+    /// So a guard is placed with the wall tool and its existing material picker, and it stands,
+    /// collides and parts rooms as the wall it is.
+    #[serde(default)]
+    pub form: Option<String>,
 }
 
 /// The wall-material registry, parsed once. Embedded at compile time so both the editor and the
@@ -1015,8 +1072,40 @@ impl HomeStructure {
         let col = Self::material_color(self.shell_material);
 
         // Floor + ceiling: one quad each, spanning the box footprint.
-        let (fv, fi) = floor_quad(Vec3::new(0.0, 0.0, 0.0), Vec3::new(w, 0.0, d));
-        let floors = vec![(fv, fi, col, self.shell_material)];
+        let mut floor = floor_quad(Vec3::new(0.0, 0.0, 0.0), Vec3::new(w, 0.0, d));
+        // FLOOR SLABS (ship homes increment 7, plan section 3 "Geometry"): each a box, so it is
+        // walked on from above and seen from below. The opaque pipeline culls back faces and the
+        // floor quad faces up only, so every face of a slab is drawn facing out: its top in the
+        // floor's own material (joined to the floor's entry: an upper storey's floor looks like the
+        // ground's), its underside and edges in the opaque ceiling's concrete (the structural slab
+        // the room below and a stairwell see), and a glass slab all six faces in the glass roof's
+        // look. All of it goes in the FLOORS, never the ceilings: the roof toggle (`show_roof`,
+        // off by default) hides the ceilings, and a floor must not vanish with the roof. With no
+        // slab nothing is added: the floors are the one quad they always were.
+        let mut slab_core: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        let mut slab_glass: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        for s in &self.floors {
+            let (x0, z0, x1, z1) = s.rect();
+            if x1 - x0 < 1e-3 || z1 - z0 < 1e-3 {
+                continue;
+            }
+            let (top, rest) = slab_faces(x0, z0, x1, z1, s.underside(), s.top + SLAB_DRAW_LIFT_M);
+            if s.passes_light() {
+                merge(&mut slab_glass, top);
+                merge(&mut slab_glass, rest);
+            } else {
+                merge(&mut floor, top);
+                merge(&mut slab_core, rest);
+            }
+        }
+        let mut floors = vec![(floor.0, floor.1, col, self.shell_material)];
+        if !slab_core.0.is_empty() {
+            floors.push((slab_core.0, slab_core.1, OPAQUE_CEILING_RGBA, OPAQUE_CEILING_TYPE));
+        }
+        if !slab_glass.0.is_empty() {
+            let g = GLASS_ROOF_RGBA;
+            floors.push((slab_glass.0, slab_glass.1, [g[0], g[1], g[2], glass_slab_face_alpha()], GLASS_ROOF_TYPE));
+        }
         let ceilings = floor_quad(Vec3::new(0.0, h, 0.0), Vec3::new(w, 0.0, d));
 
         // Walls grouped BY MATERIAL so each renders in its own color (v0.552): the 4 outer box walls
@@ -1047,7 +1136,9 @@ impl HomeStructure {
                         kind: OpeningKind::Door,
                         at: c.at,
                         width: c.width,
-                        sill: 0.0,
+                        // From the cut's own foot (ship homes increment 7): a corridor arriving at
+                        // an upper storey opens the shell there, not from the floor.
+                        sill: c.base,
                         height: c.height.min(h),
                         // Never animated -- the aperture is just a hole the corridor tube meets; door
                         // PANELS come from real wall openings, not shell cuts.
@@ -1067,9 +1158,20 @@ impl HomeStructure {
                 let ar = (a.x - px * half, a.z - pz * half);
                 let bl = (b.x + px * half, b.z + pz * half);
                 let br = (b.x - px * half, b.z - pz * half);
-                merge(g, wall_with_openings(a, b, h, shell_t, 0.0, &openings, al, ar, bl, br));
+                merge(g, wall_with_openings(a, b, 0.0, h, shell_t, 0.0, &openings, al, ar, bl, br));
             }
         }
+        // Which interior walls join which (ship homes increment 7, plan section 3): only walls
+        // whose heights overlap are mitred, clipped or joined by a column, so a wall upstairs does
+        // not mitre into the one under it that ends at the same corner. A GUARD (a wall drawn as a
+        // balustrade, `InteriorWall::guard`) is mitred and columned with nothing, its ends being
+        // posts; it is clipped back to a solid wall's face it ends on, and no wall is clipped to
+        // it. With every wall on the ground all of them overlap and no wall is a guard: exactly the
+        // joins before storeys.
+        let guards: Vec<Option<&'static crate::ship::structure::GuardSpec>> = self.walls.iter().map(|wl| wl.guard()).collect();
+        let spans: Vec<(f32, f32)> = self.walls.iter().map(|wl| wl.y_range()).collect();
+        let joins = |i: usize, j: usize| i != j && guards[i].is_none() && guards[j].is_none() && spans_overlap(spans[i], spans[j]);
+        let clips = |i: usize, j: usize| i != j && guards[j].is_none() && spans_overlap(spans[i], spans[j]);
         // Incidence map for MITRED corners (v0.558): corner-key -> the incident walls' (index, dir
         // AWAY from the corner, half-thickness). A 2-wall join is mitred (ends cut to meet flush); a
         // free end stays square; a 3+ join keeps the cylinder fill (a single bisector is undefined).
@@ -1090,8 +1192,10 @@ impl HomeStructure {
             let sq_l = v_add(c, v_scale(p, half));
             let sq_r = v_add(c, v_scale(p, -half));
             if let Some(list) = incidence.get(&ck(c)) {
-                if list.len() == 2 {
-                    if let Some(&(_, adj_dir, adj_half)) = list.iter().find(|(j, _, _)| *j != wi) {
+                // The wall ends here this wall joins, its own included (ship homes increment 7).
+                let here: Vec<&(usize, V2, f32)> = list.iter().filter(|(j, _, _)| *j == wi || joins(wi, *j)).collect();
+                if here.len() == 2 {
+                    if let Some(&&(_, adj_dir, adj_half)) = here.iter().find(|(j, _, _)| *j != wi) {
                         if let Some(m) = wall_end_miter(sq_l, sq_r, fwd, c, adj_dir, adj_half, is_a) {
                             return m;
                         }
@@ -1103,9 +1207,16 @@ impl HomeStructure {
         for (i, wseg) in self.walls.iter().enumerate() {
             // Clip each end OUT of any wall it would pass through (mid-span T) before building, so a
             // thick wall butts the other's face instead of spearing through it (v0.566). A shared
-            // corner / free end is left as-is (clip 0).
-            let (ca, clip_a) = clip_end_to_walls(wseg.a, wseg.b, i, &self.walls);
-            let (cb, _clip_b) = clip_end_to_walls(wseg.b, wseg.a, i, &self.walls);
+            // corner / free end is left as-is (clip 0). Only a wall at its own height clips it.
+            let (ca, clip_a) = clip_end_to_walls(wseg.a, wseg.b, i, &self.walls, |j| clips(i, j));
+            let (cb, _clip_b) = clip_end_to_walls(wseg.b, wseg.a, i, &self.walls, |j| clips(i, j));
+            if let Some(spec) = guards[i] {
+                // A GUARD: posts, balusters and a top rail from the wall's base to its top, with a
+                // gap at each opening (a gate in it), in the wall's own colour group, one merged mesh.
+                let g = by_mat.entry(wseg.exposed_material()).or_insert_with(|| (Vec::new(), Vec::new()));
+                merge(g, guard_with_openings(spec, ca, cb, wseg.base, wseg.top(), clip_a, &wseg.openings));
+                continue;
+            }
             let a = Vec3::new(ca.0, 0.0, ca.1);
             let b = Vec3::new(cb.0, 0.0, cb.1);
             let half = wseg.resolved_thickness() * 0.5;
@@ -1116,34 +1227,51 @@ impl HomeStructure {
             // Group by the EXPOSED material (the top surface layer if any) so a layered wall renders
             // as its coating -- the "rhino-lining" you see. (v0.585)
             let g = by_mat.entry(wseg.exposed_material()).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_with_openings(a, b, wseg.height.max(0.1), half * 2.0, clip_a, &wseg.openings, al, ar, bl, br));
+            merge(g, wall_with_openings(a, b, wseg.base, wseg.height.max(0.1), half * 2.0, clip_a, &wseg.openings, al, ar, bl, br));
         }
         // Corner columns (v0.549): fill each 3+-WALL interior-wall JOIN (T / X) with a slim cylinder of
         // the wall's half-thickness, where a single miter bisector is undefined. 2-wall joins are
         // MITRED above (v0.558) so they need no column; a free end keeps its square cap. Low-poly, in
         // the most-OPAQUE meeting wall's material (so a junction with any solid wall reads solid).
-        let mut joins: std::collections::HashMap<(i32, i32), (f32, u32, (f32, f32), u32, f32)> =
-            std::collections::HashMap::new();
-        for wseg in &self.walls {
+        // Ship homes increment 7: the walls ending at a corner are grouped by height (those whose
+        // spans overlap, directly or through another of the group), so the ground floor's T and the
+        // storey above's are two joins, each with its own column from its lowest base to its
+        // highest top; a guard joins none. Corners in key order, so the mesh is the same every run
+        // (they came out of a HashMap before, in a different order each time).
+        let mut corners: std::collections::BTreeMap<(i32, i32), Vec<(f32, f32, u32, f32, (f32, f32))>> =
+            std::collections::BTreeMap::new();
+        for (i, wseg) in self.walls.iter().enumerate() {
+            if guards[i].is_some() {
+                continue;
+            }
             let wt = wseg.resolved_thickness();
             let exposed = wseg.exposed_material(); // colour the join to match the visible wall face
+            let (bottom, top) = (wseg.base, wseg.base + wseg.height.max(0.1));
             for cp in [wseg.a, wseg.b] {
                 let key = ((cp.0 * 20.0).round() as i32, (cp.1 * 20.0).round() as i32);
-                let e = joins.entry(key).or_insert((0.0, 0, cp, exposed, wt));
-                e.0 = e.0.max(wseg.height.max(0.1));
-                e.1 += 1;
-                // Prefer the higher-alpha (more opaque) material; ties keep the first seen, so the
-                // result is deterministic regardless of wall order.
-                if Self::material_color(exposed)[3] > Self::material_color(e.3)[3] {
-                    e.3 = exposed;
-                }
-                e.4 = e.4.max(wt); // the column must cover the THICKEST wall meeting here
+                corners.entry(key).or_default().push((bottom, top, exposed, wt, cp));
             }
         }
-        for (h_col, count, pos, mat, th) in joins.values() {
-            if *count >= 3 {
-                let g = by_mat.entry(*mat).or_insert_with(|| (Vec::new(), Vec::new()));
-                merge(g, corner_column(pos.0, pos.1, th * 0.5, *h_col, 10));
+        for ends in corners.values() {
+            for group in height_groups(&ends.iter().map(|e| (e.0, e.1)).collect::<Vec<_>>()) {
+                if group.len() < 3 {
+                    continue;
+                }
+                let first = ends[group[0]];
+                let (mut bottom, mut top, mut mat, mut th) = (first.0, first.1, first.2, first.3);
+                for &k in &group[1..] {
+                    let (b0, t0, m0, w0, _) = ends[k];
+                    bottom = bottom.min(b0);
+                    top = top.max(t0);
+                    // Prefer the higher-alpha (more opaque) material; ties keep the first seen, so
+                    // the result is deterministic regardless of wall order.
+                    if Self::material_color(m0)[3] > Self::material_color(mat)[3] {
+                        mat = m0;
+                    }
+                    th = th.max(w0); // the column must cover the THICKEST wall meeting here
+                }
+                let g = by_mat.entry(mat).or_insert_with(|| (Vec::new(), Vec::new()));
+                merge(g, corner_column(first.4 .0, first.4 .1, th * 0.5, bottom, top - bottom, 10));
             }
         }
         // Resolve each material group to (verts, indices, color), sorted by id for a stable order
@@ -1176,6 +1304,15 @@ impl HomeStructure {
             let base = g.0.len() as u32;
             g.0.append(&mut verts);
             g.1.extend(indices.into_iter().map(|i| i + base));
+            // A stair's handrails (ship homes increment 7, `structure::stair_handrails`), in the
+            // `handrail` row's colour: a group of their own, every stair's rails in one draw.
+            if let Some((mut rv, ri, rc)) = crate::ship::structure::stair_handrails(ty, pos, ps.rot_deg.to_radians()) {
+                let key = [(rc.0 * 64.0) as i32, (rc.1 * 64.0) as i32, (rc.2 * 64.0) as i32];
+                let g = by_color.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), [rc.0, rc.1, rc.2]));
+                let base = g.0.len() as u32;
+                g.0.append(&mut rv);
+                g.1.extend(ri.into_iter().map(|i| i + base));
+            }
         }
         let mut scolor: Vec<_> = by_color.into_iter().collect();
         scolor.sort_by_key(|(k, _)| *k);
@@ -1432,9 +1569,10 @@ impl HomeStructure {
             shell_material: self.shell_material,
             roof_material: self.shell_material,
             walls: self.walls.clone(),
-            // The slabs are shell too (a neighbour's upper floor is seen from outside); nothing
-            // draws them until the geometry lane of ship homes increment 7.
-            floors: self.floors.clone(),
+            // The slabs are shell too (a neighbour's upper floor is seen through its door), drawn
+            // solid as its roof is: a glass slab, like a glass roof, would cost the transparent
+            // pass's sort for nothing seen from outside.
+            floors: self.floors.iter().map(|s| FloorSlab { material: SlabMaterial::Solid, ..s.clone() }).collect(),
             shell_thickness: self.shell_thickness,
             lights: Vec::new(),
             spawn: None,
@@ -1463,8 +1601,8 @@ impl HomeStructure {
         );
         // The ceiling, always the OPAQUE roof colour (src/lib.rs's non-glass ceiling material).
         if !meshes.ceilings.0.is_empty() {
-            const OPAQUE_CEILING_RGB: [f32; 3] = [0.60, 0.62, 0.68];
-            groups.push((meshes.ceilings.0, meshes.ceilings.1, OPAQUE_CEILING_RGB));
+            let c = OPAQUE_CEILING_RGBA;
+            groups.push((meshes.ceilings.0, meshes.ceilings.1, [c[0], c[1], c[2]]));
         }
         // Trim (baseboard, crown, frame): opaque wood brown, src/lib.rs's trim material.
         if !meshes.trim.0.is_empty() {
@@ -2029,8 +2167,9 @@ fn wall_end_miter(
 /// mid-span T-junction (a wall ending on another wall's FACE, not at a shared corner), where the miter
 /// can't help and the thick wall would PASS THROUGH the other -- pull `e` back to that wall's NEAR
 /// face so it butts cleanly. Returns (clipped_end, distance pulled back); (e, 0.0) if the end is free /
-/// at a shared corner / not inside anything. (v0.566)
-fn clip_end_to_walls(e: V2, from: V2, wi: usize, walls: &[InteriorWall]) -> (V2, f32) {
+/// at a shared corner / not inside anything. (v0.566) Only a wall `can_clip` lets clip it (ship homes
+/// increment 7: one at its own height, never a guard).
+fn clip_end_to_walls(e: V2, from: V2, wi: usize, walls: &[InteriorWall], can_clip: impl Fn(usize) -> bool) -> (V2, f32) {
     let wd = (e.0 - from.0, e.1 - from.1);
     let wlen = (wd.0 * wd.0 + wd.1 * wd.1).sqrt();
     if wlen < 1e-4 {
@@ -2041,7 +2180,7 @@ fn clip_end_to_walls(e: V2, from: V2, wi: usize, walls: &[InteriorWall]) -> (V2,
     let mut best_e = e;
     let mut clipped = false;
     for (j, m) in walls.iter().enumerate() {
-        if j == wi {
+        if j == wi || !can_clip(j) {
             continue;
         }
         let md = (m.b.0 - m.a.0, m.b.1 - m.a.1);
@@ -2134,8 +2273,9 @@ fn wall_piece(sl: V2, sr: V2, el: V2, er: V2, y0: f32, y1: f32) -> (Vec<Vertex>,
 
 /// A vertical cylinder SIDE surface (no caps -- the floor + ceiling hide them) at (cx, cz): the
 /// corner column that fills a 3+-WALL interior-wall join (T / X), where a single miter bisector is
-/// undefined. 2-wall joins are mitred instead (v0.558). Double-sided + low-poly. (v0.549)
-fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
+/// undefined. 2-wall joins are mitred instead (v0.558). Double-sided + low-poly. (v0.549) It stands
+/// from `base` (the walls' floor, ship homes increment 7) up `height` metres.
+fn corner_column(cx: f32, cz: f32, radius: f32, base: f32, height: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
     use std::f32::consts::TAU;
     let mut v: Vec<Vertex> = Vec::new();
     let mut idx: Vec<u32> = Vec::new();
@@ -2146,8 +2286,8 @@ fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (
         // Metre-true UVs around the shell (v0.695): u spans the real
         // circumference and v the real height, so grain stays isotropic.
         let u_m = u * radius * std::f32::consts::TAU;
-        v.push(Vertex { position: [cx + c * radius, 0.0, cz + s * radius], normal: [c, 0.0, s], uv: [u_m, height] });
-        v.push(Vertex { position: [cx + c * radius, height, cz + s * radius], normal: [c, 0.0, s], uv: [u_m, 0.0] });
+        v.push(Vertex { position: [cx + c * radius, base, cz + s * radius], normal: [c, 0.0, s], uv: [u_m, height] });
+        v.push(Vertex { position: [cx + c * radius, base + height, cz + s * radius], normal: [c, 0.0, s], uv: [u_m, 0.0] });
     }
     for i in 0..segments {
         let o = i * 2;
@@ -2176,9 +2316,12 @@ fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (
 /// footprint corners (al/ar at a, bl/br at b) carry the MITRE at the true wall ENDS only; every
 /// opening cut stays PERPENDICULAR to the wall (90 deg jambs + headers), so a mitred corner never
 /// skews a door/window frame -- the v0.559 fix for "the door frame is at a weird angle". (v0.559)
+/// Every piece stands on `base` (the wall's floor, ship homes increment 7): the piers from it up
+/// `h`, an opening's sill and head measured from it.
 fn wall_with_openings(
     a: Vec3,
     b: Vec3,
+    base: f32,
     h: f32,
     thickness: f32,
     op_shift: f32, // a-end clip distance (v0.566): openings are authored from the ORIGINAL a, so shift
@@ -2231,25 +2374,130 @@ fn wall_with_openings(
         let start = raw_start.max(cursor);
         // Full-height pier before this opening.
         if start > cursor + 1e-4 {
-            merge(&mut out, wall_piece(left(cursor), right(cursor), left(start), right(start), 0.0, h));
+            merge(&mut out, wall_piece(left(cursor), right(cursor), left(start), right(start), base, base + h));
         }
         // Around the aperture [start, end] x [sill, sill+height]: a sill panel (windows) + a header.
         let sill = op.sill.max(0.0).min(h);
         let top = (sill + op.height).clamp(0.0, h);
         if sill > 0.01 {
-            merge(&mut out, wall_piece(left(start), right(start), left(end), right(end), 0.0, sill));
+            merge(&mut out, wall_piece(left(start), right(start), left(end), right(end), base, base + sill));
         }
         if top < h - 0.01 {
-            merge(&mut out, wall_piece(left(start), right(start), left(end), right(end), top, h));
+            merge(&mut out, wall_piece(left(start), right(start), left(end), right(end), base + top, base + h));
         }
         cursor = end;
     }
     // Remaining full-height pier after the last opening.
     if cursor < total - 1e-4 {
-        merge(&mut out, wall_piece(left(cursor), right(cursor), left(total), right(total), 0.0, h));
+        merge(&mut out, wall_piece(left(cursor), right(cursor), left(total), right(total), base, base + h));
     }
     out
 }
+
+/// A GUARD wall's parts (ship homes increment 7, `InteriorWall::guard`): the guard by `spec`
+/// (`structure::balustrade_into`: posts, balusters, a shoe and a top rail) along the centre line
+/// a -> b from `base` up to `top`, in one piece between each two openings. An opening in a guard is
+/// a gap (a gate's place; its door panel is the gate, door_panels.rs), whatever its kind. `op_shift`
+/// is the a-end clip, as in `wall_with_openings`.
+fn guard_with_openings(
+    spec: &crate::ship::structure::GuardSpec,
+    a: V2,
+    b: V2,
+    base: f32,
+    top: f32,
+    op_shift: f32,
+    openings: &[Opening],
+) -> (Vec<Vertex>, Vec<u32>) {
+    let mut out: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+    let total = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+    if total < 1e-4 {
+        return out;
+    }
+    let at = |s: f32| (a.0 + (b.0 - a.0) * s / total, a.1 + (b.1 - a.1) * s / total);
+    let mut ops: Vec<&Opening> = openings.iter().filter(|o| o.width > 0.01).collect();
+    ops.sort_by(|x, y| x.at.partial_cmp(&y.at).unwrap_or(std::cmp::Ordering::Equal));
+    let mut cursor = 0.0f32;
+    for op in ops {
+        let start = (op.at - op_shift).clamp(0.0, total);
+        let end = (op.at + op.width - op_shift).clamp(0.0, total);
+        if end <= cursor || start >= total {
+            continue;
+        }
+        if start > cursor + 0.02 {
+            crate::ship::structure::balustrade_into(spec, at(cursor), at(start), base, top, &mut out);
+        }
+        cursor = end.max(cursor);
+    }
+    if total > cursor + 0.02 {
+        crate::ship::structure::balustrade_into(spec, at(cursor), at(total), base, top, &mut out);
+    }
+    out
+}
+
+/// A floor slab's faces over (x0, z0)-(x1, z1), from `y0` (its underside) up to `y1` (its drawn
+/// top), every face wound to face out (ship homes increment 7): (its top; its underside and four
+/// edges). The windings are `footprint_box`'s and `underside`'s.
+fn slab_faces(x0: f32, z0: f32, x1: f32, z1: f32, y0: f32, y1: f32) -> ((Vec<Vertex>, Vec<u32>), (Vec<Vertex>, Vec<u32>)) {
+    let quad = |out: &mut (Vec<Vertex>, Vec<u32>), p: [[f32; 3]; 4], n: [f32; 3]| {
+        let base = out.0.len() as u32;
+        for q in p {
+            out.0.push(Vertex { position: q, normal: n, uv: planar_uv(q, n) });
+        }
+        out.1.extend([base, base + 2, base + 1, base, base + 3, base + 2]);
+    };
+    let mut top = (Vec::new(), Vec::new());
+    quad(&mut top, [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], [0.0, 1.0, 0.0]);
+    let mut rest = (Vec::new(), Vec::new());
+    quad(&mut rest, [[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]], [0.0, -1.0, 0.0]);
+    quad(&mut rest, [[x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]], [-1.0, 0.0, 0.0]);
+    quad(&mut rest, [[x1, y0, z1], [x1, y1, z1], [x1, y1, z0], [x1, y0, z0]], [1.0, 0.0, 0.0]);
+    quad(&mut rest, [[x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1]], [0.0, 0.0, 1.0]);
+    quad(&mut rest, [[x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z0]], [0.0, 0.0, -1.0]);
+    (top, rest)
+}
+
+/// The walls ending at one corner, by their (bottom, top) spans, grouped by height (ship homes
+/// increment 7): two are in one group when their spans overlap (`spans_overlap`), directly or
+/// through another of the group. Each group lists its members' indices in the order given, the
+/// groups in the order of their first member.
+fn height_groups(spans: &[(f32, f32)]) -> Vec<Vec<usize>> {
+    let mut group: Vec<usize> = (0..spans.len()).collect();
+    // Merge until nothing changes (a corner has a handful of walls).
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for i in 0..spans.len() {
+            for j in i + 1..spans.len() {
+                if group[i] != group[j] && spans_overlap(spans[i], spans[j]) {
+                    let (keep, gone) = (group[i].min(group[j]), group[i].max(group[j]));
+                    for g in group.iter_mut() {
+                        if *g == gone {
+                            *g = keep;
+                        }
+                    }
+                    changed = true;
+                }
+            }
+        }
+    }
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    let mut ids: Vec<usize> = Vec::new();
+    for (i, g) in group.iter().enumerate() {
+        match ids.iter().position(|id| id == g) {
+            Some(k) => out[k].push(i),
+            None => {
+                ids.push(*g);
+                out.push(vec![i]);
+            }
+        }
+    }
+    out
+}
+
+/// The storey mesh tests (ship homes increment 7, lane G), in their own file.
+#[cfg(test)]
+#[path = "home_structure_mesh_tests.rs"]
+mod mesh_tests;
 
 #[cfg(test)]
 mod tests {
@@ -2550,7 +2798,10 @@ mod tests {
         // Locks the embedded wall_materials.ron against a syntax break (which would otherwise
         // silently degrade every wall to grid-grey). Update the count if you add/remove a material.
         let mats = wall_materials();
-        assert_eq!(mats.len(), 8, "all 8 wall materials parse");
+        assert_eq!(mats.len(), 10, "all 10 wall materials parse");
+        // The two guards (ship homes increment 7) name the guard row; every other material none.
+        assert!(mats.iter().filter(|m| m.form.is_some()).all(|m| m.form.as_deref() == Some("guard")));
+        assert_eq!(mats.iter().filter(|m| m.form.is_some()).count(), 2, "the Steel and Oak balustrades");
         let steel = wall_material(1).expect("steel id 1 present");
         assert_eq!(steel.name, "Steel");
         assert_eq!(steel.color.3, 1.0, "steel is opaque");
@@ -2668,7 +2919,7 @@ mod tests {
         let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
         let w = InteriorWall { a: (5.0, -3.0), b: (5.0, 0.1), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: Some(0.1), layers: Vec::new() };
         let walls = vec![m, w];
-        let (clipped, dist) = clip_end_to_walls((5.0, 0.1), (5.0, -3.0), 1, &walls);
+        let (clipped, dist) = clip_end_to_walls((5.0, 0.1), (5.0, -3.0), 1, &walls, |_| true);
         assert!((clipped.1 + 0.2).abs() < 1e-3, "clipped to M near face z=-0.2, got {clipped:?}");
         assert!(dist > 0.0, "end was pulled back, dist {dist}");
     }
@@ -2677,7 +2928,7 @@ mod tests {
     fn clip_leaves_a_free_end_alone() {
         let m = InteriorWall { a: (0.0, 0.0), b: (10.0, 0.0), base: 0.0, height: 3.0, material: 1, openings: vec![], thickness: Some(0.4), layers: Vec::new() };
         let walls = vec![m];
-        let (clipped, dist) = clip_end_to_walls((5.0, 5.0), (5.0, 3.0), 99, &walls);
+        let (clipped, dist) = clip_end_to_walls((5.0, 5.0), (5.0, 3.0), 99, &walls, |_| true);
         assert_eq!(dist, 0.0, "a free end in open space is unchanged");
         assert!((clipped.0 - 5.0).abs() < 1e-6 && (clipped.1 - 5.0).abs() < 1e-6);
     }

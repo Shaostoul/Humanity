@@ -75,7 +75,74 @@ fn the_open_plot_you_stand_in_is_lit_and_on_nobodys_meter() {
     for z in dark.zones.iter_mut() {
         z.body.lights.clear();
     }
-    let auto = auto_room_lights(std::iter::once((Vec3::new(80.0, 2.0, 40.0), Vec3::new(10.0, 4.0, 10.0))));
+    let auto = auto_room_lights(Some(&dark), std::iter::once((Vec3::new(80.0, 2.0, 40.0), Vec3::new(10.0, 4.0, 10.0))));
     let filled = home_lights(Some(&dark), auto, true);
     assert_eq!(filled.len(), 1 + want.len(), "the auto fill went out when a neighbour's plot was lit");
+}
+
+/// A DOOR'S STOREY TOLERANCE IS THE STEP UP (ship homes increment 7): a body counts for a door when
+/// its feet are within `door_anim::DOOR_STOREY_TOLERANCE_M` of the door's band, which says it is
+/// footing's `STEP_UP_M`, the height a body steps up onto a raised floor. door_anim.rs compiles in
+/// the relay, where footing.rs does not, so the number is written twice and held equal here.
+/// Seen red 2026-10-20 with the tolerance at 0.5: "left: 0.5, right: 0.6".
+#[test]
+fn a_doors_storey_tolerance_is_the_step_up() {
+    assert_eq!(crate::systems::door_anim::DOOR_STOREY_TOLERANCE_M, crate::engine::footing::STEP_UP_M);
+}
+
+/// PIPES RUN UNDER EACH STOREY'S OWN CEILING (ship homes increment 7, plan section 3: conduits per
+/// storey). In a 6 m home with a 0.25 m floor slab at 3.0, the ground storey's pipes hang from the
+/// slab's underside (2.75) and run 0.3 m under it, at 2.45; the upper storey's from the roof, at
+/// 5.7; a run from a machine downstairs to one upstairs takes the upper storey's level (up through
+/// the floor, along, down). A home with no slab keeps the one level it always had, 0.3 m under its
+/// roof, and a body standing higher in the ship carries its levels with it.
+///
+/// Seen red 2026-10-20 with main's one level put back: "left: [(0.0, 6.0)], right: [(0.0, 2.75),
+/// (3.0, 6.0)]".
+#[test]
+fn pipes_run_under_each_storeys_own_ceiling() {
+    let mut body: crate::ship::home_structure::HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 6.0)").unwrap();
+    let flat = service_levels(&body, Vec3::ZERO);
+    assert_eq!(flat, vec![(0.0, 6.0)], "a body with no slab has one level, floor to roof");
+    let (a, b) = (Vec3::new(1.0, 0.35, 1.0), Vec3::new(8.0, 0.35, 8.0));
+    let (sy, ceiling) = run_level(&flat, a, b);
+    assert!((sy - 5.7).abs() < 1e-5 && ceiling == 6.0, "one storey's pipes run 0.3 m under the roof: {sy}, {ceiling}");
+    body.floors.push(ron::from_str("(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)").unwrap());
+    let levels = service_levels(&body, Vec3::ZERO);
+    assert_eq!(levels, vec![(0.0, 2.75), (3.0, 6.0)]);
+    let (sy, ceiling) = run_level(&levels, a, b);
+    assert!((sy - 2.45).abs() < 1e-5 && (ceiling - 2.75).abs() < 1e-6, "the ground storey's pipes run at {sy} under {ceiling}, want 2.45 under 2.75");
+    let (sy, ceiling) = run_level(&levels, a, Vec3::new(8.0, 3.35, 8.0));
+    assert!((sy - 5.7).abs() < 1e-5 && ceiling == 6.0, "a run to a machine upstairs runs at {sy} under {ceiling}, want 5.7 under 6");
+    assert_eq!(service_levels(&body, Vec3::new(0.0, 10.0, 0.0))[1], (13.0, 16.0));
+}
+
+/// A MACHINE'S PIPES AND A ROOM'S LIGHT KEEP TO THEIR STOREY (plan section 3: the pipe anchor from
+/// the machine's storey floor; auto room lights at the room's own ceiling). On the shipped ship
+/// with the home given an upper floor (a slab at 3.0 over its whole box, the body 6 m tall), a
+/// machine standing on that floor anchors its pipes on it, 3.0 over the zone's floor (the
+/// placement's own floor is the zone's), one on the ground on the ground, and a point in no zone
+/// keeps the placement's floor. A room under the slab is lit 0.1 m under the slab's underside, not
+/// inside the slab at its top; a room upstairs 0.1 m under the roof.
+///
+/// Seen red 2026-10-20 with main's anchor and light put back: "a machine upstairs anchors its pipes at
+/// 0, not on its floor at 3".
+#[test]
+fn a_machines_pipes_and_a_rooms_light_keep_to_their_storey() {
+    let mut ship = ship("p1");
+    let hz = ship.home_zone_index();
+    let o = ship.zones[hz].origin_vec();
+    let (w, d) = (ship.zones[hz].body.width, ship.zones[hz].body.depth);
+    ship.zones[hz].body.height = 6.0;
+    ship.zones[hz].body.floors.push(ron::from_str(&format!("(a: (0.0, 0.0), b: ({w}, {d}), top: 3.0)")).unwrap());
+    let at = |y: f32| o + Vec3::new(w * 0.5, y, d * 0.5);
+    let up = storey_floor_at(Some(&ship), at(3.0), o.y);
+    assert!((up - (o.y + 3.0)).abs() < 1e-5, "a machine upstairs anchors its pipes at {up}, not on its floor at {}", o.y + 3.0);
+    assert!((storey_floor_at(Some(&ship), at(0.0), o.y) - o.y).abs() < 1e-5, "a machine on the ground anchors on the ground");
+    assert_eq!(storey_floor_at(Some(&ship), Vec3::new(-5000.0, 0.0, -5000.0), 7.0), 7.0, "a point in no zone keeps its own floor");
+    let room = Vec3::new(10.0, 3.0, 10.0);
+    let below = auto_room_lights(Some(&ship), std::iter::once((at(1.5), room)));
+    assert!((below[0].pos.y - (o.y + 2.65)).abs() < 1e-4, "the room under the floor is lit at {}, want {} under the slab", below[0].pos.y, o.y + 2.65);
+    let above = auto_room_lights(Some(&ship), std::iter::once((at(4.5), room)));
+    assert!((above[0].pos.y - (o.y + 5.9)).abs() < 1e-4, "the room upstairs is lit at {}", above[0].pos.y);
 }
