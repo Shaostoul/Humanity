@@ -3348,7 +3348,8 @@ Moon then 121 degrees east of the Sun, about 76% lit, waxing):
   from ecliptic south, but not the view the page's own comment intends
   ("looking down at the ecliptic").
 
-**Still not right, found on the way:** the Moon's node and perigee are held at
+**Still not right, found on the way (the Moon's part FIXED the same day, see
+the follow-up below):** the Moon's node and perigee are held at
 their J2000 values, while the real node regresses (18.6 years) and the perigee
 advances (8.85 years). On 2026-10-21 the real ascending node is at 326.3
 degrees, near the held DESCENDING node (305.1), so the drawn Moon can sit up to
@@ -3359,6 +3360,105 @@ unaffected (within 1.5 degrees for these months). The fix is two published
 rates (JPL lists the periods beside the elements) and a mean anomaly that
 advances at the anomalistic rate, not the sidereal one. The game's missing axial tilt (BUG-139) still puts a planet up to
 23.4 degrees off its real declination among the stars.
+
+**Follow-up, 2026-10-21: the Moon's orbit turns, and the Maps page sees every
+solar eclipse (FIXED).** Each check below was seen failing first.
+
+- The data: the Moon's entry in `data/star_systems/sol.json` carries
+  `longitude_ascending_node_precession_years: -18.6` and
+  `argument_perihelion_precession_years: 5.997` (signed periods: + the angle
+  grows, - it shrinks, absent = held), `catalog_version` 5. Any body may carry
+  them; nothing in the code names the Moon.
+- The model (`src/cosmos.rs`): `orbit_angles_deg_at` turns the node and the
+  argument of periapsis at those rates; `mean_anomaly_deg_at` runs the mean
+  anomaly at 360 / period less both rates, because the period in the data is
+  the sidereal one (the mean longitude's), so the anomaly runs at the
+  anomalistic month (27.5546 days) and the phase is unchanged;
+  `sample_orbit_points` now takes the moment, so the Moon's orbit line (the
+  world's rings, cached at world entry in `engine/world_load.rs`, and the Maps
+  page's) is drawn where the orbit lies then.
+- The Moon against JPL Horizons
+  (`cosmos::tests::the_moon_stands_at_its_jpl_horizons_latitude_and_longitude`,
+  fourteen dates 2000 to 2040): held, worst 10.42 degrees in latitude and 14.25
+  in longitude, the Moon on the wrong side of the ecliptic on four dates;
+  fixed, 0.343 and 2.54. On 2026-10-21 00:00 UT: Horizons latitude -0.408,
+  held -1.559, fixed -0.268. A daily sweep 2000 to 2041 (a JavaScript copy of
+  the propagator against Horizons' daily vectors) has the same worst days and
+  rms errors of 0.135 (latitude) and 1.03 (longitude). The phases stay within
+  1.54 degrees of the Naval Observatory's (1.44 before).
+- The rates' signs (`the_moons_node_regresses_and_its_perigee_advances`): the
+  node -19.355 degrees a year, the perigee +40.675; the model's Moon crosses
+  the ecliptic going north in October 2026 at 326.32 (Horizons 327.7).
+- Lunar eclipses (`the_moon_meets_earths_shadow_at_nasas_2026_lunar_eclipses`):
+  of 2026's thirteen full Moons, the model's Moon meets Earth's umbra at NASA's
+  two, 2026-03-03 total (2.9 hours early, 0.343 degree from the shadow's
+  centre, total under 0.434) and 2026-08-28 partial (2.6 hours late). Held,
+  they fell on 2026-02-01 and 2026-07-29, a month early.
+- Solar eclipses on the Maps page
+  (`maps::sky_events::tests::the_maps_page_finds_nasas_solar_eclipses_of_2026_and_2027`
+  and `the_upcoming_list_names_each_eclipse_at_its_hour`, in
+  `sky_events_tests.rs`): NASA has four in 2026 and 2027. Held, the page found
+  one, 7.8 hours off and called partial. With the rates it found two, both
+  called partial, because the detector asked whether the discs overlap from
+  Earth's CENTRE: an eclipse whose shadow falls far from the point under the
+  Moon (2026-08-12, gamma 0.90; 2026-02-17, gamma -0.97) never overlaps there.
+  `sky_events.rs` now widens the overlap by the Moon's parallax less the Sun's
+  (seen from somewhere on Earth), calls an eclipse central when gamma, the
+  separation over that parallax, is under 1 (total if the Moon, nearer there by
+  sqrt(1 - gamma^2) Earth radii, covers the Sun), and times greatest eclipse by
+  the least separation rather than the most coverage. Now all four: 2026-02-17
+  partial +2.4 h (NASA: annular, grazing; see below), 2026-08-12 total -1.8 h,
+  2027-02-06 annular +1.2 h, 2027-08-02 total -0.0 h, and no others.
+
+**What was read, 2026-10-21** (a reading of public sources):
+
+- JPL Solar System Dynamics, "Planetary Satellite Mean Elements",
+  https://ssd.jpl.nasa.gov/sats/elem/ (the server reports it last modified
+  2026-10-06). The Moon's row: ephemeris "DE405/LE405", frame "ecliptic", epoch
+  "2000-01-01.5", a 384400. km, e 0.0554, w 318.15, M 135.27, i 5.16, node
+  125.08, P 27.322 days, P apsis 5.997 years, P node 18.600 years. The page
+  defines P as "sidereal period", P apsis as "argument of periapsis precession
+  period" and P node as "longitude of the ascending node precession period",
+  and warns that the elements "are not intended for ephemeris computation".
+  The periods are unsigned. The signs come from Horizons itself: its daily
+  geocentric Moon vectors (DE441, ecliptic of J2000, 2000-01-01 to
+  2041-01-01, fetched the same day) cross the ecliptic going north 550 times
+  with the node moving -19.355 degrees a year (18.600 years, regressing), and
+  reach perigee 543 times with it moving +40.671 a year (8.852 years); the
+  argument of perigee therefore advances 60.025 a year (5.997 years), JPL's
+  figures exactly.
+- Kept from the NASA Moon Fact Sheet (nssdc.gsfc.nasa.gov, "Last Updated: 11
+  January 2024"): revolution period 27.3217 days, inclination 5.145,
+  eccentricity 0.0549. JPL's rounded 27.322 moves the mean longitude 1.4
+  degrees by 2026 (longitude worst 4.7 against 2.5 over 2000 to 2040), and its
+  e and i measured no better against Horizons.
+- NASA eclipse pages by Fred Espenak: "Five Millennium Catalog of Solar
+  Eclipses: 2001 to 2100", https://eclipse.gsfc.nasa.gov/SEcat5/SE2001-2100.html
+  (page dated 2010 Jul 21), rows "2026 Feb 17 12:13:06 75 ... A ... -0.9743",
+  "2026 Aug 12 17:47:06 75 ... T ... 0.8977", "2027 Feb 06 16:00:48 76 ... A
+  ... -0.2952", "2027 Aug 02 10:07:50 76 ... T ... 0.1421" (TD of greatest
+  eclipse, Delta T, type, gamma); "Decade Tables of Lunar Eclipses: 2021 to
+  2030", https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html (page dated
+  2013 Dec 09), "2026 Mar 03 11:34:52 Total" (umbral magnitude 1.151) and
+  "2026 Aug 28 04:14:04 Partial" (0.930); and the shadow-size page,
+  https://eclipse.gsfc.nasa.gov/LEcat5/shadow.html: "umbral radius: Ru = 1.01 *
+  Pm - Ss + Ps" (Danjon's rule, which Espenak's canon uses).
+
+**Still approximate, plainly:** the Moon is a precessing Kepler ellipse with
+none of its periodic perturbations (the largest, evection, is over a degree of
+longitude, and the real node swings a degree or two either side of its mean
+with the Sun, as the crossings above show), so its place is good to 0.35
+degree in latitude and 2.5 in longitude, and eclipse times to a few hours (2.9
+at worst of the six checked). A grazing eclipse can come out the wrong kind:
+NASA's annular of 2026-02-17 (gamma -0.97) is partial on the page, the model's
+Moon a few hundredths of a degree too far from the Sun there for its shadow's
+axis to touch Earth. The rates are linear, without the
+Moon's secular acceleration, fine for decades, not millennia. The Moon's
+distance was not checked against Horizons. The Maps page predicts no lunar
+eclipses at all (the model would place them right, as the test shows; that is
+a feature still to build), and its eclipse readout says whether one is
+happening anywhere on Earth, not where you stand. The web Maps page uses none
+of this model (see above).
 
 **Also found on the way, and not BUG-140: from the ground at night the Moon is
 drawn BLACK.** The rig frame of 2026-10-21 (below) has the Moon exactly where

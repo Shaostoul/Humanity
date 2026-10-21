@@ -125,7 +125,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
             continue;
         }
         let n = if body.body_type == "moon" { 48 } else { 96 };
-        let points = sample_orbit_points(body, n);
+        let points = sample_orbit_points(body, n, sim_time);
         if points.is_empty() { continue; }
         let stroke = if body.body_type == "moon" {
             Stroke::new(0.4, Color32::from_rgb(35, 35, 55))  // theme-exempt: moon orbit — faintest

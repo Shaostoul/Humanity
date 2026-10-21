@@ -61,9 +61,19 @@ pub struct SolBody {
     /// Argument of periapsis in degrees — angle from ascending node to
     /// the periapsis point.
     pub argument_perihelion_deg: f64,
+    /// How the ascending node turns, as a SIGNED precession period in Julian
+    /// years (the time it takes to go once round, the column JPL lists as
+    /// "P node"): positive when the node advances, negative when it regresses.
+    /// 0.0, or absent from the data, holds the node at its epoch value. The
+    /// Moon's node regresses once in 18.6 years, so its value is -18.6.
+    pub longitude_ascending_node_precession_years: f64,
+    /// The same for the argument of periapsis (JPL's "P apsis"). The Moon's
+    /// advances once in 6.0 years; with the node going the other way, its
+    /// perigee (node plus argument) goes round once in 8.85 years.
+    pub argument_perihelion_precession_years: f64,
     /// Mean anomaly at epoch (J2000) in degrees. Combined with
     /// `orbital_period_days` + sim_time, gives the body's snapshot
-    /// position.
+    /// position (`mean_anomaly_deg_at`).
     pub mean_anomaly_deg: f64,
     /// Body radius in km — for visual sizing.
     pub radius_km: f64,
@@ -84,7 +94,11 @@ pub struct SolBody {
     /// at 0.0 by convention (their `surface_pressure_atm` in the JSON is
     /// null for the same reason).
     pub surface_pressure_pa: f64,
-    /// Orbital period in days.
+    /// Sidereal orbital period in days: the time the mean longitude (node plus
+    /// argument of periapsis plus mean anomaly) takes to go once round against
+    /// the stars. When the node and the periapsis turn, the mean anomaly runs
+    /// at the anomalistic rate, 360 / period less the two precession rates
+    /// (`mean_anomaly_deg_at`), so the mean longitude still keeps this period.
     pub orbital_period_days: f64,
     /// Atmosphere composition summary (top 3 components, formatted).
     /// Empty string if no atmosphere.
@@ -241,6 +255,15 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
                 .and_then(|o| o.get("mean_anomaly_deg"))
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
+            // Optional secular rates: absent means the angle is held at epoch.
+            let longitude_ascending_node_precession_years = orbit
+                .and_then(|o| o.get("longitude_ascending_node_precession_years"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let argument_perihelion_precession_years = orbit
+                .and_then(|o| o.get("argument_perihelion_precession_years"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
             let physical = body.get("physical");
             let radius_km = physical.and_then(|p| p.get("radius_km")).and_then(|v| v.as_f64()).unwrap_or(1000.0);
             let mass_kg = physical.and_then(|p| p.get("mass_kg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -294,7 +317,9 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
                 id, name, body_type, parent,
                 semi_major_axis_au, semi_major_axis_km,
                 eccentricity, inclination_deg,
-                longitude_ascending_node_deg, argument_perihelion_deg, mean_anomaly_deg,
+                longitude_ascending_node_deg, argument_perihelion_deg,
+                longitude_ascending_node_precession_years, argument_perihelion_precession_years,
+                mean_anomaly_deg,
                 orbital_period_days,
                 radius_km, mass_kg, surface_gravity_ms2, mean_temperature_k,
                 magnetic_field_t, surface_pressure_pa,
@@ -339,17 +364,91 @@ pub fn kepler_solve(mean_anom: f64, ecc: f64) -> f64 {
     e_anom
 }
 
+/// Seconds in a Julian year (365.25 days of 86,400 s), the year the
+/// precession periods in sol.json are given in.
+const SECONDS_PER_JULIAN_YEAR: f64 = 365.25 * 86_400.0;
+
+/// Degrees per second from a signed precession period in Julian years (see
+/// `SolBody::longitude_ascending_node_precession_years`). 0 holds the angle.
+fn precession_deg_per_sec(period_years: f64) -> f64 {
+    if period_years != 0.0 {
+        360.0 / (period_years * SECONDS_PER_JULIAN_YEAR)
+    } else {
+        0.0
+    }
+}
+
+/// The orbit's longitude of the ascending node and argument of periapsis at
+/// `sim_time_seconds`, in degrees (not wrapped): the J2000 values carried on by
+/// their precession rates. A body with no rates in the data keeps its J2000
+/// orientation, exactly as before the rates existed.
+///
+/// The Moon is why this exists (2026-10-21, after BUG-140): held at J2000, its
+/// node sat about 200 degrees from the real one by 2026, which put the drawn
+/// Moon up to 10 degrees off its real ecliptic latitude and moved every eclipse
+/// season (`tests::the_moon_stands_at_its_jpl_horizons_latitude_and_longitude`).
+pub fn orbit_angles_deg_at(body: &SolBody, sim_time_seconds: f64) -> (f64, f64) {
+    (
+        body.longitude_ascending_node_deg
+            + precession_deg_per_sec(body.longitude_ascending_node_precession_years) * sim_time_seconds,
+        body.argument_perihelion_deg
+            + precession_deg_per_sec(body.argument_perihelion_precession_years) * sim_time_seconds,
+    )
+}
+
+/// The body's mean anomaly at `sim_time_seconds`, degrees in 0..360.
+///
+/// `orbital_period_days` is the SIDEREAL period, the period of the mean
+/// longitude (node + argument of periapsis + mean anomaly), so when the node
+/// and periapsis turn the mean anomaly runs at the anomalistic rate: 360 /
+/// period less both precession rates. For the Moon that is 27.5546 days from
+/// the sidereal 27.3217, the anomalistic month. A body with no rates runs at
+/// 360 / period, as it always did.
+pub fn mean_anomaly_deg_at(body: &SolBody, sim_time_seconds: f64) -> f64 {
+    // Mean anomaly at epoch J2000 — from data if present, else hashed
+    // from name so untagged minor bodies don't all start at periapsis.
+    let m0_deg = if body.mean_anomaly_deg != 0.0 {
+        body.mean_anomaly_deg
+    } else {
+        (body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) % 360) as f64
+    };
+    // Bodies without an orbital_period_days value stay at their epoch
+    // anomaly (Phase 4d may estimate it from Kepler's third law later).
+    let m_deg_per_sec = if body.orbital_period_days > 0.0 {
+        360.0 / (body.orbital_period_days * 86_400.0)
+            - precession_deg_per_sec(body.longitude_ascending_node_precession_years)
+            - precession_deg_per_sec(body.argument_perihelion_precession_years)
+    } else {
+        0.0
+    };
+    (m0_deg + m_deg_per_sec * sim_time_seconds).rem_euclid(360.0)
+}
+
+/// The orbit's in-plane axes in the ecliptic frame of J2000 at a moment: P
+/// toward periapsis and Q a quarter turn on in the direction of motion (the
+/// standard perifocal P and Q vectors), so a point (x, y) of the orbital plane
+/// lies at `x * P + y * Q`. They are the first two columns of the 3-1-3 Euler
+/// rotation Rz(node) * Rx(inclination) * Rz(argument of periapsis).
+fn perifocal_axes_ecliptic(body: &SolBody, sim_time_seconds: f64) -> (glam::DVec3, glam::DVec3) {
+    let (node_deg, arg_deg) = orbit_angles_deg_at(body, sim_time_seconds);
+    let (s_om, c_om) = node_deg.to_radians().sin_cos();
+    let (s_inc, c_inc) = body.inclination_deg.to_radians().sin_cos();
+    let (s_w, c_w) = arg_deg.to_radians().sin_cos();
+    (
+        glam::DVec3::new(c_om * c_w - s_om * s_w * c_inc, s_om * c_w + c_om * s_w * c_inc, s_w * s_inc),
+        glam::DVec3::new(-c_om * s_w - s_om * c_w * c_inc, -s_om * s_w + c_om * c_w * c_inc, c_w * s_inc),
+    )
+}
+
 /// Compute a body's position relative to its parent, in AU. Applies real
 /// Kepler orbital mechanics — eccentricity, inclination, argument of
 /// perihelion, longitude of ascending node, mean anomaly at epoch +
-/// mean motion × sim_time.
+/// mean motion × sim_time — on an ellipse that turns at the node and
+/// periapsis rates the data gives (`orbit_angles_deg_at`, the Moon's).
 ///
 /// `sim_time_seconds` is seconds since the J2000.0 epoch
-/// (2000-01-01 12:00:00 UTC). Pass 0 for the snapshot configuration
-/// (used by orbit-line sampling so the line itself doesn't slither as
-/// the user scrubs time). For LIVE body positions, pass the cosmos
-/// sim_time so mean anomaly advances at `360 / orbital_period_days`
-/// degrees per day.
+/// (2000-01-01 12:00:00 UTC). For LIVE body positions, pass the cosmos
+/// sim_time.
 pub fn body_position_relative_au(body: &SolBody, sim_time_seconds: f64) -> glam::DVec3 {
     let a_au = if body.semi_major_axis_au > 0.0 {
         body.semi_major_axis_au
@@ -359,50 +458,16 @@ pub fn body_position_relative_au(body: &SolBody, sim_time_seconds: f64) -> glam:
         return glam::DVec3::ZERO;
     };
     let e = body.eccentricity.clamp(0.0, 0.99);
-    // Mean anomaly at epoch J2000 — from data if present, else hashed
-    // from name so untagged minor bodies don't all start at periapsis.
-    let m0_deg = if body.mean_anomaly_deg != 0.0 {
-        body.mean_anomaly_deg
-    } else {
-        (body.name.bytes().fold(0u64, |a, b| a.wrapping_add(b as u64)) % 360) as f64
-    };
-    // Advance by sim_time. Mean motion = 360 deg / orbital_period.
-    // Bodies without an orbital_period_days value stay at their epoch
-    // anomaly (Phase 4d may estimate it from Kepler's third law later).
-    let n_deg_per_sec = if body.orbital_period_days > 0.0 {
-        360.0 / (body.orbital_period_days * 86_400.0)
-    } else {
-        0.0
-    };
-    let m_deg = (m0_deg + n_deg_per_sec * sim_time_seconds).rem_euclid(360.0);
-    let m_rad = m_deg.to_radians();
-    let ea = kepler_solve(m_rad, e);
+    let ea = kepler_solve(mean_anomaly_deg_at(body, sim_time_seconds).to_radians(), e);
     // Perifocal coordinates: periapsis along +X of the orbital plane.
     //   x = a * (cos E - e)
     //   y = a * sqrt(1 - e²) * sin E
     let x_peri = a_au * (ea.cos() - e);
     let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
-    // 3-1-3 Euler rotation: Rz(Ω) · Rx(i) · Rz(ω) applied to the
-    // perifocal (x, y, 0) vector. Combined rotation matrix entries:
-    let big_omega = body.longitude_ascending_node_deg.to_radians();
-    let inc = body.inclination_deg.to_radians();
-    let small_omega = body.argument_perihelion_deg.to_radians();
-    let (s_om, c_om) = big_omega.sin_cos();
-    let (s_inc, c_inc) = inc.sin_cos();
-    let (s_w, c_w) = small_omega.sin_cos();
-    let r11 = c_om * c_w - s_om * s_w * c_inc;
-    let r12 = -c_om * s_w - s_om * c_w * c_inc;
-    let r21 = s_om * c_w + c_om * s_w * c_inc;
-    let r22 = -s_om * s_w + c_om * c_w * c_inc;
-    let r31 = s_w * s_inc;
-    let r32 = c_w * s_inc;
     // The perifocal (x, y, 0) vector in the ecliptic frame, then into the
     // world by the one mapping every reader shares (BUG-140).
-    world_from_ecliptic(glam::DVec3::new(
-        r11 * x_peri + r12 * y_peri,
-        r21 * x_peri + r22 * y_peri,
-        r31 * x_peri + r32 * y_peri,
-    ))
+    let (p, q) = perifocal_axes_ecliptic(body, sim_time_seconds);
+    world_from_ecliptic(p * x_peri + q * y_peri)
 }
 
 /// How the ecliptic sits in the world, the one place it is decided.
@@ -458,7 +523,13 @@ pub fn body_world_position_3d_au(body: &SolBody, sim_time_seconds: f64) -> glam:
 /// Sample a body's orbit at N points around the orbital ellipse, in the
 /// PARENT's frame (parent at origin). Returns positions in AU.
 /// Used by orbit-line rendering.
-pub fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
+///
+/// `sim_time_seconds` picks the moment whose ellipse is drawn: an orbit whose
+/// node and periapsis turn (the Moon's, a degree every 19 days) is drawn
+/// where it lies then, so the body sits on its own line. The ellipse's SHAPE
+/// never depends on it, and for a body without rates the line is the same at
+/// every moment.
+pub fn sample_orbit_points(body: &SolBody, n: usize, sim_time_seconds: f64) -> Vec<glam::DVec3> {
     let a_au = if body.semi_major_axis_au > 0.0 {
         body.semi_major_axis_au
     } else if body.semi_major_axis_km > 0.0 {
@@ -467,18 +538,7 @@ pub fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
         return Vec::new();
     };
     let e = body.eccentricity.clamp(0.0, 0.99);
-    let big_omega = body.longitude_ascending_node_deg.to_radians();
-    let inc = body.inclination_deg.to_radians();
-    let small_omega = body.argument_perihelion_deg.to_radians();
-    let (s_om, c_om) = big_omega.sin_cos();
-    let (s_inc, c_inc) = inc.sin_cos();
-    let (s_w, c_w) = small_omega.sin_cos();
-    let r11 = c_om * c_w - s_om * s_w * c_inc;
-    let r12 = -c_om * s_w - s_om * c_w * c_inc;
-    let r21 = s_om * c_w + c_om * s_w * c_inc;
-    let r22 = -s_om * s_w + c_om * c_w * c_inc;
-    let r31 = s_w * s_inc;
-    let r32 = c_w * s_inc;
+    let (p, q) = perifocal_axes_ecliptic(body, sim_time_seconds);
     let mut out = Vec::with_capacity(n + 1);
     for i in 0..=n {
         // Sample uniformly in eccentric anomaly so high-e ellipses still
@@ -486,11 +546,7 @@ pub fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
         let ea = (i as f64 / n as f64) * std::f64::consts::TAU;
         let x_peri = a_au * (ea.cos() - e);
         let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
-        out.push(world_from_ecliptic(glam::DVec3::new(
-            r11 * x_peri + r12 * y_peri,
-            r21 * x_peri + r22 * y_peri,
-            r31 * x_peri + r32 * y_peri,
-        )));
+        out.push(world_from_ecliptic(p * x_peri + q * y_peri));
     }
     out
 }
@@ -951,8 +1007,8 @@ mod tests {
     }
 
     /// BUG-140 and the Moon's missing elements: the Moon is waxing when it is
-    /// waxing. Measured 2026-10-21 within 1.5 degrees at all twelve instants
-    /// (the model keeps the J2000 node and perigee fixed and has none of the
+    /// waxing. Measured 2026-10-21 within 1.54 degrees at all thirteen instants
+    /// (1.44 before the node and perigee turned; the model has none of the
     /// Moon's large perturbations, which is a few degrees in a bad month), so
     /// the gate is 2.5. Red check, run, two ways: today's sol.json had no
     /// mean anomaly, node or perigee for the Moon (its phase came from a hash
@@ -970,5 +1026,222 @@ mod tests {
         }
         println!("the Moon's elongation east of the Sun:{table}");
         assert!(worst < 2.5, "the Moon is off its phase (2.5 degrees allowed):{table}");
+    }
+
+    // ── The Moon's turning orbit (2026-10-21, the follow-up to BUG-140) ──
+
+    /// The Moon's geocentric place from JPL Horizons (DE441), km, in the
+    /// ecliptic and mean equinox of J2000, geometric (no light time). Request:
+    /// COMMAND=301, EPHEM_TYPE=VECTORS, CENTER=500@399, REF_PLANE=ECLIPTIC,
+    /// REF_SYSTEM=ICRF, TIME_TYPE=UT, VEC_TABLE=1, OUT_UNITS=KM-S, TLIST of
+    /// these instants as Julian days; fetched 2026-10-21 from
+    /// https://ssd.jpl.nasa.gov/api/horizons.api. Columns: UT, the engine's sim
+    /// seconds, then X, Y, Z exactly as Horizons printed them. The dates span
+    /// two turns of the node; 2001-03-06 and 2027-12-16 are the worst days in
+    /// longitude and latitude of a daily sweep (see the test), and 2027-08-08
+    /// and 2039-12-22 the worst for the elements held at J2000.
+    const HORIZONS_MOON_GEO_KM: &[(&str, f64, f64, f64, f64)] = &[
+        ("2000-01-01 12:00", 0.0, -2.915670760779644E+05, -2.750266556035658E+05, 3.627045763156361E+04),
+        ("2001-03-06 12:00", 37152000.0, -1.862151051737822E+05, 3.110136986257118E+05, 9.623889631305196E+03),
+        ("2004-07-15 00:00", 143121600.0, 3.065378240420515E+04, 4.041801760965426E+05, 2.619267778092049E+04),
+        ("2008-11-20 00:00", 280411200.0, -3.253246972717696E+05, 1.939615200617575E+05, -9.644420532948578E+03),
+        ("2013-04-10 00:00", 418824000.0, 3.763332355565282E+05, 1.036983650043483E+05, 1.857819913302323E+04),
+        ("2017-08-21 18:00", 556610400.0, -3.166771021663696E+05, 1.952454742972497E+05, 2.609061109067989E+03),
+        ("2022-01-05 00:00", 694612800.0, 2.590957196923129E+05, -2.571625789964821E+05, -3.172899037377932E+04),
+        ("2026-10-21 00:00", 845812800.0, 3.154012378105788E+05, -2.370060813648762E+05, -2.812831707305464E+03),
+        ("2027-08-08 12:00", 870998400.0, -3.062095733542076E+05, -2.296017422678114E+05, -3.535927460396917E+04),
+        ("2027-12-16 12:00", 882230400.0, -1.942268818351540E+05, 3.080066786248458E+05, 9.559772928238090E+01),
+        ("2031-03-15 00:00", 984571200.0, -1.444374844083635E+05, -3.423628636763556E+05, 4.161863716041145E+03),
+        ("2035-08-02 00:00", 1122897600.0, -9.388244383557852E+04, 3.473973537701076E+05, -2.524743389550396E+04),
+        ("2039-12-22 12:00", 1261440000.0, 3.847426607384254E+05, 6.125661945332113E+03, -3.369625478179914E+04),
+        ("2040-03-01 00:00", 1267444800.0, -3.842213253735183E+05, -2.544236015532333E+04, 3.017009109964336E+04),
+    ];
+
+    /// The Moon stands at its real ecliptic latitude and longitude, seen from
+    /// Earth, from 2000 to 2040: only possible while its node regresses and its
+    /// perigee advances at their real rates. Read in the world by the ground's
+    /// own east, through the same chain the game places the Moon by (Moon world
+    /// position less Earth's).
+    ///
+    /// The model is a precessing Kepler ellipse with none of the Moon's periodic
+    /// perturbations (the largest, evection, is over a degree of longitude).
+    /// Measured 2026-10-21: 0.343 degree
+    /// worst in latitude and 2.54 in longitude on these dates. A daily sweep of
+    /// Horizons from 2000-01-01 to 2041-01-01 (14,976 days, same request with
+    /// STEP_SIZE 1 d), run through a JavaScript copy of this propagator, found
+    /// the same two worst days and rms errors of 0.135 (latitude) and 1.03
+    /// (longitude). So the gates are 0.4 and 3.0.
+    ///
+    /// Red check, run 2026-10-21 against the node and perigee held at their J2000
+    /// values (sol.json catalog_version 4, before the rates): "worst lat 10.423,
+    /// lon 14.245", thirteen of the fourteen dates out (all but the epoch), the
+    /// Moon on the wrong side of the ecliptic on four. From that run's table
+    /// (Horizons | world):
+    ///   2004-07-15 00:00: lat  3.697 | -3.287
+    ///   2013-04-10 00:00: lon  15.406 lat  2.725 | lon   4.593 lat -4.437
+    ///   2026-10-21 00:00: lat -0.408 | -1.559
+    ///   2027-08-08 12:00: lat -5.278 |  5.144
+    ///   2039-12-22 12:00: lon   0.912 | 346.667 (14.2 degrees behind)
+    /// Fixed: "worst lat 0.343, lon 2.540", and 2026-10-21 at lat -0.268.
+    #[test]
+    fn the_moon_stands_at_its_jpl_horizons_latitude_and_longitude() {
+        let earth = find_body("earth").expect("earth");
+        let moon = find_body("moon").expect("moon");
+        let mut table = String::new();
+        let (mut worst_lat, mut worst_lon) = (0.0_f64, 0.0_f64);
+        for &(when, t, x, y, z) in HORIZONS_MOON_GEO_KM {
+            let want_lon = y.atan2(x).to_degrees().rem_euclid(360.0);
+            let want_lat = (z / (x * x + y * y + z * z).sqrt()).asin().to_degrees();
+            let w = body_world_position_3d_au(moon, t) - body_world_position_3d_au(earth, t);
+            let got_lon = engine_longitude_deg(w);
+            let got_lat = (w.y / w.length()).asin().to_degrees();
+            let (dlon, dlat) = (wrap_deg(got_lon - want_lon), got_lat - want_lat);
+            worst_lat = worst_lat.max(dlat.abs());
+            worst_lon = worst_lon.max(dlon.abs());
+            table.push_str(&format!(
+                "\n  {when}: Horizons lon {want_lon:8.3} lat {want_lat:7.3} | world lon {got_lon:8.3} lat {got_lat:7.3} | off {dlon:8.3} {dlat:7.3}"
+            ));
+        }
+        println!("the Moon's geocentric ecliptic place, Horizons vs the world (worst lat {worst_lat:.3}, lon {worst_lon:.3}):{table}");
+        assert!(
+            worst_lat < 0.4 && worst_lon < 3.0,
+            "the Moon is off its real place (latitude 0.4, longitude 3.0 degrees allowed; worst {worst_lat:.3}, {worst_lon:.3}):{table}"
+        );
+    }
+
+    /// The rates in sol.json are the ones the Moon's orbit actually has, read
+    /// from the model's own orbit: its ascending node, measured as the
+    /// longitude where the Moon crosses the ecliptic going north, regresses
+    /// 19.355 degrees a year (once in 18.600 years), and its perigee advances
+    /// once in 8.85 years. A sign typed wrong in the data (JPL lists the
+    /// periods unsigned) would advance the node instead, which this catches
+    /// even where a latitude check on a few dates might not. Measured the same
+    /// way from Horizons' daily vectors 2000 to 2041 (550 crossings, 2026-10-21):
+    /// node -19.355 degrees a year, perigee +40.671 (8.852 years).
+    #[test]
+    fn the_moons_node_regresses_and_its_perigee_advances() {
+        let moon = find_body("moon").expect("moon");
+        let year = SECONDS_PER_JULIAN_YEAR;
+        let (n0, w0) = orbit_angles_deg_at(moon, 0.0);
+        let (n1, w1) = orbit_angles_deg_at(moon, 10.0 * year);
+        let node_per_year = (n1 - n0) / 10.0;
+        let perigee_per_year = ((n1 + w1) - (n0 + w0)) / 10.0;
+        println!("node {node_per_year:.3} deg/yr, perigee {perigee_per_year:.3} deg/yr");
+        assert!((node_per_year + 19.355).abs() < 0.01, "node {node_per_year} deg/yr, want -19.355");
+        assert!((perigee_per_year - 40.67).abs() < 0.02, "perigee {perigee_per_year} deg/yr, want +40.67");
+        // And the ecliptic crossing itself, from positions: the Moon going north
+        // through the ecliptic in October 2026 does so near the real node.
+        // Horizons' daily vectors, interpolated, cross going north at about
+        // 329.2 (2026-09-24 03 UT), 327.7 (2026-10-21 09 UT) and 324.7
+        // (2026-11-17 12 UT): the mean node, 326.4, with the real node's swing
+        // of 1.5 degrees either way that the Sun drives on top, which the model
+        // does not have.
+        let earth = find_body("earth").expect("earth");
+        let rel = |t: f64| body_world_position_3d_au(moon, t) - body_world_position_3d_au(earth, t);
+        let start = 844_128_000.0; // 2026-10-01 12:00 UTC
+        let mut crossing = None;
+        let mut t = start;
+        while t < start + 30.0 * 86_400.0 {
+            let (a, b) = (rel(t), rel(t + 3600.0));
+            if a.y < 0.0 && b.y >= 0.0 {
+                let f = -a.y / (b.y - a.y);
+                crossing = Some(engine_longitude_deg(a + (b - a) * f));
+                break;
+            }
+            t += 3600.0;
+        }
+        let lon = crossing.expect("the Moon crosses the ecliptic going north once a month");
+        println!("ascending crossing, October 2026: {lon:.2}");
+        assert!(wrap_deg(lon - 326.4).abs() < 3.0, "the Moon crosses north at {lon:.2}, the real node is near 326.4");
+    }
+
+    /// NASA's lunar eclipses of 2026 (F. Espenak, "Decade Tables of Lunar
+    /// Eclipses: 2021 to 2030", https://eclipse.gsfc.nasa.gov/LEdecade/LEdecade2021.html,
+    /// page dated 2013 Dec 09, fetched 2026-10-21): "2026 Mar 03 11:34:52 Total"
+    /// (umbral magnitude 1.151) and "2026 Aug 28 04:14:04 Partial" (0.930),
+    /// times in TD, here less the 75 s of Delta T the solar catalog lists for
+    /// 2026. NASA has no other lunar eclipse in 2026, penumbral or umbral.
+    const NASA_LUNAR_ECLIPSES_2026: &[(&str, f64, &str)] = &[
+        ("2026-03-03 11:33:37", 825_809_617.0, "total"),
+        ("2026-08-28 04:12:49", 841_162_369.0, "partial"),
+    ];
+
+    /// The Moon's eclipse seasons: of the thirteen full Moons of 2026 in the
+    /// model, the Moon meets Earth's umbra at exactly NASA's two, as total and
+    /// partial, and misses it at the other eleven. The umbra is the one NASA's
+    /// canon uses (Danjon's rule, quoted from
+    /// https://eclipse.gsfc.nasa.gov/LEcat5/shadow.html, fetched 2026-10-21:
+    /// "umbral radius: Ru = 1.01 * Pm - Ss + Ps", Pm and Ps the Moon's and the
+    /// Sun's equatorial horizontal parallax, Ss the Sun's semi-diameter; "Meeus
+    /// and Mucke (1979) and Espenak (2006) both use Danjon's method"). Each
+    /// eclipse's middle (least distance from the shadow's centre) must fall
+    /// within 5 hours of NASA's, since the model's Moon runs up to 2.5 degrees
+    /// off in longitude, 4.6 hours of its motion. Measured 2026-10-21: total
+    /// 2.9 hours early at 0.343 degree from the shadow's centre (total needs
+    /// under about 0.43), partial 2.6 hours late at 0.489.
+    ///
+    /// Red check, run 2026-10-21 against the node and perigee held at J2000:
+    /// the umbral eclipses fell on the full Moons of 2026-02-01 ("partial ...
+    /// 0.682 degree from the centre") and 2026-07-29 ("total ... 0.105"), a
+    /// month early each, and none on NASA's dates.
+    #[test]
+    fn the_moon_meets_earths_shadow_at_nasas_2026_lunar_eclipses() {
+        const EARTH_EQUATORIAL_KM: f64 = 6378.137;
+        let (earth, moon, sun) = (
+            find_body("earth").expect("earth"),
+            find_body("moon").expect("moon"),
+            find_body("sun").expect("sun"),
+        );
+        // (distance of the Moon from the shadow's centre, umbra radius, Moon radius), degrees.
+        let geometry = |t: f64| -> (f64, f64, f64) {
+            let e = body_world_position_3d_au(earth, t);
+            let to_moon = body_world_position_3d_au(moon, t) - e;
+            let to_sun = body_world_position_3d_au(sun, t) - e;
+            let (dm, ds) = (to_moon.length() * KM_PER_AU, to_sun.length() * KM_PER_AU);
+            let from_antisun = to_moon.angle_between(-to_sun).to_degrees();
+            let pm = (EARTH_EQUATORIAL_KM / dm).asin().to_degrees();
+            let ps = (EARTH_EQUATORIAL_KM / ds).asin().to_degrees();
+            let ss = (sun.radius_km / ds).asin().to_degrees();
+            let sm = (moon.radius_km / dm).asin().to_degrees();
+            (from_antisun, 1.01 * pm - ss + ps, sm)
+        };
+        let start = 820_497_600.0; // 2026-01-01 00:00 UTC
+        let end = 852_033_600.0; // 2027-01-01 00:00 UTC
+        let step = 600.0;
+        // (sim seconds, distance from the shadow's centre, kind, total under, umbral under)
+        let mut found: Vec<(f64, f64, &str, f64, f64)> = Vec::new();
+        let mut full_moons = 0;
+        let (mut s2, mut s1) = (f64::MAX, f64::MAX);
+        let mut t = start;
+        while t <= end {
+            let (s, _, _) = geometry(t);
+            // A full Moon: the middle sample is the least distance from the anti-Sun point.
+            if s1 < s2 && s1 <= s && s1 < 30.0 {
+                full_moons += 1;
+                let tm = t - step;
+                let (d, umbra, rm) = geometry(tm);
+                if d < umbra + rm {
+                    found.push((tm, d, if d < umbra - rm { "total" } else { "partial" }, umbra - rm, umbra + rm));
+                }
+            }
+            (s2, s1) = (s1, s);
+            t += step;
+        }
+        let shown: Vec<String> = found
+            .iter()
+            .map(|(tm, d, k, tot, umb)| {
+                format!(
+                    "{k} at sim {tm:.0} ({:+.2} days from 2026-01-01), {d:.3} degree from the centre (total under {tot:.3}, umbral under {umb:.3})",
+                    (tm - start) / 86_400.0
+                )
+            })
+            .collect();
+        println!("2026 in the model: {full_moons} full Moons; umbral eclipses: {shown:?}");
+        assert_eq!(full_moons, 13, "2026 has thirteen full Moons");
+        assert_eq!(found.len(), NASA_LUNAR_ECLIPSES_2026.len(), "umbral eclipses in 2026: {shown:?}");
+        for (&(when, nasa_t, nasa_kind), &(tm, _, kind, _, _)) in NASA_LUNAR_ECLIPSES_2026.iter().zip(&found) {
+            let hours = (tm - nasa_t) / 3600.0;
+            assert!(hours.abs() < 5.0 && kind == nasa_kind, "NASA {nasa_kind} {when}: the model's is {kind}, {hours:+.1} h ({shown:?})");
+        }
     }
 }
