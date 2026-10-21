@@ -25,6 +25,18 @@
     h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
     .page-sub { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px; }
 
+    /* The Dev tab's list (2026-10-20): the app's Dev tab holds Bugs, Testing, Performance, Dev and
+       Planet Tuner in a side list (src/gui/pages/dev_tab.rs); here the same five in a row, the
+       website's own pages linked, the desktop-only ones marked. */
+    .devtools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+    .devtools a, .devtools span {
+      padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 0.82rem; text-decoration: none; color: var(--text);
+    }
+    .devtools a:hover, .devtools a:focus-visible { border-color: var(--accent); }
+    .devtools .here { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .devtools .desktop-only { color: var(--text-muted); }
+
     /* ── Tab Bar ── */
     .tab-bar {
       display: flex; gap: 2px; margin-bottom: 24px;
@@ -360,6 +372,14 @@
   <div class="container">
     <h1>Dev Workbench</h1>
     <p class="page-sub">Browse assets, test icons, preview components, and inspect theme tokens.</p>
+    <nav class="devtools" aria-label="Dev tools">
+      <a href="/bugs">Bugs</a>
+      <span class="desktop-only" title="In the desktop app's Dev tab">Testing (desktop app)</span>
+      <span class="desktop-only" title="In the desktop app's Dev tab">Performance (desktop app)</span>
+      <span class="here" aria-current="page">Dev</span>
+      <span class="desktop-only" title="In the desktop app's Dev tab">Planet Tuner (desktop app)</span>
+      <a href="/widgets">Widget Playground</a>
+    </nav>
 
     <!-- ── Tab Bar ── -->
     <div class="tab-bar" id="tab-bar">

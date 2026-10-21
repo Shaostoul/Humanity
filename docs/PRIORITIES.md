@@ -347,7 +347,29 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     budget analysis are running; Wave 1's lanes follow Wave 0's merge. (Update, same evening:
     Wave 0 merged; Wave 1's lanes G, M, R, C1, C2 and L running; the home's probe priority merged,
     home 22,092 probes at 1.00 m, the rest of the ship 9,878 at 2.50 m, the GPU cost unchanged;
-    a live "Bounced light detail" setting in Settings > Graphics being built.)
+    a live "Bounced light detail" setting in Settings > Graphics being built.) (Update 2026-10-21:
+    Wave 1's lanes G, M, R, C1, C2 merged and proven in the running game (verify-storeys 76/76,
+    verify-falls 88/88); three critics found 2 HIGH and ~20 lesser seams, fixed by six fixers
+    merged the same morning (f5e0a2a32 to aa1d32c27) and released in v0.1534.0 with BUG-140.
+    Lane L, slabs stopping lamps and sun in the room GI, is still in its worktree: next release.)
+  - **Increment 7 follow-ups (found by the 2026-10-21 fixers, not fixed):** placed box pieces (the
+    "wall" piece, raised decks, slabs) still do not collide; the HUD's labels float over upstairs
+    machines the editor's cut-away hides; plants and grow tents ignore the cut-away; the HUD's room
+    card is blank in the elevator above 3 m (the shaft has no upstairs room box); `moves::on_my_storey`
+    and `stands_in_storey_of` (relay reach, quests) still assume 3 m storeys; the build editor's close
+    can step onto a piece 0.6 m up; world_load orphans every machine's mesh slot each world entry
+    (the shell families are pooled now, machines not); the editor's cut-away is not redrawn after a
+    world load until the storey changes; air handlers c1 and h1 to h4 top out 1 cm under the slab, so
+    their port gizmos draw above the upper floor when selected; the study's uplink and router ports
+    sit outside the east wall; service levels are per home, not per room (hangers stop mid-air in
+    the greenhouse); elevator cars are keyed by structure index, which an edit can shift; a jump
+    from the stair's seventh step can slip past a slab edge (walled by G1 in the homestead); the
+    family mushroom tents settle at 68 to 82% humidity, under the oyster's 85% (known); docs:
+    `homestead_layout_tests.rs` ~483 still says a 0.6 m gap, `wall_collision.rs` ~117-125 and
+    `moves.rs` ~225 comments are stale, player-home.md's plan table and walkthrough are single-storey.
+    Also: `verify-runtime` boots rigs together when the machine's builds end and its gate clock
+    includes waiting for them (BUG-140's fixer saw an out-of-VRAM boot and a stalled frame loop
+    that passed on a lone rerun): toolsmith work.
   - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
     the shared Commons need not drop to 2.5 m to keep the home at 1 m. Hardware ray-traced GI on
@@ -358,14 +380,20 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     are Apps' HumanityOS tools; Recovery is Settings > Account > "Recovery through trusted people",
     right after Security, in plain words. Web: platform.html retired (and removed from the live site
     by scripts/sync-web-root.sh), the top menu's Dev opens the Dev Workbench (dev.html), which carries
-    the same list; recovery.html is linked from Settings > Security. Waiting on lib.rs's owner: the
-    one-word `GuiPage::Platform` -> `GuiPage::Dev` at its creature count and dropping `cosmos`,
-    `recovery`, `platform` from its `use crate::gui::pages::{..}`, then the three marked bridges
-    (gui/mod.rs `GuiPage::Platform` const, pages/mod.rs `cosmos`/`recovery`/`platform` re-exports) go.
+    the same list; recovery.html is linked from Settings > Security. lib.rs followed and the three
+    temporary bridges were deleted (5aac163bb, 2026-10-21).
   - **DONE 2026-10-20: Maps increment 0** (docs/design/maps-zoom-to-anything.md section 6):
     src/gui/pages/cosmos.rs is src/gui/pages/maps/, one file per view, its state one
     `GuiState::maps`; the three Maps snapshots rendered byte-identical. Next: increment 1, the map
     opens on you, follows you, and draws your ship.
+  - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
+    the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
+    Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase
+    from a hash), the Sun on the ground is unchanged. Left (BUG-140's entry in BUGS.md): from the
+    ground at night the Moon is drawn black (the sun light's transmittance at the camera and the
+    night day-factor also gate sky bodies beyond the air, lib.rs ~11415 and ~11466), so its phase
+    shows only from space; the Moon's node and perigee are held at their J2000 values (latitude up
+    to ~10 degrees off, eclipse seasons ~3 weeks off; add JPL's two rates).
   - **Recovery through trusted people is half built (found 2026-10-20 from the operator's
     screenshot of the Recovery page):** the relay has only lookups (`/api/v2/recovery/setup`,
     `shares-held-by`, `request`, GET); there is no screen to choose guardians or split the phrase,
