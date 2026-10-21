@@ -17,7 +17,10 @@
 //   classification  the spectral class: C (carbonaceous), S (silicaceous), M (metallic), the
 //                   real asteroid taxonomy (data/asteroids/types.csv describes each).
 //   ores            what can be mined, (items.csv id, how many), counted in inventory items.
-//   position        where it is, km in an arbitrary frame, for travel distance and the map.
+//   position        where it is, km from the ship frame's origin in the ship's own axes (x across,
+//                   y up away from Earth, z along its track): it keeps station with the ship. The
+//                   travel distance and the Maps page read it so (Maps increment 1, 2026-10-21:
+//                   the map draws each one there instead of on a fan around Earth's centre).
 
 (
     asteroids: [

@@ -82,6 +82,10 @@ pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;
+/// Maps increment 1 (2026-10-21): the engine tells the Maps page where you are
+/// (`MapSelf`), and renders the page's world layer (your ship from its meshes).
+pub mod map_feed;
+pub mod map_view;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;

@@ -13496,6 +13496,187 @@
       "settle_s": 14,
       "perf_floor_fps": 5,
       "ground_probe": {"max_float_m": 0.3, "max_sink_m": 1.0, "min_trees": 10, "eye_height_m": 1.75, "eye_tol_m": 0.35}
+    },
+    {
+      "id": "maps-follow-home",
+      "desc": "Aboard the UHS Mothership at local noon, then the Maps page opened the way the game opens it: following you.",
+      "expect": "The ship's hull fills the middle of the map, lit from above, with Earth's day side behind and below it; the label UHS Mothership, your home, 35,870 km up; the ship's orbit line through it; Following you at the top left.",
+      "_why": "Maps increment 1 (docs/design/maps-zoom-to-anything.md, 2026-10-21). Operator 2026-10-20: \"Can we get the maps page to zoom in to where the ship the player is living on in orbit of Earth? If the ship moves we want the map to always zoom in to the player's position.\" The page now opens on you, follows you, and draws your ship from its real meshes (engine/map_view.rs renders the world from the map's camera).",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        }
+      ],
+      "map_centre": {
+        "expect": "pass",
+        "tolerance_frac": 0.12
+      }
+    },
+    {
+      "id": "maps-follow-home-later",
+      "desc": "maps-follow-home, then the game clock moved on two hours with the map open.",
+      "expect": "The ship still fills the middle of the map (it went 30 degrees round its orbit and the map followed it); the lit side of Earth behind it has moved, the terminator now showing at Earth's edge.",
+      "_why": "Maps increment 1 (docs/design/maps-zoom-to-anything.md, 2026-10-21). Operator 2026-10-20: \"Can we get the maps page to zoom in to where the ship the player is living on in orbit of Earth? If the ship moves we want the map to always zoom in to the player's position.\" The page now opens on you, follows you, and draws your ship from its real meshes (engine/map_view.rs renders the world from the map's camera). This one proves follow across a clock change.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "time": "22.15"
+        }
+      ],
+      "map_centre": {
+        "expect": "pass",
+        "tolerance_frac": 0.12
+      }
+    },
+    {
+      "id": "maps-follow-home-unfollowed",
+      "desc": "THE CONTROL: maps-follow-home-later with following switched off before the clock moved.",
+      "expect": "The ship has left the map (it went on round its orbit, about 22,000 km, and the camera stayed put); Earth and empty space where it was. The ship-centred check must FAIL here, or it cannot fail anywhere.",
+      "_why": "Maps increment 1 (docs/design/maps-zoom-to-anything.md, 2026-10-21). Operator 2026-10-20: \"Can we get the maps page to zoom in to where the ship the player is living on in orbit of Earth? If the ship moves we want the map to always zoom in to the player's position.\" The page now opens on you, follows you, and draws your ship from its real meshes (engine/map_view.rs renders the world from the map's camera). A check that cannot fail proves nothing (memory feedback_checks_that_cannot_fail): this vantage passes only when the map_centre check fails.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "map": "unfollow"
+        },
+        {
+          "time": "22.15"
+        }
+      ],
+      "map_centre": {
+        "expect": "fail",
+        "tolerance_frac": 0.12
+      }
+    },
+    {
+      "id": "maps-follow-home-turning",
+      "desc": "maps-follow-home with the camera turning round the ship at 20 degrees a second, as a drag does: the world layer re-renders every frame at half resolution.",
+      "expect": "The ship still in the middle (turning keeps following), the picture a little softer (half resolution while moving). Its costs file is the map's cost while the camera moves; home-clock-noon is the game at the same place.",
+      "_why": "Maps increment 1 (docs/design/maps-zoom-to-anything.md, 2026-10-21). Operator 2026-10-20: \"Can we get the maps page to zoom in to where the ship the player is living on in orbit of Earth? If the ship moves we want the map to always zoom in to the player's position.\" The page now opens on you, follows you, and draws your ship from its real meshes (engine/map_view.rs renders the world from the map's camera). Costs: HUMANITY_FRAME_COSTS=1 at rest (maps-follow-home) and while moving (this one), against the game at the same place (home-clock-noon).",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "map_turn": "20"
+        }
+      ]
+    },
+    {
+      "id": "maps-follow-home-unfollowed-near",
+      "desc": "THE CONTROL WITH THE WORLD LAYER UP: maps-follow-home, following switched off, then the clock moved 10 seconds (the ship goes about 30 km along its orbit at 3.07 km/s).",
+      "expect": "Earth behind and the empty place where the ship was, drawn for real (the camera is still within 60 km of the ship, so the world layer is on); no hull in the view. The ship-centred check must FAIL here.",
+      "_why": "Maps increment 1, 2026-10-21. maps-follow-home-unfollowed is the design's control (the 2-hour jump), but at 22,000 km from the ship the world layer is not drawn at all, so it shows the check failing on a map of symbols only. This one shows it failing on rendered pixels with the world layer up: the ship really left the picture. Found by the critic review of the increment, 2026-10-21.",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "map": "unfollow"
+        },
+        {
+          "time": "20.152778"
+        }
+      ],
+      "map_centre": {
+        "expect": "fail",
+        "tolerance_frac": 0.12
+      }
+    },
+    {
+      "id": "maps-closed-after",
+      "desc": "The parked view of home-clock-noon after the Maps page was opened (following, the world layer rendering) and closed again.",
+      "expect": "The same picture as home-clock-noon: the clouds and Earth through the deck glass unsmeared, no trace of the map camera's view.",
+      "_why": "Maps increment 1, risk 1 of docs/design/maps-zoom-to-anything.md: the cloud passes keep temporal history fitted to one camera, and opening and closing the map are camera cuts. Compare this capture with home-clock-noon (same park, same hour).",
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 5,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "page": "none"
+        }
+      ]
     }
   ],
   "ladder": {

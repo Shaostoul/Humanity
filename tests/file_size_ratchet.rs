@@ -35,6 +35,15 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-21: MAPS INCREMENT 1'S NEW FILES JOIN (docs/design/maps-zoom-to-anything.md).
+///   The camera, its controls, the you-and-your-ship layer and the Stations rows
+///   landed in new files beside the carved page, as increment 0 meant them to:
+///   `maps/camera.rs` 561, `maps/controls.rs` 117, `maps/you_layer.rs` 314,
+///   `maps/stations.rs` 117, and on the engine side `engine/map_feed.rs` 287 and
+///   `engine/map_view.rs` 462, each at its size plus about 3%. The page files the
+///   code left go DOWN with them: `maps/system_view.rs` 1_395 -> 1_245 (it lost
+///   its old AU camera, its projector and the "You · Home" fan) and
+///   `maps/body_list.rs` 385 -> 365 (the hard-coded Stations row).
 /// - 2026-10-20: THE MAPS PAGE JOINS, CARVED (Maps increment 0,
 ///   docs/design/maps-zoom-to-anything.md). `gui/pages/cosmos.rs` (3,880 lines,
 ///   never on this list) became the folder `gui/pages/maps/`, one file per view,
@@ -410,8 +419,14 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/mod.rs", 4_800),
     ("src/gui/state_types.rs", 1_850),
     ("src/gui/pages/maps/mod.rs", 355),
-    ("src/gui/pages/maps/system_view.rs", 1_395),
-    ("src/gui/pages/maps/body_list.rs", 385),
+    ("src/gui/pages/maps/system_view.rs", 1_245),
+    ("src/gui/pages/maps/body_list.rs", 365),
+    ("src/gui/pages/maps/camera.rs", 580),
+    ("src/gui/pages/maps/controls.rs", 125),
+    ("src/gui/pages/maps/you_layer.rs", 325),
+    ("src/gui/pages/maps/stations.rs", 125),
+    ("src/engine/map_feed.rs", 300),
+    ("src/engine/map_view.rs", 480),
     ("src/gui/pages/maps/planet_view.rs", 435),
     ("src/gui/pages/maps/galaxy_view.rs", 395),
     ("src/gui/pages/maps/night_sky.rs", 265),

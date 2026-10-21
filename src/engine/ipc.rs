@@ -802,6 +802,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             None => log::warn!("Showcase: page wants a page id (gui/dispatch.rs `page_id`), not {spec:?}"),
         }
     }
+    // {"map":"home|follow|unfollow|report","map_distance":"<m>","map_ship":"0|1"} (Maps
+    // increment 1): the Maps page's camera and world layer, for the rig's map vantages
+    // (engine/map_view.rs `showcase`). Permanent dev tooling.
+    crate::engine::map_view::showcase(state, &text);
     // {"accept_request":"<key>"} (ship homes 5b): accept that person's contact request, as the
     // Requests list's Accept does (engine/reach.rs `accept_request`, the protected setup's gate
     // included): they become a friend, and get a friendship pass. verify-copresence --household
@@ -2033,6 +2037,25 @@ pub(crate) fn render_view_onto(
     lists: &SceneDrawLists,
     passes: ViewPasses,
 ) {
+    render_view_onto_kept(state, camera, target, size, lists, passes, passes == ViewPasses::SceneOnly);
+}
+
+/// `render_view_onto` with the choice of KEEPING the view's depth buffer and
+/// scene scratch parked for the next render (`keep`), or dropping them. The
+/// camera screens keep (`SceneOnly`, the same size every 100 ms); the hi-res
+/// screenshot drops (a one-off 8K buffer must not linger); the Maps page's
+/// world layer renders every pass (`Everything`) and keeps, because it
+/// re-renders at the same size every frame while the camera moves
+/// (engine/map_view.rs, which releases them when the page closes).
+pub(crate) fn render_view_onto_kept(
+    state: &mut EngineState,
+    camera: &crate::renderer::camera::Camera,
+    target: &wgpu::TextureView,
+    size: (u32, u32),
+    lists: &SceneDrawLists,
+    passes: ViewPasses,
+    keep: bool,
+) {
     let (w, h) = size;
     // Whose frame these passes are, for the cost keys. A camera screen's
     // 10 Hz re-render publishes under its own `gpu.screen_*` ids so the
@@ -2145,13 +2168,13 @@ pub(crate) fn render_view_onto(
     // Present the scratch into the caller's target, timed as this view's
     // present (`gpu.present` for the screenshot, `gpu.screen_present` for a
     // camera screen); the scratch is kept or dropped by the depth rule.
-    state.renderer.end_view_scene(display, who, passes == ViewPasses::SceneOnly);
+    state.renderer.end_view_scene(display, who, keep);
 
     // Put the window's depth buffer back BEFORE returning, or the next live
     // pass would bind a mismatched one. The view-sized buffer is kept for
     // the camera screens (the same size again in 100 ms) and dropped after a
     // one-off screenshot (an 8K depth buffer must not linger all session).
-    state.renderer.end_view_depth(passes == ViewPasses::SceneOnly);
+    state.renderer.end_view_depth(keep);
 }
 
 /// Dev camera request (v0.813): see the call site in the frame loop for the

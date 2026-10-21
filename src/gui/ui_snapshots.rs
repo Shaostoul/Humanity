@@ -3174,6 +3174,26 @@ fn snapshot_maps_system() {
     });
     crate::gui::pages::maps::set_clock_for_snapshot(None);
 }
+/// Maps increment 1: the page as opening it from the game leaves it, with a
+/// fixed feed (the shipped home at game hour 1, 2026-09-27 12:00 UTC on the
+/// sky clock) and no 3D world (a snapshot has no engine): following you, the
+/// UHS Mothership's outline and icon at the centre on its synchronous ring,
+/// labelled with its real height, the page saying why the ship is not drawn
+/// for real, and no "400 km LEO" anywhere.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_follow_home() {
+    crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("maps_follow_home", 1280, 900, |ctx, theme, state| {
+        if state.maps.me.is_none() {
+            let mut me = crate::gui::pages::maps::camera::tests::feed_at(3600.0, glam::DVec3::ZERO);
+            me.world_loaded = false;
+            crate::engine::map_feed::frame_update(&mut state.maps, me, true, false);
+        }
+        crate::gui::pages::maps::draw(ctx, theme, state);
+    });
+    crate::gui::pages::maps::set_clock_for_snapshot(None);
+}
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {

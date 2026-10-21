@@ -91,6 +91,17 @@ impl Renderer {
         self.view_depth = ViewDepth::Active(window_tex, window_view);
     }
 
+    /// Give back the view buffers a view kept parked (its depth buffer and
+    /// its scene scratch): Maps increment 1's world layer keeps them while
+    /// the page is open and releases them when it closes, so a closed map
+    /// holds no video memory. A view in flight keeps its own.
+    pub fn release_view_buffers(&mut self) {
+        if matches!(self.view_depth, ViewDepth::Parked(..)) {
+            self.view_depth = ViewDepth::None;
+        }
+        self.release_view_scratch();
+    }
+
     /// Restore the window's depth buffer after [`begin_view_depth`](Self::begin_view_depth).
     /// `retain` keeps the view-sized texture parked for the next view (the
     /// camera screens: the same size every 100 ms); `false` drops it (the

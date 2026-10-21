@@ -210,6 +210,21 @@
         note: "Building and submitting this frame's draw calls.",
     ),
     (
+        id: "cpu_maps_feed",
+        display: "Maps: where you are",
+        category: "cpu",
+        // Maps increment 1 (engine/map_feed.rs): the copy of the ship's pose,
+        // the Sun and the clocks into the Maps page, once a frame. Values the
+        // frame already computed, so it should read near zero. The Maps world
+        // layer's render records the live frame's own pass ids (cpu.scene,
+        // cpu.stars, ...), so it shows in those rows while the page is open.
+        sources: ["cpu.maps_feed"],
+        locked: false,
+        base_frac: 0.01,
+        color: "nav_tools",
+        note: "Telling the Maps page where your ship and you are this frame.",
+    ),
+    (
         id: "cpu_screens",
         display: "In-world screens",
         category: "cpu",

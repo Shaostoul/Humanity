@@ -806,6 +806,10 @@ pub struct AppConfig {
     /// toggle, v0.885/persisted v0.886).
     #[serde(default = "default_true")]
     pub track_station: bool,
+    /// Maps opens where it was left rather than on you (Maps increment 1,
+    /// 2026-10-21; off by default, so a config from before it opens on you).
+    #[serde(default)]
+    pub maps_open_where_left: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves +
     /// land micro-texture on imagery planets (Earth). Orbit view identical
     /// either way (anti-alias faded); applies live via the per-frame
@@ -1627,6 +1631,7 @@ impl AppConfig {
             ffmpeg_path: state.settings.ffmpeg_path.clone(),
             cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
             track_station: state.settings.track_station,
+            maps_open_where_left: state.settings.maps_open_where_left,
             planet_surface_detail: state.settings.planet_surface_detail,
             water_fft: state.settings.water_fft,
             water_clarity: state.settings.water_clarity,
@@ -1903,6 +1908,7 @@ impl AppConfig {
         // renderer read cloud_dev_res_div); the config is its persistence.
         state.cloud_dev_res_div = self.cloud_res_div.clamp(1, 4);
         state.settings.track_station = self.track_station;
+        state.settings.maps_open_where_left = self.maps_open_where_left;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.water_fft = self.water_fft;
         state.settings.water_clarity = self.water_clarity;

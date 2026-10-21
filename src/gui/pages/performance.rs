@@ -500,6 +500,12 @@ mod tests {
              rows are its parts, so a row would count everything twice",
         ),
         (
+            "cpu.map_view",
+            "the whole of one Maps world-layer render (engine/map_view.rs); its passes \
+             record the live frame's own ids (cpu.stars, cpu.scene, ...), which are rows, \
+             so a row of its own would count the render twice",
+        ),
+        (
             "cpu.chunk_veg_and_draws",
             "a bucket that CONTAINS cpu.near_tree_harvest and cpu.grass_harvest (both \
              rows); its own uncovered part is draw-list assembly, honest remainder",

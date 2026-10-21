@@ -166,3 +166,68 @@ fn shipped_stars_map_bin_is_real() {
         .sqrt();
     assert!((vdist - 25.0).abs() < 1.0, "Vega at {vdist:.2} ly, expected ~25");
 }
+
+/// Every text a frame of the page drew, whole.
+fn drawn_texts(out: &egui::FullOutput) -> Vec<String> {
+    fn visit(shape: &egui::Shape, all: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) => all.push(t.galley.text().to_string()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| visit(s, all)),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for cs in &out.shapes {
+        visit(&cs.shape, &mut all);
+    }
+    all
+}
+
+/// The page as opening it from the game leaves it (Maps increment 1) names
+/// the ship by its one name and says its real height, in the Stations row
+/// (computed from data/stations/home.ron) and on the map, and "400 km LEO"
+/// appears nowhere.
+///
+/// Seen red 2026-10-21 with the body list's old hard-coded row put back:
+/// "the page still says 400 km LEO: [.. "Home Station · 400 km LEO" ..]".
+#[test]
+fn the_page_names_the_ship_and_its_real_height_never_400_km_leo() {
+    super::set_clock_for_snapshot(Some(843_782_400.0));
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    let theme = crate::gui::theme::load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = crate::gui::GuiState::default();
+    let me = super::camera::tests::feed_at(3600.0, glam::DVec3::ZERO);
+    crate::engine::map_feed::frame_update(&mut state.maps, me, true, false);
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0))),
+        ..Default::default()
+    };
+    let out = ctx.run(input, |ctx| super::draw(ctx, &theme, &mut state));
+    super::set_clock_for_snapshot(None);
+    let all = drawn_texts(&out);
+    assert!(!all.iter().any(|t| t.contains("400 km") || t.contains("LEO")), "the page still says 400 km LEO: {all:?}");
+    for want in ["UHS Mothership · your home", "35,870 km up · synchronous, hangs over one place", "UHS Mothership", "your home, you are aboard · 35,870 km up", "Following you"] {
+        assert!(all.iter().any(|t| t == want), "the page does not say {want:?}: {all:?}");
+    }
+}
+
+/// Track on a body's card survives the frame it is pressed: the card asks for
+/// the flight (a focus request, consumed next frame), and the end-of-frame
+/// tracker must not see "the camera is not on that body" and clear it. Found by
+/// the critic review of Maps increment 1 (2026-10-21).
+///
+/// Seen red 2026-10-21 with the pending focus not considered: "Track reverted
+/// the frame it was pressed".
+#[test]
+fn track_survives_the_frame_it_is_pressed() {
+    let mut state = crate::gui::GuiState::default();
+    state.maps.tracked_body = Some("moon".into());
+    state.maps.focus_request = Some("moon".into());
+    super::controls::advance(&mut state);
+    assert_eq!(state.maps.tracked_body.as_deref(), Some("moon"), "Track reverted the frame it was pressed");
+    state.maps.focus_request = None;
+    super::controls::advance(&mut state);
+    assert_eq!(state.maps.tracked_body, None, "with no flight under way and the camera elsewhere, tracking ends");
+}
