@@ -362,13 +362,13 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     (the greenhouse roof); stale comments and player-home.md's plan and walkthrough. In flight (the
     movement fixer): placed box pieces colliding, a built box solid to the editor's close, a shut
     door stopping E and Take down, elevator cars keyed by a stable id, the close's strict wall
-    crossing. Still open:  and  (relay reach, quests)
+    crossing. Still open: `moves::on_my_storey` and `stands_in_storey_of` (relay reach, quests)
     assume 3 m storeys (the relay holds no slabs); upstairs, slab occlusion costs +0.53 ms at
     2560x1387 (pack the layer rows, cull runs per light tile: docs/design/room-gi.md, Floors between
     storeys); a jump from the stair's seventh step can slip past a slab edge (walled by G1 in the
     homestead); runs to the greenhouse's g1 and g2 end at 2.70 m (the per-storey end clamp); a
     machine selection survives a storey change (its handles hidden); the family mushroom tents
-    settle at 68 to 82% humidity, under the oyster's 85% (known);  and hand-typed
+    settle at 68 to 82% humidity, under the oyster's 85% (known); `just launch-bg` and hand-typed
     boots skip the rigs' boot lock.
   - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and
