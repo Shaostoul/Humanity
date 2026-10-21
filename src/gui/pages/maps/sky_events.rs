@@ -68,21 +68,21 @@ impl EclipseKind {
 #[derive(Clone, Debug)]
 pub(super) struct EclipseEvent {
     pub(super) kind: EclipseKind,
-    /// Fraction of Sun's disk covered by Moon (0.0 = none, 1.0 = full).
+    /// Fraction of Sun's disk covered where on Earth it is deepest (0.0 to 1.0).
     pub(super) coverage: f64,
-    /// Sun-Moon angular separation in degrees from Earth's POV.
+    /// Sun-Moon angular separation in degrees from Earth's centre.
     pub(super) separation_deg: f64,
 }
 
 /// Compute current sky events (conjunctions between named bodies + any solar
 /// eclipse) as seen from Earth at the given sim_time.
 ///
-/// All angles are computed from Earth's barycentric position — close enough
-/// to surface-observer accuracy at planetary scales (Earth's radius is ~4
-/// arcsec at lunar distance; we report to 0.01°). For eclipses we DO care
-/// about Earth's surface — but Phase 4d-tri ships a "is there an eclipse
-/// anywhere on Earth?" detector, not "is the umbra over this lat/lon"
-/// (which would require Earth's rotation phase + parallax; see Phase 4d-quad).
+/// All angles are computed from Earth's centre, which is close enough for the
+/// planets (Earth's radius is a few arcseconds at their distances) but not for
+/// the Moon, which Earth's radius shifts by up to 0.95 degree. So the eclipse
+/// check takes that parallax into account and answers "is there an eclipse
+/// anywhere on Earth?" (2026-10-21), not "is the umbra over this lat/lon"
+/// (which would require Earth's rotation phase; see Phase 4d-quad).
 pub(super) fn detect_sky_events(sim_time_seconds: f64) -> (Vec<ConjunctionEvent>, Option<EclipseEvent>) {
     let Some(earth) = find_body("earth") else {
         return (Vec::new(), None);
@@ -141,8 +141,12 @@ pub(super) fn detect_sky_events(sim_time_seconds: f64) -> (Vec<ConjunctionEvent>
     events.sort_by(|a, b| a.angular_sep_deg.partial_cmp(&b.angular_sep_deg)
         .unwrap_or(std::cmp::Ordering::Equal));
 
-    // Eclipse: Sun-Moon angular separation must be less than the sum of
-    // their apparent radii (so disks overlap from Earth's POV).
+    // Eclipse: the discs overlap as seen from SOMEWHERE on Earth. From the centre
+    // they touch at the sum of their radii; the ground sees the Moon up to the
+    // difference of the two parallaxes (~0.95 degree) away from there. Until
+    // 2026-10-21 only the centre counted, which missed NASA's total eclipse of
+    // 2026-08-12 (gamma 0.90) and annular of 2026-02-17 and called central ones
+    // partial (`tests::the_maps_page_finds_nasas_solar_eclipses_of_2026_and_2027`).
     let eclipse = (|| {
         let sun = find_body("sun")?;
         let moon = find_body("moon")?;
@@ -157,30 +161,35 @@ pub(super) fn detect_sky_events(sim_time_seconds: f64) -> (Vec<ConjunctionEvent>
 
         let sun_radius_au = sun.radius_km / KM_PER_AU;
         let moon_radius_au = moon.radius_km / KM_PER_AU;
+        let earth_radius_au = earth.radius_km / KM_PER_AU;
         let sun_apparent_rad = (sun_radius_au / sun_dist_au).atan();
         let moon_apparent_rad = (moon_radius_au / moon_dist_au).atan();
+        // How far the Moon can stand from where Earth's centre sees it.
+        let reach = (earth_radius_au / moon_dist_au).asin() - (earth_radius_au / sun_dist_au).asin();
+        if sep_rad >= sun_apparent_rad + moon_apparent_rad + reach { return None; }
 
-        if sep_rad >= sun_apparent_rad + moon_apparent_rad {
-            return None; // No disk overlap → no eclipse.
-        }
-
-        // Moon disk entirely inside Sun disk?
-        let kind = if sep_rad + moon_apparent_rad < sun_apparent_rad {
-            // Moon fully overlapped by Sun (Moon center within Sun radius)
-            if moon_apparent_rad >= sun_apparent_rad {
-                EclipseKind::SolarTotal
-            } else {
-                EclipseKind::SolarAnnular
-            }
-        } else {
-            EclipseKind::SolarPartial
+        // gamma (the catalogs' measure, near enough): the shadow axis's distance
+        // from Earth's centre in Earth radii. Under 1 it meets the ground, where
+        // the Moon is nearer by sqrt(1 - gamma^2) radii: total if it covers the Sun.
+        let gamma = sep_rad / reach;
+        let nearest_moon_au = moon_dist_au - earth_radius_au * (1.0 - gamma.min(1.0).powi(2)).sqrt();
+        let moon_near_rad = (moon_radius_au / nearest_moon_au).atan();
+        let ratio_sq = (moon_near_rad / sun_apparent_rad).powi(2).min(1.0);
+        let kind = match (gamma < 1.0, moon_near_rad >= sun_apparent_rad) {
+            (true, true) => EclipseKind::SolarTotal,
+            (true, false) => EclipseKind::SolarAnnular,
+            (false, _) => EclipseKind::SolarPartial,
         };
 
-        // Coverage: rough fraction of Sun area obscured by Moon. Use a
-        // linear approximation (real area overlap requires lens formulas).
-        // Good enough for HUD readout.
-        let max_sep = sun_apparent_rad + moon_apparent_rad;
-        let coverage = ((max_sep - sep_rad) / max_sep).clamp(0.0, 1.0);
+        // Coverage where the eclipse is deepest: linear in the separation seen
+        // there (real overlap needs lens formulas), capped by the Moon's disc.
+        let max_sep = sun_apparent_rad + moon_near_rad;
+        let deepest = ((max_sep - (sep_rad - reach).max(0.0)) / max_sep).clamp(0.0, 1.0);
+        let coverage = match kind {
+            EclipseKind::SolarTotal => 1.0,
+            EclipseKind::SolarAnnular => ratio_sq,
+            EclipseKind::SolarPartial => deepest * ratio_sq,
+        };
 
         Some(EclipseEvent {
             kind,
@@ -205,9 +214,12 @@ pub struct UpcomingSkyEvent {
 }
 
 /// Refine an eclipse peak: sample finely around `coarse_t` (± one
-/// coarse step) and return the time of maximum coverage.
+/// coarse step) and return the time, coverage and kind of greatest eclipse:
+/// the least separation from Earth's centre (NASA's definition), not the most
+/// coverage, which stays 100% for the hours a total eclipse is central.
 fn refine_eclipse_peak(coarse_t: f64, coarse_step: f64) -> (f64, f64, &'static str) {
     let mut best_t = coarse_t;
+    let mut best_sep = f64::MAX;
     let mut best_cov = 0.0_f64;
     let mut best_kind = "solar eclipse";
     let fine = (coarse_step / 30.0).max(60.0); // ≥1-min resolution
@@ -215,7 +227,8 @@ fn refine_eclipse_peak(coarse_t: f64, coarse_step: f64) -> (f64, f64, &'static s
     let end = coarse_t + coarse_step;
     while t <= end {
         if let (_, Some(e)) = detect_sky_events(t) {
-            if e.coverage > best_cov {
+            if e.separation_deg < best_sep {
+                best_sep = e.separation_deg;
                 best_cov = e.coverage;
                 best_t = t;
                 best_kind = e.kind.label();
@@ -245,19 +258,20 @@ pub(super) fn scan_upcoming_sky_events(start_sim: f64) -> Vec<UpcomingSkyEvent> 
     {
         let mut in_window = false;
         let mut peak_t = 0.0_f64;
-        let mut peak_cov = 0.0_f64;
+        // Least Sun-Moon separation so far: greatest eclipse (see refine_eclipse_peak).
+        let mut peak_sep = f64::MAX;
         let mut t = start_sim;
         while t <= end {
             let (_, ecl) = detect_sky_events(t);
             match (ecl, in_window) {
                 (Some(e), false) => {
                     in_window = true;
-                    peak_cov = e.coverage;
+                    peak_sep = e.separation_deg;
                     peak_t = t;
                 }
                 (Some(e), true) => {
-                    if e.coverage > peak_cov {
-                        peak_cov = e.coverage;
+                    if e.separation_deg < peak_sep {
+                        peak_sep = e.separation_deg;
                         peak_t = t;
                     }
                 }
@@ -270,7 +284,7 @@ pub(super) fn scan_upcoming_sky_events(start_sim: f64) -> Vec<UpcomingSkyEvent> 
                         severity: 2,
                     });
                     in_window = false;
-                    peak_cov = 0.0;
+                    peak_sep = f64::MAX;
                     if out.len() >= 16 {
                         break;
                     }
