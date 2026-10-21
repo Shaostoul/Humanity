@@ -802,7 +802,7 @@ pub struct AppConfig {
     /// 4x in cloud cost. Persisted so play and rig agree.
     #[serde(default = "default_cloud_res_div")]
     pub cloud_res_div: u32,
-    /// Track the orbital home station (in-world ring + label; Cosmos page
+    /// Track the orbital home station (in-world ring + label; Maps page
     /// toggle, v0.885/persisted v0.886).
     #[serde(default = "default_true")]
     pub track_station: bool,

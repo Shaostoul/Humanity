@@ -514,13 +514,13 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
 }
 
 /// Mirror the Planet Tuner page's live readout + editing copy (v0.1120).
-/// Runs only while the Platform page is open (the tuner is one of its
+/// Runs only while the Dev tab is open (the tuner is one of its
 /// sections), so the per-frame cost off-page is a single enum compare.
 /// Lives here beside publish_body_environment because it derives from the
 /// same frame-lock inputs; the page itself (gui/pages/planet_tuner.rs)
 /// never touches EngineState.
 pub(crate) fn publish_planet_tuner_readout(state: &mut EngineState) {
-    if state.gui_state.active_page != crate::gui::GuiPage::Platform {
+    if state.gui_state.active_page != crate::gui::GuiPage::Dev {
         return;
     }
     let t = &mut state.gui_state.planet_tuner;

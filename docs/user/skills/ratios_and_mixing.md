@@ -485,8 +485,8 @@ ones.
   default home" is off by default, so what you made is kept between
   launches; with it on, only your character carries between launches,
   and what you made is gone at the next start.
-- **The Calculator works left to right.** The app's Calculator (in the
-  Platform tab) does each operation in the order you type it, so 2 + 3 x
+- **The Calculator works left to right.** The app's Calculator (on the
+  Apps page) does each operation in the order you type it, so 2 + 3 x
   4 gives 20, not the 14 that arithmetic's usual order gives, and
   brackets give an error. For ratio work, do one multiplication or
   division at a time and press = after each.

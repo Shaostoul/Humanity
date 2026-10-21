@@ -87,7 +87,7 @@ mod tests {
 
     /// THE SHIPPED LIST OPENS REAL PAGES, NONE OF THEM DEV-ONLY: every entry of
     /// data/gui/humanityos_tools.json names a page the app draws (not the in-game view, not the Apps
-    /// page itself, not Testing or the Platform tab's dev tools), has a name and a line, and
+    /// page itself, not Testing or the Dev tab's developer tools), has a name and a line, and
     /// is listed once; the ones the operator named are there.
     ///
     /// Seen red 2026-10-19 with "maps" written "map" in the file: "Maps opens a page" failed (no
@@ -102,7 +102,7 @@ mod tests {
             assert!(page.is_some(), "{} opens a page (its id {:?})", t.name, t.page);
             let page = page.unwrap();
             assert!(!crate::gui::dispatch::ENGINE_BOUND_PAGES.contains(&page), "{} is a page, not the game", t.name);
-            assert!(![GuiPage::Apps, GuiPage::Testing, GuiPage::Platform, GuiPage::Settings].contains(&page), "{} is not this page or a dev or settings page", t.name);
+            assert!(![GuiPage::Apps, GuiPage::Testing, GuiPage::Dev, GuiPage::Settings].contains(&page), "{} is not this page or a dev or settings page", t.name);
             assert!(!t.name.trim().is_empty() && !t.line.trim().is_empty(), "{} has a name and a line", t.page);
             assert!(seen.insert(t.page.clone()), "{} is listed once", t.page);
         }

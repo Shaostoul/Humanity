@@ -176,6 +176,7 @@ fn only_a_serving_counter_offers_a_meal() {
 
     let label = |id: &str, x: f32| crate::gui::MachineLabel {
         pos: glam::Vec3::new(x, 1.2, 0.0),
+        foot_y: 0.0,
         name: id.into(),
         stats: Vec::new(),
         room: String::new(),

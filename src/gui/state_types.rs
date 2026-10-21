@@ -51,6 +51,13 @@ use super::*;
 mod garden;
 pub use garden::*;
 
+// The Maps page's state (`GuiState::maps`), in state_types/maps.rs since Maps
+// increment 0 (2026-10-20). Native only: it names the page's own types.
+#[cfg(feature = "native")]
+mod maps;
+#[cfg(feature = "native")]
+pub use maps::*;
+
 /// Item slot data bridged from ECS Inventory for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -1576,6 +1583,9 @@ mod studio_state_tests {
 pub struct MachineLabel {
     /// World anchor, set just above the machine so the label floats over it.
     pub pos: glam::Vec3,
+    /// The height the machine stands at (its foot, a sphere's centre), frame of `pos`: the storey
+    /// the walk-up reads, never the label's (0.4 m over its top), `ship::sight::walk_up_target`.
+    pub foot_y: f32,
     pub name: String,
     pub stats: Vec<crate::machines::MachineStat>,
     /// The room this machine sits in (for room-based occlusion: a label only shows by

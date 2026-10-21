@@ -1,6 +1,6 @@
 {
  "id": "sol",
- "catalog_version": 3,
+ "catalog_version": 4,
  "name": "Solar System",
  "primary_star": "sun",
  "galaxy_position_ly": [
@@ -186,7 +186,11 @@
     "semi_major_axis_km": 384400,
     "eccentricity": 0.0549,
     "inclination_deg": 5.145,
-    "orbital_period_days": 27.322
+    "orbital_period_days": 27.3217,
+    "mean_anomaly_deg": 135.27,
+    "longitude_ascending_node_deg": 125.08,
+    "argument_perihelion_deg": 318.15,
+    "elements_source": "Node, perigee and mean anomaly: JPL SSD Planetary Satellite Mean Elements (https://ssd.jpl.nasa.gov/sats/elem/, Moon 301, ecliptic frame, epoch 2000-01-01.5 TDB, read 2026-10-21). Period: NASA Moon Fact Sheet sidereal revolution period (nssdc.gsfc.nasa.gov, updated 2024-01-11). The node regresses and the perigee advances (18.6 and 8.85 year cycles); the model holds both at their J2000 values (BUG-140)."
    },
    "physical": {
     "mass_kg": 7.342e+22,

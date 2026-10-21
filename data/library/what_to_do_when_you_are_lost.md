@@ -736,7 +736,7 @@ facts are used here and the wording is not.
 ### Inside this project
 
 - The death screen and Respawn button: `src/gui/pages/hud.rs`. The Home
-  Station Track switch (`src/gui/pages/cosmos.rs`, on by default in
+  Station Track switch (`src/gui/pages/maps/body_list.rs`, on by default in
   `src/gui/mod.rs`) and its ring and distance label, shown only beyond a
   kilometre (`src/lib.rs`), placed by direction rather than through the
   camera's depth range, and pinned to the screen's edge with an arrow

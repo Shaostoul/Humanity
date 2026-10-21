@@ -1271,6 +1271,18 @@ impl CameraController {
         self.on_lift = on;
     }
 
+    /// The underside of the floor slab over the body's head the walk keeps the eye under
+    /// (`set_ceiling`), or None. Read by the dev IPC's storey probe (engine/storey_probe.rs).
+    pub fn ceiling(&self) -> Option<f32> {
+        self.ceiling
+    }
+
+    /// Whether the body rides an elevator car this frame (`set_on_lift`). Read by the dev IPC's
+    /// storey probe (engine/storey_probe.rs).
+    pub fn on_lift(&self) -> bool {
+        self.on_lift
+    }
+
     /// The elevator key pressed since the last call, and forgotten: +1 Space, -1 Shift, 0 none.
     /// The main loop takes it every frame and the elevators act on it only for a rider
     /// (`engine::footing::elevator_tick`), so a jump pressed elsewhere is never saved up for one.

@@ -6,10 +6,10 @@
 //! draggable ceilings and increment 3 adds the governor that enforces them
 //! (docs/design/resource-budgets.md).
 //!
-//! WHERE IT LIVES: Platform > Performance. Platform is the app's-own-machinery
-//! tab (Files, Bugs, Testing, Dev, Browser) and this is the page-sized sibling
-//! of the F2 performance overlay, so it needs no new top-level page and no
-//! `GuiPage` variant.
+//! WHERE IT LIVES: Dev > Performance. Dev is the developer tools tab (Bugs,
+//! Testing, Performance, Dev, Planet Tuner; it replaced the Platform tab on
+//! 2026-10-20) and this is the page-sized sibling of the F2 performance
+//! overlay, so it needs no new top-level page and no `GuiPage` variant.
 //!
 //! WHERE THE NUMBERS COME FROM: `renderer::frame_costs`, a process-global store
 //! the renderer writes each frame (GPU timestamp queries resolved a frame late,

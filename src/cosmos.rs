@@ -1,5 +1,6 @@
 //! Canonical Sol-system model (v0.262.8 — extracted from
-//! `gui/pages/cosmos.rs` so it is the SINGLE source of truth).
+//! the Maps page, then `gui/pages/cosmos.rs`, now `gui/pages/maps/`, so it is
+//! the SINGLE source of truth).
 //!
 //! Before this module the solar system existed as **four drifted
 //! copies**: this Keplerian model (Maps page, accurate), a log-scaled
@@ -16,7 +17,7 @@
 //! does.
 //!
 //! Nothing here touches egui — it is pure data + orbital mechanics.
-//! The Maps page (`gui/pages/cosmos.rs`) now `use`s these symbols
+//! The Maps page (`gui/pages/maps/`) now `use`s these symbols
 //! instead of defining its own; behavior is byte-for-byte identical
 //! (same struct, same fn signatures, same `&'static` caching).
 
@@ -395,13 +396,43 @@ pub fn body_position_relative_au(body: &SolBody, sim_time_seconds: f64) -> glam:
     let r22 = -s_om * s_w + c_om * c_w * c_inc;
     let r31 = s_w * s_inc;
     let r32 = c_w * s_inc;
-    // World convention: Y is up, ecliptic plane is XZ. Map perifocal X→X,
-    // perifocal Y→Z, perifocal Z (always 0 here) drops out. Out-of-plane
-    // component ends up in world Y via r31/r32.
-    let world_x = r11 * x_peri + r12 * y_peri;
-    let world_z = r21 * x_peri + r22 * y_peri;
-    let world_y = r31 * x_peri + r32 * y_peri;
-    glam::DVec3::new(world_x, world_y, world_z)
+    // The perifocal (x, y, 0) vector in the ecliptic frame, then into the
+    // world by the one mapping every reader shares (BUG-140).
+    world_from_ecliptic(glam::DVec3::new(
+        r11 * x_peri + r12 * y_peri,
+        r21 * x_peri + r22 * y_peri,
+        r31 * x_peri + r32 * y_peri,
+    ))
+}
+
+/// How the ecliptic sits in the world, the one place it is decided.
+///
+/// The orbit model works in the ecliptic frame of J2000 (the frame JPL
+/// Horizons quotes with REF_PLANE=ECLIPTIC): x toward the March equinox, y
+/// toward ecliptic longitude 90 degrees, z toward ecliptic north. The world is
+/// Y-up, and the planet's spin fixes which way east is: longitude is
+/// `atan2(-z, x)` and the planet turns by `Ry(+spin)`
+/// (`dev_travel::planet_spin_from_time`), so east is -Z. The proper rotation
+/// that lines the two up takes ecliptic x to world X, ecliptic north to world
+/// +Y, and therefore ecliptic y to world -Z (X cross -Z is +Y).
+///
+/// BUG-140 (fixed 2026-10-21): until then ecliptic y went to world +Z.
+/// Swapping two axes is a mirror, not a rotation, so every orbit ran clockwise
+/// seen from +Y against the planet's counter-clockwise spin, and the Moon and
+/// the planets stood at minus their real longitudes (Mars 170 degrees out on
+/// 2026-10-21). The Sun on the ground never moved, because the spin is defined
+/// from the sun's azimuth (`frame_lock::sun_azimuth`); the stars never moved
+/// either, because the star sky is turned to the sun the same way
+/// (`renderer::sky_frame::equatorial_to_world`).
+pub fn world_from_ecliptic(e: glam::DVec3) -> glam::DVec3 {
+    glam::DVec3::new(e.x, e.z, -e.y)
+}
+
+/// Inverse of [`world_from_ecliptic`]: a world vector in the ecliptic frame of
+/// J2000 (x March equinox, z ecliptic north). The Maps page's sub-point
+/// readout uses it to reach right ascension without restating the mapping.
+pub fn ecliptic_from_world(w: glam::DVec3) -> glam::DVec3 {
+    glam::DVec3::new(w.x, -w.z, w.y)
 }
 
 /// Compute world position in AU including parent recursion. Moons are
@@ -455,10 +486,11 @@ pub fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
         let ea = (i as f64 / n as f64) * std::f64::consts::TAU;
         let x_peri = a_au * (ea.cos() - e);
         let y_peri = a_au * (1.0 - e * e).sqrt() * ea.sin();
-        let wx = r11 * x_peri + r12 * y_peri;
-        let wz = r21 * x_peri + r22 * y_peri;
-        let wy = r31 * x_peri + r32 * y_peri;
-        out.push(glam::DVec3::new(wx, wy, wz));
+        out.push(world_from_ecliptic(glam::DVec3::new(
+            r11 * x_peri + r12 * y_peri,
+            r21 * x_peri + r22 * y_peri,
+            r31 * x_peri + r32 * y_peri,
+        )));
     }
     out
 }
@@ -739,5 +771,204 @@ mod tests {
             let sep = (dm - de).length();
             assert!(sep < 0.004, "Moon-Earth separation {sep} AU too large at t={t}");
         }
+    }
+
+    // ── BUG-140: the ecliptic in the world, checked against real ephemerides ──
+
+    /// A world direction's longitude, measured the way the ENGINE measures
+    /// east: `atan2(-z, x)`, the convention the planet's spin is built on
+    /// (`dev_travel::planet_spin_from_time`, `engine::frame_lock::sun_azimuth`):
+    /// +Y is north, east is toward -Z, and the planet turns by `Ry(+spin)`.
+    /// Deliberately NOT read back through this module's own mapping
+    /// (`ecliptic_from_world`), which would make every check below circular:
+    /// the question is whether the world agrees with the ground's east.
+    fn engine_longitude_deg(v: glam::DVec3) -> f64 {
+        (-v.z).atan2(v.x).to_degrees().rem_euclid(360.0)
+    }
+
+    fn wrap_deg(d: f64) -> f64 {
+        (d + 180.0).rem_euclid(360.0) - 180.0
+    }
+
+    /// BUG-140: the ecliptic enters the world by a rotation, never a mirror.
+    /// A rotation keeps handedness (x cross y lands on z), puts ecliptic north
+    /// on world up, and puts ecliptic longitude 90 where the ground reads 90
+    /// degrees east; its inverse undoes it. The old mapping (ecliptic y to
+    /// world +Z) fails the first and third.
+    #[test]
+    fn the_ecliptic_enters_the_world_by_a_rotation_never_a_mirror() {
+        use glam::DVec3;
+        let (x, y, z) = (
+            world_from_ecliptic(DVec3::X),
+            world_from_ecliptic(DVec3::Y),
+            world_from_ecliptic(DVec3::Z),
+        );
+        assert_eq!(x.cross(y), z, "handedness kept: x cross y must land on z");
+        assert_eq!(z, DVec3::Y, "ecliptic north is world up");
+        assert!((engine_longitude_deg(y) - 90.0).abs() < 1e-12, "longitude 90 is the ground's 90 E");
+        assert!(engine_longitude_deg(x).abs() < 1e-12, "the March equinox is longitude 0");
+        for v in [DVec3::new(0.3, -1.2, 2.5), DVec3::new(-4.0, 0.5, -0.25)] {
+            assert_eq!(ecliptic_from_world(world_from_ecliptic(v)), v);
+            assert_eq!(world_from_ecliptic(ecliptic_from_world(v)), v);
+            assert!((world_from_ecliptic(v).length() - v.length()).abs() < 1e-12);
+        }
+    }
+
+    /// JPL Horizons heliocentric positions, AU, in the ecliptic and mean
+    /// equinox of J2000 (DE441; request: EPHEM_TYPE=VECTORS, CENTER=500@10,
+    /// REF_PLANE=ECLIPTIC, REF_SYSTEM=ICRF, TIME_TYPE=UT), at 00:00 UT on each
+    /// date, fetched 2026-10-21 from https://ssd.jpl.nasa.gov/api/horizons.api.
+    /// Columns: body, date, the engine's sim time for that moment (seconds since
+    /// 2000-01-01 12:00 UTC), then X, Y, Z exactly as Horizons printed them.
+    const HORIZONS_HELIO_AU: &[(&str, &str, f64, f64, f64, f64)] = &[
+        ("mercury", "2010-06-15", 329832000.0, 0.3248049780986699, 0.09112965024587234, -0.02235795453857692),
+        ("mercury", "2026-10-21", 845812800.0, 0.3417005017930915, -0.19061532425813, -0.04691738700694836),
+        ("mercury", "2040-03-01", 1267444800.0, -0.3941437275951654, -0.05684102413058151, 0.03148917521066164),
+        ("venus", "2010-06-15", 329832000.0, -0.718568767764062, 0.01623735820446922, 0.04169218897903367),
+        ("venus", "2026-10-21", 845812800.0, 0.6542463742023901, 0.3098357945618266, -0.03349153047294431),
+        ("venus", "2040-03-01", 1267444800.0, 0.1851296778769237, -0.7034291206170185, -0.02037061791364632),
+        ("earth", "2010-06-15", 329832000.0, -0.1119955760518236, -1.009553893743397, 0.0000248952606914923),
+        ("earth", "2026-10-21", 845812800.0, 0.8852152560721928, 0.4557374555437795, -0.00003298955131867717),
+        ("earth", "2040-03-01", 1267444800.0, -0.9337195419577451, 0.3314107731105732, -0.00002317641524215849),
+        ("mars", "2010-06-15", 329832000.0, -1.61416360194892, -0.2753795282358758, 0.03386580337462371),
+        ("mars", "2026-10-21", 845812800.0, -0.141675840057934, 1.575321493269372, 0.03648686033988838),
+        ("mars", "2040-03-01", 1267444800.0, -1.015633580245849, 1.294407897428868, 0.05201027030361947),
+        ("jupiter", "2010-06-15", 329832000.0, 4.882188426306629, -0.9268496029155743, -0.1054059405051032),
+        ("jupiter", "2026-10-21", 845812800.0, -3.604584803293383, 3.903210584337429, 0.06443383010825503),
+        ("jupiter", "2040-03-01", 1267444800.0, -5.416112062714304, 0.4591265248132358, 0.1192771112808239),
+        ("saturn", "2010-06-15", 329832000.0, -9.493850485847451, -0.6622927719029593, 0.3894313809275238),
+        ("saturn", "2026-10-21", 845812800.0, 9.231402316708277, 1.875894476981356, -0.4001354105074595),
+        ("saturn", "2040-03-01", 1267444800.0, -9.478777672582895, -1.195655963991231, 0.3980966850220831),
+    ];
+
+    /// BUG-140: every planet stands at its real heliocentric ecliptic longitude
+    /// (and latitude), read in the world by the ground's own east. The model is
+    /// two-body Kepler on J2000 mean elements with no secular rates, measured
+    /// 2026-10-21 at 0.32 degree worst (Venus, whose J2000 mean anomaly in
+    /// sol.json sits 0.26 degree off) and 0.02 for Earth and Mars, so 0.5 is
+    /// the gate. Red check, run: the mirror (ecliptic y to world +Z) put each
+    /// planet at minus its longitude, up to 170 degrees out (Mars, 2026-10-21).
+    #[test]
+    fn planets_stand_at_their_jpl_horizons_longitudes() {
+        let mut table = String::new();
+        let mut worst = 0.0_f64;
+        for &(id, date, t, x, y, z) in HORIZONS_HELIO_AU {
+            let want_lon = y.atan2(x).to_degrees().rem_euclid(360.0);
+            let want_lat = (z / (x * x + y * y + z * z).sqrt()).asin().to_degrees();
+            let w = body_world_position_3d_au(find_body(id).expect(id), t);
+            let got_lon = engine_longitude_deg(w);
+            let got_lat = (w.y / w.length()).asin().to_degrees();
+            let dlon = wrap_deg(got_lon - want_lon);
+            let dlat = got_lat - want_lat;
+            worst = worst.max(dlon.abs()).max(dlat.abs() * 5.0);
+            table.push_str(&format!(
+                "\n  {id:<8} {date}: Horizons lon {want_lon:7.3} lat {want_lat:6.3} | world lon {got_lon:7.3} lat {got_lat:6.3} | off {dlon:8.3} {dlat:6.3}"
+            ));
+        }
+        println!("heliocentric ecliptic longitude, Horizons vs the world:{table}");
+        assert!(
+            worst < 0.5,
+            "a planet is off its real place (longitude 0.5, latitude 0.1 degree allowed):{table}"
+        );
+    }
+
+    /// BUG-140: every orbit goes round its parent the way the planet spins,
+    /// counter-clockwise seen from world +Y (ecliptic north), as real orbits
+    /// and Earth's real spin both do. The spin's sense is MEASURED here, not
+    /// assumed: an hour later `planet_spin_from_time` is larger, and `Ry` of it
+    /// carries a point round +Y the way the cross product reports. A body
+    /// with an inclination past 90 degrees is retrograde and must go the other
+    /// way. Red check, run: the mirror ran every prograde orbit clockwise.
+    #[test]
+    fn every_orbit_turns_the_way_the_planet_spins() {
+        let a = crate::dev_travel::planet_spin_from_time(10.0, 1.0);
+        let b = crate::dev_travel::planet_spin_from_time(11.0, 1.0);
+        let spin_sense = (glam::DQuat::from_rotation_y(a) * glam::DVec3::X)
+            .cross(glam::DQuat::from_rotation_y(b) * glam::DVec3::X)
+            .y
+            .signum();
+        assert_eq!(spin_sense, 1.0, "the planet's spin is counter-clockwise about +Y");
+        let mut wrong = Vec::new();
+        let mut checked = 0;
+        for body in sol_bodies() {
+            let cos_i = body.inclination_deg.to_radians().cos();
+            if body.parent.is_none() || body.orbital_period_days <= 0.0 || cos_i.abs() < 0.1 {
+                continue;
+            }
+            // A thousandth of an orbit, at a few moments, so a near-periapsis
+            // sample cannot hide anything.
+            let dt = body.orbital_period_days * 86_400.0 / 1000.0;
+            for t in [0.0, 3.1e8, 8.458e8] {
+                let p0 = body_position_relative_au(body, t);
+                let p1 = body_position_relative_au(body, t + dt);
+                let h = p0.cross(p1).y;
+                checked += 1;
+                if h.signum() != spin_sense * cos_i.signum() {
+                    wrong.push(format!("{} at t {t}: angular momentum y {h:.3e}", body.id));
+                }
+            }
+        }
+        assert!(checked > 100, "only {checked} orbit samples checked");
+        assert!(
+            wrong.is_empty(),
+            "{} of {checked} orbit samples turn against the spin: {}",
+            wrong.len(),
+            wrong.iter().take(8).cloned().collect::<Vec<_>>().join("; ")
+        );
+    }
+
+    /// The Moon's phases from the US Naval Observatory's table
+    /// (https://aa.usno.navy.mil/api/moon/phases/date?date=2026-09-01&nump=12,
+    /// fetched 2026-10-21; times UT), as the Moon's elongation east of the Sun
+    /// at that instant (the phases' definition: 0 new, 90 first quarter, 180
+    /// full, 270 last quarter), plus one JPL Horizons reading on the game's own
+    /// date (2026-10-21 00:00 UT, observer 500@399: S-O-T 115.8412 "/T", the
+    /// Moon trailing the Sun, so east of it, waxing).
+    const MOON_ELONGATION_CHECKS: &[(&str, &str, f64, f64)] = &[
+        ("2026-09-04 07:51", "Last Quarter", 841780260.0, 270.0),
+        ("2026-09-11 03:27", "New Moon", 842369220.0, 0.0),
+        ("2026-09-18 20:44", "First Quarter", 843036240.0, 90.0),
+        ("2026-09-26 16:49", "Full Moon", 843713340.0, 180.0),
+        ("2026-10-03 13:25", "Last Quarter", 844305900.0, 270.0),
+        ("2026-10-10 15:50", "New Moon", 844919400.0, 0.0),
+        ("2026-10-18 16:12", "First Quarter", 845611920.0, 90.0),
+        ("2026-10-21 00:00", "Horizons waxing gibbous", 845812800.0, 115.8412),
+        ("2026-10-26 04:12", "Full Moon", 846259920.0, 180.0),
+        ("2026-11-01 20:28", "Last Quarter", 846836880.0, 270.0),
+        ("2026-11-09 07:02", "New Moon", 847479720.0, 0.0),
+        ("2026-11-17 11:48", "First Quarter", 848188080.0, 90.0),
+        ("2026-11-24 14:53", "Full Moon", 848803980.0, 180.0),
+    ];
+
+    /// The Moon's elongation from the Sun as the GROUND reads it: the engine
+    /// longitude of the Moon minus the Sun's, both seen from Earth, eastward
+    /// positive, 0..360.
+    fn moon_elongation_deg(t: f64) -> f64 {
+        let earth = body_world_position_3d_au(find_body("earth").expect("earth"), t);
+        let moon = body_world_position_3d_au(find_body("moon").expect("moon"), t);
+        let sun = body_world_position_3d_au(find_body("sun").expect("sun"), t);
+        (engine_longitude_deg(moon - earth) - engine_longitude_deg(sun - earth)).rem_euclid(360.0)
+    }
+
+    /// BUG-140 and the Moon's missing elements: the Moon is waxing when it is
+    /// waxing. Measured 2026-10-21 within 1.5 degrees at all twelve instants
+    /// (the model keeps the J2000 node and perigee fixed and has none of the
+    /// Moon's large perturbations, which is a few degrees in a bad month), so
+    /// the gate is 2.5. Red check, run, two ways: today's sol.json had no
+    /// mean anomaly, node or perigee for the Moon (its phase came from a hash
+    /// of its name, 165 to 179 degrees out), and with those filled in but the
+    /// mirror kept, every waxing Moon reads as waning (First Quarter at 270).
+    #[test]
+    fn the_moon_keeps_the_naval_observatory_phases() {
+        let mut table = String::new();
+        let mut worst = 0.0_f64;
+        for &(when, what, t, want) in MOON_ELONGATION_CHECKS {
+            let got = moon_elongation_deg(t);
+            let off = wrap_deg(got - want);
+            worst = worst.max(off.abs());
+            table.push_str(&format!("\n  {when} {what:<24} want {want:8.3} world {got:8.3} off {off:7.2}"));
+        }
+        println!("the Moon's elongation east of the Sun:{table}");
+        assert!(worst < 2.5, "the Moon is off its phase (2.5 degrees allowed):{table}");
     }
 }

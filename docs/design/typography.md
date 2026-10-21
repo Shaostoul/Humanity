@@ -306,7 +306,7 @@ rather than for it.
   and no set_variation call exists anywhere in epaint or egui, so a variable
   file would render at its default instance forever. I parsed the shipped
   binary myself: 362 codepoints, and contrary to one research thread it DOES
-  contain U+03BC (Greek mu, used at src/gui/pages/cosmos.rs:1201-1202),
+  contain U+03BC (Greek mu, used in the L4 and L5 notes at src/gui/pages/maps/system_view.rs:363-364),
   U+00DE (the reaction pill at src/gui/pages/chat.rs:3832), U+221E, U+00B7,
   U+2026, U+00B0 and U+00B2. It does NOT contain U+00B5 (micro sign), U+2500
   (box drawing), any arrow, or any check mark, which the fallback chain
@@ -1133,7 +1133,7 @@ while a letter gap accumulates one. The word-to-letter ratio therefore rises
 automatically with the slider and clears 3.5:1 at a realistic dose. Stack 1's
 version of this claim is correct. Fix the paragraph, do not fix the plan. 4.
 STACK 3 PROBABLY MIS-ROUTES THE GREEK MU. It says Atkinson has no Greek and
-that the mu at src/gui/pages/cosmos.rs:1201-1202 "falls through to
+that the mu at src/gui/pages/maps/system_view.rs:363-364 "falls through to
 Ubuntu-Light", while Stack 1 says Atkinson contains U+03BC. The coverage
 research reported Greek at 4 of 144 codepoints, described as strays such as
 mu, which supports Stack 1. Harmless either way, since Ubuntu-Light does carry

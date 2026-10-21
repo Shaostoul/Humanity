@@ -247,13 +247,14 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
-                // Platform — system + dev, FOLDED (Recovery/Tools/Bugs/Testing/
-                // Browser in its sidebar). Settings was pulled OUT to its own tab
-                // (below) so it's never buried.
-                let platform_items = [
-                    NavItem { label: "Platform", page: GuiPage::Platform, description: "" },
+                // Dev: the developer tools (Bugs, Testing, Performance, Dev, Planet
+                // Tuner) in one side list. It replaced the Platform tab on 2026-10-20:
+                // Platform's Calculator, Notes, Calendar and Browser are on Apps, its
+                // Recovery is in Settings > Account.
+                let dev_items = [
+                    NavItem { label: "Dev", page: GuiPage::Dev, description: "" },
                 ];
-                nav_group(ui, &platform_items, theme.nav_tools(), text_muted, theme, state);
+                nav_group(ui, &dev_items, theme.nav_tools(), text_muted, theme, state);
 
                 ui.add_space(6.0);
                 separator_dot(ui, border);
@@ -269,7 +270,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // settings as its own top level page ... always easily accessible,
                 // never buried in another menu"). Big enough to warrant its own
                 // page (section sidebar + long scroll), but it stays ONE click
-                // away here, not nested inside Platform.
+                // away here, not nested inside another tab.
                 // Library — the Humanity Accord and its reference companions, in a
                 // nested tree (operator 2026-06-06: "a top level Library button that
                 // contains all the docs sorted into nested categories").

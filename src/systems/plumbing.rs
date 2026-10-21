@@ -7,7 +7,8 @@
 //!
 //! Each tick, per `PlumbingCircuit.island`:
 //!   1. Sum production from powered `WaterProducer`s (L/min).
-//!   2. Sum demand from powered `WaterConsumer`s (L/min).
+//!   2. Sum demand from powered `WaterConsumer`s (L/min); before that, the irrigation's consumers
+//!      take the garden's draw and a household's fixtures their shares of its use (`HouseholdUse`).
 //!   3. Integrate the net flow into the island's `WaterTank`s (clamped 0..capacity), sequential bite.
 //!   4. Aggregate across islands into a live `WaterStatus` for the GUI.
 //!
@@ -66,6 +67,28 @@ impl Default for PlumbingSystem {
     }
 }
 
+/// Does this consumer draw while its power is as it is: it needs none, or the same entity's
+/// `PowerConsumer` is on. Step 2 counts only these, and the shared draws are split among them.
+fn consumer_powered(c: &WaterConsumer, power: Option<&PowerConsumer>) -> bool {
+    !c.needs_power || power.map(|p| p.enabled).unwrap_or(false)
+}
+
+/// One consumer's part of a draw `total` that several share (2026-10-21): an equal part of it
+/// among the `drawing` consumers that can draw this tick, and none for one that cannot. While none
+/// of the `all` can draw, each keeps an equal part among all of them: the draw is still wanted (the
+/// readout shows what a tankless run asks for), and none of it is drawn.
+fn shared_lpm(total: f32, draws: bool, drawing: usize, all: usize) -> f32 {
+    if drawing > 0 {
+        if draws {
+            total / drawing as f32
+        } else {
+            0.0
+        }
+    } else {
+        total / all.max(1) as f32
+    }
+}
+
 impl System for PlumbingSystem {
     fn name(&self) -> &str {
         "PlumbingSystem"
@@ -74,23 +97,61 @@ impl System for PlumbingSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         use std::collections::HashMap;
 
+        // Which consumers can draw this tick (2026-10-21): powered (or needing
+        // no power, step 2's own test) and on a pipe run with a tank to draw
+        // from. A shared draw (the garden's, a household's) is split among
+        // these only, so a shed fixture passes its share to the ones still
+        // working instead of taking it with it: two washers with one shed
+        // still do the household's whole laundry at the other.
+        let islands_with_tanks: std::collections::HashSet<Option<u32>> =
+            world.query::<(&WaterTank, Option<&PlumbingCircuit>)>().iter().map(|(_, (_, pc))| pc.map(|c| c.island)).collect();
+        let draws = |c: &WaterConsumer, pc: Option<&PlumbingCircuit>, power: Option<&PowerConsumer>| -> bool {
+            consumer_powered(c, power) && islands_with_tanks.contains(&pc.map(|c| c.island))
+        };
         // 0. Garden irrigation draws what the crops actually need (2026-09-25):
         //    FarmingSystem publishes the litres per minute of the crops it
         //    watered, and each irrigation machine's consumer is set to its
-        //    share, so a bigger garden drains the cistern faster.
+        //    share, so a bigger garden drains the cistern faster. The crops are
+        //    watered while any irrigation runs, so the pumps that draw carry
+        //    all of it (2026-10-21: a shed pump's share was water the crops got
+        //    and the tanks never paid).
         if let Some(demand) = data
             .get::<std::sync::Mutex<f32>>("irrigation_demand_lpm")
             .and_then(|m| m.lock().ok().map(|v| *v))
         {
-            let n = world
-                .query::<(&crate::ecs::components::Irrigator, &WaterConsumer)>()
+            let pumps: Vec<(hecs::Entity, bool)> = world
+                .query::<(&crate::ecs::components::Irrigator, &WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>()
                 .iter()
-                .count()
-                .max(1) as f32;
-            for (_, (_i, c)) in
-                world.query_mut::<(&crate::ecs::components::Irrigator, &mut WaterConsumer)>()
-            {
-                c.lpm = demand.max(0.0) / n;
+                .map(|(e, (_i, c, pc, power))| (e, draws(c, pc, power)))
+                .collect();
+            let drawing = pumps.iter().filter(|p| p.1).count();
+            for (e, d) in &pumps {
+                if let Ok(mut c) = world.get::<&mut WaterConsumer>(*e) {
+                    c.lpm = shared_lpm(demand.max(0.0), *d, drawing, pumps.len());
+                }
+            }
+        }
+        // 0b. A household's fixtures share its water (2026-10-20, ship homes
+        //     increment 7, decision 7): each of the n fixtures of one kind in
+        //     one household that can draw takes 1/n of the household's use of
+        //     that kind (`HouseholdUse`), so a second shower room adds taps,
+        //     not a second day of showers, and a shed one adds nothing.
+        let fixtures: Vec<(hecs::Entity, String, f32, bool)> = world
+            .query::<(&crate::ecs::components::HouseholdUse, &WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>()
+            .iter()
+            .map(|(e, (h, c, pc, power))| (e, h.kind.clone(), h.household_lpm, draws(c, pc, power)))
+            .collect();
+        // Each kind's fixtures: (all of them, the ones that can draw).
+        let mut kinds: HashMap<&str, (usize, usize)> = HashMap::new();
+        for (_, kind, _, d) in &fixtures {
+            let k = kinds.entry(kind.as_str()).or_default();
+            k.0 += 1;
+            k.1 += usize::from(*d);
+        }
+        for (e, kind, household_lpm, d) in &fixtures {
+            let (all, drawing) = kinds.get(kind.as_str()).copied().unwrap_or((1, 0));
+            if let Ok(mut c) = world.get::<&mut WaterConsumer>(*e) {
+                c.lpm = shared_lpm(*household_lpm, *d, drawing, all);
             }
         }
         // Hand watering draws from the tanks too: litres FarmingSystem
@@ -128,8 +189,7 @@ impl System for PlumbingSystem {
         for (_, (c, pc, power)) in
             world.query::<(&WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>().iter()
         {
-            let powered = !c.needs_power || power.map(|p| p.enabled).unwrap_or(false);
-            if powered {
+            if consumer_powered(c, power) {
                 *dem_by.entry(pc.map(|c| c.island)).or_default() += c.lpm;
             }
         }
@@ -341,6 +401,123 @@ mod tests {
         }
         let left = world.get::<&WaterTank>(tank).unwrap().liters;
         assert!((7000.0 - left - 10.2).abs() < 0.01, "an hour at 0.17 L/min takes 10.2 L: {left}");
+    }
+
+    /// A HOUSEHOLD'S FIXTURES SHARE ITS WATER (2026-10-20, ship homes increment 7, decision 7 of
+    /// docs/design/ship-homes-increment-7-plan.md; `machines::MachineDef::household_use`). Two
+    /// showers of one household each draw half of the household's showering, so the second shower
+    /// room adds taps and no second day of water; a toilet, another kind, keeps the household's
+    /// flushing whole; a third shower makes it three ways; and a shower of another zone's (another
+    /// household) is not part of this one's share. Seen red 2026-10-20 with the share step left out
+    /// of the tick: "the household draws 0.17501001 L/min, not its showering and flushing once
+    /// (0.10209)".
+    #[test]
+    fn a_households_fixtures_share_its_water() {
+        use crate::ecs::components::HouseholdUse;
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        let fixture = |world: &mut hecs::World, lpm: f32, kind: &str| {
+            world.spawn((WaterConsumer { lpm, needs_power: false }, HouseholdUse { household_lpm: lpm, kind: kind.into() }, PlumbingCircuit { island: 0 }))
+        };
+        let (showering, flushing) = (0.07292_f32, 0.02917_f32); // the family's 105 L and 42 L a day
+        let showers = [fixture(&mut world, showering, "home/shower"), fixture(&mut world, showering, "home/shower")];
+        let toilet = fixture(&mut world, flushing, "home/toilet");
+        let mut sys = PlumbingSystem::new();
+        sys.tick(&mut world, 60.0, &data);
+        let demand = status(&data).demand_lpm;
+        assert!((demand - (showering + flushing)).abs() < 1e-5, "the household draws {demand} L/min, not its showering and flushing once ({})", showering + flushing);
+        for e in showers {
+            let lpm = world.get::<&WaterConsumer>(e).unwrap().lpm;
+            assert!((lpm - showering / 2.0).abs() < 1e-6, "each of two showers draws {lpm}, not half the household's {showering}");
+        }
+        assert!((world.get::<&WaterConsumer>(toilet).unwrap().lpm - flushing).abs() < 1e-6, "the one toilet draws the household's flushing");
+        let third = fixture(&mut world, showering, "home/shower");
+        let elsewhere = fixture(&mut world, showering, "commons/shower");
+        sys.tick(&mut world, 60.0, &data);
+        assert!((world.get::<&WaterConsumer>(third).unwrap().lpm - showering / 3.0).abs() < 1e-6, "three showers share it three ways");
+        assert!((world.get::<&WaterConsumer>(elsewhere).unwrap().lpm - showering).abs() < 1e-6, "another household's shower is not in this one's share");
+        let demand = status(&data).demand_lpm;
+        assert!((demand - (2.0 * showering + flushing)).abs() < 1e-5, "two households' showering and one's flushing, {demand}");
+    }
+
+    /// A FIXTURE THAT CANNOT DRAW PASSES ITS SHARE TO THE ONES THAT CAN (2026-10-21, the review of
+    /// ship homes increment 7). The household does its laundry at the washer that works: with two
+    /// washers and one shed (its power cut), the one still running draws the household's whole
+    /// laundry, not half of it, and the shed one draws nothing. Power back, they halve it again. A
+    /// washer on a pipe run with no tank cannot draw either, so it passes its share on the same
+    /// way. And with every washer shed the household's laundry is unmet, none drawn. The garden's
+    /// irrigation is shared the same way: two irrigation pumps, one shed, and the other draws all
+    /// the crops' water (the crops are watered while any pump runs, so a shed pump's share was
+    /// water the crops got and the tanks never paid).
+    ///
+    /// Seen red first (2026-10-21) with each household fixture sharing among every fixture of its
+    /// kind, drawing or not: "the household's laundry draws 0.01146 L/min with one washer shed,
+    /// not its 0.02292".
+    #[test]
+    fn a_fixture_that_cannot_draw_passes_its_share_to_the_ones_that_can() {
+        use crate::ecs::components::{HouseholdUse, Irrigator};
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        let mut world = hecs::World::new();
+        let laundry = 0.02292_f32; // the family's 33 L a day
+        let washer = |world: &mut hecs::World, enabled: bool, island: u32| {
+            world.spawn((
+                WaterConsumer { lpm: laundry, needs_power: true },
+                PowerConsumer { draw_watts: 8.8, priority: 3, enabled },
+                HouseholdUse { household_lpm: laundry, kind: "home/washer".into() },
+                PlumbingCircuit { island },
+            ))
+        };
+        let lpm = |world: &hecs::World, e: hecs::Entity| world.get::<&WaterConsumer>(e).unwrap().lpm;
+        let running = washer(&mut world, true, 0);
+        let shed = washer(&mut world, false, 0);
+        world.spawn((WaterTank { liters: 1000.0, capacity_l: 8000.0 }, PlumbingCircuit { island: 0 }));
+        let mut sys = PlumbingSystem::new();
+        sys.tick(&mut world, 60.0, &data);
+        let demand = status(&data).demand_lpm;
+        assert!((demand - laundry).abs() < 1e-6, "the household's laundry draws {demand} L/min with one washer shed, not its {laundry}");
+        assert!((lpm(&world, running) - laundry).abs() < 1e-6, "the running washer draws {}, the household's whole {laundry}", lpm(&world, running));
+        assert_eq!(lpm(&world, shed), 0.0, "the shed washer draws nothing");
+
+        world.get::<&mut PowerConsumer>(shed).unwrap().enabled = true;
+        sys.tick(&mut world, 60.0, &data);
+        for e in [running, shed] {
+            assert!((lpm(&world, e) - laundry / 2.0).abs() < 1e-6, "power back, each washer draws half: {}", lpm(&world, e));
+        }
+
+        // A washer on a pipe run with no tank draws nothing, and the two that can share it.
+        let tankless = washer(&mut world, true, 7);
+        sys.tick(&mut world, 60.0, &data);
+        assert_eq!(lpm(&world, tankless), 0.0, "a washer with no tank on its run draws nothing");
+        for e in [running, shed] {
+            assert!((lpm(&world, e) - laundry / 2.0).abs() < 1e-6, "the two with a tank still halve it: {}", lpm(&world, e));
+        }
+        let demand = status(&data).demand_lpm;
+        assert!((demand - laundry).abs() < 1e-6, "the household's laundry is drawn once, {demand}");
+
+        // Every washer that has a tank shed: the household's laundry is unmet, none drawn.
+        for e in [running, shed] {
+            world.get::<&mut PowerConsumer>(e).unwrap().enabled = false;
+        }
+        let before: f32 = world.query::<&WaterTank>().iter().map(|(_, t)| t.liters).sum();
+        sys.tick(&mut world, 60.0, &data);
+        let after: f32 = world.query::<&WaterTank>().iter().map(|(_, t)| t.liters).sum();
+        assert_eq!(before, after, "no washer that can draw, no laundry water drawn");
+
+        // The irrigation: two pumps, one shed; the running one draws all the crops' water.
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        data.insert("irrigation_demand_lpm", std::sync::Mutex::new(0.5_f32));
+        let mut world = hecs::World::new();
+        let pump = |world: &mut hecs::World, enabled: bool| {
+            world.spawn((Irrigator, WaterConsumer { lpm: 0.0, needs_power: true }, PowerConsumer { draw_watts: 7.0, priority: 3, enabled }, PlumbingCircuit { island: 0 }))
+        };
+        let (on, off) = (pump(&mut world, true), pump(&mut world, false));
+        world.spawn((WaterTank { liters: 1000.0, capacity_l: 8000.0 }, PlumbingCircuit { island: 0 }));
+        sys.tick(&mut world, 60.0, &data);
+        assert!((lpm(&world, on) - 0.5).abs() < 1e-6, "the running irrigation pump draws {}, all of the crops' 0.5", lpm(&world, on));
+        assert_eq!(lpm(&world, off), 0.0, "the shed pump draws nothing");
     }
 
     /// A tank never overfills or drains below zero.

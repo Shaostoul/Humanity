@@ -414,6 +414,11 @@ fail on purpose once before it is trusted.
 
 ### Increment 0: rename and carve (mechanical, no behaviour change)
 
+**DONE 2026-10-20.** The files below exist as named; the three Maps snapshots
+(`maps_system`, `maps_galaxy`, `maps_planet`) rendered byte-identical before and
+after. Section 1's file and line references describe the page as it was before
+this increment.
+
 The page is called Maps; its code is called cosmos. The standing rule (CLAUDE.md, names,
 2026-10-19) is to rename now. `crate::cosmos` (`src/cosmos.rs`, the Sol model) keeps its
 name: it means the model, not the page.

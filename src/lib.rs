@@ -212,9 +212,9 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, bugs, donate, studio,
-        onboarding, server_settings, identity, governance, recovery, testing,
-        browser, cosmos, real,
-        platform, humanity, library, quests, homes,
+        onboarding, server_settings, identity, governance, testing,
+        browser, real,
+        humanity, library, quests, homes,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -1931,6 +1931,7 @@ mod native_app {
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
                 garden_draw: Default::default(),
+                home_draw: Default::default(),
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
@@ -2825,16 +2826,12 @@ mod native_app {
                                 // reworded, and the first attempt at this compared against the
                                 // raw action ids, so it matched nothing and stayed just as dead
                                 // as the room-id version it replaced.
-                                let p = state.camera.position;
-                                let pages = state
-                                    .gui_state
-                                    .room_bounds
-                                    .iter()
-                                    .find(|r| {
-                                        p.x >= r.min.x && p.x <= r.max.x
-                                            && p.y >= r.min.y && p.y <= r.max.y
-                                            && p.z >= r.min.z && p.z <= r.max.z
-                                    })
+                                //
+                                // The room is the one the HUD's room card names (`hud::room_at`),
+                                // so the station works wherever the card says "Here: Change
+                                // Outfit", against a wall included (review of ship homes
+                                // increment 7: a room box stops short of its walls).
+                                let pages = crate::gui::pages::hud::room_at(&state.gui_state.room_bounds, state.camera.position)
                                     .map(|r| r.action_pages.clone())
                                     .unwrap_or_default();
                                 let opens = |page: &str| pages.iter().any(|x| x == page);
@@ -3647,9 +3644,11 @@ mod native_app {
                         state.controller.set_on_lift(riding);
                     } else {
                         state.controller.set_on_lift(false);
-                        if !state.elevator_state.is_empty() {
-                            state.elevator_state.clear(); // reset when leaving play (build mode / other cam)
-                        }
+                        // Out of first person (another camera, the build editor, off the ship):
+                        // nobody rides and every car stays where it is, so a rider who changes
+                        // camera at the top is still on the car when they come back (it used to
+                        // reset every car to the bottom: a 3 m fall on return).
+                        crate::engine::footing::pause_elevators(&mut state.elevator_state);
                     }
 
                     // Keep the player grounded on the floor of whatever room they are in
@@ -5468,26 +5467,65 @@ mod native_app {
                     state.data_store.insert("camera_forward", forward);
                     state.data_store.insert("camera_yaw", state.camera.yaw);
 
-                    // Walk-up interaction (v0.431): the machine the player is looking at,
-                    // nearest within range inside a look-cone. Drives the [E] prompt + card.
+                    // ── Sight blockers (v0.975, nameplate-through-wall polish; in three
+                    // dimensions since the review of ship homes increment 7, ship/sight.rs):
+                    // the static sight spans (windows open) + live CLOSED opaque doors, each
+                    // standing between its own heights, + the SOLID floor slabs, translated
+                    // into the frame the HUD projects labels in (label.pos + station_off).
+                    // The HUD hides a machine card or crew nameplate whose camera->anchor
+                    // line meets one, so cards no longer bleed through the house's walls or
+                    // its floors, and the walk-up target below must be in sight by the same
+                    // test (built here, ahead of it, for that). Skipped in the build editor:
+                    // its orbit camera is above the roofline, where the walls and the solid
+                    // floors would wrongly hide everything.
+                    state.gui_state.sight_blockers.clear();
+                    if !state.gui_state.construction_active
+                        && !state.sight_colliders.is_empty()
+                        && (!state.gui_state.machine_labels.is_empty()
+                            || !state.gui_state.crew_labels.is_empty())
                     {
-                        let cp = state.camera.position;
-                        let cf = state.camera.forward();
-                        let mut best: Option<(usize, f32)> = None;
-                        for (i, label) in state.gui_state.machine_labels.iter().enumerate() {
-                            let to = label.pos - cp;
-                            let dist = to.length();
-                            if !(0.05..=5.0).contains(&dist) {
+                        // Engine-side station_off: updated earlier THIS frame (the
+                        // gui_state copy syncs later, with the crew labels).
+                        let off = state.station_off;
+                        let blockers = &mut state.gui_state.sight_blockers;
+                        blockers.walls.extend(state.sight_colliders.iter().map(|s| s.moved(off)));
+                        if let Some(ship) = state.gui_state.ship_structure.as_ref() {
+                            blockers.slabs.extend(crate::ship::sight::ship_solid_slabs(ship).map(|b| b.moved(off)));
+                        }
+                        for (i, (p, open)) in state.door_panels.iter().enumerate() {
+                            // Same blocking rule as the collision doors, except
+                            // window PANES never block sight (glass).
+                            let locked = door_locked_now(p, state.door_locks.get(i));
+                            if p.is_window || (*open >= 0.5 && !locked) {
                                 continue;
                             }
-                            if (to / dist).dot(cf) < 0.9 {
-                                continue; // outside the ~25-degree look cone
-                            }
-                            if best.map_or(true, |b| dist < b.1) {
-                                best = Some((i, dist));
-                            }
+                            // From its sill to its head, as the walk's door: a door shut
+                            // upstairs hides nothing on the ground floor.
+                            blockers.walls.push(crate::ship::wall_collision::door_panel_segment(p.center + off, p.rotation, p.size));
                         }
-                        state.gui_state.targeted_machine = best.map(|b| b.0);
+                    }
+
+                    // Walk-up interaction (v0.431): the machine the player is looking at,
+                    // nearest within range inside a look-cone. Drives the [E] prompt + card.
+                    // Since the review of ship homes increment 7 only a machine within the
+                    // relay's reach, on the player's storey (the home's own storeys, read at
+                    // the machine's foot and the player's feet) and in sight (no wall across
+                    // the line at its height, no solid floor between): E used to reach up
+                    // through the dining room's ceiling and sleep in the bed upstairs. Labels
+                    // and the ship are home-local; the camera is in the frame the home is
+                    // drawn at, station_off from it (as the HUD projects).
+                    {
+                        let off = state.station_off;
+                        let feet = state.camera.position.y - state.controller.eye_height();
+                        let ship = state.gui_state.ship_structure.as_ref();
+                        state.gui_state.targeted_machine = crate::ship::sight::walk_up_target(
+                            state.camera.position,
+                            feet,
+                            state.camera.forward(),
+                            state.gui_state.machine_labels.iter().map(|l| (l.pos + off, l.foot_y + off.y)),
+                            &state.gui_state.sight_blockers,
+                            |p| ship.and_then(|s| crate::ship::sight::storey_floor(s, p - off)).map(|f| f + off.y),
+                        );
                     }
 
                     // Walk-up to a VEHICLE (Stage 3 take-over, v0.690): the nearest
@@ -6163,9 +6201,9 @@ mod native_app {
                         log::info!("Dev: despawned {n} creatures");
                     }
                     // Live creature count for the Dev page. Only refreshed while the
-                    // Platform page is open (its only consumer) -- no reason to walk
+                    // Dev tab is open (its only consumer) -- no reason to walk
                     // the archetypes at 60fps during normal play. (v0.779)
-                    if state.gui_state.active_page == GuiPage::Platform {
+                    if state.gui_state.active_page == GuiPage::Dev {
                         state.gui_state.dev_creature_count = state
                             .game_world
                             .world
@@ -6475,7 +6513,7 @@ mod native_app {
                         }
                     }
                     crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
-                    crate::systems::farming::humidity::publish_rooms(&state.data_store, state.gui_state.room_bounds.iter().map(|r| (r.id.as_str(), r.display_name.as_str(), r.min.to_array(), r.max.to_array()))); // grow rooms' air
+                    crate::systems::farming::humidity::publish_room_bounds(&state.data_store, &state.gui_state.room_bounds); // grow rooms' air
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
                     crate::systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
                     crate::systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
@@ -6948,18 +6986,9 @@ mod native_app {
                         state.construction_cam_active = true;
                         state.controller.showroom_lock = false; // full orbit controls, not the fixed showroom orbit
                         state.construction_return_pos = state.camera.position;
-                        // Seed the build-mode avatar at the player's CURRENT spot the first time
-                        // (v0.557), converted into the ACTIVE zone's local coords (v0.754) and
-                        // clamped into its box, so toggling build mode without moving it keeps
-                        // you put; it then persists where you leave it and spawns you there on close.
-                        if state.gui_state.build_char_pos.is_none() {
-                            let zo = active_zone_origin(state);
-                            if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
-                                let p = state.construction_return_pos - zo;
-                                state.gui_state.build_char_pos =
-                                    Some((p.x.clamp(0.3, hs.width - 0.3), p.z.clamp(0.3, hs.depth - 0.3)));
-                            }
-                        }
+                        // The first time, the build-mode avatar goes where the player stands, on
+                        // their storey, and the storey selector opens there (v0.557, increment 7).
+                        crate::engine::editor::seed_build_avatar(state);
                         let (_center, size) = state.homestead_bounds
                             .map(|(mn, mx)| ((mn + mx) * 0.5, (mx - mn).length()))
                             .unwrap_or((Vec3::new(0.0, 1.5, 0.0), 20.0));
@@ -6985,39 +7014,10 @@ mod native_app {
                         // editor was open), or off their own plot, leaves them there instead
                         // (home_plot.rs `editor_close_spot`, ship homes 1b and 4); a pick it takes is
                         // declared as the editor's in the next update, so the relay passes the jump.
-                        // The build-mode avatar stands on the storey the player left from (ship
-                        // homes increment 7, home_plot.rs `editor_pick_at`); the home's spawn is
-                        // on its ground floor.
-                        let zo = active_zone_origin(state);
-                        let built = crate::engine::build_place::built_piece_boxes(
-                            &state.game_world.world,
-                            state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
-                            None,
-                        );
-                        let footing = crate::engine::footing::Footing {
-                            rooms: &state.gui_state.room_bounds,
-                            ship: state.gui_state.ship_structure.as_ref(),
-                            cars: &state.elevator_state,
-                            built: &built,
-                        };
-                        let pick = state.gui_state.build_char_pos.zip(zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone));
-                        let chosen = match pick {
-                            Some((xz, body)) => Some(crate::engine::home_plot::editor_pick_at(
-                                &footing,
-                                xz,
-                                zo,
-                                body,
-                                state.construction_return_pos,
-                                state.controller.eye_height(),
-                            )),
-                            None => state.gui_state.ship_structure.as_ref().and_then(|s| {
-                                let home = &s.zones[s.home_zone_index()];
-                                home.body.spawn.map(|(x, z)| {
-                                    let o = home.origin_vec();
-                                    Vec3::new(x + o.x, o.y + 1.7, z + o.z)
-                                })
-                            }),
-                        };
+                        // The avatar stands on the chosen storey, and only where a person can stand
+                        // (no glass lid, no opening): else the nearest place that is, or where they
+                        // stood, said in a notice (ship homes increment 7, `editor_close_pick`).
+                        let (chosen, pick_note) = crate::engine::home_plot::editor_close_pick(state);
                         let close = crate::engine::home_plot::editor_close_spot(
                             chosen,
                             state.construction_return_pos,
@@ -7034,6 +7034,8 @@ mod native_app {
                             state.gui_state.pending_notices.push(
                                 crate::engine::home_plot::EDITOR_HELD_BACK.to_string(),
                             );
+                        } else if let Some(note) = pick_note {
+                            state.gui_state.pending_notices.push(note);
                         }
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
@@ -7246,9 +7248,10 @@ mod native_app {
                                 // Persist the build-mode SPAWN point with the EDITED zone (v0.582) so
                                 // the moved avatar survives the save (was lost -- spawn lived only in
                                 // GuiState). build_char_pos is zone-local, exactly what body.spawn holds.
-                                let spawn = state.gui_state.build_char_pos;
-                                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
-                                    hs.spawn = spawn;
+                                // Only an avatar moved onto the ground floor (`spawn_from_avatar`).
+                                let spawn = crate::engine::editor::spawn_from_avatar(&state.gui_state);
+                                if let (Some(spawn), Some(hs)) = (spawn, zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone)) {
+                                    hs.spawn = Some(spawn);
                                 }
                                 let ship = state.gui_state.ship_structure.as_mut().unwrap();
                                 // Drop corridor rows that no longer resolve (a referenced door/zone was
@@ -7681,21 +7684,9 @@ mod native_app {
                     let hide_pipes = state.gui_state.construction_hidden_types.contains("Pipe");
                     if !showroom {
                         if !hide_machines {
-                        for &(mesh_idx, mat_idx, pos, yaw) in &state.machine_objects {
-                            all_objects.push(RenderObject { fade: 0.0,
-                                position: pos,
-                                rotation: Quat::from_rotation_y(yaw.to_radians()), // v0.633 machine yaw
-                                scale: Vec3::ONE,
-                                mesh: mesh_idx,
-                                material: mat_idx,
-                            });
-                        }
-                        // In-world screens (rung 2): the display quad of every
-                        // placed machine with a `screen` def, drawn with the
-                        // body's own position + yaw (type-24 emitter material
-                        // bound to the surface texture). Hidden with the
-                        // machines, since each sits on a machine body.
-                        state.screens.push_render_objects(&mut all_objects);
+                        // The machines and their in-world screens (rung 2), but those the build
+                        // editor's cut-away leaves out (home_meshes `push_home_machines`).
+                        crate::engine::home_meshes::push_home_machines(state, &mut all_objects);
                         // Procedural plants (v0.862): one merged mesh per planted
                         // tower, geometry already in world coordinates.
                         for &(mesh_idx, mat_idx) in &state.plant_objects {
@@ -7903,39 +7894,14 @@ mod native_app {
                         }
                         let car_mesh = state.elevator_car_mesh.unwrap();
                         let car_mat = state.elevator_car_mat.unwrap();
-                        // EVERY zone's elevator cars, at world positions, keyed (zone, idx) (v0.754).
+                        // EVERY elevator's car at its height, its footprint less a 2 cm running
+                        // clearance, none the editor's cut-away hides (home_meshes
+                        // `elevator_car_poses`, the same lifts the cars ride on).
                         let cars: Vec<(Vec3, Quat, Vec3)> = state
                             .gui_state
                             .ship_structure
                             .as_ref()
-                            .map(|ship| {
-                                ship.zones
-                                    .iter()
-                                    .enumerate()
-                                    .flat_map(|(zi, zone)| {
-                                        let o = zone.origin_vec();
-                                        let es = &state.elevator_state;
-                                        zone.body.structures.iter().enumerate().filter_map(move |(i, ps)| {
-                                            let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                            if ty.kind != crate::ship::structure::StructureKind::Elevator {
-                                                return None;
-                                            }
-                                            // The car's height over its base, metres: the same
-                                            // travel the rider stands on (engine/footing.rs).
-                                            let travel = es.get(&(zi, i)).map_or(0.0, |e| e.0);
-                                            let car_top = ps.pos.1 + o.y + travel;
-                                            let (w, _h, d) = ty.size;
-                                            let thick = 0.15;
-                                            // box_xyz is y-bottom-origin + XZ-centered: place the slab so its
-                                            // TOP sits at car_top (the standing surface).
-                                            let pos = Vec3::new(ps.pos.0 + o.x, car_top - thick, ps.pos.2 + o.z);
-                                            let scale = Vec3::new(w * 0.85, thick, d * 0.85);
-                                            let rot = Quat::from_rotation_y(ps.rot_deg.to_radians());
-                                            Some((pos, rot, scale))
-                                        })
-                                    })
-                                    .collect()
-                            })
+                            .map(|ship| crate::engine::home_meshes::elevator_car_poses(ship, &state.elevator_state, state.home_draw.cut))
                             .unwrap_or_default();
                         for (position, rotation, scale) in cars {
                             all_objects.push(RenderObject { fade: 0.0, position, rotation, scale, mesh: car_mesh, material: car_mat });
@@ -9058,8 +9024,10 @@ mod native_app {
                             // Player-sized avatar STANDING on the floor (v0.560): body box ~1.55 m + a
                             // head, so the marker reads as the player's height/width. Overlay pass ->
                             // visible through walls. The avatar stands in the ACTIVE zone, so its
-                            // zone-local (cx, cz) shifts to world by the zone origin (v0.754).
-                            let zo = active_zone_origin(state);
+                            // zone-local (cx, cz) shifts to world by the zone origin (v0.754). It
+                            // stands on the chosen storey's floor, where it is grabbed and dragged
+                            // (ship homes increment 7, `build_avatar_floor_y`).
+                            let zo = active_zone_origin(state).with_y(crate::engine::editor::build_avatar_floor_y(state));
                             let (cx, cz) = (cx + zo.x, cz + zo.z);
                             overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(cx, zo.y, cz),
@@ -13780,47 +13748,9 @@ mod native_app {
                         }
                     }
 
-                    // ── HUD sight blockers (v0.975, nameplate-through-wall polish):
-                    // the static sight spans (windows open) + live CLOSED opaque
-                    // doors, translated into the frame the HUD projects labels in
-                    // (label.pos + station_off). The HUD hides a machine card or
-                    // crew nameplate whose camera->anchor line crosses one of
-                    // these, so cards no longer bleed through the house walls.
-                    // Skipped in the build editor: its orbit camera is above the
-                    // roofline and the 2D test would wrongly hide everything.
-                    state.gui_state.sight_blockers.clear();
-                    if !state.gui_state.construction_active
-                        && !state.sight_colliders.is_empty()
-                        && (!state.gui_state.machine_labels.is_empty()
-                            || !state.gui_state.crew_labels.is_empty())
-                    {
-                        // Engine-side station_off: updated earlier THIS frame (the
-                        // gui_state copy syncs later, with the crew labels).
-                        let off = state.station_off;
-                        state.gui_state.sight_blockers.extend(
-                            state.sight_colliders.iter().map(|s| {
-                                [s.a.0 + off.x, s.a.1 + off.z, s.b.0 + off.x, s.b.1 + off.z]
-                            }),
-                        );
-                        let door_locks = state.door_locks.clone();
-                        for (i, (p, open)) in state.door_panels.iter().enumerate() {
-                            // Same blocking rule as the collision doors, except
-                            // window PANES never block sight (glass).
-                            let locked = door_locked_now(p, door_locks.get(i));
-                            if p.is_window || (*open >= 0.5 && !locked) {
-                                continue;
-                            }
-                            let half_w = p.size.x * 0.5;
-                            let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
-                            let c = p.center + off;
-                            state.gui_state.sight_blockers.push([
-                                c.x - dir.x * half_w,
-                                c.z - dir.z * half_w,
-                                c.x + dir.x * half_w,
-                                c.z + dir.z * half_w,
-                            ]);
-                        }
-                    }
+                    // (The HUD's sight blockers are built earlier this frame, ahead of the
+                    // walk-up target, which tests its line of sight with them too: search
+                    // "Sight blockers (v0.975".)
 
                     // ── Pinned-card auto-recipe selector (v0.725, info-window
                     // overhaul part 2): publish the E-opened machine's

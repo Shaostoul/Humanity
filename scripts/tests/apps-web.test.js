@@ -921,8 +921,9 @@ test("10. the nav: Apps beside Play with the four squares, in the phone menu, li
   }
   assert.deepStrictEqual(stale, [], "nothing links to /tools");
   assert.ok(!fs.existsSync(path.join(WEB, "pages", "tools.html")) && !fs.existsSync(path.join(WEB, "pages", "tools-app.js")), "the old files are gone");
-  // The Library and Platform pages point people here.
-  for (const f of ["library.html", "platform.html"]) {
+  // The Library page points people here. (So did the Platform page, until it was retired with
+  // the app's Platform tab on 2026-10-20.)
+  for (const f of ["library.html"]) {
     assert.match(readText(path.join(WEB, "pages", f)), /<a href="\/apps">Apps<\/a> page/, f + " links to the Apps page");
   }
   const just = readText(path.join(ROOT, "Justfile"));

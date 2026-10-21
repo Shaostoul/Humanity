@@ -926,7 +926,8 @@ pub fn nav_icon(page: crate::gui::GuiPage) -> Option<fn(&egui::Painter, Rect, Co
         P::Profile     => paint_person,
         P::Identity    => paint_key,
         P::Governance  => paint_scroll,
-        P::Recovery    => paint_lifebuoy,
+        // 2026-10-20: the Recovery page became a part of Settings > Account
+        // (paint_lifebuoy is pub and stays for it or another page).
         P::Tasks       => paint_checklist,
         P::Inventory   => paint_box,
         P::Maps        => paint_pin,
@@ -956,7 +957,7 @@ pub fn nav_icon(page: crate::gui::GuiPage) -> Option<fn(&egui::Painter, Rect, Co
         // is retired (operator: "only have a single H/Humanity page").
         P::Humanity => paint_humanity,
         P::Real     => paint_person,
-        P::Platform => paint_wrench,
+        P::Dev      => paint_wrench,
         P::Library  => paint_scroll,
         P::Quests   => paint_compass,
         // None = FPS game mode; the "Play" nav button carries this page and gets

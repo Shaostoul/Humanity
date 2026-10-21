@@ -13,7 +13,7 @@ thread_local! {
     /// Test-only stand-in for the build version. The menu prints it, so its
     /// snapshot changed on every release and could never be a baseline.
     /// `set_version_for_snapshot` pins it for the calling thread, the way
-    /// `cosmos::set_clock_for_snapshot` pins that page's clock.
+    /// `maps::set_clock_for_snapshot` pins that page's clock.
     static TEST_VERSION: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
 }
 

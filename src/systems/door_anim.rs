@@ -94,20 +94,28 @@ pub fn is_operable(style: &str) -> bool {
 /// open/shut every frame as float noise crosses the line.
 pub const AUTO_CLOSE_HYSTERESIS: f32 = 0.8;
 
-/// How far a body's feet may stand outside a door's own height band, metres, and the door still
-/// counts it (`feet_reach_door`): 0.6, the step up a body takes onto a raised floor
-/// (engine/footing.rs `STEP_UP_M`, which a test in engine/home_meshes_tests.rs holds this to). So a
-/// body on a stair's last three risers, or on a low deck, opens the door at the landing, and one a
-/// storey below or above (3 m) never does.
+/// How far under a door's sill a body's feet may stand and the door still count it, metres
+/// (`feet_reach_door`): 0.6, the step up a body takes onto a raised floor (engine/footing.rs
+/// `STEP_UP_M`, which a test in engine/home_meshes_tests.rs holds this to). So a body on a
+/// stair's last three risers opens the door at its landing, and one a storey below (3 m) never
+/// does.
 pub const DOOR_STOREY_TOLERANCE_M: f32 = 0.6;
 
 /// True when a body whose feet are at `feet_y` is on the storey of a door whose opening runs from
-/// its sill at `sill_y` up to `top_y` (world metres): feet between the two, give or take
-/// `DOOR_STOREY_TOLERANCE_M` (ship homes increment 7, plan section 3: a door auto-opens only for a
-/// body on its storey). Before storeys every body counted at any height, so a door upstairs would
-/// have opened for anyone walking under it.
+/// its sill at `sill_y` up to `top_y` (world metres), so the door auto-opens for it (ship homes
+/// increment 7, plan section 3: a door opens only for a body on its storey). The feet count from
+/// `DOOR_STOREY_TOLERANCE_M` under the sill (a stair step below it) up to the door's head less a
+/// knee (`wall_collision::KNEE_M`): the band in which the shut door would stop the body
+/// (`WallSegment::stops_body`, a panel stops a body whose knee is under its head), so a door
+/// opens for anyone it would stand in the way of, a body on a step over its sill or in the middle
+/// of a jump in its doorway included, and for nobody over it.
+///
+/// The top used to reach `DOOR_STOREY_TOLERANCE_M` OVER the door's head, which for a 2.4 m ground
+/// door is the 3.0 m floor upstairs, so the homestead's five 2.4 m ground doors opened (with their
+/// sound) for someone walking on the floor over them (the increment's review, 2026-10-21). Before
+/// storeys every body counted at any height.
 pub fn feet_reach_door(feet_y: f32, sill_y: f32, top_y: f32) -> bool {
-    feet_y >= sill_y - DOOR_STOREY_TOLERANCE_M && feet_y <= top_y + DOOR_STOREY_TOLERANCE_M
+    feet_y >= sill_y - DOOR_STOREY_TOLERANCE_M && feet_y < top_y - crate::ship::wall_collision::KNEE_M
 }
 
 /// Target open fraction for an AUTO door: `dist` is the nearest actor's HORIZONTAL distance to
@@ -233,6 +241,35 @@ mod tests {
         }
         assert!(!feet_reach_door(0.0, 3.0, 5.1), "feet on the floor under the door reach it");
         assert!(!feet_reach_door(6.0, 3.0, 5.1), "feet on the floor over the door reach it");
+    }
+
+    /// A DOOR OPENS ONLY FOR A BODY ON ITS OWN STOREY, HOWEVER TALL THE DOOR (ship homes increment
+    /// 7 review). The homestead's tallest ground doors are 2.4 m, under a slab whose top is 3.0:
+    /// feet on that floor (3.0, or 2.9999998 as the walk works it out) do not reach a 2.4 m door at
+    /// sill 0, so it stays shut (and silent) for someone walking upstairs; feet on the ground floor
+    /// do not reach a door upstairs (sill 3.0), tall or not. A body a stair step under or over a
+    /// door's sill does reach it, and so does one in the middle of a jump in its doorway (the feet
+    /// 1.27 m up at the top of a jump at 1 g), so the door does not shut on it mid-jump.
+    ///
+    /// Seen red first (2026-10-21) with the band reaching `DOOR_STOREY_TOLERANCE_M` over the
+    /// door's head: "feet on the floor over a 2.4 m ground door (3) reach it".
+    #[test]
+    fn a_door_opens_only_for_a_body_on_its_own_storey_however_tall() {
+        for feet in [3.0, 2.999_999_8, 3.5] {
+            assert!(!feet_reach_door(feet, 0.0, 2.4), "feet on the floor over a 2.4 m ground door ({feet}) reach it");
+        }
+        for (sill, top) in [(3.0, 5.1), (3.0, 5.4), (3.0, 5.75)] {
+            assert!(!feet_reach_door(0.0, sill, top), "feet on the ground floor reach the door upstairs from {sill} to {top}");
+        }
+        for (feet, sill, top, why) in [
+            (-0.5, 0.0, 2.4, "a step under a ground door's sill"),
+            (0.5, 0.0, 2.4, "a step over a ground door's sill"),
+            (2.5, 3.0, 5.1, "on the stair a step under an upstairs door's sill"),
+            (3.5, 3.0, 5.1, "a step over an upstairs door's sill"),
+            (1.27, 0.0, 2.1, "at the top of a jump in a 2.1 m doorway"),
+        ] {
+            assert!(feet_reach_door(feet, sill, top), "feet {why} ({feet}, the door {sill} to {top}) do not reach it");
+        }
     }
 
     #[test]

@@ -49,12 +49,12 @@ HumanityOS (native top nav)
 |- Tasks           -> Tasks page (kanban)
 |- Inventory       -> Inventory page
 |- Crafting        -> Crafting page
-|- Map             -> Cosmos render (heading "Cosmos" - see OPEN-1)
-|   |- views: System | Galactic | Night Sky
-|- Platform        -> Platform page (sidebar)
-|   |- Recovery ("Social Key Recovery") | Calculator | Notes | Calendar
-|   |- Bugs ("Report a Bug") | Testing | Performance | Dev (Files left for the Files page, 2026-10-19)
-|   |- Planet Tuner | Browser
+|- Maps            -> Maps page (src/gui/pages/maps/, heading "Maps")
+|   |- views: Planet | Solar System | Galaxy | Night Sky
+|- Dev             -> Dev tab (sidebar; it replaced the Platform tab 2026-10-20)
+|   |- Bugs ("Report a Bug") | Testing | Performance | Dev | Planet Tuner
+|   |  (Platform's Calculator, Notes, Calendar and Browser are on Apps; its
+|   |   Recovery is Settings > Account > "Recovery through trusted people")
 |- Library         -> Library page (document tree + Dictionary)
 |- Tools           -> Tools page (external catalog)
 |- Settings        -> Settings page

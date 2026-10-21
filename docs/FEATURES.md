@@ -95,7 +95,15 @@ Mandatory `subject_class_v1` declaration + `controlled_by_v1` operator binding. 
 - API: `GET /api/v2/ai-status/{did}` in `src/relay/api_v2_ai.rs`
 
 ### Social Key Recovery
-Shamir-shared seed via guardians. Server stores opaque ciphertext only.
+Shamir-shared seed via guardians. Server stores opaque ciphertext only. HALF BUILT
+(2026-10-20): the server has the lookups only; there is no screen to choose guardians or
+split the phrase, and the people-facing words say so ("Recovery through trusted people",
+"Not finished yet"). The two lookups work on both sides.
+- Native: `src/gui/pages/settings/recovery.rs`, Settings > Account > "Recovery through
+  trusted people", right after Security (2026-10-20; it was the Platform tab's Recovery page,
+  whose two lookups set flags nothing read). An account is named by its `did:hum:` id
+  (`account_id`, the server's own `did_for_pubkey`), your own when the field is empty.
+- Web: `web/pages/recovery.html`, linked from the website's Settings > Security.
 - Storage: `src/relay/storage/recovery.rs`
 - API: `/api/v2/recovery/setup/{holder_did}`, `/api/v2/recovery/shares-held-by/{guardian_did}`, `/api/v2/recovery/request/{request_object_id}` in `src/relay/api_v2_recovery.rs`
 
@@ -1308,20 +1316,21 @@ a need shows once below half; air and body temperature whenever out of range) / 
 - Native: `src/gui/pages/hud.rs`
 
 ### Maps Page
-Multi-scale map with celestial navigation (nav label "Maps"; internally the
-`GuiPage::Cosmos`/`GuiPage::Maps` enum variants are aliases that both render
-the same page, since v0.203.2). Real Kepler orbital mechanics (`src/cosmos.rs`,
+Multi-scale map with celestial navigation (nav label "Maps", `GuiPage::Maps`; the
+duplicate `GuiPage::Cosmos` variant merged into it in v0.1145). Real Kepler orbital mechanics (`src/cosmos.rs`,
 one `SolBody` set + one propagator shared by the Maps page, FPS world spawn,
 and the ECS position resolver -- see `src/ecs/cosmos.rs`), a "Focus" button
 (one-shot camera snap-to a body) and a "Track" button (continuous camera
 follow as the body orbits, v0.647.0).
-- Native: `src/gui/pages/cosmos.rs` (the OLDER `src/gui/pages/maps.rs` is dead
-  code as of this fix -- zero callers anywhere; `GuiPage::Maps` has forwarded
-  to `cosmos::draw` since v0.203.2, found + corrected 2026-07-01 during the
-  overnight autonomous-loop broader stub sweep, which had already found this
-  same "superseded file left in place" pattern 3 times this session --
-  `src/renderer/sky.rs`, `src/systems/navigation/orbital.rs`,
-  `src/systems/skills/learning.rs`)
+- Native: `src/gui/pages/maps/` (Maps increment 0, 2026-10-20: it was
+  `src/gui/pages/cosmos.rs`, 3,880 lines, carved by view): `mod.rs` (the page,
+  the view tabs, the shared pan and zoom canvas and footer), `system_view.rs`
+  (the 3D Solar System view, its camera `MapCamera`, the reference-orbit and
+  Lagrange overlays, a body's card with Focus and Track), `body_list.rs` (its two
+  side panels), `planet_view.rs`, `galaxy_view.rs`, `night_sky.rs`,
+  `sky_events.rs` (conjunctions, eclipses, the forward scan), `time_bar.rs` (the
+  page's clock), `tests.rs`; state `GuiState::maps` (`src/gui/state_types/maps.rs`).
+  The build order from here: `docs/design/maps-zoom-to-anything.md` section 6.
 
 ### Profile Page
 User profile view/edit.
@@ -1375,7 +1384,7 @@ Generator scripts/build-stars-map-bin.js (just build-stars-map) is
 self-verifying (31 checks) and the Rust parser locks it with
 shipped_stars_map_bin_is_real (Sirius 8.6 ly, Vega 25 ly, sort order).
 Ladder: docs/design/maps-ladder.md (OSM planet GPS next).
-- Native: src/gui/pages/cosmos.rs (map_stars/parse_stars_map/draw_galactic_view)
+- Native: src/gui/pages/maps/galaxy_view.rs (map_stars/parse_stars_map/draw_galactic_view)
 
 ### Maps Planet View: OpenStreetMap Regions (v0.1146)
 The Maps page's first view is Planet: real Earth regions as GPS-style 2D
@@ -1389,7 +1398,7 @@ scale bar, viewport culling. Demo region: Seattle Center (8,966 roads,
 1,457 buildings, byte-deterministic rebuilds). Rust lock:
 shipped_seattle_region_is_real (Pike Street, Rainier Square Tower 259 m).
 Ladder: docs/design/maps-ladder.md rung 3 (next: 3D extrusion in-world).
-- Native: src/gui/pages/cosmos.rs (parse_region/map_regions/draw_planet_view)
+- Native: src/gui/pages/maps/planet_view.rs (map_regions/draw_planet_view; the parser, parse_region, is src/terrain/osm_region.rs)
 - Generator: scripts/fetch-osm-region.mjs
 
 ### Map Label Placement (2026-09-27)
@@ -1405,8 +1414,8 @@ attribution the licence requires) sits on a themed backing chip. The web Maps
 page runs the same placer for its star labels and puts its attribution on the
 same chip, from theme variables.
 - Native: `src/gui/widgets/label_placer.rs` (`LabelPlacer`, `point_candidates`,
-  `along_polyline`, `LABEL_GAP`, unit tests), `src/gui/pages/cosmos.rs`
-  (`label_stars`, `label_rings`, `MapFooter`)
+  `along_polyline`, `LABEL_GAP`, unit tests), `src/gui/pages/maps/galaxy_view.rs`
+  (`label_stars`, `label_rings`) and `src/gui/pages/maps/mod.rs` (`MapFooter`)
 - Web: `web/shared/label-placer.js`, `web/pages/maps.html` (`renderStellar`,
   `#attribution`)
 
@@ -1449,7 +1458,7 @@ under. The 2D Planet view draws the same polygons (ear-clipped fills,
 island repaint, named-water labels). Rust locks: 7 water_carve tests +
 shipped-file locks (Dyes Inlet sea area > 5 km2, Island Lake + its Clark
 Island hole, Lake Union in Seattle Center).
-- Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
+- Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/maps/planet_view.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
 ### The Sharp Converged Sky (v0.1165, phase 8)
@@ -3174,8 +3183,12 @@ height). A plain click resets the set to single-selection.
 A text-command console, the discoverable act surface for both a human and an AI. Verbs: `help`, `list`,
 `add_wall`, `rm_wall`, `set_material`, `add_door`, `add_window`, `set_style`, `add_lock`, `add_light`,
 `rm_light`, `add_structure`, `rm_structure`, `add_layer`, `rm_layer`, `add_road_node`, `rm_road_node`,
-`add_road`, `rm_road`.
+`add_road`, `rm_road`, and the storey verbs `storey`, `add_slab`, `rm_slab`, `slab_glass`.
 - Native: `src/gui/pages/construction.rs` (`exec_construction_command`, `CONSOLE_VERBS`)
+- Dev IPC (2026-10-21): the showcase verb `{"console":"<line>"}` runs one line on the live home for
+  that session only, never arming the autosave that writes the data files in the Dev mode
+  (`src/engine/ipc.rs` `console_this_session`); its answer is the run.log's `Showcase: console` line.
+  `just verify-falls` places and removes its deck with it.
 
 ### Live Home JSON Introspection (AI read surface) (v0.576)
 Every rebuild writes a machine-readable snapshot of the live home so an AI can READ what the operator is
@@ -3641,12 +3654,14 @@ holds on there (it used to drop you); stepping away from it is a fall.
   `broken_ankle` and `broken_leg` rows of `data/medical/wounds.ron` and
   `data/status_effects.csv` (which replaced the never-applied `broken_bone`)
 - Checked in the running game: `just verify-falls` (`scripts/verify-falls.js`, judged by
-  `scripts/lib/falls-judge.js`, 2026-10-20) walks up the homestead's stairs and off the
-  3 m top by holding forward, in Forgiving (a landing reaches the body and does nothing)
-  and Realistic (a Sprained Ankle, the health taken on the landing frame); climbs the
-  ladder, lets go at the top (the body holds on) and steps off (a Broken Ankle); drops
-  the player from a placement (no landing reaches the body); and checks world entry hands
-  the body no landing. The dev IPC's body probe (`src/engine/body_probe.rs`): health and
+  `scripts/lib/falls-judge.js`, 2026-10-20; brought up to the homestead's upper floor
+  2026-10-21) places a 3 m deck in the greenhouse with the build editor's console (the
+  showcase `console` verb, for that session only) and walks off its edge by holding
+  forward, in Forgiving (a landing reaches the body and does nothing) and Realistic (a
+  Sprained Ankle, the health taken on the landing frame); walks down the 16-riser stairs
+  (no landing); climbs the ladder and steps off its top through the hatch's gate onto the
+  upper floor (no fall, no wound); drops the player from a placement (no landing reaches
+  the body); and checks world entry hands the body no landing. The dev IPC's body probe (`src/engine/body_probe.rs`): health and
   wounds in the recorder's home session vitals, health on every recorded frame, a `falls`
   block (landings handed to the body, the last speed, the mode), the showcase `illness`
   verb, and a `[Falls]` run.log line per landing
@@ -3910,8 +3925,19 @@ your own home has no save yet.
 - Native: `src/gui/pages/showroom.rs`, `src/gui/pages/where_you_live.rs` (`draw_server`, `draw_choice`), `src/engine/save_slot.rs` (`ask_where_you_live`, `choose_on_server_gui`, `enter_pairing_gui`)
 - Server: `src/relay/api.rs` (`get_server_info`), `src/relay/handlers/home_plots.rs` (`handle_home`)
 
+### Dev Tab (the developer tools, 2026-10-20)
+One top-menu tab, Dev, holding the developer tools in a side list: Bugs, Testing, Performance,
+Dev and Planet Tuner (all permanent: perpetual development). It replaced the Platform tab, which
+the operator called redundant on 2026-10-20: Platform's Calculator, Notes, Calendar and Browser
+are HumanityOS tools on the Apps page, its Recovery is in Settings > Account.
+- Native: `src/gui/pages/dev_tab.rs` (`SECTIONS`, `GuiPage::Dev`, page id "dev"); tests in
+  `dev_tab_tests.rs` (the five listed and nothing else; the top menu says Dev, never Platform)
+- Web: `web/pages/dev.html` (the Dev Workbench) carries the same list of five; the top menu's
+  Dev tab opens it; `web/pages/platform.html` retired (removed from the live site by
+  `scripts/sync-web-root.sh`)
+
 ### Dev Page: Spawn Any Creature + Walk-Up Editor
-Platform > Dev (cheats-gated, like every dev affordance): searchable list of all 92
+The Dev tab's Dev section (cheats-gated, like every dev affordance): searchable list of all 92
 creatures.csv species, Spawn drops one ~2 m ahead (passive species keep the anchored
 livestock graze - no AIBehavior; hunt species spawn as predators), Despawn-all + live
 count. Walk-up editor: look at any creature, press G - rename, health (0 = kill via

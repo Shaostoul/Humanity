@@ -35,6 +35,14 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-20: THE MAPS PAGE JOINS, CARVED (Maps increment 0,
+///   docs/design/maps-zoom-to-anything.md). `gui/pages/cosmos.rs` (3,880 lines,
+///   never on this list) became the folder `gui/pages/maps/`, one file per view,
+///   and every file joins at its measured size plus about 3%, so the increments
+///   to come (the camera, the ship from its meshes, decks, search) land in new
+///   files beside these rather than regrowing one monolith. The page's twenty
+///   `cosmos_*` fields left `gui/mod.rs` (4_749 -> 4_657) for one
+///   `GuiState::maps` in `gui/state_types/maps.rs`.
 /// - 2026-10-12: `relay/handlers/profile.rs` joins at 650 (BUG-191 Wave 0,
 ///   docs/design/bug-191-profile-copies-plan.md). The two profile handlers
 ///   (374 lines) moved out of `msg_handlers.rs` (4_653 -> 4_273, seven lines
@@ -401,6 +409,14 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/pages/chat/right_panel.rs", 600),
     ("src/gui/mod.rs", 4_800),
     ("src/gui/state_types.rs", 1_850),
+    ("src/gui/pages/maps/mod.rs", 355),
+    ("src/gui/pages/maps/system_view.rs", 1_395),
+    ("src/gui/pages/maps/body_list.rs", 385),
+    ("src/gui/pages/maps/planet_view.rs", 435),
+    ("src/gui/pages/maps/galaxy_view.rs", 395),
+    ("src/gui/pages/maps/night_sky.rs", 265),
+    ("src/gui/pages/maps/sky_events.rs", 465),
+    ("src/gui/pages/maps/time_bar.rs", 250),
     ("src/gui/loaders.rs", 1_650),
     ("src/relay/relay.rs", 6_400),
     ("src/relay/files.rs", 1_650),

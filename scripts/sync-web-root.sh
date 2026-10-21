@@ -38,6 +38,10 @@ for old in tools media shared-files; do
 done
 rm -f "$DST/pages/tools-app.js" "$DST/shared/media.css"
 rm -f "$DST"/pages/media-*.js
+# Retired 2026-10-20 with the app's Platform tab: its developer tools are the Dev tab (the website's
+# /dev), its Calculator, Notes, Calendar and Browser are on Apps, and Recovery is linked from
+# Settings. The hub page had no script of its own (its styles were inline).
+rm -f "$DST/platform.html"
 # Retired 2026-07-30: three catalogs merged into data/external/catalog.json.
 rm -f "$DST/data/resources.json" "$DST/data/resources/catalog.json" "$DST/data/tools/catalog.json"
 

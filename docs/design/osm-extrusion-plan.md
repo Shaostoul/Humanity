@@ -84,7 +84,7 @@ clamp waterfront buildings need.
   the constants `111320.0 * cos(origin_lat)` and `110540.0` are explicitly
   part of the CONTRACT; the Rust reader must use the same two numbers.
 - The only Rust reader today is the Maps 2D page: parse_region +
-  map_regions() (src/gui/pages/cosmos.rs); it is private to the page and
+  map_regions() (then src/gui/pages/cosmos.rs, now src/gui/pages/maps/planet_view.rs); it is private to the page and
   must move to a shared module.
 - Measured seattle-center.bin content: 8,966 roads, 1,457 buildings (711
   with height, max 259.0 m: Rainier Square Tower), 18,073 footprint
@@ -226,5 +226,5 @@ the relay feature check) and gate the engine/renderer parts native.
 - src/lib.rs (celestial-pass hook ~8925-8942; classic-object push pattern
   9341-9463)
 - src/engine/frame_lock.rs (ground_radius_m, the shared drawn-ground oracle)
-- src/gui/pages/cosmos.rs (swap its private parser for the shared module)
+- src/gui/pages/cosmos.rs, now src/gui/pages/maps/planet_view.rs (swap its private parser for the shared module)
 - tests/visual/vantages.json (new Seattle vantages)

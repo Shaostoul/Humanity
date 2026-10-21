@@ -15,8 +15,26 @@
 //! the rule built pieces already followed. So a wall upstairs stops a body upstairs and lets the one
 //! downstairs walk under it, a ground wall rising through the slab stops both, and a door shut on one
 //! storey is no wall on the other.
+//!
+//! WHAT A SEGMENT IS (ship homes increment 7 review, 2026-10-21): every segment has a
+//! `SegmentKind`, which says which bodies it stops. A WALL stops the knee-to-eye band, as above. The
+//! wall over an opening (a door's head, the shell over a corridor's or a plot door's cut) is a
+//! LINTEL: an opening is cut only from its foot to its head, never at every height, so a body a
+//! storey up walks into the wall over a door below it, and a body passing through the doorway
+//! ducks under it (a jump through a 2.2 m door is not shoved sideways). A stair's STEP stops a body
+//! whose feet are lower than its top less the step up, the footing's own rule, so a flight is
+//! climbed from its foot and walked into from its side, its back and under its high end. A GUARD (a
+//! balustrade) stops any body whose feet are under its rail plus `GUARD_CLEAR_M`, so a jump does
+//! not carry a body over it.
+//!
+//! THE SWEEP (review finding 4): `resolve` moves the body along its step and stops it at the first
+//! segment it touches, then slides it along that segment with what is left of the step (the move
+//! and slide every first-person game's character uses), instead of pushing it out of whatever it
+//! landed in three times over. A body never passes a gap narrower than itself, and where a walk
+//! ends no longer depends on how many frames a second cut it into.
 
-use crate::ship::home_structure::{HomeStructure, OpeningKind, ShellCut};
+use crate::ship::home_structure::{HomeStructure, OpeningKind, PlacedStructure, ShellCut};
+use crate::ship::structure::{self, MeshShape, StructureKind, StructureType};
 use glam::{Quat, Vec3};
 
 /// Player capsule radius (metres) for the horizontal push-out.
@@ -32,6 +50,70 @@ pub const EYE_HEIGHT_M: f32 = 1.7;
 /// (`engine::build_place::built_piece_segments`) from before storeys, now every segment's.
 pub const KNEE_M: f32 = 0.4;
 
+/// The highest a body steps up in one go, metres: the footing's (`engine::footing::STEP_UP_M`,
+/// held to this by a test below; the footing is in the desktop build only and this file is in the
+/// relay's too, so the number is written twice). A stair's step stops a body whose feet are lower
+/// than the step's top less this (`SegmentKind::Step`), and the footing stands a body on any step
+/// no higher than this over the floor it rests on, so the two agree on which steps are climbed.
+pub const STEP_UP_M: f32 = 0.6;
+
+/// How far over a guard's rail a body's feet go before the guard stops holding them, metres (ship
+/// homes increment 7 review, finding 3, decided): a jump lifts the feet 1.27 m at 1 g, over the
+/// homestead's 1.0 m guards by 0.27 m, so a guard holds a body whose feet are under its rail plus
+/// this (`SegmentKind::Guard`) and a jump does not carry anyone over it. Climbing over a rail on
+/// purpose (a hand on the rail, a leg over, the other leg) would be an action of its own, not a
+/// walk or a jump; it does not exist yet.
+pub const GUARD_CLEAR_M: f32 = 0.3;
+
+/// A move longer than this in one `resolve`, metres, is a PLACEMENT (a teleporter, a respawn, the
+/// rig putting the body somewhere), not a walk: it is settled where it lands instead of swept from
+/// where it began, so a wall between the two does not stop it. Far over the longest frame's walk
+/// (a sprint is 0.95 m in the 0.1 s the main loop clamps a frame to), and the length the sweep
+/// had given up at before (48 substeps of 0.15 m).
+pub const PLACEMENT_M: f32 = 7.2;
+
+/// The slices a ramp is cut into for its collision, metres along its run at most: each slice
+/// stops a body as a step as tall as the ramp at its high side.
+const RAMP_SLICE_M: f32 = 0.25;
+
+/// How far off a segment the sweep leaves a body it stopped, metres, so the next step starts clear
+/// of it.
+const SKIN_M: f32 = 1e-4;
+
+/// The most times one sweep slides off what it touched. Three is a wall, a second wall in a
+/// corner and the slide out of the corner; one more for a slide that touches a third.
+const MAX_SLIDES: usize = 4;
+
+/// The most passes a push-out makes to settle a body that starts inside segments (a door shut on
+/// it, a placement into a wall), and how little a pass may still move it to count as settled.
+const SETTLE_PASSES: usize = 32;
+const SETTLED_M: f32 = 1e-5;
+
+/// What a segment is, which says which bodies it stops (`WallSegment::stops_body`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SegmentKind {
+    /// A wall, a shut door, a gate, a corridor's side, a built piece: it stops a body whose
+    /// knee-to-eye band (`KNEE_M` over the feet to the eye) it stands across. A blocker under the
+    /// knee is stepped over; one over the eye is walked under.
+    Wall,
+    /// The wall over an opening: a door's head, the shell over a corridor's or a plot door's cut.
+    /// It stops a body whose KNEE is at its height, a body standing a storey up beside it; a body
+    /// whose knee is under it is passing through the opening and ducks under it, so a jump through
+    /// a doorway is not shoved sideways by the wall over the door (a horizontal sweep has no way to
+    /// bump a head and let the body on through).
+    Lintel,
+    /// A face of a stair's step (or a ramp's slice), standing from the stair's foot to the step's
+    /// top: it stops a body whose feet are lower than that top less `STEP_UP_M`, the step the
+    /// footing will not stand it on. Each step a riser above the last is stood on, so a flight is
+    /// climbed from its foot; its side, its back and the solid under its high end stop a body that
+    /// cannot step onto them.
+    Step,
+    /// A guard (a balustrade): it stops any body whose feet are under its rail plus
+    /// `GUARD_CLEAR_M` and whose eye is over its foot, so a jump does not clear it, and a body on
+    /// the storey below walks under it.
+    Guard,
+}
+
 /// A blocking wall segment in the XZ plane (a..b), inflated by `half_thickness`, standing between
 /// the world heights `y0` and `y1`.
 #[derive(Clone, Copy, Debug)]
@@ -43,29 +125,39 @@ pub struct WallSegment {
     /// Wave 0 of docs/design/ship-homes-increment-7-plan.md). Every builder fills them: a home's
     /// wall from its base to its top, the perimeter from the floor to the roof, a corridor's sides
     /// from its deck to its lid, a door panel from its sill to its head, a built piece its box.
-    /// The sweep reads them (`stops_body`): a segment stops only a body whose knee-to-eye band it
-    /// stands across. A blocker whose heights are not known stands at every height
+    /// The sweep reads them (`stops_body`): which bodies a segment stops at those heights is its
+    /// `kind`'s rule. A blocker whose heights are not known stands at every height
     /// (`WallSegment::at_every_height`), which is what every segment did before it had them.
     pub y0: f32,
     pub y1: f32,
+    /// What it is, which says which bodies it stops (review of increment 7): a wall, the wall over
+    /// an opening, a stair's step or a guard. Every blocker made outside this file is a `Wall`.
+    pub kind: SegmentKind,
 }
 
 impl WallSegment {
-    /// True when this segment stops a body whose eye is at world height `eye_y`: it stands
-    /// somewhere across that body's knee-to-eye band, from `KNEE_M` over its feet (`EYE_HEIGHT_M`
-    /// under the eye) up to the eye. A wall upstairs (3..6) is over the head of a body on the
+    /// True when this segment stops a body whose eye is at world height `eye_y` (its feet
+    /// `EYE_HEIGHT_M` under it), by its kind's rule (`SegmentKind`). A WALL stands somewhere
+    /// across the body's knee-to-eye band: a wall upstairs (3..6) is over the head of a body on the
     /// ground floor (band 0.4..1.7) and a ground wall (0..3) under the knees of one upstairs (band
-    /// 3.4..4.7); a wall from the ground to the roof stops both. A segment at every height stops
-    /// every body.
+    /// 3.4..4.7); a wall from the ground to the roof stops both. A LINTEL stands at the knee, a
+    /// STEP's top is more than a step up over the feet, a GUARD's rail is less than
+    /// `GUARD_CLEAR_M` under them. A segment at every height stops every body.
     pub fn stops_body(&self, eye_y: f32) -> bool {
-        let knee = eye_y - EYE_HEIGHT_M + KNEE_M;
-        self.y0 < eye_y && self.y1 > knee
+        let feet = eye_y - EYE_HEIGHT_M;
+        let knee = feet + KNEE_M;
+        match self.kind {
+            SegmentKind::Wall => self.y0 < eye_y && self.y1 > knee,
+            SegmentKind::Lintel => self.y0 < knee && self.y1 > knee,
+            SegmentKind::Step => self.y0 < eye_y && self.y1 > feet + STEP_UP_M,
+            SegmentKind::Guard => self.y0 < eye_y && self.y1 + GUARD_CLEAR_M > feet,
+        }
     }
 
     /// A segment standing at every height (`y0` minus infinity, `y1` plus infinity): for a blocker
     /// whose heights are not known, which then stops a body at any height.
     pub fn at_every_height(a: (f32, f32), b: (f32, f32), half_thickness: f32) -> Self {
-        WallSegment { a, b, half_thickness, y0: f32::NEG_INFINITY, y1: f32::INFINITY }
+        WallSegment { a, b, half_thickness, y0: f32::NEG_INFINITY, y1: f32::INFINITY, kind: SegmentKind::Wall }
     }
 
     /// This segment moved by `by`: a body's walls (body-local) placed at its origin in the world.
@@ -73,9 +165,9 @@ impl WallSegment {
         WallSegment {
             a: (self.a.0 + by.x, self.a.1 + by.z),
             b: (self.b.0 + by.x, self.b.1 + by.z),
-            half_thickness: self.half_thickness,
             y0: self.y0 + by.y,
             y1: self.y1 + by.y,
+            ..self
         }
     }
 }
@@ -94,22 +186,27 @@ pub fn door_panel_segment(center: Vec3, rotation: Quat, size: Vec3) -> WallSegme
         half_thickness: (size.z * 0.5).max(0.05),
         y0: center.y,
         y1: center.y + size.y,
+        kind: SegmentKind::Wall,
     }
 }
 
 /// Build the STATIC blocking segments from a home (and every guard piece placed in it on its own,
-/// ship homes increment 7): the 4 perimeter walls + each interior wall's SOLID
-/// pier spans. DOOR apertures are cut out (so a doorway is a walk-through gap); WINDOW spans stay
-/// solid (you can't walk through glass -- the pane + the sill wall block the whole width). Doors get a
-/// separate LIVE collider in `resolve`'s `doors` arg, because their open state changes every frame.
+/// ship homes increment 7, and every stair): the 4 perimeter walls + each interior wall's SOLID
+/// pier spans. DOOR apertures are cut out from their foot to their head (so a doorway is a
+/// walk-through gap, with the wall over it a lintel); WINDOW spans stay solid (you can't walk
+/// through glass -- the pane + the sill wall block the whole width). Doors get a separate LIVE
+/// collider in `resolve`'s `doors` arg, because their open state changes every frame.
 pub fn wall_segments(home: &HomeStructure) -> Vec<WallSegment> {
     wall_segments_with_shell_cuts(home, &[])
 }
 
 /// `wall_segments` with corridor APERTURES cut out of the perimeter (ship-superstructure increment
 /// B, the collision twin of `generate_meshes_with_shell_cuts`): where a corridor tube meets the
-/// box, the perimeter gets a door-width walk-through gap instead of a solid wall. With no cuts
-/// this is exactly the pre-B path.
+/// box, the perimeter gets a door-width walk-through gap instead of a solid wall, from the cut's
+/// foot (`ShellCut::base`) to its head (`base + height`), as the mesh opens it; over the head the
+/// shell stands (ship homes increment 7 review, finding 1: upstairs over the homestead's front door
+/// a walk used to go out through the shell and fall 3 m into the corridor). With no cuts this is
+/// exactly the pre-B path.
 pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
     segments_impl(home, shell_cuts, false)
 }
@@ -122,12 +219,22 @@ pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCu
 /// (the same split `resolve` uses). A guard (a balustrade, `InteriorWall::guard`, or a guard
 /// piece placed on its own) is see-through and blocks no sight (ship homes increment 7). The
 /// sight check is across the floor only (`sight_blocked`): a wall on another storey still hides a
-/// nameplate whose line it crosses; the heights are in each segment for when it reads them.
+/// nameplate whose line it crosses, so every opening is open here at every height (the wall over a
+/// doorway would close the doorway to a check that reads no heights), and a stair hides nothing.
 pub fn sight_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
     segments_impl(home, shell_cuts, true)
 }
 
-fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_windows: bool) -> Vec<WallSegment> {
+/// One opening in a straight run of wall: its span along the run, metres from the run's start,
+/// and the heights it opens, world (body-local) metres, its foot to its head.
+struct Opened {
+    from: f32,
+    to: f32,
+    y0: f32,
+    y1: f32,
+}
+
+fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> Vec<WallSegment> {
     let mut segs = Vec::new();
     let (w, d) = (home.width.max(1.0), home.depth.max(1.0));
     // The perimeter stands from the body's floor to its roof (the height the mesh draws it to).
@@ -144,97 +251,229 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
     .enumerate()
     {
         let len = if ei % 2 == 0 { w } else { d };
-        let mut cuts: Vec<(f32, f32)> = shell_cuts
+        // Each cut opens the shell from its foot to its head (the mesh's synthetic door,
+        // `generate_meshes_with_shell_cuts`), and nowhere else.
+        let cuts: Vec<Opened> = shell_cuts
             .iter()
             .filter(|c| c.edge == ei)
-            .map(|c| (c.at.clamp(0.0, len), (c.at + c.width).clamp(0.0, len)))
+            .map(|c| Opened { from: c.at, to: c.at + c.width, y0: py0 + c.base, y1: py0 + c.base + c.height })
             .collect();
-        if cuts.is_empty() {
-            segs.push(WallSegment { a, b, half_thickness: st, y0: py0, y1: py1 });
-            continue;
-        }
-        cuts.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(std::cmp::Ordering::Equal));
-        let (ux, uz) = ((b.0 - a.0) / len, (b.1 - a.1) / len);
-        let mut cursor = 0.0f32;
-        for (s, e) in cuts.iter().chain(std::iter::once(&(len, len))) {
-            if s - cursor > 0.02 {
-                segs.push(WallSegment {
-                    a: (a.0 + ux * cursor, a.1 + uz * cursor),
-                    b: (a.0 + ux * s, a.1 + uz * s),
-                    half_thickness: st,
-                    y0: py0,
-                    y1: py1,
-                });
-            }
-            cursor = e.max(cursor);
-        }
+        wall_run(&mut segs, a, b, len, st, (py0, py1), SegmentKind::Wall, &cuts, sight);
     }
     for wall in &home.walls {
         // A GUARD is a balustrade (ship homes increment 7, `InteriorWall::guard`): posts and
-        // balusters under 100 mm apart and a top rail. It stops a walk like the wall it is, but
-        // it is see-through, so it is no sight blocker: a 1.0 m balustrade round a stairwell does
-        // not hide the nameplates beyond it.
-        if see_through_windows && wall.guard().is_some() {
+        // balusters under 100 mm apart and a top rail. It stops a walk (a jump too: `SegmentKind::
+        // Guard`), but it is see-through, so it is no sight blocker: a 1.0 m balustrade round a
+        // stairwell does not hide the nameplates beyond it.
+        let guard = wall.guard().is_some();
+        if sight && guard {
             continue;
         }
         let ht = wall.resolved_thickness() * 0.5;
         let (wy0, wy1) = wall.y_range();
-        let (ax, az) = wall.a;
-        let (bx, bz) = wall.b;
-        let len = ((bx - ax).powi(2) + (bz - az).powi(2)).sqrt();
+        let len = ((wall.b.0 - wall.a.0).powi(2) + (wall.b.1 - wall.a.1).powi(2)).sqrt();
         if len < 1e-4 {
             continue;
         }
-        let (ux, uz) = ((bx - ax) / len, (bz - az) / len);
-        // DOOR cut intervals along the wall, clamped + sorted. For COLLISION windows are NOT
-        // cut (glass blocks the walker); for SIGHT they are (glass is transparent).
-        let mut cuts: Vec<(f32, f32)> = wall
+        // DOOR openings along the wall, each from its sill to its head. For COLLISION windows are
+        // NOT cut (glass blocks the walker); for SIGHT they are (glass is transparent).
+        let openings: Vec<Opened> = wall
             .openings
             .iter()
-            .filter(|o| o.kind == OpeningKind::Door || (see_through_windows && o.kind == OpeningKind::Window))
-            .map(|o| (o.at.clamp(0.0, len), (o.at + o.width).clamp(0.0, len)))
+            .filter(|o| o.kind == OpeningKind::Door || (sight && o.kind == OpeningKind::Window))
+            .map(|o| Opened { from: o.at, to: o.at + o.width, y0: wy0 + o.sill, y1: wy0 + o.sill + o.height })
             .collect();
-        cuts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-        // Emit a solid segment for each gap between the door cuts (and after the last one).
-        let mut cursor = 0.0f32;
-        for (s, e) in cuts.iter().chain(std::iter::once(&(len, len))) {
-            if s - cursor > 0.02 {
-                segs.push(WallSegment {
-                    a: (ax + ux * cursor, az + uz * cursor),
-                    b: (ax + ux * s, az + uz * s),
-                    half_thickness: ht,
-                    y0: wy0,
-                    y1: wy1,
-                });
-            }
-            cursor = e.max(cursor);
-        }
+        let kind = if guard { SegmentKind::Guard } else { SegmentKind::Wall };
+        wall_run(&mut segs, wall.a, wall.b, len, ht, (wy0, wy1), kind, &openings, sight);
     }
-    // A GUARD PLACED ON ITS OWN (the `guard` structure piece, kind Guard, a 1.2 m section; ship
-    // homes increment 7): it stops a walk across its length, from its foot to its rail, like a
-    // guard drawn with the wall tool. Not a sight blocker (a balustrade is see-through). The
-    // segment runs along the piece's width through its middle, turned with it.
-    if !see_through_windows {
+    // The pieces a walk is stopped by (not sight blockers: a balustrade is see-through, and a stair
+    // hides no nameplate on the floor plan): a GUARD placed on its own, and every STAIR.
+    if !sight {
         for ps in &home.structures {
-            let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) else { continue };
-            if ty.kind != crate::ship::structure::StructureKind::Guard {
-                continue;
+            let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
+            match ty.kind {
+                StructureKind::Guard => segs.push(guard_piece_segment(ps, ty)),
+                StructureKind::Stairs => stair_faces(&mut segs, ps, ty),
+                _ => {}
             }
-            let (s, c) = ps.rot_deg.to_radians().sin_cos();
-            let hw = ty.size.0 * 0.5;
-            // A piece's local (x, 0) lies at world (x cos, -x sin) from its middle
-            // (`structure::structure_mesh`'s turn).
-            let (dx, dz) = (hw * c, -hw * s);
-            segs.push(WallSegment {
-                a: (ps.pos.0 - dx, ps.pos.2 - dz),
-                b: (ps.pos.0 + dx, ps.pos.2 + dz),
-                half_thickness: (ty.size.2 * 0.5).max(0.03),
-                y0: ps.pos.1,
-                y1: ps.pos.1 + ty.size.1,
-            });
         }
     }
     segs
+}
+
+/// A straight run of wall from `a` to `b` (`len` long, `ht` half thick, standing from `heights.0`
+/// to `heights.1`) with its `opened` openings cut out, as segments of `kind`. An opening is cut
+/// from its foot to its head only: the wall over it stands as a `SegmentKind::Lintel`, the wall
+/// under it (a raised opening's sill) as the run's own kind. For SIGHT (`sight`), which reads no
+/// heights, an opening is open at every height, as every opening was before increment 7's review.
+/// A solid piece no longer than 2 cm (a sliver between two openings) is left out, as it always was.
+#[allow(clippy::too_many_arguments)]
+fn wall_run(
+    segs: &mut Vec<WallSegment>,
+    a: (f32, f32),
+    b: (f32, f32),
+    len: f32,
+    ht: f32,
+    heights: (f32, f32),
+    kind: SegmentKind,
+    opened: &[Opened],
+    sight: bool,
+) {
+    let (y0, y1) = heights;
+    let (ux, uz) = ((b.0 - a.0) / len, (b.1 - a.1) / len);
+    let at = |t: f32| (a.0 + ux * t, a.1 + uz * t);
+    if opened.is_empty() {
+        segs.push(WallSegment { a, b, half_thickness: ht, y0, y1, kind });
+        return;
+    }
+    // Where along the run what is solid changes: its ends and every opening's sides.
+    let mut marks: Vec<f32> = vec![0.0, len];
+    for o in opened {
+        marks.push(o.from.clamp(0.0, len));
+        marks.push(o.to.clamp(0.0, len));
+    }
+    marks.sort_by(f32::total_cmp);
+    marks.dedup_by(|x, y| (*x - *y).abs() < 1e-4);
+    // The heights that stand over each piece between two marks, a piece merged into the one
+    // before it when the same heights stand over both.
+    let mut runs: Vec<(f32, f32, Vec<(f32, f32)>)> = Vec::new();
+    for pair in marks.windows(2) {
+        let (s, e) = (pair[0], pair[1]);
+        let mid = (s + e) * 0.5;
+        let over: Vec<&Opened> = opened.iter().filter(|o| o.from < mid && mid < o.to).collect();
+        let standing = if over.is_empty() {
+            vec![(y0, y1)]
+        } else if sight {
+            Vec::new()
+        } else {
+            heights_left((y0, y1), &over)
+        };
+        match runs.last_mut() {
+            Some(r) if r.2 == standing => r.1 = e,
+            _ => runs.push((s, e, standing)),
+        }
+    }
+    for (s, e, standing) in runs {
+        if e - s <= 0.02 {
+            continue;
+        }
+        for (h0, h1) in standing {
+            let k = if h0 > y0 + 1e-4 { SegmentKind::Lintel } else { kind };
+            segs.push(WallSegment { a: at(s), b: at(e), half_thickness: ht, y0: h0, y1: h1, kind: k });
+        }
+    }
+}
+
+/// The heights of a wall standing from `heights.0` to `heights.1` that the openings `over` leave
+/// standing, bottom up.
+fn heights_left(heights: (f32, f32), over: &[&Opened]) -> Vec<(f32, f32)> {
+    let (y0, y1) = heights;
+    let mut holes: Vec<(f32, f32)> = over.iter().map(|o| (o.y0.max(y0), o.y1.min(y1))).filter(|h| h.1 > h.0).collect();
+    holes.sort_by(|p, q| p.0.total_cmp(&q.0));
+    let mut out = Vec::new();
+    let mut cursor = y0;
+    for (h0, h1) in holes {
+        if h0 - cursor > 1e-3 {
+            out.push((cursor, h0));
+        }
+        cursor = cursor.max(h1);
+    }
+    if y1 - cursor > 1e-3 {
+        out.push((cursor, y1));
+    }
+    out
+}
+
+/// A GUARD PLACED ON ITS OWN (the `guard` structure piece, kind Guard, a 1.2 m section; ship homes
+/// increment 7): it stops a walk across its length, from its foot to its rail, like a guard drawn
+/// with the wall tool (`SegmentKind::Guard`). The segment runs along the piece's width through its
+/// middle, turned with it.
+fn guard_piece_segment(ps: &PlacedStructure, ty: &StructureType) -> WallSegment {
+    let (s, c) = ps.rot_deg.to_radians().sin_cos();
+    let hw = ty.size.0 * 0.5;
+    // A piece's local (x, 0) lies at world (x cos, -x sin) from its middle
+    // (`structure::structure_mesh`'s turn).
+    let (dx, dz) = (hw * c, -hw * s);
+    WallSegment {
+        a: (ps.pos.0 - dx, ps.pos.2 - dz),
+        b: (ps.pos.0 + dx, ps.pos.2 + dz),
+        half_thickness: (ty.size.2 * 0.5).max(0.03),
+        y0: ps.pos.1,
+        y1: ps.pos.1 + ty.size.1,
+        kind: SegmentKind::Guard,
+    }
+}
+
+/// A STAIR (a piece of kind Stairs: a flight of steps, or a ramp) as the walk is stopped by it
+/// (ship homes increment 7 review, finding 2: stairs had no collider, so on the homestead's ground
+/// floor a body walked into the back of stairs-1 and through the flight until it popped up onto
+/// step 3). The flight is solid from the floor (`structure::local_mesh` builds each step as a
+/// column from the floor to its tread), so it is cut into its COLUMNS, foot to top: a step each,
+/// or slices of a ramp no longer than `RAMP_SLICE_M`, each as tall as the ramp at its high side.
+/// Each column gives `SegmentKind::Step` segments standing from the stair's foot to the column's
+/// top, which stop a body whose feet are lower than that top less a step up: its riser across the
+/// width, its two sides, and a CORE through the solid from it to the high end, which settles a
+/// body that came to be inside the flight (a jump over its low steps that the footing will not
+/// stand on them) out to the nearest side instead of leaving it trapped among the faces. And the
+/// high end's face. For a body with its feet at any height, the columns that stop it are the run
+/// from the first one more than a step up over its feet to the top, one box, so the faces it meets
+/// are that box's: the stair is walked into from its side, its back and under its high end, and
+/// climbed from its foot one riser at a time. A column no more than a step up over the stair's
+/// foot never stops a body standing on the floor the stair stands on, so it gives nothing.
+fn stair_faces(segs: &mut Vec<WallSegment>, ps: &PlacedStructure, ty: &StructureType) {
+    let (w, h, d) = ty.size;
+    let (hw, hd) = (w * 0.5, d * 0.5);
+    if hw <= 0.0 || hd <= 0.0 || h <= 0.0 {
+        return;
+    }
+    // (near side, far side, top): local z along the run, metres over the foot.
+    let columns: Vec<(f32, f32, f32)> = match ty.shape {
+        MeshShape::Steps => {
+            let n = ty.steps.max(1);
+            let (tread, riser) = (d / n as f32, h / n as f32);
+            (0..n).map(|i| (-hd + i as f32 * tread, -hd + (i + 1) as f32 * tread, (i + 1) as f32 * riser)).collect()
+        }
+        MeshShape::Ramp => {
+            let n = (d / RAMP_SLICE_M).ceil().max(1.0) as u32;
+            let slice = d / n as f32;
+            (0..n).map(|i| (-hd + i as f32 * slice, -hd + (i + 1) as f32 * slice, h * (i + 1) as f32 / n as f32)).collect()
+        }
+        _ => return,
+    };
+    let (s, c) = ps.rot_deg.to_radians().sin_cos();
+    // A piece's local (x, z) at world (pos.x + x cos + z sin, pos.z - x sin + z cos)
+    // (`structure::structure_mesh`'s turn).
+    let world = |lx: f32, lz: f32| (ps.pos.0 + lx * c + lz * s, ps.pos.2 - lx * s + lz * c);
+    let face = |from: (f32, f32), to: (f32, f32), half_thickness: f32, top: f32| WallSegment {
+        a: world(from.0, from.1),
+        b: world(to.0, to.1),
+        half_thickness,
+        y0: ps.pos.1,
+        y1: ps.pos.1 + top,
+        kind: SegmentKind::Step,
+    };
+    for &(z0, z1, top) in &columns {
+        if top <= STEP_UP_M + 1e-4 {
+            continue;
+        }
+        segs.push(face((-hw, z0), (hw, z0), 0.0, top));
+        segs.push(face((-hw, z0), (-hw, z1), 0.0, top));
+        segs.push(face((hw, z0), (hw, z1), 0.0, top));
+        // The core: the box from this column to the high end, as one thick segment whose round
+        // ends stay inside it (along the run when the box is longer than it is wide, else across).
+        let run = hd - z0;
+        segs.push(if run >= w {
+            face((0.0, z0 + hw), (0.0, hd - hw), hw, top)
+        } else {
+            let r = run * 0.5;
+            face((-(hw - r), z0 + r), (hw - r, z0 + r), r, top)
+        });
+    }
+    if let Some(&(_, _, top)) = columns.last() {
+        if top > STEP_UP_M + 1e-4 {
+            segs.push(face((-hw, hd), (hw, hd), 0.0, top));
+        }
+    }
 }
 
 /// Build the blocking segments for the WHOLE SHIP (v0.754, ship-superstructure increment A): each
@@ -290,9 +529,10 @@ pub(crate) fn corridor_side_walls(g: &crate::ship::ship_structure::CorridorGeom)
     let ht = CORRIDOR_WALL_THICKNESS * 0.5;
     // The side walls stand from the corridor's deck to its lid.
     let (y0, y1) = (g.floor_y, g.floor_y + g.height);
+    let kind = SegmentKind::Wall;
     [-1.0f32, 1.0].map(|s| match g.axis {
-        CorridorAxis::X => WallSegment { a: (g.start, g.lat + hw * s), b: (g.end, g.lat + hw * s), half_thickness: ht, y0, y1 },
-        CorridorAxis::Z => WallSegment { a: (g.lat + hw * s, g.start), b: (g.lat + hw * s, g.end), half_thickness: ht, y0, y1 },
+        CorridorAxis::X => WallSegment { a: (g.start, g.lat + hw * s), b: (g.end, g.lat + hw * s), half_thickness: ht, y0, y1, kind },
+        CorridorAxis::Z => WallSegment { a: (g.lat + hw * s, g.start), b: (g.lat + hw * s, g.end), half_thickness: ht, y0, y1, kind },
     })
 }
 
@@ -371,68 +611,173 @@ fn closest_on_seg(px: f32, pz: f32, a: (f32, f32), b: (f32, f32)) -> (f32, f32, 
     (cx, cz, dist)
 }
 
-/// One push-out pass: shove the point out of every penetrated segment, iterated a few times so
-/// inside-corners settle. Y is preserved. A cheap per-segment range reject bounds the cost. Used per
-/// substep by `resolve`. `pos` is the body's eye: a segment that does not stand across its
-/// knee-to-eye band (`WallSegment::stops_body`) is not in its way at all.
-fn resolve_once(pos: Vec3, radius: f32, walls: &[WallSegment], doors: &[WallSegment]) -> Vec3 {
-    let mut px = pos.x;
-    let mut pz = pos.z;
-    for _ in 0..3 {
-        for seg in walls.iter().chain(doors.iter()) {
-            if !seg.stops_body(pos.y) {
+/// A segment as the sweep meets it: a..b and how near the body's centre may come to it, its half
+/// thickness plus the body's radius.
+#[derive(Clone, Copy)]
+struct Reach {
+    a: (f32, f32),
+    b: (f32, f32),
+    r: f32,
+}
+
+/// Push the body's centre `p` out of every segment it is inside, pass after pass until a pass
+/// moves it no further than `SETTLED_M` (at most `SETTLE_PASSES`): for a body that starts the
+/// sweep inside something (a door shut on it, a gate that closed, a placement into a wall, a step
+/// that now stands across it). Wedged in a gap narrower than itself, it settles in the gap's mouth.
+fn settle(mut p: (f32, f32), near: &[Reach]) -> (f32, f32) {
+    for _ in 0..SETTLE_PASSES {
+        let mut deepest = 0.0f32;
+        for s in near {
+            let (cx, cz, dist) = closest_on_seg(p.0, p.1, s.a, s.b);
+            let overlap = s.r - dist;
+            if overlap <= 0.0 {
                 continue;
             }
-            let push = radius + seg.half_thickness;
-            // Range reject: skip segments whose inflated AABB doesn't contain the player point.
-            let (minx, maxx) = (seg.a.0.min(seg.b.0) - push, seg.a.0.max(seg.b.0) + push);
-            let (minz, maxz) = (seg.a.1.min(seg.b.1) - push, seg.a.1.max(seg.b.1) + push);
-            if px < minx || px > maxx || pz < minz || pz > maxz {
-                continue;
-            }
-            let (cx, cz, dist) = closest_on_seg(px, pz, seg.a, seg.b);
-            if dist > 1e-4 {
-                if dist < push {
-                    let overlap = push - dist;
-                    px += (px - cx) / dist * overlap;
-                    pz += (pz - cz) / dist * overlap;
-                }
+            deepest = deepest.max(overlap);
+            if dist > 1e-6 {
+                p.0 += (p.0 - cx) / dist * overlap;
+                p.1 += (p.1 - cz) / dist * overlap;
             } else {
-                // Exactly on the centerline: push out along the segment's normal.
-                let (sx, sz) = (seg.b.0 - seg.a.0, seg.b.1 - seg.a.1);
-                let slen = (sx * sx + sz * sz).sqrt().max(1e-5);
-                px += -sz / slen * push;
-                pz += sx / slen * push;
+                // Exactly on the centreline: out along the segment's normal (along x for a point).
+                let (sx, sz) = (s.b.0 - s.a.0, s.b.1 - s.a.1);
+                let l = (sx * sx + sz * sz).sqrt();
+                if l > 1e-6 {
+                    p.0 += -sz / l * s.r;
+                    p.1 += sx / l * s.r;
+                } else {
+                    p.0 += s.r;
+                }
+            }
+        }
+        if deepest <= SETTLED_M {
+            break;
+        }
+    }
+    p
+}
+
+/// Where along the move `d` (0 to 1 of it) the body's centre from `p` first touches the segment
+/// `s`, and the segment's outward normal there: None when the move does not touch it. A body
+/// already touching it touches it at once if the move goes further in, and not at all if the move
+/// takes it away.
+fn touch(p: (f32, f32), d: (f32, f32), s: &Reach) -> Option<(f32, (f32, f32))> {
+    let (cx, cz, dist) = closest_on_seg(p.0, p.1, s.a, s.b);
+    if dist < s.r + SKIN_M * 0.5 {
+        let n = if dist > 1e-6 {
+            ((p.0 - cx) / dist, (p.1 - cz) / dist)
+        } else {
+            let l = (d.0 * d.0 + d.1 * d.1).sqrt().max(1e-9);
+            (-d.0 / l, -d.1 / l)
+        };
+        return (d.0 * n.0 + d.1 * n.1 < 0.0).then_some((0.0, n));
+    }
+    let mut first: Option<(f32, (f32, f32))> = None;
+    // Its two long sides, `r` off its line.
+    let (sx, sz) = (s.b.0 - s.a.0, s.b.1 - s.a.1);
+    let l = (sx * sx + sz * sz).sqrt();
+    if l > 1e-6 {
+        let (ux, uz) = (sx / l, sz / l);
+        let (nx, nz) = (-uz, ux);
+        let off = (p.0 - s.a.0) * nx + (p.1 - s.a.1) * nz;
+        let toward = d.0 * nx + d.1 * nz;
+        if off * toward < 0.0 {
+            let t = (off.abs() - s.r) / toward.abs();
+            if (0.0..=1.0).contains(&t) {
+                let along = (p.0 + d.0 * t - s.a.0) * ux + (p.1 + d.1 * t - s.a.1) * uz;
+                if (0.0..=l).contains(&along) {
+                    let side = off.signum();
+                    first = Some((t, (nx * side, nz * side)));
+                }
             }
         }
     }
-    Vec3::new(px, pos.y, pz)
+    // Its two round ends, `r` round each.
+    let qa = d.0 * d.0 + d.1 * d.1;
+    for e in [s.a, s.b] {
+        let (fx, fz) = (p.0 - e.0, p.1 - e.1);
+        let qb = 2.0 * (fx * d.0 + fz * d.1);
+        if qb >= 0.0 || qa < 1e-12 {
+            continue;
+        }
+        let disc = qb * qb - 4.0 * qa * (fx * fx + fz * fz - s.r * s.r);
+        if disc < 0.0 {
+            continue;
+        }
+        let t = (-qb - disc.sqrt()) / (2.0 * qa);
+        if !(0.0..=1.0).contains(&t) || first.is_some_and(|(ft, _)| ft <= t) {
+            continue;
+        }
+        let (hx, hz) = (p.0 + d.0 * t - e.0, p.1 + d.1 * t - e.1);
+        let hl = (hx * hx + hz * hz).sqrt().max(1e-6);
+        first = Some((t, (hx / hl, hz / hl)));
+    }
+    first
+}
+
+/// MOVE AND SLIDE: carry the body's centre from `p` along `d`, stopping at the first segment it
+/// touches (`SKIN_M` short of it), then go on along that segment with what is left of the move
+/// into it taken away, up to `MAX_SLIDES` times; what is left after that is dropped (a body in a
+/// corner, or in the mouth of a gap narrower than itself, stays there).
+fn slide(mut p: (f32, f32), mut d: (f32, f32), near: &[Reach]) -> (f32, f32) {
+    for _ in 0..MAX_SLIDES {
+        if d.0 * d.0 + d.1 * d.1 < 1e-12 {
+            break;
+        }
+        let mut first: Option<(f32, (f32, f32))> = None;
+        for s in near {
+            if let Some((t, n)) = touch(p, d, s) {
+                if first.is_none_or(|(ft, _)| t < ft) {
+                    first = Some((t, n));
+                }
+            }
+        }
+        let Some((t, n)) = first else {
+            p.0 += d.0;
+            p.1 += d.1;
+            break;
+        };
+        p.0 += d.0 * t + n.0 * SKIN_M;
+        p.1 += d.1 * t + n.1 * SKIN_M;
+        let left = (d.0 * (1.0 - t), d.1 * (1.0 - t));
+        let into = left.0 * n.0 + left.1 * n.1;
+        d = if into < 0.0 { (left.0 - n.0 * into, left.1 - n.1 * into) } else { left };
+    }
+    p
 }
 
 /// Resolve the player's move from `prev` to `pos` against the walls + live door segments, sliding
-/// along surfaces. SUBSTEPS the movement so a fast/sprinting player (or a frame hitch -- dt is clamped
-/// to 0.1 s) can't TUNNEL through a thin wall or a closed door in one frame: each substep advances
-/// less than the thinnest collision corridor (~radius + a door's 0.05 m), so a wall in the path is
-/// always penetrated and pushed out of. The push-out from each substep carries into the next, so the
-/// player slides instead of snapping back onto the raw path. Y is taken from `pos`, which is the
-/// body's EYE (`EYE_HEIGHT_M` over its feet): only the segments standing across the body's
-/// knee-to-eye band there stop it (`WallSegment::stops_body`, ship homes increment 7).
+/// along surfaces. Y is taken from `pos`, which is the body's EYE (`EYE_HEIGHT_M` over its feet):
+/// only the segments that stop a body there are in its way (`WallSegment::stops_body`, ship homes
+/// increment 7).
+///
+/// SWEPT (ship homes increment 7 review, finding 4): the body is settled where the move begins
+/// (`settle`, for a door shut on it), then carried along the move and stopped at the first segment
+/// it touches, sliding along it with the rest (`slide`), so it never tunnels through a thin wall or
+/// a shut door however long the step, and never passes a gap narrower than itself. Before, the move
+/// was cut into steps of 0.15 m, each pushed out of what it landed in three times over; that did
+/// not settle at steps of 0.059 m or more, so at 85 frames a second or fewer a walk squeezed
+/// through a 0.6 m gap that held it at 90. Now where a walk ends does not depend on the frame
+/// rate. A move longer than `PLACEMENT_M` is a placement: it is settled where it lands.
 pub fn resolve(prev: Vec3, pos: Vec3, radius: f32, walls: &[WallSegment], doors: &[WallSegment]) -> Vec3 {
     let (dx, dz) = (pos.x - prev.x, pos.z - prev.z);
-    let dist = (dx * dx + dz * dz).sqrt();
-    // Substep size must be below the thinnest corridor; 0.15 m is well under radius (0.3). Bound the
-    // step count so a teleport doesn't spin (beyond ~7 m it just resolves at the destination).
-    const MAX_STEP: f32 = 0.15;
-    const MAX_SUBSTEPS: usize = 48;
-    let n = ((dist / MAX_STEP).ceil() as usize).clamp(1, MAX_SUBSTEPS);
-    let (sx, sz) = (dx / n as f32, dz / n as f32);
-    let mut p = Vec3::new(prev.x, pos.y, prev.z);
-    for _ in 0..n {
-        p.x += sx;
-        p.z += sz;
-        p = resolve_once(p, radius, walls, doors);
-    }
-    p
+    let placed = dx * dx + dz * dz > PLACEMENT_M * PLACEMENT_M;
+    let (start, d) = if placed { ((pos.x, pos.z), (0.0, 0.0)) } else { ((prev.x, prev.z), (dx, dz)) };
+    // Only the segments that stop a body at this height and stand within reach of the move (its
+    // box, a metre wider each way than the body and the thickest thing a settle can push it by).
+    let (lo, hi) = ((start.0.min(start.0 + d.0) - 1.0, start.1.min(start.1 + d.1) - 1.0), (start.0.max(start.0 + d.0) + 1.0, start.1.max(start.1 + d.1) + 1.0));
+    let near: Vec<Reach> = walls
+        .iter()
+        .chain(doors.iter())
+        .filter(|s| s.stops_body(pos.y))
+        .map(|s| Reach { a: s.a, b: s.b, r: radius + s.half_thickness })
+        .filter(|s| {
+            s.a.0.min(s.b.0) - s.r <= hi.0 && s.a.0.max(s.b.0) + s.r >= lo.0 && s.a.1.min(s.b.1) - s.r <= hi.1 && s.a.1.max(s.b.1) + s.r >= lo.1
+        })
+        .collect();
+    let p = settle(start, &near);
+    let p = slide(p, d, &near);
+    let p = settle(p, &near);
+    Vec3::new(p.0, pos.y, p.1)
 }
 
 #[cfg(test)]
@@ -795,6 +1140,291 @@ mod tests {
         let p3_door = Vec3::new(60.0, 1.7, 238.0);
         assert!(!pushed(p3_door + Vec3::new(0.0, 0.0, 1.5), &walls), "p3, not open, collides");
     }
+
+    /// A GAP NARROWER THAN THE BODY HOLDS IT AT EVERY FRAME RATE (ship homes increment 7 review,
+    /// finding 4). Two 0.06 m guards end 0.6 m apart; a body (radius 0.3) needs 0.66 m. Walking
+    /// 5 m/s straight at the gap, at 30, 60 and 144 frames a second, each frame's step swept as
+    /// the game sweeps it, the body is held on the near side, and ends where it ends at every
+    /// frame rate. Before, `resolve_once`'s three push-out passes did not settle at steps of
+    /// 0.059 m or more, so a walk at 85 frames a second or fewer squeezed through.
+    ///
+    /// Seen red first (2026-10-21) with the three-pass push-out sweep: "at 30 frames a second
+    /// the walk at x 0 went through the 0.6 m gap to Vec3(0.0, 1.7, 1.5)".
+    #[test]
+    fn a_gap_narrower_than_the_body_holds_it_at_every_frame_rate() {
+        let gap = [
+            WallSegment::at_every_height((-3.0, 0.0), (-0.3, 0.0), 0.03),
+            WallSegment::at_every_height((0.3, 0.0), (3.0, 0.0), 0.03),
+        ];
+        for x in [0.0f32, 0.03, 0.1] {
+            let mut ends = Vec::new();
+            for fps in [30.0f32, 60.0, 144.0] {
+                let step = 5.0 / fps;
+                let (mut p, to) = (Vec3::new(x, 1.7, -1.5), Vec3::new(x, 1.7, 1.5));
+                for _ in 0..(3.0 * fps) as usize {
+                    let left = to - p;
+                    let left = Vec3::new(left.x, 0.0, left.z);
+                    if left.length() < 1e-4 {
+                        break;
+                    }
+                    p = resolve(p, p + left.normalize() * left.length().min(step), PLAYER_RADIUS, &gap, &[]);
+                }
+                assert!(p.z < -0.1, "at {fps} frames a second the walk at x {x} went through the 0.6 m gap to {p:?}");
+                ends.push((fps, p));
+            }
+            for (fps, p) in &ends[1..] {
+                assert!((*p - ends[0].1).length() < 2e-3, "the walk at x {x} ends at {:?} at 30 frames a second and at {p:?} at {fps}", ends[0].1);
+            }
+        }
+    }
+}
+
+/// The homestead's upper floor, walked (ship homes increment 7 review, the movement findings):
+/// the shell over the front door upstairs, the back and the high end of stairs-1, and the guards
+/// a jump used to clear. On the shipped ship with the homestead on p1, whose home stands at the
+/// ship's origin, so its home-local metres are the world's.
+#[cfg(all(test, feature = "native"))]
+mod homestead_walk_tests {
+    use super::*;
+    use crate::engine::footing::test_aboard::{body_at, live_frame, Aboard, EAST, NORTH, SOUTH, WEST};
+    use crate::input::bindings::GameAction as A;
+    use crate::ship::ship_structure::ShipStructure;
+
+    const EYE: f32 = EYE_HEIGHT_M;
+    /// The homestead's upper floor (its slabs' tops).
+    const UP: f32 = 3.0;
+
+    fn shipped() -> ShipStructure {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+        let home = &ship.zones[ship.home_zone_index()];
+        assert_eq!(home.origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");
+        ship
+    }
+
+    /// Walk from `from` toward `to` 0.1 m a frame, the eye's height held (no footing): where the
+    /// walk ends.
+    fn walk(from: Vec3, to: Vec3, walls: &[WallSegment]) -> Vec3 {
+        let mut p = from;
+        for _ in 0..2000 {
+            let left = Vec3::new(to.x - p.x, 0.0, to.z - p.z);
+            if left.length() < 1e-3 {
+                break;
+            }
+            p = resolve(p, p + left.normalize() * left.length().min(0.1), PLAYER_RADIUS, walls, &[]);
+        }
+        p
+    }
+
+    /// UPSTAIRS THE SHELL OVER THE FRONT DOOR STOPS A WALK; DOWNSTAIRS THE DOOR LETS IT THROUGH.
+    /// The plot's door corridor cuts the homestead's east wall (x 55) over z 39 to 41, 2.2 m
+    /// high; the shell stands over the cut, where the upper hall is. Walking east from the upper
+    /// hall at (53, 39.8), the body is held inside the shell at x 55; on the ground floor the same
+    /// walk at z 40 goes out through the door.
+    ///
+    /// Seen red first (2026-10-21) with the cut open at every height: "upstairs, the walk east
+    /// from the upper hall went out through the shell over the front door to Vec3(56.99994, 4.7,
+    /// 39.8)".
+    #[test]
+    fn upstairs_the_shell_over_the_front_door_stops_a_walk() {
+        let walls = ship_wall_segments(&shipped());
+        let e = walk(Vec3::new(53.0, UP + EYE, 39.8), Vec3::new(57.0, UP + EYE, 39.8), &walls);
+        assert!(e.x < 55.0 - PLAYER_RADIUS + 0.05, "upstairs, the walk east from the upper hall went out through the shell over the front door to {e:?}");
+        let e = walk(Vec3::new(53.0, EYE, 40.0), Vec3::new(57.0, EYE, 40.0), &walls);
+        assert!((e.x - 57.0).abs() < 1e-3, "downstairs, the front door stopped the walk at {e:?}");
+    }
+
+    /// THE BACK OF STAIRS-1 STOPS A WALK ON THE GROUND FLOOR. Stairs-1 climbs west from its foot
+    /// at x 41 to its top at x 36.5, where its high end is a solid face from the floor to 3.0 m.
+    /// Walking east from outside the dining room's door (35.4, 38.65), along the middle of the
+    /// flight, the body is held at that face, not let into the flight to pop up onto step 3.
+    ///
+    /// Seen red first (2026-10-21) with no stair in the walls: "on the ground floor the walk east
+    /// from the dining room's door went into the back of the stair, to Vec3(41.9999, 1.7, 38.65)".
+    #[test]
+    fn the_back_of_the_stairs_stops_a_walk_on_the_ground_floor() {
+        let walls = ship_wall_segments(&shipped());
+        let e = walk(Vec3::new(35.4, EYE, 38.65), Vec3::new(42.0, EYE, 38.65), &walls);
+        assert!(e.x < 36.5 - PLAYER_RADIUS + 0.05, "on the ground floor the walk east from the dining room's door went into the back of the stair, to {e:?}");
+    }
+
+    /// STAIRS-1 IS STILL CLIMBED UP AND DOWN. The whole walk, lib.rs's frame (`live_frame`: the
+    /// footing, the walk's substeps, the sweep against the walls): from the hall east of its foot,
+    /// west up the flight onto the upper floor, then back east down it to the ground, at 60 frames
+    /// a second and at 100 ms frames. Its steps stop a body only below each step's top less the
+    /// step up, so the flight is climbed from its foot.
+    ///
+    /// Passes before the stair had walls and after (it guards the climb against them).
+    #[test]
+    fn stairs_1_is_still_climbed_up_and_down() {
+        for dt in [1.0 / 60.0, 0.1] {
+            let mut w = Aboard::of(shipped());
+            let (mut ctl, mut cam) = body_at(Vec3::new(42.5, EYE, 38.65));
+            cam.yaw = WEST;
+            ctl.apply_action(A::MoveForward, true);
+            for _ in 0..(2.4 / dt) as usize {
+                live_frame(&mut ctl, &mut cam, dt, &mut w);
+            }
+            let feet = cam.position.y - ctl.eye_height();
+            assert!((feet - UP).abs() < 1e-3 && cam.position.x < 36.0, "at {:.0} ms frames the climb up stairs-1 ended at {:?}, feet {feet}", dt * 1000.0, cam.position);
+            cam.yaw = EAST;
+            for _ in 0..(2.4 / dt) as usize {
+                live_frame(&mut ctl, &mut cam, dt, &mut w);
+            }
+            let feet = cam.position.y - ctl.eye_height();
+            assert!(feet.abs() < 1e-3 && cam.position.x > 41.5, "at {:.0} ms frames the walk down stairs-1 ended at {:?}, feet {feet}", dt * 1000.0, cam.position);
+        }
+    }
+
+    /// A JUMP DOES NOT CLEAR A GUARD. A jump lifts the feet 1.27 m; a guard stops any body whose
+    /// feet are under its rail plus 0.3 m, so at every height of a jump from the upper floor a
+    /// walk at G1 (the stairwell's long edge, from the gallery north), G2 (its east end, from the
+    /// upper hall west) and G3 (the ladder hatch's west side, from the lift lobby east) is held
+    /// at the guard, 2.6 to 3 m over the stairs or the service way.
+    ///
+    /// Seen red first (2026-10-21) with a guard stopping only the knee-to-eye band like a wall:
+    /// "G1, the stairwell's long edge: a body with its feet at 3.63 m walked over it to
+    /// Vec3(38.5, 5.335, 38.35)".
+    #[test]
+    fn a_jump_does_not_clear_a_guard() {
+        let walls = ship_wall_segments(&shipped());
+        let guards: [(&str, Vec3, Vec3, Box<dyn Fn(Vec3) -> bool>); 3] = [
+            ("G1, the stairwell's long edge", Vec3::new(38.5, 0.0, 39.8), Vec3::new(38.5, 0.0, 37.5), Box::new(|e: Vec3| e.z > 39.3 + PLAYER_RADIUS - 0.05)),
+            ("G2, the stairwell's east end", Vec3::new(41.3, 0.0, 38.65), Vec3::new(38.5, 0.0, 38.65), Box::new(|e: Vec3| e.x > 40.5 + PLAYER_RADIUS - 0.05)),
+            ("G3, the ladder hatch's west side", Vec3::new(31.6, 0.0, 27.5), Vec3::new(33.5, 0.0, 27.5), Box::new(|e: Vec3| e.x < 32.5 - PLAYER_RADIUS + 0.05)),
+        ];
+        for (what, from, to, held) in &guards {
+            for k in 0..=20 {
+                let feet = UP + 1.27 * k as f32 / 20.0;
+                let y = Vec3::Y * (feet + EYE);
+                let e = walk(*from + y, *to + y, &walls);
+                assert!(held(e), "{what}: a body with its feet at {feet:.2} m walked over it to {e:?}");
+            }
+        }
+    }
+
+    /// A RUNNING JUMP AT G1 LANDS BACK ON THE GALLERY. The whole walk (`live_frame`): from the
+    /// gallery at (38.5, 39.8) facing north, walking and jumping at the guard over the stairwell,
+    /// the body never crosses the guard's line and lands on the upper floor, not 2.6 m below on
+    /// the stairs.
+    ///
+    /// Seen red first (2026-10-21) with a guard stopping only the knee-to-eye band: "the jump at
+    /// G1 crossed it to Vec3(38.5, 5.327375, 39.54667)".
+    #[test]
+    fn a_running_jump_at_g1_lands_back_on_the_gallery() {
+        let mut w = Aboard::of(shipped());
+        let (mut ctl, mut cam) = body_at(Vec3::new(38.5, UP + EYE, 39.9));
+        cam.yaw = NORTH;
+        ctl.apply_action(A::MoveForward, true);
+        ctl.apply_action(A::Jump, true);
+        for _ in 0..90 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            ctl.apply_action(A::Jump, false);
+            assert!(cam.position.z > 39.3 + PLAYER_RADIUS - 0.05, "the jump at G1 crossed it to {:?}", cam.position);
+        }
+        let feet = cam.position.y - ctl.eye_height();
+        assert!((feet - UP).abs() < 1e-3, "after the jump at G1 the feet are at {feet}, not on the upper floor");
+    }
+
+    /// THE SWEEP'S STEP UP IS THE FOOTING'S. A stair's step stops a body whose feet are lower than
+    /// its top less `STEP_UP_M`, and the footing stands a body on a step no higher than
+    /// `engine::footing::STEP_UP_M` over the floor it rests on; were the two apart, a step would
+    /// be neither stood on nor walked into, or both.
+    ///
+    /// Seen red first (2026-10-21) with `STEP_UP_M` at 0.55: "assertion `left == right` failed:
+    /// the sweep's step up is not the footing's, left: 0.55, right: 0.6".
+    #[test]
+    fn the_sweeps_step_up_is_the_footings() {
+        assert_eq!(STEP_UP_M, crate::engine::footing::STEP_UP_M, "the sweep's step up is not the footing's");
+    }
+
+    /// A RUNNING JUMP OUT THROUGH THE FRONT DOOR GOES THROUGH IT. The shell over the front door's
+    /// cut stands from 2.2 m (finding 1), and a body jumping through the doorway reaches it with
+    /// its head: in the entry under the slab its eye goes to 2.63 m, in the corridor to 2.97. The
+    /// wall over the door is a lintel (`SegmentKind::Lintel`), which stops a body whose knee is at
+    /// its height, a body upstairs, and lets one whose knee is under it duck through, so the jump
+    /// carries the body out into the corridor instead of holding it at the wall over the door
+    /// until it comes down: a second of walking at 5 m/s from x 53.5 ends past x 58.2.
+    ///
+    /// Seen red first (2026-10-21) with the shell over a cut a `SegmentKind::Wall` (the
+    /// knee-to-eye band): "the running jump out through the front door ended at
+    /// Vec3(56.919865, 1.7, 40.0)" (held at the wall over the door until the eye came back under
+    /// 2.2 m).
+    #[test]
+    fn a_running_jump_out_through_the_front_door_goes_through_it() {
+        let mut w = Aboard::of(shipped());
+        let (mut ctl, mut cam) = body_at(Vec3::new(53.5, EYE, 40.0));
+        cam.yaw = EAST;
+        ctl.apply_action(A::MoveForward, true);
+        ctl.apply_action(A::Jump, true);
+        for _ in 0..60 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            ctl.apply_action(A::Jump, false);
+        }
+        assert!(cam.position.x > 58.2, "the running jump out through the front door ended at {:?}", cam.position);
+    }
+
+    /// A small home with a ladder hatch guarded by STEEL BALUSTRADES (wall material 9, so
+    /// `SegmentKind::Guard`) and a gap of `gap` metres in the guard at the ladder: the homestead's
+    /// hatch (G3 to G5) in a 12 x 12 m box. The hatch is x 1.5 to 2.5, z 0.9 to 2.1, ladder-1 at
+    /// (2, 0, 2) on its south edge, climbed facing south and stepped off south over its top.
+    fn guarded_hatch(gap: f32) -> ShipStructure {
+        let (w0, w1) = (2.0 - gap * 0.5, 2.0 + gap * 0.5);
+        let ron_text = format!(
+            r#"(id: "home", purpose: "residence", body: (width: 12.0, depth: 12.0, height: 6.0,
+                floors: [
+                    (a: (0.0, 0.0), b: (12.0, 0.9), top: 3.0),
+                    (a: (0.0, 0.9), b: (1.5, 6.0), top: 3.0),
+                    (a: (1.5, 2.1), b: (2.5, 6.0), top: 3.0),
+                    (a: (2.5, 0.9), b: (12.0, 6.0), top: 3.0),
+                ],
+                zones: [(id: "upstairs", type_id: "room_hall", origin: (0.0, 3.0, 0.0), size: (12.0, 3.0, 6.0))],
+                walls: [
+                    (a: (1.5, 0.9), b: (1.5, 2.1), base: 3.0, height: 1.0, material: 9),
+                    (a: (2.5, 0.9), b: (2.5, 2.1), base: 3.0, height: 1.0, material: 9),
+                    (a: (1.5, 0.9), b: (2.5, 0.9), base: 3.0, height: 1.0, material: 9),
+                    (a: (1.5, 2.1), b: ({w0}, 2.1), base: 3.0, height: 1.0, material: 9),
+                    (a: ({w1}, 2.1), b: (2.5, 2.1), base: 3.0, height: 1.0, material: 9),
+                ],
+                structures: [(id: "ladder-1", type_id: "ladder", pos: (2.0, 0.0, 2.0))]))"#
+        );
+        let zone: crate::ship::ship_structure::ShipZone = ron::from_str(&ron_text).expect("the guarded hatch parses");
+        assert!(zone.body.walls.iter().all(|w| w.guard().is_some()), "material 9 is a guard");
+        ShipStructure { zones: vec![zone], ..Default::default() }
+    }
+
+    /// THE LADDER STILL CLIMBS THROUGH ITS GAP IN THE GUARD. A guard now holds a body whose feet
+    /// are anywhere under its rail plus 0.3 m (a jump does not clear it), and the sweep lets no
+    /// body through a gap narrower than itself; the climber at a ladder hatch passes through the
+    /// guard's gap at the ladder, 0.8 m (the homestead's G4 to G5, widened in the data from the
+    /// ladder's own 0.6 m, which a 0.6 m body cannot pass between two 0.06 m guards). Up with
+    /// Space from the hatch, off the top south onto the upper floor; nothing on the way hurts.
+    ///
+    /// Seen red first (2026-10-21) with the gap at 0.6 m: "off the top of the ladder through the
+    /// 0.6 m gap in the guard the body is at Vec3(2.0, 4.8999996, 1.9623556), feet 3.1999996"
+    /// (held at the guard's ends, hanging at the ladder's top).
+    #[test]
+    fn the_ladder_still_climbs_through_its_gap_in_the_guard() {
+        let gap = 0.8;
+        let mut w = Aboard::of(guarded_hatch(gap));
+        let (mut ctl, mut cam) = body_at(Vec3::new(2.0, EYE, 1.5));
+        ctl.apply_action(A::Jump, true);
+        for _ in 0..90 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+        }
+        ctl.apply_action(A::Jump, false);
+        cam.yaw = SOUTH;
+        ctl.apply_action(A::MoveForward, true);
+        for _ in 0..24 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+        }
+        ctl.apply_action(A::MoveForward, false);
+        for _ in 0..30 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+        }
+        let feet = cam.position.y - ctl.eye_height();
+        assert!(cam.position.z > 2.6 && (feet - UP).abs() < 1e-3, "off the top of the ladder through the {gap} m gap in the guard the body is at {:?}, feet {feet}", cam.position);
+    }
 }
 
 /// Ship homes increment 7, Wave 0 (docs/design/ship-homes-increment-7-plan.md section 2): every
@@ -980,6 +1610,54 @@ mod storey_walk_tests {
         assert!(!sight_blocked((5.0, 6.5), (5.0, 9.5), &sight), "the placed guard hides what is beyond it");
     }
 
+    /// A DOOR ON THE GROUND IS NO WAY THROUGH THE WALL OVER IT UPSTAIRS. A wall from the ground to
+    /// the roof (z 5, rising through the slab at 3.0) with a 2.1 m door at x 4 to 6: the door lets
+    /// a body on the ground floor through, and the wall over the door stops a body upstairs
+    /// walking along the same line, the collider's twin of the mesh, which draws the wall there.
+    /// The same rule as the shell over a corridor's or a plot door's cut.
+    ///
+    /// Seen red first (2026-10-21) with a door cut out of its wall at every height: "upstairs,
+    /// the wall over the door downstairs let the walk through to Vec3(5.0, 4.7, 6.999996)".
+    #[test]
+    fn a_door_on_the_ground_is_no_way_through_the_wall_over_it_upstairs() {
+        let body: HomeStructure = ron::from_str(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             walls: [(a: (0.0, 5.0), b: (10.0, 5.0), height: 6.0, \
+                      openings: [(kind: Door, at: 4.0, width: 2.0, height: 2.1)])], \
+             floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 3.0)])",
+        )
+        .expect("the test body parses");
+        let walls = wall_segments(&body);
+        let e = walk(Vec3::new(5.0, DOWN, 3.0), Vec3::new(5.0, DOWN, 7.0), &walls, &[]);
+        assert!((e.z - 7.0).abs() < 1e-3, "downstairs, the door stopped the walk at {e:?}");
+        let e = walk(Vec3::new(5.0, UP, 3.0), Vec3::new(5.0, UP, 7.0), &walls, &[]);
+        assert!(e.z < 5.0 - PLAYER_RADIUS + 0.05, "upstairs, the wall over the door downstairs let the walk through to {e:?}");
+    }
+
+    /// ANY STAIR'S SIDE AND HIGH END STOP A WALK ON THE FLOOR IT STANDS ON, AND NOT ONE OVER ITS
+    /// TOP. A 'stairs' piece placed at (5, 0, 5) turned 90 degrees (climbing east, its foot at
+    /// x 2.75, its high end at x 7.25, its sides at z 4.4 and 5.6): walking north into its side,
+    /// and west into its high end, the body on the floor is held at the solid; a body upstairs
+    /// (feet 3.0, level with its top step) walks over it.
+    ///
+    /// Seen red first (2026-10-21) with no stair in the walls: "on the floor, the walk north into
+    /// the stair's side went into it to Vec3(4.0, 1.7, 3.0000048)".
+    #[test]
+    fn any_stairs_side_and_high_end_stop_a_walk_on_its_floor() {
+        let body: HomeStructure = ron::from_str(
+            "(width: 10.0, depth: 10.0, height: 6.0, \
+             structures: [(id: \"stairs-1\", type_id: \"stairs\", pos: (5.0, 0.0, 5.0), rot_deg: 90.0)])",
+        )
+        .expect("the test body parses");
+        let walls = wall_segments(&body);
+        let e = walk(Vec3::new(4.0, DOWN, 8.0), Vec3::new(4.0, DOWN, 3.0), &walls, &[]);
+        assert!(e.z > 5.6 + PLAYER_RADIUS - 0.05, "on the floor, the walk north into the stair's side went into it to {e:?}");
+        let e = walk(Vec3::new(9.5, DOWN, 5.0), Vec3::new(4.0, DOWN, 5.0), &walls, &[]);
+        assert!(e.x > 7.25 + PLAYER_RADIUS - 0.05, "on the floor, the walk west into the stair's high end went into it to {e:?}");
+        let e = walk(Vec3::new(4.0, UP, 8.0), Vec3::new(4.0, UP, 3.0), &walls, &[]);
+        assert!((e.z - 3.0).abs() < 1e-3, "level with its top, the stair stopped the walk at {e:?}");
+    }
+
     /// The band itself: a segment stops a body only across its knee (`KNEE_M` over the feet) to
     /// its eye, so a 0.3 m kerb is stepped over, a 2.2 m-high lintel over the head lets it pass,
     /// and a segment of unknown height stops everything.
@@ -988,7 +1666,7 @@ mod storey_walk_tests {
     /// knee stops the walk".
     #[test]
     fn the_band_runs_from_the_knee_to_the_eye() {
-        let seg = |y0: f32, y1: f32| WallSegment { a: (0.0, 0.0), b: (1.0, 0.0), half_thickness: 0.05, y0, y1 };
+        let seg = |y0: f32, y1: f32| WallSegment { a: (0.0, 0.0), b: (1.0, 0.0), half_thickness: 0.05, y0, y1, kind: SegmentKind::Wall };
         assert!(!seg(0.0, 0.3).stops_body(DOWN), "a kerb under the knee stops the walk");
         assert!(seg(0.0, 0.5).stops_body(DOWN), "a 0.5 m box over the knee does not stop the walk");
         assert!(!seg(2.2, 3.0).stops_body(DOWN), "a lintel over the head stops the walk");

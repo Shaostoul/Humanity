@@ -340,9 +340,9 @@ pub enum GuiPage {
     Governance,
     /// Location-aware rules + rights, nested Humanity -> locality (v0.496).
     Laws,
-    /// Social key recovery setup + active recovery requests.
-    /// Mirrors the web `/recovery` page.
-    Recovery,
+    // 2026-10-20: the Recovery variant went with the Platform tab. Recovery
+    // through trusted people is a subsection of Settings > Account now
+    // (pages/settings/recovery.rs); the website keeps /recovery.
     // v0.197.0: removed Agents and AiUsage GuiPage variants. Operator
     // 2026-05-08: "That AI Agents page also seems useless. As well as
     // the AI usage." Multi-AI orchestration is handled via
@@ -353,7 +353,8 @@ pub enum GuiPage {
     // rendered the identical cosmos::draw page since v0.203.2, so nav
     // highlight and back-stack behaved differently by entry path. "Maps"
     // is the one name (nav map open item 1, operator call 2026-08-16);
-    // "cosmos" persists only as the legacy config string parsed to Maps.
+    // The "cosmos" config string that still parsed to Maps went in Maps
+    // increment 0 (2026-10-20): nobody uses the app yet, so no alias.
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
@@ -370,9 +371,11 @@ pub enum GuiPage {
     // v0.415.0: removed the Play GuiPage variant (the v0.360 tab that folded
     // Crafting + Studio). Both are top-level tabs now and nothing navigated to
     // it; the nav's Play button is GuiPage::None (FPS mode), unrelated.
-    /// Platform — the software-itself tab (v0.360): section_nav folds Settings,
-    /// Recovery, Bugs, Testing, Browser.
-    Platform,
+    /// Dev, the developer tools tab (2026-10-20): a section_nav over Bugs,
+    /// Testing, Performance, Dev and Planet Tuner (pages/dev_tab.rs). It
+    /// replaced the Platform tab (v0.360), whose Calculator, Notes, Calendar
+    /// and Browser are on the Apps page and whose Recovery is in Settings.
+    Dev,
     /// Humanity — the collective / mission tab (v0.360): section_nav folds the
     /// Community/Mission Dashboard (Civilization) + Governance, Directory
     /// (Identity), Donate. What the H button opens, and the first-boot landing.
@@ -397,7 +400,7 @@ pub enum GuiPage {
     // OverviewSettings. Settings content lives in `settings.rs` (its own
     // internal SettingsCategory router, still fully reachable via the
     // top-level Settings tab); the stranded working pages Calculator/Files
-    // (now in Platform) and Trade/Guilds (now in Real) were rehomed in the
+    // (then in Platform; on Apps since the Platform tab went, 2026-10-20) and Trade/Guilds (now in Real) were rehomed in the
     // same release. See the 2026-07-04 page-access audit.
 }
 
@@ -439,8 +442,6 @@ pub fn config_str_to_page(s: &str) -> GuiPage {
         "maps" => GuiPage::Maps,
         "notes" => GuiPage::Notes,
         "calendar" => GuiPage::Calendar,
-        // Legacy config value: the Cosmos variant merged into Maps (v0.1145).
-        "cosmos" => GuiPage::Maps,
         "library" => GuiPage::Library,
         // Retired pages saved in old configs land on their successors:
         // the Resources directory lives in the Library; the onboarding
@@ -494,7 +495,7 @@ pub struct GuiState {
     /// the connected server's last `game_home` answer (where you live there, and what is free).
     pub save_slot: crate::persistence::SaveSlot,
     pub home_answer: Option<crate::ship::starts::HomeAnswer>,
-    /// Dev spawn tool (v0.777, Platform > Dev): when Some(def_id), lib.rs spawns
+    /// Dev spawn tool (v0.777, the Dev tab's Dev section): when Some(def_id), lib.rs spawns
     /// that creature/NPC in front of the player next frame and clears it. The
     /// generic "spawn any creature/NPC" the operator asked for; species come
     /// from CreatureRegistry (data/creatures.csv, 92 rows).
@@ -541,7 +542,7 @@ pub struct GuiState {
     pub dev_edit_species: String,
     /// Despawn the edited creature next frame (from the editor's Despawn button).
     pub pending_dev_edit_despawn: bool,
-    /// Dev travel (v0.791.x, Platform > Dev > Travel): when Some(body_id),
+    /// Dev travel (v0.791.x, the Dev tab's Dev section > Travel): when Some(body_id),
     /// lib.rs teleports the viewpoint next frame -- it moves ship_world_pos
     /// (f64 Earth-centred metres; planets are up to 4.5e12 m away, far past
     /// f32 camera coordinates) to a sunlit vantage ~4 body radii out, aims the
@@ -806,11 +807,13 @@ pub struct GuiState {
     pub profile_directory_listed: bool,
     /// Floating machine labels in the 3D home (v0.428), populated by load_world.
     pub machine_labels: Vec<MachineLabel>,
-    /// Sight-blocking wall segments for the HUD (v0.975), packed [ax, az, bx, bz] in the
-    /// same world frame the labels project in (station_off applied). Static sight spans
-    /// (windows open) + live CLOSED doors, rebuilt per frame by lib.rs. Empty = no
-    /// occlusion (legacy layout, build editor, or not near the home).
-    pub sight_blockers: Vec<[f32; 4]>,
+    /// What blocks sight for the HUD's labels and the walk-up target (v0.975; in three
+    /// dimensions since the review of ship homes increment 7, `ship::sight`), in the same world
+    /// frame the labels project in (station_off applied): the static sight spans (windows open)
+    /// + live CLOSED doors, each standing between its own heights, + the SOLID floor slabs.
+    /// Rebuilt per frame by lib.rs. Empty = no occlusion (legacy layout, build editor, or not
+    /// near the home).
+    pub sight_blockers: crate::ship::sight::SightBlockers,
     /// Index into machine_labels of the machine the player is currently looking at
     /// within interact range (walk-up interaction, v0.431). Recomputed each frame.
     pub targeted_machine: Option<usize>,
@@ -1051,9 +1054,9 @@ pub struct GuiState {
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
-    /// Selected section for the folded Platform tab ("settings"/"recovery"/
-    /// "bugs"/"testing"/"browser").
-    pub active_platform_section: String,
+    /// Selected section of the Dev tab (an id from `pages::dev_tab::SECTIONS`:
+    /// "bugs", "testing", "performance", "dev", "planet_tuner").
+    pub active_dev_section: String,
     /// Selected section for the folded Humanity tab ("civilization"/
     /// "governance"/"identity"/"onboarding"/"donate"/"resources").
     pub active_humanity_section: String,
@@ -1342,7 +1345,7 @@ pub struct GuiState {
     /// GUI -> ECS: summon this vehicle (entity bits) to drive itself to the
     /// player; bridged into the "summon_vehicle" channel.
     pub pending_summon_vehicle: Option<u64>,
-    /// Cosmos -> Inventory jump (unified map slice 2): an asteroid id whose
+    /// Maps -> Inventory jump (unified map slice 2): an asteroid id whose
     /// mining modal should open when the Inventory page next draws.
     pub pending_open_mining_modal: Option<String>,
     /// GUI -> engine: chase-cam this vehicle (entity bits) while it self-drives;
@@ -2399,84 +2402,10 @@ pub struct GuiState {
     /// prompt, the steps of turning it on, and a one-shot permission (engine/protected.rs).
     pub protected: crate::net::protected::ProtectedUi,
 
-    // ── Cosmos page state (v0.203.0, Phase 3) ──
-    /// Which view the Cosmos page is currently rendering.
-    pub cosmos_view: crate::gui::pages::cosmos::CosmosView,
-    /// Pan offset (screen pixels). Updated by click-drag on the canvas.
-    pub cosmos_pan: egui::Vec2,
-    /// Zoom factor — 1.0 = default, > 1.0 = zoomed in, < 1.0 = zoomed out.
-    /// Updated by mouse wheel scroll. Clamped in allocate_canvas.
-    pub cosmos_zoom: f32,
-    /// Currently selected body id in the System view (for the right-side
-    /// details panel + map highlight). v0.203.2 — populated by clicking
-    /// a body in the left-side browser sidebar OR clicking it on the map.
-    pub cosmos_selected_body: Option<String>,
-    /// Which planet groups are expanded in the body browser sidebar.
-    /// Stored as ids of planets whose moon list is expanded. v0.203.2.
-    pub cosmos_expanded_planets: std::collections::HashSet<String>,
-    /// Pending focus request — when Some, the next System view render
-    /// computes the pan needed to center this body on screen, then
-    /// clears the request. Set by sidebar click or "Focus" button.
-    /// v0.205.0 (operator pushback on zoom always centering on Sun).
-    pub cosmos_focus_request: Option<String>,
-    /// Body id the camera continuously follows across frames as it moves
-    /// along its orbit, or `None` for no auto-follow. Unlike
-    /// `cosmos_focus_request` (a one-shot snap-to), this re-centers every
-    /// frame. Set by the body detail card's "Track"/"Stop Tracking" action;
-    /// cleared automatically by any other Focus request (see
-    /// `gui/pages/cosmos.rs`'s focus-consumption site).
-    pub cosmos_tracked_body: Option<String>,
-    /// 3D camera state for System view (Phase 4, v0.206.0).
-    /// Yaw + pitch + distance + look-at target define the camera; mouse
-    /// drag rotates, scroll zooms, sidebar click re-centers the target.
-    pub cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera,
-
-    /// Cosmos sim-time in seconds since the J2000.0 epoch
-    /// (2000-01-01 12:00:00 UTC). Drives Kepler-evolved body positions.
-    /// Initialized to "current real-world time" on first cosmos page
-    /// open so the user immediately sees today's planetary configuration.
-    /// v0.208.0.
-    pub cosmos_sim_time_seconds: f64,
-    /// Sim speed multiplier — 0 = paused, 1 = real-time (1 second sim =
-    /// 1 second real), 86400 = 1 day per real second, etc. Negative
-    /// values rewind. v0.208.0.
-    pub cosmos_sim_speed: f64,
-    /// Wall-clock Instant of the previous frame, used to compute dt for
-    /// sim_time advancement. None on first frame. v0.208.0.
-    #[allow(clippy::type_complexity)]
-    pub cosmos_last_real_instant: Option<std::time::Instant>,
-    /// Whether the cosmos sim_time has been initialized (sets to "now"
-    /// on first cosmos page draw). v0.208.0.
-    pub cosmos_sim_time_initialized: bool,
-    /// Which body's pill is currently expanded into an info card on the
-    /// 3D System view. Only one body can be expanded at a time — clicking
-    /// a different body's pill swaps the expansion; clicking the same
-    /// pill collapses it. Independent of `cosmos_selected_body` which
-    /// drives the right-side details panel. v0.209.0.
-    pub cosmos_expanded_body: Option<String>,
-    /// Whether to render Lagrange-point overlay markers (L1-L5 for
-    /// Sun-Earth, Earth-Moon, Sun-Mars, Sun-Jupiter, Sun-Saturn pairs).
-    /// Off by default to keep the wide view clean. Toggled from the
-    /// cosmos canvas overlay button. v0.211.0.
-    pub cosmos_show_lagrange: bool,
-    /// Whether to render reference-orbit rings (LEO/MEO/GEO/etc) around
-    /// supported planets when zoomed close enough. Off by default —
-    /// rings only appear when the user explicitly enables AND the camera
-    /// is close enough that they're not microscopic on screen. v0.212.0.
-    pub cosmos_show_reference_orbits: bool,
-    /// Cached forward Sky-Events scan (Phase 4d-quad, v0.248). The scan
-    /// is O(days × bodies²) so it must NOT run every frame like the
-    /// instant detector — it's recomputed lazily when sim_time drifts
-    /// far from `cosmos_upcoming_scan_origin`, throttled by
-    /// `cosmos_upcoming_last_scan`. Each entry: when (sim seconds since
-    /// J2000), human label, severity (0 info / 1 notable / 2 major).
-    pub cosmos_upcoming_events: Vec<crate::gui::pages::cosmos::UpcomingSkyEvent>,
-    /// sim_time the cached forward scan was computed at. Recompute when
-    /// the live sim_time moves more than ~12h away from this.
-    pub cosmos_upcoming_scan_origin: f64,
-    /// Wall-clock instant of the last forward scan — throttles recompute
-    /// so fast-forward / scrubbing can't trigger a scan every frame.
-    pub cosmos_upcoming_last_scan: Option<std::time::Instant>,
+    /// The Maps page: which view is open, its camera and selection, its own
+    /// clock, its overlays and the cached sky-events scan (`gui/state_types/maps.rs`).
+    /// Twenty `cosmos_*` fields until Maps increment 0 (2026-10-20).
+    pub maps: MapsState,
 
     /// Cached server-wide settings received from the relay (v0.200.0).
     /// Populated on `server_settings_state` WS message. None means we
@@ -2883,7 +2812,7 @@ pub struct GuiState {
     pub chat_left_panel_width: f32,
     pub chat_right_panel_width: f32,
 
-    // ── Identity / Governance / Recovery page state (v0.115.0) ──
+    // ── Identity / Governance page state (v0.115.0), and Settings' Recovery lookups ──
     /// DID being looked up on the Identity page.
     pub identity_lookup_did: String,
     /// Set to true when the Identity page wants to issue a fresh fetch.
@@ -2943,14 +2872,10 @@ pub struct GuiState {
     pub laws_category: String,
     /// Active filter tab on the Governance page (0=Open, 1=All).
     pub governance_filter_tab: usize,
-    /// DID being looked up on the Recovery page.
-    pub recovery_lookup_did: String,
-    /// Set to true when the Recovery page wants to fetch a setup.
-    pub recovery_lookup_pending: bool,
-    /// Guardian DID being looked up on the Recovery page.
-    pub recovery_guardian_did: String,
-    /// Set to true when the Recovery page wants to fetch held shares.
-    pub recovery_guardian_pending: bool,
+    /// Settings > Account > Recovery through trusted people: its two lookups
+    /// (an account's guardians, the pieces a guardian keeps), each with what
+    /// was typed and the server's answer (pages/settings/recovery.rs).
+    pub recovery: crate::gui::pages::settings::recovery::RecoveryLookups,
 
     // v0.197.0: AI Usage page form state removed (page deleted).
 }
@@ -3346,7 +3271,7 @@ impl Default for GuiState {
             profile_network_avatar: String::new(),
             profile_directory_listed: true,
             machine_labels: Vec::new(),
-            sight_blockers: Vec::new(),
+            sight_blockers: Default::default(),
             targeted_machine: None,
             vehicle_prompt: String::new(),
             livestock_prompt: String::new(),
@@ -3433,7 +3358,7 @@ impl Default for GuiState {
             // Profile page opens with no sidebar item highlighted (the old
             // "inventory" default was removed from the list long ago).
             active_real_section: "body".to_string(),
-            active_platform_section: "recovery".to_string(),
+            active_dev_section: crate::gui::pages::dev_tab::FIRST_SECTION.to_string(),
             active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,
             map_zoom: 1.0,
@@ -4040,24 +3965,7 @@ impl Default for GuiState {
             chat_muted_requested: false,
             server_settings_draft: None,
             server_settings_changed_underneath: false,
-            cosmos_view: crate::gui::pages::cosmos::CosmosView::System,
-            cosmos_pan: egui::Vec2::ZERO,
-            cosmos_zoom: 1.0,
-            cosmos_selected_body: None,
-            cosmos_expanded_planets: std::collections::HashSet::new(),
-            cosmos_focus_request: None,
-            cosmos_tracked_body: None,
-            cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera::default(),
-            cosmos_sim_time_seconds: 0.0,
-            cosmos_sim_speed: 0.0, // Paused by default — operator scrubs / plays.
-            cosmos_last_real_instant: None,
-            cosmos_sim_time_initialized: false,
-            cosmos_upcoming_events: Vec::new(),
-            cosmos_upcoming_scan_origin: f64::NAN, // forces first scan
-            cosmos_upcoming_last_scan: None,
-            cosmos_expanded_body: None,
-            cosmos_show_lagrange: false,
-            cosmos_show_reference_orbits: false,
+            maps: MapsState::default(),
             new_group_name: String::new(),
             new_group_share_history: false,
             create_group_ticket: None,
@@ -4191,7 +4099,7 @@ impl Default for GuiState {
             chat_left_panel_width: 220.0,
             chat_right_panel_width: 220.0,
 
-            // Identity / Governance / Recovery page state (v0.115.0)
+            // Identity / Governance page state (v0.115.0), and Settings' Recovery lookups
             identity_lookup_did: String::new(),
             identity_lookup_pending: false,
             governance_scope_tab: 0,
@@ -4215,10 +4123,7 @@ impl Default for GuiState {
             laws_filter_tab: 0,
             laws_category: String::new(),
             governance_filter_tab: 0,
-            recovery_lookup_did: String::new(),
-            recovery_lookup_pending: false,
-            recovery_guardian_did: String::new(),
-            recovery_guardian_pending: false,
+            recovery: Default::default(),
 
             // v0.197.0: AI Usage page form state removed (page deleted).
         }
@@ -4453,7 +4358,7 @@ pub struct SettingsState {
     /// in-game sky; background fetch + disk cache; procedural fallback
     /// wherever the satellite map has no data.
     pub live_weather: bool,
-    /// Track the orbital home station (in-world ring + label; Cosmos toggle).
+    /// Track the orbital home station (in-world ring + label; the Maps page's Track toggle).
     pub track_station: bool,
     /// Read websites inside HumanityOS (the readable web, 2026-09-16). OFF
     /// by default and independent of the privacy tier: a person who wants

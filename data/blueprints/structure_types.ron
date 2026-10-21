@@ -12,13 +12,13 @@
     ),
     (
         id: "stairs", label: "Stairs", category: "Structure",
-        kind: Stairs, shape: Steps, size: (1.4, 3.0, 3.6), color: (0.55, 0.55, 0.58), steps: 14,
-        note: "A staircase climbing one storey. Walk up it (the ground-height sampler lifts you step to step).",
+        kind: Stairs, shape: Steps, size: (1.2, 3.0, 4.5), color: (0.55, 0.55, 0.58), steps: 16,
+        note: "A staircase climbing one 3.0 m storey: 16 risers of 187.5 mm on 281 mm treads, 33.7 degrees, 1.2 m wide, inside the 2021 IRC and England's Approved Document K (docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md). Both codes ask for handrails, and it carries them on both sides (the handrail row below). Walk up it (the ground-height sampler lifts you step to step).",
     ),
     (
         id: "ramp", label: "Ramp", category: "Structure",
-        kind: Stairs, shape: Ramp, size: (1.8, 1.2, 4.5), color: (0.5, 0.5, 0.52), steps: 0,
-        note: "A smooth inclined ramp -- cart / wheelchair friendly. Walk straight up the slope.",
+        kind: Stairs, shape: Ramp, size: (1.8, 0.4, 6.8), color: (0.5, 0.5, 0.52), steps: 0,
+        note: "A smooth inclined ramp, 0.4 m up over 6.8 m (1:17): cart and wheelchair friendly, within England's Approved Document K (about 1:16.8 at that going). Walk straight up the slope. Low enough to need no handrail or guard.",
     ),
     (
         id: "ladder", label: "Ladder", category: "Structure",

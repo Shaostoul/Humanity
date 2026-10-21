@@ -7,25 +7,46 @@
 // said what health or wounds the player had, so a landing that never reached the body would have
 // left everything green. This boots the release binary in its own portable rig (.probe-rig/falls,
 // background, never focused, silent, no server), enters the world through the dev autopilot (the
-// rig's own home, aboard the homestead), and walks the player up the homestead's tallest
-// staircase and off its top, the way a player does, by holding the forward key (the showcase
-// `hold` verb, the controller's own action path): once in Forgiving, once in Realistic. Then it
-// climbs the homestead's 3 m ladder by holding Space, lets go at the top (the body must hold on),
-// and steps back off it. Last it PLACES the player at the stairs' height beside them and lets them
-// fall: a teleport's drop, which must hurt nobody. And the first look after world entry must show
-// no landing reached the body getting there. scripts/lib/falls-judge.js judges it all against
-// falls.ron, read by its own code.
+// rig's own home, aboard the homestead), places a 3 m deck in the greenhouse with the build
+// editor's console, and walks the player off its edge, the way a player does, by holding the
+// forward key (the showcase `hold` verb, the controller's own action path): once in Forgiving, once
+// in Realistic. It walks the player down the homestead's stairs (every riser a step, no fall), and
+// climbs the homestead's ladder by holding Space and steps off its top through the hatch onto the
+// upper floor (the gate must let a climber through, and nothing may hurt). Then it PLACES the player
+// at the deck's height beside it and lets them fall: a teleport's drop, which must hurt nobody. And
+// the first look after world entry must show no landing reached the body getting there. Then the
+// planet legs (below). scripts/lib/falls-judge.js judges it all against falls.ron, read by its own
+// code.
 //
-// WHY THE STAIRS AND THE LADDER. The homestead has no loft or deck at the top of its ladder or its
-// staircase (nothing in data/homes/homestead.ron stands at 3 m but the top step itself), so the
-// raised places a player can reach aboard are the top step of stairs-1 (3 m) and the top of
-// ladder-1 (the eye hangs 0.2 m over its 3 m top rung). Walking on past the top step is a 3 m
-// drop, 7.67 m/s at the walk's 9.81 m/s^2; stepping off the ladder's top a 3.2 m one, 7.92 m/s. A
-// placement onto the top step does not work (the floor sampler's step-up cap keeps a body 3 m
-// above its last floor from standing there), so the walk starts on the floor 1 m before the first
-// step and goes up the stairs too.
+// THE UPPER FLOOR (ship homes increment 7, 2026-10-21; docs/design/homestead-upper-floor.md, its
+// "As built" section, and docs/design/ship-homes-increment-7-plan.md, decision 10). Until then the
+// homestead had nothing at 3 m but the top step of stairs-1 and the top of ladder-1, so the walks
+// went up the stairs and off their top (a 3 m drop, 7.67 m/s) and the ladder leg let go at the top
+// and stepped back off it (3.2 m, 7.92 m/s). Increment 7 gave the homestead an upper floor: the
+// stairs (now 16 risers of 187.5 mm, along the hall's north wall) lead onto it, the ladder climbs
+// into a guarded hatch with a gate, and no unguarded 3 m edge is left in the home by design. So:
+//   - The walks off a raised floor go off a DECK THE RIG PLACES FOR ITSELF: the build editor's
+//     console line `add_structure deck x y z 0` through the showcase `console` verb (engine/ipc.rs
+//     `console_this_session`: the live home for this session only, never written to the data
+//     files the rig's data junction shares with the tree, nor to a save), its top at the upper
+//     floor's height (3.0 m), in the middle of the home's largest room open to the roof (the
+//     greenhouse, 6 m to its glass), the player stood on it 1 m from its south edge facing south.
+//     scripts/lib/falls-judge.js `pickAboardDeck` finds the place from the tree; the rig refuses
+//     when there is none. The console's answer is in the manifest (`deck_console`), and the deck is
+//     taken away again (`rm_structure`) after the legs aboard. Placing the player ON the deck works
+//     since lane M: every placement stands on the floor it put the feet on (engine/footing.rs
+//     `Footing::reseat`, `CameraController::placed_since_walk`).
+//   - The ladder leg CLIMBS THROUGH THE HATCH: stood in the hatch's hole facing ladder-1, Space held
+//     to the top, then forward held off the top across the gate (engine/footing.rs `ladder_gates`,
+//     open only to a body ON the ladder) onto the upper floor. It must end standing on that floor,
+//     and nothing may land harder than the 0.2 m step from the top rung's hold down onto the floor
+//     (the walk hands that one to the body at 1.98 m/s, which cannot hurt): no wound, no health.
+//   - The stairs-down leg stays: 16 risers, every one a step.
+//   - The placement leg drops from the deck's height beside the deck.
+// (RED and GREEN for this increment: the bottom of this header.)
 //
-// THE FRAME RATE MOVES THE DROP. A tread is 0.26 m and the walk 5 m/s, so at frames over about
+// THE FRAME RATE MOVES THE DROP (found on the stairs walk of 2026-10-20). A tread was 0.26 m and
+// the walk 5 m/s, so at frames over about
 // 50 ms (a machine busy with a build) the walk can skip the top tread and leave from the one below
 // it: the first real run's Realistic walk fell 2.79 m, not 3.00 (7.39 m/s, a sprain and 8.17
 // health, not 9.68). That is the game, not the rig, so the judge works out what falls.ron says
@@ -174,12 +195,45 @@
 // tests/fixtures/falls/red-hand-off-removed.json and green.json, and scripts/tests/
 // falls-judge.test.js holds the judge to them.
 //
-// ONE GPU (CLAUDE.md): refuses while any HumanityOS.exe runs, the operator's own game included,
-// and never sets the take-focus env var.
+// RED FIRST ON THE UPPER FLOOR (2026-10-21). Run against a build of this tree with the ladder
+// hatch's gate shut to a body ON the ladder too (engine/footing.rs `shut_gates` extending
+// `ladder_gates` whatever `on_ladder` said) and with this rig's deck line not sent (`deckSaid =
+// null`), the rig said (exit 2):
+//   FAIL  deck_placed                      the console answered "(nothing)" to "add_structure deck
+//         32.5 2.8 62 0": the deck was not placed (engine/ipc.rs console_this_session, ...)
+//   FAIL  forgiving_walk.stood_on_deck     before walking off, the eye stood 0.00 m over the floor it
+//         came to rest on (the deck is 3.00 m, at most 0.3 off): the body was not standing on the
+//         deck the rig placed (...)
+//   FAIL  forgiving_walk.dropped           the eye fell 0.00 m (from y 1.70 to 1.70), starting at
+//         (32.50, 1.70, 63.00) for (32.50, 4.70, 63.00): under 2.50 m, so the walk never went off
+//         the deck from standing on it (...)
+//   FAIL  realistic_walk.stood_on_deck     (the same)
+//   FAIL  realistic_walk.dropped           (the same)
+//   FAIL  realistic_ladder.on_upper_floor  it ended hanging at the ladder's top over the hatch at
+//         (33.00, 4.90, 27.62): the gate across the ladder's top did not let the climber through
+//         onto the floor (engine/footing.rs ladder_gates; shut_gates leaves it out only for a body
+//         on the ladder)
+//   RESULT: FAIL  71/77 passed
+// The stairs-down leg passed there too (16 risers, 3.00 m, no landing). The run, trimmed, is
+// tests/fixtures/falls/red-gate-shut-no-deck.json.
+// GREEN, this tree's build, 88/88 (tests/fixtures/falls/green-upper-floor.json): the console said
+// "added structure #8 (deck) at (32.5,2.8,62) yaw 0"; off the deck both walks stood 3.00 m over the
+// greenhouse floor, fell 3.00 m and landed at 7.67 m/s (Forgiving: no wound, no health; Realistic:
+// a Sprained Ankle and 9.68 health, the health falling on the landing frame); down the stairs from
+// the top tread 3.00 m and no landing; up the ladder to the top rung's hold (eye 4.90), then across
+// the gate onto the lift lobby's floor, ending standing at (32.98, 4.70, 29.89) with one landing at
+// 1.98 m/s (the 0.20 m step from the hold, which cannot hurt) and no wound; the placement beside the
+// deck fell 2.97 m and reached no body; "removed structure #8" after. The planet legs as before.
+//
+// ONE GPU (CLAUDE.md): waits (bounded, --wait-min, 20 by default) while another HumanityOS.exe
+// runs, the operator's own game included, and refuses if it is still up; never sets the
+// take-focus env var.
 //
 // Usage:
-//   node scripts/verify-falls.js [--exe PATH] [--keep-open] [--timeout-min N]
+//   node scripts/verify-falls.js [--exe PATH] [--keep-open] [--timeout-min N] [--wait-min N]
 //                                [--allow-other-build "<reason>"]
+// --wait-min: how long to wait for another HumanityOS (another session's rig) to close before
+// refusing, minutes (default 20).
 //   node scripts/verify-falls.js --dry-verdict <manifest.json>   re-judge, nothing booted
 // Exit 0 = every check passed. 1 = refused (nothing booted). 2 = a check failed, a panic, or a
 // data file served from the copy built into the exe (BUILT-IN DATA).
@@ -217,12 +271,11 @@ const RIG = path.join(REPO, ".probe-rig", "falls");
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
 
-/** How long forward is held, seconds: the 4.6 m to the top step's edge at the 5 m/s walk is about
- *  a second, and the 3 m fall another 0.8 s, so the body is still walking when it lands. */
-const HOLD_S = 2.0;
-/** How long each walk is recorded, seconds: the hold, the fall and a few seconds after the
- *  landing for the body pass to take it. */
-const WALK_RECORD_S = 6;
+/** The deck walks aboard (ship homes increment 7): forward is held long enough to walk the deck's
+ *  `edge_m` to its edge and its `walk_on_m` past it at the walk speed the game reports
+ *  (`falls.climb_m_s`, never more than the walk's), and each walk is recorded that long and this
+ *  much more: the 3 m fall's 0.8 s and a few seconds for the body pass to take the landing. */
+const DECK_WALK_RECORD_AFTER_S = 4;
 /** How long the placement's drop is recorded, seconds. */
 const DROP_RECORD_S = 4;
 /** The stairs-down leg (BUG-208): forward held first this long from the foot (about halfway up
@@ -235,13 +288,16 @@ const STOP_BELOW_TOP_M = 0.5;
 /** Then forward held this long from the top tread, facing down: past the stairs' foot at 5 m/s. */
 const DOWN_HOLD_S = 1.0;
 const DOWN_RECORD_S = 5;
-/** The ladder leg: Space held this long climbs the 3.2 m to the top at the climb's 3 m/s and
- *  waits there; then no key for HANG_S (the body must hold on); then back held for STEP_BACK_S,
- *  which takes the body out of the ladder's reach (1.2 m) and off it. */
+/** The ladder leg (through the hatch, ship homes increment 7): Space held this long climbs the
+ *  3.2 m to the top at the climb's 3 m/s (the controller's speed times 0.6, which no limp slows)
+ *  and waits there; then, after LADDER_TOP_S, forward is held long enough to walk the hatch's
+ *  `walk_m` (from the stand, over the ladder's top, across the gate and out of its reach onto the
+ *  floor) at the walk speed the game reports, LADDER_WALK_SPARE_M more; recorded LADDER_AFTER_S
+ *  past that. */
 const LADDER_CLIMB_S = 1.8;
-const HANG_S = 1.5;
-const STEP_BACK_S = 1.2;
-const LADDER_RECORD_S = LADDER_CLIMB_S + HANG_S + STEP_BACK_S + 3;
+const LADDER_TOP_S = 0.3;
+const LADDER_WALK_SPARE_M = 0.2;
+const LADDER_AFTER_S = 3;
 /** Eye height above the feet, metres (src/renderer/camera.rs, `eye_height`). */
 const EYE_M = 1.7;
 /** The planet legs (scripts/lib/falls-judge.js PLANET: open Sahara sand) climb this high, metres
@@ -327,12 +383,17 @@ if (DRY) {
 }
 
 // ── refusals, before anything is touched ─────────────────────────────────────────────────────────
-const running = MG.listInstances();
-if (running.length) {
+// ONE GPU, ONE INSTANCE (CLAUDE.md). Another session's rig is the common case, so the rig waits for
+// it, bounded (lib/machine-guard.js `waitForFree`, games only: a build beside this rig only slows
+// its frames, and the judge reads the drop each walk really made), and refuses if it is still up.
+// Its own leftover copy (.probe-rig/falls) is never a reason to wait: setupRig kills it.
+const WAIT_MIN = Number(opt("--wait-min", "20"));
+const wait = MG.waitForFree({ own: { exe: path.join(RIG, "HumanityOS.exe"), gameOnly: true }, label: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
+if (!wait.free) {
   refuse([
-    `REFUSED: HumanityOS is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
+    `REFUSED: HumanityOS is still running after a ${wait.waited_s} s wait (${wait.blockers.map(MG.describe).join("; ")}).`,
     "One GPU, one instance (CLAUDE.md). Close it (taskkill //PID <pid>, then //F if it is still",
-    "there 15 s later), or wait for the rig that started it, then run again.",
+    "there 15 s later), or wait for the rig that started it, then run again (--wait-min N waits longer).",
   ]);
 }
 if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
@@ -347,8 +408,15 @@ try {
 }
 if (!DATA.stairs) {
   refuse([
-    "verify-falls: REFUSED - data/homes/homestead.ron has no Steps-shaped staircase to walk off.",
-    "The walk legs need a raised floor of a known height aboard; pick another and update this rig.",
+    "verify-falls: REFUSED - data/homes/homestead.ron has no Steps-shaped staircase to walk down.",
+    "The stairs-down leg needs one; pick another raised floor and update this rig.",
+  ]);
+}
+if (!DATA.deck || DATA.deck.why) {
+  refuse([
+    `verify-falls: REFUSED - the rig cannot place its deck aboard: ${DATA.deck ? DATA.deck.why : "no deck"}.`,
+    "The walk legs step off a deck the rig places in the homestead's largest room open to the roof",
+    "(scripts/lib/falls-judge.js pickAboardDeck); see why above, and move the deck or the room.",
   ]);
 }
 
@@ -445,6 +513,25 @@ async function showcase(body) {
     await sleep(50);
   }
 }
+/** One line of the build editor's console on the live home (the showcase `console` verb, engine/
+ *  ipc.rs `console_this_session`: never written to a data file or a save), and its answer, read
+ *  back from run.log's "Showcase: console <line> -> <answer>" (null when no such line comes). */
+async function consoleLine(line) {
+  const marker = `Showcase: console ${line} -> `;
+  const seen = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split(/\r?\n/).filter((l) => l.includes(marker)).length : 0);
+  const before = seen();
+  await showcase({ console: line });
+  const t0 = Date.now();
+  while (Date.now() - t0 < 10000) {
+    const lines = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split(/\r?\n/).filter((l) => l.includes(marker)) : [];
+    if (lines.length > before) {
+      const l = lines[lines.length - 1];
+      return l.slice(l.indexOf(marker) + marker.length).trim();
+    }
+    await sleep(100);
+  }
+  return null;
+}
 /** What the judge reads of a recorder answer (the rest is ship-homes evidence it does not need). */
 function trim(done) {
   const hs = done.home_session || {};
@@ -502,6 +589,9 @@ async function main() {
     // Every leg this rig runs: the judge requires them all of a run that carries a plan.
     plan: FJ.ALL_LEGS,
     origin: null,
+    // The build editor console's answers for the rig's deck aboard: placing it, taking it away.
+    deck_console: null,
+    deck_removed: null,
     legs: [],
     falls_log: [],
     panics: 0,
@@ -562,27 +652,48 @@ async function main() {
     const o = s0.home_box && Array.isArray(s0.home_box.min) ? s0.home_box.min.map(Number) : [0, 0, 0];
     manifest.origin = o;
     const at = (p) => [p[0] + o[0], p[1] + o[1], p[2] + o[2]];
+    const camOf = (p, yaw) => `${p.map((v) => v.toFixed(3)).join(",")},${yaw.toFixed(4)},0`;
     const st = DATA.stairs;
     const foot = at(st.foot);
-    const pose = (p) => `${p.map((v) => v.toFixed(3)).join(",")},${st.yaw.toFixed(4)},0`;
+    const pose = (p) => camOf(p, st.yaw);
+    const DK = DATA.deck;
     log(`home at (${o.join(", ")}); ${st.id} ${st.size[1]} m tall, from (${foot.map((v) => v.toFixed(2)).join(", ")}) facing up it`);
     save();
 
-    // Each walk: the mode, stand at the foot, a look before, then forward held while recording.
-    const walkLeg = async (id, mode) => {
+    // THE DECK (ship homes increment 7, decision 10): the walks off a raised floor go off a deck
+    // the rig places for itself, with the build editor's console, for this session only (the
+    // showcase `console` verb), in the middle of the home's largest room open to the roof, its top
+    // at the upper floor's height. Taken away again after the legs aboard.
+    log(`placing a ${DK.top_m} m deck in ${DK.room}: ${DK.console}`);
+    const deckSaid = await consoleLine(DK.console);
+    manifest.deck_console = { line: DK.console, said: deckSaid };
+    save();
+    log(`the console said: ${deckSaid === null ? "(nothing: no Showcase: console line in run.log)" : deckSaid}`);
+    await sleep(1500); // the home rebuilt with the deck in it
+
+    // Each deck walk: the mode, stood on the deck facing its edge, a look before, then forward held
+    // at the walk speed the game reports while recording.
+    const deckLeg = async (id, mode) => {
+      const stand = at(DK.stand);
       await showcase({ illness: mode });
-      await showcase({ walk: "1", cam: pose(foot) });
+      await showcase({ walk: "1", cam: camOf(stand, DK.yaw) });
       await sleep(1500); // the placement settles; the watch resets on the first frame standing
       const before = await snapshot(`${id} (before)`);
-      await startRecording(WALK_RECORD_S);
+      const rate = before.falls ? Number(before.falls.climb_m_s) : NaN;
+      if (!(rate > 0.1)) throw new Error(`${id}: the game reports no walk speed (climb_m_s ${rate}): is the body overloaded?`);
+      // climb_m_s is the walk's speed times a load's share of a jump, never more than the walk's,
+      // so this hold walks at least as far as asked.
+      const holdS = (DK.edge_m + DK.walk_on_m) / rate;
+      const recordS = holdS + DECK_WALK_RECORD_AFTER_S;
+      await startRecording(recordS);
       await sleep(300);
-      await showcase({ hold: "forward", hold_s: String(HOLD_S) });
-      const after = await finishRecording(WALK_RECORD_S, `${id} (the walk)`);
-      manifest.legs.push({ id, mode, kind: "walk", start: foot, before, after });
+      await showcase({ hold: "forward", hold_s: holdS.toFixed(3) });
+      const after = await finishRecording(recordS, `${id} (the walk off the deck)`);
+      manifest.legs.push({ id, mode, kind: "deck", start: stand, deck_m: DK.top_m, walk_m_s: rate, hold_s: holdS, before, after });
       save();
       log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
     };
-    await walkLeg("forgiving_walk", "forgiving");
+    await deckLeg("forgiving_walk", "forgiving");
 
     // DOWN THE STAIRS (BUG-208), in Realistic, before anything has hurt the body (so it walks at
     // the full 5 m/s, the speed that used to fly off the top tread). Up from the foot to one of
@@ -603,7 +714,7 @@ async function main() {
         const c = s.camera_end && s.camera_end.pos;
         if (!Array.isArray(c)) throw new Error(`${id}: the recorder gave no camera position`);
         const ground = c[1] - o[1] - EYE_M;
-        if (alongOf(c) > st.size[2] / 2) throw new Error(`${id}: walked off the top of the stairs while stopping on them (along ${alongOf(c).toFixed(2)} m)`);
+        if (alongOf(c) > st.size[2] / 2) throw new Error(`${id}: walked past the top of the stairs while stopping on them (along ${alongOf(c).toFixed(2)} m)`);
         if (ground >= st.top_m - STOP_BELOW_TOP_M) {
           log(`${id}: standing ${ground.toFixed(2)} m up the stairs after ${k} pulse(s)`);
           break;
@@ -613,7 +724,7 @@ async function main() {
         await sleep(350);
       }
       const top = at(st.top_tread_eye);
-      await showcase({ walk: "1", cam: `${top.map((v) => v.toFixed(3)).join(",")},${st.down_yaw.toFixed(4)},0` });
+      await showcase({ walk: "1", cam: camOf(top, st.down_yaw) });
       await sleep(1500);
       const before = await snapshot(`${id} (before)`);
       await startRecording(DOWN_RECORD_S);
@@ -624,47 +735,65 @@ async function main() {
       save();
       log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
     }
-    await walkLeg("realistic_walk", "realistic");
+    await deckLeg("realistic_walk", "realistic");
 
-    // The ladder: at its foot facing it, Space held climbs to the top; let go and hang there;
-    // then back held steps off it.
-    if (DATA.ladder) {
+    // THE LADDER THROUGH THE HATCH (ship homes increment 7): stood in the hatch's hole at the
+    // ladder's foot facing it, Space held climbs to the top; then forward held steps off the top
+    // across the hatch's gate (open to a body on the ladder) onto the upper floor.
+    if (DATA.ladder && DATA.ladder.hatch) {
       const id = "realistic_ladder";
-      const L = DATA.ladder;
-      const stand = at(L.stand);
+      const H = DATA.ladder.hatch;
+      const stand = at(H.stand);
       await showcase({ illness: "realistic" });
-      await showcase({ walk: "1", cam: `${stand.map((v) => v.toFixed(3)).join(",")},${L.yaw.toFixed(4)},0` });
+      await showcase({ walk: "1", cam: camOf(stand, H.yaw) });
       await sleep(1500);
       const before = await snapshot(`${id} (before)`);
-      await startRecording(LADDER_RECORD_S);
+      const rate = before.falls ? Number(before.falls.climb_m_s) : NaN;
+      if (!(rate > 0.1)) throw new Error(`${id}: the game reports no walk speed (climb_m_s ${rate}): is the body overloaded?`);
+      const stepS = (H.walk_m + LADDER_WALK_SPARE_M) / rate;
+      const recordS = LADDER_CLIMB_S + LADDER_TOP_S + stepS + LADDER_AFTER_S;
+      await startRecording(recordS);
       await sleep(300);
       await showcase({ hold: "jump", hold_s: String(LADDER_CLIMB_S) });
-      await sleep((LADDER_CLIMB_S + HANG_S) * 1000);
-      await showcase({ hold: "back", hold_s: String(STEP_BACK_S) });
-      const after = await finishRecording(LADDER_RECORD_S, `${id} (the climb and the step off)`);
-      manifest.legs.push({ id, mode: "realistic", kind: "ladder", start: stand, hang_s: HANG_S, before, after });
+      await sleep((LADDER_CLIMB_S + LADDER_TOP_S) * 1000);
+      await showcase({ hold: "forward", hold_s: stepS.toFixed(3) });
+      const after = await finishRecording(recordS, `${id} (the climb and the step onto the upper floor)`);
+      manifest.legs.push({ id, mode: "realistic", kind: "ladder_hatch", start: stand, climb_s: LADDER_CLIMB_S, step_s: stepS, walk_m_s: rate, before, after });
       save();
-      log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+      const end = after.frames.length ? after.frames[after.frames.length - 1].cam : null;
+      log(`${id}: ended at ${end ? end.slice(0, 3).map((v) => Number(v).toFixed(2)).join(", ") : "(no frames)"}; health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
     } else {
-      log("no ladder in data/homes/homestead.ron: the ladder leg cannot run (the judge says so)");
+      log("no ladder through a hatch in data/homes/homestead.ron: the ladder leg cannot run (the judge says so)");
     }
 
-    // The placement: at the foot, a look before, then PLACED as high as the top step's eye and
-    // left to fall the same 3 m.
+    // The placement: on the floor beside the deck, a look before, then PLACED at the height of the
+    // eye on the deck and left to fall the same 3 m.
     {
       const id = "placed_drop";
+      const low = at([DK.placed_eye[0], EYE_M, DK.placed_eye[2]]);
       await showcase({ illness: "realistic" });
-      await showcase({ walk: "1", cam: pose(foot) });
+      await showcase({ walk: "1", cam: camOf(low, DK.yaw) });
       await sleep(1500);
       const before = await snapshot(`${id} (before)`);
       await startRecording(DROP_RECORD_S);
       await sleep(300);
-      const high = at([st.placed_eye[0], st.placed_eye[1], st.placed_eye[2]]);
-      await showcase({ walk: "1", cam: pose(high) });
+      const high = at(DK.placed_eye);
+      await showcase({ walk: "1", cam: camOf(high, DK.yaw) });
       const after = await finishRecording(DROP_RECORD_S, `${id} (the drop)`);
       manifest.legs.push({ id, mode: "realistic", kind: "placement", start: high, before, after });
       save();
       log(`${id}: health ${fmt(before.vitals && before.vitals.health)} -> ${fmt(after.vitals && after.vitals.health)}, landings ${before.falls && before.falls.landings} -> ${after.falls && after.falls.landings}`);
+    }
+
+    // The deck away again, by the number the console gave it (the home as it was).
+    {
+      const n = deckSaid && (deckSaid.match(/^added structure #(\d+)/) || [])[1];
+      if (n) {
+        const said = await consoleLine(`rm_structure ${n}`);
+        manifest.deck_removed = said;
+        save();
+        log(`the deck taken away: ${said === null ? "(no answer)" : said}`);
+      }
     }
 
     // ── THE PLANET LEGS ── Parked over open Sahara sand (the camera park pins the eye there,

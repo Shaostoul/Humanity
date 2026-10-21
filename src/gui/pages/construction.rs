@@ -4008,6 +4008,7 @@ mod multi_select_tests {
             outlet_media: BTreeMap::new(),
             auto_recipe: None,
             irrigates: false,
+            household_use: false,
             auto_keep: None,
             lights_crops: false,
             pollinates_crops: false,

@@ -65,7 +65,7 @@ is longitude-aware.
 
 ## Frame costs: the per-pass and per-stage breakdown (`renderer::frame_costs`)
 
-The Performance page (Platform > Performance) and the `HUMANITY_FRAME_COSTS=1`
+The Performance page (Dev > Performance) and the `HUMANITY_FRAME_COSTS=1`
 JSON drop (`debug/frame_costs.json`, rewritten once a second while the
 process runs with that variable set) read one process-global store that
 the engine writes every frame:

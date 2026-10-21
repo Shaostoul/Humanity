@@ -11,6 +11,9 @@ use crate::updater::{UpdateChannel, UpdateState};
 
 /// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
 mod data_folder;
+/// Settings > Account > "Recovery through trusted people" (2026-10-20, was the Platform tab's
+/// Recovery page): what it is, that it is not finished, and its two lookups.
+pub mod recovery;
 
 // Full-PQ: the web "import ECDH key" flow is gone. DMs are pure Kyber768
 // derived from the BIP39 seed — identical on web and native with no manual
@@ -1076,6 +1079,12 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             });
         }
     });
+
+    ui.add_space(theme.spacing_md);
+
+    // ── Recovery through trusted people (2026-10-20): the Platform tab's Recovery page, moved
+    // here beside the recovery phrase when that tab was retired (settings/recovery.rs) ──
+    recovery::draw(ui, theme, state, accent);
 
     ui.add_space(theme.spacing_md);
 

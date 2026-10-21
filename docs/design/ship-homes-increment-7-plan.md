@@ -130,6 +130,15 @@ that walks up the stairs into the upstairs bedroom.
   bedroom (the HUD names it), a wall upstairs stops the body there, the ground floor's walls below
   do not, the elevator rides up and down and is called from the upper landing, a jump under the
   slab does not go through, a guarded edge cannot be walked off, and screenshots up and down.
+  **Built 2026-10-21** (scripts/verify-storeys.js, judged by scripts/lib/storeys-judge.js against
+  the tree's data; the game reports through src/engine/storey_probe.rs): fourteen legs on the held
+  keys (the stair, the bedroom, the wall from each storey, the guard, two jumps, five elevator
+  legs, the ladder through its hatch and the hatch's gate). Green 76/76 on this
+  tree's release build; red 43/76 on the same build reading a copy of data/ with the homestead's
+  floor slabs taken out (up the treads, then 3 m down past the top). Both runs are kept in
+  tests/fixtures/storeys/. The first red attempt PASSED because the rig's sandbox data was never
+  read (lib.rs `find_data_dir` prefers a source tree's data/ to the folder beside the exe), so
+  every run now records and checks the data folder the game logged.
 
 ## 4. Decisions made for the operator (overrule any)
 
@@ -160,6 +169,71 @@ that walks up the stairs into the upstairs bedroom.
    ladder hatch has a self-closing gate: otherwise each is a walk-in 3 m drop (lane M).
 10. The falls rig's aboard walk-off-the-top leg moves to a deck the rig places for itself: the
     stairs now lead to a floor, and no unguarded 3 m edge remains in the home by design.
+    **As built (2026-10-21):** the rig places a `deck` piece with its top at the upper floor's
+    height in the middle of the largest room open to the roof (the greenhouse), through the build
+    editor's console line `add_structure deck ...` sent by a new showcase verb, `console`, which
+    keeps the change to that session (it never arms the Dev mode's autosave into the data files),
+    and both walk legs step off it. The ladder leg now climbs through the hatch and steps onto the
+    upper floor across the gate (no fall, no wound); the stairs-down leg walks the 16 risers.
+    scripts/verify-falls.js's header holds the red and green runs. The rig's door points report
+    the walls by storey too (src/ship/door_points.rs `StoreyWalls`), so the upper hall's south wall
+    no longer crosses the ground hall in verify-copresence's map.
+
+## 8. Placements stand only where a person can stand (the review's fix, 2026-10-21)
+
+The review of the merged wave found that closing the B editor upstairs could stand the player on
+the glass roof over the house's south half, with no way off: the build-mode avatar was put at the
+home's spawn (53.5, 40.5) when the world loaded, which upstairs is ON the upper hall's south wall,
+the close stood the player on the storey they had left from, and `editor_pick_at` raised the spot
+onto any slab top there, glass or not, inside a room or not. The avatar itself was drawn and grabbed
+on the ground floor while it was dragged on the chosen storey's plane. What changed:
+
+- **Where a person can stand** is one pure rule, `src/ship/standing.rs`: at least 2.0 m of room over
+  the floor (`moves::STANDING_ROOM_M`); on the ground storey, anywhere on the body's floor clear of
+  the shell; above it, over a SOLID slab of that storey's floor, inside a zone of that storey, the
+  whole body (0.45 m round) over solid floor and clear of the room's walls. Never a glass lid, a
+  stairwell, a shaft, a hatch or a room open to the roof. `nearest_standing` finds the nearest such
+  spot on the same storey, in the room the spot is in first.
+- **The editor's close** (`engine/home_plot.rs` `editor_pick_at`, `editor_close_pick`) stands the
+  player on the avatar's spot when it is one, else at the nearest one on that storey with a notice
+  saying why ("Your build spot was on a glass roof (House roof, south half) ..."), else leaves them
+  where they stood with a notice. A nudge off a wall is silent.
+- **The avatar has one storey, the chosen one**: it is drawn, grabbed and dragged on the chosen
+  storey's floor (`editor_storeys.rs` `build_avatar_floor_y`), and the close stands the player on
+  that storey. The first time the editor opens after a world load, it is put at the player's feet
+  on their storey and the selector opens there (`seed_build_avatar`); after that it stays where it
+  was left (the build spot, v0.557, which verify-copresence's editor jump and the relay's declared
+  editor close rely on). The world load no longer puts it at the home's spawn; the editor's Save
+  still writes the spawn from it, but only when it was moved and stands on the ground storey
+  (`spawn_from_avatar`), since the spawn is a ground spot with no height.
+
+### The relay and the home's floors (the gap, 2026-10-21)
+
+The relay **does not hold the home's structure**. For a move it knows the player's plot box (the
+entity's `home_plot`: id, origin, size, from the ship file) and, through `ShipPlots`, the plot's
+kind; nothing of the home on it. `game_join` carries only `home_spawn` (the door, plot-local x and z)
+and `start`. It could read the SHIPPED design of the plot's kind (`HomeDesign::built_in_ref`), but in
+Normal and Creative a player's home is edited and kept in their own save, so the shipped slabs would
+refuse honest closes onto a floor the player drew and pass ones onto a slab they made glass.
+
+So the relay's editor-close rule (`move_check.rs` `on_a_floor_of`) is now as right as the box allows:
+feet from the plot's floor up to its top less `STANDING_ROOM_M` (the highest floor any home in that
+box can stand anyone on), give or take 0.25 m. It used to be the top less one 3.0 m storey, which
+refused an honest close onto a floor at 3.5 m in a 6 m home (a 2.5 m top storey) though the editor
+draws slab tops anywhere from 0.5 m to the height less 0.5 m. Every close the game makes passes it
+(held by `no_editor_close_lands_on_a_glass_lid_and_the_relay_takes_every_one`, over the whole
+homestead on both storeys). It cannot refuse a close onto a glass lid at 3.0 m: that is held on the
+game's side.
+
+**What the relay would need to refuse a glass-lid close itself:** the home's floor slabs and
+upstairs zones (each slab's rectangle, top and material; each zone's rectangle and floor), sent by
+the game on `game_join` and again after every editor save in the shared world, kept on the entity
+beside `home_plot`, and checked against the plot box (inside it, no taller than it); then
+`on_a_floor_of` would call `standing::standing_on` on that copy. It would add no security: the
+relay judges walking by speed alone, so a modified game could walk onto a lid without closing any
+editor, and it would believe whatever slabs that game sent. It would only make an honest game's
+mistakes visible on the server too. Not built; recorded here so the next session does not re-derive
+it.
 
 ## 7. The layout and the finding (C1, 2026-10-20)
 

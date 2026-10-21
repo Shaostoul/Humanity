@@ -848,8 +848,9 @@ pub(crate) fn compute_construction_hover(state: &EngineState) -> HoverGizmo {
             }
         }
     }
+    // The avatar stands on the chosen storey's floor (increment 7, `build_avatar_floor_y`).
     if let Some((cx, cz)) = state.gui_state.build_char_pos {
-        if let Some(t) = test(Vec3::new(cx + zo.x, zo.y + 0.7, cz + zo.z), 0.7) {
+        if let Some(t) = test(Vec3::new(cx + zo.x, build_avatar_floor_y(state) + 0.7, cz + zo.z), 0.7) {
             if t < best_t {
                 best = HoverGizmo::Char;
             }
@@ -1461,7 +1462,8 @@ pub(crate) fn try_grab_char(state: &mut EngineState) -> bool {
     let zo = active_zone_origin(state); // the avatar stands in the ACTIVE zone (v0.754)
     let sz = state.window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-    let c = Vec3::new(cx + zo.x, zo.y + 0.7, cz + zo.z); // mid-body
+    // Mid-body, on the chosen storey's floor, where it is drawn and dragged (increment 7).
+    let c = Vec3::new(cx + zo.x, build_avatar_floor_y(state) + 0.7, cz + zo.z);
     let t = (c - origin).dot(dir);
     if t < 0.0 {
         return false;
@@ -1474,8 +1476,10 @@ pub(crate) fn try_grab_char(state: &mut EngineState) -> bool {
     }
 }
 
-/// Per-frame while the avatar is grabbed: move it to the cursor's floor hit, converted into the
-/// ACTIVE zone's local coords (v0.754) and clamped into that zone's box.
+/// Per-frame while the avatar is grabbed: move it to the cursor's floor hit on the chosen storey
+/// (`cursor_storey_hit`, the plane it is drawn on), converted into the ACTIVE zone's local coords
+/// (v0.754) and clamped into that zone's box. Where that is no place to stand (a glass lid, a
+/// stairwell) the editor's close moves it to the nearest that is (home_plot.rs `editor_pick_at`).
 pub(crate) fn apply_char_drag(state: &mut EngineState) {
     if let Some(StoreyFloorHit { x: hx, z: hz, .. }) = cursor_storey_hit(state) {
         let zo = active_zone_origin(state);

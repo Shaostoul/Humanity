@@ -202,6 +202,64 @@ pub(crate) fn cursor_storey_hit(state: &EngineState) -> Option<StoreyFloorHit> {
     storey_floor_hit(origin, dir, state.gui_state.room_bounds.iter().map(|r| (r.min, r.max)), storey_plan(state))
 }
 
+/// THE BUILD-MODE AVATAR STANDS ON THE CHOSEN STOREY (ship homes increment 7, the review of
+/// 2026-10-21, finding 2): it is drawn, grabbed and dragged on that storey's floor, one plane, and
+/// closing the editor stands the player on that storey (home_plot.rs `editor_pick_at`). It used to
+/// be drawn and grabbed on the zone's ground floor while it was dragged on the chosen storey's
+/// plane and the close stood the player on the storey they had left from: three storeys for one
+/// figure. The world height of its feet: the chosen storey's floor in the zone being edited.
+pub(crate) fn build_avatar_floor_y(state: &EngineState) -> f32 {
+    active_zone_origin(state).y + edit_storey(state).map_or(0.0, |es| es.storey.floor)
+}
+
+/// Where the editor seeds the build-mode avatar (`seed_build_avatar`): the player's own spot
+/// across the floor (their eye at `eye`, world metres, `eye_height` over their feet), zone-local
+/// and kept 0.3 m inside the body `hs` at `zone_origin`, and the storey their feet are on.
+pub(crate) fn avatar_seed(hs: &HomeStructure, zone_origin: Vec3, eye: Vec3, eye_height: f32) -> ((f32, f32), usize) {
+    let p = eye - zone_origin;
+    let spot = (p.x.clamp(0.3, (hs.width - 0.3).max(0.3)), p.z.clamp(0.3, (hs.depth - 0.3).max(0.3)));
+    (spot, storey_index(&hs.storeys(), eye.y - eye_height - zone_origin.y))
+}
+
+/// When the editor OPENS (lib.rs) with no build spot yet (the first time since the world loaded,
+/// engine/world_load.rs): put the build-mode avatar where the player stands, ON THEIR STOREY, and
+/// open the storey selector on that storey, so the avatar is where they are and on the plane it is
+/// drawn and dragged on. Toggling the editor without moving it then keeps them put (v0.557, "where
+/// I'm at" when I leave build mode). After that the avatar stays where it was left, the BUILD SPOT
+/// the next close stands them at (v0.557; verify-copresence's editor jump and the relay's declared
+/// editor close rely on it), on the storey the selector stays on. It used to be put at the home's
+/// spawn when the world loaded (v0.582), which is on the ground floor, while the selector opened on
+/// the ground and the close stood the player on the storey they left from: upstairs, that spot is
+/// on the upper hall's south wall, over the glass roof of the house's south half.
+pub(crate) fn seed_build_avatar(state: &mut EngineState) {
+    if state.gui_state.build_char_pos.is_some() {
+        return;
+    }
+    let zo = active_zone_origin(state);
+    let (eye, eye_height) = (state.construction_return_pos, state.controller.eye_height());
+    let g = &mut state.gui_state;
+    let Some((spot, k)) = zone_body(&g.ship_structure, g.construction_zone).map(|hs| avatar_seed(hs, zo, eye, eye_height)) else {
+        return;
+    };
+    choose_storey(g, k);
+    g.build_char_pos = Some(spot);
+    g.construction_storeys.avatar_seed = Some((g.construction_zone, spot, g.construction_storeys.chosen));
+}
+
+/// The home's spawn the editor's Save writes (lib.rs, "Save home"; `HomeStructure::spawn`, where
+/// the player enters the world, a spot on the GROUND floor): the build-mode avatar's spot, when it
+/// was moved since it was put at the player's feet (`seed_build_avatar`) and stands on the ground
+/// storey. None leaves the spawn as it is: a Save without moving the avatar must not make wherever
+/// the player stood the home's door, and a spot upstairs is no ground spot (the spawn has no
+/// height; written as one, it would put the door under the upper floor, perhaps in a wall).
+pub(crate) fn spawn_from_avatar(g: &GuiState) -> Option<(f32, f32)> {
+    let spot = g.build_char_pos?;
+    let hs = zone_body(&g.ship_structure, g.construction_zone)?;
+    let k = EditStorey::of(hs, g.construction_storeys.chosen).index;
+    let moved = g.construction_storeys.avatar_seed != Some((g.construction_zone, spot, k));
+    (moved && k == 0).then_some(spot)
+}
+
 /// The ray distance at which wall `w` is hit (its zone's origin at world `zo`), or None. A wall is
 /// a vertical sheet from its BASE to its top, no higher than the body-local `top_cap` (the
 /// cut-away's top, where the view cuts it): a ray that passes under an upstairs wall misses it.
@@ -517,6 +575,55 @@ pub(crate) fn storey_cut_key(state: &EngineState) -> Option<(usize, usize)> {
 pub(crate) fn editor_cut_away(state: &EngineState) -> Option<ShipStructure> {
     let (zone, k) = storey_cut_key(state)?;
     cut_away_ship(state.gui_state.ship_structure.as_ref()?, zone, k)
+}
+
+/// How far outside the cut zone's box a thing may stand and still be cut with it (metres): a door
+/// in the shell stands on the box's edge, and the port gizmos of a unit against the shell
+/// (`home_meshes::port_gizmo_pos`, a ring round the machine) and the risers to them stand just past
+/// it (the study's uplink and router, x 55.05 on a 55 m box).
+pub(crate) const CUT_EDGE_M: f32 = 0.3;
+
+/// THE CUT-AWAY FOR WHAT IS NOT IN THE BODY (ship homes increment 7 review): the home's machines,
+/// their screens, its door panels and its elevator cars are drawn from the whole ship, not from
+/// the cut body, so they follow the cut by where they stand. World metres: the cut zone's footprint
+/// and the cut's height, the top of the storey being edited.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct CutAway {
+    pub(crate) min: (f32, f32),
+    pub(crate) max: (f32, f32),
+    pub(crate) cut_y: f32,
+}
+
+impl CutAway {
+    /// True when the cut-away takes out a thing standing at world point `at` (its foot: a machine's
+    /// placement, a door panel's bottom, an elevator car's floor): in the cut zone's box and at or
+    /// over the cut, the rule `cut_away_body` keeps the body's pieces and lights by.
+    pub(crate) fn hides(&self, at: Vec3) -> bool {
+        at.y >= self.cut_y - STOREY_EPS
+            && at.x >= self.min.0 - CUT_EDGE_M
+            && at.x <= self.max.0 + CUT_EDGE_M
+            && at.z >= self.min.1 - CUT_EDGE_M
+            && at.z <= self.max.1 + CUT_EDGE_M
+    }
+}
+
+/// The cut-away of storey `k` of zone `zone` (`CutAway`): None when nothing is above that storey,
+/// as `cut_away_body`.
+pub(crate) fn cut_away_of(ship: &ShipStructure, zone: usize, k: usize) -> Option<CutAway> {
+    let z = ship.zones.get(zone)?;
+    let storeys = z.body.storeys();
+    if k + 1 >= storeys.len() {
+        return None;
+    }
+    let o = z.origin_vec();
+    Some(CutAway { min: (o.x, o.z), max: (o.x + z.body.width, o.z + z.body.depth), cut_y: o.y + storeys[k].top })
+}
+
+/// The cut-away the editor should draw now (`storey_cut_key`), as `CutAway`; None for the whole
+/// ship. engine/home_meshes.rs `rebuild_homestead` keeps it with the meshes it draws.
+pub(crate) fn editor_cut(state: &EngineState) -> Option<CutAway> {
+    let (zone, k) = storey_cut_key(state)?;
+    cut_away_of(state.gui_state.ship_structure.as_ref()?, zone, k)
 }
 
 /// Per frame (from `construction_history_tick`): when the cut-away that should be drawn is not

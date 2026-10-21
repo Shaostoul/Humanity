@@ -3196,7 +3196,7 @@ mod tests {
     /// Data integrity for the shipped files (console-room increment): every zone_types.ron row
     /// parses with a unique id, a label, a purpose and a positive size; the console room is one of
     /// them; every zone in the assembled ship (the ship file plus data/homes/shipped/homestead.ron) names a real zone type; every `room_type` any zone
-    /// sets is a data/rooms.ron key; and no two zones in the home body overlap in plan (touching
+    /// sets is a data/rooms.ron key; and no two zones on one storey of the home body overlap in plan (touching
     /// edges are fine, shared interior is not), which is the reviewer's "overlapping rect" trap.
     #[test]
     fn shipped_zone_types_parse_and_every_ship_structure_room_type_is_a_rooms_ron_key() {
@@ -3246,8 +3246,13 @@ mod tests {
         assert_eq!(cr.room_type.as_deref(), Some("console_room"));
         let actions = home.room_actions_for("console-room", &reg);
         assert!(actions.contains(&"use_terminal".to_string()), "the console room's actions resolve: {actions:?}");
+        // On one storey (ship homes increment 7): the upstairs bedroom stands over the dining room,
+        // the same rectangle a storey up, and that is no overlap.
         for (i, a) in home.zones.iter().enumerate() {
             for b in home.zones.iter().skip(i + 1) {
+                if home.storey_of_zone(a) != home.storey_of_zone(b) {
+                    continue;
+                }
                 let overlap_x = a.origin.0 < b.origin.0 + b.size.0 && b.origin.0 < a.origin.0 + a.size.0;
                 let overlap_z = a.origin.2 < b.origin.2 + b.size.2 && b.origin.2 < a.origin.2 + a.size.2;
                 assert!(!(overlap_x && overlap_z), "zones '{}' and '{}' overlap in plan", a.id, b.id);

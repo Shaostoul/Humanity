@@ -20,9 +20,9 @@
 //! either drawn by this table or explicitly listed as engine-bound.
 
 use super::pages::{
-    apps, browser, bugs, calculator, calendar, chat, cosmos, crafting, donate, governance,
-    guilds, homes, humanity, identity, inventory, laws, library, market, notes, platform, profile, quests,
-    files, real, recovery, relay_control, server_settings, settings, studio, tasks, testing,
+    apps, browser, bugs, calculator, calendar, chat, crafting, donate, governance,
+    dev_tab, guilds, homes, humanity, identity, inventory, laws, library, maps, market, notes, profile, quests,
+    files, real, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
 };
 use super::theme::Theme;
@@ -52,7 +52,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Market => market::draw(ctx, theme, state),
         GuiPage::Profile => profile::draw(ctx, theme, state),
         GuiPage::Real => real::draw(ctx, theme, state),
-        GuiPage::Platform => platform::draw(ctx, theme, state),
+        GuiPage::Dev => dev_tab::draw(ctx, theme, state),
         GuiPage::Humanity => humanity::draw(ctx, theme, state),
         GuiPage::Library => library::draw(ctx, theme, state),
         GuiPage::Calculator => calculator::draw(ctx, theme, state),
@@ -75,9 +75,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Identity => identity::draw(ctx, theme, state),
         GuiPage::Governance => governance::draw(ctx, theme, state),
         GuiPage::Laws => laws::draw(ctx, theme, state),
-        GuiPage::Recovery => recovery::draw(ctx, theme, state),
-        // Maps and the old Cosmos variant merged (v0.1145); cosmos.rs is the module.
-        GuiPage::Maps => cosmos::draw(ctx, theme, state),
+        GuiPage::Maps => maps::draw(ctx, theme, state),
         GuiPage::Testing => testing::draw(ctx, theme, state),
         GuiPage::Browser => browser::draw(ctx, theme, state),
     }
@@ -106,7 +104,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Market => "market",
         GuiPage::Profile => "profile",
         GuiPage::Real => "real",
-        GuiPage::Platform => "platform",
+        GuiPage::Dev => "dev",
         GuiPage::Humanity => "humanity",
         GuiPage::Library => "library",
         GuiPage::Calculator => "calculator",
@@ -129,7 +127,6 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Identity => "identity",
         GuiPage::Governance => "governance",
         GuiPage::Laws => "laws",
-        GuiPage::Recovery => "recovery",
         GuiPage::Maps => "maps",
         GuiPage::Testing => "testing",
         GuiPage::Browser => "browser",
@@ -159,7 +156,7 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Market,
     GuiPage::Profile,
     GuiPage::Real,
-    GuiPage::Platform,
+    GuiPage::Dev,
     GuiPage::Humanity,
     GuiPage::Library,
     GuiPage::Calculator,
@@ -182,7 +179,6 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Identity,
     GuiPage::Governance,
     GuiPage::Laws,
-    GuiPage::Recovery,
     GuiPage::Maps,
     GuiPage::Testing,
     GuiPage::Browser,

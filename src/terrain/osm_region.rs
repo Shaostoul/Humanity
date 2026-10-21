@@ -7,7 +7,7 @@
 //! format CONTRACT; this module is its only Rust reader, shared by two
 //! consumers so they cannot drift:
 //!
-//! - the Maps page's 2D Planet view (`src/gui/pages/cosmos.rs`), which draws
+//! - the Maps page's 2D Planet view (`src/gui/pages/maps/planet_view.rs`), which draws
 //!   the region as a slippy-map style plan; and
 //! - the in-world 3D extruder (`src/engine/region_meshes.rs`), which raises
 //!   the same footprints as real geometry on the chunked-LOD Earth.
@@ -1496,7 +1496,7 @@ mod tests {
     /// geography: parser and generator (scripts/fetch-osm-region.mjs) are
     /// locked through the real file, and the file is proven to carry real
     /// OSM data (Pike Street exists, Rainier Square Tower's 259 m height),
-    /// not just plausible bytes. Moved here from src/gui/pages/cosmos.rs
+    /// not just plausible bytes. Moved here from the Maps page (now src/gui/pages/maps/)
     /// when the parser became shared (the 3D extruder reads the same file).
     #[test]
     fn shipped_seattle_region_is_real() {

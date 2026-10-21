@@ -638,8 +638,13 @@ test("respawn: judged like a rejoin, under its own check ids", () => {
 // (src/ship/door_points.rs). These tests route on a copy of that report for the
 // shipped ship, seen from p1 (fixtures/door-points-p1.json); the Rust test
 // door_points::the_rigs_fixture_is_what_the_game_reports keeps the copy true.
-const { doorRoute, routeClear, routeWalls, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot, inViewM, FAR_VIEW_MARGIN_M, farPlacesAlong, farPlaceInView } = require("../lib/copresence-judge.js");
+const { doorRoute, routeClear, routeWalls, groundWalls, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot, inViewM, FAR_VIEW_MARGIN_M, farPlacesAlong, farPlaceInView } = require("../lib/copresence-judge.js");
 const DOORS = require("./fixtures/door-points-p1.json");
+/** The ground storey's walls of that report: every route here walks the deck. */
+const GROUND = groundWalls(DOORS);
+/** A report like `DOORS` whose ground storey's walls are `walls` (the door points carry the walls
+ *  by storey since ship homes increment 7). */
+const withGround = (report, walls) => ({ ...report, storeys: [{ floor: 0, walls }] });
 const P2_DOOR = [53.5, 1.7, 139.5];
 const MEET_CAM = [76, 1.7, 64];
 const MEET_LINE = { start: [72, 1.7, 70], end: [80, 1.7, 70] };
@@ -763,7 +768,7 @@ const MEET_OK = {
   gameCamera: MEET_CAM,
   gameHeld: [76, 1.7, 64.02],
   line: MEET_LINE,
-  walls: DOORS.walls,
+  walls: GROUND,
   walkerDoor: P2_DOOR,
   walker: { start: P2_DOOR },
   walker_route: [P2_DOOR, ...doorRoute(DOORS, P2_DOOR, MEET_LINE.start).waypoints],
@@ -803,9 +808,9 @@ test("meet: each broken meeting FAILS its own check", () => {
     ["the relay passed the steps on out of order", { gameRelayed: [P1_SPAWN, [66, 1.7, 40], [54, 1.7, 40], [66, 1.7, 64], MEET_CAM] }, "meet_game_steps_relayed"],
     ["no record of what the relay passed on", { gameRelayed: undefined }, "meet_game_steps_relayed"],
     ["the relay spawned the walker in the middle of its plot", { walker: { start: [27.5, 1.7, 143.5] } }, "meet_walker_from_its_door"],
-    ["a wall moved across the game's way in", { walls: [...DOORS.walls, ...across([54, 1.7, 40], [66, 1.7, 40])] }, "meet_routes_clear_of_walls"],
-    ["a wall moved across the walker's way out", { walls: [...DOORS.walls, [60, 135, 60, 143]] }, "meet_routes_clear_of_walls"],
-    ["a wall between the camera and the line", { walls: [...DOORS.walls, [70, 67, 82, 67]] }, "meet_routes_clear_of_walls"],
+    ["a wall moved across the game's way in", { walls: [...GROUND, ...across([54, 1.7, 40], [66, 1.7, 40])] }, "meet_routes_clear_of_walls"],
+    ["a wall moved across the walker's way out", { walls: [...GROUND, [60, 135, 60, 143]] }, "meet_routes_clear_of_walls"],
+    ["a wall between the camera and the line", { walls: [...GROUND, [70, 67, 82, 67]] }, "meet_routes_clear_of_walls"],
     ["no record of the walls", { walls: undefined }, "meet_routes_clear_of_walls"],
     ["the game left in First Street", { gameCamera: [70, 1.7, 120], gameHeld: [70, 1.7, 120], walkerSawGame: [[70, 1.7, 120]] }, "meet_game_in_commons"],
     ["the relay refused the last move", { gameHeld: [66, 1.7, 40] }, "meet_relay_holds_game_there"],
@@ -833,18 +838,18 @@ test("meet: each broken meeting FAILS its own check", () => {
 // with routeWalls finding nothing (the c98c5465b judge had no wall check): "the
 // room block's wall moved across p1's way in was not found".
 test("routes: the shipped meeting's routes and view cross no wall; a wall moved across one is found", () => {
-  assert.ok(Array.isArray(DOORS.walls) && DOORS.walls.length > 50, "the door points carry the ship's walls");
+  assert.ok(Array.isArray(GROUND) && GROUND.length > 50, "the door points carry the ship's walls");
   for (const door of [P1_SPAWN, P2_DOOR]) {
     const game = doorRoute(DOORS, door, MEET_CAM, 40);
-    assert.equal(routeWalls([door, ...game.points], DOORS.walls), null, `the game's way in from ${door} crosses a wall`);
+    assert.equal(routeWalls([door, ...game.points], GROUND), null, `the game's way in from ${door} crosses a wall`);
     const walker = doorRoute(DOORS, door, MEET_LINE.start);
-    assert.equal(routeWalls([door, ...walker.waypoints], DOORS.walls), null, `the walker's way out from ${door} crosses a wall`);
+    assert.equal(routeWalls([door, ...walker.waypoints], GROUND), null, `the walker's way out from ${door} crosses a wall`);
   }
   const mid = MEET_LINE.start.map((v, k) => (v + MEET_LINE.end[k]) / 2);
-  for (const p of [MEET_LINE.start, mid, MEET_LINE.end]) assert.equal(routeWalls([MEET_CAM, p], DOORS.walls), null, `a wall between the camera and ${p}`);
+  for (const p of [MEET_LINE.start, mid, MEET_LINE.end]) assert.equal(routeWalls([MEET_CAM, p], GROUND), null, `a wall between the camera and ${p}`);
   // The room block's south wall stretched west to x 65.5 by a Dev edit, across p1's way in as it
   // was planned before the edit: found.
-  const moved = [...DOORS.walls, [65.5, 49, 72, 49]];
+  const moved = [...GROUND, [65.5, 49, 72, 49]];
   const hit = routeWalls([P1_SPAWN, ...doorRoute(DOORS, P1_SPAWN, MEET_CAM, 40).points], moved);
   assert.ok(hit, "the room block's wall moved across p1's way in was not found");
   assert.deepEqual(hit.wall, [65.5, 49, 72, 49]);
@@ -852,15 +857,45 @@ test("routes: the shipped meeting's routes and view cross no wall; a wall moved 
   // the stretched wall on the other): since the review of increment 4 the planner finds one on a
   // grid that keeps clear of every wall (clearPath), round the block, where the route used to stay
   // straight into the wall (and a walk there stopped at it).
-  const round = doorRoute({ ...DOORS, walls: moved }, P1_SPAWN, MEET_CAM, 40);
+  const round = doorRoute(withGround(DOORS, moved), P1_SPAWN, MEET_CAM, 40);
   assert.equal(routeWalls([P1_SPAWN, ...round.points], moved), null, `a way in round the stretched wall crosses one: ${JSON.stringify(round.waypoints)}`);
   assert.ok(round.waypoints.length > 4, `more than one corner: ${JSON.stringify(round.waypoints)}`);
   // On the shipped walls the way in goes round the room block by its west side, while the
   // straight way the rig planned before doorRoute knew the walls goes through it.
   assert.deepEqual(doorRoute(DOORS, P1_SPAWN, MEET_CAM).waypoints, [[54, 1.7, 40], [66, 1.7, 40], [66, 1.7, 64], MEET_CAM]);
-  assert.ok(routeWalls([P1_SPAWN, [54, 1.7, 40], [66, 1.7, 40], MEET_CAM], DOORS.walls), "the straight way through the room block was not found");
+  assert.ok(routeWalls([P1_SPAWN, [54, 1.7, 40], [66, 1.7, 40], MEET_CAM], GROUND), "the straight way through the room block was not found");
   // Touching a wall's end, or running along one, is no crossing.
   assert.equal(routeWalls([[0, 0, 0], [10, 0, 0]], [[10, 0, 10, 5], [2, 0, 8, 0]]), null);
+});
+
+// SHIP HOMES INCREMENT 7 (2026-10-21): the homestead's upper floor. Its upper hall's south wall
+// (U3, base 3.0) runs along z 40.5, over the middle of the ground hall a player walks in from the
+// door, and the door points flattened every storey's walls into one plan, so the rig's map put
+// that wall across the ground hall. The report now carries the walls by storey (src/ship/
+// door_points.rs `StoreyWalls`, by the game's own knee-to-eye rule), and a ground route reads the
+// ground storey's. Seen red 2026-10-21 with the readers as they were (the flattened list, the
+// report before storeys): "a ground route across the hall crossed [32,40.5,55,40.5]".
+test("routes: a wall upstairs is no wall of a ground route; each storey has its own walls", () => {
+  const { groundWalls, storeyWalls } = require("../lib/copresence-judge.js");
+  // Across p1's ground hall, north to south at x 45, under the upper hall's south wall.
+  const acrossHall = [[45, 1.7, 39.6], [45, 1.7, 41.5]];
+  const hit = routeWalls(acrossHall, groundWalls(DOORS));
+  assert.equal(hit, null, `a ground route across the hall crossed ${JSON.stringify(hit && hit.wall)}`);
+  // Upstairs, on the same line, the wall stands.
+  const up = routeWalls(acrossHall.map((p) => [p[0], 4.7, p[2]]), storeyWalls(DOORS, 3));
+  assert.deepEqual(up && up.wall, [32, 40.5, 55, 40.5], "upstairs the upper hall's south wall is not across that line");
+  // The storeys, lowest first; a floor picks the storey under the feet.
+  assert.deepEqual(DOORS.storeys.map((s) => s.floor), [0, 3]);
+  assert.strictEqual(groundWalls(DOORS), DOORS.storeys[0].walls);
+  assert.strictEqual(storeyWalls(DOORS, 3), DOORS.storeys[1].walls);
+  assert.strictEqual(storeyWalls(DOORS, 1.2), DOORS.storeys[0].walls, "half way up the stairs: the ground's");
+  assert.strictEqual(storeyWalls(DOORS, -0.01), DOORS.storeys[0].walls, "a hair under the deck: the ground's");
+  assert.equal(groundWalls({ places: [], doors: [] }), null, "a report with no walls says so (the judges then say the walls were not recorded)");
+  // The ground keeps every wall that stands on the deck: today's ground answers. The stair's
+  // enclosure (wall A, base 0) is the ground's; the stairwell's guard (G1, base 3.0) is not.
+  const has = (ws, w) => ws.some((x) => x.every((v, k) => Math.abs(v - w[k]) < 1e-3));
+  assert.ok(has(groundWalls(DOORS), [36.5, 39.3, 41, 39.3]) && !has(groundWalls(DOORS), [36.5, 39.3, 40.5, 39.3]));
+  assert.ok(has(storeyWalls(DOORS, 3), [36.5, 39.3, 40.5, 39.3]) && !has(storeyWalls(DOORS, 3), [36.5, 39.3, 41, 39.3]));
 });
 
 // THE REVIEW OF INCREMENT 4, R4: a walk with no clear corner. Once the rig checked that every walk
@@ -872,7 +907,7 @@ test("routes: with no clear corner, a grid path round the walls, aboard, clear o
   const { clearPath } = require("../lib/copresence-judge.js");
   // A wall across the way, wide enough that neither single corner gets round it.
   const walls = [[2, 5, 10, 5]];
-  const report = { places: [{ id: "zone:a", kind: "zone", min: [0, 0, 0], max: [12, 3, 12] }], doors: [], walls };
+  const report = withGround({ places: [{ id: "zone:a", kind: "zone", min: [0, 0, 0], max: [12, 3, 12] }], doors: [] }, walls);
   const from = [5, 0, 9];
   const to = [9, 0, 1];
   const path = doorRoute(report, from, to).waypoints;
@@ -1530,7 +1565,13 @@ const shipReport = () => ({
     { from: "zone:commons", to: "zone:street-1", axis: "z", lat: 70, mouths: [[70, 0, 75], [70, 0, 85]], steps: [[70, 1.7, 74], [70, 1.7, 86]], tube: [[69, 0, 75], [71, 3, 85]] },
     { from: "plot:p1", to: "zone:commons", axis: "x", lat: 40, mouths: [[55, 0, 40], [65, 0, 40]], steps: [[54, 1.7, 40], [66, 1.7, 40]], tube: [[55, 0, 39], [65, 3, 41]] },
   ],
-  walls: [[65, 20, 99, 20], [99, 20, 99, 75], [65, 75, 69, 75], [71, 75, 99, 75], [65, 20, 65, 39], [65, 41, 65, 75], [65, 85, 65, 195], [75, 85, 75, 195], [65, 195, 75, 195], [65, 85, 69, 85], [71, 85, 75, 85]],
+  // The walls by storey (ship homes increment 7): this made-up ship has only the deck.
+  storeys: [
+    {
+      floor: 0,
+      walls: [[65, 20, 99, 20], [99, 20, 99, 75], [65, 75, 69, 75], [71, 75, 99, 75], [65, 20, 65, 39], [65, 41, 65, 75], [65, 85, 65, 195], [75, 85, 75, 195], [65, 195, 75, 195], [65, 85, 69, 85], [71, 85, 75, 85]],
+    },
+  ],
 });
 
 test("editor jump: the walk goes past one update's allowance, inside the 90 m, through the doors", () => {
@@ -1539,7 +1580,7 @@ test("editor jump: the walk goes past one update's allowance, inside the 90 m, t
   assert.ok(!t.error, t.error);
   assert.ok(t.dist > 47.875 + 5 && t.dist < 80, `${t.dist.toFixed(1)} m from the build spot`);
   assert.ok(Math.abs(t.dist - 60) < 2, "about 60 m");
-  assert.ok(r.walls.every((w) => wallDistXZ(t.at, w) >= 1), "clear of every wall");
+  assert.ok(r.storeys[0].walls.every((w) => wallDistXZ(t.at, w) >= 1), "clear of every wall");
   assert.deepEqual(t.route[t.route.length - 1], t.at, "the route ends there");
   assert.ok(editorJumpTarget(r, [53.5, 1.7, 40.5], 500).error, "no point past a 500 m allowance aboard: says why");
 });

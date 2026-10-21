@@ -201,9 +201,20 @@ pub const INTERACT_REACH_M: f32 = 5.0;
 
 /// One STOREY aboard, floor to floor, metres: 3.0 (docs/design/ship-homes-increment-7-plan.md,
 /// decision 2: a 3.0 m storey under a 0.25 m slab leaves 2.75 m of room). The relay holds no copy
-/// of anyone's home, so it has no list of a home's storeys; where it needs one (shutting the build
-/// editor on an upper floor of a plot) it takes this.
+/// of anyone's home, so it has no list of a home's storeys; the reach bands below take this.
+/// (Shutting the build editor no longer does: a home's storeys need not be 3.0 m, see
+/// `STANDING_ROOM_M`.)
 pub const STOREY_M: f32 = 3.0;
+
+/// The least room a person needs over a floor to stand on it, metres: 2.0, the height a person
+/// stands up in (the same 2.0 m the B editor leaves over a floor it draws above,
+/// `home_structure::ROOM_DIVIDER_MIN_M`, and the headroom England asks over a stair). Shutting the
+/// build editor stands a person only where a floor has this much over it (engine/home_plot.rs
+/// `editor_pick_at`, ship/standing.rs), so the highest floor a home in a plot of height h can stand
+/// anyone on is h less this, and that is the bound the relay holds an editor close to
+/// (src/relay/handlers/move_check.rs `on_a_floor_of`): a home's slabs may sit at any height the
+/// editor allows (0.5 m to its height less 0.5 m), not only every 3.0 m.
+pub const STANDING_ROOM_M: f32 = crate::ship::home_structure::ROOM_DIVIDER_MIN_M;
 
 /// How far below the floor a person stands on a thing still counts as on their storey, metres:
 /// half a metre (what a step off a low stage or a crouch puts between them).

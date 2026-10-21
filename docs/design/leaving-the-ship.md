@@ -458,7 +458,7 @@ passing case is trusted (the house rule of ship-homes section 7). Sizes are esti
 ### Increment 0, an hour: say so (optional)
 
 - One sentence where a Normal player looks for a way down, the Maps page's planet view
-  (src/gui/pages/cosmos.rs): there is no way down in Normal play yet, it is being built, and the
+  (src/gui/pages/maps/planet_view.rs): there is no way down in Normal play yet, it is being built, and the
   Dev play mode's Travel page lands you meanwhile. Removed when increment 1 ships.
 - Proof: the page's snapshot shows the sentence in Normal and not in Dev.
 

@@ -541,7 +541,7 @@ This is multi-month work. Phases sized to ship in 1-3 release cycles each.
 - No UI change yet.
 
 **Phase 3, Cosmos page (context-aware)**
-- New `pages/cosmos.rs`. Renders based on player's container.
+- New `pages/cosmos.rs` (now `pages/maps/`, Maps increment 0, 2026-10-20). Renders based on player's container.
 - Replaces the dead-code orbit visualization in `maps.rs`.
 - Multi-system data already loaded; system switcher dropdown for testing.
 - Indoor Map widget for ship interior view.
@@ -1334,7 +1334,7 @@ moon system at AU-fraction scale).
 ### Phase 4 (v0.206.0): pseudo-3D System view shipped
 
 The System view is now a true 3D scene:
-- **`Cosmos3DCamera`** with target / yaw / pitch / distance, turntable
+- **`Cosmos3DCamera`** (now `MapCamera`, `gui/pages/maps/system_view.rs`) with target / yaw / pitch / distance, turntable
   camera matching Blender / KSP / Star Citizen conventions.
 - **Real 3D body positions**, planets at their actual semi-major-axis
   distances + slight inclination wobbles. Moons at their actual

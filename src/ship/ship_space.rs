@@ -311,9 +311,14 @@ mod tests {
         assert_eq!(air.at(Vec3::new(60.0, 1.7, 40.0)), AirAt::Ship, "the corridor from the home to the Commons");
         assert_eq!(air.at(Vec3::new(26.0, 1.7, 140.0)), AirAt::Ship, "the neighbour's plot, p2");
         assert_eq!(air.at(Vec3::new(26.0, 30.0, 40.0)), AirAt::Outside, "over the roof");
-        // The home's air is its own design's volume: the homestead's 55 x 89 x 3 m.
+        // The home's air is its own design's rooms, storey by storey: since its upper floor
+        // (ship homes increment 7, 2026-10-20) 17,454 m3 as measured on its 0.5 m grid: the ground
+        // floor's 14,685 less the 974 of floor slab over it, about 741 in the upper floor's rooms,
+        // and about 3,000 that rises through no floor (the greenhouse's upper half, the stairwell,
+        // the elevator shaft and the ladder hatch). It was the box, 55 x 89 x 3 m, 14,685 m3.
         let body = &ship.zones[ship.home_zone_index()].body;
-        assert!((home_air_volume_m3(body) - 55.0 * 89.0 * 3.0).abs() < 1.0);
+        let v = home_air_volume_m3(body);
+        assert!((v - 17_454.1).abs() < 1.0, "the home's air is {v} m3");
         // On p2 the home's air moves with the home, and p1 is a neighbour's.
         let on_p2 = shipped("p2").air_spaces();
         assert_eq!(on_p2.at(Vec3::new(26.0, 1.7, 140.0)), AirAt::OwnHome);

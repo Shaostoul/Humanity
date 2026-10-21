@@ -4,8 +4,9 @@
 //
 // Pure node: nothing is booted. A made-up run that went right passes every check; then one broken
 // thing at a time, each failing its own checks. The made-up run is built from the tree's own data
-// (falls.ron's curve, game.csv's gravity, the homestead's stairs), so a change to the data moves the
-// run with it, and the readers are tested on the real files too. Last, the same runs written to a
+// (falls.ron's curve, game.csv's gravity, the homestead's stairs, ladder, floor slabs and rooms, and
+// the deck the rig places from them), so a change to the data moves the run with it, and the
+// readers are tested on the real files too. Last, the same runs written to a
 // folder are judged by the rig itself, `node scripts/verify-falls.js --dry-verdict`, as a saved run
 // would be.
 //
@@ -29,49 +30,45 @@ const DATA = FJ.readTreeData(REPO);
 const G = DATA.gravity_m_s2;
 const ST = DATA.stairs;
 const EYE = 1.7;
-const V3 = Math.sqrt(2 * G * ST.size[1]); // the walk's landing off the top step
+/** The rig's deck aboard (ship homes increment 7): placed in the room open to the roof. */
+const DK = DATA.deck;
+const V3 = Math.sqrt(2 * G * DK.top_m); // the walk's landing off the deck's edge
 const SPRAIN = DATA.falls.steps[0].effect;
 const HARM3 = FJ.expectFall(DATA.falls, V3, "realistic").harm;
 const LD = DATA.ladder;
-const VL = Math.sqrt(2 * G * (LD.hang_eye_m - EYE)); // off the ladder's top
-const LADDER = FJ.expectFall(DATA.falls, VL, "realistic");
-const HANG_S = 1.5;
+/** The step from the top rung's hold down onto the upper floor, and its landing (which cannot hurt). */
+const STEP_OFF_M = LD.hang_eye_m - LD.hatch.floor_eye_m;
+const V_STEP = Math.sqrt(2 * G * STEP_OFF_M);
+/** A fall from the ladder's top down the hatch's hole to the floor below. */
+const V_HOLE = Math.sqrt(2 * G * (LD.hang_eye_m - EYE));
+/** What the console answers the rig's line (gui/pages/construction.rs `add_structure`). */
+const DECK_SAID = `added structure #8 (deck) at (${DK.pos.join(",")}) yaw 0`;
 
 // ── The made-up run ─────────────────────────────────────────────────────────────────────────────
 
-/** A camera track at 60 frames a second: standing at the start, walking up the stairs, along the
- *  top step, off it (falling under G) and standing where it landed; or, `placed`, standing, then
- *  put at the top's height and falling; or, `ladder`, climbing the ladder at 3 m/s, hanging at
- *  its top for `hangS`, stepping back off it and falling. `health(t, landedT)` gives each frame's
- *  health. */
-function track({ placed = false, ladder = false, hangS = HANG_S + 0.7, health = () => 100, climb = true } = {}) {
+/** A camera track at 60 frames a second on the rig's deck: standing on it at its stand point,
+ *  walking at 5 m/s off its south edge, falling under G and standing where it landed; or,
+ *  `placed`, standing on the floor beside it, then put at the deck's height and falling; or,
+ *  `noDeck`, the deck never placed, so the placement onto it fell before the recording began and
+ *  the walk goes along the floor. `health(t, landedT)` gives each frame's health. */
+function track({ placed = false, noDeck = false, health = () => 100 } = {}) {
   const dt = 1 / 60;
   const frames = [];
   let t = 0;
-  let [x, y, z] = ladder ? LD.stand : ST.foot;
+  let [x, y, z] = placed ? [DK.placed_eye[0], EYE, DK.placed_eye[2]] : DK.stand.slice();
+  if (noDeck) y = EYE;
   const push = () => {
-    frames.push({ t, cam: [x, y, z, ST.yaw, 0], health: null });
+    frames.push({ t, cam: [x, y, z, DK.yaw, 0], health: null });
     t += dt;
   };
   for (let i = 0; i < 18; i++) push();
-  const top = ladder ? LD.hang_eye_m : ST.top_m + EYE;
-  if (ladder) {
-    while (y < top) {
-      y = Math.min(top, y + 3 * dt);
-      push();
-    }
-    for (let k = 0; k < hangS / dt; k++) push();
-    for (let k = 0; k < 10; k++) {
-      z += 3.75 * dt;
-      push();
-    }
-  } else if (placed) {
+  const top = DK.top_m + EYE;
+  if (placed) {
     y = top;
   } else {
-    const climbFrames = 45;
-    for (let i = 1; i <= climbFrames; i++) {
-      z += (ST.walk_m / climbFrames) * 1.0;
-      y = climb ? EYE + (top - EYE) * Math.min(1, i / (climbFrames - 6)) : EYE;
+    // Along the deck to its edge (the walk is south, +z).
+    for (let i = 0; i < Math.ceil(DK.edge_m / (5 * dt)); i++) {
+      z += 5 * dt;
       push();
     }
   }
@@ -89,65 +86,102 @@ function track({ placed = false, ladder = false, hangS = HANG_S + 0.7, health = 
   return frames;
 }
 
+/** The ladder through the hatch at 60 frames a second: standing in the hole at its foot facing it,
+ *  climbing at 3 m/s to the top rung's hold, then walking at 1.5 m/s off the top the way the floor
+ *  is, holding on (at the hold's height) while in the ladder's reach and stepping down onto the
+ *  floor past it. `gateShut`: the gate stops the body short of the ladder's line, so it hangs at
+ *  the top over the hole. `downHole`: it walks off the top the other way, over the hole, and falls
+ *  to the floor below. Returns { frames, impact } (the landing's speed, null if none). */
+function ladderTrack({ gateShut = false, downHole = false, health = () => 100 } = {}) {
+  const H = LD.hatch;
+  const dt = 1 / 60;
+  const frames = [];
+  let t = 0;
+  let [x, y, z] = H.stand.slice();
+  const push = () => {
+    frames.push({ t, cam: [x, y, z, H.yaw, 0], health: null });
+    t += dt;
+  };
+  for (let i = 0; i < 18; i++) push();
+  while (y < LD.hang_eye_m) {
+    y = Math.min(LD.hang_eye_m, y + 3 * dt);
+    push();
+  }
+  for (let i = 0; i < 18; i++) push();
+  const sign = downHole ? -1 : 1;
+  const along = () => (x - LD.pos[0]) * H.dir[0] + (z - LD.pos[2]) * H.dir[1];
+  const reach = () => Math.hypot(x - LD.pos[0], z - LD.pos[2]) <= LD.reach_m;
+  const floorEye = downHole ? EYE : H.floor_eye_m;
+  let v = 0;
+  let landedT = Infinity;
+  let impact = null;
+  for (let i = 0; i < 240; i++) {
+    const nx = x + sign * H.dir[0] * 1.5 * dt;
+    const nz = z + sign * H.dir[1] * 1.5 * dt;
+    const blocked = gateShut && (nx - LD.pos[0]) * H.dir[0] + (nz - LD.pos[2]) * H.dir[1] > -(0.08 + 0.3);
+    if (!blocked && Math.abs(sign * along()) < H.step_m) [x, z] = [nx, nz];
+    if (!reach() && y > floorEye) {
+      v += G * dt;
+      y = Math.max(floorEye, y - v * dt);
+      if (y === floorEye && impact === null) {
+        impact = Math.sqrt(2 * G * (LD.hang_eye_m - floorEye));
+        landedT = t;
+      }
+    }
+    push();
+  }
+  for (const f of frames) f.health = health(f.t, landedT);
+  return { frames, impact };
+}
+
 const fallsBlock = (over = {}) => ({ landings: 0, last_m_s: null, mode: "forgiving", gravity_m_s2: G, flying: false, aboard: true, ...over });
 const sprain = () => ({ id: SPRAIN, name: DATA.effects[SPRAIN].name, remaining_s: 1209600 });
 const vitals = (health, wounds = []) => ({ satiation: 80, hydration: 80, health, health_max: 100, wounds, registry: true });
-const snap = (falls, v) => ({ falls, vitals: v, home_box: { min: [0, 0, 0], max: [55, 3, 89] }, frames: [{ t: 0, cam: [...ST.foot, ST.yaw, 0], health: v.health }] });
+const snap = (falls, v) => ({ falls, vitals: v, home_box: { min: [0, 0, 0], max: [55, 6, 89] }, frames: [{ t: 0, cam: [...DK.stand, DK.yaw, 0], health: v.health }] });
 
-const broken = () => ({ id: LADDER.wound, name: DATA.effects[LADDER.wound].name, remaining_s: 3628800 });
+/** A deck walk leg (kind "deck") as the rig records it. */
+const deckWalk = (id, mode, before, after) => ({ id, mode, kind: "deck", start: DK.stand.slice(), deck_m: DK.top_m, walk_m_s: 5, hold_s: (DK.edge_m + DK.walk_on_m) / 5, before, after });
 
-/** A run that went right: nothing landed getting into the world; the walks land at V3, Forgiving
- *  hurts nobody, Realistic sprains and takes HARM3 two frames after the landing; the ladder holds
- *  on at its top and stepping off it lands at VL, its wound and harm; and the placement's drop
- *  reaches no body. */
+/** A run that went right: nothing landed getting into the world; the console placed the deck; the
+ *  walks off the deck land at V3, Forgiving hurts nobody, Realistic sprains and takes HARM3 two
+ *  frames after the landing; the climb through the hatch ends on the upper floor, its only landing
+ *  the step off the top rung (V_STEP), nothing hurt; and the placement's drop reaches no body. */
 function goodRun() {
   const after = 100 - HARM3;
-  const afterL = after - LADDER.harm;
   const landedHurt = (t, landedT) => (t >= landedT + 2 / 60 ? after : 100);
-  const ladderHurt = (t, landedT) => (t >= landedT + 2 / 60 ? afterL : after);
+  const climb = ladderTrack({ health: () => after });
   return {
     data: DATA,
+    origin: [0, 0, 0],
+    deck_console: { line: DK.console, said: DECK_SAID },
     entry: snap(fallsBlock(), vitals(100)),
     legs: [
-      {
-        id: "forgiving_walk",
-        mode: "forgiving",
-        kind: "walk",
-        start: ST.foot.slice(),
-        before: snap(fallsBlock(), vitals(100)),
-        after: { falls: fallsBlock({ landings: 1, last_m_s: V3 }), vitals: vitals(100), frames: track() },
-      },
-      {
-        id: "realistic_walk",
-        mode: "realistic",
-        kind: "walk",
-        start: ST.foot.slice(),
-        before: snap(fallsBlock({ landings: 1, last_m_s: V3, mode: "realistic" }), vitals(100)),
-        after: { falls: fallsBlock({ landings: 2, last_m_s: V3, mode: "realistic" }), vitals: vitals(after, [sprain()]), frames: track({ health: landedHurt }) },
-      },
+      deckWalk("forgiving_walk", "forgiving", snap(fallsBlock(), vitals(100)), { falls: fallsBlock({ landings: 1, last_m_s: V3 }), vitals: vitals(100), frames: track() }),
+      deckWalk(
+        "realistic_walk",
+        "realistic",
+        snap(fallsBlock({ landings: 1, last_m_s: V3, mode: "realistic" }), vitals(100)),
+        { falls: fallsBlock({ landings: 2, last_m_s: V3, mode: "realistic" }), vitals: vitals(after, [sprain()]), frames: track({ health: landedHurt }) }
+      ),
       {
         id: "realistic_ladder",
         mode: "realistic",
-        kind: "ladder",
-        start: LD.stand.slice(),
-        hang_s: HANG_S,
+        kind: "ladder_hatch",
+        start: LD.hatch.stand.slice(),
+        climb_s: 1.8,
         before: snap(fallsBlock({ landings: 2, last_m_s: V3, mode: "realistic" }), vitals(after, [sprain()])),
-        after: {
-          falls: fallsBlock({ landings: 3, last_m_s: VL, mode: "realistic" }),
-          vitals: vitals(afterL, [sprain(), broken()]),
-          frames: track({ ladder: true, health: ladderHurt }),
-        },
+        after: { falls: fallsBlock({ landings: 3, last_m_s: climb.impact, mode: "realistic" }), vitals: vitals(after, [sprain()]), frames: climb.frames },
       },
       {
         id: "placed_drop",
         mode: "realistic",
         kind: "placement",
-        start: ST.placed_eye.slice(),
-        before: snap(fallsBlock({ landings: 3, last_m_s: VL, mode: "realistic" }), vitals(afterL, [sprain(), broken()])),
+        start: DK.placed_eye.slice(),
+        before: snap(fallsBlock({ landings: 3, last_m_s: climb.impact, mode: "realistic" }), vitals(after, [sprain()])),
         after: {
-          falls: fallsBlock({ landings: 3, last_m_s: VL, mode: "realistic" }),
-          vitals: vitals(afterL, [sprain(), broken()]),
-          frames: track({ placed: true, health: () => afterL }),
+          falls: fallsBlock({ landings: 3, last_m_s: climb.impact, mode: "realistic" }),
+          vitals: vitals(after, [sprain()]),
+          frames: track({ placed: true, health: () => after }),
         },
       },
     ],
@@ -179,7 +213,7 @@ function handOffRemoved() {
 
 // ── The readers, on the tree's own files ────────────────────────────────────────────────────────
 
-test("the readers read the tree: falls.ron's curve, game.csv's gravity, the effects' names, the homestead's stairs", () => {
+test("the readers read the tree: falls.ron's curve, game.csv's gravity, the effects' names, the homestead's stairs, ladder and floors", () => {
   assert.strictEqual(DATA.falls.speed_share, 0.7);
   assert.deepStrictEqual(DATA.falls.harm[0], { m_s: 6.26, health: 2 });
   assert.deepStrictEqual(
@@ -190,12 +224,60 @@ test("the readers read the tree: falls.ron's curve, game.csv's gravity, the effe
   assert.strictEqual(G, 9.81);
   assert.strictEqual(DATA.effects.sprained_ankle.name, "Sprained Ankle");
   assert.strictEqual(DATA.effects.sprained_ankle.kind, "wound");
-  // The tallest staircase aboard: stairs-1, 3 m, climbed toward +z (south), so facing yaw pi.
+  // The tallest staircase aboard, read from the tree (its place, turn and risers are the data's,
+  // so the stairs can move again without this test moving with them): stairs-1, its risers the
+  // type's, a storey tall, up to the upper floor.
+  const types = FJ.readStructureTypes(fs.readFileSync(path.join(REPO, "data", "blueprints", "structure_types.ron"), "utf8"));
   assert.strictEqual(ST.id, "stairs-1");
-  assert.strictEqual(ST.top_m, 3);
-  assert.ok(Math.abs(ST.yaw - Math.PI) < 1e-9);
-  assert.ok(ST.foot[2] < ST.pos[2] - ST.size[2] / 2, "the walk starts off the stairs, before the first step");
+  assert.strictEqual(ST.steps, types[ST.type_id].steps);
+  assert.ok(ST.steps > 1 && Math.abs(ST.tread_m - ST.size[2] / ST.steps) < 1e-12);
+  assert.ok(DATA.floors.some((s) => Math.abs(s.top - ST.top_m) < 1e-9), "the stairs climb to a floor of the home");
+  // Facing up them: the yaw looks along the way the steps rise (the piece's local +z turned by its
+  // rot_deg, (sin r, cos r)), and the walk starts off the stairs, a metre before the first step.
+  const r = (ST.rot_deg * Math.PI) / 180;
+  assert.ok(Math.abs(Math.sin(ST.yaw) - Math.sin(r)) < 1e-9 && Math.abs(-Math.cos(ST.yaw) - Math.cos(r)) < 1e-9, `yaw ${ST.yaw} for rot_deg ${ST.rot_deg}`);
+  const along = (p) => (p[0] - ST.pos[0]) * Math.sin(r) + (p[2] - ST.pos[2]) * Math.cos(r);
+  assert.ok(Math.abs(along(ST.foot) - (-ST.size[2] / 2 - 1)) < 1e-9, "the walk starts a metre before the first step");
+  assert.ok(Math.abs(along(ST.top_tread_eye) - (ST.size[2] / 2 - ST.tread_m / 2)) < 1e-9, "the walk down starts on the top tread");
+  assert.ok(Math.abs(Math.sin(ST.down_yaw) + Math.sin(r)) < 1e-9 && Math.abs(-Math.cos(ST.down_yaw) + Math.cos(r)) < 1e-9, "facing down the stairs");
   assert.strictEqual(ST.placed_eye[1], ST.top_m + EYE);
+  // The ladder climbs through a hatch onto that floor: its climber stands in the hole (under no
+  // floor at the ladder's top), facing the way off the top, which ends on the floor out of its reach.
+  assert.ok(LD.hatch, "the homestead's ladder has a floor at its top");
+  const H = LD.hatch;
+  assert.ok(!FJ.floorAt(DATA.floors, LD.top_m, H.stand[0], H.stand[2]), "the climber stands under the hatch's hole");
+  assert.ok(FJ.floorAt(DATA.floors, LD.top_m, H.step_to[0], H.step_to[2]), "the walk off the top ends on the upper floor");
+  assert.ok(Math.hypot(H.step_to[0] - LD.pos[0], H.step_to[2] - LD.pos[2]) > LD.reach_m, "and out of the ladder's reach");
+  assert.ok(Math.abs(Math.sin(H.yaw) - H.dir[0]) < 1e-9 && Math.abs(-Math.cos(H.yaw) - H.dir[1]) < 1e-9, "facing the way off the top");
+  assert.ok(Math.abs(STEP_OFF_M - 0.2) < 1e-9, "the top rung's hold is 0.2 m over the floor");
+});
+
+test("the deck the rig places aboard: the upper floor's height, in the room open to the roof, clear of walls", () => {
+  assert.ok(!DK.why, DK.why);
+  assert.strictEqual(DK.type_id, "deck");
+  assert.strictEqual(DK.top_m, Math.max(...DATA.floors.map((s) => s.top)), "its top is the upper floor's height");
+  assert.ok(Math.abs(DK.pos[1] + DK.size[1] - DK.top_m) < 1e-9, "placed so its top is there");
+  assert.strictEqual(DK.console, `add_structure deck ${DK.pos[0]} ${DK.pos[1]} ${DK.pos[2]} 0`);
+  // No slab over the deck, its walk off the edge, or the placement beside it.
+  for (const p of [DK.pos, DK.stand, [DK.stand[0], 0, DK.stand[2] + DK.edge_m + DK.walk_on_m], DK.placed_eye]) {
+    assert.ok(!DATA.floors.some((s) => FJ.floorAt([s], s.top, p[0], p[2])), `a floor slab over ${p}`);
+  }
+  assert.strictEqual(DK.room, "room-greenhouse", "the homestead's one room open to the roof");
+  // The stand point is on the deck, the edge_m from its south edge; the placement off it.
+  assert.ok(Math.abs(DK.pos[2] + DK.size[2] / 2 - DK.stand[2] - DK.edge_m) < 1e-9);
+  assert.ok(DK.placed_eye[2] < DK.pos[2] - DK.size[2] / 2, "the placement is off the deck");
+  // Where it cannot go, it says why.
+  const types = { deck: { kind: "Deck", shape: "Slab", size: [4, 0.2, 4] } };
+  const room = [{ id: "room-a", origin: [0, 0, 0], size: [20, 3, 20] }];
+  const slab = [{ a: [30, 0], b: [40, 10], top: 3 }];
+  assert.match(FJ.pickAboardDeck({}, room, slab, [], 6).why, /no Deck/);
+  assert.match(FJ.pickAboardDeck(types, room, [], [], 6).why, /no upper floor/);
+  assert.match(FJ.pickAboardDeck(types, room, slab, [], 4).why, /no room for an eye/);
+  assert.match(FJ.pickAboardDeck(types, room, [{ a: [0, 0], b: [40, 40], top: 3 }], [], 6).why, /open to the roof/);
+  assert.match(FJ.pickAboardDeck(types, room, slab, [{ a: [0, 11], b: [20, 11], base: 0, height: 3 }], 6).why, /wall stands across/);
+  // A wall at the deck's own level stops the walk on it too; a beam over the eye on the deck does not.
+  assert.match(FJ.pickAboardDeck(types, room, slab, [{ a: [0, 11], b: [20, 11], base: 3, height: 3 }], 6).why, /wall stands across/);
+  assert.ok(!FJ.pickAboardDeck(types, room, slab, [{ a: [0, 11], b: [20, 11], base: 5, height: 1 }], 6).why, "a beam over the head of a body on the deck");
 });
 
 test("the judge's own reading of falls.ron gives what falls.ron's comments say", () => {
@@ -214,6 +296,9 @@ test("the judge's own reading of falls.ron gives what falls.ron's comments say",
   assert.strictEqual(FJ.harmAt(DATA.falls, 6.25), 0);
   assert.strictEqual(FJ.woundAt(DATA.falls, 7.73), "broken_ankle");
   assert.strictEqual(FJ.woundAt(DATA.falls, 10.93), "broken_leg");
+  // The step off the ladder's top cannot hurt; a fall down the hatch from there can.
+  assert.deepStrictEqual(FJ.expectFall(DATA.falls, V_STEP, "realistic"), { read: V_STEP, harm: 0, wound: null });
+  assert.strictEqual(FJ.expectFall(DATA.falls, V_HOLE, "realistic").wound, "broken_ankle");
 });
 
 // ── The judgement ────────────────────────────────────────────────────────────────────────────────
@@ -223,20 +308,23 @@ test("a run that went right passes every check, the landing-time check included"
   assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
   const ids = r.checks.map((c) => c.id);
   for (const want of [
+    "deck_placed",
+    "forgiving_walk.stood_on_deck",
     "forgiving_walk.dropped",
     "forgiving_walk.landing_handed",
     "forgiving_walk.landing_speed",
     "forgiving_walk.wound",
     "forgiving_walk.health",
+    "realistic_walk.stood_on_deck",
     "realistic_walk.wound",
     "realistic_walk.wound_named",
     "realistic_walk.health",
     "realistic_walk.harm_at_landing",
-    "realistic_ladder.held_on",
-    "realistic_ladder.landing_handed",
-    "realistic_ladder.wound",
+    "realistic_ladder.climbed",
+    "realistic_ladder.on_upper_floor",
+    "realistic_ladder.no_fall",
+    "realistic_ladder.no_wound",
     "realistic_ladder.health",
-    "realistic_ladder.harm_at_landing",
     "world_entry",
     "placed_drop.dropped",
     "placed_drop.no_landing",
@@ -248,33 +336,33 @@ test("a run that went right passes every check, the landing-time check included"
     assert.ok(ids.includes(want), `${want} was never judged`);
   }
   assert.ok(FJ.verdictLines(r).at(-1).startsWith("PASS"));
+  assert.match(r.checks.find((c) => c.id === "realistic_ladder.no_fall").detail, /one landing reached the body, at 1\.98 m\/s: the 0\.20 m step/);
 });
 
 test("RED: the landing never reaches the body (the lib.rs hand-off taken out)", () => {
-  assert.deepStrictEqual(failed(handOffRemoved()), [
-    "forgiving_walk.landing_handed",
-    "realistic_ladder.health",
-    "realistic_ladder.landing_handed",
-    "realistic_ladder.wound",
-    "realistic_walk.health",
-    "realistic_walk.landing_handed",
-    "realistic_walk.wound",
-  ]);
+  assert.deepStrictEqual(failed(handOffRemoved()), ["forgiving_walk.landing_handed", "realistic_walk.health", "realistic_walk.landing_handed", "realistic_walk.wound"]);
   const r = FJ.judgeFalls(handOffRemoved());
   const handed = r.checks.find((c) => c.id === "realistic_walk.landing_handed");
   assert.match(handed.detail, /0 landings reached the body for a 3\.00 m drop/);
   assert.match(r.checks.find((c) => c.id === "realistic_walk.wound").detail, /gives Sprained Ankle \(sprained_ankle\); the body has no wound/);
 });
 
-test("RED: a walk that never went off the top is not a pass for Forgiving", () => {
-  const run = handOffRemoved();
-  // No drop at all in the Forgiving leg (the walk never climbed): "no wound" would be vacuous.
-  leg(run, "forgiving_walk").after.frames = track({ climb: false }).map((f) => ({ ...f, cam: [f.cam[0], EYE, f.cam[2], f.cam[3], f.cam[4]] }));
+test("RED: the deck never placed (the console's line not taken): the walks stand on the floor and drop nothing", () => {
+  const run = goodRun();
+  run.deck_console = { line: DK.console, said: "unknown structure type 'deck'. types: stairs, ramp" };
+  for (const id of ["forgiving_walk", "realistic_walk"]) {
+    const l = leg(run, id);
+    l.after.falls = { ...l.before.falls };
+    l.after.vitals = clone(l.before.vitals);
+    l.after.frames = track({ noDeck: true, health: () => l.before.vitals.health });
+  }
+  assert.deepStrictEqual(failed(run), ["deck_placed", "forgiving_walk.dropped", "forgiving_walk.stood_on_deck", "realistic_walk.dropped", "realistic_walk.stood_on_deck"]);
   const r = FJ.judgeFalls(run);
-  const d = r.checks.find((c) => c.id === "forgiving_walk.dropped");
-  assert.strictEqual(d.ok, false);
-  assert.match(d.detail, /says nothing about falls/);
+  assert.match(r.checks.find((c) => c.id === "forgiving_walk.stood_on_deck").detail, /stood 0\.00 m over the floor .*not standing on the deck the rig placed/);
   assert.ok(!r.checks.some((c) => c.id === "forgiving_walk.wound"), "nothing about wounds is judged on a leg that never fell");
+  // No console answer recorded at all: said so.
+  delete run.deck_console;
+  assert.match(FJ.judgeFalls(run).checks.find((c) => c.id === "deck_placed").detail, /no console answer/);
 });
 
 test("RED: Forgiving read at full speed (the mode's share not applied)", () => {
@@ -290,17 +378,42 @@ test("RED: a placement's drop reaches the body (FallWatch's exemption broken)", 
   const p = leg(run, "placed_drop");
   const h = p.before.vitals.health;
   p.after.falls = fallsBlock({ landings: 4, last_m_s: V3, mode: "realistic" });
-  p.after.vitals = vitals(h - HARM3, [sprain(), broken(), { id: "broken_leg", name: "Broken Leg", remaining_s: 7257600 }]);
+  p.after.vitals = vitals(h - HARM3, [sprain(), { id: "broken_leg", name: "Broken Leg", remaining_s: 7257600 }]);
   assert.deepStrictEqual(failed(run), ["placed_drop.health", "placed_drop.no_landing", "placed_drop.no_wound"]);
 });
 
-test("RED: the ladder lets go of a body when the climb key comes up", () => {
+test("RED: the hatch's gate does not let the climber through (it hangs at the ladder's top over the hole)", () => {
   const run = goodRun();
   const l = leg(run, "realistic_ladder");
-  // At the top only while the key was still held after the climb (0.4 s), then straight down.
-  const after = l.before.vitals.health - LADDER.harm;
-  l.after.frames = track({ ladder: true, hangS: 0.4, health: (t, landedT) => (t >= landedT + 2 / 60 ? after : l.before.vitals.health) });
-  assert.deepStrictEqual(failed(run), ["realistic_ladder.held_on"]);
+  const h = l.before.vitals.health;
+  l.after.falls = { ...l.before.falls };
+  l.after.frames = ladderTrack({ gateShut: true, health: () => h }).frames;
+  assert.deepStrictEqual(failed(run), ["realistic_ladder.on_upper_floor"]);
+  assert.match(FJ.judgeFalls(run).checks.find((c) => c.id === "realistic_ladder.on_upper_floor").detail, /hanging at the ladder's top over the hatch.*ladder_gates/);
+});
+
+test("RED: off the ladder's top down the hatch's hole: a fall, a wound, not on the floor", () => {
+  const run = goodRun();
+  const l = leg(run, "realistic_ladder");
+  const h = l.before.vitals.health;
+  const e = FJ.expectFall(DATA.falls, V_HOLE, "realistic");
+  const down = ladderTrack({ downHole: true, health: (t, landedT) => (t >= landedT + 2 / 60 ? h - e.harm : h) });
+  l.after.falls = fallsBlock({ landings: l.before.falls.landings + 1, last_m_s: down.impact, mode: "realistic" });
+  l.after.vitals = vitals(h - e.harm, [sprain(), { id: e.wound, name: DATA.effects[e.wound].name, remaining_s: 3628800 }]);
+  l.after.frames = down.frames;
+  assert.deepStrictEqual(failed(run), ["realistic_ladder.health", "realistic_ladder.no_fall", "realistic_ladder.no_wound", "realistic_ladder.on_upper_floor"]);
+  const r = FJ.judgeFalls(run);
+  assert.match(r.checks.find((c) => c.id === "realistic_ladder.on_upper_floor").detail, /back on the floor below/);
+  assert.match(r.checks.find((c) => c.id === "realistic_ladder.no_fall").detail, /harder than the 0\.20 m step off the top/);
+});
+
+test("RED: the climb never reaches the ladder's top", () => {
+  const run = goodRun();
+  const l = leg(run, "realistic_ladder");
+  l.after.falls = { ...l.before.falls };
+  l.after.frames = l.after.frames.map((f) => ({ ...f, cam: [...LD.hatch.stand, LD.hatch.yaw, 0] }));
+  assert.deepStrictEqual(failed(run), ["realistic_ladder.climbed", "realistic_ladder.on_upper_floor"]);
+  assert.match(FJ.judgeFalls(run).checks.find((c) => c.id === "realistic_ladder.on_upper_floor").detail, /back on the floor below/);
 });
 
 test("RED: a landing reached the body on the way into the world", () => {
@@ -388,7 +501,7 @@ function goodPlanetRun() {
   run.planet = DATA.planet;
   const last = run.legs.at(-1).after;
   const h0 = last.vitals.health;
-  // The aboard legs left a sprained and a broken ankle; a minute on, the planet legs begin.
+  // The aboard legs left a sprained ankle; a minute on, the planet legs begin.
   const w0 = aged(last.vitals.wounds);
   const n0 = last.falls.landings;
   const soft = planetTrack();
@@ -512,13 +625,16 @@ function deckLeg(prev) {
 
 /** The eye walking DOWN stairs-1 from its top tread at 5 m/s, 60 frames a second, through the
  *  room past the stairs' foot. `flies`: the walk before BUG-208, which left the top tread and fell
- *  the whole 3 m under G (landing at `landedT`); otherwise the eye follows every tread down. */
+ *  the whole flight under G (landing at `landedT`); otherwise the eye follows every tread down.
+ *  The flight's way up (its local +z turned by rot_deg), its risers and its treads are the tree's. */
 function stairsDownTrack({ flies = false, health = () => 100 } = {}) {
   const dt = 1 / 60;
-  const riser = ST.size[1] / 14;
+  const riser = ST.size[1] / ST.steps;
   const half = ST.size[2] / 2;
-  const floorAt = (z) => {
-    const along = z - ST.pos[2];
+  const r = (ST.rot_deg * Math.PI) / 180;
+  const [ux, uz] = [Math.sin(r), Math.cos(r)];
+  const floorAt = (x, z) => {
+    const along = (x - ST.pos[0]) * ux + (z - ST.pos[2]) * uz;
     if (along < -half || along > half) return 0;
     return Math.min(ST.top_m, (Math.floor((along + half) / ST.tread_m) + 1) * riser);
   };
@@ -528,18 +644,19 @@ function stairsDownTrack({ flies = false, health = () => 100 } = {}) {
   let v = 0;
   let landedT = Infinity;
   const push = () => {
-    frames.push({ t, cam: [x, y, z, 0, 0], health: null });
+    frames.push({ t, cam: [x, y, z, ST.down_yaw, 0], health: null });
     t += dt;
   };
   for (let i = 0; i < 18; i++) push();
   for (let i = 0; i < 60; i++) {
-    z -= 5 * dt;
+    x -= ux * 5 * dt;
+    z -= uz * 5 * dt;
     if (flies && y > EYE) {
       v += G * dt;
       y = Math.max(EYE, y - v * dt);
       if (y === EYE && landedT === Infinity) landedT = t;
     } else if (!flies) {
-      y = floorAt(z) + EYE;
+      y = floorAt(x, z) + EYE;
     }
     push();
   }
@@ -736,8 +853,8 @@ test("the planet legs are judged with the game's own gravity there (a curved wor
   const h0 = l.before.vitals.health;
   l.after.falls = planetFalls({ landings: l.before.falls.landings + 1, last_m_s: t.impact, gravity_m_s2: g });
   l.after.frames = planetTrack({ g, health: (tt, landedT) => (tt >= landedT + 2 / 60 ? h0 - e.harm : h0) }).frames;
-  // Whatever falls.ron says of that landing, on a body that already has a sprained and a broken
-  // ankle (started over if it is one of them).
+  // Whatever falls.ron says of that landing, on a body that already has a sprained ankle (started
+  // over if it is that).
   const others = l.before.vitals.wounds.filter((w) => w.id !== e.wound);
   l.after.vitals = vitals(h0 - e.harm, [...others, ...(e.wound ? [{ id: e.wound, name: DATA.effects[e.wound].name, remaining_s: 1e9 }] : [])]);
   const bad = failed(run).filter((id) => id.startsWith("planet_realistic_fall"));
@@ -951,6 +1068,51 @@ test("the real green run with the deck passes every check", () => {
   assert.ok(Math.abs(o.drop_m - 3.12) < 0.01 && Math.abs(o.landing_m_s - 7.67) < 0.01, JSON.stringify(o));
   assert.deepStrictEqual(o.new_wounds, ["sprained_ankle"]);
   assert.ok(Math.abs(o.health_before - o.health_after - 9.7) < 0.05, JSON.stringify(o));
+});
+
+// RED FIRST ON THE UPPER FLOOR (2026-10-21, ship homes increment 7): a build of the upper-floor
+// rig's tree with the ladder hatch's gate shut to a climber too (engine/footing.rs `shut_gates`
+// extending `ladder_gates` whatever `on_ladder` said) and the rig's deck never placed (its console
+// line not sent). In the running game the two walks stood 0.00 m over the greenhouse floor (the
+// placement at the deck's height fell to the floor before the recording) and the climber hung at
+// the ladder's top over the hatch at z 27.62, short of the gate at 28.0. Every other leg passed,
+// 71/77, the stairs-down leg's 16 risers included.
+test("the real run with no deck and the hatch's gate shut to a climber fails exactly those legs", () => {
+  const run = fixture("red-gate-shut-no-deck.json");
+  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS, "the run planned every leg the rig has");
+  assert.deepStrictEqual(failed(run), [
+    "deck_placed",
+    "forgiving_walk.dropped",
+    "forgiving_walk.stood_on_deck",
+    "realistic_ladder.on_upper_floor",
+    "realistic_walk.dropped",
+    "realistic_walk.stood_on_deck",
+  ]);
+  const r = FJ.judgeFalls(run);
+  assert.match(r.checks.find((c) => c.id === "realistic_ladder.on_upper_floor").detail, /hanging at the ladder's top over the hatch at \(33\.00, 4\.90, 27\.62\)/);
+  assert.ok(Math.abs(r.observed.realistic_stairs_down.drop_m - 3.0) < 0.02 && r.observed.realistic_stairs_down.landing_m_s === null);
+});
+
+// GREEN ON THE UPPER FLOOR (2026-10-21): this tree's build, 88/88. Both walks off the rig's deck fell
+// 3.00 m and landed at 7.67 m/s (Forgiving: nothing; Realistic: a Sprained Ankle and 9.68 health);
+// the climb through the hatch ended standing on the lift lobby's floor with one landing at 1.98 m/s,
+// the 0.20 m step down from the top rung's hold, and nothing hurt.
+test("the real green run on the upper floor passes every check", () => {
+  const run = fixture("green-upper-floor.json");
+  assert.deepStrictEqual(run.plan, FJ.ALL_LEGS, "the run planned every leg the rig has");
+  const r = FJ.judgeFalls(run);
+  assert.deepStrictEqual(r.checks.filter((c) => !c.ok), []);
+  assert.strictEqual(r.checks.length, 88);
+  for (const id of ["forgiving_walk", "realistic_walk"]) {
+    const o = r.observed[id];
+    assert.ok(Math.abs(o.drop_m - 3.0) < 0.02 && Math.abs(o.landing_m_s - 7.67) < 0.02, JSON.stringify(o));
+  }
+  assert.deepStrictEqual(r.observed.realistic_walk.new_wounds, ["sprained_ankle"]);
+  const l = r.observed.realistic_ladder;
+  // (The body heals a few ten-thousandths of a point between the two records.)
+  assert.ok(Math.abs(l.landing_m_s - 1.98) < 0.01 && l.new_wounds.length === 0 && Math.abs(l.health_before - l.health_after) < 0.01, JSON.stringify(l));
+  assert.match(run.deck_console.said, /^added structure #\d+ \(deck\)/);
+  assert.match(run.deck_removed, /^removed structure #\d+/);
 });
 
 test("RED: the walk lands at a speed its own drop does not give", () => {

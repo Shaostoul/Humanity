@@ -18,6 +18,9 @@ pub mod door_panels;
 pub mod door_points;
 pub mod fibonacci;
 pub mod home_structure;
+/// The homestead's upper floor checked as the shipped design carries it (ship homes increment 7).
+#[cfg(test)]
+mod homestead_layout_tests;
 pub mod hull;
 pub mod layout;
 pub mod lock_types;
@@ -32,9 +35,15 @@ pub mod ship_space;
 pub mod transit;
 pub mod rooms;
 pub mod ship_structure;
+/// Where on a storey of a home a person can stand: a floor with room over it, inside the rooms,
+/// never a glass lid or an opening (ship homes increment 7; the build editor's close).
+pub mod standing;
 /// The starts as data (increment 6, data/homes/starts.ron): Cabin, Apartment, Homestead, what
 /// each builds, who lives there and what a new character carries; and the `game_home` wire.
 pub mod starts;
 pub mod structure;
+/// What the eye can see aboard, in three dimensions: the walk-up target and the HUD's labels
+/// (ship homes increment 7 review). Walls block across their own heights, solid slabs block.
+pub mod sight;
 pub mod wall_collision;
 pub mod room_types;

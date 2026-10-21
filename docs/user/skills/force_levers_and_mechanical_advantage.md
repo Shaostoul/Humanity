@@ -707,8 +707,8 @@ pages and documents were read on 3 and 4 October 2026.
 - Surface gravity per world: the `gravity` field of `data/planets/*.ron`,
   applied to walking, jumping and falling in `src/lib.rs` (the surface
   motion block, `gravity_at`); the F2 overlay's Gravity row,
-  `src/gui/pages/diagnostics.rs`; the Cosmos page's Surface gravity row,
-  `src/gui/pages/cosmos.rs`, from `data/star_systems/sol.json`.
+  `src/gui/pages/diagnostics.rs`; the Maps page's Surface gravity row,
+  `src/gui/pages/maps/body_list.rs`, from `data/star_systems/sol.json`.
 - Mass and the carrying limit: the `weight_kg` column of
   `data/items.csv`; the 50 kg `weight_capacity` and the backpack
   `carry_capacity` bonus in `src/systems/inventory/mod.rs` and

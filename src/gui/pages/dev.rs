@@ -1,4 +1,4 @@
-//! Dev page (v0.777) - operator-facing developer tools, under Platform > Dev.
+//! Dev page (v0.777) - operator-facing developer tools, the Dev tab's Dev section.
 //! Permanent dev infrastructure (operator: "assume perpetual development; never
 //! trim dev/debug tooling"), the home for the entity spawn/edit workflow and
 //! future instrumentation (world inspector, time/weather control).
