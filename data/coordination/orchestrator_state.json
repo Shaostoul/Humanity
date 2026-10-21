@@ -551,6 +551,11 @@
       "date": "2026-10-20",
       "decision": "PAUSED at the operator's request (about 20:40, 'Let's pause for a moment so I can play some video games without lag'). Four builders stopped mid-work, their uncommitted changes kept in their worktrees: increment 7 lane M (movement; worktree agent-a61452df09c2a5bf6), lane C1 (the homestead's upper floor as data; agent-a33a3c6f7ecc0ad82, was checking a life-support test's 53% oxygen figure), lane L (slab occlusion of lamps and the sun; agent-a33adabd014a3d04a), and the navigation builder (maps increment 0 and retiring Platform; agent-a6737484959565491, was on PAGES.md). No cargo, rustc, node rig or HumanityOS process left running. On resume: send each of the four a message to continue (they keep their context), then merge as each reports; the editor lane's lib.rs wiring patch is kept at scratchpad/c2-wiring-KEEP.patch to apply after lane M merges.",
       "why": "The operator needs the machine for games; builds and GPU rigs cause lag."
+    },
+    {
+      "date": "2026-10-20",
+      "decision": "Resumed at 22:14 after the operator's games (\"Resume\"): the four stopped builders (lanes M, C1, L and the navigation builder) were sent a message to continue where they stopped, each told to merge main before finishing. The disk guard had cleared build output while paused (C: at 48%), so the first builds are full ones.",
+      "why": "The operator's pause is over."
     }
   ],
   "active_scopes_to_avoid": [
@@ -580,7 +585,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-20T20:40-07:00",
+  "last_updated": "2026-10-20T22:15-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
