@@ -3207,8 +3207,12 @@ height). A plain click resets the set to single-selection.
 A text-command console, the discoverable act surface for both a human and an AI. Verbs: `help`, `list`,
 `add_wall`, `rm_wall`, `set_material`, `add_door`, `add_window`, `set_style`, `add_lock`, `add_light`,
 `rm_light`, `add_structure`, `rm_structure`, `add_layer`, `rm_layer`, `add_road_node`, `rm_road_node`,
-`add_road`, `rm_road`.
+`add_road`, `rm_road`, and the storey verbs `storey`, `add_slab`, `rm_slab`, `slab_glass`.
 - Native: `src/gui/pages/construction.rs` (`exec_construction_command`, `CONSOLE_VERBS`)
+- Dev IPC (2026-10-21): the showcase verb `{"console":"<line>"}` runs one line on the live home for
+  that session only, never arming the autosave that writes the data files in the Dev mode
+  (`src/engine/ipc.rs` `console_this_session`); its answer is the run.log's `Showcase: console` line.
+  `just verify-falls` places and removes its deck with it.
 
 ### Live Home JSON Introspection (AI read surface) (v0.576)
 Every rebuild writes a machine-readable snapshot of the live home so an AI can READ what the operator is
@@ -3674,12 +3678,14 @@ holds on there (it used to drop you); stepping away from it is a fall.
   `broken_ankle` and `broken_leg` rows of `data/medical/wounds.ron` and
   `data/status_effects.csv` (which replaced the never-applied `broken_bone`)
 - Checked in the running game: `just verify-falls` (`scripts/verify-falls.js`, judged by
-  `scripts/lib/falls-judge.js`, 2026-10-20) walks up the homestead's stairs and off the
-  3 m top by holding forward, in Forgiving (a landing reaches the body and does nothing)
-  and Realistic (a Sprained Ankle, the health taken on the landing frame); climbs the
-  ladder, lets go at the top (the body holds on) and steps off (a Broken Ankle); drops
-  the player from a placement (no landing reaches the body); and checks world entry hands
-  the body no landing. The dev IPC's body probe (`src/engine/body_probe.rs`): health and
+  `scripts/lib/falls-judge.js`, 2026-10-20; brought up to the homestead's upper floor
+  2026-10-21) places a 3 m deck in the greenhouse with the build editor's console (the
+  showcase `console` verb, for that session only) and walks off its edge by holding
+  forward, in Forgiving (a landing reaches the body and does nothing) and Realistic (a
+  Sprained Ankle, the health taken on the landing frame); walks down the 16-riser stairs
+  (no landing); climbs the ladder and steps off its top through the hatch's gate onto the
+  upper floor (no fall, no wound); drops the player from a placement (no landing reaches
+  the body); and checks world entry hands the body no landing. The dev IPC's body probe (`src/engine/body_probe.rs`): health and
   wounds in the recorder's home session vitals, health on every recorded frame, a `falls`
   block (landings handed to the body, the last speed, the mode), the showcase `illness`
   verb, and a `[Falls]` run.log line per landing

@@ -309,6 +309,8 @@ const {
   editorJumpTarget,
   judgeEditorJump,
   judgeTeleporter,
+  storeyWalls,
+  groundWalls,
 } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 // The line a walker logs when the relay corrects it, one pattern for the walker and this rig.
@@ -1429,9 +1431,10 @@ function crewChecks(m, dir) {
     recordings,
     plots: m.plots,
     commons,
-    // Every wall a person walks against, from the door points: no crew figure may be drawn in
-    // one (the review of increment 3, finding 15).
-    walls: m.door_points && Array.isArray(m.door_points.walls) ? m.door_points.walls : null,
+    // Every wall a person walks against on the deck, from the door points (the ground storey's:
+    // the crew stand on the deck): no crew figure may be drawn in one (the review of increment 3,
+    // finding 15).
+    walls: m.door_points ? groundWalls(m.door_points) : null,
     expectCrew: m.expect_crew,
     look: look && !look.error ? { cam: look.cam, frames: read(look.samples), seen } : null,
   }).checks;
@@ -1500,8 +1503,9 @@ function meetChecks(m, dir) {
   const walker = { id: meet.walker ? meet.walker.id : null, name: (meet.walker && meet.walker.name) || "TestBotPlots" };
   const walkerDrawn = [];
   for (const fr of frames) for (const p of fr.players || []) if (walker.id !== null && Number(p.id) === Number(walker.id)) walkerDrawn.push(p.pos.map(Number));
-  // The walls every route and the view are checked against: the door points the game reported.
-  const walls = m.door_points && Array.isArray(m.door_points.walls) ? m.door_points.walls : undefined;
+  // The walls every route and the view are checked against: the door points the game reported,
+  // the ground storey's (every route walks the deck; a wall upstairs is over its head).
+  const walls = (m.door_points && groundWalls(m.door_points)) || undefined;
   for (const c of judgeMeet({ ...meet, walls, walkerDrawn }).checks) checks.push(c);
   if (frames.length && meet.line) {
     // The walk is judged on the first forward leg AFTER the pictures (the walker walks the line
@@ -2730,7 +2734,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         if (!link) {
           step("tele", false, `the game reports no teleporter link in its home (${links.length} home link(s))`);
         } else {
-          const onto = padApproach(link.from_at, dp.walls);
+          // The walls of the pad's own storey (`from_at` is its floor point).
+          const onto = padApproach(link.from_at, storeyWalls(dp, link.from_at[1]));
           tele.approach = onto.p;
           await sleep(2000); // standing still: the relay's allowance fills
           await showcase({ cam: `${onto.p.join(",")},${yaw},${pitch}` });
@@ -2755,7 +2760,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
           );
           // The way back: off the east pad, a moment off every pad (they re-arm 1.2 s after), back
           // onto it, which lands on the west pad; then one step under the allowance to the door.
-          const off = padApproach(link.to_at, dp.walls);
+          const off = padApproach(link.to_at, storeyWalls(dp, link.to_at[1]));
           await walkGame(off.p, yaw, pitch, "tele_off");
           await sleep(1800);
           await showcase({ walk_to: `${link.to_at[0]},${off.p[1]},${link.to_at[2]},${yaw},${pitch},3` });

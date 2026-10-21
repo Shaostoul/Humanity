@@ -807,11 +807,13 @@ pub struct GuiState {
     pub profile_directory_listed: bool,
     /// Floating machine labels in the 3D home (v0.428), populated by load_world.
     pub machine_labels: Vec<MachineLabel>,
-    /// Sight-blocking wall segments for the HUD (v0.975), packed [ax, az, bx, bz] in the
-    /// same world frame the labels project in (station_off applied). Static sight spans
-    /// (windows open) + live CLOSED doors, rebuilt per frame by lib.rs. Empty = no
-    /// occlusion (legacy layout, build editor, or not near the home).
-    pub sight_blockers: Vec<[f32; 4]>,
+    /// What blocks sight for the HUD's labels and the walk-up target (v0.975; in three
+    /// dimensions since the review of ship homes increment 7, `ship::sight`), in the same world
+    /// frame the labels project in (station_off applied): the static sight spans (windows open)
+    /// + live CLOSED doors, each standing between its own heights, + the SOLID floor slabs.
+    /// Rebuilt per frame by lib.rs. Empty = no occlusion (legacy layout, build editor, or not
+    /// near the home).
+    pub sight_blockers: crate::ship::sight::SightBlockers,
     /// Index into machine_labels of the machine the player is currently looking at
     /// within interact range (walk-up interaction, v0.431). Recomputed each frame.
     pub targeted_machine: Option<usize>,
@@ -3269,7 +3271,7 @@ impl Default for GuiState {
             profile_network_avatar: String::new(),
             profile_directory_listed: true,
             machine_labels: Vec::new(),
-            sight_blockers: Vec::new(),
+            sight_blockers: Default::default(),
             targeted_machine: None,
             vehicle_prompt: String::new(),
             livestock_prompt: String::new(),

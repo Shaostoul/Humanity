@@ -1863,6 +1863,17 @@ impl MachineHome {
         self.catalog.get(&inst.machine).map_or(0.0, |d| d.water_demand_lpm() * self.household_share(inst, all))
     }
 
+    /// Litres a minute through the placed machine `inst`'s ports of `utility` going `dir`
+    /// (2026-10-21): its def's figure times its `household_share`, so what a household's fixtures
+    /// send out is shared the way what they draw is. The house's two toilets send the septic tank
+    /// the household's flushing once, what its inlet takes, not twice. 0 for a machine not in
+    /// the catalog.
+    pub fn port_flow_lpm_of(&self, inst: &MachineInstance, all: &[MachineInstance], utility: crate::utilities::Utility, dir: crate::utilities::PortDir) -> f32 {
+        self.catalog.get(&inst.machine).map_or(0.0, |d| {
+            d.derive_ports().iter().filter(|p| p.utility == utility && p.dir == dir).map(|p| p.flow_lpm).sum::<f32>() * self.household_share(inst, all)
+        })
+    }
+
     pub fn utility_meters(&self, sun_hours: f32, basis: MeterBasis) -> Vec<UtilityMeter> {
         let (mut supply_watts, mut consumer_watts) = (0.0f32, 0.0f32);
         let (mut backstop_w, mut backstop_lph) = (0.0f32, 0.0f32);
@@ -3776,7 +3787,7 @@ mod tests {
             let energy = home.loops.iter().find(|l| l.name == "Energy").expect("an Energy loop");
             let (said_station, said_realistic) = (stated(&energy.demand, " kWh/day Station-supplied"), stated(&energy.demand, " kWh/day in the Realistic mode"));
             let supply = stated(&energy.supply, " kWh/day:");
-            println!("{file}: meter {station:.2} kWh/day Station-supplied, {realistic:.2} Realistic, made {made:.2}; the loop says {said_station} and {said_realistic} against {supply}");
+            println!("{file}: meter {station:.3} kWh/day Station-supplied, {realistic:.3} Realistic, made {made:.3}; the loop says {said_station} and {said_realistic} against {supply}");
             if let Some(m) = home.utility_meters(4.5, MeterBasis::default()).into_iter().find(|m| m.utility == "power") {
                 println!("  summary: {}", m.summary);
             }
@@ -5258,6 +5269,13 @@ mod tests {
     /// all share ONE plumbing island, and there is a non-powered demand that exceeds the passive rain --
     /// so the cistern actually fills when powered and DRAINS when the grid is cut (the consequence the
     /// Live water card advertises). Guards against a regression to the old inert/disconnected topology.
+    ///
+    /// Since 2026-10-21 it sums each placed fixture's SHARE of the household's water (the house has
+    /// two toilets, basins and showers since its upper floor, `MachineDef::household_use`), and
+    /// holds the share: the fixtures that need no power draw no more than the household's 255 L a
+    /// day, and the toilets send the septic tank the household's flushing once, what its inlet
+    /// takes. Seen red first that day with each def's whole figure summed: "the fixtures that need
+    /// no power draw 384.0 L a day, more than the household's 255".
     #[test]
     fn seed_home_water_topology_is_sane() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
@@ -5279,13 +5297,28 @@ mod tests {
         let household = home.catalog.get("home_water_use").expect("a household-water type");
         assert!(household.water_demand_lpm() > 0.0, "household draws water");
         assert!(!household.draws_power(), "household tap is NOT power-gated (taps flow in a blackout)");
+        // Each placed fixture's draw is its share of the household's (`water_demand_lpm_of`):
+        // summing every def's whole figure counted the house's two toilets, basins and showers
+        // twice (2026-10-21).
         let tap: f32 = all
             .iter()
-            .filter_map(|i| home.catalog.get(&i.machine))
-            .filter(|d| !d.draws_power() && !d.irrigates && d.water_production_lpm() <= 0.0)
-            .map(|d| d.water_demand_lpm())
+            .filter(|i| home.catalog.get(&i.machine).map_or(false, |d| !d.draws_power() && !d.irrigates && d.water_production_lpm() <= 0.0))
+            .map(|i| home.water_demand_lpm_of(i, &all))
             .sum();
         assert!(tap > rain, "non-powered demand {tap} must exceed passive rain {rain} so the cistern can drain");
+        // ...and that demand is the household's, once: the fixtures that need no power draw no
+        // more than the three people's 255 L a day (data/home_outline.json's 85 L each), though
+        // the house has two toilets, two basins and two showers (2026-10-21).
+        assert!(tap * 1440.0 <= 255.0 + 0.5, "the fixtures that need no power draw {:.1} L a day, more than the household's 255", tap * 1440.0);
+        // The toilets send the septic tank the household's flushing, once, what its inlet takes.
+        // Seen red first (2026-10-21) with each toilet's black-water port summed at its def's whole
+        // figure: "the toilets send 84.0 L a day into a septic whose inlet takes 42.0".
+        let waste = |id: &str, dir: crate::utilities::PortDir| -> f32 {
+            all.iter().filter(|i| i.machine == id).map(|i| home.port_flow_lpm_of(i, &all, crate::utilities::Utility::Waste, dir)).sum::<f32>() * 1440.0
+        };
+        let (sent, taken) = (waste("toilet", crate::utilities::PortDir::Out), waste("septic_tank", crate::utilities::PortDir::In));
+        assert!((sent - taken).abs() < 0.05, "the toilets send {sent:.1} L a day into a septic whose inlet takes {taken:.1}");
+        assert_eq!(all.iter().filter(|i| i.machine == "toilet").count(), 2, "the house has two toilets, so the share is what holds this");
 
         // The aeroponic towers no longer each form a standalone water island (HIGH-1 fix): they are
         // electricity-only now (water recirculates), so they are not water-graph members.

@@ -3213,9 +3213,9 @@ planet (`frame_lock::sun_disc_clear`, `sun_disc_tests`, seen red).
 
 **Still not right:** the game has no axial tilt, so the sun sits on the sky's
 equator (on 2026-10-04 the real sun is 4.5 degrees south of it), and the planets
-and the Moon have the problem in BUG-140.
+and the Moon had the problem in BUG-140 (fixed 2026-10-21).
 
-## BUG-140: the orbit model maps the ecliptic into the world with a reflection (OPEN, found 2026-10-04)
+## BUG-140: the orbit model maps the ecliptic into the world with a reflection (FIXED 2026-10-21, found 2026-10-04)
 
 **Found by reading the code while fixing BUG-139, not yet seen in a picture.**
 `cosmos.rs` (`body_position_relative_au`, ~398) maps the ecliptic's x, y, z to
@@ -3238,6 +3238,152 @@ a running game against a real ephemeris before fixing.
 then follow every reader of the world-frame sun and planets (the spin's sun
 azimuth, the home station's phase, BUG-090's `over_its_longitude`, the travel
 tool, the hologram, the cosmos page).
+
+**Confirmed, red, 2026-10-21, against real ephemerides** (each test seen failing
+on the unfixed code, then passing):
+
+- `cosmos::tests::planets_stand_at_their_jpl_horizons_longitudes`: Mercury to
+  Saturn on 2010-06-15, 2026-10-21 and 2040-03-01 against JPL Horizons
+  heliocentric vectors (DE441, ecliptic and equinox of J2000, quoted in the
+  test), each planet's longitude read in the world by the ground's own east
+  (`atan2(-z, x)`, the spin's convention), not through the mapping under test.
+  Unfixed: up to 170 degrees out (Mars on 2026-10-21: Horizons 95.1, world
+  264.9), latitudes all right. Fixed: 0.32 degree worst (Venus, whose J2000 mean
+  anomaly in sol.json sits 0.26 degree off), Earth and Mars within 0.02.
+- `cosmos::tests::every_orbit_turns_the_way_the_planet_spins`: unfixed, 204 of
+  204 orbit samples turned against the spin; fixed, every prograde orbit is
+  counter-clockwise about +Y like the spin, and the six retrograde bodies
+  (Phoebe, Triton, Hi'iaka, Namaka, Halley, NEOWISE) the other way.
+- `cosmos::tests::the_moon_keeps_the_naval_observatory_phases`: the Moon's
+  elongation east of the Sun at twelve phase instants from the US Naval
+  Observatory (September to November 2026) and Horizons on the game's date.
+  Unfixed, the game drew a FULL Moon at every new Moon and a new Moon at every
+  full one, and 47.5 degrees on 2026-10-21 where Horizons gives 115.8. Two
+  faults stacked: the mirror, and the Moon having no mean anomaly, node or
+  perigee in sol.json (its phase came from a hash of its name, about 170
+  degrees out), which nearly cancelled at the quarters and hid both. Fixed: 1.44
+  degrees worst, 0.41 on the game's date.
+- `dev_travel::tests::the_moon_crosses_the_meridian_at_the_hour_its_phase_says`,
+  the same through the ground's chain (spin, then latitude and longitude): a
+  first-quarter Moon now stands on the meridian at 18:00, a full one at
+  midnight. Unfixed, the new and full Moons were 172 degrees off the meridian.
+- `gui::pages::maps::sky_events::tests::subpoints_match_jpl_horizons_in_latitude_and_longitude`
+  (`sky_events_tests.rs`): the sub-solar and sub-Mars points on three dates
+  against Horizons' apparent RA and Dec less Greenwich sidereal time. Unfixed,
+  the June sub-solar point read 179.5 W instead of 0.5 E. Fixed: 0.022 degree
+  worst.
+
+**Fix:** `cosmos::world_from_ecliptic` (ecliptic x to world X, ecliptic north to
++Y, ecliptic y to world -Z) and its inverse `ecliptic_from_world`, used by
+`body_position_relative_au` and `sample_orbit_points`; the mapping is tested to
+be a rotation (`the_ecliptic_enters_the_world_by_a_rotation_never_a_mirror`).
+The Moon's node (125.08), perigee (318.15) and mean anomaly (135.27) from JPL
+SSD's Planetary Satellite Mean Elements (ecliptic, epoch J2000) and the NASA
+fact sheet's sidereal period (27.3217 d) are in sol.json, `catalog_version` 4
+so a stale installed copy yields to the shipped one.
+
+**Every reader, and what it needed:**
+
+- The spin's sun azimuth (`frame_lock::sun_azimuth`,
+  `dev_travel::planet_spin_from_time`): no change. It now reads the sun's real
+  ecliptic longitude instead of minus it, so the planet turns 360.99 degrees a
+  solar day in the world frame, as the real Earth does against the stars, and
+  the star sky (turned by the sun's azimuth less its right ascension) now holds
+  nearly still in the world. Before, the planet turned 359.01 degrees a day in
+  the world and the star sky spun the other way, two turns a year, which hid it
+  from the ground. The Sun on the ground does not move:
+  `the_suns_ground_track_does_not_depend_on_the_ecliptic_mapping` prints the
+  sub-solar point at 24 date-hour cells, and the run before the fix and the run
+  after are identical.
+- The home station's phase and BUG-090's `over_its_longitude`: no change. The
+  propagator already turned its plane properly (orbital y to engine -Z); it
+  reads the mirror only through the sun's azimuth, which the re-phase adds and
+  the spin subtracts, so the home still hangs over -122.3 on every date
+  (`a_synchronous_station_hangs_over_its_longitude_on_every_date` passes).
+- The star sky (`sky_frame::equatorial_to_world`): no change, it is turned to
+  the world sun each frame. Its note and its test helper (`model_sun`) now say
+  and use the rotation.
+- The travel tool (`dev_travel::teleport_viewpoint`, `ipc` vantages, the lib.rs
+  Travel sites) and every other position user (`frame_lock`'s body lock and sun
+  occlusion, `ecs::cosmos`, the sky bodies and orbit lines in lib.rs and
+  `world_load`): no change; they work in differences within the one world
+  frame, so they follow the bodies to their true places.
+- The hologram (`renderer::hologram`): no change to the maths, which copies each
+  body's world direction; it now turns counter-clockwise seen from above. Its
+  comments called `atan2(z, x)` the real longitude, true only under the mirror;
+  corrected.
+- The Maps page: `subpoint_lat_lon_deg` now reads through
+  `cosmos::ecliptic_from_world`, and precesses to the equinox of date (its J2000
+  right ascension against sidereal time of date was another 0.37 degree). The
+  system view's drawing follows the bodies with no change (a proper look-at
+  projection).
+- The web Maps page (`web/pages/maps.html`): not a reader. It never used this
+  model: its planets sit on circles at golden-angle starting places (a
+  placeholder), so it had no BUG-140 to fix and shows no real positions either;
+  porting the real model is part of the Maps plan
+  (`docs/design/maps-zoom-to-anything.md`).
+
+**Seen in the running game, 2026-10-21 about 11:35 to 11:55 UTC** (probe rig,
+the fixed build against the shipped v0.1533.0 as the before, same vantages; the
+Moon then 121 degrees east of the Sun, about 76% lit, waxing):
+
+- The Moon from the Earth side, on the Earth-Moon line, 300,000 km out, 10
+  degree lens (`camera` body moon at its sub-Earth point, which the vantage
+  computes in the engine's own frame): the fixed build draws a waxing gibbous
+  lit on the right, the sky's west, toward the Sun; the lit width across the
+  middle is 68 px of a 92 px disc, about 74%. v0.1533.0 draws the same Moon lit
+  on the LEFT: a waning gibbous, the mirror.
+- From the ground over Silverdale (47.645 N, -122.69), local 20:04 with the
+  Sun 20.6 degrees down, aimed due south 39.6 degrees up where the fixed model
+  says the Moon transits: the fixed build has the Moon there (a disc of the
+  Moon's size hiding the orbit lines exactly at the predicted point, but black:
+  see below); v0.1533.0 has nothing there, the orbit lines run straight through.
+  The stars and the Milky Way stand in the same place in both builds.
+- The Maps page (`snapshot_maps_system`, pinned to 2026-09-27 12:00 UTC):
+  measured from the Sun on the frame, Saturn 11.5 degrees round from the March
+  equinox (real about 11), Jupiter 128 (about 131), Uranus 64 (about 60),
+  Neptune 2.3 (about 1 to 2); before, every planet stood mirrored left to right.
+  The page's default camera sits BELOW the ecliptic (pitch -69 degrees puts it
+  56 AU under), so on that view the orbits now run clockwise: true for a view
+  from ecliptic south, but not the view the page's own comment intends
+  ("looking down at the ecliptic").
+
+**Still not right, found on the way:** the Moon's node and perigee are held at
+their J2000 values, while the real node regresses (18.6 years) and the perigee
+advances (8.85 years). On 2026-10-21 the real ascending node is at 326.3
+degrees, near the held DESCENDING node (305.1), so the drawn Moon can sit up to
+about 10 degrees off its real ecliptic latitude, on the wrong side of the
+ecliptic for much of the month, and the Maps page's eclipse scan has its
+eclipse seasons about three weeks off, drifting further each year. Its phase is
+unaffected (within 1.5 degrees for these months). The fix is two published
+rates (JPL lists the periods beside the elements) and a mean anomaly that
+advances at the anomalistic rate, not the sidereal one. The game's missing axial tilt (BUG-139) still puts a planet up to
+23.4 degrees off its real declination among the stars.
+
+**Also found on the way, and not BUG-140: from the ground at night the Moon is
+drawn BLACK.** The rig frame of 2026-10-21 (below) has the Moon exactly where
+the fixed model puts it, but as a black disc you can only see by the orbit lines
+it hides. Two camera-local gates switch the Sun off for everything the frame
+draws once the Sun is below the observer's horizon, the Moon's own sphere
+included: the sun light's colour is multiplied by the atmosphere's
+transmittance AT THE CAMERA (`src/lib.rs`, the `sun_transmittance` block before
+`set_sun_light`, v0.1004), and the celestial pass's `celestial_sun_day` goes to
+0 (BUG-057 #1, v0.1083). Both are right for things in the air beside the camera
+and wrong for a body in space, which the Sun lights whatever time it is where
+the camera stands. So the night sky never shows a phase, which is exactly when
+the Moon is up to be seen. The fix belongs in the frame's light block and the
+renderer (a sky body beyond the atmosphere takes the unattenuated sun and a day
+factor of 1); it was left to the lighting lane, which owned those files when this
+was found.
+
+**Also found on the way, in the Maps page's `system_view.rs`, left to the Maps
+lane, which owned it then:** two overlays take world +Z for "ecliptic up",
+though +Z lies IN the ecliptic (world +Y is north, before and after this fix).
+The Lagrange overlay builds its orbit normal from it, which works out to
+`-sign(cos a) * Y` for a body at angle `a` round its parent: it flips every
+half orbit, so L4 and L5 trade places for half of each orbit, and it is NaN
+when the body sits on the Z axis. The reference-orbit rings are drawn in world
+XY, a vertical plane through the poles, not the body's equator.
 
 ## BUG-141: the drawn sky stays black through nautical twilight (OPEN, found 2026-10-04)
 

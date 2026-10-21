@@ -1468,28 +1468,122 @@ pub(crate) fn reseat_floor(state: &mut EngineState) {
     }
 }
 
+/// What closing the build editor makes of the build-mode avatar's spot (`editor_pick_at`).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum EditorPick {
+    /// Stand here (ship metres, eye height): the spot is a place to stand.
+    Stand(Vec3),
+    /// The spot was no place to stand, so stand at the nearest that is, on the same storey; with
+    /// the sentence to show, or None when it was only a nudge off a wall.
+    Moved { at: Vec3, note: Option<String> },
+    /// That storey has no place to stand at all: stay where they stood, and show this.
+    Refused(String),
+}
+
 /// Where closing the build editor stands the player when its build-mode avatar is at `xz` (zone-
-/// local metres) in the zone whose body is `body` at `zone_origin` (ship homes increment 7): ON
-/// THE STOREY THEY LEFT FROM. `left_from` is where their eye was when the editor opened
-/// (`EngineState::construction_return_pos`), `eye_height` the eye's height over the feet. The
-/// storey their feet were on (`HomeStructure::storeys`) gives the floor to stand on at the
-/// avatar's spot, and where that storey has no floor there (over a stairwell, the greenhouse) the
-/// floor under it (`footing`), so the close never stands anyone in the air. It used to stand
-/// everyone on the zone's ground floor, under the upper floor they had left from.
+/// local metres) on storey `storey` (the editor's chosen storey, which the avatar is drawn,
+/// grabbed and dragged on) of the zone whose body is `body` at `zone_origin`; `eye_height` is the
+/// eye's height over the feet. Ship homes increment 7.
+///
+/// ONLY WHERE A PERSON CAN STAND (the review of 2026-10-21, finding 1): on the ground floor, or on
+/// a SOLID slab of that storey's floor inside one of its rooms, with room to stand
+/// (ship/standing.rs `standing_on`), never on a glass lid, over an opening or on a roof outside the
+/// rooms. A spot that is none is moved to the nearest that is on the same storey
+/// (`nearest_standing`), with a sentence saying why; a storey with nowhere to stand refuses, and
+/// the player stays where they stood. It used to raise the spot onto ANY slab top there, so a
+/// close from upstairs with the avatar on the home's spawn (53.5, 40.5), which is on the upper
+/// hall's south wall, or dragged south of it, stood the player on the glass roof over the south
+/// half of the house with no way off, and the relay took it.
+///
+/// On the spot, the floor under it (`footing`: a stair tread, a stage or a piece built there within
+/// a step of the storey's floor) is what they stand on.
 pub(crate) fn editor_pick_at(
     footing: &crate::engine::footing::Footing,
     xz: (f32, f32),
+    storey: usize,
     zone_origin: Vec3,
     body: &crate::ship::home_structure::HomeStructure,
-    left_from: Vec3,
     eye_height: f32,
-) -> Vec3 {
+) -> EditorPick {
+    use crate::ship::standing::{nearest_standing, standing_on};
     let storeys = body.storeys();
-    let k = crate::ship::home_structure::storey_index(&storeys, left_from.y - eye_height - zone_origin.y);
+    let k = storey.min(storeys.len() - 1);
+    let (spot, note) = match standing_on(body, k, xz.0, xz.1) {
+        Ok(()) => (xz, None),
+        Err(why) => match nearest_standing(body, k, xz.0, xz.1) {
+            Some(p) => (p, Some(editor_spot_note(&why, k, true))),
+            None => return EditorPick::Refused(editor_spot_note(&why, k, false).unwrap_or_default()),
+        },
+    };
     let storey_floor = zone_origin.y + storeys[k].floor;
-    let at = Vec3::new(xz.0 + zone_origin.x, storey_floor + eye_height, xz.1 + zone_origin.z);
+    let at = Vec3::new(spot.0 + zone_origin.x, storey_floor + eye_height, spot.1 + zone_origin.z);
     let floor = footing.floor_under(at, storey_floor).unwrap_or(storey_floor);
-    Vec3::new(at.x, floor + eye_height, at.z)
+    let at = Vec3::new(at.x, floor + eye_height, at.z);
+    match note {
+        None => EditorPick::Stand(at),
+        Some(note) => EditorPick::Moved { at, note },
+    }
+}
+
+/// The sentence for a build spot that was no place to stand (`editor_pick_at`): `moved` when the
+/// player was stood at the nearest place on that storey instead, else they stay where they were.
+/// None for a spot only too near a wall or an edge, which is moved half a metre without a word.
+fn editor_spot_note(why: &crate::ship::standing::NoStanding, k: usize, moved: bool) -> Option<String> {
+    use crate::ship::standing::NoStanding;
+    let storey = crate::engine::editor::storey_name(k).to_lowercase();
+    let what = match why {
+        NoStanding::GlassRoof(Some(label)) => format!("on a glass roof ({label}), and nobody stands on a roof"),
+        NoStanding::GlassRoof(None) => "on a glass roof, and nobody stands on a roof".to_string(),
+        NoStanding::Opening => "over an opening in the floor (a stairwell, a shaft or a room open to the roof)".to_string(),
+        NoStanding::OutsideRooms => "on a roof, outside the rooms of that storey".to_string(),
+        NoStanding::Low => "where there is not room to stand up".to_string(),
+        NoStanding::NoStorey => "on a storey the home does not have".to_string(),
+        NoStanding::Edge if moved => return None,
+        NoStanding::Edge => "against a wall".to_string(),
+    };
+    Some(if moved {
+        format!("Your build spot was {what}, so you are on the nearest floor of {storey} you can stand on instead.")
+    } else {
+        format!("Your build spot was {what}, and {storey} has no floor inside its rooms to stand on, so you are back where you stood before building.")
+    })
+}
+
+/// What closing the build editor makes of the build-mode avatar (lib.rs, the editor's close): the
+/// spot to stand the player at (None: where they stood), and the sentence to show when it is not
+/// the avatar's own spot (`editor_pick_at`). The avatar stands on the chosen storey of the zone
+/// being edited (engine/editor_storeys.rs `build_avatar_floor_y`). With no avatar, the home zone's
+/// saved spawn (v0.557's fallback), on its ground floor.
+pub(crate) fn editor_close_pick(state: &EngineState) -> (Option<Vec3>, Option<String>) {
+    let g = &state.gui_state;
+    let body = crate::ship::ship_structure::zone_body(&g.ship_structure, g.construction_zone);
+    let (Some(xz), Some(body)) = (g.build_char_pos, body) else {
+        let spawn = g.ship_structure.as_ref().and_then(|s| {
+            let home = &s.zones[s.home_zone_index()];
+            home.body.spawn.map(|(x, z)| {
+                let o = home.origin_vec();
+                Vec3::new(x + o.x, o.y + 1.7, z + o.z)
+            })
+        });
+        return (spawn, None);
+    };
+    let storey = crate::engine::editor::EditStorey::of(body, g.construction_storeys.chosen).index;
+    let built = crate::engine::build_place::built_piece_boxes(
+        &state.game_world.world,
+        state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
+        None,
+    );
+    let footing = crate::engine::footing::Footing {
+        rooms: &g.room_bounds,
+        ship: g.ship_structure.as_ref(),
+        cars: &state.elevator_state,
+        built: &built,
+    };
+    let zo = crate::engine::editor::active_zone_origin(state);
+    match editor_pick_at(&footing, xz, storey, zo, body, state.controller.eye_height()) {
+        EditorPick::Stand(at) => (Some(at), None),
+        EditorPick::Moved { at, note } => (Some(at), note),
+        EditorPick::Refused(note) => (None, Some(note)),
+    }
 }
 
 /// The notice when closing the build editor leaves the player where they stood
@@ -3463,35 +3557,160 @@ mod tests {
     }
 }
 
-/// The build editor's close between storeys (ship homes increment 7, lane M), in the two-storey
-/// test home of engine/footing.rs (`test_aboard::TWO_STOREYS`: slabs at 3.0 over the north half,
-/// z 0 to 6, a ladder hatch at x 1.5 to 2.5 and z 0.9 to 2.1, the south half open to the roof).
+/// The build editor's close between storeys (ship homes increment 7): in the two-storey test home
+/// of engine/footing.rs (`test_aboard::TWO_STOREYS`: slabs at 3.0 over the north half, z 0 to 6,
+/// with one upstairs zone over all of it, a ladder hatch at x 1.5 to 2.5 and z 0.9 to 2.1, the
+/// south half open to the roof), and in the shipped homestead on p1.
 #[cfg(test)]
 mod storey_tests {
     use super::*;
     use crate::engine::footing::test_aboard::*;
+    use crate::ship::home_structure::HomeStructure;
+    use crate::ship::standing::standing_on;
     use crate::ship::wall_collision::EYE_HEIGHT_M as EYE;
 
-    /// CLOSING THE EDITOR STANDS YOU ON THE STOREY YOU LEFT FROM. Opened upstairs, the build-mode
-    /// avatar's spot on the upper floor is where the close stands the player, upstairs (it used to
-    /// stand everyone on the zone's ground floor, under the slab); a spot upstairs over the hatch,
-    /// where that storey has no floor, stands them on the ground floor under it, not in the air.
-    /// Opened downstairs, a spot under the slab stands them on the ground floor, not on the slab.
+    /// The shipped homestead assembled on p1 (55 x 6 x 89 at the ship's origin), as the only zone
+    /// of a ship, with its rooms and footing as the game makes them; and p1's box.
+    fn homestead_on_p1() -> (Aboard, crate::ship::ship_space::Aabb) {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+        let plot = ship.home_plot().expect("the home on p1").aabb();
+        let home = ship.zones[ship.home_zone_index()].clone();
+        (Aboard::of(ShipStructure { zones: vec![home], ..Default::default() }), plot)
+    }
+
+    /// Where a pick stands the player, whether or not it was moved there.
+    fn stood_at(p: &EditorPick) -> Option<Vec3> {
+        match p {
+            EditorPick::Stand(at) | EditorPick::Moved { at, .. } => Some(*at),
+            EditorPick::Refused(_) => None,
+        }
+    }
+
+    /// CLOSING THE EDITOR STANDS YOU ON THE AVATAR'S STOREY, WHERE A PERSON CAN STAND. The avatar's
+    /// storey is the editor's chosen one, which it is drawn and dragged on. Upstairs on the upper
+    /// floor, it is taken as it is; upstairs over the hatch, where that storey has no floor, and
+    /// upstairs over the half open to the roof, the close stands the player on the nearest floor
+    /// of that storey and says why (lane M's close stood them on the ground floor under the spot);
+    /// on the ground floor under the slab, the ground floor, not the slab.
     ///
-    /// Seen red 2026-10-20 with `editor_pick_at` standing everyone on the zone's floor (its eye at
-    /// the zone's origin y plus the eye height, the close before this lane): "left from upstairs, a
-    /// spot on the upper floor" (left: Vec3(8.0, 1.7, 4.0), right: Vec3(8.0, 4.7, 4.0)).
+    /// Seen red 2026-10-20 (lane M) with `editor_pick_at` standing everyone on the zone's floor:
+    /// "left from upstairs, a spot on the upper floor" (left: Vec3(8.0, 1.7, 4.0), right:
+    /// Vec3(8.0, 4.7, 4.0)). Restated 2026-10-21 for the chosen storey and the standing rule, and
+    /// seen red first then with `editor_pick_at` raising the spot onto whatever floor was under it
+    /// (lane M's close): "upstairs over the hatch: Stand(Vec3(2.0, 1.7, 1.5))".
     #[test]
-    fn the_editor_close_stands_you_on_the_storey_you_left_from() {
+    fn the_editor_close_stands_you_on_the_avatars_storey_where_you_can_stand() {
         let w = Aboard::two_storeys();
         let footing = w.footing();
         let body = &w.ship.zones[0].body;
-        let pick = |xz: (f32, f32), left_from: Vec3| editor_pick_at(&footing, xz, Vec3::ZERO, body, left_from, EYE);
-        let upstairs = Vec3::new(6.0, 3.0 + EYE, 4.0);
-        let downstairs = Vec3::new(6.0, EYE, 9.0);
-        assert_eq!(pick((8.0, 4.0), upstairs), Vec3::new(8.0, 3.0 + EYE, 4.0), "left from upstairs, a spot on the upper floor");
-        assert_eq!(pick((2.0, 1.5), upstairs), Vec3::new(2.0, EYE, 1.5), "left from upstairs, a spot over the hatch");
-        assert_eq!(pick((8.0, 4.0), downstairs), Vec3::new(8.0, EYE, 4.0), "left from downstairs, a spot under the slab");
-        assert_eq!(pick((8.0, 9.0), upstairs), Vec3::new(8.0, EYE, 9.0), "left from upstairs, a spot in the half open to the roof");
+        let pick = |xz: (f32, f32), storey: usize| editor_pick_at(&footing, xz, storey, Vec3::ZERO, body, EYE);
+        assert_eq!(pick((8.0, 4.0), 1), EditorPick::Stand(Vec3::new(8.0, 3.0 + EYE, 4.0)), "upstairs, a spot on the upper floor");
+        assert_eq!(pick((8.0, 4.0), 0), EditorPick::Stand(Vec3::new(8.0, EYE, 4.0)), "downstairs, a spot under the slab");
+        for (xz, what) in [((2.0, 1.5), "over the hatch"), ((8.0, 9.0), "over the half open to the roof")] {
+            let p = pick(xz, 1);
+            let EditorPick::Moved { at, note: Some(note) } = &p else { panic!("upstairs {what}: {p:?}") };
+            assert!((at.y - (3.0 + EYE)).abs() < 1e-4, "upstairs {what}: stood at {at}, not on the upper floor");
+            assert_eq!(standing_on(body, 1, at.x, at.z), Ok(()), "upstairs {what}: stood at {at}");
+            assert!(note.contains("opening"), "upstairs {what}: {note}");
+        }
+    }
+
+    /// A CLOSE ONTO A GLASS LID UPSTAIRS IS MOVED OFF IT; ONE IN THE BEDROOM IS TAKEN (the review of
+    /// 2026-10-21, finding 1). On the shipped homestead: the build spot on the glass roof over the
+    /// great room, with the editor on the upper storey, stands the player in the upper hall just
+    /// north of its south wall and says it was a glass roof; the home's spawn (53.5, 40.5), which
+    /// upstairs is ON that wall, stands them just inside the hall, without a word; a spot in the
+    /// upstairs bedroom stands them there; on the ground storey the spawn is the entry, as it was.
+    ///
+    /// Seen red first (2026-10-21) with `editor_pick_at` raising the spot onto whatever slab top was
+    /// under it (the close before this fix): "the glass roof over the great room, upstairs / left:
+    /// Stand(Vec3(45.0, 4.7, 45.0))".
+    #[test]
+    fn a_close_onto_a_glass_lid_upstairs_is_moved_off_it_and_one_in_the_bedroom_is_taken() {
+        let (w, _) = homestead_on_p1();
+        let footing = w.footing();
+        let zone = &w.ship.zones[0];
+        let (o, body) = (zone.origin_vec(), &zone.body);
+        let pick = |xz: (f32, f32), storey: usize| editor_pick_at(&footing, xz, storey, o, body, EYE);
+        let near = |a: Vec3, b: Vec3| a.distance(b) < 1e-3;
+        let lid = pick((45.0, 45.0), 1);
+        match &lid {
+            EditorPick::Moved { at, note: Some(note) } => {
+                assert!(near(*at, o + Vec3::new(45.0, 3.0 + EYE, 40.05)), "the glass roof over the great room, upstairs: stood at {at}");
+                assert!(note.contains("glass roof"), "{note}");
+            }
+            other => panic!("the glass roof over the great room, upstairs / left: {other:?}"),
+        }
+        match pick((53.5, 40.5), 1) {
+            EditorPick::Moved { at, note: None } => assert!(near(at, o + Vec3::new(53.5, 3.0 + EYE, 40.05)), "the spawn, upstairs: {at}"),
+            other => panic!("the home's spawn, upstairs, on the upper hall's south wall: {other:?}"),
+        }
+        assert_eq!(pick((38.0, 34.0), 1), EditorPick::Stand(o + Vec3::new(38.0, 3.0 + EYE, 34.0)), "the upstairs bedroom");
+        assert_eq!(pick((53.5, 40.5), 0), EditorPick::Stand(o + Vec3::new(53.5, EYE, 40.5)), "the spawn on the ground floor, the entry");
+    }
+
+    /// NO EDITOR CLOSE LANDS ON A GLASS LID, AND THE RELAY TAKES EVERY ONE. Over the whole shipped
+    /// homestead on p1, a build spot every 1.5 m on each storey: wherever the close stands the
+    /// player is a place to stand (on the ground floor, or on a solid slab inside an upstairs room:
+    /// never a glass lid, never an opening), and the relay's rule for an editor close
+    /// (src/relay/handlers/move_check.rs `on_a_floor_of`) passes it, so the game never makes a close
+    /// the relay corrects. The relay cannot see the lids (it holds no copy of the home), so this is
+    /// where the glass-lid case is held.
+    ///
+    /// Seen red first (2026-10-21) with `editor_pick_at` raising the spot onto whatever slab top was
+    /// under it: "the spot (0.5, 0.5) on storey 1 stands the player at [0.5, 4.7, 0.5], over no solid
+    /// floor (a glass lid: true)" (the power terrace's glass roof).
+    #[test]
+    fn no_editor_close_lands_on_a_glass_lid_and_the_relay_takes_every_one() {
+        let (w, plot) = homestead_on_p1();
+        let footing = w.footing();
+        let zone = &w.ship.zones[0];
+        let (o, body): (Vec3, &HomeStructure) = (zone.origin_vec(), &zone.body);
+        assert_eq!(body.storeys().len(), 2, "the homestead has two storeys");
+        let mut picks = 0;
+        for k in 0..2 {
+            let mut x = 0.5;
+            while x < body.width {
+                let mut z = 0.5;
+                while z < body.depth {
+                    let p = editor_pick_at(&footing, (x, z), k, o, body, EYE);
+                    if let Some(at) = stood_at(&p) {
+                        let local = at - o;
+                        let feet = local.y - EYE;
+                        let on = body.storey_of_y(feet);
+                        assert_eq!(on, k, "the spot ({x}, {z}) on storey {k} stands the player on storey {on}, at {at}");
+                        // Read off the data, not off `standing_on`: upstairs, over a solid slab of
+                        // that floor (a glass lid alone is a roof) and inside a room of the storey.
+                        if k > 0 {
+                            let floor = body.storeys()[k].floor;
+                            let over = |glass: bool| {
+                                body.floors.iter().any(|s| s.passes_light() == glass && (s.top - floor).abs() < 0.01 && s.contains(local.x, local.z))
+                            };
+                            assert!(over(false), "the spot ({x}, {z}) on storey {k} stands the player at {at}, over no solid floor (a glass lid: {})", over(true));
+                            let in_room = body.zones.iter().any(|zn| {
+                                body.storey_of_zone(zn) == k
+                                    && local.x >= zn.origin.0
+                                    && local.x <= zn.origin.0 + zn.size.0
+                                    && local.z >= zn.origin.2
+                                    && local.z <= zn.origin.2 + zn.size.2
+                            });
+                            assert!(in_room, "the spot ({x}, {z}) on storey {k} stands the player at {at}, outside every room upstairs");
+                        }
+                        if let Err(why) = standing_on(body, k, local.x, local.z) {
+                            panic!("the spot ({x}, {z}) on storey {k} stands the player at {at}, which is no place to stand: {why:?}");
+                        }
+                        assert!(
+                            crate::relay::handlers::move_check::on_a_floor_of(&plot, at.y),
+                            "the spot ({x}, {z}) on storey {k}: the relay refuses a close at {at} (p1 {plot:?})"
+                        );
+                        picks += 1;
+                    }
+                    z += 1.5;
+                }
+                x += 1.5;
+            }
+        }
+        assert!(picks > 3000, "only {picks} closes stood anyone anywhere");
     }
 }

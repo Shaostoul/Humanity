@@ -438,15 +438,15 @@ wood stove puts into the air it stands in aboard.
   and ceiling, and by convection with the air it trades with the air
   around it (`src/systems/farming/heat.rs`). Its thermostat stops it at
   24 C. In a fruiting tent it holds 24 C, running about an eighth of the
-  time. The home's grow rooms are far bigger, the smallest of them
-  300 m3, and in them it runs flat out and never gets there: one holds a
-  300 m3 room about 1 C warmer, and the family home's 2,970 m3
-  greenhouse about 0.16 C. In any other room, a bedroom or the kitchen,
-  it does not warm that room at all: it warms the home's whole air, about
-  10,500 m3 in the family home, by a few hundredths of a degree, running
-  flat out all the while. Your body feels the air of the grow room you
-  stand in, or the home's own air everywhere else. [Heating a Home
-  Safely](/library#heating-a-home-safely) has the numbers.
+  time. The home's grow rooms are far bigger, the smallest of them about
+  260 m3, and in them it runs flat out and never gets there: one holds a
+  300 m3 room about 1 C warmer, and the family home's greenhouse, 6 m
+  tall and 5,607 m3, about 0.13 C. In any other room, a bedroom or the
+  kitchen, it does not warm that room at all: it warms the home's whole
+  air, about 11,200 m3 in the family home, by a few hundredths of a
+  degree, running flat out all the while. Your body feels the air of the
+  grow room you stand in, or the home's own air everywhere else.
+  [Heating a Home Safely](/library#heating-a-home-safely) has the numbers.
 - **A heat pump moves heat; a wood stove makes it.** Both warm the air
   they stand in the same way, on the same thermostat. A heat pump you
   build draws 620 W and puts 2,815 W of heat into that air: the rest it

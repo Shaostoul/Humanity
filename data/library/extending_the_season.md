@@ -487,11 +487,12 @@ its numbers come from them.
   grow room as single glass (Georgia's R-value of 0.91, 6.24 W per square
   metre and degree) and counts the air the room trades
   (`data/garden/humidity.ron`, THE HEAT). One heater holds a 300 m3 room
-  about 1 C warmer, and a room the size of the family greenhouse only
-  0.16 C, flat out at 36 kWh a day. The warmer air reads drier, because
-  warm air holds more water, and the fans and humidifiers work to their
-  setpoints at the new temperature; the pests read the warmth too. The
-  crops' own growth does not yet answer a grow room's temperature.
+  about 1 C warmer, and a room the size of the family greenhouse (6 m
+  tall, 5,607 m3) only 0.13 C, flat out at 36 kWh a day. The warmer air
+  reads drier, because warm air holds more water, and the fans and
+  humidifiers work to their setpoints at the new temperature; the pests
+  read the warmth too. The crops' own growth does not yet answer a grow
+  room's temperature.
 - **Greenhouse humidity** (`data/garden/humidity.ron`). Almost all the water
   the crops are given, they breathe into their room's air. A room exchanges
   half its air an hour through leaks, the low end of Georgia's figure for
@@ -617,7 +618,7 @@ taken from them is restated here in our own words.
   Ventilate control, and THE HEAT: a heater's warmth, the single-glass heat
   loss and its sources. The heater itself is `heater` in
   `data/machines/home.ron`; the model is `src/systems/farming/heat.rs`, and
-  `src/systems/farming/heat_tests.rs` measures the 1 C and 0.16 C figures.
+  `src/systems/farming/heat_tests.rs` measures the 1 C and 0.13 C figures.
 - `data/garden/lighting.ron`: the grow lights and their timer, with its
   citation of the DesignLights Consortium's Horticultural Technical
   Requirements V3.0 for the 2.30 micromoles per joule minimum,

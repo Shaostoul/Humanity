@@ -182,10 +182,15 @@ pub(super) fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &
         state.construction_zone_selected = None;
         state.construction_machine_selected = None;
         state.construction_wall_start = None;
-        // Move the build avatar to the new zone's spawn (its box centre if none saved).
+        state.construction_storeys.slab_selected = None;
+        state.construction_storeys.draw_start = None;
+        // Move the build avatar to the new zone's spawn (its box centre if none saved), which is
+        // on the ground floor: the avatar stands on the chosen storey (ship homes increment 7), so
+        // the editor works on the new zone's ground storey.
         let spawn = zone_body(&state.ship_structure, i)
             .map(|b| b.spawn.unwrap_or((b.width * 0.5, b.depth * 0.5)));
         state.build_char_pos = spawn;
+        state.construction_storeys.chosen = 0;
         state.construction_structure_dirty = true; // refresh introspection + gizmo state
     }
     ui.add_space(theme.spacing_xs);

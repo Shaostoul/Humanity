@@ -18,34 +18,44 @@
 // in the manifest's `data` block, so a saved run is judged against the data it ran on: the harm
 // curve, the wound steps and Forgiving's share of the speed from data/medical/falls.ron, the
 // walk's gravity from data/game.csv (`gravity_m_s2`), each wound's name from
-// data/status_effects.csv, and the stairs walked off from data/blueprints/structure_types.ron and
-// data/homes/homestead.ron. The harm curve is evaluated HERE, by its own code, from the file: a
-// second reading of falls.ron, not the game's.
+// data/status_effects.csv, and the home's stairs, ladder, floor slabs and rooms from
+// data/blueprints/structure_types.ron and data/homes/homestead.ron. The harm curve is evaluated
+// HERE, by its own code, from the file: a second reading of falls.ron, not the game's.
 //
 // THE RUN (scripts/verify-falls.js says how each record is made). Aboard the homestead, in the
-// world the autopilot enters (offline, the rig's own home), at the foot of its tallest staircase
-// (stairs-1, 3 m: the homestead has no deck at the top of a ladder or a staircase, so the top
-// step is the highest floor a player can walk onto, and walking on past it is a 3 m drop):
-//   forgiving_walk  Illness and injury set to Forgiving; forward held: up the stairs and off the
-//                   top. A 3 m drop lands at 7.67 m/s, read at 70% (5.37), under the first harm
-//                   (6.26): a landing, and nothing else.
+// world the autopilot enters (offline, the rig's own home). Since ship homes increment 7
+// (2026-10-21) the homestead has an upper floor: its stairs (stairs-1, 16 risers to 3 m) lead onto
+// it, its ladder (ladder-1) climbs through a guarded hatch with a gate onto it, and no unguarded
+// 3 m edge is left anywhere in the home by design. So the walks off a raised floor go off a DECK
+// the rig places for itself (`pickAboardDeck`; docs/design/ship-homes-increment-7-plan.md
+// decision 10): a `deck` piece with its top at the upper floor's height (3.0 m), placed with the
+// build editor's console (the showcase `console` verb) in the middle of the largest room open to
+// the roof (the greenhouse), the player stood on it a metre from its south edge facing south:
+//   forgiving_walk  Illness and injury set to Forgiving; forward held: off the deck's edge. A 3 m
+//                   drop lands at 7.67 m/s, read at 70% (5.37), under the first harm (6.26): a
+//                   landing, and nothing else. (Until 2026-10-21 this walked up the stairs and off
+//                   their top; the saved runs of then carry kind "walk".)
 //   realistic_stairs_down  (BUG-208, run right after forgiving_walk) Realistic, stood on the top
 //                   tread facing down, forward held down the whole flight: every riser is a step
 //                   down, so no landing reaches the body, no wound, no health lost. Before
 //                   BUG-208 the walk flew off the top tread and landed from 3.0 m at 7.67 m/s.
 //   realistic_walk  forgiving_walk again in Realistic: 7.67 m/s, past the sprain (6.26) and short of the
 //                   broken ankle (7.73): a Sprained Ankle and 9.7 health.
-//   realistic_ladder  still Realistic, at the foot of the homestead's 3 m ladder (ladder-1):
-//                   Space held climbs it to the top, where the eye stops 0.2 m over the top
-//                   rung (4.9 m); let go and the body HOLDS ON there (camera.rs, "HANGING ON");
-//                   then a step back off it is a 3.2 m fall: 7.92 m/s, a Broken Ankle and 11.5
-//                   health. This is the "walk off the homestead ladder's top" PRIORITIES asked
-//                   for; the homestead has no loft at its top, so the floor below is the drop.
-//   placed_drop     still Realistic, the player PLACED 3 m up beside the stairs (the showcase
-//                   `cam` verb, a teleport) and left to fall: the same drop, and no landing may
-//                   reach the body, because something other than the walk moved it (FallWatch).
+//   realistic_ladder  still Realistic, in the hatch's hole at the foot of ladder-1 facing it:
+//                   Space held climbs it to the top (the eye stops 0.2 m over the top rung), then
+//                   forward held steps off the top across the hatch's gate onto the upper floor
+//                   (`judgeLadderHatch`): the gate lets a climber through, so the body ends
+//                   standing on the floor, and nothing lands harder than the 0.2 m step down from
+//                   the top rung's hold (1.98 m/s, which cannot hurt): no wound, no health lost.
+//                   (Until 2026-10-21 the top was open and this let go there and stepped back off
+//                   it, a 3.2 m fall; the saved runs of then carry kind "ladder".)
+//   placed_drop     still Realistic, the player PLACED at the deck's height beside it (the
+//                   showcase `cam` verb, a teleport) and left to fall: the same drop, and no
+//                   landing may reach the body, because something other than the walk moved it
+//                   (FallWatch).
 // And before any leg, `world_entry`: the first look after the autopilot entered the world has
-// had no landing reach the body, no wound and full health.
+// had no landing reach the body, no wound and full health; and `deck_placed`, what the console
+// answered the line that placed the deck.
 // The forgiving leg goes first so each walk starts from a clean body (no wound, full health); a
 // wound already on the body is not a new one, so each later leg is judged by what it added.
 //
@@ -257,6 +267,54 @@ function readHomeStructures(text) {
   );
 }
 
+const num2 = (s) => s.split(",").map((v) => Number(v.trim()));
+
+/** A home design's floor slabs (ship homes increment 7): [{ a [x, z], b [x, z], top }], home metres.
+ *  A slab's top is a floor a person stands on (src/ship/home_structure.rs `FloorSlab`). */
+function readHomeFloors(text) {
+  const t = uncomment(text);
+  return [...listAfter(t, "floors").matchAll(/\ba\s*:\s*\(([^)]*)\)\s*,\s*b\s*:\s*\(([^)]*)\)\s*,\s*top\s*:\s*([-\d.]+)/g)].map((m) => ({
+    a: num2(m[1]),
+    b: num2(m[2]),
+    top: Number(m[3]),
+  }));
+}
+
+/** A home design's interior walls: [{ a [x, z], b [x, z], base, height }], home metres (a wall with
+ *  no `base` stands on the ground, 0). */
+function readHomeWalls(text) {
+  const t = uncomment(text);
+  return [...listAfter(t, "walls").matchAll(/\ba\s*:\s*\(([^)]*)\)\s*,\s*b\s*:\s*\(([^)]*)\)\s*,\s*(?:base\s*:\s*([-\d.]+)\s*,\s*)?height\s*:\s*([-\d.]+)/g)].map((m) => ({
+    a: num2(m[1]),
+    b: num2(m[2]),
+    base: m[3] === undefined ? 0 : Number(m[3]),
+    height: Number(m[4]),
+  }));
+}
+
+/** A home design's room zones: [{ id, origin [x, y, z], size [x, y, z] }], home metres. */
+function readHomeZones(text) {
+  const t = uncomment(text);
+  return [...listAfter(t, "zones").matchAll(/\bid\s*:\s*"([^"]+)"\s*,\s*type_id\s*:\s*"[^"]*"\s*,\s*origin\s*:\s*\(([^)]*)\)\s*,\s*size\s*:\s*\(([^)]*)\)/g)].map((m) => ({
+    id: m[1],
+    origin: num2(m[2]),
+    size: num2(m[3]),
+  }));
+}
+
+/** A home design's body height, metres (its first `height:`, the body's, before its walls). */
+function readHomeHeight(text) {
+  const t = uncomment(text);
+  const body = t.slice(t.search(/\bbody\s*:/));
+  const h = body.match(/\bheight\s*:\s*([-\d.]+)/);
+  return h ? Number(h[1]) : NaN;
+}
+
+/** Whether the slab `s` covers the floor point (x, z), home metres. */
+const slabCovers = (s, x, z) => x >= Math.min(s.a[0], s.b[0]) && x <= Math.max(s.a[0], s.b[0]) && z >= Math.min(s.a[1], s.b[1]) && z <= Math.max(s.a[1], s.b[1]);
+/** Whether any of `floors` at height `top` (within a centimetre) covers (x, z). */
+const floorAt = (floors, top, x, z) => (floors || []).some((s) => Math.abs(s.top - top) < 0.01 && slabCovers(s, x, z));
+
 /**
  * The staircase a walk leg goes up and off: the tallest Steps-shaped Stairs in the home, with the
  * pose to start from (home metres, eye height; 1 m before its first step, facing up it) and the
@@ -278,7 +336,9 @@ function pickStairs(types, structures, eyeM = 1.7) {
   const tread = ty.steps > 0 ? d / ty.steps : d;
   const [tx, tz] = along(d / 2 - tread / 2);
   return {
-    /// One tread's depth, metres (the stairs' depth over their steps).
+    /// How many risers the flight has (the type's `steps`), and one tread's depth, metres (the
+    /// stairs' depth over their steps).
+    steps: ty.steps,
     tread_m: tread,
     /// The stairs-down leg's start: the eye standing on the middle of the top tread.
     top_tread_eye: [tx, s.pos[1] + h + eyeM, tz],
@@ -300,15 +360,29 @@ function pickStairs(types, structures, eyeM = 1.7) {
   };
 }
 
+/** The yaw that looks along the floor direction (dx, dz): the camera at yaw a looks along
+ *  (sin a, -cos a) (src/renderer/camera.rs). */
+const yawAlong = (dx, dz) => Math.atan2(dx, -dz);
+
 /**
  * The ladder a ladder leg climbs: the tallest Ladder in the home, the pose to stand at it (home
- * metres, eye height; STAND_M out from its face along its local +z, facing it) and how high the
- * eye hangs at its top. Mirrors src/renderer/camera.rs: climbing clamps the eye at the ladder's
- * top + eye height + 0.2 m, and the climb zone (src/lib.rs) is within half the ladder's widest
- * side + 0.9 m of its foot, so a step of more than that away from it lets go.
+ * metres, eye height, STAND_M out from its face, facing it) and how high the eye hangs at its top.
+ * Mirrors src/renderer/camera.rs: climbing clamps the eye at the ladder's top + eye height + 0.2 m,
+ * and the climb zone (engine/footing.rs `ladder_at`) is within half the ladder's widest side +
+ * 0.9 m of its foot, so a step of more than that away from it lets go.
+ *
+ * THE HATCH (ship homes increment 7, 2026-10-21). When a floor slab of the home stands at the
+ * ladder's top (`floors`), the ladder climbs through a hatch onto an upper floor
+ * (engine/footing.rs `ladder_gates`): one side of its top is the slab (where a climber steps off),
+ * the other the hatch's hole (where a climber stands to climb, under no ceiling). `hatch` then says
+ * which is which: the climber stands on the hole's side facing the slab, and stepping forward off
+ * the top crosses the gate across the ladder's top (the gate lets a body ON the ladder through) onto
+ * the floor. `step_m` is how far along that way from the ladder's foot the walk ends: out of the
+ * ladder's reach (`reach_m`) by STEP_PAST_M, standing on the floor. null with no slab at the top.
  */
-function pickLadder(types, structures, eyeM = 1.7) {
+function pickLadder(types, structures, eyeM = 1.7, floors = []) {
   const STAND_M = 0.6;
+  const STEP_PAST_M = 0.3;
   const ladders = structures
     .map((s) => ({ s, ty: types[s.type_id] }))
     .filter(({ ty }) => ty && ty.kind === "Ladder" && Array.isArray(ty.size))
@@ -317,17 +391,117 @@ function pickLadder(types, structures, eyeM = 1.7) {
   const { s, ty } = ladders[0];
   const [w, h, d] = ty.size;
   const r = (s.rot_deg * Math.PI) / 180;
+  const top = s.pos[1] + h;
+  const reach = Math.max(w, d) * 0.5 + 0.9;
+  // Local +z of the piece in the home: (sin r, cos r).
+  const side = (k) => [s.pos[0] + k * STAND_M * Math.sin(r), s.pos[2] + k * STAND_M * Math.cos(r)];
+  const onFloor = (k) => floorAt(floors, top, ...side(k));
+  // The slab's side: +1 (local +z) or -1; null when the top is not a floor on exactly one side.
+  const slabSide = onFloor(1) && !onFloor(-1) ? 1 : onFloor(-1) && !onFloor(1) ? -1 : null;
+  let hatch = null;
+  if (slabSide !== null) {
+    const dir = [slabSide * Math.sin(r), slabSide * Math.cos(r)];
+    const [sx, sz] = side(-slabSide);
+    const stepM = reach + STEP_PAST_M;
+    hatch = {
+      /// The floor at the ladder's top (the slab's top), metres, and the eye standing on it.
+      floor_m: top,
+      floor_eye_m: top + eyeM,
+      /// Where the climber stands (the hole's side, eye height on the ground) and faces (the slab).
+      stand: [sx, s.pos[1] + eyeM, sz],
+      yaw: yawAlong(dir[0], dir[1]),
+      /// The way off the top, across the floor, and where the walk ends along it from the foot.
+      dir,
+      step_m: stepM,
+      step_to: [s.pos[0] + dir[0] * stepM, top + eyeM, s.pos[2] + dir[1] * stepM],
+      /// From the stand to the walk's end, metres across the floor.
+      walk_m: STAND_M + stepM,
+    };
+  }
   return {
     id: s.id,
     type_id: s.type_id,
     size: [w, h, d],
     rot_deg: s.rot_deg,
     pos: s.pos.slice(),
-    top_m: s.pos[1] + h,
+    top_m: top,
     stand: [s.pos[0] + STAND_M * Math.sin(r), s.pos[1] + eyeM, s.pos[2] + STAND_M * Math.cos(r)],
     yaw: -r,
-    hang_eye_m: s.pos[1] + h + eyeM + 0.2,
-    reach_m: Math.max(w, d) * 0.5 + 0.9,
+    hang_eye_m: top + eyeM + 0.2,
+    reach_m: reach,
+    hatch,
+  };
+}
+
+/** The deck the walk legs aboard step off (ship homes increment 7, docs/design/
+ *  ship-homes-increment-7-plan.md decision 10): placed by the rig itself with the build editor's
+ *  console (`add_structure deck x y z 0`, the showcase `console` verb), its top at the home's upper
+ *  floor's height, in the middle of the largest ground room no floor slab lies over (the
+ *  homestead's greenhouse, 6 m to its roof), the player stood on it `EDGE_M` from its south edge
+ *  facing south and walked `WALK_ON_M` past the edge. Placed beside it (`PLACED_GAP_M` north of its
+ *  north edge) at the same height, the placement leg's drop. */
+const ABOARD_DECK = { type_id: "deck", EDGE_M: 1.0, WALK_ON_M: 1.5, PLACED_GAP_M: 1.0, HEADROOM_M: 0.3 };
+
+/** Whether the segment (a, b) crosses or touches the rectangle [x0, x1] x [z0, z1]. */
+function segmentHitsRect(a, b, x0, x1, z0, z1) {
+  const inside = (p) => p[0] >= x0 && p[0] <= x1 && p[1] >= z0 && p[1] <= z1;
+  if (inside(a) || inside(b)) return true;
+  const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const cross = (p, q, r, s) => o(p, q, r) * o(p, q, s) < 0 && o(r, s, p) * o(r, s, q) < 0;
+  const c = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+  return c.some((p, i) => cross(a, b, p, c[(i + 1) % 4]));
+}
+
+/**
+ * Where the rig's deck goes (`ABOARD_DECK`), from the tree: { type_id, size, top_m, room, pos
+ * (home metres, the piece's base: its top less its thickness), console (the console line that
+ * places it), stand (the eye on it, home metres), yaw (south), edge_m, walk_on_m, placed_eye } or
+ * { why } when it cannot go anywhere (no deck type, no upper floor to take the height from, no
+ * open room with the headroom, or a wall across the walk).
+ */
+function pickAboardDeck(types, zones, floors, walls, bodyHeight, eyeM = 1.7) {
+  const D = ABOARD_DECK;
+  const ty = types[D.type_id];
+  if (!ty || ty.kind !== "Deck" || !Array.isArray(ty.size)) return { why: `structure_types.ron has no Deck called "${D.type_id}"` };
+  const tops = (floors || []).map((s) => s.top).filter((t) => t > 0.01 && t < bodyHeight - 0.01);
+  if (!tops.length) return { why: "the home has no upper floor (no floor slab over the ground) to take the deck's height from" };
+  const top = Math.max(...tops);
+  const [w, h, d] = ty.size;
+  if (bodyHeight - (top + eyeM) < D.HEADROOM_M) return { why: `the home is ${bodyHeight} m tall: no room for an eye ${eyeM} m over a ${top} m deck` };
+  // Ground rooms no slab lies over: open to the roof.
+  const overlaps = (z, s) => {
+    const [x0, x1] = [Math.min(s.a[0], s.b[0]), Math.max(s.a[0], s.b[0])];
+    const [z0, z1] = [Math.min(s.a[1], s.b[1]), Math.max(s.a[1], s.b[1])];
+    return Math.min(x1, z.origin[0] + z.size[0]) - Math.max(x0, z.origin[0]) > 0.01 && Math.min(z1, z.origin[2] + z.size[2]) - Math.max(z0, z.origin[2]) > 0.01;
+  };
+  const open = (zones || [])
+    .filter((z) => Math.abs(z.origin[1]) < 0.01 && !(floors || []).some((s) => overlaps(z, s)))
+    .sort((a, b) => b.size[0] * b.size[2] - a.size[0] * a.size[2]);
+  const room = open[0];
+  if (!room) return { why: "no ground room is open to the roof (every one has a floor slab over it)" };
+  const cx = room.origin[0] + room.size[0] / 2;
+  const cz = room.origin[2] + room.size[2] / 2;
+  // The ground the legs use: the deck, the walk off its south edge and on, and the placement north of it.
+  const area = [cx - w / 2, cx + w / 2, cz - d / 2 - D.PLACED_GAP_M - 0.5, cz + d / 2 + D.WALK_ON_M + 1.0];
+  if (area[2] < room.origin[2] || area[3] > room.origin[2] + room.size[2] || area[0] < room.origin[0] || area[1] > room.origin[0] + room.size[0]) {
+    return { why: `${room.id} is too small for the deck and its walk` };
+  }
+  const across = (walls || []).find((wl) => wl.base < top + eyeM && wl.base + wl.height > 0.4 && segmentHitsRect(wl.a, wl.b, ...area));
+  if (across) return { why: `a wall stands across the deck's walk in ${room.id}: (${across.a}) to (${across.b})` };
+  const pos = [cx, top - h, cz];
+  const f = (v) => Number(v.toFixed(3));
+  return {
+    type_id: D.type_id,
+    size: [w, h, d],
+    top_m: top,
+    room: room.id,
+    pos,
+    console: `add_structure ${D.type_id} ${f(pos[0])} ${f(pos[1])} ${f(pos[2])} 0`,
+    stand: [cx, top + eyeM, cz + d / 2 - D.EDGE_M],
+    yaw: yawAlong(0, 1),
+    edge_m: D.EDGE_M,
+    walk_on_m: D.WALK_ON_M,
+    placed_eye: [cx, top + eyeM, cz - d / 2 - D.PLACED_GAP_M],
   };
 }
 
@@ -344,13 +518,20 @@ function readPlanetGravity(text) {
 function readTreeData(repo, readFile = (p) => require("fs").readFileSync(p, "utf8")) {
   const rd = (...p) => readFile(path.join(repo, ...p));
   const types = readStructureTypes(rd("data", "blueprints", "structure_types.ron"));
-  const placed = readHomeStructures(rd("data", "homes", "homestead.ron"));
+  const home = rd("data", "homes", "homestead.ron");
+  const placed = readHomeStructures(home);
+  const floors = readHomeFloors(home);
+  const deck = pickAboardDeck(types, readHomeZones(home), floors, readHomeWalls(home), readHomeHeight(home));
   return {
     falls: readFalls(rd("data", "medical", "falls.ron")),
     gravity_m_s2: readGravity(rd("data", "game.csv")),
     effects: readEffects(rd("data", "status_effects.csv")),
     stairs: pickStairs(types, placed),
-    ladder: pickLadder(types, placed),
+    ladder: pickLadder(types, placed, 1.7, floors),
+    /// The homestead's floor slabs (ship homes increment 7): where an upper floor is.
+    floors,
+    /// The deck the walk legs aboard step off, or { why } it cannot be placed.
+    deck,
     planet: {
       ...PLANET,
       ...readPlanetGravity(rd("data", "planets", `${PLANET.body}.ron`)),
@@ -472,11 +653,13 @@ const ALL_LEGS = [...ABOARD_LEGS.slice(0, 1), ...STAIRS_LEGS, ...ABOARD_LEGS.sli
 
 /**
  * Judge one run. `run` = { data (readTreeData's), entry (the first look after world entry),
- * planet (where the planet legs ran, when they were planned), legs: [{ id, mode, kind:
- * "walk"|"stairs_down"|"ladder"|"placement"|"planet_fall"|"planet_placement", start [x, y, z] (aboard),
- * hang_s (a ladder's), body (a planet leg's), before, after }], panics, builtin_data [lines],
- * other_build }. Returns { checks: [{ id, ok, detail }], ok, observed: { <leg>: what was seen,
- * for the report } }.
+ * planet (where the planet legs ran, when they were planned), origin (the home's corner in the
+ * camera's frame), deck_console ({ line, said }: the console's answer for the rig's deck aboard),
+ * legs: [{ id, mode, kind: "deck"|"stairs_down"|"ladder_hatch"|"placement"|"planet_fall"|
+ * "planet_placement"|"planet_deck" (and, in runs saved before 2026-10-21, "walk"|"ladder"), start
+ * [x, y, z] (aboard), deck_m (a deck's), hang_s (an old ladder leg's), body (a planet leg's),
+ * before, after }], panics, builtin_data [lines], other_build }. Returns { checks: [{ id, ok,
+ * detail }], ok, observed: { <leg>: what was seen, for the report } }.
  */
 function judgeFalls(run) {
   const checks = [];
@@ -510,6 +693,21 @@ function judgeFalls(run) {
     );
   }
 
+  // The rig's deck aboard (ship homes increment 7): what the build editor's console answered the
+  // line that places it (the showcase `console` verb's run.log line). A diagnosis, not the proof:
+  // each walk leg's `stood_on_deck` is the eye measured standing on it.
+  if (legs.some((l) => l && l.kind === "deck")) {
+    const dc = run.deck_console || null;
+    const said = dc && typeof dc.said === "string" ? dc.said : null;
+    check(
+      "deck_placed",
+      !!said && /^added structure #\d+ \(deck\)/.test(said),
+      !dc
+        ? "the rig recorded no console answer for its deck (the run.log has no \"Showcase: console\" line: the request was never read, or the build is older than the console verb)"
+        : `the console answered "${said === null ? "(nothing)" : said}" to "${dc.line}"` + (said && /^added structure/.test(said) ? "" : ": the deck was not placed (engine/ipc.rs console_this_session, gui/pages/construction.rs exec_construction_command)")
+    );
+  }
+
   for (const leg of legs) {
     const id = leg.id;
     const before = leg.before || null;
@@ -519,7 +717,9 @@ function judgeFalls(run) {
       continue;
     }
     const onPlanet = leg.kind === "planet_fall" || leg.kind === "planet_placement" || leg.kind === "planet_deck";
-    const deckM = leg.kind === "planet_deck" ? num(leg.deck_m) : NaN;
+    // A deck walk: on a planet (built of blueprint pieces) or aboard (the rig's own deck piece).
+    const isDeck = leg.kind === "planet_deck" || leg.kind === "deck";
+    const deckM = isDeck ? num(leg.deck_m) : NaN;
     const isPlacement = leg.kind === "placement" || leg.kind === "planet_placement";
     const drop = dropOf(after.frames, onPlanet ? PLANET_DROP : ABOARD_DROP);
     const hb = healthOf(before);
@@ -543,7 +743,7 @@ function judgeFalls(run) {
       mode: after.falls && after.falls.mode,
       where: onPlanet ? `on ${leg.body}` : "aboard",
       ...(leg.kind === "planet_fall" ? { climb_m_s: num(leg.climb_m_s), hold_s: num(leg.hold_s) } : {}),
-      ...(leg.kind === "planet_deck" ? { deck_m: deckM, walk_m_s: num(leg.walk_m_s), hold_s: num(leg.hold_s) } : {}),
+      ...(isDeck ? { deck_m: deckM, walk_m_s: num(leg.walk_m_s), hold_s: num(leg.hold_s) } : {}),
       gravity_m_s2: gGame,
       health_before: hb,
       health_after: ha,
@@ -614,15 +814,21 @@ function judgeFalls(run) {
       continue;
     }
 
+    if (leg.kind === "ladder_hatch") {
+      judgeLadderHatch({ check, id, leg, drop, data, origin: run.origin, lb, la, last, g, newWounds, hb, ha });
+      if (drop) seen.peak_held_s = drop.peak_held_s;
+      continue;
+    }
+
     // The drop happened: without it, "no wound" is a pass that proves nothing.
     const minDrop = onPlanet && !isPlacement ? planetMinDrop(data.falls, g) : LIMITS.MIN_DROP_M;
     const dropped = drop && drop.drop_m >= minDrop;
     let startOk = isPlacement;
     let startNote = "";
-    if (leg.kind === "planet_deck") {
+    if (isDeck) {
       // Stood ON the deck before walking off it: the eye began at its highest (standing, not
-      // falling), the deck's height over the ground it came to rest on after. The drop itself is
-      // judged below like any planet fall's.
+      // falling), the deck's height over the floor it came to rest on after. The drop itself is
+      // judged below like any fall's. Aboard the start is also where the rig stood it.
       const over = drop ? drop.first_y - drop.rest_y : NaN;
       const standing = drop && Math.abs(drop.peak_y - drop.first_y) <= LIMITS.PLANET_STAND_M;
       const onDeck = standing && Number.isFinite(deckM) && Math.abs(over - deckM) <= LIMITS.DECK_TOL_M;
@@ -630,15 +836,18 @@ function judgeFalls(run) {
         `${id}.stood_on_deck`,
         onDeck,
         !drop
-          ? "the recording has under two frames on the planet walk: no camera track to read"
-          : `before walking off, the eye stood ${f2(over)} m over the ground it came to rest on (the deck is ${f2(deckM)} m, at most ${LIMITS.DECK_TOL_M} off)` +
+          ? `the recording has under two frames${onPlanet ? " on the planet walk" : ""}: no camera track to read`
+          : `before walking off, the eye stood ${f2(over)} m over the ${onPlanet ? "ground" : "floor"} it came to rest on (the deck is ${f2(deckM)} m, at most ${LIMITS.DECK_TOL_M} off)` +
               (onDeck
                 ? ": on the deck"
                 : !standing
                   ? `, but it was not standing there: it rose ${f2(drop.peak_y - drop.first_y)} m after the recording began`
-                  : ": the walk did not stand on the built deck, it went through it to the ground (the planet walk's floor: planet_build::built_floor_radius, surface_move::walk_rest)")
+                  : onPlanet
+                    ? ": the walk did not stand on the built deck, it went through it to the ground (the planet walk's floor: planet_build::built_floor_radius, surface_move::walk_rest)"
+                    : ": the body was not standing on the deck the rig placed (no deck there: see deck_placed; or the floor under the body does not count it: engine/footing.rs floor_under, ship::structure::walk_surface)")
       );
-      startOk = true;
+      startOk = onPlanet || (drop && Array.isArray(leg.start) && Math.hypot(drop.first_cam[0] - leg.start[0], drop.first_cam[2] - leg.start[2]) <= LIMITS.START_TOL_M);
+      if (!onPlanet && drop) startNote = `, starting at (${drop.first_cam.map(f2).join(", ")}) for (${(leg.start || []).map(f2).join(", ")})`;
     } else if (drop && !isPlacement && onPlanet) {
       // Standing on the ground when the key went down, and back on the same ground after.
       startOk = Math.abs(drop.first_y - drop.rest_y) <= LIMITS.PLANET_STAND_M;
@@ -657,13 +866,13 @@ function judgeFalls(run) {
             (dropped
               ? ""
               : `: under ${f2(minDrop)} m, so ` +
-                (onPlanet
-                  ? leg.kind === "planet_deck"
-                    ? "the walk never went off the deck from standing on it (it stood on the ground under the deck, or never reached its edge)"
-                    : `the climb never lifted the body that high (Space held ${f2(leg.hold_s)} s at the ${f2(leg.climb_m_s)} m/s the game reported: a slower climb than reported, the key never reaching the walk, or a camera park's pin)`
-                  : leg.kind === "stairs_down"
-                    ? "the walk never went down the stairs (it never stood on the top tread, or never moved)"
-                    : "the walk never went off the top") +
+                (isDeck
+                  ? `the walk never went off the deck from standing on it (it stood on the ${onPlanet ? "ground" : "floor"} under the deck, or never reached its edge)`
+                  : onPlanet
+                    ? `the climb never lifted the body that high (Space held ${f2(leg.hold_s)} s at the ${f2(leg.climb_m_s)} m/s the game reported: a slower climb than reported, the key never reaching the walk, or a camera park's pin)`
+                    : leg.kind === "stairs_down"
+                      ? "the walk never went down the stairs (it never stood on the top tread, or never moved)"
+                      : "the walk never went off the top") +
                 " and this leg says nothing about falls")
     );
     if (!dropped) continue;
@@ -762,6 +971,82 @@ function judgeFalls(run) {
   return { checks, ok: checks.every((c) => c.ok), observed };
 }
 
+/**
+ * The ladder through the hatch (ship homes increment 7, `realistic_ladder` since 2026-10-21): the
+ * climber stood in the hatch's hole facing the ladder, Space held to its top, then forward held off
+ * the top across the gate (engine/footing.rs `ladder_gates`, open to a body ON the ladder) onto the
+ * upper floor. Judged on the camera track and the body:
+ *   climbed         the eye reached the ladder's top (its hold, top + eye + 0.2 m);
+ *   on_upper_floor  the last frame stands on the upper floor: the eye at the floor's height + eye,
+ *                   over a slab of that height, past the ladder's line (the gate's) the way off it.
+ *                   A gate that does not let the climber through leaves it hanging at the top over
+ *                   the hole; a body that falls down the hole ends on the floor below;
+ *   no_fall         no landing harder than the step from the top rung's hold down onto the floor
+ *                   (0.2 m: 1.98 m/s, which the walk hands to the body as a landing that cannot
+ *                   hurt). A fall from the top down the hole lands at about 7.9 m/s;
+ *   no_wound, health  nothing hurt.
+ * `origin`: the home's corner in the camera's frame (the manifest's).
+ */
+function judgeLadderHatch({ check, id, leg, drop, data, origin, lb, la, last, g, newWounds, hb, ha }) {
+  const L = data.ladder || null;
+  const H = L && L.hatch;
+  if (!H) {
+    check(`${id}.hatch`, false, "the run's tree data has no ladder climbing through a hatch to a floor at its top (data/homes/homestead.ron's floors and ladder-1)");
+    return;
+  }
+  const o = Array.isArray(origin) ? origin.map(Number) : [0, 0, 0];
+  if (!drop) {
+    check(`${id}.climbed`, false, "the recording has under two frames: no camera track to read");
+    return;
+  }
+  const hang = o[1] + L.hang_eye_m;
+  const floorEye = o[1] + H.floor_eye_m;
+  check(
+    `${id}.climbed`,
+    drop.peak_y >= hang - 0.1,
+    `the eye rose to y ${f2(drop.peak_y)} at its highest; the ladder's top holds it at ${f2(hang)}` +
+      (drop.peak_y >= hang - 0.1 ? "" : `: the climb never reached the top (Space held ${f2(leg.climb_s)} s at the ladder, from (${(leg.start || []).map(f2).join(", ")}))`)
+  );
+  const end = drop.frames[drop.frames.length - 1].cam;
+  const [hx, hz] = [end[0] - o[0], end[2] - o[2]];
+  const past = (hx - L.pos[0]) * H.dir[0] + (hz - L.pos[2]) * H.dir[1];
+  const standing = Math.abs(end[1] - floorEye) <= 0.05;
+  const overFloor = floorAt(data.floors, H.floor_m, hx, hz);
+  const ok = standing && overFloor && past > 0;
+  const at = `(${end.slice(0, 3).map(f2).join(", ")})`;
+  check(
+    `${id}.on_upper_floor`,
+    ok,
+    ok
+      ? `it ended standing on the upper floor at ${at}, ${f2(past)} m past the ladder's top the way off it: the hatch's gate let the climber through`
+      : Math.abs(end[1] - hang) <= 0.05 && !overFloor
+        ? `it ended hanging at the ladder's top over the hatch at ${at}: the gate across the ladder's top did not let the climber through onto the floor (engine/footing.rs ladder_gates; shut_gates leaves it out only for a body on the ladder)`
+        : Math.abs(end[1] - (o[1] + L.pos[1] + EYE_DEFAULT_M)) <= 0.1
+          ? `it ended back on the floor below at ${at}: it fell down the hatch, or let go of the ladder`
+          : `it ended at ${at}, not standing on the upper floor (the eye at y ${f2(floorEye)}, over a slab at ${f2(H.floor_m)} m, past the ladder's line the way off it)`
+  );
+  const stepM = L.hang_eye_m - H.floor_eye_m;
+  const vStep = Math.sqrt(2 * g * Math.max(0, stepM));
+  const tol = Math.max(LIMITS.SPEED_TOL_M_S, vStep * LIMITS.SPEED_TOL_SHARE);
+  const n = la - lb;
+  const soft = n === 0 || (n === 1 && Number.isFinite(last) && last <= vStep + tol);
+  const vHole = Math.sqrt(2 * g * (L.hang_eye_m - (L.pos[1] + EYE_DEFAULT_M)));
+  check(
+    `${id}.no_fall`,
+    soft,
+    n === 0
+      ? `no landing reached the body (${lb} before and after)`
+      : soft
+        ? `one landing reached the body, at ${f2(last)} m/s: the ${f2(stepM)} m step from the top rung's hold down onto the floor (at most ${f2(vStep + tol)} m/s), which cannot hurt`
+        : `${Number.isFinite(n) ? n : "?"} landing(s) reached the body, the last at ${f2(last)} m/s: harder than the ${f2(stepM)} m step off the top (at most ${f2(vStep + tol)} m/s). A fall from the top down the hatch lands at ${f2(vHole)} m/s`
+  );
+  check(`${id}.no_wound`, newWounds.length === 0, newWounds.length ? `new wound(s) ${newWounds.join(", ")} from climbing a ladder` : "no new wound");
+  check(`${id}.health`, Math.abs(hb - ha) <= LIMITS.HEALTH_TOL, `health ${f2(hb)} -> ${f2(ha)}`);
+}
+
+/** The eye's height over the feet the judge assumes when the data does not say (src/renderer/camera.rs `eye_height`). */
+const EYE_DEFAULT_M = 1.7;
+
 /** The least drop a planet fall leg must make at gravity `g`: LIMITS.PLANET_MIN_DROP_SHARE over the
  *  height whose landing reaches falls.ron's first harm (v^2 / 2 g). */
 function planetMinDrop(falls, g) {
@@ -815,9 +1100,16 @@ module.exports = {
   readEffects,
   readStructureTypes,
   readHomeStructures,
+  readHomeFloors,
+  readHomeWalls,
+  readHomeZones,
+  readHomeHeight,
+  floorAt,
   pickStairs,
   pickLadder,
   pickDeck,
+  ABOARD_DECK,
+  pickAboardDeck,
   readTreeData,
   readSpeed,
   harmAt,

@@ -433,24 +433,38 @@ and the vehicle bay would both be taller if they could be.
 
 ## What a second storey needs
 
-Multi-storey interiors do not work yet, and per the brief the fixes belong with
-the construction tool rather than here. The assessment on the
-`worktree-agent-a6dc7a9251136237c` branch lists four blockers, all still true:
+**Shipped (ship homes increment 7, 2026-10-20): the homestead has its upper
+floor.** The layout, and what was built differently from this plan, is in
+[homestead-upper-floor.md](homestead-upper-floor.md), section 12 "As built";
+the build plan is [ship-homes-increment-7-plan.md](ship-homes-increment-7-plan.md).
+This section was written when multi-storey interiors did not work, and the
+assessment on the `worktree-agent-a6dc7a9251136237c` branch listed four
+blockers. What became of each:
 
-1. **`InteriorWall` has no base Y.** It is two 2-D endpoints plus a height rising
-   from the zone floor, so an upper-storey wall cannot be authored at all.
-2. **Collision is flattened to one plane.** `ship_segments_impl` in
-   `src/ship/wall_collision.rs` uses the zone origin's x and z and never its y,
-   so an upper deck's walls would block the lower deck.
-3. **The footing sampler takes the first room whose XZ box contains the player**
-   (`src/lib.rs`, commented "Room floors are coplanar in the home"), so two rooms
-   stacked at the same x/z are ambiguous.
-4. **There is no single canonical layout schema.** `ShipDef`/`DeckDef` has decks
-   and is only read by the headless relay; `Zone`/`HomeStructure` is what the
-   renderer draws and is single-plane; `data/ships/layout_medium.ron` is a third
-   shape with every room at y = 0.
+1. **`InteriorWall` had no base Y.** It has one now (`InteriorWall::base`, with
+   an opening's sill measured from it), so an upstairs wall stands on its storey.
+2. **Collision was flattened to one plane.** A wall segment carries the heights
+   it spans (`WallSegment`'s `y0` and `y1`, `src/ship/wall_collision.rs`), so an
+   upstairs wall stops a body upstairs only.
+3. **The footing sampler took the first room whose XZ box held the player.**
+   Footing now reads the floor slabs (`HomeStructure::floors`) and the storeys
+   they make (`HomeStructure::storeys`, `src/engine/footing.rs`), so a body
+   stands on the floor it is over, upstairs or down.
+4. **There was no single canonical layout schema.** The storeys are derived from
+   the one the renderer, the relay's room checks and the game all read,
+   `HomeStructure`: the bands between the ground, each slab's top and the roof,
+   with a wall in the band of its base and a zone in the band of its floor.
+   `ShipDef`/`DeckDef` and `data/ships/layout_medium.ron` were not part of that
+   work.
 
-What this plan would do with a second storey, so the work has a target:
+What the plan below asked for, and what the homestead now has: the quiet wing is
+upstairs, the dining room and the second bedroom took its ground floor, and the
+greenhouse rises to the 6 m roof (its air, 5,607 m3, is the room's own: see
+homestead-upper-floor.md section 12 and the Air loop in
+`data/machines/home.ron`). The greenhouse mezzanine and the vehicle bay's gantry
+are not built.
+
+What this plan would do with a second storey, so the work had a target:
 
 - **The quiet wing goes up.** Bedroom, dressing room, bathroom, wet room and
   study move to a first floor over the house's north half, reached by a stair off

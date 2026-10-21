@@ -685,8 +685,8 @@ carbon monoxide this guide is about.
   metre of wall and ceiling and each degree it is warmer than the air
   around it, the University of Georgia's figure for a glass greenhouse.
   So one heater flat out holds a 300 m3 room about 1 C warmer and never
-  reaches 24 C; it warms the family home's 2,970 m3 greenhouse by about
-  0.16 C, and the whole home's air by a few hundredths of a degree. In a
+  reaches 24 C; it warms the family home's 5,607 m3 greenhouse by about
+  0.13 C, and the whole home's air by a few hundredths of a degree. In a
   mushroom rack's small fruiting tent it would run about 25 C over its
   room if its thermostat did not stop it at 24 C. That is the real lesson
   of the Georgia sizing rule above: a heater has to match the heat the
@@ -739,7 +739,7 @@ carbon monoxide this guide is about.
   empty.
 - **The stove breathes air from outside your home, through its kit.**
   Fire needs oxygen: about 1.1 kg for each kilogram of wood, about 107 kg
-  a day at full, against the roughly 2,900 kg in a home's air, and a
+  a day at full, against the roughly 3,100 kg in a home's air, and a
   sealed home aboard a ship has nothing coming in to replace it. The US
   federal standard for manufactured homes allows a wood stove only with
   "a combustion air inlet" that
@@ -1139,7 +1139,7 @@ used here and the wording is not.
   and `data/machines/home_solo.ron`); the heat balance of each air, its
   walls' single-glass heat loss and its sources (`src/systems/farming/heat.rs`,
   THE HEAT in `data/garden/humidity.ron`), and the tests that measure the
-  300 m3 room's 1 C, the greenhouse-sized room's 0.16 C and the thermostat
+  300 m3 room's 1 C, the greenhouse-sized room's 0.13 C and the thermostat
   (`src/systems/farming/heat_tests.rs`);
   the heat pump and the wood stove (`heat_pump` and `wood_stove` in
   `data/machines/home.ron`, where their sources are quoted and the stove's

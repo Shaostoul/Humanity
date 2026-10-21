@@ -33,9 +33,13 @@
 //! sun is at -4.5 degrees, so the game's sun rises a few degrees north of
 //! where it really does; at the equinoxes the error is nil and at the
 //! solstices it is 23.4 degrees. The planets and the Moon come from the
-//! orbit model in `cosmos.rs`, which maps the ecliptic into the world with a
-//! reflection (BUG-140), so their places among these stars are not right
-//! either. The stars, the Milky Way and the constellations are.
+//! orbit model in `cosmos.rs`, which turns the ecliptic into the world by a
+//! proper rotation (ecliptic north up; until BUG-140 was fixed on 2026-10-21
+//! it was a mirror that put them at minus their longitudes). They stand at
+//! their real ecliptic longitudes, near their real right ascensions among
+//! these stars, but for the same missing tilt the ecliptic lies on this
+//! sky's equator, so a planet can sit up to 23.4 degrees off its real
+//! declination. The stars, the Milky Way and the constellations are right.
 
 use glam::{DQuat, DVec3};
 
@@ -193,12 +197,14 @@ mod tests {
     }
 
     /// The sun's world direction from the orbit model: ecliptic longitude
-    /// `lambda` lands at world (cos, 0, sin), the mapping `cosmos.rs` uses.
+    /// `lambda` put into the world by `cosmos::world_from_ecliptic`, the
+    /// mapping the orbit model uses (since BUG-140, 2026-10-21; the stars'
+    /// placement does not depend on it, because the turn follows the sun).
     fn model_sun(n: f64) -> DVec3 {
         let l = (280.460 + 0.985_647_4 * n).to_radians();
         let g = (357.528 + 0.985_600_3 * n).to_radians();
         let lambda = l + (1.915 * g.sin() + 0.020 * (2.0 * g).sin()).to_radians();
-        DVec3::new(lambda.cos(), 0.0, lambda.sin())
+        crate::cosmos::world_from_ecliptic(DVec3::new(lambda.cos(), lambda.sin(), 0.0))
     }
 
     /// Altitude and compass azimuth (degrees) of a catalogue direction for an

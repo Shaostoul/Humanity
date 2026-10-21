@@ -15,17 +15,18 @@
 //! a deck's is; a room upstairs has no floor of its own, only its slabs, so a stairwell or a shaft
 //! inside an upstairs room's box is a hole you fall through, not air you walk on. The same file
 //! keeps what moving between storeys needs besides the floor: the ceiling a jump stops under
-//! (`Footing::ceiling_over`), the ladder a body is at (`ladder_at`), the elevator's stops, rides
-//! and calls (`elevator_tick`), and the two gates that keep a walk-in drop shut: an elevator's
-//! landing door while its car is elsewhere (`elevator_gates`) and a ladder hatch's gate
-//! (`ladder_gates`).
+//! (`Footing::ceiling_over`) and the slab edges that keep a head risen beside an opening from
+//! going under a slab (`slab_edges`), the ladder a body is at (`ladder_at`), the elevator's stops,
+//! rides and calls (`elevator_tick`, `pause_elevators`), and the two gates that keep a walk-in
+//! drop shut: an elevator's landing door while its car is elsewhere (`elevator_gates`) and a
+//! ladder hatch's gate (`ladder_gates`).
 
 use std::collections::HashMap;
 
 use glam::Vec3;
 
 use crate::gui::RoomBounds;
-use crate::renderer::camera::Underfoot;
+use crate::renderer::camera::{Underfoot, HEAD_ABOVE_EYE_M};
 use crate::ship::home_structure::{HomeStructure, STOREY_EPS};
 use crate::ship::ship_structure::ShipStructure;
 use crate::ship::structure::{self, StructureKind, StructureType};
@@ -55,6 +56,21 @@ pub const CAR_AT_STOP_M: f32 = 0.02;
 /// floor it guards: over the eye of anyone standing there, so it stops the whole knee-to-eye band
 /// (`WallSegment::stops_body`).
 pub const GATE_HEIGHT_M: f32 = 2.2;
+
+/// How much wider than its ladder a hatch's gap is on each side, metres (ship homes increment 7
+/// review, 2026-10-21): the guards at a ladder's top leave the ladder's width plus this each side
+/// (0.8 m over the 0.6 m ladder), and the gate across the top spans the whole gap
+/// (`ladder_gates`). A body is 0.6 m across (`wall_collision::PLAYER_RADIUS`) and a balustrade's
+/// end reaches 0.03 m into the gap each side, so a gap of the ladder's own 0.6 m held a climber
+/// wherever the wall sweep settled (at 90 frames a second or more, or at 60 walking slowly);
+/// 0.8 m leaves 0.14 m to spare. The homestead's guards G4 and G5 end at the gate's ends
+/// (data/homes/homestead.ron, `the_homesteads_hatch_gate_spans_the_gap_between_its_guards`).
+pub const HATCH_SIDE_CLEAR_M: f32 = 0.1;
+
+/// How far over a floor slab's underside a head must be before the slab's edge stops the body
+/// (`slab_edges`), metres: a body under a slab is held with its head AT the underside
+/// (`CameraController::keep_head_under_ceiling`), and the slab it is under must not push it.
+const SLAB_EDGE_HEAD_M: f32 = 0.02;
 
 /// A ladder is the one a body is at only while its feet are no more than this under the ladder's
 /// foot or over its top, metres (`ladder_at`): a ladder on another storey at the same x and z is
@@ -185,7 +201,8 @@ impl<'a> Footing<'a> {
     /// The underside of the lowest floor slab over a body whose eye is at `at` (world metres), if
     /// there is one: the ceiling a jump stops under (`CameraController::set_ceiling`). A slab over
     /// the point counts only while the eye is under its underside: a body already beside it with
-    /// its head through its level (climbing past its edge) is not under it.
+    /// its head through its level (climbing past its edge) is not under it, and the slab's edge
+    /// keeps such a body from moving under it (`slab_edges`, in the sweep's gates).
     pub fn ceiling_over(&self, at: Vec3) -> Option<f32> {
         let ship = self.ship?;
         let mut best: Option<f32> = None;
@@ -212,9 +229,9 @@ impl<'a> Footing<'a> {
     /// from where the frame began, after the walk), so a long frame's substep can put `at` part way
     /// into or through a wall. The floor is read where that same sweep holds the body instead, so a
     /// long frame walking into a wall does not step onto a deck on its far side. `walls` are the
-    /// home's walls (`EngineState::wall_colliders`) and `gates` the shut landing doors and hatch
-    /// gates (`elevator_gates`, `ladder_gates`), so a substep does not read the floor down a shaft
-    /// its gate keeps the body out of. The closed doors and built pieces the sweep adds are
+    /// home's walls (`EngineState::wall_colliders`) and `gates` the shut landing doors, hatch
+    /// gates and slab edges (`shut_gates`), so a substep does not read the floor down a shaft its
+    /// gate keeps the body out of. The closed doors and built pieces the sweep adds are
     /// gathered after the walk and are not counted, and the most a missed one can do is lift the
     /// body by one step up (`STEP_UP_M`, 0.6 m) for part of a frame, a drop that lands at 3.4 m/s,
     /// far below the slowest landing that hurts (data/medical/falls.ron).
@@ -354,12 +371,27 @@ pub fn elevator_tick(ship: &ShipStructure, cars: &mut ElevatorCars, feet: Vec3, 
     rides
 }
 
+/// PLAY HAS LEFT FIRST PERSON (lib.rs, the elevator tick's other branch: the third-person or
+/// orbit camera, the build editor, or off the ship): nobody rides, and every car stays where it
+/// is, at its height and heading for its stop, until first person comes back and `elevator_tick`
+/// runs again. The other cameras never move the body, so a rider who changes camera at the top
+/// is still standing on the car when they come back. lib.rs used to clear every car's state
+/// here, which put each car back at the bottom: back in first person the rider at the top fell
+/// the storey (`leaving_first_person_on_the_elevator_keeps_the_car_where_it_is`, ship homes
+/// increment 7 review). A car whose elevator is no longer aboard (the build editor took it away)
+/// is dropped by the next `elevator_tick`.
+pub fn pause_elevators(cars: &mut ElevatorCars) {
+    for car in cars.values_mut() {
+        car.2 = false;
+    }
+}
+
 /// The four sides of a footprint `w` x `d` turned `yaw` about `pos`, as gate segments standing from
 /// world height `y0` for [`GATE_HEIGHT_M`].
 fn footprint_sides(pos: Vec3, yaw: f32, w: f32, d: f32, y0: f32) -> [WallSegment; 4] {
     let (hw, hd) = (w * 0.5, d * 0.5);
     let c = [to_world(pos, yaw, -hw, -hd), to_world(pos, yaw, hw, -hd), to_world(pos, yaw, hw, hd), to_world(pos, yaw, -hw, hd)];
-    std::array::from_fn(|k| WallSegment { a: c[k], b: c[(k + 1) % 4], half_thickness: 0.05, y0, y1: y0 + GATE_HEIGHT_M })
+    std::array::from_fn(|k| WallSegment { a: c[k], b: c[(k + 1) % 4], half_thickness: 0.05, y0, y1: y0 + GATE_HEIGHT_M, kind: wall_collision::SegmentKind::Wall })
 }
 
 /// THE LANDING DOORS (plan decision 9): at every stop of every elevator where its car is not
@@ -409,6 +441,8 @@ pub fn lift_landing_open(ship: &ShipStructure, cars: &ElevatorCars, at: Vec3) ->
 ///   over the hatch, holding on, and hold Shift to climb down.
 ///
 /// Walking into the hatch from the floor, which used to be a 3 m drop, is a gate that stops you.
+/// The gate spans the whole gap the hatch's guards leave: the ladder's width and
+/// [`HATCH_SIDE_CLEAR_M`] each side.
 pub fn ladder_gates(ship: &ShipStructure) -> Vec<WallSegment> {
     let mut out = Vec::new();
     for (zi, zone) in ship.zones.iter().enumerate() {
@@ -427,13 +461,14 @@ pub fn ladder_gates(ship: &ShipStructure) -> Vec<WallSegment> {
             }
             let pos = Vec3::new(ps.pos.0, ps.pos.1, ps.pos.2) + o;
             let yaw = ps.rot_deg.to_radians();
-            let (hw, hd) = (ty.size.0 * 0.5, ty.size.2 * 0.5);
+            let (hw, hd) = (ty.size.0 * 0.5 + HATCH_SIDE_CLEAR_M, ty.size.2 * 0.5);
             out.push(WallSegment {
                 a: to_world(pos, yaw, -hw, 0.0),
                 b: to_world(pos, yaw, hw, 0.0),
                 half_thickness: hd.max(0.05),
                 y0: o.y + top,
                 y1: o.y + top + GATE_HEIGHT_M,
+                kind: wall_collision::SegmentKind::Wall,
             });
         }
     }
@@ -441,16 +476,98 @@ pub fn ladder_gates(ship: &ShipStructure) -> Vec<WallSegment> {
 }
 
 /// Every gate shut this frame, for the sweep and the walk's substeps (lib.rs): the elevators'
-/// landing doors whose car is elsewhere (`elevator_gates`), and the ladder hatches' gates
+/// landing doors whose car is elsewhere (`elevator_gates`), the ladder hatches' gates
 /// (`ladder_gates`) unless the body is `on_ladder` (`CameraController::on_ladder`), which they let
-/// through. Nothing without a ship.
+/// through, and the floor slabs' edges (`slab_edges`), which stop only a body whose head has
+/// risen past a slab beside it. Nothing without a ship.
 pub fn shut_gates(ship: Option<&ShipStructure>, cars: &ElevatorCars, on_ladder: bool) -> Vec<WallSegment> {
     let Some(ship) = ship else { return Vec::new() };
     let mut gates = elevator_gates(ship, cars);
     if !on_ladder {
         gates.extend(ladder_gates(ship));
     }
+    gates.extend(slab_edges(ship));
     gates
+}
+
+/// THE FLOOR SLABS' EDGES (ship homes increment 7 review, 2026-10-21): every stretch of a slab's
+/// edge that no other slab of its body at the same height continues past (an opening's rim: the
+/// stairwell, a shaft, a ladder hatch, the greenhouse; the body's own sides), as a segment that
+/// stops a body whose head is over the slab's underside while its feet are more than a step
+/// ([`STEP_UP_M`]) under its top. The ceiling a jump stops under counts a slab only while the
+/// eye is under it (`Footing::ceiling_over`), so without its edge a body whose head had risen
+/// beside an opening (a jump on the stair's lower steps, a climb part way up a ladder) could move
+/// under the slab with its head up through the floor overhead. Within a step of the top the body
+/// steps up onto the slab instead (the stair's top tread, a ladder's top), so the edge lets it by.
+///
+/// The segment's heights are that rule in the sweep's terms (`WallSegment::stops_body`, which
+/// stops a body whose knee-to-eye band a segment stands across), not a thing standing there: from
+/// the underside less the head's height over the eye (`HEAD_ABOVE_EYE_M`), so it reaches any eye
+/// whose head is over the underside (by more than `SLAB_EDGE_HEAD_M`), up to the top less a step
+/// plus the knee (`wall_collision::KNEE_M`), so it reaches the knee of any body whose feet are
+/// more than a step under the top. Each runs so its left side faces away from the slab: the sweep
+/// pushes a body exactly on the line out of the slab, never into it. No thickness: a body is held
+/// with its edge on the slab's.
+///
+/// Not covered: a body in the middle of a jump measures its step up from the floor it jumped
+/// from (`CameraController::step_up_from`), so a jump whose feet rise to within a step of a slab's
+/// top beside it is let by here and is not stood on the slab by `Footing::floor_under`. In the
+/// homestead that takes a jump from the stair's seventh step or higher, beside a stairwell side
+/// the upper hall's north wall and guard G1 already close.
+pub fn slab_edges(ship: &ShipStructure) -> Vec<WallSegment> {
+    const EPS: f32 = 1e-3;
+    let mut out = Vec::new();
+    for (zi, zone) in ship.zones.iter().enumerate() {
+        if ship.is_away_home(zi) {
+            continue;
+        }
+        let o = zone.origin_vec();
+        let floors = &zone.body.floors;
+        for (si, s) in floors.iter().enumerate() {
+            let (x0, z0, x1, z1) = s.rect();
+            if x1 - x0 < EPS || z1 - z0 < EPS {
+                continue;
+            }
+            let (y0, y1) = (o.y + s.underside() - HEAD_ABOVE_EYE_M + SLAB_EDGE_HEAD_M, o.y + s.top - STEP_UP_M + wall_collision::KNEE_M);
+            // Each side: along x (`along_x`) or along z, at the fixed coordinate `at`, from `lo` to
+            // `hi` along it, and which way is out of the slab (`out_sign`, -1 toward the lower
+            // coordinate).
+            for (along_x, at, lo, hi, out_sign) in [(true, z0, x0, x1, -1.0f32), (true, z1, x0, x1, 1.0), (false, x0, z0, z1, -1.0), (false, x1, z0, z1, 1.0)] {
+                // The stretches of this side another slab of the same height carries on past.
+                let mut covered: Vec<(f32, f32)> = floors
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, n)| *j != si && (n.top - s.top).abs() < STOREY_EPS)
+                    .filter_map(|(_, n)| {
+                        let (nx0, nz0, nx1, nz1) = n.rect();
+                        let (across, along) = if along_x { ((nz0, nz1), (nx0, nx1)) } else { ((nx0, nx1), (nz0, nz1)) };
+                        let past = if out_sign < 0.0 { across.0 < at - EPS && across.1 > at - EPS } else { across.1 > at + EPS && across.0 < at + EPS };
+                        (past && along.1 > lo && along.0 < hi).then(|| (along.0.max(lo), along.1.min(hi)))
+                    })
+                    .collect();
+                covered.sort_by(|a, b| a.0.total_cmp(&b.0));
+                let mut open_from = lo;
+                let mut stretches = Vec::new();
+                for (c0, c1) in covered {
+                    if c0 > open_from + EPS {
+                        stretches.push((open_from, c0));
+                    }
+                    open_from = open_from.max(c1);
+                }
+                if hi > open_from + EPS {
+                    stretches.push((open_from, hi));
+                }
+                for (u0, u1) in stretches {
+                    // Left of a to b is out of the slab: a side at the low coordinate runs
+                    // toward lower `along` for an x side and higher for a z side.
+                    let (from, to) = if (out_sign < 0.0) == along_x { (u1, u0) } else { (u0, u1) };
+                    let point = |u: f32| if along_x { (o.x + u, o.z + at) } else { (o.x + at, o.z + u) };
+                    out.push(WallSegment { a: point(from), b: point(to), half_thickness: 0.0, y0, y1, kind: wall_collision::SegmentKind::Wall });
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The ladder a body whose eye is at `at` is at, as its span (its foot's and its top's world
@@ -928,7 +1045,8 @@ pub(crate) mod test_aboard {
     /// in the slabs: elevator-1's shaft (the elevator at (10, 0, 2), its 1.8 m footprint, x 9.1 to
     /// 10.9 and z 1.1 to 2.9) and a ladder hatch (x 1.5 to 2.5, z 0.9 to 2.1), with ladder-1 at
     /// (2, 0, 2) on the hatch's south edge, guarded upstairs by 1.0 m walls (base 3.0) on three
-    /// sides and on the fourth either side of the ladder's 0.6 m. The hatch, as the homestead's
+    /// sides and on the fourth either side of a 0.8 m gap over the 0.6 m ladder (the ladder's
+    /// width and `HATCH_SIDE_CLEAR_M` each side, where the gate ends). The hatch, as the homestead's
     /// (docs/design/homestead-upper-floor.md section 5), is climbed facing south and stepped off
     /// south over the ladder's top. Teleporter-1 on the ground at (4, 0, 9) is paired with
     /// teleporter-2 upstairs at (6, 3, 4). Not the homestead: another lane is writing its layout.
@@ -947,8 +1065,8 @@ pub(crate) mod test_aboard {
             (a: (1.5, 0.9), b: (1.5, 2.1), base: 3.0, height: 1.0),
             (a: (2.5, 0.9), b: (2.5, 2.1), base: 3.0, height: 1.0),
             (a: (1.5, 0.9), b: (2.5, 0.9), base: 3.0, height: 1.0),
-            (a: (1.5, 2.1), b: (1.7, 2.1), base: 3.0, height: 1.0),
-            (a: (2.3, 2.1), b: (2.5, 2.1), base: 3.0, height: 1.0),
+            (a: (1.5, 2.1), b: (1.6, 2.1), base: 3.0, height: 1.0),
+            (a: (2.4, 2.1), b: (2.5, 2.1), base: 3.0, height: 1.0),
         ],
         structures: [
             (id: "elevator-1", type_id: "elevator", pos: (10.0, 0.0, 2.0)),
@@ -993,6 +1111,15 @@ pub(crate) mod test_aboard {
                 .collect();
             let walls = wall_collision::ship_wall_segments(&ship);
             Aboard { ship, rooms, cars: ElevatorCars::new(), built: Vec::new(), walls }
+        }
+
+        /// The homestead the exe ships (data/homes/shipped/homestead.ron, through
+        /// `HomeDesign::built_in`) as the only zone of a ship, at the origin, so its own metres
+        /// are world metres: its upper floor, stair, elevator and ladder hatch as built.
+        pub(crate) fn homestead() -> Self {
+            let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead is built in");
+            let zone = ShipZone { id: "home".into(), label: String::new(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body: design.body };
+            Self::of(ShipStructure { zones: vec![zone], ..Default::default() })
         }
 
         pub(crate) fn footing(&self) -> Footing<'_> {
@@ -1065,7 +1192,7 @@ mod storey_tests {
     use super::test_aboard::*;
     use super::*;
     use crate::input::bindings::GameAction as A;
-    use crate::renderer::camera::{Camera, CameraController, HEAD_ABOVE_EYE_M};
+    use crate::renderer::camera::{Camera, CameraController, HEAD_ABOVE_EYE_M, WALK_SPEED_MPS};
     use crate::systems::falls::drop_height_m;
 
     const EYE: f32 = EYE_HEIGHT_M;
@@ -1277,7 +1404,7 @@ mod storey_tests {
     }
 
     /// THE LADDER HATCH IS SHUT TO A WALK AND OPEN TO A CLIMBER (plan decision 9). Upstairs, a body
-    /// walking north at the hatch's gap (the ladder's 0.6 m in the guard) is stopped at the gate
+    /// walking north at the hatch's gap (0.8 m in the guard over the 0.6 m ladder) is stopped at the gate
     /// across the ladder's top and does not fall 3 m. From below, a climb (Space) goes through it,
     /// and walking south off the top stands the body on the upper floor. From above, Space at the
     /// gate steps onto the ladder's top rungs, the body walks out over the hatch holding on, and
@@ -1443,5 +1570,347 @@ mod storey_tests {
         assert!(ctl.ground_floor().abs() < 1e-4, "the placement onto the ground floor under the slab left the body resting on {}", ctl.ground_floor());
         frames(&mut ctl, &mut cam, &mut w, 60, "after a placement under the slab");
         assert!(feet(&ctl, &cam).abs() < 1e-4, "a second after the placement under the slab the body stood at {}", feet(&ctl, &cam));
+    }
+
+    /// Run `n` frames of `dt` (`live_frame`): the hardest landing handed over on the way, as the
+    /// height fallen, 0 for none.
+    fn run(ctl: &mut CameraController, cam: &mut Camera, w: &mut Aboard, dt: f32, n: usize) -> f32 {
+        let mut hardest = 0.0f32;
+        for _ in 0..n {
+            live_frame(ctl, cam, dt, w);
+            if let Some(v) = ctl.take_landing() {
+                hardest = hardest.max(drop_height_m(v, G));
+            }
+        }
+        hardest
+    }
+
+    /// A body standing with its eye at `eye` that walks at `pace` metres a second: a slower pace
+    /// is what a load, thirst or an injury makes of the walk (`CameraController::speed_multiplier`).
+    fn pacer(eye: Vec3, pace: f32) -> (CameraController, Camera) {
+        let (mut ctl, cam) = body_at(eye);
+        ctl.speed_multiplier = pace / WALK_SPEED_MPS;
+        (ctl, cam)
+    }
+
+    /// The frame rates the homestead's hatch is walked at, a second, and the paces, metres a second.
+    const HATCH_RATES: [f32; 3] = [30.0, 60.0, 144.0];
+    const HATCH_PACES: [f32; 2] = [3.0, 5.0];
+
+    /// THE HOMESTEAD'S LADDER HATCH LETS A CLIMBER OFF ONTO THE LOBBY AND BACK ON, AT ANY FRAME
+    /// RATE AND PACE (ship homes increment 7 review). ladder-1 at (33, 0, 28) climbs through the
+    /// hatch (x 32.5 to 34.0, z 26.9 to 28.1) and is stepped off south over its top, between the
+    /// guards G4 and G5, onto the lift lobby's floor (the slab at 3.0 from z 28.1). UP: from (33,
+    /// 27.4) in the hatch, Space climbs to the top and W walks south off it, out of the ladder's
+    /// reach, onto the floor (z past 29.2, the feet at 3.0). DOWN: from the lobby at (33, 28.7),
+    /// Space steps onto the ladder's top rungs, W walks north out over the hatch through the same
+    /// gap (z under 27.8), and Shift climbs down to the ground. At 30, 60 and 144 frames a second,
+    /// at 3 and 5 m/s, with no landing harder than the 0.2 m step off the top.
+    ///
+    /// The gap must pass a body (0.6 m across) and the balustrade's 0.06 m at its ends however
+    /// small a frame's step: a wall sweep that settles fully each frame, as it must at any frame
+    /// rate, holds a body in a gap any narrower than 0.66 m.
+    ///
+    /// Seen red first (2026-10-21) with the guards' 0.6 m gap (G4 ending at x 32.7, G5 starting at
+    /// 33.3), on the wall sweep of that day: "the hatch held a climber: [\"up at 60 a second, 3 m/s:
+    /// climbed to 3.20, ended at z 27.96 with the feet at 3.20, hardest landing 0.00 m\", \"down at
+    /// 60 a second, 3 m/s: out over the hatch only to z 28.22, the climb down ended with the feet
+    /// at 3.00, hardest landing 0.00 m\", \"up at 144 a second, 3 m/s: ... z 27.96 ...\", \"down at
+    /// 144 a second, 3 m/s: ... z 28.23 ...\", \"up at 144 a second, 5 m/s: ... z 27.96 ...\",
+    /// \"down at 144 a second, 5 m/s: ... z 28.23 ...\"]". Up, the climber hung at the ladder's top;
+    /// down, the walk was held on the lobby side and Shift took the feet only to the floor there.
+    /// At 30 a second, and at 60 at 5 m/s, a frame's step was long enough for the unsettled sweep
+    /// to carry the body through.
+    #[test]
+    fn the_homesteads_ladder_hatch_lets_a_climber_off_and_on_at_any_frame_rate_and_pace() {
+        let mut wrong = Vec::new();
+        for fps in HATCH_RATES {
+            let dt = 1.0 / fps;
+            let n = |s: f32| (s / dt).round() as usize;
+            for pace in HATCH_PACES {
+                // Up from the hatch and off the top onto the lobby's floor.
+                let mut w = Aboard::homestead();
+                let (mut ctl, mut cam) = pacer(Vec3::new(33.0, EYE, 27.4), pace);
+                cam.yaw = SOUTH;
+                ctl.apply_action(A::Jump, true);
+                let mut hard = run(&mut ctl, &mut cam, &mut w, dt, n(1.5));
+                ctl.apply_action(A::Jump, false);
+                let climbed = feet(&ctl, &cam);
+                ctl.apply_action(A::MoveForward, true);
+                hard = hard.max(run(&mut ctl, &mut cam, &mut w, dt, n(1.2)));
+                ctl.apply_action(A::MoveForward, false);
+                hard = hard.max(run(&mut ctl, &mut cam, &mut w, dt, n(0.5)));
+                let (z, f) = (cam.position.z, feet(&ctl, &cam));
+                if !(climbed > 3.0 && z > 29.2 && (f - 3.0).abs() < 1e-3 && hard < 0.5) {
+                    wrong.push(format!(
+                        "up at {fps} a second, {pace} m/s: climbed to {climbed:.2}, ended at z {z:.2} with the feet at {f:.2}, hardest landing {hard:.2} m"
+                    ));
+                }
+                // Down from the lobby: onto the top rungs, out over the hatch, and down.
+                let mut w = Aboard::homestead();
+                let (mut ctl, mut cam) = pacer(Vec3::new(33.0, 3.0 + EYE, 28.7), pace);
+                cam.yaw = NORTH;
+                ctl.apply_action(A::Jump, true);
+                let mut hard = run(&mut ctl, &mut cam, &mut w, dt, n(0.2));
+                ctl.apply_action(A::Jump, false);
+                ctl.apply_action(A::MoveForward, true);
+                hard = hard.max(run(&mut ctl, &mut cam, &mut w, dt, n(0.6)));
+                ctl.apply_action(A::MoveForward, false);
+                let over = cam.position.z;
+                ctl.apply_action(A::Sprint, true);
+                hard = hard.max(run(&mut ctl, &mut cam, &mut w, dt, n(1.6)));
+                ctl.apply_action(A::Sprint, false);
+                hard = hard.max(run(&mut ctl, &mut cam, &mut w, dt, n(0.3)));
+                let f = feet(&ctl, &cam);
+                if !(over < 27.8 && f.abs() < 1e-3 && hard < 0.5) {
+                    wrong.push(format!(
+                        "down at {fps} a second, {pace} m/s: out over the hatch only to z {over:.2}, the climb down ended with the feet at {f:.2}, hardest landing {hard:.2} m"
+                    ));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "the hatch held a climber: {wrong:#?}");
+    }
+
+    /// THE HOMESTEAD'S HATCH GATE SPANS THE GAP ITS GUARDS LEAVE, AND THE GAP PASSES A BODY. The
+    /// gate across ladder-1's top (`ladder_gates`) ends where the guards beside the ladder (G4 and
+    /// G5, the balustrades along the hatch's south side) end, so a walker upstairs meets a guard
+    /// or the gate at every point of that side; and the gap between those guards' ends is wider
+    /// than a body plus a balustrade's half thickness at each end, so a climber passes it at any
+    /// frame rate (`the_homesteads_ladder_hatch_lets_a_climber_off_and_on_at_any_frame_rate_and_pace`).
+    ///
+    /// Seen red first (2026-10-21) with the guards' 0.6 m gap and the gate the ladder's width:
+    /// "the gap between the guards' ends is 0.60 m, and a body and the balustrade's ends need 0.66 m
+    /// and room to spare (0.76 m)".
+    #[test]
+    fn the_homesteads_hatch_gate_spans_the_gap_between_its_guards() {
+        let w = Aboard::homestead();
+        let gates = ladder_gates(&w.ship);
+        assert_eq!(gates.len(), 1, "the homestead has one ladder hatch: {gates:?}");
+        let g = gates[0];
+        let (ax, az) = g.a;
+        let (dx, dz) = (g.b.0 - ax, g.b.1 - az);
+        let len = (dx * dx + dz * dz).sqrt();
+        let (ux, uz) = (dx / len, dz / len);
+        // Along the gate from its `a` end, and how far off its line.
+        let along = |p: (f32, f32)| (p.0 - ax) * ux + (p.1 - az) * uz;
+        let off = |p: (f32, f32)| ((p.0 - ax) * uz - (p.1 - az) * ux).abs();
+        let mid = len * 0.5;
+        // The guards whose ends lie along the gate's side of the hatch, within 0.15 m of its line.
+        let guards: Vec<_> = w.ship.zones[0]
+            .body
+            .walls
+            .iter()
+            .filter(|wl| (wl.base - 3.0).abs() < 1e-3 && wl.height < 1.5 && off(wl.a) < 0.15 && off(wl.b) < 0.15)
+            .collect();
+        assert!(guards.len() >= 2, "no guards either side of the ladder's top: {guards:?}");
+        let ends: Vec<f32> = guards.iter().flat_map(|wl| [along(wl.a), along(wl.b)]).collect();
+        let west = ends.iter().copied().filter(|&u| u < mid).fold(f32::MIN, f32::max);
+        let east = ends.iter().copied().filter(|&u| u > mid).fold(f32::MAX, f32::min);
+        assert!(west.abs() < 0.01 && (east - len).abs() < 0.01, "the gate runs 0 to {len:.2} m along the hatch's side, and the guards beside it end at {west:.2} and {east:.2}");
+        let half_t = guards.iter().map(|wl| wl.resolved_thickness() * 0.5).fold(0.0f32, f32::max);
+        let need = 2.0 * (wall_collision::PLAYER_RADIUS + half_t);
+        assert!(
+            east - west >= need + 0.1,
+            "the gap between the guards' ends is {:.2} m, and a body and the balustrade's ends need {need:.2} m and room to spare ({:.2} m)",
+            east - west,
+            need + 0.1
+        );
+    }
+
+    /// Whether the body reaches over a floor slab it may not be over (the homestead's, which is
+    /// zone 0 at the origin): its disk over the slab's rectangle by more than a centimetre, its head
+    /// more than 3 cm over the slab's underside, and its feet more than a step up (`STEP_UP_M`)
+    /// under the slab's top, so it is not stepping onto it. A description, None when it does not.
+    fn head_through_a_slab(w: &Aboard, ctl: &CameraController, cam: &Camera) -> Option<String> {
+        let p = cam.position;
+        let (feet, head) = (p.y - ctl.eye_height(), p.y + HEAD_ABOVE_EYE_M);
+        w.ship.zones[0].body.floors.iter().find_map(|s| {
+            let (x0, z0, x1, z1) = s.rect();
+            let (dx, dz) = ((x0 - p.x).max(p.x - x1).max(0.0), (z0 - p.z).max(p.z - z1).max(0.0));
+            let over = wall_collision::PLAYER_RADIUS - (dx * dx + dz * dz).sqrt();
+            let centre_over = s.contains(p.x, p.z);
+            (over > 0.01 && head > s.underside() + 0.03 && feet < s.top - STEP_UP_M).then(|| {
+                format!(
+                    "the body at ({:.2}, {:.2}) reached {over:.2} m over slab {:?} ({}), its head {:.2} m over the slab's underside ({:.2} over its top), its feet at {feet:.2}",
+                    p.x,
+                    p.z,
+                    s.label.as_deref().unwrap_or("?"),
+                    if centre_over { "its centre under the slab" } else { "beside it" },
+                    head - s.underside(),
+                    head - s.top
+                )
+            })
+        })
+    }
+
+    /// What a walk did to the slabs over it, frame by frame (`see`): the first frame the body
+    /// reached over a slab it may not be over (`head_through_a_slab`), and the most its head rose
+    /// over the underside of a slab its centre was under, with its feet more than a step under
+    /// that slab's top (how far into or up through the floor overhead the head went).
+    #[derive(Default)]
+    struct SlabWatch {
+        first: Option<String>,
+        worst: f32,
+        worst_over_top: f32,
+    }
+
+    impl SlabWatch {
+        fn see(&mut self, k: usize, w: &Aboard, ctl: &CameraController, cam: &Camera) {
+            if self.first.is_none() {
+                self.first = head_through_a_slab(w, ctl, cam).map(|why| format!("frame {k}: {why}"));
+            }
+            let p = cam.position;
+            let (feet, head) = (p.y - ctl.eye_height(), p.y + HEAD_ABOVE_EYE_M);
+            for s in w.ship.zones[0].body.floors.iter().filter(|s| s.contains(p.x, p.z) && feet < s.top - STEP_UP_M) {
+                if head - s.underside() > self.worst {
+                    self.worst = head - s.underside();
+                    self.worst_over_top = head - s.top;
+                }
+            }
+        }
+
+        /// What went wrong, None for nothing.
+        fn wrong(&self, what: &str) -> Option<String> {
+            self.first.as_ref().map(|first| {
+                format!(
+                    "{what}, {first}; at worst the head was {:.2} m over the underside of a slab the body's centre was under ({:.2} m over the floor upstairs)",
+                    self.worst, self.worst_over_top
+                )
+            })
+        }
+    }
+
+    /// A HEAD RISEN BESIDE AN OPENING DOES NOT GO UNDER THE SLAB: THE SLAB'S EDGE STOPS THE BODY
+    /// (ship homes increment 7 review). The ceiling a jump stops under counts a slab only while the
+    /// eye is under its underside (`Footing::ceiling_over`), so a body whose head has risen above a
+    /// slab's underside beside it (a jump, a climb) and then moves under it would put its head up
+    /// through the floor overhead. The slab's edge stops it instead (`slab_edges`), while its feet
+    /// are more than a step under the slab's top (within a step it steps up onto it). In the
+    /// homestead, at 60 frames a second and 5 m/s:
+    ///
+    /// - from step 3 of stairs-1, just west of the stairwell's east end (x 40.5), a jump in place
+    ///   and then a walk east under the upper hall's slab east of the stairwell;
+    /// - from part way up ladder-1 (the feet 1.5 m up, hanging on), a walk south out of the hatch
+    ///   under the lift lobby's floor;
+    /// - and walking up stairs-1 from its foot onto the stair-top landing and back down, which must
+    ///   not catch on the landing's edge (the step up onto it) or a stairwell side.
+    ///
+    /// At the end of every frame the body's disk is clear of every slab its head is above the
+    /// underside of (`head_through_a_slab`).
+    ///
+    /// Seen red first (2026-10-21) with no slab edges in the sweep (`shut_gates` without
+    /// `slab_edges`): "a head through a slab: [\"the jump on stairs-1's step 3, frame 5: the body
+    /// at (40.35, 38.65) reached 0.15 m over slab \\\"Upper floor, hall east of the stairwell\\\"
+    /// (beside it), its head 0.08 m over the slab's underside (-0.17 over its top), its feet at
+    /// 1.01; at worst the head was 0.15 m over the underside of a slab the body's centre was under
+    /// (-0.10 m over the floor upstairs)\", \"the climber walking south, frame 4: the body at
+    /// (33.00, 27.82) reached 0.02 m over slab \\\"Lift lobby floor, by the hatch\\\" (beside it),
+    /// its head 0.57 m over the slab's underside (0.32 over its top), its feet at 1.50; at worst the
+    /// head was 0.57 m over the underside of a slab the body's centre was under (0.32 m over the
+    /// floor upstairs)\"]". (On the stair, guard G2 over the flight's foot holds the body while its
+    /// eye is over 3.0 m, so the head went 0.15 m into the slab rather than through it.)
+    #[test]
+    fn a_head_risen_beside_an_opening_does_not_go_under_the_slab() {
+        let dt = DT;
+        let mut wrong = Vec::new();
+        // The jump on the stair's step 3 (x 40.16 to 40.44), then east.
+        let mut w = Aboard::homestead();
+        let step3 = 3.0 * 3.0 / 16.0;
+        let (mut ctl, mut cam) = body_at(Vec3::new(40.35, step3 + EYE, 38.65));
+        assert!((w.footing().floor_under(cam.position, step3).unwrap_or(-1.0) - step3).abs() < 1e-4, "the body is not on step 3 of stairs-1");
+        cam.yaw = EAST;
+        ctl.apply_action(A::Jump, true);
+        let mut watch = SlabWatch::default();
+        for k in 0..90 {
+            if k == 1 {
+                ctl.apply_action(A::Jump, false);
+            }
+            if k == 15 {
+                ctl.apply_action(A::MoveForward, true);
+            }
+            live_frame(&mut ctl, &mut cam, dt, &mut w);
+            ctl.take_landing();
+            watch.see(k, &w, &ctl, &cam);
+        }
+        wrong.extend(watch.wrong("the jump on stairs-1's step 3"));
+        // Part way up the ladder, then south out of the hatch.
+        let mut w = Aboard::homestead();
+        let (mut ctl, mut cam) = body_at(Vec3::new(33.0, EYE, 27.4));
+        cam.yaw = SOUTH;
+        ctl.apply_action(A::Jump, true);
+        run(&mut ctl, &mut cam, &mut w, dt, 30);
+        ctl.apply_action(A::Jump, false);
+        let up = feet(&ctl, &cam);
+        assert!(up > 1.2 && up < 2.0, "the climb got to {up}");
+        ctl.apply_action(A::MoveForward, true);
+        let mut watch = SlabWatch::default();
+        for k in 0..60 {
+            live_frame(&mut ctl, &mut cam, dt, &mut w);
+            ctl.take_landing();
+            watch.see(k, &w, &ctl, &cam);
+        }
+        wrong.extend(watch.wrong("the climber walking south"));
+        // Up stairs-1 from its foot (x 41.0, climbing west) onto the landing, and back down.
+        let mut w = Aboard::homestead();
+        let (mut ctl, mut cam) = body_at(Vec3::new(42.0, EYE, 38.65));
+        cam.yaw = WEST;
+        ctl.apply_action(A::MoveForward, true);
+        let hard = run(&mut ctl, &mut cam, &mut w, dt, 150);
+        let (x, f) = (cam.position.x, feet(&ctl, &cam));
+        if !(x < 35.5 && (f - 3.0).abs() < 1e-3 && hard < 0.5) {
+            wrong.push(format!("up stairs-1: ended at x {x:.2} with the feet at {f:.2}, hardest landing {hard:.2} m"));
+        }
+        cam.yaw = EAST;
+        let hard = run(&mut ctl, &mut cam, &mut w, dt, 150);
+        let (x, f) = (cam.position.x, feet(&ctl, &cam));
+        if !(x > 41.5 && f.abs() < 1e-3 && hard < 0.5) {
+            wrong.push(format!("down stairs-1: ended at x {x:.2} with the feet at {f:.2}, hardest landing {hard:.2} m"));
+        }
+        assert!(wrong.is_empty(), "a head through a slab: {wrong:#?}");
+    }
+
+    /// One frame with play OUT of first person (the third-person or orbit camera, or the build
+    /// editor), as lib.rs runs it: the elevators are left as they are (`pause_elevators`), the
+    /// floor and the ceiling under the body are read as ever, there is no ladder, and the body
+    /// does not move (the other cameras move points of their own, never the body).
+    fn away_frame(ctl: &mut CameraController, cam: &Camera, w: &mut Aboard) {
+        ctl.take_lift_press();
+        pause_elevators(&mut w.cars);
+        ctl.set_on_lift(false);
+        let p = cam.position;
+        let footing = w.footing();
+        if let Some(f) = footing.floor_under(p, ctl.step_up_from(p.y)) {
+            ctl.set_ground_floor(f);
+        }
+        ctl.set_ceiling(footing.ceiling_over(p));
+        ctl.set_climb_zone(None);
+    }
+
+    /// LEAVING FIRST PERSON ON THE ELEVATOR KEEPS THE CAR WHERE IT IS (ship homes increment 7
+    /// review). A rider takes the test home's elevator to the top (3.0), then changes camera (third
+    /// person, the orbit camera) or opens the build editor for a second and comes back: the car is
+    /// still at the top and the body still on it, with no fall. lib.rs used to clear every car's
+    /// state whenever play left first person, so the car was back at the bottom on return and the
+    /// rider fell the 3 m storey (the car, called back up, catching them part way).
+    ///
+    /// Seen red first (2026-10-21) with `pause_elevators` clearing the cars, as lib.rs did: "out of
+    /// first person the car went to 0".
+    #[test]
+    fn leaving_first_person_on_the_elevator_keeps_the_car_where_it_is() {
+        let mut w = Aboard::two_storeys();
+        let (mut ctl, mut cam) = body_at(Vec3::new(10.0, EYE, 2.0));
+        ctl.apply_action(A::Jump, true);
+        frames(&mut ctl, &mut cam, &mut w, 1, "riding up");
+        ctl.apply_action(A::Jump, false);
+        frames(&mut ctl, &mut cam, &mut w, 240, "riding up");
+        assert!((w.car() - 3.0).abs() < 1e-4 && (feet(&ctl, &cam) - 3.0).abs() < 1e-3, "the ride up left the car at {} and the feet at {}", w.car(), feet(&ctl, &cam));
+        for _ in 0..60 {
+            away_frame(&mut ctl, &cam, &mut w);
+        }
+        assert!((w.car() - 3.0).abs() < 1e-4, "out of first person the car went to {}", w.car());
+        assert!((ctl.ground_floor() - 3.0).abs() < 1e-4, "out of first person the floor under the rider went to {}", ctl.ground_floor());
+        frames(&mut ctl, &mut cam, &mut w, 120, "back in first person on the car");
+        assert!((w.car() - 3.0).abs() < 1e-4 && (feet(&ctl, &cam) - 3.0).abs() < 1e-3, "back in first person the car is at {} and the feet at {}", w.car(), feet(&ctl, &cam));
     }
 }

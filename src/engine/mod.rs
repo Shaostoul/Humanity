@@ -129,6 +129,10 @@ pub mod rig_walk;
 /// What the dev IPC reports of the player's body: health, wounds and the landings the walk
 /// handed to it, and the showcase `illness` verb's words (2026-10-20, scripts/verify-falls.js).
 pub mod body_probe;
+/// What the dev IPC reports of the walk between storeys: the floor stood on, the ceiling, the
+/// room the HUD names, the ladder and the elevator cars, and the showcase `face` verb (ship homes
+/// increment 7, 2026-10-21, scripts/verify-storeys.js).
+pub mod storey_probe;
 /// A planet's cloud deck and atmosphere dome, plus the view-dependent order
 /// the two composite in (extracted from lib.rs, v0.1320).
 pub mod frame_shells;

@@ -788,25 +788,30 @@ mod shipped {
 
 
     /// A shipped home's garden at full planting, built the way the engine builds
-    /// it: the blueprint's rooms (engine::home_meshes publishes the same boxes),
-    /// every machine of the home zone spawned by `spawn_home_machine_entity` at its
+    /// it: the rooms the engine publishes, through the same two calls (the ship's
+    /// flood-filled rooms made `RoomBounds` by `RoomTypeRegistry::room_bounds`, published
+    /// by `humidity::publish_room_bounds`, as world entry and lib.rs do), every
+    /// machine of the home zone spawned by `spawn_home_machine_entity` at its
     /// placed offset with its own wiring's islands, the grow plots and plot areas
     /// `publish_grow_plots` makes, the household's air space, and every plot sown
-    /// with the crop its grow medium and the showcase give it. The Commons (another
-    /// zone, another frame) is left out.
+    /// with the crop its grow medium and the showcase give it. The Commons'
+    /// machines (another zone, another frame) are left out.
+    ///
+    /// Until 2026-10-21 the rooms were built here from the home's ZONES, which
+    /// the engine does not read for air: the greenhouse's zone was a storey tall
+    /// (2,970 m3) while the room the game published rose to the 6 m glass roof
+    /// (5,607 m3), so these tests measured a home the game did not run.
     fn shipped_home(file: &str) -> (DataStore, hecs::World) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let data_dir = root.join("data");
         let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file)).expect("home parses");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
+        // The machines below stand at their zone-local offsets, which are their ship
+        // positions (and so in the rooms' frame) because the home stands on p1, at the origin.
         let hz = &ship.zones[ship.home_zone_index()];
-        let rooms: Vec<(String, [f32; 3], [f32; 3])> = hz
-            .body
-            .zones
-            .iter()
-            .filter(|z| z.origin.0 >= 0.0 && z.origin.2 >= 0.0 && z.origin.0 + z.size.0 <= hz.body.width && z.origin.2 + z.size.2 <= hz.body.depth)
-            .map(|z| (z.id.clone(), [z.origin.0, z.origin.1, z.origin.2], [z.origin.0 + z.size.0, z.origin.1 + z.size.1, z.origin.2 + z.size.2]))
-            .collect();
+        assert_eq!(hz.origin, (0.0, 0.0, 0.0), "the shipped home stands at the ship's origin");
+        let room_types = crate::ship::room_types::RoomTypeRegistry::load(&data_dir);
+        let rooms = room_types.room_bounds(&ship.generate_meshes().room_info);
         let model = crate::systems::grow_machines::GrowFoodModel::load(&data_dir).expect("grow model");
         let all: Vec<_> = home.all_instances().into_iter().filter(|i| i.zone == "home").collect();
         let mut plots = Vec::new();
@@ -839,7 +844,7 @@ mod shipped {
             }
         }
         let mut data = store(Vec::new(), plots);
-        humidity::publish_rooms(&data, rooms.iter().map(|(id, min, max)| (id.as_str(), id.as_str(), *min, *max)));
+        humidity::publish_room_bounds(&data, &rooms);
         data.insert(units::PLOT_AREA_KEY, areas);
         let mut world = hecs::World::new();
         let (power, water) = (home.electrical_islands(&all), home.water_islands(&all));
@@ -926,6 +931,10 @@ mod shipped {
             ..Default::default()
         };
         let map = humidity::AirMap::new(&world, &data, &d);
+        println!("  {file} the home's own air {:.0} m3, in {} rooms counted for the leak", map.home_volume_m3, map.modules);
+        for r in map.rooms.iter().filter(|r| !r.id.starts_with("tent:")) {
+            println!("  {file} {}: {:.1} m3, {:?} to {:?}", r.id, r.volume_m3(), r.min, r.max);
+        }
         let surface0 = home(&world).ledger.surface_l;
         let watts = |world: &hecs::World, pick: fn(&hecs::EntityRef) -> bool| -> f64 {
             world.iter().filter(|e| pick(e)).filter_map(|e| e.get::<&PowerConsumer>().map(|p| f64::from(p.draw_watts))).sum()
@@ -1023,13 +1032,33 @@ mod shipped {
     /// at about 1,200 ppm, 600 over the room its own fan still held at 600),
     /// and with home.ron's air handler `average_watts` left at its nameplate
     /// 325 W (the day measured 224.8 W a unit).
+    ///
+    /// Since 2026-10-21 the homes are measured on the rooms the running game
+    /// publishes (`shipped_home`), where the greenhouse rises to the 6 m roof
+    /// (5,607 m3, against the 2,970 of the storey-tall zone the test used to
+    /// read), and the home's own air leaks for its own rooms only. Seen red
+    /// first that day on the game's rooms: "home.ron: home 0.5263749356690928"
+    /// (the greenhouse, leaking half its whole 6 m box an hour into the
+    /// house, put more water in the house's air than its four handlers held at
+    /// 50%), with the leak at 0.96 kg a day for the ship's 48 published rooms
+    /// where the home has 30.
     #[test]
     fn the_shipped_homes_hold_their_air_and_return_their_water() {
         let ld = life();
         let d = air();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
+        let home_rooms = ship.zones[ship.home_zone_index()].body.detect_rooms().len();
         for file in ["home.ron", "home_solo.ron"] {
             let day = settle_home(file, |_| {});
+            // The home's own air leaks for the home's own rooms (BVAD's figure a module).
+            assert!(
+                (day.leak_kg - ld.leak_kg_per_day_per_module * home_rooms as f64).abs() < 1e-9,
+                "{file}: the home's air leaks {} kg a day, {} for each of its {home_rooms} rooms",
+                day.leak_kg,
+                ld.leak_kg_per_day_per_module
+            );
             assert!((day.greenhouse_rh - ld.grow_room_setpoint_rh).abs() < 0.02, "{file}: greenhouse {}", day.greenhouse_rh);
             assert!((day.home_rh - ld.home_setpoint_rh).abs() < 0.02, "{file}: home {}", day.home_rh);
             assert!(day.tents_rh.0 >= 0.85 && day.tents_rh.1 <= 0.95, "{file}: tents {:?}", day.tents_rh);
@@ -1041,8 +1070,9 @@ mod shipped {
             assert!(day.tents_co2_ppm.1 < d.fruiting_co2_limit_ppm, "{file}: tents at {:?} ppm, over the {}", day.tents_co2_ppm, d.fruiting_co2_limit_ppm);
             let home = crate::machines::MachineHome::load(&root.join(file)).expect("home parses");
             let room_set = f64::from(home.catalog["room_co2_fan"].co2_setpoint_ppm);
-            // The room under its fan's setpoint but at the family home's evening
-            // peak, where its S6 runs flat out and the room reaches about 604.
+            // The room under its fan's setpoint, with 2% for an evening peak its S6
+            // cannot hold flat out (it held 600 at the family home's, the home's air
+            // near 495 ppm, on 2026-10-21; it reached about 604 on 2026-09-27).
             assert!(day.mushroom_room_ppm.1 <= room_set * 1.02, "{file}: the mushroom room at {:?} ppm, over its fan's {room_set}", day.mushroom_room_ppm);
             // The static meter's average draws are the measured ones.
             for (id, def) in &home.catalog {
@@ -1102,11 +1132,13 @@ mod shipped {
     /// settles (2026-09-27): the family home's crops only take up all it makes
     /// near 800 ppm (Kimball's law), weeks of play after a new game starts at
     /// 400; the solo home's near 470. Whether the mushroom tents can still be
-    /// held there, and at what cost. A measurement, not a guard.
+    /// held there, and at what cost. A measurement, not a guard. The family
+    /// home is started at 700 and at 800 (2026-10-21), the two points the Air
+    /// loop of data/machines/home.ron puts its settling point between.
     #[test]
     #[ignore]
     fn print_the_shipped_homes_with_the_home_air_at_its_settled_co2() {
-        for (file, ppm) in [("home.ron", 700.0), ("home_solo.ron", 450.0)] {
+        for (file, ppm) in [("home.ron", 700.0), ("home.ron", 800.0), ("home_solo.ron", 450.0)] {
             println!("== {file}: the home's air started at {ppm} ppm of CO2");
             settle_home_with(file, |_| {}, move |w: &mut hecs::World| {
                 let t_c = w

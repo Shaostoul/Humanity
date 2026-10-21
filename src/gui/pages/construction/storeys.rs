@@ -47,6 +47,10 @@ pub struct StoreyEditor {
     /// The last reason a floor could not be drawn ("the home is 3.0 m tall..."), shown under the
     /// tools until the next try. Empty when there is none.
     pub note: String,
+    /// Where the build-mode avatar was put when the editor seeded it at the player's feet:
+    /// (zone, spot, storey), engine `seed_build_avatar`. While the avatar is still there, it was
+    /// not moved, and the editor's Save leaves the home's spawn alone (`spawn_from_avatar`).
+    pub avatar_seed: Option<(usize, (f32, f32), usize)>,
 }
 
 /// Which floor the slab drawing tool draws (`StoreyEditor::draw`).

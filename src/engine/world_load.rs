@@ -125,12 +125,16 @@ pub(crate) fn load_world(state: &mut EngineState) {
         Ok(ship) => {
             let meshes = ship.generate_meshes();
             let info = meshes.room_info.clone();
-            // Start editing the HOME zone; restore its persisted build-mode spawn point (v0.582).
+            // Start editing the HOME zone, with no build spot yet: the build editor's first open
+            // puts the build-mode avatar where the player stands, on their storey
+            // (engine/editor_storeys.rs `seed_build_avatar`, ship homes increment 7). It used to be
+            // put at the home's saved spawn here (v0.582), which the first close then stood the
+            // player at, on the storey they had left from: upstairs, on a wall over a glass roof.
+            // The spawn is still what the editor's Save writes when the avatar is moved.
             let home_idx = ship.home_zone_index();
             state.gui_state.construction_zone = home_idx;
-            if let Some(sp) = ship.zones[home_idx].body.spawn {
-                state.gui_state.build_char_pos = Some(sp);
-            }
+            state.gui_state.build_char_pos = None;
+            state.gui_state.construction_storeys.avatar_seed = None;
             authored_spawn = ship.home_spawn_world();
             state.gui_state.ship_structure = Some(ship);
             (meshes, info)
@@ -306,24 +310,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
             // the walkable world finally knows what each room is for.
             let room_types =
                 crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-            state.gui_state.room_bounds = room_info
-                .iter()
-                .map(|r| {
-                    // Zone-named rooms resolve through their zone's room_type; legacy ids
-                    // join on themselves (see RoomTypeRegistry::function_for).
-                    let f = room_types.function_for(r);
-                    crate::gui::RoomBounds {
-                        id: r.id.clone(),
-                        min: r.center - r.dimensions * 0.5,
-                        max: r.center + r.dimensions * 0.5,
-                        display_name: f.display_name,
-                        purpose: f.purpose,
-                        actions: f.actions,
-                        action_pages: room_types.action_pages(r),
-                        access: f.access,
-                    }
-                })
-                .collect();
+            // Zone-named rooms resolve through their zone's room_type; legacy ids join on
+            // themselves (RoomTypeRegistry::room_bounds, the one place a room becomes a RoomBounds).
+            state.gui_state.room_bounds = room_types.room_bounds(&room_info);
             let mut placed = 0usize;
             // v0.538: a box home positions machines by coords in its zone (zone-local since
             // increment 1a, kept inside the footprint) and skips NO machine on a stale room id -- mirrors
@@ -423,6 +412,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
                 state.gui_state.machine_labels.push(crate::gui::MachineLabel {
                     pos: Vec3::new(pos.x, top_y + 0.4, pos.z),
+                    foot_y: pos.y,
                     name,
                     // A grow machine's food line is computed from its crops.
                     stats: home.stats_for(&inst.machine),

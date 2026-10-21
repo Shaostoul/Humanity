@@ -1324,7 +1324,7 @@
             ),
             (
                 a: (32.5, 28.1),
-                b: (32.7, 28.1),
+                b: (32.6, 28.1),
                 base: 3.0,
                 height: 1.0,
                 material: 9,
@@ -1333,7 +1333,7 @@
                 layers: [],
             ),
             (
-                a: (33.3, 28.1),
+                a: (33.4, 28.1),
                 b: (34.0, 28.1),
                 base: 3.0,
                 height: 1.0,
@@ -2353,7 +2353,7 @@
                 id: "room-greenhouse",
                 type_id: "room_garden",
                 origin: (10.0, 0.0, 51.0),
-                size: (45.0, 3.0, 22.0),
+                size: (45.0, 6.0, 22.0),
                 label: "Greenhouse",
                 room_type: Some("garden"),
             ),
