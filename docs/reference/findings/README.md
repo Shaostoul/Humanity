@@ -308,3 +308,15 @@ what we will say about it.
   older manual) and prefer room air in an ordinary house; EPA's archived Burn
   Wise says nothing on it; NFPA 211 not read. The basis for the game's stove
   taking its fire's air from outside the home through its kit.
+- [`2026-10-20-stairs-guards-and-headroom.md`](2026-10-20-stairs-guards-and-headroom.md),
+  what a private home's inside stair, its guards and its ceilings must meet: the
+  2021 IRC (read through Washington's republished amendments, the Stairway
+  Manufacturers' Association's licensed reproduction and city handouts, because
+  the ICC's reader serves scripts a captcha), England's Approved Document K 2013,
+  Approved Document M volume 1 and the space standard, and OSHA for work
+  platforms. Riser at most 196 mm (IRC) or 220 mm (AD K), tread at least 254 mm,
+  headroom 2032 mm, a guard over a 600 mm drop (AD K; IRC 762 mm), guards 914 mm
+  tall, a 100 mm sphere, ceilings 7 ft; England's 2.3 m ceiling is a planning
+  standard, not a building regulation. The game's staircase broke the IRC riser
+  limit and every rail rule; a 3.0 m storey needs 16 risers. The 2024 IRC
+  renumbered the stair sections to R318 (its text not read).
