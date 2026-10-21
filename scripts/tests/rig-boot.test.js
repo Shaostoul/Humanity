@@ -83,6 +83,7 @@ const BOOTS_THE_GAME = [
   "scripts/verify-live-screen.js",
   "scripts/verify-screens.js",
   "scripts/verify-falls.js",
+  "scripts/verify-storeys.js",
 ];
 const NOT_A_RIG = {
   "scripts/archive-build.js":
@@ -228,6 +229,7 @@ const RIG_EXES = {
   "scripts/verify-live-screen.js": ".probe-rig/live-screen/HumanityOS.exe",
   "scripts/verify-screens.js": ".probe-rig/screens/HumanityOS.exe",
   "scripts/verify-falls.js": ".probe-rig/falls/HumanityOS.exe",
+  "scripts/verify-storeys.js": ".probe-rig/storeys/HumanityOS.exe",
 };
 test("every rig refuses an unchecked exe on the freshness gate, before it copies anything", () => {
   const exe = tmpFile(crypto.randomBytes(4096)); // no source stamp

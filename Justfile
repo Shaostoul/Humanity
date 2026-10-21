@@ -693,9 +693,17 @@ check-encoding *ARGS:
 # (write-request.test.js); and no script under scripts/ writes a request file any other way, the
 # names checked against the game's own request constants (request-writes.test.js). A plain write lost
 # verify-falls' `illness` request on 2026-10-20 and a Forgiving leg ran in Realistic.
+# And the storeys judge (scripts/lib/storeys-judge.js, 2026-10-21): a made-up `verify-storeys` run,
+# built from the homestead's own stair, slabs, zones, elevator and ladder, that went right passes
+# every check; the shape the running game takes when the floor slabs never reach the walk (up the
+# treads, then 3 m down past the top, the HUD naming the hall downstairs) fails, and so does a wall,
+# guard, gate or landing door that does not hold, a wall upstairs that stops a body downstairs, a
+# jump through the slab, an elevator that does not ride or jumps its rider, the HUD naming the wrong
+# storey, and a placement passed off as a walk; a layout that moved what the route walks refuses
+# before anything boots; the two REAL runs in tests/fixtures/storeys/ are judged as they were.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js scripts/tests/storeys-judge.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -849,6 +857,29 @@ verify-household *ARGS:
 [positional-arguments]
 verify-falls *ARGS:
     node scripts/verify-falls.js "$@"
+
+# Proves in the REAL game that the homestead's upper floor works (ship homes increment 7,
+# 2026-10-21; docs/design/ship-homes-increment-7-plan.md "Rig (V)", the layout in
+# docs/design/homestead-upper-floor.md). BOOTS ONE game in its own portable sandbox
+# (.probe-rig/storeys: background, never focused, silent, no server), enters the world by the dev
+# autopilot (the rig's own home, the homestead) and walks it on the held movement keys: in at the
+# front door, down the hall and up stairs-1 (the floor stood on reaches 3.0, the HUD names the upper
+# hall, no landing reaches the body), into the upstairs bedroom (the HUD names it); a wall upstairs
+# stops the body upstairs and not on the ground floor under it; a jump under the slab stops under
+# its underside; the guard over the stairwell holds; elevator-1 rides up on Space and down on Shift
+# and comes when called from the upper landing, whose door holds the body while the car is away;
+# ladder-1 climbs through its hatch onto the upper floor and its gate holds a walker. Three
+# screenshots kept with the run (the upper hall, the bedroom, the ground hall up the stair): LOOK at
+# them. Judged by scripts/lib/storeys-judge.js against the tree's data (proven red on a homestead
+# with its floor slabs taken out, through --data: tests/fixtures/storeys/). Waits while another
+# HumanityOS runs (one GPU; --no-wait to refuse instead); refuses (exit 1) when the exe is older than
+# the source or the layout moved what the route walks; exit 2 = a check failed. About four minutes
+# after boot. Evidence in .probe-rig/storeys/runs/<stamp>/.
+#   just verify-storeys --dry-verdict <manifest.json>   re-judge without booting
+#   just verify-storeys --data <copy of data/>          the game reads that data; the judge, the tree's
+[positional-arguments]
+verify-storeys *ARGS:
+    node scripts/verify-storeys.js "$@"
 
 # Render every native UI snapshot (97 on 2026-10-12) to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the

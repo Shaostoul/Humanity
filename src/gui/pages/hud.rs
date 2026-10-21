@@ -467,12 +467,9 @@ pub fn draw(
             let dot_dist = state.machine_label_dot_dist.max(0.5) * mul;
             let name_dist = state.machine_label_name_dist.max(0.5) * mul;
             let card_dist = state.machine_label_card_dist.max(0.5) * mul;
-            // Which room is the camera in? (None = outside every room.)
-            let current_room_info = state.room_bounds.iter().find(|r| {
-                cam_pos.x >= r.min.x && cam_pos.x <= r.max.x
-                    && cam_pos.y >= r.min.y && cam_pos.y <= r.max.y
-                    && cam_pos.z >= r.min.z && cam_pos.z <= r.max.z
-            });
+            // Which room is the camera in? (None = outside every room.) `room_at`, the one pick
+            // the dev IPC's storey probe also reads (engine/storey_probe.rs).
+            let current_room_info = room_at(&state.room_bounds, cam_pos);
 
             // ── Room purpose card (bottom-left): the walkable world now KNOWS what each
             // room is FOR, joined from data/rooms.ron. Name + purpose + the in-room actions
@@ -1050,6 +1047,17 @@ pub fn draw(
 /// off for a recording, and a dot left in the middle of every frame of a
 /// clip is HUD. (2026-10-04: it sat over the sky of the landing page's
 /// night-to-sunrise clip.)
+/// The room the HUD's room card names for an eye at `eye`: the first room whose box holds it, by
+/// height too, so a room upstairs is named only for an eye upstairs and the room under it only for
+/// an eye below (ship homes increment 7). The dev IPC's storey probe asks this same function
+/// (engine/storey_probe.rs), so `just verify-storeys` reads the name the HUD shows, not a copy of
+/// the rule.
+pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&crate::gui::RoomBounds> {
+    rooms.iter().find(|r| {
+        eye.x >= r.min.x && eye.x <= r.max.x && eye.y >= r.min.y && eye.y <= r.max.y && eye.z >= r.min.z && eye.z <= r.max.z
+    })
+}
+
 pub fn crosshair_visible(state: &GuiState) -> bool {
     state.active_page == crate::gui::GuiPage::None && state.show_hud
 }

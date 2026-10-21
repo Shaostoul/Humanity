@@ -130,6 +130,15 @@ that walks up the stairs into the upstairs bedroom.
   bedroom (the HUD names it), a wall upstairs stops the body there, the ground floor's walls below
   do not, the elevator rides up and down and is called from the upper landing, a jump under the
   slab does not go through, a guarded edge cannot be walked off, and screenshots up and down.
+  **Built 2026-10-21** (scripts/verify-storeys.js, judged by scripts/lib/storeys-judge.js against
+  the tree's data; the game reports through src/engine/storey_probe.rs): fourteen legs on the held
+  keys (the stair, the bedroom, the wall from each storey, the guard, two jumps, five elevator
+  legs, the ladder through its hatch and the hatch's gate). Green 76/76 on this
+  tree's release build; red 43/76 on the same build reading a copy of data/ with the homestead's
+  floor slabs taken out (up the treads, then 3 m down past the top). Both runs are kept in
+  tests/fixtures/storeys/. The first red attempt PASSED because the rig's sandbox data was never
+  read (lib.rs `find_data_dir` prefers a source tree's data/ to the folder beside the exe), so
+  every run now records and checks the data folder the game logged.
 
 ## 4. Decisions made for the operator (overrule any)
 

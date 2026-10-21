@@ -661,6 +661,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             None => log::warn!("Showcase: illness wants realistic or forgiving, not {raw:?}"),
         }
     }
+    // {"face":"yaw,pitch"} (ship homes increment 7, 2026-10-21): turn the camera to that yaw and
+    // pitch (radians: yaw 0 north, +PI/2 east; pitch up positive) without moving the body, as a
+    // mouse turn does, so a rig walks a route of straight legs on the held keys below with no
+    // placement between them (scripts/verify-storeys.js, engine/storey_probe.rs). Before `hold`,
+    // so a turn and a hold sent together walk the new way. Permanent dev tooling.
+    if let Some(raw) = grab("face") {
+        match crate::engine::storey_probe::parse_face(&raw) {
+            Some((yaw, pitch)) => {
+                state.camera.yaw = yaw;
+                state.camera.pitch = pitch;
+                log::info!("Showcase: face -> yaw {yaw:.3}, pitch {pitch:.3}");
+            }
+            None => log::warn!("Showcase: face wants \"yaw,pitch\" in radians, not {raw:?}"),
+        }
+    }
     // {"hold":"forward,sprint","hold_s":"40"} (BUG-156, 2026-10-05): press
     // those movement keys for that long, through the controller's own action
     // path, so a capture can ARRIVE somewhere on foot the way a player does
@@ -4018,6 +4033,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
             // On a planet's ground, the eye's distance from the body's centre, metres (null
             // aboard): the height verify-falls' planet legs read a drop in.
             "planet_r": crate::engine::body_probe::planet_walk(state).map(|p| p.1),
+            // Between storeys (ship homes increment 7, engine/storey_probe.rs): the floor stood
+            // on, the ceiling, the room the HUD names, the ladder, the elevator cars, the
+            // landings so far. What verify-storeys judges.
+            "storey": crate::engine::storey_probe::frame_json(state),
         }));
     } else {
         rec.truncated = true;
@@ -4090,6 +4109,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // the body so far and the last one's speed, the Illness and injury mode, the walk's
         // gravity, dev flight, aboard. What verify-falls judges with the home session's vitals.
         "falls": crate::engine::body_probe::falls_json(state),
+        // Every elevator aboard, its stops and its car (ship homes increment 7,
+        // engine/storey_probe.rs `done_json`): what verify-storeys judges with each frame's `storey`.
+        "storeys": crate::engine::storey_probe::done_json(state),
         "screen_px": [screen_w, screen_h],
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),

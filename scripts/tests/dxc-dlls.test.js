@@ -170,6 +170,7 @@ const RIGS = {
   "boot-timing.js": "EXE_SRC",
   "make-clips.js": "EXE",
   "verify-falls.js": "EXE",
+  "verify-storeys.js": "EXE",
 };
 const SCRIPTS = path.join(__dirname, "..");
 
