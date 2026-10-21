@@ -100,7 +100,13 @@ pub enum SegmentKind {
     /// It stops a body whose KNEE is at its height, a body standing a storey up beside it; a body
     /// whose knee is under it is passing through the opening and ducks under it, so a jump through
     /// a doorway is not shoved sideways by the wall over the door (a horizontal sweep has no way to
-    /// bump a head and let the body on through).
+    /// bump a head and let the body on through). A jump INTO a room with a floor over it is still
+    /// held at the doorway, by that floor's edge (`engine::footing::slab_edges`), while the head is
+    /// over the floor's underside: with door heads of 2.1 to 2.4 m under a 2.75 m ceiling that is
+    /// the head meeting the head of the door, so the two do not disagree: the lintel lets a jump out
+    /// through a door into a space with no floor over it (the corridor beyond the front door), and
+    /// the floor's edge holds one going in under a floor
+    /// (`a_running_jump_in_through_the_front_door_is_held_at_the_doorway`).
     Lintel,
     /// A face of a stair's step (or a ramp's slice), standing from the stair's foot to the step's
     /// top: it stops a body whose feet are lower than that top less `STEP_UP_M`, the step the
@@ -217,10 +223,13 @@ pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCu
 /// visible while one behind a solid pier hides. Door apertures are open here exactly as in
 /// the collision spans; a CLOSED door blocks sight via the live door list the caller adds
 /// (the same split `resolve` uses). A guard (a balustrade, `InteriorWall::guard`, or a guard
-/// piece placed on its own) is see-through and blocks no sight (ship homes increment 7). The
-/// sight check is across the floor only (`sight_blocked`): a wall on another storey still hides a
-/// nameplate whose line it crosses, so every opening is open here at every height (the wall over a
-/// doorway would close the doorway to a check that reads no heights), and a stair hides nothing.
+/// piece placed on its own) is see-through and blocks no sight (ship homes increment 7), and a
+/// stair hides nothing. The sight test reads heights (`ship::sight`, since increment 7's review), so
+/// every opening is cut only from its foot to its head, as for the walk: the wall over a door or a
+/// window, the wall under a window's sill and the shell over a corridor's or a plot door's cut all
+/// stand with their heights and hide what is behind them (the seams review of 2026-10-21, finding
+/// 3: from the upper hall, nameplates in the front door's corridor showed through the shell over
+/// the door), while the door's gap and the window's glass are seen through.
 pub fn sight_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
     segments_impl(home, shell_cuts, true)
 }
@@ -258,7 +267,7 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
             .filter(|c| c.edge == ei)
             .map(|c| Opened { from: c.at, to: c.at + c.width, y0: py0 + c.base, y1: py0 + c.base + c.height })
             .collect();
-        wall_run(&mut segs, a, b, len, st, (py0, py1), SegmentKind::Wall, &cuts, sight);
+        wall_run(&mut segs, a, b, len, st, (py0, py1), SegmentKind::Wall, &cuts);
     }
     for wall in &home.walls {
         // A GUARD is a balustrade (ship homes increment 7, `InteriorWall::guard`): posts and
@@ -284,7 +293,7 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
             .map(|o| Opened { from: o.at, to: o.at + o.width, y0: wy0 + o.sill, y1: wy0 + o.sill + o.height })
             .collect();
         let kind = if guard { SegmentKind::Guard } else { SegmentKind::Wall };
-        wall_run(&mut segs, wall.a, wall.b, len, ht, (wy0, wy1), kind, &openings, sight);
+        wall_run(&mut segs, wall.a, wall.b, len, ht, (wy0, wy1), kind, &openings);
     }
     // The pieces a walk is stopped by (not sight blockers: a balustrade is see-through, and a stair
     // hides no nameplate on the floor plan): a GUARD placed on its own, and every STAIR.
@@ -304,9 +313,10 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
 /// A straight run of wall from `a` to `b` (`len` long, `ht` half thick, standing from `heights.0`
 /// to `heights.1`) with its `opened` openings cut out, as segments of `kind`. An opening is cut
 /// from its foot to its head only: the wall over it stands as a `SegmentKind::Lintel`, the wall
-/// under it (a raised opening's sill) as the run's own kind. For SIGHT (`sight`), which reads no
-/// heights, an opening is open at every height, as every opening was before increment 7's review.
-/// A solid piece no longer than 2 cm (a sliver between two openings) is left out, as it always was.
+/// under it (a raised opening's sill) as the run's own kind. The same for the walk and for SIGHT,
+/// which reads heights too (`ship::sight`; it opened every opening at every height until the seams
+/// review of 2026-10-21, finding 3). A solid piece no longer than 2 cm (a sliver between two
+/// openings) is left out, as it always was.
 #[allow(clippy::too_many_arguments)]
 fn wall_run(
     segs: &mut Vec<WallSegment>,
@@ -317,7 +327,6 @@ fn wall_run(
     heights: (f32, f32),
     kind: SegmentKind,
     opened: &[Opened],
-    sight: bool,
 ) {
     let (y0, y1) = heights;
     let (ux, uz) = ((b.0 - a.0) / len, (b.1 - a.1) / len);
@@ -341,13 +350,7 @@ fn wall_run(
         let (s, e) = (pair[0], pair[1]);
         let mid = (s + e) * 0.5;
         let over: Vec<&Opened> = opened.iter().filter(|o| o.from < mid && mid < o.to).collect();
-        let standing = if over.is_empty() {
-            vec![(y0, y1)]
-        } else if sight {
-            Vec::new()
-        } else {
-            heights_left((y0, y1), &over)
-        };
+        let standing = if over.is_empty() { vec![(y0, y1)] } else { heights_left((y0, y1), &over) };
         match runs.last_mut() {
             Some(r) if r.2 == standing => r.1 = e,
             _ => runs.push((s, e, standing)),
@@ -848,16 +851,27 @@ mod tests {
         segs.iter().map(|s| [s.a.0, s.a.1, s.b.0, s.b.1]).collect()
     }
 
+    /// Through the gap of a door and the glass of a window the eye sees; through a pier, the wall
+    /// over the door, the wall under the window's sill and the wall over its head it does not (in
+    /// three dimensions, `ship::sight`, since the seams review of 2026-10-21, finding 3: the sight
+    /// lines used to open each opening at every height, and the plan-only test of them this test
+    /// used then would now see the wall over the door across the doorway).
     #[test]
     fn sight_passes_windows_and_doors_but_not_piers() {
         let h = home_with_window();
-        let sight = flat(&sight_segments_with_shell_cuts(&h, &[]));
+        let sight = crate::ship::sight::SightBlockers { walls: sight_segments_with_shell_cuts(&h, &[]), slabs: Vec::new() };
+        // A level line across the wall (z 5) at x and at the height y.
+        let hidden = |x: f32, y: f32| sight.blocked(Vec3::new(x, y, 3.0), Vec3::new(x, y, 7.0));
         // Through the solid pier (x=1): blocked.
-        assert!(sight_blocked((1.0, 3.0), (1.0, 7.0), &sight), "pier must block sight");
-        // Through the door gap (x=5): clear.
-        assert!(!sight_blocked((5.0, 3.0), (5.0, 7.0), &sight), "door gap must pass sight");
-        // Through the window (x=7.75): clear for SIGHT...
-        assert!(!sight_blocked((7.75, 3.0), (7.75, 7.0), &sight), "window must pass sight");
+        assert!(hidden(1.0, 1.5), "pier must block sight");
+        // Through the door gap (x=5, to 2.1 m): clear; over it, the wall over the door.
+        assert!(!hidden(5.0, 1.5), "door gap must pass sight");
+        assert!(hidden(5.0, 2.5), "the wall over the door hides nothing");
+        // Through the window (x=7.75, its glass from 0.9 to 2.1 m): clear for SIGHT; under its
+        // sill and over its head, the wall.
+        assert!(!hidden(7.75, 1.5), "window must pass sight");
+        assert!(hidden(7.75, 0.5), "the wall under the window's sill hides nothing");
+        assert!(hidden(7.75, 2.5), "the wall over the window hides nothing");
         // ...but the COLLISION spans keep that window solid (glass blocks the walker).
         let walk = flat(&wall_segments(&h));
         assert!(sight_blocked((7.75, 3.0), (7.75, 7.0), &walk), "window stays solid for collision");
@@ -1362,6 +1376,45 @@ mod homestead_walk_tests {
             ctl.apply_action(A::Jump, false);
         }
         assert!(cam.position.x > 58.2, "the running jump out through the front door ended at {:?}", cam.position);
+    }
+
+    /// A RUNNING JUMP IN THROUGH THE FRONT DOOR IS HELD AT THE DOORWAY UNTIL THE HEAD COMES DOWN
+    /// (the seams review of 2026-10-21, finding 6: recorded, not changed). The other way from the
+    /// jump out: from the corridor at (58, 1.7, 40), running west and jumping, the body reaches the
+    /// door at x 55 with its head over the underside of the slab over the entry (2.75 m), and that
+    /// slab's edge (`engine::footing::slab_edges`) holds it at the door while its feet are over
+    /// about 0.95 m: from this start, 12 frames at 60 a second (0.2 s; longer the earlier in the
+    /// jump the door is reached), its centre never nearer than 55.30, a body's radius off the
+    /// edge. Once the feet come down it walks on into the entry (x 51.5 after 1.5 s). The lintel
+    /// over the door (the shell over the cut, from 2.2 m) stops only a body whose knee is at its
+    /// height, so it is not what holds the jump: it is the head meeting the head of the door, where
+    /// the ceiling of the room beyond begins, as it would in a real doorway of 2.1 to 2.4 m.
+    ///
+    /// Passes as it is: it pins the behaviour, so a change to the lintel or to the slab's edge
+    /// that lets a jumping head through a door under a ceiling shows here.
+    #[test]
+    fn a_running_jump_in_through_the_front_door_is_held_at_the_doorway() {
+        let mut w = Aboard::of(shipped());
+        let (mut ctl, mut cam) = body_at(Vec3::new(58.0, EYE, 40.0));
+        cam.yaw = WEST;
+        ctl.apply_action(A::MoveForward, true);
+        ctl.apply_action(A::Jump, true);
+        let (mut held, mut high_at_door) = (0usize, f32::MAX);
+        for k in 0..90 {
+            live_frame(&mut ctl, &mut cam, 1.0 / 60.0, &mut w);
+            ctl.apply_action(A::Jump, false);
+            let feet = cam.position.y - ctl.eye_height();
+            if feet > 1.0 {
+                high_at_door = high_at_door.min(cam.position.x);
+                assert!(cam.position.x > 55.0 + PLAYER_RADIUS - 0.01, "frame {k}: the jump went in under the slab over the entry with its feet at {feet:.2}, to {:?}", cam.position);
+            }
+            if (cam.position.x - (55.0 + PLAYER_RADIUS)).abs() < 0.02 && feet > 0.9 {
+                held += 1;
+            }
+        }
+        let feet = cam.position.y - ctl.eye_height();
+        assert!(held >= 6, "the jump was held at the door for only {held} frames (closest it came with its feet over 1 m: x {high_at_door:.2})");
+        assert!(cam.position.x < 54.0 && feet.abs() < 1e-3, "after the jump the walk did not go on into the entry: {:?}, feet {feet:.2}", cam.position);
     }
 
     /// A small home with a ladder hatch guarded by STEEL BALUSTRADES (wall material 9, so

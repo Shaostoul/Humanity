@@ -22,9 +22,13 @@
 //!
 //! The walk-up target also keeps to the relay's reach (`moves::in_reach`): within 5 m and on the
 //! player's storey by the home's own storeys, measured at the machine's foot (`walk_up_target`,
-//! `storey_floor`).
+//! `storey_floor`: a machine with no floor of its storey under it, hung high in a room open to the
+//! roof, belongs to the floor under it).
+//!
+//! E at a built piece and F's take-down ask the same question of what a HAND cannot pass
+//! (`ReachBlockers`): the walls as the walk meets them, by height, and every floor slab.
 
-use crate::ship::home_structure::{HomeStructure, SlabMaterial};
+use crate::ship::home_structure::{FloorSlab, HomeStructure, SlabMaterial};
 use crate::ship::ship_structure::ShipStructure;
 use crate::ship::wall_collision::WallSegment;
 use glam::Vec3;
@@ -131,14 +135,17 @@ pub fn wall_blocks(seg: &WallSegment, eye: Vec3, target: Vec3) -> bool {
     y > seg.y0 && y < seg.y1
 }
 
+/// A floor slab as a box in its body's own frame, from its underside to its top over its footprint.
+fn slab_box(s: &FloorSlab) -> SlabBox {
+    let (x0, z0, x1, z1) = s.rect();
+    let (y0, y1) = s.y_range();
+    SlabBox { min: Vec3::new(x0, y0, z0), max: Vec3::new(x1, y1, z1) }
+}
+
 /// The SOLID slabs of one body, as boxes in the body's own frame. A glass slab is left out: it is
 /// a floor and a lid, but it is seen through.
 pub fn solid_slabs(home: &HomeStructure) -> impl Iterator<Item = SlabBox> + '_ {
-    home.floors.iter().filter(|s| s.material == SlabMaterial::Solid).map(|s| {
-        let (x0, z0, x1, z1) = s.rect();
-        let (y0, y1) = s.y_range();
-        SlabBox { min: Vec3::new(x0, y0, z0), max: Vec3::new(x1, y1, z1) }
-    })
+    home.floors.iter().filter(|s| s.material == SlabMaterial::Solid).map(slab_box)
 }
 
 /// The SOLID slabs of the whole ship in the ship's frame: each zone's, moved to that zone's
@@ -152,9 +159,61 @@ pub fn ship_solid_slabs(ship: &ShipStructure) -> impl Iterator<Item = SlabBox> +
     })
 }
 
+/// WHAT STANDS BETWEEN A HAND AND A THING IT REACHES FOR (the seams review of ship homes increment
+/// 7, 2026-10-21, finding 2): E at a built piece (engine/built_uses.rs) and F's take-down
+/// (engine/build_place.rs) ask it of the line from the eye to where the look ray meets the piece
+/// (`systems::construction::uses::first_in_view`). The sight test's rules, by height
+/// (`wall_blocks`, `SlabBox::blocks`), over what a hand cannot pass:
+/// - the WALLS AS THE WALK MEETS THEM (`wall_collision::ship_wall_segments`, the list lib.rs keeps
+///   as `EngineState::wall_colliders`): a window's glass is solid, and a doorway is open from its
+///   foot to its head with the wall over it standing as its own segment (a lintel), so a piece seen
+///   through a door is reached and one beyond the wall over it, or beside it, is not;
+/// - EVERY floor slab, glass as well as solid: a glass floor is seen through but not reached
+///   through.
+///
+/// It used to be the walls in plan alone (`ray_crosses_walls`, which read no heights), which took
+/// the lintel over every door for a wall across the doorway at every height (23 of the homestead's
+/// 35 ground doors hid everything beyond them from E and F) and let a hand reach through a floor.
+/// Borrowed, so a frame builds nothing for it.
+#[derive(Clone, Copy, Default)]
+pub struct ReachBlockers<'a> {
+    pub walls: &'a [WallSegment],
+    pub ship: Option<&'a ShipStructure>,
+}
+
+impl ReachBlockers<'_> {
+    /// True when something stands between `eye` and `target` that a hand does not reach through.
+    pub fn blocked(&self, eye: Vec3, target: Vec3) -> bool {
+        self.walls.iter().any(|w| wall_blocks(w, eye, target)) || self.ship.is_some_and(|s| ship_slabs(s).any(|b| b.blocks(eye, target)))
+    }
+}
+
+/// EVERY floor slab of the ship, solid and glass, as boxes in the ship's frame (`ReachBlockers`):
+/// each zone's, moved to its origin; none of a home put away.
+pub fn ship_slabs(ship: &ShipStructure) -> impl Iterator<Item = SlabBox> + '_ {
+    ship.zones.iter().enumerate().filter(move |(zi, _)| !ship.is_away_home(*zi)).flat_map(|(_, zone)| {
+        let origin = Vec3::new(zone.origin.0, zone.origin.1, zone.origin.2);
+        zone.body.floors.iter().map(move |s| slab_box(s).moved(origin))
+    })
+}
+
 /// How close to straight ahead a machine must be for the walk-up to pick it: the cosine of the
 /// half-angle of the look cone, 0.9 (about 25 degrees), as it has been since v0.431.
 pub const WALK_UP_CONE_COS: f32 = 0.9;
+
+/// What stands at a point `storey_floor` is asked about, which decides the storey of a point where
+/// no floor is under it in plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Foot {
+    /// The feet of a BODY. A body is always held up by something at its height (a floor, a stair's
+    /// tread, an elevator's car, a ladder's top), so its feet at a storey's floor are on that
+    /// storey wherever they are in plan: a rider on the car at the top of its shaft is upstairs.
+    Body,
+    /// The foot of a FIXTURE (a machine's placement). A fixture may hang (a unit under a ceiling or
+    /// on a wall), so it belongs to the floor under it: where no slab of its storey's floor is under
+    /// it in plan (a room open to the roof, a stairwell), the storey below.
+    Fixture,
+}
 
 /// THE FLOOR OF THE STOREY A POINT IS ON, from the home's own storeys (its slab tops,
 /// `HomeStructure::storeys`): the zone of `ship` that holds the point `p` (ship frame; in plan,
@@ -164,10 +223,18 @@ pub const WALK_UP_CONE_COS: f32 = 0.9;
 /// so a home with 2.5 m storeys is read as it is built, not by a 3 m rule of thumb; and two zones
 /// side by side on one deck share their ground storey.
 ///
+/// A FIXTURE'S STOREY HAS A FLOOR UNDER IT (the seams review of 2026-10-21, finding 4): for a
+/// `Foot::Fixture` with no slab of its storey's floor under it in plan, the storey below, down to
+/// the ground's (which is everywhere), so a room open to the roof belongs to the floor it stands
+/// on. The greenhouse is 6 m to the roof with no slab over it: a unit hung there 3 m or more up used
+/// to read as upstairs, and E refused it from the greenhouse floor. A `Foot::Body` is on the storey
+/// of its height, slab or not (`Foot`).
+///
 /// COST: one plan test per zone, and the storeys of the one zone that holds the point, worked out
-/// from its slabs (a small list). The walk-up asks it once for the player and once per machine
-/// that is already in reach and in the look cone, so a handful of times a frame.
-pub fn storey_floor(ship: &ShipStructure, p: Vec3) -> Option<f32> {
+/// from its slabs (a small list), and for a fixture one plan test per slab of each storey walked
+/// down. The walk-up asks it once for the player and once per machine that is already in reach and
+/// in the look cone, so a handful of times a frame.
+pub fn storey_floor(ship: &ShipStructure, p: Vec3, foot: Foot) -> Option<f32> {
     use crate::ship::home_structure::storey_index;
     let zone = ship.zones.iter().enumerate().filter(|(zi, _)| !ship.is_away_home(*zi)).map(|(_, z)| z).find(|z| {
         let (b, (ox, oy, oz)) = (&z.body, z.origin);
@@ -179,14 +246,21 @@ pub fn storey_floor(ship: &ShipStructure, p: Vec3) -> Option<f32> {
             && p.y <= oy + b.height
     })?;
     let storeys = zone.body.storeys();
-    let k = storey_index(&storeys, p.y - zone.origin.1);
+    let mut k = storey_index(&storeys, p.y - zone.origin.1);
+    if foot == Foot::Fixture {
+        let (x, z) = (p.x - zone.origin.0, p.z - zone.origin.2);
+        while k > 0 && !zone.body.floors.iter().any(|s| s.is_floor_of(&storeys[k]) && s.contains(x, z)) {
+            k -= 1;
+        }
+    }
     storeys.get(k).map(|s| zone.origin.1 + s.floor)
 }
 
 /// THE WALK-UP TARGET: which machine E acts on. `machines` gives each machine's label anchor
 /// (the point the HUD draws its dot at, 0.4 m over its top) and the height it stands at (its
 /// foot), both in the frame of `eye`; `feet` is the height of the player's feet in that frame;
-/// `storey_floor` says which storey a point of that frame is on (the floor's height; None where
+/// `storey_floor` says which storey a point of that frame is on, asked of the player's feet as a
+/// `Foot::Body` and of each machine's foot as a `Foot::Fixture` (the floor's height; None where
 /// no home says, `storey_floor` above with the frame's offset). The answer is the index of the
 /// nearest machine (by its label) that is
 /// - within reach (`moves::INTERACT_REACH_M`, 5 m, to its label: the relay's reach,
@@ -209,11 +283,11 @@ pub fn walk_up_target(
     forward: Vec3,
     machines: impl IntoIterator<Item = (Vec3, f32)>,
     blockers: &SightBlockers,
-    storey_floor: impl Fn(Vec3) -> Option<f32>,
+    storey_floor: impl Fn(Vec3, Foot) -> Option<f32>,
 ) -> Option<usize> {
     use crate::ship::home_structure::STOREY_EPS;
     use crate::ship::moves::{INTERACT_REACH_M, STOREY_BAND_ABOVE_M, STOREY_BAND_BELOW_M};
-    let mine = storey_floor(Vec3::new(eye.x, feet, eye.z));
+    let mine = storey_floor(Vec3::new(eye.x, feet, eye.z), Foot::Body);
     let mut best: Option<(usize, f32)> = None;
     for (i, (label, foot)) in machines.into_iter().enumerate() {
         let to = label - eye;
@@ -227,7 +301,7 @@ pub fn walk_up_target(
         if best.is_some_and(|b| dist >= b.1) {
             continue;
         }
-        let same_storey = match (mine, storey_floor(Vec3::new(label.x, foot, label.z))) {
+        let same_storey = match (mine, storey_floor(Vec3::new(label.x, foot, label.z), Foot::Fixture)) {
             (Some(a), Some(b)) => (a - b).abs() < STOREY_EPS,
             _ => (-STOREY_BAND_BELOW_M..=STOREY_BAND_ABOVE_M).contains(&(foot - feet)),
         };
@@ -308,7 +382,7 @@ mod tests {
         /// The machine E acts on, looking from `eye` straight at `id`'s label.
         fn e_at(&self, eye: Vec3, id: &str) -> Option<&str> {
             let fwd = (self.machine(id).2 - eye).normalize();
-            let storey = |p: Vec3| storey_floor(&self.ship, p);
+            let storey = |p: Vec3, foot: Foot| storey_floor(&self.ship, p, foot);
             walk_up_target(eye, eye.y - 1.7, fwd, self.machines.iter().map(|m| (m.2, m.3)), &self.blockers, storey).map(|i| self.machines[i].0.as_str())
         }
     }
@@ -459,7 +533,7 @@ mod tests {
     /// A home's storeys as `storey_floor` reads them, over the whole plane: the storeys
     /// `HomeStructure::storeys` derives from slabs whose tops are `tops` (any body will do: only
     /// its slabs and its 6 m height are read), and the floor of the one a point is on.
-    fn storeys_of(tops: &[f32]) -> impl Fn(Vec3) -> Option<f32> {
+    fn storeys_of(tops: &[f32]) -> impl Fn(Vec3, Foot) -> Option<f32> {
         use crate::ship::home_structure::{storey_index, FloorSlab};
         let mut home = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the homestead is built in").body;
         home.floors = tops
@@ -467,11 +541,11 @@ mod tests {
             .map(|&top| FloorSlab { a: (-50.0, -50.0), b: (50.0, 50.0), top, thickness: 0.25, material: SlabMaterial::Glass, label: None })
             .collect();
         let storeys = home.storeys();
-        move |p: Vec3| Some(storeys[storey_index(&storeys, p.y)].floor)
+        move |p: Vec3, _: Foot| Some(storeys[storey_index(&storeys, p.y)].floor)
     }
 
     /// E from `eye` (feet 1.7 m under it) looking straight at the first of `machines`.
-    fn e_from(eye: Vec3, machines: &[(Vec3, f32)], storeys: impl Fn(Vec3) -> Option<f32>) -> Option<usize> {
+    fn e_from(eye: Vec3, machines: &[(Vec3, f32)], storeys: impl Fn(Vec3, Foot) -> Option<f32>) -> Option<usize> {
         walk_up_target(eye, eye.y - 1.7, (machines[0].0 - eye).normalize(), machines.iter().copied(), &SightBlockers::default(), storeys)
     }
 
@@ -511,7 +585,7 @@ mod tests {
         let upstairs = [(Vec3::new(1.5, 3.64, 0.0), 3.0)];
         assert_eq!(e_from(Vec3::new(0.0, 1.7, 0.0), &upstairs, three()), None, "a unit on the floor above");
         // Where no home says (a point in no zone), the relay's band at the foot: up to 2.5 m.
-        let nowhere = || |_: Vec3| None::<f32>;
+        let nowhere = || |_: Vec3, _: Foot| None::<f32>;
         assert_eq!(e_from(Vec3::new(0.0, 1.7, 0.0), &[(Vec3::new(1.5, 2.8, 0.0), 2.4)], nowhere()), Some(0), "no home: 2.4 m up");
         assert_eq!(e_from(Vec3::new(0.0, 1.7, 0.0), &upstairs, nowhere()), None, "no home: 3.0 m up");
         // Out of reach, or out of the cone, as ever.
@@ -520,37 +594,105 @@ mod tests {
         assert_eq!(walk_up_target(Vec3::new(0.0, 1.7, 0.0), 0.0, Vec3::Z, tower, &none, three()), None, "looking away");
     }
 
+    /// The REAL floor under a fixture whose foot is at `foot` over (x, z) (ship frame): the highest
+    /// floor at or under its foot there that a body stands on (`Footing::floor_under`, measured so
+    /// it reaches no higher than the foot), so a unit hung under a slab is over the room's floor,
+    /// not the slab's top. Where the footing finds nothing (a doorway's cells belong to no room, and
+    /// nothing else stands there), the home's own floor, `ground`.
+    #[cfg(feature = "native")]
+    fn floor_under_fixture(footing: &crate::engine::footing::Footing, x: f32, foot: f32, z: f32, ground: f32) -> f32 {
+        let step = crate::engine::footing::STEP_UP_M;
+        footing.floor_under(Vec3::new(x, foot + 1.7, z), foot - step + 0.01).unwrap_or(ground)
+    }
+
     /// EVERY SHIPPED MACHINE IS E'S FROM ITS OWN FLOOR, AND SEEN FROM IT. For each machine of
-    /// data/machines/home.ron, standing on the floor of the storey its foot is on (the
-    /// homestead's own storeys), half a metre from it towards the middle of the home and looking
-    /// at it, with nothing else about: E reaches it (`storey_floor` puts both on one storey), and
-    /// no solid slab stands between that eye and its label (a label poking up into or through
-    /// the floor over its own room would hide it from that room). A unit hung higher than its
-    /// storey, or a label that pierces the slab over it, fails here and not on the operator's
-    /// walk-through.
+    /// data/machines/home.ron, standing on the real floor under it (`Footing::floor_under`, the
+    /// highest a body stands on at or under its foot: the seams review of 2026-10-21, finding 4,
+    /// found this test reading "its own floor" off the storey rule under test, which put the eye
+    /// 4.7 m up in the greenhouse's air for a unit hung 3 m or more up there), half a metre from
+    /// it towards the middle of the home and looking at it, with nothing else about: E reaches it
+    /// (`storey_floor` puts both on one storey), and no solid slab stands between that eye and its
+    /// label (a label poking up into or through the floor over its own room would hide it from
+    /// that room). A unit hung higher than its storey, or a label that pierces the slab over it,
+    /// fails here and not on the operator's walk-through.
     ///
     /// Seen red first (2026-10-21) twice: in an earlier form, which read the storey by a fixed
     /// band over the feet, with that band at the relay's 2.5 m, "air_handler_g1 stands 2.70 m
     /// over its floor at 0.0, out of the walk-up's storey band"; and in this form, with the
     /// home's storeys ignored (the relay's band alone), "from its own floor at 0.0, E misses
     /// air_handler_g1 (its foot 2.70 m over it)".
+    #[cfg(feature = "native")]
     #[test]
     fn every_shipped_machine_is_es_from_its_own_floor_and_seen_from_it() {
-        use crate::ship::home_structure::storey_index;
         let w = aboard();
         assert!(w.storeys.len() >= 2, "the homestead has an upper floor");
+        let feet = crate::engine::footing::test_aboard::Aboard::of(w.ship.clone());
+        let footing = feet.footing();
         let home = &w.ship.zones[w.ship.home_zone_index()].body;
         let middle = w.at(home.width * 0.5, 0.0, home.depth * 0.5);
         for (id, _room, label, foot) in &w.machines {
             let local = foot - w.origin.y;
-            let floor = w.storeys[storey_index(&w.storeys, local)].floor;
+            let floor = floor_under_fixture(&footing, label.x, *foot, label.z, w.origin.y) - w.origin.y;
             let toward = (Vec3::new(middle.x - label.x, 0.0, middle.z - label.z)).normalize_or_zero() * 0.5;
             let eye = Vec3::new(label.x + toward.x, w.origin.y + floor + 1.7, label.z + toward.z);
-            let got = e_from(eye, &[(*label, *foot)], |p: Vec3| storey_floor(&w.ship, p));
+            let got = e_from(eye, &[(*label, *foot)], |p: Vec3, foot: Foot| storey_floor(&w.ship, p, foot));
             assert_eq!(got, Some(0), "from its own floor at {floor:.1}, E misses {id} (its foot {:.2} m over it)", local - floor);
             let slab = w.blockers.slabs.iter().any(|s| s.blocks(eye, *label));
             assert!(!slab, "{id}'s label at {:.2} m is behind a solid slab from its own floor at {floor:.1}", label.y - w.origin.y);
         }
+    }
+
+    /// THE WALL OVER AN OPENING HIDES WHAT IS BEHIND IT; THE OPENING DOES NOT (the seams review of
+    /// 2026-10-21, finding 3). The plot's front-door corridor cuts the homestead's east wall (x 55)
+    /// over z 39 to 41 from the floor to 2.2 m, and the shell stands over the cut to the roof, beside
+    /// the upper hall. From the upper hall at (53, 4.7, 39.8), a nameplate over a person in that
+    /// corridor at (58, 2.0, 39.8) is behind that shell (the line meets x 55 at 3.6 m) and hidden;
+    /// from the entry under it at (53, 1.7, 39.8) the same nameplate is seen through the doorway.
+    ///
+    /// Seen red first (2026-10-21) with every opening of the sight lines open at every height
+    /// (`sight_segments_with_shell_cuts` before this fix): "from the upper hall, the nameplate in
+    /// the front door's corridor shows through the shell over the door".
+    #[test]
+    fn the_wall_over_an_opening_hides_what_is_behind_it() {
+        let w = aboard();
+        let nameplate = w.at(58.0, 2.0, 39.8);
+        assert!(w.blockers.blocked(w.at(53.0, 4.7, 39.8), nameplate), "from the upper hall, the nameplate in the front door's corridor shows through the shell over the door");
+        assert!(!w.blockers.blocked(w.at(53.0, 1.7, 39.8), nameplate), "from the entry, the nameplate in the front door's corridor is hidden by its doorway");
+    }
+
+    /// A UNIT HUNG HIGH IN A ROOM OPEN TO THE ROOF IS ON THE FLOOR UNDER IT (the seams review of
+    /// 2026-10-21, finding 4). The greenhouse (x 10 to 55, z 51 to 73) is open to the roof, 6 m, with
+    /// no slab of the upper floor over it. A unit hung with its foot 4.0 m up at (30, 60), its label
+    /// 1.0 m over that, belongs to the greenhouse floor: from that floor (`Footing::floor_under`),
+    /// half a metre from it and looking up at it, E reaches it. A unit standing on the upper floor's
+    /// slab is still on the upper floor: from the dining room under the bedroom, E does not reach
+    /// one standing in the bedroom. A body's feet are on the storey of their height wherever they
+    /// are (`Foot::Body`): a rider on the elevator's car at the top of its shaft is upstairs.
+    ///
+    /// Seen red first (2026-10-21) with `storey_floor` taking the storey from the slab tops alone,
+    /// wherever the point is in plan: "from the greenhouse floor at 0.0, E misses a unit hung 4.0 m
+    /// up (left: None, right: Some(0))".
+    #[cfg(feature = "native")]
+    #[test]
+    fn a_unit_hung_high_in_a_room_open_to_the_roof_is_on_the_floor_under_it() {
+        let w = aboard();
+        let feet = crate::engine::footing::test_aboard::Aboard::of(w.ship.clone());
+        let footing = feet.footing();
+        let foot = w.origin.y + 4.0;
+        let label = w.at(30.0, 5.0, 60.0);
+        let floor = floor_under_fixture(&footing, label.x, foot, label.z, w.origin.y);
+        assert!((floor - w.origin.y).abs() < 1e-4, "the greenhouse floor under the unit is at {floor}");
+        let eye = Vec3::new(label.x, floor + 1.7, label.z + 0.5);
+        let got = e_from(eye, &[(label, foot)], |p: Vec3, foot: Foot| storey_floor(&w.ship, p, foot));
+        assert_eq!(got, Some(0), "from the greenhouse floor at {:.1}, E misses a unit hung 4.0 m up", floor - w.origin.y);
+        // A unit on the bedroom's floor (the slab at 3.0), from the dining room under it.
+        let upstairs = (w.at(38.0, 3.9, 34.0), w.origin.y + 3.0);
+        assert_eq!(e_from(w.at(38.0, 1.7, 34.6), &[upstairs], |p: Vec3, foot: Foot| storey_floor(&w.ship, p, foot)), None, "from the dining room, E reaches a unit in the bedroom over it");
+        // A body's feet are held up by what they stand on: on the elevator's car at the top of its
+        // shaft (31, 26), where no slab is, the rider is upstairs; a fixture there is not.
+        let on_car = w.at(31.0, 3.0, 26.0);
+        assert_eq!(storey_floor(&w.ship, on_car, Foot::Body), Some(w.origin.y + 3.0), "a rider on the car at the top of its shaft");
+        assert_eq!(storey_floor(&w.ship, on_car, Foot::Fixture), Some(w.origin.y), "a fixture hung 3 m up in the shaft");
     }
 
     /// THE SIGHT TEST IS WIRED IN: lib.rs builds the blockers with the solid slabs and the shut

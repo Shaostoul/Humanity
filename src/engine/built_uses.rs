@@ -273,12 +273,25 @@ fn target(state: &EngineState) -> Option<(hecs::Entity, uses::StructureUse, Stri
     let world = &state.game_world.world;
     let f = crate::engine::planet_build::player_frame(state)?;
     let registry = state.data_store.get::<BlueprintRegistry>("blueprint_registry");
-    // Aboard, the home's own walls hide what is behind them.
-    let walls: &[crate::ship::wall_collision::WallSegment] = if f.site.is_none() { state.wall_colliders.as_slice() } else { &[] };
-    let (e, u) = uses::looked_at(world, registry, f.eye, f.forward, REACH_M, f.site.as_ref(), walls)?;
+    // Aboard, the home's own walls (by height: a doorway is open under the wall over it) and its
+    // floors hide what is behind them (`ship::sight::ReachBlockers`, the seams review of
+    // 2026-10-21).
+    let blockers = reach_blockers(state, f.site.is_none());
+    let (e, u) = uses::looked_at(world, registry, f.eye, f.forward, REACH_M, f.site.as_ref(), blockers)?;
     let s = world.get::<&Structure>(e).ok()?;
     let name = uses::display_name(&s, registry);
     Some((e, u, name))
+}
+
+/// What stands between the player's hand and a built piece it reaches for (E here, F's take-down
+/// in engine/build_place.rs): aboard (`aboard`, the player's frame is the home's), the walls the
+/// walk meets (`EngineState::wall_colliders`, ship frame, the frame the camera walks in) and the
+/// ship's floor slabs; at a planet site, nothing of the home's.
+pub(crate) fn reach_blockers(state: &EngineState, aboard: bool) -> crate::ship::sight::ReachBlockers<'_> {
+    if !aboard {
+        return Default::default();
+    }
+    crate::ship::sight::ReachBlockers { walls: &state.wall_colliders, ship: state.gui_state.ship_structure.as_ref() }
 }
 
 /// What E does at a home machine instead of opening its card (first-hour audit F5,
