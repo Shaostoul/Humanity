@@ -166,6 +166,54 @@ pub struct BeltCache {
     pos_au: Vec<DVec3>,
     /// How many propagations so far (tests and the report).
     pub propagations: u64,
+    /// The dust's last mesh and what it was drawn for, so a map that has not
+    /// moved reuses it: rebuilding 17,000 points (a projection and a faded
+    /// colour each) cost 3.5 ms a frame at the overview at rest, against the
+    /// symbols' 1 ms budget (the release sweep of 2026-10-21).
+    mesh: std::sync::Arc<Mesh>,
+    mesh_for: Option<DustKey>,
+    mesh_drawn: u32,
+    /// How many times the dust's mesh was built (tests and the report).
+    pub mesh_builds: u64,
+}
+
+/// What the dust's mesh depends on (`BeltCache::mesh`): the camera, the canvas,
+/// the propagated positions, Diagram, the two colours, and the map frame's
+/// origin (Earth's display centre, which moves with the clock).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct DustKey {
+    pose: super::camera::MapPose,
+    rect: egui::Rect,
+    propagations: u64,
+    diagram: bool,
+    rock: Color32,
+    ice: Color32,
+    earth_au: DVec3,
+}
+
+impl DustKey {
+    /// The same picture, to a quarter of a pixel. The map frame is centred on
+    /// Earth, so with a live clock a camera held over the Sun moves in it every
+    /// frame, and so does every point (by minus Earth's step): what reaches the
+    /// screen is the points' shift relative to the eye, `-(d_earth + d_eye)`,
+    /// and the camera's turn. Compared exactly, the pose never matched twice and
+    /// the dust was rebuilt every frame (3.7 ms at the overview, 2026-10-21).
+    fn same_picture(&self, other: &DustKey, metres_per_px: f64) -> bool {
+        let (a, b) = (&self.pose, &other.pose);
+        let mpp = metres_per_px.max(f64::MIN_POSITIVE);
+        let shift_px = ((self.earth_au - other.earth_au) * M_PER_AU + (a.eye - b.eye)).length() / mpp;
+        let px_per_rad = f64::from(self.rect.height()) / a.fov_y.max(1e-9);
+        let turn_px = (a.forward - b.forward).length().max((a.up - b.up).length()) * px_per_rad;
+        self.rect == other.rect
+            && self.propagations == other.propagations
+            && self.diagram == other.diagram
+            && self.rock == other.rock
+            && self.ice == other.ice
+            && a.fov_y == b.fov_y
+            && (a.distance - b.distance).abs() <= a.distance.abs() * 1e-9
+            && shift_px < 0.25
+            && turn_px < 0.25
+    }
 }
 
 impl BeltCache {
@@ -193,15 +241,40 @@ fn position_au(o: &BeltOrbit, t: f64) -> DVec3 {
     o.p * (o.a * (ea.cos() - o.e)) + o.q * (o.b * ea.sin())
 }
 
-/// Append the dust to `mesh`: one small triangle per point on the canvas, in
-/// the theme's rock or ice colour. Returns how many were drawn.
-pub fn add_dust(mesh: &mut Mesh, set: &BeltSet, cache: &BeltCache, proj: &MapProjector, scene: &MapScene, rock: Color32, ice: Color32) -> u32 {
+/// Append the dust to `mesh` (tests; the page paints `dust_mesh`'s shared
+/// mesh without copying it). Returns how many points were drawn.
+pub fn add_dust(mesh: &mut Mesh, set: &BeltSet, cache: &mut BeltCache, proj: &MapProjector, scene: &MapScene, rock: Color32, ice: Color32) -> u32 {
+    let (dust, drawn) = dust_mesh(set, cache, proj, scene, rock, ice);
+    mesh.append_ref(&dust);
+    drawn
+}
+
+/// The dust: one small triangle per point on the canvas, in the theme's rock
+/// or ice colour, and how many were drawn. The mesh is built again only when
+/// the picture would change (`DustKey`); otherwise the last one is handed back
+/// as it is (egui holds a mesh shape by `Arc`, so nothing is copied).
+pub fn dust_mesh(set: &BeltSet, cache: &mut BeltCache, proj: &MapProjector, scene: &MapScene, rock: Color32, ice: Color32) -> (std::sync::Arc<Mesh>, u32) {
     if cache.pos_au.len() != set.orbits.len() {
-        return 0;
+        return (std::sync::Arc::default(), 0);
     }
     // The map frame is metres from Earth's (display) centre: one offset for
     // every point, then each is projected in f64.
     let earth_au = scene.earth_display_au();
+    let key = DustKey { pose: proj.pose, rect: proj.rect, propagations: cache.propagations, diagram: scene.diagram, rock, ice, earth_au };
+    if cache.mesh_for.is_some_and(|k| k.same_picture(&key, proj.metres_per_px())) {
+        return (cache.mesh.clone(), cache.mesh_drawn);
+    }
+    let mut built = Mesh::default();
+    let drawn = build_dust(&mut built, set, cache, proj, scene, rock, ice, earth_au);
+    cache.mesh = std::sync::Arc::new(built);
+    cache.mesh_for = Some(key);
+    cache.mesh_drawn = drawn;
+    cache.mesh_builds += 1;
+    (cache.mesh.clone(), drawn)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_dust(mesh: &mut Mesh, set: &BeltSet, cache: &BeltCache, proj: &MapProjector, scene: &MapScene, rock: Color32, ice: Color32, earth_au: DVec3) -> u32 {
     let tones: Vec<Color32> = set.classes.iter().map(|c| if c.tone == "ice" { ice } else { rock }).collect();
     // A class seen small is thinned, so its points do not pile up into a
     // solid blob over the inner planets (at the 60 AU overview the main belt
@@ -240,133 +313,5 @@ pub fn add_dust(mesh: &mut Mesh, set: &BeltSet, cache: &BeltCache, proj: &MapPro
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The shipped belts are real: 20,000 orbits in four classes, with the
-    /// MPC's credit and its header shipped beside them; the main belt's
-    /// orbits lie between Mars and Jupiter, the trojans at Jupiter's distance,
-    /// the Kuiper belt beyond Neptune.
-    ///
-    /// Seen red 2026-10-21 with the header file left out of the data folder:
-    /// "data/maps/MPCORB-header.txt does not ship beside the belts".
-    #[test]
-    fn the_shipped_belts_are_the_real_minor_planets_with_their_credit() {
-        let set = belt_set();
-        assert!(set.len() >= 19_000, "only {} belt orbits", set.len());
-        assert!(set.credit.contains("Minor Planet Center"), "no MPC credit: {:?}", set.credit);
-        let header = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/maps/MPCORB-header.txt"));
-        let header = header.expect("data/maps/MPCORB-header.txt does not ship beside the belts");
-        assert!(header.contains("Software programs may include this datafile"), "the header is not MPCORB's");
-        let class = |id: &str| set.classes.iter().position(|c| c.id == id).unwrap() as u8;
-        let a_of = |c: u8| set.orbits.iter().filter(|o| o.class == c).map(|o| o.a).collect::<Vec<_>>();
-        let median = |mut v: Vec<f64>| {
-            v.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            v[v.len() / 2]
-        };
-        let (main, trojan, distant) = (median(a_of(class("main"))), median(a_of(class("trojan"))), median(a_of(class("distant"))));
-        assert!((2.2..3.3).contains(&main), "the main belt's median orbit is {main:.2} AU");
-        assert!((5.0..5.4).contains(&trojan), "the trojans' median orbit is {trojan:.2} AU");
-        assert!(distant > 30.0, "the distant objects' median orbit is {distant:.1} AU");
-    }
-
-    /// The trojans gather at Jupiter's L4 and L5: on the page's date, most of
-    /// them stand 40 to 80 degrees from Jupiter round the Sun, the two swarms
-    /// either side of it.
-    ///
-    /// Seen red 2026-10-21 with each orbit's mean anomaly left at its epoch
-    /// value plus a full extra half turn (`m0 + PI`): "only 1% of the trojans
-    /// are 40 to 80 degrees from Jupiter".
-    #[test]
-    fn the_trojans_swarm_sixty_degrees_from_jupiter() {
-        let set = belt_set();
-        let t = 843_782_400.0;
-        let mut cache = BeltCache::default();
-        cache.update(set, t, false);
-        let jupiter = crate::cosmos::body_world_position_3d_au(crate::cosmos::find_body("jupiter").unwrap(), t);
-        let tro = set.classes.iter().position(|c| c.id == "trojan").unwrap() as u8;
-        let flat = |v: DVec3| DVec3::new(v.x, 0.0, v.z).normalize();
-        let (mut near60, mut all, mut ahead, mut behind) = (0, 0, 0, 0);
-        for (o, p) in set.orbits.iter().zip(&cache.pos_au) {
-            if o.class != tro {
-                continue;
-            }
-            all += 1;
-            let ang = flat(*p).dot(flat(jupiter)).clamp(-1.0, 1.0).acos().to_degrees();
-            if (40.0..80.0).contains(&ang) {
-                near60 += 1;
-                // Ahead of Jupiter: the turn from Jupiter to it is the way the
-                // planets go round, counter-clockwise seen from ecliptic north (+Y).
-                if flat(jupiter).cross(flat(*p)).y > 0.0 { ahead += 1 } else { behind += 1 }
-            }
-        }
-        let share = near60 as f64 / all as f64;
-        assert!(share > 0.6, "only {:.0}% of the trojans are 40 to 80 degrees from Jupiter", share * 100.0);
-        assert!(ahead > all / 5 && behind > all / 5, "the two swarms: {ahead} ahead, {behind} behind of {all}");
-    }
-
-    /// Seen from far out, the inner belts thin with the square of the zoom so
-    /// their points never pile up into a solid blob: at the page's 60 AU
-    /// overview no main-belt point adds more than 3% of its colour, while at
-    /// 11 AU (the belts 165 px across) they draw at full strength.
-    ///
-    /// Seen red 2026-10-21 with the dust premultiplied by egui's
-    /// `from_rgba_unmultiplied` (in linear light): "at 60 AU a main-belt point
-    /// adds 33 of 255 of its colour, over 8".
-    #[test]
-    fn far_out_the_belts_thin_instead_of_piling_up() {
-        use crate::gui::pages::maps::camera::{MapCamera, MapProjector, MapScene};
-        let set = belt_set();
-        let t = 843_782_400.0;
-        let mut cache = BeltCache::default();
-        cache.update(set, t, false);
-        let scene = MapScene::new(None, t, false);
-        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(755.0, 745.0));
-        let rock = Color32::from_rgba_unmultiplied(209, 189, 158, 140); // theme-exempt: fixed test colours, the theme token values
-        let ice = Color32::from_rgba_unmultiplied(158, 189, 224, 140); // theme-exempt: fixed test colours, the theme token values
-        let main = set.classes.iter().position(|c| c.id == "main").unwrap() as u8;
-        // The brightest premultiplied red a main-belt point adds, at a view.
-        let brightest = |cam: MapCamera| {
-            let proj = MapProjector::new(cam.pose(&scene), rect);
-            let mut mesh = Mesh::default();
-            add_dust(&mut mesh, set, &cache, &proj, &scene, rock, ice);
-            let mut i = 0usize;
-            let mut best = 0u8;
-            for (o, p) in set.orbits.iter().zip(&cache.pos_au) {
-                let Some((at, _)) = proj.project((*p - scene.earth_display_au()) * M_PER_AU) else { continue };
-                if !rect.contains(at) {
-                    continue;
-                }
-                if o.class == main {
-                    best = best.max(mesh.vertices[i * 3].color.r());
-                }
-                i += 1;
-            }
-            best
-        };
-        let far = brightest(MapCamera::default());
-        assert!(far <= 8, "at 60 AU a main-belt point adds {far} of 255 of its colour, over 8");
-        let near = brightest(MapCamera::overview(11.0 * M_PER_AU));
-        assert!(near >= 60, "at 11 AU a main-belt point adds only {near} of 255");
-    }
-
-    /// The dust moves only when the clock has moved a visible amount (or
-    /// Diagram is switched), so a live map does not solve 20,000 Kepler
-    /// equations every frame.
-    ///
-    /// Seen red 2026-10-21 with the cache never reused: "assertion `left ==
-    /// right` failed: re-propagated within 21600 s".
-    #[test]
-    fn the_dust_is_propagated_only_when_the_clock_moves_far_enough() {
-        let set = belt_set();
-        let mut cache = BeltCache::default();
-        cache.update(set, 0.0, false);
-        cache.update(set, 60.0, false);
-        cache.update(set, REPROPAGATE_S, false);
-        assert_eq!(cache.propagations, 1, "re-propagated within {REPROPAGATE_S} s");
-        cache.update(set, REPROPAGATE_S + 1.0, false);
-        assert_eq!(cache.propagations, 2);
-        cache.update(set, REPROPAGATE_S + 1.0, true);
-        assert_eq!(cache.propagations, 3, "switching Diagram did not move the dust");
-    }
-}
+#[path = "belts_tests.rs"]
+mod tests;
