@@ -456,15 +456,24 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     real time and leaves the Moon's phase-to-hour relation off on a faster day; the game has no
     axial tilt, so the Moon's north stands near the zenith-pole of the game sky rather than tilted
     as in life; walking on the Moon takes "north" from world +Y, 1.5 degrees off the Moon's pole.
-  - **Recovery through trusted people is half built (found 2026-10-20 from the operator's
-    screenshot of the Recovery page):** the relay has only lookups (`/api/v2/recovery/setup`,
-    `shares-held-by`, `request`, GET); there is no screen to choose guardians or split the phrase,
-    and the page's step 5 posts a `key_rotation_v1` the relay no longer has (the key-rotation route
-    was deleted in Inc5b). Finishing it needs no key rotation: guardians return shares of the
-    recovery phrase, and restoring from the reassembled phrase gives back the same account. Until
-    it is finished the page must say so in plain words. (2026-10-20: it does, in Settings > Account
-    and on the website's /recovery, and the desktop app's two lookups, which set flags nothing read,
-    now ask the server and show the answer. What is left is the setup itself.)
+  - **DONE 2026-10-21: Recovery through trusted people, end to end on both apps**
+    (docs/design/recovery-through-trusted-people.md; desktop Settings > Account, website /recovery).
+    Set up: choose 2 to 10 friends and how many must help; the 32 bytes the recovery phrase writes
+    down are split with Shamir over GF(256) (`blahaj`, MIT; the website writes out the same
+    arithmetic, held to it by a shared fixture and blahaj's own field vectors), each piece sealed
+    to a friend's Kyber768 key (ML-KEM-768, BLAKE3-KDF, AES-256-GCM) and posted as a signed
+    `recovery_share_v1`; the server never learns who the trusted people are (a note to self names
+    them). Ask for help: a one-time key on the new device, a 16-character code read aloud (its
+    fingerprint, so no server can swap the key), the trusted person checks it is really them by a
+    call or face to face and sends their piece sealed to that key; the device rebuilds and restores
+    through "Restore from recovery phrase", the same account (the key-change step is gone). The
+    person's own devices see "someone asked" with "That was not me". Server: `recovery_pieces`,
+    `recovery_floors`, `recovery_asks`, `recovery_answers` (the first design's tables, which named
+    guardians in the clear, are dropped at start), seven-day requests, limits, erase and export.
+    Left: the trusted people's Kyber keys come from the server's member list as for DMs (signed key
+    cards would close that for every feature); the website needs the account readable in this
+    browser to set up or help (the standalone-page limit); the asking device keeps its key in
+    memory only, so closing it means a new code.
   - **A "per-room ambient" lowest level for Bounced light detail** (promised to the operator,
     2026-10-20, after he asked why not just brighten textures): one ambient colour per room from
     that room's own lamps and windows, no probe lattice, about a tenth of the probes' memory; it

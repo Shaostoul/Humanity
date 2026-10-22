@@ -14,7 +14,10 @@
 //!     takes the folders (`run_expiry_sweeps_in` names a test's own);
 //!   - resumable uploads with no piece for a day, row and pieces' file (storage/
 //!     upload_sessions.rs, 2026-10-11), from the folders' `resume`, or where a finish staged it
-//!     in the waiting or the public folder and could not move it back (R4-5).
+//!     in the waiting or the public folder and could not move it back (R4-5);
+//!   - requests for help with recovery that ended (seven days after they opened), with the pieces
+//!     they hold, and recovery setups never finished a day after they began (storage/recovery.rs,
+//!     2026-10-21). Reads already leave an ended request out; this takes it off the disk.
 //!
 //! Callers (relay/mod.rs, handlers/server_settings_update.rs): relay start, the six-hour
 //! maintenance pass (before its backup, so nothing expired rides into the backup), and every
@@ -80,6 +83,11 @@ impl Storage {
         }
         // Files from private conversations leave after the DM mailbox lifetime (B5, 2026-10-11,
         // storage/private_files.rs).
+        match self.recovery_expire(super::now_millis()) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("Recovery: removed {n} ended request(s), answer(s) or unfinished setup piece(s)"),
+            Err(e) => tracing::error!("Recovery sweep failed: {e}"),
+        }
         match self.expire_private_files_in(folders, s.dm_mailbox_ttl_days, super::now_millis() as i64) {
             Ok(0) => {}
             Ok(n) => tracing::info!("Private files: removed {n} older than the {}-day DM lifetime", s.dm_mailbox_ttl_days),

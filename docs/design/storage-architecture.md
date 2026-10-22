@@ -62,7 +62,7 @@ author's Dilithium3 key:
 | Various VC schemas | Verifiable Credentials (graduation, employment, role, member, account_age, skill_endorsement, …) |
 | `revocation_v1` / `withdrawal_v1` | VC revocation by issuer / withdrawal by subject |
 | `proposal_v1` / `vote_v1` | Governance |
-| `recovery_share_v1` / `recovery_request_v1` / `recovery_approval_v1` | Social key recovery |
+| `recovery_share_v1` | Recovery through trusted people: one sealed piece per trusted person (docs/design/recovery-through-trusted-people.md). Kept only on the server it was given to, in `recovery_pieces`, not in `signed_objects`; a request for help is not an object (`/api/v2/recovery/ask`) |
 | `dispute_v1` | Dispute against an issuer or VC |
 | `subject_class_v1` / `controlled_by_v1` / `ai_introduction_v1` | AI-as-citizen declarations |
 | `key_rotation_v1` | Identity key rotation |
@@ -117,7 +117,7 @@ Bob's client
 | **1 user, online** | Native or web client connects to ONE relay for chat + lookups. Optional Solana balance proxied through `/api/v2/solana/balance`. |
 | **A few hundred users on one server** | One SQLite file handles it easily. WAL mode = concurrent reads. |
 | **Many servers, many users** | Federation: each server is independent, gossips signed_objects, maintains its OWN per-issuer trust matrix from its OWN observations. No global view required. |
-| **Disaster / no-internet zone** | Phase 7b LoRa transport: high-priority objects (recovery_request, vouch, vote, proposal) propagate over radio at ~50kbps. Mesh syncs to internet when it returns. |
+| **Disaster / no-internet zone** | Phase 7b LoRa transport: high-priority objects (vouch, vote, proposal) propagate over radio at ~50kbps. Mesh syncs to internet when it returns. |
 | **Billions of users** | Federation = no single bottleneck: millions of small servers, not one big one. Sharding hot tables on `did[:2]` (256 buckets) is an idea, NOT built (no sharding code exists, checked 2026-10-11). The whole picture, capability by capability, is [eight-billion.md](eight-billion.md). |
 
 ---
@@ -126,7 +126,7 @@ Bob's client
 
 - **First meet via QR**: signed profile bytes encoded as QR. Both parties verify the Dilithium3 signature locally; no server in the loop.
 - **WebRTC**: `web/chat/chat-p2p.js`, direct browser-to-browser data channels for chat, voice, video, screen share.
-- **Recovery**: guardian sends decrypted Shamir share to holder out-of-band, typically through a friend's DM, but could be in-person, paper, or any side channel.
+- **Recovery** (built 2026-10-21, docs/design/recovery-through-trusted-people.md): the person checks it is really them outside the app (a call on a number they already had, or face to face) and reads the code their new device shows; the trusted person's app checks the code against the request's one-time key and sends its piece sealed to that key, through the server, which cannot open it.
 
 ---
 

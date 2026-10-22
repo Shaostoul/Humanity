@@ -259,6 +259,22 @@
     }
   }
 
+  /**
+   * The 32 bytes the recovery phrase writes down, for the Recovery page (/recovery, 2026-10-21),
+   * which splits them into pieces for trusted people and opens the pieces it keeps for others.
+   * Null without a readable key (the same cases as getPqIdentity). Kept only as long as the page
+   * needs it; never sent anywhere.
+   * @returns {Promise<Uint8Array|null>}
+   */
+  async function getPqRecoverySeed() {
+    const seed = await _loadSeed();
+    return seed && seed.length === 32 ? seed : null;
+  }
+
+  window.getPqRecoverySeed = getPqRecoverySeed;
+  // The 24 words for 32 bytes (the Recovery page writes out a phrase its trusted people helped
+  // rebuild, to hand to Chat's restore).
+  window.pqPhraseWords = _phraseWords;
   window.getPqSignedAuth = getPqSignedAuth;
   window.getPqIdentity = getPqIdentity;
   window.getPqDmStoreKey = getPqDmStoreKey;

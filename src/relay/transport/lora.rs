@@ -196,19 +196,18 @@ impl LoraTransport {
     }
 
     /// Should this object_type be transmitted over LoRa? Bandwidth-conserving
-    /// allowlist of "important" types; chat skips LoRa entirely.
+    /// allowlist of "important" types; chat skips LoRa entirely. (2026-10-21: the
+    /// recovery request and approval objects and the key change are gone; a request for
+    /// help with recovery is no longer an object, and a setup stays on its own server.)
     pub fn should_propagate(&self, object_type: &str) -> bool {
         matches!(
             object_type,
             "signed_profile_v1"
-                | "recovery_request_v1"
-                | "recovery_approval_v1"
                 | "vouch_v1"
                 | "verified_human_v1"
                 | "proposal_v1"
                 | "vote_v1"
                 | "dispute_v1"
-                | "key_rotation_v1"
                 | "subject_class_v1"
                 | "controlled_by_v1"
         )
@@ -253,7 +252,7 @@ mod tests {
         let lora = LoraTransport::new(LoraConfig::default());
         assert!(lora.should_propagate("proposal_v1"));
         assert!(lora.should_propagate("vote_v1"));
-        assert!(lora.should_propagate("recovery_request_v1"));
+        assert!(!lora.should_propagate("recovery_share_v1"), "a setup stays on its own server");
         assert!(lora.should_propagate("dispute_v1"));
         assert!(!lora.should_propagate("chat_message"));
         assert!(!lora.should_propagate("dm"));

@@ -1436,10 +1436,15 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/v2/proposals/{id}/chain", get(api_v2_governance::proposal_chain))
         // === API v2: AI-as-citizen status (Phase 8 PR 1) ===
         .route("/api/v2/ai-status/{did}", get(api_v2_ai::get_ai_status))
-        // === API v2: Social key recovery (Phase 4 PR 1+2) ===
+        // === API v2: Recovery through trusted people (2026-10-21, api_v2_recovery.rs) ===
         .route("/api/v2/recovery/setup/{holder_did}", get(api_v2_recovery::get_recovery_setup))
-        .route("/api/v2/recovery/shares-held-by/{guardian_did}", get(api_v2_recovery::get_shares_held_by))
-        .route("/api/v2/recovery/request/{request_object_id}", get(api_v2_recovery::get_recovery_request))
+        .route("/api/v2/recovery/withdraw", post(api_v2_recovery::withdraw))
+        .route("/api/v2/recovery/ask", post(api_v2_recovery::open_ask))
+        .route("/api/v2/recovery/ask/{code}", get(api_v2_recovery::get_ask))
+        .route("/api/v2/recovery/asks", get(api_v2_recovery::list_asks))
+        .route("/api/v2/recovery/answer", post(api_v2_recovery::answer))
+        .route("/api/v2/recovery/close", post(api_v2_recovery::close))
+        .route("/api/v2/recovery/not-me", post(api_v2_recovery::not_me))
         // === API v2: Solana balance proxy (Phase 6a) ===
         .route("/api/v2/solana/balance/{address}", get(api_v2_solana::get_solana_balance))
         // === API v2: Liveness / anti-deepfake schema docs (Phase 6c) ===

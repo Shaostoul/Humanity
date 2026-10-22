@@ -1,21 +1,25 @@
-//! Social key recovery — server-side storage of opaque Shamir shares (Phase 4 PR 1).
+//! Recovery through trusted people, the server's part (2026-10-21; the protocol is
+//! relay/core/recovery.rs, the design docs/design/recovery-through-trusted-people.md).
 //!
-//! Per the strategic plan (decision 3): freely-chosen guardians with VC-attested
-//! badge as a soft signal. The server stores ciphertext only — like vault_sync,
-//! it has no ability to decrypt or reconstruct keys.
+//! What this server keeps, and only this:
+//! - `recovery_pieces`: each `recovery_share_v1` a person posted, one row per piece, with the
+//!   signed object as posted (so every app can check it), its setup, slot and shape, and the
+//!   hash of the slot's answer token. The piece is sealed to a trusted person and the note to
+//!   the person themselves: nothing here names a trusted person, so no social graph is kept.
+//!   Not in `signed_objects`, not listed by `/api/v2/objects`, never passed to other servers:
+//!   a setup lives on the one server it was given to, so taking it back takes it away.
+//! - `recovery_floors`: per person, the time of the newest setup that stood or was taken
+//!   back. A piece signed at or before it is refused, so an old setup cannot be put back by
+//!   posting its objects again.
+//! - `recovery_asks`: a new device asking for help: the account, the one-time public key, the
+//!   hash of the secret that closes the ask, and when it ends ([`ASK_MS`] after it opened).
+//! - `recovery_answers`: a trusted person's piece, sealed to the one-time key, one per slot.
 //!
-//! Object types this module indexes:
-//!   recovery_share_v1   — encrypted share to a guardian (one per guardian)
-//!   recovery_request_v1 — request to use stored shares to recover a lost key
-//!
-//! The actual Shamir secret sharing (split + combine) happens client-side. The
-//! server's only role is to:
-//!   1. Persist shares opaquely
-//!   2. Track recovery requests + which guardians have submitted
-//!   3. When threshold is reached, accept the new key as a successor (key_rotation)
-//!
-//! Phase 4 PR 1 ships the storage + indexing. Client-side Shamir lib + relay
-//! endpoints to coordinate the recovery flow are Phase 4 PR 2 (later).
+//! Limits: a setup has 2 to 10 pieces (`SharePayload::parse`); a person has at most one setup
+//! standing and one being sent; an account has at most [`ASKS_PER_PERSON`] asks open, the server
+//! at most [`ASKS_OPEN_MAX`]; an ask holds at most one answer per slot. Asks and their answers go
+//! when they end (storage/expiry.rs, and every read leaves an ended one out); a setup that was
+//! never finished goes a day after it began.
 
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
@@ -23,488 +27,473 @@ use serde::Serialize;
 use super::Storage;
 use crate::relay::core::did::did_for_pubkey;
 use crate::relay::core::object::Object;
+use crate::relay::core::pq_crypto::KYBER_EK_LEN;
+use crate::relay::core::recovery::{
+    ANSWER_LEN, ASK_MS, SHARE_OBJECT_TYPE, SharePayload, TOKEN_LEN, account_id_ok, ask_code, close_hash, object_json,
+    token_hash,
+};
 
-/// Read a CBOR text payload field.
-fn read_text(object: &Object, field: &str) -> Option<String> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
-    if let ciborium::Value::Map(entries) = value {
-        for (k, v) in entries {
-            if let ciborium::Value::Text(name) = k {
-                if name == field {
-                    if let ciborium::Value::Text(s) = v {
-                        return Some(s);
-                    }
-                }
-            }
-        }
-    }
-    None
+/// The most asks one account may have open at once.
+pub const ASKS_PER_PERSON: usize = 3;
+/// The most asks this server keeps open at once, everyone's together.
+pub const ASKS_OPEN_MAX: usize = 1_000;
+/// How far ahead of this server's clock a setup's signed time may be.
+pub const SETUP_CLOCK_AHEAD_MS: u64 = 10 * 60 * 1000;
+/// How old a setup's signed time may be when it arrives: a setup is posted as it is made.
+pub const SETUP_MAX_AGE_MS: u64 = 86_400_000;
+
+/// Why the server said no, for the HTTP answer.
+#[derive(Debug)]
+pub enum RecoveryRefusal {
+    /// Malformed or not allowed by the protocol (400).
+    Bad(String),
+    /// Nothing to act on (404).
+    NotFound(String),
+    /// Wrong token or close secret (403).
+    NotAllowed(String),
+    /// A limit is reached (429).
+    Full(String),
+    /// The database failed (500).
+    Db(rusqlite::Error),
 }
 
-/// Read a CBOR bytes payload field.
-fn read_bytes(object: &Object, field: &str) -> Option<Vec<u8>> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
-    if let ciborium::Value::Map(entries) = value {
-        for (k, v) in entries {
-            if let ciborium::Value::Text(name) = k {
-                if name == field {
-                    if let ciborium::Value::Bytes(b) = v {
-                        return Some(b);
-                    }
-                }
-            }
-        }
+impl From<rusqlite::Error> for RecoveryRefusal {
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Db(e)
     }
-    None
 }
 
-/// Read a CBOR integer payload field.
-fn read_int(object: &Object, field: &str) -> Option<i64> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
-    if let ciborium::Value::Map(entries) = value {
-        for (k, v) in entries {
-            if let ciborium::Value::Text(name) = k {
-                if name == field {
-                    if let ciborium::Value::Integer(i) = v {
-                        let raw: i128 = i.into();
-                        if raw <= i64::MAX as i128 && raw >= i64::MIN as i128 {
-                            return Some(raw as i64);
-                        }
-                    }
-                }
-            }
+impl std::fmt::Display for RecoveryRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bad(s) | Self::NotFound(s) | Self::NotAllowed(s) | Self::Full(s) => f.write_str(s),
+            Self::Db(e) => write!(f, "storage: {e}"),
         }
     }
-    None
 }
 
+/// One piece of a setup as served: its slot and the signed object as posted.
 #[derive(Debug, Clone, Serialize)]
-pub struct RecoveryShareIndex {
-    pub share_object_id: String,
-    pub holder_did: String,
-    pub guardian_did: String,
-    pub threshold: u32,
-    pub total_shares: u32,
+pub struct ServedPieceRow {
+    pub slot: usize,
+    pub object: serde_json::Value,
+}
+
+/// A setup that stands: every piece arrived.
+#[derive(Debug, Clone, Serialize)]
+pub struct StandingSetup {
+    pub set_id: String,
+    pub needed: usize,
+    pub total: usize,
+    /// The objects' signed time, Unix ms.
+    pub created_at: i64,
+    pub pieces: Vec<ServedPieceRow>,
+}
+
+/// A setup still arriving.
+#[derive(Debug, Clone, Serialize)]
+pub struct SendingSetup {
+    pub set_id: String,
+    pub have: usize,
+    pub total: usize,
     pub created_at: i64,
 }
 
+/// What `GET /api/v2/recovery/setup/{account}` answers.
 #[derive(Debug, Clone, Serialize)]
-pub struct RecoverySetup {
+pub struct RecoverySetupView {
     pub holder_did: String,
-    pub guardians: Vec<String>,
-    pub threshold: u32,
-    pub total_shares: u32,
+    pub active: Option<StandingSetup>,
+    pub sending: Option<SendingSetup>,
 }
 
-/// A recovery request — holder lost their key and is asking guardians for shares.
+/// One answer an ask holds.
 #[derive(Debug, Clone, Serialize)]
-pub struct RecoveryRequestRecord {
-    pub request_object_id: String,
-    pub holder_did: String,
-    pub new_pubkey: Vec<u8>,
-    pub threshold_required: u32,
-    pub approvals_count: u32,
-    pub status: String, // "open" | "ready" | "completed" | "expired"
-    pub created_at: i64,
+pub struct AnswerRow {
+    pub slot: usize,
+    pub sealed_b64: String,
 }
 
-/// One guardian's approval: confirms they're sending their decrypted share to
-/// the holder via an out-of-band channel (typically encrypted DM to new_pubkey).
+/// An ask as `GET /api/v2/recovery/ask/{code}` answers it.
 #[derive(Debug, Clone, Serialize)]
-pub struct RecoveryApprovalRecord {
-    pub approval_object_id: String,
-    pub request_object_id: String,
-    pub guardian_did: String,
-    pub submitted_at: i64,
+pub struct AskView {
+    pub code: String,
+    pub holder_did: String,
+    pub one_time_key_b64: String,
+    pub opened_at: i64,
+    pub expires_at: i64,
+    /// The standing setup's shape (0 and 0 when it no longer has one).
+    pub needed: usize,
+    pub total: usize,
+    /// Answers for the standing setup only.
+    pub answers: Vec<AnswerRow>,
+}
+
+/// An open ask as the list of them shows it: no code and no key, only whose and when.
+#[derive(Debug, Clone, Serialize)]
+pub struct OpenAsk {
+    pub holder_did: String,
+    pub opened_at: i64,
+    pub expires_at: i64,
+}
+
+fn b64(b: &[u8]) -> String {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    STANDARD.encode(b)
+}
+
+/// The standing setup of `holder`: the newest set with every piece, on a connection already open.
+fn standing(conn: &rusqlite::Connection, holder: &str) -> rusqlite::Result<Option<StandingSetup>> {
+    let mut stmt = conn.prepare(
+        "SELECT set_id, needed, total, set_time, COUNT(*) FROM recovery_pieces WHERE holder_did = ?1
+         GROUP BY set_id ORDER BY set_time DESC",
+    )?;
+    let sets: Vec<(String, i64, i64, i64, i64)> = stmt
+        .query_map(params![holder], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let Some((set_id, needed, total, set_time, _)) = sets.into_iter().find(|s| s.4 == s.2) else { return Ok(None) };
+    let mut stmt = conn.prepare("SELECT slot, object_json FROM recovery_pieces WHERE holder_did = ?1 AND set_id = ?2 ORDER BY slot")?;
+    let pieces = stmt
+        .query_map(params![holder, set_id], |r| {
+            let text: String = r.get(1)?;
+            Ok(ServedPieceRow { slot: r.get::<_, i64>(0)? as usize, object: serde_json::from_str(&text).unwrap_or_default() })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(Some(StandingSetup { set_id, needed: needed as usize, total: total as usize, created_at: set_time, pieces }))
 }
 
 impl Storage {
-    /// Index a `recovery_share_v1` object stored on this server. Idempotent.
-    /// Returns Ok(true) if a new share row was inserted.
-    pub fn index_recovery_share(&self, object: &Object) -> Result<bool, rusqlite::Error> {
-        if object.object_type != "recovery_share_v1" {
-            return Ok(false);
+    /// Keep one piece of a setup (`put_signed_object` hands every `recovery_share_v1` here; its
+    /// signature is already checked). `Ok(true)` when it is new, `Ok(false)` when this slot of
+    /// this setup was already here. When the piece completes its setup, every other setup of
+    /// the person goes, with the answers asks hold for them, and the floor moves to its time.
+    pub fn put_recovery_piece(&self, object: &Object, now_ms: u64) -> Result<bool, RecoveryRefusal> {
+        if object.object_type != SHARE_OBJECT_TYPE {
+            return Err(RecoveryRefusal::Bad(format!("not a {SHARE_OBJECT_TYPE}")));
         }
-        let holder_did = did_for_pubkey(&object.author_public_key);
-        let guardian_did = match read_text(object, "guardian_did") {
-            Some(d) => d,
-            None => return Ok(false),
-        };
-        let threshold = read_int(object, "threshold").unwrap_or(0);
-        let total_shares = read_int(object, "total_shares").unwrap_or(0);
-        if threshold <= 0 || total_shares <= 0 || threshold as u32 > total_shares as u32 {
-            return Ok(false);
+        let p = SharePayload::parse(&object.payload).map_err(RecoveryRefusal::Bad)?;
+        if !object.references.is_empty() || object.space_id.is_some() || object.channel_id.is_some() {
+            return Err(RecoveryRefusal::Bad("a piece belongs to no space, channel or other object".into()));
         }
-
-        let share_object_id = object
-            .object_id()
-            .map(|h| h.to_hex())
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(
-                std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()),
-            )))?;
-        let now = super::now_millis() as i64;
-
-        self.with_conn(|conn| {
-            let rows = conn.execute(
-                "INSERT OR IGNORE INTO recovery_shares
-                    (share_object_id, holder_did, guardian_did, threshold,
-                     total_shares, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
-                    share_object_id,
-                    holder_did,
-                    guardian_did,
-                    threshold as i64,
-                    total_shares as i64,
-                    now,
-                ],
+        let at = object.created_at.ok_or_else(|| RecoveryRefusal::Bad("a piece carries the time it was made".into()))?;
+        if at > now_ms + SETUP_CLOCK_AHEAD_MS {
+            return Err(RecoveryRefusal::Bad("this piece's time is ahead of the server's clock: check this device's clock".into()));
+        }
+        if at + SETUP_MAX_AGE_MS < now_ms {
+            return Err(RecoveryRefusal::Bad("this piece was made more than a day ago: a setup is sent as it is made".into()));
+        }
+        let holder = did_for_pubkey(&object.author_public_key);
+        let json = object_json(object).to_string();
+        let (set_id, slot, needed, total, at) = (p.set_id.clone(), p.slot as i64, p.needed as i64, p.total as i64, at as i64);
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let floor: Option<i64> =
+                tx.query_row("SELECT floor_ms FROM recovery_floors WHERE holder_did = ?1", params![holder], |r| r.get(0)).optional()?;
+            if floor.is_some_and(|f| at <= f) {
+                return Err(RecoveryRefusal::Bad(
+                    "a newer setup stands for this account, or it was taken back after this piece was made".into(),
+                ));
+            }
+            let shape: Option<(i64, i64, i64)> = tx
+                .query_row(
+                    "SELECT needed, total, set_time FROM recovery_pieces WHERE holder_did = ?1 AND set_id = ?2 LIMIT 1",
+                    params![holder, set_id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()?;
+            match shape {
+                Some(s) if s != (needed, total, at) => {
+                    return Err(RecoveryRefusal::Bad("this piece does not match the rest of its setup".into()));
+                }
+                Some(_) => {}
+                None => {
+                    // A new setup: any other setup of this person still arriving goes (a person
+                    // has at most the one standing and the one being sent).
+                    let standing_id = standing(&tx, &holder)?.map(|s| s.set_id).unwrap_or_default();
+                    tx.execute(
+                        "DELETE FROM recovery_pieces WHERE holder_did = ?1 AND set_id != ?2 AND set_id != ?3",
+                        params![holder, set_id, standing_id],
+                    )?;
+                }
+            }
+            let inserted = tx.execute(
+                "INSERT OR IGNORE INTO recovery_pieces
+                    (holder_did, set_id, slot, needed, total, set_time, token_hash, object_json, received_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![holder, set_id, slot, needed, total, at, p.token_hash.to_vec(), json, now_ms as i64],
+            )? > 0;
+            let have: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM recovery_pieces WHERE holder_did = ?1 AND set_id = ?2",
+                params![holder, set_id],
+                |r| r.get(0),
             )?;
-            Ok(rows > 0)
+            if inserted && have == total {
+                // It stands: it replaces whatever stood before, and nothing older can come back.
+                tx.execute("DELETE FROM recovery_pieces WHERE holder_did = ?1 AND set_id != ?2", params![holder, set_id])?;
+                tx.execute(
+                    "INSERT INTO recovery_floors (holder_did, floor_ms) VALUES (?1, ?2)
+                     ON CONFLICT(holder_did) DO UPDATE SET floor_ms = MAX(floor_ms, excluded.floor_ms)",
+                    params![holder, at],
+                )?;
+                tx.execute(
+                    "DELETE FROM recovery_answers WHERE set_id != ?1 AND code IN (SELECT code FROM recovery_asks WHERE holder_did = ?2)",
+                    params![set_id, holder],
+                )?;
+            }
+            tx.commit()?;
+            Ok(inserted)
         })
     }
 
-    /// Get the current recovery setup for a holder DID — guardians + threshold.
-    pub fn get_recovery_setup(&self, holder_did: &str) -> Result<Option<RecoverySetup>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT guardian_did, threshold, total_shares
-                 FROM recovery_shares WHERE holder_did = ?1
-                 ORDER BY created_at ASC",
-            )?;
-            let rows: Vec<(String, i64, i64)> = stmt
-                .query_map(params![holder_did], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+    /// A person's setup: the one standing and the one being sent, `None` when there is neither.
+    pub fn recovery_setup(&self, holder: &str) -> Result<Option<RecoverySetupView>, rusqlite::Error> {
+        self.with_read_conn(|conn| {
+            let active = standing(conn, holder)?;
+            let sending = conn
+                .query_row(
+                    "SELECT set_id, COUNT(*), total, set_time FROM recovery_pieces WHERE holder_did = ?1
+                     GROUP BY set_id HAVING COUNT(*) < total ORDER BY set_time DESC LIMIT 1",
+                    params![holder],
+                    |r| {
+                        Ok(SendingSetup {
+                            set_id: r.get(0)?,
+                            have: r.get::<_, i64>(1)? as usize,
+                            total: r.get::<_, i64>(2)? as usize,
+                            created_at: r.get(3)?,
+                        })
+                    },
+                )
+                .optional()?;
+            Ok((active.is_some() || sending.is_some()).then(|| RecoverySetupView { holder_did: holder.to_string(), active, sending }))
+        })
+    }
 
-            if rows.is_empty() {
-                return Ok(None);
+    /// Take every piece of `holder` off this server (their signed withdrawal, made at `at_ms`),
+    /// with every ask that names them. Returns the pieces removed.
+    pub fn recovery_withdraw(&self, holder: &str, at_ms: u64) -> Result<usize, rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let n = tx.execute("DELETE FROM recovery_pieces WHERE holder_did = ?1", params![holder])?;
+            tx.execute(
+                "DELETE FROM recovery_answers WHERE code IN (SELECT code FROM recovery_asks WHERE holder_did = ?1)",
+                params![holder],
+            )?;
+            tx.execute("DELETE FROM recovery_asks WHERE holder_did = ?1", params![holder])?;
+            tx.execute(
+                "INSERT INTO recovery_floors (holder_did, floor_ms) VALUES (?1, ?2)
+                 ON CONFLICT(holder_did) DO UPDATE SET floor_ms = MAX(floor_ms, excluded.floor_ms)",
+                params![holder, at_ms as i64],
+            )?;
+            tx.commit()?;
+            Ok(n)
+        })
+    }
+
+    /// Open an ask: a new device asking `holder`'s trusted people for help, with its one-time
+    /// Kyber768 public key and the hash of the secret that closes it. The code is computed here
+    /// from the two, never taken from the asker. Asking again with the same key gives back the
+    /// same ask.
+    pub fn recovery_open_ask(&self, holder: &str, one_time_key: &[u8], close: &str, now_ms: u64) -> Result<AskView, RecoveryRefusal> {
+        if !account_id_ok(holder) {
+            return Err(RecoveryRefusal::Bad("that is not an account id".into()));
+        }
+        if one_time_key.len() != KYBER_EK_LEN {
+            return Err(RecoveryRefusal::Bad(format!("a one-time key is {KYBER_EK_LEN} bytes")));
+        }
+        if close.len() != 64 || !close.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+            return Err(RecoveryRefusal::Bad("close_hash is 64 lowercase hex characters".into()));
+        }
+        let code = ask_code(holder, one_time_key);
+        let now = now_ms as i64;
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            if standing(&tx, holder)?.is_none() {
+                return Err(RecoveryRefusal::NotFound("This account has no trusted people on this server.".into()));
             }
-            let threshold = rows[0].1 as u32;
-            let total_shares = rows[0].2 as u32;
-            let guardians: Vec<String> = rows.into_iter().map(|(g, _, _)| g).collect();
-            Ok(Some(RecoverySetup {
-                holder_did: holder_did.to_string(),
-                guardians,
-                threshold,
-                total_shares,
+            let known: bool = tx
+                .query_row("SELECT 1 FROM recovery_asks WHERE code = ?1 AND expires_at > ?2", params![code, now], |_| Ok(true))
+                .optional()?
+                .unwrap_or(false);
+            if !known {
+                let mine: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM recovery_asks WHERE holder_did = ?1 AND expires_at > ?2",
+                    params![holder, now],
+                    |r| r.get(0),
+                )?;
+                if mine as usize >= ASKS_PER_PERSON {
+                    return Err(RecoveryRefusal::Full(format!(
+                        "{ASKS_PER_PERSON} requests for help with this account are open already. Each ends by itself {} days after it began, or when it is finished.",
+                        ASK_MS / 86_400_000
+                    )));
+                }
+                let all: i64 = tx.query_row("SELECT COUNT(*) FROM recovery_asks WHERE expires_at > ?1", params![now], |r| r.get(0))?;
+                if all as usize >= ASKS_OPEN_MAX {
+                    return Err(RecoveryRefusal::Full("This server has too many open requests for help right now. Try again later.".into()));
+                }
+                tx.execute("DELETE FROM recovery_answers WHERE code = ?1", params![code])?;
+                tx.execute(
+                    "INSERT OR REPLACE INTO recovery_asks (code, holder_did, one_time_key, close_hash, opened_at, expires_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![code, holder, one_time_key, close, now, now + ASK_MS as i64],
+                )?;
+            }
+            tx.commit()?;
+            Ok(())
+        })?;
+        self.recovery_ask(&code, now_ms)?.ok_or_else(|| RecoveryRefusal::NotFound("the request could not be read back".into()))
+    }
+
+    /// An open ask by its code, with the answers it holds for the standing setup.
+    pub fn recovery_ask(&self, code: &str, now_ms: u64) -> Result<Option<AskView>, rusqlite::Error> {
+        self.with_read_conn(|conn| {
+            let row: Option<(String, Vec<u8>, i64, i64)> = conn
+                .query_row(
+                    "SELECT holder_did, one_time_key, opened_at, expires_at FROM recovery_asks WHERE code = ?1 AND expires_at > ?2",
+                    params![code, now_ms as i64],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                )
+                .optional()?;
+            let Some((holder, key, opened_at, expires_at)) = row else { return Ok(None) };
+            let active = standing(conn, &holder)?;
+            let (needed, total, set_id) = active.as_ref().map(|s| (s.needed, s.total, s.set_id.clone())).unwrap_or_default();
+            let mut stmt = conn.prepare("SELECT slot, sealed FROM recovery_answers WHERE code = ?1 AND set_id = ?2 ORDER BY slot")?;
+            let answers = stmt
+                .query_map(params![code, set_id], |r| {
+                    Ok(AnswerRow { slot: r.get::<_, i64>(0)? as usize, sealed_b64: b64(&r.get::<_, Vec<u8>>(1)?) })
+                })?
+                .collect::<rusqlite::Result<_>>()?;
+            Ok(Some(AskView {
+                code: code.to_string(),
+                holder_did: holder,
+                one_time_key_b64: b64(&key),
+                opened_at,
+                expires_at,
+                needed,
+                total,
+                answers,
             }))
         })
     }
 
-    /// List all share entries for a guardian DID (so they know what they hold).
-    pub fn list_shares_held_by(&self, guardian_did: &str) -> Result<Vec<RecoveryShareIndex>, rusqlite::Error> {
-        self.with_conn(|conn| {
+    /// Every open ask, newest first, at most `limit`: whose and when, never the code or the key.
+    pub fn recovery_open_asks(&self, now_ms: u64, limit: usize) -> Result<Vec<OpenAsk>, rusqlite::Error> {
+        self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT share_object_id, holder_did, guardian_did, threshold,
-                        total_shares, created_at
-                 FROM recovery_shares WHERE guardian_did = ?1
-                 ORDER BY created_at DESC",
+                "SELECT holder_did, opened_at, expires_at FROM recovery_asks WHERE expires_at > ?1 ORDER BY opened_at DESC LIMIT ?2",
             )?;
             let rows = stmt
-                .query_map(params![guardian_did], |row| {
-                    Ok(RecoveryShareIndex {
-                        share_object_id: row.get(0)?,
-                        holder_did: row.get(1)?,
-                        guardian_did: row.get(2)?,
-                        threshold: row.get::<_, i64>(3)? as u32,
-                        total_shares: row.get::<_, i64>(4)? as u32,
-                        created_at: row.get(5)?,
-                    })
+                .query_map(params![now_ms as i64, limit as i64], |r| {
+                    Ok(OpenAsk { holder_did: r.get(0)?, opened_at: r.get(1)?, expires_at: r.get(2)? })
                 })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+                .collect::<rusqlite::Result<_>>()?;
             Ok(rows)
         })
     }
 
-    /// Index a `recovery_request_v1` object: holder begins recovery flow.
-    /// The request author MUST be the holder (using their NEW key).
-    /// Returns Ok(true) if a new request was inserted.
-    pub fn index_recovery_request(&self, object: &Object) -> Result<bool, rusqlite::Error> {
-        if object.object_type != "recovery_request_v1" {
-            return Ok(false);
+    /// Keep a trusted person's answer to an ask: their piece sealed to the ask's one-time key.
+    /// Accepted only with the slot's answer token (its hash is in the standing setup), which only
+    /// the person the piece was sealed to can read. One answer per slot; a second replaces the
+    /// first. Returns how many slots have answered.
+    pub fn recovery_answer(&self, code: &str, slot: usize, token: &[u8], sealed: &[u8], now_ms: u64) -> Result<usize, RecoveryRefusal> {
+        if sealed.len() != ANSWER_LEN {
+            return Err(RecoveryRefusal::Bad(format!("an answer is {ANSWER_LEN} bytes")));
         }
-        let holder_did = match read_text(object, "holder_did") {
-            Some(d) => d,
-            None => return Ok(false),
-        };
-        let new_pubkey = match read_bytes(object, "new_pubkey") {
-            Some(b) => b,
-            None => return Ok(false),
-        };
-
-        // Threshold required: look up the holder's recovery setup
-        let setup = match self.get_recovery_setup(&holder_did)? {
-            Some(s) => s,
-            None => return Ok(false), // No recovery configured for this DID
-        };
-
-        let request_object_id = object
-            .object_id()
-            .map(|h| h.to_hex())
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(
-                std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()),
-            )))?;
-        let now = super::now_millis() as i64;
-
-        self.with_conn(|conn| {
-            let rows = conn.execute(
-                "INSERT OR IGNORE INTO recovery_requests
-                    (request_object_id, holder_did, new_pubkey, threshold_required,
-                     approvals_count, status, created_at)
-                 VALUES (?1, ?2, ?3, ?4, 0, 'open', ?5)",
-                params![
-                    request_object_id,
-                    holder_did,
-                    new_pubkey,
-                    setup.threshold as i64,
-                    now,
-                ],
-            )?;
-            Ok(rows > 0)
-        })
-    }
-
-    /// Index a `recovery_approval_v1` object: a guardian acknowledges the request
-    /// and (out of band) ships their share to the holder. Increments the
-    /// approvals_count on the referenced request; if the threshold is met, marks
-    /// the request as "ready".
-    pub fn index_recovery_approval(&self, object: &Object) -> Result<bool, rusqlite::Error> {
-        if object.object_type != "recovery_approval_v1" {
-            return Ok(false);
+        if token.len() != TOKEN_LEN {
+            return Err(RecoveryRefusal::Bad(format!("a token is {TOKEN_LEN} bytes")));
         }
-        let request_object_id = match object.references.first() {
-            Some(id) => id.clone(),
-            None => return Ok(false),
-        };
-        let guardian_did = crate::relay::core::did::did_for_pubkey(&object.author_public_key);
-
-        // Authorization: the guardian must actually hold a share for this request's holder.
-        let request = match self.get_recovery_request(&request_object_id)? {
-            Some(r) => r,
-            None => return Ok(false),
-        };
-        let setup = match self.get_recovery_setup(&request.holder_did)? {
-            Some(s) => s,
-            None => return Ok(false),
-        };
-        if !setup.guardians.iter().any(|g| g == &guardian_did) {
-            // Not an actual guardian — silently ignored
-            return Ok(false);
-        }
-
-        let approval_object_id = object
-            .object_id()
-            .map(|h| h.to_hex())
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(
-                std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()),
-            )))?;
-        let now = super::now_millis() as i64;
-
-        self.with_conn(|conn| {
-            // Insert approval (UNIQUE on request+guardian prevents duplicate counting)
-            let rows = conn.execute(
-                "INSERT OR IGNORE INTO recovery_approvals
-                    (approval_object_id, request_object_id, guardian_did, submitted_at)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![approval_object_id, request_object_id, guardian_did, now],
-            )?;
-
-            if rows > 0 {
-                // Bump approvals_count on the request and check threshold
-                let new_count: i64 = conn.query_row(
-                    "SELECT COUNT(*) FROM recovery_approvals WHERE request_object_id = ?1",
-                    params![request_object_id],
-                    |r| r.get(0),
-                )?;
-                let new_status = if new_count as u32 >= request.threshold_required {
-                    "ready"
-                } else {
-                    "open"
-                };
-                conn.execute(
-                    "UPDATE recovery_requests
-                     SET approvals_count = ?1, status = ?2
-                     WHERE request_object_id = ?3",
-                    params![new_count, new_status, request_object_id],
-                )?;
+        let now = now_ms as i64;
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let holder: Option<String> = tx
+                .query_row("SELECT holder_did FROM recovery_asks WHERE code = ?1 AND expires_at > ?2", params![code, now], |r| r.get(0))
+                .optional()?;
+            let holder = holder.ok_or_else(|| RecoveryRefusal::NotFound("There is no open request for help with that code.".into()))?;
+            let set = standing(&tx, &holder)?
+                .ok_or_else(|| RecoveryRefusal::NotFound("This account no longer has trusted people on this server.".into()))?;
+            if slot >= set.total {
+                return Err(RecoveryRefusal::Bad("no such piece in this setup".into()));
             }
-
-            Ok(rows > 0)
-        })
-    }
-
-    /// Get a recovery request by object id.
-    pub fn get_recovery_request(
-        &self,
-        request_object_id: &str,
-    ) -> Result<Option<RecoveryRequestRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            conn.query_row(
-                "SELECT request_object_id, holder_did, new_pubkey, threshold_required,
-                        approvals_count, status, created_at
-                 FROM recovery_requests WHERE request_object_id = ?1",
-                params![request_object_id],
-                |row| {
-                    Ok(RecoveryRequestRecord {
-                        request_object_id: row.get(0)?,
-                        holder_did: row.get(1)?,
-                        new_pubkey: row.get(2)?,
-                        threshold_required: row.get::<_, i64>(3)? as u32,
-                        approvals_count: row.get::<_, i64>(4)? as u32,
-                        status: row.get(5)?,
-                        created_at: row.get(6)?,
-                    })
-                },
-            )
-            .optional()
-        })
-    }
-
-    /// List all approvals for a recovery request.
-    pub fn list_recovery_approvals(
-        &self,
-        request_object_id: &str,
-    ) -> Result<Vec<RecoveryApprovalRecord>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT approval_object_id, request_object_id, guardian_did, submitted_at
-                 FROM recovery_approvals WHERE request_object_id = ?1
-                 ORDER BY submitted_at ASC",
+            let hash: Vec<u8> = tx.query_row(
+                "SELECT token_hash FROM recovery_pieces WHERE holder_did = ?1 AND set_id = ?2 AND slot = ?3",
+                params![holder, set.set_id, slot as i64],
+                |r| r.get(0),
             )?;
-            let rows = stmt
-                .query_map(params![request_object_id], |row| {
-                    Ok(RecoveryApprovalRecord {
-                        approval_object_id: row.get(0)?,
-                        request_object_id: row.get(1)?,
-                        guardian_did: row.get(2)?,
-                        submitted_at: row.get(3)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            Ok(rows)
+            if hash != token_hash(token) {
+                return Err(RecoveryRefusal::NotAllowed("That piece is not part of this account's setup.".into()));
+            }
+            tx.execute(
+                "INSERT OR REPLACE INTO recovery_answers (code, slot, set_id, sealed, answered_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![code, slot as i64, set.set_id, sealed, now],
+            )?;
+            let n: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM recovery_answers WHERE code = ?1 AND set_id = ?2",
+                params![code, set.set_id],
+                |r| r.get(0),
+            )?;
+            tx.commit()?;
+            Ok(n as usize)
         })
     }
 
-    /// Look up a single share record by object id.
-    pub fn get_recovery_share(&self, share_object_id: &str) -> Result<Option<RecoveryShareIndex>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            conn.query_row(
-                "SELECT share_object_id, holder_did, guardian_did, threshold,
-                        total_shares, created_at
-                 FROM recovery_shares WHERE share_object_id = ?1",
-                params![share_object_id],
-                |row| {
-                    Ok(RecoveryShareIndex {
-                        share_object_id: row.get(0)?,
-                        holder_did: row.get(1)?,
-                        guardian_did: row.get(2)?,
-                        threshold: row.get::<_, i64>(3)? as u32,
-                        total_shares: row.get::<_, i64>(4)? as u32,
-                        created_at: row.get(5)?,
-                    })
-                },
-            )
-            .optional()
+    /// Close an ask with the secret its device kept (its hash was filed when it opened).
+    pub fn recovery_close_with_secret(&self, code: &str, secret: &[u8]) -> Result<(), RecoveryRefusal> {
+        let filed: Option<String> = self
+            .with_read_conn(|conn| conn.query_row("SELECT close_hash FROM recovery_asks WHERE code = ?1", params![code], |r| r.get(0)).optional())?;
+        let filed = filed.ok_or_else(|| RecoveryRefusal::NotFound("There is no request for help with that code.".into()))?;
+        if filed != close_hash(secret) {
+            return Err(RecoveryRefusal::NotAllowed("Only the device that asked can close this request.".into()));
+        }
+        self.recovery_drop_ask(code)?;
+        Ok(())
+    }
+
+    /// Close every ask that names `holder` (their own signed "that was not me"). Returns how
+    /// many were open.
+    pub fn recovery_close_all_for(&self, holder: &str) -> Result<usize, rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            tx.execute(
+                "DELETE FROM recovery_answers WHERE code IN (SELECT code FROM recovery_asks WHERE holder_did = ?1)",
+                params![holder],
+            )?;
+            let n = tx.execute("DELETE FROM recovery_asks WHERE holder_did = ?1", params![holder])?;
+            tx.commit()?;
+            Ok(n)
+        })
+    }
+
+    fn recovery_drop_ask(&self, code: &str) -> Result<(), rusqlite::Error> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            tx.execute("DELETE FROM recovery_answers WHERE code = ?1", params![code])?;
+            tx.execute("DELETE FROM recovery_asks WHERE code = ?1", params![code])?;
+            tx.commit()
+        })
+    }
+
+    /// The expiry pass's part (storage/expiry.rs): asks that ended, with their answers, and
+    /// setups never finished a day after they began. Returns the rows removed.
+    pub fn recovery_expire(&self, now_ms: u64) -> Result<usize, rusqlite::Error> {
+        let now = now_ms as i64;
+        let stale = now - SETUP_MAX_AGE_MS as i64;
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let mut n = tx.execute(
+                "DELETE FROM recovery_answers WHERE code IN (SELECT code FROM recovery_asks WHERE expires_at <= ?1)",
+                params![now],
+            )?;
+            n += tx.execute("DELETE FROM recovery_asks WHERE expires_at <= ?1", params![now])?;
+            n += tx.execute(
+                "DELETE FROM recovery_pieces WHERE set_time < ?1 AND (holder_did, set_id) IN
+                    (SELECT holder_did, set_id FROM recovery_pieces GROUP BY holder_did, set_id HAVING COUNT(*) < MAX(total))",
+                params![stale],
+            )?;
+            tx.commit()?;
+            Ok(n)
         })
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::relay::core::encoding::{cbor_bytes, cbor_int, cbor_map, cbor_text};
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
-
-    fn make_test_storage() -> Storage {
-        Storage::open_temp("recovery_test")
-    }
-
-    fn make_share(
-        holder: &DilithiumKeypair,
-        guardian_did: &str,
-        threshold: u32,
-        total: u32,
-        share_payload: &[u8],
-    ) -> Object {
-        let payload = cbor_map(vec![
-            ("guardian_did", cbor_text(guardian_did)),
-            ("threshold", cbor_int(threshold as u64)),
-            ("total_shares", cbor_int(total as u64)),
-            ("ciphertext", cbor_bytes(share_payload)),
-        ]);
-        ObjectBuilder::new("recovery_share_v1")
-            .created_at(super::super::now_millis())
-            .payload_cbor(&payload)
-            .unwrap()
-            .sign(holder)
-            .unwrap()
-    }
-
-    #[test]
-    fn shares_index_after_storage() {
-        let db = make_test_storage();
-        let holder = DilithiumKeypair::generate().unwrap();
-        let holder_did = did_for_pubkey(&holder.public_key());
-
-        let g1 = DilithiumKeypair::generate().unwrap();
-        let g2 = DilithiumKeypair::generate().unwrap();
-        let g3 = DilithiumKeypair::generate().unwrap();
-        let g1_did = did_for_pubkey(&g1.public_key());
-        let g2_did = did_for_pubkey(&g2.public_key());
-        let g3_did = did_for_pubkey(&g3.public_key());
-
-        for (i, g_did) in [&g1_did, &g2_did, &g3_did].iter().enumerate() {
-            let share_bytes = vec![i as u8; 64]; // dummy ciphertext
-            let s = make_share(&holder, g_did, 2, 3, &share_bytes);
-            db.put_signed_object(&s, None).unwrap();
-        }
-
-        let setup = db.get_recovery_setup(&holder_did).unwrap().expect("found");
-        assert_eq!(setup.guardians.len(), 3);
-        assert_eq!(setup.threshold, 2);
-        assert_eq!(setup.total_shares, 3);
-    }
-
-    #[test]
-    fn guardian_can_list_their_shares() {
-        let db = make_test_storage();
-        let holder1 = DilithiumKeypair::generate().unwrap();
-        let holder2 = DilithiumKeypair::generate().unwrap();
-        let guardian = DilithiumKeypair::generate().unwrap();
-        let g_did = did_for_pubkey(&guardian.public_key());
-
-        // Same guardian holds shares for two different holders
-        let s1 = make_share(&holder1, &g_did, 2, 3, &[1u8; 32]);
-        let s2 = make_share(&holder2, &g_did, 3, 5, &[2u8; 32]);
-        db.put_signed_object(&s1, None).unwrap();
-        db.put_signed_object(&s2, None).unwrap();
-
-        let shares = db.list_shares_held_by(&g_did).unwrap();
-        assert_eq!(shares.len(), 2);
-    }
-
-    #[test]
-    fn malformed_share_is_not_indexed() {
-        let db = make_test_storage();
-        let holder = DilithiumKeypair::generate().unwrap();
-
-        // Threshold > total — invalid
-        let s = make_share(&holder, "did:hum:fake", 5, 3, &[0u8; 32]);
-        db.put_signed_object(&s, None).unwrap();
-
-        let setup = db
-            .get_recovery_setup(&did_for_pubkey(&holder.public_key()))
-            .unwrap();
-        assert!(setup.is_none(), "invalid share must not index");
-    }
-
-    #[test]
-    fn no_recovery_setup_returns_none() {
-        let db = make_test_storage();
-        let holder = DilithiumKeypair::generate().unwrap();
-        let did = did_for_pubkey(&holder.public_key());
-        assert!(db.get_recovery_setup(&did).unwrap().is_none());
-    }
-}
+#[path = "recovery_tests.rs"]
+mod tests;

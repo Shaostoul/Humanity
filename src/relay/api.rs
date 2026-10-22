@@ -1386,8 +1386,13 @@ pub async fn get_member_by_key(
     let (bio, avatar_url, location) = (field("bio"), field("avatar_url"), field("location"));
     // Who they accept files in messages from (public; the default when they have no profile).
     let accepts_files = state.db.accepts_files_of(member.name.as_deref().unwrap_or(""));
+    // Their Kyber768 public key (base64), the one the member list already hands every connected
+    // app for sealing DMs: a standalone page (the website's Recovery page, choosing trusted
+    // people) has no socket to get it from. Empty when they have never said it.
+    let kyber_public = state.db.get_kyber_public(&key).ok().flatten().unwrap_or_default();
     Ok(Json(serde_json::json!({
         "public_key": member.public_key,
+        "kyber_public": kyber_public,
         "name": member.name,
         "role": member.role,
         "joined_at": member.joined_at,

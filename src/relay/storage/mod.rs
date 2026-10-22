@@ -117,8 +117,8 @@ pub use governance::{ProposalIndex, ProposalTally, MAX_VOTE_WEIGHT};
 /// AI-as-citizen status (Phase 8 PR 1).
 pub use ai_status::{AiStatus, SubjectClass};
 
-/// Social key recovery — Shamir share index + request + approval flow (Phase 4 PR 1+2).
-pub use recovery::{RecoveryShareIndex, RecoverySetup, RecoveryRequestRecord, RecoveryApprovalRecord};
+/// Recovery through trusted people (2026-10-21): the pieces, asks and answers the server keeps.
+pub use recovery::{AskView, OpenAsk, RecoveryRefusal, RecoverySetupView};
 
 /// Per-observer per-issuer continuous trust (Phase 3 PR 2).
 pub use issuer_trust::{IssuerTrustRow, NEUTRAL_TRUST, MAX_DELTA};
@@ -1067,6 +1067,23 @@ impl Storage {
                  PRAGMA wal_checkpoint(TRUNCATE);",
             )?;
             info!("Migration: dropped the old name-and-reason reports table (reports_v2 replaces it)");
+        }
+
+        // Migration (Recovery through trusted people, 2026-10-21): DROP the first design's
+        // tables. `recovery_shares` named every guardian in the clear beside the person they
+        // guarded, a server-side social graph (the follows table above was dropped for the same
+        // reason); the request and approval tables served a key change that no longer exists.
+        // No app ever wrote a setup into them (there was no screen to make one), so nothing is
+        // migrated; the objects of those types go too. recovery_pieces replaces them.
+        if conn.prepare("SELECT 1 FROM recovery_shares LIMIT 0").is_ok() {
+            conn.execute_batch(
+                "DROP TABLE IF EXISTS recovery_shares;
+                 DROP TABLE IF EXISTS recovery_requests;
+                 DROP TABLE IF EXISTS recovery_approvals;
+                 DELETE FROM signed_objects WHERE object_type IN ('recovery_share_v1', 'recovery_request_v1', 'recovery_approval_v1');
+                 PRAGMA wal_checkpoint(TRUNCATE);",
+            )?;
+            info!("Migration: dropped the first recovery tables (recovery_pieces replaces them; no trusted person is named on the server)");
         }
 
         // Migration: add reply_to columns to messages for threaded replies.
@@ -2462,46 +2479,45 @@ impl Storage {
                 last_updated    INTEGER NOT NULL
             );
 
-            -- Phase 4 PR 1: Social key recovery — opaque Shamir share index.
-            -- The encrypted share ciphertext lives in signed_objects (payload);
-            -- this table is just a fast-lookup index for the recovery flow.
-            CREATE TABLE IF NOT EXISTS recovery_shares (
-                share_object_id  TEXT PRIMARY KEY,
-                holder_did       TEXT NOT NULL,
-                guardian_did     TEXT NOT NULL,
-                threshold        INTEGER NOT NULL,
-                total_shares     INTEGER NOT NULL,
-                created_at       INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_recovery_holder   ON recovery_shares(holder_did);
-            CREATE INDEX IF NOT EXISTS idx_recovery_guardian ON recovery_shares(guardian_did);
-
-            -- Phase 4 PR 2: Recovery request + approval tracking. Holder publishes
-            -- a recovery_request_v1 signed by their NEW key; guardians publish
-            -- recovery_approval_v1 referencing the request. When approvals_count
-            -- reaches threshold_required, status flips to 'ready' and the holder's
-            -- client can reassemble shares via Shamir and publish a key_rotation_v1.
-            CREATE TABLE IF NOT EXISTS recovery_requests (
-                request_object_id    TEXT PRIMARY KEY,
-                holder_did           TEXT NOT NULL,
-                new_pubkey           BLOB NOT NULL,
-                threshold_required   INTEGER NOT NULL,
-                approvals_count      INTEGER NOT NULL DEFAULT 0,
-                status               TEXT NOT NULL DEFAULT 'open',
-                created_at           INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_recovery_requests_holder ON recovery_requests(holder_did);
-            CREATE INDEX IF NOT EXISTS idx_recovery_requests_status ON recovery_requests(status);
-
-            CREATE TABLE IF NOT EXISTS recovery_approvals (
-                approval_object_id   TEXT PRIMARY KEY,
-                request_object_id    TEXT NOT NULL,
-                guardian_did         TEXT NOT NULL,
-                submitted_at         INTEGER NOT NULL,
-                UNIQUE(request_object_id, guardian_did)
-            );
-            CREATE INDEX IF NOT EXISTS idx_recovery_approvals_request
-                ON recovery_approvals(request_object_id);
+            -- Recovery through trusted people (2026-10-21, storage/recovery.rs, the design
+            -- docs/design/recovery-through-trusted-people.md). Nothing here names a trusted
+            -- person: a piece is sealed to them and its note to the person themselves, so no
+            -- social graph is kept. Replaced recovery_shares (which named each guardian in the
+            -- clear), recovery_requests and recovery_approvals, dropped at start.
+            CREATE TABLE IF NOT EXISTS recovery_pieces (
+                holder_did   TEXT NOT NULL,
+                set_id       TEXT NOT NULL,
+                slot         INTEGER NOT NULL,
+                needed       INTEGER NOT NULL,
+                total        INTEGER NOT NULL,
+                set_time     INTEGER NOT NULL,
+                token_hash   BLOB NOT NULL,
+                object_json  TEXT NOT NULL,
+                received_at  INTEGER NOT NULL,
+                PRIMARY KEY (holder_did, set_id, slot)
+            ) WITHOUT ROWID;
+            CREATE TABLE IF NOT EXISTS recovery_floors (
+                holder_did  TEXT PRIMARY KEY,
+                floor_ms    INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE TABLE IF NOT EXISTS recovery_asks (
+                code          TEXT PRIMARY KEY,
+                holder_did    TEXT NOT NULL,
+                one_time_key  BLOB NOT NULL,
+                close_hash    TEXT NOT NULL,
+                opened_at     INTEGER NOT NULL,
+                expires_at    INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS idx_recovery_asks_holder ON recovery_asks(holder_did);
+            CREATE INDEX IF NOT EXISTS idx_recovery_asks_expiry ON recovery_asks(expires_at);
+            CREATE TABLE IF NOT EXISTS recovery_answers (
+                code         TEXT NOT NULL,
+                slot         INTEGER NOT NULL,
+                set_id       TEXT NOT NULL,
+                sealed       BLOB NOT NULL,
+                answered_at  INTEGER NOT NULL,
+                PRIMARY KEY (code, slot)
+            ) WITHOUT ROWID;
 
             -- v0.116.0: multi-AI agent coordination — claim/heartbeat/release a scope.
             -- Lets multiple Claude Code sessions check in / out of specific scopes

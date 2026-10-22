@@ -161,9 +161,9 @@ down, or rented back to you.
 **You can never be locked out.** There is no company account to suspend and
 no password for anyone else to reset. Your account is a key on your own device,
 recoverable from the 24-word recovery phrase you write down and keep. No
-company, and no fee, stands between you and your own name. (Recovery
-through trusted friends who each hold an encrypted piece is designed and
-partly built, but not finished; the recovery phrase is what works today.)
+company, and no fee, stands between you and your own name. And if the
+phrase is lost too, friends you chose beforehand can help: each keeps one
+locked piece of it, and enough of them together put it back.
 
 **Rules made by the people they bind.** The community sets its own
 rules through transparent voting, weighted by trust and capped so that
@@ -202,8 +202,9 @@ server down and the rest carry on.
 
 **When you lose your device.** Recover everything from your 24-word
 recovery phrase. No email, no phone number, no recovery fee, and no company
-that can refuse you. Recovery through trusted friends is coming and is
-not ready, so the phrase is the thing to protect.
+that can refuse you. If you lost the phrase too, the trusted friends you
+chose each send back their locked piece, and enough of them together give
+you the same account again.
 
 **When you have no money, papers, or bank.** No sign-up, no
 subscriptions, no fees. Reputation you earn and credentials your

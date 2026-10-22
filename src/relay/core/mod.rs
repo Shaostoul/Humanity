@@ -33,6 +33,10 @@ pub mod pq_crypto;
 /// rule, the words its owner's app signs, the limits, when to ask, and the time on it. Shared by
 /// the relay and the desktop app; web/shared/profile-copy.js is its twin.
 pub mod profile_copy;
+/// Recovery through trusted people (2026-10-21): Shamir pieces of the recovery phrase sealed to
+/// trusted people, the one-time key a new device asks with, and the code that names an ask.
+/// Shared by the relay and the desktop app; web/shared/recovery.js is its twin.
+pub mod recovery;
 pub mod signing;
 pub mod solana_rpc;
 /// HEIF still picture (HEIC, AVIF) metadata removal in place: the Exif and

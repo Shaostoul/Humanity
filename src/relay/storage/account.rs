@@ -122,6 +122,15 @@ impl Storage {
             // Who can reach them (2026-10-09, storage/reach.rs): the audience they chose for each
             // kind of contact. A kind with no row is at its default, which is not stored.
             grab("reach_settings", "SELECT kind, audience FROM reach_settings WHERE public_key = ?1 ORDER BY kind ASC", &[&key]);
+            // Recovery through trusted people (2026-10-21, storage/recovery.rs), held under their
+            // DID like the plot: the pieces of their setup (its shape and times; the pieces are
+            // sealed to their trusted people and the notes to themselves, so the bytes are
+            // counted, not shown), the time before which no old setup may come back, and the
+            // requests for help that name them, with the answers those hold.
+            grab("recovery_pieces", "SELECT set_id, slot, needed, total, set_time, received_at, length(object_json) AS object_bytes FROM recovery_pieces WHERE holder_did = ?1 ORDER BY set_time ASC, slot ASC", &[&plot_owner]);
+            grab("recovery_floor", "SELECT floor_ms FROM recovery_floors WHERE holder_did = ?1", &[&plot_owner]);
+            grab("recovery_asks", "SELECT code, opened_at, expires_at FROM recovery_asks WHERE holder_did = ?1 ORDER BY opened_at ASC", &[&plot_owner]);
+            grab("recovery_answers", "SELECT code, slot, answered_at, length(sealed) AS sealed_bytes FROM recovery_answers WHERE code IN (SELECT code FROM recovery_asks WHERE holder_did = ?1) ORDER BY answered_at ASC", &[&plot_owner]);
             // Their Media page items, their picks of other people's items, and the categories they
             // suggested (2026-10-11, storage/files.rs). The files are in `uploads` above.
             grab("media_items", "SELECT id, upload_filename, title, description, category_id, kind, labels, visibility, featured, size_bytes, views, created_at, from_shelf, licence, project_use, downloads FROM media_items WHERE uploader_key = ?1 ORDER BY id ASC", &[&key]);
@@ -319,6 +328,15 @@ impl Storage {
             del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
             // Who can reach them (2026-10-09, storage/reach.rs).
             del("reach_settings", "DELETE FROM reach_settings WHERE public_key = ?1", &[&key]);
+            // Recovery through trusted people (2026-10-21): the answers the requests naming them
+            // hold (first: they are found through the requests), the requests, their setup and its
+            // floor. With no setup standing, nobody can open a new request for them. A setup made
+            // in the last day could be posted again from a copy taken before the erase (pieces
+            // older than a day are refused); `erase_left_rows` would then show the erase unfinished.
+            del("recovery_answers", "DELETE FROM recovery_answers WHERE code IN (SELECT code FROM recovery_asks WHERE holder_did = ?1)", &[&plot_owner]);
+            del("recovery_asks", "DELETE FROM recovery_asks WHERE holder_did = ?1", &[&plot_owner]);
+            del("recovery_pieces", "DELETE FROM recovery_pieces WHERE holder_did = ?1", &[&plot_owner]);
+            del("recovery_floor", "DELETE FROM recovery_floors WHERE holder_did = ?1", &[&plot_owner]);
             // Their Media page items (2026-10-11, storage/files.rs): every pick of them first
             // (a pick is a reference, so it goes with the item), then the items, their own picks
             // and their suggestions. The items' files went with `uploads` above.
@@ -422,7 +440,10 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM upload_sessions WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM upload_counts WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM media_items WHERE kept_by = ?1)
-            OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)";
+            OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)
+            OR EXISTS(SELECT 1 FROM recovery_asks WHERE holder_did = ?2)
+            OR EXISTS(SELECT 1 FROM recovery_pieces WHERE holder_did = ?2)
+            OR EXISTS(SELECT 1 FROM recovery_floors WHERE holder_did = ?2)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
                 // Unknown is said as "not finished": that note only asks the person to erase

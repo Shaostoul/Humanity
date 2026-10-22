@@ -187,6 +187,25 @@ impl Storage {
             _ => {}
         }
 
+        // Recovery through trusted people (2026-10-21, storage/recovery.rs): a piece of a
+        // setup is kept in `recovery_pieces`, never here. This table is listed to anyone by
+        // /api/v2/objects and passed to other servers, and a setup must stay on the one server
+        // it was given to, so that taking it back takes it away. A piece from another server is
+        // refused for the same reason.
+        if object.object_type == crate::relay::core::recovery::SHARE_OBJECT_TYPE {
+            let refused = |why: String| {
+                rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(format!("invalid recovery_share_v1: {why}"))))
+            };
+            if source_server.is_some() {
+                return Err(refused("a setup is kept only on the server it was given to".into()));
+            }
+            return match self.put_recovery_piece(object, current_unix_millis() as u64) {
+                Ok(new) => Ok(new),
+                Err(super::recovery::RecoveryRefusal::Db(e)) => Err(e),
+                Err(other) => Err(refused(other.to_string())),
+            };
+        }
+
         let object_id = object.object_id().map_err(|e| {
             rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(format!(
                 "object_id computation failed: {e}"
@@ -257,10 +276,6 @@ impl Storage {
             // Auto-index AI status declarations.
             let _ = self.index_subject_class(object);
             let _ = self.index_controlled_by(object);
-            // Auto-index social recovery: shares (Phase 4 PR 1), requests + approvals (PR 2).
-            let _ = self.index_recovery_share(object);
-            let _ = self.index_recovery_request(object);
-            let _ = self.index_recovery_approval(object);
             // Auto-index P2P groups (docs/design/p2p-groups.md): group identity +
             // membership-log fold into the roster projection, plus creator-signed
             // invite capabilities and secret-revealing self-admission joins.

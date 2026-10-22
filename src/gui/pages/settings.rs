@@ -12,8 +12,10 @@ use crate::updater::{UpdateChannel, UpdateState};
 /// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
 mod data_folder;
 /// Settings > Account > "Recovery through trusted people" (2026-10-20, was the Platform tab's
-/// Recovery page): what it is, that it is not finished, and its two lookups.
+/// Recovery page; finished 2026-10-21): choosing trusted people, helping someone back in, and
+/// asking for help on a new device. `recovery_net` is the work it runs on threads.
 pub mod recovery;
+pub mod recovery_net;
 
 // Full-PQ: the web "import ECDH key" flow is gone. DMs are pure Kyber768
 // derived from the BIP39 seed — identical on web and native with no manual
@@ -312,7 +314,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
 /// these are not theme tokens). Matrix from the `qrcode` crate, painted into an
 /// egui texture with a 4-module quiet zone. Returns None if encoding fails
 /// (payload too large for any QR version, which the ~250-char backup never is).
-fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Option<egui::TextureHandle> {
+pub(crate) fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Option<egui::TextureHandle> {
     let code = qrcode::QrCode::new(payload.as_bytes()).ok()?;
     let width = code.width();
     let colors = code.to_colors();
@@ -337,6 +339,29 @@ fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Option<egui::Tex
     }
     let image = egui::ColorImage { size: [side, side], pixels };
     Some(ctx.load_texture("link_device_qr", image, egui::TextureOptions::NEAREST))
+}
+
+/// Restore this device's account from a recovery phrase: the path of "Restore from Recovery
+/// Phrase" below, shared since 2026-10-21 with Recovery through trusted people, which rebuilds the
+/// phrase from the pieces a person's trusted people send back (settings/recovery.rs). The words
+/// are checked (`seed_from_phrase`), the account is put on this device, the connection starts
+/// again as it, and a passphrase to lock it here is asked for.
+pub(crate) fn restore_from_phrase(state: &mut GuiState, phrase: &str) -> Result<(), String> {
+    let (_ed25519_hex, privkey_bytes) = crate::net::identity::derive_keypair_from_mnemonic(phrase)?;
+    // Full-PQ: the chat identity is Dilithium3 (NOT the Ed25519 hex). apply_pq_identity()
+    // derives it + Kyber from the 32 bytes and forces the reconnect.
+    state.private_key_bytes = Some(privkey_bytes);
+    if let Some(ref mut ws) = state.ws_client {
+        ws.disconnect();
+    }
+    state.apply_pq_identity();
+    state.ws_status = "Reconnecting with recovered identity...".to_string();
+    state.identity_recovered = true;
+    state.history_fetched = false;
+    // Prompt for passphrase to encrypt the recovered key
+    state.passphrase_needed = true;
+    state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+    Ok(())
 }
 
 /// A faint accent per settings section (operator, 2026-08-12: "add a variety
@@ -866,27 +891,13 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
             if widgets::primary_button(ui, theme, "  Recover Identity  ") {
                 let phrase = state.settings.seed_phrase_input.trim().to_string();
-                match crate::net::identity::derive_keypair_from_mnemonic(&phrase) {
-                    Ok((_ed25519_hex, privkey_bytes)) => {
-                        // Full-PQ: the chat identity is Dilithium3 (NOT the
-                        // Ed25519 hex). apply_pq_identity() derives it +
-                        // Kyber from the seed and forces the reconnect.
-                        state.private_key_bytes = Some(privkey_bytes);
-                        if let Some(ref mut ws) = state.ws_client {
-                            ws.disconnect();
-                        }
-                        state.apply_pq_identity();
+                match restore_from_phrase(state, &phrase) {
+                    Ok(()) => {
                         state.settings.seed_phrase_recovery_status = format!(
                             "Identity recovered! {}…{}",
                             &state.profile_public_key[..8.min(state.profile_public_key.len())],
                             &state.profile_public_key[state.profile_public_key.len().saturating_sub(8)..]
                         );
-                        state.ws_status = "Reconnecting with recovered identity...".to_string();
-                        state.identity_recovered = true;
-                        state.history_fetched = false;
-                        // Prompt for passphrase to encrypt the recovered key
-                        state.passphrase_needed = true;
-                        state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
                         // Clear the input
                         state.settings.seed_phrase_input.clear();
                         state.settings.seed_phrase_show_recover = false;

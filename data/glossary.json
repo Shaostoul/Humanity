@@ -1057,10 +1057,16 @@
       "definition": "The secret half of a cryptographic key pair. Used to create signatures and decrypt messages. Must never be shared. Loss means permanent loss of access to the identity.",
       "link": "https://en.wikipedia.org/wiki/Public-key_cryptography"
     },
+    "trusted people": {
+      "term": "Trusted People",
+      "category": "crypto",
+      "definition": "Friends you choose to help you back into your account if you lose your device and your recovery phrase too. Each keeps one locked piece of your recovery phrase that only they can open, and the server never learns who they are. It takes as many of them as you chose, together, to put it back, and each should check it is really you by calling you or seeing you before sending their piece. Set it up in Settings > Account > Recovery through trusted people.",
+      "link": "https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing"
+    },
     "recovery phrase": {
       "term": "Recovery Phrase",
       "category": "crypto",
-      "definition": "The 24 ordinary words that back up your HumanityOS account. They can rebuild your key on any device, and they are the only way back in if you lose it: nobody, us included, can reset it for you. Write them down on paper and keep them safe. Crypto wallets call this a seed phrase or mnemonic; in HumanityOS 'seed' means plant seeds and world seeds, never this.",
+      "definition": "The 24 ordinary words that back up your HumanityOS account. They can rebuild your key on any device, and they are the main way back in if you lose it: nobody, us included, can reset it for you (friends you chose as trusted people can help you rebuild it). Write them down on paper and keep them safe. Crypto wallets call this a seed phrase or mnemonic; in HumanityOS 'seed' means plant seeds and world seeds, never this.",
       "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet#Seed_phrases"
     },
     "bip39": {

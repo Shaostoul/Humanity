@@ -81,10 +81,12 @@ That is it. You are in, and you own it.
 - **Your private messages are truly private.** The encryption is post-quantum (built to
   stay safe even against future quantum computers). The server stores only scrambled
   text it cannot read.
-- **If you lose your device,** your 24 words bring your identity back. They are the
-  ONLY way back: write them down and keep them somewhere safe. Social recovery through
-  trusted friends is designed and partly built, but the piece that splits your recovery phrase is
-  not implemented yet, so do not count on it.
+- **If you lose your device,** your 24 words bring your identity back: write them down and
+  keep them somewhere safe. If you lose them too, friends you chose beforehand can help: in
+  Settings > Account > Recovery through trusted people (on the website, /recovery) you pick a few
+  friends, and each keeps one locked piece of your recovery phrase that only they can open. It
+  takes as many of them as you chose, together, to put it back, and they check it is really you
+  by calling you or seeing you before they help. Set it up while you still have your device.
 - **Stuck or curious about a word?** The app has a built-in glossary and plain-language
   hints. You are not expected to already know any of this.
 

@@ -105,7 +105,7 @@ split the phrase, and the people-facing words say so ("Recovery through trusted 
   (`account_id`, the server's own `did_for_pubkey`), your own when the field is empty.
 - Web: `web/pages/recovery.html`, linked from the website's Settings > Security.
 - Storage: `src/relay/storage/recovery.rs`
-- API: `/api/v2/recovery/setup/{holder_did}`, `/api/v2/recovery/shares-held-by/{guardian_did}`, `/api/v2/recovery/request/{request_object_id}` in `src/relay/api_v2_recovery.rs`
+- Recovery through trusted people (built 2026-10-21, docs/design/recovery-through-trusted-people.md): choose 2 to 10 friends and how many must help; pieces of the recovery phrase sealed to each, posted as `recovery_share_v1` (the server never learns who they are); a new device asks with a one-time key and a 16-character code read aloud; trusted people check it is really them and send their piece sealed to that key; the account is restored from the rebuilt phrase. Desktop: Settings > Account (`src/gui/pages/settings/recovery.rs`, `recovery_net.rs`); website: /recovery (`web/pages/recovery-app.js`, `web/shared/recovery.js`). API in `src/relay/api_v2_recovery.rs`: `GET /api/v2/recovery/setup/{account}`, `POST .../withdraw`, `POST .../ask`, `GET .../ask/{code}`, `GET .../asks`, `POST .../answer`, `POST .../close`, `POST .../not-me`
 
 ### Federation v2
 Generic signed-object gossip + per-issuer continuous trust + dispute objects + multi-hop with cycle-breaking via dedup.

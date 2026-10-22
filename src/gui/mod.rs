@@ -2876,10 +2876,10 @@ pub struct GuiState {
     pub laws_category: String,
     /// Active filter tab on the Governance page (0=Open, 1=All).
     pub governance_filter_tab: usize,
-    /// Settings > Account > Recovery through trusted people: its two lookups
-    /// (an account's guardians, the pieces a guardian keeps), each with what
-    /// was typed and the server's answer (pages/settings/recovery.rs).
-    pub recovery: crate::gui::pages::settings::recovery::RecoveryLookups,
+    /// Settings > Account > Recovery through trusted people: choosing them and
+    /// sending the pieces, helping someone back in, and asking for help on a
+    /// new device (pages/settings/recovery.rs). Memory only, never saved.
+    pub recovery: crate::gui::pages::settings::recovery::RecoveryState,
 
     // v0.197.0: AI Usage page form state removed (page deleted).
 }

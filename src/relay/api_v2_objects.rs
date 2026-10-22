@@ -298,6 +298,7 @@ pub async fn post_object(
                     || msg.contains("provider root is not stored")
                     || msg.contains("not a provider_v1")
                     || msg.contains("group key refused")
+                    || msg.contains("invalid recovery_share_v1")
                 {
                     Err(IngestError::InvalidPayload(msg))
                 } else {
@@ -349,8 +350,9 @@ pub async fn post_object(
     };
 
     // Phase 3 PR 1: gossip newly-stored locally-submitted objects to peers.
-    // Already-known objects (stored == false) are not re-gossiped.
-    if stored {
+    // Already-known objects (stored == false) are not re-gossiped. A piece of a recovery
+    // setup never is: it stays on the server it was given to (storage/recovery.rs).
+    if stored && object.object_type != crate::relay::core::recovery::SHARE_OBJECT_TYPE {
         let state_clone = state.clone();
         tokio::spawn(async move {
             crate::relay::handlers::federation::gossip_signed_object(
