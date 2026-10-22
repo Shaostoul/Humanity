@@ -621,6 +621,11 @@
       "date": "2026-10-21",
       "decision": "Released v0.1540.0: the sky bodies follow-up (each body its own IAU rotation from sol.json, the Moon tidally locked; the daytime Moon through the air; fog hides sky bodies by depth; other bodies' clouds and air take their own sun; the limb lit from low orbit over the night side; the white point on the Moon was the HUD crosshair; the compass aboard points north). Merged with Maps increment 2 in its worktree (cosmos.rs struct fields and functions from both sides kept; sol.json catalog 7 because both sides had called their catalog 6). Verified on the release exe: runtime 3/3, storeys 76/76, falls 88/88, the follow-home sweep.",
       "why": "Next furthest along, per the operator's order at ~4% weekly usage."
+    },
+    {
+      "date": "2026-10-21",
+      "decision": "Released v0.1541.0: recovery through trusted people, finished on both apps (Shamir over GF(256) with blahaj, pieces sealed to friends' ML-KEM-768 keys as recovery_share_v1 with a note to self naming them, a request from a new device with a one-time key and a 16-character fingerprint code read aloud, trusted people confirm out of band and send their piece sealed to that key, restore through Restore from recovery phrase; the old guardian tables that named people in the clear dropped). Squash-merged from its WIP worktree after its last red runs, the relay battery (2,975) and a full browser run against a loopback relay (asked, two answers, rebuilt, Chat restored the 0x31 test key). Verified on the release exe: runtime 3/3, storeys 76/76, falls 88/88.",
+      "why": "Third furthest along per the operator's order; the browser run was the one thing its own tests could not show."
     }
   ],
   "active_scopes_to_avoid": [
@@ -650,7 +655,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-21T19:10:00-07:00",
+  "last_updated": "2026-10-21T20:20:00-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

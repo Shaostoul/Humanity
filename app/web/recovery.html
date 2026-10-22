@@ -4,193 +4,150 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Recovery, HumanityOS</title>
-  <meta name="description" content="Recovery through trusted people: what it is, that it is not finished yet, and the two lookups that work today.">
+  <meta name="description" content="Recovery through trusted people: choose friends who each keep a locked piece of your recovery phrase, help a friend back in, or ask yours for help.">
   <link rel="manifest" href="/shared/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-    /* Colours this page uses that have no theme token. The dark values are
-       exactly the page's look before the light theme worked (2026-10-19);
-       the light ones serve the light theme. */
-    :root {
-      --pg-open-ink: #f5b83b;
-      --pg-ready-ink: #2ab870;
-      --pg-expired-ink: #ef4f4f;
-    }
-    :root[data-theme="light"] {
-      --pg-open-ink: #7a5200;
-      --pg-ready-ink: var(--success);
-      --pg-expired-ink: var(--danger);
-    }
     body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
     .container { max-width: 920px; margin: 0 auto; padding: 0 24px; }
-
     .rec-hero { padding: 36px 0 16px; }
     .rec-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 8px; }
     .rec-hero h1 em { font-style: normal; color: var(--accent); }
-
-    .explainer {
+    .card {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 18px 22px; margin-bottom: 18px;
     }
-    .explainer h3 { font-size: 0.95rem; color: var(--accent); margin: 0 0 8px; }
-    .explainer ol { padding-left: 1.4rem; color: var(--text-muted); font-size: 0.92rem; }
-    .explainer code { background: var(--bg); padding: 1px 6px; border-radius: 3px; }
-
-    .lookup-row { display: flex; gap: 8px; margin-bottom: 18px; }
-    .lookup-row input {
-      flex: 1; padding: 10px 14px; border-radius: var(--radius);
-      background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
-      font-family: ui-monospace, monospace; font-size: 0.85rem;
+    .card h2 { font-size: 1.1rem; color: var(--text); margin: 0 0 10px; }
+    .card p { margin: 0 0 10px; font-size: 0.92rem; }
+    .rec-muted { color: var(--text-muted); }
+    .rec-warn { color: var(--warning); }
+    .rec-msg { min-height: 1.4em; font-size: 0.9rem; color: var(--text-muted); margin-top: 8px; }
+    .rec-msg.ok { color: var(--success); }
+    .rec-msg.warn { color: var(--warning); }
+    .rec-alert { border: 1px solid var(--warning); border-radius: var(--radius); padding: 12px 16px; margin: 10px 0; font-size: 0.9rem; }
+    .rec-alert strong { color: var(--warning); }
+    .rec-list { margin: 0 0 10px 1.2rem; font-size: 0.88rem; color: var(--text-muted); word-break: break-all; }
+    .rec-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+    .rec-row input[type=text] {
+      flex: 1; min-width: 200px; padding: 10px 14px; border-radius: var(--radius);
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      font-family: ui-monospace, monospace; font-size: 0.9rem;
     }
-    .lookup-row button {
-      padding: 10px 22px; border-radius: var(--radius);
-      background: var(--accent); color: var(--text-on-accent); border: none;
-      font-weight: 700; cursor: pointer;
+    .rec-btn {
+      padding: 9px 18px; border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-weight: 600; cursor: pointer; margin: 4px 6px 4px 0;
     }
-
-    .card {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 18px 22px; margin-bottom: 16px;
-    }
-    .card h3 { font-size: 1rem; color: var(--accent); margin: 0 0 12px; }
-    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.88rem; }
-    .kv .k { color: var(--text-muted); }
-    .kv .v { color: var(--text); font-family: ui-monospace, monospace; word-break: break-all; text-align: right; }
-
-    .threshold-display {
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.4rem; font-weight: 700; color: var(--accent);
-      margin: 12px 0;
-    }
-    .guardian-list { display: flex; flex-direction: column; gap: 6px; }
-    .guardian-row {
-      padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
-      border-radius: var(--radius); font-family: ui-monospace, monospace;
-      font-size: 0.8rem; word-break: break-all;
-    }
-
-    .status-badge {
-      display: inline-block; padding: 2px 10px; border-radius: 12px;
-      font-size: 0.75rem; font-weight: 700; margin-left: 6px;
-    }
-    .status-badge.open { background: rgba(245,184,59,0.2); color: var(--pg-open-ink); }
-    .status-badge.ready { background: rgba(42,184,112,0.2); color: var(--pg-ready-ink); }
-    .status-badge.expired { background: rgba(239,79,79,0.2); color: var(--pg-expired-ink); }
-
-    .empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.88rem; }
-    .not-finished {
-      border: 1px solid var(--warning); border-radius: var(--radius);
-      padding: 12px 16px; margin: 12px 0 0; color: var(--text);
-    }
-    .not-finished strong { color: var(--warning); }
-    .lookup-label { color: var(--text-muted); font-size: 0.88rem; margin: 0 0 8px; }
+    .rec-btn.rec-primary { background: var(--accent); color: var(--text-on-accent); border: none; }
+    .rec-btn:disabled { opacity: 0.5; cursor: default; }
+    .rec-person { display: block; padding: 6px 0; font-size: 0.92rem; }
+    .rec-person.rec-off { color: var(--text-muted); }
+    .rec-asking { border-left: 3px solid var(--accent); padding-left: 10px; }
+    .rec-guide { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin: 10px 0; font-size: 0.9rem; }
+    .rec-code { font-family: ui-monospace, monospace; font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 800; letter-spacing: 0.06em; color: var(--accent); margin: 8px 0; }
+    .rec-qr { display: block; margin: 10px 0; image-rendering: pixelated; }
+    .rec-check { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; margin: 8px 0; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/shell.js"></script>
-  <script src="/shared/pq-identity.js"></script>
+  <script src="/chat/pq.js?v=2"></script>
+  <script src="/chat/bip39-english.js?v=1"></script>
+  <script src="/shared/pq-relay-auth.js?v=5"></script>
+  <script src="/chat/chat-dm-store.js?v=10"></script>
+  <script src="/shared/qrcode.js"></script>
 
-  <!-- Web mirror of Settings > Account > "Recovery through trusted people" in the app
-       (src/gui/pages/settings/recovery.rs, 2026-10-20). Same words, same two lookups. The
-       website's Settings links here from its Security section. -->
+  <!-- Web mirror of Settings > Account > "Recovery through trusted people" in the desktop app
+       (src/gui/pages/settings/recovery.rs), in the same words. The website's Settings links here
+       from its Security section. The protocol: /shared/recovery.js; the design:
+       docs/design/recovery-through-trusted-people.md. -->
   <div class="container">
     <header class="rec-hero">
       <h1>Recovery through <em>trusted people</em></h1>
-      <p style="color: var(--text-muted);">Part of <a href="/settings">Settings</a>, beside your recovery phrase.</p>
+      <p class="rec-muted">Part of <a href="/settings">Settings</a>, beside your recovery phrase.</p>
     </header>
 
-    <div class="explainer">
-      <h3>What it is</h3>
-      <p style="color: var(--text-muted); font-size: 0.92rem;">If you ever lose this device and your recovery phrase too, people you trust could help you back into your account. You would pick a few of them as your guardians. Each would keep one piece of your recovery phrase, locked so that only that guardian can open it, and the server would hold the pieces without being able to read them. One piece alone is not enough: it takes as many of your guardians as you chose, together, to put the phrase back together, and with it you are back in the same account.</p>
-      <p class="not-finished"><strong>Not finished yet.</strong> Choosing your guardians and splitting your phrase into pieces has not been built, so nobody can set this up today. Until it is, your recovery phrase is the only way back into your account: keep it written down somewhere safe.</p>
-      <p style="color: var(--text-muted); font-size: 0.92rem; margin-top: 12px;">What works today is looking things up on this server: whether an account has guardians, and the pieces a guardian keeps for other people. An account ID starts with did:hum:; the desktop app shows yours in Settings &gt; Account.</p>
+    <div class="card">
+      <h2>What it is</h2>
+      <p>If you ever lose your device and your recovery phrase too, people you trust can help you back into your account. You choose a few of your friends. Each keeps one piece of your recovery phrase, locked so that only they can open it. The server keeps the locked pieces without being able to read them, and it is never told who your trusted people are. One piece alone is no use to anyone: it takes as many of them as you chose, together, to put your phrase back together, and with it you are back in the same account.</p>
+      <p class="rec-muted">Choose people who know your voice and your face. Anyone who wants into your account would have to pretend to be you to them, so they should always check by calling you or seeing you before they help.</p>
+      <p class="rec-muted">Your recovery phrase is still the main way back in: keep it written down somewhere safe. Trusted people are for when that is lost too.</p>
     </div>
 
-    <h2 style="font-size: 1.1rem; margin-top: 24px; color: var(--text);">Does an account have guardians?</h2>
-    <div class="lookup-row">
-      <input type="text" id="did-input" placeholder="Account ID (starts with did:hum:)" aria-label="Account ID" />
-      <button id="lookup-btn">Look up</button>
+    <div class="card" id="mine">
+      <h2>Your trusted people</h2>
+      <div id="mine-status"></div>
+      <div id="mine-actions" hidden>
+        <button type="button" id="mine-choose" class="rec-btn rec-primary">Choose trusted people</button>
+        <button type="button" id="mine-withdraw" class="rec-btn" hidden>Take all pieces back</button>
+      </div>
+      <div id="mine-msg" class="rec-msg" role="status" aria-live="polite"></div>
+      <div id="editor" hidden>
+        <p>Choose from your friends (people you follow who follow you back), between 2 and 10 of them.</p>
+        <div id="editor-list"></div>
+        <div class="rec-row">
+          <label for="editor-needed">How many of them must help:</label>
+          <select id="editor-needed"></select>
+        </div>
+        <p class="rec-muted">Fewer is easier if someone is hard to reach. More is safer if one of them is ever fooled. Changing it later sends new pieces, and the old ones stop counting on the server.</p>
+        <button type="button" id="editor-send" class="rec-btn rec-primary">Send the pieces</button>
+        <button type="button" id="editor-cancel" class="rec-btn">Cancel</button>
+        <div id="editor-msg" class="rec-msg" role="status" aria-live="polite"></div>
+      </div>
     </div>
 
-    <div id="setup-area"></div>
-
-    <h2 style="font-size: 1.1rem; margin-top: 32px; color: var(--text);">Are you a guardian?</h2>
-    <p class="lookup-label">See the pieces you keep for other people.</p>
-    <div class="lookup-row">
-      <input type="text" id="guardian-input" placeholder="Your account ID (starts with did:hum:)" aria-label="Your account ID" />
-      <button id="guardian-btn">Show the pieces I keep</button>
+    <div class="card" id="help">
+      <h2>Help someone get back in</h2>
+      <div id="help-asking"></div>
+      <div id="help-form" hidden>
+        <div class="rec-guide">
+          <strong>Before you send anything, make sure it is really them.</strong> Call them on a number you already had, or see them in person. Do not trust a text, an email or a message from a new account on its own: someone who wants into their account would send exactly that. Ask them to read you the code their new device shows.
+        </div>
+        <div class="rec-row">
+          <input type="text" id="help-code" placeholder="The code they read you, like ABCD-EFGH-JKMN-PQRS" aria-label="The code they read you" autocomplete="off">
+          <button type="button" id="help-look" class="rec-btn">Look it up</button>
+        </div>
+        <div id="help-found" hidden>
+          <p id="help-who" class="rec-asking"></p>
+          <label class="rec-check"><input type="checkbox" id="help-confirm"> <span id="help-confirm-words">I spoke to them myself, by a call on a number I already had or face to face, and they read me this code.</span></label>
+          <button type="button" id="help-send" class="rec-btn rec-primary" disabled>Send my piece</button>
+          <p class="rec-muted">Your piece goes only to their new device, locked so that nobody else can open it, the server included.</p>
+        </div>
+        <div id="help-msg" class="rec-msg" role="status" aria-live="polite"></div>
+        <button type="button" id="help-check" class="rec-btn">Check who is asking</button>
+        <button type="button" id="help-kept-btn" class="rec-btn">Whose pieces do I keep?</button>
+        <div id="help-kept"></div>
+      </div>
     </div>
 
-    <div id="guardian-area"></div>
+    <div class="card" id="ask">
+      <h2>Lost your device? Ask your trusted people for help</h2>
+      <div id="ask-step1">
+        <p>Use this on your new device. Keep this page open until enough of your trusted people have answered (a request lasts 7 days; closing the page means asking again with a new code).</p>
+        <div class="rec-row">
+          <input type="text" id="ask-who" placeholder="The name you used here, or your account ID (did:hum:...)" aria-label="Your name or account ID">
+          <button type="button" id="ask-find" class="rec-btn">Find my account</button>
+        </div>
+        <div id="ask-found"></div>
+      </div>
+      <div id="ask-step2" hidden>
+        <p>Call each of your trusted people, or see them in person, and read them this code. They check it is really you, type it in, and send their piece to this device. Nobody but this device can open what they send.</p>
+        <div class="rec-code" id="ask-code"></div>
+        <canvas id="ask-qr" class="rec-qr" aria-label="The same code as a picture a phone can scan"></canvas>
+        <p class="rec-muted">Someone with you can scan the picture instead: it opens this page on their phone with the code filled in.</p>
+        <div id="ask-progress" class="rec-msg" role="status" aria-live="polite"></div>
+        <button type="button" id="ask-stop" class="rec-btn">Stop asking</button>
+      </div>
+      <div id="ask-step3" hidden>
+        <p><strong>Your account is back together.</strong> Restore it in this browser, then write down your recovery phrase again (in Chat: Settings, or the /recovery command) and keep it somewhere safe.</p>
+        <button type="button" id="ask-restore" class="rec-btn rec-primary">Restore my account here</button>
+        <div id="ask-done-msg" class="rec-msg" role="status" aria-live="polite"></div>
+      </div>
+    </div>
   </div>
 
-  <script>
-    'use strict';
-    document.getElementById('lookup-btn').addEventListener('click', loadSetup);
-    document.getElementById('guardian-btn').addEventListener('click', loadGuardianShares);
-
-    // The same rule as the app's: did:hum: and letters and numbers (the fingerprint is base58).
-    function isAccountId(s) { return /^did:hum:[A-Za-z0-9]+$/.test(s); }
-    var NOT_AN_ID = 'That is not an account ID. One starts with did:hum: followed by letters and numbers.';
-    function plural(n, one, many) { return n === 1 ? '1 ' + one : n + ' ' + many; }
-    function card(inner) { return '<div class="card">' + inner + '</div>'; }
-    function note(text) { return card('<div class="empty">' + escapeHtml(text) + '</div>'); }
-
-    async function loadSetup() {
-      var did = document.getElementById('did-input').value.trim();
-      var area = document.getElementById('setup-area');
-      if (!did) { area.innerHTML = ''; return; }
-      if (!isAccountId(did)) { area.innerHTML = note(NOT_AN_ID); return; }
-      area.innerHTML = '<div class="empty">Looking it up…</div>';
-      try {
-        var setup = await window.HumOS.pq.getRecoverySetup(did);
-        if (!setup || setup.error) {
-          area.innerHTML = note('This account has no guardians on this server.');
-          return;
-        }
-        area.innerHTML = card(
-          '<div class="threshold-display">' + setup.threshold + ' of ' + plural(setup.total_shares, 'guardian', 'guardians') + '</div>' +
-          '<p class="lookup-label">This account has ' + plural(setup.total_shares, 'guardian', 'guardians') + ', and it takes ' + setup.threshold + ' of them to put its phrase back together:</p>' +
-          '<div class="guardian-list">' +
-            setup.guardians.map(function(g){ return '<div class="guardian-row">' + escapeHtml(g) + '</div>'; }).join('') +
-          '</div>');
-      } catch (err) {
-        area.innerHTML = note('Could not look it up: ' + String(err && err.message || err));
-      }
-    }
-
-    async function loadGuardianShares() {
-      var gid = document.getElementById('guardian-input').value.trim();
-      var area = document.getElementById('guardian-area');
-      if (!gid) { area.innerHTML = ''; return; }
-      if (!isAccountId(gid)) { area.innerHTML = note(NOT_AN_ID); return; }
-      area.innerHTML = '<div class="empty">Looking it up…</div>';
-      try {
-        var shares = await window.HumOS.pq.getSharesHeldBy(gid);
-        if (!shares || !shares.length) {
-          area.innerHTML = note('This account keeps no pieces for anyone on this server.');
-          return;
-        }
-        area.innerHTML = card(
-          '<h3>This account keeps ' + plural(shares.length, 'piece', 'pieces') + '</h3>' +
-          shares.map(function(s){
-            return '<div class="guardian-row" style="margin-bottom:6px;">' +
-              escapeHtml(s.holder_did) + '<br>' +
-              'It needs ' + s.threshold + ' of its ' + plural(s.total_shares, 'guardian', 'guardians') + ' together.' +
-            '</div>';
-          }).join(''));
-      } catch (err) {
-        area.innerHTML = note('Could not look it up: ' + String(err && err.message || err));
-      }
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, function(c){
-        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
-      });
-    }
-  </script>
+  <script type="module" src="/pages/recovery-app.js?v=1"></script>
 </body>
 </html>

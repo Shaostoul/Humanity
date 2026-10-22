@@ -114,18 +114,16 @@
     return getJson(`/api/v2/ai-status/${encodeURIComponent(did)}`);
   }
 
-  /* ─── Social key recovery (Phase 4) ────────────────────────────────── */
+  /* ─── Recovery through trusted people (2026-10-21) ─────────────────── */
+  // The whole flow (setting up, helping, asking) is /shared/recovery.js and the /recovery page;
+  // these two reads are here for any page that only wants to show the state.
 
   async function getRecoverySetup(holderDid) {
     return getJson(`/api/v2/recovery/setup/${encodeURIComponent(holderDid)}`);
   }
 
-  async function getSharesHeldBy(guardianDid) {
-    return getJson(`/api/v2/recovery/shares-held-by/${encodeURIComponent(guardianDid)}`);
-  }
-
-  async function getRecoveryRequest(requestObjectId) {
-    return getJson(`/api/v2/recovery/request/${encodeURIComponent(requestObjectId)}`);
+  async function getRecoveryAsk(code) {
+    return getJson(`/api/v2/recovery/ask/${encodeURIComponent(code)}`);
   }
 
   /* ─── Federation v2 ────────────────────────────────────────────────── */
@@ -343,8 +341,7 @@
     getAiStatus,
     // Recovery
     getRecoverySetup,
-    getSharesHeldBy,
-    getRecoveryRequest,
+    getRecoveryAsk,
     // Generic objects (federation substrate)
     listObjects,
     getObject,

@@ -967,6 +967,9 @@ function finishImport(identity) {
  *                                   parses the file, then hands it over).
  * @param {string} [opts.fileName] - Its filename, echoed back so the user can
  *                                   confirm they picked the right file.
+ * @param {string} [opts.words]    - A recovery phrase to fill in (the Recovery page's
+ *                                   hand-over, takeRecoveredPhrase below).
+ * @param {string} [opts.name]     - The name to fill in with it.
  */
 function openLoginRestoreModal(opts) {
   opts = opts || {};
@@ -1241,6 +1244,13 @@ function openLoginRestoreModal(opts) {
   if (loginNameInput && loginNameInput.value.trim()) {
     el('lr-name').value = loginNameInput.value.trim();
   }
+  // Handed over by the Recovery page (web/pages/recovery.html, 2026-10-21): the words its
+  // trusted people helped rebuild on this new device, and the name the account was found by.
+  if (opts.name) el('lr-name').value = opts.name;
+  if (opts.words) {
+    wordsEl.value = opts.words;
+    wordsEl.dispatchEvent(new Event('input'));
+  }
 
   async function doSeedRecover() {
     const name = el('lr-name').value.trim();
@@ -1379,6 +1389,26 @@ function openLoginRestoreModal(opts) {
 function openLoginSeedRecovery() {
   openLoginRestoreModal({ tab: 'seed' });
 }
+
+/**
+ * Recovery through trusted people (2026-10-21): the Recovery page rebuilds the recovery phrase on
+ * a new device from the pieces trusted people sent, then hands it here in this tab's
+ * sessionStorage, so the one restore surface above restores the account. Read once and removed
+ * at once; the person still presses "Recover and connect".
+ */
+function takeRecoveredPhrase() {
+  let words = null;
+  let name = '';
+  try {
+    words = sessionStorage.getItem('hum_restore_words');
+    name = sessionStorage.getItem('hum_restore_name') || '';
+    sessionStorage.removeItem('hum_restore_words');
+    sessionStorage.removeItem('hum_restore_name');
+  } catch (_) { /* no session storage: nothing was handed over */ }
+  if (words) openLoginRestoreModal({ tab: 'seed', words, name });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', takeRecoveredPhrase);
+else takeRecoveredPhrase();
 
 // Handle /profile, /block, /unblock, /blocklist commands.
 // Patching into the existing sendMessage to intercept client-side commands.
