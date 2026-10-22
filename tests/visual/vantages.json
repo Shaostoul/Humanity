@@ -902,6 +902,33 @@
       "settle_s": 10
     },
     {
+      "id": "sun-ground-noon",
+      "desc": "Sahara ground, local noon, aimed at the Sun.",
+      "expect": "A small white disc with a tight glare in a blue sky; no soft ball several degrees wide.",
+      "_why": "The Sun as a body (2026-10-21): the operator, from two screenshots, \"the sun doesn't actually seem to have a body. It seems like it is just a giant glare/bloom spot.\" The Sun is drawn at its true size (0.533 degrees at 1 AU) with a limb-darkened photosphere and a diffraction glare from a 30 mm aperture (src/renderer/sun_disc.rs, sun_glare.rs).",
+      "camera": {"body":"earth","lat":23,"lon":13,"altitude_km":0.03,"time":12,"aim":"sun"},
+      "showcase": {"weather":"clear","sea":"0.3","hud":"0"},
+      "settle_s": 8
+    },
+    {
+      "id": "sun-ship-geo-crescent",
+      "desc": "From the ship's orbit (35,870 km) on the night side, aimed at a crescent Earth, the Sun about 30 degrees to the side.",
+      "expect": "A crescent Earth and, to the side, the Sun as a small hot disc with a tight glare in a black starry sky; no brown wash over the sky.",
+      "_why": "The Sun as a body (2026-10-21): the operator, from two screenshots, \"the sun doesn't actually seem to have a body. It seems like it is just a giant glare/bloom spot.\" The Sun is drawn at its true size (0.533 degrees at 1 AU) with a limb-darkened photosphere and a diffraction glare from a 30 mm aperture (src/renderer/sun_disc.rs, sun_glare.rs).",
+      "camera": {"body":"earth","lat":0,"lon":0,"altitude_km":35870,"time":22,"aim":"earth"},
+      "showcase": {"weather":"clear","hud":"0"},
+      "settle_s": 10
+    },
+    {
+      "id": "sun-far-100k-crescent",
+      "desc": "100,000 km out on the night side, aimed at a crescent Earth, the Sun about 30 degrees to the side.",
+      "expect": "The Sun still drawn as a disc with its glare from this far out; a crescent Earth.",
+      "_why": "The Sun as a body (2026-10-21): the operator, from two screenshots, \"the sun doesn't actually seem to have a body. It seems like it is just a giant glare/bloom spot.\" The Sun is drawn at its true size (0.533 degrees at 1 AU) with a limb-darkened photosphere and a diffraction glare from a 30 mm aperture (src/renderer/sun_disc.rs, sun_glare.rs).",
+      "camera": {"body":"earth","lat":0,"lon":0,"altitude_km":100000,"time":22,"aim":"earth"},
+      "showcase": {"weather":"clear","hud":"0"},
+      "settle_s": 10
+    },
+    {
       "id": "home-upstairs-bedroom-noon",
       "desc": "The homestead's upstairs bedroom (ship homes increment 7, over the dining room) at 12:00 station time; the lane L measurement pose.",
       "expect": "A lit room on the upper floor standing on its solid floor: no light from the dining room's lamps below leaks up through the floor, and nothing lit from below shows on this room's walls.",

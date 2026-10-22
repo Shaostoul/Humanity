@@ -48,15 +48,20 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
-### RESUME FIRST: the Sun's real body (in flight, 2026-10-21 evening)
+### DONE 2026-10-21/22: the five pieces paused at the usage cap all shipped
 
-Of the five pieces paused at the usage cap (`docs/history/2026-10-21-in-flight.md`), four shipped
-the same evening: Maps increment 2 (v0.1539.0), the sky bodies list (v0.1540.0), recovery through
-trusted people (v0.1541.0), bounced light's Ambient level and probe streaming (v0.1542.0). Left:
-the Sun's real body, with a fixer in a worktree (the operator's two screenshots: a soft glow with
-no disc, from near the ship and from far out looking back at Earth; the disc may not be drawn at
-all from far away). Its brief: the true 0.53-degree disc with limb darkening, physically based
-glare, why the disc vanishes from afar, and the limb smudge.
+Maps increment 2 (v0.1539.0), the sky bodies list (v0.1540.0), recovery through trusted people
+(v0.1541.0), bounced light's Ambient level and probe streaming (v0.1542.0), the Sun's real body
+(v0.1543.0; `docs/history/2026-10-21-in-flight.md` has how they were paused). Left from them:
+- **The planets' orbit rings cross the whole sky as faint green lines**, from the ground too (seen
+  in the Sun's sunset capture, the operator's far-out screenshot): useful on the map, clutter in
+  the sky; decide whether the sky draws them at all, or only near a body, or as a setting.
+- The Sun: the aperture (30 mm, dev key `sun_aperture_mm`) has no Settings control; the corona is
+  too faint to see until the engine has eye adaptation; within the last tenth of the radius the
+  limb law runs darker than measured (under half a pixel); `pipeline.rs` still calls the Sun's
+  material "the sun's radial glow". The home's glass roof now reads clear from inside by day (it
+  was a grey haze lit from the far side): the operator may want to see it.
+- Two soft blue glows on the Maps overview (one by Mars and Earth, one lower right), not chased.
 
 **Also queued (operator's question, 2026-10-21: "Do rooms not automatically calculate their
 volumes on the fly?").** They do (the flood fill, live), but the static power meters charge a
