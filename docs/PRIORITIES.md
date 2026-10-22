@@ -436,7 +436,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     hand-typed boots skip the lock; other rigs still ignore unknown flags; perf-report does not yet
     refuse an FXC sweep. Flaky under load (passed alone): `engine::file_transfer` "one dial one
     allocation", `net::webrtc::turn` wrong credentials, `relay::resumable` follow-ups "a dropped
-    request keeps its finish to itself" (2026-10-21, 3 of 3 alone).
+    request keeps its finish to itself" (2026-10-21, 3 of 3 alone), `gui::pages::files::resumable`
+    "pause_resume_and_cancel" (2026-10-21, 3 of 3 alone). Two upload tests in one day: make the
+    resumable-upload tests independent of timing (they fail only while other builds load the machine).
   - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
     Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase
