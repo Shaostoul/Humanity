@@ -435,7 +435,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     boot at once; worktrees find the DXC compiler in the main checkout. Gaps: `just launch-bg` and
     hand-typed boots skip the lock; other rigs still ignore unknown flags; perf-report does not yet
     refuse an FXC sweep. Flaky under load (passed alone): `engine::file_transfer` "one dial one
-    allocation", `net::webrtc::turn` wrong credentials.
+    allocation", `net::webrtc::turn` wrong credentials, `relay::resumable` follow-ups "a dropped
+    request keeps its finish to itself" (2026-10-21, 3 of 3 alone).
   - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
     Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase

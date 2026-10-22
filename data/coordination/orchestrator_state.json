@@ -616,6 +616,11 @@
       "date": "2026-10-21",
       "decision": "Released v0.1539.0: Maps increment 2 (phase-lit real-coloured bodies, fading orbits, placed names, 20,000 real MPCORB belt orbits under the MPC's header conditions, the star sky behind, overlays as data, Diagram, theme tokens, the web mirror) after its release sweep caught the overview at 3.5 ms of symbols against 1 ms; the belts' dust is now cached and shared by Arc (first try compared the pose exactly and still rebuilt: float noise), 0.86 ms after. Done solo to spend little at 96% weekly usage; next in order: the sky worktree (merged with main as 301279ad2, sol.json catalog 7), then recovery, bounced light, the Sun. Seen in the overview capture, not chased: two soft blue glows (one by Mars and Earth, one lower right).",
       "why": "The operator: work through the furthest-along pieces first on the ~4% left."
+    },
+    {
+      "date": "2026-10-21",
+      "decision": "Released v0.1540.0: the sky bodies follow-up (each body its own IAU rotation from sol.json, the Moon tidally locked; the daytime Moon through the air; fog hides sky bodies by depth; other bodies' clouds and air take their own sun; the limb lit from low orbit over the night side; the white point on the Moon was the HUD crosshair; the compass aboard points north). Merged with Maps increment 2 in its worktree (cosmos.rs struct fields and functions from both sides kept; sol.json catalog 7 because both sides had called their catalog 6). Verified on the release exe: runtime 3/3, storeys 76/76, falls 88/88, the follow-home sweep.",
+      "why": "Next furthest along, per the operator's order at ~4% weekly usage."
     }
   ],
   "active_scopes_to_avoid": [
@@ -645,7 +650,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-21T18:30:00-07:00",
+  "last_updated": "2026-10-21T19:10:00-07:00",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
