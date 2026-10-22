@@ -242,6 +242,7 @@ button { font-family: inherit; cursor: pointer; }
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <script src="/shared/label-placer.js"></script>
+<script src="/shared/sol-orbits.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Zoom from your own street out to the whole galaxy. Scroll in past the Sun to land on the real Earth, or click any planet to visit it. This is the real cosmos for looking up. Your in-game ship and character live in the desktop app.</div>
   <div class="eli5-expert">Multi-scale seamless zoom from galaxy to street level on a single HTML5 Canvas. 3D perspective orbit with tilt/rotation, real orbital mechanics, planet globe rendering, and OpenStreetMap tile-based surface maps.</div>
@@ -397,6 +398,29 @@ const PLANETS = [
 PLANETS.forEach((p, i) => {
   p.startAngle = (i * 137.508 * DEG2RAD) % TWO_PI;
 });
+
+// ---- Real orbits, colours and belts (Maps increment 2, /shared/sol-orbits.js) ----
+// The same files the desktop app reads: every body's orbit and map colour from
+// /data/star_systems/sol.json, 20,000 real minor planets from /data/maps/belts.json
+// (the Minor Planet Center's MPCORB). Until they load (or if they cannot), the
+// view falls back to the placeholder spread above, and says so.
+let SOL = null;
+let BELTSET = null;
+let beltPositions = null;
+let beltPositionsT = NaN;
+// The belts and orbit trails, drawn once per view into an offscreen layer.
+let mapsStatic = null;
+if (window.HosSol) {
+  HosSol.loadSol().then((s) => {
+    SOL = s;
+    for (const p of PLANETS) {
+      const b = s && s.bodies.get(p.name.toLowerCase());
+      if (b && b.map_color) p.color = b.map_color;
+    }
+    requestRender();
+  }).catch(() => {});
+  HosSol.loadBelts().then((b) => { BELTSET = b; requestRender(); }).catch(() => {});
+}
 
 // ---- Belt landmarks (facts from data/world/solar_system.ron) ----
 const BELTS = [
@@ -979,87 +1003,163 @@ function renderSystem3D(ctx, alpha) {
   const cosTilt = Math.cos(state.orbitTilt);
   const sinTilt = Math.sin(state.orbitTilt);
 
-  // Sun
-  const sunR = Math.max(8, baseScale * 0.3);
-  const sunGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunR * 3);
-  sunGlow.addColorStop(0, 'rgba(255,240,100,0.9)');
-  sunGlow.addColorStop(0.2, 'rgba(255,200,50,0.4)');
-  sunGlow.addColorStop(1, 'rgba(255,150,0,0)');
+  // ── Maps increment 2: the app's look on the web (src/gui/pages/maps/system_view.rs).
+  //    Every body at its REAL place on today's date (sol.json through
+  //    /shared/sol-orbits.js), its real colour, lit on the side facing the Sun;
+  //    orbits that fade behind their bodies; the real belts as dust; the Sun's
+  //    glare; names placed so none overlap. Distances are compressed (the log
+  //    scale above), the app's Diagram mode, and the view says so. ──
+  const HS = window.HosSol;
+  const css = getComputedStyle(document.documentElement);
+  const cssVar = (name, fallback) => (css.getPropertyValue(name) || '').trim() || fallback;
+  const tSec = HS ? HS.secondsSinceJ2000() : 0;
+  // An ecliptic AU position (x to the March equinox, z to ecliptic north) on
+  // the canvas: its distance from the Sun through the log scale, north up.
+  function toScreen(p) {
+    const r = Math.hypot(p[0], p[1], p[2]);
+    const k = r > 0 ? auToPixels(r) / r : 0;
+    const x3 = p[0] * k;
+    const z3 = -p[1] * k;
+    const y3 = -p[2] * k;
+    return { sx: cx + x3, sy: cy + z3 * cosTilt + y3 * sinTilt, depth: z3 * sinTilt };
+  }
+  const labels = window.HosLabels ? new HosLabels.LabelPlacer({ x0: 2, y0: 2, x1: W - 2, y1: H - 2 }, HosLabels.LABEL_GAP) : null;
+
+  // The Sun: its glare (the eye's point-spread, the app's bodies::glare_at)
+  // and a limb-darkened disc.
+  const sunR = Math.max(6, baseScale * 0.18);
+  const degPerPx = 60 / Math.max(H, 1);
+  const glareR = Math.min(30 / degPerPx, Math.max(W, H));
+  const sunGlow = ctx.createRadialGradient(cx, cy, sunR, cx, cy, glareR);
+  for (let i = 0; i <= 12; i++) {
+    const f = i / 12;
+    const rr = sunR * Math.pow(glareR / sunR, f);
+    const g = HS ? HS.glareAt((rr - sunR) * degPerPx + 0.25) : (1 - f) * 0.5;
+    sunGlow.addColorStop((rr - sunR) / (glareR - sunR), `rgba(255,244,234,${(i === 12 ? 0 : g).toFixed(3)})`);
+  }
   ctx.fillStyle = sunGlow;
   ctx.beginPath();
-  ctx.arc(cx, cy, sunR * 3, 0, TWO_PI);
+  ctx.arc(cx, cy, glareR, 0, TWO_PI);
   ctx.fill();
-
-  ctx.fillStyle = '#ffee88';
+  const limb = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunR);
+  limb.addColorStop(0, '#fffaf2');
+  limb.addColorStop(1, '#d8c8b0');
+  ctx.fillStyle = limb;
   ctx.beginPath();
   ctx.arc(cx, cy, sunR, 0, TWO_PI);
   ctx.fill();
+  if (labels) labels.reserveExact({ x0: cx - sunR, y0: cy - sunR, x1: cx + sunR, y1: cy + sunR });
 
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 10px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Sun', cx, cy - sunR - 6);
-
-  // Asteroid belt (3D)
-  ctx.fillStyle = 'rgba(150,140,120,0.3)';
-  for (const a of asteroids) {
-    const r = auToPixels(a.r + a.jitter);
-    const x3 = r * Math.cos(a.angle);
-    const z3 = r * Math.sin(a.angle);
-    const y3 = a.zJitter * baseScale * 0.15;
-    const sx = cx + x3;
-    const sy = cy + z3 * cosTilt + y3 * sinTilt;
-    if (sx < -5 || sx > W + 5 || sy < -5 || sy > H + 5) continue;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 0.7, 0, TWO_PI);
-    ctx.fill();
+  // The belts and the orbit trails change only with the view and, slowly,
+  // with the date, so they are drawn once into an offscreen layer and reused
+  // while neither moves (the page redraws every frame for its animation, and
+  // drawing 20,000 points and the trails each frame cost about 12 ms).
+  if (BELTSET && (!beltPositions || !(Math.abs(tSec - beltPositionsT) <= 6 * 3600))) {
+    // Moved to today only when the clock has moved six hours (belts.rs).
+    beltPositions = HS.propagateBelts(BELTSET, tSec);
+    beltPositionsT = tSec;
   }
-
-  // Kuiper belt (3D)
-  ctx.fillStyle = 'rgba(120,130,160,0.2)';
-  for (const k of kuiperObjects) {
-    const r = auToPixels(k.r + k.jitter);
-    const x3 = r * Math.cos(k.angle);
-    const z3 = r * Math.sin(k.angle);
-    const y3 = k.zJitter * baseScale * 0.1;
-    const sx = cx + x3;
-    const sy = cy + z3 * cosTilt + y3 * sinTilt;
-    if (sx < -5 || sx > W + 5 || sy < -5 || sy > H + 5) continue;
-    ctx.beginPath();
-    ctx.arc(sx, sy, 0.5, 0, TWO_PI);
-    ctx.fill();
+  const layerKey = [W, H, cx, cy, baseScale, state.orbitTilt, Math.floor(tSec / 600), !!SOL, !!BELTSET, beltPositionsT].join('|');
+  if (!mapsStatic || mapsStatic.key !== layerKey) {
+    const dpr = window.devicePixelRatio || 1;
+    const off = (mapsStatic && mapsStatic.canvas) || document.createElement('canvas');
+    off.width = Math.max(1, Math.round(W * dpr));
+    off.height = Math.max(1, Math.round(H * dpr));
+    const sctx = off.getContext('2d');
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sctx.clearRect(0, 0, W, H);
+    // The belts: the real minor planets' dust, a pixel each, rock or ice.
+    if (BELTSET && beltPositions) {
+      const tones = BELTSET.classes.map((c) => (c.tone === 'ice' ? cssVar('--map-belt-outer', 'rgba(158,189,224,0.55)') : cssVar('--map-belt', 'rgba(209,189,158,0.55)')));
+      for (let c = 0; c < tones.length; c++) {
+        sctx.fillStyle = tones[c];
+        for (let i = 0; i < BELTSET.n; i++) {
+          if (BELTSET.cls[i] !== c) continue;
+          const s = toScreen([beltPositions[i * 3], beltPositions[i * 3 + 1], beltPositions[i * 3 + 2]]);
+          if (s.sx < 0 || s.sx > W || s.sy < 0 || s.sy > H) continue;
+          sctx.fillRect(s.sx - 0.6, s.sy - 0.6, 1.2, 1.2);
+        }
+      }
+    } else {
+      sctx.fillStyle = cssVar('--map-belt', 'rgba(150,140,120,0.3)');
+      for (const a of asteroids) {
+        const r = auToPixels(a.r + a.jitter);
+        const sx = cx + r * Math.cos(a.angle);
+        const sy = cy + r * Math.sin(a.angle) * cosTilt + a.zJitter * baseScale * 0.15 * sinTilt;
+        if (sx < -5 || sx > W + 5 || sy < -5 || sy > H + 5) continue;
+        sctx.fillRect(sx - 0.5, sy - 0.5, 1, 1);
+      }
+    }
+    // The orbit trails: bright at the body, fading to a faint line half an
+    // orbit behind it (orbits.rs trail_alpha), the body itself a vertex.
+    // Segments are gathered by brightness (16 steps) into one path each, so a
+    // redraw strokes a few dozen paths, not a thousand segments.
+    if (SOL) {
+      const styles = [
+        { colour: cssVar('--map-orbit-planet', 'rgba(107,148,219,0.85)'), width: 1.2, paths: [] },
+        { colour: cssVar('--map-orbit-minor', 'rgba(179,148,107,0.7)'), width: 0.8, paths: [] },
+      ];
+      for (const planet of PLANETS) {
+        const orb = SOL.orbits.get(planet.name.toLowerCase());
+        if (!orb) continue;
+        const st = styles[planet.dwarf ? 1 : 0];
+        const E0 = HS.eccentricAnomalyAt(orb, tSec);
+        const M0 = E0 - orb.e * Math.sin(E0);
+        const N = 160;
+        let prev = toScreen(HS.orbitPoint(orb, E0, tSec));
+        for (let k = 1; k <= N; k++) {
+          const E = E0 + (k / N) * TWO_PI;
+          const behind = 1 - (E - orb.e * Math.sin(E) - M0) / TWO_PI;
+          const t = Math.max(0, 1 - behind / 0.5);
+          const level = Math.round((0.22 + 0.78 * Math.pow(t, 1.3)) * 15);
+          const next = toScreen(HS.orbitPoint(orb, E, tSec));
+          const p = st.paths[level] || (st.paths[level] = new Path2D());
+          p.moveTo(prev.sx, prev.sy);
+          p.lineTo(next.sx, next.sy);
+          prev = next;
+        }
+      }
+      for (const st of styles) {
+        sctx.strokeStyle = st.colour;
+        sctx.lineWidth = st.width;
+        st.paths.forEach((p, level) => {
+          if (!p) return;
+          sctx.globalAlpha = level / 15;
+          sctx.stroke(p);
+        });
+      }
+      sctx.globalAlpha = 1;
+    }
+    mapsStatic = { key: layerKey, canvas: off };
   }
+  ctx.drawImage(mapsStatic.canvas, 0, 0, W, H);
 
-  // Planets with 3D orbit tilt
+  // Planets: the real place when sol.json is in, else the old spread.
   const yearFraction = (Date.now() / 1000 / 86400 / 365.25);
   const renderOrder = [];
-
   for (const planet of PLANETS) {
-    const orbitR = auToPixels(planet.semiMajor);
-    const inclRad = (planet.incl || 0) * DEG2RAD;
-    const angle = planet.startAngle + (yearFraction / planet.period) * TWO_PI;
-
-    // 3D orbit position
-    const x3 = orbitR * Math.cos(angle);
-    const z3 = orbitR * Math.sin(angle) * Math.cos(inclRad);
-    const y3 = orbitR * Math.sin(angle) * Math.sin(inclRad);
-
-    // Project to 2D with tilt
-    const px = cx + x3;
-    const py = cy + z3 * cosTilt + y3;
-    const depth = z3 * sinTilt;
-
-    // Draw orbit ellipse (tilted)
-    ctx.strokeStyle = `rgba(100,120,160,${planet.dwarf ? 0.15 : 0.25})`;
-    ctx.lineWidth = planet.dwarf ? 0.5 : 0.8;
-    ctx.setLineDash(planet.dwarf ? [3, 4] : []);
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, orbitR, orbitR * cosTilt, 0, 0, TWO_PI);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
+    const orb = SOL && SOL.orbits.get(planet.name.toLowerCase());
+    let px, py, depth, orbitR;
+    if (orb) {
+      const s = toScreen(HS.positionAU(orb, tSec));
+      px = s.sx; py = s.sy; depth = s.depth;
+      orbitR = auToPixels(orb.a);
+    } else {
+      orbitR = auToPixels(planet.semiMajor);
+      const inclRad = (planet.incl || 0) * DEG2RAD;
+      const angle = planet.startAngle + (yearFraction / planet.period) * TWO_PI;
+      const x3 = orbitR * Math.cos(angle);
+      const z3 = orbitR * Math.sin(angle) * Math.cos(inclRad);
+      const y3 = orbitR * Math.sin(angle) * Math.sin(inclRad);
+      px = cx + x3; py = cy + z3 * cosTilt + y3; depth = z3 * sinTilt;
+      ctx.strokeStyle = `rgba(100,120,160,${planet.dwarf ? 0.15 : 0.25})`;
+      ctx.lineWidth = planet.dwarf ? 0.5 : 0.8;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, orbitR, orbitR * cosTilt, 0, 0, TWO_PI);
+      ctx.stroke();
+    }
     const planetR = Math.max(3, Math.min(14, Math.log2(planet.radius / 1000 + 1) * 3));
-    renderOrder.push({ planet, px, py, planetR, depth, angle, orbitR });
+    renderOrder.push({ planet, px, py, planetR, depth, orbitR });
   }
 
   // Sort by depth for proper occlusion
@@ -1069,7 +1169,7 @@ function renderSystem3D(ctx, alpha) {
   const showMoons = state.zoomLevel >= ZOOM_SYSTEM_MIN + 4;
   const dayNumber = Date.now() / 86400000;
 
-  for (const { planet, px, py, planetR, angle, orbitR } of renderOrder) {
+  for (const { planet, px, py, planetR } of renderOrder) {
     // Saturn rings
     if (planet.name === 'Saturn') {
       ctx.strokeStyle = 'rgba(210,190,140,0.5)';
@@ -1078,27 +1178,21 @@ function renderSystem3D(ctx, alpha) {
       ctx.ellipse(px, py, planetR * 2.2, planetR * 0.8 * cosTilt, -0.3, 0, TWO_PI);
       ctx.stroke();
     }
-
-    // Planet glow
-    const pGlow = ctx.createRadialGradient(px, py, 0, px, py, planetR * 2);
-    pGlow.addColorStop(0, planet.color + 'aa');
-    pGlow.addColorStop(1, planet.color + '00');
-    ctx.fillStyle = pGlow;
-    ctx.beginPath();
-    ctx.arc(px, py, planetR * 2, 0, TWO_PI);
-    ctx.fill();
-
-    // Planet body
-    ctx.fillStyle = planet.color;
+    // The disc, lit on the side facing the Sun (seen from above, a planet
+    // is half lit, its terminator square to the line to the Sun), in its
+    // real colour through the app's exposure curve.
+    const col = HS ? HS.iconColours(planet.color) : { lit: planet.color, night: '#111' };
+    ctx.fillStyle = col.night;
     ctx.beginPath();
     ctx.arc(px, py, planetR, 0, TWO_PI);
     ctx.fill();
-
-    // Label
-    ctx.fillStyle = 'rgba(220,220,240,0.9)';
-    ctx.font = `${planet.dwarf ? '9' : '10'}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(planet.name, px, py - planetR - 5);
+    const toSun = Math.atan2(cy - py, cx - px);
+    ctx.fillStyle = col.lit;
+    ctx.beginPath();
+    ctx.arc(px, py, planetR, toSun - Math.PI / 2, toSun + Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    if (labels) labels.reserveExact({ x0: px - planetR, y0: py - planetR, x1: px + planetR, y1: py + planetR });
 
     planet._sx = px;
     planet._sy = py;
@@ -1114,7 +1208,8 @@ function renderSystem3D(ctx, alpha) {
           const msx = px + mr * Math.cos(ma);
           const msy = py + mr * Math.sin(ma) * cosTilt;
           const dotR = Math.max(1, Math.min(2.5, Math.log2(moon.radiusKm / 300 + 1.5)));
-          ctx.fillStyle = moon.color;
+          const mb = SOL && SOL.bodies.get(String(moon.name).toLowerCase());
+          ctx.fillStyle = mb && mb.map_color ? HS.iconColours(mb.map_color).lit : moon.color;
           ctx.beginPath();
           ctx.arc(msx, msy, dotR, 0, TWO_PI);
           ctx.fill();
@@ -1127,6 +1222,35 @@ function renderSystem3D(ctx, alpha) {
       }
     }
   }
+
+  // Names, through the label placer (the twin of the app's): the Sun first,
+  // then the planets bigger on screen first, then dwarf planets; a name with
+  // no clear spot is left out rather than printed over another.
+  ctx.font = `${cssVar('--map-label-size', '12.5px')} sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const named = [{ name: 'Sun', x: cx, y: cy, r: sunR, minor: false }].concat(
+    renderOrder
+      .slice()
+      .sort((a, b) => (a.planet.dwarf ? 1 : 0) - (b.planet.dwarf ? 1 : 0) || b.planetR - a.planetR)
+      .map((o) => ({ name: o.planet.name, x: o.px, y: o.py, r: o.planetR, minor: !!o.planet.dwarf }))
+  );
+  for (const n of named) {
+    const w = ctx.measureText(n.name).width;
+    const h = 13;
+    const spot = labels ? labels.place(HosLabels.pointCandidates(n.x, n.y, n.r, w, h, 3)) : { x0: n.x - w / 2, y0: n.y - n.r - h - 4 };
+    if (!spot) continue;
+    ctx.fillStyle = cssVar('--map-label-halo', 'rgba(0,0,0,0.8)');
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) ctx.fillText(n.name, spot.x0 + dx, spot.y0 + dy);
+    ctx.fillStyle = n.minor ? cssVar('--map-label-minor', '#a3a8b8') : cssVar('--map-label', '#e0e3ed');
+    ctx.fillText(n.name, spot.x0, spot.y0);
+  }
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = 'rgba(200,200,220,0.55)';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(SOL ? 'Real positions today; distances not to scale (compressed)' : 'Loading the real orbits...', 10, H - 26);
+  if (BELTSET) ctx.fillText('Belts: real orbits from the Minor Planet Center (IAU MPCORB)', 10, H - 12);
 
   // Belt landmarks (clickable labels; facts from data/world/solar_system.ron)
   for (const belt of BELTS) {

@@ -135,6 +135,21 @@
   --badge-donor: #9c59b5;
   --badge-live: #e64d3d;
 
+  /* Maps page symbols (Maps increment 2): space, orbit lines by kind of body, names,
+     the dark edge behind a name, the belts' dust (rock, ice), reference rings and L points */
+  --map-space: #030306; /* theme-exempt: space is dark in both themes, the map draws over it */
+  --map-orbit-planet: rgba(107, 148, 219, 0.85);
+  --map-orbit-moon: rgba(143, 153, 179, 0.7);
+  --map-orbit-minor: rgba(179, 148, 107, 0.7);
+  --map-label: #e0e3ed;
+  --map-label-minor: #a3a8b8;
+  --map-label-halo: rgba(0, 0, 0, 0.8);
+  --map-belt: rgba(209, 189, 158, 0.7);
+  --map-belt-outer: rgba(158, 189, 224, 0.7);
+  --map-reference: rgba(89, 158, 242, 0.85);
+  --map-orbit-width: 1.2px;
+  --map-label-size: 12.5px;
+
   /* Radii */
   --radius-sm: 3.9643755px;
   --radius: 4px;

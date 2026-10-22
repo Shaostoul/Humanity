@@ -176,9 +176,9 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     if overlays::showing(state, "belts", band) {
         let set = super::belts::belt_set();
         state.maps.belts.update(set, sim_time, state.maps.diagram);
-        let mut dust = Mesh::default();
-        stats.belt_points = super::belts::add_dust(&mut dust, set, &state.maps.belts, &proj, &scene, theme.map_belt(), theme.map_belt_outer());
-        paint.add(Shape::mesh(dust));
+        let (dust, drawn) = super::belts::dust_mesh(set, &mut state.maps.belts, &proj, &scene, theme.map_belt(), theme.map_belt_outer());
+        stats.belt_points = drawn;
+        paint.add(Shape::Mesh(dust));
         stats.layers.push("belts".into());
     }
 
