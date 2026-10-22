@@ -2805,7 +2805,7 @@ fn draw_bounced_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
             ui.end_row();
         }
     });
-    widgets::setting_hint(ui, theme, hint, "How finely the light that bounces off walls, floors and ceilings is worked out indoors. Higher: finer bounced light in your home and nearby rooms, and more video memory. The work each frame is the same at every level; a finer level only takes longer to relight rooms far from you. Changes apply live: a short pause, then a few seconds while the bounced light fills back in.");
+    widgets::setting_hint(ui, theme, hint, "How finely the light that bounces off walls, floors and ceilings is worked out indoors. The rooms nearest you hold light probes, up to the level's number; rooms farther away show one colour each, worked out from their own lamps and windows, until you come near. Ambient: no probes, every room its one colour (it still follows the lamps, and light stays in its own room, but a room is evenly lit). Higher: finer bounced light in more of the rooms around you, and more video memory. Changes apply live: a short pause, then a few seconds while the bounced light settles.");
     let level = gi::detail_level(&state.settings.bounced_light_detail);
     let (card, warning) = gi::memory_check(level, gi::adapter_memory());
     ui.label(RichText::new(card).color(theme.text_muted()).size(theme.font_size_small));

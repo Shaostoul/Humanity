@@ -2212,16 +2212,23 @@ pub const FEATURE_ROOM_GI: &str = "HAS_ROOM_GI";
 /// inside, and compiled out of the terrain, water, shell and cloud pipelines.
 pub const FEATURE_SLAB_OCCLUSION: &str = "HAS_SLAB_OCCLUSION";
 
-/// Every feature switch (see `FEATURE_ROOM_GI`, `FEATURE_SLAB_OCCLUSION`), in
-/// declaration order.
-pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION];
+/// The room's ambient colour (2026-10-21, docs/design/room-gi.md): one colour
+/// per room from its own lamps and windows, one texel of the probe atlas's
+/// last row, in frag_tail's indirect term. A FEATURE switch with one guard in
+/// frag_tail, inside room GI's block; live in the same classes as room GI and
+/// compiled out of the terrain, water, shell and cloud pipelines.
+pub const FEATURE_ROOM_AMBIENT: &str = "HAS_ROOM_AMBIENT";
+
+/// Every feature switch (see `FEATURE_ROOM_GI`, `FEATURE_SLAB_OCCLUSION`,
+/// `FEATURE_ROOM_AMBIENT`), in declaration order.
+pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT];
 
 /// Every switch the megashader declares, in declaration order: the shell
 /// switches, then the feature switches. The permutation tests and
 /// `shader_loader::validate_wgsl` require each one to exist with a `= true`
 /// default, so every pipeline that does NOT name a switch keeps its code.
 pub const ALL_SWITCHES: &[&str] =
-    &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION];
+    &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT];
 
 /// The fragment entry of the two alpha-cutout sun-shadow PSOs: ONE union
 /// twin of the class entries' cutout discards (pinned to them by
@@ -2347,11 +2354,17 @@ impl ShaderClass {
         match self {
             ShaderClass::Surface | ShaderClass::Vegetation => ALL_BRANCH_SWITCHES,
             ShaderClass::Terrain => {
-                &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION]
+                &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
             }
-            ShaderClass::Water => &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION],
-            ShaderClass::Shell => &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION],
-            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION],
+            ShaderClass::Water => {
+                &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
+            }
+            ShaderClass::Shell => {
+                &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
+            }
+            ShaderClass::Cloud => {
+                &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
+            }
         }
     }
 
@@ -3015,6 +3028,38 @@ mod permutation_tests {
         for row in PSO_REGISTRY {
             let live = row.class.is_some_and(|c| owners.contains(&c));
             assert_eq!(!row.dead.contains(&s), live, "{}: slab occlusion live = {live}", row.label);
+        }
+    }
+
+    /// THE ROOM'S AMBIENT COLOUR (2026-10-21): one switch, one guard, the
+    /// switch its FIRST operand, inside room GI's block in frag_tail (after
+    /// the probes' share is read, before the floor is applied), and the line
+    /// after it adds `room_gi_ambient`, which is called nowhere else. Live in
+    /// exactly the room GI classes (surface, vegetation), compiled out of
+    /// every other PSO. Seen red first (2026-10-21) with the ambient guard with its switch second: "exactly one 'if (HAS_ROOM_AMBIENT && room_gi_weight(room_light.a) < 1.0) {', found 0".
+    #[test]
+    fn the_room_ambient_colour_is_guarded_by_its_switch_in_the_tail() {
+        let main = code_only(class_entries_side());
+        let s = FEATURE_ROOM_AMBIENT;
+        let guard = format!("if ({s} && room_gi_weight(room_light.a) < 1.0) {{");
+        let sites: Vec<usize> = main.match_indices(&guard).map(|(p, _)| p).collect();
+        assert_eq!(sites.len(), 1, "exactly one {guard:?}, found {}", sites.len());
+        let (t0, t1) = function_body(&main, "frag_tail");
+        assert!(sites[0] > t0 && sites[0] < t1, "the ambient guard must be inside frag_tail");
+        let gi = t0 + main[t0..t1].find(&format!("if ({FEATURE_ROOM_GI} && ")).expect("room GI's guard");
+        let gi_end = matching_brace(&main, gi + main[gi..].find('{').expect("its block"));
+        assert!(sites[0] > gi && sites[0] < gi_end, "the ambient guard must sit inside room GI's block");
+        let next = main[sites[0] + guard.len()..].lines().nth(1).unwrap_or("").trim();
+        assert!(next.contains("room_gi_ambient("), "the line after the guard must call room_gi_ambient, found {next:?}");
+        let uses: Vec<usize> =
+            identifier_sites(&main, "room_gi_ambient").into_iter().filter(|&p| !main[..p].ends_with("fn ")).collect();
+        assert_eq!(uses.len(), 1, "room_gi_ambient must be called in exactly one place (the guarded one)");
+        let owners: Vec<ShaderClass> =
+            ShaderClass::ALL.iter().copied().filter(|c| c.live_features().contains(&s)).collect();
+        assert_eq!(owners, vec![ShaderClass::Surface, ShaderClass::Vegetation]);
+        for row in PSO_REGISTRY {
+            let live = row.class.is_some_and(|c| owners.contains(&c));
+            assert_eq!(!row.dead.contains(&s), live, "{}: the room ambient colour live = {live}", row.label);
         }
     }
 

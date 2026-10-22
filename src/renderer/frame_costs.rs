@@ -517,7 +517,7 @@ pub fn snapshot() -> Snapshot {
 }
 
 /// Whether `HUMANITY_FRAME_COSTS` asked for the JSON drop (read once).
-fn dump_enabled() -> bool {
+pub(crate) fn dump_enabled() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
     *ON.get_or_init(|| {
         std::env::var("HUMANITY_FRAME_COSTS")

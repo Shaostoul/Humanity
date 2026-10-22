@@ -482,7 +482,18 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     if (HAS_ROOM_GI && !under_sky && !screen_emitter && out_alpha >= 0.999) {
         let room_light = room_gi_irradiance(in.world_position, normal);
         if (room_light.a > 0.5) {
-            indirect = max(room_light.rgb, AMBIENT_FLOOR);
+            var room_rgb = room_light.rgb;
+            // THE ROOM'S AMBIENT COLOUR (2026-10-21, 85-room-gi.wgsl
+            // room_gi_ambient): one colour per room from its own lamps and
+            // windows. All of a room's light on the Bounced light detail level
+            // "Ambient" and while its probes are not resident (probe
+            // streaming), the rest of the blend while they fade out, nothing
+            // where its probes hold. HAS_ROOM_AMBIENT is live where room GI
+            // is; with it off such a room keeps the old floor.
+            if (HAS_ROOM_AMBIENT && room_gi_weight(room_light.a) < 1.0) {
+                room_rgb = room_rgb + room_gi_ambient(room_light.a);
+            }
+            indirect = max(room_rgb, AMBIENT_FLOOR);
         }
     }
     let ambient = albedo * indirect * ao;

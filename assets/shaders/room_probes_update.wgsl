@@ -1,9 +1,21 @@
 // ── ROOM GI, RUNG 1: THE PROBE UPDATE (docs/design/room-gi.md) ──
 //
-// Three compute entries in one pass: `cs_clear` once after the rooms change,
-// then `cs_trace` and `cs_resolve` back to back with one workgroup per probe
-// being updated this frame (renderer::room_probes_gpu builds the list: the
-// camera's room every frame, the rest of the ship round-robin under a budget).
+// Five compute entries in one pass, in this order (renderer::room_probes_gpu,
+// `RoomGi::encode`):
+//
+//   cs_ambient          one workgroup per room: the room's AMBIENT COLOUR
+//                       (room_probes::room_ambient) into the scratch's last
+//                       row, every frame.
+//   cs_ambient_resolve  copies that row into the atlas's last row, where the
+//                       fragments read it (room_gi_ambient in 85-room-gi.wgsl).
+//   cs_seed             one workgroup per probe of each room that came into
+//                       the atlas this frame (probe streaming,
+//                       room_probes::Residency): its tiles set to the room's
+//                       ambient colour, so it starts exactly where the room
+//                       already stood (room_probes::Twin::seed).
+//   cs_trace, cs_resolve  one workgroup per probe being updated this frame
+//                       (the camera's room every frame, the other resident
+//                       rooms round-robin under a budget), below.
 //
 //   cs_trace    64 threads, one ray each. The ray set is a spherical Fibonacci
 //               set turned by this update's random rotation, traced against
@@ -58,7 +70,8 @@ struct GiParams {
     // x = settled hysteresis, z = normal bias (unused here; the shared part
     // carries it as a constant), y and w unused.
     misc: vec4<f32>,
-    // x = probes in this dispatch, y = scratch irradiance tiles per row,
+    // x = probes traced in this dispatch (gi_updates' first x entries; the
+    // probes cs_seed seeds follow them), y = scratch irradiance tiles per row,
     // z = scratch depth tiles per row, w = first row of the scratch depth region.
     counts: vec4<u32>,
 };
@@ -328,14 +341,283 @@ fn cs_trace(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_inde
     }
 }
 
-// Zero the whole atlas: run once after the rooms change, so every probe starts
-// "never updated" (count 0, which the blend reads as "take the new estimate
-// whole") instead of inheriting whatever the old layout kept in its tile.
-@compute @workgroup_size(8, 8)
-fn cs_clear(@builtin(global_invocation_id) id: vec3<u32>) {
-    let size = textureDimensions(gi_atlas_out);
-    if (id.x < size.x && id.y < size.y) {
-        textureStore(gi_atlas_out, vec2<i32>(id.xy), vec4<f32>(0.0));
+// ── THE ROOM'S AMBIENT COLOUR (room_probes::room_ambient, its section
+//    comment says why and how) ──
+//
+// LOCKSTEP with room_probes.rs: AMBIENT_GRID, AMBIENT_SKY_DIRS, SEED_COUNT,
+// face_area, face_cell_point, sky_dir, ambient_closed_form
+// (room_probes_gpu::tests checks the constants).
+const GI_AMB_GRID: u32 = 8u;
+const GI_AMB_CELLS: u32 = 64u;
+const GI_AMB_SKY_DIRS: u32 = 64u;
+const GI_SEED_COUNT: f32 = 8.0;
+
+// Area of face f of the box (room_probes::face_area).
+fn gi_face_area(bmin: vec3<f32>, bmax: vec3<f32>, f: u32) -> f32 {
+    let s = bmax - bmin;
+    if (f < 2u) {
+        return s.y * s.z;
+    }
+    if (f < 4u) {
+        return s.x * s.z;
+    }
+    return s.x * s.y;
+}
+
+// Centre of cell `cell` (x fastest) of face f's GI_AMB_GRID x GI_AMB_GRID grid
+// (room_probes::face_cell_point).
+fn gi_amb_cell_point(bmin: vec3<f32>, bmax: vec3<f32>, f: u32, cell: u32) -> vec3<f32> {
+    let u = (f32(cell % GI_AMB_GRID) + 0.5) / f32(GI_AMB_GRID);
+    let v = (f32(cell / GI_AMB_GRID) + 0.5) / f32(GI_AMB_GRID);
+    let d = bmax - bmin;
+    switch (f) {
+        case 0u: { return vec3<f32>(bmin.x, bmin.y + d.y * u, bmin.z + d.z * v); }
+        case 1u: { return vec3<f32>(bmax.x, bmin.y + d.y * u, bmin.z + d.z * v); }
+        case 2u: { return vec3<f32>(bmin.x + d.x * u, bmin.y, bmin.z + d.z * v); }
+        case 3u: { return vec3<f32>(bmin.x + d.x * u, bmax.y, bmin.z + d.z * v); }
+        case 4u: { return vec3<f32>(bmin.x + d.x * u, bmin.y + d.y * v, bmin.z); }
+        default: { return vec3<f32>(bmin.x + d.x * u, bmin.y + d.y * v, bmax.z); }
+    }
+}
+
+// Sky direction i: the cosine-weighted Fibonacci spiral over the upper
+// hemisphere, +y up (room_probes::sky_dir).
+fn gi_amb_sky_dir(i: u32) -> vec3<f32> {
+    let s2 = (f32(i) + 0.5) / f32(GI_AMB_SKY_DIRS);
+    let s = sqrt(s2);
+    let phi = 2.0 * GI_PI * fract(f32(i) * 0.618034);
+    return vec3<f32>(cos(phi) * s, sqrt(max(1.0 - s2, 0.0)), sin(phi) * s);
+}
+
+// Howell's catalogue C-11: equal, directly opposed parallel rectangles a x b,
+// c apart (room_probes::ff_parallel).
+fn gi_ff_parallel(a: f32, b: f32, c: f32) -> f32 {
+    let x = a / max(c, 1.0e-6);
+    let y = b / max(c, 1.0e-6);
+    let x2 = x * x;
+    let y2 = y * y;
+    let sx = sqrt(1.0 + x2);
+    let sy = sqrt(1.0 + y2);
+    let t = 0.5 * log((1.0 + x2) * (1.0 + y2) / (1.0 + x2 + y2)) + x * sy * atan(x / sy) + y * sx * atan(y / sx)
+        - x * atan(x) - y * atan(y);
+    return max(2.0 / (GI_PI * x * y) * t, 0.0);
+}
+
+// Howell's catalogue C-14: from a rectangle l x w to a perpendicular one l x h
+// sharing its edge l (room_probes::ff_perpendicular).
+fn gi_ff_perpendicular(l_in: f32, w: f32, h: f32) -> f32 {
+    let l = max(l_in, 1.0e-6);
+    let ww = w / l;
+    let hh = h / l;
+    let w2 = ww * ww;
+    let h2 = hh * hh;
+    let r = sqrt(w2 + h2);
+    let atans = ww * atan(1.0 / ww) + hh * atan(1.0 / hh) - r * atan(1.0 / r);
+    let logs = log((1.0 + w2) * (1.0 + h2) / (1.0 + w2 + h2))
+        + w2 * log(w2 * (1.0 + w2 + h2) / ((1.0 + w2) * (w2 + h2)))
+        + h2 * log(h2 * (1.0 + w2 + h2) / ((1.0 + h2) * (w2 + h2)));
+    return max((atans + 0.25 * logs) / (GI_PI * ww), 0.0);
+}
+
+// The form factor from face i to face j of a box of `size`, before the row is
+// held to sum to 1 (room_probes::box_form_factor).
+fn gi_box_form_factor(size: vec3<f32>, i: u32, j: u32) -> f32 {
+    let ki = i / 2u;
+    let kj = j / 2u;
+    if (i == j) {
+        return 0.0;
+    }
+    if (ki == kj) {
+        return gi_ff_parallel(size[(ki + 1u) % 3u], size[(ki + 2u) % 3u], size[ki]);
+    }
+    return gi_ff_perpendicular(size[3u - ki - kj], size[kj], size[ki]);
+}
+
+// The six faces' direct flux and the sky's mean radiance, summed by the
+// workgroup: wg_amb[k * 64] for face k, wg_amb[6 * 64] for the sky.
+var<workgroup> wg_amb: array<vec3<f32>, 448>;
+
+// THE ROOM'S AMBIENT COLOUR from the summed flux (room_probes::ambient_from_faces):
+// the six-face radiosity solve, then the area-weighted mean over the opaque
+// faces of the light arriving indirectly, as E / pi. Thread 0 only.
+fn gi_ambient_from_faces(ri: u32, sky_mean: vec3<f32>) -> vec3<f32> {
+    let bmin = room_gi.rooms[ri].bmin.xyz;
+    let bmax = room_gi.rooms[ri].bmax.xyz;
+    let size = bmax - bmin;
+    let lid_t = room_gi.rooms[ri].bmax.w;
+    var ff: array<array<f32, 6>, 6>;
+    for (var i = 0u; i < 6u; i = i + 1u) {
+        var sum = 0.0;
+        for (var j = 0u; j < 6u; j = j + 1u) {
+            ff[i][j] = gi_box_form_factor(size, i, j);
+            sum = sum + ff[i][j];
+        }
+        if (sum > 0.0) {
+            for (var j = 0u; j < 6u; j = j + 1u) {
+                ff[i][j] = ff[i][j] / sum;
+            }
+        }
+    }
+    var m: array<array<vec3<f32>, 6>, 6>;
+    var rhs: array<vec3<f32>, 6>;
+    for (var i = 0u; i < 6u; i = i + 1u) {
+        let rho = room_gi.rooms[ri].refl[i].rgb;
+        let area = max(gi_face_area(bmin, bmax, i), 1.0e-6);
+        for (var j = 0u; j < 6u; j = j + 1u) {
+            m[i][j] = select(vec3<f32>(0.0), vec3<f32>(1.0), i == j) - rho * ff[i][j];
+        }
+        var sky = vec3<f32>(0.0);
+        if (i == 3u) {
+            sky = sky_mean * GI_PI * lid_t;
+        }
+        rhs[i] = sky + rho * wg_amb[i * 64u] / area;
+    }
+    for (var k = 0u; k < 6u; k = k + 1u) {
+        for (var i = k + 1u; i < 6u; i = i + 1u) {
+            let q = m[i][k] / m[k][k];
+            for (var j = k; j < 6u; j = j + 1u) {
+                m[i][j] = m[i][j] - q * m[k][j];
+            }
+            rhs[i] = rhs[i] - q * rhs[k];
+        }
+    }
+    var b: array<vec3<f32>, 6>;
+    for (var ii = 0u; ii < 6u; ii = ii + 1u) {
+        let i = 5u - ii;
+        var s = rhs[i];
+        for (var j = i + 1u; j < 6u; j = j + 1u) {
+            s = s - m[i][j] * b[j];
+        }
+        b[i] = s / m[i][i];
+    }
+    var sum = vec3<f32>(0.0);
+    var area = 0.0;
+    for (var i = 0u; i < 6u; i = i + 1u) {
+        if (i == 3u && lid_t > 0.0) {
+            continue;
+        }
+        var incident = vec3<f32>(0.0);
+        for (var j = 0u; j < 6u; j = j + 1u) {
+            incident = incident + b[j] * ff[i][j];
+        }
+        let a = gi_face_area(bmin, bmax, i);
+        sum = sum + incident * a;
+        area = area + a;
+    }
+    if (area <= 1.0e-6) {
+        return vec3<f32>(0.0);
+    }
+    return sum / (area * GI_PI);
+}
+
+// One workgroup per room (the dispatch is exactly the room count, so no bound
+// test, and the barriers stay in uniform control flow): thread li takes cell
+// li of each of the six faces and sky direction li, the workgroup sums them
+// face by face, and thread 0 solves the six faces' radiosity and writes the
+// room's colour into the scratch's last row at the room's own index. The
+// direct light at a cell is exactly cs_trace's at a hit (the room's own
+// lights, the sun through a glass lid).
+@compute @workgroup_size(64)
+fn cs_ambient(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) li: u32) {
+    let ri = wg.x;
+    let bmin = room_gi.rooms[ri].bmin.xyz;
+    let bmax = room_gi.rooms[ri].bmax.xyz;
+    let sun = gi_params.sun_dir.xyz;
+    let sun_e = gi_params.sun_color.rgb * gi_params.sun_dir.w;
+    for (var f = 0u; f < 6u; f = f + 1u) {
+        let h = gi_amb_cell_point(bmin, bmax, f, li);
+        let n = gi_face_normal(f);
+        var e = gi_lights_irradiance(ri, h, n);
+        e = e + sun_e * max(dot(n, sun), 0.0) * gi_sun_path(ri, h, n);
+        wg_amb[f * 64u + li] = e * (gi_face_area(bmin, bmax, f) / f32(GI_AMB_CELLS));
+    }
+    var sky = vec3<f32>(0.0);
+    if (room_gi.rooms[ri].bmax.w > 0.0) {
+        sky = gi_sky(gi_amb_sky_dir(li));
+    }
+    wg_amb[384u + li] = sky;
+    workgroupBarrier();
+    for (var s = 32u; s > 0u; s = s >> 1u) {
+        if (li < s) {
+            for (var k = 0u; k < 7u; k = k + 1u) {
+                wg_amb[k * 64u + li] = wg_amb[k * 64u + li] + wg_amb[k * 64u + li + s];
+            }
+        }
+        workgroupBarrier();
+    }
+    if (li == 0u) {
+        let amb = gi_ambient_from_faces(ri, wg_amb[384] / f32(GI_AMB_SKY_DIRS));
+        let row = i32(textureDimensions(gi_scratch_out).y) - 1;
+        textureStore(gi_scratch_out, vec2<i32>(i32(room_gi.rooms[ri].lights.w), row), vec4<f32>(amb, 1.0));
+    }
+}
+
+// The scratch's ambient row into the atlas's (texel x = the room's index, for
+// every room). Its own pass because the atlas is read in cs_ambient's bind
+// group and can only be written in this one's.
+@compute @workgroup_size(64)
+fn cs_ambient_resolve(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (id.x >= room_gi.header.info.x) {
+        return;
+    }
+    let src = vec2<i32>(i32(id.x), i32(textureDimensions(gi_scratch_in).y) - 1);
+    let dst = vec2<i32>(i32(id.x), i32(textureDimensions(gi_atlas_out).y) - 1);
+    textureStore(gi_atlas_out, dst, textureLoad(gi_scratch_in, src, 0));
+}
+
+// Which interior texel tile texel (bx, by), border included, shows: itself
+// inside, across the octahedral seam on the border (room_probes::border_source).
+fn gi_border_source(n: u32, bx: u32, by: u32) -> vec2<u32> {
+    let last = n + 1u;
+    if (bx == 0u && by == 0u) { return vec2<u32>(n - 1u, n - 1u); }
+    if (bx == last && by == 0u) { return vec2<u32>(0u, n - 1u); }
+    if (bx == 0u && by == last) { return vec2<u32>(n - 1u, 0u); }
+    if (bx == last && by == last) { return vec2<u32>(0u, 0u); }
+    if (by == 0u) { return vec2<u32>(n - bx, 0u); }
+    if (by == last) { return vec2<u32>(n - bx, n - 1u); }
+    if (bx == 0u) { return vec2<u32>(0u, n - by); }
+    if (bx == last) { return vec2<u32>(n - 1u, n - by); }
+    return vec2<u32>(bx - 1u, by - 1u);
+}
+
+// SEED one probe of a room that came into the atlas this frame
+// (room_probes::Twin::seed): every irradiance texel (border included) the
+// room's ambient colour, with GI_SEED_COUNT as its update count, and every
+// depth texel the exact distance to the room's box along its direction and
+// its square (a box-only room's depth moments). The entry is gi_updates'
+// (counts.x + workgroup)th: the traced probes come first in the list. The
+// room's colour is read from the scratch's ambient row, written by cs_ambient
+// earlier in this same pass, so the seed is this frame's colour exactly.
+@compute @workgroup_size(64)
+fn cs_seed(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) li: u32) {
+    let entry = gi_updates[gi_params.counts.x + wg.x];
+    let probe = entry.x;
+    let ri = entry.y;
+    let bmin = room_gi.rooms[ri].bmin.xyz;
+    let bmax = room_gi.rooms[ri].bmax.xyz;
+    let counts = room_gi.rooms[ri].counts;
+    let local = probe - counts.w;
+    let grid = vec3<u32>(local % counts.x, (local / counts.x) % counts.y, local / (counts.x * counts.y));
+    let cell = (bmax - bmin) / vec3<f32>(counts.xyz);
+    let ppos = bmin + (vec3<f32>(grid) + vec3<f32>(0.5)) * cell;
+    let amb_at = vec2<i32>(i32(room_gi.rooms[ri].lights.w), i32(textureDimensions(gi_scratch_in).y) - 1);
+    let amb = textureLoad(gi_scratch_in, amb_at, 0).rgb;
+    let ai = vec2<i32>(gi_irr_origin(probe));
+    let ad = vec2<i32>(gi_depth_origin(probe));
+    let irr_texels = GI_IRR_TILE * GI_IRR_TILE;
+    let total = irr_texels + GI_DEPTH_TILE * GI_DEPTH_TILE;
+    for (var k = li; k < total; k = k + 64u) {
+        if (k < irr_texels) {
+            let c = vec2<i32>(i32(k % GI_IRR_TILE), i32(k / GI_IRR_TILE));
+            textureStore(gi_atlas_out, ai + c, vec4<f32>(amb, GI_SEED_COUNT));
+        } else {
+            let kd = k - irr_texels;
+            let b = vec2<u32>(kd % GI_DEPTH_TILE, kd / GI_DEPTH_TILE);
+            let s = gi_border_source(16u, b.x, b.y);
+            let td = gi_oct_decode((vec2<f32>(s) + vec2<f32>(0.5)) / GI_DEPTH_N * 2.0 - vec2<f32>(1.0));
+            let t = gi_trace_box(ppos, td, bmin, bmax).x;
+            textureStore(gi_atlas_out, ad + vec2<i32>(b), vec4<f32>(t, t * t, 0.0, 0.0));
+        }
     }
 }
 

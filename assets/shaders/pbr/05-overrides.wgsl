@@ -76,3 +76,12 @@ override HAS_ROOM_GI: bool = true;
 // PSOs, the classes that draw a home's inside; folded out of every other.
 override HAS_SLAB_OCCLUSION: bool = true;
 
+// HAS_ROOM_AMBIENT (2026-10-21, docs/design/room-gi.md "The room's ambient
+// colour"): the room's ambient colour in frag_tail's indirect term, one texel
+// of the probe atlas's last row (room_gi_ambient, 85-room-gi.wgsl). All of a
+// room's indirect light on the Bounced light detail level "Ambient" and while
+// the room's probes are not resident (probe streaming), the rest of the blend
+// while they fade out. Live where room GI is, in the surface and vegetation
+// PSOs; folded out of every other.
+override HAS_ROOM_AMBIENT: bool = true;
+

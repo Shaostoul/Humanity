@@ -1,27 +1,41 @@
 //! ROOM GI, RUNG 1, the GPU half (docs/design/room-gi.md; the what and the
 //! why are in `room_probes.rs`, whose CPU twin this mirrors).
 //!
-//! WHAT LIVES HERE. The probe atlas (one Rgba16Float texture: every probe's
-//! 8x8 octahedral irradiance tile on top, its 16x16 depth-moment tile below,
-//! each with the 1-texel border), the room table the fragments and the update
-//! both read, and the per-frame update: a compute pass that traces 64 rays per
-//! probe against its room's box (`cs_trace`) and copies the finished tiles
-//! into the atlas (`cs_resolve`). `Renderer::update_room_gi` runs it once a
-//! frame before the scene pass; `Renderer::set_room_gi_rooms` hands it the
-//! ship's rooms whenever the home is built or edited.
+//! WHAT LIVES HERE. The probe atlas (one Rgba16Float texture: every resident
+//! probe's 8x8 octahedral irradiance tile on top, its 16x16 depth-moment tile
+//! below, each with the 1-texel border, and in its LAST ROW one texel per room
+//! holding the room's ambient colour), the room table the fragments and the
+//! update both read, and the per-frame compute pass (`RoomGi::encode`):
+//! - `cs_ambient` and `cs_ambient_resolve`: every room's AMBIENT COLOUR
+//!   (`room_probes::room_ambient`) into the atlas's last row, every frame;
+//! - `cs_seed`: the probes of each room that came into the atlas this frame
+//!   set to that colour (PROBE STREAMING, `room_probes::Residency`);
+//! - `cs_trace` and `cs_resolve`: 64 rays per updated probe against its
+//!   room's box, and the finished tiles into the atlas.
+//! `Renderer::update_room_gi` runs it once a frame before the scene pass;
+//! `Renderer::set_room_gi_rooms` hands it the ship's rooms whenever the home
+//! is built or edited.
+//!
+//! PROBE STREAMING (2026-10-21). The atlas holds the Bounced light detail
+//! level's probe budget (`ProbeBudget::max_probes`), made once per level and
+//! never grown, and the rooms nearest the player hold those probes
+//! (`Residency::step`, every frame). A room out of the atlas, and every room
+//! on the Ambient level (a budget of 0, the atlas its last row alone), shows
+//! its ambient colour; a room coming in is seeded with that colour; a room
+//! going out fades to it first. So the ship's size no longer decides any
+//! room's probe spacing (`room_probes::lattice_for`).
 //!
 //! BINDINGS. The fragments read the atlas, its sampler and the room table
 //! through the SHARED camera bind group, group 0 bindings 5 to 7 (see
 //! `pipeline::camera_bind_group`). Replacing any of the three (the atlas when
-//! the ship outgrows it, the table when the room count doubles) makes every
+//! the level changes, the table when the room count doubles) makes every
 //! camera bind group stale, so `rebuild_camera_bind_groups` rebuilds both of
 //! them with every binding: missing one is the v0.1029 failure, where world
 //! entry panics while a menu-only boot stays green.
 //!
 //! BUDGET. At most `MAX_UPDATES_PER_FRAME` probes are traced per frame: the
 //! room the camera stands in first (every frame, so the light you are looking
-//! at answers immediately), then the rest of the ship round-robin. The default
-//! acre holds about 19k probes, so a far room is refreshed every few frames.
+//! at answers immediately), then the other resident rooms round-robin.
 //!
 //! THE FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ride in the same
 //! room table, after the rooms: every solid floor slab once, grouped into
@@ -36,14 +50,14 @@
 
 use glam::Vec3;
 
+use super::bounced_light_detail::{mb_words, probe_memory_bytes};
 use super::light::{gpu_packed, gpu_packed_with_slabs};
 use super::room_probes::{
-    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, run_plane, slabs_touched,
-    AtlasLayout, GiHeaderGpu, GiParamsGpu, GiRoomGpu, OccluderSlab, RoomBox, HEADER_BYTES, HYSTERESIS, NORMAL_BIAS_M,
+    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, room_ambient, run_plane,
+    slabs_touched, AtlasLayout, DirectSource, GiHeaderGpu, GiParamsGpu, GiRoomGpu, OccluderSlab, ProbeBudget, Residency,
+    ResidencyStep, RoomBox, Sun, HEADER_BYTES, HYSTERESIS, MAX_AMBIENT_ROOMS, MAX_SEEDS_PER_FRAME, NORMAL_BIAS_M,
     ROOM_BYTES, SKY_LIGHTING_EXPOSURE,
 };
-use super::bounced_light_detail::{mb_words, probe_memory_bytes};
-use super::room_probes::{ProbeBudget, PROBE_SPACING_M};
 use super::{pipeline, Renderer};
 
 /// Probes the update refreshes per frame, at most.
@@ -59,13 +73,13 @@ pub const MAX_UPDATES_PER_FRAME: u32 = 4096;
 /// frame. A light past the cap names no run, so a floor does not stop it, and
 /// the log says so once.
 pub const MAX_SLAB_RUN_ROWS: usize = 8192;
-/// Past this distance from the nearest room the update stops (the probes keep
-/// what they have): nobody on a planet's surface needs the station's rooms
-/// relit every frame.
+/// Past this distance from the nearest room the update stops (the probes and
+/// the ambient colours keep what they have): nobody on a planet's surface
+/// needs the station's rooms relit every frame.
 pub const UPDATE_REACH_M: f32 = 60.0;
 
 /// The update shader: the sampling part the megashader also compiles, then
-/// the two compute entries. One source of truth for how probes are read.
+/// the compute entries. One source of truth for how probes are read.
 pub const UPDATE_SHADER: &str = concat!(
     include_str!("../../assets/shaders/pbr/85-room-gi.wgsl"),
     include_str!("../../assets/shaders/room_probes_update.wgsl"),
@@ -73,17 +87,11 @@ pub const UPDATE_SHADER: &str = concat!(
 
 pub(super) const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
-/// The probes the atlas must be laid out for after the lattice was worked
-/// out again, or None to keep the atlas it has (`current` probes).
-/// - The lattice no longer fits: grow, with a quarter of headroom so dragging
-///   a wall in the construction editor does not reallocate every frame, never
-///   past the level's cap.
-/// - The level changed: lay it out for what the new level wants, SMALLER
-///   too, because a lower level is chosen to give the memory back.
-pub fn atlas_probes_after(current: u32, total: u32, max_probes: u32, budget_changed: bool) -> Option<u32> {
-    let want = (total + total / 4).min(max_probes).max(total);
-    let resized = AtlasLayout::for_probes(want).probes != current;
-    (total > current || (budget_changed && resized)).then_some(want)
+/// The probe slots the scratch holds: one update's worth, or the level's
+/// whole budget when that is smaller (the Ambient level's scratch is its
+/// ambient row alone).
+pub fn scratch_slots(max_probes: u32) -> u32 {
+    max_probes.min(MAX_UPDATES_PER_FRAME)
 }
 
 pub struct RoomGi {
@@ -97,17 +105,16 @@ pub struct RoomGi {
     /// test's cost and proof that it changes nothing yet.
     pub force_visibility: bool,
     /// The rooms in the HOME frame (render space adds the station offset each
-    /// frame), their lattices and where each room's probes start.
+    /// frame), their lattices and each one's probe count.
     rooms: Vec<RoomBox>,
     counts: Vec<[u32; 3]>,
-    first: Vec<u32>,
+    probes: Vec<u32>,
+    /// Probes in every room, resident or not (the log's figure).
     total: u32,
-    /// The finest probe spacing in the player's own home (the rest of the
-    /// ship's when no room is the home's): 1 m unless the home alone outgrew
-    /// the cap (`room_probes::lattice_for`).
-    pub spacing: f32,
-    /// The Bounced light detail level's spacing and cap (`set_budget`).
+    /// The Bounced light detail level's spacing and budget (`set_budget`).
     budget: ProbeBudget,
+    /// Which rooms hold probes, and where (probe streaming).
+    residency: Residency,
     layout: AtlasLayout,
     _atlas: wgpu::Texture,
     pub(super) atlas_view: wgpu::TextureView,
@@ -125,22 +132,22 @@ pub struct RoomGi {
     resolve_bgl: wgpu::BindGroupLayout,
     trace: wgpu::ComputePipeline,
     resolve: wgpu::ComputePipeline,
-    clear: wgpu::ComputePipeline,
-    /// Round-robin position over every probe of the ship.
+    ambient: wgpu::ComputePipeline,
+    ambient_resolve: wgpu::ComputePipeline,
+    seed: wgpu::ComputePipeline,
+    /// Round-robin position over the atlas's probe slots.
     cursor: u32,
     /// Where the window through a camera room bigger than the budget stands.
     cam_cursor: u32,
     /// Updates run so far: seeds each update's ray rotation.
     frame: u32,
-    /// The rooms changed: zero the atlas before the next trace (every probe
-    /// back to "never updated", so none carries a light that belonged to a
-    /// probe the old layout put in the same tile).
-    needs_clear: bool,
     /// The atlas or the room table was replaced; the camera bind groups must
     /// be rebuilt before the next draw.
     pub(super) rebind: bool,
-    /// Probes traced in the last update (the F2 overlay and the log read it).
+    /// Probes traced and seeded in the last update (the log and the dev drop
+    /// read them).
     pub last_updated: u32,
+    pub last_seeded: u32,
     /// The update's bind groups (`make_bind_groups`); None = build them.
     bind_groups: Option<(wgpu::BindGroup, wgpu::BindGroup)>,
     /// Every SOLID floor slab of the ship in the HOME frame, adjacent ones
@@ -165,6 +172,8 @@ pub struct RoomGi {
     /// list) and the lights' runs.
     pub last_slab_rows: u32,
     pub last_run_rows: u32,
+    /// When the dev drop (`debug/room_gi.json`) was last written.
+    dumped_at: Option<std::time::Instant>,
 }
 
 fn atlas_texture(device: &wgpu::Device, layout: &AtlasLayout, label: &str) -> (wgpu::Texture, wgpu::TextureView) {
@@ -175,7 +184,12 @@ fn atlas_texture(device: &wgpu::Device, layout: &AtlasLayout, label: &str) -> (w
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: ATLAS_FORMAT,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+        // COPY_SRC and COPY_DST: packing the atlas moves rooms' tiles through
+        // the scratch (`RoomGi::encode_moves`); the GPU tests read tiles back.
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
     let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
@@ -217,6 +231,53 @@ fn storage_texture_ty() -> wgpu::BindingType {
         format: ATLAS_FORMAT,
         view_dimension: wgpu::TextureViewDimension::D2,
     }
+}
+
+/// Copy `n` probes' tiles (both kinds) from slot `src.2` of one atlas-laid
+/// texture to slot `dst.2` of another, a rectangle per run of tiles that stays
+/// within one tile row of both.
+fn copy_tiles(
+    enc: &mut wgpu::CommandEncoder,
+    src: (&wgpu::Texture, &AtlasLayout, u32),
+    dst: (&wgpu::Texture, &AtlasLayout, u32),
+    n: u32,
+) {
+    use super::room_probes::{DEPTH_TILE, IRR_TILE};
+    fn region(tex: &wgpu::Texture, at: (u32, u32)) -> wgpu::TexelCopyTextureInfo<'_> {
+        wgpu::TexelCopyTextureInfo {
+            texture: tex,
+            mip_level: 0,
+            origin: wgpu::Origin3d { x: at.0, y: at.1, z: 0 },
+            aspect: wgpu::TextureAspect::All,
+        }
+    }
+    // (tiles per row, tile size, origin of slot p) for each tile kind.
+    let kinds: [(fn(&AtlasLayout) -> u32, u32, fn(&AtlasLayout, u32) -> (u32, u32)); 2] = [
+        (|l| l.irr_per_row, IRR_TILE, |l, p| l.irr_origin(p)),
+        (|l| l.depth_per_row, DEPTH_TILE, |l, p| l.depth_origin(p)),
+    ];
+    for (per_row, tile, origin) in kinds {
+        let mut p = 0;
+        while p < n {
+            let (s, d) = (src.2 + p, dst.2 + p);
+            let run = (n - p).min(per_row(src.1) - s % per_row(src.1)).min(per_row(dst.1) - d % per_row(dst.1));
+            enc.copy_texture_to_texture(
+                region(src.0, origin(src.1, s)),
+                region(dst.0, origin(dst.1, d)),
+                wgpu::Extent3d { width: run * tile, height: tile, depth_or_array_layers: 1 },
+            );
+            p += run;
+        }
+    }
+}
+
+/// What one frame asks of the compute pass (`RoomGi::encode`): the room
+/// count (one ambient workgroup each), then the update list's two parts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PassWork {
+    pub rooms: u32,
+    pub traced: u32,
+    pub seeded: u32,
 }
 
 impl RoomGi {
@@ -267,10 +328,14 @@ impl RoomGi {
         };
         let trace = make(&trace_bgl, "cs_trace");
         let resolve = make(&resolve_bgl, "cs_resolve");
-        let clear = make(&resolve_bgl, "cs_clear");
-        let layout = AtlasLayout::for_probes(1);
+        let ambient = make(&trace_bgl, "cs_ambient");
+        let ambient_resolve = make(&resolve_bgl, "cs_ambient_resolve");
+        let seed = make(&resolve_bgl, "cs_seed");
+        // No rooms yet: the ambient row alone. The first rooms lay the atlas
+        // out at the level's budget (`relayout`).
+        let layout = AtlasLayout::for_probes(0);
         let (atlas, atlas_view) = atlas_texture(device, &layout, "Room GI Atlas");
-        let scratch_layout = AtlasLayout::for_probes(MAX_UPDATES_PER_FRAME);
+        let scratch_layout = AtlasLayout::for_probes(0);
         let (scratch, scratch_view) = atlas_texture(device, &scratch_layout, "Room GI Scratch");
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Room GI Sampler"),
@@ -291,10 +356,10 @@ impl RoomGi {
             force_visibility: false,
             rooms: Vec::new(),
             counts: Vec::new(),
-            first: Vec::new(),
+            probes: Vec::new(),
             total: 0,
-            spacing: PROBE_SPACING_M,
-            budget: ProbeBudget::default(),
+            budget: ProbeBudget { spacing_m: ProbeBudget::default().spacing_m, max_probes: 0 },
+            residency: Residency::new(0, 0),
             layout,
             _atlas: atlas,
             atlas_view,
@@ -306,19 +371,25 @@ impl RoomGi {
             rooms_cap: 1,
             lights_buf: storage_buffer(device, "Room GI Lights", 64 * 64),
             lights_cap: 64,
-            updates_buf: storage_buffer(device, "Room GI Updates", 8 * MAX_UPDATES_PER_FRAME as u64),
+            updates_buf: storage_buffer(
+                device,
+                "Room GI Updates",
+                8 * (MAX_UPDATES_PER_FRAME + MAX_SEEDS_PER_FRAME) as u64,
+            ),
             params_buf,
             trace_bgl,
             resolve_bgl,
             trace,
             resolve,
-            clear,
+            ambient,
+            ambient_resolve,
+            seed,
             cursor: 0,
             cam_cursor: 0,
             frame: 0,
-            needs_clear: false,
             rebind: false,
             last_updated: 0,
+            last_seeded: 0,
             bind_groups: None,
             slabs: Vec::new(),
             slabs_off: false,
@@ -327,6 +398,7 @@ impl RoomGi {
             slab_runs_live: false,
             last_slab_rows: 0,
             last_run_rows: 0,
+            dumped_at: None,
         }
     }
 
@@ -335,9 +407,14 @@ impl RoomGi {
         self.slabs.len()
     }
 
-    /// Probes in the ship.
+    /// Probes in every room of the ship, resident or not.
     pub fn probe_count(&self) -> u32 {
         self.total
+    }
+
+    /// Rooms holding probes and the probes they hold (fading rooms included).
+    pub fn resident(&self) -> (usize, u32) {
+        (self.residency.resident_rooms(), self.residency.resident_probes())
     }
 
     /// GPU memory room GI holds: the atlas and the scratch (8 bytes a texel)
@@ -355,57 +432,70 @@ impl RoomGi {
         self.budget
     }
 
-    /// New rooms (home frame). Recomputes the lattice, grows the atlas and the
-    /// room table if they no longer fit (flagging `rebind`), and schedules the
-    /// atlas clear. Unchanged rooms are a no-op, which matters because the
-    /// construction editor rebuilds the home on every drag frame.
+    /// New rooms (home frame). Recomputes the lattice, carries the probes of
+    /// every room that did not change over, and grows the room table if it no
+    /// longer fits (flagging `rebind`). Unchanged rooms are a no-op, which
+    /// matters because the construction editor rebuilds the home on every
+    /// drag frame.
     fn set_rooms(&mut self, device: &wgpu::Device, rooms: Vec<RoomBox>) {
         if rooms == self.rooms {
             return;
         }
-        self.relayout(device, rooms, false);
+        self.relayout(device, rooms);
     }
 
     /// A new Bounced light detail level (Settings, or the dev request
     /// `{"bounced_light_detail":"low"}`). The same rooms are laid out again at
-    /// the new spacing and cap, and the atlas is made again at the new size
-    /// (smaller too) and cleared, so every probe starts over and the light
-    /// settles again over the next updates. False when nothing changed.
+    /// the new spacing, and a new budget makes the atlas again at its size
+    /// (smaller too): every room starts out of it, showing its ambient colour,
+    /// and the nearest come back in seeded with it the same frame. False when
+    /// nothing changed.
     fn set_budget(&mut self, device: &wgpu::Device, budget: ProbeBudget) -> bool {
         if budget == self.budget {
             return false;
         }
         self.budget = budget;
         let rooms = std::mem::take(&mut self.rooms);
-        self.relayout(device, rooms, true);
+        self.relayout(device, rooms);
         true
     }
 
-    /// Lay `rooms` out at the current budget: the lattice, the atlas (see
-    /// `atlas_probes_after`), the room table, and the clear.
-    fn relayout(&mut self, device: &wgpu::Device, rooms: Vec<RoomBox>, budget_changed: bool) {
-        let lattice = lattice_for(&rooms, self.budget);
-        let counts = lattice.counts.clone();
-        let mut first = Vec::with_capacity(rooms.len());
-        let mut total = 0u32;
-        for c in &counts {
-            first.push(total);
-            total += c[0] * c[1] * c[2];
+    /// Lay `rooms` out at the current budget: the lattice, the atlas and the
+    /// scratch (made again only when the budget's size changed), the
+    /// residency (carried over otherwise), the room table.
+    fn relayout(&mut self, device: &wgpu::Device, mut rooms: Vec<RoomBox>) {
+        if rooms.len() > MAX_AMBIENT_ROOMS {
+            log::warn!(
+                "[RoomGI] {} rooms; the ambient row holds {MAX_AMBIENT_ROOMS}, so the rest keep the old floor",
+                rooms.len()
+            );
+            rooms.truncate(MAX_AMBIENT_ROOMS);
         }
-        if let Some(cap) = atlas_probes_after(self.layout.probes, total, self.budget.max_probes, budget_changed) {
+        let lattice = lattice_for(&rooms, self.budget);
+        let probes: Vec<u32> = (0..rooms.len()).map(|i| lattice.probes_in(i)).collect();
+        let cap = self.budget.max_probes;
+        if self.layout.probes != cap {
             self.layout = AtlasLayout::for_probes(cap);
             let (tex, view) = atlas_texture(device, &self.layout, "Room GI Atlas");
             self._atlas = tex;
             self.atlas_view = view;
+            self.scratch_layout = AtlasLayout::for_probes(scratch_slots(cap));
+            let (tex, view) = atlas_texture(device, &self.scratch_layout, "Room GI Scratch");
+            self._scratch = tex;
+            self.scratch_view = view;
             self.rebind = true;
             self.bind_groups = None;
+            self.residency = Residency::new(cap, rooms.len());
             log::info!(
-                "[RoomGI] atlas {}x{} for {} probes ({:.1} MB)",
+                "[RoomGI] atlas {}x{} for {} probes ({:.1} MB), scratch {} slots",
                 self.layout.width,
                 self.layout.height,
                 cap,
-                self.layout.texel_count() as f64 * 8.0 / 1.048576e6
+                self.layout.texel_count() as f64 * 8.0 / 1.048576e6,
+                self.scratch_layout.probes
             );
+        } else {
+            self.residency = self.residency.carried_over((&self.rooms, &self.counts), (&rooms, &lattice.counts));
         }
         if rooms.len() > self.rooms_cap {
             let mut cap = self.rooms_cap.max(1);
@@ -417,40 +507,32 @@ impl RoomGi {
             self.rebind = true;
             self.bind_groups = None;
         }
-        // The home's spacing and the rest of the ship's, separately: the home
-        // keeps the design spacing and the others coarsen first (`lattice_for`).
-        let group = |rooms_in: usize, probes: u64, s: Option<f32>| match s {
-            Some(s) => format!("{rooms_in} rooms, {probes} probes at {s:.2} m"),
-            None => "no rooms".to_string(),
-        };
-        let home_rooms = rooms.iter().filter(|r| r.home).count();
+        let total: u32 = probes.iter().sum();
+        let finest = lattice.spacing.iter().copied().fold(f32::INFINITY, f32::min);
+        let coarsened = lattice.spacing.iter().filter(|s| **s > self.budget.spacing_m * 1.0001).count();
         log::info!(
-            "[RoomGI] {} rooms, {} probes of {} (detail {:.2} m): home {}, others {}{}",
+            "[RoomGI] {} rooms, {} probes at {:.2} m ({} coarsened alone to fit a room's cap of {}); \
+             the {} nearest the player hold up to {} at once ({})",
             rooms.len(),
             total,
-            self.budget.max_probes,
-            self.budget.spacing_m,
-            group(home_rooms, lattice.total_where(&rooms, true), lattice.home_spacing),
-            group(rooms.len() - home_rooms, lattice.total_where(&rooms, false), lattice.other_spacing),
-            if lattice.home_coarsened {
-                " (the home alone holds more than the cap, so it coarsened too)"
-            } else {
-                ""
-            }
+            if finest.is_finite() { finest } else { self.budget.spacing_m },
+            coarsened,
+            self.budget.per_room(),
+            if self.budget.ambient_only() { "none: Ambient level," } else { "rooms" },
+            cap,
+            mb_words(probe_memory_bytes(cap))
         );
         self.rooms = rooms;
-        self.counts = counts;
-        self.first = first;
+        self.counts = lattice.counts;
+        self.probes = probes;
         self.total = total;
-        self.spacing = lattice.home_spacing.or(lattice.other_spacing).unwrap_or(self.budget.spacing_m);
         self.cursor = 0;
         self.cam_cursor = 0;
-        self.needs_clear = true;
     }
 
     /// The update's two bind groups. Cached (`bind_groups`) and rebuilt only
-    /// when a resource they hold is replaced: the atlas, the room table or
-    /// the light list.
+    /// when a resource they hold is replaced: the atlas, the scratch, the room
+    /// table or the light list.
     fn make_bind_groups(&self, device: &wgpu::Device, sky: &wgpu::TextureView) -> (wgpu::BindGroup, wgpu::BindGroup) {
         let trace = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Room Probe Trace BG"),
@@ -481,22 +563,22 @@ impl RoomGi {
         (trace, resolve)
     }
 
-    /// Which room a global probe index belongs to.
-    fn room_of(&self, probe: u32) -> u32 {
-        (self.first.partition_point(|&f| f <= probe) - 1) as u32
-    }
-
-    /// This frame's update list: the camera's room first (all of it, or for a
+    /// This frame's trace list: the camera's room first (all of it, or for a
     /// room bigger than the budget three quarters of the budget, walking
-    /// through the room frame by frame), then the rest of the ship round-robin.
+    /// through the room frame by frame), then the other resident rooms
+    /// round-robin, a cursor walking the atlas's slots. Rooms fading out are
+    /// not traced. Entries are (probe, room index).
     fn build_updates(&mut self, cam_room: Option<usize>) -> Vec<[u32; 2]> {
-        let budget = MAX_UPDATES_PER_FRAME.min(self.total) as usize;
+        let mut ranges: Vec<(u32, u32, usize)> = (0..self.rooms.len())
+            .filter_map(|i| self.residency.updated(i).map(|r| (r.first, r.count, i)))
+            .collect();
+        ranges.sort();
+        let traced: u32 = ranges.iter().map(|r| r.1).sum();
+        let budget = MAX_UPDATES_PER_FRAME.min(scratch_slots(self.budget.max_probes)).min(traced) as usize;
         let mut list: Vec<[u32; 2]> = Vec::with_capacity(budget);
         let mut skip = 0..0u32;
-        if let Some(ci) = cam_room {
-            let c = self.counts[ci];
-            let n = c[0] * c[1] * c[2];
-            let f = self.first[ci];
+        if let Some(cam) = cam_room.and_then(|ci| ranges.iter().find(|r| r.2 == ci).copied()) {
+            let (f, n, ci) = cam;
             if n as usize <= budget {
                 list.extend((f..f + n).map(|p| [p, ci as u32]));
                 skip = f..f + n;
@@ -508,16 +590,107 @@ impl RoomGi {
                 self.cam_cursor = (self.cam_cursor + take) % n;
             }
         }
-        let mut guard = 0u32;
-        while list.len() < budget && guard < self.total {
-            let p = self.cursor;
-            self.cursor = (self.cursor + 1) % self.total.max(1);
+        // Round-robin over the resident ranges in atlas order. Every pass of
+        // the loop either fills the list, finishes a range, or wraps, so two
+        // wraps' worth of passes covers every range.
+        let mut guard = 0usize;
+        while list.len() < budget && guard < 2 * ranges.len() + 2 {
             guard += 1;
-            if !skip.contains(&p) {
-                list.push([p, self.room_of(p)]);
+            let Some(&(first, count, room)) = ranges.iter().find(|r| r.0 + r.1 > self.cursor) else {
+                self.cursor = 0;
+                continue;
+            };
+            let start = self.cursor.max(first);
+            let take = (first + count - start).min((budget - list.len()) as u32);
+            for p in start..start + take {
+                if !skip.contains(&p) {
+                    list.push([p, room as u32]);
+                }
             }
+            self.cursor = start + take;
         }
         list
+    }
+
+    /// Record this frame's compute pass: the ambient colours (`work.rooms`
+    /// workgroups and their copy), the seeds, then the traces and their copy,
+    /// in that order, so the seeds take this frame's colour and the traces
+    /// read the seeded probes. `bgs` are `make_bind_groups`' pair.
+    fn encode(
+        &self,
+        enc: &mut wgpu::CommandEncoder,
+        bgs: &(wgpu::BindGroup, wgpu::BindGroup),
+        work: PassWork,
+        timestamp_writes: Option<wgpu::ComputePassTimestampWrites<'_>>,
+    ) {
+        let (trace_bg, resolve_bg) = bgs;
+        let mut pass =
+            enc.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Room Probe Update"), timestamp_writes });
+        if work.rooms > 0 {
+            pass.set_pipeline(&self.ambient);
+            pass.set_bind_group(0, trace_bg, &[]);
+            pass.dispatch_workgroups(work.rooms, 1, 1);
+            pass.set_pipeline(&self.ambient_resolve);
+            pass.set_bind_group(0, resolve_bg, &[]);
+            pass.dispatch_workgroups(work.rooms.div_ceil(64), 1, 1);
+        }
+        if work.seeded > 0 {
+            pass.set_pipeline(&self.seed);
+            pass.set_bind_group(0, resolve_bg, &[]);
+            pass.dispatch_workgroups(work.seeded, 1, 1);
+        }
+        if work.traced > 0 {
+            pass.set_pipeline(&self.trace);
+            pass.set_bind_group(0, trace_bg, &[]);
+            pass.dispatch_workgroups(work.traced, 1, 1);
+            pass.set_pipeline(&self.resolve);
+            pass.set_bind_group(0, resolve_bg, &[]);
+            pass.dispatch_workgroups(work.traced, 1, 1);
+        }
+    }
+
+    /// PACK THE ATLAS on the GPU (`room_probes::Residency::pack`): each move
+    /// copies a room's tiles down, before this frame's compute pass reads or
+    /// writes any. A texture cannot be copied onto itself, so each move goes
+    /// through the scratch, `scratch_layout.probes` probes at a time (the
+    /// scratch is free outside the compute pass), lowest chunk first: a move
+    /// is always down, so a chunk never lands on probes a later chunk has
+    /// still to read. Copies in one encoder run in order, so a room of any
+    /// size moves in this one frame.
+    fn encode_moves(&self, enc: &mut wgpu::CommandEncoder, moves: &[super::room_probes::TileMove]) {
+        let chunk = self.scratch_layout.probes;
+        if chunk == 0 {
+            return;
+        }
+        for m in moves {
+            let mut done = 0;
+            while done < m.count {
+                let n = chunk.min(m.count - done);
+                copy_tiles(enc, (&self._atlas, &self.layout, m.from + done), (&self._scratch, &self.scratch_layout, 0), n);
+                copy_tiles(enc, (&self._scratch, &self.scratch_layout, 0), (&self._atlas, &self.layout, m.to + done), n);
+                done += n;
+            }
+        }
+    }
+
+    /// One line when the resident set changed, so the rig log shows the
+    /// probes following the player.
+    fn log_residency(&self, step: &ResidencyStep) {
+        if !step.changed() {
+            return;
+        }
+        log::info!(
+            "[RoomGI] resident {} of {} rooms, {} of {} probes ({} in, {} fading out, {} out, {} waiting, {} moved to pack the atlas)",
+            self.residency.resident_rooms(),
+            self.rooms.len(),
+            self.residency.resident_probes(),
+            self.budget.max_probes,
+            step.entered.len(),
+            step.started_leaving.len(),
+            step.left.len(),
+            step.waiting.len(),
+            step.moved.len()
+        );
     }
 }
 
@@ -551,7 +724,7 @@ impl Renderer {
     pub fn set_room_gi_budget(&mut self, budget: ProbeBudget) {
         if self.room_gi.set_budget(&self.device, budget) {
             log::info!(
-                "[RoomGI] bounced light detail: {:.2} m spacing, up to {} probes ({})",
+                "[RoomGI] bounced light detail: {:.2} m spacing, up to {} probes resident ({})",
                 budget.spacing_m,
                 budget.max_probes,
                 mb_words(probe_memory_bytes(budget.max_probes))
@@ -606,7 +779,8 @@ impl Renderer {
         let (gmin, gmax) = render_rooms.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), r| {
             (a.min(r.min), b.max(r.max))
         });
-        let on = !gi.off && gi.total > 0;
+        let on = !gi.off && !gi.rooms.is_empty();
+        let near = render_rooms.iter().any(|r| r.contains(eye, UPDATE_REACH_M));
         // The camera's room: the smallest box holding the eye.
         let cam_room = render_rooms
             .iter()
@@ -614,6 +788,11 @@ impl Renderer {
             .filter(|(_, r)| r.contains(eye, 0.3))
             .min_by(|a, b| a.1.volume().total_cmp(&b.1.volume()))
             .map(|(i, _)| i);
+        // PROBE STREAMING: which rooms hold probes this frame (room_probes::
+        // Residency). Only while the probes are being updated at all; a room
+        // that came in is seeded below, in this frame's pass.
+        let step = if on && near { gi.residency.step(&render_rooms, &gi.probes, eye) } else { ResidencyStep::default() };
+        gi.log_residency(&step);
         // The room table, in PICK ORDER (room_probes::pick_order): the header,
         // then every room with its light range. `slot_of[i]` is room i's row.
         let order = pick_order(&render_rooms, eye);
@@ -631,7 +810,8 @@ impl Renderer {
             // is an identity, so no room asks for it unless the dev switch
             // forces it (room_probes::ROOM_FLAG_VISIBILITY).
             let vis = gi.force_visibility;
-            table.push(pack_room(&render_rooms[i], gi.counts[i], gi.first[i], first_light, owned[i].len() as u32, vis));
+            let at = gi.residency.placement(i);
+            table.push(pack_room(&render_rooms[i], i as u32, gi.counts[i], at, first_light, owned[i].len() as u32, vis));
         }
         // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
         // After the rooms: every solid floor slab once (the sun's list, its
@@ -690,7 +870,7 @@ impl Renderer {
             table.push(GiRoomGpu::default());
         }
         // The rows past the rooms can outgrow the table: grow it like
-        // `set_rooms` does, and rebuild the camera bind groups before anything
+        // `relayout` does, and rebuild the camera bind groups before anything
         // draws with the old buffer.
         let grew = table.len() > gi.rooms_cap;
         if grew {
@@ -711,7 +891,7 @@ impl Renderer {
         let header = GiHeaderGpu {
             gmin: [gmin.x, gmin.y, gmin.z, if on { 1.0 } else { 0.0 }],
             gmax: [gmax.x, gmax.y, gmax.z, 0.0],
-            info: [render_rooms.len() as u32, gi.total, gi.layout.irr_per_row, gi.layout.depth_per_row],
+            info: [render_rooms.len() as u32, gi.residency.resident_probes(), gi.layout.irr_per_row, gi.layout.depth_per_row],
             atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, sun_list.len() as u32],
         };
         if grew {
@@ -732,9 +912,9 @@ impl Renderer {
                 .collect();
             self.queue.write_buffer(&self.lights_buffer, 0, bytemuck::cast_slice(&packed));
         }
-        let near = render_rooms.iter().any(|r| r.contains(eye, UPDATE_REACH_M));
         if !on || !near {
             gi.last_updated = 0;
+            gi.last_seeded = 0;
             return;
         }
         if packed_lights.is_empty() {
@@ -748,17 +928,24 @@ impl Renderer {
             gi.bind_groups = None;
         }
         self.queue.write_buffer(&gi.lights_buf, 0, bytemuck::cast_slice(&packed_lights));
-        let mut updates = gi.build_updates(cam_room);
-        // The shader indexes the table, so each entry carries its room's ROW.
-        for u in &mut updates {
+        // The list: this frame's traces, then every probe of each room that
+        // came in (cs_seed reads its entries after the traced ones). The
+        // shader indexes the table, so each entry carries its room's ROW.
+        let mut list = gi.build_updates(cam_room);
+        let traced = list.len() as u32;
+        for &i in &step.entered {
+            let at = gi.residency.placement(i);
+            list.extend((at.first_probe..at.first_probe + gi.probes[i]).map(|p| [p, i as u32]));
+        }
+        let seeded = list.len() as u32 - traced;
+        for u in &mut list {
             u[1] = slot_of[u[1] as usize];
         }
-        let n = updates.len() as u32;
-        gi.last_updated = n;
-        if n == 0 {
-            return;
+        gi.last_updated = traced;
+        gi.last_seeded = seeded;
+        if !list.is_empty() {
+            self.queue.write_buffer(&gi.updates_buf, 0, bytemuck::cast_slice(&list));
         }
-        self.queue.write_buffer(&gi.updates_buf, 0, bytemuck::cast_slice(&updates));
         let rot = ray_rotation(gi.frame);
         gi.frame = gi.frame.wrapping_add(1);
         let (sd, sc, si) = self.cur_sun;
@@ -770,10 +957,17 @@ impl Renderer {
             sun_color: [sc[0], sc[1], sc[2], if sky_up.is_some() && self.sky_view_uniform.is_some() { 1.0 } else { 0.0 }],
             sky_up: [up.x, up.y, up.z, SKY_LIGHTING_EXPOSURE],
             misc: [HYSTERESIS, 0.0, NORMAL_BIAS_M, 0.0],
-            counts: [n, gi.scratch_layout.irr_per_row, gi.scratch_layout.depth_per_row, gi.scratch_layout.depth_y0],
+            counts: [traced, gi.scratch_layout.irr_per_row, gi.scratch_layout.depth_per_row, gi.scratch_layout.depth_y0],
         };
         self.queue.write_buffer(&gi.params_buf, 0, bytemuck::bytes_of(&params));
-        let clear = std::mem::take(&mut gi.needs_clear);
+        // The dev drop, once a second while frame costs are dumped.
+        if super::frame_costs::dump_enabled() && gi.dumped_at.is_none_or(|t| t.elapsed().as_secs_f32() >= 1.0) {
+            gi.dumped_at = Some(std::time::Instant::now());
+            let sun = Sun { dir: sun_dir, color: sc, intensity: si };
+            let lights: Vec<Vec<super::light::RoomLight>> =
+                owned.iter().map(|o| o.iter().map(|&k| self.cur_lights[k]).collect()).collect();
+            write_dev_drop(gi, &render_rooms, &lights, sun, eye, cam_room);
+        }
         if gi.rebind {
             self.rebuild_camera_bind_groups();
         }
@@ -782,33 +976,76 @@ impl Renderer {
             self.room_gi.bind_groups = Some(bgs);
         }
         let gi = &self.room_gi;
-        let Some((trace_bg, resolve_bg)) = gi.bind_groups.as_ref() else {
+        let Some(bgs) = gi.bind_groups.as_ref() else {
             return;
         };
+        let work = PassWork { rooms: render_rooms.len() as u32, traced, seeded };
         let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Room Probe Encoder"),
         });
-        {
-            // Claimed here, past every early return: a timer pair no pass
-            // writes would be read back as a stale sample (particles_gpu's note).
-            let mut pass = enc.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Room Probe Update"),
-                timestamp_writes: self.compute_pass_timer("gpu.room_probes"),
-            });
-            if clear {
-                pass.set_pipeline(&gi.clear);
-                pass.set_bind_group(0, resolve_bg, &[]);
-                pass.dispatch_workgroups(gi.layout.width.div_ceil(8), gi.layout.height.div_ceil(8), 1);
-            }
-            pass.set_pipeline(&gi.trace);
-            pass.set_bind_group(0, trace_bg, &[]);
-            pass.dispatch_workgroups(n, 1, 1);
-            pass.set_pipeline(&gi.resolve);
-            pass.set_bind_group(0, resolve_bg, &[]);
-            pass.dispatch_workgroups(n, 1, 1);
-        }
+        // A packed atlas moves its rooms' tiles first (`encode_moves`), so the
+        // pass below reads and writes them where the table now says they are.
+        gi.encode_moves(&mut enc, &step.moved);
+        // The timer pair is claimed here, past every early return: a pair no
+        // pass writes would be read back as a stale sample (particles_gpu's
+        // note).
+        gi.encode(&mut enc, bgs, work, self.compute_pass_timer("gpu.room_probes"));
         self.queue.submit(std::iter::once(enc.finish()));
     }
+}
+
+/// `debug/room_gi.json` (dev tooling, written once a second while
+/// `HUMANITY_FRAME_COSTS=1` asks for the frame-cost drop): the level, the
+/// atlas's memory, which rooms hold probes and each room's ambient colour as
+/// the CPU twin works it out (`room_ambient`, no sky: aboard in orbit the GPU's
+/// sky term is 0 too), so a rig can show the probes following the player
+/// within the budget and that no room is left dark.
+fn write_dev_drop(
+    gi: &RoomGi,
+    rooms: &[RoomBox],
+    lights: &[Vec<super::light::RoomLight>],
+    sun: Sun,
+    eye: Vec3,
+    cam_room: Option<usize>,
+) {
+    let per_room: Vec<serde_json::Value> = rooms
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let direct = DirectSource::Scene { lights: lights.get(i).cloned().unwrap_or_default(), sun: Some(sun) };
+            let amb = room_ambient(r, &direct, |_| Vec3::ZERO);
+            let at = gi.residency.placement(i);
+            serde_json::json!({
+                "index": i,
+                "min": [r.min.x, r.min.y, r.min.z],
+                "max": [r.max.x, r.max.y, r.max.z],
+                "probes": gi.probes.get(i).copied().unwrap_or(0),
+                "weight": at.weight,
+                "first_probe": at.first_probe,
+                "priority_m": super::room_probes::room_priority(r, eye),
+                "lights": lights.get(i).map_or(0, |l| l.len()),
+                "ambient_twin": [amb.x, amb.y, amb.z],
+            })
+        })
+        .collect();
+    let body = serde_json::json!({
+        "budget_probes": gi.budget.max_probes,
+        "spacing_m": gi.budget.spacing_m,
+        "rooms": rooms.len(),
+        "resident_rooms": gi.residency.resident_rooms(),
+        "resident_probes": gi.residency.resident_probes(),
+        "all_probes": gi.total,
+        "atlas_bytes": gi.layout.texel_count() as u64 * 8,
+        "scratch_bytes": gi.scratch_layout.texel_count() as u64 * 8,
+        "vram_bytes": gi.vram_bytes(),
+        "traced": gi.last_updated,
+        "seeded": gi.last_seeded,
+        "eye": [eye.x, eye.y, eye.z],
+        "camera_room": cam_room,
+        "per_room": per_room,
+    });
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write("debug/room_gi.json", body.to_string());
 }
 
 #[cfg(test)]
@@ -820,7 +1057,7 @@ mod tests {
     }
 
     /// The update shader (the shared sampling part plus the compute entries)
-    /// parses and validates the way the device will, with its three entries.
+    /// parses and validates the way the device will, with its five entries.
     #[test]
     fn the_update_shader_validates() {
         let module = parsed();
@@ -830,7 +1067,7 @@ mod tests {
         );
         v.validate(&module).expect("the room probe update shader validates");
         let entries: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
-        for want in ["cs_trace", "cs_resolve", "cs_clear"] {
+        for want in ["cs_trace", "cs_resolve", "cs_ambient", "cs_ambient_resolve", "cs_seed"] {
             assert!(entries.contains(&want), "{want} missing from {entries:?}");
         }
     }
@@ -878,15 +1115,9 @@ mod tests {
     #[test]
     fn the_floor_constants_match_the_cpu_twin() {
         use super::super::room_probes::{RUN_MANY_LAYERS, SLAB_EDGE_TOL_M, SLAB_SUN_REACH_M};
-        let value = |name: &str| -> f32 {
-            let decl = format!("const {name}: f32 = ");
-            let at = UPDATE_SHADER.find(&decl).unwrap_or_else(|| panic!("85-room-gi.wgsl declares {decl}"));
-            let rest = &UPDATE_SHADER[at + decl.len()..];
-            rest[..rest.find(';').expect("the declaration ends")].trim().parse().expect("a number")
-        };
-        assert_eq!(value("SLAB_EDGE_TOL"), SLAB_EDGE_TOL_M);
-        assert_eq!(value("SLAB_SUN_REACH"), SLAB_SUN_REACH_M);
-        assert_eq!(value("SLAB_RUN_MANY_LAYERS"), RUN_MANY_LAYERS);
+        assert_eq!(wgsl_f32("SLAB_EDGE_TOL"), SLAB_EDGE_TOL_M);
+        assert_eq!(wgsl_f32("SLAB_SUN_REACH"), SLAB_SUN_REACH_M);
+        assert_eq!(wgsl_f32("SLAB_RUN_MANY_LAYERS"), RUN_MANY_LAYERS);
         // And the layer occupancy grid's shape.
         use super::super::room_probes::{LAYER_GRID_X, LAYER_GRID_Z};
         assert!(UPDATE_SHADER.contains(&format!("const SLAB_GRID_X: u32 = {LAYER_GRID_X}u;")));
@@ -894,82 +1125,303 @@ mod tests {
         assert!(LAYER_GRID_X * LAYER_GRID_Z <= 7 * 32, "the grid fits the layer row's seven spare lanes");
     }
 
+    /// The value of `const NAME: f32 = ...;` in the update shader.
+    fn wgsl_f32(name: &str) -> f32 {
+        let decl = format!("const {name}: f32 = ");
+        let at = UPDATE_SHADER.find(&decl).unwrap_or_else(|| panic!("the update shader declares {decl}"));
+        let rest = &UPDATE_SHADER[at + decl.len()..];
+        rest[..rest.find(';').expect("the declaration ends")].trim().parse().expect("a number")
+    }
+
+    /// The ambient colour's and the seed's constants are the twin's
+    /// (room_probes_update.wgsl, LOCKSTEP with room_probes.rs). Seen red
+    /// first (2026-10-21) with the WGSL seed count out of step with the twin: "assertion `left == right` failed".
+    #[test]
+    fn the_ambient_constants_match_the_cpu_twin() {
+        use super::super::room_probes::{AMBIENT_CELLS, AMBIENT_GRID, AMBIENT_SKY_DIRS, SEED_COUNT};
+        assert!(UPDATE_SHADER.contains(&format!("const GI_AMB_GRID: u32 = {AMBIENT_GRID}u;")));
+        assert!(UPDATE_SHADER.contains(&format!("const GI_AMB_CELLS: u32 = {AMBIENT_CELLS}u;")));
+        assert!(UPDATE_SHADER.contains(&format!("const GI_AMB_SKY_DIRS: u32 = {AMBIENT_SKY_DIRS}u;")));
+        assert_eq!(wgsl_f32("GI_SEED_COUNT"), SEED_COUNT);
+        // One cell of every face and one sky direction per thread of the
+        // 64-wide workgroup.
+        assert_eq!(AMBIENT_CELLS, 64);
+        assert_eq!(AMBIENT_SKY_DIRS, 64);
+        assert!(UPDATE_SHADER.contains("@compute @workgroup_size(64)\nfn cs_ambient(")
+            || UPDATE_SHADER.contains("@compute @workgroup_size(64)\r\nfn cs_ambient("));
+    }
+
     /// The scratch holds one update's worth of tiles, and fits the texture limit.
     #[test]
     fn the_scratch_holds_a_full_update() {
         let s = AtlasLayout::for_probes(MAX_UPDATES_PER_FRAME);
         assert!(s.probes >= MAX_UPDATES_PER_FRAME && s.height <= 8192);
+        assert_eq!(scratch_slots(0), 0, "the Ambient level's scratch is its ambient row");
+        assert_eq!(scratch_slots(8192), MAX_UPDATES_PER_FRAME);
     }
 
-    // ── Bounced light detail (2026-10-20): the atlas half; the levels and their
-    //    words are tested in `bounced_light_detail` ──
+    // ── On a real device (ignored: CI has no adapter). Run them deliberately:
+    //      node scripts/lib-tests.js room_probes_gpu::tests:: --ignored --nocapture
 
-    use super::super::bounced_light_detail::tests::home_and_ship;
-    use super::super::bounced_light_detail::{detail_level, DetailLevel};
-
-    /// Changing the level marks the atlas for rebuild, at the new level's
-    /// size, smaller as well as bigger; the same level again, or rooms that
-    /// still fit, keep the atlas. (The device half, `RoomGi::set_budget`
-    /// itself, is `a_level_change_remakes_the_atlas_on_a_real_device`.)
-    ///
-    /// Seen red 2026-10-20 with the rebuild only on growth (`total > current`
-    /// alone, the rule before levels): "High to Low keeps a 32768-probe atlas: None".
-    #[test]
-    fn changing_the_level_marks_the_atlas_for_rebuild() {
-        let rooms = home_and_ship();
-        let total = |l: &DetailLevel| lattice_for(&rooms, l.budget()).total() as u32;
-        let (low, high, ultra) = (detail_level("low"), detail_level("high"), detail_level("ultra"));
-        // Boot at High: the first rooms grow the 1-probe atlas.
-        let first = atlas_probes_after(1, total(high), high.max_probes, false).expect("the first rooms grow the atlas");
-        let current = AtlasLayout::for_probes(first).probes;
-        assert!(current <= high.max_probes && current >= total(high));
-        // The same rooms at the same level: nothing to do.
-        assert_eq!(atlas_probes_after(current, total(high), high.max_probes, false), None);
-        assert_eq!(atlas_probes_after(current, total(high), high.max_probes, true), None, "a level change to the same size keeps it");
-        // High to Low gives the memory back.
-        let to_low = atlas_probes_after(current, total(low), low.max_probes, true);
-        assert!(to_low.is_some_and(|p| p <= low.max_probes && p < current), "High to Low keeps a {current}-probe atlas: {to_low:?}");
-        // High to Ultra grows it, within Ultra's cap.
-        let to_ultra = atlas_probes_after(current, total(ultra), ultra.max_probes, true);
-        assert!(to_ultra.is_some_and(|p| p > current && p <= ultra.max_probes), "{to_ultra:?}");
-        // Rooms that outgrow the atlas grow it whatever the level did.
-        assert_eq!(atlas_probes_after(100, 200, 32_768, false), Some(250));
+    /// A device, or None (then the test says so and passes).
+    #[cfg(feature = "native")]
+    fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default()))?;
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).ok()?;
+        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
+        Some((device, queue))
     }
 
-    /// The device half of a level change, on a real adapter: `set_budget`
-    /// remakes the atlas at the new level's size (smaller for Low), flags the
-    /// camera bind groups for the rebind and the atlas for its clear, and the
+    /// IEEE half float bits to f32 (the atlas is Rgba16Float).
+    #[cfg(feature = "native")]
+    fn f16_to_f32(bits: u16) -> f32 {
+        let sign = if bits & 0x8000 != 0 { -1.0 } else { 1.0 };
+        let exp = ((bits >> 10) & 0x1f) as i32;
+        let frac = (bits & 0x3ff) as f32;
+        match exp {
+            0 => sign * frac * 2f32.powi(-24),
+            31 => if frac == 0.0 { sign * f32::INFINITY } else { f32::NAN },
+            _ => sign * (1.0 + frac / 1024.0) * 2f32.powi(exp - 15),
+        }
+    }
+
+    /// Read rows `y0..y0 + rows` of a texture back as RGBA f32 (the atlas is
+    /// Rgba16Float).
+    #[cfg(feature = "native")]
+    fn read_rows(device: &wgpu::Device, queue: &wgpu::Queue, tex: &wgpu::Texture, y0: u32, rows: u32) -> Vec<[f32; 4]> {
+        let width = tex.width();
+        let row_bytes = (width * 8).div_ceil(256) * 256;
+        let buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("read back"),
+            size: (row_bytes * rows) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut enc = device.create_command_encoder(&Default::default());
+        enc.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: tex,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y: y0, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buf,
+                layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row_bytes), rows_per_image: Some(rows) },
+            },
+            wgpu::Extent3d { width, height: rows, depth_or_array_layers: 1 },
+        );
+        queue.submit(std::iter::once(enc.finish()));
+        buf.slice(..).map_async(wgpu::MapMode::Read, |r| r.expect("map"));
+        device.poll(wgpu::Maintain::Wait);
+        let data = buf.slice(..).get_mapped_range();
+        let mut out = Vec::with_capacity((width * rows) as usize);
+        for r in 0..rows {
+            for x in 0..width {
+                let at = (r * row_bytes + x * 8) as usize;
+                let h = |k: usize| f16_to_f32(u16::from_le_bytes([data[at + 2 * k], data[at + 2 * k + 1]]));
+                out.push([h(0), h(1), h(2), h(3)]);
+            }
+        }
+        out
+    }
+
+    /// The device half of a level change: `set_budget` remakes the atlas at
+    /// the new level's size (smaller for Low; the ambient row alone for the
+    /// Ambient level), flags the camera bind groups for the rebind, and the
     /// same level again does nothing.
-    ///
-    /// Ignored because it needs a real adapter (CI has none). Run it deliberately:
-    ///   node scripts/lib-tests.js a_level_change_remakes_the_atlas --ignored --nocapture
     #[cfg(feature = "native")]
     #[test]
-    #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
+    #[ignore = "needs a GPU adapter; run explicitly (see above)"]
     fn a_level_change_remakes_the_atlas_on_a_real_device() {
-        let instance = wgpu::Instance::default();
-        let Some(adapter) = pollster::block_on(instance.request_adapter(&Default::default())) else {
+        use super::super::bounced_light_detail::detail_level;
+        let Some((device, _queue)) = device() else {
             println!("no GPU adapter; skipping");
             return;
         };
-        let (device, _queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).expect("a device");
-        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
         let mut gi = RoomGi::new(&device);
-        gi.set_rooms(&device, home_and_ship());
+        let high = detail_level("high").budget();
+        gi.set_budget(&device, high);
+        gi.set_rooms(&device, super::super::bounced_light_detail::tests::ship());
         let at_high = gi.layout.probes;
-        println!("High: {} probes, atlas for {at_high}", gi.total);
-        assert!(at_high <= super::super::room_probes::MAX_TOTAL_PROBES && gi.total <= at_high);
+        println!("High: {} probes in all, atlas for {at_high}", gi.total);
+        assert_eq!(at_high, high.max_probes, "the atlas is the level's budget");
         gi.rebind = false;
-        gi.needs_clear = false;
         let low = detail_level("low").budget();
         assert!(gi.set_budget(&device, low), "a new level is a change");
-        println!("Low: {} probes, atlas for {}", gi.total, gi.layout.probes);
-        assert!(gi.layout.probes < at_high && gi.layout.probes <= low.max_probes, "the atlas gave its memory back");
-        assert!(gi.rebind && gi.needs_clear && gi.bind_groups.is_none(), "rebind and clear are flagged");
-        assert!(gi.total <= low.max_probes && gi.rooms.len() == home_and_ship().len());
+        println!("Low: atlas for {}", gi.layout.probes);
+        assert!(gi.layout.probes < at_high && gi.layout.probes == low.max_probes, "the atlas gave its memory back");
+        assert!(gi.rebind && gi.bind_groups.is_none(), "the rebind is flagged");
         gi.rebind = false;
         assert!(!gi.set_budget(&device, low), "the same level again is not");
         assert!(!gi.rebind);
+        let ambient = detail_level("ambient").budget();
+        assert!(gi.set_budget(&device, ambient));
+        assert_eq!((gi.layout.height, gi.layout.probes), (1, 0), "the Ambient level's atlas is its ambient row");
+        assert_eq!(gi.scratch_layout.height, 1);
+        println!("Ambient: room GI holds {} bytes of video memory", gi.vram_bytes());
+    }
+
+    /// THE GPU'S AMBIENT COLOUR, SEED AND PACKING ARE THE TWIN'S. Two rooms (a
+    /// lamp in a 40 x 4 x 40 m hall, the sun through the glass lid of the
+    /// other) through the real `cs_ambient`, `cs_ambient_resolve` and `cs_seed`
+    /// on the device: the atlas's ambient row reads what `room_ambient` works
+    /// out (to the half floats it is stored in), and a seeded probe's tiles
+    /// read that colour with `SEED_COUNT` as its count and the box distance as
+    /// its depth. Then the hall, seeded at slot 100, is packed down to slot 0
+    /// (`encode_moves`: its 8,000 probes through the 4,096-probe scratch in two
+    /// chunks, each landing on probes the move has read), and every probe reads at its new slot what it
+    /// held at its old one. Seen red first (2026-10-21) with the WGSL seed count out of
+    /// step with the twin (4 against 8): "seeded irradiance texel (0, 0): [0.0074043274,
+    /// 0.005783081, 0.0043907166, 4.0] against [0.007406088, 0.0057834745, 0.0043931664]".
+    #[cfg(feature = "native")]
+    #[test]
+    #[ignore = "needs a GPU adapter; run explicitly (see above)"]
+    fn the_gpu_ambient_colour_seed_and_packing_are_the_twin_s() {
+        use super::super::light::RoomLight;
+        use super::super::room_probes::{
+            probe_grid, probe_position, room_ambient, texel_direction, trace_box, Placement, TileMove, DEPTH_N, IRR_N,
+            NOT_RESIDENT, SEED_COUNT,
+        };
+        let Some((device, queue)) = device() else {
+            println!("no GPU adapter; skipping");
+            return;
+        };
+        let mut gi = RoomGi::new(&device);
+        gi.set_budget(&device, ProbeBudget::default());
+        let mut hall = RoomBox { min: Vec3::ZERO, max: Vec3::new(40.0, 4.0, 40.0), refl: [[0.5; 3]; 6], lid_transmittance: 0.0 };
+        hall.refl[2] = [0.3, 0.25, 0.2];
+        let mut glass_room = RoomBox { min: Vec3::new(48.0, 0.0, 0.0), max: Vec3::new(58.0, 3.0, 10.0), ..hall.clone() };
+        glass_room.lid_transmittance = 0.65;
+        glass_room.refl[3] = [0.1; 3];
+        gi.set_rooms(&device, vec![hall.clone(), glass_room.clone()]);
+        let n = gi.probes[0];
+        println!("the hall holds {n} probes; the scratch {}", gi.scratch_layout.probes);
+        assert!(n > gi.scratch_layout.probes, "the move must take more than one chunk");
+        let lamp = RoomLight::point(Vec3::new(10.0, 3.7, 10.0), [1.0, 0.9, 0.8], 30.0, 30.0);
+        let sun = Sun { dir: Vec3::new(0.2, 1.0, 0.1).normalize(), color: [1.0, 0.95, 0.9], intensity: 3.0 };
+        let first = 100u32;
+        let header = GiHeaderGpu {
+            gmin: [0.0, 0.0, 0.0, 1.0],
+            gmax: [58.0, 4.0, 40.0, 0.0],
+            info: [2, n, gi.layout.irr_per_row, gi.layout.depth_per_row],
+            atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, 0],
+        };
+        let table = [
+            pack_room(&hall, 0, gi.counts[0], Placement { first_probe: first, weight: 1.0 }, 0, 1, false),
+            pack_room(&glass_room, 1, gi.counts[1], NOT_RESIDENT, 1, 0, false),
+        ];
+        queue.write_buffer(&gi.rooms_buf, 0, bytemuck::bytes_of(&header));
+        queue.write_buffer(&gi.rooms_buf, HEADER_BYTES, bytemuck::cast_slice(&table));
+        queue.write_buffer(&gi.lights_buf, 0, bytemuck::cast_slice(&[gpu_packed(&lamp)]));
+        let seeds: Vec<[u32; 2]> = (first..first + n).map(|p| [p, 0]).collect();
+        queue.write_buffer(&gi.updates_buf, 0, bytemuck::cast_slice(&seeds));
+        let params = GiParamsGpu {
+            rot: [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]],
+            sun_dir: [sun.dir.x, sun.dir.y, sun.dir.z, sun.intensity],
+            sun_color: [sun.color[0], sun.color[1], sun.color[2], 0.0],
+            sky_up: [0.0, 1.0, 0.0, SKY_LIGHTING_EXPOSURE],
+            misc: [HYSTERESIS, 0.0, NORMAL_BIAS_M, 0.0],
+            counts: [0, gi.scratch_layout.irr_per_row, gi.scratch_layout.depth_per_row, gi.scratch_layout.depth_y0],
+        };
+        queue.write_buffer(&gi.params_buf, 0, bytemuck::bytes_of(&params));
+        let sky = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("no sky"),
+            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let bgs = gi.make_bind_groups(&device, &sky.create_view(&Default::default()));
+        let mut enc = device.create_command_encoder(&Default::default());
+        gi.encode(&mut enc, &bgs, PassWork { rooms: 2, traced: 0, seeded: n }, None);
+        queue.submit(std::iter::once(enc.finish()));
+        let row = read_rows(&device, &queue, &gi._atlas, gi.layout.amb_y0, 1);
+        let twin = [
+            room_ambient(&hall, &DirectSource::Scene { lights: vec![lamp], sun: Some(sun) }, |_| Vec3::ZERO),
+            room_ambient(&glass_room, &DirectSource::Scene { lights: vec![], sun: Some(sun) }, |_| Vec3::ZERO),
+        ];
+        for (i, want) in twin.iter().enumerate() {
+            let got = Vec3::new(row[i][0], row[i][1], row[i][2]);
+            println!("room {i}: GPU {got}, twin {want}");
+            assert!(want.min_element() > 1.0e-3, "room {i} is lit in the twin");
+            let rel = ((got - *want).abs() / *want).max_element();
+            assert!(rel < 4.0e-3, "room {i}: the GPU's ambient colour {got} against the twin's {want} ({:.2}%)", rel * 100.0);
+        }
+        let w = gi.layout.width as usize;
+        let all = read_rows(&device, &queue, &gi._atlas, 0, gi.layout.amb_y0);
+        let at = |all: &[[f32; 4]], x: u32, y: u32| all[y as usize * w + x as usize];
+        // A seeded probe: the hall's sixth.
+        let local = 5u32;
+        let io = gi.layout.irr_origin(first + local);
+        for (bx, by) in [(0, 0), (1, 1), (4, 7), (IRR_N + 1, IRR_N + 1)] {
+            let t = at(&all, io.0 + bx, io.1 + by);
+            let rel = ((Vec3::new(t[0], t[1], t[2]) - twin[0]).abs() / twin[0]).max_element();
+            assert!(rel < 4.0e-3 && t[3] == SEED_COUNT, "seeded irradiance texel ({bx}, {by}): {t:?} against {}", twin[0]);
+        }
+        let c = gi.counts[0];
+        let p = probe_position(&hall, c, probe_grid(c, local));
+        let dg = gi.layout.depth_origin(first + local);
+        for (x, y) in [(0u32, 0u32), (7, 3), (DEPTH_N - 1, DEPTH_N - 1)] {
+            let (t, _) = trace_box(p, texel_direction(DEPTH_N, x, y), hall.min, hall.max);
+            let got = at(&all, dg.0 + 1 + x, dg.1 + 1 + y);
+            assert!((got[0] - t).abs() < 0.01 * t.max(1.0) && (got[1] - t * t).abs() < 0.02 * (t * t).max(1.0), "depth texel ({x}, {y}): {got:?} against {t}");
+        }
+        // Mark a few probes so the move is seen to carry each one's own tiles,
+        // not just the colour every seeded probe shares: rewrite their first
+        // irradiance texel through a tiny upload.
+        let marks: Vec<u32> = vec![0, 1, gi.scratch_layout.probes - 1, gi.scratch_layout.probes, n - 1];
+        for (k, &m) in marks.iter().enumerate() {
+            let o = gi.layout.irr_origin(first + m);
+            let v = [half_bits(10.0 + k as f32), half_bits(0.0), half_bits(0.0), half_bits(1.0)];
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo { texture: &gi._atlas, mip_level: 0, origin: wgpu::Origin3d { x: o.0 + 1, y: o.1 + 1, z: 0 }, aspect: wgpu::TextureAspect::All },
+                bytemuck::cast_slice(&v),
+                wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(8), rows_per_image: Some(1) },
+                wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            );
+        }
+        let before = read_rows(&device, &queue, &gi._atlas, 0, gi.layout.amb_y0);
+        let mut enc = device.create_command_encoder(&Default::default());
+        gi.encode_moves(&mut enc, &[TileMove { room: 0, from: first, to: 0, count: n }]);
+        queue.submit(std::iter::once(enc.finish()));
+        let after = read_rows(&device, &queue, &gi._atlas, 0, gi.layout.amb_y0);
+        for (k, &m) in marks.iter().enumerate() {
+            let o = gi.layout.irr_origin(m);
+            let got = at(&after, o.0 + 1, o.1 + 1);
+            assert_eq!(got[0], 10.0 + k as f32, "probe {m}'s own mark moved with it: {got:?}");
+        }
+        let mut worst = 0usize;
+        for m in (0..n).step_by(37).chain([n - 1]) {
+            for (orig, tile) in [(gi.layout.irr_origin(m), super::super::room_probes::IRR_TILE), (gi.layout.depth_origin(m), super::super::room_probes::DEPTH_TILE)] {
+                let src = if tile == super::super::room_probes::IRR_TILE { gi.layout.irr_origin(first + m) } else { gi.layout.depth_origin(first + m) };
+                for y in 0..tile {
+                    for x in 0..tile {
+                        if at(&after, orig.0 + x, orig.1 + y) != at(&before, src.0 + x, src.1 + y) {
+                            worst += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(worst, 0, "{worst} texels differ between a probe's old slot and its new one");
+    }
+
+    /// f32 to IEEE half float bits (round to nearest, the values here are exact).
+    #[cfg(feature = "native")]
+    fn half_bits(v: f32) -> u16 {
+        let b = v.to_bits();
+        let sign = ((b >> 16) & 0x8000) as u16;
+        let exp = ((b >> 23) & 0xff) as i32 - 127 + 15;
+        if v == 0.0 {
+            return sign;
+        }
+        let mant = ((b >> 13) & 0x3ff) as u16;
+        sign | ((exp as u16) << 10) | mant
     }
 }

@@ -87,7 +87,13 @@ the ship's, 8,192 at the default). The levels are data,
 atlas can hold (spacing 0.25 to 64 m, a cap whose atlas stays within 8,192
 texels, about 156,000 probes). Each probe takes 3,392 bytes of video memory
 (its 10 x 10 and 18 x 18 tiles at 8 bytes a texel), so a level's memory is its
-cap x 3,392 bytes, which the setting shows beside each level. On the shipped
+cap x 3,392 bytes, which the setting shows beside each level. The table below is
+the layout BEFORE probe streaming (2026-10-20), when every room of the ship held
+probes at once and the home kept its spacing by coarsening the rest; since probe
+streaming (2026-10-21, "Probe streaming" below) the cap is the residency budget,
+the rooms nearest the player hold probes at the level's spacing, and the "home"
+and "rest of the ship" columns no longer describe what is held. The Ambient level
+(no probes, 64,800 bytes) sits below Low. On the shipped
 ship (2026-10-20, `engine::room_gi::tests::every_bounced_light_detail_level_fits_the_shipped_ship`
 with `--nocapture`; the real atlas is up to one more row of each tile kind,
 under 1.8 MB, above the figure shown):
@@ -318,6 +324,172 @@ A solid floor slab stops lamp light and sunlight, in the lighting and in the roo
   lids, which nothing blocks, so each pays its layer-row read (~8.5 ps a lamp). Next if it
   matters: pack the layer rows (fewer loads a walk), cull runs per light tile, the near sun
   cascades for walls.
+
+### The room's ambient colour (the "Ambient" level, 2026-10-21)
+
+**Why.** On 2026-10-20 the operator asked why a room needs thousands of probes
+when its textures could simply be brighter. A brighter texture is light that is
+always on: it would not dim when a lamp is switched off, and a room with no lamp
+would glow. The middle answer, promised to him that day and built here: one
+colour per room, worked out from that room's own lamps and windows. It is the
+lowest Bounced light detail level, "Ambient", below Low, and it is also what
+every room shows while its probes are not resident (probe streaming, below).
+
+**What it is** (`room_probes::room_ambient`). The integrating-sphere relation the
+probes are already held to (`closed_box_converges_to_the_integrating_sphere_value`),
+in the form progressive radiosity's AMBIENT TERM takes (Cohen, Chen, Wallace and
+Greenberg, "A Progressive Refinement Approach to Fast Radiosity Image
+Generation", SIGGRAPH 1988): every bounce after the first returns the area-mean
+reflectance rho_bar of what reached the walls, so for a room box of area A whose
+faces f take direct flux Phi_f, with Phi_sky coming in through a glass lid,
+
+    E / pi = ( Phi_sky + (sum_f rho_f Phi_f + rho_bar Phi_sky) / (1 - rho_bar) ) / (pi A)
+
+Phi_f is exactly the probes' direct light (`direct_irradiance`: the room's own
+lights with the fragment loop's attenuation, and the sun only where the way to
+it leaves through the glass lid); the sky's first arrival counts whole because
+the fragment has no sky term indoors (the probes carry it the same way), the
+lamps' and the sun's first arrival do not because the fragment lights those
+itself. A glass lid reflects its `alpha x colour`, so what it lets out is lost
+from the bounce, as in the probes. The integral is a FIXED grid, 8 x 8 cells on
+each face and 64 cosine-weighted sky directions: no noise and no hysteresis, so
+a room never shimmers and a lamp switched off darkens its room that very frame.
+
+So it **follows the lamps** (`a_lamp_switched_off_darkens_its_room_s_ambient_and_no_other`),
+**keeps rooms apart** (a lamp lights only the room it is in, `assign_lights`, as
+for the probes), and is **flat within a room**: the wall by the lamp and the far
+corner read the same, which is what the probes add.
+
+**On the GPU.** `cs_ambient` (room_probes_update.wgsl): one workgroup of 64 per
+room, every frame (a cell of each of the six faces and one sky direction per
+thread, a tree sum, the closed form on thread 0) into the scratch's last row;
+`cs_ambient_resolve` copies that row into the ATLAS'S LAST ROW, one texel per
+room at the room's own index (`GiRoom.lights.w`; the table is in pick order,
+which changes every frame). The fragment: `room_gi_irradiance` now returns the
+probes' share (the sample times the room's PROBE WEIGHT, `GiRoom.bmin.w`, with
+no fetch at all at weight 0) and the room's row; in frag_tail,
+`if (HAS_ROOM_AMBIENT && room_gi_weight(room_light.a) < 1.0)` adds
+`room_gi_ambient`, `(1 - weight)` times that one texel. `HAS_ROOM_AMBIENT` is a
+feature switch (05-overrides), live in the Surface and Vegetation entries like
+room GI, the first operand of its one guard; `validate_wgsl` refuses a
+megashader without it and `the_room_ambient_colour_is_guarded_by_its_switch_in_the_tail`
+pins the guard. On the Ambient level every weight is 0: one texel load per
+fragment, no probe fetch, and no probe update at all.
+
+**Memory.** The Ambient level's atlas is its last row alone, 8100 x 1 texels,
+64,800 bytes (63 KB), and so is its scratch. Measured 2026-10-21 in the running
+game, the 32 home vantages of `scripts/photograph-home.js` each taken twice in one
+boot (`--ab bounced_light_detail --ab-values low,ambient --ab-settle 5000`, with
+`HUMANITY_FRAME_COSTS=1`; no repeat arm, so no noise floor was measured), means
+over the 32: the room GI's atlas 29,354,400 bytes at Low against 64,800 at
+Ambient; `gpu.room_probes` 0.268 ms against 0.073; `cpu.room_probes` 0.400 ms
+against 0.364; `gpu.scene` 8.52 ms against 8.24.
+
+### Probe streaming (2026-10-21)
+
+**The question.** Until now the atlas held every room of the ship at once, so
+the ship's size decided every room's spacing. The street, the second commons and
+the cabins (2026-10-05) took the home from 1 m to 1.33 m without anyone choosing
+it, and the home-first priority (2026-10-20) kept the home at 1 m only by taking
+everything else to 2.5 m, the shared Commons included. The operator asked
+whether there was another way (2026-10-20); the answer he accepted: only the
+rooms near the player hold probes, so the ship's size stops mattering. Hardware
+ray-traced GI on cards that support it is the later upgrade, with the probes
+kept as the fallback.
+
+**A room near the player** (`room_probes::room_priority`): the distance from the
+eye to the room's box (0 inside it), plus 8 m (`STOREY_PENALTY_M`) when the
+eye's height is outside the box by more than 0.5 m, a room on another storey
+behind a floor. The room the player stands in is first; a room inside another's
+box (the Commons hall's nine) is nearer than its container from inside it.
+
+**The budget.** A level's `max_probes` is now the probes held AT ONCE: Low 8,192
+(27 MB), Medium 16,384 (53 MB), High 32,768 (106 MB, the default), Ultra 65,536
+(212 MB), Ambient 0. The atlas is made at exactly that size when the level is
+chosen and never grown or shrunk while it stands. Every room is laid out at the
+level's spacing (`lattice_for`); only a room that alone would hold more than a
+quarter of the budget (the Commons hall, the street) coarsens, by itself.
+
+**Who holds them** (`Residency::step`, every frame, pure CPU and tested without
+a GPU). The WANTED set is the rooms nearest first while their probes fit the
+budget; a room too big for what is left is passed over and a smaller, farther
+one may still fit. A resident room counts 4 m nearer (`RESIDENCY_HYSTERESIS_M`),
+so a player standing at the boundary does not swap two rooms in and out every
+frame (`residency_does_not_swap_rooms_at_a_boundary`). A wanted room that is
+not resident is placed in the smallest free gap that holds it (best fit),
+within 16,384 seeded probes a frame (`MAX_SEEDS_PER_FRAME`, more than the
+largest room at any level).
+
+**Eviction.** A resident room no longer wanted FADES OUT over 20 frames
+(`LEAVE_FADE_FRAMES`): its probe weight falls from 1 to 0, so its fragments
+blend from the probes to its ambient colour, a twentieth of the way a frame,
+its probes are no longer traced, and its slots are given away only when the
+weight reaches 0 (`a_room_going_out_fades_to_its_ambient_colour`). A room wanted
+back mid-fade turns round and rises again. FRAGMENTATION: when the atlas has
+the probes a wanted room needs but in pieces, it is PACKED that frame
+(`Residency::pack`): every resident room, fading ones included, slides down to
+the end of the room before it, so the free probes become one gap at the end,
+and the room comes in. On the GPU each move copies the room's tiles down
+through the scratch, `scratch_slots` probes at a time, lowest first, before the
+compute pass (`RoomGi::encode_moves`; a move is always down, so a chunk never
+lands on probes still to be read), so a room of any size moves in one frame and
+keeps its light (`a_fragmented_atlas_is_packed_and_takes_the_room_it_needs`, and
+on a real device `the_gpu_ambient_colour_seed_and_packing_are_the_twin_s`). The
+first cut evicted the farthest room whose place would open a gap instead; on the
+shipped ship at Low the street then stayed out in the Commons, every room in the
+way nearer than it while 2,000 free probes lay in pieces between them. The
+wanted set always fits the budget, so once the rooms fading out are gone,
+packing always makes room. Only the space a fading room still holds makes a
+newcomer wait.
+
+**A room without resident probes** shows its ambient colour, worked out every
+frame for every room (above), so no room goes dark for want of probes. A room
+COMING IN is seeded with that colour the same frame (`cs_seed`, `Twin::seed`):
+every irradiance texel the colour with an update count of 8 (`SEED_COUNT`), every
+depth texel the exact distance to the room's box. The frame before, the room
+showed its colour; the frame it comes in, its probes read that same colour (to
+float rounding: `a_seeded_room_starts_at_its_ambient_colour_and_converges`);
+from then on its own updates take over, the seed weighing as 8 updates in the
+running mean, so the first moves it only part of the way.
+
+**Relayout.** A level change makes the atlas again: every room starts out, at
+its ambient colour, and the nearest come back in, seeded, in that same frame.
+(The old clear-and-refill could leave a far room black for up to eight frames.)
+A home edit in the construction editor carries over every room whose box, faces
+and lattice did not change, its probes where they were
+(`a_relayout_keeps_the_probes_of_rooms_that_did_not_change`); the edited rooms
+come back in seeded. The global atlas clear is gone: wgpu zero-fills a new
+atlas, and a room's tiles are written whole by its seed before any fragment or
+update reads them.
+
+**Slab rows (lane L).** Unaffected. The table still lists every room, resident
+or not, before the slab rows, so `info.x + atlas.w` and the lights' run offsets
+mean what they did; a room's row carries its weight and its own index in lanes
+the slab rows never used. The probe update still tests no slab (a room box never
+holds one) and the ambient colour takes exactly the probes' sources, so neither
+reads the slabs.
+
+**How it is measured.** On the CPU: the twin tests named above, and on the
+shipped ship `engine::room_gi::tests::the_shipped_ship_streams_its_probes_from_the_home_to_the_commons_and_back`
+(every level: the home, the Commons, the home again; the budget never passed,
+the player's room in within a fade, every room with a lamp lit). In the running
+game: the `[RoomGI] resident ...` log line on every change, and the dev drop
+`debug/room_gi.json` (once a second with `HUMANITY_FRAME_COSTS=1`: the rooms and
+probes held, the atlas's bytes, each room's weight, priority and ambient colour
+as the twin works it out), read by the rig walk below. The walk, 2026-10-21, at
+High (`photograph-home.js --vantages` over twelve stops: the console room, the
+great room and the workshop at home, the Commons hall, mess and recreation, First
+Street north and far, the South Commons, then back through the Commons hall to
+the console room and the mushroom room): resident probes 30,815 to 32,764 of the
+32,768 budget at every stop, 19 to 45 of the ship's 48 rooms resident by where
+the player stood, the player's own room at full weight every time with an
+ambient colour well off black (0.05 to 0.16 linear), the room GI's video memory
+a steady 127.6 MB, 12 of 12 captured with no panic.
+
+**Later increments.** Moving a room's tiles through the scratch instead of
+evicting for fragmentation; residency that looks ahead of the player's motion;
+hardware ray-traced GI on cards that support it, the probes and the ambient
+colour kept as its fallback.
 
 ## 4. Measured
 

@@ -45,10 +45,11 @@ struct GiHeader {
     gmin: vec4<f32>,
     // xyz = max corner of every room.
     gmax: vec4<f32>,
-    // x = room count, y = probe count, z = irradiance tiles per atlas row,
-    // w = depth tiles per atlas row.
+    // x = room count, y = resident probe count, z = irradiance tiles per
+    // atlas row, w = depth tiles per atlas row.
     info: vec4<u32>,
-    // x = atlas width, y = atlas height, z = first row of the depth region,
+    // x = atlas width, y = atlas height (its LAST ROW is the ambient row, one
+    // texel per room: room_gi_ambient), z = first row of the depth region,
     // w = how many rows the sun's list of FLOOR SLABS takes after the rooms,
     // layer rows included (ship homes increment 7, the slab rows below; 0 for
     // a one-storey home and with the dev switch {"slab_occlusion":"0"}).
@@ -57,13 +58,18 @@ struct GiHeader {
 
 // One room, 160 bytes (room_probes::GiRoomGpu).
 struct GiRoom {
-    // xyz = box min (render space).
+    // xyz = box min (render space), w = the PROBE WEIGHT: 1 = the room's
+    // probes alone, 0 = its ambient colour alone (not resident, or the Ambient
+    // level), between = a resident room fading out (probe streaming).
     bmin: vec4<f32>,
     // xyz = box max, w = lid transmittance (0 = opaque roof).
     bmax: vec4<f32>,
-    // xyz = probes per axis, w = the room's first probe in the atlas.
+    // xyz = probes per axis, w = the room's first probe in the atlas (read
+    // only while the weight is above 0).
     counts: vec4<u32>,
-    // x = first light in the update's light list, y = how many.
+    // x = first light in the update's light list, y = how many, z = flags
+    // (GI_ROOM_VISIBILITY), w = the room's own index: its texel in the
+    // ambient row (the table is in pick order, which changes every frame).
     lights: vec4<u32>,
     // Diffuse reflectance per face, in face order -x, +x, floor, lid, -z, +z.
     refl: array<vec4<f32>, 6>,
@@ -245,14 +251,40 @@ fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
     return best;
 }
 
-// frag_tail's entry point into room GI: rgb = the room's indirect light for
-// this fragment, a = 1 if the fragment is in a room (0 = keep the old floor).
+// frag_tail's entry point into room GI: rgb = the room's PROBES' share of
+// this fragment's indirect light (the probe sample times the room's probe
+// weight, 0 with no fetch at all for a room whose probes are not resident),
+// a = the room's row in the table plus one, or 0 outside every room (keep the
+// old floor). The rest, the room's ambient colour, is room_gi_ambient's.
 fn room_gi_irradiance(p: vec3<f32>, n: vec3<f32>) -> vec4<f32> {
     let ri = gi_pick_room(p, n);
     if (ri < 0) {
         return vec4<f32>(0.0);
     }
-    return vec4<f32>(gi_sample_room(u32(ri), p, n), 1.0);
+    let w = room_gi.rooms[ri].bmin.w;
+    var probes = vec3<f32>(0.0);
+    if (w > 0.0) {
+        probes = gi_sample_room(u32(ri), p, n) * w;
+    }
+    return vec4<f32>(probes, f32(ri) + 1.0);
+}
+
+// THE ROOM'S AMBIENT COLOUR (2026-10-21, room_probes::room_ambient): one
+// colour per room, worked out every frame from the room's own lamps and
+// windows (cs_ambient, room_probes_update.wgsl) into the atlas's last row, one
+// texel per room. `tag` is room_gi_irradiance's alpha (the row plus one); this
+// returns the (1 - weight) share of the room's colour: all of it on the
+// Ambient level and in a room whose probes are not resident, and the rest of
+// the blend in a room fading out. frag_tail calls it behind HAS_ROOM_AMBIENT,
+// only where room_gi_weight is under 1 (a room whose probes hold reads no
+// texel). One texel, no filtering. CPU twin: room_probes::Twin::fragment_light.
+fn room_gi_weight(tag: f32) -> f32 {
+    return room_gi.rooms[u32(tag - 0.5)].bmin.w;
+}
+fn room_gi_ambient(tag: f32) -> vec3<f32> {
+    let ri = u32(tag - 0.5);
+    let texel = vec2<i32>(i32(room_gi.rooms[ri].lights.w), i32(room_gi.header.atlas.y) - 1);
+    return textureLoad(room_gi_atlas, texel, 0).rgb * (1.0 - room_gi.rooms[ri].bmin.w);
 }
 
 // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──

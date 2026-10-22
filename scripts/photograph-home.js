@@ -41,8 +41,22 @@
 // frames of one boot that differ by that switch and nothing else, and its cost
 // is the difference of two costs files taken seconds apart.
 //
+// A/B between two VALUES (2026-10-21): `--ab KEY --ab-values ON,OFF` sets KEY to ON before the
+// picture and to OFF for its twin (<id>.KEY-OFF.png), then releases KEY to its sticky default
+// (scripts/lib/showcase-pins.js) before the next pose, waiting `--ab-settle MS` (default 1500)
+// after each change. For a setting that is not an on/off switch: the Bounced light detail level,
+// `--ab bounced_light_detail --ab-values low,ambient --ab-settle 5000`, photographs each room at
+// Low and at Ambient in one boot (a level change lays the light out again, so give it seconds).
+//
+// `--settle MS` (default 1300) is the wait between the pose and the picture; `--early MS` also
+// takes a picture that soon after the pose (<id>.early.png), to see what a room shows the moment
+// the player arrives. With frame costs on, the room light probes' state at each picture
+// (debug/room_gi.json: which rooms hold probes, the budget, the memory) is kept beside it as
+// <id>.room_gi.json (and <id>.early.room_gi.json, <id>.KEY-OFF.room_gi.json).
+//
 // Usage:
 //   node scripts/photograph-home.js [--exe PATH] [--only id,id] [--width N] [--height N] [--ab KEY]
+//                                   [--ab-values ON,OFF] [--ab-settle MS] [--settle MS] [--early MS]
 //                                   [--vantages PATH] [--allow-other-build "<reason>"]
 // Exit 0 = every vantage captured. 1 = refused. 2 = one or more captures failed, a panic,
 // or the run served a data file from the copy built into the exe (BUILT-IN DATA).
@@ -81,6 +95,13 @@ const WIDTH = Number(opt("--width", "1600"));
 const HEIGHT = Number(opt("--height", "900"));
 const KEEP_OPEN = args.includes("--keep-open");
 const AB = opt("--ab", null);
+// --ab-values ON,OFF: the two values of an A/B that is not a "1"/"0" switch.
+const AB_VALUES = opt("--ab-values", null);
+const [AB_ON, AB_OFF] = AB_VALUES ? AB_VALUES.split(",").map((s) => s.trim()) : [null, "0"];
+const AB_RELEASE = AB_VALUES ? require("./lib/showcase-pins.js").STICKY_PIN_RESETS[AB] ?? "1" : "1";
+const AB_SETTLE = Number(opt("--ab-settle", "1500"));
+const SETTLE = Number(opt("--settle", "1300"));
+const EARLY = opt("--early", null) === null ? null : Number(opt("--early", "0"));
 
 const RIG = path.join(REPO, ".probe-rig", "home-photos");
 const DEBUG = path.join(RIG, "debug");
@@ -110,6 +131,7 @@ if (!fs.existsSync(EXE)) {
   refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
 }
 if (!fs.existsSync(VANTAGES)) refuse([`ERROR: no vantage file at ${VANTAGES}`]);
+if (AB_VALUES && (!AB || !AB_ON || !AB_OFF)) refuse(["ERROR: --ab-values ON,OFF needs --ab KEY and two values"]);
 
 let vantages = JSON.parse(fs.readFileSync(VANTAGES, "utf8")).vantages;
 if (ONLY) {
@@ -169,7 +191,7 @@ function setupRig() {
   // found neither.
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
-    if (/\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f) || f === "frame_costs.json")
+    if (/\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f) || f === "frame_costs.json" || f === "room_gi.json")
       fs.unlinkSync(path.join(DEBUG, f));
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
@@ -228,6 +250,32 @@ async function freshCosts() {
   return null;
 }
 const panicCount = () => (fs.existsSync(LOG) ? (fs.readFileSync(LOG, "utf8").match(/PANIC/g) || []).length : 0);
+// The room light probes' dev drop (debug/room_gi.json, once a second with frame costs on), written
+// after this call, kept beside a picture as <name>; nothing when frame costs are off.
+async function keepRoomGi(outName) {
+  const p = path.join(DEBUG, "room_gi.json");
+  const since = Date.now();
+  while (Date.now() - since < 2500) {
+    try {
+      if (fs.statSync(p).mtimeMs > since) {
+        const body = JSON.parse(fs.readFileSync(p, "utf8"));
+        fs.writeFileSync(path.join(OUT, outName), JSON.stringify(body, null, 2));
+        return body;
+      }
+    } catch {}
+    await sleep(150);
+  }
+  return null;
+}
+// One picture of whatever is on screen now, copied into the run folder as <name>.
+async function capture(name) {
+  clearDone("screenshot_done.json");
+  req("screenshot_request.json", { width: WIDTH, height: HEIGHT });
+  const d = await waitFile("screenshot_done.json", 30000);
+  if (!d || d.ok !== true || !fs.existsSync(path.join(RIG, d.path))) return null;
+  fs.copyFileSync(path.join(RIG, d.path), path.join(OUT, name));
+  return name;
+}
 
 // ── the run ─────────────────────────────────────────────────────────────────
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
@@ -326,12 +374,25 @@ async function main() {
       }
       const pose = `${v.pos[0]},${v.pos[1]},${v.pos[2]},${v.yaw},${v.pitch}`;
       req("showcase_request.json", { cam: pose });
+      // --early: a picture the moment the player arrives (the room light
+      // probes' state with it), before anything has settled.
+      let early = null;
+      if (EARLY !== null) {
+        await sleep(EARLY);
+        early = await capture(`${v.id}.early.png`);
+        if (early) await keepRoomGi(`${v.id}.early.room_gi.json`);
+      }
       // Long enough for the teleport, the machine meshes in the new room and
       // the lighting to settle; short enough that the drift above is under a
       // metre. The FIRST capture after a boot is a different state from every
       // later one (the rigs have been bitten by this), so the first vantage is
       // captured twice and the first is thrown.
-      await sleep(1300);
+      await sleep(SETTLE);
+      // --ab-values: the picture is taken at the first value.
+      if (AB && AB_ON) {
+        req("showcase_request.json", { [AB]: AB_ON });
+        await sleep(AB_SETTLE);
+      }
       const shots = v === vantages[0] ? 2 : 1;
       let out = null;
       for (let i = 0; i < shots; i++) {
@@ -356,33 +417,39 @@ async function main() {
       const name = `${v.id}.png`;
       if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, name));
       const shot = { id: v.id, room: v.room, note: v.note, pose, file: name, ok: fs.existsSync(path.join(OUT, name)) };
+      if (early) shot.early_file = early;
       const costs = await freshCosts();
       if (costs) {
         fs.writeFileSync(path.join(OUT, `${v.id}.costs.json`), JSON.stringify(costs, null, 2));
         shot.frame_ms = costs.frame_ms;
       }
-      // The A/B twin: the same pose with the switch off, then the switch
-      // back on so the next vantage starts from the normal state.
+      const gi = await keepRoomGi(`${v.id}.room_gi.json`);
+      if (gi) shot.room_gi = { resident_rooms: gi.resident_rooms, resident_probes: gi.resident_probes, budget: gi.budget_probes };
+      // The A/B twin: the same pose with the switch off (or at the second
+      // value), then the switch released so the next vantage starts from the
+      // normal state.
       if (AB) {
-        req("showcase_request.json", { [AB]: "0" });
-        await sleep(1500);
+        req("showcase_request.json", { [AB]: AB_OFF });
+        await sleep(AB_SETTLE);
         clearDone("screenshot_done.json");
         req("screenshot_request.json", { width: WIDTH, height: HEIGHT });
         const d = await waitFile("screenshot_done.json", 30000);
-        const offName = `${v.id}.${AB}-off.png`;
+        const offName = AB_VALUES ? `${v.id}.${AB}-${AB_OFF}.png` : `${v.id}.${AB}-off.png`;
+        const offStem = offName.replace(/\.png$/, "");
         if (d && d.ok === true && fs.existsSync(path.join(RIG, d.path))) {
           fs.copyFileSync(path.join(RIG, d.path), path.join(OUT, offName));
           shot.off_file = offName;
           const offCosts = await freshCosts();
           if (offCosts) {
-            fs.writeFileSync(path.join(OUT, `${v.id}.${AB}-off.costs.json`), JSON.stringify(offCosts, null, 2));
+            fs.writeFileSync(path.join(OUT, `${offStem}.costs.json`), JSON.stringify(offCosts, null, 2));
             shot.off_frame_ms = offCosts.frame_ms;
           }
+          await keepRoomGi(`${offStem}.room_gi.json`);
         } else {
-          log(`FAIL ${v.id} (${AB} off): ${d ? d.error : "no screenshot_done.json"}`);
+          log(`FAIL ${v.id} (${AB} ${AB_OFF}): ${d ? d.error : "no screenshot_done.json"}`);
           failed++;
         }
-        req("showcase_request.json", { [AB]: "1" });
+        req("showcase_request.json", { [AB]: AB_RELEASE });
         await sleep(300);
       }
       manifest.shots.push(shot);

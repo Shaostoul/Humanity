@@ -1,7 +1,13 @@
 {
   "version": 1,
-  "_comment": "Settings > Graphics > Light and sky > Bounced light detail (2026-10-20). Each level is the two numbers the room light probes are laid out to (src/renderer/room_probes.rs lattice_for, docs/design/room-gi.md): spacing_m, how far apart the probes in the player's own home aim to be, in metres; and max_probes, the most probes the whole ship may hold. The rest of the ship coarsens first, into what the home leaves. Video memory is max_probes x 3,392 bytes (each probe's 10x10 light tile and 18x18 depth tile, 8 bytes a texel); the Settings page computes and shows it. The work each frame is the same at every level (4,096 probes an update), so a finer level costs memory, not frame time, and takes longer to relight far rooms. 'high' is the design (1 m, 32,768) and the default; src/config.rs falls back to it for an id not listed here. Values are clamped on load: spacing to 0.25 to 64 m, max_probes to what one atlas texture can hold. Changing this file takes effect at the next start.",
+  "_comment": "Settings > Graphics > Light and sky > Bounced light detail (2026-10-20; the Ambient level and probe streaming 2026-10-21). Each level is the two numbers the room light probes are laid out to (src/renderer/room_probes.rs lattice_for and Residency, docs/design/room-gi.md): spacing_m, how far apart every room's probes aim to be, in metres (a room that alone would hold more than a quarter of the level's probes coarsens by itself); and max_probes, the most probes held at once, by the rooms nearest the player, which is the size of the probe atlas. A room farther away shows one colour, worked out from its own lamps and windows, until it comes near. max_probes 0 is the Ambient level: no probes at all, every room its one colour, and spacing_m may be left out. Video memory is max_probes x 3,392 bytes (each probe's 10x10 light tile and 18x18 depth tile, 8 bytes a texel) plus 64,800 bytes for the row of room colours; the Settings page computes and shows it. The work each frame is about the same at every probe level (4,096 probes an update), so a finer level costs memory and takes longer to relight the rooms around the player. 'high' is the design (1 m, 32,768) and the default; src/config.rs falls back to it for an id not listed here. Values are clamped on load: spacing to 0.25 to 64 m, max_probes to what one atlas texture can hold (0 stays 0). Changing this file takes effect at the next start.",
   "levels": [
+    {
+      "id": "ambient",
+      "name": "Ambient",
+      "max_probes": 0,
+      "note": "One colour per room from its own lamps and windows: it follows the lamps and keeps rooms apart, but is flat within a room."
+    },
     {
       "id": "low",
       "name": "Low",

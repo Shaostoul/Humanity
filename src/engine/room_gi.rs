@@ -162,18 +162,8 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
             r.center.cmpge(o - Vec3::splat(0.01)).all() && r.center.cmple(top + Vec3::splat(0.01)).all()
         })
     });
-    // The player's OWN home: the rooms of the home zone (`home_zone_index`:
-    // the zone named "home", else zone 0), or every room when no ship stands
-    // around the home. Its rooms keep the designed probe spacing while the
-    // rest of the ship coarsens to fit the cap (`room_probes::lattice_for`).
-    // A corridor tube stands in no zone, so it counts with the rest.
-    let home = match (ship, zone) {
-        (None, _) => true,
-        (Some(s), Some(zi)) => zi == s.home_zone_index() && !s.is_away_home(zi),
-        (Some(_), None) => false,
-    };
     let Some(z) = ship.zip(zone).map(|(s, zi)| &s.zones[zi]) else {
-        return RoomBox { min, max, refl: [[DEFAULT_REFL; 3]; 6], lid_transmittance: 0.0, home };
+        return RoomBox { min, max, refl: [[DEFAULT_REFL; 3]; 6], lid_transmittance: 0.0 };
     };
     let body = &z.body;
     let o = z.origin_vec();
@@ -203,7 +193,7 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
     for (a, b) in [((0.0, 0.0), (w, 0.0)), ((w, 0.0), (w, d)), ((w, d), (0.0, d)), ((0.0, d), (0.0, 0.0))] {
         segs.push(Seg { a: (a.0 + o.x, a.1 + o.z), b: (b.0 + o.x, b.1 + o.z), half, refl: shell });
     }
-    let mut out = RoomBox { min, max, refl: [shell; 6], lid_transmittance: 0.0, home };
+    let mut out = RoomBox { min, max, refl: [shell; 6], lid_transmittance: 0.0 };
     // The four walls, each from the UNSNAPPED box so the faces do not depend
     // on the order they are visited in.
     for face in [FACE_NEG_X, FACE_POS_X, FACE_NEG_Z, FACE_POS_Z] {
@@ -407,17 +397,10 @@ mod tests {
         assert!(glass > 0, "the home's glass roof reaches the probes");
     }
 
-    /// The shipped ship's probe lattice (ship homes increment 7 plan, section
-    /// 6): the player's own home keeps the designed 1 m spacing in every room
-    /// the per-room cap allows, the rest of the ship coarsens into what the
-    /// home leaves, and the whole ship stays within `MAX_TOTAL_PROBES`. The
-    /// room set is built exactly the way `rooms_changed` gets it (the ship
-    /// file, the shipped homestead on the default plot p1, `generate_meshes`,
-    /// `room_boxes`). `--nocapture` prints every room: where the room-gi.md
-    /// figures come from.
-    #[test]
-    fn the_shipped_home_keeps_its_designed_probe_spacing() {
-        use crate::renderer::room_probes::{lattice_for, probe_counts, ProbeBudget, MAX_PROBES_PER_ROOM, MAX_TOTAL_PROBES, PROBE_SPACING_M};
+    /// The shipped ship, assembled the way the game does it (the ship file,
+    /// the shipped homestead on the default plot p1, `generate_meshes`,
+    /// `room_boxes`), with each room's id.
+    fn shipped_rooms() -> (Vec<RoomInfo>, Vec<RoomBox>) {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
@@ -425,87 +408,125 @@ mod tests {
         let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
         let meshes = ship.generate_meshes();
         let boxes = room_boxes(Some(&ship), &meshes.room_info);
-        let lat = lattice_for(&boxes, ProbeBudget::default());
-        let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
-        let at_1m: u64 = boxes.iter().map(|b| n(probe_counts(b.size(), PROBE_SPACING_M))).sum();
-        for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate() {
-            let s = b.size();
-            println!(
-                "{:<28} home {:<5} {:>7.2} x {:>5.2} x {:>7.2} m  at 1 m {:>6}  now {:?} = {:>5} at {:.2} m",
-                r.id, b.home, s.x, s.y, s.z, n(probe_counts(s, PROBE_SPACING_M)), lat.counts[i], lat.probes_in(i), lat.spacing[i]
-            );
-        }
-        println!(
-            "{} rooms ({} the home's), {} probes at 1 m; lattice {} of {}: home {} at {:?} m, others {} at {:?} m, home coarsened {}",
-            boxes.len(),
-            boxes.iter().filter(|b| b.home).count(),
-            at_1m,
-            lat.total(),
-            MAX_TOTAL_PROBES,
-            lat.total_where(&boxes, true),
-            lat.home_spacing,
-            lat.total_where(&boxes, false),
-            lat.other_spacing,
-            lat.home_coarsened
-        );
-        assert!(boxes.iter().any(|b| b.home), "the homestead's rooms are the home's");
-        assert!(boxes.iter().any(|b| !b.home), "the street, the commons and the corridors are not");
-        // Every home room is in the home zone, and only those are.
-        let home_zone = &ship.zones[ship.home_zone_index()];
-        for (r, b) in meshes.room_info.iter().zip(&boxes) {
-            assert_eq!(b.home, !r.id.contains(':') && !r.id.starts_with("corridor_"), "{} (home zone '{}')", r.id, home_zone.id);
-        }
-        for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate().filter(|(_, (_, b))| b.home) {
-            let design = probe_counts(b.size(), PROBE_SPACING_M);
-            if n(design) <= MAX_PROBES_PER_ROOM as u64 {
-                assert_eq!(lat.counts[i], design, "home room {} keeps its 1 m lattice", r.id);
-            }
-        }
-        assert!(!lat.home_coarsened);
-        assert!(lat.total() <= MAX_TOTAL_PROBES as u64, "{} probes", lat.total());
+        (meshes.room_info, boxes)
     }
 
-    /// Every Bounced light detail level on the shipped ship (the same room
-    /// set as above): within the level's cap, the home at the level's spacing
-    /// in every room its per-room cap allows and never coarsened, the rest of
-    /// the ship coarser than the home. `--nocapture` prints each level's
-    /// home and ship spacing: where the room-gi.md level table comes from.
+    /// The shipped ship's probe lattice since probe streaming (2026-10-21):
+    /// EVERY room at the level's spacing, the home and the Commons alike, and
+    /// only a room that alone would hold more than a quarter of the budget
+    /// (the commons hall, the street) coarsens, by itself. `--nocapture`
+    /// prints every room: where the room-gi.md figures come from.
     #[test]
-    fn every_bounced_light_detail_level_fits_the_shipped_ship() {
-        use crate::renderer::room_probes::{lattice_for, probe_counts};
-        use crate::renderer::bounced_light_detail::{detail_levels, mb_words};
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
-        let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
-        let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
-        let ship = ship_file.assemble(design, "p1").expect("it assembles at p1");
-        let meshes = ship.generate_meshes();
-        let boxes = room_boxes(Some(&ship), &meshes.room_info);
+    fn the_shipped_ship_takes_the_level_spacing_in_every_room() {
+        use crate::renderer::room_probes::{lattice_for, probe_counts, ProbeBudget, MAX_PROBES_PER_ROOM, PROBE_SPACING_M};
+        let (rooms, boxes) = shipped_rooms();
+        let lat = lattice_for(&boxes, ProbeBudget::default());
         let n = |c: [u32; 3]| c[0] as u64 * c[1] as u64 * c[2] as u64;
-        for level in detail_levels() {
-            let budget = level.budget();
-            let lat = lattice_for(&boxes, budget);
+        let mut coarsened = 0;
+        for (i, (r, b)) in rooms.iter().zip(&boxes).enumerate() {
+            let s = b.size();
+            let design = probe_counts(s, PROBE_SPACING_M);
             println!(
-                "{:<7} {:.2} m, cap {:>6} ({}): {} probes; home {} at {:?} m, others {} at {:?} m",
-                level.name,
-                level.spacing_m,
-                level.max_probes,
-                mb_words(level.memory_bytes()),
-                lat.total(),
-                lat.total_where(&boxes, true),
-                lat.home_spacing,
-                lat.total_where(&boxes, false),
-                lat.other_spacing
+                "{:<28} {:>7.2} x {:>5.2} x {:>7.2} m  at 1 m {:>6}  laid out {:?} = {:>5} at {:.2} m",
+                r.id, s.x, s.y, s.z, n(design), lat.counts[i], lat.probes_in(i), lat.spacing[i]
             );
-            assert!(lat.total() <= level.max_probes as u64, "{}: {} probes", level.id, lat.total());
-            assert!(!lat.home_coarsened, "{}: the home alone outgrew the cap", level.id);
-            for (i, (r, b)) in meshes.room_info.iter().zip(&boxes).enumerate().filter(|(_, (_, b))| b.home) {
-                let want = probe_counts(b.size(), level.spacing_m);
-                if n(want) <= budget.per_room() as u64 {
-                    assert_eq!(lat.counts[i], want, "{}: home room {} keeps {} m", level.id, r.id, level.spacing_m);
-                }
+            if n(design) <= MAX_PROBES_PER_ROOM as u64 {
+                assert_eq!(lat.counts[i], design, "{} keeps 1 m", r.id);
+            } else {
+                coarsened += 1;
+                assert!(lat.probes_in(i) <= MAX_PROBES_PER_ROOM, "{} within its own cap", r.id);
             }
-            assert!(lat.other_spacing.unwrap() >= lat.home_spacing.unwrap(), "{}", level.id);
+        }
+        println!("{} rooms, {} probes laid out, {coarsened} coarsened alone", boxes.len(), lat.total());
+        assert!(coarsened < 5, "only the big halls and the street coarsen ({coarsened})");
+    }
+
+    /// PROBE STREAMING ON THE SHIPPED SHIP, every Bounced light detail level:
+    /// standing in the home, then in the Commons, then home again, the rooms
+    /// holding probes never pass the level's budget, the room the player
+    /// stands in holds them within a fade of arriving, no room the budget
+    /// wants is still out three fades after arriving, and every room has its
+    /// ambient colour meanwhile, none dark where a lamp is (the twin's
+    /// `room_ambient` with the shipped lights). `--nocapture` prints what
+    /// each level holds where: the room-gi.md streaming table.
+    #[test]
+    fn the_shipped_ship_streams_its_probes_from_the_home_to_the_commons_and_back() {
+        use crate::renderer::bounced_light_detail::detail_levels;
+        use crate::renderer::room_probes::{
+            assign_lights, lattice_for, room_ambient, DirectSource, Residency, LEAVE_FADE_FRAMES,
+        };
+        let (rooms, boxes) = shipped_rooms();
+        let centre = |id: &str| {
+            let i = rooms.iter().position(|r| r.id == id).unwrap_or_else(|| panic!("no room {id}: {:?}", rooms.iter().map(|r| &r.id).collect::<Vec<_>>()));
+            Vec3::new(rooms[i].center.x, boxes[i].min.y + 1.7, rooms[i].center.z)
+        };
+        // The home's console room, and the largest room of the Commons.
+        let commons_hall = rooms
+            .iter()
+            .zip(&boxes)
+            .filter(|(r, _)| r.id.starts_with("commons:"))
+            .max_by(|a, b| a.1.volume().total_cmp(&b.1.volume()))
+            .map(|(r, _)| r.id.clone())
+            .expect("the Commons has rooms");
+        let home_room = rooms
+            .iter()
+            .zip(&boxes)
+            .filter(|(r, _)| !r.id.contains(':') && !r.id.starts_with("corridor_"))
+            .max_by(|a, b| a.1.volume().total_cmp(&b.1.volume()))
+            .map(|(r, _)| r.id.clone())
+            .expect("the home has rooms");
+        let walk = [("home", centre(&home_room)), ("commons", centre(&commons_hall)), ("home again", centre(&home_room))];
+        // The shipped lights: every room's own, as the renderer gives them.
+        let ship = {
+            let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+            let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
+            let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
+            let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
+            ship_file.assemble(design, "p1").expect("it assembles at p1")
+        };
+        let lights = crate::engine::home_meshes::home_lights(Some(&ship), Vec::new(), true);
+        let owned = assign_lights(&boxes, &lights);
+        let mut dark = Vec::new();
+        for (i, b) in boxes.iter().enumerate() {
+            let direct = DirectSource::Scene { lights: owned[i].iter().map(|&k| lights[k]).collect(), sun: None };
+            let amb = room_ambient(b, &direct, |_| Vec3::ZERO);
+            if !owned[i].is_empty() && amb.max_element() <= 1.0e-4 {
+                dark.push(rooms[i].id.clone());
+            }
+        }
+        assert!(dark.is_empty(), "rooms with lamps but a dark ambient colour: {dark:?}");
+        println!("{} rooms, {} lights; home room {home_room}, Commons hall {commons_hall}", boxes.len(), lights.len());
+        for level in detail_levels().iter().filter(|l| l.max_probes > 0) {
+            let lat = lattice_for(&boxes, level.budget());
+            let probes: Vec<u32> = (0..boxes.len()).map(|i| lat.probes_in(i)).collect();
+            let mut res = Residency::new(level.max_probes, boxes.len());
+            let mut line = format!("{:<7} budget {:>6} of {:>6}:", level.name, level.max_probes, lat.total());
+            for (what, eye) in walk {
+                let here = (0..boxes.len())
+                    .filter(|&i| boxes[i].contains(eye, 0.0))
+                    .min_by(|&a, &b| boxes[a].volume().total_cmp(&boxes[b].volume()))
+                    .expect("the eye stands in a room");
+                let mut arrived = None;
+                let mut waiting = Vec::new();
+                for f in 0..LEAVE_FADE_FRAMES * 3 {
+                    waiting = res.step(&boxes, &probes, eye).waiting;
+                    assert!(res.resident_probes() <= level.max_probes, "{} {what}: {} probes held", level.id, res.resident_probes());
+                    if arrived.is_none() && res.placement(here).weight >= 1.0 {
+                        arrived = Some(f);
+                    }
+                }
+                let arrived = arrived.unwrap_or(u32::MAX);
+                assert!(arrived <= LEAVE_FADE_FRAMES + 2, "{} {what}: {} came in after {arrived} frames", level.id, rooms[here].id);
+                let names: Vec<&str> = waiting.iter().map(|&i| rooms[i].id.as_str()).collect();
+                assert!(waiting.is_empty(), "{} {what}: rooms the budget wants still out after {} frames: {names:?}", level.id, LEAVE_FADE_FRAMES * 3);
+                line += &format!(
+                    "  {what}: {} rooms, {} probes ({} in after {arrived} frames)",
+                    res.resident_rooms(),
+                    res.resident_probes(),
+                    rooms[here].id
+                );
+            }
+            println!("{line}");
         }
     }
 

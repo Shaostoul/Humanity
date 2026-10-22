@@ -671,7 +671,9 @@ mod tests {
     /// declared but defaulting to `false`.
     #[test]
     fn validate_wgsl_refuses_a_megashader_missing_a_permutation_switch() {
-        use super::super::pipeline::{ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION};
+        use super::super::pipeline::{
+            ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_AMBIENT, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION,
+        };
         let intact = super::assembled_pbr_source();
         super::validate_wgsl(intact).expect("the embedded megashader passes the gate");
 
@@ -693,6 +695,13 @@ mod tests {
         assert!(naga_alone_accepts(&slabs_gone), "a megashader without HAS_SLAB_OCCLUSION is valid WGSL");
         let err = super::validate_wgsl(&slabs_gone).expect_err("a megashader without HAS_SLAB_OCCLUSION must be refused");
         assert!(err.contains(FEATURE_SLAB_OCCLUSION), "the refusal must name HAS_SLAB_OCCLUSION: {err}");
+
+        // And the room's ambient colour (2026-10-21). Seen fail first
+        // (2026-10-21) with HAS_ROOM_AMBIENT left out of ALL_SWITCHES (the gate never looks for it): "a megashader without HAS_ROOM_AMBIENT must be refused: ()".
+        let ambient_gone = without_switch(intact, FEATURE_ROOM_AMBIENT);
+        assert!(naga_alone_accepts(&ambient_gone), "a megashader without HAS_ROOM_AMBIENT is valid WGSL");
+        let err = super::validate_wgsl(&ambient_gone).expect_err("a megashader without HAS_ROOM_AMBIENT must be refused");
+        assert!(err.contains(FEATURE_ROOM_AMBIENT), "the refusal must name HAS_ROOM_AMBIENT: {err}");
 
         // One switch gone: naga alone accepts it; the gate refuses it and
         // names the switch.

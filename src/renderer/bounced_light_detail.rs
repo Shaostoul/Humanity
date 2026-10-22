@@ -11,23 +11,44 @@
 //! take longer to relight at a finer level.
 //!
 //! THIS FILE is the levels, the memory each takes (its cap x
-//! `BYTES_PER_PROBE`) and the words the Settings page shows, and the graphics
-//! card's own memory for the warning beside them (`note_adapter`, recorded at
-//! renderer start). docs/design/room-gi.md, "Bounced light detail".
+//! `BYTES_PER_PROBE`, plus the ambient row) and the words the Settings page
+//! shows, and the graphics card's own memory for the warning beside them
+//! (`note_adapter`, recorded at renderer start). docs/design/room-gi.md,
+//! "Bounced light detail".
+//!
+//! Since 2026-10-21 a level's cap is the probes RESIDENT at once (probe
+//! streaming: the rooms nearest the player hold them), and the lowest level,
+//! "Ambient", has a cap of 0: no probes, one colour per room from its own
+//! lamps and windows (`room_probes::room_ambient`).
 
-use super::room_probes::{AtlasLayout, ProbeBudget, DEPTH_TILE, IRR_TILE, MAX_PROBE_SPACING_M, MAX_TOTAL_PROBES, PROBE_SPACING_M};
+use super::room_probes::{
+    AtlasLayout, ProbeBudget, ATLAS_WIDTH, DEPTH_TILE, IRR_TILE, MAX_PROBE_SPACING_M, MAX_TOTAL_PROBES, PROBE_SPACING_M,
+};
 
 /// Video memory one probe takes in the atlas: its irradiance tile and its
 /// depth tile, borders included, at 8 bytes a texel (`room_probes_gpu::ATLAS_FORMAT`,
 /// Rgba16Float): (10 x 10 + 18 x 18) x 8 = 3,392 bytes.
 pub const BYTES_PER_PROBE: u64 = ((IRR_TILE * IRR_TILE + DEPTH_TILE * DEPTH_TILE) * 8) as u64;
 
+/// The atlas's AMBIENT ROW (`AtlasLayout::amb_y0`): one texel per room for
+/// its ambient colour, one atlas row wide, at every level. 64,800 bytes.
+pub const AMBIENT_ROW_BYTES: u64 = ATLAS_WIDTH as u64 * 8;
+
 /// The video memory a probe cap takes: `max_probes` x `BYTES_PER_PROBE`. The
-/// atlas never holds more than its level's cap (`atlas_probes_after`); its
-/// last rows are padded to the atlas width, at most one more row of each tile
-/// kind (1.8 MB).
+/// atlas holds exactly its level's cap (`room_probes_gpu::RoomGi::relayout`);
+/// its last rows are padded to the atlas width, at most one more row of each
+/// tile kind (1.8 MB), and the ambient row comes on top (`AMBIENT_ROW_BYTES`).
 pub fn probe_memory_bytes(max_probes: u32) -> u64 {
     max_probes as u64 * BYTES_PER_PROBE
+}
+
+/// "106 MB", or "63 KB" under a megabyte (the Ambient level's whole atlas).
+pub fn memory_words(bytes: u64) -> String {
+    if bytes < 1 << 20 {
+        format!("{} KB", grouped((bytes + 512) >> 10))
+    } else {
+        mb_words(bytes)
+    }
 }
 
 /// `n` with thousands separators ("32,768").
@@ -63,13 +84,20 @@ pub const MIN_DETAIL_SPACING_M: f32 = 0.25;
 pub struct DetailLevel {
     pub id: String,
     pub name: String,
-    /// How far apart the probes in the player's own home aim to be (metres).
+    /// How far apart every room's probes aim to be (metres). Unused by the
+    /// Ambient level, which may leave it out.
+    #[serde(default = "default_spacing")]
     pub spacing_m: f32,
-    /// The most probes the whole ship may hold.
+    /// The most probes held at once, by the rooms nearest the player. 0 is
+    /// the Ambient level: no probes, one colour per room.
     pub max_probes: u32,
     /// A short line saying what the level looks like.
     #[serde(default)]
     pub note: String,
+}
+
+fn default_spacing() -> f32 {
+    PROBE_SPACING_M
 }
 
 impl DetailLevel {
@@ -77,19 +105,22 @@ impl DetailLevel {
         ProbeBudget { spacing_m: self.spacing_m, max_probes: self.max_probes }
     }
 
-    /// Video memory at this level's cap.
+    /// Video memory at this level: its cap's probes and the ambient row.
     pub fn memory_bytes(&self) -> u64 {
-        probe_memory_bytes(self.max_probes)
+        probe_memory_bytes(self.max_probes) + AMBIENT_ROW_BYTES
     }
 
     /// What the Settings page says beside the level: its cap and its memory,
     /// both from the level's own numbers, then its note.
     pub fn words(&self) -> String {
         let note = if self.note.is_empty() { String::new() } else { format!(" {}", self.note) };
+        if self.max_probes == 0 {
+            return format!("no probes, about {} of video memory.{note}", memory_words(self.memory_bytes()));
+        }
         format!(
-            "up to {} probes, about {} of video memory.{note}",
+            "up to {} probes near you, about {} of video memory.{note}",
             grouped(self.max_probes as u64),
-            mb_words(self.memory_bytes())
+            memory_words(self.memory_bytes())
         )
     }
 }
@@ -130,9 +161,9 @@ struct DetailLevelsFile {
 
 /// The levels in `text` (the levels file; None when it could not be read),
 /// each held to what the renderer can do: spacing within
-/// `MIN_DETAIL_SPACING_M..=MAX_PROBE_SPACING_M`, the cap within one atlas, a
-/// repeated id dropped. Nothing usable gives the design's level alone, so the
-/// setting always has a level to stand on.
+/// `MIN_DETAIL_SPACING_M..=MAX_PROBE_SPACING_M`, the cap within one atlas (or
+/// 0, the Ambient level), a repeated id dropped. Nothing usable gives the
+/// design's level alone, so the setting always has a level to stand on.
 pub fn parse_detail_levels(text: Option<&str>) -> Vec<DetailLevel> {
     let parsed = text.and_then(|t| match serde_json::from_str::<DetailLevelsFile>(t) {
         Ok(f) => Some(f.levels),
@@ -149,7 +180,8 @@ pub fn parse_detail_levels(text: Option<&str>) -> Vec<DetailLevel> {
         }
         let spacing = if l.spacing_m.is_finite() { l.spacing_m } else { PROBE_SPACING_M };
         let spacing = spacing.clamp(MIN_DETAIL_SPACING_M, MAX_PROBE_SPACING_M);
-        let probes = l.max_probes.clamp(8, most);
+        // 0 stays 0: the Ambient level holds no probes at all.
+        let probes = if l.max_probes == 0 { 0 } else { l.max_probes.clamp(8, most) };
         if spacing != l.spacing_m || probes != l.max_probes {
             log::warn!(
                 "[RoomGI] detail level {}: {} m / {} probes held to {spacing} m / {probes}",
@@ -330,42 +362,46 @@ fn dedicated_memory(_vendor: u32, _device: u32) -> Option<u64> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use super::super::room_probes::{lattice_for, RoomBox};
+    use super::super::room_probes::{lattice_for, probe_counts, RoomBox};
     use glam::Vec3;
 
-    /// A room box with mid-grey faces; `home` says whose it is.
-    pub(crate) fn room(min: Vec3, max: Vec3, home: bool) -> RoomBox {
-        RoomBox { min, max, refl: [[0.5; 3]; 6], lid_transmittance: 0.0, home }
+    /// A room box with mid-grey faces.
+    pub(crate) fn room(min: Vec3, max: Vec3) -> RoomBox {
+        RoomBox { min, max, refl: [[0.5; 3]; 6], lid_transmittance: 0.0 }
     }
 
-    /// Six 10 x 3 x 10 m home rooms beside eight 40 x 3 x 40 m rooms of the
-    /// rest of the ship, which at every level hold more than what the home
-    /// leaves, so the rest coarsens and the cap is what bounds the total.
-    pub(crate) fn home_and_ship() -> Vec<RoomBox> {
+    /// Six 10 x 3 x 10 m rooms of a home beside eight 40 x 3 x 40 m rooms of
+    /// the rest of the ship: every level's budget holds far fewer probes than
+    /// the whole, so residency, not the lattice, decides who holds them.
+    pub(crate) fn ship() -> Vec<RoomBox> {
         let mut out: Vec<RoomBox> = (0..6)
             .map(|i| {
                 let x = -20.0 - i as f32 * 12.0;
-                room(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 10.0, 3.0, 10.0), true)
+                room(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 10.0, 3.0, 10.0))
             })
             .collect();
-        out.extend((0..8).map(|i| room(Vec3::new(i as f32 * 50.0, 0.0, 0.0), Vec3::new(i as f32 * 50.0 + 40.0, 3.0, 40.0), false)));
+        out.extend((0..8).map(|i| room(Vec3::new(i as f32 * 50.0, 0.0, 0.0), Vec3::new(i as f32 * 50.0 + 40.0, 3.0, 40.0))));
         out
     }
 
-    /// The shipped levels file: the four levels in order, High exactly the
-    /// design (today's `PROBE_SPACING_M` and `MAX_TOTAL_PROBES`, so the default
-    /// changes nothing), the levels ever finer and ever bigger, and every
-    /// cap's atlas within the 8,192-texel texture limit.
+    /// The shipped levels file: Ambient (no probes) and then Low to Ultra, High
+    /// exactly the design (today's `PROBE_SPACING_M` and `MAX_TOTAL_PROBES`,
+    /// so the default changes nothing), the probe levels ever finer and ever
+    /// bigger, and every cap's atlas within the 8,192-texel texture limit.
+    /// Seen red first (2026-10-21) with the levels file without the Ambient level: "data/gui/bounced_light_detail.json".
     #[test]
-    fn the_shipped_levels_are_low_to_ultra_with_high_the_design() {
+    fn the_shipped_levels_are_ambient_then_low_to_ultra_with_high_the_design() {
         let levels = detail_levels();
         let ids: Vec<&str> = levels.iter().map(|l| l.id.as_str()).collect();
-        assert_eq!(ids, ["low", "medium", "high", "ultra"], "{DETAIL_LEVELS_PATH}");
+        assert_eq!(ids, ["ambient", "low", "medium", "high", "ultra"], "{DETAIL_LEVELS_PATH}");
+        let ambient = detail_level("ambient");
+        assert_eq!(ambient.max_probes, 0, "the Ambient level holds no probes");
+        assert!(ambient.budget().ambient_only());
         let high = detail_level("high");
         assert_eq!(high.budget(), ProbeBudget::default(), "High is today's 1 m and 32,768");
         assert_eq!(detail_level(DEFAULT_DETAIL).id, "high");
         assert_eq!(detail_level("no such level").id, "high", "an unknown id gets the default");
-        for w in levels.windows(2) {
+        for w in levels[1..].windows(2) {
             assert!(w[1].spacing_m < w[0].spacing_m && w[1].max_probes > w[0].max_probes, "{} then {}", w[0].id, w[1].id);
         }
         for l in levels {
@@ -377,9 +413,10 @@ pub(crate) mod tests {
 
     /// The words beside each level give its cap and its memory, and the
     /// memory is the cap x 3,392 bytes (a probe's 10 x 10 irradiance tile and
-    /// 18 x 18 depth tile at 8 bytes a texel), never a number typed in. The
-    /// real atlas for the cap is at most one more row of each tile kind (its
-    /// last rows are padded out to the atlas width): 1.8 MB.
+    /// 18 x 18 depth tile at 8 bytes a texel) plus the ambient row's 64,800,
+    /// never a number typed in. The real atlas for the cap is at most one more
+    /// row of each tile kind (its last rows are padded out to the atlas
+    /// width): 1.8 MB. The Ambient level's is the ambient row alone, 63 KB.
     ///
     /// Seen red 2026-10-20 with `words` printing the memory of half the cap:
     /// "low: \"up to 8,192 probes, about 13 MB of video memory. Probes 2 m
@@ -387,51 +424,62 @@ pub(crate) mod tests {
     #[test]
     fn every_level_s_memory_words_are_its_cap_times_3392_bytes() {
         assert_eq!(BYTES_PER_PROBE, 3392);
+        assert_eq!(AMBIENT_ROW_BYTES, 64_800);
         assert_eq!(super::super::room_probes_gpu::ATLAS_FORMAT.block_copy_size(None), Some(8), "the atlas is 8 bytes a texel");
         assert_eq!(probe_memory_bytes(MAX_TOTAL_PROBES), 111_149_056);
         assert_eq!(mb_words(111_149_056), "106 MB");
         assert_eq!(mb_words(12_878_610_432), "12,282 MB");
+        assert_eq!(memory_words(64_800), "63 KB");
         for l in detail_levels() {
-            let bytes = l.max_probes as u64 * 3392;
+            let bytes = l.max_probes as u64 * 3392 + 64_800;
             let words = l.words();
             println!("{:<7} {:>5.2} m  {:>6} probes  {}", l.name, l.spacing_m, l.max_probes, words);
-            assert!(words.contains(&mb_words(bytes)), "{}: {words:?} lacks {}", l.id, mb_words(bytes));
-            assert!(words.contains(&grouped(l.max_probes as u64)), "{}: {words:?} lacks the cap", l.id);
+            assert!(words.contains(&memory_words(bytes)), "{}: {words:?} lacks {}", l.id, memory_words(bytes));
+            if l.max_probes > 0 {
+                assert!(words.contains(&grouped(l.max_probes as u64)), "{}: {words:?} lacks the cap", l.id);
+            } else {
+                assert!(words.starts_with("no probes"), "{}: {words:?}", l.id);
+            }
             let real = AtlasLayout::for_probes(l.max_probes).texel_count() as u64 * 8;
             let one_row_each = ((IRR_TILE + DEPTH_TILE) * super::super::room_probes::ATLAS_WIDTH) as u64 * 8;
             println!("        the atlas at the cap: {real} B, {} more than the words", real - bytes);
             assert!(real >= bytes && real - bytes <= one_row_each, "{}: atlas {real} B against {bytes} B", l.id);
         }
+        assert_eq!(AtlasLayout::for_probes(0).texel_count() as u64 * 8, AMBIENT_ROW_BYTES);
     }
 
-    /// Each level's spacing and cap reach `lattice_for`: the home's rooms take
-    /// the level's spacing exactly, the ship stays within the level's cap, the
-    /// rest of the ship fills most of what the home leaves, and no two levels
-    /// lay the same lattice out.
+    /// Each level's spacing reaches every room that fits its per-room cap (a
+    /// quarter of its budget) and no room's lattice depends on how many other
+    /// rooms there are (probe streaming: the budget is for the rooms near the
+    /// player, `room_probes::Residency`), and no two probe levels lay the
+    /// same lattice out.
     ///
     /// Seen red 2026-10-20 with `lattice_for` reading the constants instead of
     /// `budget` (the design spacing and cap): "low: home room 0 [11, 4, 11]
     /// against [6, 3, 6] at 2 m".
     #[test]
     fn each_level_s_spacing_and_cap_reach_the_lattice() {
-        let rooms = home_and_ship();
+        let rooms = ship();
         let mut seen: Vec<Vec<[u32; 3]>> = Vec::new();
-        for l in detail_levels() {
+        for l in detail_levels().iter().filter(|l| l.max_probes > 0) {
             let lat = lattice_for(&rooms, l.budget());
-            let design = super::super::room_probes::probe_counts(Vec3::new(10.0, 3.0, 10.0), l.spacing_m);
-            for (i, r) in rooms.iter().enumerate().filter(|(_, r)| r.home) {
-                assert_eq!(lat.counts[i], design, "{}: home room {i} {:?} against {design:?} at {} m", l.id, lat.counts[i], l.spacing_m);
+            for (i, r) in rooms.iter().enumerate() {
+                let want = probe_counts(r.size(), l.spacing_m);
+                let n = want[0] * want[1] * want[2];
+                if n <= l.budget().per_room() {
+                    assert_eq!(lat.counts[i], want, "{}: room {i} {:?} against {want:?} at {} m", l.id, lat.counts[i], l.spacing_m);
+                } else {
+                    assert!(lat.probes_in(i) <= l.budget().per_room(), "{}: room {i} over its own cap", l.id);
+                }
+                // The same room alone gets the same lattice.
+                assert_eq!(lattice_for(std::slice::from_ref(r), l.budget()).counts[0], lat.counts[i], "{}: room {i}", l.id);
             }
-            assert_eq!(lat.home_spacing, Some(l.spacing_m), "{}", l.id);
-            assert!(lat.total() <= l.max_probes as u64, "{}: {} probes over {}", l.id, lat.total(), l.max_probes);
-            assert!(lat.total() as f64 >= 0.75 * l.max_probes as f64, "{}: {} probes leave most of {} unused", l.id, lat.total(), l.max_probes);
             assert!(!seen.contains(&lat.counts), "{}: the same lattice as a level before it", l.id);
             seen.push(lat.counts);
         }
         // And a level's numbers, not the file's: a made-up budget reaches it too.
         let lat = lattice_for(&rooms, ProbeBudget { spacing_m: 0.5, max_probes: 100_000 });
         assert_eq!(lat.counts[0], [21, 7, 21]);
-        assert!(lat.total() <= 100_000);
     }
 
     /// The levels file is held to what the renderer can do, and a missing or
@@ -452,6 +500,11 @@ pub(crate) mod tests {
         assert_eq!((got[1].spacing_m, got[1].max_probes), (MAX_PROBE_SPACING_M, atlas_max_probes()));
         let most = atlas_max_probes();
         assert!(AtlasLayout::for_probes(most).height <= 8192 && AtlasLayout::for_probes(most + 1).height > 8192, "{most}");
+        // A cap of 0 is the Ambient level and stays 0 (any other cap is held
+        // to at least 8); a level may leave its spacing out. Seen red first
+        // (2026-10-21) with a cap of 0 held to at least 8: "[DetailLevel { id: 'flat', name: 'Flat', spacing_m: 1.0, max_probes: 8, note: '' }]".
+        let got = parse_detail_levels(Some(r#"{"levels":[{"id":"flat","name":"Flat","max_probes":0}]}"#));
+        assert_eq!((got[0].max_probes, got[0].spacing_m), (0, PROBE_SPACING_M), "{got:?}");
     }
 
     /// The card line and the warning: no warning without a card's own memory
