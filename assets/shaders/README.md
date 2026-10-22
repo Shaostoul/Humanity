@@ -32,8 +32,12 @@ All meshes use: position (vec3), normal (vec3), tangent (vec3), bitangent (vec3)
 |--------|---------|
 | `star.wgsl` | Point-based stars with magnitude-driven brightness |
 | `constellation_lines.wgsl` | Vertex-colored line overlays for constellations |
-| `sun_surface.wgsl` | Animated solar surface: granulation, filaments, sunspots, corona |
-| `sun_glow.wgsl` | Screen-space corona billboard with animated filament rays |
+| `sun_vis.wgsl` | How much of the Sun's disc a view can see (depth taps), for its glare |
+
+The Sun's disc and corona are material type 17 in the PBR megashader, its
+disc through the air is drawn by the scattering shell, and its glare is added
+in `present.wgsl` (`src/renderer/sun_disc.rs`). The unused `sun_surface.wgsl`
+and `sun_glow.wgsl` from the v0.8.0 port were deleted on 2026-10-21.
 
 ## Planet Shaders
 

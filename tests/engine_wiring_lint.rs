@@ -285,8 +285,11 @@ fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
 ///    recorder's hide-HUD leaves a dot in the middle of every clip.
 /// 4. The daylight gate and the fades read the sun over the TURNED ground:
 ///    both pass `state.current_spin` (BUG-138, the starless night).
-/// 5. The sun's disc and corona are dimmed by `frame_lock::sun_disc_clear`,
-///    or the corona stands over the horizon as a pink dome before sunrise.
+/// 5. The sun's glare takes `frame_lock::sun_disc_clear` for the part of the
+///    disc off the screen, or a Sun just under the horizon out of the frame
+///    throws its glare over it (until 2026-10-21 the disc and corona sprites
+///    themselves were dimmed by it, or the corona stood over the horizon as a
+///    pink dome before sunrise; the disc is now hidden by depth).
 ///
 /// Red checks, run 2026-10-04, one at a time against a reverted call site:
 /// the lib.rs star call with `render_to_world_rot(...)` in place of
@@ -297,7 +300,9 @@ fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
 /// not drawn under hud::crosshair_visible"; `sky_daylight` with `0.0` for
 /// the spin failed "sky_daylight does not read the sun over the turned
 /// ground"; and the sun block without `sun_disc_clear` failed "lib.rs's sun
-/// disc and corona ignore the horizon".
+/// disc and corona ignore the horizon". Rule 5 as rewritten 2026-10-21, run
+/// against lib.rs with `let clear = 1.0_f32;`: "lib.rs's sun glare ignores the
+/// horizon for the disc off the screen (frame_lock::sun_disc_clear)".
 #[test]
 fn sky_and_lens_call_sites_use_their_shared_rules() {
     let lib = src_file("lib.rs");
@@ -358,16 +363,17 @@ fn sky_and_lens_call_sites_use_their_shared_rules() {
         );
     }
 
-    // 5. The sun's glare follows its disc over the horizon.
-    // The halo's per-frame material write (not its draw, which names the
-    // material too).
+    // 5. The sun's glare follows its disc over the horizon. Since 2026-10-21
+    // (renderer/sun_disc.rs) the disc itself is hidden by depth, and its glare,
+    // added in the present over everything, measures the visible share with
+    // depth taps; a tap off the screen takes frame_lock::sun_disc_clear. The
+    // per-frame sun block must hand that value to the glare's frame.
     let sun_block = lib
-        .match_indices("state.sun_halo_material,")
-        .map(|(i, _)| &lib[i.saturating_sub(1200)..i])
-        .find(|before| before.trim_end().ends_with("update_material_full("))
+        .find("f.off_screen = clear;")
+        .map(|i| &lib[i.saturating_sub(2400)..i])
         .unwrap_or("");
     assert!(
-        sun_block.contains("frame_lock::sun_disc_clear(state)") && sun_block.contains("* clear"),
-        "lib.rs's sun disc and corona ignore the horizon (frame_lock::sun_disc_clear)"
+        sun_block.contains("let clear = crate::engine::frame_lock::sun_disc_clear(state);"),
+        "lib.rs's sun glare ignores the horizon for the disc off the screen (frame_lock::sun_disc_clear)"
     );
 }

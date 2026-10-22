@@ -627,34 +627,20 @@ pub(crate) fn load_world(state: &mut EngineState) {
     let sun_dir = glam::DVec3::new(0.3, 1.0, 0.5).normalize();
     const ONE_AU_M: f64 = 149_597_870_700.0;
     state.sun_world_pos = sun_dir * ONE_AU_M;
-    // Emissive yellow-white core. params.w (emissive) cranked high so
-    // tone mapping still leaves the Sun near-white on screen.
-    // Core = the SAME radial-glow type as the corona (v0.887, operator:
-    // "can you see hard seam of the sun's edge inside the corona?").
-    // An emissive sphere has a hard geometric silhouette; the type-17
-    // profile reaches zero exactly at the mesh edge, so a tight,
-    // high-intensity glow saturates white-hot at the center and hands
-    // over seamlessly to the wider corona shell - no edge anywhere.
+    // The Sun (type 17, 2026-10-21, renderer/sun_disc.rs): its disc at its
+    // true size and real radiance, limb-darkened, with Baumbach's corona,
+    // all from the view ray in the shader. base_color.rgb is a tint the
+    // shader multiplies in, white: nothing from the player's state may dim
+    // the disc (the air in front of it is the shell's, per pixel). No
+    // intensity here, the light is the Sun's own. (This replaced v0.886-v0.887's
+    // radial glow at intensity 30 and its 2.2 "corona halo" three times
+    // wider, both on a disc floored at ten times the Sun's width.)
     state.sun_material = state.renderer.add_material_full(
-        [1.0, 0.96, 0.88, 1.0],
+        [1.0, 1.0, 1.0, 1.0],
         0.0,
         1.0,
         17.0,
-        30.0,
-    );
-    // Halo material — warmer orange, lower emissive. Rendered at a
-    // larger scale in the scene to suggest a corona around the core.
-    // A true bloom post-process would do this properly, but the
-    // halo mesh is a cheap approximation that works without one.
-    // Radial-glow corona (shader type 17, v0.886): center-bright halo
-    // that melts into space around the emissive core - drawn on a 3x
-    // sphere in the transparent celestial list at the sun draw site.
-    state.sun_halo_material = state.renderer.add_material_full(
-        [1.0, 0.82, 0.55, 0.85],
         0.0,
-        1.0,
-        17.0,
-        2.2,
     );
 
     // ── Real solar-system body materials (map sync, increment B) ──

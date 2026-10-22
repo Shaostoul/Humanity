@@ -219,12 +219,69 @@ pub(crate) fn cloud_ground_params(state: &EngineState) -> (f32, f32, bool) {
 /// only see occluders in the frame, so without this the night side of
 /// the station showed shafts "peaking around and through the planet"
 /// (operator report, 2026-07-21).
+///
+/// NOT ABOVE THE AIR (2026-10-21). Crepuscular rays are light scattered by air
+/// between the camera and what it looks at, so the pass is an AIR effect, and
+/// above the frame body's air there is none in front of the camera. The pass
+/// still ran there: from low orbit its radial glow lay ON the planet's disc
+/// below the Sun's position (its taps on the planet run up into open sky past
+/// the limb), the second bright smudge on the limb in the operator's screenshot
+/// of 2026-10-21, and from deep space it washed the whole black sky grey-brown.
+/// It now eases out over the same band the camera's sun is released in
+/// ([`above_air`], 100 to 200 km for Earth), so everything inside the air is
+/// unchanged. The limb's own glow toward the Sun is the atmosphere shell's Mie
+/// forward scattering, which is physical and stays.
 pub(crate) fn godray_scale(state: &EngineState) -> f32 {
     let occ = sun_occlusion_factor(state);
     if occ <= 0.001 {
         return 0.0;
     }
-    occ * godray_weather_scale(state)
+    // With no frame body the camera is in open space (aboard the home too: its
+    // own air is tens of metres deep, and the pass would spread its glow over
+    // the space outside the glass, the operator's "large soft glow" of
+    // 2026-10-21). A body with no air (the Moon: the first capture of the new
+    // Sun from its surface still had the glow over the whole black sky) has
+    // none to light either. The showcase pin {"godrays":"1"} keeps the
+    // pre-2026-10-21 behaviour for an A/B.
+    let has_air = state
+        .frame_lock_body
+        .as_deref()
+        .and_then(|b| state.planet_defs.get(b))
+        .and_then(|d| d.atmosphere_color)
+        .is_some_and(|c| c[3] > 0.0);
+    let in_air = if state.renderer.godrays_pin == Some(true) {
+        1.0
+    } else if has_air {
+        1.0 - above_air(state)
+    } else {
+        0.0
+    };
+    occ * godray_weather_scale(state) * in_air
+}
+
+/// How far the camera has risen out of the frame body's air, 0..1: 0 inside it
+/// (below the co-rotation ceiling, 100 km for Earth), 1 a ceiling's height above
+/// it, eased between (key_lights::camera_sun_release). The camera's sun is
+/// released to the plain Sun by it (lib.rs), and the god rays fade out by it.
+/// 0 with no frame body.
+pub(crate) fn above_air(state: &EngineState) -> f32 {
+    state
+        .frame_lock_body
+        .as_deref()
+        .map(|b| {
+            let radius = state
+                .planet_defs
+                .get(b)
+                .map(|d| d.radius)
+                .or_else(|| crate::cosmos::find_body(b).map(|cb| cb.radius_km * 1000.0))
+                .unwrap_or(6_371_000.0);
+            let band_k = (radius / 6_371_000.0).clamp(0.001, 4.0);
+            crate::renderer::key_lights::camera_sun_release(
+                state.frame_lock_anchor.length() - radius,
+                (CO_ROTATE_MAX_ALT * band_k).max(2_000.0),
+            )
+        })
+        .unwrap_or(0.0)
 }
 
 /// Geometric sun visibility from the camera against every solar body

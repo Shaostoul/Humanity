@@ -28,11 +28,14 @@ all operator-reported and all patched with heuristics rather than solved:
   dark (real skies get 30-60 percent of their brightness from multiple
   scattering, more at twilight), so we over-expose to compensate and then
   claw it back with two more knobs.
-- **Sun disc dimming wrong.** The sun disc (`sun_surface.wgsl` + the type 17
-  corona) is dimmed by whatever alpha the haze shell happens to have over it,
-  not by the actual transmittance along the view ray to the sun. Correct
-  behavior: the disc's radiance is multiplied by per-channel transmittance,
-  which is what makes a setting sun dim AND redden (blue extinguishes first).
+- **Sun disc dimming wrong.** The sun disc (the type 17 glow) is dimmed by
+  whatever alpha the haze shell happens to have over it, not by the actual
+  transmittance along the view ray to the sun. Correct behavior: the disc's
+  radiance is multiplied by per-channel transmittance, which is what makes a
+  setting sun dim AND redden (blue extinguishes first). DONE 2026-10-21
+  (`src/renderer/sun_disc.rs`): the scattering shell now draws the disc
+  itself, its real radiance times the ray's own per-channel transmittance,
+  added to the in-scatter before the tone curve.
 - **No aerial perspective on terrain.** Distant mountains and coastline render
   at full contrast; only the atmosphere shell behind them tints. This is the
   single strongest missing realism cue (see the aerial perspective section).

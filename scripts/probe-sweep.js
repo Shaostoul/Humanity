@@ -721,6 +721,7 @@ async function main() {
   const gfx = prepareGraphics();
 
   log(`launching ${path.basename(EXE_SRC)} in ${RIG}`);
+  if (OTHER_BUILD) log(`  shaders: the ones compiled into ${path.basename(EXE_SRC)} (another build), not this tree's parts on disk`);
   // spawnGame (lib/game-launch.js): checks the copy against the judged bytes
   // once more, immediately before the spawn; always sets HUMANITY_NO_HANDOFF;
   // and watches for an exit we did not ask for (and the hand-off an older
@@ -748,7 +749,17 @@ async function main() {
     // (HUMANITY_NO_HANDOFF is spawnGame's: run THIS exe, the one the gate and
     // the copy check judged, never a newer v*_HumanityOS.exe it would
     // otherwise hand off to; the rig's portable.txt blocks that too.)
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_SHADERS_FROM_DISK: "1" },
+    //
+    // NOT FOR ANOTHER BUILD (2026-10-21). An --allow-other-build run (an
+    // archive for a before/after, a red check) booted with THIS tree's shader
+    // parts too: the old Rust drawing the new shaders, which is neither build.
+    // Found when the v0.1541.0 "before" Sun vanished everywhere: its type-17
+    // material ran the new disc shader, which reads camera pads the old Rust
+    // never wrote. Another build now draws with the shaders compiled into it,
+    // and the run log says so.
+    env: OTHER_BUILD
+      ? { ...process.env, HUMANITY_NO_FOCUS: "1" }
+      : { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_SHADERS_FROM_DISK: "1" },
   });
   const child = game.child;
   const pid = child.pid;
@@ -1015,6 +1026,10 @@ async function main() {
         // camera somewhere else (once, tens of thousands of km out in space),
         // and the capture used to be "ok" anyway, so it fails the vantage.
         checkStationPark(v, cam, rec, "park", stationMisses);
+        // Where the engine says the camera went (a station park's position
+        // and look, an "aim":"sun" park's chosen look), so a later run with
+        // another exe can repeat the exact pose.
+        rec.camera_done = cam;
         // CLOCK FREEZE (2026-09-05): the 20-minute day turns the planet 0.3
         // degrees per second under a world-fixed camera, so two captures of
         // one vantage came out rotated about the nadir. Hold the clock still

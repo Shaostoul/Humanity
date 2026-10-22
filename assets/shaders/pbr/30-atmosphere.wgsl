@@ -1018,9 +1018,8 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     // v0.913 (operator: "looking away from the sun... I can still see the
     // stars" + "our changes have hidden OUR sun"): occlusion is now driven
     // by the DAY itself (sun elevation at the camera), so the whole dome
-    // hides stars at noon, not just the bright half; and a narrow window
-    // toward the sun disc keeps the sky from occluding the sun - the sun
-    // outshines its own sky, and the disc stays sharp.
+    // hides stars at noon, not just the bright half. (The window toward
+    // the sun disc that came with it is gone: see below, 2026-10-21.)
     let sun_l = normalize(camera.sun_direction.xyz);
     // v0.925 (operator: "a hard edged black shell around the Earth that
     // should be the atmosphere fading to stars"): the geometric day term
@@ -1034,7 +1033,6 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     // faint outer shell fades smoothly into stars.
     let day = smoothstep(-0.08, 0.12, dot(normalize(ro), sun_l))
         * (1.0 - max(w_alt, w_far));
-    let toward_sun = smoothstep(0.9986, 0.9997, dot(rd, sun_l));
     // 4.5 (was 3.2 pre-v0.918): the calibrated dome is dimmer, so the
     // luminance-driven twilight occlusion needs a stronger gain to keep
     // stars hidden through civil dusk. Daytime is owned by the `day` term
@@ -1062,7 +1060,13 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     if (!hits_surface) {
         alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));
     }
-    alpha_occ = mix(alpha_occ, alpha, toward_sun);
+    // (Until 2026-10-21 a window of 1.4 to 3 degrees round the Sun dropped the
+    // sky's coverage to the plain transmittance here, "so the sun outshines its
+    // own sky": the old Sun was a glow ten times the disc's width BEHIND this
+    // shell and needed a hole to show through. The disc is now drawn by this
+    // shell itself at the end, so the hole only let black space through: a dark
+    // ring 1.4 degrees round the noon Sun, seen in the first capture of the new
+    // disc. The sky now covers what is behind it right up to the disc.)
     // ── A BODY IN THE SKY IS SEEN THROUGH THE AIR (2026-10-21) ──
     // The rule above hides the stars by day because the sky outshines them,
     // and it hid the Moon with them (0.985 of it gone at noon, most of it at
@@ -1128,7 +1132,36 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool, pix: vec
     let delivered = mapped * haze_scale + aurora;
     let cap = max(haze_occ, aurora_lum);
     let rgb = clamp(delivered / max(cap, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
-    return vec4<f32>(rgb * cap, alpha_a);
+    // ── THE SUN SEEN THROUGH THIS AIR (2026-10-21, renderer/sun_disc.rs) ──
+    // Where the Sun's disc is behind this shell, the shell draws it: the
+    // photosphere's light (sun_disc, 80-fragment-shared.wgsl) times THIS ray's
+    // own transmittance, per channel (`trans`), added to the air's own light
+    // BEFORE the tone curve, as light adds. So a low Sun yellows and then
+    // reddens through the thick air near the horizon, and from orbit a Sun in
+    // the limb dims and reddens row by row as its rays graze lower air. The
+    // type-17 sphere behind draws the same disc with no air in front of it, and
+    // this covers it (coverage 1 over the disc). Never through the ground, and
+    // not through the body the camera's own air shows by day (the Moon, in an
+    // eclipse: sky_disc_cover). The weather fog's share of the layer hides it
+    // as it hides the stars (fog_pass).
+    var out_rgb = rgb * cap;
+    var out_a = alpha_a;
+    if (!hits_surface) {
+        let sd = sun_disc(rd);
+        if (sd.a > 0.0) {
+            let cov = sd.a * (1.0 - sky_disc_cover(rd, cam_inside));
+            let lin = radiance_fog + trans * sd.rgb * fog_pass;
+            let disc_rgb = clamp(
+                (lin * (aces_a * lin + vec3<f32>(aces_b)))
+                    / (lin * (aces_c * lin + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+                vec3<f32>(0.0),
+                vec3<f32>(1.0),
+            );
+            out_rgb = mix(out_rgb, disc_rgb, cov);
+            out_a = mix(out_a, 1.0, cov);
+        }
+    }
+    return vec4<f32>(out_rgb, out_a);
 }
 
 // How much of a ray is the disc of the body seen through the camera's air

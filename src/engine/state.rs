@@ -359,11 +359,8 @@ pub(crate) struct EngineState {
     pub(crate) planet_water_materials: std::collections::HashMap<String, usize>,
     /// World-space position of the Sun (Earth-centred coordinates).
     pub(crate) sun_world_pos: glam::DVec3,
-    /// Emissive material index for the Sun core.
+    /// The Sun's material (type 17: its disc and corona, renderer/sun_disc.rs).
     pub(crate) sun_material: usize,
-    /// Emissive material index for the Sun halo (larger sphere, warmer,
-    /// lower emissive — gives the Sun a faked corona without bloom).
-    pub(crate) sun_halo_material: usize,
     /// Materials for the real solar-system bodies rendered around the
     /// home (v0.262.9, map sync increment B): [0]=rocky, [1]=gas
     /// giant, [2]=icy/dwarf, [3]=default grey. Picked by SolBody

@@ -252,6 +252,72 @@ fn layer_sun() -> vec4<f32> {
     return camera.light3_spot;
 }
 
+// ── THE SUN'S DISC (2026-10-21, renderer/sun_disc.rs) ──
+// The photosphere at its true size, limb-darkened, at its real radiance; the
+// type-17 sphere draws it where no air is in front of it and the scattering
+// atmosphere draws it through its own air (30-atmosphere.wgsl). The pads, set by
+// the celestial pass from lib.rs:
+//   camera.light6_spot: rgb = the disc-CENTRE radiance before any air, in scene
+//     units (about 46,000: a sunlit white wall is 0.8), w = the true angular
+//     radius in radians; w <= 0 when there is no Sun to draw (the showroom).
+//   camera.light7_spot: xyz = the unit direction from the camera to the Sun's
+//     centre (the exact one; camera.sun_direction is taken from the frame origin).
+// Limb darkening per channel, I(mu)/I(1) = mu^alpha: Hestroffer & Magnan (1998)
+// weighted over each sRGB channel. Rust twin: sun_disc::LIMB_ALPHA.
+const SUN_LIMB_ALPHA: vec3<f32> = vec3<f32>(0.4346, 0.5132, 0.6417);
+// Below this many pixels of radius the disc stops shrinking and dims instead
+// (sun_disc::DISC_FLOOR_PX), so a far Sun is still a point of the right light.
+const SUN_DISC_FLOOR_PX: f32 = 0.7;
+
+// The angle between two unit vectors, precise when they are nearly equal
+// (acos is not: at 0.3 degrees it has three good digits in f32).
+fn sun_angle_between(a: vec3<f32>, b: vec3<f32>) -> f32 {
+    return 2.0 * asin(clamp(0.5 * length(a - b), 0.0, 1.0));
+}
+
+// The photosphere on the ray `rd`: rgb = its radiance before any air (scene
+// units, limb-darkened, dimmed below the pixel floor), a = how much of this
+// pixel the disc covers (0..1, antialiased over one pixel's angle).
+fn sun_disc(rd: vec3<f32>) -> vec4<f32> {
+    let disc = camera.light6_spot;
+    if (disc.w <= 0.0) {
+        return vec4<f32>(0.0);
+    }
+    let px = max(camera.light1_spot.x, 1.0e-7);
+    let ang = sun_angle_between(rd, normalize(camera.light7_spot.xyz));
+    let r = max(disc.w, SUN_DISC_FLOOR_PX * px);
+    let cov = 1.0 - smoothstep(r - 0.5 * px, r + 0.5 * px, ang);
+    if (cov <= 0.0) {
+        return vec4<f32>(0.0);
+    }
+    let energy = (disc.w / r) * (disc.w / r);
+    // mu at this ray, held at the half-pixel point inside the edge so the
+    // antialiased rim carries the rim's light, not the limb's zero.
+    let b = min(ang / r, max(1.0 - 0.5 * px / r, 0.0));
+    let mu = sqrt(max(1.0 - b * b, 0.0));
+    let ld = pow(vec3<f32>(max(mu, 1.0e-3)), SUN_LIMB_ALPHA);
+    return vec4<f32>(disc.rgb * ld * energy, cov);
+}
+
+// The corona on the ray `rd`, scene units: Baumbach's (1937) mean K+F corona,
+// I(r) = 0.0532 r^-2.5 + 1.425 r^-7 + 2.565 r^-17 millionths of the disc-centre
+// brightness, r in solar radii (sun_disc::baumbach_corona). Zero inside the disc
+// and beyond three radii. Seen only where it really is: round a covered disc in
+// a dark sky; next to the disc itself or in daylight it is a millionth of what
+// is beside it.
+fn sun_corona(rd: vec3<f32>) -> vec3<f32> {
+    let disc = camera.light6_spot;
+    if (disc.w <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    let rho = sun_angle_between(rd, normalize(camera.light7_spot.xyz)) / disc.w;
+    if (rho < 1.0 || rho > 3.0) {
+        return vec3<f32>(0.0);
+    }
+    let i = 0.0532 * pow(rho, -2.5) + 1.425 * pow(rho, -7.0) + 2.565 * pow(rho, -17.0);
+    return disc.rgb * (1.0e-6 * i);
+}
+
 // The shared PBR lighting tail every surface class ends with. Reads the
 // setup as the class entry left it and returns the final tone-mapped colour
 // with the output alpha. The locals below carry the fs_main names so the

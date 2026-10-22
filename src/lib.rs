@@ -1902,7 +1902,6 @@ mod native_app {
                 planet_water_materials: std::collections::HashMap::new(),
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
-                sun_halo_material: 0,
                 solar_body_materials: [0; 8],
                 solar_orbit_paths: Vec::new(),
                 homestead_floors: Vec::new(),
@@ -9404,6 +9403,11 @@ mod native_app {
                         // and the frame body's sphere for the shells' sun (layer_sun).
                         let mut disc_cands: Vec<crate::renderer::key_lights::DiscCandidate> = Vec::new();
                         state.renderer.frame_body_sphere = [0.0; 4];
+                        // The Sun's disc pads and its frame (renderer/sun_disc.rs): set
+                        // below when the Sun is drawn, zero (no disc, no glare) when not.
+                        state.renderer.sun_disc_pad = [[0.0; 4]; 2];
+                        state.renderer.sun_frame = None;
+                        state.renderer.sun_air_los = [1.0; 3];
 
                         // Temporal clouds (phase 4): cleared each frame; the
                         // cloud branch below re-arms it for the (single)
@@ -9512,11 +9516,36 @@ mod native_app {
                             // km is sub-pixel. Clamp the on-screen disc to
                             // a minimum angular size so it reads as a body
                             // (true POSITION is always exact -- only the
-                            // disc is floored, same trick the old Sun used
-                            // and how Elite/KSP draw distant bodies). The
-                            // Sun gets a bigger floor so it reads as a sun.
-                            let min_ang = if is_sun { 0.045 } else { 0.0028 };
-                            let visual_scale = radius_m.max(dist * min_ang) as f32;
+                            // disc is floored, how Elite/KSP draw distant
+                            // bodies).
+                            //
+                            // NOT THE SUN (2026-10-21, renderer/sun_disc.rs).
+                            // Its disc was floored at dist * 0.045, ten times
+                            // its width, and read as "a giant glare/bloom spot"
+                            // with no body (the operator). It is now drawn at
+                            // its TRUE angular size by the shader, from the
+                            // view ray (sun_disc() in 80-fragment-shared.wgsl),
+                            // and this sphere only has to cover it and its
+                            // corona: three solar radii, or the disc's own
+                            // pixel floor plus two pixels when it is tiny.
+                            let visual_scale = if is_sun {
+                                let px_angle = (fov_deg as f64).to_radians() / (viewport_h as f64).max(1.0);
+                                state.renderer.sun_disc_pad = crate::renderer::sun_disc::camera_pads(dist, body_dir);
+                                // Its glare's frame; the air and cloud factors are
+                                // filled in once they are known this frame (the
+                                // sun-material block before the celestial pass).
+                                state.renderer.sun_frame = Some(crate::renderer::sun_glare::SunFrame {
+                                    dir: body_dir.as_vec3(),
+                                    dist_m: dist,
+                                    air: [1.0; 3],
+                                    cloud: 1.0,
+                                    off_screen: 1.0,
+                                    air_top: None,
+                                });
+                                (dist * crate::renderer::sun_disc::mesh_angular_radius(dist, px_angle).tan()) as f32
+                            } else {
+                                radius_m.max(dist * 0.0028) as f32
+                            };
 
                             // Projected on-screen size (of the floored disc,
                             // since that is what actually rasterizes) drives
@@ -11028,9 +11057,10 @@ mod native_app {
                                     }
                                 };
                                 if is_sun {
-                                    // Type-17 core (v0.887) blends: it must
-                                    // ride the transparent list or the alpha
-                                    // is stamped opaque.
+                                    // The Sun (type 17, renderer/sun_disc.rs)
+                                    // blends: its antialiased rim and its corona
+                                    // ride the transparent list, first, so the
+                                    // air and clouds in front draw over it.
                                     celestial_transparent.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(
                                             render_off.x as f32,
@@ -11056,24 +11086,11 @@ mod native_app {
                                     });
                                     body_draws.push(body_draw(material));
                                 }
-                                // Sun corona halo (v0.886): radial-glow shell
-                                // (type 17) on a 3x sphere over the emissive
-                                // core - the halo material existed since the
-                                // beginning but was never drawn, leaving the
-                                // sun a hard-edged white blob.
-                                if is_sun {
-                                    celestial_transparent.push(RenderObject { fade: 0.0,
-                                        position: Vec3::new(
-                                            render_off.x as f32,
-                                            render_off.y as f32,
-                                            render_off.z as f32,
-                                        ),
-                                        rotation: Quat::IDENTITY,
-                                        scale: Vec3::splat(visual_scale * 3.0),
-                                        mesh: body_mesh,
-                                        material: state.sun_halo_material,
-                                    });
-                                }
+                                // (The v0.886 "corona halo", a radial glow on a
+                                // sphere three times the floored disc, was drawn
+                                // here until 2026-10-21. The corona is now
+                                // Baumbach's, in the Sun's own shader, and the
+                                // glare is the aperture's, in the present pass.)
                             }
                             let position = Vec3::new(
                                 render_off.x as f32,
@@ -11409,23 +11426,7 @@ mod native_app {
                         // air each have their own terminator. Above the frame lock's
                         // co-rotation ceiling (the air's top, 100 km for Earth) both ease
                         // to the plain Sun (key_lights::camera_sun_release, release_tests).
-                        let sun_release = state
-                            .frame_lock_body
-                            .as_deref()
-                            .map(|b| {
-                                let radius = state
-                                    .planet_defs
-                                    .get(b)
-                                    .map(|d| d.radius)
-                                    .or_else(|| crate::cosmos::find_body(b).map(|cb| cb.radius_km * 1000.0))
-                                    .unwrap_or(6_371_000.0);
-                                let band_k = (radius / 6_371_000.0).clamp(0.001, 4.0);
-                                crate::renderer::key_lights::camera_sun_release(
-                                    state.frame_lock_anchor.length() - radius,
-                                    (CO_ROTATE_MAX_ALT * band_k).max(2_000.0),
-                                )
-                            })
-                            .unwrap_or(0.0);
+                        let sun_release = crate::engine::frame_lock::above_air(state);
                         let light_color = if !(state.gui_state.construction_active
                             && state.gui_state.construction_sun_override)
                         {
@@ -11465,12 +11466,21 @@ mod native_app {
                                         .clamp(rp, 1.0);
                                     let up_world = crate::engine::planet_build::frame_body_rot(state) * state.frame_lock_anchor.normalize_or_zero();
                                     let mu = up_world.dot(sun_dir) as f32;
-                                    crate::renderer::atmosphere::sun_transmittance(
-                                        cam_r, mu, rp, h, ac,
+                                    // The Sun's disc glare (renderer/sun_disc.rs) takes the
+                                    // air on the WHOLE line of sight from where the camera
+                                    // really is: from orbit that is the limb's air, which the
+                                    // lighting's radius, pinned to the shell top, cannot see.
+                                    let cam_r_true = ((state.frame_lock_anchor.length() / shell_r_m.max(1.0)) as f32).max(rp);
+                                    (
+                                        crate::renderer::atmosphere::sun_transmittance(cam_r, mu, rp, h, ac),
+                                        crate::renderer::atmosphere::sun_transmittance(cam_r_true, mu, rp, h, ac),
                                     )
                                 })
-                                .unwrap_or([1.0, 1.0, 1.0]);
+                                .unwrap_or(([1.0, 1.0, 1.0], [1.0, 1.0, 1.0]));
+                            let (tint, sun_los) = tint;
                             let tint = crate::renderer::key_lights::released_camera_sun(tint, 1.0, sun_release).0;
+                            // The Sun's glare takes the air on the whole line of sight.
+                            state.renderer.sun_air_los = sun_los;
                             [
                                 light_color[0] * tint[0],
                                 light_color[1] * tint[1],
@@ -15027,29 +15037,45 @@ mod native_app {
                                 // (exp(-4a): a real bank kills the disc), from
                                 // the SAME sun_cloud_alpha the god-ray dim
                                 // uses, so shafts and glare always agree.
+                                //
+                                // THE SUN AS A BODY (2026-10-21, renderer/sun_disc.rs)
+                                // replaced both of those intensities. The disc is
+                                // light at its real radiance now: the cloud
+                                // composite and the air in front of it dim it per
+                                // pixel, and the planet hides it by depth, so its
+                                // material carries NOTHING from the player's state:
+                                // the v0.1541 disc was multiplied by the player's
+                                // horizon and cloud, so any view whose camera was not
+                                // where those were computed (the Maps world layer, a
+                                // camera screen, a lock left on a ground point) could
+                                // lose it while the god rays, from geometry, still drew
+                                // their glow. The cloud transmittance and the
+                                // planet's limb go to its GLARE, which is added in
+                                // the present over everything and so cannot see
+                                // them: the cloud from the same sun_cloud_alpha
+                                // the god rays dim by, the limb (for the part of
+                                // the disc off the screen; the rest is measured by
+                                // depth taps) from frame_lock::sun_disc_clear.
                                 {
                                     let sca =
                                         crate::engine::frame_lock::sun_cloud_alpha(state);
-                                    // And no glare from a disc behind the planet
-                                    // (frame_lock::sun_disc_clear, 2026-10-04).
                                     let clear = crate::engine::frame_lock::sun_disc_clear(state);
-                                    let t_disc = (-4.0 * sca).exp() * clear;
-                                    state.renderer.update_material_full(
-                                        state.sun_material,
-                                        [1.0, 0.96, 0.88, 1.0],
-                                        0.0,
-                                        1.0,
-                                        17.0,
-                                        30.0 * t_disc,
-                                    );
-                                    state.renderer.update_material_full(
-                                        state.sun_halo_material,
-                                        [1.0, 0.82, 0.55, 0.85 * (0.15_f32).max(t_disc) * clear],
-                                        0.0,
-                                        1.0,
-                                        17.0,
-                                        2.2 * t_disc,
-                                    );
+                                    let los = state.renderer.sun_air_los;
+                                    // The frame body's air, so a view above it (the Maps
+                                    // world layer) does not take the player's air and cloud.
+                                    let fb = state.renderer.frame_body_sphere;
+                                    let air_top = state
+                                        .frame_lock_body
+                                        .as_deref()
+                                        .and_then(|b| state.planet_defs.get(b))
+                                        .filter(|_| fb[3] > 0.0)
+                                        .map(|d| (Vec3::new(fb[0], fb[1], fb[2]), (d.radius * (1.0 + d.atmosphere_scale.max(0.005) as f64 * 2.0)) as f32));
+                                    if let Some(f) = state.renderer.sun_frame.as_mut() {
+                                        f.air = los;
+                                        f.cloud = (-4.0 * sca).exp();
+                                        f.off_screen = clear;
+                                        f.air_top = air_top;
+                                    }
                                 }
                                 // Pass 1.5: celestial bodies (planet + Sun + solar bodies)
                                 // with a HUGE far plane, behind the interior, lit by the
@@ -15215,6 +15241,10 @@ mod native_app {
                                 // cannot freeze a canopy. tests/rig_pin_lint.rs requires the pin AT every call
                                 // site of this function, which is why it is written out here rather than hoisted.
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.anim_clock_pin.unwrap_or_else(|| state.start_time.elapsed().as_secs_f32()), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
+                                // Pass 1.55: how much of the Sun's disc this view can
+                                // see, from the celestial depth, before the orbit lines
+                                // write theirs (renderer/sun_glare.rs, step 1).
+                                state.renderer.render_sun_vis_onto(&state.camera);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the

@@ -33,6 +33,77 @@ struct PresentParams {
 @group(0) @binding(0) var scene_tex: texture_2d<f32>;
 @group(0) @binding(1) var<uniform> params: PresentParams;
 
+// ── THE SUN'S GLARE (2026-10-21, renderer/sun_disc.rs and sun_glare.rs) ──
+//
+// A camera's aperture diffracts part of the Sun's light into a halo round it.
+// It happens in the camera, so it is added here, over the finished frame (walls,
+// hull and terrain in front of the Sun are veiled by it too, as in a photograph),
+// once the scene is complete. Its strength is the light of the part of the disc
+// nobody hides: `sun_vis` holds that share (the depth taps of sun_vis.wgsl), the
+// rest (the Sun's irradiance through the air and the clouds, times the far-field
+// constant lambda / (pi^3 D)) is in `glare.amp`, per channel.
+//
+// The radiance at angle theta from the Sun's centre, for a limb-darkened disc of
+// angular radius r convolved with the ring-averaged Airy pattern, is
+//   amp * h(r / theta) / theta^3,   h(s) = (1 + B s^2 + C s^4) / (1 - s^2)^P,
+// the closed form sun_disc::disc_glare checks against the brute-force
+// convolution. It is LIGHT, so it is added before the tone curve: the scene
+// target holds tone-mapped values, so the pixel is mapped back through the
+// curve's inverse, the glare added, and the curve applied again. With no glare
+// this is the identity, and the branch is skipped outright.
+struct GlareParams {
+    // xyz: the unit direction to the Sun in VIEW space (x right, y up, the
+    // camera looking down -z); w: the disc's drawn angular radius, radians.
+    sun: vec4<f32>,
+    // x: the focal length in pixels; y, z: the image centre in pixels; w: 1
+    // when there is glare to add this frame, 0 when not.
+    view: vec4<f32>,
+    // rgb: the Sun's irradiance through the air and clouds times the far-field
+    // constant, per channel; w: the angle (radians) beyond which the glare is
+    // below a thousandth of a display level and is not evaluated.
+    amp: vec4<f32>,
+};
+@group(0) @binding(2) var<uniform> glare: GlareParams;
+@group(0) @binding(3) var sun_vis: texture_2d<f32>;
+
+// The closed-form fit per channel (sun_disc::GLARE_FIT_B / _C / _P, GLARE_S_MAX).
+const SUN_GLARE_B: vec3<f32> = vec3<f32>(0.2320, 0.2537, 0.2903);
+const SUN_GLARE_C: vec3<f32> = vec3<f32>(0.2582, 0.2992, 0.3762);
+const SUN_GLARE_P: vec3<f32> = vec3<f32>(0.7827, 0.7434, 0.6791);
+const SUN_GLARE_S_MAX: f32 = 0.98;
+
+fn aces_fwd(x: vec3<f32>) -> vec3<f32> {
+    return clamp((x * (2.51 * x + vec3<f32>(0.03))) / (x * (2.43 * x + vec3<f32>(0.59)) + vec3<f32>(0.14)), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// The inverse of the tone curve the scene shaders apply (the ACES fit, clamped):
+// solve y = x (a x + b) / (x (c x + d) + e) for x >= 0. A value at the clip maps
+// to the clip's own input (7.24), where adding light changes nothing anyway.
+fn aces_inv(y_in: vec3<f32>) -> vec3<f32> {
+    let y = clamp(y_in, vec3<f32>(0.0), vec3<f32>(0.9995));
+    let qa = 2.43 * y - vec3<f32>(2.51);
+    let qb = 0.59 * y - vec3<f32>(0.03);
+    let qc = 0.14 * y;
+    let disc = max(qb * qb - 4.0 * qa * qc, vec3<f32>(0.0));
+    return max((-qb - sqrt(disc)) / (2.0 * qa), vec3<f32>(0.0));
+}
+
+// The glare's radiance at pixel `pix`, scene units, before the visible share.
+fn sun_glare_at(pix: vec2<f32>) -> vec3<f32> {
+    let f = max(glare.view.x, 1.0);
+    let ray = normalize(vec3<f32>((pix.x - glare.view.y) / f, -(pix.y - glare.view.z) / f, -1.0));
+    let theta = 2.0 * asin(clamp(0.5 * length(ray - glare.sun.xyz), 0.0, 1.0));
+    if (theta > glare.amp.w) {
+        return vec3<f32>(0.0);
+    }
+    let r = max(glare.sun.w, 1.0e-7);
+    let th = max(theta, r / SUN_GLARE_S_MAX);
+    let s = r / th;
+    let s2 = s * s;
+    let h = (vec3<f32>(1.0) + SUN_GLARE_B * s2 + SUN_GLARE_C * (s2 * s2)) / pow(vec3<f32>(1.0 - s2), SUN_GLARE_P);
+    return glare.amp.rgb * h / (th * th * th);
+}
+
 // One triangle that covers the whole target: (-1,-1), (3,-1), (-1,3).
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
@@ -123,6 +194,12 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         // NaN fails every comparison, so `c == c` is false only for NaN.
         c = select(vec4<f32>(0.0), c, c == c);
         c = clamp(c, vec4<f32>(0.0), vec4<f32>(1.0));
+    }
+    if (glare.view.w > 0.5) {
+        let g = sun_glare_at(frag.xy) * textureLoad(sun_vis, vec2<i32>(0, 0), 0).r;
+        if (max(g.r, max(g.g, g.b)) > 1.0e-6) {
+            c = vec4<f32>(aces_fwd(aces_inv(c.rgb) + g), c.a);
+        }
     }
     if (params.flags.y > 0.5) {
         c = vec4<f32>(dither(c.rgb, pix, params.flags.y, params.flags.z > 0.5), c.a);

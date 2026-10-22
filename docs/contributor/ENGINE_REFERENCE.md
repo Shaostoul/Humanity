@@ -257,8 +257,7 @@ pub trait System: Send + Sync {
 | earth.wgsl | 200 | Earth-specific procedural surface |
 | mars.wgsl | 179 | Mars-specific surface |
 | moon.wgsl | 155 | Moon surface |
-| sun_surface.wgsl | 211 | Solar surface with convection |
-| sun_glow.wgsl | 84 | Sun corona/glow effect |
+| sun_vis.wgsl | 75 | How much of the Sun's disc a view can see, for its glare |
 | 6 procedural/ shaders | ~947 | Aperiodic, brick, metal, wood, concrete, fabric |
 | 10 surface material shaders | ~760 | Drywall, wood plank, stone, rubber, concrete, carpet, marble, turf, granite, steel |
 | 5 outer planet shaders | ~822 | Mercury, Venus, Jupiter, Saturn, Uranus, Neptune, Pluto |

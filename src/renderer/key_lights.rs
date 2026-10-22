@@ -312,15 +312,17 @@ pub fn sky_disc_cover(rd: Vec3, disc: [f32; 4], px_angle: f32, applies: bool) ->
 
 /// The atmosphere dome's coverage of what lies behind a sky ray: the sky's
 /// (`alpha_sky`, the stars' rule: raised to 0.985 by day and by the sky's own
-/// brightness at twilight, never toward the Sun) and the coverage over the
-/// body seen through it (`alpha_body`, the plain transmittance coverage
-/// `alpha` on its disc). Twin of the end of `atmosphere_scattering`.
-pub fn dome_cover(alpha: f32, sky_lum: f32, day: f32, toward_sun: f32, disc_cover: f32, hits_surface: bool) -> (f32, f32) {
+/// brightness at twilight; since 2026-10-21 right up to the Sun's disc, which
+/// the shell now draws itself, so the old window round the Sun is gone) and
+/// the coverage over the body seen through it (`alpha_body`, the plain
+/// transmittance coverage `alpha` on its disc). Twin of the end of
+/// `atmosphere_scattering`.
+pub fn dome_cover(alpha: f32, sky_lum: f32, day: f32, disc_cover: f32, hits_surface: bool) -> (f32, f32) {
     let mut a = alpha;
     if !hits_surface {
         a = alpha.max((sky_lum * 4.5).clamp(0.0, 1.0).max(day * 0.985));
     }
-    let alpha_sky = a + (alpha - a) * toward_sun;
+    let alpha_sky = a;
     let alpha_body = alpha_sky + (alpha - alpha_sky) * disc_cover;
     (alpha_sky, alpha_body)
 }
@@ -682,10 +684,9 @@ mod sky_dome_tests {
         let mu = DVec3::Y.dot(sun) as f32;
         let t = ((mu + 0.08) / 0.20).clamp(0.0, 1.0);
         let day = t * t * (3.0 - 2.0 * t);
-        let toward_sun = 0.0;
         let cover_disc = sky_disc_cover(moon.as_vec3(), [moon.x as f32, moon.y as f32, moon.z as f32, 0.0045], 1.0e-4, true);
         assert!(cover_disc > 0.99, "the Moon's centre is inside its disc: {cover_disc}");
-        let (a_sky, a_body) = dome_cover(alpha, lum(mapped), day, toward_sun, cover_disc, false);
+        let (a_sky, a_body) = dome_cover(alpha, lum(mapped), day, cover_disc, false);
         let m = moon_above_the_air();
         let on_moon = lum(dome_over([m; 3], mapped, a_sky, a_body));
         let beside = lum(dome_over([0.0; 3], mapped, a_sky, a_sky));
@@ -696,12 +697,12 @@ mod sky_dome_tests {
             "a gibbous Moon 35 degrees up, 110 degrees from a Sun 30 degrees up: contrast {c_day:.4} against the sky beside it ({on_moon:.4} against {beside:.4}, coverage {a_body:.3} over it, {a_sky:.3} beside it)"
         );
         // At night the same Moon stands out far more: the sky is near black.
-        let (n_sky, n_body) = dome_cover(alpha, 0.002, 0.0, 0.0, cover_disc, false);
+        let (n_sky, n_body) = dome_cover(alpha, 0.002, 0.0, cover_disc, false);
         let night_beside = lum(dome_over([0.0; 3], [0.002; 3], n_sky, n_sky)).max(1.0e-4);
         let c_night = (lum(dome_over([m; 3], [0.002; 3], n_sky, n_body)) - night_beside) / night_beside;
         assert!(c_day < c_night, "the day sky lowers the Moon's contrast: {c_day} by day, {c_night} at night");
         // The stars stay hidden by day: off the disc the coverage is the day rule's.
-        let (star_sky, star_cover) = dome_cover(alpha, lum(mapped), day, toward_sun, 0.0, false);
+        let (star_sky, star_cover) = dome_cover(alpha, lum(mapped), day, 0.0, false);
         assert!(star_sky >= 0.985 && star_cover == star_sky, "a star beside the Moon is still hidden: {star_cover}");
     }
 
@@ -724,7 +725,7 @@ mod sky_dome_tests {
         assert!(share > 0.85, "fog is mostly the weather's: {share}");
         assert_eq!(fog_share(2.2e-5, 25_500.0, 2.2e-5, 25_500.0), 0.0, "clear air is none of it");
         let alpha = 1.0 - grey_t(42.0);
-        let (a_sky, a_body) = dome_cover(alpha, 0.0, 0.0, 0.0, 1.0, false);
+        let (a_sky, a_body) = dome_cover(alpha, 0.0, 0.0, 1.0, false);
         // The fog layer's slant depth on the line to a Moon 42 degrees up, as the
         // dome integrates it: sigma times the 80 m cap over the sine of the elevation.
         let tau = (50.0_f32).ln() / 60.0 * 80.0 / (42.0_f32).to_radians().sin();
@@ -825,7 +826,12 @@ mod sky_dome_tests {
         assert!(atmo.contains("fn sky_disc_cover(rd: vec3<f32>, applies: bool) -> f32"), "30-atmosphere.wgsl has no sky_disc_cover");
         assert!(atmo.contains("let alpha_body = mix(alpha_sky, alpha, sky_disc_cover(rd, cam_inside && !hits_surface));"), "the dome does not let the disc through");
         assert!(atmo.contains("let fog_pass = select(1.0, exp(-tau_fog * clamp(camera.light1_spot.y, 0.0, 1.0)), !hits_surface);"), "the fog does not cover what is behind it");
-        assert!(atmo.contains("return vec4<f32>(rgb * cap, alpha_a);"), "the dome's output is not premultiplied");
+        // Premultiplied: the sky's light is rgb * cap, and since 2026-10-21 the
+        // Sun's disc (sun_disc.rs) is mixed into it by its coverage.
+        assert!(
+            atmo.contains("var out_rgb = rgb * cap;") && atmo.contains("return vec4<f32>(out_rgb, out_a);"),
+            "the dome's output is not premultiplied"
+        );
         assert!(atmo.contains("let lsun = layer_sun();"), "the air is lit by the camera's sun");
         let shared = read("assets/shaders/pbr/80-fragment-shared.wgsl");
         assert!(shared.contains("fn layer_sun() -> vec4<f32>") && shared.contains("fn is_frame_layer() -> bool"), "80-fragment-shared.wgsl has no layer_sun");

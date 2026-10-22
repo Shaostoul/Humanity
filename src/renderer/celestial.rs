@@ -524,6 +524,8 @@ impl Renderer {
         self.queue.write_buffer(&self.camera_buffer, 352, bytemuck::cast_slice(&[px_angle, self.aerial_fog_share, 0.0, 0.0]));
         self.queue.write_buffer(&self.camera_buffer, 368, bytemuck::cast_slice(&self.frame_body_sphere));
         self.queue.write_buffer(&self.camera_buffer, 384, bytemuck::cast_slice(&sun_bare));
+        // The Sun's disc, light6_spot + light7_spot (sun_disc::camera_pads; zero: no disc).
+        self.queue.write_buffer(&self.camera_buffer, 432, bytemuck::cast_slice(&self.sun_disc_pad));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

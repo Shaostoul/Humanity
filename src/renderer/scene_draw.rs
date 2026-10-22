@@ -555,8 +555,9 @@ impl Renderer {
         weather_scale: f32,
     ) {
         let _cost = frame_costs::stage("cpu.godrays");
-        // Settings slider at 0 = pass off entirely (v0.907).
-        if self.godray_intensity <= 0.001 {
+        // Settings slider at 0 = pass off entirely (v0.907); the showcase pin
+        // `godrays` turns it off for an A/B.
+        if self.godray_intensity <= 0.001 || self.godrays_pin == Some(false) {
             return;
         }
         // The SAME projection the celestial pass rendered depth with

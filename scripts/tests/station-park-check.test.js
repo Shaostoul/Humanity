@@ -146,3 +146,35 @@ test("a default or screen park facing the wrong way FAILS", () => {
   // pitch null for a park without a pose (the old code), the first assert
   // failed: the park facing the wrong way passed.
 });
+
+test("a pose park aimed at the Sun is judged on the look the engine chose", () => {
+  // "aim":"sun" (2026-10-21) keeps the pose's position and turns to the Sun
+  // after the hour settles, reporting that look as requested_yaw_pitch.
+  const camera = { station: "home", pose: "27.5,26,96,0,-0.42", aim: "sun", time: 20.15 };
+  const sun = [2.1, 0.3];
+  const done = { ok: true, requested: [27.5, 26, 96], requested_yaw_pitch: sun, position: [27.5, 26, 96], station_ride: true };
+  const facing = judgeStationPark(camera, { ...done, yaw_pitch: sun });
+  assert.equal(facing.ok, true, JSON.stringify(facing));
+  // Facing the pose's own look instead of the Sun is a miss.
+  const away = judgeStationPark(camera, { ...done, yaw_pitch: [0, -0.42] });
+  assert.equal(away.ok, false, JSON.stringify(away));
+  // Red check, run 2026-10-21, with the aimed-pose line disabled: `facing`
+  // failed with "station park looks the wrong way: asked for yaw 0.000 pitch
+  // -0.420, camera_done reports yaw 2.100 pitch 0.300".
+});
+
+test("looking straight up, a yaw that only turns the picture is the same look", () => {
+  // The noon Sun seen up through the home's roof (2026-10-21): 0.6 degrees
+  // off the zenith, 2.6 degrees of yaw is 0.03 degrees of look.
+  const camera = { station: "home", pose: "22,1.7,69.5,-3.1416,1.5608", time: 20.15 };
+  const up = judgeStationPark(camera, { ok: true, position: [22, 1.7, 69.5], yaw_pitch: [-3.187, 1.5608], station_ride: true });
+  assert.equal(up.ok, true, JSON.stringify(up));
+  // The same yaw change looking level is a real turn, and fails.
+  const level = judgeStationPark({ ...camera, pose: "22,1.7,69.5,-3.1416,0" }, { ok: true, position: [22, 1.7, 69.5], yaw_pitch: [-3.187, 0], station_ride: true });
+  assert.equal(level.ok, false, JSON.stringify(level));
+  // Red check, run 2026-10-21, with yaw and pitch compared apart (the old
+  // judge): `up` failed with "station park looks the wrong way: asked for yaw
+  // -3.142 pitch 1.561, camera_done reports yaw -3.187 pitch 1.561 (turned
+  // 0.045 rad)", the message the sweep's sun-home-greenhouse-noon capture
+  // failed with (less the "turned" part, which is new).
+});

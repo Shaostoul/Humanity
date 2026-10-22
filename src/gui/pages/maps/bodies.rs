@@ -23,8 +23,9 @@
 //!   picture would draw most of the family as near-black dots. The curve
 //!   keeps their order and their hue.
 //! * The Sun is a disc of its own light, darkened toward the limb as the real
-//!   photosphere is (`I(mu) = 1 - u (1 - mu)`, u = 0.6, the common linear
-//!   limb-darkening law for visible light), with GLARE round it: a
+//!   photosphere is (`I(mu) = mu^alpha` per colour channel, Hestroffer &
+//!   Magnan 1998, the same law the 3D Sun uses: `renderer::sun_disc`; until
+//!   2026-10-21 the linear `1 - 0.6 (1 - mu)`), with GLARE round it: a
 //!   point-spread function falling off as the inverse square and cube of the
 //!   angle from the Sun, the shape Spencer, Shirley, Zimmerman and Greenberg
 //!   fitted to the eye's own glare ("Physically-Based Glare Effects for
@@ -204,12 +205,12 @@ pub fn add_phase_disc(mesh: &mut Mesh, centre: Pos2, r: f32, lit: [f32; 3], sun_
     });
 }
 
-/// Append the Sun's disc: its own light, limb-darkened (module doc).
+/// Append the Sun's disc: its own light, limb-darkened by the same law as the
+/// 3D Sun (`renderer::sun_disc::limb_darkening`, module doc).
 pub fn add_sun_disc(mesh: &mut Mesh, centre: Pos2, r: f32, light: [f32; 3]) {
-    const U: f32 = 0.6;
     add_disc(mesh, centre, r, 1.0, |_, _, w| {
-        let k = 1.0 - U * (1.0 - w);
-        [light[0] * k, light[1] * k, light[2] * k]
+        let k = crate::renderer::sun_disc::limb_darkening(w);
+        [light[0] * k[0], light[1] * k[1], light[2] * k[2]]
     });
 }
 

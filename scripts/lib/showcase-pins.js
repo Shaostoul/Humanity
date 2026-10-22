@@ -35,6 +35,12 @@ const STICKY_PIN_RESETS = Object.freeze({
   // Floors between storeys (increment 7 lane L, 2026-10-21): "0" off, "sun" or "lamps" runs one
   // half alone; "1" is both, as released.
   slab_occlusion: "1",
+  // The Sun (2026-10-21, renderer/sun_disc.rs): {"sun_glare":"0"} takes its glare out of the
+  // present pass, {"sun_aperture_mm":"8"} sets the glare's aperture, {"godrays":"0"} stops the
+  // god-ray pass. "1" and "auto" are the defaults.
+  sun_glare: "1",
+  sun_aperture_mm: "auto",
+  godrays: "auto",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

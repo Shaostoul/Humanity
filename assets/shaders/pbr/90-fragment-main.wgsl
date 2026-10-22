@@ -898,7 +898,7 @@ const TERRAIN_TERMINATOR_HI: f32 = 0.004;
 // see the volumetric march.
 //
 // The classes and their types (`material.params.z`, banded at +-0.5):
-//   fs_surface     0..11 the procedural surfaces, 17 the sun's radial glow,
+//   fs_surface     0..11 the procedural surfaces, 17 the Sun (its disc, corona),
 //                  18 gas giant bands, 19 textured meshes, 24 screens, and
 //                  the default look for any type nothing else claims
 //   fs_terrain     12 planet surface: terrain patches, the sprite tree cards
@@ -1082,26 +1082,64 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         roughness = 0.9;
         emissive_strength = 0.0;
     } else if (material_type >= 16.5 && material_type < 17.5) {
-        // Type 17: RADIAL GLOW (v0.886, the sun's corona halo). Drawn on an
-        // oversized sphere; brightness falls off with the view ray's impact
-        // parameter b (distance of the ray from the sphere center, 0 at the
-        // disc center, 1 at the silhouette), so the glow is center-bright
-        // and melts softly into space - no more hard-edged white blob.
-        // base_color.rgb = glow tint, .a = peak alpha, params.w = intensity.
-        let center = obj_model()[3].xyz;
-        let radius = length(obj_model()[0].xyz);
+        // Type 17: THE SUN (2026-10-21, renderer/sun_disc.rs). The photosphere
+        // at its true size and radiance, limb-darkened, with Baumbach's corona
+        // round it, drawn on a sphere three solar radii wide in the celestial
+        // transparent list, behind everything (it replaced v0.886's radial
+        // glow on a disc floored at ten times the Sun's width, and its second
+        // glow three times wider). Everything comes from the view ray
+        // (sun_disc / sun_corona, 80-fragment-shared.wgsl); the sphere only has
+        // to cover it. base_color.rgb is a tint, white (world_load.rs): nothing
+        // from the player's state dims the disc. Where the scattering
+        // atmosphere is in front of it, the shell draws the disc itself with
+        // its own per-pixel air and covers this one.
         let cam = camera.view_pos.xyz;
+        let center = obj_model()[3].xyz;
+        // The sphere is drawn with both faces (the transparent pipeline does
+        // not cull); keep the hemisphere facing the camera so no ray is
+        // blended twice.
+        if (dot(in.world_position - center, cam - center) < 0.0) {
+            discard;
+        }
         let vdir = normalize(in.world_position - cam);
-        let to_c = center - cam;
-        let b = length(cross(to_c, vdir)) / max(radius, 1.0e-3);
-        let g = pow(clamp(1.0 - b * b, 0.0, 1.0), 1.5);
-        let col = material.base_color.rgb * (g * material.params.w);
-        // Same ACES tail as the other early-return shells.
+        let air = material.base_color.rgb;
+        let d = sun_disc(vdir);
+        let corona = sun_corona(vdir) * air;
         let ta = 2.51; let tb = 0.03; let tc = 2.43; let td = 0.59; let te = 0.14;
-        let mapped = clamp(
-            (col * (ta * col + vec3<f32>(tb))) / (col * (tc * col + vec3<f32>(td)) + vec3<f32>(te)),
+        let lin_disc = d.rgb * air;
+        let disc_out = clamp(
+            (lin_disc * (ta * lin_disc + vec3<f32>(tb))) / (lin_disc * (tc * lin_disc + vec3<f32>(td)) + vec3<f32>(te)),
             vec3<f32>(0.0), vec3<f32>(1.0));
-        return vec4<f32>(mapped, g * material.base_color.a);
+        let cor_out = clamp(
+            (corona * (ta * corona + vec3<f32>(tb))) / (corona * (tc * corona + vec3<f32>(td)) + vec3<f32>(te)),
+            vec3<f32>(0.0), vec3<f32>(1.0));
+        // Straight alpha blending: out = rgb * a + dst * (1 - a). The disc
+        // covers what is behind it (stars) by its coverage; the corona is
+        // light ADDED in front of the stars, which straight alpha can do with
+        // a small coverage and the light divided by it (the scene target is
+        // float, so rgb above 1 is kept): dst is dimmed by at most 0.2%.
+        let a = max(d.a, 0.002);
+        let rgb = (disc_out * d.a + cor_out * (1.0 - d.a)) / a;
+        if (d.a <= 0.0 && max(cor_out.r, max(cor_out.g, cor_out.b)) < 1.0e-5) {
+            discard;
+        }
+        return vec4<f32>(rgb, a);
+    }
+
+    // ── A PANE IS LIT FROM THE SIDE IT IS SEEN FROM (2026-10-21) ──
+    // A see-through pane (the glass roof, a window, a tent's film) is one sheet
+    // drawn from both sides with its normal pointing one way. Seen from its
+    // back it took its light from its front: the noon Sun above the roof lit
+    // the glass grey as seen from below, and between a view and a light on
+    // opposite sides the BRDF's half vector is degenerate, so straight toward
+    // the Sun its Fresnel weight went to 1 and the grey fell to black. That was
+    // a dark hole some 30 degrees wide round the Sun seen up through the roof,
+    // hidden until then by the old Sun's halo (15 degrees wide) behind the
+    // glass. Light on a pane's far side passes through it (what is behind
+    // shows through by the pane's alpha); what the pane reflects comes from the
+    // viewer's side. So a pane's normal faces the viewer.
+    if (material_type < 11.5 && out_alpha < 0.999 && dot(normal, view_dir) < 0.0) {
+        normal = -normal;
     }
 
     // Apply procedural material based on type:

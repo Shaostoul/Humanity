@@ -36,6 +36,12 @@ pub mod sky_view;
 pub mod sky_ambient;
 /// The engine's key lights (moonlight fill), extracted from lib.rs v0.1104.
 pub mod key_lights;
+/// The Sun as a body (2026-10-21): its true-size disc, limb darkening, colour,
+/// brightness, corona and the aperture glare round it. Pure math and tests.
+pub mod sun_disc;
+/// The Sun's glare on the GPU: the share of the disc each view can see (depth
+/// taps) and the numbers the present pass adds the glare with.
+pub mod sun_glare;
 /// Screen-tile light binning (clustering L1).
 pub mod light_tiles;
 /// Positioned, sized environmental effects (storms, fog banks, fires) that
@@ -383,6 +389,29 @@ pub struct Renderer {
     godrays: godrays::GodrayPass,
     /// God-ray strength (0.0 disables the pass entirely).
     pub godray_intensity: f32,
+    /// Dev pin (showcase `godrays`): Some(false) stops the god-ray pass, Some(true)
+    /// keeps it on even above the air (the pre-2026-10-21 behaviour, for an A/B),
+    /// None follows Settings and the air (frame_lock::godray_scale).
+    pub godrays_pin: Option<bool>,
+    // ── The Sun as a body (2026-10-21, sun_disc.rs and sun_glare.rs) ──
+    /// The depth taps that measure how much of the disc a view can see.
+    sun_vis: sun_glare::SunVisPass,
+    /// This frame's Sun on the CPU side, set by lib.rs each frame (None: no
+    /// Sun to draw a glare for, the showroom).
+    pub sun_frame: Option<sun_glare::SunFrame>,
+    /// Dev switch (showcase `sun_glare`): false takes the glare out of the present.
+    pub sun_glare_on: bool,
+    /// The glare's aperture, metres (sun_disc::GLARE_APERTURE_M; showcase
+    /// `sun_aperture_mm`).
+    pub sun_aperture_m: f64,
+    /// The disc on the current view's screen, from step 1 to step 2 (sun_glare.rs).
+    sun_vis_disc: std::cell::Cell<Option<sun_glare::VisDisc>>,
+    /// The camera pads the shaders draw the disc from (light6_spot and
+    /// light7_spot, sun_disc::camera_pads), set by lib.rs; zero is no Sun.
+    pub sun_disc_pad: [[f32; 4]; 2],
+    /// The camera's air toward the Sun on the whole line of sight from the
+    /// camera's true position, for its glare (lib.rs, each frame; 1 outside air).
+    pub sun_air_los: [f32; 3],
     /// Bloom intensity (0.0 = off). Set > 0 to enable bloom post-process.
     pub bloom_intensity: f32,
     /// Brightness threshold for bloom extraction.
@@ -1263,6 +1292,7 @@ impl Renderer {
         log::info!("[BootPhase]   bloom_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         let t_unit = std::time::Instant::now();
         let godray_pass = godrays::GodrayPass::new(&device, scene_format);
+        let sun_vis = sun_glare::SunVisPass::new(&device);
         log::info!("[BootPhase]   godray_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         let t_unit = std::time::Instant::now();
         let ssao_pass = ssao::SsaoPass::new(&device, scene_format);
@@ -2023,6 +2053,14 @@ impl Renderer {
             bloom: Some(bloom_pass),
             godrays: godray_pass,
             godray_intensity: 0.55,
+            godrays_pin: None,
+            sun_vis,
+            sun_frame: None,
+            sun_glare_on: true,
+            sun_aperture_m: sun_disc::GLARE_APERTURE_M,
+            sun_vis_disc: std::cell::Cell::new(None),
+            sun_disc_pad: [[0.0; 4]; 2],
+            sun_air_los: [1.0; 3],
             ssao: ssao_pass,
             cloud_composite: cloud_composite_pass,
             cloud_resolve: cloud_resolve_pass,

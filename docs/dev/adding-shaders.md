@@ -164,8 +164,8 @@ renderer/pipeline/bind-group/shader change:
 
 Separate pipelines with their own WGSL live next to pbr_simple:
 `bloom.wgsl`, `godrays.wgsl`, `ssao.wgsl`, `particle.wgsl`, `stars.wgsl`,
-`ghost_preview.wgsl`, and the per-body celestial shaders (`sun_surface.wgsl`,
-`earth.wgsl`, ...). Same verify bar applies. The procedural floor/wall
+`ghost_preview.wgsl`, `sun_vis.wgsl`, and the per-body celestial shaders
+(`earth.wgsl`, ...). Same verify bar applies. The procedural floor/wall
 material WGSLs (`plank_wood.wgsl`, `granite_tile.wgsl`, ...) are the
 construction-material family. When in doubt whether to extend pbr_simple or
 add a pipeline: a new SURFACE look is a material type; a new PASS (post

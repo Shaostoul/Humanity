@@ -1389,6 +1389,31 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // The high-frequency gates (grain, speckle, comb, glint autocorrelation,
     // the pure-black census) pin it off so they read the scene, not the
     // dither; the rig resets it to "1" on every cell that does not pin it.
+    // The Sun (2026-10-21, renderer/sun_disc.rs). {"sun_glare":"0"} takes the
+    // glare out of the present ("1" puts it back); {"sun_aperture_mm":"8"} sets
+    // the aperture whose diffraction the glare is ("auto": the default 30 mm);
+    // {"godrays":"0"} stops the god-ray pass, "1" keeps it on above the air too
+    // (the old behaviour, for an A/B), "auto" hands it back to Settings and the air.
+    // Sticky, released by the rig between vantages (scripts/lib/showcase-pins.js).
+    if let Some(t) = grab("sun_glare") {
+        state.renderer.sun_glare_on = t.trim() != "0";
+        log::info!("Showcase: sun_glare -> {}", state.renderer.sun_glare_on);
+    }
+    if let Some(t) = grab("sun_aperture_mm") {
+        state.renderer.sun_aperture_m = match t.trim().parse::<f64>() {
+            Ok(mm) if mm > 0.0 => (mm / 1000.0).clamp(0.0005, 1.0),
+            _ => crate::renderer::sun_disc::GLARE_APERTURE_M,
+        };
+        log::info!("Showcase: sun_aperture_mm -> {:.1}", state.renderer.sun_aperture_m * 1000.0);
+    }
+    if let Some(t) = grab("godrays") {
+        state.renderer.godrays_pin = match t.trim() {
+            "0" => Some(false),
+            "1" => Some(true),
+            _ => None,
+        };
+        log::info!("Showcase: godrays -> {:?} (None: Settings, and off above the air)", state.renderer.godrays_pin);
+    }
     if let Some(t) = grab("present_dither") {
         let t = t.trim();
         let on = t != "0";
@@ -2310,6 +2335,9 @@ pub(crate) fn render_view_onto_kept(
             ocean_anchor256(state),
             target,
         );
+        // How much of the Sun this view can see, for its glare (same slot as
+        // the live path: after the celestial pass, before the orbit lines).
+        state.renderer.render_sun_vis_onto(camera);
         state.renderer.draw_celestial_lines_onto(camera, lists.orbit_lines, target);
         // God rays in captures too (v0.895), same slot as the live path, so
         // screenshots show exactly what the player sees.
@@ -3176,6 +3204,9 @@ pub(crate) struct StationPark {
     pub(crate) done: serde_json::Value,
     /// Station-block passes since the park (see `station_park_ready`).
     pub(crate) frames: u32,
+    /// `"aim":"sun"`: face the Sun once the clock has settled (2026-10-21,
+    /// the Sun seen from aboard the home, the operator's own view).
+    pub(crate) aim_sun: bool,
 }
 
 /// How many station-block passes a park waits for the TimeSystem to take its
@@ -3256,9 +3287,22 @@ pub(crate) fn advance_station_park(state: &mut EngineState) {
     let Some(clock_settled) = station_park_ready(park.frames, clock_pending) else {
         return;
     };
-    let Some(park) = state.station_park.take() else {
+    let Some(mut park) = state.station_park.take() else {
         return;
     };
+    if park.aim_sun {
+        // After the hour has moved the orbit, so the look is the Sun's from
+        // where the station now is, turned into the hull frame the camera
+        // rides in (the HULL FRAME rule: the world's axes are not the deck's;
+        // the first capture without this faced empty sky).
+        let to_sun = state.sun_world_pos - state.ship_world_pos;
+        let dir = crate::station::to_hull(state.station_ride, state.station_world_rot, to_sun);
+        let (yaw, pitch) = crate::dev_travel::look_angles(dir);
+        state.camera.yaw = yaw;
+        state.camera.pitch = pitch;
+        park.requested_yaw_pitch = (yaw, pitch);
+        park.done["aim"] = serde_json::json!("sun");
+    }
     let home = camera_home_position(state.camera.position, state.station_off);
     let miss_m = (home - park.requested).length();
     let mut done = park.done;
@@ -3418,6 +3462,8 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         // This is what lets a probe-sweep vantage hold a room pose at a pinned
         // clock: photograph-home.js cannot pin the clock, because its `cam`
         // pose is not re-glued to the station when the hour moves the orbit.
+        // Optional "aim":"sun" (2026-10-21) turns the camera to the Sun once
+        // the hour has settled (`advance_station_park`), keeping the position.
         let pose = match v.get("pose").and_then(|s| s.as_str()).map(crate::engine::ipc_parse::parse_pose5) {
             None => None,
             Some(Some(p)) => Some(p),
@@ -3493,6 +3539,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             requested_yaw_pitch: (yaw, pitch),
             done,
             frames: 0,
+            aim_sun: v.get("aim").and_then(|a| a.as_str()) == Some("sun"),
         });
         return;
     }

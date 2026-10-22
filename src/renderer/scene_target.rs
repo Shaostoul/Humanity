@@ -146,6 +146,12 @@ pub struct PresentPass {
     /// The one dither (increment 4). On by default; the showcase key
     /// `present_dither` turns it off for the high-frequency gates.
     dither: bool,
+    /// The Sun's glare (2026-10-21, renderer/sun_glare.rs): its uniform
+    /// (`GlareParams`, zero = no glare) and the 1x1 share of the disc the
+    /// view can see, written by the sun-visibility taps.
+    glare: wgpu::Buffer,
+    _sun_vis_texture: wgpu::Texture,
+    sun_vis_view: wgpu::TextureView,
 }
 
 impl PresentPass {
@@ -183,8 +189,46 @@ impl PresentPass {
                     },
                     count: None,
                 },
+                // The Sun's glare uniform (present.wgsl `GlareParams`).
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<super::sun_glare::GlareParams>() as u64),
+                    },
+                    count: None,
+                },
+                // The 1x1 share of the Sun's disc the view can see.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
             ],
         });
+        let glare = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Present Glare"),
+            contents: bytemuck::bytes_of(&super::sun_glare::GlareParams::default()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let sun_vis_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Sun Visible Share"),
+            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: super::sun_glare::SUN_VIS_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let sun_vis_view = sun_vis_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let flags = present_flags(output_format, scene_format, true);
         let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Present Params"),
@@ -223,7 +267,27 @@ impl PresentPass {
             multiview: None,
             cache: None,
         });
-        Self { bind_group_layout, pipeline, params, output_format, scene_format, dither: true }
+        Self {
+            bind_group_layout,
+            pipeline,
+            params,
+            output_format,
+            scene_format,
+            dither: true,
+            glare,
+            _sun_vis_texture: sun_vis_texture,
+            sun_vis_view,
+        }
+    }
+
+    /// The Sun's glare uniform (renderer/sun_glare.rs writes it per view).
+    pub(super) fn glare_buffer(&self) -> &wgpu::Buffer {
+        &self.glare
+    }
+
+    /// The 1x1 target the sun-visibility taps write the visible share into.
+    pub(super) fn sun_vis_view(&self) -> &wgpu::TextureView {
+        &self.sun_vis_view
     }
 
     /// The display format this pass writes.
@@ -263,6 +327,8 @@ impl PresentPass {
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(scene_view) },
                 wgpu::BindGroupEntry { binding: 1, resource: self.params.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: self.glare.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&self.sun_vis_view) },
             ],
         })
     }
@@ -378,8 +444,13 @@ impl Renderer {
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Present Encoder"),
         });
+        // The Sun's glare, step 2: what the scene pass drew over the disc
+        // (renderer/sun_glare.rs). Then the present adds the glare, and it is
+        // reset for the next view.
+        self.encode_sun_vis_scene(&mut encoder);
         self.present.encode(&mut encoder, &self.scene, display, self.pass_timer(gpu_id));
         self.queue.submit(std::iter::once(encoder.finish()));
+        self.end_sun_glare();
     }
 
     /// Rebuild the window's scene target at a new size (`resize`).
@@ -427,10 +498,13 @@ impl Renderer {
                 let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("View Present Encoder"),
                 });
+                // The Sun's glare, step 2, for this view (see present_scene).
+                self.encode_sun_vis_scene(&mut encoder);
                 self.present.encode(&mut encoder, scratch, display, self.pass_timer(gpu_id));
                 self.queue.submit(std::iter::once(encoder.finish()));
             }
         }
+        self.end_sun_glare();
         if !retain {
             self.view_scene.spare = None;
         }

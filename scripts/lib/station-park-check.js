@@ -54,12 +54,23 @@ function isVec3(a) {
   return Array.isArray(a) && a.length === 3 && a.every((x) => typeof x === "number" && Number.isFinite(x));
 }
 
-/** Smallest signed difference between two angles, in radians. */
-function angleDiff(a, b) {
-  let d = (a - b) % (2 * Math.PI);
-  if (d > Math.PI) d -= 2 * Math.PI;
-  if (d < -Math.PI) d += 2 * Math.PI;
-  return d;
+/** The unit look direction for (yaw, pitch), as dev_travel::look_angles
+ * defines them (yaw = atan2(x, -z), pitch = asin(y)). */
+function lookDir(yaw, pitch) {
+  const c = Math.cos(pitch);
+  return [c * Math.sin(yaw), Math.sin(pitch), -c * Math.cos(yaw)];
+}
+
+/** The angle between two looks [yaw, pitch], radians, precise when they are
+ * close. Compared as directions, not yaw and pitch apart: looking straight up,
+ * yaw only turns the picture about its centre, and a sixtieth of a degree off
+ * the Sun's direction there is two degrees of yaw (2026-10-21, the noon Sun
+ * seen up through the home's roof failed on exactly that). */
+function lookAngle(a, b) {
+  const p = lookDir(a[0], a[1]);
+  const q = lookDir(b[0], b[1]);
+  const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+  return 2 * Math.asin(Math.min(1, d / 2));
 }
 
 const fmt = (p) => `(${p.map((x) => x.toFixed(2)).join(", ")})`;
@@ -71,7 +82,15 @@ const fmt = (p) => `(${p.map((x) => x.toFixed(2)).join(", ")})`;
  */
 function expectedStationPose(camera, parkDone) {
   if (!camera || camera.station === undefined) return null;
-  if (camera.pose !== undefined) return parsePose5(camera.pose);
+  if (camera.pose !== undefined) {
+    const p = parsePose5(camera.pose);
+    // "aim":"sun" (2026-10-21) keeps the pose's position and turns to the
+    // Sun once the hour settles: the look to expect is the one the engine
+    // reports it chose, not the pose's.
+    const yp = parkDone && Array.isArray(parkDone.requested_yaw_pitch) ? parkDone.requested_yaw_pitch : null;
+    if (p && camera.aim === "sun" && yp) return { pos: p.pos, yaw: yp[0], pitch: yp[1] };
+    return p;
+  }
   if (parkDone && isVec3(parkDone.requested)) {
     // No pose of its own: the engine chose the position (over the deck, or in
     // front of a named screen), and reports the look it chose with it
@@ -114,12 +133,12 @@ function judgePose(expected, reported, what, tol = {}) {
     problems.push(`${what} says the camera is NOT riding the station, so it is not aboard the home`);
   }
   if (expected.yaw !== null && expected.yaw !== undefined && Array.isArray(reported.yawPitch)) {
-    const dy = angleDiff(reported.yawPitch[0], expected.yaw);
-    const dp = angleDiff(reported.yawPitch[1], expected.pitch);
-    if (Math.abs(dy) > tolRad || Math.abs(dp) > tolRad) {
+    const turn = lookAngle(reported.yawPitch, [expected.yaw, expected.pitch]);
+    if (!(turn <= tolRad)) {
       problems.push(
         `looks the wrong way: asked for yaw ${expected.yaw.toFixed(3)} pitch ${expected.pitch.toFixed(3)},` +
-          ` ${what} reports yaw ${reported.yawPitch[0].toFixed(3)} pitch ${reported.yawPitch[1].toFixed(3)}`,
+          ` ${what} reports yaw ${reported.yawPitch[0].toFixed(3)} pitch ${reported.yawPitch[1].toFixed(3)}` +
+          ` (turned ${turn.toFixed(3)} rad)`,
       );
     }
   }
