@@ -48,15 +48,15 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
-### RESUME FIRST: in flight at the weekly usage cap (2026-10-21, ~2 PM Pacific)
+### RESUME FIRST: the Sun's real body (in flight, 2026-10-21 evening)
 
-Five pieces are committed in their own worktrees, not merged: Maps increment 2 (built and tested,
-its rig sweep not run), bounced light's ambient level and probe streaming (WIP; its commit skipped
-the pre-commit hook, run lints first), the sky bodies list (WIP, all seven seen fixed in captures),
-recovery through trusted people (WIP, tests pass, three red-first runs and the browser check left),
-and the Sun's real body (not started; the operator asked for it). Worktree, commit, state and the
-next command for each: `docs/history/2026-10-21-in-flight.md`. Merge main into each worktree,
-finish, verify, release one at a time.
+Of the five pieces paused at the usage cap (`docs/history/2026-10-21-in-flight.md`), four shipped
+the same evening: Maps increment 2 (v0.1539.0), the sky bodies list (v0.1540.0), recovery through
+trusted people (v0.1541.0), bounced light's Ambient level and probe streaming (v0.1542.0). Left:
+the Sun's real body, with a fixer in a worktree (the operator's two screenshots: a soft glow with
+no disc, from near the ship and from far out looking back at Earth; the disc may not be drawn at
+all from far away). Its brief: the true 0.53-degree disc with limb darkening, physically based
+glare, why the disc vanishes from afar, and the limb smudge.
 
 **Also queued (operator's question, 2026-10-21: "Do rooms not automatically calculate their
 volumes on the fly?").** They do (the flood fill, live), but the static power meters charge a
