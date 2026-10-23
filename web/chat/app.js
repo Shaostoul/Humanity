@@ -391,8 +391,9 @@ function setReplyTarget(author, body, fromKey, timestamp, element) {
   const shortBody = quoted.length > 80 ? quoted.substring(0, 80) + '…' : quoted;
   replyTarget = { author, body: quoted, fromKey, timestamp, element, scope: replyScopeNow() };
   const bar = document.getElementById('reply-bar');
+  // Native's banner over the box: "↩ Replying to Ada: words" (chat.rs, the input bar).
   document.getElementById('reply-preview').innerHTML =
-    `<span class="reply-author">${esc(author)}</span> ${esc(shortBody)}`;
+    `&#x21A9;&#xFE0E; Replying to <span class="reply-author">${esc(author)}</span>: ${esc(shortBody)}`;
   bar.style.display = 'flex';
   if (window.twemoji) twemoji.parse(bar);
 }
@@ -2541,7 +2542,8 @@ function updateInputForChannel() {
     sendBtn.disabled = true;
   } else {
     input.disabled = false;
-    input.placeholder = 'Type a message…';
+    // Native's hint names where the message goes ("Message #general", chat.rs, the input bar).
+    input.placeholder = 'Message #' + (ch ? ch.name : activeChannel);
     sendBtn.disabled = false;
   }
 }
@@ -2549,15 +2551,17 @@ function updateInputForChannel() {
 function updateChannelHeader() {
   const header = document.getElementById('channel-header');
   // Scratch pad gets a special header.
+  // Native's header (chat.rs draw_center_panel): "# name" at the heading size, then
+  // "|  description" small and muted (the bar comes from sidebar.css .ch-desc::before).
   if (isScratchPad()) {
-    header.innerHTML = '<span class="ch-name" style="color:var(--warning,#e0a030);"># scratch-pad</span><span class="ch-desc">' + esc(SCRATCH_PAD_NOTE) + '</span>';
+    header.innerHTML = '<span class="ch-name"># scratch-pad</span><span class="ch-desc">' + esc(SCRATCH_PAD_NOTE) + '</span>';
     header.style.display = 'block';
     return;
   }
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
     const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
-    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">- ${esc(ch.description)}</span>` : ''}`;
+    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">${esc(ch.description)}</span>` : ''}`;
     header.style.display = 'block';
     if (window.twemoji) twemoji.parse(header);
   } else {

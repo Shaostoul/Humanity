@@ -228,6 +228,27 @@ function togglePinList() {
   list.classList.toggle('open');
 }
 
+/**
+ * A DM or a P2P group has no pins (a pin would carry its words to the server, BUG-178): the pin
+ * bar goes, the list closes, and the composer's pin button shows no count from the channel left
+ * behind (seen 2026-10-22: "📌 1" from #general in a DM with Ada).
+ */
+function hidePinsForPrivateView() {
+  const bar = document.getElementById('pin-bar');
+  if (bar) bar.style.display = 'none';
+  const list = document.getElementById('pin-list');
+  if (list) list.classList.remove('open');
+  const count = document.getElementById('composer-pin-count');
+  if (count) count.textContent = '';
+  for (const id of ['server-pins-section', 'my-pins-section']) {
+    const s = document.getElementById(id);
+    if (s) s.style.display = 'none';
+  }
+  const empty = document.getElementById('pins-empty');
+  if (empty) empty.style.display = 'block';
+}
+window.hidePinsForPrivateView = hidePinsForPrivateView;
+
 function renderPinBar() {
   const bar = document.getElementById('pin-bar');
   const countEl = document.getElementById('pin-count');
@@ -237,6 +258,12 @@ function renderPinBar() {
   const myContainer = document.getElementById('my-pins');
   const myPins = getMyPins();
   const total = currentPins.length + myPins.length;
+  // The composer's pin button carries the count, as native's "📌 N" (wider than a phone the pin
+  // bar is hidden, messages.css); its list says so when there is nothing pinned.
+  const composerCount = document.getElementById('composer-pin-count');
+  if (composerCount) composerCount.textContent = total ? String(total) : '';
+  const empty = document.getElementById('pins-empty');
+  if (empty) empty.style.display = total ? 'none' : 'block';
 
   if (total === 0) {
     bar.style.display = 'none';

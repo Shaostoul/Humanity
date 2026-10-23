@@ -529,7 +529,8 @@ function loadChat() {
   run("chat/view/messageRow.js");
   run("chat/app.js");
   run("chat/chat-messages.js");
-  for (const name of ["hosIcon", "roleBadge", "updateStats"]) if (typeof ctx[name] !== "function") ctx[name] = () => "";
+  run("chat/chat-dms.js");
+  for (const name of ["hosIcon", "roleBadge", "updateStats", "isMobile"]) if (typeof ctx[name] !== "function") ctx[name] = () => "";
   // Record what each row hooks: its expanded pill and its menu (the modules have their own tests).
   const popups = [];
   const menus = [];
@@ -652,4 +653,62 @@ test("the stylesheets: stripes, the reactions inside the pill, no hover ground o
   const page = read("chat/index.html");
   const order = ["view/timestampPill.js", "view/messageRow.js", "view/pillPopup.js", "view/messageMenu.js", "/chat/app.js"].map((s) => page.indexOf(s));
   assert.ok(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), "the view modules load before app.js, in order");
+});
+
+// ── 6. The channel header and the composer (Track W step 4) ─────────────
+// Native (src/gui/pages/chat.rs draw_center_panel and its input bar): "# general" at the heading
+// size, then "|  description" small and muted; a DM's header is Back, "DM: Ada" in the DM ink,
+// Report, Block; the composer is one rounded box with the text, then Search, Pins (with the
+// count), ?, Attach and Send, its hint naming where the message goes ("Message #general").
+// Red first, 2026-10-22, against the web/ of 2f872f2be (step 3): each test below failed.
+
+test("the channel header reads as native's: the name, then the description after a bar, not a dash", () => {
+  const c = loadChat();
+  vm.runInContext("channelList = [{ id: 'general', name: 'general', description: 'General discussion' }]; activeChannel = 'general';", c.ctx);
+  c.fn("updateChannelHeader")();
+  const html = c.keep("#channel-header").innerHTML;
+  assert.ok(html.includes('<span class="ch-name"># general</span><span class="ch-desc">General discussion</span>'), "no '- ' before the description (the bar is drawn by .ch-desc::before)");
+  const css = read("chat/sidebar.css");
+  assert.match(css, /#channel-header \.ch-desc::before \{ content: '\|'/, "the bar");
+  assert.match(css.slice(css.indexOf("#channel-header .ch-name {")), /font-size: var\(--text-xl\)/, "the name at native's heading size (font_size_heading = --text-xl)");
+});
+
+test("a DM's header: Back, then DM: and the name in the DM ink, then Report and Block", () => {
+  const c = loadChat();
+  vm.runInContext("(k) => { activeDmPartner = k; activeDmPartnerName = 'Ada'; }", c.ctx)(ANN);
+  c.fn("renderDmHeader")();
+  const html = c.keep("#channel-header").innerHTML;
+  assert.ok(html.startsWith('<button type="button" class="ch-back" onclick="closeDmView()"'), "Back first, a real button");
+  assert.ok(html.includes('<span class="ch-name ch-dm">DM: Ada</span>'), "DM: Ada in the DM ink");
+  assert.ok(html.includes(">Report</button>") && html.includes(">Block</button>"), "Report and Block stay");
+  const theme = read("shared/theme.css");
+  assert.match(theme, /--dm-accent: #[0-9a-f]{6};[\s\S]*:root\[data-theme="light"\][\s\S]*--dm-accent: #[0-9a-f]{6};/, "the DM ink is a theme token in both themes (theme.ron dm_accent)");
+  // A DM has no pins: the composer's count from the channel left behind goes. Seen red
+  // 2026-10-22 in the browser: "📌 1" from #general in the DM with Ada.
+  c.keep("#composer-pin-count").textContent = "1";
+  c.fn("openDmConversation")(ANN, "Ada");
+  assert.equal(c.keep("#composer-pin-count").textContent, "", "no pin count in a DM");
+  assert.equal(c.keep("#msg-input").placeholder, "Message Ada", "and native's hint: Message Ada");
+});
+
+test("the composer is native's one box: text, Search, Pins, ?, Attach, Send; its hint names the channel", () => {
+  const page = read("chat/index.html");
+  const box = page.slice(page.indexOf('<div id="composer-box">'), page.indexOf("</div>", page.indexOf('<div id="composer-box">')));
+  assert.ok(box.length > 0, "a composer box");
+  const ids = ["cmd-palette-btn", "msg-input", "composer-search-btn", "composer-pins-btn", "help-btn", "attach-btn", "send-btn"].map((id) => box.indexOf(`id="${id}"`));
+  assert.ok(ids.every((v, i) => v > 0 && (i === 0 || v > ids[i - 1])), "in native's order, the web's + first: " + ids.join(","));
+  assert.ok(box.includes('<span class="attach-label">Attach</span>'), "Attach says so, as native's button does");
+  const c = loadChat();
+  vm.runInContext("channelList = [{ id: 'general', name: 'general' }]; activeChannel = 'general';", c.ctx);
+  c.fn("updateInputForChannel")();
+  assert.equal(c.keep("#msg-input").placeholder, "Message #general", "native's hint");
+  vm.runInContext("currentPins = [{ from_name: 'Ada', content: 'x', original_timestamp: 1, pinned_by: 'Me' }];", c.ctx);
+  c.fn("renderPinBar")();
+  assert.equal(c.keep("#composer-pin-count").textContent, "1", "the pin button carries the count, as native's");
+  vm.runInContext("currentPins = [];", c.ctx);
+  c.fn("renderPinBar")();
+  assert.equal(c.keep("#composer-pin-count").textContent, "", "and none when nothing is pinned");
+  assert.equal(c.keep("#pins-empty").style.display, "block", "the list then says so");
+  const css = read("chat/inputs.css");
+  assert.match(css, /#composer-box #composer-search-btn,\s*#composer-box #composer-pins-btn,/, "on a phone Search and Pins stay where they were, so the text keeps its room");
 });

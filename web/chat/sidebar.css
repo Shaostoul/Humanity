@@ -104,21 +104,49 @@
 .channel-item.active .ch-mic { color: var(--text); opacity: 0.95; }
 .channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
 
+/* The channel header, as native's (src/gui/pages/chat.rs, draw_center_panel):
+   the darkest sidebar ground, 10 x 16 inside, a 1 px border; "# general" at the
+   heading size in the main ink, then "|  description" small and muted. A DM
+   names its person "DM: Ada" in the DM ink, a P2P group its name in the group
+   ink, each after a Back button (chat-dms.js, chat-groups-p2p.js). */
 #channel-header {
-  background: var(--bg-secondary);
+  background: var(--bg-sidebar-dark);
   border-bottom: 1px solid var(--border);
-  padding: var(--space-md) var(--space-xl);
+  padding: 10px 16px;
   font-size: var(--text-sm);
+  line-height: 1.3;
   display: none;
 }
 #channel-header .ch-name {
+  font-size: var(--text-xl);
   font-weight: 600;
   color: var(--text);
+  vertical-align: middle;
 }
+#channel-header .ch-name.ch-dm { color: var(--dm-accent); }
+#channel-header .ch-name.ch-group { color: var(--group-accent); }
+#channel-header .ch-name.ch-scratch { color: var(--scratchpad-accent); }
 #channel-header .ch-desc {
   color: var(--text-muted);
-  margin-left: var(--space-md);
+  margin-left: var(--space-lg);
+  vertical-align: middle;
 }
+#channel-header .ch-desc::before { content: '|'; margin-right: var(--space-lg); }
+/* Back: native's ghost button before a DM's or a group's name. */
+#channel-header .ch-back {
+  margin-right: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  vertical-align: middle;
+}
+#channel-header .ch-back:hover,
+#channel-header .ch-back:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 .peer {
   font-size: var(--text-sm);
@@ -881,9 +909,10 @@
     min-height: 36px;
   }
 
-  /* Channel header: compact */
+  /* Channel header: compact, the name a step smaller so a long description fits. */
   #channel-header {
     padding: var(--space-sm) var(--space-lg);
     font-size: var(--text-sm);
   }
+  #channel-header .ch-name { font-size: var(--text-base); }
 }

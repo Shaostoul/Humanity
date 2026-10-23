@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="/shared/theme.css?v=4">
   <link rel="stylesheet" href="/chat/base.css?v=3">
   <link rel="stylesheet" href="/chat/layout.css?v=8">
-  <link rel="stylesheet" href="/chat/sidebar.css?v=3">
+  <link rel="stylesheet" href="/chat/sidebar.css?v=4">
   <link rel="stylesheet" href="/chat/messages.css?v=10">
   <!-- A file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
@@ -40,7 +40,7 @@
   <link rel="stylesheet" href="/shared/upload-window.css?v=1">
   <link rel="stylesheet" href="/chat/modals.css?v=5">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
-  <link rel="stylesheet" href="/chat/inputs.css?v=5">
+  <link rel="stylesheet" href="/chat/inputs.css?v=6">
   <!-- Vendored same-origin (twemoji 17.0.3, MIT). Was cdn.jsdelivr.net/@latest
        with no SRI: a CDN/account compromise could have injected arbitrary JS
        into the chat with full access to the localStorage seed. Serving it
@@ -395,6 +395,7 @@
           <span class="pin-summary"><span class="pin-icon">📌</span> <span id="pin-count">0</span> pinned, click to expand</span>
         </div>
         <div id="pin-list">
+          <div id="pins-empty">No pinned messages in this channel yet.</div>
           <div id="server-pins-section" style="display:none;">
             <div class="pin-section-header">📌 Server Pins</div>
             <div id="server-pins"></div>
@@ -417,29 +418,43 @@
         <div id="cmd-palette-overlay" onclick="closeCmdPalette()">
           <div id="cmd-palette" onclick="event.stopPropagation()"></div>
         </div>
+        <!-- The composer, as native's input bar (src/gui/pages/chat.rs, "Input bar"): one rounded
+             box holding the text and, after it, Search, Pins, ?, Attach and Send (Track W step 4,
+             2026-10-22). The web keeps its command palette (+) at the box's start. On a phone,
+             Search and Pins stay where they were (the header's search, the pin bar), so the
+             box keeps the room the phone check of 2026-10-12 gave the text. -->
         <div id="input-area" data-tip-above>
-          <button id="cmd-palette-btn" onclick="toggleCmdPalette()"
-            data-tip-title="Command Palette"
-            data-tip-hotkey="Ctrl + K"
-            data-tip-desc="Opens slash commands and quick actions for this channel."
-            data-tip-detail="Type / or ! to filter, try /me, /nick, /clear, /dm">+</button>
-          <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()"
-            data-tip-title="Attach File"
-            data-tip-desc="Upload an image or file to share in this channel."
-            data-tip-detail="Images, video, audio, PDF, text, JSON, ZIP and 3D models. The size limit is your role's on this server, and smaller in private conversations."><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
-          <input type="file" id="file-upload-input" multiple style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.avif,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
-          <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
-          <button id="send-btn" onclick="sendMessage()"
-            data-tip-title="Send Message"
-            data-tip-hotkey="Enter"
-            data-tip-desc="Sends your message to the current channel."
-            data-tip-detail="Shift + Enter inserts a new line instead of sending"
-            disabled>Send</button>
-          <button id="help-btn" onclick="toggleHelpModal()"
-            data-tip-title="Help & Shortcuts"
-            data-tip-hotkey="?"
-            data-tip-desc="Shows all slash commands and keyboard shortcuts."
-            data-tip-detail="Press ? anywhere outside a text field to open this panel">?</button>
+          <div id="composer-box">
+            <button id="cmd-palette-btn" onclick="toggleCmdPalette()"
+              data-tip-title="Command Palette"
+              data-tip-hotkey="Ctrl + K"
+              data-tip-desc="Opens slash commands and quick actions for this channel."
+              data-tip-detail="Type / or ! to filter, try /me, /nick, /clear, /dm">+</button>
+            <input type="file" id="file-upload-input" multiple style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.avif,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
+            <textarea id="msg-input" placeholder="Message #general" rows="1" disabled aria-label="Message"></textarea>
+            <button id="composer-search-btn" class="composer-ghost" onclick="toggleSearch()" aria-label="Search messages"
+              data-tip-title="Search Messages"
+              data-tip-hotkey="Ctrl + F"
+              data-tip-desc="Search messages in this channel by words or sender."><span class="pg-ico" data-icon="search" data-size="16"></span></button>
+            <button id="composer-pins-btn" class="composer-ghost" onclick="togglePinList()" aria-label="Pinned messages"
+              data-tip-title="Pinned Messages"
+              data-tip-desc="The messages pinned in this channel, and your own pins."><span class="pg-ico" data-icon="pin" data-size="16"></span><span id="composer-pin-count"></span></button>
+            <button id="help-btn" class="composer-ghost" onclick="toggleHelpModal()"
+              data-tip-title="Help & Shortcuts"
+              data-tip-hotkey="?"
+              data-tip-desc="Shows all slash commands and keyboard shortcuts."
+              data-tip-detail="Press ? anywhere outside a text field to open this panel">?</button>
+            <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()"
+              data-tip-title="Attach File"
+              data-tip-desc="Upload an image or file to share in this channel."
+              data-tip-detail="Images, video, audio, PDF, text, JSON, ZIP and 3D models. The size limit is your role's on this server, and smaller in private conversations."><span class="pg-ico" data-icon="clip" data-size="16"></span><span class="attach-label">Attach</span></button>
+            <button id="send-btn" onclick="sendMessage()"
+              data-tip-title="Send Message"
+              data-tip-hotkey="Enter"
+              data-tip-desc="Sends your message to the current channel."
+              data-tip-detail="Shift + Enter inserts a new line instead of sending"
+              disabled>Send</button>
+          </div>
         </div>
       </div>
       <div id="right-resizer" class="panel-resizer"
@@ -783,9 +798,9 @@
   <script src="/chat/chat-files-card.js?v=3"></script>
   <script src="/chat/app.js?v=33"></script>
   <script src="/chat/chat-messages.js?v=24"></script>
-  <script src="/chat/chat-dms.js?v=20"></script>
+  <script src="/chat/chat-dms.js?v=21"></script>
   <script src="/chat/chat-social.js?v=20"></script>
-  <script src="/chat/chat-groups-p2p.js?v=17"></script>
+  <script src="/chat/chat-groups-p2p.js?v=18"></script>
   <script src="/chat/chat-ui.js?v=19"></script>
   <script src="/chat/chat-voice-rooms.js?v=8"></script>
   <script src="/chat/chat-voice-calls.js?v=8"></script>

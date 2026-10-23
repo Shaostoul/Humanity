@@ -333,6 +333,12 @@
   color: var(--text-muted);
 }
 #pin-bar .pin-summary .pin-icon { color: var(--accent); }
+/* Wider than a phone the composer's pin button carries the count and opens the
+   list (native's composer); the bar is for a phone, whose composer has no room. */
+@media (min-width: 641px) {
+  #pin-bar { display: none !important; }
+}
+#pins-empty { font-size: var(--text-sm); color: var(--text-muted); }
 
 #pin-list {
   display: none;

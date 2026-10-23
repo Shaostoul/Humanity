@@ -236,6 +236,11 @@ function buildCss(tokens) {
   lines.push(`  --server-bg: ${c('server_bg')};`);
   lines.push(`  --server-row-bg: ${c('server_row_bg')};`);
   lines.push(`  --server-row-hover: ${c('server_row_hover')};`);
+  // The ink a conversation's header names it in: native's dm_accent ("DM: Ada"), group_accent
+  // (a P2P group's name) and scratchpad_accent (src/gui/pages/chat.rs, the channel header).
+  lines.push(`  --dm-accent: ${c('dm_accent')};`);
+  lines.push(`  --group-accent: ${c('group_accent')};`);
+  lines.push(`  --scratchpad-accent: ${c('scratchpad_accent')};`);
   lines.push('');
   lines.push('  /* Section colours past red, green and blue (the Apps page, 2026-10-19): cyan, magenta,');
   lines.push('     yellow, each a dark fill and a bright edge: the native section_* tokens. */');
@@ -294,7 +299,7 @@ const LIGHT = {
   '--bg-sidebar': '#ebebeb',
   '--bg-sidebar-dark': '#e2e2e2',
   // The chat's alternate sender groups: a step darker than the page (#f4f4f4), as the dark
-  // theme's stripe is a step lighter than its black. Muted text on it is 6.4:1.
+  // theme's stripe is a step lighter than its black. Muted text on it is 6.2:1, the accent 4.7:1.
   '--row-stripe': '#ebebeb',
   // Text
   '--text': '#1a1a1a',
@@ -339,6 +344,11 @@ const LIGHT = {
   '--server-bg': '#e6e6f6',
   '--server-row-bg': '#dadaf0',
   '--server-row-hover': '#ccccea',
+  // A conversation's name in its header, the same hues darkened to read as text on a light page
+  // (on --bg-sidebar-dark #e2e2e2, the header's ground: 5.0, 4.8 and 5.8 to 1, measured 2026-10-22).
+  '--dm-accent': '#a33a3a',
+  '--group-accent': '#2a6e2a',
+  '--scratchpad-accent': '#5a4a8a',
   // The Apps page's cyan, magenta and yellow sections (2026-10-20): pale washes for the grounds,
   // and each hue darkened so its band name reads on a light page (4.5:1 or better on white).
   '--section-cyan-bg': '#e2f3f5',

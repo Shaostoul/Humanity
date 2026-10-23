@@ -180,24 +180,11 @@ header h1 {
   padding: var(--space-xs);
 }
 
-/* ── Help Button ── */
-#help-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-#help-btn:hover { color: var(--accent); border-color: var(--accent); }
+/* (The ? help button is one of the composer's ghost buttons since 2026-10-22,
+   styled with them in inputs.css, as native's composer draws it.) */
 
+/* The header's search: on a phone only. Wider, it lives in the composer, where
+   native has it (inputs.css #composer-search-btn). */
 #search-toggle {
   background: none;
   border: none;
@@ -205,6 +192,9 @@ header h1 {
   cursor: pointer;
   font-size: var(--text-xl);
   padding: var(--space-xs);
+}
+@media (min-width: 641px) {
+  #search-toggle { display: none; }
 }
 
 /* Federation Phase 2 styles */
