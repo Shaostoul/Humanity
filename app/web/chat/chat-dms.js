@@ -96,9 +96,8 @@ function openDmConversation(partnerKey, partnerName) {
   renderChannelList(); // Deselect server channels
   if (typeof renderGroupList === 'function') renderGroupList(); // Deselect groups
 
-  // Hide pin bar in DM view.
-  document.getElementById('pin-bar').style.display = 'none';
-  document.getElementById('pin-list').classList.remove('open');
+  // No pins in a DM: the bar, the list and the composer's count (chat-messages.js).
+  if (typeof hidePinsForPrivateView === 'function') hidePinsForPrivateView(); // chat-messages.js
 
   // Update channel header.
   renderDmHeader();
@@ -112,7 +111,7 @@ function openDmConversation(partnerKey, partnerName) {
   // Enable input.
   const input = document.getElementById('msg-input');
   input.disabled = false;
-  input.placeholder = `Message ${partnerName}…`;
+  input.placeholder = `Message ${partnerName}`; // native: "Message Ada"
   document.getElementById('send-btn').disabled = false;
   // The attach button follows Files in messages (chat-messages.js).
   if (typeof updateAttachButton === 'function') updateAttachButton();
@@ -138,7 +137,9 @@ function renderDmHeader() {
   const blockTitle = blocked
     ? 'Unblock them: they can reach you again as your safety settings allow.'
     : 'Block them: you will not see anything from them, and they are not told.';
-  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(activeDmPartnerName)}</span>`
+  // Native's DM header (chat.rs draw_center_panel): a Back button, then "DM: Ada" in the DM ink
+  // at the heading size, then Report and Block.
+  header.innerHTML = `<button type="button" class="ch-back" onclick="closeDmView()" data-tip-desc="Return to the channel.">Back</button><span class="ch-name ch-dm">DM: ${esc(activeDmPartnerName)}</span>`
     + `<button class="vr-btn dm-block-btn" onclick="toggleBlockActiveDm()" title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`
     + `<button class="vr-btn dm-report-btn" onclick="reportActiveDm()" title="Report them to this server's admins, with their messages you choose as evidence. They are not told who reported them." style="float:right;font-size:0.7rem;margin-right:var(--space-xs);color:var(--danger);">Report</button>`;
   header.style.display = 'block';

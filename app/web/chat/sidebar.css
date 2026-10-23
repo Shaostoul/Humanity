@@ -104,21 +104,48 @@
 .channel-item.active .ch-mic { color: var(--text); opacity: 0.95; }
 .channel-item .ch-mic.joined { color: var(--accent); opacity: 1; }
 
+/* The channel header, as native's (src/gui/pages/chat.rs, draw_center_panel):
+   the darkest sidebar ground, 10 x 16 inside, a 1 px border; "# general" at the
+   heading size in the main ink, then "|  description" small and muted. A DM
+   names its person "DM: Ada" in the DM ink, a P2P group its name in the group
+   ink, each after a Back button (chat-dms.js, chat-groups-p2p.js). */
 #channel-header {
-  background: var(--bg-secondary);
+  background: var(--bg-sidebar-dark);
   border-bottom: 1px solid var(--border);
-  padding: var(--space-md) var(--space-xl);
+  padding: 10px 16px;
   font-size: var(--text-sm);
+  line-height: 1.3;
   display: none;
 }
 #channel-header .ch-name {
+  font-size: var(--text-xl);
   font-weight: 600;
   color: var(--text);
+  vertical-align: middle;
 }
+#channel-header .ch-name.ch-dm { color: var(--dm-accent); }
+#channel-header .ch-name.ch-group { color: var(--group-accent); }
 #channel-header .ch-desc {
   color: var(--text-muted);
-  margin-left: var(--space-md);
+  margin-left: var(--space-lg);
+  vertical-align: middle;
 }
+#channel-header .ch-desc::before { content: '|'; margin-right: var(--space-lg); }
+/* Back: native's ghost button before a DM's or a group's name. */
+#channel-header .ch-back {
+  margin-right: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  vertical-align: middle;
+}
+#channel-header .ch-back:hover,
+#channel-header .ch-back:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 .peer {
   font-size: var(--text-sm);
@@ -267,9 +294,6 @@
   padding-bottom: var(--space-xs);
   font-size: 0.73rem;
 }
-.sidebar-unified-left .dm-item .dm-preview {
-  max-width: 90px;
-}
 .unified-section.collapsed > .unified-body { display: none; }
 .unified-body {
   padding: var(--space-sm) var(--space-md);
@@ -410,20 +434,6 @@
   opacity: 1;
   background: rgba(255,255,255,0.07);
 }
-.unified-stream-preview {
-  margin: var(--space-xs) 0 var(--space-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-xs);
-  background: #000; /* theme-exempt: a video surface is black in both themes */
-}
-.unified-stream-preview video {
-  width: 100%;
-  height: auto;
-  display: block;
-  transform: none !important;
-}
-
 .stream-row {
   display: flex;
   align-items: center;
@@ -499,14 +509,6 @@
 .role-streaming { background: var(--badge-live); color: #fff; font-size: 0.55rem; }
 
 /* ── DM Section ── */
-.dm-section h4 {
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-top: var(--space-lg);
-  margin-bottom: var(--space-sm);
-  letter-spacing: 0.08em;
-}
 .dm-item {
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
@@ -525,14 +527,6 @@
   color: var(--text);
   flex: 1;
   min-width: 0;
-}
-.dm-item .dm-preview {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 120px;
 }
 .dm-item .dm-unread {
   width: 8px;
@@ -655,27 +649,6 @@
   font-style: italic;
 }
 
-/* ── Category Headers ── */
-.category-header {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  padding: var(--space-md) var(--space-md) var(--space-xs);
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-.category-header:hover { color: var(--text); }
-.category-header .cat-arrow {
-  font-size: 0.5rem;
-  transition: transform 0.15s;
-}
-.category-header.collapsed .cat-arrow { transform: rotate(-90deg); }
-.category-header.collapsed + .category-channels { display: none; }
-
 /* ── @Mentions ── */
 .mention {
   background: rgba(224,112,32,0.15);
@@ -701,54 +674,11 @@
 .status-away { background: #e0c860; }
 .status-busy { background: #dc3232; }
 .status-dnd { background: #dc3232; box-shadow: inset 0 0 0 1.5px #000; }
-.status-offline { background: #666; }
-
-.status-text-display {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  font-style: italic;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 120px;
-}
-
-/* ── Feature 2 & 3: Voice Rooms in Sidebar ── */
-.voice-rooms-section { margin-top: var(--space-lg); }
-.voice-rooms-section h4 {
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: var(--space-sm);
-  letter-spacing: 0.08em;
-}
-.voice-room-item {
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  margin-bottom: var(--space-xs);
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border);
-}
-.voice-room-item:hover { border-color: var(--accent); }
-.voice-room-item .vr-name { font-weight: 600; color: var(--text); }
-.voice-room-item .vr-count { font-size: var(--text-xs); color: var(--text-muted); }
-.voice-room-item .vr-participants {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  padding-left: var(--space-md);
-  margin-top: var(--space-xs);
-}
-.voice-room-item .vr-participant { padding: var(--space-xs) 0; transition: color 0.15s, font-weight 0.15s; }
-.voice-room-item .vr-participant.speaking { color: var(--chat-speaking-ink); font-weight: bold; }
-.voice-room-item .vr-participant.speaking::before { content: '🟢 '; }
-.voice-room-item.in-room { border-color: var(--success); background: rgba(68,170,153,0.08); }
 
 /* Live voice roster under a SERVER channel (v0.481): who is currently connected
-   to that channel's voice, listed below the channel row in the sidebar. The
-   legacy .voice-room-item rules above are more specific and still win for the
-   old standalone rooms UI. .in-voice marks the channel you are connected to. */
+   to that channel's voice, listed below the channel row in the sidebar. .in-voice
+   marks the channel you are connected to. (The old standalone voice rooms list
+   and its .voice-room-item rules went with the 2026-10-22 sweep: nothing drew it.) */
 .channel-item.in-voice { box-shadow: inset 2px 0 0 var(--accent); }
 .channel-item.srv-chan + .vr-participant,
 .vr-participant + .vr-participant {
@@ -776,8 +706,7 @@
   position: relative;
 }
 .channel-cog:hover { opacity: 1; }
-.channel-item:hover .channel-cog,
-.voice-room-item:hover .channel-cog { display: inline; }
+.channel-item:hover .channel-cog { display: inline; }
 .cog-dropdown {
   position: absolute;
   right: 0;
@@ -800,32 +729,6 @@
 .cog-dropdown .cog-item:hover { background: var(--bg-hover); color: var(--accent); }
 .cog-dropdown .cog-item.danger { color: var(--chat-danger-ink); }
 .cog-dropdown .cog-item.danger:hover { background: rgba(220,50,50,0.15); }
-.voice-room-item.vc-empty { opacity: 0.55; }
-.voice-room-item.vc-empty:hover { opacity: 0.85; }
-.vr-delete { background: transparent !important; border: none !important; cursor: pointer; }
-.vr-create-btn {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  width: 100%;
-  margin-top: var(--space-sm);
-}
-.vr-create-btn:hover { color: var(--accent); border-color: var(--accent); }
-.vr-leave-btn {
-  background: #dc3232;
-  color: #fff;
-  border: none;
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  margin-top: var(--space-xs);
-}
-.vr-leave-btn:hover { background: #e54545; }
 
 /* Mobile sidebar layout */
 @media (max-width: 640px) {
@@ -881,9 +784,10 @@
     min-height: 36px;
   }
 
-  /* Channel header: compact */
+  /* Channel header: compact, the name a step smaller so a long description fits. */
   #channel-header {
     padding: var(--space-sm) var(--space-lg);
     font-size: var(--text-sm);
   }
+  #channel-header .ch-name { font-size: var(--text-base); }
 }

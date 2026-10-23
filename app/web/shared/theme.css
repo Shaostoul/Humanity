@@ -106,6 +106,7 @@
   --bg-panel: #000000;
   --bg-sidebar: #000000;
   --bg-sidebar-dark: #020202;
+  --row-stripe: #040404;
 
   /* Text */
   --text: #e8e8ea;
@@ -218,6 +219,8 @@
   --server-bg: #0f0f2d;
   --server-row-bg: #141437;
   --server-row-hover: #191946;
+  --dm-accent: #dc7878;
+  --group-accent: #78dc78;
 
   /* Section colours past red, green and blue (the Apps page, 2026-10-19): cyan, magenta,
      yellow, each a dark fill and a bright edge: the native section_* tokens. */
@@ -246,6 +249,7 @@
   --bg-panel: #ffffff;
   --bg-sidebar: #ebebeb;
   --bg-sidebar-dark: #e2e2e2;
+  --row-stripe: #ebebeb;
   --text: #1a1a1a;
   --text-secondary: #3d3d45;
   --text-muted: #55555e;
@@ -275,6 +279,8 @@
   --server-bg: #e6e6f6;
   --server-row-bg: #dadaf0;
   --server-row-hover: #ccccea;
+  --dm-accent: #a33a3a;
+  --group-accent: #2a6e2a;
   --section-cyan-bg: #e2f3f5;
   --section-cyan: #0b7480;
   --section-magenta-bg: #f5e3f3;

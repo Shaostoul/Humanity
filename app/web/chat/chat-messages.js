@@ -6,51 +6,21 @@
 
 // ── Emoji Reactions ──
 // The palette lives in data/reactions.json (one source shared with the native
-// picker and the relay allowlist; served by nginx at /data/reactions.json).
-// The literal below is only the offline fallback. Entries are BARE (no U+FE0F)
-// to match the relay's canonical stored form.
-let REACTION_EMOJIS = ['👍', '❤', '😂', '😮', '😢', '🎉', '🔥', '👀'];
+// picker and the relay allowlist; served by nginx at /data/reactions.json):
+// `top` is the expanded pill's quick row, `all` its ∞ panel (view/pillPopup.js,
+// native's pill_expand). The literals below are only the offline fallback.
+// Entries are BARE (no U+FE0F) to match the relay's canonical stored form.
+let REACTION_EMOJIS = ['❤', '👍', '👎', '😂', '🤣', '😢', '😡', '🔥', '💯', '⭐'];
+let REACTION_ALL = REACTION_EMOJIS.slice();
 fetch('/data/reactions.json')
   .then(function (r) { return r.ok ? r.json() : null; })
   .then(function (d) {
     if (d && Array.isArray(d.top) && d.top.length) REACTION_EMOJIS = d.top;
+    if (d && Array.isArray(d.all) && d.all.length) REACTION_ALL = d.all;
   })
   .catch(function () { /* offline: keep the fallback */ });
 // Track reactions: key = "fromKey:timestamp", value = { emoji: Set(reactorKeys) }
 const messageReactions = {};
-
-function showReactionPicker(btn, targetFrom, targetTs, msgEl) {
-  // Close any existing picker.
-  document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
-
-  const picker = document.createElement('div');
-  picker.className = 'reaction-picker';
-  picker.style.cssText = 'position:absolute;top:-2rem;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xs);display:flex;gap:var(--space-xs);z-index:20;';
-  REACTION_EMOJIS.forEach(emoji => {
-    const btn = document.createElement('span');
-    btn.textContent = emoji;
-    btn.style.cssText = 'cursor:pointer;padding:var(--space-xs) var(--space-sm);border-radius:var(--radius-sm);font-size:0.9rem;';
-    btn.onmouseover = () => btn.style.background = 'var(--bg-hover)';
-    btn.onmouseout = () => btn.style.background = '';
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      sendReaction(targetFrom, targetTs, emoji);
-      picker.remove();
-    };
-    picker.appendChild(btn);
-  });
-  if (window.twemoji) twemoji.parse(picker);
-
-  msgEl.style.position = 'relative';
-  msgEl.appendChild(picker);
-  // Close picker when clicking elsewhere.
-  setTimeout(() => {
-    document.addEventListener('click', function closePicker() {
-      picker.remove();
-      document.removeEventListener('click', closePicker);
-    }, { once: true });
-  }, 0);
-}
 
 /**
  * A P2P group is open (BUG-178), or the scratch pad (10m R10, the desktop
@@ -75,8 +45,10 @@ function sendReaction(targetFrom, targetTs, emoji) {
     from_name: myName,
     channel: activeChannel,
   }));
-  // Apply locally immediately.
-  applyReaction(targetFrom, Number(targetTs), emoji, myKey, myName);
+  // Not applied here: the server sends every reaction back to everyone, the sender too, and a
+  // reaction is a toggle, so applying it here as well took it straight back off (seen
+  // 2026-10-22: a reaction showed for a moment and vanished until the page was reloaded). The
+  // desktop app waits for the server's copy the same way (chat.rs, pending_reactions).
 }
 
 /** Is this key someone I blocked (app.js isBlockedKey, step C)? Their reactions and thread replies are not shown. */
@@ -107,14 +79,12 @@ function renderReactions(targetFrom, targetTs) {
   const msgEl = document.querySelector(`.reactions[data-from="${targetFrom}"][data-ts="${targetTs}"]`);
   if (!msgEl) return;
 
-  msgEl.innerHTML = Object.entries(reactions).map(([emoji, users]) => {
-    // Counted without anyone I blocked (a reaction from before the block too).
-    const shown = Array.from(users).filter((k) => !fromBlockedKey(k)).length;
-    if (shown === 0) return '';
-    const isMine = users.has(myKey);
-    return `<span class="reaction-badge${isMine ? ' mine' : ''}" data-target-from="${esc(targetFrom)}" data-target-ts="${targetTs}" data-emoji="${esc(emoji)}">${esc(emoji)} <span class="count">${shown}</span></span>`;
-  }).join('');
+  // Inside the timestamp pill, as native paints them (view/timestampPill.js), counted without
+  // anyone I blocked (a reaction from before the block too).
+  msgEl.innerHTML = reactionBadgesHTML(reactions, { myKey, from: targetFrom, ts: targetTs, esc, hidden: fromBlockedKey });
   if (window.twemoji) twemoji.parse(msgEl);
+  // An open expanded pill sits at the pill's right edge, which just moved.
+  if (typeof repositionPillPopup === 'function') repositionPillPopup();
 }
 
 // Apply a reaction from sync (add-only, no toggle).
@@ -258,6 +228,27 @@ function togglePinList() {
   list.classList.toggle('open');
 }
 
+/**
+ * A DM or a P2P group has no pins (a pin would carry its words to the server, BUG-178): the pin
+ * bar goes, the list closes, and the composer's pin button shows no count from the channel left
+ * behind (seen 2026-10-22: "📌 1" from #general in a DM with Ada).
+ */
+function hidePinsForPrivateView() {
+  const bar = document.getElementById('pin-bar');
+  if (bar) bar.style.display = 'none';
+  const list = document.getElementById('pin-list');
+  if (list) list.classList.remove('open');
+  const count = document.getElementById('composer-pin-count');
+  if (count) count.textContent = '';
+  for (const id of ['server-pins-section', 'my-pins-section']) {
+    const s = document.getElementById(id);
+    if (s) s.style.display = 'none';
+  }
+  const empty = document.getElementById('pins-empty');
+  if (empty) empty.style.display = 'block';
+}
+window.hidePinsForPrivateView = hidePinsForPrivateView;
+
 function renderPinBar() {
   const bar = document.getElementById('pin-bar');
   const countEl = document.getElementById('pin-count');
@@ -267,6 +258,12 @@ function renderPinBar() {
   const myContainer = document.getElementById('my-pins');
   const myPins = getMyPins();
   const total = currentPins.length + myPins.length;
+  // The composer's pin button carries the count, as native's "📌 N" (wider than a phone the pin
+  // bar is hidden, messages.css); its list says so when there is nothing pinned.
+  const composerCount = document.getElementById('composer-pin-count');
+  if (composerCount) composerCount.textContent = total ? String(total) : '';
+  const empty = document.getElementById('pins-empty');
+  if (empty) empty.style.display = total ? 'none' : 'block';
 
   if (total === 0) {
     bar.style.display = 'none';

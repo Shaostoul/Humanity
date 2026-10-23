@@ -391,8 +391,9 @@ function setReplyTarget(author, body, fromKey, timestamp, element) {
   const shortBody = quoted.length > 80 ? quoted.substring(0, 80) + '…' : quoted;
   replyTarget = { author, body: quoted, fromKey, timestamp, element, scope: replyScopeNow() };
   const bar = document.getElementById('reply-bar');
+  // Native's banner over the box: "↩ Replying to Ada: words" (chat.rs, the input bar).
   document.getElementById('reply-preview').innerHTML =
-    `<span class="reply-author">${esc(author)}</span> ${esc(shortBody)}`;
+    `&#x21A9;&#xFE0E; Replying to <span class="reply-author">${esc(author)}</span>: ${esc(shortBody)}`;
   bar.style.display = 'flex';
   if (window.twemoji) twemoji.parse(bar);
 }
@@ -2018,7 +2019,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   const privateRow = !!(opts && opts.privateRow);
   let actions = '<div class="msg-actions">';
   if (!privateRow) actions += '<button class="react-btn" title="React">😀</button>';
-  actions += '<button class="reply-btn" title="Reply">↩</button>';
+  actions += '<button class="reply-btn" title="Reply">&#x21A9;&#xFE0E;</button>';
   if (isMe && !privateRow) {
     actions += '<button class="edit-btn" title="Edit">✏️</button>';
   }
@@ -2072,7 +2073,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
       : (replyTo.content || '').substring(0, 60) + ((replyTo.content || '').length > 60 ? '…' : '');
     const replyAuthor = quotesBlocked ? 'Someone you blocked' : (replyTo.from_name || 'Unknown');
     replyIndicatorHtml = `<div class="reply-indicator" data-reply-from="${esc(replyTo.from)}" data-reply-ts="${replyTo.timestamp}">
-      <span>↩</span>
+      <span>&#x21A9;&#xFE0E;</span>
       <span class="reply-indicator-author">${esc(replyAuthor)}</span>
       <span class="reply-indicator-preview">${esc(replyPreview)}</span>
     </div>`;
@@ -2089,12 +2090,19 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
         <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
         ${sigBadge}
       </div>`;
+  // The reactions ride INSIDE the timestamp pill, after its Þ, as native paints them
+  // (paint_timestamp_pill); renderReactions (chat-messages.js) fills them by these data attributes.
+  const sentAt = new Date(Number(timestamp));
   el.innerHTML = messageRowHTML({
     isContinuation,
     identiconHtml,
     metaHtml,
-    pillHtml: timestampPillHTML({ time: timePill, thorn: true }),
-    reactionsHtml: `<span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>`,
+    pillHtml: timestampPillHTML({
+      time: timePill,
+      iso: isFinite(sentAt.getTime()) ? sentAt.toISOString() : '',
+      thorn: true,
+      reactionsHtml: `<span class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></span>`,
+    }),
     bodyHtml,
     replyIndicatorHtml,
     threadBadgeHtml,
@@ -2117,27 +2125,58 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     });
   }
 
-  // Click react button → show emoji picker. A private row has none, and no
-  // picker on its pill's thorn either (a reaction tells the server who reacted
-  // to what). Each control is looked up before it is hooked: in a browser a
-  // button the row does not have is null, and hooking null threw, so no group
-  // message was drawn at all.
+  // The Þ in the timestamp pill opens the expanded pill (view/pillPopup.js, native's
+  // `pill_expand`): Reply, Pin (the people the server lets pin), Edit (mine), the quick
+  // reactions and all of them, and the full date and time. A private row's offers Reply alone:
+  // no reaction, pin or edit, each of which tells the server what the message says or who
+  // reacted to it (BUG-178).
+  if (typeof wirePillPopup === 'function') {
+    wirePillPopup(el, {
+      ts: timestamp,
+      privateRow,
+      canPin: isStaff,
+      canEdit: isMe,
+      top: () => (typeof REACTION_EMOJIS !== 'undefined' ? REACTION_EMOJIS : []),
+      all: () => (typeof REACTION_ALL !== 'undefined' ? REACTION_ALL : []),
+      onReply: () => {
+        setReplyTarget(author, body, fromKey, timestamp, el);
+        document.getElementById('msg-input').focus();
+      },
+      onPin: () => pinMessageFromUI(fromKey, author, body, timestamp),
+      onEdit: () => startEditMode(el, body, fromKey, timestamp),
+      onReact: (emoji) => sendReaction(fromKey, timestamp, emoji),
+    });
+  }
+
+  // The touch bar's React (.msg-actions, shown when a row is tapped) opens the same expanded
+  // pill. A private row has none. Each control is looked up before it is hooked: in a browser a
+  // button the row does not have is null, and hooking null threw, so no group message was drawn
+  // at all.
   const reactBtn = privateRow ? null : el.querySelector('.react-btn');
   if (reactBtn) {
     reactBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showReactionPicker(e.target, fromKey, timestamp, el);
+      if (typeof openPillPopup === 'function') openPillPopup(el, 'click');
     });
   }
 
-  // Click the Þ in the timestamp pill → reaction picker (native parity:
-  // the pill's thorn is the primary add-reaction affordance).
-  const thornEl = privateRow ? null : el.querySelector('.ts-thorn');
-  if (thornEl) {
-    thornEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showReactionPicker(e.target, fromKey, timestamp, el);
-    });
+  // Right-click (or the Menu key) on the row: native's message menu (view/messageMenu.js). Its
+  // Reply, Pin, Pin for me, Edit and Delete press this row's own buttons below, so it offers
+  // only what they do; Report and Block name the sender, never me, a bot or a bridged line.
+  if (typeof wireMessageMenu === 'function') {
+    const menuPerson = (!isMe && fromKey && !isFed && !isBot) ? {
+      report: () => {
+        const ag = window.activeP2pGroup;
+        const message = { timestamp, text: body, group: !!ag, groupId: ag ? ag.id : '', groupName: ag ? (ag.name || '') : '' };
+        if (message.group) message.id = (el.dataset && el.dataset.groupObjectId) || '';
+        if (typeof openReportDialog === 'function') {
+          openReportDialog({ target: fromKey, name: author, context: message.group ? 'group' : 'post', message });
+        }
+      },
+      block: () => { if (typeof blockKey === 'function') blockKey(fromKey); },
+    } : null;
+    // A file's marker holds its key: Copy text never copies that, only words.
+    wireMessageMenu(el, { text: fileMeta ? '' : (media ? media.words : body), person: menuPerson });
   }
 
   // Click reply button → show reply preview bar above input.
@@ -2503,7 +2542,8 @@ function updateInputForChannel() {
     sendBtn.disabled = true;
   } else {
     input.disabled = false;
-    input.placeholder = 'Type a message…';
+    // Native's hint names where the message goes ("Message #general", chat.rs, the input bar).
+    input.placeholder = 'Message #' + (ch ? ch.name : activeChannel);
     sendBtn.disabled = false;
   }
 }
@@ -2511,15 +2551,17 @@ function updateInputForChannel() {
 function updateChannelHeader() {
   const header = document.getElementById('channel-header');
   // Scratch pad gets a special header.
+  // Native's header (chat.rs draw_center_panel): "# name" at the heading size, then
+  // "|  description" small and muted (the bar comes from sidebar.css .ch-desc::before).
   if (isScratchPad()) {
-    header.innerHTML = '<span class="ch-name" style="color:var(--warning,#e0a030);"># scratch-pad</span><span class="ch-desc">' + esc(SCRATCH_PAD_NOTE) + '</span>';
+    header.innerHTML = '<span class="ch-name"># scratch-pad</span><span class="ch-desc">' + esc(SCRATCH_PAD_NOTE) + '</span>';
     header.style.display = 'block';
     return;
   }
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
     const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
-    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">- ${esc(ch.description)}</span>` : ''}`;
+    header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">${esc(ch.description)}</span>` : ''}`;
     header.style.display = 'block';
     if (window.twemoji) twemoji.parse(header);
   } else {
@@ -2983,7 +3025,11 @@ function formatBody(text, fromKey) {
   flushQuote();
   flushList();
 
-  safe = result.join('\n');
+  // A quote or a list is a block of its own, so the line break after it would draw an empty line
+  // under it (the body keeps its line breaks, white-space: pre-wrap); native has none. At this
+  // point the only </div> and </ul> in the text are the quotes' and lists' own: everything the
+  // person wrote is escaped, and code and file cards are still placeholders.
+  safe = result.join('\n').replace(/(<\/div>|<\/ul>)\n/g, '$1');
 
   // Step 6: Restore code blocks with styled rendering.
   safe = safe.replace(new RegExp(CODE_PLACEHOLDER.replace(/\0/g, '\\0') + '(\\d+)' + CODE_PLACEHOLDER.replace(/\0/g, '\\0'), 'g'), (match, idx) => {

@@ -431,18 +431,8 @@ switchChannel = function(channelId) {
 // composer patch lives in chat-groups-p2p.js.)
 
 
-// Helper to add a message to the chat (for groups)
-function addMessageToChat(name, content, timestamp, isYou, fromKey) {
-  const messagesDiv = document.getElementById('messages');
-  const div = document.createElement('div');
-  const stripe = (typeof getStripeClass === 'function') ? getStripeClass(fromKey || name) : '';
-  div.className = 'message' + (stripe ? ' ' + stripe : '');
-  const time = new Date(timestamp);
-  const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  div.innerHTML = `<div class="meta"><span class="author${isYou ? ' you' : ''}">${esc(name)}</span><span class="timestamp">${timeStr}</span></div><div class="body">${esc(content)}</div>`;
-  messagesDiv.appendChild(div);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
+// (addMessageToChat, the legacy groups' own row builder, went in the 2026-10-22 sweep: nothing
+// called it since those groups were removed on 2026-08-23. Every row is app.js addChatMessage's.)
 
 // ── Client-side social graph (follows removal, 2026-08-24) ────────────────
 // The server stores no follow edges. Following is local state persisted in

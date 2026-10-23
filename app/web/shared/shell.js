@@ -546,12 +546,16 @@
     [data-theme="light"] .hub-nav { border-bottom-color: var(--border); }
 
     /* ── Divider between nav groups, negative margin cancels the double flex-gap ── */
+    /* Between groups, native's separator_dot (src/gui/pages/escape_menu.rs): a small "·" in
+       a dim ink with about 6 px either side (Track W step 5, 2026-10-22; it was a 1 px line
+       with no room around it, which read as no separation at all). */
     .hub-nav .nav-divider {
-      width: 1px;
-      height: 18px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
       background: var(--hos-nav-divider);
       flex-shrink: 0;
-      margin: 0 -0.1rem; /* gap is 0.2rem; -0.1rem each side keeps visual spacing even */
+      margin: 0 3px; /* plus the row's 0.2rem gap either side: about native's 6 px */
     }
 
     /* ── Spacer pushes right-side items to the right ── */
@@ -945,6 +949,13 @@
 
       '<span class="nav-group-red">' +
         navTab('/chat',     'chat',  'Chat',   'chat') +
+      '</span>' +
+
+      /* Chat is a group of its own and Watch and Files the next, as the desktop app's menu
+       * groups them (escape_menu.rs: Chat, a dot, then Studio, Watch and Files; 2026-10-22). */
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-red">' +
         /* Watch and Files beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
          * browser the page had no link at all, only the phone menu listed it). Files is the page
          * people put their files on, called Media (at /media) until 2026-10-19. */
@@ -1354,10 +1365,14 @@
     obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
 
     var SELECTOR = '[data-native-title],[data-tip-title],[data-tip],[aria-label],button,a,[role="button"]';
+    // A control marked data-no-tip (or inside one) explains itself and shows no hint: the chat's
+    // Þ, whose hover opens the expanded pill at once, and the reactions (2026-10-22, native shows
+    // none on either), where a hint would only cover what just opened.
     document.addEventListener('mouseover', function(e) {
       var el = e.target.closest(SELECTOR);
       if (!el) return;
       if (el.closest('.hub-nav')) return; // nav tabs use CSS ::after tooltips
+      if (el.closest('[data-no-tip]')) { hideTip(); return; }
       showFor(el, e.clientX || 8, e.clientY || 8);
     });
     document.addEventListener('mousemove', function(e) {
@@ -1376,6 +1391,7 @@
     document.addEventListener('focusin', function(e) {
       var el = e.target.closest(SELECTOR);
       if (!el) return;
+      if (el.closest('[data-no-tip]')) { hideTip(); return; }
       var r = el.getBoundingClientRect();
       showFor(el, r.left + 8, r.bottom + 8);
     });
@@ -1962,7 +1978,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1543.0';
+    var CURRENT_VERSION = '0.1543.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

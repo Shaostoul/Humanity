@@ -86,7 +86,11 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.ctx-item:hover { background: var(--bg-hover); color: var(--accent); }
+.ctx-item:hover,
+.ctx-item:focus { background: var(--bg-hover); color: var(--accent); outline: none; }
+/* A message's menu (view/messageMenu.js): Delete and Report in the danger ink,
+   as the member menu marks its own (chat-ui.js, its 'danger' entries). */
+.ctx-item.ctx-item-danger { color: var(--danger); }
 .ctx-sep {
   height: 1px;
   background: var(--border);
@@ -148,15 +152,6 @@
 .profile-modal textarea:focus,
 .profile-modal input[type="text"]:focus { border-color: var(--accent); }
 
-.profile-modal .bio-counter {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  text-align: right;
-  margin-top: var(--space-xs);
-}
-.profile-modal .bio-counter.warn { color: var(--warning); }
-.profile-modal .bio-counter.over { color: var(--danger); font-weight: 600; }
-
 .profile-modal .btn-row {
   display: flex;
   gap: var(--space-md);
@@ -198,32 +193,6 @@
   cursor: pointer;
 }
 .profile-modal .close-btn:hover { color: var(--text); }
-
-/* ── Edit Profile: field row with privacy toggle ── */
-.profile-field-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-top: var(--space-lg);
-  margin-bottom: var(--space-xs);
-}
-.profile-field-row label { margin: 0; flex: 1; }
-/* Lock/globe button that toggles per-field privacy. */
-.privacy-toggle {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  padding: var(--space-xs) var(--space-sm);
-  line-height: 1.2;
-  flex-shrink: 0;
-  transition: color 0.15s, border-color 0.15s;
-}
-.privacy-toggle:hover { color: var(--accent); border-color: var(--accent); }
-/* When marked private the icon shows a lock and the border turns accent-coloured. */
-.privacy-toggle.is-private { color: var(--accent); border-color: var(--accent); }
 
 /* ── View Profile Card: banner + avatar ── */
 .profile-card-banner {
@@ -329,6 +298,12 @@
   color: var(--text-muted);
 }
 #pin-bar .pin-summary .pin-icon { color: var(--accent); }
+/* Wider than a phone the composer's pin button carries the count and opens the
+   list (native's composer); the bar is for a phone, whose composer has no room. */
+@media (min-width: 641px) {
+  #pin-bar { display: none !important; }
+}
+#pins-empty { font-size: var(--text-sm); color: var(--text-muted); }
 
 #pin-list {
   display: none;

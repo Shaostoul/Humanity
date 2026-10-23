@@ -442,7 +442,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     refuse an FXC sweep. Flaky under load (passed alone): `engine::file_transfer` "one dial one
     allocation", `net::webrtc::turn` wrong credentials, `relay::resumable` follow-ups "a dropped
     request keeps its finish to itself" (2026-10-21, 3 of 3 alone), `gui::pages::files::resumable`
-    "pause_resume_and_cancel" (2026-10-21, 3 of 3 alone). Two upload tests in one day: make the
+    "pause_resume_and_cancel" (2026-10-21, 3 of 3 alone). Also the relay-follower rig tests (scripts/tests/relay-follow.test.js: a different one of its 12 failed in two loaded runs, 12 of 12 twice alone, 2026-10-22). Two upload tests in one day: make the
     resumable-upload tests independent of timing (they fail only while other builds load the machine).
   - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
@@ -1290,9 +1290,9 @@ them up.
    bill author's office. Until decided the button is fine to ship (the act is not in force).
    Detail: `docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md`, 2.10.
    Told to the operator once, 2026-10-19.
-12. **ALMOST DONE (2026-10-22): the file is edited and `nginx -t` passes (backup
-   `/root/nginx-humanity.bak-20261022`); only `systemctl reload nginx` is left, which the session's
-   permission check refused (operator: `ssh humanity-vps "systemctl reload nginx"`).** Was: one
+12. **DONE 2026-10-22: the file edited and tested by the AI (backup
+   `/root/nginx-humanity.bak-20261022`), the reload run by the operator; `/files/<n>` now reaches
+   the relay's item page (checked: its og:title).** Was: one
    edit on the VPS after v0.1524.0 (Media renamed Files), 2026-10-20. The AI's
    remote write was refused by the session's safety classifier, so this waits for the operator:
    in `/etc/nginx/sites-enabled/humanity`, change the line `location ~ ^/media/[0-9]+$ {` to
@@ -1736,10 +1736,13 @@ agreement), so ad-blocking defaults do not apply there.
 > in-app control in the same increment.
 
 1. **Web-mirrors-native parity (Track W).** Divergence map and migration order
-   in `docs/design/web-native-parity.md`. Native chat is the parent. Steps 1 and
-   2 done; NEXT is step 3 (message rows, timestamp pill, inline reactions), then
-   header and composer, top-nav alignment, and a spacing sweep with dead-CSS
-   removal.
+   in `docs/design/web-native-parity.md`. Native chat is the parent. Steps 1 to 6
+   DONE (2026-10-22): message rows with the reactions in the time pill, the
+   expanded pill and the right-click menu, the header and composer, the top menu,
+   the dead-CSS sweep (and a reaction that cancelled itself on the sender's own
+   echo, fixed). Left (the parity doc): DM rows need a working reply before their
+   pill; native should offer Pin only where the relay allows it; the rails and
+   modals as view modules.
 2. **PARKED (operator, 2026-10-22: "Let's avoid working on this for now."). Studio and streaming (Track S).** `docs/design/studio-streaming.md`. Native
    capture, encode and stream shipped (v0.853 to v0.854), so build the widget on
    web first and mirror once native transport exists. Order: S0 persistent
