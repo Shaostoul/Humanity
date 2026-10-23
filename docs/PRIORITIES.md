@@ -1798,7 +1798,7 @@ agreement), so ad-blocking defaults do not apply there.
 **Operator, 2026-10-22:** "I like the idea of everything here but, let's only focus on English for
 now but, make sure we prep for all the other languages." So: tooltips, the first five minutes,
 the WCAG 2.1 AA audit and the glossary on every page, in English, with every new or touched
-string going through  so a translation is data, not code. Queued after the website
+string going through `data/i18n/` so a translation is data, not code. Queued after the website
 chat work (Track W step 3) merges, because both touch the same pages.
 
 The mission requires this layer. Not optional, just sequenced after the
