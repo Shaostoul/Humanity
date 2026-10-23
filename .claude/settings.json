@@ -11,6 +11,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/post-edit-encoding.js\"",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -22,6 +32,16 @@
             "command": "node scripts/hook-push-guard.js",
             "if": "Bash(git push*)",
             "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/tool-guard.js\"",
+            "timeout": 10
           }
         ]
       }

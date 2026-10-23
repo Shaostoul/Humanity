@@ -116,3 +116,6 @@ node.env
 # The two generated codec-test clips (ffmpeg test patterns, see that doc).
 /tools/cef-probe/pages/h264.mp4
 /tools/cef-probe/pages/vp9.webm
+
+# Agents' handoff notes at a usage cap or a restart (2026-10-22): working state, never committed
+.claude/handoff/

@@ -56,6 +56,45 @@ to 800x real time headless, slow processes 10^4x to 10^6x by coarse steps with a
 without it. Ten increments (~27-35 agent-days); 1 to 5 move code out of lib.rs and need quiet
 windows. Started 2026-10-22: increment 0 (stage timers; 18.7 ms of a 34.6 ms frame is timed by
 nothing) and FarmingSystem's cost (3.51 ms of the 3.80 ms systems tick, a windowed-game win too).
+**The cost review is DONE and on disk: `docs/design/sim-frame-cost.md`** (timers first, then
+FarmingSystem F1+F2 for ~2.5-3 ms, then gating the Garden mirror, est. 4-9 ms every world frame,
+to frames that draw the Inventory page). Next agent: a domain-writer for the timers + the farming
+golden-state test, then F1/F2/S1 (lib.rs: needs a quiet window).
+
+### QUEUED BY THE OPERATOR 2026-10-22 (after the usage reset, in this order)
+
+1. **In flight at the cap (14 agents):** each writes `C:\Humanity\.claude\handoff\<topic>.md`
+   (done, verified, left, next commands). Merge each as it reports; review the voice/privacy diff
+   for changed tests before merging. The operator restarts the PC for the page file (8 GB to 32 GB)
+   when the agents are at a safe point.
+2. **Trim CLAUDE.md (operator: "Yes, please")** into audience docs so an agent loads only what it
+   needs: the ~27 KB only the orchestrator uses goes to `docs/ai/orchestrator.md` (or similar), and
+   more such splits where they save ~5% or more ("a tiny bit of waste can be okay if the effort to
+   remove it isn't worth it but, generally, if there's like a 5% or greater performance increase we
+   should consider it"). handbook-keeper; keep every rule reachable; mind the START HERE checklist.
+3. **Saved procedures as skills** (approved): `.claude/skills/release`, `merge-agent`,
+   `game-checks`, written from the SOP and the commands this session used.
+4. **A closed-loop test, 1 person to all of humanity** (the operator, verbatim in the journal):
+   "as close to 100% closed loop self-sustaining as possible for 1 person up to 100% of Humanity",
+   with two metrics: **Earth, today, real** (sourced, dated data) and **the game's mothership**
+   housing billions across interstellar space, starting from today's technology and adding
+   promising R&D (fusion) as labelled options; "think like 1,000 years from now". Design and
+   sourced data first (homestead-engineer, with a refutation pass, see
+   `project_teaching_data_needs_refutation`), then the headless Rust test on the real systems
+   (the headless runner's first big customer).
+5. **An in-game event journal for play sessions** (after the MCP server lands): events written
+   by kind (combat, damage, AI, errors, economy...) to small capped files, a "mark" key that
+   bookmarks a moment with a screenshot, and an MCP tool that reads only one kind since a mark,
+   so reading 5 minutes of an encounter costs a few hundred lines, not the whole log.
+6. **A #claude channel and Claude Code inside the Dev tab (later):** a federated channel everyone
+   can read but only the operator's key and the AI's key can post in (the existing
+   `channels.read_only` column is the start), and Claude acts only on messages signed by the
+   operator's key, so text posted elsewhere can never steer it. Then a terminal pane running
+   Claude Code in the Dev tab.
+7. **Toolchain:** the PC runs rustc 1.88.0; CI (`dtolnay/rust-toolchain@stable`) and both servers
+   run 1.97.1. Proposal: pin one version in `rust-toolchain.toml` so all three match, update it
+   deliberately about every six weeks (one cold rebuild, with the build-speed changes), and have
+   `just brief` say when a newer stable exists. The update is a download: the operator's yes.
 
 ### DONE 2026-10-21/22: the five pieces paused at the usage cap all shipped
 

@@ -1,0 +1,104 @@
+# Where the CPU frame goes: FarmingSystem and the untimed 19 ms
+
+Status: proposal, measured from reading on 2026-10-22 (perf-expert, read-only; nothing booted or
+built). Line numbers are at lib.rs 16,614 lines and will drift: grep before relying on one. Every
+item is a timer or a result-identical change except F4. Companion to
+`docs/design/headless-sim-runner.md` (its increments 0 and 7).
+
+## What the data on disk says
+
+- `.probe-rig/debug/frame_costs.json` (v0.1539.0): `cpu.frame_total` 34.64 ms, `frame_ms` 36.30.
+  Timed CPU stages sum to 15.68 ms, so **19.0 ms is untimed**. GPU passes sum to 14.25 ms and
+  `cpu.present_wait` is 0.22 ms: **the limit is the CPU main thread**, and over half of it has no
+  timer.
+- The rig's homestead has **1,981 crops** (`[Showcase] auto-seeded 1981 crops` in run.log), so
+  FarmingSystem's 3.51 ms is 1.77 us per crop per frame.
+- Chunked terrain was not running at this vantage (its stages had decayed to ~0).
+
+## FarmingSystem (3.51 ms)
+
+`FarmingSystem::tick` (`src/systems/farming/mod.rs:954`) walks every crop several times. The cost is
+string-keyed SipHash lookups and small heap allocations repeated per crop, not arithmetic.
+
+| Pass | Lines | Est. ms | Why |
+|---|---|---|---|
+| Pest tally | 1976-2043 | 0.8-1.1 | ~20 lookups per crop, 10 `pests::favour` HashSet<String> lookups |
+| Main growth loop | 2056-2471 | 1.8-2.4 | 40-45 lookups (the plant registry 7 times for one crop), ~7 allocations (`def.stages()` Vec, `crop.clone()`, `area.to_string()` map keys) |
+| Apply pass | 2605-2619 | 0.15-0.25 | two `world.get` per crop, old crop's Strings freed |
+| Pollination, picking, weeds walks | 1631, 1657, 2047 | 0.2-0.3 | `in_flower.insert(area.to_string())` per flowering crop |
+| Per-tick setup | 1056, 1068, 1184 | 0.05-0.15 | `AirMap::new` clones every room |
+
+**F1. Per-tick lookup tables (saves ~1.5-2.2 ms, identical results).** Resolve once per plant
+(definition, stages slice, growth days, light need, water, `exchange_for`, fungus CO2, windows, weed
+loss, a host mask sized from `pests.ron`, never a hardcoded 64 bits), once per area (field flag,
+room, `rh_for`, `known_rh`, `known_co2_ppm`, `warmed_k`, `cover_warming`, pests/weeds entries,
+supply, nutrient slider, `lamp_cover`, mulch rate), once per (area, plant) (`plants_here`, need,
+pest/humidity/CO2 ceilings, light rate, climate factor). All read-only during the loop. **Do NOT
+cache** soil pH per area (`soil_ph::add_n` writes it inside the loop), the `organic` pools, or
+`crop_soil.store`. Owned-String keys kept in `FarmingSystem` across ticks plus a last-key memo.
+
+**F2. No allocations per crop (saves ~0.6-0.9 ms, identical).** Iterate
+`query_mut::<(&mut CropInstance, Option<&mut CropSoil>)>()` and mutate in place (removes
+`crop.clone()`, the `updates` Vec and the apply pass); accumulate per-area sums by area index and
+build the maps once, in the same order.
+
+**F3. The other walks (~0.1-0.3 ms).** `get` before `insert` in pollination; cache `AirMap`'s
+structure until rooms or plots change; cache `light_at` per area at night; keep `need_cache` and
+`fertilizer_doses` across ticks, invalidated on hot reload.
+
+After F1-F3: FarmingSystem ~0.5-1.0 ms. **F4 (lower tick rate) changes results** (left Riemann
+`health_seconds`, the 0.2 water-stress crossing, dawn/dusk light gating, feeder steps): keep it for
+headless soaks only.
+
+**Proof first:** a lib test that runs the 1,981-crop showcase ~600 ticks and snapshots the bits of
+every `CropInstance`, `CropSoil` and `SoilMemory`; bit-identical after the change is the proof.
+Sub-stage timers (children of `cpu.system.farming`, kept out of sums): `cpu.farm.setup` 954-1209,
+`.pollination` 1631, `.picking` 1657, `.pest_tally` 1976-2043, `.weeds` 2046-2047, `.crops`
+2056-2471, `.air` 2480-2554, `.apply` 2605-2619.
+
+## Increment 0: tile the untimed 19 ms
+
+Non-overlapping `cpu.span.*` timers (`let t = frame_costs::stage("cpu.span.x"); ... drop(t);`) so
+frame_total ~= `cpu.fps_cap_sleep` + sum of spans. Spans after the acquire record only when
+`!page_active` (like frame_total at lib.rs:16157). Update `docs/dev/performance-profiling.md`'s
+subtraction rule and keep spans out of `data/performance/budget_systems.ron`. Overhead ~0.02 ms.
+
+Span boundaries (lib.rs): station 3302-3553, hot_reload 3559, move_setup 3561-3632, walk_aboard
+3633-3756, particles 3758-4153, house_power 4155-4318, planet_walk 4320-5253, collide_drive
+5255-5451, look_env 5452-5769, bridges 5770-6659, ecs 6660-6721, copresence 6723-6877,
+save_editor 6878-7388, lists_home 7390-8214, lists_fixtures 8215-8662, lists_gizmos 8663-9137,
+lists_people 9138-9338, lists_sky 9339-11800, hud_voice 11802-11950, settles 11951-12589,
+mirror_player 12590-12796, garden_mirror 12797-12945, mirror_world 12946-13292, env_publish
+13293-13697, cards 13698-14264, dev_ipc 14266-14408, network 14409-14703, load 14704-14746, screens
+14749-14790, world_passes 14791-15333 (sub-span point_lights 14885-~15040), ui_run 15336-15816,
+audio 15818-15973, ui_paint 15975-16083, tail 16085-16148.
+
+## Suspects in the untimed time, ranked
+
+- **S1. The Garden mirror (lib.rs:12797-12945), est. 4-9 ms every world frame.** ~15 String
+  allocations, 6-8 formats and ~20 lookups per crop (uncached `crop_season_need` through
+  `harvest_item_for`, `air_view.crop_row` formats, `outlook()`), plus five view constructors that
+  each re-walk every crop. Its only consumer is the Inventory page (inventory.rs:2154-2600). Fix,
+  identical image: build it only when the Inventory page will be drawn this frame (active page, or an
+  in-world screen sourcing `Page(Inventory)`, e.g. home.ron's `wall_screen_1`); that choice is made
+  at 14762-14783, so move the mirror into a function called just before `frame_surfaces` and
+  `egui_ctx.run`. Verify with `just snapshot inventory` and `just verify-screens`.
+- **S1b. Inside `cpu.screen_ui` (6.23 ms):** the Inventory Garden section filters all crops once per
+  group (inventory.rs:2255) and clones every `CropOutlook` per group per frame (2394). Group once,
+  borrow. Confirm with a per-source id at screen_surface.rs:1101.
+- **S2. The main egui pass, est. 1.5-4 ms, no CPU timer.** The HUD runs `sight_blockers.blocked()`
+  before `world_to_screen` (hud.rs:562/565); project first.
+- **S3. Draw-list assembly (7390-11800), est. 1-3 ms.** Seven lists built with `Vec::new()` each
+  frame; keep capacity.
+- **S4. Plant-mesh signature (home_meshes.rs:1091-1104), 0.1-0.2 ms, untimed.** SipHash over every
+  crop before its own guard; publish a crop-change counter from FarmingSystem instead.
+- **S5. Page mirrors rebuilt for pages that are not open** (skills 12673, abilities 12336, machine
+  card stats 13756, `publish_home_stock` triple clone, `herd_rows` 6682): gate on visibility.
+- **S6. Dev IPC polls, 0.05-0.4 ms:** ~11 `Path::exists` per frame (ipc.rs:548); one `notify`
+  watcher on `debug/` instead.
+
+## Order of work
+
+1. Timers (`cpu.span.*`, `cpu.farm.*`) and the farming golden-state test.
+2. F1 + F2, then the S1 gate.
+3. `just perf-sweep` against the v0.1539 baseline with `just perf-diff`, plus `just verify-screens`.
