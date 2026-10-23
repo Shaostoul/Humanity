@@ -1,28 +1,40 @@
 /* inputs.css, Message compose bar, send button, reply bar, search input, command palette */
 
-/* ── Input ── */
+/* ── Input ──
+   Native's input bar (src/gui/pages/chat.rs, "Input bar"): a strip on the
+   darkest sidebar ground, 16 px in from each side, holding ONE rounded box
+   (the raised input ground, an 8 px radius, a 1 px border, 8 x 12 inside)
+   with the text and its controls in a row. Its bottom keeps the site footer's
+   tab clear of the box (web only: the app has no footer). */
 #input-area {
   border-top: 1px solid var(--border);
-  padding: var(--space-lg) var(--space-lg);
-  /* Extra bottom padding so the footer toggle button doesn't overlap the compose bar */
-  padding-bottom: var(--space-3xl);
-  display: flex;
-  gap: var(--space-md);
-  background: var(--bg-secondary);
+  padding: var(--space-xs) 16px var(--space-3xl);
+  background: var(--bg-sidebar-dark);
 }
+#composer-box {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+#composer-box:focus-within { border-color: var(--border-focus); }
 
 #msg-input {
   flex: 1;
+  min-width: 0;
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius);
   font-size: var(--text-base);
   outline: none;
   font-family: inherit;
   resize: none;
-  min-height: 38px;
+  min-height: 34px;
   max-height: 45vh; /* was 150px; grows to fit a whole post, then scrolls */
   overflow-y: auto;
   line-height: 1.4;
@@ -30,39 +42,67 @@
 
 #msg-input:focus { border-color: var(--accent); }
 
-#send-btn {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: var(--space-md) var(--space-xl);
+/* Search, Pins and ?: native's ghost buttons, the plain glyph and no frame. */
+#composer-box .composer-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 30px;
+  height: 34px;
+  padding: 0 var(--space-xs);
+  background: none;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+#composer-box .composer-ghost:hover,
+#composer-box .composer-ghost:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+#composer-pin-count { font-size: var(--text-sm); }
+#composer-pin-count:empty { display: none; }
+
+/* Send: native's primary button. */
+#send-btn {
+  height: 34px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  padding: 0 var(--space-xl);
+  border-radius: var(--radius);
+  font-size: var(--text-base);
   cursor: pointer;
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 #send-btn:hover { background: var(--accent-hover); }
 #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Command Palette ── */
+/* ── Command Palette ── (the web's +, at the box's start; native has none) */
 #cmd-palette-btn {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--text-muted);
+  width: 30px;
+  height: 34px;
+  min-width: 30px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-secondary);
   font-size: var(--text-2xl);
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
   flex-shrink: 0;
 }
-#cmd-palette-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+#cmd-palette-btn:hover,
+#cmd-palette-btn:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 #cmd-palette-overlay {
   display: none;
@@ -137,12 +177,13 @@
 #char-counter.warn { color: var(--warning); }
 #char-counter.over { color: var(--danger); font-weight: 600; }
 
-/* ── Reply bar ── */
+/* ── Reply bar ──
+   Native draws "↩ Replying to Ada: words" small and muted on the input bar's own
+   ground, just over the box, with an X to drop it (chat.rs, the input bar). */
 #reply-bar {
-  background: var(--bg-secondary);
+  background: var(--bg-sidebar-dark);
   border-top: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-xs) 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -171,18 +212,24 @@
 }
 #reply-cancel:hover { color: var(--text); }
 
-/* ── Upload attachment button ── */
+/* ── Upload attachment button ── native's secondary "Attach", before Send. */
 #attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 34px;
   background: var(--bg-input);
   border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: var(--space-md) var(--space-lg);
+  color: var(--text);
+  padding: 0 var(--space-md);
   border-radius: var(--radius);
-  font-size: 1rem;
+  font: inherit;
+  font-size: var(--text-base);
   cursor: pointer;
   flex-shrink: 0;
 }
-#attach-btn:hover { color: var(--accent); border-color: var(--accent); }
+#attach-btn:hover,
+#attach-btn:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 /* ── Typing indicator ── */
 #typing-indicator {
@@ -200,22 +247,27 @@
 
   /* Comfortable input area on mobile */
   /* Five controls share 375 px; the text box gets what is left, enough for its whole
-     placeholder on one line (it wrapped onto two in the phone check of 2026-10-12). */
+     placeholder on one line (it wrapped onto two in the phone check of 2026-10-12). Search and
+     Pins stay in the header and the pin bar on a phone, and Attach shows its clip alone. */
   #input-area {
     /* The bottom keeps the site footer's tab clear of the text box (it took the box's bottom 12 px). */
-    padding: var(--space-md) var(--space-md) var(--space-3xl);
-    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-sm) var(--space-3xl);
   }
-  #attach-btn { padding: var(--space-md); }
+  #composer-box { padding: var(--space-xs); gap: var(--space-xs); }
+  #composer-box #composer-search-btn,
+  #composer-box #composer-pins-btn,
+  #attach-btn .attach-label { display: none; }
+  #attach-btn { padding: 0 var(--space-md); min-height: 44px; }
+  #cmd-palette-btn { min-height: 44px; }
   #send-btn {
-    padding: var(--space-lg) var(--space-md);
+    padding: 0 var(--space-md);
     font-size: var(--text-base);
     min-width: 52px;
     min-height: 44px;
   }
   #help-btn {
     min-width: 36px;
-    min-height: 36px;
+    min-height: 44px;
     font-size: var(--text-base);
   }
   #msg-input {

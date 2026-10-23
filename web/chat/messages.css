@@ -1,48 +1,77 @@
 /* messages.css, Message bubbles, replies, reactions, threads, attachments */
 
 .message {
-  /* Native parity (step 3): flat grouped rows, [avatar gutter | content].
-     Avatar + name show once per sender group; continuations show just the
-     timestamp pill. Flat (bg on hover only), not nested bubbles. */
+  /* Native parity (Track W step 3): flat grouped rows, [avatar gutter | content],
+     as message_row (src/gui/widgets/row.rs) draws them. Avatar + name show once
+     per sender group; continuations show just the timestamp pill. The rows sit
+     flush (native: item spacing zero, each row its text height + 4 px) and
+     alternate their ground by sender group, below; no hover ground (native has
+     none: the Þ opens the actions, a right-click the menu). A reply's line runs
+     across the top, so the row wraps: [reply line] then [gutter | main]. */
   display: flex;
-  gap: var(--avatar-gap);
+  flex-wrap: wrap;
+  column-gap: var(--avatar-gap);
   align-items: flex-start;
-  margin-bottom: 1px;
+  margin: 0;
   line-height: 1.4;
-  padding: 2px var(--space-md);
+  padding: 2px var(--space-sm);
   background: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   position: relative;
-  cursor: pointer;
 }
 /* System messages stay simple full-width blocks (no gutter/content split). */
 .message.system { display: block; }
+
+/* Sender groups alternate their ground, native's bg_primary then row_stripe
+   (chat.rs: `sender_parity` flips on each new sender). app.js getStripeClass
+   gives the first group stripe-b. */
+.message.msg-stripe-a { background: var(--row-stripe); }
+.message.msg-stripe-b { background: var(--bg); }
 
 /* Left gutter: 32px avatar on a group's first message; empty (but keeps its
    width) on continuation rows so all content stays aligned under the name. */
 .msg-gutter { flex-shrink: 0; width: var(--avatar-size); }
 .msg-main { flex: 1; min-width: 0; display: flow-root; }
 
-/* Timestamp pill, compact HH:MM + Þ (the add-reaction affordance). Floats
-   left so body text wraps to its right on line 1 and below it after, the
-   way native lays it out. */
+/* Timestamp pill: ONE rounded frame holding the time, the Þ and the message's
+   reactions, as native's paint_timestamp_pill paints it: 6 px in from each
+   end, 5 px from the time to the Þ, 4 px to the first reaction, 3 px between
+   reactions. Floats left so body text wraps to its right on line 1 and below
+   it after, the way native lays it out, with native's spacing_sm before the
+   words. Its top lines up with the name's (native: both at the row top + 2). */
 .ts-pill {
   float: left;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  min-height: 19px;
   margin: 2px var(--space-sm) 0 0;
   padding: 0 6px;
-  background: var(--bg-secondary);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--pill-radius);
   font-size: var(--text-xs);
-  line-height: 1.7;
+  line-height: 1;
   white-space: nowrap;
 }
 .ts-pill .ts-time { color: var(--text-muted); }
-.ts-pill .ts-thorn { color: var(--accent); cursor: pointer; font-weight: 700; }
-.ts-pill .ts-thorn:hover { filter: brightness(1.35); }
+/* The Þ, native's pull tab: the body's size, in the accent. A real button, so
+   a keyboard reaches it (Enter or Space opens the expanded pill). */
+.ts-pill .ts-thorn {
+  margin-left: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1;
+  cursor: pointer;
+}
+.ts-pill .ts-thorn:hover { color: var(--accent-hover); }
+.ts-pill .ts-thorn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; border-radius: 2px; }
+/* While its expanded pill is open (native paints the Þ in the channeling
+   colour then): brighter, with the accent's glow. */
+.ts-pill .ts-thorn.ts-thorn-live { color: var(--accent-hover); text-shadow: 0 0 6px var(--accent); }
 
 .message .meta {
   /* Header rows only (continuations omit it). Float so the name sits inline
@@ -52,17 +81,21 @@
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-sm);
-  margin: 1px var(--space-sm) 0 0;
+  margin: 0 var(--space-sm) 0 0;
 }
 
+/* The name: native draws it at the body's size in the brightest ink (name_size,
+   white), the same for everyone; the web's font has a real bold, so it is set
+   semibold where native's single-weight font cannot be. A bot keeps its ink. */
 .message .author {
   font-weight: 600;
-  color: var(--accent);
-  font-size: var(--text-sm);
+  color: var(--text-strong);
+  font-size: var(--text-base);
+  cursor: pointer;
 }
+.message .author:hover { text-decoration: underline; }
 
 .message .author.bot { color: var(--chat-bot-ink); }
-.message .author.you { color: var(--success); }
 
 .identicon {
   width: var(--avatar-size);
@@ -71,32 +104,113 @@
   display: block;
 }
 
-.reactions {
-  /* Sit right of the timestamp pill (native: reactions live with the time),
-     so float them too; body flows after both. */
-  float: left;
-  display: flex;
-  flex-wrap: wrap;
+/* The reactions, inside the pill after the Þ: each its emoji and count, on no
+   ground of its own; yours in the accent on a tinted ground (native: accent at
+   alpha 60, a 7 px radius). Click one to add or take back yours. */
+.ts-pill .reactions {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  margin: 2px 0 0 0;
+  gap: 3px;
+  margin-left: 4px;
 }
-.reactions:empty { display: none; }
+.ts-pill .reactions:empty { display: none; }
 .reaction-badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 0.05rem var(--space-md);
-  font-size: var(--text-sm);
+  min-height: 16px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: 1;
   cursor: pointer;
   user-select: none;
 }
-.reaction-badge:hover { border-color: var(--accent); }
-.reaction-badge.mine { border-color: var(--accent); background: var(--accent-dim); }
-.reaction-badge .count { font-size: var(--text-xs); color: var(--text-muted); }
+.reaction-badge:hover { color: var(--accent); }
+.reaction-badge:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 0; }
+.reaction-badge.mine { color: var(--accent); background: var(--accent-dim); }
+.reaction-badge .count { color: inherit; }
+.reaction-badge img.emoji { width: 1.2em; height: 1.2em; }
+
+/* ── The expanded pill (view/pillPopup.js, native's pill_expand) ──
+   A bar at the pill's right edge, as if the pill grew: Reply, Pin, Edit, a Þ,
+   the quick reactions, ∞ for all of them. Native: bg_card, a 1 px border, an
+   8 px radius, 4 px inside, 2 px between buttons, each at least 26 x 22, a soft
+   shadow. Its border wears the nav's RGB "channeling" (shell.js), native's
+   animated colour for a live control; the reduced-motion and no-RGB settings
+   stop it. It hangs off <body>, so it is never cut by the message list. */
+.pill-popup {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  max-width: calc(100vw - 16px);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.31);
+  animation: channeling 3s linear infinite;
+}
+.pill-popup-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.pill-popup button {
+  min-width: 26px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1;
+  cursor: pointer;
+}
+.pill-popup .pill-popup-pin,
+.pill-popup .pill-popup-edit { font-size: var(--text-sm); }
+.pill-popup button:hover,
+.pill-popup button:focus-visible { border-color: var(--accent); background: var(--bg-hover); outline: none; }
+.pill-popup button[aria-expanded="true"] { border-color: var(--accent); }
+.pill-popup button img.emoji { width: 1.1em; height: 1.1em; vertical-align: middle; }
+.pill-popup-thorn { padding: 0 2px; color: var(--accent); font-weight: 700; font-size: var(--text-base); line-height: 1; }
+/* ∞: every reaction, under the quick row, wrapping (native: a popup 280 wide). */
+.pill-popup-all { display: flex; flex-wrap: wrap; gap: 2px; max-width: 280px; }
+.pill-popup-all[hidden] { display: none; }
+/* The full date and time, left of the Þ (native pill_ts_expand). */
+.pill-ts-expand {
+  position: fixed;
+  z-index: 1000;
+  padding: 4px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.31);
+  color: var(--text-secondary);
+  font-family: ui-monospace, 'Consolas', 'Menlo', monospace;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+[data-no-rgb] .pill-popup,
+[data-reduced-motion] .pill-popup { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .pill-popup { animation: none; }
+}
+/* On a touch screen every button takes a fingertip (at least 24 px, WCAG 2.2
+   target size). The Þ and the reactions grow their touch area, not their box:
+   a taller pill than the first line would push the words beside it onto a
+   second short line. */
+@media (pointer: coarse) {
+  .pill-popup button { min-width: 32px; height: 32px; }
+  .ts-pill .ts-thorn,
+  .ts-pill .reaction-badge { position: relative; }
+  .ts-pill .ts-thorn::after,
+  .ts-pill .reaction-badge::after { content: ''; position: absolute; inset: -6px -4px; }
+}
 
 .sig-badge {
   font-size: var(--text-xs);
@@ -116,11 +230,6 @@
   color: var(--chat-danger-ink);
   background: rgba(220,60,60,0.15);
   cursor: help;
-}
-
-.message .time {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 
 .message .body {
@@ -198,17 +307,21 @@
   font-style: italic;
 }
 
-/* ── Message hover actions ── */
-/* position/cursor/padding now live in the main .message rule above. */
-.message:hover { background: var(--bg-hover); }
+/* ── A message's action buttons (the touch bar) ──
+   With a mouse a message's actions are where native has them: the Þ's expanded
+   pill and the right-click menu (view/pillPopup.js, view/messageMenu.js); the
+   menu presses these buttons. On a touch screen a tap on a message shows them
+   (chat-ui.js marks it .mobile-selected), at its top right; on a phone they sit
+   under it (the phone rules at the end of this file). */
 .message .msg-actions {
   display: none;
   position: absolute;
   right: var(--space-md);
   top: var(--space-xs);
   gap: var(--space-sm);
+  z-index: 2;
 }
-.message:hover .msg-actions { display: flex; }
+.message.mobile-selected .msg-actions { display: flex; }
 .msg-actions button {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
@@ -222,6 +335,9 @@
 
 /* ── Quote/reply styling ── */
 .body .quote-block {
+  /* Its own block formatting context, so on a message's first line it sits
+     beside the floated name and pill instead of running its bar under them. */
+  display: flow-root;
   border-left: 3px solid var(--accent);
   padding: var(--space-xs) 0 var(--space-xs) var(--space-md);
   margin: 0 0 var(--space-xs) 0;
@@ -285,26 +401,30 @@
 .new-messages-divider::before { left: 5%; }
 .new-messages-divider::after { right: 5%; }
 
-/* ── Reply indicator on messages ── */
+/* ── Reply line on messages ──
+   Native draws a reply's context as its own short row ABOVE the message, "↩
+   Name: words" in the muted ink at the small size, at the content column
+   (chat.rs, "Reply-to context"). Here it is the row's first, full-width line,
+   indented past the avatar gutter. Click it to go to the message replied to. */
 .reply-indicator {
+  flex-basis: 100%;
+  min-width: 0;
+  padding-left: calc(var(--avatar-size) + var(--avatar-gap));
   font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-bottom: var(--space-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
 }
 .reply-indicator:hover { color: var(--accent); }
-.reply-indicator .reply-indicator-author { color: var(--accent); font-weight: 600; }
+.reply-indicator .reply-indicator-author::after { content: ':'; }
 .reply-indicator .reply-indicator-preview {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  max-width: 300px;
-  opacity: 0.7;
+  min-width: 0;
 }
-.message.has-reply { border-left: 2px solid var(--accent-dim, rgba(88,166,255,0.2)); padding-left: var(--space-md); }
 
 /* ── Thread count badge ── */
 .thread-badge {
@@ -378,54 +498,63 @@
 }
 .edit-area .edit-cancel:hover { color: var(--text); }
 
-/* DM message visual distinction */
-.message.dm-message {
-  border-left: 3px solid var(--accent);
-  background: rgba(224,112,32,0.04);
-}
+/* (A DM's rows are drawn as a channel's, its sender groups striped the same
+   way, as native draws them: the header says whose conversation it is. They
+   had an accent bar and an orange wash of their own until 2026-10-22.) */
 
 /* ── Code Blocks ── */
+/* A fenced code block, as native's draw_code_blocks (src/gui/pages/chat_text.rs)
+   draws it: a panel on the card ground with the theme's border, 4 px round and
+   8 px inside, as wide as its code (never wider than the column); its language
+   in small muted monospace, then Copy, always shown; then the code in the main
+   ink. flow-root: beside a first line's floated name and pill, never under
+   them. Until 2026-10-22 it was a fixed dark panel the full width of the column,
+   its Copy hidden until hovered, and in the light theme each code line sat on a
+   pale box (the inline code ground), hiding the code. */
 .code-block-wrapper {
-  position: relative;
-  margin: var(--space-sm) 0;
-}
-.code-block-wrapper pre {
-  background: #1a1a1a; /* theme-exempt: code blocks are dark in both themes; their inks are set for it */
-  color: #e0e0e0;
-  padding: var(--space-lg) var(--space-xl);
+  display: flow-root;
+  width: fit-content;
+  max-width: 100%;
+  margin: 2px 0;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+.code-block-wrapper .code-lang {
+  margin-right: var(--space-sm);
+  font-family: ui-monospace, 'Consolas', 'Menlo', monospace;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.code-block-wrapper .code-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0 var(--space-sm);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.code-block-wrapper .code-copy:hover,
+.code-block-wrapper .code-copy:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
+.code-block-wrapper pre {
+  margin: 4px 0 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font-family: ui-monospace, 'Consolas', 'Menlo', 'Courier New', monospace;
   font-size: var(--text-sm);
   line-height: 1.45;
   overflow-x: auto;
   white-space: pre;
-  margin: 0;
-  border: 1px solid #333;
 }
-.code-block-wrapper .code-lang {
-  position: absolute;
-  top: var(--space-xs);
-  right: 2.5rem;
-  font-size: 0.6rem;
-  color: #666;
-  text-transform: uppercase;
-}
-.code-block-wrapper .code-copy {
-  position: absolute;
-  top: var(--space-xs);
-  right: var(--space-sm);
-  background: #333; /* theme-exempt: sits on the always-dark code block */
-  border: 1px solid #555;
-  color: #aaa;
-  font-size: var(--text-xs);
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.code-block-wrapper:hover .code-copy { opacity: 1; }
-.code-block-wrapper .code-copy:hover { color: #fff; border-color: var(--accent); } /* theme-exempt: on the copy button's #333, over the always-dark code block */
+.code-block-wrapper pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
 
 /* ── Blockquote (from markdown) ── */
 .body blockquote {
@@ -436,6 +565,7 @@
   font-size: 0.85em;
 }
 .body ul.md-list {
+  display: flow-root;
   margin: var(--space-xs) 0 var(--space-xs) 1.2rem;
   padding: 0;
   list-style: disc;
@@ -555,64 +685,29 @@
 }
 .todo-section.todo-inactive summary { color: var(--chat-todo-off-ink); }
 
-/* ── Feature 4: Message Deletion (enhanced) ── */
-.message-deleted-placeholder {
-  color: var(--text-muted);
-  font-style: italic;
-  font-size: var(--text-sm);
-  padding: var(--space-xs) var(--space-md);
-  opacity: 0.6;
-  animation: fadeOutSlow 3s forwards;
-}
-@keyframes fadeOutSlow { 0% { opacity: 0.6; } 80% { opacity: 0.6; } 100% { opacity: 0; } }
-
-.delete-confirm {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-md) var(--space-lg);
-  font-size: var(--text-sm);
-  display: inline-flex;
-  gap: var(--space-md);
-  align-items: center;
-  margin-top: var(--space-xs);
-}
-.delete-confirm button {
-  padding: var(--space-xs) var(--space-lg);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  border: 1px solid var(--border);
-}
-.delete-confirm .confirm-yes { background: #dc3232; color: #fff; border-color: #dc3232; }
-.delete-confirm .confirm-yes:hover { background: #e54545; }
-.delete-confirm .confirm-no { background: var(--bg-input); color: var(--text-muted); }
-.delete-confirm .confirm-no:hover { color: var(--text); }
-
 /* Mobile message tweaks */
 @media (max-width: 640px) {
-  /* Message bubbles: more breathing room */
+  /* Rows: a little more room around the words; still flush with each other,
+     so a sender group's ground reads as one block. */
   .message {
     padding: var(--space-sm) var(--space-md);
-    margin-bottom: var(--space-xs);
   }
   .message .body {
     font-size: var(--text-base);
     line-height: 1.45;
   }
-  .message .time {
-    font-size: 0.6rem;
-  }
 
-  /* Hide message hover actions on mobile (use long-press or context menu) */
+  /* The touch bar: under the message, at the content column (a tap shows it, chat-ui.js). */
   .message .msg-actions {
     display: none !important;
   }
-  /* Instead, show actions on tap (added via JS) */
   .message.mobile-selected .msg-actions {
     display: flex !important;
+    flex-wrap: wrap;
+    flex-basis: 100%;
     position: static;
     margin-top: var(--space-sm);
+    padding-left: calc(var(--avatar-size) + var(--avatar-gap));
     gap: var(--space-md);
   }
   .message.mobile-selected .msg-actions button {
@@ -631,16 +726,8 @@
     max-width: calc(100vw - 2rem);
     max-height: 250px;
   }
-
-  /* Reaction badges: bigger on mobile */
-  .reaction-badge {
-    padding: var(--space-xs) var(--space-md);
-    font-size: var(--text-sm);
-    min-height: 30px;
-  }
-  .reaction-badge .count {
-    font-size: var(--text-xs);
-  }
+  /* (The reactions keep the pill's size on a phone: their touch area grows
+     instead, the pointer: coarse rule by the expanded pill above.) */
 }
 
 /* ── Encrypted DM attachments (2026-08-24) ──────────────────────────────

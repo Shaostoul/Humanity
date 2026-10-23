@@ -1015,19 +1015,19 @@
     if (typeof renderDmList === 'function') renderDmList();
     if (typeof renderGroupList === 'function') renderGroupList();
 
-    // (c) Hide pin bar (groups don't have pins yet).
-    const pinBar = document.getElementById('pin-bar');
-    if (pinBar) pinBar.style.display = 'none';
-    const pinList = document.getElementById('pin-list');
-    if (pinList) pinList.classList.remove('open');
+    // (c) No pins in a group: the bar, the list and the composer's count (chat-messages.js).
+    if (typeof hidePinsForPrivateView === 'function') hidePinsForPrivateView(); // chat-messages.js
 
     // (d) Header, name + invite link (no parallel modal, just a tiny inline link).
     const header = document.getElementById('channel-header');
     if (header) {
       const displayName = name || groupId.slice(0, 8);
       header.style.display = 'block';
-      header.innerHTML = '<span class="ch-name">🔒 ' + esc(displayName) + '</span>' +
-        '<span class="ch-desc">End-to-end encrypted group · ' +
+      // Native's group header (chat.rs draw_center_panel): Back, the group's name in the group
+      // ink at the heading size, "end-to-end encrypted" small and muted, and Copy invite.
+      header.innerHTML = '<button type="button" class="ch-back" onclick="switchChannel(\'general\')" data-tip-desc="Return to #general.">Back</button>' +
+        '<span class="ch-name ch-group">' + esc(displayName) + '</span>' +
+        '<span class="ch-desc">end-to-end encrypted · ' +
         '<a href="#" id="p2pg-header-invite" style="color:var(--accent);text-decoration:none;">Copy invite ticket</a></span>';
       const inv = header.querySelector('#p2pg-header-invite');
       if (inv) inv.onclick = async (e) => {
@@ -1065,7 +1065,7 @@
     const sendBtn = document.getElementById('send-btn');
     if (input) {
       input.disabled = false;
-      input.placeholder = 'Message ' + (name || 'group') + '…';
+      input.placeholder = 'Message ' + (name || 'group') + ' (encrypted)'; // native's hint, word for word
       try { input.focus(); } catch {}
     }
     if (sendBtn) sendBtn.disabled = false;

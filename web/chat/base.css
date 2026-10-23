@@ -30,10 +30,10 @@
   --chat-todo-off-line: #4a2a2a;
   --chat-todo-off-ink: #db6a6a;
   /* Inks the chat's stylesheets used as literals until 2026-10-20 (a failed
-     signature, a menu's destructive item, who is speaking, the admin tier in
-     the moderation dialog): the same colours in the dark theme. */
+     signature, a menu's destructive item, the admin tier in the moderation
+     dialog): the same colours in the dark theme. (The speaking ink went with
+     the old voice rooms list, 2026-10-22.) */
   --chat-danger-ink: #e55;
-  --chat-speaking-ink: #4a4;
   --chat-admin-tier-ink: #88f;
 }
 :root[data-theme="light"] {
@@ -58,7 +58,6 @@
   /* 4.5:1 or more on what each sits on in the light theme, its red tints
      included (the danger ink is 4.97:1 on the menu's hover tint). */
   --chat-danger-ink: #a51f15;
-  --chat-speaking-ink: var(--success);
   --chat-admin-tier-ink: #4a3fc0;
 }
 
