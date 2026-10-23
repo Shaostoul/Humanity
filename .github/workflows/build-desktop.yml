@@ -42,10 +42,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      # The version is the one rust-toolchain.toml pins (one place to change it). rustup installs
+      # that toolchain, and the target is added to it rather than to a separate "stable".
+      - name: Install Rust (the version rust-toolchain.toml pins)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+          rustc -V
 
       - name: Install Linux deps
         if: runner.os == 'Linux'
@@ -161,7 +165,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (the version rust-toolchain.toml pins)
+        run: |
+          rustup toolchain install
+          rustc -V
 
       - name: Cache cargo registry
         uses: actions/cache@v4

@@ -164,6 +164,14 @@ try {
   }
   L.push(`DISK:     C: ${pct}% used, ${Math.round(s.bavail * s.bsize / 1e9)} GB free; ${guard}`);
 } catch { /* statfs unavailable */ }
+// Newer Rust, rustup or crates than we build with (scripts/check-updates.js, 2026-10-23). It only
+// reports; the session reads the release notes and decides (docs/SOP.md "Keeping components up to date").
+try {
+  const r = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'check-updates.js')], { encoding: 'utf8', timeout: 240000 });
+  L.push('UPDATES:  ' + (r.status === 0 ? String(r.stdout).trim() : 'could not check (run: node scripts/check-updates.js)'));
+} catch {
+  L.push('UPDATES:  could not check (run: node scripts/check-updates.js)');
+}
 // The code map (docs/ai/code-map.md): one line per source file, refreshed here so a session never
 // reads one more than a session old (2026-10-18). Its Folders section is a 5 KB overview.
 try {

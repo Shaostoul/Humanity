@@ -1,0 +1,13 @@
+# The one Rust version every machine builds HumanityOS with (2026-10-23): the operator's PC, the
+# GitHub builds (verify, build-desktop) and both servers. rustup reads this file inside the repo
+# and uses (installing if needed) exactly this version, so the three can no longer drift apart
+# the way they had: the PC was on 1.88.0 while CI and the servers were on 1.97.1.
+#
+# Updating it is a deliberate step, never automatic (operator, 2026-10-23: "keep all components up
+# to date in a reasonable not excessively zealous fashion"). `just brief`'s UPDATES row says when a
+# newer stable release exists; read its release notes, and bump this when it is worth a full
+# rebuild of every target folder at that point in development. docs/SOP.md "Keeping components
+# up to date" has the steps (servers included).
+[toolchain]
+channel = "1.99.1"
+profile = "default"
