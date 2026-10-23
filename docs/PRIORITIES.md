@@ -61,27 +61,32 @@ FarmingSystem F1+F2 for ~2.5-3 ms, then gating the Garden mirror, est. 4-9 ms ev
 to frames that draw the Inventory page). Next agent: a domain-writer for the timers + the farming
 golden-state test, then F1/F2/S1 (lib.rs: needs a quiet window).
 
-### QUEUED BY THE OPERATOR 2026-10-22 (after the usage reset, in this order)
+### QUEUED BY THE OPERATOR 2026-10-22 (updated 2026-10-23)
 
-1. **In flight at the cap (14 agents):** each writes `C:\Humanity\.claude\handoff\<topic>.md`
-   (done, verified, left, next commands). Merge each as it reports; review the voice/privacy diff
-   for changed tests before merging. The operator restarts the PC for the page file (8 GB to 32 GB)
-   when the agents are at a safe point.
-2. **Trim CLAUDE.md (operator: "Yes, please")** into audience docs so an agent loads only what it
-   needs: the ~27 KB only the orchestrator uses goes to `docs/ai/orchestrator.md` (or similar), and
-   more such splits where they save ~5% or more ("a tiny bit of waste can be okay if the effort to
-   remove it isn't worth it but, generally, if there's like a 5% or greater performance increase we
-   should consider it"). handbook-keeper; keep every rule reachable; mind the START HERE checklist.
-3. **Saved procedures as skills** (approved): `.claude/skills/release`, `merge-agent`,
-   `game-checks`, written from the SOP and the commands this session used.
-4. **A closed-loop test, 1 person to all of humanity** (the operator, verbatim in the journal):
+Done 2026-10-23: the CLAUDE.md split by audience (81 KB to 36 KB, six `docs/ai/` documents,
+f894a9612), the saved procedures as skills (`.claude/skills/` release, merge-agent, game-checks,
+4f2d6903a), and the Rust pin (1.99.1 for the PC, GitHub and both servers, `rust-toolchain.toml`,
+plus the UPDATES row in `just brief`, 4d4bbb153). The PC restarted with a 100 GB page file.
+
+1. **In flight (16 agents):** the 14 resumed from their handoff notes (each in its own worktree's
+   `.claude/handoff/`), plus the closed-loop test design and the How-to page design. Merge each
+   as it reports (the `merge-agent` skill); review the voice/privacy diff for changed tests.
+2. **Crate updates in the next quiet window** (after this batch merges): `cargo update` has 313
+   compatible updates and 40 dependencies sit behind a newer major (docs/SOP.md "Keeping
+   components up to date"); then the batch release.
+3. **A closed-loop test, 1 person to all of humanity** (the operator, verbatim in the journal):
    "as close to 100% closed loop self-sustaining as possible for 1 person up to 100% of Humanity",
    with two metrics: **Earth, today, real** (sourced, dated data) and **the game's mothership**
    housing billions across interstellar space, starting from today's technology and adding
-   promising R&D (fusion) as labelled options; "think like 1,000 years from now". Design and
-   sourced data first (homestead-engineer, with a refutation pass, see
-   `project_teaching_data_needs_refutation`), then the headless Rust test on the real systems
-   (the headless runner's first big customer).
+   promising R&D (fusion) as labelled options; "think like 1,000 years from now". The design and
+   sourced data are being written (homestead-engineer, with a refutation pass); then the headless
+   Rust test on the real systems (the headless runner's first big customer).
+4. **A How-to page for step-by-step procedures** (operator, 2026-10-23: "a page dedicated to SOP.
+   It's kind of like a crafting page but, could incorporate more stuff. Like parent categories
+   could be good and services"). The full design is being written: one procedure model that
+   Crafting shares, a category tree, services that do it for you, runs that become Tasks and
+   Calendar entries, both realities, and the platform's own SOPs with steps that are admin
+   actions a person or an AI can run.
 5. **An in-game event journal for play sessions** (after the MCP server lands): events written
    by kind (combat, damage, AI, errors, economy...) to small capped files, a "mark" key that
    bookmarks a moment with a screenshot, and an MCP tool that reads only one kind since a mark,
@@ -91,10 +96,14 @@ golden-state test, then F1/F2/S1 (lib.rs: needs a quiet window).
    `channels.read_only` column is the start), and Claude acts only on messages signed by the
    operator's key, so text posted elsewhere can never steer it. Then a terminal pane running
    Claude Code in the Dev tab.
-7. **Toolchain:** the PC runs rustc 1.88.0; CI (`dtolnay/rust-toolchain@stable`) and both servers
-   run 1.97.1. Proposal: pin one version in `rust-toolchain.toml` so all three match, update it
-   deliberately about every six weeks (one cold rebuild, with the build-speed changes), and have
-   `just brief` say when a newer stable exists. The update is a download: the operator's yes.
+7. **Leftovers the CLAUDE.md split found** (doc-truth, then toolsmith): five docs still call
+   CLAUDE.md the canonical crypto table (docs/README.md, docs/admin/SELF-HOSTING.md:873,
+   docs/design/platform-architecture.md:241, docs/BUS-FACTOR.md:83, which also says DMs are
+   "pure Kyber768"); docs/design/media-round-5-plan.md:603 cites a CLAUDE.md rule that does not
+   exist; docs/ai/model-tiering.md treats Fable as a live tier; check the desktop data folder's
+   `cache/` against the no-caches rule. Lints proposed: CLAUDE.md under ~40 KB with every
+   `docs/ai/*.md` named in its Router; every "CLAUDE.md, <name>" citation resolves; every
+   `docs/ai/` file linked from docs/ai/README.md. MEMORY.md could lose ~5 KB more.
 
 ### DONE 2026-10-21/22: the five pieces paused at the usage cap all shipped
 
