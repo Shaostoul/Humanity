@@ -17,7 +17,7 @@
 //
 // Usage:
 //   node scripts/verify-runtime.js [--exe PATH] [--timeout-min N] [--wait-min N]
-//                                  [--game-only] [--keep-open]
+//                                  [--wait-builds] [--keep-open]
 //                                  [--operator-config [--operator-config-path F]]
 //                                  [--allow-other-build "<reason>"] [--rig DIR]
 //   (--allow-other-build runs a build that is NOT this tree, on purpose, e.g. a
@@ -41,10 +41,12 @@
 // before anything booted, and printed "FAIL ... A hang here is a boot or
 // world-entry hang, not slowness": two false failures, neither of which booted.
 //
-// --game-only (forwarded to the sweep): wait only for other games and rigs, not
-// for builds. The gate reads panics and captures, not timings, so a build
-// beside it only slows it down. It was silently dropped here until 2026-10-21;
-// every flag this script does not know is now refused, not ignored.
+// The sweep waits for other games and rigs and for free physical memory, not for
+// builds (lib/machine-guard.js, 2026-10-23): the gate reads panics and captures,
+// not timings, so a build beside it only slows it down. --wait-builds (forwarded
+// to the sweep) waits for builds too. Every flag this script does not know is
+// refused, not ignored (--game-only, the old opposite of that flag, was silently
+// dropped here until 2026-10-21, and is refused now that it means nothing).
 // --rig DIR: the rig folder (default .probe-rig/verify). For the tests, so a
 // test never touches a real gate's rig.
 //
@@ -78,7 +80,7 @@ const opt = (name, def) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
 // Every flag this gate knows. Anything else is REFUSED, not ignored: an
-// ignored flag is a check that silently did not run (`--game-only` was dropped
+// ignored flag is a check that silently did not run (a forwarding flag was dropped
 // here, unread, until 2026-10-21).
 const VALUE_FLAGS = [
   "--exe",
@@ -91,7 +93,7 @@ const VALUE_FLAGS = [
   "--dry-exit",
   "--log",
 ];
-const BOOL_FLAGS = ["--keep-open", "--operator-config", "--game-only"];
+const BOOL_FLAGS = ["--keep-open", "--operator-config", "--wait-builds"];
 function unknownArgs(argv) {
   const bad = [];
   for (let i = 0; i < argv.length; i++) {
@@ -118,7 +120,7 @@ function unknownArgs(argv) {
   }
 }
 const KEEP_OPEN = args.includes("--keep-open");
-const GAME_ONLY = args.includes("--game-only");
+const WAIT_BUILDS = args.includes("--wait-builds");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const TIMEOUT_MIN = Number(opt("--timeout-min", "12"));
 const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
@@ -277,7 +279,7 @@ if (KEEP_OPEN) sweepArgs.push("--keep-open");
 // The sweep's wait for the machine has its own limit and its own refusal; the
 // gate passes its number down so both say the same thing.
 sweepArgs.push("--wait-min", String(WAIT_MIN));
-if (GAME_ONLY) sweepArgs.push("--game-only");
+if (WAIT_BUILDS) sweepArgs.push("--wait-builds");
 // probe-sweep runs the freshness gate itself (BUG-133: every script that
 // boots the game does), so a build this gate let through ON PURPOSE must
 // reach it with the same reason, or the sweep would refuse what was allowed.
@@ -295,7 +297,7 @@ if (opCfgPath) sweepArgs.push("--operator-config-path", opCfgPath);
 console.log(`[gate] rig ${rel(RIG)}`);
 console.log(`[gate] vantages ${RUNTIME_VANTAGES.join(", ")}`);
 console.log(
-  `[gate] the wait for the machine (up to ${fmt(WAIT_MS)}${GAME_ONLY ? ", other games and rigs only" : ", builds included"}) is not timed;` +
+  `[gate] the wait for the machine (up to ${fmt(WAIT_MS)}${WAIT_BUILDS ? ", builds included (--wait-builds)" : ", for other games, rigs and free memory, not builds"}) is not timed;` +
     ` the ${fmt(TIMEOUT_MS)} gate clock starts when the game does`
 );
 console.log("");
@@ -437,8 +439,8 @@ function report(sweepExit) {
     }
     console.log("This is not a verdict on the build: it never ran, so it neither passed nor failed.");
     if (REFUSAL) {
-      console.log("Run again when the machine is quieter; --wait-min N waits longer, and --game-only stops");
-      console.log("waiting on builds (this gate reads panics and captures, not timings).");
+      console.log("Run again when the machine is quieter; --wait-min N waits longer. A short memory clears as");
+      console.log("compiles finish (just build-slot-status shows them); builds are waited for only with --wait-builds.");
     }
     console.log("-".repeat(72));
     process.exit(1);

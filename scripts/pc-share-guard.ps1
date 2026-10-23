@@ -38,7 +38,10 @@ $mask = [Int64]((([Int64]1) -shl ($logical - $keep)) - 1)
 # Development programs by name (without .exe). Test programs are matched by pattern below.
 $names = @('cargo', 'rustc', 'sccache', 'link', 'lld-link', 'rust-lld', 'cl', 'cc', 'cmake',
            'ninja', 'nasm', 'build-script-build', 'build-script-main', 'mspdbsrv', 'rustdoc',
-           'clippy-driver', 'wasm-bindgen', 'wasm-opt')
+           'clippy-driver', 'wasm-bindgen', 'wasm-opt',
+           # the build slot (scripts/build-slot/): it runs rustc as its child, so the compile it starts
+           # inherits whatever this sets on it
+           'hos-build-slot')
 
 $statusDir = Join-Path $env:LOCALAPPDATA 'HumanityOS'
 New-Item -ItemType Directory -Force -Path $statusDir | Out-Null
@@ -46,15 +49,18 @@ $statusFile = Join-Path $statusDir 'share-guard.json'
 # Processes a test starts and must measure untouched (scripts/tests/machine-guard.test.js starts a
 # real rustc to prove the capture hold lowers and restores it): it lists their pids here, and
 # this leaves them alone. {"pids": [1234, 5678]}; a missing or broken file means none.
-$ignoreFile = Join-Path $statusDir 'share-guard-ignore.json'
+# Every share-guard-ignore*.json counts (2026-10-23): each test process writes a file of its own,
+# share-guard-ignore-<its pid>.json, because two test runs at once (two sessions' rig-tests)
+# shared the one file and the first to finish deleted the other's pids, which raced.
 function Get-IgnoredPids {
-    try {
-        if (Test-Path $ignoreFile) {
-            $j = Get-Content -Raw -Path $ignoreFile | ConvertFrom-Json
-            return @($j.pids | ForEach-Object { [int]$_ })
-        }
-    } catch { }
-    return @()
+    $pids = @()
+    foreach ($f in Get-ChildItem -Path $statusDir -Filter 'share-guard-ignore*.json' -ErrorAction SilentlyContinue) {
+        try {
+            $j = Get-Content -Raw -Path $f.FullName | ConvertFrom-Json
+            $pids += @($j.pids | ForEach-Object { [int]$_ })
+        } catch { }
+    }
+    return $pids
 }
 
 function Test-DevProcess($p) {

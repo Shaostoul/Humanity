@@ -5593,6 +5593,18 @@ it in its worktree and used this same command.
 **If it matters later:** linking test builds with LLVM's linker (`rust-lld`), which writes its own
 PDBs, might remove the limit; not tried.
 
+**Build-speed review, 2026-10-23: rust-lld still NOT measured, now scripted.** `node
+scripts/build-ab/linker-ab.js b` (after `node scripts/build-ab/ab-debug.js b` has built its target
+folder) relinks the test program with link.exe and with `rust-lld.exe` (it ships in the toolchain:
+`lib/rustlib/x86_64-pc-windows-msvc/bin/rust-lld.exe`), with `/DEBUG:NONE` and with the debug file,
+and records each link's time (`-Z time-passes`, `link_binary`), the PDB's size and any LNK error in
+`target\build-ab\linker-ab-b.log`. It could not be run that day: fourteen compiles of our crate from
+twelve worktrees held about 102 GB of commit with 0.6 GB of physical memory free, and a link timed
+then measures the paging. Adopt rust-lld (`linker = "rust-lld.exe"` under
+`[target.x86_64-pc-windows-msvc]`) only if it links faster AND a release exe built with it passes
+`just verify-runtime`; if it also links the test program WITH its PDB, `scripts/lib-tests.js` can drop
+`/DEBUG:NONE` and test backtraces get their function names back. Record the result here either way.
+
 ## BUG-175: the web chat asked for the federated server list in an endless loop when it failed (FIXED next release, found 2026-10-09)
 
 `renderServerList` (`web/chat/chat-ui.js`) fetched `/api/federation/servers` whenever the list

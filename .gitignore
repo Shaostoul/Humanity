@@ -8,6 +8,11 @@
 /release-manifest.json.sig.json
 *.old.exe
 
+# The build slot (scripts/build-slot.js, `just build-slot`): its exe and the machine-local cargo
+# config that turns it on are per machine, never committed. A checked-in config would point every
+# worktree at a wrapper of its own, and Linux CI and the servers have none.
+/.cargo/config.toml
+/.cargo/hos-build-slot*
 # ── Release signing PRIVATE key vault (NEVER commit) ──
 # The encrypted hybrid Ed25519+Dilithium3 signing seeds (src/release_update.rs
 # --gen-release-key). Only the PUBLIC keys (data/release/signing_pubkeys.json)

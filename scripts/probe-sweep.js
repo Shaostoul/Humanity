@@ -14,7 +14,7 @@
 // Usage:
 //   node scripts/probe-sweep.js [--rig DIR] [--exe PATH] [--out DIR]
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
-//                               [--width PX] [--shipped-assets] [--game-only]
+//                               [--width PX] [--shipped-assets] [--wait-builds]
 //                               [--wait-min N]
 //                               [--operator-config [--operator-config-path F]]
 //                               [--allow-other-build "<reason>"] [--vantages FILE]
@@ -37,11 +37,16 @@
 //   A run whose run.log says a data file was served from the copy built into
 //   the exe (a tree file missing or not parsing) is refused: BUILT-IN DATA.
 //
-// --game-only: before booting, wait only for other HumanityOS instances (the
-//   one-GPU rule), not for builds. For a boot check whose only question is
-//   "does it enter the world with no panic" while agents are compiling.
-//   Captures beside a build are still marked contaminated, so no timing from
-//   such a run is ever graded as a reading.
+// Before booting the sweep waits for other HumanityOS instances (the one-GPU
+//   rule), the operator's own programs, another rig's boot lock and free
+//   physical memory (lib/machine-guard.js, 2026-10-23), NOT for builds: in a
+//   shared checkout somebody is nearly always compiling, and what a boot needs
+//   from a build is memory. Captures beside a build are still marked
+//   contaminated, so no timing from such a run is ever graded as a reading.
+// --wait-builds: wait for builds to finish too. For a sweep whose numbers are
+//   the point (`just perf-sweep` passes it): a frame time measures the whole
+//   machine. (Until 2026-10-23 that was the default and --game-only turned it
+//   off.)
 // --wait-min N (default 60, lib/machine-guard.js WAIT_MIN_DEFAULT): how long
 //   that pre-boot wait lasts. It ends by taking the machine-wide boot lock
 //   (lib/boot-lock.js: another rig's held lock counts as a busy machine, so
@@ -655,9 +660,9 @@ async function main() {
   // sweep that sat waiting 150 s ran NEXT TO somebody, which is worth knowing
   // when its numbers are compared with one that did not.
   const rigExePath = path.join(RIG, "HumanityOS.exe");
-  // --game-only: wait for other game instances only, not builds (a panics-
-  // only boot check; lib/machine-guard.js `gameOnly`). Captures beside a
-  // build are still marked contaminated below, so no timing is graded.
+  // Builds are waited for only with --wait-builds (a timing sweep); every run
+  // waits for other games and for free memory (lib/machine-guard.js). Captures
+  // beside a build are still marked contaminated below, so no timing is graded.
   // The wait ends by taking the machine-wide boot lock (lib/boot-lock.js), so
   // two rigs that were waiting on the same builds cannot boot in the same poll.
   // A wait that gives up REFUSES (exit 1, nothing booted, 2026-10-21). It used
@@ -665,7 +670,7 @@ async function main() {
   // another rig's included, which broke the one-GPU rule and produced a sweep
   // perf-report refuses to grade anyway.
   const preBoot = MG.waitForFree({
-    own: { exe: rigExePath, gameOnly: flag("--game-only") },
+    own: { exe: rigExePath, waitForBuilds: flag("--wait-builds") },
     label: "pre-boot",
     rig: "probe-sweep",
     timeoutMs: WAIT_MS,
@@ -676,7 +681,7 @@ async function main() {
       rig: "probe-sweep",
       hint: [
         `What to do: wait for those to finish and run again; --wait-min N waits longer (now ${MG.fmtSpan(WAIT_MS)});`,
-        "--game-only stops waiting on builds, for a run that judges panics and captures rather than timings.",
+        "(It waits for builds only with --wait-builds; a short memory clears as compiles finish: just build-slot-status.)",
       ],
     });
   }

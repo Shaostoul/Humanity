@@ -6,8 +6,10 @@
 // while other agents' cargo and rustc ran) used it up. The gate killed its probe before anything
 // had booted and printed "RESULT: FAIL the probe never got far enough to write a manifest ... A
 // hang here is a boot or world-entry hang, not slowness". Nothing had hung; nothing had booted.
-// And `--game-only`, the flag that stops a panics-only check waiting on builds, was silently
+// And `--game-only`, the flag that stopped a panics-only check waiting on builds, was silently
 // dropped: verify-runtime never passed it to the sweep, and never said it had ignored it.
+// (2026-10-23: rigs wait for memory and other games, not builds, by default; --wait-builds is the
+// flag now, and the tests below use another game as the blocker where they used a build.)
 //
 // How these run without a game: the "exe" carries this tree's source stamp, so the freshness gate
 // passes it, and the machine guard's process list is faked (a cargo.exe that the test takes away
@@ -173,6 +175,8 @@ function runGate(argv, { procs = "", env = {}, onOut = () => {}, limitMs = 15000
   });
 }
 const BUILD = "4242|cargo.exe|C:\\elsewhere\\cargo.exe\n";
+// Another game on the one GPU: holds every rig, with or without --wait-builds.
+const GAME = "4242|HumanityOS.exe|C:\\elsewhere\\HumanityOS.exe\n";
 const tail = (r) => r.out.slice(-2500);
 
 test("the gate's clock starts with the game: a machine wait longer than the gate does not trip it, a hang after the boot does", async () => {
@@ -193,13 +197,13 @@ test("the gate's clock starts with the game: a machine wait longer than the gate
   let waitingAt = null;
   let clearedAt = null;
   const r = await runGate(["--exe", exe, "--timeout-min", "0.05", "--wait-min", "1"], {
-    procs: BUILD,
+    procs: GAME,
     // Forward slashes: NODE_OPTIONS reads a backslash inside quotes as an escape.
     env: { NODE_OPTIONS: `--require "${hang.replace(/\\/g, "/")}"`, HOS_TEST_FAKE_GAME_STARTED: started },
     onOut: (out, { list, t0 }) => {
       if (waitingAt == null && /pre-boot: WAITING/.test(out)) {
         waitingAt = Date.now() - t0;
-        // The build ends twice the gate's length later: a gate timing the wait would fire first.
+        // The other game ends twice the gate's length later: a gate timing the wait would fire first.
         setTimeout(() => {
           clearedAt = Date.now() - t0;
           fs.writeFileSync(list, "");
@@ -215,7 +219,7 @@ test("the gate's clock starts with the game: a machine wait longer than the gate
   const at = (re) => (r.lines.find(([, l]) => re.test(l)) || [null])[0];
   const timeoutAt = at(/TIMEOUT/);
   const clockAt = at(/gate clock starts now/);
-  assert.ok(waitingAt != null, `the sweep never waited for the faked build:\n${tail(r)}`);
+  assert.ok(waitingAt != null, `the sweep never waited for the faked game:\n${tail(r)}`);
   assert.ok(timeoutAt == null || (clearedAt != null && timeoutAt > clearedAt), `the gate fired while the probe was still waiting for the machine:\n${tail(r)}`);
   assert.ok(gamePid, `the fake game never started:\n${tail(r)}`);
   assert.ok(clockAt != null, `the gate never said its clock started:\n${tail(r)}`);
@@ -237,24 +241,41 @@ test("the gate's clock starts with the game: a machine wait longer than the gate
 
 test("a machine that never goes quiet is REFUSED, exit 1, nothing booted: not a FAIL", async () => {
   const exe = stampedNonProgram();
-  const r = await runGate(["--exe", exe, "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: BUILD });
+  const r = await runGate(["--exe", exe, "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: GAME });
   assert.strictEqual(r.status, 1, `exit ${r.status}, not 1\n${tail(r)}`);
   assert.match(r.out, /probe-sweep: REFUSED: the machine never went quiet in 3 s; nothing was booted\./);
   assert.match(r.out, /RESULT: REFUSED {2}the machine never went quiet in 3 s; nothing was booted\./);
-  assert.match(r.out, /cargo\.exe pid 4242/, "what was still up is named");
+  assert.match(r.out, /HumanityOS\.exe pid 4242/, "what was still up is named");
   assert.match(r.out, /not a verdict on the build/);
   assert.doesNotMatch(r.out, /RESULT: FAIL|TIMEOUT/);
   assert.ok(!fs.existsSync(path.join(r.rig, "HumanityOS.exe")), "nothing was copied into the rig, let alone booted");
 });
 
-test("--game-only reaches the sweep: a build does not hold a games-only run", async () => {
+test("a build alone does not hold the sweep (2026-10-23: rigs wait for memory, not builds)", async () => {
   const exe = stampedNonProgram();
-  const r = await runGate(["--exe", exe, "--game-only", "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: BUILD });
-  assert.doesNotMatch(r.out, /pre-boot: WAITING/, `the sweep waited on a build although --game-only was given:\n${tail(r)}`);
-  assert.match(r.out, /games only|other games and rigs only/);
+  const r = await runGate(["--exe", exe, "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: BUILD });
+  assert.doesNotMatch(r.out, /pre-boot: WAITING/, `the sweep waited on a build:\n${tail(r)}`);
   // It went on to the start of the "game", which is not a program: nothing booted, exit 1.
   assert.match(r.out, /probe-sweep: could not start .*HumanityOS.exe .*nothing booted/, tail(r));
   assert.match(r.out, /RESULT: REFUSED {2}the probe stopped before it started the game \(probe exit 1\); nothing was booted\./);
+  assert.strictEqual(r.status, 1, tail(r));
+});
+
+test("--wait-builds reaches the sweep: with it, a build holds the boot", async () => {
+  const exe = stampedNonProgram();
+  const r = await runGate(["--exe", exe, "--wait-builds", "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: BUILD });
+  assert.match(r.out, /pre-boot: WAITING/, `--wait-builds was given and the sweep did not wait on the build:\n${tail(r)}`);
+  assert.match(r.out, /RESULT: REFUSED {2}the machine never went quiet in 3 s/);
+  assert.match(r.out, /cargo\.exe pid 4242/, "the build it waited for is named");
+  assert.strictEqual(r.status, 1, tail(r));
+});
+
+test("RED: too little free physical memory holds the boot, and says how much there is", async () => {
+  const exe = stampedNonProgram();
+  const r = await runGate(["--exe", exe, "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: "", env: { HUMANITY_MACHINE_GUARD_FAKE_FREE_MB: "1000" } });
+  assert.match(r.out, /pre-boot: WAITING/, `a machine with 1 GB free did not hold the boot:\n${tail(r)}`);
+  assert.match(r.out, /free physical memory 1\.0 GB: a rig needs 6\.0 GB free/);
+  assert.match(r.out, /RESULT: REFUSED {2}the machine never went quiet in 3 s/);
   assert.strictEqual(r.status, 1, tail(r));
 });
 
@@ -263,7 +284,7 @@ test("an argument verify-runtime does not know is refused, not ignored", async (
   const r = await runGate(["--exe", exe, "--gmae-only", "--timeout-min", "0.05"], { procs: "" });
   assert.strictEqual(r.status, 1, `exit ${r.status}, not 1 (it ran, ignoring --gmae-only?)\n${tail(r)}`);
   assert.match(r.out, /verify-runtime: REFUSED - unknown argument\(s\): --gmae-only\. Nothing was booted\./);
-  assert.match(r.out, /--game-only/, "the known flags are listed, so the typo is obvious");
+  assert.match(r.out, /--wait-builds/, "the known flags are listed, so the typo is obvious");
   assert.doesNotMatch(r.out, /\[sweep\]|\[fresh\]/, "refused before anything ran");
 });
 

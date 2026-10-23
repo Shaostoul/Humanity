@@ -275,7 +275,9 @@ code-map:
     @node scripts/code-map.js
 
 # Clear build output before it fills C: (2026-09-29; C: reached 91% with 1.13 TB
-# of cargo caches). Idle worktree targets always; the main target's incremental
+# of cargo caches). Old builds of our crate in every target folder, always, even
+# beside a running build (2026-10-23: 182 GB of the main target were builds of
+# old versions; scripts/lib/stale-artifacts.js); idle worktree targets always; the main target's incremental
 # cache at 75% full; the whole main target at 85%; never while cargo, rustc or
 # the game runs. The installed task runs this hourly; add --dry-run to only report.
 disk-guard *args:
@@ -295,6 +297,24 @@ share-guard *args:
 # Install (or replace) the "HumanityOS PC Share Guard" task: starts at every logon, hidden. One UAC prompt.
 install-share-guard:
     powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{{justfile_directory()}}\scripts\install-pc-share-guard.ps1\"'"
+
+# The build slot (2026-10-23, scripts/build-slot/hos-build-slot.rs): one memory budget for the
+# machine's compiles of our crate. Installs C:\Humanity\.cargo\hos-build-slot.exe and the
+# machine-local .cargo\config.toml that runs every compile of our crate (main checkout and every
+# worktree under it) through it: a compile waits until free physical memory has room for its
+# expected peak plus 2 GB, and one that dies of memory is retried. Dependencies are not gated.
+# HUMANITY_BUILD_SLOT=off skips it for one command. Built from the MAIN checkout's source.
+# Install the build slot: compiles of our crate take turns for memory, machine-wide
+build-slot:
+    node scripts/build-slot.js install
+
+# Who is compiling through the slot, who waits, the memory, and the peaks it has learned.
+build-slot-status:
+    node scripts/build-slot.js status
+
+# Exit 1, naming the fix, when the slot is installed but its exe is missing or older than its source.
+build-slot-check:
+    node scripts/build-slot.js check
 
 # Delete what test runs left in the temp folder (BUG-159, 2026-10-05): the `hum_*`
 # files and folders nothing has touched for a day. The tests delete their own now
@@ -402,6 +422,10 @@ check:
 # `just test-lib dm_store --nocapture`. Use this rather than a bare
 # `cargo test --features native --lib`: on Windows the bare form fails to link
 # (LNK1318, BUG-174) and scripts/lib-tests.js links the test program without a debug file.
+# The policy (2026-10-23): a full run on a tree that already passed it is refused (exit 0,
+# `--force` runs it); output is -q (`--verbose` for one line per test); one to five failures are
+# each run again alone, and one that passes alone is reported FLAKY, recorded in
+# data/coordination/flaky-tests.jsonl, and does not fail the run.
 test-lib *args:
     node scripts/lib-tests.js {{args}}
 
@@ -515,16 +539,17 @@ verify-relay:
 # prints WHICH settings it is a verdict about.
 #
 # TWO CLOCKS (2026-10-21). Before the boot the sweep waits for a quiet machine
-# (other games, builds, another rig's machine-wide boot lock) for up to
+# (other games, another rig's machine-wide boot lock, and since 2026-10-23 free
+# physical memory rather than the absence of builds) for up to
 # --wait-min N (60); if it never comes: "REFUSED: the machine never went quiet
 # in N min; nothing was booted", exit 1, which is not a verdict on the build.
 # The gate's own --timeout-min N (12) starts when the GAME starts and times
 # boot, world entry and the vantages, so a timeout is a real hang. (The clock
 # used to start with the recipe: twice on 2026-10-21 it ran out during the
 # wait for other agents' builds and printed a false "boot or world-entry hang".)
-# --game-only waits for other games and rigs but not builds (this gate reads
-# panics and captures, not timings). An argument the gate does not know is
-# refused, never ignored.
+# --wait-builds waits for builds too (it used to be the default, and --game-only
+# turned it off; this gate reads panics and captures, not timings, so it rarely
+# wants it). An argument the gate does not know is refused, never ignored.
 #
 # Boot the real binary, enter the world, fail on any panic or missed capture.
 [positional-arguments]
@@ -600,10 +625,11 @@ live-publish *ARGS:
 # CLAUDE.md): no tracked file holds a byte-order mark, UTF-16 or Windows-1252
 # mojibake. About 1.5 s over the whole tree; see scripts/check-encoding.js.
 lints:
-    # Each run builds into a folder of its own (2026-10-20): a fixed /tmp/<lint>.test.exe was shared by
-    # every worktree, so two sessions running lints at once overwrote or locked each other's programs and
-    # a lint "failed" with no message.
-    export CARGO_MANIFEST_DIR="$(pwd)"; D=$(mktemp -d); for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "$D/$t.test.exe" 2>/dev/null && "$D/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "$D/$t.test.exe"; rm -rf "$D"; exit 1; }; done; rm -rf "$D"
+    # scripts/run-lints.js (2026-10-23): each lint compiled once per content into this checkout's
+    # target/lint-cache/ (never a shared /tmp name: on 2026-10-20 two sessions overwrote each other's
+    # programs), four compiled and four run at a time, and EVERY lint runs: a red one no longer hides
+    # the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after (measured 2026-10-23).
+    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint
     @node scripts/check-encoding.js --all > /dev/null && echo ">> lint ok: check-encoding --all" || { echo "LINT FAILED: check-encoding --all"; node scripts/check-encoding.js --all; exit 1; }
 
 # Text garbled by a PowerShell round trip (Get-Content/Set-Content, > or Out-File):
@@ -732,14 +758,37 @@ check-encoding *ARGS:
 # process, is taken over; spawnGame will not start a game without it; probe-sweep waits for it.
 # And verify-runtime's two clocks (verify-runtime-gate.test.js): a machine wait longer than the gate
 # does not trip it, a game that hangs after it starts still does (node, stamped, as the "game");
-# a machine that never goes quiet is REFUSED (exit 1), not FAIL; --game-only reaches the sweep; an
+# a machine that never goes quiet is REFUSED (exit 1), not FAIL; a build alone does not hold the sweep,
+# --wait-builds makes it wait for one, low free memory holds it; an
 # unknown flag or a non-number time is refused, not ignored. Every lock here is the test's own file.
 # And the DXC pair from a worktree (dxc-dlls.test.js, 2026-10-21): a worktree's rig finds the pair in
 # the main checkout's root (found as `git rev-parse --git-common-dir` finds it, checked against git),
 # dxc-beside-exe.js too, and a rig whose game boots on FXC ends its output with a banner saying so.
+# And the lint runner (scripts/run-lints.js, run-lints.test.js, 2026-10-23): on a throwaway checkout,
+# three tiny lints with two red run in full and both reds are named (the old loop stopped at the first),
+# a lint made red after it was cached is compiled again rather than replaying its green program (seen
+# red with a cache key that ignored the source), a program built for one checkout is not reused by
+# another, and a lint that does not compile fails with rustc's message.
+# And the build slot (scripts/build-slot/hos-build-slot.rs, build-slot.test.js, 2026-10-23): three
+# compiles started at once, each of which dies if another runs beside it (a stand-in rustc), all pass
+# through the slot one after another, and with the slot off the same three die (the red control, every
+# run; a slot mutated to admit everything fails it); a REAL rustc under REAL cargo, capped by a job
+# object into running out of memory, is retried to success and fails with one attempt allowed; an
+# ordinary error is shown, not retried; the health check names a missing, stale or foreign wrapper.
+# And the lib-test run policy (scripts/lib-tests.js, lib-tests-policy.test.js, 2026-10-23), on a
+# throwaway repository with a tiny real test program: a full pass is recorded and the same tree is
+# refused until a tracked or untracked file changes or --force (seen red with an identity that ignored
+# changed files); a test that fails once and passes alone is FLAKY (banner, ledger line, the run
+# passes, only that test rerun); a real failure fails again alone and fails the run (seen red with a
+# rerun that called everything flaky); -q by default and a failure's message still shown.
+# And the disk guard's old-build pruning (scripts/lib/stale-artifacts.js, stale-artifacts.test.js,
+# 2026-10-23): on a made-up target folder, builds of our crate untouched for 3 days beyond the newest
+# six go, today's and the newest six stay, a dependency's old copies all stay (seen red with every
+# crate pruned, and with the newest-six rule taken out), and the guard deletes them for real while a
+# build is "running" (seen red with the step skipped when busy).
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js scripts/tests/storeys-judge.test.js scripts/tests/map-centre-check.test.js scripts/tests/boot-lock.test.js scripts/tests/verify-runtime-gate.test.js scripts/tests/recovery-web.test.js scripts/tests/map-overview-check.test.js scripts/tests/sol-orbits-web.test.js scripts/tests/chat-rows-web.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js scripts/tests/storeys-judge.test.js scripts/tests/map-centre-check.test.js scripts/tests/boot-lock.test.js scripts/tests/verify-runtime-gate.test.js scripts/tests/recovery-web.test.js scripts/tests/map-overview-check.test.js scripts/tests/sol-orbits-web.test.js scripts/tests/chat-rows-web.test.js scripts/tests/run-lints.test.js scripts/tests/build-slot.test.js scripts/tests/lib-tests-policy.test.js scripts/tests/stale-artifacts.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -1476,7 +1525,7 @@ terminator-grain *ARGS:
 # a PANIC occurred - so it can gate. The perf half of the sweep; deterministic,
 # no AI. For a visual-regression pass, run the visual-sweep workflow.
 perf-sweep:
-    node scripts/probe-sweep.js
+    node scripts/probe-sweep.js --wait-builds
     node scripts/perf-report.js
 
 # Diff the newest sweep's fps against a baseline manifest to catch a slowdown

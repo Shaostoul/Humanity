@@ -12,14 +12,24 @@
  * screenshots, backups or git data. A deleted build folder costs a rebuild,
  * about 10 minutes, and nothing else.
  *
+ *   0. Every run, even while builds run: OLD BUILDS OF OUR CRATE in every
+ *      target folder (main and worktrees, debug and release), the ones
+ *      nothing has written for STALE_DAYS (3) when newer ones of the same
+ *      crate exist (scripts/lib/stale-artifacts.js). Cargo puts the version
+ *      into every artifact's hash and never deletes an old one, so each
+ *      release left a full set: 140.7 GB of the main target's 174.3 GB of
+ *      our crate's files were such leftovers on 2026-10-23. A build only
+ *      writes the hash it is building, so a group untouched for days is safe
+ *      to delete beside a running build; anything rebuilt meanwhile is newer.
  *   1. Every run: the target/ of any worktree nobody has built in for
  *      IDLE_HOURS (48 h), judged by the newest of its lock and info files.
  *   2. C: at WARN_PCT (75%) or more: the main target's debug/incremental,
  *      the part that grows fastest.
  *   3. Still at CRIT_PCT (85%) or more: the whole main target/ (cargo clean).
  *
- * It does NOTHING while cargo, rustc or HumanityOS is running (a build or the
- * game may hold those files); it tries again next run.
+ * Steps 1 to 3 do NOTHING while cargo, rustc or HumanityOS is running (a build
+ * or the game may hold those files); they try again next run. Step 0 runs
+ * anyway (see above), and a file something holds open is left for next time.
  *
  * RUNS hourly and silently from Task Scheduler ("HumanityOS Dev Disk Guard",
  * installed by scripts/install-pc-disk-guard.ps1, `just install-disk-guard`).
@@ -29,7 +39,7 @@
  *
  * Testing flags: --root <dir> (a stand-in repo), --drive <path> (the drive to
  * measure), --dry-run. Thresholds from env: PC_DISK_GUARD_WARN_PCT,
- * PC_DISK_GUARD_CRIT_PCT, PC_DISK_GUARD_IDLE_HOURS.
+ * PC_DISK_GUARD_CRIT_PCT, PC_DISK_GUARD_IDLE_HOURS, PC_DISK_GUARD_STALE_DAYS.
  */
 const fs = require('fs');
 const path = require('path');
@@ -47,6 +57,8 @@ const DRY = flag('--dry-run');
 const WARN_PCT = Number(process.env.PC_DISK_GUARD_WARN_PCT || 75);
 const CRIT_PCT = Number(process.env.PC_DISK_GUARD_CRIT_PCT || 85);
 const IDLE_HOURS = Number(process.env.PC_DISK_GUARD_IDLE_HOURS || 48);
+const STALE_DAYS = Number(process.env.PC_DISK_GUARD_STALE_DAYS || 3);
+const SA = require('./lib/stale-artifacts.js');
 
 const STATE_DIR = path.join(process.env.LOCALAPPDATA || path.join(require('os').homedir(), 'AppData', 'Local'), 'HumanityOS');
 const LOG = path.join(STATE_DIR, 'disk-guard.log');
@@ -118,6 +130,40 @@ function remove(dir, why) {
 
 const before = usage();
 let skipped = null;
+
+// 0. Old builds of our crate, in every target folder (see the header). Runs even while builds run.
+let pruned = { files: 0, bytes: 0 };
+{
+  const crates = SA.workspaceCrates(ROOT);
+  const targets = [path.join(ROOT, 'target')];
+  let wts = [];
+  try { wts = fs.readdirSync(path.join(ROOT, '.claude', 'worktrees')); } catch { /* none */ }
+  for (const w of wts) targets.push(path.join(ROOT, '.claude', 'worktrees', w, 'target'));
+  for (const t of targets) {
+    for (const profile of ['debug', 'release']) {
+      const dir = path.join(t, profile);
+      if (!fs.existsSync(dir)) continue;
+      const plan = SA.planPrune(SA.scanProfile(dir), { crates, staleDays: STALE_DAYS });
+      if (!plan.remove.length) continue;
+      let files = 0;
+      let bytes = 0;
+      for (const e of plan.remove) {
+        if (DRY) { files++; bytes += e.bytes; continue; }
+        try {
+          if (e.dir) fs.rmSync(e.path, { recursive: true, force: true, maxRetries: 2 });
+          else fs.unlinkSync(e.path);
+          files++;
+          bytes += e.bytes;
+        } catch { /* held open (a running test program): next run */ }
+      }
+      pruned.files += files;
+      pruned.bytes += bytes;
+      const gb = (bytes / 1e9).toFixed(1);
+      actions.push((DRY ? 'would delete ' : 'deleted ') + files + ' old build file(s) of our crate, ' + gb + ' GB, in ' + path.relative(ROOT, dir));
+    }
+  }
+}
+
 const running = busy();
 if (running.length) {
   skipped = 'busy: ' + running.join(', ') + ' running, nothing touched';
@@ -152,9 +198,11 @@ const summary = {
   free_gb: after.freeGB,
   actions,
   skipped,
+  pruned_old_builds: { files: pruned.files, gb: Math.round(pruned.bytes / 1e8) / 10 },
 };
 const line = `${summary.at} C: ${before.pct}% -> ${after.pct}% (${after.freeGB} GB free)` +
-  (skipped ? ' | ' + skipped : actions.length ? ' | ' + actions.join('; ') : ' | nothing to do');
+  (actions.length ? ' | ' + actions.join('; ') : '') +
+  (skipped ? ' | ' + skipped : actions.length ? '' : ' | nothing to do');
 console.log(line);
 if (!DRY && !flag('--no-log')) {
   try {

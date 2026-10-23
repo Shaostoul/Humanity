@@ -206,7 +206,8 @@ async function oneRun(n) {
   // the other process as much as this one.
   // The wait ends by taking the machine-wide boot lock (lib/boot-lock.js), held
   // until this script ends, so no other rig boots between this script's boots.
-  const waited = MG.waitForFree({ label: `boot ${n}`, rig: "boot-timing", timeoutMs: WAIT_MIN * 60 * 1000 });
+  // waitForBuilds: a boot TIME is the point here, so builds are waited for too (2026-10-23).
+  const waited = MG.waitForFree({ own: { waitForBuilds: true }, label: `boot ${n}`, rig: "boot-timing", timeoutMs: WAIT_MIN * 60 * 1000 });
   if (!waited.free) {
     // Exit 1, refused: a boot measured beside a build or another game is not
     // data, and a boot that never happened is not a slow one (it was exit 2,

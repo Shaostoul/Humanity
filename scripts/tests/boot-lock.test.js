@@ -291,11 +291,13 @@ test("a fake process list or a test run never takes the operator's real machine 
 });
 
 // ── two rigs woken together ─────────────────────────────────────────────────
-// The incident itself: two rigs wait on the same build; the build ends; both see a quiet machine
-// in the same moment. Each "boots" (holds for 1.5 s) the moment its guard lets it. The two boots
-// must not overlap. Each child is a real process with its own fake process list (a cargo.exe
-// until the go-file exists), polling every 50 ms so both wake within one poll of each other.
-test("RED: two rigs woken by the same build ending never boot together", async () => {
+// The incident itself: two rigs wait on the same thing; it ends; both see a quiet machine in the
+// same moment. Each "boots" (holds for 1.5 s) the moment its guard lets it. The two boots must
+// not overlap. Each child is a real process. On 2026-10-21 the thing was a build; since
+// 2026-10-23 rigs wait for free memory, not builds, so here it is the compiles finishing and the
+// memory coming back (a fake reading: 1 GB free until the go-file exists, then 20 GB), polled
+// every 50 ms so both wake within one poll of each other.
+test("RED: two rigs woken by the same compiles ending (memory coming back) never boot together", async () => {
   const f = lockFile();
   const k = n;
   const go = path.join(tmpRoot, `go-${k}`);
@@ -303,7 +305,8 @@ test("RED: two rigs woken by the same build ending never boot together", async (
   const rigScript = (name) => `
     const fs = require("fs");
     const MG = require(${JSON.stringify(require.resolve("../lib/machine-guard.js"))});
-    MG.setLister(() => (fs.existsSync(${JSON.stringify(go)}) ? "" : "4242|cargo.exe|C:\\\\elsewhere\\\\cargo.exe"));
+    MG.setLister(() => "");
+    MG.setFreeMem(() => (fs.existsSync(${JSON.stringify(go)}) ? 20000 : 1000));
     const w = MG.waitForFree({ lockFile: ${JSON.stringify(f)}, timeoutMs: 30000, pollMs: 50, label: "pre-boot", rig: ${JSON.stringify(name)}, log: (m) => console.log(m) });
     if (!w.free) { console.log("GAVE UP"); process.exit(3); }
     const start = Date.now();
@@ -318,8 +321,8 @@ test("RED: two rigs woken by the same build ending never boot together", async (
     return c;
   });
   try {
-    assert.ok(await until(() => kids.every((c) => /WAITING/.test(c.out)), 20000), "both rigs are waiting on the build");
-    fs.writeFileSync(go, ""); // the build ends
+    assert.ok(await until(() => kids.every((c) => /WAITING/.test(c.out)), 20000), "both rigs are waiting for memory");
+    fs.writeFileSync(go, ""); // the compiles end, the memory comes back
     const codes = await Promise.race([Promise.all(kids.map((c) => c.done)), sleep(40000).then(() => "timeout")]);
     assert.deepStrictEqual(codes, [0, 0], kids.map((c) => c.out).join("\n---\n"));
     const [a, b] = ["rig-a", "rig-b"].map((name) => JSON.parse(fs.readFileSync(rec(name), "utf8")));

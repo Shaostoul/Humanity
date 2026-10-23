@@ -57,6 +57,7 @@
 //                        the wait in front of it.
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { execSync, execFileSync } = require("child_process");
 const BL = require("./boot-lock.js");
@@ -220,12 +221,63 @@ function foreignProcs(own = {}) {
   });
 }
 
+// ── MEMORY, NOT "NO BUILDS" (2026-10-23, the build-speed review) ──────────────
+//
+// A rig used to wait for every cargo, rustc and link to leave before it booted. In a checkout
+// shared by several sessions somebody is nearly always compiling, so rigs sat for most of an
+// hour, and the reason to wait was never the build itself: it was the memory and the CPU it
+// took. The CPU is handled (the share guard keeps builds at below-normal priority, and BUG-161's
+// holdBuilds holds them back for a capture), so what a boot needs is MEMORY: a game that boots
+// into a machine with no free physical memory pages, crawls and fails checks it would pass.
+// So a rig waits for: another game or rig on the one GPU, the operator's own programs, the boot
+// lock, and FREE PHYSICAL MEMORY (RIG_MIN_FREE_MB). Builds count only for a run that measures
+// TIMINGS (own.waitForBuilds: probe-sweep --wait-builds, which `just perf-sweep` passes, and
+// boot-timing), because a frame time is a measure of the whole machine. Every capture beside a
+// build is still marked contaminated (markCapture, below), so no timing taken beside one is ever
+// graded as a reading.
+
+/// What a booted game needs free, MB: its own working set at world entry plus room for the
+/// build slot's compiles not to push it into paging. 6 GB is a starting figure, not a
+/// measurement: lower it (HUMANITY_RIG_MIN_FREE_MB) once a rig's run.log has recorded the real one.
+const RIG_MIN_FREE_MB_DEFAULT = 6144;
+const rigMinFreeMb = () => {
+  const v = Number(process.env.HUMANITY_RIG_MIN_FREE_MB);
+  return v > 0 ? v : RIG_MIN_FREE_MB_DEFAULT;
+};
+
+// The free-memory reader, swappable like the process lister: setFreeMem(fn) in-process, or
+// HUMANITY_MACHINE_GUARD_FAKE_FREE_MB for a child process. Under a FAKE process list with no
+// fake memory the machine is taken to have room (a test of the process logic must not depend
+// on this machine's memory at that moment).
+let freeMemFn = null;
+function setFreeMem(fn) {
+  freeMemFn = fn;
+}
+/// Free physical memory, MB. os.freemem() is Windows' available physical memory (standby pages
+/// included, as Task Manager's "Available").
+function freeMemMb() {
+  if (freeMemFn) return freeMemFn();
+  const fake = process.env.HUMANITY_MACHINE_GUARD_FAKE_FREE_MB;
+  if (fake != null && fake !== "") return Number(fake);
+  if (!!lister || !!process.env.HUMANITY_MACHINE_GUARD_FAKE) return Infinity;
+  return Math.round(os.freemem() / (1024 * 1024));
+}
+/// The memory blocker for a boot, or null when there is room.
+function memoryShortfall(needMb = rigMinFreeMb()) {
+  const free = freeMemMb();
+  return free >= needMb ? null : { pid: 0, name: "", exe: "", memory: { free_mb: free, need_mb: needMb } };
+}
+const gbOf = (mb) => `${(mb / 1024).toFixed(1)} GB`;
+
 /// One-line description of a contender, for a log line or a manifest note. A
-/// held boot lock (waitForFree) is described as the rig holding it.
+/// held boot lock (waitForFree) is described as the rig holding it, and a memory
+/// shortfall as the numbers.
 const describe = (p) =>
-  p && p.lock
-    ? `the rig boot lock, held by ${BL.describeHolder(p.lock)}`
-    : `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (${p.exe})` : ""}`;
+  p && p.memory
+    ? `free physical memory ${gbOf(p.memory.free_mb)}: a rig needs ${gbOf(p.memory.need_mb)} free to boot without paging (HUMANITY_RIG_MIN_FREE_MB; just build-slot-status shows the compiles holding it)`
+    : p && p.lock
+      ? `the rig boot lock, held by ${BL.describeHolder(p.lock)}`
+      : `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (${p.exe})` : ""}`;
 
 /// Is the process list faked (a test, or the manual red proof)?
 const fakeInUse = () => !!lister || !!process.env.HUMANITY_MACHINE_GUARD_FAKE;
@@ -246,7 +298,10 @@ function fmtSpan(ms) {
 /// Wait, bounded, for the machine to be free of contenders, then take the boot
 /// lock (lib/boot-lock.js) so no other rig boots beside this one.
 ///
-/// opt.own        what is ours (see foreignProcs), incl. gameOnly
+/// opt.own        what is ours (see foreignProcs). own.waitForBuilds: builds count as
+///                contenders too (a run that measures timings); without it they do not
+///                (2026-10-23: rigs wait for memory, not for "no builds"; see above)
+/// opt.memoryMb   free physical memory to wait for (rigMinFreeMb(); 0 = none)
 /// opt.timeoutMs  how long to wait before giving up (WAIT_MIN_DEFAULT)
 /// opt.pollMs     how often to look (30 s; HUMANITY_MACHINE_GUARD_POLL_MS for a test)
 /// opt.lock       false = do not take the boot lock (default: take it)
@@ -277,10 +332,13 @@ function waitForFree(opt = {}) {
   const lockFile = opt.lock === false ? null : opt.lockFile !== undefined ? opt.lockFile : bootLockPath();
   const t0 = Date.now();
   let took = null;
-  // One look: the processes first (a rig never takes the lock while it could not
-  // boot anyway), then the lock. Quiet means both.
+  // One look: the processes and the memory first (a rig never takes the lock while it
+  // could not boot anyway), then the lock. Quiet means all three.
+  const memoryMb = opt.memoryMb != null ? opt.memoryMb : rigMinFreeMb();
   const look = () => {
-    const procs = opt.procs === false ? [] : foreignProcs(own);
+    const procs = opt.procs === false ? [] : foreignProcs({ ...own, gameOnly: !own.waitForBuilds });
+    const short = opt.procs === false || !(memoryMb > 0) ? null : memoryShortfall(memoryMb);
+    if (short) procs.push(short);
     if (procs.length || !lockFile) return { blockers: procs };
     const r = BL.tryAcquire(lockFile, { rig: opt.rig });
     if (r.ok) {
@@ -796,6 +854,12 @@ module.exports = {
   // 2026-10-21: the boot lock, the one refusal, the phase a parent gate reads.
   WAIT_MIN_DEFAULT,
   fmtSpan,
+  // 2026-10-23: rigs wait for free physical memory, not for builds.
+  RIG_MIN_FREE_MB_DEFAULT,
+  rigMinFreeMb,
+  freeMemMb,
+  setFreeMem,
+  memoryShortfall,
   bootLockPath,
   refusalLines,
   refuseBusy,

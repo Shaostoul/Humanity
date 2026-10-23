@@ -121,7 +121,17 @@ fn walk(root: &Path, p: &Path, out: &mut Vec<PathBuf>) {
 /// phrase right after `"`, `'`, a backtick or a tag's `>` (a string in the code, or text in a
 /// page). A comment naming `media.rs` or the `/media` address never matches.
 fn quotes_retired_media_words(line: &str) -> Option<(&'static str, &'static str)> {
-    RETIRED_MEDIA_PAGE.iter().copied().find(|(old, _)| ['"', '\'', '`', '>'].iter().any(|q| line.contains(&format!("{q}{old}"))))
+    // Every retired phrase contains "Media", so most lines stop here. Then each phrase is
+    // found and the byte before it read, rather than building the 32 quoted needles for
+    // every line: that made this the slowest lint by far (24 s of a 30 s `just lints` run,
+    // measured 2026-10-22). Same matches as before (the matcher test below).
+    if !line.contains("Media") {
+        return None;
+    }
+    RETIRED_MEDIA_PAGE
+        .iter()
+        .copied()
+        .find(|(old, _)| line.match_indices(old).any(|(i, _)| i > 0 && matches!(line.as_bytes()[i - 1], b'"' | b'\'' | b'`' | b'>')))
 }
 
 /// "no account" or "no accounts" as words (not "no accountability").
@@ -156,29 +166,30 @@ fn account_words_are_the_plain_ones() {
                 continue;
             }
             let lower = line.to_lowercase();
-            let rel = f.strip_prefix(&root).unwrap_or(f).display().to_string();
+            // The file's name, made only when a line is reported (it was made for every line).
+            let rel = || f.strip_prefix(&root).unwrap_or(f).display().to_string();
             // The dictionary's one deliberate mention of the other name.
             let alias = lower.contains("wallets call this a seed phrase");
             if !alias && (lower.contains("seed phrase") || lower.contains("seed-phrase ")) {
-                bad.push(format!("{rel}:{}: \"seed phrase\" -> say \"recovery phrase\"", n + 1));
+                bad.push(format!("{}:{}: \"seed phrase\" -> say \"recovery phrase\"", rel(), n + 1));
             }
             // The chat command was renamed with the phrase (/seed -> /recovery);
             // a tip that still names the old one sends people to "Unknown
             // command" (review of 2026-09-29).
             if lower.contains("<code>/seed</code>") || lower.contains("'/seed'") || lower.contains("\"/seed\"") {
-                bad.push(format!("{rel}:{}: the chat command is /recovery now, not /seed", n + 1));
+                bad.push(format!("{}:{}: the chat command is /recovery now, not /seed", rel(), n + 1));
             }
             // "Seed" alone for the account key (2026-10-10): the Settings page still said "a fresh
             // 24-word seed" and "recover an existing seed" after "seed phrase" was retired. These
             // phrases only ever mean the account's key, never a plant or a world seed.
             if !alias && ACCOUNT_SEED.iter().any(|p| lower.contains(p)) {
-                bad.push(format!("{rel}:{}: \"seed\" for the account key -> say \"recovery phrase\" (or \"key\")", n + 1));
+                bad.push(format!("{}:{}: \"seed\" for the account key -> say \"recovery phrase\" (or \"key\")", rel(), n + 1));
             }
             if says_no_account(&lower) {
-                bad.push(format!("{rel}:{}: \"no account\" -> say \"no sign-up\" (people do have an account; it is theirs)", n + 1));
+                bad.push(format!("{}:{}: \"no account\" -> say \"no sign-up\" (people do have an account; it is theirs)", rel(), n + 1));
             }
             if let Some((old, new)) = quotes_retired_media_words(line) {
-                bad.push(format!("{rel}:{}: \"{old}\" -> say \"{new}\" (the Media page is the Files page since 2026-10-19)", n + 1));
+                bad.push(format!("{}:{}: \"{old}\" -> say \"{new}\" (the Media page is the Files page since 2026-10-19)", rel(), n + 1));
             }
         }
     }

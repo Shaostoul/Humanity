@@ -188,13 +188,14 @@ test("waitForFree returns immediately on a clean machine and reports zero wait",
   });
 });
 
-test("RED: waitForFree blocks, logs and reports the blocker - for a build as well", () => {
+test("RED: waitForFree blocks, logs and reports the blocker - for a build, in a run that waits for builds", () => {
   withFake(`${CLEAN}\n5151|rustc.exe|${RUSTC}`, () => {
     const lines = [];
     const t0 = Date.now();
     // Bounded so the test finishes: the point is that it WAITED and gave up
-    // loudly rather than booting silently beside the build.
-    const r = MG.waitForFree({ own: OWN, timeoutMs: 120, pollMs: 40, log: (m) => lines.push(m), label: "pre-boot" });
+    // loudly rather than booting silently beside the build. waitForBuilds: a
+    // timing run (probe-sweep --wait-builds, boot-timing); others ignore builds.
+    const r = MG.waitForFree({ own: { ...OWN, waitForBuilds: true }, timeoutMs: 120, pollMs: 40, log: (m) => lines.push(m), label: "pre-boot" });
     assert.strictEqual(r.free, false);
     assert.ok(Date.now() - t0 >= 100, "it must actually have waited, not fallen through");
     // A 120 ms wait rounds to 0 s, and still WAS a wait: a caller deciding
@@ -209,6 +210,54 @@ test("RED: waitForFree blocks, logs and reports the blocker - for a build as wel
     assert.ok(lines.some((l) => l.includes("rustc.exe")), "the blocker must be named, not counted");
     assert.ok(lines.some((l) => l.includes("GAVE UP")), "giving up must be logged");
   });
+});
+
+// 2026-10-23: rigs wait for memory and other games, not for builds. A build alone no longer
+// holds a boot (it used to hold every rig for most of an hour in a shared checkout); free
+// physical memory below the rig's need does, and the numbers are named.
+// Red check, run 2026-10-23 with the memory look taken out of waitForFree: "low free memory
+// holds the boot" failed (free: true), and with waitForBuilds ignored, the test above failed.
+test("a build alone does not hold a boot (no waitForBuilds)", () => {
+  withFake(`${CLEAN}\n5151|rustc.exe|${RUSTC}`, () => {
+    const r = MG.waitForFree({ own: OWN, timeoutMs: 120, pollMs: 40, log: () => {} });
+    assert.strictEqual(r.free, true, JSON.stringify(r));
+    assert.strictEqual(r.waited, false);
+  });
+});
+
+test("RED: low free physical memory holds the boot, and the wait says how much there is", () => {
+  MG.setFreeMem(() => 1500);
+  try {
+    withFake(CLEAN, () => {
+      const lines = [];
+      const r = MG.waitForFree({ own: OWN, timeoutMs: 120, pollMs: 40, log: (m) => lines.push(m), label: "pre-boot" });
+      assert.strictEqual(r.free, false, "1.5 GB free must not boot a rig that needs 6 GB");
+      assert.strictEqual(r.blockers.length, 1);
+      assert.deepStrictEqual(r.blockers[0].memory, { free_mb: 1500, need_mb: MG.RIG_MIN_FREE_MB_DEFAULT });
+      assert.ok(lines.some((l) => /free physical memory 1\.5 GB: a rig needs 6\.0 GB free/.test(l)), lines.join("\n"));
+    });
+  } finally {
+    MG.setFreeMem(null);
+  }
+});
+
+test("the memory wait ends when memory comes back, and memoryMb: 0 turns it off", () => {
+  let looks = 0;
+  MG.setFreeMem(() => (++looks < 3 ? 2000 : 20000));
+  try {
+    withFake(CLEAN, () => {
+      const r = MG.waitForFree({ own: OWN, timeoutMs: 5000, pollMs: 20, log: () => {} });
+      assert.strictEqual(r.free, true);
+      assert.strictEqual(r.waited, true, "it waited for the memory");
+      assert.ok(looks >= 3);
+    });
+    MG.setFreeMem(() => 10);
+    withFake(CLEAN, () => {
+      assert.strictEqual(MG.waitForFree({ own: OWN, memoryMb: 0, timeoutMs: 50, pollMs: 10, log: () => {} }).free, true);
+    });
+  } finally {
+    MG.setFreeMem(null);
+  }
 });
 
 // The operator starts his own game with `just launch` / `just play`, which boot
@@ -585,11 +634,32 @@ test("on Windows, the real PowerShell lowers a real rustc this test started, and
     // seconds, which raced this test (2026-10-22: "put back ... 'BelowNormal' !== 'Normal'"): list
     // this test's children in its ignore file, and give the rustc back the Normal it started with
     // in case the guard reached it before the list did.
-    const ignoreFile = require("node:path").join(process.env.LOCALAPPDATA || require("node:os").tmpdir(), "HumanityOS", "share-guard-ignore.json");
+    // A file of this test process's own (2026-10-23): with one shared file, two test runs at once
+    // (two sessions' rig-tests) deleted each other's pids, and this test failed now and then. A
+    // guard started before that change reads only the shared file, so the pids are ADDED to it
+    // too (and only they are taken out again), never written over another run's.
+    const fsx = require("node:fs");
+    const pathx = require("node:path");
+    const statusDir = pathx.join(process.env.LOCALAPPDATA || require("node:os").tmpdir(), "HumanityOS");
+    const ignoreFile = pathx.join(statusDir, `share-guard-ignore-${process.pid}.json`);
+    const sharedIgnore = pathx.join(statusDir, "share-guard-ignore.json");
+    const mine = [child.pid, notBuild.pid];
+    const sharedPids = () => {
+      try {
+        return JSON.parse(fsx.readFileSync(sharedIgnore, "utf8")).pids.map(Number);
+      } catch {
+        return [];
+      }
+    };
     try {
-      require("node:fs").mkdirSync(require("node:path").dirname(ignoreFile), { recursive: true });
-      require("node:fs").writeFileSync(ignoreFile, JSON.stringify({ pids: [child.pid, notBuild.pid] }));
+      fsx.mkdirSync(statusDir, { recursive: true });
+      fsx.writeFileSync(ignoreFile, JSON.stringify({ pids: mine }));
+      fsx.writeFileSync(sharedIgnore, JSON.stringify({ pids: [...new Set([...sharedPids(), ...mine])] }));
     } catch {}
+    // The guard reads its ignore files at the top of each pass (every 3 s) and a pass that began
+    // before the file was written can still lower the rustc: wait out one pass before the
+    // priority is set below.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 4000);
     try {
       execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${child.pid}).PriorityClass = 'Normal'`], { windowsHide: true });
     } catch {}
@@ -612,7 +682,10 @@ test("on Windows, the real PowerShell lowers a real rustc this test started, and
     } finally {
       MG.setLister(null);
       try {
-        require("node:fs").unlinkSync(ignoreFile); // the share guard may touch builds again
+        fsx.unlinkSync(ignoreFile); // the share guard may touch builds again
+        const rest = sharedPids().filter((p) => !mine.includes(p));
+        if (rest.length) fsx.writeFileSync(sharedIgnore, JSON.stringify({ pids: rest }));
+        else fsx.unlinkSync(sharedIgnore);
       } catch {}
       child.stdin.end(); // empty source: rustc reports it has no main and exits on its own
       notBuild.kill(); // this test's own child

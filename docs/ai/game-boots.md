@@ -67,6 +67,10 @@ those boot the newest ARCHIVE, named `v<version>_HumanityOS.exe` (found
 2026-10-04). Check with `tasklist | grep -i humanityos` instead, which matches
 both.
 
+*What the rigs wait for (2026-10-23):* other games and rigs, the operator's programs, the boot
+lock and free physical memory, not builds (`docs/ai/builds.md`); `--wait-builds` for a run that
+measures timings.
+
 *Resolution (2026-10-23):* use `tasklist | grep -i humanityos`, the form at the end of that
 paragraph. The exact-name `tasklist //FI` filter in its first lines misses the archive the
 operator launches, so it is superseded.

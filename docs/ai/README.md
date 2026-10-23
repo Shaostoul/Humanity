@@ -46,6 +46,8 @@ folder:
     desktop's data folder.
   - [renderer.md](renderer.md): shader classes, runtime verification, planet-scale precision.
   - [game-boots.md](game-boots.md): booting the game without taking the operator's focus or GPU.
+  - [builds.md](builds.md): compiling and testing on the shared PC: the build slot, the
+    test-run policy, the lints, what the rigs wait for, the disk guard.
   - The algorithms themselves: [../reference/cryptography.md](../reference/cryptography.md),
     the canonical table (not CLAUDE.md).
 - **[05-AI-ONBOARDING.md](05-AI-ONBOARDING.md)** the condensed minimum, if you need a

@@ -94,6 +94,10 @@ const NOT_A_RIG = {
   "scripts/verify-runtime.js": "boots nothing itself: it gates, then runs probe-sweep (which gates again, see below)",
   "scripts/brief.js":
     "boots nothing: its one spawnSync runs scripts/code-map.js, and 'HumanityOS' is only the disk guard's folder under LOCALAPPDATA",
+  "scripts/build-ab/tools.js":
+    "boots nothing: the build A/Bs' helper runs cargo, rustc and the build slot, and 'HumanityOS' is only the slot's folder under LOCALAPPDATA",
+  "scripts/check-updates.js":
+    "boots nothing: it asks the toolchain and package tools what is out of date, and 'HumanityOS' is only its cache folder under LOCALAPPDATA",
 };
 
 function scriptsThatSpawnTheGame() {
@@ -203,7 +207,7 @@ test("probe-sweep refuses an unchecked exe before it builds or touches its rig",
   const rig = path.join(tmpRoot, "rig-should-not-exist");
   const r = spawnSync(
     process.execPath,
-    [path.join(REPO, "scripts", "probe-sweep.js"), "--exe", exe, "--rig", rig, "--only", "home-overview-noon", "--game-only"],
+    [path.join(REPO, "scripts", "probe-sweep.js"), "--exe", exe, "--rig", rig, "--only", "home-overview-noon"],
     { encoding: "utf8", timeout: 120000 }
   );
   const out = `${r.stdout}\n${r.stderr}`;
@@ -298,7 +302,8 @@ test("probe-sweep judges the exe again after a machine wait, so a rebuild during
   fs.writeFileSync(list, "4242|cargo.exe|C:\elsewhere\cargo.exe\n");
   const child = spawn(
     process.execPath,
-    [path.join(REPO, "scripts", "probe-sweep.js"), "--exe", exe, "--rig", rig, "--only", "home-overview-noon"],
+    // --wait-builds: a timing sweep, the run that waits for builds (since 2026-10-23 others do not).
+    [path.join(REPO, "scripts", "probe-sweep.js"), "--exe", exe, "--rig", rig, "--only", "home-overview-noon", "--wait-builds"],
     { env: { ...process.env, HUMANITY_MACHINE_GUARD_FAKE: list, HUMANITY_MACHINE_GUARD_POLL_MS: "300" } }
   );
   let out = "";
