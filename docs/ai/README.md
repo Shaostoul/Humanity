@@ -34,10 +34,20 @@ If you are a coding agent helping build HumanityOS (not just participating in th
 network), the operating instructions live in one place, not scattered across this
 folder:
 
-- **[../../CLAUDE.md](../../CLAUDE.md)** the project's working memory and conventions:
-  the mandatory session-start checklist, the file map, the version SOP, the canonical
-  cryptography table, and the non-negotiable design rules. Read it before touching UI,
-  storage, list-shaped data, or quoting any algorithm.
+- **[../../CLAUDE.md](../../CLAUDE.md)** the rules every agent needs, loaded automatically,
+  with a Router saying which audience document to read before which kind of work. Since
+  2026-10-23 the detail lives in those documents:
+  - [orchestrator.md](orchestrator.md): the top-level session's checklist, dispatching and
+    usage pacing, persistence, worktrees, the hunk-selective commit of a shared file.
+  - [release.md](release.md): the version SOP, tagging, delivery, deploy, the server recipes.
+  - [code-patterns.md](code-patterns.md): the file map, key patterns, REST routes, the web
+    chat's script order, the theme and glyph lints in detail.
+  - [storage.md](storage.md): the relay's storage schema, removed tables, the ALTER rule, the
+    desktop's data folder.
+  - [renderer.md](renderer.md): shader classes, runtime verification, planet-scale precision.
+  - [game-boots.md](game-boots.md): booting the game without taking the operator's focus or GPU.
+  - The algorithms themselves: [../reference/cryptography.md](../reference/cryptography.md),
+    the canonical table (not CLAUDE.md).
 - **[05-AI-ONBOARDING.md](05-AI-ONBOARDING.md)** the condensed minimum, if you need a
   30-second orientation before diving into CLAUDE.md.
 - **[../contributor/](../contributor/)** the architecture and contributing docs.

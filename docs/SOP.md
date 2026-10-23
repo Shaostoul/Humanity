@@ -57,8 +57,9 @@ node scripts/bump-version.js patch   # non-Rust changes (HTML/JS/CSS/docs)
 node scripts/bump-version.js minor   # Rust code changed (requires recompile)
 ```
 
-This updates all 7 locations automatically:
+This updates all 8 locations automatically:
 - `Cargo.toml` (root package version field)
+- `Cargo.lock` (its own `humanity-engine` entry, since 2026-10-12: it had lagged a version behind)
 - `web/shared/sw.js` (CACHE_NAME bump)
 - `web/pages/settings-app.js` (version tag)
 - `web/pages/ops.html` (debug version)
@@ -66,9 +67,10 @@ This updates all 7 locations automatically:
 - `web/pages/download.html` (fallback version badge + subtitle)
 - `web/pages/index.html` (the landing page's `proof-versions` tile)
 
-> THE SEVENTH IS THE ONE THAT BITES. This list said six until 2026-09-20 and
-> the v0.1316.0 release commit missed `index.html` because of it. The list that
-> cannot be wrong is `scripts/bump-version.js` itself; stage all seven BY NAME.
+> A SHORT LIST IS THE ONE THAT BITES. This list said six until 2026-09-20 and
+> the v0.1316.0 release commit missed `index.html` because of it; it said seven
+> after Cargo.lock joined on 2026-10-12. The list that cannot be wrong is
+> `scripts/bump-version.js` itself; stage every file it names BY NAME.
 
 ## Keeping components up to date (operator, 2026-10-23)
 

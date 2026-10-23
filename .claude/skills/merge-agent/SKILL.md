@@ -40,7 +40,8 @@ git commit -F <msg-file>                     # the agent's why, condensed; Co-Au
 ```
 
 A conflict with another session's uncommitted edits: stop and look, never stash or overwrite
-their files. A shared file holding both: the hunk-selective recipe in CLAUDE.md.
+their files. A shared file holding both: the hunk-selective recipe in
+`docs/ai/orchestrator.md`, section 8.
 
 ## 4. Verify on main, only what the change touches
 
