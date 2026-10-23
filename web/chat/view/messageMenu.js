@@ -97,6 +97,27 @@
     list.setAttribute('role', 'menu');
     list.setAttribute('aria-label', 'Message');
     menu.replaceChildren(list);
+    // Opened with the mouse, the focus stays where it was, so the list's own keys never see a
+    // key: Escape closes it from anywhere, and the arrows step into it. Seen 2026-10-22 in the
+    // browser: Escape left a right-clicked menu open.
+    var onDocKey = function (ev) {
+      if (!menu.classList.contains('open') || list.parentNode !== menu) { document.removeEventListener('keydown', onDocKey, true); return; }
+      if (list.contains(document.activeElement)) return;
+      if (ev.key === 'Escape') {
+        if (ev.preventDefault) ev.preventDefault();
+        done(null);
+      } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        if (ev.preventDefault) ev.preventDefault();
+        var all = entries(list);
+        var to = ev.key === 'ArrowDown' ? all[0] : all[all.length - 1];
+        if (to) to.focus();
+      }
+    };
+    function done(focusBack) {
+      document.removeEventListener('keydown', onDocKey, true);
+      close(menu, focusBack);
+    }
+    document.addEventListener('keydown', onDocKey, true);
     items.forEach(function (item) {
       if (item.sep) {
         var s = document.createElement('div');
@@ -113,7 +134,7 @@
       d.textContent = item.label;
       d.addEventListener('click', function (ev) {
         if (ev && ev.stopPropagation) ev.stopPropagation();
-        close(menu, null);
+        done(null);
         run(item, row, o);
       });
       list.appendChild(d);
@@ -131,7 +152,7 @@
         return;
       } else if (ev.key === 'Escape' || ev.key === 'Tab') {
         ev.preventDefault();
-        close(menu, back);
+        done(back);
         return;
       }
       if (to >= 0) { ev.preventDefault(); all[to].focus(); }

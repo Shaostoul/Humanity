@@ -546,12 +546,16 @@
     [data-theme="light"] .hub-nav { border-bottom-color: var(--border); }
 
     /* ── Divider between nav groups, negative margin cancels the double flex-gap ── */
+    /* Between groups, native's separator_dot (src/gui/pages/escape_menu.rs): a small "·" in
+       a dim ink with about 6 px either side (Track W step 5, 2026-10-22; it was a 1 px line
+       with no room around it, which read as no separation at all). */
     .hub-nav .nav-divider {
-      width: 1px;
-      height: 18px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
       background: var(--hos-nav-divider);
       flex-shrink: 0;
-      margin: 0 -0.1rem; /* gap is 0.2rem; -0.1rem each side keeps visual spacing even */
+      margin: 0 3px; /* plus the row's 0.2rem gap either side: about native's 6 px */
     }
 
     /* ── Spacer pushes right-side items to the right ── */
@@ -945,6 +949,13 @@
 
       '<span class="nav-group-red">' +
         navTab('/chat',     'chat',  'Chat',   'chat') +
+      '</span>' +
+
+      /* Chat is a group of its own and Watch and Files the next, as the desktop app's menu
+       * groups them (escape_menu.rs: Chat, a dot, then Studio, Watch and Files; 2026-10-22). */
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-red">' +
         /* Watch and Files beside Chat, as in the desktop app's menu (2026-10-12: on a desktop
          * browser the page had no link at all, only the phone menu listed it). Files is the page
          * people put their files on, called Media (at /media) until 2026-10-19. */

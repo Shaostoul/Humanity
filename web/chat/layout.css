@@ -86,10 +86,13 @@ header h1 {
   background: var(--bg);
 }
 
+/* Native's message list runs nearly edge to edge: each row's ground spans the
+   panel and its avatar sits at the row's left (chat.rs, widgets/row.rs). So the
+   list keeps only a hair at the sides (it had 18 px, plus the rows' own 10 px). */
 #messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-lg) var(--space-xl);
+  padding: var(--space-sm) var(--space-xs);
   scroll-behavior: smooth;
 }
 
@@ -211,7 +214,3 @@ header h1 {
 }
 .federated-msg { border-left: 2px solid #5865f2; padding-left: 8px; }
 .fed-icon { font-size: var(--text-sm); margin-left: 2px; opacity: 0.7; }
-.fed-server-status { display: flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: var(--text-sm); }
-.fed-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.fed-dot.connected { background: #57f287; }
-.fed-dot.disconnected { background: #ed4245; }

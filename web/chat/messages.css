@@ -14,7 +14,7 @@
   align-items: flex-start;
   margin: 0;
   line-height: 1.4;
-  padding: 2px var(--space-md);
+  padding: 2px var(--space-sm);
   background: none;
   border-radius: var(--radius);
   position: relative;
@@ -684,40 +684,6 @@
   border: 1px solid var(--chat-todo-off-line);
 }
 .todo-section.todo-inactive summary { color: var(--chat-todo-off-ink); }
-
-/* ── Feature 4: Message Deletion (enhanced) ── */
-.message-deleted-placeholder {
-  color: var(--text-muted);
-  font-style: italic;
-  font-size: var(--text-sm);
-  padding: var(--space-xs) var(--space-md);
-  opacity: 0.6;
-  animation: fadeOutSlow 3s forwards;
-}
-@keyframes fadeOutSlow { 0% { opacity: 0.6; } 80% { opacity: 0.6; } 100% { opacity: 0; } }
-
-.delete-confirm {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-md) var(--space-lg);
-  font-size: var(--text-sm);
-  display: inline-flex;
-  gap: var(--space-md);
-  align-items: center;
-  margin-top: var(--space-xs);
-}
-.delete-confirm button {
-  padding: var(--space-xs) var(--space-lg);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  border: 1px solid var(--border);
-}
-.delete-confirm .confirm-yes { background: #dc3232; color: #fff; border-color: #dc3232; }
-.delete-confirm .confirm-yes:hover { background: #e54545; }
-.delete-confirm .confirm-no { background: var(--bg-input); color: var(--text-muted); }
-.delete-confirm .confirm-no:hover { color: var(--text); }
 
 /* Mobile message tweaks */
 @media (max-width: 640px) {

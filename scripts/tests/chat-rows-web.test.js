@@ -450,6 +450,15 @@ test("from the keyboard the menu opens at the focused control with the focus on 
   p.menu.firstChild.dispatch("keydown", { key: "Escape" });
   assert.equal(p.menu.classList.contains("open"), false, "Escape closes it");
   assert.equal(p.doc.activeElement, thorn, "and the focus goes back");
+  // Opened with the mouse the focus stays on the page: Escape still closes it, and the arrows
+  // step into it. Seen red 2026-10-22 in the browser: Escape left a right-clicked menu open.
+  p.doc.activeElement = p.doc.body;
+  row.dispatch("contextmenu", { clientX: 400, clientY: 300 });
+  p.docEvent("keydown", { key: "ArrowDown" });
+  assert.equal(p.doc.activeElement.textContent, "Copy text", "ArrowDown steps into a mouse-opened menu");
+  p.doc.activeElement = p.doc.body;
+  p.docEvent("keydown", { key: "Escape" });
+  assert.equal(p.menu.classList.contains("open"), false, "Escape closes a mouse-opened menu");
   const link = row.appendChild(new El(p.doc, "a"));
   const ev = link.dispatch("contextmenu", { clientX: 5, clientY: 5 });
   assert.ok(!ev.defaultPrevented, "a right-click on a link is the browser's");
@@ -711,4 +720,21 @@ test("the composer is native's one box: text, Search, Pins, ?, Attach, Send; its
   assert.equal(c.keep("#pins-empty").style.display, "block", "the list then says so");
   const css = read("chat/inputs.css");
   assert.match(css, /#composer-box #composer-search-btn,\s*#composer-box #composer-pins-btn,/, "on a phone Search and Pins stay where they were, so the text keeps its room");
+});
+
+// ── 7. The top menu (Track W step 5) ────────────────────────────────────
+// Native's menu (src/gui/pages/escape_menu.rs draw_nav_bar_one_tier) is one wrapping row of
+// category-coloured groups with a "·" between groups (separator_dot), Chat a group of its own.
+// The web's had the same groups but a 1 px line between them with no room around it, and Chat
+// shared its group with Watch and Files. Red first, 2026-10-22, against step 4's web/.
+test("the site menu: a dot between groups, as native's separator_dot, and Chat a group of its own", () => {
+  const shell = read("shared/shell.js");
+  const at = shell.indexOf(".hub-nav .nav-divider {");
+  const rule = shell.slice(at, shell.indexOf("}", at));
+  assert.match(rule, /border-radius: 50%/, "a dot, not a line");
+  const chat = shell.indexOf("navTab('/chat'");
+  const watch = shell.indexOf("navTab('/watch'");
+  assert.ok(chat > 0 && watch > chat, "Chat, then Watch");
+  const between = shell.slice(chat, watch);
+  assert.ok(between.includes("</span>") && between.includes('<div class="nav-divider"></div>'), "a dot between Chat and Watch, each in its own group");
 });

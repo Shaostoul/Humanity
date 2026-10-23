@@ -221,7 +221,6 @@
   --server-row-hover: #191946;
   --dm-accent: #dc7878;
   --group-accent: #78dc78;
-  --scratchpad-accent: #a08cc8;
 
   /* Section colours past red, green and blue (the Apps page, 2026-10-19): cyan, magenta,
      yellow, each a dark fill and a bright edge: the native section_* tokens. */
@@ -282,7 +281,6 @@
   --server-row-hover: #ccccea;
   --dm-accent: #a33a3a;
   --group-accent: #2a6e2a;
-  --scratchpad-accent: #5a4a8a;
   --section-cyan-bg: #e2f3f5;
   --section-cyan: #0b7480;
   --section-magenta-bg: #f5e3f3;
