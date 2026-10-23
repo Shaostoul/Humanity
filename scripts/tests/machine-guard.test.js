@@ -581,6 +581,18 @@ test("on Windows, the real PowerShell lowers a real rustc this test started, and
     // Only this test's own two children are listed, so the real runner cannot reach any other
     // process; the node one under a build's name, as a pid reused by a non-build would be.
     MG.setLister(() => `${child.pid}|rustc.exe|\n${notBuild.pid}|cargo.exe|`);
+    // The PC share guard (scripts/pc-share-guard.ps1), if it runs, lowers every rustc within a few
+    // seconds, which raced this test (2026-10-22: "put back ... 'BelowNormal' !== 'Normal'"): list
+    // this test's children in its ignore file, and give the rustc back the Normal it started with
+    // in case the guard reached it before the list did.
+    const ignoreFile = require("node:path").join(process.env.LOCALAPPDATA || require("node:os").tmpdir(), "HumanityOS", "share-guard-ignore.json");
+    try {
+      require("node:fs").mkdirSync(require("node:path").dirname(ignoreFile), { recursive: true });
+      require("node:fs").writeFileSync(ignoreFile, JSON.stringify({ pids: [child.pid, notBuild.pid] }));
+    } catch {}
+    try {
+      execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${child.pid}).PriorityClass = 'Normal'`], { windowsHide: true });
+    } catch {}
     try {
       assert.strictEqual(priorityOf(child.pid), "Normal", "precondition");
       assert.strictEqual(priorityOf(notBuild.pid), "Normal", "precondition");
@@ -599,6 +611,9 @@ test("on Windows, the real PowerShell lowers a real rustc this test started, and
       assert.deepStrictEqual(s.lowered.map((x) => x.pid), [child.pid], "only the real build was lowered");
     } finally {
       MG.setLister(null);
+      try {
+        require("node:fs").unlinkSync(ignoreFile); // the share guard may touch builds again
+      } catch {}
       child.stdin.end(); // empty source: rustc reports it has no main and exits on its own
       notBuild.kill(); // this test's own child
     }

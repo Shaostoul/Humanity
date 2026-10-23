@@ -43,6 +43,19 @@ $names = @('cargo', 'rustc', 'sccache', 'link', 'lld-link', 'rust-lld', 'cl', 'c
 $statusDir = Join-Path $env:LOCALAPPDATA 'HumanityOS'
 New-Item -ItemType Directory -Force -Path $statusDir | Out-Null
 $statusFile = Join-Path $statusDir 'share-guard.json'
+# Processes a test starts and must measure untouched (scripts/tests/machine-guard.test.js starts a
+# real rustc to prove the capture hold lowers and restores it): it lists their pids here, and
+# this leaves them alone. {"pids": [1234, 5678]}; a missing or broken file means none.
+$ignoreFile = Join-Path $statusDir 'share-guard-ignore.json'
+function Get-IgnoredPids {
+    try {
+        if (Test-Path $ignoreFile) {
+            $j = Get-Content -Raw -Path $ignoreFile | ConvertFrom-Json
+            return @($j.pids | ForEach-Object { [int]$_ })
+        }
+    } catch { }
+    return @()
+}
 
 function Test-DevProcess($p) {
     $name = $p.ProcessName
@@ -64,7 +77,9 @@ $adjusted = 0
 $lastStatus = [DateTime]::MinValue
 while ($true) {
     $seen = 0
+    $ignored = Get-IgnoredPids
     foreach ($p in Get-Process) {
+        if ($ignored -contains $p.Id) { continue }
         if (-not (Test-DevProcess $p)) { continue }
         $seen++
         try {
