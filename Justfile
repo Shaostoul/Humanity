@@ -285,6 +285,17 @@ disk-guard *args:
 install-disk-guard:
     powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{{justfile_directory()}}\scripts\install-pc-disk-guard.ps1\"'"
 
+# The PC share guard (2026-10-22, operator: "1 CPU core ... to whatever I want to do on my PC"):
+# development builds, test programs and rig copies of HumanityOS run at below-normal priority and
+# off the last physical CPU core, which stays the operator's. `just share-guard` runs it here
+# (Ctrl+C stops); `--Once` makes one pass. Status: %LOCALAPPDATA%\HumanityOS\share-guard.json.
+share-guard *args:
+    powershell -NoProfile -ExecutionPolicy Bypass -File "{{justfile_directory()}}\scripts\pc-share-guard.ps1" {{args}}
+
+# Install (or replace) the "HumanityOS PC Share Guard" task: starts at every logon, hidden. One UAC prompt.
+install-share-guard:
+    powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{{justfile_directory()}}\scripts\install-pc-share-guard.ps1\"'"
+
 # Delete what test runs left in the temp folder (BUG-159, 2026-10-05): the `hum_*`
 # files and folders nothing has touched for a day. The tests delete their own now
 # (src/test_temp.rs); this sweeps the old pile and whatever a killed run leaves.

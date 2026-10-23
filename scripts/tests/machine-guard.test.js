@@ -80,6 +80,21 @@ test("our own rig instance is NOT a contender (by pid and by exe path)", () => {
   assert.deepStrictEqual(foreignIn(CLEAN, { pids: [], exe: "c:/humanity/.probe-rig/humanityos.exe" }), []);
 });
 
+// The operator's own programs (2026-10-22: "dedicate ... 1 GPU core to whatever I want to do on my
+// PC, like play Helldivers 2"). A GeForce cannot be split, so a rig waits while one of the
+// programs in scripts/lib/operator-apps.json runs, even a boot-only check that ignores builds.
+// Seen red first (2026-10-22) against the guard without the list: "a boot-only check booted
+// beside the operator's game / actual: 0, expected: 1".
+test("the operator's own programs hold every rig, even a boot-only check", () => {
+  const HD2 = "D:\\SteamLibrary\\steamapps\\common\\Helldivers 2\\bin\\helldivers2.exe";
+  const busy = `${CLEAN}\n7777|helldivers2.exe|${HD2}`;
+  const f = foreignIn(busy, { ...OWN, gameOnly: true });
+  assert.strictEqual(f.length, 1, "a boot-only check booted beside the operator's game");
+  assert.strictEqual(f[0].name, "helldivers2.exe");
+  assert.ok(MG.psQuery().includes("Name='helldivers2.exe'"), "the guard's query never asks for the operator's programs");
+  assert.ok(MG.isOperatorApp("HellDivers2.EXE"), "names match regardless of case");
+});
+
 test("RED: a second game instance arriving mid-sweep marks the capture contaminated", () => {
   const rec = { id: "fuji-forest-ground", fps: 12, frame_ms: 83.5, ok: true };
   const lines = [];

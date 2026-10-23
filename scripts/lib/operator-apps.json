@@ -1,0 +1,6 @@
+{
+  "_comment": "The operator's own programs that use the GPU heavily (2026-10-22: 'dedicate ... 1 GPU core to whatever I want to do on my PC, like play Helldivers 2'). While any of these runs, every verification rig waits before booting the game (scripts/lib/machine-guard.js). Add a program by its .exe name, lower case. Light programs (Discord, a browser playing YouTube) need no entry: a rig at 30 frames a second does not disturb them.",
+  "apps": [
+    "helldivers2.exe"
+  ]
+}

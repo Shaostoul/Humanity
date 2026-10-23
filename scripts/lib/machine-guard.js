@@ -96,6 +96,20 @@ const GAME = "HumanityOS.exe";
 /// case-insensitive, counts.
 const isGameName = (name) => /humanityos\.exe$/i.test(String(name || ""));
 
+/// The operator's own GPU-heavy programs (scripts/lib/operator-apps.json, 2026-10-22). A GeForce
+/// cannot be split between him and the rigs, so while one of these runs every rig waits, even a
+/// boot-only check that ignores builds; they are never "ours". Read once; a missing or broken file
+/// means none (a rig must still work on a machine without it).
+const OPERATOR_APPS = (() => {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(__dirname, "operator-apps.json"), "utf8"));
+    return (Array.isArray(j.apps) ? j.apps : []).map((n) => String(n).toLowerCase()).filter((n) => /^[\w .()-]+\.exe$/.test(n));
+  } catch {
+    return [];
+  }
+})();
+const isOperatorApp = (name) => OPERATOR_APPS.includes(String(name || "").toLowerCase());
+
 /// The build tools among WATCHED: everything watched that is not the game. One
 /// list of what a build is, so a build added to WATCHED is also held back by
 /// holdBuilds (BUG-161), and nothing else ever is.
@@ -105,7 +119,9 @@ const BUILDS = WATCHED.filter((n) => !isGameName(n));
 // what separates our own rig copy (ours by construction - only sweeps launch
 // from a rig dir) from the operator's game or another agent's rig.
 function psQuery() {
-  const filter = WATCHED.map((n) => (n === GAME ? `Name LIKE '%${n}'` : `Name='${n}'`)).join(" or ");
+  const filter = WATCHED.concat(OPERATOR_APPS)
+    .map((n) => (n === GAME ? `Name LIKE '%${n}'` : `Name='${n}'`))
+    .join(" or ");
   return (
     'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter ' +
     `\\"${filter}\\"` +
@@ -167,7 +183,7 @@ function listProcs() {
 /// Only the game. verify-runtime and verify-screens gate on this: their rule is
 /// "no second renderer", which a compile does not violate.
 function listInstances() {
-  return listProcs().filter((p) => !p.name || isGameName(p.name));
+  return listProcs().filter((p) => !p.name || isGameName(p.name) || isOperatorApp(p.name));
 }
 
 const sameName = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
@@ -198,6 +214,7 @@ function foreignProcs(own = {}) {
   const exe = own.exe || "";
   return listProcs().filter((p) => {
     if (pids.has(p.pid)) return false;
+    if (isOperatorApp(p.name)) return true; // the operator is using the GPU: always wait
     if (isGameName(p.name) || !p.name) return !sameExe(p.exe, exe);
     return !own.gameOnly; // a build: a contender unless only games count
   });
@@ -768,6 +785,9 @@ module.exports = {
   WATCHED,
   GAME,
   isGameName,
+  // 2026-10-22: the operator's own GPU-heavy programs hold every rig.
+  OPERATOR_APPS,
+  isOperatorApp,
   parseProcs,
   listProcs,
   listInstances,

@@ -216,6 +216,15 @@ those boot the newest ARCHIVE, named `v<version>_HumanityOS.exe` (found
 2026-10-04). Check with `tasklist | grep -i humanityos` instead, which matches
 both.
 
+**The operator keeps a share of his PC (2026-10-22): "1 CPU core and 1 GPU core to whatever I
+want to do on my PC ... the rest for you but, enough for me to still comfortably use my PC."**
+`scripts/pc-share-guard.ps1` (`just share-guard`; `just install-share-guard` makes it start at
+every logon) keeps every build, test program and rig copy of HumanityOS at below-normal
+priority and off the last physical CPU core. The GPU cannot be split, so the rigs' machine
+guard waits while one of his GPU-heavy programs runs (`scripts/lib/operator-apps.json`, starting
+with Helldivers 2; add his others there). Never start work that defeats either (no
+above-normal priorities, no pinning a build to every core).
+
 **No Windows Firewall prompts from dev work either (operator, 2026-10-03).** A
 program that listens on every network address (0.0.0.0) gets a "Windows Defender
 Firewall has blocked some features" prompt once per exe PATH, and dev work makes
@@ -593,7 +602,14 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 4. If local < GitHub: investigate (local should never be behind)
 5. If equal: proceed normally
 
-**Before pushing, ALWAYS:**
+**Release in batches, push often (operator, 2026-10-22).** Merge and push verified work as it
+lands (cheap, and the push is the backup); between releases a merge needs only the checks it
+touches (the relevant tests, `just lints`, both `cargo check`s). Cut a RELEASE (bump, release
+build, `verify-runtime` and the rigs, tag, `archive-build`) once or twice a day on the batch, not
+per feature: each release costs 30 to 45 minutes of the one machine, which ten releases in a day
+took from the agents' builds. The steps below are the release, not every push.
+
+**Before tagging a release, ALWAYS:**
 1. Bump version: `node scripts/bump-version.js [patch|minor]`
    - This updates all 8 locations: `Cargo.toml`, `Cargo.lock` (its own `humanity-engine` entry, since 2026-10-12: it had lagged a version behind), `web/shared/sw.js`, `web/pages/settings-app.js`, `web/pages/ops.html`, `web/shared/shell.js`, `web/pages/download.html`, `web/pages/index.html` (the proof tile). Stage all eight BY NAME in the release commit; the v0.1316.0 commit missed index.html because the list here said six (fixed in the next commit, no re-tag).
 2. Commit the version bump IN the same commit (not separate)
