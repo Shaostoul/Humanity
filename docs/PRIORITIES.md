@@ -1290,7 +1290,10 @@ them up.
    bill author's office. Until decided the button is fine to ship (the act is not in force).
    Detail: `docs/reference/findings/2026-10-19-tools-page-install-launch-and-icons.md`, 2.10.
    Told to the operator once, 2026-10-19.
-12. **OPEN, one edit on the VPS after v0.1524.0 (Media renamed Files), 2026-10-20.** The AI's
+12. **ALMOST DONE (2026-10-22): the file is edited and `nginx -t` passes (backup
+   `/root/nginx-humanity.bak-20261022`); only `systemctl reload nginx` is left, which the session's
+   permission check refused (operator: `ssh humanity-vps "systemctl reload nginx"`).** Was: one
+   edit on the VPS after v0.1524.0 (Media renamed Files), 2026-10-20. The AI's
    remote write was refused by the session's safety classifier, so this waits for the operator:
    in `/etc/nginx/sites-enabled/humanity`, change the line `location ~ ^/media/[0-9]+$ {` to
    `location ~ ^/files/[0-9]+$ {` (the block is otherwise the same), then `sudo nginx -t && sudo
