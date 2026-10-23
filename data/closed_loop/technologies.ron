@@ -1,0 +1,206 @@
+// WHAT CLOSES WHICH LOOP: technology operating today, and research with promising
+// results, each with a readiness level and the evidence for it, so a test (or a
+// player) can switch an option on and see what it changes. Shape:
+// schemas/closed_loop.toml; plan: docs/design/closed-loop-test.md section 7.
+//
+// READINESS: NASA's Technology Readiness Levels, 1 (basic principle observed) to 9
+// (proven in operation), given as a range when the evidence allows two readings,
+// and FOR THE USE THIS TEST NEEDS (a ship's life support), which can be lower than
+// the same technology's level on Earth; `trl_note` says which. A range of (0, 0)
+// means NOT ASSESSED in this pass: the option is named so it is not forgotten, and
+// no test may switch it on until phase 2 sources it.
+(
+    options: [
+        // ================= TODAY: OPERATING SOMEWHERE NOW =================
+        (
+            id: "iss_water_recovery", loop_id: Water, era: Today, trl: (low: 8, high: 9),
+            name: "ISS water recovery: urine distillation, water processing and the brine processor",
+            trl_note: "The Urine and Water Processor Assemblies operate on the ISS (9). The Brine Processor Assembly that takes recovery from 93-94% to 98% was 'on the space station as a demonstration' when the 98% was reported in June 2023 (8).",
+            performance: [
+                (quantity: "Total water recovery", value: 0.98, unit: "fraction", display: "98%", source: "nasa-water-2023",
+                    quote: "We have now demonstrated that we can reach total water recovery of 98%, thanks to the brine processor."),
+            ],
+            changes: [(figure: "pp.water.makeup", to: 1.7, unit: "kg/person/day")],
+        ),
+        (
+            id: "sabatier_co2_reduction", loop_id: Air, era: Today, trl: (low: 9, high: 9),
+            name: "Sabatier CO2 reduction (ISS Carbon Dioxide Reduction Assembly; ESA's Advanced Closed Loop System)",
+            trl_note: "Operating on the ISS; ESA's ACLS rack makes oxygen for three astronauts there.",
+            performance: [
+                (quantity: "Oxygen recovered from breathed CO2", value: 0.50, unit: "fraction", display: "about half", source: "greenwood-2017",
+                    quote: "only about half of the oxygen required for the crew is recovered from metabolic carbon dioxide (CO2)"),
+                (quantity: "Water saved a year by one ACLS rack", value: 400.0, unit: "L/yr", display: "about 400 L (106 gal) a year", source: "esa-acls",
+                    quote: "The new system recycles half of the carbon dioxide thereby saving about 400 l of water that needs to be launched to the International Space Station each year."),
+            ],
+            changes: [(figure: "ship.air.o2_water_draw", to: 0.45, unit: "kg H2O/person/day (half of 0.891, an estimate)")],
+        ),
+        (
+            id: "machine_air", loop_id: Air, era: Today, trl: (low: 9, high: 9),
+            name: "Machines for the air: water electrolysis for oxygen, a regenerable CO2 sorbent bed, trace contaminant control",
+            trl_note: "All three operate on the ISS. The game already carries the CO2 scrubber (ISS CDRA, 860 W, 4.74 kg a day) in both homes (data/life_support.ron).",
+            performance: [
+                (quantity: "Electricity per kg of oxygen by electrolysis", value: 6.5, unit: "kWh/kg O2", display: "6.5 kWh per kg (2.9 kWh per lb)", source: "game-homes",
+                    quote: "real splitters use 50 to 55 kWh per kg of hydrogen, so 6.5 kWh per kg of oxygen  [data/home_outline.json, air loop]"),
+                (quantity: "Electricity per kg of CO2 removed (CDRA at full load)", value: 4.35, unit: "kWh/kg CO2", display: "4.35 kWh per kg", source: "hanford-2004",
+                    quote: "the machine's 20.6 kWh per 4.74 kg of capacity = 4.35 kWh/kg  [data/home_outline.json, from Hanford 2004 Table 7.3.2 and Peters 2017]"),
+            ],
+            changes: [(figure: "pp.air.backup_power", to: 7.2, unit: "kWh/person/day while running")],
+        ),
+        (
+            id: "crops_under_led", loop_id: Food, era: Today, trl: (low: 5, high: 6),
+            name: "Feeding a sealed crew entirely from crops under electric light",
+            trl_note: "LEDs and hydroponic crops are mature technology. Feeding people ENTIRELY from them in a sealed habitat has been shown only in ground analogues: BIOS-3 grew 80% of its food (experiments from 1972); Lunar Palace 365 ran 370 days with four people at a time at 98.2% 'material closure' (ending in 2018). A system demonstration in a relevant ground environment is TRL 5 to 6.",
+            performance: [
+                (quantity: "Crop area per person for all food", value: 56.0, unit: "m2/person", display: "56 m2 (603 sq ft)", source: "salisbury-1997",
+                    quote: "Area occupied by plants per person (m2) 13 30 56"),
+                (quantity: "Crop area per person, NASA planning", value: 45.0, unit: "m2/person", display: "40 to 50 m2 (430 to 540 sq ft)", source: "johnson-wheeler-2021",
+                    quote: "estimates ranging from about 40 to 50 m2 (or more) of crop growing area needed per person"),
+                (quantity: "LED efficacy limit, white plus red", value: 3.4, unit: "umol/J", display: "3.4 umol/J", source: "kusuma-2020",
+                    quote: "With current LED technology, the calculations indicate efficacy limits of 3.4 umol J-1 for white + red fixtures, and 4.1 umol J-1 for blue + red fixtures."),
+            ],
+            changes: [(figure: "pp.food.power", to: 8.0, unit: "kW/person")],
+        ),
+        (
+            id: "fission_power", loop_id: Energy, era: Today, trl: (low: 6, high: 9),
+            name: "Fission reactors (a ship-mounted plant supplying a town today; breeding for a thousand years of fuel)",
+            trl_note: "9 for a ship-mounted plant supplying a grid: the Akademik Lomonosov's KLT-40S reactors at Pevek since May 2020 (data/ship_power.ron, quoting World Nuclear News, trade press). Running one fleet of reactors for 1,000 years on fuel it breeds aboard has never been done; breeder reactors exist but were not sourced in this pass, so the low end is 6.",
+            performance: [
+                (quantity: "Energy per kg of heavy metal fissioned", value: 8.21e13, unit: "J/kg", display: "82 TJ per kg", source: "nist-masses",
+                    quote: "200 MeV per U-235 fission / (235.04 u x 1.6605e-27 kg/u) = 8.21e13 J/kg  [Derived; 200 MeV is the textbook round figure, not re-read]"),
+            ],
+            changes: [(figure: "pp.fuel.fission", to: 89800.0, unit: "t/yr at 33%")],
+        ),
+        (
+            id: "passive_shielding", loop_id: Habitat, era: Today, trl: (low: 9, high: 9),
+            name: "Mass shielding (water, regolith, the ship's own stores) around where people live",
+            trl_note: "Physics proven by the Earth's own atmosphere (about 10 t/m2); SP-413 sized 4.5 t/m2 for 5 mSv a year. Using the ship's water and food stores as part of the shield is an option this test should model; not sourced.",
+            performance: [
+                (quantity: "Shield for 5 mSv a year", value: 4.5, unit: "t/m2", display: "4.5 t/m2 (922 lb/sq ft)", source: "sp-413",
+                    quote: "a thickness of shield of 4.5 t/m^2 is sufficient"),
+            ],
+            changes: [(figure: "ship.habitat.shield_mass", to: 7.78e11, unit: "t")],
+        ),
+        (
+            id: "phosphorus_recovery", loop_id: Nutrients, era: Today, trl: (low: 0, high: 0),
+            name: "Recovering phosphorus from wastewater, sludge ash and urine (struvite precipitation, ash leaching, urine diversion)",
+            trl_note: "NOT ASSESSED in this pass. These are known to operate in wastewater plants on Earth, and urine diversion is in the source read (viskari-2018, field trials with barley), but no source was read for their recovery rates or readiness. Phase 2 must source one before a test switches this on.",
+            performance: [
+                (quantity: "Potassium recoverable from all urine (with 3.7 kg N, 0.34 kg P)", value: 1.2, unit: "kg/person/yr", display: "1.2 kg (2.6 lb)", source: "viskari-2018",
+                    quote: "about 3.7 kg of nitrogen, 0.34 kg of phosphorus and 1.2 kg of potassium per capita/a could be recovered if all urine could"),
+            ],
+            changes: [],
+        ),
+
+        // ================= RESEARCH: PROMISING, NOT YET OPERATING AS NEEDED =================
+        (
+            id: "fusion_dt", loop_id: Energy, era: Research, trl: (low: 3, high: 4),
+            name: "Fusion power (deuterium-tritium), the operator's first-named research option",
+            trl_note: "Ignition at the target is demonstrated: NIF's eighth ignition (April 2025) gave 8.6 MJ from 2.08 MJ of laser energy on target, a target gain above four (llnl-2025). That gain is over the laser light delivered, not over the electricity the facility drew, and no fusion device has yet sent net electricity to a grid. ITER, the largest magnetic device, plans its first deuterium-tritium operation in 2039 (iter-2024, a schedule that has slipped before). Proof of concept (3) to lab validation of the core physics (4).",
+            performance: [
+                (quantity: "Energy per D-T reaction", value: 17.59, unit: "MeV", display: "17.6 MeV", source: "nist-masses",
+                    quote: "(2.01410177812 + 3.0160492779) - (4.00260325413 + 1.00866491606) = 0.018883 u x 931.494 MeV/u = 17.589 MeV  [Derived from NIST/CODATA masses]"),
+                (quantity: "Energy per kg of D-T fuel", value: 3.374e14, unit: "J/kg", display: "337 TJ per kg, about 4.1 times fission's per kg", source: "nist-masses",
+                    quote: "17.589 MeV x 1.602e-13 J/MeV / (5.03015 u x 1.6605e-27 kg/u) = 3.374e14 J/kg  [Derived]"),
+                (quantity: "Record fusion yield and target gain", value: 4.13, unit: "target gain", display: "8.6 MJ out for 2.08 MJ of laser on target", source: "llnl-2025",
+                    quote: "a NIF experiment back in Livermore achieved ignition for an eighth time, producing a record fusion yield of 8.6 megajoules (MJ) (+/- 0.45 MJ) from 2.08 MJ of laser energy delivered to the target. The result for target gain (the multiple of fusion energy produced over laser energy delivered) exceeding four also represented a record."),
+            ],
+            changes: [
+                (figure: "pp.fuel.fission", to: 0.0, unit: "t/yr (replaced)"),
+                (figure: "pp.fuel.fusion_dt", to: 21800.0, unit: "t/yr of D-T at 33% (18,000 at 40%); tritium bred from 21,600 to 26,100 t of lithium-6 a year"),
+            ],
+        ),
+        (
+            id: "plasma_pyrolysis", loop_id: Air, era: Research, trl: (low: 4, high: 5),
+            name: "Methane post-processing (Plasma Pyrolysis Assembly) to recover the hydrogen Sabatier vents",
+            trl_note: "Ground prototypes and breadboards at NASA Marshall (abney-2014, greenwood-2017); not flown. 'Theoretical' recovery, in the source's own word.",
+            performance: [
+                (quantity: "Theoretical oxygen recovery from breathed CO2", value: 0.86, unit: "fraction", display: "more than 86%", source: "greenwood-2017",
+                    quote: "a theoretical O2 recovery of >86% may be realized (assuming a respirator quotient of 0.92) from metabolic CO2. This further reduces the water resupply requirement to ~0.18 kg/CM-day."),
+            ],
+            changes: [(figure: "ship.air.o2_water_draw", to: 0.18, unit: "kg H2O/person/day")],
+        ),
+        (
+            id: "electrochemical_o2", loop_id: Air, era: Research, trl: (low: 3, high: 3),
+            name: "Electrochemical recovery of oxygen from CO2 (macrofluidic electrochemical reactor)",
+            trl_note: "Laboratory development at NASA Marshall and the University of Texas at Arlington (dominguez-2024), aiming at the 75% minimum. Proof of concept.",
+            performance: [
+                (quantity: "Required minimum oxygen recovery", value: 0.75, unit: "fraction", display: "at least 75%", source: "dominguez-2024",
+                    quote: "presently limited to 50% (Sabatier), must be highly reliable and efficient and recover a minimum of 75% oxygen (O2) from metabolic CO2"),
+            ],
+            changes: [],
+        ),
+        (
+            id: "microbial_protein", loop_id: Food, era: Research, trl: (low: 4, high: 8),
+            name: "Protein from hydrogen-oxidising bacteria fed electrolytic hydrogen and CO2 (Solar Foods' Solein)",
+            trl_note: "8 on Earth: a first commercial plant, Factory 01, ramping towards 160 t a year (solar-foods-2025, a company statement). 4 for a ship: never run in a closed habitat, and no source read says how much of a human diet it can safely be (single-cell protein carries nucleic acids that limit intake; not sourced). Leger et al. 2021's modelling found it needs about 10% of the land of soybean per kg of protein (leger-2021-release).",
+            performance: [
+                (quantity: "Factory 01 'energy efficiency value' (mol O2 consumed per mol CO2 fixed)", value: 2.7, unit: "mol/mol", display: "2.7", source: "solar-foods-2025",
+                    quote: "Factory 01 has now achieved a productivity of 0.8 g/l/h and an energy efficiency value (O2/CO2) of 2.7."),
+                (quantity: "Electricity per kg of cells, proof of concept (a second, independent figure)", value: 24.0, unit: "kWh/kg", display: "about 24 kWh per kg (11 kWh per lb)", source: "pitkanen-2017",
+                    quote: "Pitkanen says that in total, the process requires about 24 kWh of electricity per kg of cells, but the technique is currently just proof of concept"),
+                (quantity: "Electricity per kg of dry biomass (DERIVED from 2.7, not published)", value: 31.0, unit: "kWh/kg", display: "about 31 to 34 kWh per kg (14 to 15 kWh per lb); the 2017 lab figure was 24", source: "solar-foods-2025",
+                    quote: "H2 per C fixed = 2 x 2.7 (burned with O2) + 2.1 (to reduce CO2 to biomass) = 7.5 mol; x 40.7 C-mol per kg of biomass x 2.016 g/mol = 0.615 kg H2 per kg; x 50 to 55 kWh per kg H2 = 31 to 34 kWh per kg  [Derived; the 2.1 and the biomass formula CH1.8O0.5N0.2 are textbook values not re-read]"),
+            ],
+            changes: [(figure: "pp.food.power", to: 5.8, unit: "kW/person if it supplies 30% of calories (0.7 x 8 + 0.23); the 30% is a game choice")],
+        ),
+        (
+            id: "electro_acetate_food", loop_id: Food, era: Research, trl: (low: 3, high: 4),
+            name: "Food grown in the dark on acetate made from CO2 by electrolysis",
+            trl_note: "Laboratory: yeast, a mushroom-producing fungus and a green alga grown without photosynthesis, and acetate shown to enter nine crops' biomass (hann-2022).",
+            performance: [
+                (quantity: "Solar-to-food efficiency against biological photosynthesis (with existing solar panels)", value: 4.0, unit: "times", display: "about fourfold", source: "hann-2022",
+                    quote: "Coupling this approach to existing photovoltaic systems could increase solar-to-food energy conversion efficiency by about fourfold over biological photosynthesis, reducing the solar footprint required."),
+                (quantity: "Carbon selectivity of CO2 to acetate", value: 0.57, unit: "fraction", display: "57%", source: "hann-2022",
+                    quote: "a two-step CO2 electrolyser system was developed to produce a highly concentrated acetate stream with a 57% carbon selectivity (CO2 to acetate)"),
+            ],
+            // No `changes`: the fourfold is against sunlit photosynthesis, not LED-lit
+            // crops, and no source read gives electricity per kg of food, so the test
+            // has no honest number to switch to yet.
+            changes: [],
+        ),
+        (
+            id: "led_at_limit", loop_id: Food, era: Research, trl: (low: 6, high: 8),
+            name: "Grow lights at the physical limit of today's LEDs (blue plus red, 4.1 umol/J)",
+            trl_note: "A calculated limit (kusuma-2020); fixtures approach 3.4 for white plus red. Moving from 2.9 to 4.1 cuts a crop's lighting electricity by 29%: a real saving, and the last big one LEDs offer.",
+            performance: [
+                (quantity: "Efficacy limit, blue plus red", value: 4.1, unit: "umol/J", display: "4.1 umol/J", source: "kusuma-2020",
+                    quote: "4.1 umol J-1 for blue + red fixtures"),
+            ],
+            changes: [(figure: "pp.food.power", to: 6.6, unit: "kW/person (8 x 3.4 / 4.1)")],
+        ),
+        (
+            id: "full_mineral_recycling", loop_id: Nutrients, era: Research, trl: (low: 4, high: 5),
+            name: "A fully recycling bioregenerative loop (MELiSSA's compartments: waste-digesting bacteria, nitrifiers, algae, higher plants)",
+            trl_note: "Pilot plant at the Universitat Autonoma de Barcelona since 2009, animals as its crew, aiming at a human crew by 2020 to 2025 (esa-melissa-2009). Whether that aim was met was not read. Lunar Palace 365's 98.2% (beihang-2026) is the best crewed result read, with its measure undefined.",
+            performance: [
+                (quantity: "Aim", value: 1.0, unit: "fraction", display: "close to 100% efficiency", source: "esa-melissa-2009",
+                    quote: "The target of the work is the creation of a closed loop life support system with close to 100% efficiency"),
+            ],
+            changes: [(figure: "pp.nutrients.p_makeup", to: 0.0026, unit: "kg P/person/yr at 99.9% retention")],
+        ),
+        (
+            id: "active_shielding", loop_id: Habitat, era: Research, trl: (low: 2, high: 3),
+            name: "Magnetic or plasma shields against cosmic rays",
+            trl_note: "SP-413 (1977) rejected them: a magnetic shield's own structure generated secondary radiation, and a plasma shield 'requires extensive research'. No newer status was read in this pass.",
+            performance: [
+                (quantity: "Dose behind a magnetic shield with 0.5 t/m2 of structure (SP-413's case)", value: 20.0, unit: "rem/yr", display: "about 20 rem (200 mSv) a year, worse than no shield", source: "sp-413",
+                    quote: "a magnetic field around the torus with a cutoff of 0.5 GeV/nucleon and a structural mass of about 10 kt, corresponding to a thickness of matter of 0.5 t/m^2, would actually increase the exposure to about 20 rem/yr."),
+            ],
+            changes: [],
+        ),
+        (
+            id: "medicine_on_demand", loop_id: Materials, era: Research, trl: (low: 0, high: 0),
+            name: "Compact, reconfigurable pharmaceutical synthesis",
+            trl_note: "NOT ASSESSED in this pass. Named because medicine synthesis is one of the five loops a home cannot close (data/self_sufficiency/cannot_close.ron). At ship scale (billions of people) the full pharmaceutical industry can exist aboard; the research question is the smallest community that can make its own medicines. No source read.",
+            performance: [],
+            changes: [],
+        ),
+        (
+            id: "capture_on_the_way", loop_id: Materials, era: Research, trl: (low: 0, high: 0),
+            name: "Taking new matter from what the ship meets (interstellar objects, the destination's outer system)",
+            trl_note: "NOT ASSESSED in this pass. The only way the materials loop gains mass between the stars. No source read.",
+            performance: [],
+            changes: [],
+        ),
+    ],
+)

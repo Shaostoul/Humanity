@@ -1,0 +1,277 @@
+// SCENARIO B: THE GAME'S MOTHERSHIP. Billions of people aboard one ship between the
+// stars for a thousand years. There is no sun, no outside air, no rain, no mine:
+// every loop the Earth closes for free has to be closed by the ship, and every
+// joule ends as heat the ship has to radiate away. Shape: schemas/closed_loop.toml;
+// plan: docs/design/closed-loop-test.md section 6.
+//
+// STARTING POINT: technology that operates today (the ISS, the closed-system
+// experiments that have kept people alive, LEDs, fission reactors). Research
+// options with promising results are in technologies.ron, each with a readiness
+// level, so a test or a player can switch them on and see what changes.
+//
+// THE SHIP'S SIZE IS LORE (game-lore-humanity-one), a parameter of the test, not a
+// fact: change it here and every derived number below follows.
+(
+    id: "mothership",
+    ship: (
+        population: 8.2e9,
+        population_why: "All of humanity as counted today (wpp-2024); the lore's capacity is 10 billion (game-lore-humanity-one), near the projected peak of 10.3 billion.",
+        voyage_years: 1000.0,
+        voyage_why: "The operator, 2026-10-22: 'We need to think like 1,000 years from now we're still going to be living and doing what we gotta do.' A game parameter.",
+        hull_length_m: 500000.0,
+        hull_diameter_m: 100000.0,
+        hull_why: "game-lore-humanity-one: 'Length: ~500 km', and mothership-superstructure.md's reading of it as a 500 km x 100 km cylinder with rotating habitat rings. Vision, not a spec.",
+        home_plot_m2: 4895.0,
+        home_plot_why: "The player's acre, 55 x 89 m (docs/design/player-home.md), drawn for every plot (game-homes). Not every resident need have one; the test runs both.",
+    ),
+
+    figures: [
+        // ---- THE HULL (derived from the lore's size) ----------------------------------
+        (
+            id: "ship.habitat.hull_volume", loop_id: Habitat, quantity: "Hull volume (a cylinder 500 km by 100 km)", value: 3.927e15, low: None, high: None,
+            unit: "m3", display: "3.93 million km3 (942,000 cubic miles): 479,000 m3 (16.9 million cu ft) per person", basis: World, data_year: None, source: ["game-lore-humanity-one"],
+            quote: "pi x (50,000 m)^2 x 500,000 m = 3.927e15 m3; / 8.2e9 = 478,900 m3 a person",
+            check: (status: Derived, against: ["sp-413"], note: "275 times SP-413's 1,738 m3 a person. Volume is not what limits this ship; mass, power and heat are."),
+            note: "",
+        ),
+        (
+            id: "ship.habitat.hull_area", loop_id: Habitat, quantity: "Hull surface (side 157,080 km2 plus two ends 15,708 km2)", value: 1.728e11, low: None, high: None,
+            unit: "m2", display: "172,800 km2 (66,700 sq mi), 21 m2 (226 sq ft) a person", basis: World, data_year: None, source: ["game-lore-humanity-one"],
+            quote: "2 pi r L + 2 pi r^2 = 1.5708e11 + 1.5708e10 = 1.728e11 m2",
+            check: (status: Derived, against: [], note: ""),
+            note: "The surface every radiator, shield and window competes for.",
+        ),
+        (
+            id: "ship.habitat.shield_mass", loop_id: Habitat, quantity: "Passive shield over the whole hull at 4.5 t/m2", value: 7.78e11, low: Some(7.78e11), high: Some(1.73e12),
+            unit: "t", display: "780 billion t (860 billion short tons), 95 t (105 short tons) per person; at Earth's 10 t/m2, 1.7 trillion t", basis: World, data_year: None, source: ["ship.habitat.hull_area", "person.radiation.shield"],
+            quote: "1.728e11 m2 x 4.5 t/m2 = 7.78e11 t; x 10 t/m2 = 1.73e12 t",
+            check: (status: Uncertain, against: [], note: "Rests on SP-413's 1975 shield calculation (Uncertain in person.ron) and on shielding the outer hull only. A ship that shields only its inhabited rings needs less."),
+            note: "",
+        ),
+        (
+            id: "ship.habitat.spin", loop_id: Habitat, quantity: "Rotation period for 1 g at a 50 km radius", value: 449.0, low: None, high: None,
+            unit: "s", display: "one turn in 7.5 minutes (0.13 rpm)", basis: PerUnit, data_year: None, source: ["game-lore-humanity-one"],
+            quote: "2 pi sqrt(r / g) = 2 pi sqrt(50,000 / 9.80665) = 448.6 s",
+            check: (status: Derived, against: [], note: "A slow spin that no inner ear notices; the open question at this radius is the structure's strength, not comfort, and it is not sourced in this pass (docs/design/closed-loop-test.md section 6.7)."),
+            note: "",
+        ),
+        (
+            id: "ship.air.stock_if_whole_hull", loop_id: Air, quantity: "Oxygen held in the air if the whole hull is pressurised (air 1.2 kg/m3, 23.1% oxygen by mass)", value: 133.0, low: None, high: None,
+            unit: "t O2/person", display: "133 t (147 short tons) of oxygen per person: 480 to 590 years of breathing with no plants at all", basis: PerPerson, data_year: None, source: ["ship.habitat.hull_volume", "person.bare.o2", "person.comfort.o2"],
+            quote: "3.927e15 m3 x 1.2 kg/m3 = 4.71e15 kg of air, 575 t a person; x 0.2314 = 133 t of O2; / 0.615 to 0.762 kg a day = 592 to 478 years",
+            check: (status: Derived, against: ["dempster-2008"], note: "A buffer, not a loop. Biosphere 2, 200,000 m3 for eight people (5.8 t of O2 a person), lost a third of its oxygen in 475 days to soil respiration and concrete (dempster-2008): a big buffer hides a slow leak for a long time, which is exactly why the test measures the loop and not the stock."),
+            note: "Only if the hull is one connected volume; a ship of sealed decks has a buffer per deck.",
+        ),
+
+        // ---- WHAT HAS BEEN DONE: CLOSED SYSTEMS WITH PEOPLE IN THEM -------------------------
+        (
+            id: "ship.water.iss_recovery", loop_id: Water, quantity: "ISS total water recovery with the Brine Processor Assembly", value: 0.98, low: Some(0.93), high: Some(0.98),
+            unit: "fraction", display: "98% (93 to 94% before the brine processor)", basis: PerUnit, data_year: Some(2023), source: ["nasa-water-2023"],
+            quote: "\"Before the BPA, our total water recovery was between 93 and 94% overall,\" says Jill Williamson, ECLSS water subsystems manager. \"We have now demonstrated that we can reach total water recovery of 98%, thanks to the brine processor.",
+            check: (status: Survived, against: ["boyce-2024", "bvad-2022"], note: "The brine processor's own 2024 paper: 741 kg recovered by May 2024 over 612 days of operation, which 'has helped NASA to claim 98% water recovery on ISS' (it shares an author with NASA's release, so it corroborates rather than independently confirms). BVAD's mission tables call for 'Recovery / Reuse of All Wastewater w/ Brine Recovery' for multi-generational options; 98% is measured against the water crews bring, not a per-pass efficiency."),
+            note: "The 2% not recovered is dried brine and losses. On a ship whose wastes go to a bioregenerative loop, the residue is composted and its water recovered too; the asymptote is leakage.",
+        ),
+        (
+            id: "ship.air.iss_o2_recovery", loop_id: Air, quantity: "ISS oxygen recovered from breathed CO2 (Sabatier)", value: 0.50, low: Some(0.50), high: Some(0.54),
+            unit: "fraction", display: "about half", basis: PerUnit, data_year: Some(2024), source: ["greenwood-2017", "dominguez-2024", "abney-2014", "esa-acls"],
+            quote: "State-of-the-art life support oxygen recovery technology on the International Space Station is based on the Sabatier reaction where only about half of the oxygen required for the crew is recovered from metabolic carbon dioxide (CO2).  /  presently limited to 50% (Sabatier)",
+            check: (status: Survived, against: ["dominguez-2024", "esa-acls"], note: "Four sources, NASA and ESA, agree on about half. ESA's ACLS: 'The new system recycles half of the carbon dioxide thereby saving about 400 l of water'."),
+            note: "The other half leaves as methane, vented overboard with its hydrogen: an open water loop hidden inside the air loop.",
+        ),
+        (
+            id: "ship.air.o2_water_draw", loop_id: Air, quantity: "Water a crewmember needs supplied to make breathing oxygen: none recovered / with Sabatier and methane pyrolysis", value: 0.891, low: Some(0.18), high: Some(0.891),
+            unit: "kg H2O/person/day", display: "0.89 kg (2.0 lb) a day without recovery, about 0.18 kg (0.4 lb) with the full chain", basis: PerPerson, data_year: Some(2017), source: ["greenwood-2017"],
+            quote: "Without the CRA, each Crew Member (CM) requires ~0.891 kg H2O/day to be supplied from Earth to produce breathable oxygen via water electrolysis. ... When H2 recovered by the PPA is recycled back to the CRA, and the CRA is operated at a H2:CO2 ratio of 4.25, a theoretical O2 recovery of >86% may be realized (assuming a respirator quotient of 0.92) from metabolic CO2. This further reduces the water resupply requirement to ~0.18 kg/CM-day.",
+            check: (status: Uncertain, against: [], note: "The 0.18 is theoretical, for an assembly not yet flown. Only needed where machines make the oxygen; a ship whose crops make it needs neither."),
+            note: "",
+        ),
+        (
+            id: "ship.food.bios3_closure_table", loop_id: Food, quantity: "BIOS-3: crop area per person for 99% closure (100% of food, oxygen and water); 13 m2 at 85% (35% of food), 30 m2 at 95% (80% of food)", value: 56.0, low: Some(13.0), high: Some(56.0),
+            unit: "m2/person", display: "56 m2 (603 sq ft) for all food; 30 m2 (323 sq ft) for 80%; 13 m2 (140 sq ft) for 35%", basis: PerPerson, data_year: Some(1997), source: ["salisbury-1997"],
+            quote: "Table 2. Parameters of a life-support system with different degrees of closure. ... Degree of closure (%) 85 95 99 / Regeneration of oxygen, water (%) 100 100 100 / Regeneration of food (%) 35 80 100 / Area occupied by plants per person (m2) 13 30 56 / Photosynthetically Active Radiation necessary for plants (kW/human) 2.0 4.6 8.5 / Relative size of system 1.0 2.3 4.0  [OCR corrected from the raw text order; see the source note]",
+            check: (status: Corrected, against: ["johnson-wheeler-2021"], note: "CORRECTED READING: the scanned table's layout extraction garbled it; the raw text order gives the columns, and two OCR errors ('SO' for 80, '.10' for 30) were read from their positions, which makes every row rise with closure as it must. The survivor: NASA's review gives 'about 40 to 50 m2 (or more) of crop growing area needed per person', and 35 to 40 m2 with insects processing inedible biomass; BIOS-3's 56 m2 sits at the top, as crops grown under continuous xenon light from 1972 on would."),
+            note: "The single most important figure in the ship: every person needs a farm the size of a small flat, lit day and night.",
+        ),
+        (
+            id: "ship.food.bios3_mineral_closure", loop_id: Nutrients, quantity: "BIOS-3 third experiment: share of minerals retained in the system", value: 0.20, low: None, high: None,
+            unit: "fraction", display: "about 20%", basis: PerUnit, data_year: Some(1997), source: ["salisbury-1997"],
+            quote: "The closure of minerals in the third experiment was only approximately 20% on average (i.e., only 20% of minerals were retained in the system)",
+            check: (status: Uncertain, against: ["beihang-2026"], note: "BIOS-3 dried and stored its faeces rather than recycling them, so 20% is a design choice of that run, not a ceiling of the technology. Lunar Palace 365's 98.2% 'material closure' (beihang-2026) suggests far better, but its definition was not read. No measured mineral closure above 20% for a crewed system was read in this pass."),
+            note: "The nutrient loop's 'today' figure for a closed system with people in it.",
+        ),
+        (
+            id: "ship.food.lunar_palace", loop_id: Food, quantity: "Lunar Palace 365 (Beihang University): material closure, 370 days, four people at a time", value: 0.982, low: Some(0.97), high: Some(0.982),
+            unit: "fraction", display: "98.2% over 370 days (97% in the 2014 run of 105 days)", basis: PerUnit, data_year: Some(2018), source: ["beihang-2026"],
+            quote: "In 2014, it completed a 105-day closed experiment with three crew members, achieving a material closure rate of 97%. Upgraded and tested in 2018, the \"Lunar Palace 365\" experiment housed four people for 370 days, setting a world record for the longest duration and highest-closure (98.2%) experiment of its kind.",
+            check: (status: Uncertain, against: ["person.trap.mass_closure_food_imported"], note: "The best closed-system result read, and a world record. But 'material closure' is not defined on the page, and a home that recycles water and air and grows no food scores 86 to 99% by mass (person.ron). Phase 2 must read the preprint's definition before the test compares the game's homes with it."),
+            note: "",
+        ),
+        (
+            id: "ship.air.biosphere2_o2_loss", loop_id: Air, quantity: "Biosphere 2: oxygen fell from 20.9% to about 14.4% in about 475 days (1.27 ha, 200,000 m3, eight people)", value: 0.144, low: None, high: None,
+            unit: "fraction O2", display: "20.9% to 14.4% in 16 months", basis: PerUnit, data_year: Some(1993), source: ["dempster-2008"],
+            quote: "Starting at normal ambient of 20.9%, oxygen declined to about 14.4% some 475 days later by mid-January 1993 and was attributed to transitory imbalance between all forms of respiration (mainly soil microbial respiration) and photosynthesis, combined with fixation of carbon dioxide as calcium carbonate in internally exposed concrete, thus trapping the \"missing oxygen\" into the concrete (Severinghaus et al., 1994).",
+            check: (status: Survived, against: ["dempster-2008"], note: "The abstract's 'about 140 ppm per day during the first 16 months' agrees: 65,000 ppm / 475 days = 137 ppm a day. Severinghaus et al. 1994 itself was not read."),
+            note: "The lesson for the test: a loop can look closed on every machine's ledger and still leak through chemistry nobody modelled (concrete curing). The test checks the stocks, not only the flows.",
+        ),
+
+        // ---- LIGHT AND POWER FOR FOOD (the ship's dominant load) ------------------------------------
+        (
+            id: "ship.food.led_efficacy", loop_id: Energy, quantity: "Horticultural LED efficacy limits with current LED technology (white plus red 3.4, blue plus red 4.1)", value: 3.4, low: Some(2.9), high: Some(4.1),
+            unit: "umol/J", display: "3.4 umol of photons per joule (4.1 for blue plus red)", basis: PerUnit, data_year: Some(2020), source: ["kusuma-2020", "bvad-2022"],
+            quote: "With current LED technology, the calculations indicate efficacy limits of 3.4 umol J-1 for white + red fixtures, and 4.1 umol J-1 for blue + red fixtures. Adding optical protection from water and high humidity reduces these values by ~10%.",
+            check: (status: Survived, against: ["bvad-2022"], note: "BVAD quotes Nelson and Bugbee (2014) at 1.66 umol/J for LEDs then, and data/home_outline.json uses 2.9 for a good fixture: efficacy has roughly doubled in a decade and the limits are close. Low end 2.9 (a good fixture in humid air)."),
+            note: "",
+        ),
+        (
+            id: "ship.food.biomass_per_kwh", loop_id: Food, quantity: "Plant biomass per kWh of growth-chamber energy (JSC VPGC 1.6 to the South Pole Food Growth Chamber 10)", value: 10.0, low: Some(1.6), high: Some(10.0),
+            unit: "g/kWh", display: "1.6 to 10 g of dry biomass per kWh (with lamps older than today's LEDs)", basis: PerUnit, data_year: None, source: ["bvad-2022"],
+            quote: "Reference values for biomass production per unit energy range from 1.6 g/kWh (based on JSC's VPGC) to 10 g/kWh (based on a mixed crop in South Pole Food Growth Chamber). Note that lamp and ballast values in Table 4-88 have not been updated based on modern LED lighting.",
+            check: (status: Uncertain, against: ["salisbury-1997"], note: "A six-fold range in the source. With lamps about half as efficient as today's limits; doubling for modern LEDs is this project's assumption, not the source's."),
+            note: "",
+        ),
+        (
+            id: "ship.food.crew_access", loop_id: Habitat, quantity: "Crew access space in a plant growth chamber, as a share of canopy", value: 0.30, low: Some(0.25), high: Some(0.50),
+            unit: "fraction of canopy", display: "25 to 50% on top of the canopy", basis: PerUnit, data_year: None, source: ["bvad-2022"],
+            quote: "If crew access is needed, and it generally will be, provision must be made for that access. A reasonable number might be 25 - 50% of the plant canopy area. Lower numbers might be adequate if extensive physical automation is planned.",
+            check: (status: Uncertain, against: [], note: "A planning allowance, not a measurement. The point 0.30 assumes some automation."),
+            note: "",
+        ),
+        (
+            id: "ship.habitat.leak_per_module", loop_id: Air, quantity: "Air leakage per module (nominal; ground tests 0.01)", value: 0.02, low: Some(0.01), high: Some(0.02),
+            unit: "kg/day/module", display: "0.02 kg (0.7 oz) of air a day per module", basis: PerModule, data_year: None, source: ["bvad-2022"],
+            quote: "Realistic atmospheric pressure leakage values of 0.01 kg/day/module have been determined during ground testing ... the nominal value used here for atmospheric leakage is twice that (i.e., 0.02 kg/day/module) to account for uncertainty and variability.",
+            check: (status: Uncertain, against: ["game-homes"], note: "Per module, and a 500 km hull is not a module. No source read gives leakage per square metre of hull, which is what a ship this size needs. The game counts each room as a module (data/life_support.ron)."),
+            note: "",
+        ),
+    ],
+
+    // ---- WHAT ONE PERSON NEEDS ABOARD --------------------------------------------------------
+    // tech_level Today = operating technology only. Each derivation is written out; the
+    // phase-2 aggregate tier recomputes them from the figures above and the person file,
+    // and its calibration case holds them to the game's measured solo home.
+    per_person: [
+        (
+            id: "pp.food.canopy", loop_id: Food, tech_level: Today, quantity: "Lit crop canopy for all of a person's food, oxygen and CO2 removal", value: 50.0, low: Some(35.0), high: Some(56.0),
+            unit: "m2/person", display: "50 m2 (540 sq ft)",
+            derivation: "NASA's 40 to 50 m2 (johnson-wheeler-2021), 35 to 40 with insects, BIOS-3's 56 for 100% food (ship.food.bios3_closure_table). Point 50.",
+            from: ["ship.food.bios3_closure_table", "johnson-wheeler-2021"],
+        ),
+        (
+            id: "pp.food.floor", loop_id: Habitat, tech_level: Today, quantity: "Growing floor including crew access", value: 65.0, low: Some(44.0), high: Some(84.0),
+            unit: "m2/person", display: "65 m2 (700 sq ft); for 8.2 billion people 533,000 km2 (206,000 sq mi)",
+            derivation: "50 m2 x 1.30 access = 65; range 35 x 1.25 = 44 to 56 x 1.50 = 84 (ship.food.crew_access). Single layer; stacked layers divide the floor, not the light.",
+            from: ["pp.food.canopy", "ship.food.crew_access"],
+        ),
+        (
+            id: "pp.food.power", loop_id: Energy, tech_level: Today, quantity: "Electricity to light a person's crops", value: 8.0, low: Some(3.0), high: Some(15.0),
+            unit: "kW/person", display: "about 8 kW, 190 kWh a day (3 to 15 kW)",
+            derivation: "Three routes. (1) BIOS-3's 8.5 kW of PAR for full closure x 4.57 umol/J of PAR / 3.4 umol/J of electricity = 11.4 kW (13.4 at 2.9, 9.5 at 4.1). (2) BVAD's 1.6 to 10 g/kWh, doubled for modern LEDs to 3.2 to 20 (this project's assumption), for 0.9 to 1.5 kg of total dry biomass a day (0.55 to 0.68 kg eaten, at a harvest index of 0.6 to 0.45) = 1.9 to 20 kW. (3) First principles: 1.0 g of biomass per mol of PAR at best, 0.5 in a large chamber; 0.9 to 1.5 kg a day = 920 to 3,000 mol; at 3.4 umol/J = 3.1 to 10.3 kW. Point 8, about the middle of the three routes' centres (11.4, 6.2, 6.7); 3 to 15 holds all but the extremes. REFUTATION (a fourth, independent route): a modelled plant factory needs 247 kWh of electricity per kg of dry lettuce (graamans-2018); at 0.55 to 0.68 kg of dry food a day that is 136 to 168 kWh, 5.7 to 7.0 kW, inside the range and a little under the point. Lettuce is nearly all edible, grain is not, so a whole diet costs more per kg eaten than lettuce does: 8 survives.",
+            from: ["ship.food.bios3_closure_table", "ship.food.led_efficacy", "ship.food.biomass_per_kwh", "person.bare.food_dry", "person.comfort.food_dry", "graamans-2018"],
+        ),
+        (
+            id: "pp.life_support.power", loop_id: Energy, tech_level: Today, quantity: "Air and water processing: condensing the crops' transpiration, water recovery, trace contaminants, a share of backup machines", value: 0.5, low: Some(0.3), high: Some(1.0),
+            unit: "kW/person", display: "about 0.5 kW, 12 kWh a day",
+            derivation: "Transpiration about 4 kg per m2 of crop a day (bvad-2022 Table 4-20, Mature Planetary Base) x 50 m2 = 200 L a day to condense; the game measures about 27 Wh of fan per litre out of 75% air (ship-life-support.md section 5) = 5.4 kWh a day, 0.23 kW. Water recovery and trace contaminant control add 0.1 to 0.3 kW (an estimate: the ISS unit averages 180 W, hanford-2004, shared by a crew of about four, 45 W each; how it scales in a ship this size is not sourced). Backup machines sit idle. The range allows for drier home air, which costs four times the fan energy per litre (the game's 105 Wh/L at 50%).",
+            from: ["bvad-2022", "game-homes", "hanford-2004"],
+        ),
+        (
+            id: "pp.home.power", loop_id: Energy, tech_level: Today, quantity: "The household: hot water, cooking, refrigeration, light for people, devices", value: 0.4, low: Some(0.2), high: Some(1.0),
+            unit: "kW/person", display: "about 0.4 kW, 9 kWh a day",
+            derivation: "The game's solo home in the Station-supplied mode draws about 8.7 kWh a day without its life support (data/machines/home_solo.ron's Energy loop: water heater 3.9, freezer 1.5, tower pumps 1.1 and the rest), 0.36 kW; data/home_outline.json's luxury tier is 16 kWh a day (0.67 kW) with climate. World electricity today is 0.45 kW a person (earth.energy.electricity), for everything.",
+            from: ["game-homes", "earth.energy.electricity"],
+        ),
+        (
+            id: "pp.industry.power", loop_id: Materials, tech_level: Today, quantity: "Making and repairing everything else: recycling, fabrication, medicine, chips", value: 0.5, low: Some(0.3), high: Some(1.0),
+            unit: "kW/person", display: "about 0.5 kW",
+            derivation: "An ESTIMATE, no source read measures it: Earth's whole energy supply is 2.3 kW a person (earth.energy.per_person), mostly heat and transport that a ship does not have the same way; a fifth to two-fifths of it as electricity for industry is 0.3 to 1.0 kW. Phase 2 replaces this with a sourced figure.",
+            from: ["earth.energy.per_person"],
+        ),
+        (
+            id: "pp.total.power", loop_id: Energy, tech_level: Today, quantity: "Electricity per person aboard, today's technology", value: 9.4, low: Some(3.8), high: Some(18.0),
+            unit: "kW/person", display: "about 9.4 kW, 225 kWh a day (3.8 to 18 kW); for 8.2 billion people 77 TW, 21 times all of Earth's electricity and 4 times Earth's whole energy supply",
+            derivation: "8.0 + 0.5 + 0.4 + 0.5 = 9.4 kW. x 8.2e9 = 77.1 TW; Earth's electricity is 3.67 TW (earth.energy.electricity) and its total energy supply 19.0 TW (earth.energy.total_supply). Food is 85% of it.",
+            from: ["pp.food.power", "pp.life_support.power", "pp.home.power", "pp.industry.power"],
+        ),
+        (
+            id: "pp.heat.radiator", loop_id: Energy, tech_level: Today, quantity: "Radiator area to reject a person's 9.4 kW at 290 K (double-sided, emissivity 0.9, to deep space)", value: 13.0, low: Some(5.3), high: Some(25.0),
+            unit: "m2/person", display: "13 m2 (140 sq ft) of double-sided fin a person; 107,000 km2 (41,000 sq mi) for 8.2 billion, two-thirds of the hull's side. Flush on the hull, radiating one side, 26 m2 a person: 214,000 km2, more than the whole side (157,080 km2)",
+            derivation: "2 x 0.9 x 5.670e-8 x 290^4 = 722 W/m2; 9,400 / 722 = 13.0 m2. One-sided, 361 W/m2, 26.0 m2. Range from 3.8 to 18 kW. Ignores sunlight (there is none between the stars) and the 3 K sky. Plus the reactor's own waste heat (about twice the electricity at 33% efficiency), rejected hotter: at 600 K a radiator sheds 13.2 kW/m2, so about 1.4 m2 more per person. Heat pumps that raise the habitat's rejection temperature shrink the radiator and cost electricity.",
+            from: ["pp.total.power"],
+        ),
+        (
+            id: "pp.air.backup_power", loop_id: Air, tech_level: Today, quantity: "Machines to make a person's oxygen and remove their CO2 if the crops fail (electrolysis 6.5 kWh/kg O2, ISS CO2 removal 4.35 kWh/kg)", value: 7.2, low: Some(7.2), high: Some(9.0),
+            unit: "kWh/person/day", display: "7 to 9 kWh a day (0.3 to 0.4 kW), standby",
+            derivation: "0.615 to 0.762 kg O2 x 6.5 = 4.0 to 5.0 kWh; 0.746 to 0.924 kg CO2 x 4.35 = 3.2 to 4.0 kWh. Electrolysis figure from data/home_outline.json (50 to 55 kWh per kg of hydrogen made), CO2 removal from hanford-2004's CDRA (860 W) and Peters 2017's 4.74 kg a day (data/life_support.ron).",
+            from: ["person.bare.o2", "person.comfort.o2", "game-homes", "hanford-2004"],
+        ),
+        (
+            id: "pp.water.makeup", loop_id: Water, tech_level: Today, quantity: "Water a person loses at ISS recovery, comfort household (85 L a day)", value: 1.7, low: Some(0.09), high: Some(1.7),
+            unit: "kg/person/day", display: "1.7 L (0.45 gal) a day, 0.6 t a year; 0.09 L at the bare tier's 4.5 L",
+            derivation: "85 L x (1 - 0.98) = 1.7 L; 4.48 L x 0.02 = 0.09 L. Crop transpiration (about 200 L a day) is condensed and returned, as the game's homes already return it to the litre (ship-life-support.md section 3). For 8.2 billion at comfort: 5.1 billion t a year, so a 1,000-year ship cannot run at ISS recovery: it must return the brine and solids to a biological loop and lose only what leaks.",
+            from: ["ship.water.iss_recovery", "game-homes"],
+        ),
+        (
+            id: "pp.nutrients.p_makeup", loop_id: Nutrients, tech_level: Today, quantity: "Phosphorus a person's farm loses each year at BIOS-3's measured 20% mineral retention", value: 2.1, low: Some(0.0026), high: Some(2.1),
+            unit: "kg P/person/yr", display: "2.1 kg (4.6 lb) a year: 17 million t for 8.2 billion, about as much as all of Earth's fertilizer phosphorus (20.9 million t); 26 g at 99% recovery, 2.6 g at 99.9%",
+            derivation: "data/home_outline.json's farm takes up about 2.6 kg of P a person a year. Lost at 80%: 2.1 kg; x 8.2e9 = 17 million t. At 99%: 0.026 kg, 213,000 t a year, 213 million t over 1,000 years. At 99.9%: 21 million t over 1,000 years.",
+            from: ["ship.food.bios3_mineral_closure", "game-homes", "earth.nutrients.p_fertilizer"],
+        ),
+        (
+            id: "pp.fuel.fission", loop_id: Energy, tech_level: Today, quantity: "Heavy metal fissioned per year for 77 TW of electricity at 33 to 40% efficiency", value: 89800.0, low: Some(74100.0), high: Some(89800.0),
+            unit: "t/yr", display: "74,000 to 90,000 t (82,000 to 99,000 short tons) a year; 74 to 90 million t over 1,000 years",
+            derivation: "200 MeV per U-235 fission = 8.21e13 J/kg; 77.1 TW / 0.33 = 234 TW thermal x 3.156e7 s / 8.21e13 = 89,800 t a year (74,100 at 40%). Mass FISSIONED: a ship using all of its uranium or thorium needs breeder reactors (not sourced in this pass); once-through reactors burn only a small fraction of what they are loaded with.",
+            from: ["pp.total.power", "nist-masses"],
+        ),
+        (
+            id: "pp.fuel.fusion_dt", loop_id: Energy, tech_level: Research, quantity: "Deuterium-tritium burned per year for 77 TW of electricity at 33 to 40% efficiency, and the lithium-6 to breed its tritium", value: 21800.0, low: Some(18000.0), high: Some(21800.0),
+            unit: "t/yr", display: "18,000 to 21,800 t (19,800 to 24,000 short tons) of D-T a year, bred from 21,600 to 26,100 t of lithium-6; 18 to 22 million t of fuel over 1,000 years",
+            derivation: "3.374e14 J per kg of D-T (technologies.ron fusion_dt); 234 TW thermal x 3.156e7 s / 3.374e14 = 21,800 t a year at 33% (18,000 at 40%). Tritium is 3.016 / 5.030 of it, 13,100 t, bred one-for-one from lithium-6 (6.015 u): 26,100 t a year (21,600 at 40%). Deuterium, 8,700 t a year, comes from water: at NIST's representative 115 parts per million of hydrogen atoms (range 45 to 185), a tonne of water holds about 26 g (CORRECTED: a first draft used an ocean-water ratio from memory, about 35 g; NIST's stated range covers it). About four times less fuel mass than fission, and no long-lived actinides; the same power, heat and radiators.",
+            from: ["pp.total.power", "nist-masses", "llnl-2025"],
+        ),
+    ],
+
+    closure: [
+        (
+            loop_id: Air, metric: "Oxygen and carbon: share regenerated aboard",
+            value: Some(1.0), low: Some(0.5), high: Some(1.0), from: ["ship.food.bios3_closure_table", "ship.air.iss_o2_recovery", "ship.air.biosphere2_o2_loss"], verdict: Closes,
+            meaning: "Crops sized to feed people also make all their oxygen and take up all their CO2 (BIOS-3 at 99% closure; NASA's 35 to 40 m2 plantings). Machines alone (the ISS) recover about half the oxygen. Biosphere 2 shows the catch: soil and concrete chemistry drew down a third of its oxygen in 16 months without any machine reporting it.",
+            to_close: "Grow the food (it brings the air with it); keep electrolysis and CO2 removal as backup (7 to 9 kWh a person a day while they run); make up the nitrogen that leaks. Closes with today's technology.",
+        ),
+        (
+            loop_id: Water, metric: "Share of water recovered",
+            value: Some(0.98), low: Some(0.98), high: Some(1.0), from: ["ship.water.iss_recovery", "pp.water.makeup"], verdict: Nearly,
+            meaning: "ISS hardware recovers 98%. Over a thousand years 2% is far too much (5 billion t a year for 8.2 billion people at the comfort tier), so the ship must send brine and solids back through its biological loop and lose only what leaks.",
+            to_close: "Today's physical-chemical recovery plus composting the residue; the leak rate of a 500 km hull is the open number (not sourced).",
+        ),
+        (
+            loop_id: Food, metric: "Share of food grown aboard",
+            value: Some(1.0), low: Some(0.8), high: Some(1.0), from: ["ship.food.bios3_closure_table", "ship.food.lunar_palace", "pp.food.power"], verdict: Closes,
+            meaning: "BIOS-3 grew 80% of its food at 30 m2 a person and estimated 100% at 56 m2; NASA plans for 40 to 50 m2. It closes, at a price: about 8 kW of light a person, 66 TW for humanity, all of it heat.",
+            to_close: "Today's LEDs and crops. The research that matters is food per kWh (technologies.ron): better LEDs are near their limits, so the next step is food that skips photosynthesis.",
+        ),
+        (
+            loop_id: Nutrients, metric: "Share of minerals retained",
+            value: Some(0.20), low: Some(0.20), high: Some(0.98), from: ["ship.food.bios3_mineral_closure", "ship.food.lunar_palace", "pp.nutrients.p_makeup"], verdict: Open,
+            meaning: "The only measured mineral closure read for a crewed system is BIOS-3's 20%, by its design. At that rate a ship of 8.2 billion would need about as much phosphorus every year as all of Earth's fertilizer. There is no mine between the stars.",
+            to_close: "Return every residue (inedible biomass, excreta, brine, ash) to the crops. At 99.9% retention the ship carries 21 million t of phosphorus for the voyage. This is the loop where research decides whether the ship works.",
+        ),
+        (
+            loop_id: Energy, metric: "Years of fuel aboard against the voyage",
+            value: None, low: None, high: None, from: ["pp.total.power", "pp.fuel.fission", "pp.heat.radiator"], verdict: Partly,
+            meaning: "Energy is never closed: it is spent once and radiated as heat. What matters is whether the ship carries a thousand years of fuel and can shed its heat. Fission is operating technology; 74 to 90 million t of heavy metal fissioned over the voyage, and 107,000 km2 of radiators at room temperature.",
+            to_close: "Carry the fuel (and breed it), reject the heat. Fusion (technologies.ron) cuts the fuel mass about four-fold and the long-lived waste, but not the power, the heat or the radiators.",
+        ),
+        (
+            loop_id: Materials, metric: "Share of each material recovered per product life",
+            value: None, low: None, high: None, from: ["earth.materials.circularity", "earth.materials.metal_recycling"], verdict: Open,
+            meaning: "Earth recycles 6.9% of its materials and mines the rest. A ship cannot mine. At 95% recovery per 20-year product life, 8% of a material is left after 1,000 years; at 99%, 60%; at 99.9%, 95% (drift.ron).",
+            to_close: "Recovery near 99.9% for every material, or a stock big enough to lose what is not recovered, or mining what the ship meets on the way (not sourced). With 8.2 billion people every industry can exist aboard; what cannot be made is new matter.",
+        ),
+        (
+            loop_id: Habitat, metric: "Not a fraction: space, shielding, gravity, dose",
+            value: None, low: None, high: None, from: ["ship.habitat.hull_volume", "ship.habitat.shield_mass", "person.radiation.deep_space", "ship.habitat.spin"], verdict: Partly,
+            meaning: "The lore's hull gives 479,000 m3 a person, 275 times a 1975 settlement design, so space is not short. Shielding to 5 mSv a year is 95 t a person over the whole hull. Unshielded deep space gives 1.8 mSv a day, a career limit in a year.",
+            to_close: "Shield what people live in, spin for gravity, and measure people's health and social life with the proxies in docs/design/closed-loop-test.md section 3.7.",
+        ),
+    ],
+)

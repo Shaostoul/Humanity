@@ -1,0 +1,436 @@
+# HumanityOS Closed-Loop Test Schema
+#
+# WHY THIS EXISTS
+# The operator, 2026-10-22: "Let's create a test for establishing as close to 100%
+# closed loop self-sustaining as possible for 1 person up to 100% of Humanity. We
+# have two metrics that really matters. Earth, today, real, now. Then for the video
+# game the main mothership housing billions of humans across interstellar space."
+#
+# The plan is docs/design/closed-loop-test.md. These files carry its numbers:
+# every real-world number with its source, the source's own date, the date it was
+# read, and the result of trying to prove it wrong against a second source. The
+# game's own homes (data/machines/home.ron, home_solo.ron) and their measured
+# balances (docs/design/ship-life-support.md) are what the test runs; these files
+# are what the test compares them with, and what the larger scales are built from.
+#
+# File format: RON, eight files under data/closed_loop/
+#   sources.ron           every source cited by the other seven, by id
+#   person.ron            what one person needs and gives off, per day, two tiers
+#   earth_today.ron       Scenario A: the real loops as measured, with dates
+#   mothership.ron        Scenario B: the ship, and what it needs per person
+#   technologies.ron      what closes which loop, today and in research, with readiness
+#   population_steps.ron  1 person to 8.2 billion: what closes at each size
+#   drift.ron             the slow processes a 1,000-year run has to carry
+#   test_cases.ron        the phase-2 test cases: inputs, expected outputs, tolerances
+# Hot-reloadable: not read by the game yet (phase 2 adds the loader, see below).
+#
+# HOW PHASE 2 LOADS IT
+# One module, a closed_loop folder under src/systems (planned, not built yet, so
+# not written as a path the schema-path check would look for), with serde structs
+# that mirror the shapes below field for field: `Sources`, `Person`, `Scenario`
+# (earth_today and mothership share it), `Technologies`, `PopulationSteps`,
+# `Drift` and `TestCases`, each `ron::from_str` on the file, the way
+# data/life_support.ron is loaded by src/systems/life_support.rs. A loader test
+# fails when any `source` id is not in sources.ron, when any figure lacks a
+# `read` date or a `check`, and when a research option lacks a readiness level.
+# These files must also join the embedded-data list (src/embedded_data.rs) so
+# the release carries them.
+#
+# UNITS
+# Values are metric, in the unit the `unit` field names. Every figure also has a
+# `display` string in the house style, "metric (imperial)", so a reader of either
+# background reads it at a glance. Display strings are copy: no em dashes.
+
+# ---------------------------------------------------------------------------
+# SHARED ENUMS
+# ---------------------------------------------------------------------------
+
+[enums.LoopId]
+values = ["Air", "Water", "Food", "Nutrients", "Energy", "Materials", "Habitat"]
+description = """
+The seven loops of the test. They map onto data/home_outline.json's seven
+(Power -> Energy, Climate folds into Energy and Habitat because heat is an energy
+flow, Shelter and workshop -> Habitat and Materials) and add Materials as its own
+loop, because manufacturing, repair and recycling are where the five loops in
+data/self_sufficiency/cannot_close.ron live."""
+
+[enums.SourceKind]
+values = ["Primary", "Secondary", "TradePress", "Company", "Derived", "Game"]
+description = """
+Primary    - the body that measured or decided the number, in its own words.
+Secondary  - someone else's account of a primary source (a review, a host page).
+             Kept only where the primary could not be read, and flagged.
+TradePress - news coverage of a primary source.
+Company    - a company's statement about its own product (not independent).
+Derived    - arithmetic in this project from other sources; the sum is shown.
+Game       - a game choice or game data (lore, the acre, the homes). Not a fact
+             about the world, and never presented as one."""
+
+[enums.CheckStatus]
+values = ["Survived", "Corrected", "Uncertain", "Derived"]
+description = """
+The refutation pass (docs/design/closed-loop-test.md section 11).
+Survived  - a second, independent source agrees within the stated range.
+Corrected - the first reading was wrong and the value was changed; `note` says
+            what it read before and why.
+Uncertain - no second source could be read, or the sources disagree beyond the
+            range; the range is kept and `note` says why.
+Derived   - computed here; checked by recomputing it a second way."""
+
+[enums.Basis]
+values = ["World", "PerPerson", "PerHome", "PerModule", "PerUnit"]
+
+# ---------------------------------------------------------------------------
+# sources.ron  ->  ( sources: [ Source, ... ] )
+# ---------------------------------------------------------------------------
+
+[source.fields.id]
+type = "string"
+required = true
+description = "kebab-case, unique. Cited by every other file's `source` lists."
+
+[source.fields.title]
+type = "string"
+required = true
+
+[source.fields.by]
+type = "string"
+required = true
+description = "Authors or the publishing body, as a reader would want them in a citation."
+
+[source.fields.url]
+type = "string"
+required = true
+description = "Where the copy that was read lives. For a source read through a host (a review quoting it), the host's address, and `note` says so."
+
+[source.fields.published]
+type = "string"
+required = true
+description = "The source's own date, as precise as it states it (YYYY, YYYY-MM or YYYY-MM-DD). \"undated\" when the page shows none."
+
+[source.fields.read]
+type = "string"
+required = true
+description = "The date this project read it, YYYY-MM-DD. The point of the field: a later change in the world can be compared with the day we looked."
+
+[source.fields.kind]
+type = "SourceKind"
+required = true
+
+[source.fields.registry]
+type = "Option<string>"
+required = false
+description = "The body's id in data/sources/registry.json when it has one (fao, usgs, nasa-ntrs ...), so the Library and this test cite one list of authorities."
+
+[source.fields.note]
+type = "string"
+required = true
+description = "What was read and how (the text itself, never a page summary), and anything a person citing it needs to know."
+
+# ---------------------------------------------------------------------------
+# A FIGURE (used by person.ron, earth_today.ron, mothership.ron)
+# ---------------------------------------------------------------------------
+
+[figure.fields.id]
+type = "string"
+required = true
+description = "dotted, unique within its file: scenario.loop.quantity, e.g. earth.energy.total_supply"
+
+[figure.fields.loop_id]
+type = "LoopId"
+required = true
+
+[figure.fields.quantity]
+type = "string"
+required = true
+description = "What is measured, in plain words."
+
+[figure.fields.value]
+type = "float"
+required = true
+description = "The point value used by the test. Where the real number is a range, a defensible point inside it."
+
+[figure.fields.low]
+type = "Option<float>"
+required = false
+description = "Bottom of the range the sources support, when there is one."
+
+[figure.fields.high]
+type = "Option<float>"
+required = false
+
+[figure.fields.unit]
+type = "string"
+required = true
+description = "Metric unit of value, low and high (EJ/yr, km3/yr, kg/person/day ...)."
+
+[figure.fields.display]
+type = "string"
+required = true
+description = "The figure as a reader meets it, \"metric (imperial)\"."
+
+[figure.fields.basis]
+type = "Basis"
+required = true
+
+[figure.fields.data_year]
+type = "Option<int>"
+required = false
+description = "The year the number describes (not the year it was published)."
+
+[figure.fields.source]
+type = "list of string"
+required = true
+description = "Source ids from sources.ron. A Derived figure lists the figures or sources it is computed from."
+
+[figure.fields.quote]
+type = "string"
+required = true
+description = "The words in the source that carry the number, quoted exactly (punctuation included). For a Derived figure, the arithmetic."
+
+[figure.fields.check]
+type = "Check"
+required = true
+description = "( status: CheckStatus, against: [source ids], note: string ). What the refutation pass tried, and what happened."
+
+[figure.fields.note]
+type = "string"
+required = false
+description = "Caveats a test author needs: the accounting method, what the number does not include."
+
+# ---------------------------------------------------------------------------
+# earth_today.ron and mothership.ron  ->  Scenario
+# ---------------------------------------------------------------------------
+
+[scenario.fields.id]
+type = "string"
+required = true
+values = ["earth_today", "mothership"]
+
+[scenario.fields.figures]
+type = "list of Figure"
+required = true
+description = "Every sourced or derived number the scenario rests on."
+
+[scenario.fields.closure]
+type = "list of LoopClosure"
+required = true
+description = """
+One row per loop: ( loop_id, metric, value: Option<float>, low, high, from:
+[figure ids], verdict, meaning, to_close ). `metric` names exactly what the
+fraction is a fraction OF, because a single headline closure number by mass is
+dominated by water and hides an open food loop (section 4 of the design doc).
+`verdict` is one of Closes, Nearly, Partly, Open, Unknown. `to_close` says what
+it would take with today's technology."""
+
+[scenario.fields.ship]
+type = "Option<Ship>"
+required = false
+description = "mothership.ron only: population, voyage years, hull size, the home plot, each with its source (Game for lore)."
+
+[scenario.fields.per_person]
+type = "list of Budget"
+required = false
+description = """
+mothership.ron only: what one person needs aboard at a technology level,
+( id, loop_id, tech_level: Today | Research, quantity, value, low, high, unit,
+display, derivation, from ). The derivation is written out so a test can
+recompute it."""
+
+# ---------------------------------------------------------------------------
+# technologies.ron  ->  ( options: [ Technology, ... ] )
+# ---------------------------------------------------------------------------
+
+[technology.fields.id]
+type = "string"
+required = true
+description = "snake_case; also the switch a test or a player turns on (tech.<id>)."
+
+[technology.fields.name]
+type = "string"
+required = true
+description = "What it is, in plain words."
+
+[technology.fields.loop_id]
+type = "LoopId"
+required = true
+
+[technology.fields.era]
+type = "enum"
+values = ["Today", "Research"]
+required = true
+description = "Today = operating somewhere now. Research = promising results, not yet operating as the loop needs it."
+
+[technology.fields.trl]
+type = "( low: int, high: int )"
+required = true
+description = """
+NASA Technology Readiness Level, 1 to 9, as a range when the evidence allows two
+readings. The level is for the use THIS test needs (a ship's life support), which
+can be lower than the same technology's level on Earth; `trl_note` says which.
+(low: 0, high: 0) means NOT ASSESSED: named so it is not forgotten, and no test may
+switch it on until it is sourced."""
+
+[technology.fields.trl_note]
+type = "string"
+required = true
+description = "The evidence for the level: what was demonstrated, where, at what scale, and when."
+
+[technology.fields.performance]
+type = "list of ( quantity, value, unit, display, source, quote )"
+required = true
+description = "`source` is one source id. Empty only for a (0, 0) option."
+
+[technology.fields.changes]
+type = "list of ( figure, to, unit )"
+required = false
+description = "What switching it on changes in a scenario, by figure or budget id, so a test can run with and without it."
+
+# ---------------------------------------------------------------------------
+# population_steps.ron  ->  ( steps: [ Step, ... ] )
+# ---------------------------------------------------------------------------
+
+[step.fields.id]
+type = "string"
+values = ["one", "household", "village", "town", "city", "nation", "humanity"]
+required = true
+
+[step.fields.n]
+type = "float"
+required = true
+description = "The step's reference population; `n_low`/`n_high` its band."
+
+[step.fields.loops]
+type = "list of ( loop_id, earth: Verdict, ship: Verdict, why )"
+required = true
+description = "Whether each loop can close at this size, on Earth and aboard, and the reason."
+
+[step.fields.name]
+type = "string"
+required = true
+
+[step.fields.limits]
+type = "list of string"
+required = true
+description = "What still stops a loop closing at this size, and the population-level risks (genetics, knowledge)."
+
+[population_steps.fields.does_not_scale_linearly]
+type = "list of string"
+required = true
+description = "File-level list: the terms that do not scale with N past a household (data/home_outline.json's `scaling` holds the household-scale ones)."
+
+[step.fields.unlocks]
+type = "list of string"
+required = true
+description = "What becomes possible at this size that was not at the step below (a clinic, a foundry, a fab)."
+
+[step.fields.evidence]
+type = "list of string"
+required = true
+description = "Source ids, or \"estimate\" when no source measures the threshold, which is common and said plainly."
+
+# ---------------------------------------------------------------------------
+# drift.ron  ->  ( processes: [ Process, ... ] )
+# ---------------------------------------------------------------------------
+
+[process.fields.id]
+type = "string"
+required = true
+
+[process.fields.model]
+type = "enum with fields"
+required = true
+description = """
+How the test advances it over years:
+Geometric( retained_per_cycle: f, cycle_years: f )   stock x r^(t / cycle)
+Heterozygosity( effective_population: f, generation_years: f )   H x (1 - 1/(2 Ne))^(t / g)
+Linear( per_year: f, unit: s )   a constant draw on a stock
+StockLife( stock: f, use_per_year: f, unit: s )   years until a stock is gone
+Threshold( minimum_population: f )   a skill or industry that needs at least this many people"""
+
+[process.fields.loop_id]
+type = "LoopId"
+required = true
+
+[process.fields.name]
+type = "string"
+required = true
+
+[process.fields.results]
+type = "string"
+required = true
+description = "What the model gives over 1,000 years at the sourced parameters, written out so a test can check its own arithmetic."
+
+[process.fields.note]
+type = "string"
+required = false
+
+[process.fields.parameters_source]
+type = "list of string"
+required = true
+
+[process.fields.represents]
+type = "string"
+required = true
+description = "How the 1,000-year run carries it (which stock, which system), in plain words."
+
+# ---------------------------------------------------------------------------
+# test_cases.ron  ->  ( budget: Budget, cases: [ Case, ... ] )
+# ---------------------------------------------------------------------------
+
+[case.fields.id]
+type = "string"
+required = true
+description = "snake_case, the phase-2 Rust test's name."
+
+[case.fields.tier]
+type = "enum"
+values = ["Unit", "HomeDay", "HomeYear", "Aggregate", "Millennium", "Calibration"]
+required = true
+
+[case.fields.mode]
+type = "enum"
+values = ["Full", "Simplified", "Both"]
+required = true
+description = "The house rule: every deep system ships full realism and a simplified mode; a case says which it runs."
+
+[case.fields.sim_time]
+type = "string"
+required = true
+
+[case.fields.step_s]
+type = "float"
+required = true
+description = "Game seconds per tick. Never past the home's measured safe step (headless-sim-runner.md section 3)."
+
+[case.fields.inputs]
+type = "list of string"
+required = true
+
+[case.fields.expect]
+type = "list of ( metric, value, tolerance, unit, rule )"
+required = true
+description = "`rule` is Within (|got - value| <= tolerance), AtLeast (got >= value - tolerance), AtMost (got <= value + tolerance; for a difference, its absolute value), or Report (no pass line yet: the number is printed and recorded, which is honest where we do not know what right looks like)."
+
+[test_cases.fields.budget]
+type = "( ci_total_cpu_s, ci_total_memory_mb, nightly_total_cpu_s, nightly_parallel_runs, why )"
+required = true
+description = "File-level budget for the whole suite: what the CI cases together may use in `just verify`, and the nightly cases' limits."
+
+[case.fields.pass]
+type = "string"
+required = true
+
+[case.fields.budget]
+type = "( cpu_s: float, memory_mb: float )"
+required = true
+
+[case.fields.uses]
+type = "list of string"
+required = true
+description = "The real game systems the case runs (paths under src/), never a separate model."
+
+[case.fields.needs]
+type = "list of string"
+required = true
+description = "What must exist first: a runner increment, the aggregate tier, a loader. Empty when it can be written today."

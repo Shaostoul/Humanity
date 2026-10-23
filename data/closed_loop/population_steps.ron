@@ -1,0 +1,138 @@
+// ONE PERSON TO ALL OF HUMANITY: what closes at each size, on Earth and aboard the
+// mothership, and what becomes possible that was not at the size below. Shape:
+// schemas/closed_loop.toml; plan: docs/design/closed-loop-test.md section 4.
+//
+// Verdicts: Closes, Nearly, Partly, Open, Unknown.
+// Most thresholds here are ESTIMATES: no source measures 'the smallest town that can
+// run a clinic'. Where that is so, `evidence` says "estimate", plainly. The steps with
+// sources are the genetic ones (marin-2018, smith-2014), the cultural one
+// (henrich-2004), SP-413's settlement and the chip supply chain (bcg-sia-2021).
+(
+    steps: [
+        (
+            id: "one", name: "One person", n: 1.0, n_low: 1.0, n_high: 1.0,
+            loops: [
+                (loop_id: Air, earth: Closes, ship: Nearly, why: "Earth: the open air. Ship: the solo home's crops take up its carbon dioxide (1.86 of 1.96 kg a day measured, settling near 465 ppm) but give back about 0.1 kg a day less oxygen than is breathed, plus 0.14 kg in the air that leaks (ship-life-support.md, home_solo.ron)."),
+                (loop_id: Water, earth: Closes, ship: Closes, why: "Earth: rain and an 8,000 L cistern at Silverdale (data/home_outline.json). Ship: the air handlers return every litre the crops breathe out, to within 1% (ship-life-support.md section 3)."),
+                (loop_id: Food, earth: Closes, ship: Partly, why: "Earth: 200 m2 of greenhouse and 0.17 to 0.21 ha of fields (home_outline.json). Ship: the solo home's placed crops grow about 1,780 of the 2,200 kcal needed, an upper bound (home_solo.ron)."),
+                (loop_id: Nutrients, earth: Open, ship: Open, why: "Phosphorus is mined, not made; trading calories trades soil (cannot_close.ron, raw chemistry)."),
+                (loop_id: Energy, earth: Closes, ship: Open, why: "Earth: 11 panels and 4 battery banks for a December at Silverdale at the bare tier (home_outline.json), the equipment imported. Ship: the solo home makes 4.45 kWh a day and uses 31.8 in the Realistic mode; the ship's reactor supplies the rest (home_solo.ron)."),
+                (loop_id: Materials, earth: Open, ship: Open, why: "The five loops one home cannot close: electronics, metal from ore, medicine, equipment renewal, raw chemistry (cannot_close.ron)."),
+                (loop_id: Habitat, earth: Closes, ship: Closes, why: "40 to 320 m2 of house on Earth; 11,160 m3 of home air aboard."),
+            ],
+            unlocks: ["Nothing shared: every machine, store and skill is one person's."],
+            limits: ["One person cannot continue a population.", "One body's skills are all the skills there are."],
+            evidence: ["game-homes"],
+        ),
+        (
+            id: "household", name: "A household", n: 4.0, n_low: 2.0, n_high: 8.0,
+            loops: [
+                (loop_id: Air, earth: Closes, ship: Nearly, why: "As one person; trace contaminant control serves the cabin's air, so its energy per person falls with every resident (home_outline.json scaling)."),
+                (loop_id: Water, earth: Closes, ship: Closes, why: "A shared cistern and recovery train."),
+                (loop_id: Food, earth: Closes, ship: Partly, why: "Food area scales with N, almost linearly (home_outline.json)."),
+                (loop_id: Nutrients, earth: Open, ship: Open, why: "N people ship out N times the phosphorus."),
+                (loop_id: Energy, earth: Closes, ship: Open, why: "Energy scales with N; peak power roughly with the square root of N; the woodlot with the building, not the crew (home_outline.json)."),
+                (loop_id: Materials, earth: Open, ship: Open, why: "As one person."),
+                (loop_id: Habitat, earth: Closes, ship: Closes, why: "Heat loss grows with envelope area, about volume to the two-thirds, so sharing a roof is the largest single saving."),
+            ],
+            unlocks: ["Shared machines and stores (one well pump, one purifier, one workshop for several people).", "Shared heat: four people in one house burn the same firewood as one."],
+            limits: ["A family line is not a population (see village)."],
+            evidence: ["game-homes"],
+        ),
+        (
+            id: "village", name: "A village", n: 150.0, n_low: 100.0, n_high: 1000.0,
+            loops: [
+                (loop_id: Air, earth: Closes, ship: Closes, why: "Crops sized for a hundred people's food bring their air (BIOS-3, salisbury-1997)."),
+                (loop_id: Water, earth: Closes, ship: Closes, why: "A village water works is ordinary engineering."),
+                (loop_id: Food, earth: Closes, ship: Closes, why: "With 50 m2 of lit crop each (mothership.ron), but the village's seed bank, breeding and pest management become a trade of their own."),
+                (loop_id: Nutrients, earth: Open, ship: Partly, why: "Composting and urine diversion at village scale; phosphorus that leaves is still bought back."),
+                (loop_id: Energy, earth: Closes, ship: Open, why: "A village micro-grid on Earth; aboard, a reactor is not a village-scale machine."),
+                (loop_id: Materials, earth: Open, ship: Open, why: "A smithy can work scrap; nobody here makes a chip, a drug or new metal."),
+                (loop_id: Habitat, earth: Closes, ship: Closes, why: ""),
+            ],
+            unlocks: ["A repair shop and smithy working recycled metal.", "A midwife, first aid and a few specialists (estimate).", "Shared woodlot, mill, granary."],
+            limits: [
+                "GENETICS: 98 people is the minimum crew Marin and Beluffi found for a 6,300-year voyage under their demographic model with inbreeding forbidden (marin-2018); Smith's genetic review puts a healthy founding population at 14,000 to 44,000 (smith-2014). The sources disagree by two orders of magnitude because they ask different questions (surviving at all against staying healthy); the test carries both.",
+                "KNOWLEDGE: a small, isolated population can lose complex skills while keeping simple ones; Henrich's model of Tasmania after the sea cut it off (henrich-2004), contested by later modelling (Vaesen et al. 2016, not read).",
+            ],
+            evidence: ["marin-2018", "smith-2014", "henrich-2004", "salisbury-1997", "estimate"],
+        ),
+        (
+            id: "town", name: "A town", n: 10000.0, n_low: 5000.0, n_high: 50000.0,
+            loops: [
+                (loop_id: Air, earth: Closes, ship: Closes, why: ""),
+                (loop_id: Water, earth: Closes, ship: Closes, why: "A wastewater plant that treats everything; the world treats 56% (earth_today.ron)."),
+                (loop_id: Food, earth: Closes, ship: Closes, why: ""),
+                (loop_id: Nutrients, earth: Partly, ship: Partly, why: "A town plant can recover phosphorus from its sludge (technologies.ron phosphorus_recovery, not assessed in this pass)."),
+                (loop_id: Energy, earth: Closes, ship: Partly, why: "A town-sized reactor or grid."),
+                (loop_id: Materials, earth: Open, ship: Open, why: "Casting and machining from scrap; still no chips, no synthesis, no ore."),
+                (loop_id: Habitat, earth: Closes, ship: Closes, why: "SP-413 designed its whole settlement for 10,000 people at 67 m2 and 1,738 m3 each (sp-413)."),
+            ],
+            unlocks: ["A clinic and a school (estimate).", "Metal casting and machining from scrap (estimate).", "Phosphorus recovery from the town's wastewater (estimate)."],
+            limits: ["At Smith's lower bound of 14,000 founders for genetic health over five generations (smith-2014)."],
+            evidence: ["sp-413", "smith-2014", "estimate"],
+        ),
+        (
+            id: "city", name: "A city", n: 1.0e6, n_low: 1.0e5, n_high: 1.0e7,
+            loops: [
+                (loop_id: Air, earth: Closes, ship: Closes, why: ""),
+                (loop_id: Water, earth: Closes, ship: Closes, why: ""),
+                (loop_id: Food, earth: Closes, ship: Closes, why: "Earth's cities feed themselves only through farmland far larger than they are."),
+                (loop_id: Nutrients, earth: Partly, ship: Partly, why: ""),
+                (loop_id: Energy, earth: Partly, ship: Partly, why: ""),
+                (loop_id: Materials, earth: Partly, ship: Partly, why: "Steel from scrap, basic chemistry, electronics assembly and repair; not chip fabrication (estimate)."),
+                (loop_id: Habitat, earth: Closes, ship: Closes, why: ""),
+            ],
+            unlocks: ["A hospital, a university.", "Steel from scrap, a chemical works, electronics repair (estimate)."],
+            limits: ["Genetic diversity is no longer a constraint at this size over a thousand years (drift.ron: heterozygosity with an effective population in the tens of thousands keeps more than 99.8%)."],
+            evidence: ["estimate", "smith-2014"],
+        ),
+        (
+            id: "nation", name: "A nation", n: 1.0e8, n_low: 1.0e7, n_high: 1.4e9,
+            loops: [
+                (loop_id: Air, earth: Partly, ship: Closes, why: "Earth: a nation's carbon is the planet's carbon (earth_today.ron)."),
+                (loop_id: Water, earth: Partly, ship: Closes, why: "Earth: basins cross borders."),
+                (loop_id: Food, earth: Closes, ship: Closes, why: ""),
+                (loop_id: Nutrients, earth: Open, ship: Partly, why: "Phosphate rock comes from a few countries (usgs-mcs-2026-phosphate: China, Morocco, the United States and Russia lead)."),
+                (loop_id: Energy, earth: Partly, ship: Partly, why: ""),
+                (loop_id: Materials, earth: Open, ship: Partly, why: "Even a large region cannot make chips alone: more than 50 points in the supply chain where one region holds more than 65% of world share, and a self-sufficient chain in each region would need at least $1 trillion more and raise chip prices 35 to 65% (bcg-sia-2021)."),
+                (loop_id: Habitat, earth: Closes, ship: Closes, why: ""),
+            ],
+            unlocks: ["Pharmaceutical synthesis, some semiconductor fabrication (estimate)."],
+            limits: ["Every region depends on others for parts of the electronics chain (bcg-sia-2021)."],
+            evidence: ["bcg-sia-2021", "usgs-mcs-2026-phosphate", "estimate"],
+        ),
+        (
+            id: "humanity", name: "All of humanity", n: 8.2e9, n_low: 8.2e9, n_high: 10.3e9,
+            loops: [
+                (loop_id: Air, earth: Partly, ship: Closes, why: "Earth: half of the CO2 people emit comes back (earth_today.ron). Ship: the crops make the air."),
+                (loop_id: Water, earth: Partly, ship: Nearly, why: "Earth: closes for the planet, not where people live. Ship: 98% today; leak-limited at best."),
+                (loop_id: Food, earth: Partly, ship: Closes, why: "Earth: 3,016 kcal supplied, about 70% reaching people. Ship: 50 m2 and about 8 kW of light a person."),
+                (loop_id: Nutrients, earth: Open, ship: Open, why: "Earth: phosphorus mined, about 290 years of reserves. Ship: 20% measured mineral retention (BIOS-3); the ship works only above about 99.9%."),
+                (loop_id: Energy, earth: Open, ship: Partly, why: "Earth: 86% fossil. Ship: 77 TW of electricity, 21 times Earth's, a thousand years of fuel carried."),
+                (loop_id: Materials, earth: Open, ship: Open, why: "Earth: 6.9% circular. Ship: every industry can exist, no new matter arrives."),
+                (loop_id: Habitat, earth: Partly, ship: Closes, why: "Earth: cropland 0.19 ha a person and falling, soil slower to form than to lose. Ship: 479,000 m3 a person in the lore's hull."),
+            ],
+            unlocks: ["Every industry that exists, including the chip supply chain, which on Earth exists only at this scale."],
+            limits: [
+                "EARTH, EVERYONE ON A HOMESTEAD: at the bare tier the homestead model needs 0.28 to 0.34 ha a person, 2,300 to 2,800 million ha for 8.2 billion people, against 1,600 million ha of cropland and 4,800 of agricultural land (fao-land-2025); at the comfort tier, with a woodlot for heat, 0.83 to 1.46 ha, 6,800 to 12,000 million ha, more than all agricultural land and close to all 13,000 million ha of land. Self-sufficiency for everyone is a land question before it is a technology question.",
+                "SHIP: 77 TW of power and 107,000 km2 of radiators, both dominated by lighting crops.",
+            ],
+            evidence: ["fao-land-2025", "wpp-2024", "game-homes"],
+        ),
+    ],
+
+    // What does NOT scale linearly with N. data/home_outline.json's `scaling` section
+    // holds the household-scale list (air volume, heat loss, peak power, roof area,
+    // trace contaminants, the woodlot, machine count, storage autonomy); these are the
+    // terms that appear past a household.
+    does_not_scale_linearly: [
+        "INDUSTRY IS A STEP FUNCTION. A clinic, a foundry, a fab each needs a minimum number of people to staff and feed it; below that number the loop is open, above it the loop closes. The test models each as a Threshold (drift.ron), never as a per-person fraction.",
+        "GENETIC DIVERSITY falls each generation by 1 / (2 Ne) (drift.ron): negligible for a city, decisive for a village over centuries.",
+        "KNOWLEDGE follows the number of skilled people who can teach a skill, not the population; Henrich's model ties loss to effective population (henrich-2004).",
+        "REDUNDANCY gets cheaper per person: one spare pump protects four people or forty thousand; N + 1 spares cost 1/N per person.",
+        "SHIELDING per person falls as N grows inside one habitat: shield mass follows surface, about volume to the two-thirds, so a bigger hull shields each person for less (mothership.ron: 95 t a person over the lore's hull).",
+        "HEAT REJECTION does not get cheaper: every person's 9.4 kW must leave as radiation, so radiator area grows with N while a hull's surface grows only with its size. At 290 K the lore's hull side (157,080 km2) holds radiators for about 12 billion people at 9.4 kW each if they are double-sided fins of that area (13 m2 a person), and about 6 billion if they lie flat on the hull and radiate from one side only (26 m2 a person). The ship is close to its heat limit, not its space limit.",
+        "BUFFERS: one shared store (air, water, grain) covers correlated failures only if it is connected; a ship of sealed decks has a buffer per deck, not one per ship.",
+    ],
+)

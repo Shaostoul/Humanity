@@ -2001,10 +2001,10 @@
         (
             name: "Nutrients",
             demand: "~13 nutrient-units/day (garden + field, one person's share)",
-            supply: "2 composters (food + crop + human waste) -> fertilizer; legume nitrogen fixing; aquaponic fish waste",
-            closes: true,
+            supply: "2 composters (food + crop + human waste) -> fertilizer; legume nitrogen fixing; aquaponic fish waste; returns about N 53% / P 75% / K 93% of uptake (data/home_outline.json audit)",
+            closes: false,
             weakest: false,
-            note: "Compost + the legume field's nitrogen fixing close the nutrient loop the same way the 3-person home's does, just scaled down. The aquaponic tank's fish waste fertilizes the towers -- a closed fish-to-plant nutrient loop even at this small scale.",
+            note: "Does not close (corrected 2026-10-23, docs/design/closed-loop-test.md). This loop said it closed 'the same way the 3-person home's does', but the family home's Nutrients loop has said it does not since the 2026-09-26 garden model, and data/home_outline.json's audit finds that compost and excreta return about 53% of the nitrogen, 75% of the phosphorus and 93% of the potassium the crops take up. Legumes can make up the nitrogen; nothing on a homestead makes phosphorus (data/self_sufficiency/cannot_close.ron, raw chemistry). In play the body runs on real time while the garden runs much faster, so one resident's urine is a fraction of a percent of what the garden takes (the family home's note). The aquaponic tank's fish waste does feed the towers, but the fish's own feed has to be grown on its own or bought (data/home_outline.json).",
         ),
     ],
 )

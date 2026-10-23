@@ -1,0 +1,198 @@
+// ONE PERSON: what a body takes in and gives off, per day, and what it needs
+// around it. Every scale in the closed-loop test (docs/design/closed-loop-test.md)
+// is N times this, plus what does not scale with N. Shape: schemas/closed_loop.toml.
+//
+// TWO TIERS, the house rule (bare minimum, and comfort with today's technology):
+//   bare     2,100 kcal a day: the population-average planning figure for whole
+//            populations (children and older people included) at light activity
+//            (enn-1997). The right number for "how little can N people live on".
+//   comfort  2,600 kcal a day: one moderately active adult (data/home_outline.json,
+//            FAO/WHO/UNU 2004 at a physical activity level of 1.75). The right
+//            number for a working homestead and for "comfort in space".
+// THE REFERENCE is NASA's current crewmember (bvad-2022 Table 3-31): 82 kg, 12.778
+// MJ a day, with a daily exercise programme. The gases scale with the food energy
+// burned, the method data/home_outline.json and data/life_support.ron already use
+// (a body at steady weight burns what it eats).
+(
+    tiers: [
+        (id: "bare", kcal_per_day: 2100.0, protein_g_per_day: 57.0, water_kg_per_day: 4.48,
+            why: "2,100 kcal: enn-1997. Protein 10 to 12% of energy (enn-1997) is 52 to 63 g; 57 is the middle. Water 4.48 kg: bvad-2022 Table 4-20's Early Planetary Base (2.0 drinking + 0.5 food rehydration + 1.98 hygiene)."),
+        (id: "comfort", kcal_per_day: 2600.0, protein_g_per_day: 75.0, water_kg_per_day: 85.0,
+            why: "2,600 kcal and 75 g of protein: data/home_outline.json (one moderately active adult). Water 85 L: the outline's household fixture list (drinking and cooking 5, kitchen sink 15, bathroom sink 5, shower 35, toilet 14, laundry 11), which the solo home uses. bvad-2022's Mature Planetary Base is 9.12 kg: a ship can choose either, because recycled water costs energy and buffer, not supply."),
+    ],
+
+    figures: [
+        // ---- THE REFERENCE CREWMEMBER (bvad-2022 Table 3-31) ----------------------
+        (
+            id: "person.ref.energy", loop_id: Food, quantity: "Food energy eaten (and burned) by NASA's reference crewmember",
+            value: 12.778, low: None, high: None, unit: "MJ/person/day", display: "12.8 MJ (3,054 kcal) a day",
+            basis: PerPerson, data_year: Some(2019), source: ["bvad-2022"],
+            quote: "+ E Food Consumed; Energy Content          kg/CM-d  3.217 (1),(2) ... MJ/CM-d  12.778 (1),(3)  [layout extraction: 12.778 is the energy row]; 'The metabolic rate used in the 2019 MetMan runs was 12.778 MJ/CM-d (Ewert, et al., 2021); to maintain constant body mass the food energy consumed was set to the same value.'",
+            check: (status: Survived, against: ["hanford-2004"], note: "Hanford 2004's 70 kg crewmember was 11.82 MJ; BVAD's is an 82 kg man exercising 90 minutes a day. Different people, so the test compares the gases PER MJ (next figures), where the two agree within 1%."),
+            note: "An 82 kg male astronaut in 2015 with 30 minutes of aerobic and 60 of resistance exercise a day. Not a population average.",
+        ),
+        (
+            id: "person.ref.o2", loop_id: Air, quantity: "Oxygen consumed", value: 0.895, low: None, high: None,
+            unit: "kg/person/day", display: "0.895 kg (1.97 lb) a day", basis: PerPerson, data_year: Some(2019), source: ["bvad-2022"],
+            quote: "m Carbon Dioxide Load                     kg/CM-d  1.085 (1),(3) / kg/CM-d  0.895 (1),(3) / + m Oxygen Consumed  [the layout puts each value one line above its label]",
+            check: (status: Survived, against: ["hanford-2004"], note: "Per MJ: 0.895 / 12.778 = 0.0700 kg/MJ against Hanford's 0.835 / 11.82 = 0.0706, a 0.9% difference. The table's mass balance also closes: in 0.895 + 0.800 + 3.217 + 0.760 = 5.672 kg, out 1.085 + 0.032 + 0.027 + 0.061 + 0.101 + 2.946 + 1.420 = 5.672 kg, which confirms the value-to-label reading."),
+            note: "",
+        ),
+        (
+            id: "person.ref.co2", loop_id: Air, quantity: "Carbon dioxide breathed out", value: 1.085, low: None, high: None,
+            unit: "kg/person/day", display: "1.085 kg (2.39 lb) a day", basis: PerPerson, data_year: Some(2019), source: ["bvad-2022"],
+            quote: "m Carbon Dioxide Load                     kg/CM-d  1.085 (1),(3)",
+            check: (status: Survived, against: ["hanford-2004"], note: "Per MJ: 0.0849 against Hanford's 0.0844, 0.6% apart. Molar check: (1.085/44.01)/(0.895/32.00) = 0.881, near the table's stated respiratory quotient of 0.860 (the 2% gap is the exercise periods at 0.95 and 0.96, which the daily total includes)."),
+            note: "",
+        ),
+        (
+            id: "person.ref.food_dry", loop_id: Food, quantity: "Food eaten, dry mass", value: 0.800, low: None, high: None,
+            unit: "kg/person/day", display: "0.80 kg (1.76 lb) dry a day", basis: PerPerson, data_year: Some(2019), source: ["bvad-2022"],
+            quote: "1.56 kg (1-0.487) = 0.8 kg/CM-d (dry)",
+            check: (status: Survived, against: ["bvad-2022"], note: "Internal check only: 12.778 MJ / 0.800 kg = 16.0 MJ/kg dry, inside the 15 to 17 MJ/kg a mixed dry diet carries. No second document was read for this one."),
+            note: "Food as packaged on the ISS, less what is not eaten. A grown diet differs.",
+        ),
+        (
+            id: "person.ref.water_in", loop_id: Water, quantity: "Potable water plus water in food", value: 3.977, low: None, high: None,
+            unit: "kg/person/day", display: "3.98 kg (1.05 gal) a day", basis: PerPerson, data_year: Some(2019), source: ["bvad-2022"],
+            quote: "Potable Water Content ... 3.217; Water in Food Prior to Rehydration ... 0.760 (1.56kg (0.487) = 0.76 kg/CM-d of Water); Metabolic Water 0.490",
+            check: (status: Derived, against: ["bvad-2022"], note: "3.217 + 0.760 = 3.977 in; out as water 0.101 + 2.946 + 1.420 = 4.467, the 0.490 difference being the metabolic water the body makes. Balances."),
+            note: "Drinking 2.00 kg and food preparation 0.50 kg are from NASA HIDH 2014; 0.717 kg is extra sweat from the exercise programme (bvad-2022's own words: 'the lever used to ensure the mass balances').",
+        ),
+        (
+            id: "person.ref.vapour_out", loop_id: Water, quantity: "Water breathed and sweated out", value: 2.946, low: None, high: None,
+            unit: "kg/person/day", display: "2.95 kg (6.5 lb) a day", basis: PerPerson, data_year: Some(2019), source: ["bvad-2022"],
+            quote: "m Fecal Water  kg/CM-d  0.101 (5) / kg/CM-d  2.946 (3) / m Respiration and Perspiration Water / kg/CM-d 1.420 (5) / m Urine Water",
+            check: (status: Uncertain, against: ["hanford-2004"], note: "Hanford's 2.277 kg at 11.82 MJ is 0.193 kg/MJ; BVAD's 2.946 at 12.778 is 0.231 kg/MJ, 20% higher, because BVAD's crewmember sweats through 90 minutes of exercise. The game scales Hanford's figure with energy (data/life_support.ron calls that a game choice). The test uses Hanford's per-MJ figure for the population and BVAD's for an exercising crewmember, and says which."),
+            note: "This is the water a sealed home's air handlers must condense back out of the air.",
+        ),
+        (
+            id: "person.coef.o2_per_mj", loop_id: Air, quantity: "Oxygen per MJ of food energy burned", value: 0.07004, low: Some(0.07004), high: Some(0.07064),
+            unit: "kg/MJ", display: "0.070 kg (0.15 lb) per MJ", basis: PerPerson, data_year: None, source: ["person.ref.o2", "person.ref.energy", "hanford-2004"],
+            quote: "0.895 / 12.778 = 0.07004 (BVAD 2022); 0.835 / 11.82 = 0.07064 (Hanford 2004)",
+            check: (status: Derived, against: ["hanford-2004"], note: "Two NASA documents 18 years apart, different bodies and activity, agree within 0.9% per MJ. This is the coefficient the test scales by."),
+            note: "",
+        ),
+        (
+            id: "person.coef.co2_per_mj", loop_id: Air, quantity: "Carbon dioxide per MJ of food energy burned", value: 0.08491, low: Some(0.08443), high: Some(0.08491),
+            unit: "kg/MJ", display: "0.085 kg (0.19 lb) per MJ", basis: PerPerson, data_year: None, source: ["person.ref.co2", "person.ref.energy", "hanford-2004"],
+            quote: "1.085 / 12.778 = 0.08491 (BVAD 2022); 0.998 / 11.82 = 0.08443 (Hanford 2004)",
+            check: (status: Derived, against: ["hanford-2004"], note: "0.6% apart."),
+            note: "",
+        ),
+
+        // ---- THE TWO TIERS, SCALED -----------------------------------------------------
+        (
+            id: "person.bare.o2", loop_id: Air, quantity: "Oxygen consumed at 2,100 kcal", value: 0.615, low: None, high: None,
+            unit: "kg/person/day", display: "0.62 kg (1.36 lb) a day", basis: PerPerson, data_year: None, source: ["person.coef.o2_per_mj", "enn-1997"],
+            quote: "2,100 kcal x 4.184 kJ/kcal = 8.786 MJ; x 0.07004 kg/MJ = 0.615 kg",
+            check: (status: Derived, against: [], note: "Recomputed by calc in the session scratchpad."), note: "",
+        ),
+        (
+            id: "person.bare.co2", loop_id: Air, quantity: "Carbon dioxide out at 2,100 kcal", value: 0.746, low: None, high: None,
+            unit: "kg/person/day", display: "0.75 kg (1.64 lb) a day", basis: PerPerson, data_year: None, source: ["person.coef.co2_per_mj", "enn-1997"],
+            quote: "8.786 MJ x 0.08491 kg/MJ = 0.746 kg",
+            check: (status: Derived, against: [], note: ""), note: "",
+        ),
+        (
+            id: "person.bare.food_dry", loop_id: Food, quantity: "Dry food eaten at 2,100 kcal", value: 0.550, low: None, high: None,
+            unit: "kg/person/day", display: "0.55 kg (1.21 lb) dry a day", basis: PerPerson, data_year: None, source: ["person.ref.food_dry", "enn-1997"],
+            quote: "0.800 kg x 8.786 / 12.778 = 0.550 kg",
+            check: (status: Derived, against: [], note: ""), note: "",
+        ),
+        (
+            id: "person.comfort.o2", loop_id: Air, quantity: "Oxygen consumed at 2,600 kcal", value: 0.762, low: None, high: None,
+            unit: "kg/person/day", display: "0.76 kg (1.68 lb) a day", basis: PerPerson, data_year: None, source: ["person.coef.o2_per_mj"],
+            quote: "2,600 kcal = 10.878 MJ; x 0.07004 = 0.762 kg",
+            check: (status: Derived, against: ["game-homes"], note: "data/home_outline.json computes 0.766 kg at the same 2,600 kcal by a different route (20.3 kJ per litre of oxygen, 1.429 g/L): 0.5% apart."), note: "",
+        ),
+        (
+            id: "person.comfort.co2", loop_id: Air, quantity: "Carbon dioxide out at 2,600 kcal", value: 0.924, low: None, high: None,
+            unit: "kg/person/day", display: "0.92 kg (2.04 lb) a day", basis: PerPerson, data_year: None, source: ["person.coef.co2_per_mj"],
+            quote: "10.878 MJ x 0.08491 = 0.924 kg",
+            check: (status: Derived, against: ["game-homes"], note: "data/home_outline.json: 0.922 kg. Agrees."), note: "",
+        ),
+        (
+            id: "person.comfort.food_dry", loop_id: Food, quantity: "Dry food eaten at 2,600 kcal", value: 0.681, low: None, high: None,
+            unit: "kg/person/day", display: "0.68 kg (1.50 lb) dry a day", basis: PerPerson, data_year: None, source: ["person.ref.food_dry"],
+            quote: "0.800 x 10.878 / 12.778 = 0.681 kg",
+            check: (status: Derived, against: [], note: ""), note: "",
+        ),
+        (
+            id: "person.heat", loop_id: Energy, quantity: "Body heat given off (the whole food energy, at steady weight)", value: 102.0, low: Some(102.0), high: Some(148.0),
+            unit: "W/person", display: "about 100 W (350 Btu/h) bare, 126 W comfort, 148 W for the exercising reference", basis: PerPerson, data_year: None, source: ["person.ref.energy", "enn-1997"],
+            quote: "2,100 kcal x 4,184 J / 86,400 s = 101.7 W; 2,600 kcal = 125.9 W; 12.778 MJ / 86,400 s = 147.9 W",
+            check: (status: Derived, against: ["bvad-2022"], note: "bvad-2022 Table 3-31's Total Metabolic Heat Load is 12.426 MJ/CM-d (143.8 W), slightly below the food energy because some energy leaves in waste and work. Within 3%."),
+            note: "Every watt of a person ends as heat a sealed ship must reject.",
+        ),
+
+        // ---- WHAT A BODY RETURNS (the nutrient loop) ------------------------------------
+        (
+            id: "person.excreta.n", loop_id: Nutrients, quantity: "Nitrogen excreted (urine 4.13, faeces 0.52, other household wastewater 0.37)", value: 5.02, low: Some(3.7), high: Some(5.02),
+            unit: "kg/person/year", display: "5.0 kg (11 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018"],
+            quote: "Urine   4.13   0.40   1.83 / Faeces  0.52   0.21   5.48 / Other   0.37   0.15   10.95 / Total   5.02   0.75   18.25  [N, P, BOD in kg/person, year]",
+            check: (status: Survived, against: ["viskari-2018", "game-homes"], note: "Vinneras and Jonsson (2002), quoted in the same paper: 3.7 kg N recoverable from urine alone. data/home_outline.json cites the source-separation literature at 2.5 to 4.3 kg N per person-year. Finnish values sit at the top of the range because of a high-protein diet; nitrogen excreted follows protein eaten. Low end 3.7 (urine alone, Swedish)."),
+            note: "Scale with protein: the body excretes, at steady state, the nitrogen it eats.",
+        ),
+        (
+            id: "person.excreta.p", loop_id: Nutrients, quantity: "Phosphorus excreted (urine 0.40, faeces 0.21, other 0.15)", value: 0.75, low: Some(0.34), high: Some(0.75),
+            unit: "kg/person/year", display: "0.75 kg (1.7 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018"],
+            quote: "Total   5.02   0.75   18.25",
+            check: (status: Survived, against: ["game-homes"], note: "data/home_outline.json: 0.4 to 1.0 kg P per person-year in the source-separation literature. Inside it."),
+            note: "The 'other' 0.15 kg is household greywater (detergents, food scraps), not the body.",
+        ),
+        (
+            id: "person.excreta.k_urine", loop_id: Nutrients, quantity: "Potassium recoverable from urine", value: 1.2, low: Some(0.9), high: Some(1.4),
+            unit: "kg/person/year", display: "1.2 kg (2.6 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018"],
+            quote: "Vinneras and Jonsson (2002) estimated that about 3.7 kg of nitrogen, 0.34 kg of phosphorus and 1.2 kg of potassium per capita/a could be recovered if all urine could",
+            check: (status: Survived, against: ["game-homes"], note: "data/home_outline.json: 0.9 to 1.4 kg K. Agrees."),
+            note: "",
+        ),
+
+        // ---- WHAT A BODY NEEDS AROUND IT (habitat) ------------------------------------------
+        (
+            id: "person.habitat.area", loop_id: Habitat, quantity: "Projected area per person in a designed settlement (community and residential 47, agriculture 20)", value: 67.0, low: None, high: None,
+            unit: "m2/person", display: "67 m2 (721 sq ft)", basis: PerPerson, data_year: Some(1975), source: ["sp-413"],
+            quote: "Community and residential projected area per person,m^2 47 Agriculture, projected area per person, m^2 20 Community and residential, volume per person, m^3 823 Agriculture, volume per person, m^3 915",
+            check: (status: Uncertain, against: ["johnson-wheeler-2021"], note: "Survived for the living area as a design criterion (it is a criterion, not a measurement). The 20 m2 of agriculture does NOT survive for an interstellar ship: SP-413 assumed concentrated sunlight at L5 and a 1970s optimistic yield; NASA's later work puts lit crop area at 35 to 50 m2 a person (johnson-wheeler-2021) and BIOS-3 needed 56 m2 for all its food (salisbury-1997). The ship uses those."),
+            note: "",
+        ),
+        (
+            id: "person.habitat.volume", loop_id: Habitat, quantity: "Volume per person in a designed settlement (823 living, 915 agriculture)", value: 1738.0, low: None, high: None,
+            unit: "m3/person", display: "1,738 m3 (61,400 cu ft)", basis: PerPerson, data_year: Some(1975), source: ["sp-413"],
+            quote: "Community and residential, volume per person, m^3 823 Agriculture, volume per person, m^3 915",
+            check: (status: Survived, against: ["game-homes"], note: "Nothing contradicts it as a criterion. For comparison the game's solo homestead gives one person 11,160 m3 of home air plus its grow rooms (ship-life-support.md section 9), about 6 times SP-413: a game's generous home, not a minimum."),
+            note: "",
+        ),
+        (
+            id: "person.radiation.career_limit", loop_id: Habitat, quantity: "NASA career limit on space radiation dose", value: 600.0, low: None, high: None,
+            unit: "mSv/career", display: "600 mSv over a career", basis: PerPerson, data_year: None, source: ["nasa-std-3001-rad"],
+            quote: "An individual astronaut's total career effective radiation dose due to space flight radiation exposure shall be less than 600 mSv. This limit is universal for all ages and sexes.",
+            check: (status: Uncertain, against: ["sp-413"], note: "A limit for astronauts who choose a career of exposure, not for children born aboard over a lifetime. SP-413's settlement target was 0.5 rem (5 mSv) a year, about 400 mSv over an 80-year life, the same order. The test uses SP-413's 5 mSv a year for residents; no source read sets a lifetime limit for a general population in space."),
+            note: "",
+        ),
+        (
+            id: "person.radiation.deep_space", loop_id: Habitat, quantity: "Galactic cosmic ray dose rate in deep space inside a spacecraft (Mars Science Laboratory cruise)", value: 1.8, low: Some(1.5), high: Some(2.1),
+            unit: "mSv/day", display: "1.8 mSv a day (about 660 mSv a year)", basis: PerPerson, data_year: Some(2012), source: ["swri-2013"],
+            quote: "The RAD data show an average GCR dose equivalent rate of 1.8 milliSieverts per day in cruise.",
+            check: (status: Survived, against: [], note: "A DLR conference record (Reitz) gives 1.84 +/- 0.3 mSv/day for the same cruise (seen in a search result, not read): the range here. One year at this rate is past the 600 mSv career limit, which is why shielding is not optional."),
+            note: "Behind the thin shielding of a robotic cruise stage, near solar minimum-to-moderate activity in 2011 to 2012.",
+        ),
+        (
+            id: "person.radiation.shield", loop_id: Habitat, quantity: "Passive shield mass to bring cosmic rays to 5 mSv a year", value: 4.5, low: Some(4.5), high: Some(10.0),
+            unit: "t/m2", display: "4.5 t/m2 (922 lb/sq ft); the Earth's air is about 10 t/m2", basis: PerUnit, data_year: Some(1975), source: ["sp-413"],
+            quote: "The Earth's atmosphere supplies about 10 t/m^2 of mass shielding and is very effective. Only half this much is needed to bring the dosage level of cosmic rays down to 0.5 rem/yr. In fact when calculations are made in the context of particular geometries, it is found that because many of the incident particles pass through walls at slanting angles a thickness of shield of 4.5 t/m^2 is sufficient.",
+            check: (status: Uncertain, against: [], note: "A 1975 calculation. No modern shielding transport study was read in this pass; phase 2 should read one before the test asserts a shield mass. Kept as the order of magnitude."),
+            note: "",
+        ),
+
+        // ---- THE TRAP IN 'CLOSURE BY MASS' --------------------------------------------------
+        (
+            id: "person.trap.mass_closure_food_imported", loop_id: Food, quantity: "Closure by mass of a home that recycles all its water and air and imports every meal", value: 0.991, low: Some(0.859), high: Some(0.991),
+            unit: "fraction", display: "99.1% 'closed' while growing no food at all", basis: PerPerson, data_year: None, source: ["person.ref.o2", "person.ref.food_dry", "person.ref.water_in"],
+            quote: "Imports 0.80 kg dry food a day. Throughput: 0.895 O2 + 0.80 food + 0.76 food water + 85 L household water = 87.5 kg; 1 - 0.80 / 87.5 = 0.991. Without hygiene water (BVAD's 5.67 kg in): 1 - 0.80 / 5.67 = 0.859. With BVAD's mature-base hygiene (12.29 kg): 0.935.",
+            check: (status: Derived, against: [], note: "The arithmetic is what it is. It is the reason the test never reports one closure number by mass: water dominates the mass, so every headline 'percent closed' (Lunar Palace's 98.2% included, beihang-2026, which does not define its measure) must be read loop by loop."),
+            note: "",
+        ),
+    ],
+)

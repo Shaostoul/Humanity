@@ -1,0 +1,119 @@
+// THE 1,000-YEAR VIEW: the slow processes that a day or a year of simulation never
+// shows, and how the test carries them. The operator, 2026-10-22: "We need to think
+// like 1,000 years from now we're still going to be living and doing what we gotta
+// do." Shape: schemas/closed_loop.toml; plan: docs/design/closed-loop-test.md
+// section 9.
+//
+// A thousand years cannot be stepped at frame rate. The millennium tier jumps a
+// year at a time (headless-sim-runner.md: ~10^9x 'only by jumping') and applies
+// each process below to the stocks; the loops themselves are re-measured on a
+// home-year run every century of game time, so the per-year rates the jump uses
+// come from the game's real systems, not from this file.
+(
+    processes: [
+        (
+            id: "material_recovery", loop_id: Materials, name: "What is left of a material after many product lives, at a fixed recovery yield per life",
+            model: Geometric(retained_per_cycle: 0.99, cycle_years: 20.0),
+            parameters_source: ["unep-metals-2011", "earth.materials.circularity"],
+            results: "Fraction left after 1,000 years: r = 0.95 with 20-year lives 7.7% (10-year 0.6%, 50-year 36%); r = 0.99 60.5% (37%, 82%); r = 0.999 95.1% (90.5%, 98.0%). Earth recycles 6.9% of its materials and only 18 of 60 metals above half at end of life, so today's yields are far below 0.95 for most materials.",
+            represents: "Each material stock (steel, copper, aluminium, rare elements in electronics, plastics) is a number of tonnes aboard. Every product life the recycling yield r of that material returns; the rest is lost to dissipation (wear dust, alloys that cannot be separated, residues). r and the life are per material, set by the technologies switched on. The test reports the year each material falls below what the ship's machines need.",
+            note: "r = 0.99 and 20 years are game choices for illustration, not measured yields.",
+        ),
+        (
+            id: "human_heterozygosity", loop_id: Habitat, name: "Genetic diversity of a closed human population",
+            model: Heterozygosity(effective_population: 23400.0, generation_years: 25.0),
+            parameters_source: ["smith-2014", "marin-2018"],
+            results: "Heterozygosity kept after 1,000 years (40 generations at 25 years; 33 at 30): Ne 50, 67 to 72%; Ne 150, 87.5 to 89.5%; Ne 500, 96%; Ne 10,000, 99.8%; Ne 23,400 (Smith's safe design), 99.9%. All of humanity aboard loses nothing measurable.",
+            represents: "The population's effective size Ne (fewer than the head count: only people having children count, and unequal family sizes shrink it) sets the fraction of diversity lost each generation, 1 / (2 Ne), the standard Wright-Fisher result (textbook, not re-read). The test computes Ne from the population tier and flags any home or settlement isolated below Smith's Ne.",
+            note: "SOURCES DISAGREE on what is enough: 98 people survive a 6,300-year voyage in Marin and Beluffi's demographic model (marin-2018); Smith's genetic review asks for 14,000 to 44,000 (smith-2014). A popular account of Smith's work says a crew of 150 loses 80% of its genetic diversity in thirty generations (seen in a search result), while the formula above keeps about 90% of heterozygosity: rare variants are lost far faster than heterozygosity, so the two numbers measure different things. The test reports heterozygosity and names the other measure as missing.",
+        ),
+        (
+            id: "crop_diversity", loop_id: Food, name: "Genetic diversity of the crops and the seed bank",
+            model: Threshold(minimum_population: 0.0),
+            parameters_source: [],
+            results: "NOT ASSESSED: no source was read for how many plants per variety a seed bank must regrow, or how often, to keep a variety for centuries.",
+            represents: "Each crop variety the ship carries is a stock of seed with a viability that falls with age and is renewed only by growing it out. Phase 2 sources the regeneration interval and the minimum planting per variety, then the test counts varieties lost per century.",
+            note: "",
+        ),
+        (
+            id: "soil", loop_id: Habitat, name: "Topsoil: formed slowly, lost quickly",
+            model: Linear(per_year: 0.001, unit: "cm of topsoil formed per year, at best (1 cm per up to 1,000 years)"),
+            parameters_source: ["fao-soil-egu"],
+            results: "Formation at up to 1 cm per 1,000 years (FAO; another FAO page gives 2 to 3 cm). Loss by erosion on degraded land is much faster but was not sourced in this pass.",
+            represents: "Earth tier: a soil stock per hectare, formed at this rate and lost at an erosion rate set by the farming practice (phase 2 sources one). Ship tier: hydroponic beds need no soil, soil beds keep their organic matter only if compost returns; the game's soil memory (farming/soil.rs) is the per-plot state the home-year run measures.",
+            note: "",
+        ),
+        (
+            id: "earth_phosphate_reserves", loop_id: Nutrients, name: "Phosphate rock reserves at today's mining rate",
+            model: StockLife(stock: 73e9, use_per_year: 250e6, unit: "t of marketable phosphate rock"),
+            parameters_source: ["usgs-mcs-2026-phosphate", "viskari-2018"],
+            results: "292 years of reserves; about 1,200 years of resources (more than 300 billion t). The pessimistic reading of 'affordable and easily extractable' rock is 50 to 100 years (viskari-2018, after Cordell 2009).",
+            represents: "Earth tier: the reserve stock drawn down by mining, refilled by nothing. Every percent of phosphorus recovered from excreta and residue extends it.",
+            note: "On a thousand-year view this is the first loop that runs out, and it has no substitute.",
+        ),
+        (
+            id: "earth_potash_reserves", loop_id: Nutrients, name: "Potash reserves at today's mining rate",
+            model: StockLife(stock: 5.9e9, use_per_year: 49e6, unit: "t K2O"),
+            parameters_source: ["usgs-mcs-2026-potash"],
+            results: "More than 120 years of reserves; resources about 250 billion t.",
+            represents: "As phosphate.",
+            note: "",
+        ),
+        (
+            id: "ship_phosphorus", loop_id: Nutrients, name: "Phosphorus the ship must carry to make up what its loop does not retain",
+            model: Linear(per_year: 21320.0, unit: "t P a year at 99.9% retention (213,200 at 99%, 17 million at BIOS-3's 20%)"),
+            parameters_source: ["ship.food.bios3_mineral_closure", "game-homes"],
+            results: "Over 1,000 years: 21 million t at 99.9%, 213 million t at 99%.",
+            represents: "Ship tier: a phosphorus stock in the nutrient stores, drawn down by every residue the loop fails to return; the retention fraction comes from the home-year run's measured soil and compost ledger.",
+            note: "",
+        ),
+        (
+            id: "ship_fuel", loop_id: Energy, name: "Reactor fuel for the voyage",
+            model: Linear(per_year: 89800.0, unit: "t of heavy metal fissioned a year at 77 TW and 33% (fusion: 21,800 t of D-T)"),
+            parameters_source: ["pp.fuel.fission", "pp.fuel.fusion_dt"],
+            results: "Fission: 74 to 90 million t fissioned over 1,000 years. Fusion D-T: 18 to 22 million t, and 22 to 26 million t of lithium-6 to breed the tritium.",
+            represents: "A fuel stock, drawn at the electricity the population tier demands; the power per person comes from the home-year run (Realistic mode), not from this file.",
+            note: "",
+        ),
+        (
+            id: "air_leak", loop_id: Air, name: "Air lost through the hull, and the nitrogen it takes",
+            model: Linear(per_year: 5.5, unit: "kg of nitrogen per module per year (0.02 kg of air a day)"),
+            parameters_source: ["ship.habitat.leak_per_module"],
+            results: "Per module only. A leak law for a 500 km hull was not found.",
+            represents: "Every sealed volume leaks at its rate; the game already counts each room as a module (data/life_support.ron). The nitrogen is a stock with no source aboard but the stores.",
+            note: "",
+        ),
+        (
+            id: "hidden_sinks", loop_id: Air, name: "Chemistry that draws a gas down without any machine reporting it (Biosphere 2's concrete and soil)",
+            model: Linear(per_year: 0.0, unit: "ppm of O2 a year: unknown, observed up to about 50,000 (Biosphere 2's 137 ppm a day)"),
+            parameters_source: ["ship.air.biosphere2_o2_loss"],
+            results: "Biosphere 2 lost a third of its oxygen in 16 months to soil respiration and curing concrete.",
+            represents: "The test checks every gas stock against the sum of its ledgered flows each simulated year; a drift between them is reported as a hidden sink, never absorbed.",
+            note: "",
+        ),
+        (
+            id: "equipment_wear", loop_id: Materials, name: "Machines wear out: spares, repair and replacement",
+            model: Threshold(minimum_population: 0.0),
+            parameters_source: ["owens-2018"],
+            results: "No per-year spares mass was found. For a 1,200-day Mars mission, ISS experience cut the ECLSS spares needed by 3.9 to 6.0 t and found failure rates that had been underestimated (owens-2018).",
+            represents: "Each machine carries a life and a failure rate; a failure consumes a spare; a spare is made from the materials loop if the industry that makes it exists at the population tier (a Threshold), otherwise it comes from stores. The test reports the first year a machine cannot be replaced.",
+            note: "minimum_population 0.0 marks 'per-industry thresholds to be sourced', not 'no threshold'.",
+        ),
+        (
+            id: "knowledge", loop_id: Habitat, name: "Skills that need enough people to keep them",
+            model: Threshold(minimum_population: 0.0),
+            parameters_source: ["henrich-2004"],
+            results: "No source gives a number of practitioners per skill. Henrich's model says the loss depends on the effective number of people able to learn it, and is contested.",
+            represents: "Each industry in population_steps.ron's `unlocks` is a skill set with a minimum population; below it, the industry's loops reopen after one working lifetime. The test reports which loops reopen at each population.",
+            note: "",
+        ),
+        (
+            id: "radiation_dose", loop_id: Habitat, name: "Radiation dose accumulated over a lifetime aboard",
+            model: Linear(per_year: 5.0, unit: "mSv a year behind SP-413's 4.5 t/m2 shield"),
+            parameters_source: ["sp-413", "person.radiation.deep_space", "nasa-std-3001-rad"],
+            results: "About 400 mSv over an 80-year life behind the design shield; about 660 mSv in ONE year unshielded, past NASA's 600 mSv career limit.",
+            represents: "A dose per person per year by where they live; the shield is a habitat property the home's construction sets.",
+            note: "",
+        ),
+    ],
+)

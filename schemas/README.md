@@ -47,6 +47,7 @@ files into the data directory and the game loads them.
 | `web_sites.toml` | The websites database: Browser-page sites with their embed-legality and affiliate records | JSON (`data/web/sites.json`) |
 | `web_readability.toml` | Class/id conventions the readable-web parser drops as chrome | JSON (`data/web/readability.json`) |
 | `pipe_marking.toml` | Pipe marking schemes (the bands that say what flows) and pipe body materials | RON (`data/piping/`) |
+| `closed_loop.toml` | The closed-loop test's sourced figures: one person, Earth today, the mothership, technologies, population steps, the 1,000-year drift, the test cases | RON (`data/closed_loop/`) |
 
 **Two of these are not data files.** `provider.toml` and `offering.toml` describe
 the payload of SIGNED OBJECTS that users publish at runtime

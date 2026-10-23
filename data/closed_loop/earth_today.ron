@@ -1,0 +1,338 @@
+// SCENARIO A: EARTH, TODAY, REAL, NOW. The loops as they are measured, each figure
+// with its source, the source's own date and the year the number describes.
+// Shape: schemas/closed_loop.toml. Plan: docs/design/closed-loop-test.md section 5.
+//
+// The question this file answers: of what humanity takes from each loop, how much
+// comes back around, and how much is drawn down from a stock that does not refill?
+// Earth closes most of its loops by itself (the water cycle, the oxygen in the air,
+// the soil's slow making); what is open is what people draw faster than the planet
+// returns it, and what people mine.
+//
+// POPULATION used for per-person figures: 8.2 billion (wpp-2024), unless a source
+// gives its own per-person figure for its own year, which is then used as stated.
+(
+    id: "earth_today",
+    figures: [
+        // ---- PEOPLE ----------------------------------------------------------------
+        (
+            id: "earth.habitat.population", loop_id: Habitat, quantity: "World population", value: 8.2e9, low: None, high: None,
+            unit: "people", display: "8.2 billion", basis: World, data_year: Some(2024), source: ["wpp-2024"],
+            quote: "The world's population is expected to continue growing over the coming fifty or sixty years, reaching a peak of around 10.3 billion people in the mid-2080s, up from 8.2 billion in 2024.",
+            check: (status: Survived, against: ["ei-review-2026"], note: "The Energy Institute's world total (600.31 EJ) divided by its own per-capita figure (72.93 GJ) implies 8.23 billion for 2025. Agrees."),
+            note: "",
+        ),
+        (
+            id: "earth.habitat.population_peak", loop_id: Habitat, quantity: "Projected peak world population", value: 10.3e9, low: None, high: None,
+            unit: "people", display: "about 10.3 billion, in the mid-2080s", basis: World, data_year: Some(2085), source: ["wpp-2024"],
+            quote: "reaching a peak of around 10.3 billion people in the mid-2080s",
+            check: (status: Uncertain, against: [], note: "A projection with a range in the source (its probabilistic intervals were not read). The mothership's design population (10 billion, game-lore-humanity-one) is near it."),
+            note: "",
+        ),
+
+        // ---- ENERGY ------------------------------------------------------------------
+        (
+            id: "earth.energy.total_supply", loop_id: Energy, quantity: "Total energy supply", value: 600.31, low: None, high: None,
+            unit: "EJ/yr", display: "600 EJ (569 quadrillion Btu) a year, an average of 19.0 TW", basis: World, data_year: Some(2025), source: ["ei-review-2026"],
+            quote: "Total World 523.80 528.82 539.02 553.03 556.63 532.75 560.01 568.58 579.16 592.18 600.31 1.7% 1.4% 100.0%  [Exajoules, 2015 to 2025, growth 2025, growth 2015-25, share]",
+            check: (status: Survived, against: ["ei-review-2026"], note: "Press coverage of the same review (dieselnet.com, July 2026): 'the total energy supply (TES) exceeded 600 EJ in 2025, a rise of 1.7% over 2024'. Not independent of the review, but confirms the reading of the garbled table."),
+            note: "Wind and solar are counted at the electricity they make, nuclear at its heat input (the review's method). An accounting that credits renewables with the fuel they displace shows a larger total and a larger renewable share.",
+        ),
+        (
+            id: "earth.energy.fossil_share", loop_id: Energy, quantity: "Share of total energy supply from oil, gas and coal", value: 0.862, low: None, high: None,
+            unit: "fraction", display: "86%", basis: World, data_year: Some(2025), source: ["ei-review-2026"],
+            quote: "Total World 199.04 148.72 165.35 30.71 16.10 32.24 592.18 200.97 150.70 166.03 31.04 16.12 35.45 600.31  [2024 then 2025: Oil, Natural gas, Coal, Nuclear energy, Hydroelectricity, Renewables, Total]; (200.97 + 150.70 + 166.03) / 600.31 = 0.862",
+            check: (status: Survived, against: ["ei-review-2026"], note: "Press coverage: 'Fossil fuels retained their dominant position, accounting for 86% of TES in 2025.'"),
+            note: "Under the review's accounting (see total_supply).",
+        ),
+        (
+            id: "earth.energy.flow_share", loop_id: Energy, quantity: "Share of total energy supply from sustained flows (hydroelectricity plus renewables)", value: 0.086, low: None, high: None,
+            unit: "fraction", display: "8.6%", basis: World, data_year: Some(2025), source: ["ei-review-2026"],
+            quote: "(16.12 + 35.45) / 600.31 = 0.0859",
+            check: (status: Derived, against: [], note: "Nuclear, 5.2%, is excluded: a stock, though a long one. Under an accounting that credits wind, solar and hydro with the fuel they displace the share is larger; that figure was not read."),
+            note: "This is Earth's energy 'closure' in the test's sense: the share that is not drawn down from a stock.",
+        ),
+        (
+            id: "earth.energy.per_person", loop_id: Energy, quantity: "Total energy supply per person", value: 72.93, low: None, high: None,
+            unit: "GJ/person/yr", display: "72.9 GJ (69.1 million Btu) a year, an average of 2.31 kW", basis: PerPerson, data_year: Some(2025), source: ["ei-review-2026"],
+            quote: "Total World 70.12 69.96 70.50 71.54 71.26 67.55 70.40 70.88 71.57 72.55 72.93 0.8% 0.4%  [Gigajoule per capita, 2015 to 2025]",
+            check: (status: Survived, against: ["wpp-2024"], note: "600.31 EJ / 8.2 billion = 73.2 GJ. Agrees within 0.4%."),
+            note: "",
+        ),
+        (
+            id: "earth.energy.electricity", loop_id: Energy, quantity: "Electricity generated", value: 32201.9, low: None, high: None,
+            unit: "TWh/yr", display: "32,200 TWh a year: 3,930 kWh (10.8 kWh a day) per person, an average of 450 W each", basis: World, data_year: Some(2025), source: ["ei-review-2026"],
+            quote: "Total World 24326.0 24994.9 25742.6 26780.9 27161.3 27060.7 28595.1 29254.3 30049.4 31347.1 32201.9 3.0% 2.8% 100.0%  [Terawatt-hours, 2015 to 2025]",
+            check: (status: Derived, against: [], note: "Per person: 32,201.9 TWh / 8.2 billion = 3,927 kWh a year. No second source was read for world generation."),
+            note: "The comparison that matters for the ship: a mothership of 8.2 billion runs on electricity alone.",
+        ),
+
+        // ---- AIR (CARBON) -------------------------------------------------------------
+        (
+            id: "earth.air.emissions_2024", loop_id: Air, quantity: "Total human CO2 emissions (fossil 10.3 + land-use change 1.3 GtC)", value: 11.6, low: Some(10.7), high: Some(12.5),
+            unit: "GtC/yr", display: "11.6 GtC (42.4 Gt, 46.7 billion short tons, of CO2) a year", basis: World, data_year: Some(2024), source: ["gcb-2025"],
+            quote: "For the year 2024, emissions from fossil fuel consumption increased by 1.1% relative to 2023, with net release to atmosphere at 10.3 ± 0.5 GtC yr-1 (including the cement carbonation sink, 0.2GtCyr-1), and that from land-use change was 1.3 ± 0.7 GtC yr-1. Thus, the total anthropogenic CO2 emissions stood at 11.6 ± 0.9 GtC yr-1 (42.4 ± 3.2 GtCO2 yr-1).  [superscripts flattened]",
+            check: (status: Survived, against: ["ei-review-2026"], note: "The Energy Institute review also publishes energy CO2 (page 25, not transcribed); its order of magnitude matches. Range is the source's own +/- 0.9."),
+            note: "",
+        ),
+        (
+            id: "earth.air.sink_share", loop_id: Air, quantity: "Share of human CO2 emissions taken back up by land and ocean, the past decade (land 21%, ocean 29%)", value: 0.50, low: Some(0.46), high: Some(0.50),
+            unit: "fraction", display: "about half", basis: World, data_year: Some(2024), source: ["gcb-2025"],
+            quote: "Based on a consolidation of the global carbon budget methodology, the land and ocean have taken up 21% and 29% of anthropogenic emissions in the past decade, respectively.",
+            check: (status: Survived, against: ["gcb-2025"], note: "The same source's 2024 numbers give a lower share for that one year: ocean 3.4 + land 1.9 = 5.3 of 11.6 GtC = 46%, in an El Nino year whose land sink was weak and whose budget had a -1.7 GtC imbalance. Low end 0.46."),
+            note: "The carbon loop's closure on Earth: about half of what people emit comes back around within the year; the rest accumulates.",
+        ),
+        (
+            id: "earth.air.co2_concentration", loop_id: Air, quantity: "Atmospheric CO2, annual average", value: 425.7, low: Some(422.8), high: Some(425.7),
+            unit: "ppm", display: "425.7 ppm (2025, projected); 422.8 ppm (2024)", basis: World, data_year: Some(2025), source: ["gcb-2025"],
+            quote: "The concentration of CO2 in the atmosphere is set to reach 425.7 parts per million in 2025.  /  The global atmospheric CO2 concentration averaged over 2024 reached 422.8 ± 0.1 ppm.",
+            check: (status: Uncertain, against: [], note: "NOAA's own annual mean was not read in this pass. The game's home air settles at 401 to 495 ppm (ship-life-support.md section 9), so the planet and the game's homes sit in the same range."),
+            note: "",
+        ),
+        (
+            id: "earth.air.emissions_2025_per_person", loop_id: Air, quantity: "Human CO2 emissions per person", value: 5.15, low: None, high: None,
+            unit: "t CO2/person/yr", display: "5.1 t (5.7 short tons) of CO2 a year each", basis: PerPerson, data_year: Some(2025), source: ["gcb-2025", "wpp-2024"],
+            quote: "Total emissions are projected to be 42.2 billion tonnes of CO2 in 2025; 42.2e9 t / 8.2e9 people = 5.15 t",
+            check: (status: Derived, against: [], note: ""), note: "",
+        ),
+        (
+            id: "earth.air.breathing", loop_id: Air, quantity: "CO2 breathed out by all people", value: 2.25, low: Some(1.9), high: Some(2.8),
+            unit: "Gt CO2/yr", display: "about 2.2 Gt (2.5 billion short tons) a year, carbon-neutral", basis: World, data_year: None, source: ["person.bare.co2", "person.comfort.co2", "wpp-2024"],
+            quote: "8.2e9 people x 0.75 kg/day x 365.25 = 2.25 Gt (range 0.62 to 0.92 kg/day by tier)",
+            check: (status: Derived, against: [], note: "Breathed carbon is the carbon in this year's food, which this year's crops took from the air, so it is a closed flow, not an emission. It is about 5% of the fossil and land-use flow."),
+            note: "Why the oxygen loop is closed on Earth: what people breathe in, this year's plants gave out. Earth's atmosphere is the buffer no ship has.",
+        ),
+
+        // ---- WATER ---------------------------------------------------------------------
+        (
+            id: "earth.water.withdrawal", loop_id: Water, quantity: "Total freshwater withdrawal (agriculture 2,885.53, industry 599.93, municipal 534.75)", value: 4022.09, low: None, high: None,
+            unit: "km3/yr", display: "4,022 km3 (965 cubic miles) a year: 1,343 L (355 gal) per person per day", basis: World, data_year: Some(2023), source: ["sdg-2026-goal6"],
+            quote: "Table 2: Global trends in Sectoral Water Withdrawals (2015-2023) Agricultural water withdrawal [Km3/year] ... 2883,89 2885,53 ... Industrial water withdrawal [Km3/year] ... 640.48 599.93 ... Municipal water withdrawal [Km3/year] 477.23 534.75 ... - 6.33 % ... Total water withdrawal [10^9 m3/year] ... 4022.09 12.05 % 0.29 %  [the table's columns extract interleaved]",
+            check: (status: Survived, against: ["sdg-2026-goal6", "aquastat-water-use"], note: "The three sectors sum to 4,020.21 against the stated 4,022.09 (0.05% apart); the shares (71.7, 14.9, 13.3%) match press coverage of AQUASTAT 2025's 71/15/13 for 2022. The total was nearly flat 2015 to 2023 (+0.29%), as the text says."),
+            note: "Withdrawal is not consumption: most withdrawn water returns to rivers and aquifers, some of it degraded.",
+        ),
+        (
+            id: "earth.water.municipal_per_person", loop_id: Water, quantity: "Municipal withdrawal per person", value: 179.0, low: None, high: None,
+            unit: "L/person/day", display: "179 L (47 gal) a day", basis: PerPerson, data_year: Some(2023), source: ["sdg-2026-goal6", "wpp-2024"],
+            quote: "534.75 km3 / 8.2 billion / 365.25 = 178.5 L",
+            check: (status: Derived, against: ["game-homes"], note: "The solo home's household is 85 L a day and its comfort tier 120 (data/home_outline.json): a frugal and an average home bracket the world figure, which includes municipal losses and commerce."),
+            note: "",
+        ),
+        (
+            id: "earth.water.renewable", loop_id: Water, quantity: "Renewable freshwater resources (runoff and groundwater recharge)", value: 43000.0, low: None, high: None,
+            unit: "km3/yr", display: "43,000 km3 (10,300 cubic miles) a year", basis: World, data_year: None, source: ["aquastat-water-use"],
+            quote: "The amount of precipitation falling on land is almost 110 000 km3 per year. About 56 percent of this amount is evapotranspired by forests and natural landscapes and 5 percent by rainfed agriculture. The remaining 39 percent or 43 000 km3 per year is converted to surface runoff (feeding rivers and lakes) and groundwater (feeding aquifers). These are called renewable freshwater resources.",
+            check: (status: Uncertain, against: [], note: "An undated AQUASTAT page; no second estimate was read. Withdrawals are 4,022 / 43,000 = 9.4% of it."),
+            note: "",
+        ),
+        (
+            id: "earth.water.stress", loop_id: Water, quantity: "Global water stress (withdrawal over available freshwater after environmental flows)", value: 0.18, low: None, high: None,
+            unit: "fraction", display: "18%, with Northern Africa, Western, Southern and Central Asia past 75%", basis: World, data_year: Some(2023), source: ["sdg-2026-goal6"],
+            quote: "At global level, the water stress remained steady at an average of 18 percent in 2023, showing little change since 2015.",
+            check: (status: Uncertain, against: [], note: "Single source. It is the reason 'water closes globally' is not the same as 'water closes where people live'."),
+            note: "",
+        ),
+        (
+            id: "earth.water.wastewater_treated", loop_id: Water, quantity: "Share of household wastewater safely treated (185 of 332 billion m3)", value: 0.56, low: None, high: None,
+            unit: "fraction", display: "56%: 185 of 332 km3 (44 of 80 cubic miles)", basis: World, data_year: Some(2024), source: ["sdg-2026-goal6"],
+            quote: "As of 2024, the global proportion of household wastewater safely treated stands at 56% - largely unchanged since the first estimates were published in 2020. An estimate 332 billion m3 of wastewater was generated by households in 2024, of which only 185 billion m3 was safely treated.",
+            check: (status: Survived, against: ["sdg-2026-goal6"], note: "185 / 332 = 55.7%. The UN-Water 2024 update said 42% was NOT safely treated in 2022 (58% treated; seen in a search result, not read); different country sets, same story."),
+            note: "Household wastewater per person: 332 km3 / 8.2 billion = 111 L a day.",
+        ),
+
+        // ---- FOOD ------------------------------------------------------------------------
+        (
+            id: "earth.food.supply", loop_id: Food, quantity: "Dietary energy supply (food available)", value: 3016.0, low: None, high: None,
+            unit: "kcal/person/day", display: "3,016 kcal a day per person available", basis: PerPerson, data_year: Some(2023), source: ["fao-fbs-2025"],
+            quote: "Globally, dietary energy supply (DES) increased from 2 825 kcal/cap/day in 2010 to 3 016 kcal/cap/day in 2023, crossing the 3 000 kcal/cap/day milestone for the first time",
+            check: (status: Survived, against: ["fao-fbs-2025"], note: "An earlier FAO release (2010-2021) gave 2,978 for 2021 (seen in a search result); FAO revises its series. Africa 2,556, Europe 3,490 (same brief)."),
+            note: "Supply, not intake. Against the bare tier's 2,100 kcal need, the world grows about 1.4 times what its people need on average; the gap is waste, overconsumption and maldistribution, not shortage of production.",
+        ),
+        (
+            id: "earth.food.loss", loop_id: Food, quantity: "Share of food lost after harvest and before retail", value: 0.133, low: Some(0.130), high: Some(0.133),
+            unit: "fraction", display: "13.3%", basis: World, data_year: Some(2023), source: ["fao-fli"],
+            quote: "The percentage of food lost globally after harvest on farm, transport, storage, wholesale and processing levels is estimated at 13.3 percent in 2023, up slightly from 13.0 percent in 2015, when global monitoring began.",
+            check: (status: Corrected, against: [], note: "This pass began from a remembered 13.2%; it was not found in any FAO text read and was replaced by the portal's own 13.3% for 2023. An older FAO estimate of 13% for 2021 (931 million tonnes, seen in a search result) agrees with the corrected figure."),
+            note: "",
+        ),
+        (
+            id: "earth.food.waste", loop_id: Food, quantity: "Food wasted at retail, food service and households (including inedible parts)", value: 1.05e9, low: None, high: None,
+            unit: "t/yr", display: "1.05 billion t (1.16 billion short tons) a year: 132 kg (291 lb) per person, almost one fifth of food available to consumers", basis: World, data_year: Some(2022), source: ["unep-fwi-2024"],
+            quote: "In 2022 there were 1.05 billion tonnes of food waste generated (including inedible parts), amounting to 132 kilograms per capita and almost one-fifth of all food available to consumers.",
+            check: (status: Survived, against: ["unep-fwi-2024"], note: "1.05e9 t / about 7.95 billion people in 2022 = 132 kg. The report's key messages say 19 per cent (seen in a search result quoting the PDF)."),
+            note: "",
+        ),
+        (
+            id: "earth.food.reaches_people", loop_id: Food, quantity: "Rough share of food grown that is not lost or wasted", value: 0.70, low: Some(0.65), high: Some(0.75),
+            unit: "fraction", display: "about 70%", basis: World, data_year: Some(2023), source: ["earth.food.loss", "earth.food.waste"],
+            quote: "(1 - 0.133) x (1 - 0.19) = 0.702",
+            check: (status: Uncertain, against: [], note: "The two indices measure different baskets (FAO's ten commodities by mass, UNEP's food including inedible parts), so their product is an approximation, not a measured figure. The range says so."),
+            note: "",
+        ),
+
+        // ---- LAND (HABITAT) ---------------------------------------------------------------
+        (
+            id: "earth.habitat.agricultural_land", loop_id: Habitat, quantity: "Agricultural land (cropland 1,600, pasture 3,200 million ha); forest 4,050; other 4,150", value: 4800.0, low: None, high: None,
+            unit: "Mha", display: "4,800 million ha (11.9 billion acres), more than a third of all land", basis: World, data_year: Some(2023), source: ["fao-land-2025"],
+            quote: "In 2023, world total agricultural land was 4 800 million hectares (ha), more than one-third of the global land area. Within agricultural land, cropland covered about 1 600 million ha while permanent meadows and pastures covered 3 200 million ha. The rest of the global land area was almost equally split between forest land, covering 4 050 million ha, and other land, with 4 150 million ha of deserts, glaciers, barren lands, built areas, etc.",
+            check: (status: Survived, against: ["fao-land-2025"], note: "The 2001-2022 brief gave 4,781 and 1,573 million ha for 2022 (seen in a search result): consistent. Land total 4,800 + 4,050 + 4,150 = 13,000 million ha."),
+            note: "",
+        ),
+        (
+            id: "earth.habitat.cropland_per_person", loop_id: Habitat, quantity: "Cropland per person", value: 0.19, low: None, high: None,
+            unit: "ha/person", display: "0.19 ha (0.47 acre)", basis: PerPerson, data_year: Some(2023), source: ["fao-land-2025"],
+            quote: "world total cropland area per person decreased by about 20 percent, from 0.24 to 0.19 hectares per capita",
+            check: (status: Survived, against: ["game-homes"], note: "1,600 million ha / 8.1 billion = 0.198. data/home_outline.json's homestead needs 0.17 to 0.21 ha of arable land per person, the same figure from the other direction."),
+            note: "",
+        ),
+        (
+            id: "earth.habitat.soil_formation", loop_id: Habitat, quantity: "Time to form 1 cm of topsoil", value: 1000.0, low: Some(333.0), high: Some(1000.0),
+            unit: "years/cm", display: "up to 1,000 years per cm (0.4 in)", basis: PerUnit, data_year: None, source: ["fao-soil-egu"],
+            quote: "Did you know it can take up to 1,000 years to form 1 cm of top soil?",
+            check: (status: Uncertain, against: [], note: "Another FAO page says 2 to 3 cm can take up to 1,000 years (seen in a search result): 333 to 500 years per cm. 'Up to' is an upper bound, and real rates vary by climate and parent rock by more than this range."),
+            note: "Soil is the slowest stock in the food loop: it is why erosion on a 1,000-year view is a loss that does not come back.",
+        ),
+
+        // ---- NUTRIENTS -----------------------------------------------------------------------
+        (
+            id: "earth.nutrients.p_rock_mined", loop_id: Nutrients, quantity: "Phosphate rock mined (marketable)", value: 250e6, low: None, high: None,
+            unit: "t/yr", display: "250 million t (276 million short tons) a year", basis: World, data_year: Some(2025), source: ["usgs-mcs-2026-phosphate"],
+            quote: "World total (rounded) 239,000 250,000 73,000,000  [thousand metric tons: mine production 2024, 2025, reserves]",
+            check: (status: Survived, against: [], note: "Secondary coverage of the same USGS data gives 250 million t for 2025 (seen in a search result). Not independent."),
+            note: "",
+        ),
+        (
+            id: "earth.nutrients.p_reserves", loop_id: Nutrients, quantity: "Phosphate rock reserves", value: 73e9, low: None, high: None,
+            unit: "t", display: "73 billion t (80 billion short tons); resources more than 300 billion t", basis: World, data_year: Some(2025), source: ["usgs-mcs-2026-phosphate"],
+            quote: "World total (rounded) 239,000 250,000 73,000,000 ... World resources of phosphate rock are more than 300 billion tons. There are no imminent shortages of phosphate rock. Substitutes: There are no substitutes for phosphorus in agriculture.",
+            check: (status: Uncertain, against: ["viskari-2018", "edixhoven-2014"], note: "SOURCES DISAGREE, and the disagreement is the finding. Viskari et al. (2018), following Cordell et al. (2009), wrote that 'there are affordable and relatively easily extractable phosphate rock reserves left for only another 50-100 years'. USGS's reserves today give 73,000 / 250 = 292 years at the 2025 rate, and its resources about 1,200. Most of the difference is one revision: USGS world reserves went from 16,000 Mt in 2010 to 65,000 in 2011, 'based on a 2010 report by the International Fertilizer Development Center (IFDC), which increased Moroccan reserves from 5700 Mt PR as reported by USGS, to 51 000 Mt PR, reported as upgraded (\"beneficiated\") concentrate' (edixhoven-2014, who question it). Reserves are an economic category (what is worth mining at today's prices). The test carries both: 292 years of reserves as the point, 50 years as the pessimistic bound for 'affordable and easily extractable'."),
+            note: "What no source disputes: 'There are no substitutes for phosphorus in agriculture.'",
+        ),
+        (
+            id: "earth.nutrients.p_reserve_life", loop_id: Nutrients, quantity: "Years of phosphate rock reserves at the 2025 mining rate", value: 292.0, low: Some(50.0), high: Some(1200.0),
+            unit: "years", display: "about 290 years of reserves (50 years affordable on the pessimistic reading, 1,200 years of resources)", basis: World, data_year: Some(2025), source: ["earth.nutrients.p_reserves", "earth.nutrients.p_rock_mined", "viskari-2018"],
+            quote: "73,000,000 kt / 250,000 kt a year = 292 years; 300 billion t / 250 million t = 1,200 years",
+            check: (status: Derived, against: ["viskari-2018"], note: "See p_reserves. On the 1,000-year view this is the loop that runs out: at today's rate even the resources last about one millennium."),
+            note: "",
+        ),
+        (
+            id: "earth.nutrients.p_fertilizer", loop_id: Nutrients, quantity: "P2O5 in fertilizers consumed", value: 47.8e6, low: None, high: None,
+            unit: "t P2O5/yr", display: "47.8 million t (52.7 million short tons) of P2O5, about 20.9 million t of phosphorus", basis: World, data_year: Some(2025), source: ["usgs-mcs-2026-phosphate"],
+            quote: "World consumption of P2O5 contained in fertilizers was estimated to have been 47.8 million tons in 2025 compared with 47.1 million tons in 2024.",
+            check: (status: Derived, against: [], note: "Phosphorus is 43.64% of P2O5 by mass (2 x 30.97 / 141.94): 20.9 million t of P."),
+            note: "",
+        ),
+        (
+            id: "earth.nutrients.n_fixed", loop_id: Nutrients, quantity: "Nitrogen fixed industrially as ammonia", value: 160e6, low: None, high: None,
+            unit: "t N/yr", display: "160 million t (176 million short tons) of nitrogen", basis: World, data_year: Some(2025), source: ["usgs-mcs-2026-nitrogen"],
+            quote: "World total (rounded) 156,000 160,000  [thousand metric tons, nitrogen content, 2024 and 2025]; The availability of nitrogen from the atmosphere for fixed nitrogen production is unlimited.",
+            check: (status: Uncertain, against: [], note: "Single source. Not all ammonia becomes fertilizer."),
+            note: "Nitrogen is not a stock problem (the air is 78% nitrogen); it is an energy problem, because making ammonia needs hydrogen, today mostly from natural gas.",
+        ),
+        (
+            id: "earth.nutrients.k_mined", loop_id: Nutrients, quantity: "Potash mined (K2O equivalent); reserves more than 5.9 billion t", value: 49e6, low: None, high: None,
+            unit: "t K2O/yr", display: "49 million t (54 million short tons) a year; more than 120 years of reserves", basis: World, data_year: Some(2025), source: ["usgs-mcs-2026-potash"],
+            quote: "World total (rounded) 46,700 49,000 >10,000,000 >5,900,000  [mine production 2024, 2025; reserves as recoverable ore and as K2O equivalent]; Estimated world resources total about 250 billion tons.",
+            check: (status: Derived, against: [], note: "5.9 billion / 49 million = 120 years, a lower bound because reserves are stated as more than."),
+            note: "",
+        ),
+        (
+            id: "earth.nutrients.excreta_p_share", loop_id: Nutrients, quantity: "Phosphorus in all human excreta as a share of fertilizer phosphorus", value: 0.29, low: Some(0.15), high: Some(0.30),
+            unit: "fraction", display: "about 30%: 6.2 million t of P in excreta against 20.9 million t in fertilizer", basis: World, data_year: Some(2025), source: ["person.excreta.p", "earth.nutrients.p_fertilizer", "wpp-2024", "cordell-2009-secondary"],
+            quote: "0.75 kg P/person/yr x 8.2e9 = 6.15 million t; 6.15 / 20.9 = 0.29",
+            check: (status: Uncertain, against: ["cordell-2009-secondary"], note: "CORRECTED in this pass: the first computation divided kilograms by tonnes and printed 294; the ratio is 0.29. The Finnish 0.75 kg is high for the world diet; Cordell et al. (2009) put human excreta at about 3 million t of P a year (secondary account), which gives 0.15. Range 0.15 to 0.30. NITROGEN the same way: 5.02 kg x 8.2e9 = 41 million t against 160 million t fixed, about a quarter."),
+            note: "The size of the prize: closing the human-excreta loop could cut mined phosphorus by a sixth to a third.",
+        ),
+        (
+            id: "earth.nutrients.excreta_p_returned", loop_id: Nutrients, quantity: "Share of human excreta phosphorus returned to farmland or aquaculture today", value: 0.10, low: None, high: None,
+            unit: "fraction", display: "about 10% (unverified)", basis: World, data_year: Some(2009), source: ["cordell-2009-secondary"],
+            quote: "humans consume around 3 million tonnes of phosphorus each year and excrete almost all of this in urine and faeces, but only around 10% of this valuable resource is recirculated back to agricultural soils and aquaculture ponds  [a symposium paper citing Cordell et al. 2009, seen in a search result]",
+            check: (status: Uncertain, against: [], note: "Not read in the primary source. Phase 2 must read Cordell et al. 2009 or a newer global phosphorus flow study before any test asserts it."),
+            note: "",
+        ),
+
+        // ---- MATERIALS --------------------------------------------------------------------------
+        (
+            id: "earth.materials.extraction", loop_id: Materials, quantity: "Materials used (biomass, fossil fuels, metals, non-metallic minerals)", value: 106e9, low: None, high: None,
+            unit: "t/yr", display: "106 billion t (117 billion short tons) a year: 39 kg (86 lb) per person per day", basis: World, data_year: Some(2020), source: ["gro-2024"],
+            quote: "The report finds that growth in resource use since 1970 from 30 to 106 billion tonnes – or from 23 to 39 kilogrammes of materials used on average per person per day – has dramatic environmental impacts.",
+            check: (status: Survived, against: ["cgr-site"], note: "Circularity Gap Report 2025 coverage gives 'about 106 billion tonnes' too (seen in search results); not fully independent (both draw on the IRP's material flow database). 106e9 / 7.8e9 people in 2020 / 365 = 37 kg a day, near the stated 39."),
+            note: "Includes the food, fuel and building material the other loops count, so it is not added to them.",
+        ),
+        (
+            id: "earth.materials.circularity", loop_id: Materials, quantity: "Share of materials entering the economy that are secondary (recycled)", value: 0.069, low: None, high: None,
+            unit: "fraction", display: "6.9%", basis: World, data_year: Some(2021), source: ["cgr-site"],
+            quote: "we aim to boost global circularity to 17% by 2032 ... up from 6.9% today.",
+            check: (status: Uncertain, against: [], note: "The report itself was not read. Coverage disagrees on the trend it shows (from 9.1% in 2018, or a 0.3 point fall since 2018, or 7.2% the year before); the 6.9% level is consistent across all of them. The data year is 2021 on the EU platform's description (seen in a search result)."),
+            note: "Earth's materials loop is about 93% open: nearly everything used is newly extracted.",
+        ),
+        (
+            id: "earth.materials.ewaste", loop_id: Materials, quantity: "E-waste generated, and the share documented as formally collected and recycled", value: 62e6, low: None, high: None,
+            unit: "t/yr", display: "62 million t (68 million short tons): 7.8 kg (17 lb) per person, 22.3% formally recycled", basis: World, data_year: Some(2022), source: ["ewaste-2024"],
+            quote: "In 2022, a record 62 billion kg of e-waste was generated globally (equivalent to an average of 7.8 kg per capita per year); 22.3 per cent of this e-waste mass was documented as formally collected and recycled in an environmentally sound manner.",
+            check: (status: Survived, against: [], note: "Press coverage of the monitor gives the same 62 and 22.3 (search results). 'Documented' matters: informal recycling is not counted."),
+            note: "The electronics loop, the first of the five that a home cannot close, is about four-fifths open even for the whole planet.",
+        ),
+        (
+            id: "earth.materials.metal_recycling", loop_id: Materials, quantity: "Metals (of sixty studied) with an end-of-life recycling rate above 50%", value: 18.0, low: Some(12.0), high: Some(18.0),
+            unit: "metals of 60", display: "18 of 60", basis: World, data_year: Some(2005), source: ["unep-metals-2011"],
+            quote: "Many end-of-life recycling rates (EOL-RRs) are very low: for only eighteen of the sixty metals is the very important EOL-RR above 50 % at present.",
+            check: (status: Uncertain, against: ["unep-metals-2011"], note: "The same report's summary also says 'for only twelve of the sixty metals the experts estimate the end-of-life recycling rate to be above 50%' in one passage: the report disagrees with itself. Its data mostly describe 2000 to 2005. Range 12 to 18; the full report's 18 is the point."),
+            note: "",
+        ),
+        (
+            id: "earth.materials.chip_chokepoints", loop_id: Materials, quantity: "Points in the semiconductor supply chain where one region holds more than 65% of world market share", value: 50.0, low: Some(50.0), high: None,
+            unit: "points", display: "more than 50; below 10 nm, Taiwan 92% and South Korea 8% of capacity", basis: World, data_year: Some(2020), source: ["bcg-sia-2021"],
+            quote: "There are more than 50 points across the supply chain where one region holds more than 65% of the global market share, although the level of risk associated with each of these varies. ... currently all the world's capacity below 10 nanometers is located in South Korea (8%) and Taiwan (92%).  [raw text order]",
+            check: (status: Uncertain, against: [], note: "An industry association's commissioned report (Company); no independent count was read. It also estimates that fully self-sufficient regional supply chains 'would have required at least $1 trillion in incremental upfront investment, resulting in a 35% to 65% overall increase in semiconductor prices'."),
+            note: "Why electronics closes only at the scale of all humanity, and even then not in one place.",
+        ),
+    ],
+
+    // ---- THE CLOSURE OF EACH LOOP, EARTH TODAY ------------------------------------------
+    // `metric` says what the fraction is a fraction OF. There is no single 'Earth is X%
+    // closed' number, and the test refuses to make one (person.trap.mass_closure_food_imported).
+    closure: [
+        (
+            loop_id: Air, metric: "Share of human CO2 emissions taken back up by land and ocean (decade average)",
+            value: Some(0.50), low: Some(0.46), high: Some(0.50), from: ["earth.air.sink_share", "earth.air.emissions_2024"], verdict: Partly,
+            meaning: "Oxygen is closed by the biosphere for breathing (breathed carbon is this year's food carbon). Carbon is half closed: of 11.6 GtC a year emitted, about half returns to land and ocean, the rest raises the air's CO2 (425.7 ppm in 2025).",
+            to_close: "Stop drawing fossil carbon: 86% of the energy supply is fossil (earth.energy.fossil_share). Every technology needed is operating today (wind, solar, hydro, nuclear, storage, electrified heat); what limits it is build-out, not invention.",
+        ),
+        (
+            loop_id: Water, metric: "Planet: withdrawal as a share of renewable freshwater. People: share of household wastewater safely treated",
+            value: Some(0.56), low: Some(0.56), high: Some(0.56), from: ["earth.water.withdrawal", "earth.water.renewable", "earth.water.wastewater_treated", "earth.water.stress"], verdict: Partly,
+            meaning: "The water cycle closes for the planet: people withdraw 4,022 of 43,000 km3 of renewable freshwater a year (9.4%). It does not close where people live: water stress averages 18% but passes 75% in Northern Africa and Western, Southern and Central Asia, and 44% of household wastewater goes back untreated.",
+            to_close: "Treat all wastewater and reuse it (operating technology); keep withdrawals under each basin's renewable flow. A closed water loop is local, so it has to be built basin by basin.",
+        ),
+        (
+            loop_id: Food, metric: "Share of food grown that is not lost or wasted (approximate)",
+            value: Some(0.70), low: Some(0.65), high: Some(0.75), from: ["earth.food.supply", "earth.food.loss", "earth.food.waste", "earth.food.reaches_people"], verdict: Partly,
+            meaning: "Food is regrown every season, so it is renewable; what is open is what feeds it (mined phosphorus, fossil-made nitrogen, eroding soil) and what is thrown away (13.3% lost before retail, about 19% of what reaches consumers wasted). The world supplies 3,016 kcal a day per person against a 2,100 kcal population need.",
+            to_close: "Halve loss and waste (SDG 12.3's target), return food waste and excreta to farmland, protect soil. With today's yields the world's cropland (0.19 ha a person) already matches what a well-run homestead needs (0.17 to 0.21 ha, data/home_outline.json).",
+        ),
+        (
+            loop_id: Nutrients, metric: "Phosphorus: share of fertilizer phosphorus that comes back from what people excrete",
+            value: Some(0.03), low: Some(0.015), high: Some(0.03), from: ["earth.nutrients.excreta_p_share", "earth.nutrients.excreta_p_returned", "earth.nutrients.p_reserve_life"], verdict: Open,
+            meaning: "Roughly: excreta hold 15 to 30% of fertilizer phosphorus and about 10% of it is returned, so about 1.5 to 3% of the phosphorus put on fields comes back from people (manure and crop residue are larger flows this figure does not count). The rest is mined: 250 million t of rock a year, about 290 years of reserves. Nitrogen is open the other way: unlimited in the air, but fixed with fossil energy.",
+            to_close: "Recover phosphorus from wastewater, sludge ash and urine (struvite precipitation and ash recovery operate today; not sourced in this pass), stop soil erosion, and make ammonia from hydrogen made with clean electricity. Phosphorus never fully closes on a planet with rivers: some always reaches the sea.",
+        ),
+        (
+            loop_id: Energy, metric: "Share of total energy supply from sustained flows (hydroelectricity and renewables)",
+            value: Some(0.086), low: Some(0.086), high: None, from: ["earth.energy.flow_share", "earth.energy.fossil_share"], verdict: Open,
+            meaning: "86% of the energy humanity uses is drawn from fossil stocks and 5% from uranium; 8.6% comes from flows that refill (on the review's accounting, which counts wind and solar at the electricity they make; on an accounting that counts the fuel they replace the share is larger).",
+            to_close: "Replace fossil supply with flows and long-lived nuclear, and electrify, which also cuts the energy needed (an electric motor or heat pump wastes far less than a fuel engine or furnace).",
+        ),
+        (
+            loop_id: Materials, metric: "Share of materials entering the economy that are recycled",
+            value: Some(0.069), low: None, high: None, from: ["earth.materials.circularity", "earth.materials.ewaste", "earth.materials.metal_recycling", "earth.materials.chip_chokepoints"], verdict: Open,
+            meaning: "6.9% of 106 billion t a year comes back; 22.3% of e-waste is formally recycled; 18 of 60 metals are recycled above half at end of life. Electronics depend on more than 50 single-region chokepoints, so even the whole planet makes chips as one interlocked supply chain, not anywhere on its own.",
+            to_close: "Design for repair and recovery, collect e-waste, recycle the metals that are not; the Circularity Gap Report's aim is 17% by 2032. Most of the gap is material locked into buildings and roads (stock growth), which recycling cannot touch until they are demolished.",
+        ),
+        (
+            loop_id: Habitat, metric: "Not a single fraction: land, soil and the shelter people live in",
+            value: None, low: None, high: None, from: ["earth.habitat.agricultural_land", "earth.habitat.cropland_per_person", "earth.habitat.soil_formation"], verdict: Partly,
+            meaning: "Agriculture uses 4,800 million ha, more than a third of all land; cropland is 0.19 ha a person and falling. Soil forms at up to 1,000 years per cm, so soil lost to erosion is lost on any human timescale.",
+            to_close: "Keep cropland's soil in place and building (cover crops, compost, no bare fallow). The homestead model sets the bound: everyone on a self-sufficient homestead at the bare tier needs 2,300 to 2,800 million ha (about cropland plus half again); at the comfort tier 6,800 to 12,000 million ha, more than all agricultural land and approaching all land (population_steps.ron).",
+        ),
+    ],
+)
