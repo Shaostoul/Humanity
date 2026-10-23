@@ -609,6 +609,8 @@ build, `verify-runtime` and the rigs, tag, `archive-build`) once or twice a day 
 per feature: each release costs 30 to 45 minutes of the one machine, which ten releases in a day
 took from the agents' builds. The steps below are the release, not every push.
 
+**Keep components current, deliberately (operator, 2026-10-23).** `rust-toolchain.toml` pins one Rust for the PC, GitHub and both servers; `just brief`'s UPDATES row says when Rust, rustup or crates have updates and never applies them. Judge the release notes, update in a quiet window, servers first: docs/SOP.md "Keeping components up to date".
+
 **Before tagging a release, ALWAYS:**
 1. Bump version: `node scripts/bump-version.js [patch|minor]`
    - This updates all 8 locations: `Cargo.toml`, `Cargo.lock` (its own `humanity-engine` entry, since 2026-10-12: it had lagged a version behind), `web/shared/sw.js`, `web/pages/settings-app.js`, `web/pages/ops.html`, `web/shared/shell.js`, `web/pages/download.html`, `web/pages/index.html` (the proof tile). Stage all eight BY NAME in the release commit; the v0.1316.0 commit missed index.html because the list here said six (fixed in the next commit, no re-tag).

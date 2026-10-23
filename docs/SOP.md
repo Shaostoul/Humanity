@@ -70,6 +70,39 @@ This updates all 7 locations automatically:
 > the v0.1316.0 release commit missed `index.html` because of it. The list that
 > cannot be wrong is `scripts/bump-version.js` itself; stage all seven BY NAME.
 
+## Keeping components up to date (operator, 2026-10-23)
+
+The operator, verbatim: "I want you to keep all components up to date in a reasonable not
+excessively zealous fashion." And: "What if we have a way of you getting automatically notified
+when an update lands so that you can evaluate the update's worth. If it's worth it at that point
+in development then we should update/sync all ... updates could break things we're working on."
+
+**How you are notified:** `just brief`'s UPDATES row (`scripts/check-updates.js`) compares the
+Rust version `rust-toolchain.toml` pins with the newest stable, says when rustup has an update,
+and counts crate updates (`cargo update --dry-run`, at most once a day, cached). It never
+updates anything by itself.
+
+**Deciding:** read the release notes (https://blog.rust-lang.org for Rust). Update when the
+release brings something we want (a fix, a speed-up, a feature a dependency now needs) and the
+moment suits: not in the middle of a batch of agents' work, because a new Rust version makes every
+target folder rebuild from scratch. With nothing pressing, take a new stable within a release or
+two; never let it fall far behind (it was 11 versions behind on 2026-10-23).
+
+**Updating Rust, everywhere at once:**
+1. `rustup toolchain install <version>` on the PC (keep the old one until the agents in flight
+   have merged), and on both servers:
+   `ssh humanity-vps "rustup toolchain install <version> --profile minimal"` and the same for
+   `humanity-vps2`. Do the servers first so the next deploy never stalls on a download.
+2. Change `channel` in `rust-toolchain.toml`. The GitHub workflows install whatever it names.
+3. `cargo check --features native` and `cargo check --features relay --no-default-features`,
+   `just lints`, the lib tests, then the next release's runtime checks; fix what the new version
+   flags.
+4. Agents' worktrees pick the pin up when they merge main (one cold build each, expected).
+
+**Crates:** apply compatible updates (`cargo update`) in the same quiet window, with the same
+checks; a major-version bump of a dependency is its own piece of work, planned like a feature.
+sccache, `just`, node and the other tools follow the same rule: current, deliberately.
+
 ## After Every Push
 
 CI automatically deploys to VPS. If CI fails:

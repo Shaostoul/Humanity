@@ -1361,7 +1361,7 @@ release kind title notes:
     # Refresh Cargo.lock's own version stamp so it never ships stale.
     cargo check --features relay --no-default-features -q 2>/dev/null || cargo check --features relay --no-default-features
     MSG=$(mktemp)
-    { echo "v${VER} - {{title}}"; echo; cat "{{notes}}"; echo; echo "Co-Authored-By: Claude <noreply@anthropic.com>"; } > "$MSG"
+    { echo "v${VER} - {{title}}"; echo; cat "{{notes}}"; echo; echo "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; } > "$MSG"
     # Stage ONLY the version stamps; stage your own files by name BEFORE calling this
     # (just mine). It used `git add -u`, which in a shared checkout swept every other
     # session's tracked edits into the release commit (flagged 2026-10-19).
