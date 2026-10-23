@@ -1740,7 +1740,7 @@ agreement), so ad-blocking defaults do not apply there.
    2 done; NEXT is step 3 (message rows, timestamp pill, inline reactions), then
    header and composer, top-nav alignment, and a spacing sweep with dead-CSS
    removal.
-2. **Studio and streaming (Track S).** `docs/design/studio-streaming.md`. Native
+2. **PARKED (operator, 2026-10-22: "Let's avoid working on this for now."). Studio and streaming (Track S).** `docs/design/studio-streaming.md`. Native
    capture, encode and stream shipped (v0.853 to v0.854), so build the widget on
    web first and mirror once native transport exists. Order: S0 persistent
    session, S1 web studio widget and modal, S2 viewer widgets and modal, S3
@@ -1788,12 +1788,18 @@ agreement), so ad-blocking defaults do not apply there.
     confusing). Multiple saves, each house or character flagged real or fake.
 12. **Litestream or equivalent continuous backup.** Documented-optional today
     and verified NOT deployed. SQLite WAL to blob storage, RPO about a minute.
-13. **Mobile clients.** Android needs a JNI bridge for the keyring plus an
+13. **PARKED (operator, 2026-10-22, with streaming). Mobile clients.** Android needs a JNI bridge for the keyring plus an
     AndroidKeyStore backend; iOS mostly needs a build target.
 
 ---
 
 ## TIER 3: UX accessibility (the ELI5 mandate)
+
+**Operator, 2026-10-22:** "I like the idea of everything here but, let's only focus on English for
+now but, make sure we prep for all the other languages." So: tooltips, the first five minutes,
+the WCAG 2.1 AA audit and the glossary on every page, in English, with every new or touched
+string going through  so a translation is data, not code. Queued after the website
+chat work (Track W step 3) merges, because both touch the same pages.
 
 The mission requires this layer. Not optional, just sequenced after the
 load-bearing work.
