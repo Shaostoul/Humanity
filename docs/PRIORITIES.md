@@ -1684,7 +1684,9 @@ blocker:
    `src/relay/storage/members.rs` honours `directory: "unlisted"` in
    `profiles.privacy`, and both clients have the switch (web chat-privacy.js,
    native src/gui).
-4. **Voice tells Google the player's IP address (found 2026-10-05).** WebRTC asks a STUN server
+4. **DONE v0.1470.0 (checked 2026-10-22: no Google STUN anywhere in src/ or web/; calls and
+   voice rooms go through the server's own forwarder): Voice told Google the player's IP address
+   (found 2026-10-05).** The original finding, for the record: WebRTC asks a STUN server
    for the public address, and every client lists Google's first: native
    src/net/webrtc.rs (~175), web web/chat/chat-voice-rooms.js (~25), and the relay's own
    ICE list in src/relay/turn.rs (~65), which also advertises a STUN at the server's
@@ -1693,7 +1695,8 @@ blocker:
    stun module already builds and parses the messages), the clients told to use only
    their own server's, and Google dropped. Needs UDP 3478 opened on the VPS firewall:
    the operator's call (asked 2026-10-05). Until then the privacy page should say so.
-3. **Blocking a sender (found again 2026-10-04 by the conflict guide's fact
+3. **DONE (checked 2026-10-22): Block shipped in v0.1468.0, withdrawable friendship passes in
+   v0.1466.0, "who can reach me" in v0.1467.0. The original finding: Blocking a sender (found again 2026-10-04 by the conflict guide's fact
    check; recorded in `docs/accord/conformance_gaps.md`).** Nobody can stop
    another person messaging them: a friendship certificate cannot be withdrawn
    (`verify_friend_cert` is stateless, no revocation), unfollowing does not
