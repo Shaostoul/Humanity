@@ -48,6 +48,15 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### NEXT: a headless, GPU-free, faster-than-real-time sim runner (designed 2026-10-22)
+
+`docs/design/headless-sim-runner.md` (the operator: "Could you do 1-billion-x?"): movement 20x
+to 800x real time headless, slow processes 10^4x to 10^6x by coarse steps with a measured error,
+~10^9x only by the time-away jump; the storeys and falls rigs from minutes with the GPU to seconds
+without it. Ten increments (~27-35 agent-days); 1 to 5 move code out of lib.rs and need quiet
+windows. Started 2026-10-22: increment 0 (stage timers; 18.7 ms of a 34.6 ms frame is timed by
+nothing) and FarmingSystem's cost (3.51 ms of the 3.80 ms systems tick, a windowed-game win too).
+
 ### DONE 2026-10-21/22: the five pieces paused at the usage cap all shipped
 
 Maps increment 2 (v0.1539.0), the sky bodies list (v0.1540.0), recovery through trusted people
