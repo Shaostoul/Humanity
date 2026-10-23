@@ -86,7 +86,11 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.ctx-item:hover { background: var(--bg-hover); color: var(--accent); }
+.ctx-item:hover,
+.ctx-item:focus { background: var(--bg-hover); color: var(--accent); outline: none; }
+/* A message's menu (view/messageMenu.js): Delete and Report in the danger ink,
+   as the member menu marks its own (chat-ui.js, its 'danger' entries). */
+.ctx-item.ctx-item-danger { color: var(--danger); }
 .ctx-sep {
   height: 1px;
   background: var(--border);

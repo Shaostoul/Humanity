@@ -75,11 +75,15 @@ header h1 {
 }
 
 /* ── Chat ── */
+/* A solid ground, as native's centre panel (bg_primary): the site's faint galaxy
+   (shell.js) shows around the page, never behind the words, and the sender
+   groups' alternate ground (messages.css) reads against it. */
 #chat-area {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: var(--bg);
 }
 
 #messages {

@@ -117,6 +117,9 @@ function buildCss(tokens) {
   lines.push(`  --bg-panel: ${c('bg_panel')};`);
   lines.push(`  --bg-sidebar: ${c('bg_sidebar')};`);
   lines.push(`  --bg-sidebar-dark: ${c('bg_sidebar_dark')};`);
+  // The chat's alternate sender groups (native: bg_primary, then row_stripe, toggled on each
+  // new sender; src/gui/pages/chat.rs), so the web message list stripes the same way.
+  lines.push(`  --row-stripe: ${c('row_stripe')};`);
   lines.push('');
   lines.push('  /* Text */');
   lines.push(`  --text: ${c('text_primary')};`);
@@ -290,6 +293,9 @@ const LIGHT = {
   '--bg-panel': '#ffffff',
   '--bg-sidebar': '#ebebeb',
   '--bg-sidebar-dark': '#e2e2e2',
+  // The chat's alternate sender groups: a step darker than the page (#f4f4f4), as the dark
+  // theme's stripe is a step lighter than its black. Muted text on it is 6.4:1.
+  '--row-stripe': '#ebebeb',
   // Text
   '--text': '#1a1a1a',
   '--text-secondary': '#3d3d45',

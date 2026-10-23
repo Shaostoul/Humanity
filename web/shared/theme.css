@@ -106,6 +106,7 @@
   --bg-panel: #000000;
   --bg-sidebar: #000000;
   --bg-sidebar-dark: #020202;
+  --row-stripe: #040404;
 
   /* Text */
   --text: #e8e8ea;
@@ -246,6 +247,7 @@
   --bg-panel: #ffffff;
   --bg-sidebar: #ebebeb;
   --bg-sidebar-dark: #e2e2e2;
+  --row-stripe: #ebebeb;
   --text: #1a1a1a;
   --text-secondary: #3d3d45;
   --text-muted: #55555e;

@@ -24,11 +24,11 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/shared/theme.css?v=3">
+  <link rel="stylesheet" href="/shared/theme.css?v=4">
   <link rel="stylesheet" href="/chat/base.css?v=3">
-  <link rel="stylesheet" href="/chat/layout.css?v=7">
+  <link rel="stylesheet" href="/chat/layout.css?v=8">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
-  <link rel="stylesheet" href="/chat/messages.css?v=9">
+  <link rel="stylesheet" href="/chat/messages.css?v=10">
   <!-- A file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
   <!-- The attach step's parts in the chat sidebar's colours, darker (2026-10-17). -->
@@ -38,7 +38,7 @@
   <!-- The upload window: the Media page's Add to Media in a window over the chat, opened by files
        dropped on a channel (2026-10-17, /shared/upload-window.js). -->
   <link rel="stylesheet" href="/shared/upload-window.css?v=1">
-  <link rel="stylesheet" href="/chat/modals.css?v=4">
+  <link rel="stylesheet" href="/chat/modals.css?v=5">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=5">
   <!-- Vendored same-origin (twemoji 17.0.3, MIT). Was cdn.jsdelivr.net/@latest
@@ -96,7 +96,7 @@
   <script src="/shared/icons.js?v=1"></script>
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/hold-confirm.js?v=1"></script>
-  <script src="/shared/shell.js?v=4" data-active="chat"></script>
+  <script src="/shared/shell.js?v=5" data-active="chat"></script>
   <!-- Which server this page is on, held under the nav (media-round-5-plan.md 3.11). Needs nothing
        from the chat scripts; asks Chat's protectedHidesRooms only when Switch opens, long after load. -->
   <script src="/shared/server-strip.js?v=1"></script>
@@ -771,18 +771,22 @@
   <script src="/chat/chat-dm-store.js?v=13"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
-  <script src="/chat/view/timestampPill.js?v=1"></script>
-  <script src="/chat/view/messageRow.js?v=1"></script>
+  <script src="/chat/view/timestampPill.js?v=2"></script>
+  <script src="/chat/view/messageRow.js?v=2"></script>
+  <!-- The expanded timestamp pill (native pill_expand) and a message's right-click menu (native's
+       row context menu), Track W step 3, 2026-10-22. Hooked by app.js addChatMessage. -->
+  <script src="/chat/view/pillPopup.js?v=1"></script>
+  <script src="/chat/view/messageMenu.js?v=1"></script>
   <!-- chat-files-card.js: a Media item posted in chat as a card under the words (2026-10-17), its
        Open bringing up the item's own page in the upload window's frame. Before app.js and
        chat-dms.js, which ask it while they draw a message. -->
   <script src="/chat/chat-files-card.js?v=3"></script>
-  <script src="/chat/app.js?v=32"></script>
-  <script src="/chat/chat-messages.js?v=23"></script>
+  <script src="/chat/app.js?v=33"></script>
+  <script src="/chat/chat-messages.js?v=24"></script>
   <script src="/chat/chat-dms.js?v=20"></script>
   <script src="/chat/chat-social.js?v=20"></script>
   <script src="/chat/chat-groups-p2p.js?v=17"></script>
-  <script src="/chat/chat-ui.js?v=18"></script>
+  <script src="/chat/chat-ui.js?v=19"></script>
   <script src="/chat/chat-voice-rooms.js?v=8"></script>
   <script src="/chat/chat-voice-calls.js?v=8"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>

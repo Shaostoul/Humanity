@@ -1354,10 +1354,14 @@
     obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
 
     var SELECTOR = '[data-native-title],[data-tip-title],[data-tip],[aria-label],button,a,[role="button"]';
+    // A control marked data-no-tip (or inside one) explains itself and shows no hint: the chat's
+    // Þ, whose hover opens the expanded pill at once, and the reactions (2026-10-22, native shows
+    // none on either), where a hint would only cover what just opened.
     document.addEventListener('mouseover', function(e) {
       var el = e.target.closest(SELECTOR);
       if (!el) return;
       if (el.closest('.hub-nav')) return; // nav tabs use CSS ::after tooltips
+      if (el.closest('[data-no-tip]')) { hideTip(); return; }
       showFor(el, e.clientX || 8, e.clientY || 8);
     });
     document.addEventListener('mousemove', function(e) {
@@ -1376,6 +1380,7 @@
     document.addEventListener('focusin', function(e) {
       var el = e.target.closest(SELECTOR);
       if (!el) return;
+      if (el.closest('[data-no-tip]')) { hideTip(); return; }
       var r = el.getBoundingClientRect();
       showFor(el, r.left + 8, r.bottom + 8);
     });

@@ -2377,6 +2377,9 @@ if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
     if (!msgEl) return;
     // Don't interfere with button clicks, links, quotes, images.
     if (e.target.closest('button, a, .quote-block, .img-placeholder, .img-loaded, .reaction-badge')) return;
+    // A mouse on a touch-screen laptop has the Þ and the right-click menu; only a finger or a
+    // pen brings up the touch bar (a click event says which made it where the browser knows).
+    if (e.pointerType === 'mouse') return;
 
     // Toggle mobile-selected on this message, deselect others.
     const wasSelected = msgEl.classList.contains('mobile-selected');
@@ -2415,56 +2418,9 @@ formatTime = function(ts) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + time;
 };
 
-// ── Reaction picker: better mobile positioning ──
-const _origShowReactionPicker = showReactionPicker;
-showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
-  // Close any existing picker.
-  document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
-
-  const picker = document.createElement('div');
-  picker.className = 'reaction-picker';
-  // Base styles.
-  picker.style.cssText = 'position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-sm);display:flex;flex-wrap:wrap;gap:var(--space-xs);z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
-
-  if (isMobile()) {
-    // On mobile: position below the message, centered, larger buttons.
-    picker.style.position = 'relative';
-    picker.style.marginTop = 'var(--space-sm)';
-    picker.style.justifyContent = 'center';
-  } else {
-    picker.style.top = '-2rem';
-    picker.style.right = '0';
-  }
-
-  REACTION_EMOJIS.forEach(emoji => {
-    const emojiBtn = document.createElement('span');
-    emojiBtn.textContent = emoji;
-    const size = isMobile() ? 'padding:var(--space-sm) var(--space-md);font-size:1.2rem;min-width:36px;text-align:center;' : 'padding:var(--space-xs) var(--space-sm);font-size:0.9rem;';
-    emojiBtn.style.cssText = 'cursor:pointer;border-radius:var(--radius-sm);' + size;
-    emojiBtn.onmouseover = () => emojiBtn.style.background = 'var(--bg-hover)';
-    emojiBtn.onmouseout = () => emojiBtn.style.background = '';
-    emojiBtn.onclick = (e) => {
-      e.stopPropagation();
-      sendReaction(targetFrom, targetTs, emoji);
-      picker.remove();
-    };
-    picker.appendChild(emojiBtn);
-  });
-  if (window.twemoji) twemoji.parse(picker);
-
-  msgEl.style.position = 'relative';
-  msgEl.appendChild(picker);
-
-  // Close picker on click elsewhere.
-  setTimeout(() => {
-    document.addEventListener('click', function closePicker(e) {
-      if (!picker.contains(e.target)) {
-        picker.remove();
-        document.removeEventListener('click', closePicker);
-      }
-    });
-  }, 0);
-};
+// (The emoji strip that opened above a message's right edge, and its phone
+// version here, were replaced on 2026-10-22 by the expanded timestamp pill,
+// view/pillPopup.js, native's pill_expand. It opens under the pill on a phone.)
 
 /* ── Command Palette ──
  *
