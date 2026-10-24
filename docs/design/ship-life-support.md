@@ -532,11 +532,13 @@ years."
 class is a game choice: the only ship-mounted reactor plant that supplies a
 town's grid today, the floating plant Akademik Lomonosov at Pevek. The figure
 is TRADE PRESS, not a primary source: World Nuclear News, 16 January 2025,
-"two KLT-40S reactors generating 35 MWe each" (read 2026-09-27). The IAEA's
-PRIS and ARIS entries could not be read that day; replace it with their net
-figure when one is. At the family home's 61.8 kWh a day (2.6 kW) one reactor
-carries about 13,000 such homes, which is what "effectively unlimited" means:
-no home comes near it.
+"two KLT-40S reactors generating 35 MWe each" (read 2026-09-27). That is the
+gross output: the IAEA/OKBM status report for the KLT-40S (read 2026-10-23
+through a mirror, during the closed-loop review) gives "Power plant output, net
+2x30 MW(e)", and a home draws what the plant delivers, so `data/ship_power.ron`
+carries the net 30 MWe since 2026-10-23. At the family home's 61.8 kWh a day
+(2.6 kW) one reactor carries about 11,500 such homes, which is what
+"effectively unlimited" means: no home comes near it.
 
 **How the modes behave now.**
 

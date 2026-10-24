@@ -3427,7 +3427,7 @@ weather.
 ### The ship's reactor, metered per home (2026-09-27)
 The operator's energy decision (PRIORITIES Blocked #3b): in the default Ship life support mode
 (Station-supplied) every home power island carries a feed tap to the ship's bus; after the island's own
-generation and batteries the reactor (one KLT-40S-class plant, 35 MWe, a trade-press figure) supplies the
+generation and batteries the reactor (one KLT-40S-class plant, 30 MWe net per the IAEA/OKBM status report; 35 MWe gross) supplies the
 rest, so a home never sheds, and every watt-hour drawn and returned is metered per home and utility in
 f64, saved with the home, and shown on the Home card's Live power, the HUD power line and the Usage
 meter. Realistic mode runs on the home's own generation and batteries. A buildable Solar Panel

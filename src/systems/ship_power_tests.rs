@@ -28,7 +28,7 @@ fn status(data: &DataStore) -> PowerStatus {
 #[test]
 fn the_shipped_reactor_is_one_klt_40s() {
     let d = ShipPowerData::parse(SHIP_POWER_RON).expect("parses");
-    assert_eq!(d.electric_watts, 35_000_000.0);
+    assert_eq!(d.electric_watts, 30_000_000.0); // net, per the IAEA/OKBM status report (data file)
     assert!(d.reactor.contains("KLT-40S"));
 }
 

@@ -1215,7 +1215,7 @@ them up.
      solar and other generation; fleet-wide supply tracking comes later with
      the MMORPG storyline. BUILT 2026-09-27 (docs/design/ship-life-support.md
      section 8): in the default Station-supplied mode every home power island
-     is tied to one KLT-40S-class reactor (35 MWe, trade-press figure), used
+     is tied to one KLT-40S-class reactor (30 MWe net since 2026-10-23), used
      after the home's own generation and batteries, so nothing sheds; every
      watt-hour drawn and returned is metered per home in f64 and saved
      (`systems::ship_power`, WorldSave `ship_supply`), shown on the Home card,

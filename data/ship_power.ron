@@ -23,17 +23,24 @@
 // 2026-09-27, https://www.world-nuclear-news.org/articles/russias-floating-nuclear-power-plant-passes-one-billion-kwh):
 // "two KLT-40S reactors generating 35 MWe each"; "It began commercial operation
 // in May 2020". The IAEA's reactor database (PRIS) and its SMR booklet (ARIS)
-// carry the plant's official figures; neither could be read on 2026-09-27, so
-// replace this with their net figure when one is. The ship carries one such
-// reactor.
+// carry the plant's official figures; neither could be read on 2026-09-27.
+//
+// NET, 2026-10-23: the IAEA/OKBM status report for the KLT-40S (aris.iaea.org
+// returned an empty file; read through the mirror
+// https://clara.nz/docs/hardware-unsorted/iaea/KLT-40S.pdf on 2026-10-23, during
+// the closed-loop review, docs/design/closed-loop-test.md) gives "Power plant
+// output, net 2x30 MW(e)" from two 150 MW(th) reactors. The 35 MWe above is the
+// gross output (the table's 23.3% is footnoted "in the mode of maximum electric
+// output"). A home draws what the plant delivers, so this file carries the net
+// 30 MWe. The ship carries one such reactor.
 //
 // For scale: the family home uses about 62 kWh a day with its life support, a
-// 2.6 kW average, so one 35 MWe reactor would carry about 13,000 such homes.
+// 2.6 kW average, so one 30 MWe (net) reactor would carry about 11,500 such homes.
 // That ceiling is what "effectively unlimited" means here: no single home comes
 // near it, so a home on the ship's bus never sheds a load. Sharing it among the
 // homes of a fleet is the fleet ledger's job, not built yet
 // (docs/design/ship-life-support.md, section 8).
 (
     reactor: "KLT-40S (Akademik Lomonosov class)",
-    electric_watts: 35000000.0,
+    electric_watts: 30000000.0,
 )
