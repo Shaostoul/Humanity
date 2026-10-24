@@ -667,6 +667,10 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             let conn = &mut state.gui_state.connections[ci];
             // Our own echo from a session on this server before it was
             // parked: the sent-timestamps list rode along into the park.
+            // A Commons line sent through this carrier is posted ("Sending..." goes, line_limit.rs).
+            if sender_key == state.gui_state.profile_public_key {
+                crate::gui::pages::chat::line_limit::confirm(&mut conn.messages, &sender_key, ts);
+            }
             if sender_key == state.gui_state.profile_public_key
                 && conn.sent_timestamps.contains(&ts)
             {
@@ -755,6 +759,16 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 store.set_reach_settings(settings);
                 store.save();
             }
+        }
+        // How long my lines may be there, and a Commons line of mine it refused (2026-10-24,
+        // gui/pages/chat/line_limit.rs), kept under that server's address.
+        Some("my_limits") => {
+            let url = state.gui_state.connections[ci].url.clone();
+            crate::gui::pages::chat::line_limit::on_my_limits(&mut state.gui_state, &url, &val);
+        }
+        Some("chat_refused") => {
+            let url = state.gui_state.connections[ci].url.clone();
+            crate::gui::pages::chat::line_limit::on_refused(&mut state.gui_state, &url, &val, Some(ci));
         }
         Some("name_taken") => {
             // Retrying with the same name would loop forever; stop redialing

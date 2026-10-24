@@ -130,13 +130,15 @@ In order:
      FIXED 2026-10-24 (c7b3edcbc): the relay names a refused line to its sender (chat_refused,
      every refusal path), and the website shows "Sending...", then posted or "Not sent" with the
      reason and Edit and send again. It reaches public.guide with the next release (its follower
-     updates on tags); the desktop app does not show the state yet (it waits for the server's copy
-     and shows the plain notice).
+     updates on tags). The desktop app shows the same state since the next commit
+     (gui/pages/chat/line_limit.rs).
    - **Over-limit characters shown plainly (operator, 2026-10-24, "a task for later"):** "highlight
      the character spots that go beyond the character limit have their background highlight dark
      red and the text change from white to red. We need to improve the visual ques for some
      errors." On both apps' message boxes (and other limited fields), theme tokens for the colours;
-     with the "not sent" state above, the refused-for-length case explains itself;
+     with the "not sent" state above, the refused-for-length case explains itself.
+     DONE 2026-10-24 for both message boxes (theme token danger_bg; the relay's my_limits, re-sent
+     when a role changes). Still open: other limited fields (a profile's bio and the like);
    - the app shows message times in UTC (19:48) and the website in local time (12:48): one rule
      for both. The app has no local-time source yet (no time crate, `chat.rs` `ts_parts` is
      UTC arithmetic): needs the local offset from the OS or a small dependency;

@@ -1021,6 +1021,10 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("general")
                                 .to_string();
+                            // My own line in the server's history: it was posted (chat/line_limit.rs).
+                            if !my_key.is_empty() && sender_key == my_key {
+                                crate::gui::pages::chat::line_limit::confirm(&mut state.gui_state.chat_messages, &sender_key, timestamp);
+                            }
                             // Dedup: if this is a message WE sent that we already
                             // local-echoed, skip the server's copy (BUG-035 part 2).
                             // Match logic mirrors the WS broadcast dedup in lib.rs.

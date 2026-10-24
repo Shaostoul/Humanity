@@ -434,4 +434,5 @@ async fn a_member_is_told_their_own_line_limit() {
     let f = frame_where(&mut sock, "my limits", |f| f["type"] == "my_limits").await;
     let want = r.state.db.role_def(&r.state.db.get_role(&key).unwrap_or_default()).max_chars as u64;
     assert_eq!(f["max_chars"].as_u64(), Some(want), "the limit is the role's own: {f}");
+    assert!(f.get("to").is_none(), "the addressee is never sent: {f}");
 }

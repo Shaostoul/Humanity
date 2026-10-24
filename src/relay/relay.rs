@@ -910,6 +910,17 @@ pub enum RelayMessage {
         limit: Option<usize>,
     },
 
+    /// How long one of this person's chat lines may be here now (2026-10-24): their role's own
+    /// limit, the first check a line meets. Sent on sign-in and again whenever their role or that
+    /// role's definition changes (handlers/broadcast.rs `send_line_limit`), so a page that counts
+    /// against it never holds a stale one. Delivered only to `to`, which is never sent.
+    #[serde(rename = "my_limits")]
+    MyLimits {
+        #[serde(skip_serializing, default)]
+        to: String,
+        max_chars: i64,
+    },
+
     /// A game message for some players only, by key (ship homes increment 4: delivery to the
     /// players who have a mover in view, handlers/game_interest.rs). Made by the relay, never read
     /// from a client or written as is: the send loop turns it into a system message.
@@ -3384,11 +3395,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // How long one of their chat lines may be (2026-10-24): their role's own limit, the
                 // first check a line meets (an unverified account's is 280). The website counted
                 // against a guessed 2,000 and showed nothing past the real limit before sending.
-                {
-                    let role = state.db.get_role(&public_key).unwrap_or_default();
-                    let max_chars = state.db.role_def(&role).max_chars;
-                    let _ = ws_tx.send(Message::Text(serde_json::json!({ "type": "my_limits", "max_chars": max_chars }).to_string().into())).await;
-                }
+                let _ = ws_tx.send(Message::Text(serde_json::to_string(&crate::relay::handlers::broadcast::line_limit_message(&state, &public_key)).unwrap().into())).await;
 
                 // Announce to everyone — unless this member hides their
                 // presence (privacy tiers, 2026-08-23). Their key card's
@@ -3698,8 +3705,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // A refused chat line: only its sender is told (`to` is never serialised).
-            if let RelayMessage::ChatRefused { ref to, .. } = msg {
+            // A refused chat line, and someone's own line limit: only that person is told (`to` is
+            // never serialised).
+            if let RelayMessage::ChatRefused { ref to, .. } | RelayMessage::MyLimits { ref to, .. } = msg {
                 if to != &my_key_for_broadcast {
                     continue;
                 }
@@ -3937,97 +3945,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 // A shared room refuses a key a linked server banned (handlers/federation_log.rs).
                                 if crate::relay::handlers::federation_log::refused_in_shared_room(&state_clone, &my_key_for_recv, &channel) { continue; }
 
-                                // v0.280.0 anti-spam: time-gate new identities
-                                // from posting in public channels for the
-                                // first NEW_IDENTITY_GRACE_SECS seconds after
-                                // their first name registration. DMs are not
-                                // gated (already 1-to-1 + E2EE; no broadcast
-                                // amplification). Bots (`bot_*`) bypass —
-                                // they auth via bot_secret and the operator
-                                // controls onboarding. The grace period is
-                                // long enough to deter scripted flooding but
-                                // short enough that a real user clicking
-                                // through onboarding rarely hits it (a few
-                                // seconds of "read the welcome message"
-                                // already exceeds it).
-                                const NEW_IDENTITY_GRACE_SECS: i64 = 60;
-                                let is_bot = my_key_for_recv.starts_with("bot_");
-                                if !is_bot {
-                                    if let Ok(Some(reg_at_ms)) = state_clone.db.first_registered_at_for_key(&my_key_for_recv) {
-                                        let now_ms = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis() as i64;
-                                        let age_secs = (now_ms - reg_at_ms) / 1000;
-                                        if age_secs >= 0 && age_secs < NEW_IDENTITY_GRACE_SECS {
-                                            let wait = (NEW_IDENTITY_GRACE_SECS - age_secs).max(1);
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: format!(
-                                                    "Welcome! New accounts wait {NEW_IDENTITY_GRACE_SECS}s before posting in public channels (anti-spam). Try again in {wait}s. DMs work right away."
-                                                ),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
-                                                to: my_key_for_recv.clone(), timestamp, reason: "new_account_wait".into(), limit: None,
-                                            });
-                                            continue;
-                                        }
-                                    }
-                                }
-
-                                // v0.200.0: enforce per-role message length limits
-                                // from server_settings. Reject (don't truncate) so
-                                // the user knows their message wasn't fully delivered.
-                                {
-                                    // v0.262 (R4): the limit is now OWNED by
-                                    // the role itself — no server_settings
-                                    // tier hop. role_def() falls back to the
-                                    // safe default-deny role for unknown ids.
-                                    let limit = state_clone.db.role_def(&user_role).max_chars as usize;
-                                    let len = content.chars().count();
-                                    if len > limit {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!(
-                                                "Message rejected: {} chars exceeds your role's limit of {}. \
-                                                 (Your role: {}; an admin can change it in Server Settings → Roles.)",
-                                                len, limit,
-                                                if user_role.is_empty() { "unverified" } else { &user_role },
-                                            ),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
-                                            to: my_key_for_recv.clone(), timestamp, reason: "too_long".into(), limit: Some(limit),
-                                        });
-                                        continue;
-                                    }
-                                }
-
-                                // Channel chat's send limiter (handlers/chat_rate.rs); bots and admins skip it.
-                                if !crate::relay::handlers::chat_rate::allow(&state_clone, &my_key_for_recv, &user_role).await {
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
-                                        to: my_key_for_recv.clone(), timestamp, reason: "too_fast".into(), limit: None,
-                                    });
-                                    continue;
-                                }
-
-                                // Enforce max message length (admins: 10000, others: 2000).
-                                // Quotes (lines starting with "> ") are exempt.
-                                let char_limit: usize = if user_role == "admin" { 10_000 } else { 2_000 };
-                                let user_text_len: usize = content.lines()
-                                    .filter(|l| !l.starts_with("> "))
-                                    .map(|l| l.len() + 1)
-                                    .sum();
-                                if user_text_len > char_limit + 1 {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: format!("Message too long ({} chars, max {}). Please shorten it.", user_text_len.saturating_sub(1), char_limit),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
-                                        to: my_key_for_recv.clone(), timestamp, reason: "too_long".into(), limit: Some(char_limit),
-                                    });
+                                // A new account's wait, the role's and the server's length limits, and the send
+                                // limiter; each refusal is told to the sender (handlers/chat_gate.rs).
+                                if crate::relay::handlers::chat_gate::refused(&state_clone, &my_key_for_recv, &user_role, &content, timestamp).await {
                                     continue;
                                 }
 
@@ -5625,6 +5545,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             if let Ok(roles) = state_clone.db.list_roles() {
                                                 let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles, target: None });
                                             }
+                                            // Its holders' line limit may have changed.
+                                            crate::relay::handlers::broadcast::send_line_limits_for_role(&state_clone, &role.id).await;
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::System {
                                                 message: format!("Role \"{}\" saved.", role.label),
                                             });
@@ -5652,6 +5574,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             if let Ok(roles) = state_clone.db.list_roles() {
                                                 let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles, target: None });
                                             }
+                                            // Its holders now have the default role's line limit.
+                                            crate::relay::handlers::broadcast::send_line_limits_for_role(&state_clone, &id).await;
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::System {
                                                 message: format!("Role \"{}\" deleted.", id),
                                             });

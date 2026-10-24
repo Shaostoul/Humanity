@@ -157,3 +157,25 @@ fn mute_preserves_role_through_handler() {
         "role still intact after unmute"
     );
 }
+
+/// A member verified mid-session is told their new line limit at once (2026-10-24), so the
+/// website stops refusing, and both apps stop flagging, lines the server now takes. Before this
+/// the limit was told only on sign-in, and a page held the old 280 until it was reloaded.
+#[test]
+fn a_member_verified_mid_session_is_told_their_new_line_limit() {
+    let st = fresh_state();
+    st.db.set_role("admin_key", "admin").unwrap();
+    st.db.register_name("Newcomer", "new_key").unwrap();
+    let before = st.db.role_def(&st.db.get_role("new_key").unwrap_or_default()).max_chars;
+    let mut rx = st.broadcast_tx.subscribe();
+    block(handle_mod_action(&st, "admin_key", "verify", "new_key", "Newcomer"));
+    let mut told = Vec::new();
+    while let Ok(msg) = rx.try_recv() {
+        if let RelayMessage::MyLimits { to, max_chars } = msg {
+            told.push((to, max_chars));
+        }
+    }
+    let verified = st.db.role_def("verified").max_chars;
+    assert!(verified > before, "the test needs a verified limit above a member's ({verified} vs {before})");
+    assert_eq!(told, vec![("new_key".to_string(), verified)], "only the verified member, with the verified limit");
+}

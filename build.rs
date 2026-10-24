@@ -86,6 +86,9 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     // The admin action registry (src/relay/admin/mod.rs): built in on purpose, so the actions a
     // relay runs, and the role each needs, are its build's and not a file edited on its disk.
     "data/admin/actions.json",
+    // The bug reporter's severities and categories (src/relay/bug_taxonomy.rs): built in for the
+    // same reason, so a relay accepts the list it was built with, never a disk edit.
+    "data/bugs/taxonomy.json",
 ];
 
 fn main() {

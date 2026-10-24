@@ -96,6 +96,11 @@ pub(crate) use attach_view::{cache_key as private_file_key, open as open_private
 /// Quote / reply: a reply stays in its own conversation and never carries private words or a
 /// file's key. See `chat/reply.rs`.
 mod reply;
+// A line's length against the server's limit, and whether my line was posted (2026-10-24).
+pub(crate) mod line_limit;
+// The timestamp formats and formatters (moved out 2026-10-24, file-size ratchet).
+mod timestamps;
+pub use timestamps::*;
 #[cfg(test)]
 mod composer_tests; // the composer grows upward and stays on screen (2026-10-10)
 
@@ -698,6 +703,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Report clicks (from the context menu), buffered: each opens the Report dialog (step D).
                 let mut pending_reports: Vec<ChatMessage> = Vec::new();
                 let mut pending_blocks: Vec<String> = Vec::new(); // Block beside Report (step C)
+                // "Edit and send again" under a line of mine the server refused: its words (line_limit.rs).
+                let mut pending_send_again: Option<String> = None;
                 // v0.281.0: Delete button clicks (from context menu) — buffered
                 // so the borrow on `state.chat_messages` ends before we mutate
                 // state to send WS. Pairs as (sender_key, timestamp_ms); the
@@ -1452,6 +1459,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if let Some(act) = warnings::draw_under_message(ui, theme, state, msg, &link_targets) {
                         warnings::apply(&mut state.warnings, act); // "Got it" or Open, for the session
                     }
+                    // A line of mine not (yet) posted: "Sending...", or "Not sent" with why (line_limit.rs).
+                    if msg.send_state != line_limit::LineSend::Posted {
+                        if let Some(words) = line_limit::draw_status(ui, theme, msg) {
+                            pending_send_again = Some(words);
+                        }
+                    }
                 }
 
                 ui.add_space(8.0);
@@ -1465,6 +1478,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let avatar_ctx_time = ui.ctx().input(|i| i.time);
                 for avatar in &deferred_avatars {
                     crate::gui::widgets::row::paint_avatar(ui, theme, avatar, avatar_ctx_time);
+                }
+
+                // Edit and send again: the refused line's words back in the box, ready to shorten.
+                if let Some(words) = pending_send_again.take() {
+                    state.chat_input = words;
+                    ui.ctx().memory_mut(|m| m.request_focus(egui::Id::new("chat_composer_input")));
                 }
 
                 // Apply pending reply selection (set chat composing context).
@@ -1655,6 +1674,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                 }
 
+                // How long the line is against the server's limit, near and past it, as the
+                // website's counter shows it (chat/line_limit.rs).
+                if let Some(limit) = line_limit::limit_here(state) {
+                    if let Some((words, color)) = line_limit::counter(state.chat_input.chars().count(), limit, theme) {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            ui.label(RichText::new(words).size(theme.font_size_small).color(color));
+                        });
+                    }
+                }
+
                 Frame::NONE
                     // The message text field is a raised input surface -> the
                     // tertiary/extreme-bg token (what egui uses for text edits).
@@ -1755,6 +1784,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // whole cap it stood 273 px tall for one line. The bar reserves the same height
                     // (`box_needed` in `draw_center_panel`), so the two always agree.
                     let box_want = composer_text_h(ui.ctx(), composer_cap);
+                    // The characters past the server's limit on a line, in red on dark red
+                    // (operator, 2026-10-24; chat/line_limit.rs). Only where a limit applies.
+                    let mut over_limit = line_limit::limit_here(state).map(|n| line_limit::layouter(theme, n, false));
                     // Its own space in the row, exactly that tall: the row beside the buttons offers
                     // only a few lines on its own.
                     let composer = ui
@@ -1764,7 +1796,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .max_height(box_want)
                         .auto_shrink([true, true])
                         .show(ui, |ui| {
-                            egui::TextEdit::multiline(&mut state.chat_input)
+                            let mut edit = egui::TextEdit::multiline(&mut state.chat_input)
                                 .id(egui::Id::new("chat_composer_input"))
                                 .desired_width(composer_text_w)
                                 .desired_rows(1)
@@ -1772,8 +1804,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     egui::Modifiers::SHIFT,
                                     egui::Key::Enter,
                                 )))
-                                .hint_text(hint)
-                                .show(ui)
+                                .hint_text(hint);
+                            if let Some(l) = over_limit.as_mut() {
+                                edit = edit.layouter(l);
+                            }
+                            edit.show(ui)
                         })
                         })
                         .inner;
@@ -2595,7 +2630,8 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                             .max_height(state.ingame_chat_panel_height)
                             .stick_to_bottom(true)
                             .show(ui, |ui| {
-                                let msgs: Vec<(&str, String, Option<String>)> = state
+                                let now_ms = line_limit::now_ms();
+                                let msgs: Vec<(&str, String, Option<String>, Option<(String, bool)>)> = state
                                     .chat_messages
                                     .iter()
                                     .filter(|m| m.channel == active)
@@ -2611,6 +2647,8 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                             if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() },
                                             content,
                                             warnings::compact_line(state, m), // step F, short form
+                                            // Mine and not (yet) posted: "Sending..." or "Not sent" (line_limit.rs).
+                                            line_limit::status_words(m, now_ms).map(|w| (w, matches!(m.send_state, line_limit::LineSend::NotSent { .. }))),
                                         )
                                     })
                                     .collect();
@@ -2621,7 +2659,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                             .size(theme.font_size_small),
                                     );
                                 }
-                                for (name, content, warn) in msgs.iter().rev().take(40).rev() {
+                                for (name, content, warn, status) in msgs.iter().rev().take(40).rev() {
                                     ui.horizontal_wrapped(|ui| {
                                         ui.label(
                                             RichText::new(format!("{name}:"))
@@ -2638,6 +2676,10 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                     if let Some(line) = warn {
                                         ui.label(RichText::new(line).color(theme.warning()).size(theme.font_size_small));
                                     }
+                                    if let Some((words, not_sent)) = status {
+                                        let color = if *not_sent { theme.danger() } else { theme.text_muted() };
+                                        ui.label(RichText::new(words).italics().color(color).size(theme.font_size_small));
+                                    }
                                 }
                             });
                     }
@@ -2648,14 +2690,18 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                         // page uses (send_composed_content routes channel /
                         // E2EE-DM / group / P2P-group identically).
                         ui.horizontal(|ui| {
-                            let resp = ui.add(
-                                egui::TextEdit::singleline(&mut state.chat_input)
-                                    // Stable id (v0.972): same focus-loss
-                                    // protection as the main composer.
-                                    .id(egui::Id::new("chat_overlay_input"))
-                                    .desired_width(390.0)
-                                    .hint_text("Message... (Enter to send, Esc to close)"),
-                            );
+                            // The characters past the line limit, red on dark red, as in the page's box.
+                            let mut over_limit = line_limit::limit_here(state).map(|n| line_limit::layouter(theme, n, true));
+                            let mut edit = egui::TextEdit::singleline(&mut state.chat_input)
+                                // Stable id (v0.972): same focus-loss
+                                // protection as the main composer.
+                                .id(egui::Id::new("chat_overlay_input"))
+                                .desired_width(390.0)
+                                .hint_text("Message... (Enter to send, Esc to close)");
+                            if let Some(l) = over_limit.as_mut() {
+                                edit = edit.layouter(l);
+                            }
+                            let resp = ui.add(edit);
                             if state.chat_input_focus_pending {
                                 resp.request_focus();
                                 state.chat_input_focus_pending = false;
@@ -2742,6 +2788,22 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 
 }
 
+/// How a Commons room is reached (federation-ux.md): whether the ACTIVE server carries it (a
+/// federated channel of that name on a live socket), and if not, which background connection
+/// does. The send below and the message box's limit (chat/line_limit.rs) both ask this, so the
+/// limit shown is always the one of the server the line goes to.
+pub(crate) fn commons_route(state: &GuiState, room: &str) -> (bool, Option<usize>) {
+    let active = state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+        && state.chat_channels.iter().any(|c| c.id == room && c.federated);
+    if active {
+        return (true, None);
+    }
+    let carrier = state.connections.iter().position(|c| {
+        c.identified && c.ws.is_some() && c.channels.iter().any(|ch| ch.id == room && ch.federated)
+    });
+    (false, carrier)
+}
+
 /// THE single content-routing authority for native chat (v0.708), mirroring
 /// the web's `sendComposedContent` (v0.698.2): a typed message, a pasted
 /// image URL, and an attached file URL all flow through HERE, so the
@@ -2765,6 +2827,10 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         .as_millis() as u64;
 
     let mut send_aborted = false;
+    // A room line put on the active socket: its copy reads "Sending..." until the server's comes
+    // back, or "Not sent" if the server refuses it (chat/line_limit.rs). A DM, a group's line and
+    // the scratch pad are not followed (the server neither echoes nor refuses them that way).
+    let mut room_line_sent = false;
 
     // P2P groups send over HTTP (signed objects), not the WS relay.
     let is_p2p_group = channel.starts_with("p2pgroup:");
@@ -2783,20 +2849,9 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     // unbridged channel there). Fail closed when NOTHING carries it.
     let commons_room: Option<String> = commons_room_of(&channel).map(|s| s.to_string());
     let wire_channel = commons_room.clone().unwrap_or_else(|| channel.clone());
-    let active_carries_room = match commons_room.as_deref() {
-        Some(room) => {
-            state.ws_client.as_ref().map_or(false, |c| c.is_connected())
-                && state.chat_channels.iter().any(|c| c.id == room && c.federated)
-        }
-        None => true, // plain channels always use the active socket
-    };
-    let carrier_idx: Option<usize> = match commons_room.as_deref() {
-        Some(room) if !active_carries_room => state.connections.iter().position(|c| {
-            c.identified
-                && c.ws.is_some()
-                && c.channels.iter().any(|ch| ch.id == room && ch.federated)
-        }),
-        _ => None,
+    let (active_carries_room, carrier_idx) = match commons_room.as_deref() {
+        Some(room) => commons_route(state, room),
+        None => (true, None), // plain channels always use the active socket
     };
     if commons_room.is_some() && !active_carries_room && carrier_idx.is_none() {
         state.ws_status =
@@ -2917,6 +2972,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                 if let Some(json_str) = json_str_opt {
                     crate::debug::push_debug(format!("WS >>> {}", json_str));
                     client.send(&json_str);
+                    room_line_sent = line_limit::measured(&channel);
                     state.chat_sent_timestamps.push(ts);
                     if state.chat_sent_timestamps.len() > 20 {
                         state.chat_sent_timestamps.remove(0);
@@ -2981,6 +3037,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             channel: wire_channel.clone(),
             reply_to: local_reply,
             server: echo_server,
+            send_state: line_limit::LineSend::Sending, // until its copy comes back (chat/line_limit.rs)
             ..Default::default()
         });
         while conn.messages.len() > 200 {
@@ -3029,6 +3086,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         channel: wire_channel,
         reply_to: local_reply_to,
         server: norm_server_url(&state.server_url),
+        send_state: if room_line_sent { line_limit::LineSend::Sending } else { line_limit::LineSend::Posted },
         ..Default::default()
     });
     state.chat_reply_to = None;
@@ -3911,24 +3969,6 @@ fn paint_timestamp_pill(
     thorn_hit
 }
 
-/// Format a UNIX millisecond timestamp as "YYYY-MM-DD HH:MM:SS UTC".
-/// Uses Howard Hinnant's days-from-civil algorithm so we don't need
-/// chrono as a dependency. Accurate for any proleptic-Gregorian year.
-///
-/// Used by the Þ-hover timestamp-expansion overlay in the message
-/// pill (operator feedback 2026-05-12 — "when we interact with the
-/// timestamp ... on the left the timestamp expands to include the
-/// YEAR:MONTH:DAY:HOUR:MINUTE:SECOND").
-/// Always-full timestamp (the pill-expand hover popup), independent of the
-/// user's display-format setting — the popup is the "show me everything" view.
-pub fn format_full_timestamp(ts_ms: u64) -> String {
-    let (year, month, day, hour, minute, second, _ms) = ts_parts(ts_ms);
-    format!(
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
-        year, month, day, hour, minute, second
-    )
-}
-
 /// Where to file a server-level system / private-server notice (relay messages,
 /// deploy-bot announcements, command responses). These were tagged with the
 /// *active* channel — but when the user is viewing a private P2P context (a
@@ -4078,125 +4118,6 @@ pub(crate) fn name_color(name: &str) -> Color32 {
         ((g + m) * 255.0) as u8,
         ((b + m) * 255.0) as u8,
     )
-}
-
-/// Return a human-readable timestamp string for "now".
-fn chrono_now_str() -> String {
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0);
-    // Route through the setting-aware formatter so a local send-echo matches the
-    // user's chosen timestamp format (and the relay-reconciled copy).
-    format_timestamp(now_ms)
-}
-
-/// Format a Unix-millis timestamp to HH:MM UTC.
-/// User-selectable timestamp display granularity (operator request). All UTC.
-/// Drives `format_timestamp` app-wide via a process-global so the pure formatter
-/// doesn't need GuiState threaded through every call site.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum TimestampFormat {
-    HourMin,        // 17:42 UTC   (default)
-    HourMinSec,     // 17:42:09 UTC
-    DateHourMin,    // 2026-05-29 17:42 UTC
-    DateHourMinSec, // 2026-05-29 17:42:09 UTC
-    Full,           // 2026-05-29 17:42:09.123 UTC
-}
-impl TimestampFormat {
-    /// Stable string for config persistence.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            TimestampFormat::HourMin => "hour_min",
-            TimestampFormat::HourMinSec => "hour_min_sec",
-            TimestampFormat::DateHourMin => "date_hour_min",
-            TimestampFormat::DateHourMinSec => "date_hour_min_sec",
-            TimestampFormat::Full => "full",
-        }
-    }
-    pub fn from_config_str(s: &str) -> Self {
-        match s {
-            "hour_min_sec" => TimestampFormat::HourMinSec,
-            "date_hour_min" => TimestampFormat::DateHourMin,
-            "date_hour_min_sec" => TimestampFormat::DateHourMinSec,
-            "full" => TimestampFormat::Full,
-            _ => TimestampFormat::HourMin,
-        }
-    }
-    /// Human label for the settings dropdown (with a live example).
-    pub fn label(self) -> &'static str {
-        match self {
-            TimestampFormat::HourMin => "Time, 17:42",
-            TimestampFormat::HourMinSec => "Time + seconds, 17:42:09",
-            TimestampFormat::DateHourMin => "Date + time, 2026-05-29 17:42",
-            TimestampFormat::DateHourMinSec => "Date + time + seconds, 2026-05-29 17:42:09",
-            TimestampFormat::Full => "Full + milliseconds, 2026-05-29 17:42:09.123",
-        }
-    }
-    pub const ALL: [TimestampFormat; 5] = [
-        TimestampFormat::HourMin,
-        TimestampFormat::HourMinSec,
-        TimestampFormat::DateHourMin,
-        TimestampFormat::DateHourMinSec,
-        TimestampFormat::Full,
-    ];
-    fn discriminant(self) -> usize {
-        TimestampFormat::ALL.iter().position(|&f| f == self).unwrap_or(0)
-    }
-    fn from_discriminant(d: usize) -> Self {
-        TimestampFormat::ALL.get(d).copied().unwrap_or(TimestampFormat::HourMin)
-    }
-}
-
-static TS_FORMAT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-/// Set the app-wide timestamp display format (call on config load + settings change).
-pub fn set_timestamp_format(f: TimestampFormat) {
-    TS_FORMAT.store(f.discriminant(), std::sync::atomic::Ordering::Relaxed);
-}
-/// The current app-wide timestamp display format.
-pub fn timestamp_format() -> TimestampFormat {
-    TimestampFormat::from_discriminant(TS_FORMAT.load(std::sync::atomic::Ordering::Relaxed))
-}
-
-/// Break an epoch-ms timestamp into UTC (year, month, day, hour, minute, second, millis).
-/// Howard Hinnant days-from-civil → calendar date (no chrono dependency).
-fn ts_parts(ts_ms: u64) -> (i32, u32, u32, i64, i64, i64, u64) {
-    let unix_s = (ts_ms / 1000) as i64;
-    let millis = ts_ms % 1000;
-    let days = unix_s.div_euclid(86_400);
-    let secs_in_day = unix_s.rem_euclid(86_400);
-    let hour = secs_in_day / 3_600;
-    let minute = (secs_in_day % 3_600) / 60;
-    let second = secs_in_day % 60;
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let month = if mp < 10 { (mp + 3) as u32 } else { (mp - 9) as u32 };
-    let year = if month <= 2 { (y + 1) as i32 } else { y as i32 };
-    (year, month, day, hour, minute, second, millis)
-}
-
-/// Format an epoch-ms timestamp per the user's chosen `timestamp_format()` —
-/// used for the message-pill across the whole chat, so the setting applies
-/// everywhere at once. Always UTC.
-pub fn format_timestamp(ts: u64) -> String {
-    let (y, mo, d, h, mi, s, ms) = ts_parts(ts);
-    match timestamp_format() {
-        TimestampFormat::HourMin => format!("{:02}:{:02} UTC", h, mi),
-        TimestampFormat::HourMinSec => format!("{:02}:{:02}:{:02} UTC", h, mi, s),
-        TimestampFormat::DateHourMin => format!("{:04}-{:02}-{:02} {:02}:{:02} UTC", y, mo, d, h, mi),
-        TimestampFormat::DateHourMinSec => {
-            format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC", y, mo, d, h, mi, s)
-        }
-        TimestampFormat::Full => {
-            format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03} UTC", y, mo, d, h, mi, s, ms)
-        }
-    }
 }
 
 /// Send a slash command as a chat message (server handles moderation via slash commands).

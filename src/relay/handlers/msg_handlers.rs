@@ -1383,6 +1383,7 @@ async fn mod_action_carry_out(state: &Arc<RelayState>, my_key: &str, action: &st
                 tracing::error!("mod_action set_role mod error: {e}");
                 return;
             }
+            crate::relay::handlers::broadcast::send_line_limit(state, target); // their new role's line limit
             crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
@@ -1431,6 +1432,8 @@ async fn mod_action_carry_out(state: &Arc<RelayState>, my_key: &str, action: &st
                 tracing::error!("mod_action set_role {new_role} error: {e}");
                 return;
             }
+            // Their new role's line limit, so a verified member's longer lines are taken at once.
+            crate::relay::handlers::broadcast::send_line_limit(state, target);
             // Push the fresh role to every client NOW -- without this the V
             // badge only appeared after a reconnect (range-review follow-up).
             crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
@@ -1446,6 +1449,7 @@ async fn mod_action_carry_out(state: &Arc<RelayState>, my_key: &str, action: &st
                 tracing::error!("mod_action set_role member error: {e}");
                 return;
             }
+            crate::relay::handlers::broadcast::send_line_limit(state, target); // their new role's line limit
             crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
             let private = RelayMessage::Private {
                 to: my_key.to_string(),

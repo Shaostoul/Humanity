@@ -639,6 +639,10 @@ pub struct GuiState {
     pub chat_edit_target: Option<(u64, String)>,
     /// Timestamps of messages sent from THIS client (for dedup on echo).
     pub chat_sent_timestamps: Vec<u64>,
+    /// The longest chat line each server says I may post there, by normalized server URL (its
+    /// `my_limits` on sign-in and after a role change, or a refusal that named it, 2026-10-24).
+    /// The message box shows the characters past it in red on dark red (chat/line_limit.rs).
+    pub chat_line_limits: std::collections::HashMap<String, usize>,
     pub chat_channels: Vec<ChatChannel>,
     pub chat_active_channel: String,
     pub chat_users: Vec<ChatUser>,
@@ -3208,6 +3212,7 @@ impl Default for GuiState {
             chat_pins_open: false,
             chat_edit_target: None,
             chat_sent_timestamps: Vec::new(),
+            chat_line_limits: std::collections::HashMap::new(),
             chat_channels: Vec::new(),
             chat_active_channel: "general".to_string(),
             chat_users: Vec::new(),

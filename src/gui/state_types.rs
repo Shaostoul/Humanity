@@ -945,6 +945,8 @@ pub struct ChatMessage {
     /// A P2P group message's signed-object id (empty otherwise): a report to the group's creator
     /// names the message by it, so they can find it in their own copy (10j).
     pub group_object_id: String,
+    /// Mine: "Sending..." until the server's copy comes back, or "Not sent" (pages/chat/line_limit.rs).
+    pub send_state: crate::gui::pages::chat::line_limit::LineSend,
 }
 
 /// Cached parent-message context for a thread reply.

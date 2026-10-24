@@ -131,6 +131,17 @@ Generic signed-object gossip + per-issuer continuous trust + dispute objects + m
 Real-time text chat with channels, threads, and message history.
 - Web: `web/chat/app.js`, `web/chat/chat-messages.js`
 - Server: `src/relay/relay.rs` (WebSocket routing), `src/relay/storage/messages.rs`
+- **Is my line posted? (2026-10-24):** my own room line reads "Sending...", then is posted, or
+  "Not sent" with why (too long for my limit, too fast, a new account's wait) and Edit and send
+  again; "Not confirmed by the server yet" after 20 s. The relay names each refusal to its sender
+  (`chat_refused`, `src/relay/handlers/chat_gate.rs`, the checks a line meets). Web
+  `web/chat/app.js` `markLineSending`; desktop `src/gui/pages/chat/line_limit.rs`.
+- **Characters past the limit in red on dark red (2026-10-24):** both message boxes colour every
+  character past my line limit (theme tokens `danger` on `danger_bg`), with a "312 / 280"
+  counter near it, in rooms only (a DM, a group and the scratch pad are not measured). The limit
+  is the relay's own word: `my_limits` on sign-in and whenever my role or its definition changes
+  (`src/relay/handlers/broadcast.rs` `send_line_limit`), kept per server on the desktop. Web
+  `web/chat/chat-ui.js` `showOverLimit`; desktop `line_limit.rs` `layouter`.
 
 ### Direct Messages (E2E Encrypted)
 Private 1-on-1 conversations encrypted with pure Kyber768 / ML-KEM-768 →

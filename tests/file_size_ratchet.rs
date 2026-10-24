@@ -35,6 +35,13 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-24: `gui/pages/chat.rs` 4_750 -> 4_700 and `relay/relay.rs` 6_400 -> 6_380. The
+///   chat lines' "Sending..." / "Not sent" state and the limit highlight took both past their
+///   budgets, so a cluster each moved out unchanged: the timestamp formats and formatters into
+///   `gui/pages/chat/timestamps.rs` (142 lines), and the checks a chat line meets before it is
+///   posted (a new account's wait, the two length limits, the send limiter) into
+///   `relay/handlers/chat_gate.rs`, relay.rs keeping a three-line call. The new code itself went
+///   into `gui/pages/chat/line_limit.rs` rather than the page.
 /// - 2026-10-23: `maps/ship_view.rs` 395 -> 410, from Maps increment 3's first rig run: a room
 ///   the data does not name is not named, and your room's name goes beside your dot, not under it.
 /// - 2026-10-22: MAPS INCREMENT 3'S NEW FILES JOIN ("into the ship, deck by deck",
@@ -435,7 +442,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/frame_water.rs", 750),
     ("src/engine/frame_near_trees.rs", 700),
     ("src/surface_walk.rs", 1_150),
-    ("src/gui/pages/chat.rs", 4_750),
+    ("src/gui/pages/chat.rs", 4_700),
     ("src/gui/pages/chat/left_panel.rs", 2_100),
     ("src/gui/pages/chat/modals.rs", 1_550),
     ("src/gui/pages/chat/p2p_groups.rs", 800),
@@ -472,7 +479,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/pages/maps/sky_events.rs", 465),
     ("src/gui/pages/maps/time_bar.rs", 250),
     ("src/gui/loaders.rs", 1_650),
-    ("src/relay/relay.rs", 6_400),
+    ("src/relay/relay.rs", 6_380),
     ("src/relay/files.rs", 1_650),
     ("web/pages/files-app.js", 2_500),
     ("src/relay/handlers/msg_handlers.rs", 4_660),

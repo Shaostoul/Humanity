@@ -406,7 +406,7 @@ function setMyMaxChars(n) {
   if (v > 0) {
     myMaxChars = v;
     const input = document.getElementById('msg-input');
-    if (input) { updateCharCounter(input.value.length); showOverLimit(input); }
+    if (input) { updateCharCounter(Array.from(input.value).length); showOverLimit(input); }
   }
 }
 function getMaxMsgLength() {
@@ -415,6 +415,16 @@ function getMaxMsgLength() {
   return myRole === 'admin' ? 10000 : 2000;
 }
 const MAX_MSG_LENGTH = 2000; // default, updated dynamically
+
+// Lines the server measures: a room's. Not a private message, a group's or the scratch pad's,
+// whose words are sealed or never sent, and the limit is not theirs (the desktop app's
+// line_limit.rs `measured`). The highlight and the counter show only here.
+function lineLimitApplies() {
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return false;
+  if (typeof activeGroupId !== 'undefined' && activeGroupId) return false;
+  if (typeof window !== 'undefined' && window.activeP2pGroup) return false;
+  return !(typeof isScratchPad === 'function' && isScratchPad());
+}
 
 // Characters past the limit, shown as they are typed (operator, 2026-10-24: "highlight the
 // character spots that go beyond the character limit have their background highlight dark red
@@ -437,7 +447,7 @@ function showOverLimit(input) {
   const limit = getMaxMsgLength();
   const text = input.value;
   const chars = Array.from(text);
-  const over = chars.length > limit;
+  const over = lineLimitApplies() && chars.length > limit;
   input.classList.toggle('over-limit-typing', over);
   const parent = input.parentElement;
   const existing = parent && parent.querySelector(':scope > .over-limit-mirror');
@@ -464,7 +474,7 @@ function showOverLimit(input) {
 }
 document.getElementById('msg-input').addEventListener('input', (e) => {
   autoResizeTextarea(e.target);
-  updateCharCounter(e.target.value.length);
+  updateCharCounter(Array.from(e.target.value).length); // characters, as the server counts
   showOverLimit(e.target);
 });
 document.getElementById('msg-input').addEventListener('scroll', (e) => {
@@ -475,8 +485,8 @@ document.getElementById('msg-input').addEventListener('scroll', (e) => {
 function updateCharCounter(len) {
   const counter = document.getElementById('char-counter');
   const limit = getMaxMsgLength();
-  // Show counter when within 200 chars of limit.
-  if (len > limit - 200) {
+  // Show counter when within 200 chars of limit, where a limit applies.
+  if (lineLimitApplies() && len > limit - 200) {
     counter.style.display = 'block';
     counter.textContent = `${len} / ${limit}`;
     counter.className = len > limit ? 'over' : len > limit - 100 ? 'warn' : '';

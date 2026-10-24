@@ -18,6 +18,30 @@ pub fn broadcast_channel_list(state: &Arc<RelayState>) {
     let _ = state.broadcast_tx.send(RelayMessage::ChannelList { channels: infos, categories: Some(categories) });
 }
 
+/// This person's own line limit as a `my_limits` message: their role's `max_chars`, the first check
+/// a chat line meets (2026-10-24). Sent on sign-in (relay.rs) and by the two below.
+pub fn line_limit_message(state: &RelayState, key: &str) -> RelayMessage {
+    let role = state.db.get_role(key).unwrap_or_default();
+    RelayMessage::MyLimits { to: key.to_string(), max_chars: state.db.role_def(&role).max_chars }
+}
+
+/// Tells this person their line limit now, after their role changed: a page that counted against
+/// the old one would otherwise refuse (or flag) a line the server would take, until a reload.
+pub fn send_line_limit(state: &RelayState, key: &str) {
+    let _ = state.broadcast_tx.send(line_limit_message(state, key));
+}
+
+/// Tells everyone connected who holds `role_id` their line limit, after that role was saved or
+/// deleted (a deleted role's holders fall back to the default role's limit).
+pub async fn send_line_limits_for_role(state: &Arc<RelayState>, role_id: &str) {
+    let keys: Vec<String> = state.peers.read().await.keys().cloned().collect();
+    for key in keys {
+        if state.db.get_role(&key).unwrap_or_default() == role_id {
+            send_line_limit(state, &key);
+        }
+    }
+}
+
 /// Build the task list with comment counts (helper).
 pub fn build_task_list(db: &crate::relay::storage::Storage) -> Vec<TaskData> {
     let tasks = db.list_tasks().unwrap_or_default();
@@ -372,6 +396,7 @@ pub async fn handle_mod_command(
                 if let Err(e) = state.db.set_role(key, "mod") {
                     tracing::error!("Failed to set mod: {e}");
                 }
+                send_line_limit(state, key);
             }
             format!("{} is now a moderator.", target_name)
         }
@@ -381,6 +406,7 @@ pub async fn handle_mod_command(
                 if let Err(e) = state.db.set_role(key, "user") {
                     tracing::error!("Failed to unmod: {e}");
                 }
+                send_line_limit(state, key);
             }
             format!("{} is no longer a moderator.", target_name)
         }

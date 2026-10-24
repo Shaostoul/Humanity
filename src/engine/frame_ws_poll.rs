@@ -125,6 +125,10 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         let msg_timestamp = val.get("timestamp")
                             .and_then(|v| v.as_u64())
                             .unwrap_or(0);
+                        // My own line came back: it was posted ("Sending..." goes, chat/line_limit.rs).
+                        if sender_key == state.gui_state.profile_public_key {
+                            crate::gui::pages::chat::line_limit::confirm(&mut state.gui_state.chat_messages, &sender_key, msg_timestamp);
+                        }
                         // Skip only messages WE sent from THIS client
                         // (already added locally). Check by matching
                         // our key + exact timestamp in recent sent list.
@@ -631,6 +635,16 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     // Key cards asked for (2026-10-22): each checked here before its key is used.
                     Some("key_cards") => crate::engine::key_cards::on_key_cards_frame(&mut state.gui_state, &val),
                     Some("reach_settings") | Some("reach_refused") => crate::engine::reach::on_frame(&mut state.gui_state, &val), // who can reach me (step B)
+                    // How long my lines may be here, and a line of mine the server refused (2026-10-24,
+                    // gui/pages/chat/line_limit.rs).
+                    Some("my_limits") => {
+                        let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
+                        crate::gui::pages::chat::line_limit::on_my_limits(&mut state.gui_state, &server, &val);
+                    }
+                    Some("chat_refused") => {
+                        let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
+                        crate::gui::pages::chat::line_limit::on_refused(&mut state.gui_state, &server, &val, None);
+                    }
                     Some("voice_channel_list") => {
                         // Voice channels received from server
                         if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {

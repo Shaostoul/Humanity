@@ -431,6 +431,8 @@ async function loadChat(me, opts = {}) {
     Notification: anything(),
     innerWidth: 1280,
     innerHeight: 800,
+    // The page's word lookup (web/shared/i18n.js), not loaded here: a key reads as itself.
+    i18n: { t: (k) => k },
     crypto: countedCrypto,
     btoa: globalThis.btoa,
     atob: globalThis.atob,

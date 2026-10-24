@@ -387,7 +387,10 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
         // Server→client DM frames (classified so the shared enum's rename
         // strings don't fail open; a client echoing one at the relay is
         // simply gated like any chat message).
-        | "dm_new" | "dm_batch" | "dm_purged" | "dm_put_ok" | "dm_put_refused" => {
+        | "dm_new" | "dm_batch" | "dm_purged" | "dm_put_ok" | "dm_put_refused"
+        // Server→client chat-line frames (2026-10-24): a refused line named to its sender, and
+        // the sender's own line limit (handlers/chat_gate.rs, handlers/broadcast.rs).
+        | "chat_refused" | "my_limits" => {
             Some(Feature::Chat)
         }
         _ => None,

@@ -1762,10 +1762,12 @@ async function sendMessage() {
     return;
   }
 
-  // Enforce character limit (on user's own text, before adding quote).
+  // Enforce character limit (on user's own text, before adding quote), counted in characters as
+  // the server counts them (an emoji is two JavaScript units and one character).
   const charLimit = getMaxMsgLength();
-  if (content.length > charLimit) {
-    addSystemMessage(`Message too long (${content.length}/${charLimit} chars). Please shorten it.`);
+  const charCount = Array.from(content).length;
+  if (charCount > charLimit) {
+    addSystemMessage(`Message too long (${charCount}/${charLimit} chars). Please shorten it.`);
     return;
   }
 
