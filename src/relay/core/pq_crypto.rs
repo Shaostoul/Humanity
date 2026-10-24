@@ -16,7 +16,7 @@
 //! - Kyber768:   ek 1184 B, dk 2400 B, ciphertext 1088 B, shared secret 32 B, seed 64 B
 
 use ml_dsa::{
-    EncodedSignature, EncodedVerifyingKey, KeyGen, MlDsa65,
+    EncodedSignature, EncodedVerifyingKey, MlDsa65,
     Signature as DilithiumSignatureInner, SigningKey as DilithiumSigningKeyInner,
     VerifyingKey as DilithiumVerifyingKeyInner,
     signature::{Keypair, Signer, Verifier},
@@ -80,10 +80,11 @@ impl DilithiumKeypair {
 
     /// Deterministically derive a keypair from a 32-byte seed.
     ///
-    /// The same seed always produces the same keypair (FIPS 204 KeyGen_internal).
+    /// The same seed always produces the same keypair (FIPS 204 KeyGen_internal, Algorithm 6;
+    /// ml-dsa 0.1's `SigningKey::from_seed`, the release candidates' `MlDsa65::from_seed`).
     pub fn from_seed(seed: &[u8; DILITHIUM_SEED_LEN]) -> Self {
         let seed_arr = Array::<u8, _>::from(*seed);
-        let inner = MlDsa65::from_seed(&seed_arr);
+        let inner = DilithiumSigningKeyInner::<MlDsa65>::from_seed(&seed_arr);
         Self { inner }
     }
 
@@ -98,9 +99,11 @@ impl DilithiumKeypair {
         vk.encode().to_vec()
     }
 
-    /// Sign a message. Uses the deterministic ML-DSA variant (no RNG required for signing).
+    /// Sign a message. Uses the deterministic ML-DSA variant with an empty context (no RNG
+    /// required for signing): ml-dsa 0.1's `Signer` for `SigningKey`, as the release candidates'
+    /// expanded key's was.
     pub fn sign(&self, message: &[u8]) -> Vec<u8> {
-        let sig: DilithiumSignatureInner<MlDsa65> = self.inner.signing_key().sign(message);
+        let sig: DilithiumSignatureInner<MlDsa65> = self.inner.sign(message);
         sig.encode().to_vec()
     }
 }

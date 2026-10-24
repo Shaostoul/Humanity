@@ -76,6 +76,10 @@ In order:
    it was. Do it as one task: update the family together, adapt the signing and sealing code,
    prove the desktop and the website still produce and accept the same bytes (signatures, DMs,
    key cards), update docs/reference/cryptography.md, then the other compatible updates.
+   DONE 2026-10-24 for the family: ml-dsa 0.1.1 and ml-kem 0.3.3 (stable), with pkcs8 0.11.0,
+   signature 3.0.0, sha3 0.12; one wrapper change (SigningKey::from_seed, its Signer), every
+   known-answer test unchanged in Rust and JS, the relay battery green; pinned exactly at the new
+   versions. LEFT: the other compatible updates (about 300), with a boot check.
 2. **The build-speed measurements** the slot made possible, on a quiet machine: debug info in
    dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
    whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate

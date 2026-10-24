@@ -351,7 +351,7 @@ just verify           # native + relay checks, lib tests, relay test build, the 
 just lints            # the std-only lints on their own
 just test-lib [filter]  # the lib tests (a bare `cargo test --lib` fails on Windows: LNK1318 below)
 just build-slot-status  # who is compiling, who waits for memory (the build slot, below)
-just verify-relay     # RUN the relay test battery (~200 s): after changing src/relay/
+just verify-relay     # RUN the relay test battery (~200 s): after changing src/relay/, or shared code the server also compiles (src/systems/ and the like: its tests run there too)
 just verify-runtime   # BOOTS the release exe and enters the world: after renderer or shader work
 just validate-data    # one-shot data-loader check (~0.2 s): after editing data/
 just snapshot <name>  # render one egui page to tests/snapshots/<name>.png; `just snapshots` renders all.

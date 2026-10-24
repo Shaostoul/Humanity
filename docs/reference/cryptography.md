@@ -40,6 +40,8 @@ public copy, **and update it in the same commit as any change to the cryptograph
 | Server-side KDF | Argon2id | `src/relay/core/kdf.rs` | Active |
 | ECDH P-256 DM | — | — | **DELETED** (web v0.263.4, native v0.264.0 — `dm_crypto.rs` removed) |
 
+**The Rust libraries (2026-10-24):** ML-DSA-65 is RustCrypto `ml-dsa` 0.1.1 and ML-KEM-768 `ml-kem` 0.3.3, the first stable releases, moved together from the release candidates (0.1.0-rc.8, 0.3.0-rc.2) with pkcs8 0.11.0, signature 3.0.0 and sha3 0.12; both pinned exactly in Cargo.toml. Nothing about the algorithms or the bytes changed: the key is FIPS 204 KeyGen_internal from the same seed (`SigningKey::from_seed`), signing the same deterministic variant with an empty context, and every known-answer test passed unchanged (`pq_crypto.rs` `dilithium_cross_language_kat`, `kyber_cross_language_kat`, `dilithium_js_signature_verifies_in_rust`, the frozen friendship pass; `scripts/pq-kat.mjs`; the key-card and recovery fixtures the website reads), and the relay battery (3108 tests). The website's side is the vendored `@noble/post-quantum` bundle, unchanged.
+
 **Activation status: LIVE since 2026-05-20.** Inc6, the attended fresh-slate wipe (`scripts/pq-wipe.sh`, which re-seeds `#announcements` from `data/announcements_archive.json`), ran and was verified. The runbook is `docs/history/pq-cutover-runbook-completed-2026-05.md`: "All increments including Inc6 (the attended fresh-slate wipe) are done and verified." Every increment below is history, not a plan.
 
 **Shipped this cutover (v0.262.33 → v0.264.1):**
