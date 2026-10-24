@@ -240,8 +240,16 @@ rand_core_06 = { package = "rand_core", version = "0.6", optional = true, featur
 # ML-DSA-65 (Dilithium3) for object signing, ML-KEM-768 (Kyber768) for KEM,
 # Argon2id for password-based KDF. Pure Rust, WASM-compatible.
 # `ml-kem/getrandom` exposes the no-arg `encapsulate()` helper that uses the OS RNG.
-ml-dsa = { version = "0.1.0-rc.8", optional = true }
-ml-kem = { version = "0.3.0-rc.2", optional = true, features = ["getrandom"] }
+# Pinned exactly (2026-10-24): `cargo update` took ml-dsa to 0.1.1, whose API differs (from_seed
+# and signing_key no longer build), and ml-kem to 0.3.3; and holding only these two back failed too,
+# because ml-dsa 0.1.0-rc.8 does not build against the newer pkcs8/spki prereleases the same update
+# brought. The RustCrypto prerelease family moves together. These two carry every signature and
+# every sealed message, and the website's JS libraries must produce the same bytes, so moving them
+# (and the family) is its own piece of work with the cross-client tests and
+# docs/reference/cryptography.md, never a side effect of a routine crate update (docs/SOP.md
+# "Keeping components up to date"). Until then `cargo update` must leave these resolved as locked.
+ml-dsa = { version = "=0.1.0-rc.8", optional = true }
+ml-kem = { version = "=0.3.0-rc.2", optional = true, features = ["getrandom"] }
 argon2 = { version = "0.6.0-rc.8", optional = true }
 # Shamir secret sharing over GF(256), for Recovery through trusted people
 # (src/relay/core/recovery.rs). MIT, by Distrust: the fork RustSec names as the fix

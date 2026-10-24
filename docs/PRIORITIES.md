@@ -69,9 +69,13 @@ wave has merged (v0.1544.0, below). From here: one task at a time, lean, until t
 (Thursday 8 PM Pacific); wide fan-out is for a fresh week.
 
 In order:
-1. **Crate updates in this quiet window:** `cargo update` (313 compatible updates on 2026-10-23;
-   40 dependencies behind a newer major), then both checks, the lib suite and the release gates
-   (docs/SOP.md "Keeping components up to date").
+1. **Crate updates, now a planned piece of work (tried 2026-10-24):** `cargo update` moved ml-dsa
+   to 0.1.1 (its API changed: the build broke) and ml-kem to 0.3.3, and ml-dsa's release candidate
+   does not build against the newer pkcs8/spki prereleases, so the RustCrypto prerelease family
+   moves together. Both are pinned exactly in Cargo.toml with the reason, and the lockfile is as
+   it was. Do it as one task: update the family together, adapt the signing and sealing code,
+   prove the desktop and the website still produce and accept the same bytes (signatures, DMs,
+   key cards), update docs/reference/cryptography.md, then the other compatible updates.
 2. **The build-speed measurements** the slot made possible, on a quiet machine: debug info in
    dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
    whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate
