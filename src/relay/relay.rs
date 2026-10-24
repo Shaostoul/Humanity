@@ -3381,6 +3381,14 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
                 // Who can reach them, every kind filled in (handlers/reach.rs, 10c).
                 let _ = ws_tx.send(Message::Text(serde_json::to_string(&crate::relay::handlers::reach::settings_message(&state, &public_key)).unwrap().into())).await;
+                // How long one of their chat lines may be (2026-10-24): their role's own limit, the
+                // first check a line meets (an unverified account's is 280). The website counted
+                // against a guessed 2,000 and showed nothing past the real limit before sending.
+                {
+                    let role = state.db.get_role(&public_key).unwrap_or_default();
+                    let max_chars = state.db.role_def(&role).max_chars;
+                    let _ = ws_tx.send(Message::Text(serde_json::json!({ "type": "my_limits", "max_chars": max_chars }).to_string().into())).await;
+                }
 
                 // Announce to everyone — unless this member hides their
                 // presence (privacy tiers, 2026-08-23). Their key card's

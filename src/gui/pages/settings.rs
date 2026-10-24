@@ -1387,6 +1387,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Success", &mut theme.success as *mut _),
                     ("Warning", &mut theme.warning as *mut _),
                     ("Danger", &mut theme.danger as *mut _),
+                    ("Danger background (past a limit)", &mut theme.danger_bg as *mut _),
                     ("Info", &mut theme.info as *mut _),
                     ("Sky: orbit lines", &mut theme.orbit_line as *mut _),
                     ("Sky: constellation lines", &mut theme.constellation_line as *mut _),

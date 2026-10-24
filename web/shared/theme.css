@@ -125,6 +125,7 @@
   --success: #33bf4d;
   --warning: #f2bf1a;
   --danger: #e64033;
+  --danger-bg: #4d0a0a;
   --info: #3380e6;
   --border: #2a2a35;
   --border-focus: #ed8c24;
@@ -267,6 +268,7 @@
   --success: #1a6e2e;
   --warning: #8a6100;
   --danger: #c0281c;
+  --danger-bg: #f6d4d1;
   --info: #1f5fbf;
   --border: #c8c8d0;
   --border-focus: #a84f00;

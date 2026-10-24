@@ -415,3 +415,23 @@ async fn a_refused_line_is_named_to_its_sender_and_no_one_else() {
     let seen = frame_where(&mut bob, "Bob's own line comes back", |f| f["type"] == "chat_refused" || (f["type"] == "chat" && f["timestamp"].as_u64() == Some(bob_ts))).await;
     assert_eq!(seen["type"], "chat", "Bob was told about Ann's refused line: {seen}");
 }
+
+/// A SIGNED-IN MEMBER IS TOLD THEIR OWN LINE LIMIT (2026-10-24): `my_limits` with their role's
+/// max_chars, so the website counts against the limit the relay applies (280 for an unverified
+/// account) instead of a guessed 2,000. Seen red before the frame was sent: "never came: my
+/// limits".
+#[tokio::test(flavor = "multi_thread")]
+async fn a_member_is_told_their_own_line_limit() {
+    let r = relay("limits").await;
+    let (_, key) = keypair(63);
+    let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}/ws", r.port)).await.unwrap();
+    let (kp, _) = keypair(63);
+    send(&mut sock, json!({ "type": "identify", "public_key": key, "display_name": "Cy" })).await;
+    let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
+    let nonce = challenge["nonce"].as_str().expect("a challenge").to_string();
+    let sig = B64.encode(kp.sign(format!("hum/identify/v1\n{nonce}\n{key}").as_bytes()));
+    send(&mut sock, json!({ "type": "identify_response", "sig_b64": sig })).await;
+    let f = frame_where(&mut sock, "my limits", |f| f["type"] == "my_limits").await;
+    let want = r.state.db.role_def(&r.state.db.get_role(&key).unwrap_or_default()).max_chars as u64;
+    assert_eq!(f["max_chars"].as_u64(), Some(want), "the limit is the role's own: {f}");
+}

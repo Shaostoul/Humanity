@@ -142,6 +142,7 @@ function buildCss(tokens) {
   lines.push(`  --success: ${c('success')};`);
   lines.push(`  --warning: ${c('warning')};`);
   lines.push(`  --danger: ${c('danger')};`);
+  lines.push(`  --danger-bg: ${c('danger_bg')};`);
   lines.push(`  --info: ${c('info')};`);
   lines.push(`  --border: ${c('border')};`);
   lines.push(`  --border-focus: ${c('border_focus')};`);
@@ -320,6 +321,7 @@ const LIGHT = {
   '--success': '#1a6e2e',
   '--warning': '#8a6100',
   '--danger': '#c0281c',
+  '--danger-bg': '#f6d4d1',
   '--info': '#1f5fbf',
   '--border': '#c8c8d0',
   '--border-focus': '#a84f00',

@@ -37,6 +37,11 @@ pub struct Theme {
     pub success: C,
     pub warning: C,
     pub danger: C,
+    /// The ground under something that went past a limit or failed (2026-10-24, operator: "the
+    /// character spots that go beyond the character limit have their background highlight dark
+    /// red and the text change from white to red"): a dark red that `danger` text reads on.
+    #[serde(default = "default_danger_bg")]
+    pub danger_bg: C,
     pub info: C,
     /// Solar-system orbit ring color in the FPS sky (v0.786, operator sky
     /// settings). Default = the near-black #020305 the rings always used.
@@ -465,6 +470,7 @@ impl Theme {
     pub fn success(&self) -> Color32 { Self::c32(&self.success) }
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
+    pub fn danger_bg(&self) -> Color32 { Self::c32(&self.danger_bg) }
     pub fn info(&self) -> Color32 { Self::c32(&self.info) }
     pub fn orbit_line(&self) -> Color32 { Self::c32(&self.orbit_line) }
     pub fn constellation_line(&self) -> Color32 { Self::c32(&self.constellation_line) }
@@ -598,6 +604,7 @@ impl Theme {
         self.success = (0.165, 0.722, 0.439, 1.0);        // #2AB870
         self.warning = (0.961, 0.722, 0.231, 1.0);        // #F5B83B
         self.danger = (0.937, 0.310, 0.310, 1.0);         // #EF4F4F
+        self.danger_bg = default_danger_bg();
         self.info = (0.310, 0.667, 0.937, 1.0);           // #4FAAEF
         self.border = (0.165, 0.165, 0.208, 1.0);         // #2a2a35
         self.border_focus = (0.929, 0.549, 0.141, 1.0);
@@ -772,6 +779,7 @@ fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
 fn default_text_strong() -> C { (1.0, 1.0, 1.0, 1.0) } // #ffffff, one step above text_primary
+fn default_danger_bg() -> C { (0.30, 0.04, 0.04, 1.0) } // #4D0A0A, dark red under danger text
 fn default_orbit_line() -> C { (0.0078, 0.0118, 0.0196, 1.0) } // #020305 near-black
 fn default_constellation_line() -> C { (0.133, 0.267, 0.267, 1.0) } // #224444 teal
 fn default_map_space() -> C { (0.012, 0.012, 0.024, 1.0) } // near-black with a little blue
@@ -874,6 +882,7 @@ fn default_theme() -> Theme {
         success: (0.2, 0.75, 0.3, 1.0),
         warning: (0.95, 0.75, 0.1, 1.0),
         danger: (0.9, 0.25, 0.2, 1.0),
+        danger_bg: default_danger_bg(),
         info: (0.2, 0.5, 0.9, 1.0),
         orbit_line: default_orbit_line(),
         constellation_line: default_constellation_line(),

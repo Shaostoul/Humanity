@@ -396,14 +396,80 @@ document.getElementById('msg-input').addEventListener('keydown', (e) => {
 });
 
 // Auto-resize + character counter on input.
+// The limit is the one the relay applies, its role's own (2026-10-24): the relay says it on
+// sign-in (`my_limits`, and again with any `chat_refused` for length). Until it has, the old
+// guess (2,000; 10,000 for an admin) stands. An unverified account's is 280, which the page did
+// not know, so a long line looked fine until the relay refused it.
+let myMaxChars = 0;
+function setMyMaxChars(n) {
+  const v = Number(n);
+  if (v > 0) {
+    myMaxChars = v;
+    const input = document.getElementById('msg-input');
+    if (input) { updateCharCounter(input.value.length); showOverLimit(input); }
+  }
+}
 function getMaxMsgLength() {
+  if (myMaxChars > 0) return myMaxChars;
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
   return myRole === 'admin' ? 10000 : 2000;
 }
 const MAX_MSG_LENGTH = 2000; // default, updated dynamically
+
+// Characters past the limit, shown as they are typed (operator, 2026-10-24: "highlight the
+// character spots that go beyond the character limit have their background highlight dark red
+// and the text change from white to red"). A text box draws all its words in one colour, so a
+// mirror layer behind it draws them instead while the line is too long: the part within the limit
+// as usual, the rest in --danger on --danger-bg. The box's own words go transparent meanwhile (its
+// caret stays), and the two scroll together.
+function overLimitMirror(input) {
+  let m = input.parentElement && input.parentElement.querySelector(':scope > .over-limit-mirror');
+  if (!m) {
+    m = document.createElement('div');
+    m.className = 'over-limit-mirror';
+    m.setAttribute('aria-hidden', 'true');
+    input.parentElement.style.position = input.parentElement.style.position || 'relative';
+    input.parentElement.insertBefore(m, input);
+  }
+  return m;
+}
+function showOverLimit(input) {
+  const limit = getMaxMsgLength();
+  const text = input.value;
+  const chars = Array.from(text);
+  const over = chars.length > limit;
+  input.classList.toggle('over-limit-typing', over);
+  const parent = input.parentElement;
+  const existing = parent && parent.querySelector(':scope > .over-limit-mirror');
+  if (!over) { if (existing) existing.style.display = 'none'; return; }
+  const m = overLimitMirror(input);
+  const cs = getComputedStyle(input);
+  ['font', 'letterSpacing', 'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+   'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'textIndent', 'tabSize']
+    .forEach((p) => { m.style[p] = cs[p]; });
+  m.style.left = input.offsetLeft + 'px';
+  m.style.top = input.offsetTop + 'px';
+  m.style.width = input.offsetWidth + 'px';
+  m.style.height = input.offsetHeight + 'px';
+  m.style.display = 'block';
+  m.textContent = '';
+  m.appendChild(document.createTextNode(chars.slice(0, limit).join('')));
+  const mark = document.createElement('mark');
+  mark.className = 'over-limit-chars';
+  mark.textContent = chars.slice(limit).join('');
+  m.appendChild(mark);
+  // A trailing line break, so a final empty line in the box has its height in the mirror too.
+  m.appendChild(document.createTextNode(String.fromCharCode(10)));
+  m.scrollTop = input.scrollTop;
+}
 document.getElementById('msg-input').addEventListener('input', (e) => {
   autoResizeTextarea(e.target);
   updateCharCounter(e.target.value.length);
+  showOverLimit(e.target);
+});
+document.getElementById('msg-input').addEventListener('scroll', (e) => {
+  const m = e.target.parentElement && e.target.parentElement.querySelector(':scope > .over-limit-mirror');
+  if (m) m.scrollTop = e.target.scrollTop;
 });
 
 function updateCharCounter(len) {

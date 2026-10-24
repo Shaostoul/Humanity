@@ -1233,6 +1233,11 @@ async function handleMessage(msg) {
     case 'chat_refused':
       // The server did not post one of my lines (relay ChatRefused, 2026-10-24).
       markLineNotSent(msg.timestamp, msg.reason, msg.limit);
+      if (msg.reason === 'too_long' && msg.limit) setMyMaxChars(msg.limit);
+      break;
+    case 'my_limits':
+      // My role's line limit, said on sign-in (2026-10-24): counted against and shown in red.
+      setMyMaxChars(msg.max_chars);
       break;
     case 'federated_chat': {
       // Cross-server federated message, display with server badge.
