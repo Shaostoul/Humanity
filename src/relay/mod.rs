@@ -6,6 +6,8 @@
 
 pub mod relay;
 pub mod api;
+/// The bug reporter's severities and categories from data/bugs/taxonomy.json, built in (2026-10-24).
+pub mod bug_taxonomy;
 /// The admin action registry (data/admin/actions.json) and its two endpoints, list and run
 /// (2026-10-22, docs/design/in-app-ops.md); the alert-channel and federation actions live under it.
 pub mod admin;

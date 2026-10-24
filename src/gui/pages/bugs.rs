@@ -124,21 +124,12 @@ fn relay_severity(label: &str) -> String {
     label.trim().to_lowercase()
 }
 
-/// The category string the relay accepts.
-///
-/// KNOWN MISMATCH (not fixable from this page): the relay whitelists
-/// chat/tasks/market/wallet/maps/game/settings/other (`relay::api::create_bug`),
-/// while `data/bugs/taxonomy.json` offers UI/Gameplay/Network/Performance/Crash/
-/// Other. Anything the relay does not recognise it silently stores as "other",
-/// so only Gameplay (-> game) and Other survive the trip. The report is still
-/// persisted with its real title, description, severity and version; only the
-/// category coarsens. Aligning the two lists is a one-line edit to either the
-/// taxonomy data file or the relay whitelist, and needs whoever owns those.
+/// The category string the relay accepts: the taxonomy's label in lower case. Since 2026-10-24
+/// the relay checks against the same `data/bugs/taxonomy.json` (`relay::bug_taxonomy`), so every
+/// category this page offers is kept; before, the relay had its own list and stored most of them
+/// as "other".
 fn relay_category(label: &str) -> String {
-    match label.trim().to_lowercase().as_str() {
-        "gameplay" | "game" => "game".to_string(),
-        other => other.to_string(),
-    }
+    label.trim().to_lowercase()
 }
 
 /// Blocking POST /api/bugs. Returns the new report's server-assigned id.

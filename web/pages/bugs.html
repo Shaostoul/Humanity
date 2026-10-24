@@ -160,24 +160,11 @@
         <div class="form-group">
           <label for="bug-severity" data-i18n="bugs.severity">Severity</label>
           <select id="bug-severity" data-i18n-tip="bugs.severity_hint_web" data-tip-desc="Choose how badly this gets in the way, from Critical (the app cannot be used) down to Cosmetic (it only looks wrong).">
-            <option value="critical" data-i18n="bugs.sev_critical_long">Critical - app unusable</option>
-            <option value="high" data-i18n="bugs.sev_high_long">High - major feature broken</option>
-            <option value="medium" selected data-i18n="bugs.sev_medium_long">Medium - feature impaired</option>
-            <option value="low" data-i18n="bugs.sev_low_long">Low - minor issue</option>
-            <option value="cosmetic" data-i18n="bugs.sev_cosmetic_long">Cosmetic - visual only</option>
           </select>
         </div>
         <div class="form-group">
           <label for="bug-category" data-i18n="bugs.category">Category</label>
           <select id="bug-category" data-i18n-tip="bugs.category_hint" data-tip-desc="Choose which part of the app the problem is in.">
-            <option value="chat" data-i18n="bugs.cat_chat">Chat</option>
-            <option value="tasks" data-i18n="bugs.cat_tasks">Tasks</option>
-            <option value="market" data-i18n="bugs.cat_market">Market</option>
-            <option value="wallet" data-i18n="bugs.cat_wallet">Wallet</option>
-            <option value="maps" data-i18n="bugs.cat_maps">Maps</option>
-            <option value="game" data-i18n="bugs.cat_game">Game</option>
-            <option value="settings" data-i18n="bugs.cat_settings">Settings</option>
-            <option value="other" selected data-i18n="bugs.cat_other">Other</option>
           </select>
         </div>
       </div>
@@ -205,22 +192,9 @@
       </select>
       <select data-i18n-aria-label="bugs.filter_severity_label" aria-label="Show reports this serious" id="filter-severity" data-i18n-tip="bugs.filter_severity_hint" data-tip-desc="Shows only the reports as serious as you choose.">
         <option value="" data-i18n="bugs.all_severities">All Severities</option>
-        <option value="critical" data-i18n="bugs.sev_critical">Critical</option>
-        <option value="high" data-i18n="bugs.sev_high">High</option>
-        <option value="medium" data-i18n="bugs.sev_medium">Medium</option>
-        <option value="low" data-i18n="bugs.sev_low">Low</option>
-        <option value="cosmetic" data-i18n="bugs.sev_cosmetic">Cosmetic</option>
       </select>
       <select data-i18n-aria-label="bugs.filter_category_label" aria-label="Show reports about this part of the app" id="filter-category" data-i18n-tip="bugs.filter_category_hint" data-tip-desc="Shows only the reports about the part of the app you choose.">
         <option value="" data-i18n="bugs.all_categories">All Categories</option>
-        <option value="chat" data-i18n="bugs.cat_chat">Chat</option>
-        <option value="tasks" data-i18n="bugs.cat_tasks">Tasks</option>
-        <option value="market" data-i18n="bugs.cat_market">Market</option>
-        <option value="wallet" data-i18n="bugs.cat_wallet">Wallet</option>
-        <option value="maps" data-i18n="bugs.cat_maps">Maps</option>
-        <option value="game" data-i18n="bugs.cat_game">Game</option>
-        <option value="settings" data-i18n="bugs.cat_settings">Settings</option>
-        <option value="other" data-i18n="bugs.cat_other">Other</option>
       </select>
     </div>
   </div>

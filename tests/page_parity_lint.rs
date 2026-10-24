@@ -221,6 +221,19 @@ const PARITY_PAIRS: &[ParityPair] = &[
             ("web/pages/dev-claude.js", "fetch('/data/i18n/en.json')"),
         ],
     },
+    // Bugs (2026-10-24): the severity and category menus come from one list on both apps, the
+    // list the relay also checks reports against (src/relay/bug_taxonomy.rs). The website used to
+    // hand-write its menus and the relay kept a third list.
+    ParityPair {
+        page: "Bugs (taxonomy)",
+        native: &["src/gui/loaders.rs"],
+        web: &["web/pages/bugs-app.js"],
+        data_file: "bugs/taxonomy.json",
+        reads: &[
+            ("src/gui/loaders.rs", "read_data_json::<File>(data_dir, \"bugs/taxonomy.json\")"),
+            ("web/pages/bugs-app.js", "fetch('/data/bugs/taxonomy.json')"),
+        ],
+    },
     // How-to (2026-10-23, docs/design/how-to.md): the category tree, the planned list and the page's
     // own words, one file each for both apps. The how-tos themselves are read file by file (the
     // desktop walks data/how_to/<top>/, the website takes the paths from the index the build writes

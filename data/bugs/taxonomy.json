@@ -1,5 +1,5 @@
 {
-  "_comment": "Bug-report taxonomy for the in-app bug reporter. Edit lists here to add severities/categories, no code change required.",
-  "severities": ["Low", "Medium", "High", "Critical"],
-  "categories": ["UI", "Gameplay", "Network", "Performance", "Crash", "Other"]
+  "_comment": "The bug reporter's lists: the ONE source for the desktop Bugs page (src/gui/loaders.rs load_bug_taxonomy), the website's Bugs page (web/pages/bugs-app.js fills its menus from this file) and the relay, which keeps a report's severity and category only when they are on these lists (src/relay/bug_taxonomy.rs, built in). Each entry is shown as written; its id is the same word in lower case. Add an entry here and it appears everywhere, with no code change. Until 2026-10-24 the relay and the website kept their own lists, so the desktop's categories were all stored as other.",
+  "severities": ["Critical", "High", "Medium", "Low", "Cosmetic"],
+  "categories": ["Chat", "Tasks", "Market", "Wallet", "Maps", "Game", "Settings", "UI", "Network", "Performance", "Crash", "Other"]
 }

@@ -3682,21 +3682,10 @@ pub async fn create_bug(
         return Err((StatusCode::BAD_REQUEST, "Description too long (max 10000 chars).".into()));
     }
 
-    // Validate severity.
-    let valid_severities = ["critical", "high", "medium", "low", "cosmetic"];
-    let severity = if valid_severities.contains(&req.severity.as_str()) {
-        &req.severity
-    } else {
-        "medium"
-    };
-
-    // Validate category.
-    let valid_categories = ["chat", "tasks", "market", "wallet", "maps", "game", "settings", "other"];
-    let category = if valid_categories.contains(&req.category.as_str()) {
-        &req.category
-    } else {
-        "other"
-    };
+    // Severity and category from the one shared list, data/bugs/taxonomy.json (bug_taxonomy.rs).
+    let severity = crate::relay::bug_taxonomy::severity(&req.severity);
+    let category = crate::relay::bug_taxonomy::category(&req.category);
+    let (severity, category) = (severity.as_str(), category.as_str());
 
     match state.db.create_bug(
         req.title.trim(),
