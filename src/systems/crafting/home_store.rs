@@ -143,9 +143,12 @@ pub fn not_here_reason(place: &StationsWhere, at_home: bool) -> Option<&'static 
 }
 
 /// The words for a word key, from the one word source (2026-10-24: this file
-/// wrote its reasons in English). The crafting system also compiles into the
-/// server, which has no word lookup and never shows these, so there it is the
-/// key itself.
+/// wrote its reasons in English). In the desktop app, its word lookup (every
+/// language). The crafting system also compiles into the server, which has no
+/// word lookup and never shows these notices, so there the English is read from
+/// the same file, data/i18n/en.json, once; without that file, the key itself.
+/// (The first version returned the key there, and the crafting and building
+/// tests, which run in the server build too, saw keys in their notices.)
 pub fn words(key: &'static str) -> &'static str {
     #[cfg(feature = "native")]
     {
@@ -153,7 +156,14 @@ pub fn words(key: &'static str) -> &'static str {
     }
     #[cfg(not(feature = "native"))]
     {
-        key
+        static ENGLISH: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+        let english = ENGLISH.get_or_init(|| {
+            std::fs::read_to_string(crate::data_dir().join("i18n").join("en.json"))
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or(serde_json::Value::Null)
+        });
+        key.split('.').fold(english, |v, part| &v[part]).as_str().unwrap_or(key)
     }
 }
 
