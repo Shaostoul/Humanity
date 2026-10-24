@@ -83,6 +83,9 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "data/fonts/NotoSans-Regular.ttf",
     "data/release/signing_pubkeys.json",
     "docs/accord/humanity_accord.md",
+    // The admin action registry (src/relay/admin/mod.rs): built in on purpose, so the actions a
+    // relay runs, and the role each needs, are its build's and not a file edited on its disk.
+    "data/admin/actions.json",
 ];
 
 fn main() {

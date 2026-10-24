@@ -236,11 +236,12 @@
     },
     {
       "name": "List federated servers",
-      "what": "Shows the other servers this one knows about, with online status and trust badges.",
+      "what": "Shows the other servers this one federates with: trust, paused or not, whether a link is open now and for how long, when each was last heard from, which channels travel to peers, and this server's own federation key to hand to another admin.",
       "where": "native-app",
-      "how": "Server Settings > ADMIN > Federation list, reads GET /api/federation/servers (src/gui/pages/server_settings.rs:525-747).",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.list.",
       "also_available": [
-        "chat-command: /server-list (any user, src/relay/relay.rs:4703)"
+        "web-page: the admin page, Federation",
+        "chat-command: /server-list (any user, src/relay/relay.rs)"
       ]
     },
     {
@@ -248,9 +249,10 @@
       "what": "Registers another server to share messages with; the relay fetches its name and details automatically.",
       "where": "native-app",
       "audience": "any-admin",
-      "how": "Server Settings > ADMIN > Federation > Add-server row (src/gui/pages/server_settings.rs:525-747); sends /server-add <url> [name] (src/relay/relay.rs:4616).",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.add (by address) or federation.add_key (by its 3,904-character key, for a server behind a home router).",
       "also_available": [
-        "chat-command: /server-add <url> [name]"
+        "web-page: the admin page, Federation",
+        "chat-command: /server-add <url> [name], /server-add-key <key> [name]"
       ]
     },
     {
@@ -258,8 +260,9 @@
       "what": "Stops federating with a server (confirm step in the app).",
       "where": "native-app",
       "audience": "any-admin",
-      "how": "Server Settings > ADMIN > Federation > Remove, then 'Really remove?' (src/gui/pages/server_settings.rs:525-747); sends /server-remove (src/relay/relay.rs:4676).",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.remove, after \"Really remove?\".",
       "also_available": [
+        "web-page: the admin page, Federation",
         "chat-command: /server-remove <server_id or url>"
       ]
     },
@@ -268,8 +271,9 @@
       "what": "Rates how much you trust another server, from 0 (unverified) to 3 (verified + Accord).",
       "where": "native-app",
       "audience": "any-admin",
-      "how": "Server Settings > ADMIN > Federation > per-row trust dropdown (src/gui/pages/server_settings.rs:525-747); sends /server-trust <id> <0-3> (src/relay/relay.rs:4733).",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.trust, the per-row trust list.",
       "also_available": [
+        "web-page: the admin page, Federation",
         "chat-command: /server-trust <server_id> <0-3>"
       ]
     },
@@ -278,9 +282,32 @@
       "what": "Tries to open live connections to every registered peer server at once.",
       "where": "native-app",
       "audience": "any-admin",
-      "how": "Server Settings > ADMIN > Federation > 'Connect to all verified' (src/gui/pages/server_settings.rs:525-747); sends /server-connect (src/relay/relay.rs:4801).",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.connect (\"Connect to trusted peers\": every peer at trust 2 or more that is not paused).",
       "also_available": [
+        "web-page: the admin page, Federation",
         "chat-command: /server-connect"
+      ]
+    },
+    {
+      "name": "Pause or resume a federated server",
+      "what": "Stops federating with a peer for now and keeps it, its trust and its key: an open link closes within 15 seconds and none opens until it is resumed. Resume federates again at the trust it had.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.pause, federation.resume (storage/federation_pause.rs: a paused peer is left out of the registry read every federation path makes).",
+      "also_available": [
+        "web-page: the admin page, Federation"
+      ]
+    },
+    {
+      "name": "Federate a channel, or stop",
+      "what": "Chooses which channels travel to peer servers (today united-humanity.us and public.guide federate #general and #announcements). The guaranteed local-only room never federates while that setting is on.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Federation (src/gui/pages/server_settings/federation.rs; on the website, the admin page's Federation panel, web/pages/admin-console.js), through the signed action registry POST /api/admin/actions/run (src/relay/admin/federation.rs): federation.channel, the \"Channels that travel to peers\" boxes.",
+      "also_available": [
+        "web-page: the admin page, Federation",
+        "native-app: Server Settings > ADMIN > Channels grid, Federated column",
+        "chat-command: /server-federate <channel> (toggles)"
       ]
     },
     {
@@ -567,10 +594,14 @@
     },
     {
       "name": "Configure external alert channels (ntfy/Discord/Telegram/webhook)",
-      "what": "Where emergency alerts go is a hand-edited secrets file on the server; if it is never created, alerts silently go nowhere.",
-      "where": "config-file",
-      "audience": "owner",
-      "how": "ssh humanity-vps, copy data/alert-channels.example.json to /opt/Humanity/data/alert-channels.secrets.json and fill in tokens; test with node scripts/humanity-alert.js \"test\" info (scripts/humanity-alert.js:12-26; called the freshest debt in docs/design/in-app-ops.md:38)."
+      "what": "Where this server's warnings go (the relay watchdog and the disk guard): ntfy, Discord or Slack, a Telegram chat, or any webhook. List, add, change, turn on or off, remove, and send a test that says what the other end answered. An address or token is shown back only by its host and last characters.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Alert channels (src/gui/pages/server_settings/alerts.rs; on the website, the admin page's Alert channels panel), through the signed action registry: alerts.list, alerts.add, alerts.update, alerts.set_enabled, alerts.remove, alerts.test (src/relay/admin/alerts.rs). They edit the same data/alert-channels.secrets.json scripts/humanity-alert.js reads (HUMANITY_ALERT_CONFIG moves it for both).",
+      "also_available": [
+        "web-page: the admin page, Alert channels",
+        "config-file: data/alert-channels.secrets.json on the server, by hand"
+      ]
     },
     {
       "name": "View and lift network-level IP bans (fail2ban)",
@@ -695,6 +726,16 @@
       "where": "vps-shell",
       "audience": "owner",
       "how": "powershell -File scripts/backup-drill-pc.ps1 (needs copies of the server's backup.key and backup-destination.secrets.json in %USERPROFILE%\\HumanityBackups\\keys\\<server>; task recipe at the top of the script; log %USERPROFILE%\\HumanityBackups\\backup-drill.log)."
+    },
+    {
+      "name": "Every admin action, and the admin log",
+      "what": "Every action a server's admins and moderators can take, drawn from the server's own registry with the role each needs, how dangerous it is and a form for its inputs; one that runs through the registry runs from here, one that is still a chat command is sent (desktop) or copied (website). The admin log shows every change made through it: when, which admin, what, and whether it worked. An AI reads the same list at GET /api/admin/actions and runs actions at POST /api/admin/actions/run, signed with its own key.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Every admin action and Admin log (src/gui/pages/server_settings/all_actions.rs); the registry is data/admin/actions.json, built into the relay (src/relay/admin/mod.rs).",
+      "also_available": [
+        "web-page: the admin page, Every admin action and Admin log"
+      ]
     }
   ],
   "planned": [
@@ -703,12 +744,6 @@
       "today": "The in-app Restart and Tail-logs buttons shell out over the operator's personal humanity-vps SSH alias (src/gui/pages/relay_control.rs:448-464), so they only work on that one PC; every other admin needs a terminal (in-app-ops.md:42, 88).",
       "proposal": "Extend the existing sudo-gated service_control bridge with a supervised restart action and a log ring-buffer read endpoint, so the Relays > Control tab's honest CLI-fallback cards become real buttons for any signed-in admin.",
       "effort": "medium"
-    },
-    {
-      "name": "Alert channels editor",
-      "today": "Where emergency alerts go (ntfy/Discord/Telegram) is a hand-created secrets JSON on the VPS; if it is never created, alerts silently go nowhere (scripts/humanity-alert.js:12-26).",
-      "proposal": "Server Settings > Alerts: list/add/edit/remove channels plus a 'send test alert' button, backed by an admin-signed GET/PUT endpoint reading the same file the watchdog uses. Already flagged as the freshest debt and best first slice (in-app-ops.md:38).",
-      "effort": "small"
     },
     {
       "name": "One-click server update",

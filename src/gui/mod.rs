@@ -2610,19 +2610,9 @@ pub struct GuiState {
     /// True while a command is running, so the UI can show a spinner + block re-runs.
     pub vps_console_running: bool,
 
-    /// Federated-server list (Server Settings → Federation, v0.722).
-    pub federation_servers: Vec<FederationServerRow>,
-    /// Federation panel status line ("Loading…", error text, or empty).
-    pub federation_status: String,
-    /// In-flight federation-list fetch (worker thread → per-frame drain).
-    pub federation_rx: Option<std::sync::mpsc::Receiver<Result<Vec<FederationServerRow>, String>>>,
-    /// Draft inputs for the Federation "Add server" row.
-    pub federation_add_url_draft: String,
-    pub federation_add_name_draft: String,
-    /// Add-by-key drafts (NAT-friendly pairing: a home node with no public
-    /// URL is added by its 64-hex Ed25519 federation key instead).
-    pub federation_add_key_draft: String,
-    pub federation_add_key_name_draft: String,
+    /// Server Settings > ADMIN's panels on the server's action registry (2026-10-22): Alert
+    /// channels, Federation, Every admin action and the admin log (state_types/admin_console.rs).
+    pub admin_console: AdminConsoleState,
     /// Host-a-node autostart (operator field test 2: "I can't seem to
     /// reconnect to my self-relay when I restart the app" -- the node was
     /// simply not running). Set when the node is started, cleared on Stop;
@@ -4022,13 +4012,7 @@ impl Default for GuiState {
             vps_console_output: String::new(),
             vps_console_rx: None,
             vps_console_running: false,
-            federation_servers: Vec::new(),
-            federation_status: String::new(),
-            federation_rx: None,
-            federation_add_url_draft: String::new(),
-            federation_add_name_draft: String::new(),
-            federation_add_key_draft: String::new(),
-            federation_add_key_name_draft: String::new(),
+            admin_console: AdminConsoleState::default(),
             host_node_autostart: false,
             host_node_port: String::new(),
             host_node_db: String::new(),

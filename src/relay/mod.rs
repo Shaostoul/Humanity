@@ -6,6 +6,9 @@
 
 pub mod relay;
 pub mod api;
+/// The admin action registry (data/admin/actions.json) and its two endpoints, list and run
+/// (2026-10-22, docs/design/in-app-ops.md); the alert-channel and federation actions live under it.
+pub mod admin;
 /// Who a request comes from: client headers are believed only from a trusted proxy (2026-10-22).
 pub mod client_addr;
 /// Per-address limits on every HTTP route, applied by one edge layer (2026-10-22).
@@ -1428,6 +1431,10 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // and a proxy would reject as 414 (the same reason admin stats grew a
         // POST form). Signs the purpose "admin_federation", not "admin_stats".
         .route("/api/admin/federation", post(api::post_admin_federation))
+        // The admin action registry (2026-10-22, src/relay/admin/): the list to anyone (the
+        // same data as the open-source file), and the one signed route that runs an action.
+        .route("/api/admin/actions", get(admin::get_actions))
+        .route("/api/admin/actions/run", post(admin::post_run))
         // The Backups panel on both apps (2026-10-22, backup_stream/api.rs): status, back up
         // now, the restore drill, where the copies go, whose backups this server keeps.
         .route("/api/admin/backups", post(backup_stream::api::post_admin_backups))

@@ -40,6 +40,12 @@ use crate::net::admin_erase as admin_erase_rules;
 /// Each role's upload limits, under the roles table (the Media follow-ups B1 to B5, 2026-10-11).
 pub(crate) mod role_limits;
 
+/// The admin console on the server's action registry (2026-10-22, docs/design/in-app-ops.md):
+/// the requests and answers, Alert channels, Federation, and Every admin action with the log.
+pub(crate) mod admin_api;
+pub(crate) mod alerts;
+pub(crate) mod federation;
+pub(crate) mod all_actions;
 /// Continuous backup, under Backups (2026-10-22): status, the restore drill, where the copies go,
 /// and whose backups this server keeps.
 pub(crate) mod continuous_backup;
@@ -529,326 +535,8 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-// ── Federation panel (v0.722) ───────────────────────────────────────────────
-
-/// Background fetch of GET /api/federation/servers (public read endpoint).
-/// Same worker-thread + mpsc pattern as the System health panel.
-fn spawn_federation_fetch(state: &mut GuiState) {
-    let base = state.server_url.trim_end_matches('/').to_string();
-    let (tx, rx) = std::sync::mpsc::channel();
-    state.federation_rx = Some(rx);
-    state.federation_status = "Loading...".to_string();
-    std::thread::spawn(move || {
-        let fetch = || -> Result<Vec<crate::gui::FederationServerRow>, String> {
-            let body = ureq::get(&format!("{base}/api/federation/servers"))
-                .call()
-                .map_err(|e| format!("list failed: {e}"))?
-                .into_string()
-                .map_err(|e| format!("read: {e}"))?;
-            let val: serde_json::Value =
-                serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
-            let arr = val.as_array().cloned().unwrap_or_default();
-            Ok(arr
-                .into_iter()
-                .map(|s| crate::gui::FederationServerRow {
-                    server_id: s.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    name: s.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    url: s.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    trust_tier: s.get("trust_tier").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-                    status: s.get("status").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-                    accord_compliant: s.get("accord_compliant").and_then(|v| v.as_bool()).unwrap_or(false),
-                })
-                .collect())
-        };
-        let _ = tx.send(fetch());
-    });
-}
-
-/// Federation admin panel — the GUI for the /server-* commands, which
-/// previously existed ONLY as typed commands (and /server-add was outright
-/// unreachable before the v0.716 dot-gate fix). List / add / trust-tier /
-/// remove / connect-all. Actions go through the same slash commands the
-/// relay already enforces role checks on; the list reads the public REST
-/// endpoint. Federation-activation Phase 1 UI (docs/design/federation-activation.md).
-fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // Drain a finished fetch.
-    if let Some(rx) = &state.federation_rx {
-        match rx.try_recv() {
-            Ok(Ok(rows)) => {
-                state.federation_servers = rows;
-                state.federation_status.clear();
-                state.federation_rx = None;
-            }
-            Ok(Err(e)) => {
-                state.federation_status = e;
-                state.federation_rx = None;
-            }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
-            }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                state.federation_status = "Fetch thread died.".to_string();
-                state.federation_rx = None;
-            }
-        }
-    }
-    // First view while connected: fetch automatically.
-    let ws_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
-    if ws_connected
-        && state.federation_servers.is_empty()
-        && state.federation_rx.is_none()
-        && state.federation_status.is_empty()
-    {
-        spawn_federation_fetch(state);
-    }
-
-    widgets::subsection_label(ui, theme, "Federation");
-    widgets::body_hint(
-        ui, theme,
-        "Peer servers this relay federates with. Trust tiers: 0 = untrusted, \
-         1 = basic, 2 = trusted, 3 = fully trusted. Command results appear \
-         privately in Chat; click Refresh afterwards to see the updated list.",
-    );
-    ui.add_space(theme.spacing_xs);
-
-    // Guaranteed local-only room (v0.1132): visible right where operators
-    // think about federation, because it is the counterweight to it.
-    // Only on a working copy made from the server's real settings: the checkbox sends the
-    // whole copy (gui/connections.rs `page_draft`).
-    if let Some(draft) = crate::gui::connections::page_draft(state.server_settings_draft.as_ref(), state.server_settings.as_ref()).as_mut() {
-        let mut on = draft.local_channel_enabled;
-        if ui
-            .checkbox(
-                &mut on,
-                "Keep a guaranteed local-only room (#local) that can never be bridged",
-            )
-            .on_hover_text(
-                "While on, this server always has a #local channel and REFUSES to \
-                 federate it, so members have a room that provably stays here. \
-                 Turning it off makes #local an ordinary channel (bridgeable, \
-                 deletable) and stops recreating it.",
-            )
-            .changed()
-        {
-            draft.local_channel_enabled = on;
-            if let Some(d) = state.server_settings_draft.as_mut() {
-                d.local_channel_enabled = on;
-            }
-            let d = draft.clone();
-            send_server_settings_update(state, &d);
-        }
-    } else {
-        widgets::body_hint(
-            ui, theme,
-            "Local-only room toggle appears once server settings load (admin only).",
-        );
-    }
-    ui.add_space(theme.spacing_xs);
-
-    if state.federation_servers.is_empty() && state.federation_status.is_empty() {
-        widgets::body_hint(ui, theme, "No federated servers yet - add one below.");
-    }
-    if !state.federation_status.is_empty() {
-        ui.label(
-            RichText::new(&state.federation_status)
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-        );
-        ui.add_space(theme.spacing_xs);
-    }
-
-    let rows = state.federation_servers.clone();
-    for row in &rows {
-        ui.horizontal(|ui| {
-            let status_color = if row.status == "connected" || row.status == "verified" {
-                theme.success()
-            } else {
-                theme.text_muted()
-            };
-            ui.label(
-                RichText::new(&row.name)
-                    .size(theme.font_size_body)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-            ui.label(
-                RichText::new(&row.url)
-                    .size(theme.font_size_small)
-                    .color(theme.text_secondary()),
-            );
-            ui.label(
-                RichText::new(&row.status)
-                    .size(theme.font_size_small)
-                    .color(status_color),
-            );
-            if row.accord_compliant {
-                ui.label(
-                    RichText::new("accord")
-                        .size(theme.font_size_small)
-                        .color(theme.success()),
-                );
-            }
-            // Trust tier selector — sends /server-trust on change.
-            let mut tier = row.trust_tier;
-            egui::ComboBox::from_id_salt(format!("fed_trust_{}", row.server_id))
-                .selected_text(format!("trust {}", tier))
-                .width(80.0)
-                .show_ui(ui, |ui| {
-                    for t in 0..=3 {
-                        ui.selectable_value(&mut tier, t, format!("{} - {}", t, match t {
-                            0 => "untrusted",
-                            1 => "basic",
-                            2 => "trusted",
-                            _ => "full",
-                        }));
-                    }
-                });
-            if tier != row.trust_tier {
-                let cmd = format!("/server-trust {} {}", row.server_id, tier);
-                send_slash(state, &cmd);
-                state.server_settings_status = format!("Sent: {} - Refresh to confirm.", cmd);
-            }
-            // Re-check its key (2026-10-11): re-read the key from its own server-info and pin it,
-            // for a peer whose key changed (every server's did on 2026-09-06). Only a peer added by
-            // a web address has somewhere to ask.
-            if row.url.starts_with("http") {
-                if widgets::Button::ghost("Re-check key")
-                    .tooltip("Fetch this server's key again from its own address and pin it. Use it when its key has changed and the link keeps dropping.")
-                    .show(ui, theme)
-                {
-                    let cmd = format!("/server-recheck {}", row.server_id);
-                    send_slash(state, &cmd);
-                    state.server_settings_status = format!("Sent: {} - the answer appears privately in Chat.", cmd);
-                }
-            }
-            // Remove (confirm per row via the shared confirm slot).
-            let confirm_key = format!("/server-remove {}", row.server_id);
-            if state.server_settings_confirm_action.as_deref() == Some(confirm_key.as_str()) {
-                if widgets::Button::danger("Really remove?").show(ui, theme) {
-                    send_slash(state, &confirm_key);
-                    state.server_settings_status = format!("Sent: {} - Refresh to confirm.", confirm_key);
-                    state.server_settings_confirm_action = None;
-                }
-                if widgets::Button::secondary("Cancel").show(ui, theme) {
-                    state.server_settings_confirm_action = None;
-                }
-            } else if widgets::Button::ghost("Remove")
-                .tooltip("Stop federating with this server. Asks to confirm.")
-                .show(ui, theme)
-            {
-                state.server_settings_confirm_action = Some(confirm_key);
-            }
-        });
-        ui.add_space(theme.spacing_xs);
-    }
-
-    // Add-server row.
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new("Add:")
-                .size(theme.font_size_small)
-                .color(theme.text_secondary()),
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut state.federation_add_url_draft)
-                .desired_width(200.0)
-                .hint_text("https://server.example.com"),
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut state.federation_add_name_draft)
-                .desired_width(110.0)
-                .hint_text("name (optional)"),
-        );
-        let url = state.federation_add_url_draft.trim().to_string();
-        let url_ok = url.starts_with("http://") || url.starts_with("https://");
-        ui.add_enabled_ui(url_ok, |ui| {
-            if widgets::Button::primary("Add server")
-                .tooltip("Federate with another HumanityOS relay. The relay auto-discovers \
-                          its details via /api/server-info.")
-                .show(ui, theme)
-            {
-                let name = state.federation_add_name_draft.trim().to_string();
-                let cmd = if name.is_empty() {
-                    format!("/server-add {}", url)
-                } else {
-                    format!("/server-add {} {}", url, name)
-                };
-                send_slash(state, &cmd);
-                state.server_settings_status = format!("Sent: {} - Refresh to see it listed.", cmd);
-                state.federation_add_url_draft.clear();
-                state.federation_add_name_draft.clear();
-            }
-        });
-    });
-    ui.add_space(theme.spacing_xs);
-    // Add-by-key row: pairs a server that has NO public URL (a home node
-    // behind NAT). It dials OUT to us; we only need its federation key,
-    // shown with a Copy button on that node's Host Node page.
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new("Add by key:")
-                .size(theme.font_size_small)
-                .color(theme.text_secondary()),
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut state.federation_add_key_draft)
-                .desired_width(200.0)
-                .hint_text("64-hex federation key"),
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut state.federation_add_key_name_draft)
-                .desired_width(110.0)
-                .hint_text("name"),
-        );
-        let key = state.federation_add_key_draft.trim().to_lowercase();
-        let key_ok = key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit());
-        if !key.is_empty() && !key_ok {
-            ui.label(
-                RichText::new("need 64 hex chars")
-                    .size(theme.font_size_small)
-                    .color(theme.warning()),
-            );
-        }
-        ui.add_enabled_ui(key_ok, |ui| {
-            if widgets::Button::primary("Pair")
-                .tooltip("Register a NAT-friendly peer by its federation key. No URL or \
-                          port-forward needed: that node connects out to this server. \
-                          Copy the key from its Host Node page.")
-                .show(ui, theme)
-            {
-                let name = state.federation_add_key_name_draft.trim().to_string();
-                let cmd = if name.is_empty() {
-                    format!("/server-add-key {}", key)
-                } else {
-                    format!("/server-add-key {} {}", key, name)
-                };
-                send_slash(state, &cmd);
-                state.server_settings_status =
-                    format!("Sent: {} - Refresh to see it listed.", cmd);
-                state.federation_add_key_draft.clear();
-                state.federation_add_key_name_draft.clear();
-            }
-        });
-    });
-    ui.add_space(theme.spacing_xs);
-    ui.horizontal(|ui| {
-        if widgets::Button::secondary("Refresh")
-            .tooltip("Re-fetch the federated-server list.")
-            .show(ui, theme)
-        {
-            spawn_federation_fetch(state);
-        }
-        ui.add_space(theme.spacing_sm);
-        if widgets::Button::secondary("Connect to all verified")
-            .tooltip("Open federation connections to every verified peer server \
-                      (/server-connect). Result appears privately in Chat.")
-            .show(ui, theme)
-        {
-            send_slash(state, "/server-connect");
-            state.server_settings_status = "Sent: /server-connect - result appears in Chat.".into();
-        }
-    });
-}
+// The Federation panel moved to server_settings/federation.rs (2026-10-22), rebuilt on the
+// server's action registry.
 
 // ── System health (v0.720) ──────────────────────────────────────────────────
 
@@ -1013,9 +701,18 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
              elevated roles or banned.",
         );
         ui.add_space(theme.spacing_sm);
+        // The admin console's answers (alerts, federation, every action, the log) come in here.
+        admin_api::drain(state, ui.ctx());
 
         // ── System health (v0.720): read-only live snapshot ──
         draw_system_health_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Alert channels (2026-10-22): where this server's warnings go ──
+        alerts::draw(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -1298,8 +995,8 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
-        // ── Federation (v0.722): the /server-* commands had no GUI at all ──
-        draw_federation_admin(ui, theme, state);
+        // ── Federation (v0.722; on the action registry since 2026-10-22) ──
+        federation::draw(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -1311,6 +1008,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // privilege. Placed adjacent so an admin manages all bans in one place,
         // but clearly distinct.
         super::game_admin::draw_section(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Every admin action and the admin log (2026-10-22): the server's own registry ──
+        all_actions::draw(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -1868,16 +1572,19 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     );
     // Say what "Federated" actually bridges to RIGHT NOW (federation-ux.md
     // build order 5): a live peer list beats an abstract checkbox.
+    // The peers come from the Federation section's view (the server's federation.list, which
+    // that section loads); until it has loaded, say where they are.
     {
-        let peers: Vec<String> = state
-            .federation_servers
-            .iter()
-            .filter(|s| s.trust_tier >= 2)
-            .map(|s| s.name.clone())
-            .collect();
-        let line = if peers.is_empty() {
+        let view = state.admin_console.federation.as_ref();
+        let peers: Vec<String> = view
+            .and_then(|v| v["peers"].as_array())
+            .map(|ps| ps.iter().filter(|p| p["federates"] == true).filter_map(|p| p["name"].as_str().map(str::to_string)).collect())
+            .unwrap_or_default();
+        let line = if view.is_none() {
+            "The Federation section below lists the peers these channels bridge with.".to_string()
+        } else if peers.is_empty() {
             "Right now this server has NO trusted federation peers, so the Federated \
-             toggle bridges to nothing - pair a peer in the Federation section above first."
+             toggle bridges to nothing - pair a peer in the Federation section below first."
                 .to_string()
         } else {
             format!("Federated channels here bridge with: {}.", peers.join(", "))
@@ -3294,7 +3001,7 @@ fn kv_row_with_definition(ui: &mut egui::Ui, theme: &Theme, key: &str, glossary_
 
 /// Send a slash command via the existing chat WebSocket. Server processes
 /// `/kick`, `/ban`, `/lockdown`, `/channel-*`, `/mod`, `/verify`, etc.
-fn send_slash(state: &mut GuiState, command: &str) {
+pub(crate) fn send_slash(state: &mut GuiState, command: &str) {
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
             let ts = std::time::SystemTime::now()

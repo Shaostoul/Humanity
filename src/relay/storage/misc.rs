@@ -174,16 +174,21 @@ impl Storage {
                 "DELETE FROM federated_servers WHERE server_id = ?1",
                 params![server_id],
             )?;
+            // Its pause goes with it (storage/federation_pause.rs), so adding it again starts unpaused.
+            conn.execute("DELETE FROM federation_paused WHERE server_id = ?1", params![server_id])?;
             Ok(rows > 0)
         })
     }
 
-    /// List all federated servers, ordered by trust tier DESC then name.
+    /// List the federated servers federation may use, ordered by trust tier DESC then name. A
+    /// PAUSED peer is left out (storage/federation_pause.rs), so every federation path that reads
+    /// this treats it as absent; the admin views read `list_federated_servers_all` instead.
     pub fn list_federated_servers(&self) -> Result<Vec<super::FederatedServer>, rusqlite::Error> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT server_id, name, url, public_key, trust_tier, accord_compliant, status, last_seen, added_at
                  FROM federated_servers
+                 WHERE server_id NOT IN (SELECT server_id FROM federation_paused)
                  ORDER BY trust_tier DESC, name ASC"
             )?;
             let servers = stmt.query_map([], |row| {

@@ -1,0 +1,698 @@
+{
+  "_purpose": "The admin ACTION registry (docs/design/in-app-ops.md, north star): every action a server's admins and moderators can take, as data. Each entry says what it does, the role it needs, the inputs it takes and how dangerous it is, and how it runs: 'run': 'here' runs through the one signed endpoint POST /api/admin/actions/run; 'chat' is the chat command that does the same (typed in any chat box); 'route' is a dedicated signed endpoint. The relay builds this file into itself (src/relay/admin/mod.rs), serves it at GET /api/admin/actions, and both apps draw their 'Every admin action' list from what the server serves, so an action added here appears in both without new screens. An AI reads the same list to know exactly what it may do. Tests: every 'here' action has a runner and every runner an entry (src/relay/admin/tests.rs); every /api/admin route and every chat command the relay answers is either here or named as a member command with its reason (tests/admin_action_coverage.rs, in just lints). The sibling data/admin/ops_registry.json is the Admin map: where EVERY owner task lives, shell-only ones included. This file is what can be RUN.",
+
+  "signing": {
+    "_how": "POST /api/admin/actions/run with JSON {key, timestamp, sig, action, inputs, confirm?}. key: your Dilithium3 public key (hex). inputs: the inputs as a JSON TEXT (a string), exactly the bytes you hash. sig: Dilithium3 signature (hex) over '<purpose>\\n<timestamp>', where purpose is 'admin_action\\n<action id>\\n<BLAKE3 of the inputs text, lowercase hex>'. timestamp: milliseconds since 1970, at most 5 minutes old, used once. confirm: the action's confirm_word, required for a destructive action.",
+    "purpose_prefix": "admin_action",
+    "example": {
+      "action": "alerts.list",
+      "inputs": "{}",
+      "purpose": "admin_action\nalerts.list\n6e46dd10defc9b56c29a6ec56b508c21f54c08192194e4df25bf36f0c9c3c279"
+    }
+  },
+
+  "roles": {
+    "admin": "An admin (or the owner) of this server.",
+    "mod": "A moderator, an admin or the owner.",
+    "member": "Anyone signed in. Only for the claim, which works only while a server has no admin yet."
+  },
+
+  "danger_levels": {
+    "read": "Changes nothing. Not written to the admin log.",
+    "safe": "A change that is easy to undo. One click.",
+    "caution": "A change that is harder to undo, or cuts something off. The apps ask once.",
+    "destructive": "Cannot be undone. The apps ask you to type its confirm word, and the run endpoint refuses it without that word."
+  },
+
+  "reserved": [
+    {
+      "prefix": "backups.",
+      "for": "The Backups panel (continuous backup, src/relay/backup_stream/). Its actions are listed here under this prefix; today they run at their own POST /api/admin/backups, and moving one to 'run': 'here' is a line in RUNNERS (docs/design/in-app-ops.md, 'The Backups panel'). Nothing else may use the prefix."
+    }
+  ],
+
+  "categories": [
+    { "id": "alerts", "label": "Alert channels", "description": "Where this server sends a warning when something goes wrong, such as the relay going down or the disk filling up: a phone notification through ntfy, a Discord or Slack channel, a Telegram chat, or any web address that takes a message." },
+    { "id": "federation", "label": "Federation", "description": "The other servers this one links with, which channels travel between them, and how much each is trusted." },
+    { "id": "channels", "label": "Channels", "description": "The chat rooms on this server and how they are grouped." },
+    { "id": "members", "label": "Members and moderation", "description": "Who may post, who is a moderator, and who is kept out." },
+    { "id": "registration", "label": "Joining the server", "description": "Whether new people may sign up, and invite codes for when they may not." },
+    { "id": "maintenance", "label": "Server maintenance", "description": "Clearing history and tidying up after accounts nobody uses." },
+    { "id": "backups", "label": "Backups", "description": "Copies of this server's database: the ones kept beside it, the continuous copy sent somewhere else, proving a copy restores, and other servers' copies kept here." },
+    { "id": "system", "label": "System", "description": "The server's health, and its data folder." },
+    { "id": "log", "label": "Admin log", "description": "What admins changed here, when, and who did it." }
+  ],
+
+  "actions": [
+    {
+      "id": "alerts.list",
+      "label": "List alert channels",
+      "description": "The channels alerts go to. Every address and token is shown only by its last few characters; the app never shows them whole again once saved.",
+      "category": "alerts",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "run": "here"
+    },
+    {
+      "id": "alerts.add",
+      "label": "Add an alert channel",
+      "description": "Send this server's alerts somewhere new. ntfy: the topic's web address (https://ntfy.sh/a-long-random-name). Discord or Slack: the channel's webhook address. Webhook: any web address that accepts a posted message. Telegram: the bot's token, and the chat's number.",
+      "category": "alerts",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "kind", "label": "Kind", "kind": "choice", "required": true, "choices": ["ntfy", "discord", "webhook", "telegram"] },
+        { "name": "label", "label": "Your name for it", "kind": "text", "required": false, "max_len": 60, "hint": "my phone" },
+        { "name": "address", "label": "Address or token", "kind": "secret", "required": true, "max_len": 500, "hint": "https://ntfy.sh/a-long-random-name" },
+        { "name": "chat_id", "label": "Telegram chat number", "kind": "text", "required": false, "max_len": 64, "hint": "123456789 (Telegram only)" },
+        { "name": "enabled", "label": "Send alerts to it now", "kind": "bool", "required": false }
+      ],
+      "run": "here"
+    },
+    {
+      "id": "alerts.update",
+      "label": "Change an alert channel",
+      "description": "Rename a channel, or give it a new address or token. A field left empty keeps what it has.",
+      "category": "alerts",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "index", "label": "Which channel (its number in the list)", "kind": "number", "required": true, "min": 0, "max": 49 },
+        { "name": "label", "label": "Your name for it", "kind": "text", "required": false, "max_len": 60 },
+        { "name": "address", "label": "New address or token", "kind": "secret", "required": false, "max_len": 500 },
+        { "name": "chat_id", "label": "New Telegram chat number", "kind": "text", "required": false, "max_len": 64 }
+      ],
+      "run": "here"
+    },
+    {
+      "id": "alerts.set_enabled",
+      "label": "Turn an alert channel on or off",
+      "description": "Stop or start sending alerts to one channel without forgetting it.",
+      "category": "alerts",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "index", "label": "Which channel (its number in the list)", "kind": "number", "required": true, "min": 0, "max": 49 },
+        { "name": "enabled", "label": "On", "kind": "bool", "required": true }
+      ],
+      "run": "here"
+    },
+    {
+      "id": "alerts.remove",
+      "label": "Remove an alert channel",
+      "description": "Forget a channel and its address or token. To use it again you would need the address again.",
+      "category": "alerts",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [
+        { "name": "index", "label": "Which channel (its number in the list)", "kind": "number", "required": true, "min": 0, "max": 49 }
+      ],
+      "run": "here"
+    },
+    {
+      "id": "alerts.test",
+      "label": "Send a test alert",
+      "description": "Send one real message to a channel now, so you can see that it arrives. Says what the other end answered.",
+      "category": "alerts",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "index", "label": "Which channel (its number in the list)", "kind": "number", "required": true, "min": 0, "max": 49 }
+      ],
+      "run": "here"
+    },
+
+    {
+      "id": "federation.list",
+      "label": "List federation peers and channels",
+      "description": "Every peer server with its trust, whether it is paused, whether a link to it is open now and when it was last heard from; every channel and whether it is federated; and this server's own federation key, for another server to add.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "run": "here",
+      "chat": "/server-list",
+      "route": "POST /api/admin/federation"
+    },
+    {
+      "id": "federation.add",
+      "label": "Add a peer by its address",
+      "description": "Register another server reachable on the internet. It does nothing until you raise its trust to 2: below that no link is made in either direction.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "url", "label": "Its address", "kind": "text", "required": true, "max_len": 300, "hint": "https://server.example.com" },
+        { "name": "name", "label": "A name for it", "kind": "text", "required": false, "max_len": 60 }
+      ],
+      "run": "here",
+      "chat": "/server-add {url} {name}"
+    },
+    {
+      "id": "federation.add_key",
+      "label": "Add a peer by its key",
+      "description": "Register a server behind a home router, which cannot be reached but can reach out. Paste the federation key from its Host Node page (3,904 characters). It dials this server; no port forwarding is needed on its side.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "key", "label": "Its federation key", "kind": "text", "required": true, "max_len": 4000 },
+        { "name": "name", "label": "A name for it", "kind": "text", "required": false, "max_len": 60 }
+      ],
+      "run": "here",
+      "chat": "/server-add-key {key} {name}"
+    },
+    {
+      "id": "federation.trust",
+      "label": "Set a peer's trust",
+      "description": "0 untrusted, 1 follows the Accord but is not verified, 2 verified, 3 verified and follows the Accord. Federation begins at 2; below it, links are refused.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [
+        { "name": "server_id", "label": "Which peer (its id from the list)", "kind": "text", "required": true, "max_len": 4000 },
+        { "name": "tier", "label": "Trust", "kind": "choice", "required": true, "choices": ["0", "1", "2", "3"] }
+      ],
+      "run": "here",
+      "chat": "/server-trust {server_id} {tier}"
+    },
+    {
+      "id": "federation.pause",
+      "label": "Pause a peer",
+      "description": "Stop federating with a peer for now, keeping it and its trust for later. An open link closes within 15 seconds and no new one is made until you resume it.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [
+        { "name": "server_id", "label": "Which peer (its id from the list)", "kind": "text", "required": true, "max_len": 4000 }
+      ],
+      "run": "here"
+    },
+    {
+      "id": "federation.resume",
+      "label": "Resume a paused peer",
+      "description": "Federate with a paused peer again, at the trust it had. It links again the next time either server connects (Connect to trusted peers does it now).",
+      "category": "federation",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "server_id", "label": "Which peer (its id from the list)", "kind": "text", "required": true, "max_len": 4000 }
+      ],
+      "run": "here"
+    },
+    {
+      "id": "federation.recheck",
+      "label": "Re-check a peer's key",
+      "description": "Fetch a peer's key again from its own address and pin it. Use it when its key changed and the link keeps dropping. Only a peer added by its address has somewhere to ask.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "server_id", "label": "Which peer (its id from the list)", "kind": "text", "required": true, "max_len": 4000 }
+      ],
+      "run": "here",
+      "chat": "/server-recheck {server_id}"
+    },
+    {
+      "id": "federation.remove",
+      "label": "Remove a peer",
+      "description": "Stop federating with a peer and forget it. An open link closes within 15 seconds. To federate again you add it again.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [
+        { "name": "server_id", "label": "Which peer (its id from the list)", "kind": "text", "required": true, "max_len": 4000 }
+      ],
+      "run": "here",
+      "chat": "/server-remove {server_id}"
+    },
+    {
+      "id": "federation.connect",
+      "label": "Connect to trusted peers",
+      "description": "Open links now to every peer at trust 2 or more that is not paused and has an address.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [],
+      "run": "here",
+      "chat": "/server-connect"
+    },
+    {
+      "id": "federation.channel",
+      "label": "Federate a channel, or stop",
+      "description": "Whether a channel's messages travel to peer servers. The guaranteed local-only room (#local) can never be federated while that setting is on.",
+      "category": "federation",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [
+        { "name": "channel", "label": "Channel (its id, as in the list)", "kind": "text", "required": true, "max_len": 64 },
+        { "name": "federated", "label": "Federated", "kind": "bool", "required": true }
+      ],
+      "run": "here",
+      "chat": "/server-federate {channel}"
+    },
+
+    {
+      "id": "log.recent",
+      "label": "Read the admin log",
+      "description": "The newest changes admins made through this list or the panels built on it: when, who, what, and whether it worked. Never holds a password, token or address.",
+      "category": "log",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "run": "here"
+    },
+
+    {
+      "id": "system.stats",
+      "label": "Server health and numbers",
+      "description": "Members, messages, storage, uptime, disk, the watchdog, the newest backup and the game world. Signed with the purpose admin_stats.",
+      "category": "system",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "route": "POST /api/admin/stats"
+    },
+    {
+      "id": "system.data_files",
+      "label": "Read and edit the server's data folder",
+      "description": "List the folders under data/, read a text file and write one back. Each is its own signed request (purposes data_files_list, data_files_read, data_files_write). The website's Files page, The server's data folder, uses them.",
+      "category": "system",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "route": "POST /api/data-files"
+    },
+
+    {
+      "id": "members.kick",
+      "label": "Kick a member",
+      "description": "Disconnect every device a member is signed in on. They can come straight back; it is not a ban.",
+      "category": "members",
+      "role": "mod",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/kick {name}"
+    },
+    {
+      "id": "members.mute",
+      "label": "Mute a member",
+      "description": "Stop a member posting without removing them.",
+      "category": "members",
+      "role": "mod",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/mute {name}"
+    },
+    {
+      "id": "members.unmute",
+      "label": "Unmute a member",
+      "description": "Let a muted member post again.",
+      "category": "members",
+      "role": "mod",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/unmute {name}"
+    },
+    {
+      "id": "members.ban",
+      "label": "Ban a member",
+      "description": "Keep someone off this server and disconnect them. Their messages stay. Undo with Unban.",
+      "category": "members",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/ban {name}"
+    },
+    {
+      "id": "members.unban",
+      "label": "Unban a member",
+      "description": "Let a banned person back onto this server.",
+      "category": "members",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/unban {name}"
+    },
+    {
+      "id": "members.mod",
+      "label": "Make a member a moderator",
+      "description": "Moderators can kick, mute, pin, delete channels and review reports.",
+      "category": "members",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/mod {name}"
+    },
+    {
+      "id": "members.unmod",
+      "label": "Take a moderator's role away",
+      "description": "Make a moderator an ordinary member again.",
+      "category": "members",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "run": "here",
+      "chat": "/unmod {name}"
+    },
+    {
+      "id": "members.verify",
+      "label": "Mark a member verified",
+      "description": "Give a member the verified badge.",
+      "category": "members",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "chat": "/verify {name}"
+    },
+    {
+      "id": "members.unverify",
+      "label": "Take a member's verified badge away",
+      "description": "Remove the verified badge.",
+      "category": "members",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "chat": "/unverify {name}"
+    },
+    {
+      "id": "members.donor",
+      "label": "Mark a member a donor",
+      "description": "Give a member the donor badge.",
+      "category": "members",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Their name", "kind": "text", "required": true, "max_len": 64 } ],
+      "chat": "/donor {name}"
+    },
+    {
+      "id": "members.name_release",
+      "label": "Release a name",
+      "description": "Free a registered name so someone else can take it.",
+      "category": "members",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [ { "name": "name", "label": "The name", "kind": "text", "required": true, "max_len": 64 } ],
+      "chat": "/name-release {name}"
+    },
+    {
+      "id": "members.users",
+      "label": "List everyone registered",
+      "description": "Every registered name, its role, whether it is online and how many devices it has.",
+      "category": "members",
+      "role": "mod",
+      "danger": "read",
+      "inputs": [],
+      "chat": "/users"
+    },
+    {
+      "id": "members.reports",
+      "label": "List reports",
+      "description": "The reports members sent, open and decided. The Reports view in the apps is the full version.",
+      "category": "members",
+      "role": "mod",
+      "danger": "read",
+      "inputs": [],
+      "chat": "/reports"
+    },
+    {
+      "id": "members.reports_clear",
+      "label": "Clear decided reports",
+      "description": "Delete the reports already decided. Open ones stay.",
+      "category": "members",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "chat": "/reports-clear"
+    },
+    {
+      "id": "members.pin",
+      "label": "Pin the newest message",
+      "description": "Pin the newest message in the channel the command is typed in.",
+      "category": "members",
+      "role": "mod",
+      "danger": "safe",
+      "inputs": [],
+      "chat": "/pin"
+    },
+    {
+      "id": "members.unpin",
+      "label": "Unpin a message",
+      "description": "Unpin a pinned message by its number in /pins.",
+      "category": "members",
+      "role": "mod",
+      "danger": "safe",
+      "inputs": [ { "name": "number", "label": "Its number in /pins", "kind": "number", "required": true, "min": 1, "max": 1000 } ],
+      "chat": "/unpin {number}"
+    },
+
+    {
+      "id": "registration.lockdown",
+      "label": "Close or open sign-ups",
+      "description": "Switch whether new people may sign up. Members already here are not affected.",
+      "category": "registration",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "chat": "/lockdown"
+    },
+    {
+      "id": "registration.invite",
+      "label": "Make an invite code",
+      "description": "A code one person can use to sign up while sign-ups are closed. Valid for 24 hours, once.",
+      "category": "registration",
+      "role": "mod",
+      "danger": "safe",
+      "inputs": [],
+      "chat": "/invite"
+    },
+    {
+      "id": "registration.claim",
+      "label": "Claim a new server",
+      "description": "Become the first admin of a server that has none, with the code it printed when it started (also in data/owner-claim-code.txt).",
+      "category": "registration",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [ { "name": "code", "label": "The claim code", "kind": "text", "required": true, "max_len": 64 } ],
+      "chat": "/claim {code}"
+    },
+
+    {
+      "id": "channels.create",
+      "label": "Create a channel",
+      "description": "A new chat room. Name: 1 to 24 letters, numbers, dashes or underscores.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "name", "label": "Name", "kind": "text", "required": true, "max_len": 24 },
+        { "name": "description", "label": "What it is for", "kind": "text", "required": false, "max_len": 200 }
+      ],
+      "chat": "/channel-create {name} {description}"
+    },
+    {
+      "id": "channels.rename",
+      "label": "Rename a channel",
+      "description": "Give a channel a new name.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "old", "label": "Its name now", "kind": "text", "required": true, "max_len": 24 },
+        { "name": "new", "label": "Its new name", "kind": "text", "required": true, "max_len": 24 }
+      ],
+      "chat": "/channel-edit {old} name {new}"
+    },
+    {
+      "id": "channels.delete",
+      "label": "Delete a channel",
+      "description": "Remove a channel. #general cannot be deleted.",
+      "category": "channels",
+      "role": "mod",
+      "danger": "destructive",
+      "confirm_word": "DELETE",
+      "inputs": [ { "name": "name", "label": "The channel", "kind": "text", "required": true, "max_len": 24 } ],
+      "chat": "/channel-delete {name}"
+    },
+    {
+      "id": "channels.readonly",
+      "label": "Make a channel read-only, or writable",
+      "description": "Switch whether members may post in a channel. Admins always can.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "The channel", "kind": "text", "required": true, "max_len": 24 } ],
+      "chat": "/channel-readonly {name}"
+    },
+    {
+      "id": "channels.reorder",
+      "label": "Move a channel in the list",
+      "description": "Lower numbers come first (0, 1, 2, 10, 20).",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "name", "label": "The channel", "kind": "text", "required": true, "max_len": 24 },
+        { "name": "position", "label": "Position", "kind": "number", "required": true, "min": 0, "max": 10000 }
+      ],
+      "chat": "/channel-reorder {name} {position}"
+    },
+    {
+      "id": "channels.category",
+      "label": "Put a channel in a category",
+      "description": "Group a channel under a category heading.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "channel", "label": "The channel", "kind": "text", "required": true, "max_len": 24 },
+        { "name": "category", "label": "The category", "kind": "text", "required": true, "max_len": 40 }
+      ],
+      "chat": "/channel-category {channel} {category}"
+    },
+    {
+      "id": "channels.category_create",
+      "label": "Create a category",
+      "description": "A heading channels can be grouped under.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [ { "name": "name", "label": "Name", "kind": "text", "required": true, "max_len": 40 } ],
+      "chat": "/category-create {name}"
+    },
+    {
+      "id": "channels.category_rename",
+      "label": "Rename a category",
+      "description": "Give a category heading a new name.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [
+        { "name": "old", "label": "Its name now", "kind": "text", "required": true, "max_len": 40 },
+        { "name": "new", "label": "Its new name", "kind": "text", "required": true, "max_len": 40 }
+      ],
+      "chat": "/category-rename {old} {new}"
+    },
+    {
+      "id": "channels.category_delete",
+      "label": "Delete a category",
+      "description": "Remove a category heading. Its channels stay, ungrouped.",
+      "category": "channels",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [ { "name": "name", "label": "Name", "kind": "text", "required": true, "max_len": 40 } ],
+      "chat": "/category-delete {name}"
+    },
+
+    {
+      "id": "backups.status",
+      "label": "Backup status",
+      "description": "The copies in the backups folder, and continuous backup's state: where the copies go, how far behind they are, what a restore could bring back, the key's fingerprint. Action \"status\" on its endpoint.",
+      "category": "backups",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+    {
+      "id": "backups.now",
+      "label": "Back up now",
+      "description": "Take a fresh copy of the database into the backups folder, and send a fresh full copy to the destination. Action \"back_up_now\".",
+      "category": "backups",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+    {
+      "id": "backups.restore_drill",
+      "label": "Run a restore drill",
+      "description": "Prove the copies restore: restore into a scratch file, check it and compare it with the live database, which it never touches. Action \"restore_drill\".",
+      "category": "backups",
+      "role": "admin",
+      "danger": "safe",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+    {
+      "id": "backups.test_destination",
+      "label": "Test a backup destination",
+      "description": "Check that a folder, an S3-compatible bucket or another HumanityOS server can take the copies, before saving it. Action \"test_destination\".",
+      "category": "backups",
+      "role": "admin",
+      "danger": "read",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+    {
+      "id": "backups.set_destination",
+      "label": "Choose where the copies go",
+      "description": "Save the destination continuous backup sends to, and how much history it keeps. Its secrets are never sent back. Action \"set_destination\".",
+      "category": "backups",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+    {
+      "id": "backups.host_allow",
+      "label": "Keep another server's backups here",
+      "description": "Let another HumanityOS server send its copies here, named by its backup sending key, with a size limit. Action \"host_allow\".",
+      "category": "backups",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+    {
+      "id": "backups.host_remove",
+      "label": "Stop keeping another server's backups",
+      "description": "Take a server off the list of those whose copies are kept here. Action \"host_remove\".",
+      "category": "backups",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "route": "POST /api/admin/backups"
+    },
+
+    {
+      "id": "maintenance.wipe",
+      "label": "Clear one channel's history",
+      "description": "Delete every message in the channel the command is typed in. Cannot be undone.",
+      "category": "maintenance",
+      "role": "admin",
+      "danger": "destructive",
+      "confirm_word": "WIPE",
+      "inputs": [],
+      "chat": "/wipe"
+    },
+    {
+      "id": "maintenance.wipe_all",
+      "label": "Clear all chat history",
+      "description": "Delete every message in every channel on this server. Cannot be undone.",
+      "category": "maintenance",
+      "role": "admin",
+      "danger": "destructive",
+      "confirm_word": "WIPE ALL",
+      "inputs": [],
+      "chat": "/wipe-all"
+    },
+    {
+      "id": "maintenance.names_cleanup",
+      "label": "Free names nobody has used in 90 days",
+      "description": "Release registered names whose accounts have not been seen for 90 days, so others can take them.",
+      "category": "maintenance",
+      "role": "admin",
+      "danger": "caution",
+      "inputs": [],
+      "chat": "/gc"
+    }
+  ]
+}

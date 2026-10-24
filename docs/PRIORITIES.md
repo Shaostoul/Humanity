@@ -1818,12 +1818,17 @@ agreement), so ad-blocking defaults do not apply there.
    privacy guard (independent, can land early), S4 native mirror.
 3. **In-app ops console.** `docs/design/in-app-ops.md`. Slice 1 (System/Health)
    shipped on both clients. The backups panel shipped 2026-10-22 with continuous
-   backup (item 12; an in-app "restore on next restart" remains). Remaining: the
-   alert-channels editor (the first write panel; continuous backup's alerts go
-   through its file today), a federation panel, then fail2ban /
-   relay-control / secrets (these need a sudo-gated relay-to-system bridge),
-   then factoring out the action registry with AI-facing list and run endpoints
-   plus a coverage test.
+   backup (item 12; an in-app "restore on next restart" remains). 2026-10-22/23:
+   the action registry (`data/admin/actions.json`, `GET /api/admin/actions` and the
+   signed `POST /api/admin/actions/run`, coverage lint), the alert-channels editor
+   (continuous backup's alerts go through its file), the federation panel (with
+   pause and the channels) and the admin log, on both clients; the Backups panel's
+   `/api/admin/backups` is listed in the registry by its route. Remaining: the
+   relay-to-system bridge for fail2ban / relay restart / secrets (designed in the
+   doc, not built: it installs a sudoers rule and a root helper on the live
+   servers), the socket admin messages in the coverage lint, moving the Backups
+   panel's actions and the rest of the chat-only actions to run through the
+   registry.
 4. **Federation activation.** `docs/design/federation-activation.md`. Native
    Phase 1 admin UI shipped (v0.722.0); the web mirror is what remains of Phase
    1. Phase 2 per-peer profile-gossip rate limit, Phase 3 a second

@@ -1641,6 +1641,74 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     });
 }
 
+// Server Settings > ADMIN > Alert channels (2026-10-22, docs/design/in-app-ops.md): two
+// channels as the server answers them (addresses by host and last characters only), one off,
+// the add row set to Telegram so its chat box shows, and a test's answer. Built in memory.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_admin_alerts() {
+    render_page_png("admin_alerts", 960, 520, |ctx, theme, state| {
+        state.admin_console.alerts = Some(serde_json::json!({ "channels": [
+            { "index": 0, "kind": "ntfy", "label": "my phone", "enabled": true,
+              "address": { "set": true, "host": "ntfy.sh", "ends": "k3Fz" }, "chat_id": { "set": false } },
+            { "index": 1, "kind": "discord", "label": "ops channel", "enabled": false,
+              "address": { "set": true, "host": "discord.com", "ends": "Q9xw" }, "chat_id": { "set": false } } ] }));
+        state.admin_console.alerts_status = (true, "Sent a test to the ntfy channel \"my phone\": it answered 200, so it arrived. Check that you see it.".into());
+        state.admin_console.alert_draft.kind = "telegram".into();
+        settings_panel(ctx, theme, state, crate::gui::pages::server_settings::alerts::draw);
+    });
+}
+
+// Server Settings > ADMIN > Federation on the action registry (2026-10-22): a linked peer, a
+// paused one, one added by key below trust 2, the channels that travel, and this server's key.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_admin_federation() {
+    render_page_png("admin_federation", 1100, 560, |ctx, theme, state| {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        state.admin_console.federation = Some(serde_json::json!({
+            "peers": [
+                { "server_id": "https://public.guide", "name": "public.guide", "url": "https://public.guide", "trust_tier": 3,
+                  "accord_compliant": true, "paused": false, "linked": true, "linked_secs": 26_000, "last_seen": now - 40_000, "status": "online" },
+                { "server_id": "https://b.example", "name": "Beta", "url": "https://b.example", "trust_tier": 2,
+                  "paused": true, "linked": false, "status": "offline", "last_seen": now - 7_200_000 },
+                { "server_id": "cd".repeat(1952), "name": "home-node", "url": "outbound-only", "by_key": true, "trust_tier": 0,
+                  "paused": false, "linked": false, "status": "unknown" } ],
+            "channels": [
+                { "id": "general", "name": "general", "federated": true, "can_federate": true },
+                { "id": "announcements", "name": "announcements", "federated": true, "can_federate": true },
+                { "id": "local", "name": "local", "federated": false, "local_only": true, "can_federate": false },
+                { "id": "dev", "name": "dev", "federated": false, "can_federate": true } ],
+            "own_key": "ab".repeat(1952),
+        }));
+        state.admin_console.federation_status = (true, "3 peers, 1 linked now.".into());
+        settings_panel(ctx, theme, state, crate::gui::pages::server_settings::federation::draw);
+    });
+}
+
+// Server Settings > ADMIN > Every admin action (2026-10-22): the registry built into this build,
+// searched for "channel" so its groups open, one destructive form open with its confirm word,
+// and the admin log under it.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_admin_every_action() {
+    render_page_png("admin_every_action", 1000, 1300, |ctx, theme, state| {
+        if state.admin_console.registry.is_none() {
+            state.admin_console.registry = Some(crate::relay::admin::registry().clone());
+            state.admin_console.filter = "channel".into();
+            state.admin_console.open_action = Some("channels.delete".into());
+            state.admin_console.confirm_typed = "DEL".into();
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+            state.admin_console.log = Some(vec![
+                serde_json::json!({ "at": now - 120_000, "who": "Ada", "label": "Add an alert channel", "summary": "Added the ntfy channel \"my phone\".", "ok": true }),
+                serde_json::json!({ "at": now - 60_000, "who": "Ada", "label": "Send a test alert", "summary": "Refused: The discord channel \"ops\" answered 404: nothing there.", "ok": false }),
+                serde_json::json!({ "at": now - 5_000, "who": "a former admin", "label": "Pause a peer", "summary": "Paused peer https://b.example.", "ok": true }),
+            ]);
+        }
+        settings_panel(ctx, theme, state, crate::gui::pages::server_settings::all_actions::draw);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_credits_settings() {

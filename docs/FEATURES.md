@@ -796,6 +796,28 @@ connected peers. Worker-thread fetch + Refresh. In-app ops slice 1 native parity
 (`docs/design/in-app-ops.md`).
 - Native: `src/gui/pages/server_settings.rs` (`draw_system_health_admin`), `src/gui/mod.rs` (`SystemHealth`)
 
+### Admin action registry, alert channels, federation panel, admin log (both, 2026-10-22)
+Every action a server's admins and moderators can take, as data in
+`data/admin/actions.json` (id, label, description, role, inputs, danger level, how
+it runs), built into the relay and served at `GET /api/admin/actions`; one signed
+route runs any action marked `"run": "here"`, `POST /api/admin/actions/run`
+(Dilithium3 over `admin_action\n<id>\n<BLAKE3 of the inputs>`, fresh and used
+once; role, confirm word for destructive ones, inputs checked against the entry).
+24 run there: alert channels (list, add, change, on or off, remove, test send),
+federation (list, add by address or key, trust, pause, resume, re-check key,
+remove, connect, federate a channel), member moderation (kick, mute, unmute, ban,
+unban, mod, unmod) and the admin log; every other admin chat command and route is
+listed. Both apps draw Alert channels, Federation, "Every admin action" (from the
+server's own list) and the Admin log from it. Pausing a peer keeps it and its
+trust while federation stops. The admin log names the admin by a keyed fingerprint
+and never holds a token, an address or the member an action was about. Coverage:
+`tests/admin_action_coverage.rs` (every /api/admin route and chat command is
+registered or a named member command) and the runner-table test. The design and
+what is left: `docs/design/in-app-ops.md` ("The action registry").
+- Server: `src/relay/admin/` (`mod.rs`, `alerts.rs`, `federation.rs`, `members.rs`, `tests.rs`), `src/relay/storage/admin_log.rs`, `src/relay/storage/federation_pause.rs`
+- Native: `src/gui/pages/server_settings/` (`admin_api.rs`, `alerts.rs`, `federation.rs`, `all_actions.rs`), `src/gui/state_types/admin_console.rs`
+- Web: `web/shared/admin-actions.js`, `web/pages/admin-console.js`, `web/pages/admin.html`; test `scripts/tests/admin-actions-web.test.js`
+
 ### Threads
 Reply threads on messages.
 - Server: `src/relay/storage/messages.rs` (thread_parent_id, reply_count)

@@ -1658,6 +1658,37 @@ impl Storage {
             ) WITHOUT ROWID;"
         )?;
 
+        // The admin log (2026-10-22, storage/admin_log.rs; docs/design/in-app-ops.md): every
+        // change an admin makes through the action registry, when, which action, a summary that
+        // never holds a token, an address or a person's key, and whether it worked. The admin is
+        // a keyed one-way fingerprint (the erased-accounts secret, its own domain), never the
+        // key, so a row names nobody once its admin's account is gone, as erased_accounts and
+        // friend_cert_revocations already do. Trimmed to the newest ADMIN_LOG_KEEP rows. A new
+        // table in a batch of its own (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS admin_log (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                at_ms             INTEGER NOT NULL,
+                admin_fingerprint TEXT    NOT NULL,
+                action            TEXT    NOT NULL,
+                summary           TEXT    NOT NULL,
+                ok                INTEGER NOT NULL
+            );"
+        )?;
+
+        // Paused federation peers (2026-10-22, storage/federation_pause.rs): a peer an admin
+        // stopped federating with for now, its row and trust kept. While a row is here,
+        // `list_federated_servers` leaves the peer out, so every federation path that reads the
+        // registry treats it as absent: no outbound link, inbound hellos refused, an open link
+        // closed by `until_removed`. Removing the peer removes this row with it. A new table in
+        // a batch of its own (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS federation_paused (
+                server_id TEXT    PRIMARY KEY,
+                paused_at INTEGER NOT NULL
+            ) WITHOUT ROWID;"
+        )?;
+
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
         // server keeps a #local channel that refuses federation, so members
@@ -2899,6 +2930,10 @@ mod pool;
 // Rust supports splitting impl blocks across files via the module system.
 mod assets;
 pub mod account;
+/// The admin log of the action registry (2026-10-22, docs/design/in-app-ops.md).
+pub mod admin_log;
+/// Paused federation peers (2026-10-22): kept in the registry, left out of federation.
+mod federation_pause;
 pub mod backup_crypto;
 pub mod backups;
 pub mod erased_accounts;

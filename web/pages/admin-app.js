@@ -150,8 +150,12 @@
     // Recent joins
     renderRecentJoins(data.recent_joins || []);
 
-    // Federation
-    renderFederation(data.federation || []);
+    // Federation, alert channels, every admin action and the log: admin-console.js,
+    // started once, the first time the dashboard is shown.
+    if (!consoleStarted && typeof window.hosAdminConsoleStart === 'function') {
+      consoleStarted = true;
+      window.hosAdminConsoleStart();
+    }
 
     // System health (in-app-ops first slice)
     renderSystem(data.system || null, data.continuous_backup || null);
@@ -252,226 +256,18 @@
     ).join('');
   }
 
-  // ── Federation: status AND management ──
+  // ── Federation, alert channels, every admin action, the admin log ──
   //
-  // Adding, trusting and removing a peer used to be chat slash commands only
-  // (/server-add, /server-add-key, /server-trust, /server-remove). The native
-  // Server Settings page wraps them in a panel; this page could only LIST.
-  // Both now go through POST /api/admin/federation, which is the same signed
-  // admin auth as the stats call but over the purpose "admin_federation", so a
-  // read-only stats signature cannot be replayed to change the peer registry.
-
-  const TIER_LABELS = {
-    0: '0, untrusted',
-    1: '1, Accord but unverified',
-    2: '2, verified (federates)',
-    3: '3, verified and Accord (federates)',
-  };
-
-  function setFedStatus(msg, kind) {
-    const el = document.getElementById('fed-status');
-    if (!el) return;
-    el.textContent = msg || '';
-    el.className = 'fed-status' + (kind ? ' ' + kind : '');
-  }
-
-  function fedButtons(disabled) {
-    document.querySelectorAll('.fed-card button, .fed-add-row button, .fed-card select')
-      .forEach(function (b) { b.disabled = !!disabled; });
-  }
-
-  /** One federation action. Returns the fresh server list, or null on failure. */
-  async function fedAction(body, workingMsg) {
-    const auth = await getSignedAuth('admin_federation');
-    if (!auth) {
-      setFedStatus('No Humanity identity found in this browser. Sign in via Chat first.', 'err');
-      return null;
-    }
-    fedButtons(true);
-    setFedStatus(workingMsg || 'Working...');
-    try {
-      const res = await fetch('/api/admin/federation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({
-          key: auth.key, timestamp: auth.timestamp, sig: auth.sig,
-        }, body)),
-      });
-      if (!res.ok) {
-        setFedStatus(await res.text() || ('Request failed: HTTP ' + res.status), 'err');
-        return null;
-      }
-      const data = await res.json();
-      setFedStatus(data.message || 'Done.', 'ok');
-      renderFederation(data.servers || []);
-      return data.servers || [];
-    } catch (e) {
-      console.error('Federation action failed:', e);
-      setFedStatus('Network error: ' + (e && e.message ? e.message : e), 'err');
-      return null;
-    } finally {
-      fedButtons(false);
-    }
-  }
-
-  function renderFederation(servers) {
-    const container = document.getElementById('federation-list');
-    if (!container) return;
-    if (!servers.length) {
-      container.innerHTML = '<p style="color:var(--text-muted)">No peers yet. Add one below, or stay on your own: see what that means.</p>';
-      renderSeedServers(servers);
-      return;
-    }
-    container.innerHTML = servers.map(function (s) {
-      // The relay writes online, offline, unreachable or disconnected (federation.rs); it never wrote
-      // 'active' or 'connected', so every peer showed as offline here until 2026-10-12.
-      const online = s.status === 'online';
-      const id = escapeHtml(s.server_id);
-      // "outbound-only" is the marker for a key-added peer with no address.
-      const where = s.url === 'outbound-only'
-        ? 'added by key, dials out to us'
-        : escapeHtml(s.url);
-      const options = [0, 1, 2, 3].map(function (t) {
-        return '<option value="' + t + '"' + (t === s.trust_tier ? ' selected' : '') + '>'
-          + TIER_LABELS[t] + '</option>';
-      }).join('');
-      return '<div class="fed-card">'
-        + '<div class="fed-dot ' + (online ? 'online' : 'offline') + '"></div>'
-        + '<div>'
-        +   '<div class="fed-name">' + escapeHtml(s.name)
-        +     (s.accord_compliant ? ' <span class="badge badge-verified">accord</span>' : '') + '</div>'
-        +   '<div class="fed-url">' + where + ' &middot; ' + escapeHtml(s.status || 'unknown') + '</div>'
-        + '</div>'
-        + '<div class="fed-actions">'
-        +   '<span class="fed-tier-note">Trust</span>'
-        +   '<select data-fed-trust="' + id + '">' + options + '</select>'
-        // Re-check key (2026-10-11): only a peer added by a web address has somewhere to ask.
-        +   (s.url === 'outbound-only' ? '' : '<button type="button" data-fed-recheck="' + id + '" title="Fetch this server\'s key again from its own address and pin it, for when its key changed and the link keeps dropping.">Re-check key</button>')
-        +   '<button type="button" class="danger" data-fed-remove="' + id + '">Remove</button>'
-        + '</div>'
-        + '</div>';
-    }).join('');
-
-    container.querySelectorAll('[data-fed-trust]').forEach(function (sel) {
-      sel.addEventListener('change', function () {
-        fedAction(
-          { action: 'trust', server_id: sel.dataset.fedTrust, trust_tier: parseInt(sel.value, 10) },
-          'Setting trust tier...'
-        );
-      });
-    });
-    renderSeedServers(servers);
-
-    container.querySelectorAll('[data-fed-recheck]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        fedAction({ action: 'recheck', server_id: btn.dataset.fedRecheck }, 'Re-checking its key...');
-      });
-    });
-
-    container.querySelectorAll('[data-fed-remove]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        const id = btn.dataset.fedRemove;
-        // Removing a peer is not destructive to anyone's data, but it does cut
-        // a live link, so it asks once.
-        if (!window.confirm('Stop federating with ' + id + '?')) return;
-        fedAction({ action: 'remove', server_id: id }, 'Removing...');
-      });
-    });
-  }
-
-  /**
-   * Suggested first peers, read from data/federation/seed_servers.json.
-   *
-   * The list is DATA, not code, so a fork ships its own defaults by replacing
-   * one file. And nothing here joins itself: each entry is a button. A seed
-   * list that auto-peered would quietly make whoever ships it the root of the
-   * network, and "no operator can revoke your access" does not survive a root.
-   *
-   * A suggestion already in the peer table is hidden rather than shown as a
-   * dead button.
-   */
-  async function renderSeedServers(existing) {
-    const box = document.getElementById('fed-seed-list');
-    if (!box) return;
-    let data = null;
-    try {
-      const res = await fetch('/data/federation/seed_servers.json', { cache: 'no-cache' });
-      if (res.ok) data = await res.json();
-    } catch (e) { /* handled below */ }
-    if (!data || !Array.isArray(data.servers)) {
-      box.innerHTML = '<p class="fed-help">No suggestion list shipped with this build. Add a peer by address below.</p>';
-      return;
-    }
-    const have = new Set((existing || []).map(function (s) {
-      return String(s.url || '').replace(/\/+$/, '');
-    }));
-    const rows = data.servers.filter(function (s) {
-      return !have.has(String(s.url || '').replace(/\/+$/, ''));
-    });
-    if (!rows.length) {
-      box.innerHTML = '<p class="fed-help">You are already peered with every suggested server.</p>';
-      return;
-    }
-    box.innerHTML = rows.map(function (s) {
-      return '<div class="fed-seed">'
-        + '<div>'
-        +   '<div class="fed-name">' + escapeHtml(s.name || s.url) + '</div>'
-        +   '<div class="fed-url">' + escapeHtml(s.url) + (s.operator ? ' &middot; run by ' + escapeHtml(s.operator) : '') + '</div>'
-        +   '<div class="fed-desc">' + escapeHtml(s.description || '') + '</div>'
-        + '</div>'
-        + '<button type="button" data-seed-url="' + escapeHtml(s.url) + '" data-seed-name="' + escapeHtml(s.name || '') + '">Add</button>'
-        + '</div>';
-    }).join('');
-
-    box.querySelectorAll('[data-seed-url]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        fedAction(
-          { action: 'add', url: btn.dataset.seedUrl, name: btn.dataset.seedName },
-          'Adding ' + btn.dataset.seedName + '...'
-        );
-      });
-    });
-  }
-
-  function wireFederationControls() {
-    const urlBtn = document.getElementById('fed-add-url-btn');
-    if (urlBtn) {
-      urlBtn.addEventListener('click', async function () {
-        const url = (document.getElementById('fed-add-url').value || '').trim();
-        if (!/^https?:\/\/.+/.test(url)) {
-          setFedStatus('Enter a full address starting with http:// or https://', 'err');
-          return;
-        }
-        const name = (document.getElementById('fed-add-url-name').value || '').trim();
-        const ok = await fedAction({ action: 'add', url: url, name: name }, 'Adding...');
-        if (ok) {
-          document.getElementById('fed-add-url').value = '';
-          document.getElementById('fed-add-url-name').value = '';
-        }
-      });
-    }
-    const keyBtn = document.getElementById('fed-add-key-btn');
-    if (keyBtn) {
-      keyBtn.addEventListener('click', async function () {
-        const key = (document.getElementById('fed-add-key').value || '').trim();
-        if (!/^[0-9a-fA-F]{64}$/.test(key)) {
-          setFedStatus('A federation key is exactly 64 hexadecimal characters.', 'err');
-          return;
-        }
-        const name = (document.getElementById('fed-add-key-name').value || '').trim();
-        const ok = await fedAction({ action: 'add_key', public_key: key, name: name }, 'Adding...');
-        if (ok) {
-          document.getElementById('fed-add-key').value = '';
-          document.getElementById('fed-add-key-name').value = '';
-        }
-      });
-    }
-  }
+  // Moved to /pages/admin-console.js (2026-10-22), rebuilt on the server's
+  // action registry (POST /api/admin/actions/run). It starts once this page
+  // has shown the dashboard, so a visitor who is not an admin is never asked
+  // to sign twice.
 
   // ── Init ──
 
+  let consoleStarted = false;
+
   async function init() {
-    wireFederationControls();
     const data = await fetchStats();
     if (data) {
       renderDashboard(data);

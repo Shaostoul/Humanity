@@ -2802,9 +2802,11 @@ async fn admin_stats_inner(
     let recent_joins = state.db.recent_joins(10).unwrap_or_default();
 
     // Federation servers.
-    let federation_servers = state.db.list_federated_servers().unwrap_or_default();
-    let federation: Vec<serde_json::Value> = federation_servers.into_iter().map(|s| {
+    // Paused peers included (the admins see every row; federation itself reads the unpaused).
+    let federation_servers = state.db.list_federated_servers_all().unwrap_or_default();
+    let federation: Vec<serde_json::Value> = federation_servers.into_iter().map(|(s, paused)| {
         serde_json::json!({
+            "paused": paused,
             "server_id": s.server_id,
             "name": s.name,
             "url": s.url,
@@ -2869,7 +2871,7 @@ pub struct AdminFederationRequest {
     pub key: String,
     pub timestamp: u64,
     pub sig: String,
-    /// "list" | "add" | "add_key" | "trust" | "remove".
+    /// "list" | "add" | "add_key" | "trust" | "recheck" | "pause" | "resume" | "remove".
     pub action: String,
     #[serde(default)]
     pub url: Option<String>,
@@ -2928,130 +2930,60 @@ pub async fn post_admin_federation(
         return Err((StatusCode::FORBIDDEN, "Admin role required.".into()));
     }
 
-    let message = match req.action.as_str() {
-        "list" => "Peer list.".to_string(),
-
-        "add" => {
-            let url = req.url.clone().unwrap_or_default().trim().to_string();
-            if !url.starts_with("http://") && !url.starts_with("https://") {
-                return Err((StatusCode::BAD_REQUEST, "URL must start with http:// or https://".into()));
-            }
-            // The URL is the server_id, matching /server-add exactly, so a peer
-            // added here and a peer added by command are the same row.
-            let server_id = url.trim_end_matches('/').to_string();
-            let display_name = req
-                .name
-                .clone()
-                .map(|n| n.trim().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| server_id.clone());
-            match state.db.add_federated_server(&server_id, &display_name, &url) {
-                Ok(true) => {
-                    spawn_peer_discovery(&state, &server_id, &url);
-                    format!("Added {display_name}. It stays at trust tier 0 until you raise it, and nothing federates below tier 2.")
-                }
-                Ok(false) => "That server is already in the registry.".to_string(),
-                Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
-            }
+    // One implementation (2026-10-22): each action is the registry's runner of the same name
+    // (src/relay/admin/federation.rs), so a peer added here, through POST /api/admin/actions/run
+    // or by the Federation panels is the same row with the same checks.
+    use crate::relay::admin::{federation as fed_admin, Caller, Inputs};
+    let mut inputs = serde_json::Map::new();
+    let mut put = |name: &str, value: Option<String>| {
+        if let Some(v) = value.filter(|v| !v.trim().is_empty()) {
+            inputs.insert(name.to_string(), serde_json::Value::String(v));
         }
-
-        // The NAT-friendly half: a home node behind a router has no URL we can
-        // fetch, but it can dial out. Pinning its key lets its inbound hello
-        // verify. "outbound-only" is a deliberate non-http marker so the
-        // outbound dialer skips the row.
-        "add_key" => {
-            let key = req.public_key.clone().unwrap_or_default().trim().to_lowercase();
-            // Server keys are Dilithium3 since 2026-09-06 (3,904 hex characters); this check still
-            // asked for 64, the old Ed25519 length, and refused every current key until 2026-10-11.
-            if !crate::relay::handlers::federation::is_server_key(&key) {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    format!(
-                        "A server key is {} hex characters (copy it from the other node's Host Node page).",
-                        crate::relay::handlers::federation::SERVER_KEY_HEX_LEN
-                    ),
-                ));
-            }
-            let display_name = req
-                .name
-                .clone()
-                .map(|n| n.trim().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| format!("peer-{}", &key[..8]));
-            match state.db.add_federated_server(&key, &display_name, "outbound-only") {
-                Ok(true) => format!(
-                    "Added {display_name} by key. Raise it to trust tier 2, then have the other node add THIS server by URL. No port forwarding needed on their side."
-                ),
-                Ok(false) => "That key is already in the registry.".to_string(),
-                Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
-            }
-        }
-
-        "trust" => {
-            let server_id = req.server_id.clone().unwrap_or_default();
-            let tier = req.trust_tier.unwrap_or(-1);
-            if !(0..=3).contains(&tier) {
-                return Err((StatusCode::BAD_REQUEST, "Trust tier must be 0, 1, 2 or 3.".into()));
-            }
-            match state.db.set_server_trust_tier(&server_id, tier) {
-                Ok(true) => {
-                    let label = match tier {
-                        3 => "verified and Accord-compliant",
-                        2 => "verified",
-                        1 => "Accord-compliant but unverified",
-                        _ => "untrusted",
-                    };
-                    // Say the consequence, not just the number: tier 2 is the
-                    // line where federation actually begins (federation.rs
-                    // skips anything below it, and inbound hellos are refused).
-                    let effect = if tier >= 2 {
-                        "Federation with this peer is now permitted."
-                    } else {
-                        "Federation with this peer is now refused (tier 2 is the minimum)."
-                    };
-                    format!("Set trust tier {tier} ({label}). {effect}")
-                }
-                Ok(false) => return Err((StatusCode::NOT_FOUND, "No such server in the registry.".into())),
-                Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
-            }
-        }
-
-        // Re-read a peer's key from its own server-info and pin it (2026-10-11): for a peer whose
-        // key changed, as every server's did on 2026-09-06.
-        "recheck" => {
-            let server_id = req.server_id.clone().unwrap_or_default();
-            let found = crate::relay::handlers::federation::recheck_peer_key(&state, &server_id).await;
-            if let Err(words) = &found {
-                if words == "No such server in the registry." {
-                    return Err((StatusCode::NOT_FOUND, words.clone()));
-                }
-            }
-            crate::relay::handlers::federation::recheck_words(&found)
-        }
-
-        "remove" => {
-            let server_id = req.server_id.clone().unwrap_or_default();
-            match state.db.remove_federated_server(&server_id) {
-                Ok(true) => "Removed. This server no longer federates with that peer.".to_string(),
-                Ok(false) => return Err((StatusCode::NOT_FOUND, "No such server in the registry.".into())),
-                Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
-            }
-        }
-
+    };
+    put("url", req.url.clone());
+    put("name", req.name.clone());
+    put("server_id", req.server_id.clone());
+    put("key", req.public_key.clone());
+    put("tier", req.trust_tier.map(|t| t.to_string()));
+    let (caller, inputs) = (Caller { key: req.key.clone(), role: "admin".into() }, Inputs(inputs));
+    let st = state.clone();
+    let ran = match req.action.as_str() {
+        "list" => Ok(crate::relay::admin::Ran::said("Peer list.")),
+        "add" => fed_admin::add(st, caller, inputs).await,
+        "add_key" => fed_admin::add_key(st, caller, inputs).await,
+        "trust" => fed_admin::trust(st, caller, inputs).await,
+        "recheck" => fed_admin::recheck(st, caller, inputs).await,
+        "pause" => fed_admin::pause(st, caller, inputs).await,
+        "resume" => fed_admin::resume(st, caller, inputs).await,
+        "remove" => fed_admin::remove(st, caller, inputs).await,
         other => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                format!("Unknown action '{other}'. Expected list, add, add_key, trust, recheck or remove."),
+                format!("Unknown action '{other}'. Expected list, add, add_key, trust, recheck, pause, resume or remove."),
             ))
         }
+    };
+    // Every change goes in the admin log, by whichever door it came.
+    if req.action != "list" {
+        let (line, ok) = match &ran {
+            Ok(r) => (r.log.clone().unwrap_or_else(|| r.message.clone()), true),
+            Err(r) => (format!("Refused: {}", r.message), false),
+        };
+        let _ = state.db.admin_log_append(&req.key, &format!("federation.{}", req.action), &line, ok);
+    }
+    let message = match ran {
+        Ok(r) => r.message,
+        // An add of a peer already listed was always an answer here, not a failure.
+        Err(r) if r.status == StatusCode::CONFLICT => r.message,
+        Err(r) => return Err((r.status, r.message)),
     };
 
     let servers: Vec<serde_json::Value> = state
         .db
-        .list_federated_servers()
+        .list_federated_servers_all()
         .unwrap_or_default()
         .into_iter()
-        .map(|s| {
+        .map(|(s, paused)| {
             serde_json::json!({
                 "server_id": s.server_id,
                 "name": s.name,
@@ -3061,6 +2993,7 @@ pub async fn post_admin_federation(
                 "status": s.status,
                 "last_seen": s.last_seen,
                 "added_at": s.added_at,
+                "paused": paused,
                 "link": crate::relay::handlers::federation_log::peer_view(&state, s.public_key.as_deref()),
             })
         })
@@ -3071,43 +3004,6 @@ pub async fn post_admin_federation(
         "message": message,
         "servers": servers,
     })))
-}
-
-/// Fire-and-forget peer discovery after an add: fetch the peer's
-/// `/api/server-info` to fill in its real name, key and Accord flag. Never
-/// blocks the response, and a failure just marks the row unreachable. Mirrors
-/// what `/server-add` does in relay.rs so both paths behave identically.
-fn spawn_peer_discovery(state: &Arc<RelayState>, server_id: &str, url: &str) {
-    let info_url = format!("{}/api/server-info", url.trim_end_matches('/'));
-    let sid = server_id.to_string();
-    let state = state.clone();
-    tokio::spawn(async move {
-        match state
-            .http_client
-            .get(&info_url)
-            .timeout(std::time::Duration::from_secs(10))
-            .send()
-            .await
-        {
-            Ok(resp) if resp.status().is_success() => {
-                if let Ok(info) = resp.json::<serde_json::Value>().await {
-                    let name = info["name"].as_str().unwrap_or("Unknown");
-                    let pk = info["public_key"].as_str();
-                    let accord = info["accord_compliant"].as_bool().unwrap_or(false);
-                    let _ = state.db.update_federated_server_info(&sid, name, pk, accord);
-                    tracing::info!("Discovered federated server: {} ({})", name, sid);
-                }
-            }
-            Ok(resp) => {
-                let _ = state.db.update_federated_server_status(&sid, "unreachable");
-                tracing::warn!("Server-info fetch failed for {}: HTTP {}", sid, resp.status());
-            }
-            Err(e) => {
-                let _ = state.db.update_federated_server_status(&sid, "unreachable");
-                tracing::warn!("Server-info fetch failed for {}: {}", sid, e);
-            }
-        }
-    });
 }
 
 /// Gather host/process health for the admin dashboard's System panel —

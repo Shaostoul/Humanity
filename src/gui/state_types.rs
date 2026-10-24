@@ -58,6 +58,13 @@ mod maps;
 #[cfg(feature = "native")]
 pub use maps::*;
 
+// The admin console's state (`GuiState::admin_console`, 2026-10-22): Server Settings > ADMIN's
+// panels built on the server's action registry. Native only.
+#[cfg(feature = "native")]
+mod admin_console;
+#[cfg(feature = "native")]
+pub use admin_console::*;
+
 /// Item slot data bridged from ECS Inventory for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -1221,20 +1228,6 @@ pub struct RelayAdminStats {
     /// Newest DB backup age in seconds + total backup count, when present.
     pub backup_age_secs: Option<u64>,
     pub backup_count: Option<u64>,
-}
-
-/// One federated-server row from GET /api/federation/servers (Server
-/// Settings → Federation panel, v0.722 — federation-activation Phase 1 UI).
-#[cfg(feature = "native")]
-#[derive(Debug, Clone)]
-pub struct FederationServerRow {
-    pub server_id: String,
-    pub name: String,
-    pub url: String,
-    /// 0 = untrusted .. 3 = fully trusted (relay's trust tiers).
-    pub trust_tier: i32,
-    pub status: String,
-    pub accord_compliant: bool,
 }
 
 /// Studio source type variants.
