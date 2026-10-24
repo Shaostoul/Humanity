@@ -278,3 +278,10 @@
 
   #cmd-palette { width: calc(100vw - 1rem); left: var(--space-md); right: var(--space-md); max-height: 55vh; }
 }
+
+/* Characters past the limit (2026-10-24, chat-ui.js showOverLimit): a mirror layer behind the
+   message box draws the words, the part past the limit in --danger on --danger-bg; the box's own
+   words go transparent meanwhile and its caret stays. */
+.over-limit-mirror { position: absolute; z-index: 0; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; color: var(--text-primary); pointer-events: none; border-style: solid; border-color: transparent; box-sizing: border-box; display: none; }
+.over-limit-mirror .over-limit-chars { color: var(--danger); background: var(--danger-bg); border-radius: 2px; }
+#msg-input.over-limit-typing { color: transparent; caret-color: var(--text-primary); background: transparent; position: relative; z-index: 1; }

@@ -1214,7 +1214,11 @@ async function handleMessage(msg) {
       const msgChannel = msg.channel || 'general';
       if (msgChannel !== activeChannel) return;
       const key = msg.from + ':' + msg.timestamp;
-      if (seenTimestamps.has(key)) return; // Deduplicate
+      if (seenTimestamps.has(key)) {
+        // My own line coming back from the server: it was posted (2026-10-24).
+        if (msg.from === myKey) markLineSent(msg.timestamp);
+        return; // Deduplicate
+      }
       seenTimestamps.add(key);
       // Full-PQ: the relay verifies the Dilithium3 `pq_signature`
       // server-side before broadcasting (Inc3), it is the chat trust
@@ -1226,6 +1230,15 @@ async function handleMessage(msg) {
       }
       break;
     }
+    case 'chat_refused':
+      // The server did not post one of my lines (relay ChatRefused, 2026-10-24).
+      markLineNotSent(msg.timestamp, msg.reason, msg.limit);
+      if (msg.reason === 'too_long' && msg.limit) setMyMaxChars(msg.limit);
+      break;
+    case 'my_limits':
+      // My role's line limit, said on sign-in (2026-10-24): counted against and shown in red.
+      setMyMaxChars(msg.max_chars);
+      break;
     case 'federated_chat': {
       // Cross-server federated message, display with server badge.
       const fedChannel = msg.channel || 'general';
@@ -1749,10 +1762,12 @@ async function sendMessage() {
     return;
   }
 
-  // Enforce character limit (on user's own text, before adding quote).
+  // Enforce character limit (on user's own text, before adding quote), counted in characters as
+  // the server counts them (an emoji is two JavaScript units and one character).
   const charLimit = getMaxMsgLength();
-  if (content.length > charLimit) {
-    addSystemMessage(`Message too long (${content.length}/${charLimit} chars). Please shorten it.`);
+  const charCount = Array.from(content).length;
+  if (charCount > charLimit) {
+    addSystemMessage(`Message too long (${charCount}/${charLimit} chars). Please shorten it.`);
     return;
   }
 
@@ -1795,6 +1810,7 @@ async function sendMessage() {
   const key = myKey + ':' + timestamp;
   seenTimestamps.add(key);
   addChatMessage(myName, content, timestamp, myKey, false, !!pqSig, replyRef, null);
+  markLineSending(timestamp, content);
   input.value = '';
   input.style.height = 'auto'; // Reset textarea height after sending.
   input.focus();
@@ -2382,6 +2398,70 @@ function addDateSeparator(dateStr) {
   el.className = 'date-separator';
   el.textContent = dateStr;
   document.getElementById('messages').appendChild(el);
+}
+
+// ── Is my line really posted? (2026-10-24) ──
+// The page shows my own line at once. Until then it looked posted even when the server refused
+// it (too long for my role, sent too fast, a new account's wait): the operator's screenshot showed
+// a refused line beside the one that went through. Now my copy reads "Sending..." until the
+// server's copy of it comes back (markLineSent), or is marked "Not sent", with the reason and a
+// button that puts the words back in the box, when the server says it refused it (markLineNotSent).
+const pendingLines = new Map(); // timestamp -> the words, for Edit and send again
+function ownLineEl(timestamp) {
+  return document.querySelector('.message[data-from="' + myKey + '"][data-timestamp="' + timestamp + '"]');
+}
+function lineStatusEl(el) {
+  let s = el.querySelector(':scope > .line-status');
+  if (!s) { s = document.createElement('div'); s.className = 'line-status'; el.appendChild(s); }
+  return s;
+}
+function markLineSending(timestamp, content) {
+  const el = ownLineEl(timestamp);
+  if (!el) return;
+  pendingLines.set(String(timestamp), content);
+  el.classList.add('line-sending');
+  lineStatusEl(el).textContent = i18n.t('chat.line_sending');
+  setTimeout(function () {
+    const still = ownLineEl(timestamp);
+    if (still && still.classList.contains('line-sending')) {
+      lineStatusEl(still).textContent = i18n.t('chat.line_unconfirmed');
+    }
+  }, 20000);
+}
+function markLineSent(timestamp) {
+  const el = ownLineEl(timestamp);
+  pendingLines.delete(String(timestamp));
+  if (!el) return;
+  el.classList.remove('line-sending');
+  const s = el.querySelector(':scope > .line-status');
+  if (s) s.remove();
+}
+function markLineNotSent(timestamp, reason, limit) {
+  const el = ownLineEl(timestamp);
+  if (!el) return;
+  el.classList.remove('line-sending');
+  el.classList.add('line-not-sent');
+  const words = reason === 'too_long' ? i18n.t('chat.line_not_sent_too_long', { limit: limit || '?' })
+    : reason === 'too_fast' ? i18n.t('chat.line_not_sent_too_fast')
+    : reason === 'new_account_wait' ? i18n.t('chat.line_not_sent_new_account')
+    : i18n.t('chat.line_not_sent');
+  const s = lineStatusEl(el);
+  s.textContent = words + ' ';
+  const content = pendingLines.get(String(timestamp));
+  if (content != null) {
+    const again = document.createElement('button');
+    again.type = 'button';
+    again.className = 'line-send-again';
+    again.textContent = i18n.t('chat.line_edit_again');
+    again.setAttribute('data-i18n-tip', 'chat.line_edit_again_hint');
+    again.setAttribute('data-tip-desc', i18n.t('chat.line_edit_again_hint'));
+    again.addEventListener('click', function () {
+      const box = document.getElementById('msg-input');
+      if (box) { box.value = content; box.focus(); box.dispatchEvent(new Event('input')); }
+    });
+    s.appendChild(again);
+  }
+  pendingLines.delete(String(timestamp));
 }
 
 function appendMessage(el) {
