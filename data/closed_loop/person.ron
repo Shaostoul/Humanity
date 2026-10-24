@@ -189,6 +189,7 @@
         // ---- THE TRAP IN 'CLOSURE BY MASS' --------------------------------------------------
         (
             id: "person.trap.mass_closure_food_imported", loop_id: Food, quantity: "Closure by mass of a home that recycles all its water and air and imports every meal", value: 0.991, low: Some(0.859), high: Some(0.991),
+            scope: Some("all mass passing through a home's loops in a day, water included: the single number the test refuses to print alone"),
             unit: "fraction", display: "99.1% 'closed' while growing no food at all", basis: PerPerson, data_year: None, source: ["person.ref.o2", "person.ref.food_dry", "person.ref.water_in"],
             quote: "Imports 0.80 kg dry food a day. Throughput: 0.895 O2 + 0.80 food + 0.76 food water + 85 L household water = 87.5 kg; 1 - 0.80 / 87.5 = 0.991. Without hygiene water (BVAD's 5.67 kg in): 1 - 0.80 / 5.67 = 0.859. With BVAD's mature-base hygiene (12.29 kg): 0.935.",
             check: (status: Derived, against: [], note: "The arithmetic is what it is. It is the reason the test never reports one closure number by mass: water dominates the mass, so every headline 'percent closed' (Lunar Palace's 98.2% included, beihang-2026, which does not define its measure) must be read loop by loop."),

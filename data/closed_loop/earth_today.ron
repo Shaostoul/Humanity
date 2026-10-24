@@ -32,6 +32,7 @@
         // ---- ENERGY ------------------------------------------------------------------
         (
             id: "earth.energy.total_supply", loop_id: Energy, quantity: "Total energy supply", value: 600.31, low: None, high: None,
+            scope: Some("commercially traded fuels only (traditional biomass excluded); wind and solar counted at the electricity they make, nuclear at its heat input"),
             unit: "EJ/yr", display: "600 EJ (569 quadrillion Btu) a year, an average of 19.0 TW", basis: World, data_year: Some(2025), source: ["ei-review-2026"],
             quote: "Total World 523.80 528.82 539.02 553.03 556.63 532.75 560.01 568.58 579.16 592.18 600.31 1.7% 1.4% 100.0%  [Exajoules, 2015 to 2025, growth 2025, growth 2015-25, share]",
             check: (status: Survived, against: ["ei-review-2026"], note: "Press coverage of the same review (dieselnet.com, July 2026): 'the total energy supply (TES) exceeded 600 EJ in 2025, a rise of 1.7% over 2024'. Not independent of the review, but confirms the reading of the garbled table."),
@@ -39,6 +40,7 @@
         ),
         (
             id: "earth.energy.fossil_share", loop_id: Energy, quantity: "Share of total energy supply from oil, gas and coal", value: 0.862, low: None, high: None,
+            scope: Some("of commercially traded energy supply (Energy Institute accounting)"),
             unit: "fraction", display: "86%", basis: World, data_year: Some(2025), source: ["ei-review-2026"],
             quote: "Total World 199.04 148.72 165.35 30.71 16.10 32.24 592.18 200.97 150.70 166.03 31.04 16.12 35.45 600.31  [2024 then 2025: Oil, Natural gas, Coal, Nuclear energy, Hydroelectricity, Renewables, Total]; (200.97 + 150.70 + 166.03) / 600.31 = 0.862",
             check: (status: Survived, against: ["ei-review-2026"], note: "Press coverage: 'Fossil fuels retained their dominant position, accounting for 86% of TES in 2025.'"),
@@ -46,6 +48,7 @@
         ),
         (
             id: "earth.energy.flow_share", loop_id: Energy, quantity: "Share of commercially traded energy supply from sustained flows (hydroelectricity plus renewables)", value: 0.086, low: Some(0.086), high: Some(0.18),
+            scope: Some("8.6% is of commercially traded supply (Energy Institute); 18.0% and 13.4% are of total final energy consumption with and without traditional biomass (SDG 7.2.1)"),
             unit: "fraction", display: "8.6% of commercially traded supply (2025); 18.0% of final consumption counting traditional biomass, 13.4% without it (2023)", basis: World, data_year: Some(2025), source: ["ei-review-2026", "sdg-2026-goal7"],
             quote: "(16.12 + 35.45) / 600.31 = 0.0859  /  'The global share of renewable energy in total final energy consumption (TFEC) rose steadily from 15.6% in 2015 to 18.0% in 2023' ... 'Excluding the traditional use of biomass, the share of modern renewable energy in TFEC increased gradually, climbing from 10.2% in 2015 to 13.4% in 2023.' (sdg-2026-goal7)",
             check: (status: Corrected, against: ["sdg-2026-goal7"], note: "CORRECTED in the second review: 8.6% was taught without its scope. The Energy Institute counts only commercially traded supply, and wind and solar at their electricity; SDG 7.2.1 counts final consumption, with traditional biomass (18.0%) or without it (13.4%). They measure different things, so the test carries the range 8.6 to 18% and names the measure beside every use. Nuclear, 5.2% of the Energy Institute's supply, is excluded from both: a stock, though a long one."),
@@ -76,13 +79,15 @@
         ),
         (
             id: "earth.air.sink_share", loop_id: Air, quantity: "Share of human CO2 emissions taken back up by land and ocean, the past decade (land 21%, ocean 29%)", value: 0.50, low: None, high: None,
-            unit: "fraction", display: "about half, over 2015 to 2024", basis: World, data_year: Some(2024), source: ["gcb-2025"],
+            scope: Some("a decade's average (2015 to 2024), from the budget's consolidated sink estimates"), period: Some((2015, 2024)),
+            unit: "fraction", display: "about half, over 2015 to 2024", basis: World, data_year: None, source: ["gcb-2025"],
             quote: "Based on a consolidation of the global carbon budget methodology, the land and ocean have taken up 21% and 29% of anthropogenic emissions in the past decade, respectively.",
             check: (status: Survived, against: ["gcb-2025", "noaa-gml-co2"], note: "The decade's half is confirmed. The second review CORRECTED the single-year figure this note gave for 2024 (46%): that is the SUM OF THE SINK MODELS (ocean 3.4 + land 1.9 = 5.3 of 11.6 GtC), and the same budget carries a -1.7 GtC imbalance. What the air itself shows is earth.air.uptake_2024_measured, 32%."),
             note: "The carbon loop's closure on Earth: about half of what people emit comes back around over a decade; the rest accumulates. Single years swing widely (El Nino weakened 2024's land sink).",
         ),
         (
             id: "earth.air.uptake_2024_measured", loop_id: Air, quantity: "Share of 2024's human CO2 emissions that did NOT stay in the air (emissions minus measured atmospheric growth)", value: 0.32, low: Some(0.31), high: Some(0.32),
+            scope: Some("one year, measured as emissions less the air's measured gain (not the sink models)"),
             unit: "fraction", display: "about 32% in 2024 (31% on NOAA's 3.76 ppm); the sink models said 46%", basis: World, data_year: Some(2024), source: ["gcb-2025", "noaa-gml-co2"],
             quote: "For 2024, the atmospheric growth rate was 7.9 ± 0.2 GtC yr-1 (3.73 ± 0.1 ppm yr-1) ... the total anthropogenic CO2 emissions stood at 11.6 ± 0.9 GtC yr-1 (gcb-2025); (11.6 - 7.9) / 11.6 = 0.319. NOAA: 2024 annual increase 3.76 ppm x 2.12 GtC/ppm = 8.0 GtC; (11.6 - 8.0) / 11.6 = 0.31",
             check: (status: Corrected, against: ["noaa-gml-co2"], note: "The measured route (emissions less what the air gained) and the modelled route (the sinks added up) disagree by 14 points for 2024, which is the budget's -1.7 GtC imbalance. The test reports both and never one in place of the other (case carbon_uptake_is_measured_by_the_air)."),
@@ -133,6 +138,7 @@
         ),
         (
             id: "earth.water.stress", loop_id: Water, quantity: "Global water stress (withdrawal over available freshwater after environmental flows)", value: 0.18, low: None, high: None,
+            scope: Some("freshwater withdrawn over renewable freshwater available after environmental flows (SDG 6.4.2), a world average that hides regions past 75%"),
             unit: "fraction", display: "18%, with Northern Africa, Western, Southern and Central Asia past 75%", basis: World, data_year: Some(2023), source: ["sdg-2026-goal6"],
             quote: "At global level, the water stress remained steady at an average of 18 percent in 2023, showing little change since 2015.",
             check: (status: Uncertain, against: [], note: "Single source. It is the reason 'water closes globally' is not the same as 'water closes where people live'."),
@@ -140,6 +146,7 @@
         ),
         (
             id: "earth.water.wastewater_treated", loop_id: Water, quantity: "Share of household wastewater safely treated (185 of 332 billion m3)", value: 0.56, low: None, high: None,
+            scope: Some("household (domestic) wastewater only; industrial wastewater is not assessed globally"),
             unit: "fraction", display: "56%: 185 of 332 km3 (44 of 80 cubic miles)", basis: World, data_year: Some(2024), source: ["sdg-2026-goal6"],
             quote: "As of 2024, the global proportion of household wastewater safely treated stands at 56% - largely unchanged since the first estimates were published in 2020. An estimate 332 billion m3 of wastewater was generated by households in 2024, of which only 185 billion m3 was safely treated.",
             check: (status: Uncertain, against: ["sdg-2026-goal6"], note: "185 / 332 = 55.7%, so the source agrees with itself; but NO SECOND SOURCE was read (the UN-Water 2024 update's '42% not safely treated in 2022' was seen only in a search result), so the second review moved this from Survived to Uncertain."),
@@ -156,6 +163,7 @@
         ),
         (
             id: "earth.food.loss", loop_id: Food, quantity: "Share of food lost after harvest and before retail", value: 0.133, low: Some(0.130), high: Some(0.133),
+            scope: Some("after harvest up to but not including retail; weighted by value of production over ten commodities, not by mass"),
             unit: "fraction", display: "13.3%", basis: World, data_year: Some(2023), source: ["fao-fli"],
             quote: "The percentage of food lost globally after harvest on farm, transport, storage, wholesale and processing levels is estimated at 13.3 percent in 2023, up slightly from 13.0 percent in 2015, when global monitoring began.",
             check: (status: Corrected, against: ["un-metadata-12-3-1a"], note: "This pass began from a remembered 13.2%; it was not found in any FAO text read and was replaced by the portal's own 13.3% for 2023. An older FAO estimate of 13% for 2021 (931 million tonnes, seen in a search result) agrees with the corrected figure. The second review added the measure's basis from the indicator's metadata: a share BY VALUE, not by mass."),
@@ -163,6 +171,7 @@
         ),
         (
             id: "earth.food.waste", loop_id: Food, quantity: "Food wasted at retail, food service and households (including inedible parts)", value: 1.05e9, low: None, high: None,
+            scope: Some("retail, food service and households; tonnes including inedible parts"),
             unit: "t/yr", display: "1.05 billion t (1.16 billion short tons) a year: 132 kg (291 lb) per person, almost one fifth of food available to consumers", basis: World, data_year: Some(2022), source: ["unep-fwi-2024"],
             quote: "In 2022 there were 1.05 billion tonnes of food waste generated (including inedible parts), amounting to 132 kilograms per capita and almost one-fifth of all food available to consumers.",
             check: (status: Survived, against: ["unep-fwi-2024"], note: "1.05e9 t / about 7.95 billion people in 2022 = 132 kg. The tonnage and the per-person figure survive; the EXACT '19 per cent' is UNPROVEN: it was seen only in a search result quoting the report's key messages, while the release read says 'almost one-fifth'."),
@@ -170,6 +179,7 @@
         ),
         (
             id: "earth.food.reaches_people", loop_id: Food, quantity: "Rough share of food grown that is not lost or wasted", value: 0.70, low: Some(0.65), high: Some(0.75),
+            scope: Some("an approximate product of a value-weighted loss share and a mass-based waste share"),
             unit: "fraction", display: "about 70%", basis: World, data_year: Some(2023), source: ["earth.food.loss", "earth.food.waste"],
             quote: "(1 - 0.133) x (1 - 0.19) = 0.702",
             check: (status: Uncertain, against: ["un-metadata-12-3-1a"], note: "The two indices measure different things: FAO's loss is weighted by the VALUE of ten commodities (CORRECTED in the second review, which found this note calling it a share by mass), UNEP's waste is tonnes including inedible parts, and the 19% is itself unproven. Their product is an order-of-magnitude approximation, not a measured figure. The range says so."),
@@ -244,24 +254,27 @@
         ),
         (
             id: "earth.nutrients.excreta_p_share", loop_id: Nutrients, quantity: "Phosphorus in all human excreta as a share of fertilizer phosphorus", value: 0.21, low: Some(0.17), high: Some(0.24),
+            scope: Some("phosphorus in all human excreta (8.2 billion people at 0.44 to 0.61 kg a year) over the phosphorus in mined fertilizer; excreta that could be returned, not excreta that is"),
             unit: "fraction", display: "about a fifth (17 to 24%): 3.6 to 5.0 million t of P in excreta against 20.9 million t in fertilizer", basis: World, data_year: Some(2025), source: ["person.excreta.p", "earth.nutrients.p_fertilizer", "wpp-2024", "cordell-2010"],
             quote: "0.44 kg (Cordell's 1.2 g a day) to 0.61 kg (Finland, urine plus faeces) of P a person a year x 8.2e9 = 3.6 to 5.0 million t; / 20.9 million t = 0.17 to 0.24",
             check: (status: Corrected, against: ["cordell-2010"], note: "CORRECTED twice. The first computation divided kilograms by tonnes and printed 294 (0.29). The second review found 0.29 rested on 0.75 kg, which counts household greywater as excreta, and on a secondary account of Cordell; with excreta proper (0.61 kg) and Cordell's own thesis (1.2 g a day, 0.44 kg) it is 0.17 to 0.24. NITROGEN the same way: 4.65 kg x 8.2e9 = 38 million t against 160 million t fixed, about a quarter."),
             note: "The size of the prize: closing the human-excreta loop could cut mined phosphorus by about a fifth.",
         ),
         (
-            id: "earth.nutrients.excreta_p_returned", loop_id: Nutrients, quantity: "Phosphorus returned to land from sewage (2005 baseline), as a share of what people excrete and of today's fertilizer phosphorus", value: 0.10, low: None, high: None,
-            unit: "fraction", display: "about 10% of what people excrete (0.3 of 3 million t), 1.4 to 2.4% of today's fertilizer phosphorus", basis: World, data_year: Some(2005), source: ["cordell-2010"],
+            id: "earth.nutrients.excreta_p_returned", loop_id: Nutrients, quantity: "Phosphorus returned to land from sewage (2000 to 2005 baseline), as a share of what people excrete and of today's fertilizer phosphorus", value: 0.10, low: None, high: None,
+            scope: Some("sewage phosphorus returned to land, against human excreta (Cordell's mass balance)"), period: Some((2000, 2005)),
+            unit: "fraction", display: "about 10% of what people excrete (0.3 of 3 million t), 1.4 to 2.4% of today's fertilizer phosphorus", basis: World, data_year: None, source: ["cordell-2010"],
             quote: "Human defecation 3 ... 1.2g/person/day (1-1.5g/person/day av) ... Sewage recycled 0.3 ... (FAO, 2001) ... 10% estimated, high variability  [Table A-II, million tonnes of P a year; 'baseline data is 2005 where possible']",
             check: (status: Uncertain, against: [], note: "Now read in the primary source (cordell-2010, Primary), where the first pass had only a secondary account of the 2009 paper. Uncertain because Cordell herself calls it an estimate with 'high variability', from a 2001 FAO figure. 0.3 / 20.9 = 1.4%; 10% of 3.6 to 5.0 million t / 20.9 = 1.7 to 2.4%."),
             note: "",
         ),
         (
-            id: "earth.nutrients.p_recycled_share", loop_id: Nutrients, quantity: "Share of the phosphorus put on farmland that is recycled (manure 8, crop residues 2, solid waste 0.2, sewage 0.3) rather than mined (mineral fertilizer 14), 2005 baseline", value: 0.43, low: None, high: None,
-            unit: "fraction", display: "about 43% (10.5 of 24.5 million t of P a year, around 2005)", basis: World, data_year: Some(2005), source: ["cordell-2010"],
+            id: "earth.nutrients.p_recycled_share", loop_id: Nutrients, quantity: "Share of the phosphorus put on farmland that is recycled (manure 8, crop residues 2, solid waste 0.2, sewage 0.3) rather than mined (mineral fertilizer 14), around 2000 to 2005", value: 0.43, low: None, high: None,
+            scope: Some("recycled (manure, crop residue, solid waste, sewage) over all phosphorus applied to land, mineral fertilizer included"), period: Some((2000, 2005)),
+            unit: "fraction", display: "about 43% (10.5 of 24.5 million t of P a year) around 2000 to 2005; perhaps a third today", basis: World, data_year: None, source: ["cordell-2010"],
             quote: "Mineral phosphorus fertilizer application 14 ... Animal manure recycled 8 ... 50% of 15MT recycled ... Crop residues recycled 2 ... Organic solid waste reused 0.2 ... Sewage recycled 0.3  [Table A-II, Mt P a year]; (8 + 2 + 0.2 + 0.3) / (14 + 10.5) = 0.429",
-            check: (status: Uncertain, against: [], note: "A mass balance by one author, around 2005, with stated high uncertainty; no second global phosphorus flow study was read. Added in the second review as the whole-system measure of the nutrient loop, which the human-excreta share alone understates: most recycled phosphorus is animal manure."),
-            note: "Mineral fertilizer application has grown since (20.9 million t of P in 2025, usgs-mcs-2026-phosphate), so if the recycled flows did not grow with it, today's share is lower.",
+            check: (status: Uncertain, against: [], note: "A mass balance by one author, built from flows of 2000 to 2005 (Smil 2000 for manure and residues), with stated high uncertainty; no second global phosphorus flow study was read. Added in the second review as the whole-system measure of the nutrient loop, which the human-excreta share alone understates: most recycled phosphorus is animal manure."),
+            note: "A 2000 TO 2005 figure (third review): Cordell's baseline is 2005 'where possible, otherwise sourced from between 2000-2005', and its manure and residue flows are Smil's (2000). The share has probably fallen: mineral fertilizer has grown to 20.9 million t of P (2025, usgs-mcs-2026-phosphate; a consumption figure, where Cordell's 14 is application), and if the recycled flows had not grown the share would be 10.5 / (10.5 + 20.9) = 33%. No newer global flow study was read.",
         ),
 
         // ---- MATERIALS --------------------------------------------------------------------------
@@ -274,6 +287,7 @@
         ),
         (
             id: "earth.materials.circularity", loop_id: Materials, quantity: "Share of materials entering the economy that are secondary (recycled)", value: 0.069, low: None, high: None,
+            scope: Some("secondary materials as a share of all materials entering the economy (the Circularity Metric)"),
             unit: "fraction", display: "6.9%", basis: World, data_year: Some(2021), source: ["cgr-2025", "cgr-site"],
             quote: "The share of Secondary Materials entering the global economy is low--and steadily falling year on year, from 7.2% in 2018 to 6.9% as of the latest available data (2021).  (cgr-2025)",
             check: (status: Survived, against: ["cgr-2026", "cgr-site"], note: "Moved from Uncertain in the second review, once the 2025 report itself was read: 7.2% in 2018 to 6.9% in 2021, which settles the trend coverage disagreed on. The 2026 report confirms it is still the latest: 'The last edition of the global CGR reported a Circularity Metric of 6.9%'. The report site gives the 17% by 2032 aim."),
@@ -325,9 +339,9 @@
             to_close: "Halve loss and waste (SDG 12.3's target), return food waste and excreta to farmland, protect soil. The world's cropland per person (0.19 ha) is about what the outline's homestead farms (0.17 to 0.21 ha of arable land, data/home_outline.json), though the homestead's figure includes a grain surplus grown for trade, so the two are not an independent check.",
         ),
         (
-            loop_id: Nutrients, metric: "Phosphorus: share of the phosphorus put on farmland that is recycled rather than mined (2005 baseline); and, within it, what comes back from people",
+            loop_id: Nutrients, metric: "Phosphorus: share of the phosphorus put on farmland that is recycled rather than mined (2000 to 2005 baseline); and, within it, what comes back from people",
             value: Some(0.43), low: None, high: None, from: ["earth.nutrients.p_recycled_share", "earth.nutrients.excreta_p_share", "earth.nutrients.excreta_p_returned", "earth.nutrients.p_reserve_life"], verdict: Open,
-            meaning: "Around 2005 about 43% of the phosphorus put on land came back around (8 million t in manure, 2 in crop residue, 0.5 in waste and sewage, against 14 million t of mineral fertilizer, cordell-2010). The human part of that loop is small: excreta hold about a fifth of today's fertilizer phosphorus and about 10% of it is returned, 1.4 to 2.4% of fertilizer phosphorus. The rest is mined: 250 million t of rock a year, about 290 years of reserves. Nitrogen is open the other way: unlimited in the air, but fixed with fossil energy.",
+            meaning: "Around 2000 to 2005 about 43% of the phosphorus put on land came back around (perhaps a third today, if the recycled flows have not grown with fertilizer use) (8 million t in manure, 2 in crop residue, 0.5 in waste and sewage, against 14 million t of mineral fertilizer, cordell-2010). The human part of that loop is small: excreta hold about a fifth of today's fertilizer phosphorus and about 10% of it is returned, 1.4 to 2.4% of fertilizer phosphorus. The rest is mined: 250 million t of rock a year, about 290 years of reserves. Nitrogen is open the other way: unlimited in the air, but fixed with fossil energy.",
             to_close: "Recover phosphorus from wastewater, sludge ash and urine (struvite precipitation and ash recovery operate today; not sourced in this pass), stop soil erosion, and make ammonia from hydrogen made with clean electricity. Phosphorus never fully closes on a planet with rivers: some always reaches the sea.",
         ),
         (

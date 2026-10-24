@@ -22,6 +22,12 @@ Its main point is now a rule of the test: a case that re-derives a figure's own 
 catch a wrong input, so every load-bearing figure also has a case that checks it by an
 independent route (section 8.2).
 
+**Third review, 2026-10-23.** The critic's second pass found that the reactor's efficiency had been
+taken gross (23.3%) for a load that is net (20%), that the lighting point had changed method
+without saying so, and that several of the new cases could not fail, or would fail on correct data.
+All of it was re-read and applied (section 11.3): the ship now needs about 10.8 kW a person and 67
+m2 of radiator, and its hull-side fins serve about 2.3 billion people.
+
 Read with: [ship-life-support.md](ship-life-support.md) (the homes' measured air and water),
 [homestead-solo-design.md](homestead-solo-design.md) and `data/home_outline.json` (one person, done
 properly), [headless-sim-runner.md](headless-sim-runner.md) (the runner this test runs on),
@@ -47,20 +53,22 @@ live. Food is regrown every season but about 30% of it is lost or wasted.
 | Air (carbon) | Human CO2 taken back up by land and ocean | **about 50%** over a decade; **32%** in 2024 (emissions less what the air kept) | 2015-2024 |
 | Water | Household wastewater safely treated | **56%** (one source); withdrawals are 9.4% of renewable freshwater (one undated denominator) | 2024, 2023 |
 | Food | Food grown that is not lost or wasted | **about 70%** (loss by value, waste by mass: approximate) | 2022-2023 |
-| Nutrients | Phosphorus put on land that is recycled, not mined | **about 43%** (mostly manure); 1.4 to 2.4% of fertilizer phosphorus comes back from people | 2005 |
+| Nutrients | Phosphorus put on land that is recycled, not mined | **about 43%** (mostly manure), probably nearer a third today as mined fertilizer grew; 1.4 to 2.4% of fertilizer phosphorus comes back from people | 2000-2005 |
 | Energy | Energy from sustained flows | **8.6%** of commercially traded supply (86% fossil); 18.0% of final consumption, 13.4% without traditional biomass | 2025, 2023 |
 | Materials | Materials entering the economy that are recycled | **6.9%** | 2021 |
 | Habitat | Cropland per person | **0.19 ha (0.47 acre)**, falling | 2023 |
 
 **The mothership closes its air, water and food with technology that operates today, at a
 price set by light and by heat.** Every person needs about 50 m2 (540 sq ft) of crops lit day and
-night, about 9 kW of electricity for those lights at fixtures demonstrated today, and about 10.4 kW
-in all. For 8.2 billion people that is 85 TW: twenty-three times all the electricity Earth makes,
-four and a half times its whole energy supply. And the reactors that make it waste more than they
-deliver: the game's reactor class turns 23.3% of its heat into electricity, so each person's 10.4 kW
-comes with 34 kW of waste heat, and every watt of both must be radiated into space. That takes about
-56 m2 (600 sq ft) of radiator fin per person, 2.9 times the hull's whole side: **fins the size of
-the hull's side serve about 2.8 billion people, a third of the 8.2 billion.** The loops that decide
+night, about 9.4 kW of electricity for those lights at fixtures demonstrated today, and about 10.8
+kW in all, delivered. For 8.2 billion people that is 88.6 TW: 24 times all the electricity Earth
+makes, 4.7 times its whole commercially traded energy supply. And the reactors that make it waste
+far more than they deliver: the game's reactor class delivers a net 20% of its heat as electricity
+(60 of 300 MW; its datasheet states 23.3%, which is the gross 70 MW), so each person's 10.8 kW comes
+with 43 kW of other heat, the plant's own use included, and every watt of both must be radiated
+into space. That takes about 67 m2 (723 sq ft) of radiator fin per person, 3.5 times the hull's
+whole side: **fins the size of the hull's side serve about 2.3 billion people, under a third of the
+8.2 billion** (2.7 billion at the stated 23.3%). The loops that decide
 whether the ship survives a thousand years, besides heat, are **nutrients** (the one crewed closed
 system whose mineral retention this pass could read, BIOS-3, kept about 20% of its minerals on
 average, by its own design; the ship needs 99.9%) and **materials** (nothing new arrives between the
@@ -70,13 +78,13 @@ stars).
 |---|---|---|
 | Lit crop canopy | 50 m2 (540 sq ft), 35 to 56 | 410,000 km2 (158,000 sq mi) |
 | Growing floor with crew access | 65 m2 (700 sq ft), 44 to 84 | 533,000 km2 (206,000 sq mi) |
-| Electricity, all uses | **10.4 kW**, 250 kWh a day (4.3 to 19) | 85 TW |
-| ... of which lighting the crops (2.8 umol/J fixtures) | 9 kW (3.5 to 16) | 74 TW |
-| Reactor waste heat (KLT-40S class, 23.3%) | 34 kW | 280 TW |
-| Radiator fin: habitat at 290 K + reactor waste at 300 K | **56 m2** (600 sq ft): 14 + 41 | 457,000 km2, 2.9 times the hull's side |
+| Electricity, all uses (net, as delivered) | **10.8 kW**, 259 kWh a day (4.3 to 19) | 88.6 TW |
+| ... of which lighting the crops (2.8 umol/J fixtures) | 9.4 kW (3.5 to 16) | 77 TW |
+| Reactor heat besides the net electricity (KLT-40S class, net 20%) | 43 kW (35.5 at the stated 23.3%) | 354 TW |
+| Radiator fin: habitat at 290 K + reactor heat at 300 K | **67 m2** (723 sq ft): 15 + 52 | 551,000 km2, 3.5 times the hull's side |
 | Oxygen | 0.62 to 0.76 kg (1.4 to 1.7 lb) a day, made by the crops | |
-| Phosphorus lost at an assumed 20% / 99% / 99.9% retention | 0.9 kg / 9 g / 0.9 g a year | 7.2 million t / 90,000 t / 9,000 t a year |
-| Reactor fuel, fission (23.3%) / fusion carried (assumed 33%) | 17 kg / 3.7 kg a year | 140,000 t / 30,000 t a year |
+| Phosphorus lost at an assumed 20% / 99% / 99.9% retention | 0.9 kg / 11 g / 1.1 g a year | 7.2 million t / 90,000 t / 9,000 t a year |
+| Reactor fuel, fission (net 20%) / fusion carried (assumed 33%) | 21 kg / 3.8 kg a year | 170,000 t / 31,500 t a year |
 | Shield over the whole hull at 4.5 t/m2 | 95 t (105 short tons) | 780 billion t |
 
 **The research options that matter most**, in order of what they change (section 7):
@@ -87,8 +95,8 @@ stars).
    protein from hydrogen-eating bacteria (a commercial plant on Earth, readiness 8 there and 4
    aboard; a derived 31 to 34 kWh per kg, against a 2017 laboratory figure of 24) and food grown on
    electrolytic acetate (laboratory, readiness 3 to 4).
-2. **Heat rejection and conversion efficiency.** A 23.3% plant rejecting at 300 K needs three times
-   the radiator for its own waste heat as the habitat needs for its electricity. A hotter
+2. **Heat rejection and conversion efficiency.** A plant delivering a net 20% and rejecting at 300 K
+   needs 3.5 times the radiator for its own heat as the habitat needs for its electricity. A hotter
    condenser, a more efficient plant or radiators beyond the hull change how many people the ship
    can carry; none is sourced here.
 3. **Mineral recovery.** At BIOS-3's 20% (an all-mineral average, assumed for phosphorus) a ship of
@@ -98,15 +106,20 @@ stars).
    survives a thousand years; at 99.9%, 95%.
 5. **Fusion**, the operator's first named option, matters for the **fuel stock and the waste**: per
    joule it carries about 0.31 of fission's fuel mass (deuterium plus the lithium its tritium is bred
-   from) and leaves no long-lived actinides. It does not change the habitat's heat, and its own
+   from) and leaves no long-lived actinides. Per year the ratio looks better, 0.19 against
+   fission's net 20% (0.22 against the stated 23.3%), but only because it sets an assumed 33%
+   fusion plant against a measured fission one: the yearly ratio sits 29 to 39% below the per-joule
+   one, and that gap is the assumption, not the fuel. It does not change the habitat's heat, and its own
    plant's efficiency and waste heat are unproven. Fusion has ignited at the target (8.6 MJ from
    2.08 MJ of laser light, April 2025) but has not yet sent net electricity to any grid (readiness 3
    to 4).
 
-**Three things in this repository did not balance**, and two were fixed (section 12):
+**Four things in this repository did not balance**, and two were fixed (section 12):
 `data/machines/home_solo.ron`'s Nutrients loop said it closed (it does not; the family home and
 the outline already said so), and `data/home_outline.json` summed the bare-tier land to 0.34 ha
-where its parts give 0.36. And **no single "percent closed" number by mass means anything**: a home
+where its parts give 0.36. Not fixed, and handed to the ship-power lane because a code test pins
+it: `data/ship_power.ron` gives the homes the reactor's gross 35 MW, where the plant delivers 30
+net. And **no single "percent closed" number by mass means anything**: a home
 that recycles its water and air and grows no food at all is 99.1% closed by mass, because water
 dominates the mass (section 1). The test refuses to print one.
 
@@ -277,10 +290,11 @@ These do not (`population_steps.ron` and data/home_outline.json's `scaling`):
 - **Industry is a step**: below a threshold the loop is open, above it closed.
 - Genetic loss per generation is 1 / (2 Ne): negligible for a city, decisive for a village.
 - Redundancy gets cheaper per person: one spare protects four people or forty thousand.
-- Shielding per person falls as a habitat grows; **heat rejection does not**. Each person's 10.4
-  kW, plus the 34 kW of waste heat the game's 23.3%-efficient reactors make delivering it, needs
-  about 56 m2 of radiator fin, so fins as large as the lore's hull side (157,080 km2, 60,600 sq mi)
-  serve about 2.8 billion people (3.9 billion with an unsourced 33% plant). **The ship is past its
+- Shielding per person falls as a habitat grows; **heat rejection does not**. Each person's 10.8
+  kW, plus the 43 kW of other heat the game's reactors make delivering it at a net 20%, needs about
+  67 m2 of radiator fin, so fins as large as the lore's hull side (157,080 km2, 60,600 sq mi) serve
+  about 2.3 billion people (2.7 billion at the datasheet's stated 23.3%; 3.8 billion in an unsourced
+  33% scenario). **The ship is past its
   heat limit at 8.2 billion**, long before its space limit, unless its radiators reach well beyond
   the hull, its reactors reject heat hotter or more efficiently, or each person needs less.
 
@@ -364,7 +378,7 @@ Every technology below operates somewhere today; what limits it is building it, 
 | Air | about 50% of carbon returned over a decade (32% in 2024) | Electricity from wind, sun, rivers and nuclear for the 86% of traded energy that is fossil; electrified heat and transport | Process emissions (cement) and land-use change need their own fixes |
 | Water | 56% treated | Treat and reuse all wastewater; keep each basin's withdrawal under its renewable flow | Closure is local, basin by basin |
 | Food | about 70% reaches people | Halve loss and waste; return food waste and excreta to farmland | Soil lost to erosion does not come back on a human timescale |
-| Nutrients | about 43% of land phosphorus recycled (2005), 1.4 to 2.4% of fertilizer P from people | Recover phosphorus from wastewater, sludge ash and urine (not sourced in this pass); ammonia from clean hydrogen | Phosphorus reaching the sea; about 290 years of reserves |
+| Nutrients | about 43% of land phosphorus recycled (2000 to 2005; perhaps a third now), 1.4 to 2.4% of fertilizer P from people | Recover phosphorus from wastewater, sludge ash and urine (not sourced in this pass); ammonia from clean hydrogen | Phosphorus reaching the sea; about 290 years of reserves |
 | Energy | 8.6% of traded supply from flows (18% of final consumption) | As Air | Equipment is still mined and manufactured |
 | Materials | 6.9% recycled | Design for repair and recovery; collect e-waste; use less, since growth in use is what lowers the share | Elements recycled below 1% |
 | Habitat | 0.19 ha a person | Keep soil in place and building | Land per person falls as population grows |
@@ -401,10 +415,15 @@ m between decks. **Volume is not what limits this ship. Heat, power and minerals
 - **Crops**: 50 m2 (540 sq ft) of lit canopy (NASA's 40 to 50, 35 to 40 with insects; BIOS-3's 56),
   65 m2 (700 sq ft) of floor with 25 to 50% for crew access (bvad-2022). Crops sized for food also
   make all the oxygen and take up all the CO2 (BIOS-3; johnson-wheeler-2021).
-- **Light**: about 9 kW (3.5 to 16), at the 2.8 umol/J fixtures had demonstrated by 2020
+- **Light**: about 9.4 kW (3.5 to 16), at the 2.8 umol/J fixtures had demonstrated by 2020
   (kusuma-2020; the first pass used the 3.4 calculated limit and got 8). Three routes: BIOS-3's 8.5
   kW of light for full closure, 13.9 kW; BVAD's measured biomass per kWh, scaled from its 1.7 umol/J
-  lamps to 2.8, 2.3 to 24 kW; first principles from photons per gram, 3.8 to 12.5 kW. A fourth,
+  lamps to 2.8, 2.3 to 24 kW; first principles from photons per gram, 3.8 to 12.5 kW. **Method,
+  stated**: each range's centre is its geometric middle, because routes 2 and 3 span factors of 10
+  and 3.3 (13.9, 7.4 and 6.9 kW), and the point is their mean, 9.4 (9.3 from unrounded ends). The
+  first pass took route 3's arithmetic middle instead, which gives 9.8; the second review switched
+  method without saying so and then rounded to 9. The spread 9.4 to 9.8 is the method's, not the
+  data's. A fourth,
   used to try to refute it (a modelled plant factory's 247 kWh per kg of dry lettuce,
   graamans-2018), gives 5.7 to 7.0 kW, inside the range. Still derived: no crewed system has
   measured a whole diet's electricity under modern LEDs.
@@ -412,7 +431,8 @@ m between decks. **Volume is not what limits this ship. Heat, power and minerals
   gal) a day of transpiration back out of the air, at the game's own measured 27 Wh per litre.
 - **The household**: about 0.4 kW (the solo home's 8.7 kWh a day without life support).
 - **Industry and repair**: about 0.5 kW, **an estimate with no source** (phase 2 replaces it).
-- **Total about 10.4 kW, 250 kWh a day.** For comparison, Earth's electricity is 0.45 kW a person.
+- **Total about 10.8 kW, 259 kWh a day, as delivered (net of the power plant's own use).** For
+  comparison, Earth's electricity is 0.45 kW a person.
 - **Backup machines** for the air if the crops fail: 7 to 9 kWh a day while they run.
 - **Water**: at the ISS's 98%, a comfortable household loses 1.7 L (0.45 gal) a day, 0.6 t a year:
   5 billion t a year for 8.2 billion people. A thousand-year ship must return its brine and solids
@@ -420,34 +440,43 @@ m between decks. **Volume is not what limits this ship. Heat, power and minerals
 
 ### 6.4 Heat
 Every watt the reactors make ends as heat the ship must radiate into space, and there are two
-streams. **The habitat's**: the 10.4 kW a person uses, shed at about room temperature. A fin
+streams. **The habitat's**: the 10.8 kW a person uses, shed at about room temperature. A fin
 radiating from both sides at 290 K (17 C, 62 F) with emissivity 0.9 sheds 722 W per m2 (67 W per sq
-ft): 14.4 m2 (155 sq ft) per person. **The reactors' own waste heat**, the larger stream. The
-game's reactor is the KLT-40S class (data/ship_power.ron), whose datasheet gives 2 x 150 MW of heat
-for 2 x 35 MW of electricity, 23.3%, from a core whose water leaves at 316 C (589 K) and a
-water-cooled condenser (klt40s-iaea). So each person's 10.4 kW comes with 34 kW of waste heat, shed
-at its condenser near 300 K (827 W per m2): another 41 m2. **Together about 56 m2 (600 sq ft) a
-person, 457,000 km2 (176,000 sq mi) for 8.2 billion, 2.9 times the hull's whole side.** Fins as
-large as the side serve about 2.8 billion people; at an unsourced 33% plant, 40 m2 a person and 3.9
-billion.
+ft): 15.0 m2 (161 sq ft) per person. **The reactors' own heat**, the larger stream. The game's
+reactor is the KLT-40S class (data/ship_power.ron), whose datasheet gives 2 x 150 MW of heat for
+2 x 35 MW of electricity gross and 2 x 30 MW net, from a core whose water leaves at 316 C (589 K)
+and a water-cooled condenser (klt40s-iaea). The table prints "efficiency, net 23.3%*", footnoted
+"in the mode of maximum electric output"; 23.3% is the gross 70 MW over 300, and the net 60 MW gives
+20%. **The ship's 10.8 kW is delivered electricity, so the net 20% is the point**: each person's
+10.8 kW needs 54 kW of reactor heat, and the other 43 kW, the plant's own use (about 1.8 kW) among
+it, is shed at its condenser near 300 K (827 W per m2): another 52 m2. **Together about 67 m2 (723
+sq ft) a person, 551,000 km2 (213,000 sq mi) for 8.2 billion, 3.5 times the hull's whole side.**
+Fins as large as the side serve about 2.3 billion people. At the stated 23.3% (the upper bound):
+57.9 m2, 3.0 times the side, 2.7 billion. **Scenario, not sourced**: a 33% plant would need 41.5 m2
+and serve 3.8 billion; no plant of this class is known to reach it.
 
 The first pass had this badly wrong, and the error is worth recording: it said the reactor's waste
 heat would be "rejected hotter, at 600 K ... 1.4 m2 more per person". No light-water reactor can do
 that: Carnot allows no work at all from a 589 K core rejecting at 600 K, and at the KLT-40S's 23.3%
-the condenser can be no hotter than about 450 K. Raising the condenser temperature toward that
+the condenser can be no hotter than about 452 K (589 x (1 - 0.233); Carnot limits the turbine's
+gross work, so the bound uses the gross figure, not the net 20%). Raising the condenser temperature toward that
 bound trades efficiency for radiator area, and finding the best trade is a design problem this plan
 does not solve. The game does not model any of this yet (ship-life-support.md section 5, Climate);
 it is the next rung of that work.
 
 ### 6.5 Fuel for a thousand years
-- **Fission** (operating today): about 140,000 t of heavy metal fissioned a year for 85 TW at the
-  KLT-40S's 23.3% (99,000 at an unsourced 33%), 17 kg (38 lb) a person, about 140 million t over the
-  voyage, which needs breeder reactors to use most of the uranium or thorium carried (not sourced).
+- **Fission** (operating today): about 170,000 t of heavy metal fissioned a year for 88.6 TW at the
+  KLT-40S's net 20% (146,000 at its stated 23.3%; 103,000 in the unsourced 33% scenario), 21 kg (46
+  lb) a person, about 170 million t over the voyage, which needs breeder reactors to use most of the
+  uranium or thorium carried (not sourced).
 - **Fusion, deuterium-tritium** (research): 17.59 MeV a fusion, plus 4.78 MeV more when the lithium
   blanket breeds its tritium (Li-6 + n -> T + He-4), 22.37 MeV in all, from NIST masses. The ship
   carries deuterium and lithium-6, 269 TJ a kg, so per joule it carries about 0.31 of fission's fuel
-  mass. At an ASSUMED 33 to 40% plant efficiency (no fusion plant has demonstrated one): 25,000 to
-  30,300 t carried a year (15,700 to 19,000 t of D-T burned), 25 to 30 million t over the voyage.
+  mass. At an ASSUMED 33 to 40% plant efficiency (no fusion plant has demonstrated one): 26,000 to
+  31,500 t carried a year (16,300 to 19,700 t of D-T burned), 26 to 32 million t over the voyage.
+  Against fission per year that is 0.15 to 0.19 at fission's net 20% (0.18 to 0.22 at its stated
+  23.3%). At 33% the yearly ratio sits 29 to 39% below the per-joule 0.31, and that gap is the
+  assumed plant efficiency alone, not the fuel.
   The deuterium comes from water: seawater sits near the isotope standard VSMOW, 155.74 parts per
   million of hydrogen atoms (ciaaw-hydrogen), about 34.8 g a tonne. (The first pass left out the
   blanket, giving 0.243, and "corrected" the deuterium to 26 g with a value for natural materials in
@@ -486,16 +515,16 @@ Readiness (0, 0) means not assessed: named, and refused by the tests until sourc
 | ISS water recovery | Water | 8 to 9 | 98% (2023) | water make-up 1.7 L a day |
 | Sabatier and ACLS | Air | 9 | about half of the oxygen | oxygen water draw |
 | Electrolysis, sorbent bed, contaminant control | Air | 9 | on the ISS | backup 7 to 9 kWh a day |
-| Crops under electric light, whole diet | Food | 5 to 6 | BIOS-3, Lunar Palace 365 (ground); fixtures 2.5 to 3.0 umol/J demonstrated | the 9 kW |
-| Fission | Energy | 6 to 9 | a floating plant supplies Pevek since 2020, 23.3% efficient; 1,000 years of breeding never done | fuel about 140,000 t a year; 41 m2 a person of radiator for its waste heat |
+| Crops under electric light, whole diet | Food | 5 to 6 | BIOS-3, Lunar Palace 365 (ground); fixtures 2.5 to 3.0 umol/J demonstrated | the 9.4 kW |
+| Fission | Energy | 6 to 9 | a floating plant supplies Pevek since 2020, 20% net (23.3% gross); 1,000 years of breeding never done | fuel about 170,000 t a year; 52 m2 a person of radiator for its own heat |
 | Mass shielding | Habitat | 9 | the Earth's air | 4.5 t/m2 |
 | Phosphorus recovery on Earth | Nutrients | not assessed | not sourced | none until sourced |
 | **Fusion (D-T)** | Energy | **3 to 4** | NIF 8.6 MJ from 2.08 MJ on target (2025); ITER D-T planned 2039 | fuel carried about 0.31 of fission's per joule; habitat power unchanged; plant waste heat unproven |
 | Methane pyrolysis | Air | 4 to 5 | ground prototypes, theoretical more than 86% oxygen recovery | oxygen water draw 0.18 kg a day |
 | Electrochemical oxygen recovery | Air | 3 | laboratory, aiming at 75% | none yet |
-| **Microbial protein from hydrogen** | Food | 4 (8 on Earth) | a commercial plant; O2/CO2 2.7; 24 kWh/kg in a 2017 lab | food power about 6.5 kW if it is 30% of calories (a game choice) |
+| **Microbial protein from hydrogen** | Food | 4 (8 on Earth) | a commercial plant; O2/CO2 2.7; 24 kWh/kg in a 2017 lab | food power about 6.8 kW if it is 30% of calories (a game choice) |
 | Food grown on electrolytic acetate | Food | 3 to 4 | laboratory; about fourfold over photosynthesis in sunlight | none yet (no electricity per kg read) |
-| LEDs at their calculated limit | Food | 6 to 8 | 3.4 and 4.1 umol/J calculated limits | food power 7.4 kW (3.4) or 6.1 kW (4.1) |
+| LEDs at their calculated limit | Food | 6 to 8 | 3.4 and 4.1 umol/J calculated limits | food power 7.7 kW (3.4) or 6.4 kW (4.1) |
 | **Full mineral recycling (MELiSSA-style)** | Nutrients | 4 to 5 | pilot plant with animals | phosphorus about 1 g a person a year |
 | Active (magnetic) shielding | Habitat | 2 to 3 | rejected by SP-413 in 1977 | none |
 | Medicine on demand; capturing matter on the way | Materials | not assessed | not sourced | none until sourced |
@@ -505,9 +534,9 @@ Readiness (0, 0) means not assessed: named, and refused by the tests until sourc
 Rank the options by how much of the ship they change. **Food per kWh comes first** because lighting
 is 87% of the electricity, and the electricity sets the reactor size, the fuel and, through the
 reactors' waste heat, most of the radiators. **Heat rejection and conversion efficiency come
-second**: at the game's 23.3% reactor rejecting at 300 K, the radiators for the reactors' own waste
-heat are three times those for the habitat, and together they limit the hull to about 2.8 billion
-people. **Mineral recovery comes third** because at today's only measured figure the ship would lose
+second**: at the game's reactor, a net 20% rejecting at 300 K, the radiators for the reactors' own
+heat are 3.5 times those for the habitat, and together they limit the hull to about 2.3 billion
+people (2.7 billion at the stated 23.3%). **Mineral recovery comes third** because at today's only measured figure the ship would lose
 a quarter to two-fifths of Earth's fertilizer phosphorus every year, a gap of about 800 times in
 losses between today and what is needed. **Material recovery** decides which machines can still be
 rebuilt after a few centuries. **Fusion** comes fifth for the ship as a whole: it is a better fuel
@@ -515,8 +544,10 @@ rebuilt after a few centuries. **Fusion** comes fifth for the ship as a whole: i
 leaves the habitat's power and heat where they are. Whether it shrinks the reactors' radiators
 depends on a fusion plant's efficiency and the power it spends on itself, neither of which any
 plant has demonstrated. For the operator's thousand-year frame it matters most for what is carried:
-25 to 30 million t of deuterium and lithium instead of about 140 million t fissioned, and no
-centuries of spent fuel aboard.
+26 to 32 million t of deuterium and lithium instead of about 170 million t fissioned, and no
+centuries of spent fuel aboard. That yearly comparison is flattered by an assumed 33 to 40% fusion
+plant against fission's measured net 20%: per joule of heat the ratio is 0.31, per year at 33% it
+is 0.19, and the step between them is assumption.
 
 ---
 
@@ -554,7 +585,7 @@ these data files disagree, that is a finding to record, not a tolerance to widen
 | aggregate_matches_home_at_n1 | Calibration | the aggregate tier | the big scales rest on measured coefficients |
 | earth_today_reproduces_the_measured_world | Calibration | the aggregate tier | the aggregate's arithmetic on sourced inputs |
 | population_ladder | Aggregate | the aggregate tier | 1 to 8.2 billion, Earth and ship |
-| mothership_with_todays_technology | Aggregate | the aggregate tier | 10.4 kW, 85 TW, 56 m2, 2.8 billion, the phosphorus make-up |
+| mothership_with_todays_technology | Aggregate | the aggregate tier | 10.8 kW, 88.6 TW, 67 m2 at net 20%, 2.3 billion, the phosphorus make-up |
 | each_research_option_changes_only_what_it_says | Aggregate | the aggregate tier | each switch changes its figures and nothing else |
 | simplified_mode_agrees_with_full | Calibration | the aggregate tier | the two modes never give different answers |
 | a_thousand_years | Millennium | all of the above | the drift processes and the first stock to run out |
@@ -570,18 +601,18 @@ trusted:
 | Case | Independent route | Would have caught |
 |---|---|---|
 | bvad_table_reading_balances | conservation of mass over the source's own table | a value read against the wrong label |
-| heat_engines_obey_carnot | the second law, from the reactor datasheet's temperatures | "waste heat rejected at 600 K" from a 589 K core |
-| radiators_carry_all_the_reactor_heat | an energy ledger from the reactor's thermal power, not the electricity | 13 m2 a person, which radiated 9.4 of about 40 kW |
-| the_reactor_class_matches_ship_power | a second data file (data/ship_power.ron) | an unsourced 33 to 40% efficiency |
-| phosphorus_uptake_matches_what_people_excrete | the person's excreta over the plant's edible share | a farm sized for trade (2.6 kg) |
+| heat_engines_obey_carnot | the second law, from the datasheet temperatures in each budget's structured `thermo` field; fails if none is found | "waste heat rejected at 600 K" from a 589 K core |
+| radiators_carry_all_the_reactor_heat | an energy ledger from the reactor's thermal power (net electricity over the net efficiency), not the electricity | 13 m2 a person, which radiated the first pass's 9.4 kW and none of the reactor's other heat (31 to 38 kW) |
+| the_reactor_class_matches_ship_power | a second data file (data/ship_power.ron), and the class's structured point and bounds (20%, 20 to 23.3%) | an unsourced 33 to 40% efficiency; the gross 23.3% used as the point for a net load |
+| phosphorus_uptake_matches_what_people_excrete | the person's excreta (0.44 to 0.61 kg) over the plant's edible share (0.5 to 0.75): bounds of 0.59 to 1.22 kg | a farm sized for trade (2.6 kg) |
 | carbon_uptake_is_measured_by_the_air | NOAA's measured rise, not the sink models | 46% for 2024 (measured: 31 to 32%) |
-| fusion_energy_counts_both_reactions | mass defects and the isotope standard | no blanket (0.243), 26 g of deuterium a tonne |
+| fusion_energy_counts_both_reactions | mass defects and the isotope standard, against the values the data stores | no blanket (0.243), 26 g of deuterium a tonne |
 | homestead_land_is_the_sum_of_its_parts | the parts | the outline's 0.34 ha (the parts give 0.36) |
 | excreta_is_urine_and_faeces | the table's own rows and a second source | greywater counted as excreta |
 | today_uses_only_demonstrated_performance | the kind of each number (measured, limit, derived) | a calculated LED limit used as today's |
-| transpiration_heat_fits_inside_the_light | the Water loop's transpiration against the Energy loop's light | a lighting figure too low for its canopy |
-| every_scope_is_printed | the report's own output | 8.6% taught without "of commercially traded supply" |
-| every_quote_is_in_its_source | the source's own text, fetched (on demand, not CI) | a quotation that is a summary's words |
+| transpiration_heat_fits_inside_the_light | the Water loop's transpiration against the Energy loop's light, points only | a lighting figure too low for its canopy |
+| every_scope_is_printed | the structured `scope` field against the report's own output; fails if no scope field is found | 8.6% taught without "of commercially traded supply" |
+| every_quote_is_in_its_source | the source's own text, fetched (on demand, not CI), after a stated normalisation; Derived figures excluded | a quotation that is a summary's words |
 
 Each case lists its inputs, expected outputs with tolerances, its pass line, its compute and memory
 budget, the systems it runs, and what must exist first. Several expected values are marked
@@ -643,7 +674,7 @@ rates come from the real systems. The processes, and what they give:
 | Topsoil | formed at up to 1 cm per 1,000 years | loss rate to be sourced |
 | Earth's phosphate reserves | 73 billion t at 250 million t a year | 292 years; resources about 1,200; the pessimistic reading 50 to 100 |
 | The ship's phosphorus | lost at (1 - retention) of 0.82 to 1.37 kg a person a year | about 9 million t carried at 99.9% (6.7 to 11.2), 90 million t at 99% |
-| Reactor fuel | at 85 TW | about 140 million t fissioned at 23.3%, or 25 to 30 million t of deuterium and lithium-6 at an assumed fusion efficiency |
+| Reactor fuel | at 88.6 TW net | about 170 million t fissioned at the net 20% (146 million at the stated 23.3%), or 26 to 32 million t of deuterium and lithium-6 at an assumed 33 to 40% fusion plant |
 | Air through the hull | 0.02 kg of air a day per module | a leak law for a 500 km hull not found |
 | Hidden sinks (Biosphere 2) | stock against ledger, every year | any gap reported, never absorbed |
 | Equipment wear | failure rates, spares, the industry that makes them | the first year a machine cannot be replaced |
@@ -680,9 +711,11 @@ mode either.
 
 Every load-bearing figure was put to a second source, twice: once by this plan's author, then by an
 independent critic whose findings were each re-read before they were applied. The per-figure
-results are in each figure's `check` (80 figures in `data/closed_loop/`: 26 survived a second
-source, 24 remain uncertain, 22 are derived and were recomputed a second way, 8 are marked
-corrected, and further corrections were made inside budgets and derivations, listed below).
+results are in each figure's `check` (81 figures in `data/closed_loop/`: 25 survived a second
+source, 24 remain uncertain, 23 are derived and were recomputed a second way, 9 are marked
+corrected, and further corrections were made inside budgets and derivations, listed below). The
+critic made two passes, so there are three sections here; each records its own review's numbers,
+and where a later review revised one, the current value is in sections 1 to 10 and 11.3 says why.
 
 ### 11.1 The first pass
 
@@ -712,6 +745,11 @@ corrected, and further corrections were made inside budgets and derivations, lis
   the lost hydrogen was not in the paper's text, and is not used.
 
 ### 11.2 The second review (an independent critic, each finding re-read here)
+
+The numbers in this section are the second review's. The third (11.3) revised the lighting (9 to
+9.4 kW), the reactor's efficiency for a net load (23.3% to 20%), and with them the radiator (56 to
+67 m2), the people the hull's fins serve (2.8 to 2.3 billion) and the fission fuel (140,000 to
+170,000 t a year).
 
 **Refuted, and fixed.**
 - **Reactor waste heat "rejected hotter, at 600 K, 1.4 m2 more per person".** Re-read in the
@@ -789,6 +827,101 @@ grown diet; seed-bank regeneration; topsoil erosion rates; per-year spares mass 
 the industry share of a ship's power; the population a clinic, a foundry or a fab needs; whether
 MELiSSA has supported a human crew.
 
+### 11.3 The third review (the critic's second pass, each finding re-read here)
+
+**Corrected.**
+- **Net, not gross, for a net load.** Re-read in the KLT-40S table (klt40s-iaea): electric output
+  "gross 2 x 35", "net 2 x 30", and "efficiency, net 23.3%*", the asterisk "in the mode of maximum
+  electric output". 70 of 300 MW is 23.3%; 60 of 300 is 20%. The ship's 10.8 kW a person is what
+  its loads draw, so the point is the net 20%, and 23.3% is the upper bound. The plant's own use
+  (5 MW of every 35 gross, about 1.8 kW a person) ends as heat like everything else, and is
+  radiated with the rest. The reactor's radiator is 52.3 m2 a person (42.9 at 23.3%), the total
+  67.2 (57.9), the hull-side fins serve 2.3 billion (2.7), and fission fuel is 170,200 t a year
+  (145,900). The first pass's unsourced 33% now appears only as a labelled scenario: 41.5 m2, 3.8
+  billion, 103,000 t.
+- **The lighting point, and its method.** The second review changed route 3 from its arithmetic
+  middle to its geometric one without saying so, then rounded 9.4 to 9. The method is now written in
+  the data: each route's centre is its geometric middle (routes 2 and 3 span factors of 10 and 3.3),
+  the point is the mean of the three, 9.4 kW (9.3 from unrounded ends). The first pass's method
+  gives 9.8, and its 8 kW rebased like for like to 2.8 umol/J is 9.7; the spread 9.4 to 9.8 is
+  carried as the method's. With it the total is 10.8 kW, 88.6 TW: 24.1 times Earth's electricity
+  (32,202 TWh, an average of 3.67 TW) and 4.66 times its traded energy supply (600.31 EJ, 19.0 TW).
+- **The phosphorus display**: 99% and 99.9% retention lose 1% and 0.1% of the 1.10 kg taken up, 11 g
+  and 1.1 g a person, not 9 g and 0.9 g (which applied them to the 0.88 kg lost at 20%). The
+  tonnages were already right.
+- **A period is not a year.** The carbon budget's 50% is a 2015 to 2024 average; it now carries
+  `period: (2015, 2024)` and no `data_year`, so a test filtering by year cannot compare it with 2024.
+  The two cases that check 2024 now share one value, 0.32 with a tolerance of 0.02 (the budget's own
+  7.9 GtC); NOAA's measured route gives 0.31, inside it.
+- **Phosphorus recycled on land** is a 2000 to 2005 figure (Cordell's baseline: 2005 "where possible,
+  otherwise sourced from between 2000-2005", its manure flows from Smil 2000). It has probably
+  fallen: mined fertilizer phosphorus is now 20.9 million t, and with the recycled flows unchanged
+  the share would be 10.5 / 31.4, about a third. No newer global balance was read.
+- **Fusion's yearly comparison names its assumption.** Per joule of heat fusion carries 0.305 of
+  fission's mass; per year at an assumed 33% it is 0.185 of fission at net 20% (0.216 at 23.3%). The
+  step from 0.305 down to those is the assumed plant efficiency alone, 39% (29%) of the per-joule
+  ratio. Put as folds, of the 4.6 to 5.4-fold yearly saving, 3.3-fold is the fuel's physics and 1.4
+  to 1.65-fold is the assumption.
+
+**Cases that could not fail, or would fail on correct data, fixed.**
+- `heat_engines_obey_carnot` read temperatures from prose. Figures and budgets now carry a
+  structured `thermo` field (efficiency, efficiency_high, t_hot_k, t_reject_k); the case checks
+  every entry with all of a hot side, a rejection temperature and an efficiency (three today) and
+  FAILS if it finds fewer than three. Carnot is checked against the gross figure, because it
+  limits the turbine's work: 589 x (1 - 0.233) = 452 K.
+- `fusion_energy_counts_both_reactions` recomputed the physics but compared it with nothing. It now
+  compares the masses' answer with the values the data STORES: the 17.59 and 4.78 MeV and 2.688e14
+  J/kg in technologies.ron, pp.fuel.fusion_dt and pp.fuel.fission recomputed from their `thermo`
+  efficiencies, and a new structured figure, ship.energy.deuterium_seawater (34.8 g a tonne),
+  against the VSMOW fraction.
+- `every_scope_is_printed` looked for scope text in prose. Figures now carry a `scope` field; the
+  case fails if fewer than 20 are found and fails on any `fraction` figure without one. Writing the
+  field found eight fractions with no scope, two of them on Earth (water stress; excreta phosphorus
+  against fertilizer); all eight have one now.
+- `radiators_carry_all_the_reactor_heat` now says its basis: thermal power is NET electricity over
+  the NET efficiency, 54 kW a person, and the gross figure must pass too when selected.
+- `the_reactor_class_matches_ship_power` reads the efficiency from `thermo`, checks every Today-tier
+  budget that has one (two today, and fails on fewer), and checks both bounds, 20% and 23.3%, and
+  that the point is the class's point; the 35 MW per reactor it compares with ship_power.ron is
+  the GROSS figure, said so.
+- `phosphorus_uptake_matches_what_people_excrete` compared the uptake with one excretion value, so
+  it passed at 0.61 kg and failed at 0.44 on the same correct uptake. It now checks the point uptake
+  against bounds from the RANGE: 0.44 / 0.75 = 0.59 to 0.61 / 0.5 = 1.22 kg. The uptake and the
+  edible share are not structured figures yet, and the edible share's 0.5 to 0.75 is an estimate
+  around data/home_outline.json's 0.63, not separately sourced: both are named in the case's needs.
+- `transpiration_heat_fits_inside_the_light` combined a fixed transpiration rate with the low end of
+  the lighting range (3.5 kW against 5.7 kW of latent heat), which fails on correct data. It now
+  compares points only, 0.60, until transpiration scales with light in the data.
+- `every_quote_is_in_its_source` now states its normalisation (whitespace, ASCII folding, superscript
+  markers, ellipsis and slash fragments, bracketed notes and source ids removed, arithmetic after
+  "=" skipped) and excludes figures checked as Derived and performance entries of kind Derived,
+  whose "quote" is this project's arithmetic.
+- **This review's own additions.** `today_uses_only_demonstrated_performance` asserted 2.8 / 3.0 =
+  0.933 "at most 0.93", which fails on correct data; it now reads the new `kind` field on all 27
+  performance entries (Measured, Derived, Estimate, Limit, Target), fails if an era Today option
+  rests on a Limit or a Target, and holds the lighting's efficacy to the measured 2.8. The
+  phosphorus bounds had been written as differences, which the schema's AtMost rule compared by
+  absolute value, so the upper bound would have failed; they are plain bounds now and the rule says
+  the absolute value applies only to a "largest difference".
+
+**Where this review differs from the critic.**
+- The plant's own use is about 1.8 kW a person at 10.8 kW net (10.8 x 5 / 30), not 1.7, which is
+  the same ratio applied to the second review's 10.4.
+- "About 30% of fusion's advantage is assumed efficiency" depends on how the advantage is measured.
+  The yearly ratio sits 29% below the per-joule one against 23.3%, 39% below it against the net 20%
+  this review now uses; in folds the assumption is 1.4 to 1.65 of 4.6 to 5.4. All three are true;
+  the data state the folds and the doc the percentages, each with its definition.
+- The lighting point is 9.4, the lower of the two the critic offered. 9.7 rebases the first pass's
+  8 kW, which itself rested on an arithmetic middle of a range spanning a factor of 3.3; the
+  geometric middle is the defensible centre of such a range, and the difference is carried as the
+  method's spread rather than hidden in a rounding.
+- The KLT-40S table is internally inconsistent (it labels a gross ratio "net"). The data carry both
+  readings with the table's own words rather than choosing one silently.
+
+**Still open from this review**: BIOS-3's mineral figure carries `data_year: 1997`, the paper's year,
+not the experiment's (the 1970s); the year of the third experiment was not re-read, so it is
+recorded here rather than changed.
+
 ---
 
 ## 12. What does not balance
@@ -811,13 +944,21 @@ MELiSSA has supported a human crew.
 5. **The mothership's dominant loads are unmodelled**: the solo home's garden is sun-lit through
    glass in the game, but between the stars there is no sun, so every ship farm is lit by
    electricity, and that light is 87% of the ship's electricity; and the reactor class the game
-   carries (data/ship_power.ron) wastes three watts of heat for every one it delivers. The game models
+   carries (data/ship_power.ron) makes four watts of other heat for every one it delivers (net 20%; 3.3 at the stated 23.3%). The game models
    neither crop lighting at ship scale nor heat rejection (ship-life-support.md section 5, Climate).
 6. **The lore's ship cannot shed the heat of 8.2 billion people** with radiators the size of its
-   hull's side and today's reactor class (about 2.8 billion; section 6.4). This is a finding for the
+   hull's side and today's reactor class (about 2.3 billion at its net 20%, 2.7 billion at the stated 23.3%; section 6.4). This is a finding for the
    ship's design, not the test: radiators beyond the hull, hotter or more efficient reactors, or less
    electricity per person.
-7. **Already recorded and still true**: the solo home's Energy loop does not close in either mode
+7. **NOT FIXED, a request: the game's reactor delivers its gross output to the homes.**
+   `data/ship_power.ron` carries 35 MWe per reactor, from trade press, with the instruction to
+   "replace this with their net figure when one is" read. The IAEA status report (klt40s-iaea) now
+   read gives 30 MW net (2 x 30 of 2 x 35 gross), so the game hands its loads 17% more than the plant
+   delivers. Not changed here because `src/systems/ship_power_tests.rs` asserts the 35,000,000 W
+   exactly, and this plan edits no code: the change is the data file to 30,000,000 W net, that
+   assertion, and the "13,000 homes" line beside it (about 11,500 at 30 MW), in one commit by the
+   ship-power lane. No home comes near either ceiling, so nothing a player sees changes yet.
+8. **Already recorded and still true**: the solo home's Energy loop does not close in either mode
    (4.45 kWh a day made, 8.7 and 31.8 used), and its Food loop grows about 81% (home_solo.ron).
 
 `data/self_sufficiency/cannot_close.ron` is **unchanged**: nothing in this pass changes what one home
@@ -840,8 +981,8 @@ In order; each is a rung of the whole plan above, not a throwaway.
    `person_breathes_by_the_current_nasa_baseline`, and the independent-route unit cases
    (`bvad_table_reading_balances`, `heat_engines_obey_carnot`, `the_reactor_class_matches_ship_power`,
    `fusion_energy_counts_both_reactions`, `excreta_is_urine_and_faeces`,
-   `today_uses_only_demonstrated_performance`, which needs a `kind` field on performance entries,
-   and `homestead_land_is_the_sum_of_its_parts`, which needs the outline's parts as numbers). Each is
+   `today_uses_only_demonstrated_performance`, which reads the `kind` field now on every performance
+   entry, and `homestead_land_is_the_sum_of_its_parts`, which needs the outline's parts as numbers). Each is
    seen red on the first-pass error it names before it is trusted.
 3. **The home-day cases, today, on the existing harness**: `solo_home_closes_what_it_closes`,
    `family_home_closes_what_it_closes`, `one_to_three_residents_per_person`,

@@ -80,6 +80,18 @@ Derived   - computed here; checked by recomputing it a second way."""
 [enums.Basis]
 values = ["World", "PerPerson", "PerHome", "PerModule", "PerUnit"]
 
+[enums.PerformanceKind]
+values = ["Measured", "Derived", "Estimate", "Limit", "Target"]
+description = """
+What kind of number a technology's performance entry is (added in the third
+review, so test case today_uses_only_demonstrated_performance can read it).
+Measured - shown in operation or a test, in the source's own words.
+Derived  - this project's arithmetic from measured or physical constants.
+Estimate - a source's planning or design estimate, not a measurement.
+Limit    - a calculated physical or technological limit (LEDs at 3.4 and 4.1).
+Target   - what a programme aims at, not yet shown.
+An option at era Today may not rest on a Limit or a Target."""
+
 # ---------------------------------------------------------------------------
 # sources.ron  ->  ( sources: [ Source, ... ] )
 # ---------------------------------------------------------------------------
@@ -176,7 +188,22 @@ required = true
 [figure.fields.data_year]
 type = "Option<int>"
 required = false
-description = "The year the number describes (not the year it was published)."
+description = "The year the number describes (not the year it was published). None for a figure that describes a period: it carries `period` instead, so a test filtering by year never compares a decade's average with one year."
+
+[figure.fields.period]
+type = "Option<(int, int)>"
+required = false
+description = "First and last year a figure averages or spans, inclusive: (2015, 2024) for the carbon budget's decade, (2000, 2005) for Cordell's phosphorus balance. Exactly one of `data_year` and `period` is set when the figure describes a time at all."
+
+[figure.fields.scope]
+type = "Option<string>"
+required = false
+description = "What a share or total is OF and what it leaves out, in words the report prints beside the number (test case every_scope_is_printed): '8.6%' is of commercially traded energy, not of all energy. Required in practice for every figure whose unit is `fraction` (all 18 do today, and two totals carry one too, 20 in all); the case fails on any fraction that lacks it."
+
+[figure.fields.thermo]
+type = "Option<Thermo>"
+required = false
+description = "The heat engine or radiator behind the figure, as numbers a test can check (heat_engines_obey_carnot, the_reactor_class_matches_ship_power). See `thermo` below. Also allowed on a per_person budget."
 
 [figure.fields.source]
 type = "list of string"
@@ -234,8 +261,34 @@ required = false
 description = """
 mothership.ron only: what one person needs aboard at a technology level,
 ( id, loop_id, tech_level: Today | Research, quantity, value, low, high, unit,
-display, derivation, from ). The derivation is written out so a test can
-recompute it."""
+display, thermo: Option<Thermo>, derivation, from ). The derivation is written
+out so a test can recompute it. A budget resting on a reactor's efficiency
+carries it in `thermo`, so the efficiency is read, not parsed from prose."""
+
+# ---------------------------------------------------------------------------
+# Thermo  ->  ( efficiency, efficiency_high, t_hot_k, t_reject_k )
+# (an optional field of a figure or a per_person budget; third review)
+# ---------------------------------------------------------------------------
+
+[thermo.fields.efficiency]
+type = "Option<float>"
+required = true
+description = "The point conversion efficiency the figure's value uses, as delivered electricity over heat: NET of the plant's own use when the load it serves is net. KLT-40S class: 0.20 (60 of 300 MW). None for a radiator with no engine (the habitat's)."
+
+[thermo.fields.efficiency_high]
+type = "Option<float>"
+required = true
+description = "The highest efficiency the class supports, which gives the other end of the figure's range: the KLT-40S table's stated 23.3% (its gross 70 MW over 300, 'in the mode of maximum electric output'). Carnot is checked against this one, because Carnot limits the turbine's gross work."
+
+[thermo.fields.t_hot_k]
+type = "Option<float>"
+required = true
+description = "Hot-side temperature in kelvin: the KLT-40S core outlet, 316 C = 589.15 K. None where no source gives one (a fusion plant)."
+
+[thermo.fields.t_reject_k]
+type = "Option<float>"
+required = true
+description = "Rejection (radiator or condenser) temperature in kelvin: 300 K for the reactor's condenser, 290 K for the habitat's radiator. A test requires efficiency_high <= 1 - t_reject_k / t_hot_k whenever all three are present, and fails if no entry has all three."
 
 # ---------------------------------------------------------------------------
 # technologies.ron  ->  ( options: [ Technology, ... ] )
@@ -277,9 +330,9 @@ required = true
 description = "The evidence for the level: what was demonstrated, where, at what scale, and when."
 
 [technology.fields.performance]
-type = "list of ( quantity, value, unit, display, source, quote )"
+type = "list of ( kind: PerformanceKind, quantity, value, unit, display, source, quote )"
 required = true
-description = "`source` is one source id. Empty only for a (0, 0) option."
+description = "`source` is one source id. Empty only for a (0, 0) option. `kind` says whether the number is measured, derived, an estimate, a limit or a target (third review); a Derived entry's `quote` is this project's arithmetic and is excluded from every_quote_is_in_its_source."
 
 [technology.fields.changes]
 type = "list of ( figure, to, unit )"
@@ -416,7 +469,7 @@ required = true
 [case.fields.expect]
 type = "list of ( metric, value, tolerance, unit, rule )"
 required = true
-description = "`rule` is Within (|got - value| <= tolerance), AtLeast (got >= value - tolerance), AtMost (got <= value + tolerance; for a difference, its absolute value), or Report (no pass line yet: the number is printed and recorded, which is honest where we do not know what right looks like)."
+description = "`rule` is Within (|got - value| <= tolerance), AtLeast (got >= value - tolerance), AtMost (got <= value + tolerance; for a metric named 'largest difference', the difference's absolute value; any other quantity is compared signed), or Report (no pass line yet: the number is printed and recorded, which is honest where we do not know what right looks like)."
 
 [test_cases.fields.budget]
 type = "( ci_total_cpu_s, ci_total_memory_mb, nightly_total_cpu_s, nightly_parallel_runs, why )"

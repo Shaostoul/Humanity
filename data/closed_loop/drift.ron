@@ -69,9 +69,9 @@
         ),
         (
             id: "ship_fuel", loop_id: Energy, name: "Reactor fuel for the voyage",
-            model: Linear(per_year: 140500.0, unit: "t of heavy metal fissioned a year at 85 TW and the KLT-40S's 23.3% (fusion: 30,300 t of deuterium and lithium-6 carried at an assumed 33%)"),
+            model: Linear(per_year: 170200.0, unit: "t of heavy metal fissioned a year at 88.6 TW and the KLT-40S's net 20% (fusion: 31,500 t of deuterium and lithium-6 carried at an assumed 33%)"),
             parameters_source: ["pp.fuel.fission", "pp.fuel.fusion_dt", "ship.energy.reactor_klt40s"],
-            results: "Fission: about 140 million t fissioned over 1,000 years (99 million at an unsourced 33%). Fusion: 25 to 30 million t carried (deuterium plus lithium-6), 16 to 19 million t of D-T burned, at an efficiency that is assumed, not demonstrated. CORRECTED in the second review (the first pass: 74 to 90 million t of fission fuel at 33 to 40%, and 18 to 22 million t of D-T with no blanket).",
+            results: "Fission: about 170 million t fissioned over 1,000 years (146 million at the reactor's stated 23.3%; 103 million in an unsourced 33% scenario). Fusion: 26 to 32 million t carried (deuterium plus lithium-6), 16 to 20 million t of D-T burned, at an efficiency that is assumed, not demonstrated (per joule of heat it carries 0.305 of fission's mass; the rest of its yearly advantage is the assumed efficiency). CORRECTED in the second review (the first pass: 74 to 90 million t of fission fuel at 33 to 40%, and 18 to 22 million t of D-T with no blanket).",
             represents: "A fuel stock, drawn at the electricity the population tier demands; the power per person comes from the home-year run (Realistic mode), not from this file.",
             note: "",
         ),
