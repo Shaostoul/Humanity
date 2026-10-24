@@ -7,7 +7,8 @@
 //   window._voiceChannels, window._roomPeerConnections,
 //   window._roomLocalStream, window._currentRoomId
 // Shared with chat-voice-calls.js: requestCallCredentials, relayOnlyRtcConfig,
-//   sayCallsNeedServer (calls go through the server, below).
+//   sayCallsNeedServer (calls go through the server, below), and callRtcConfig,
+//   callConnectionMode, sayCallsDirectOnly (each person's call connection, 10p).
 //
 // Depends on: app.js globals (ws, myKey, myName, peerData, esc,
 //   addSystemMessage, openDmConversation, isFriend, shortKey, hosIcon,
@@ -22,7 +23,9 @@
 // browser's iceTransportPolicy 'relay'), so the other people in the call see
 // the server's address and never yours. No third party's address lookup
 // (STUN) is asked any more, and there is no direct fallback: when the server
-// cannot carry the call, the page says so and connects nothing.
+// cannot carry the call, the page says so and connects nothing. That is the
+// Private mode, everyone's default; a person may choose Direct instead (10p,
+// below callRtcConfig), which governs only their own address.
 //
 // Before a room or a call connects, the page asks the relay over the
 // signed-in chat socket, exactly as 10f fixes it:
@@ -112,15 +115,66 @@ function onCallCredentials(msg) {
 }
 
 /**
- * The peer-connection settings for a room or call: exactly the relay's urls,
- * username and credential, and 'relay' so the browser offers the other side
- * only the forwarder's address (never its own, never one learned elsewhere).
+ * The peer-connection settings for a room or call in the Private mode: exactly
+ * the relay's urls, username and credential, and 'relay' so the browser offers
+ * the other side only the forwarder's address (never its own, never one
+ * learned elsewhere).
  */
 function relayOnlyRtcConfig(creds) {
   return {
     iceServers: [{ urls: creds.urls.slice(), username: creds.username, credential: creds.credential }],
     iceTransportPolicy: 'relay',
   };
+}
+
+// ── Each person chooses how their calls connect (10p, 2026-10-22) ──
+// /shared/call-connection.js holds the three modes and their words (from
+// /data/net/call_connection.json, as the desktop app reads them); the choice
+// is drawn in Settings > Safety (chat-privacy.js drawCallConnection). Private,
+// the default, is everything above, unchanged. In a Direct mode this device's
+// own addresses are offered too ('all'), still with the relay's credentials
+// when they came, so a Private person at the other end connects through the
+// relay; when the server cannot relay, a Direct call connects device to device
+// where it can and the chat says so once, instead of 10f's sentence.
+
+/** This person's call connection now: their choice, the protected setup always Private. */
+function callConnectionMode() {
+  const C = window.HosCallConnection;
+  if (!C) return 'private';
+  let stored = 'private';
+  try { stored = C.readMode(window.localStorage); } catch (e) { stored = 'private'; }
+  const prot = typeof protectedIsOn === 'function' && protectedIsOn();
+  return C.effective(stored, prot);
+}
+
+/**
+ * The peer-connection settings for a room or call in this person's mode, or
+ * null when it cannot connect at all (Private without credentials).
+ */
+async function callRtcConfig(creds) {
+  const mode = callConnectionMode();
+  const C = window.HosCallConnection;
+  if (mode === 'private' || !C) return creds ? relayOnlyRtcConfig(creds) : null;
+  let publicUrl = null;
+  if (C.asksPublicStun(mode)) {
+    const words = await C.loadWords();
+    let chosen = '';
+    try { chosen = C.readPublic(window.localStorage); } catch (e) { chosen = ''; }
+    const service = C.publicStunOf(words, chosen);
+    publicUrl = service ? service.url : null;
+  }
+  return C.rtcConfig(mode, creds, publicUrl);
+}
+
+// The calls and rooms already told they go device to device ("room:<id>" or "call:<key>").
+const callsToldDirect = new Set();
+
+/** Say once per room or call that it goes device to device, the server not relaying it. */
+function sayCallsDirectOnly(scopeKey) {
+  const C = window.HosCallConnection;
+  if (!C || callsToldDirect.has(scopeKey)) return; // without it there is no Direct mode
+  callsToldDirect.add(scopeKey);
+  addSystemMessage(C.directWithoutServerLine(C.words()));
 }
 
 /** Say, in the call bar's status line and in the chat, that the server cannot carry the call. */
@@ -144,11 +198,15 @@ let roomCredentials = null;
 /** The credentials for the voice room `roomId`, asked for when there are none yet. */
 async function roomCallCredentials(roomId) {
   const id = String(roomId);
-  if (roomCredentials && roomCredentials.roomId === id && Date.now() < roomCredentials.creds.expiresAt - 60000) {
-    return roomCredentials.creds;
+  if (roomCredentials && roomCredentials.roomId === id) {
+    // None came for this room: a Direct person stays in it (10p), and each
+    // connection is not held up asking again. A new socket asks again
+    // (resendVoiceJoin); a Private person has left the room by now.
+    if (!roomCredentials.creds) return null;
+    if (Date.now() < roomCredentials.creds.expiresAt - 60000) return roomCredentials.creds;
   }
   const creds = await requestCallCredentials({ room: id });
-  if (creds && String(window._currentRoomId) === id) roomCredentials = { roomId: id, creds };
+  if (String(window._currentRoomId) === id) roomCredentials = { roomId: id, creds };
   return creds;
 }
 
@@ -194,7 +252,11 @@ async function joinVoiceRoom(roomId) {
   // prompts for it.
   const creds = await roomCallCredentials(id);
   if (window._currentRoomId !== id) return; // left while waiting
-  if (!creds) { roomCannotConnect(); return; }
+  if (!creds) {
+    // Private: through the server or not at all. Direct (10p): device to device where it can.
+    if (callConnectionMode() === 'private') { roomCannotConnect(); return; }
+    sayCallsDirectOnly('room:' + id);
+  }
   ensureRoomAudio();
 }
 
@@ -295,6 +357,8 @@ function cleanupRoomAudio() {
   window._roomPeerConnections = {};
   window._currentRoomId = null;
   roomCredentials = null;
+  // A room joined again says again that it goes device to device (10p).
+  for (const k of Array.from(callsToldDirect)) if (k.startsWith('room:')) callsToldDirect.delete(k);
   // Tear down the per-peer gain graphs (v0.484).
   if (typeof window.teardownAllPeerAudio === 'function') window.teardownAllPeerAudio();
   // Remove room audio elements
@@ -308,15 +372,21 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
   if (window._roomPeerConnections[peerKey]) return; // already connected
   const id = String(roomId);
   if (String(window._currentRoomId) !== id) return; // only within the room I am in
-  // Through the server only (step E): this room's credentials, or no connection.
+  // Private (step E): this room's credentials, or no connection. A Direct
+  // mode (10p) connects device to device where it can without them.
   const creds = await roomCallCredentials(id);
   if (String(window._currentRoomId) !== id) return; // left while waiting
-  if (!creds) { roomCannotConnect(); return; }
+  const config = await callRtcConfig(creds);
+  if (String(window._currentRoomId) !== id) return; // left while waiting
+  if (!config) { roomCannotConnect(); return; }
   if (window._roomPeerConnections[peerKey]) return; // made while we waited
-  const pc = new RTCPeerConnection(relayOnlyRtcConfig(creds));
+  const direct = config.iceTransportPolicy !== 'relay';
+  if (direct && !creds) sayCallsDirectOnly('room:' + id);
+  const pc = new RTCPeerConnection(config);
   window._roomPeerConnections[peerKey] = pc;
   // Addresses the forwarder gave this connection. None by the end of gathering
-  // means the server's call port did not answer, so no connection can form.
+  // means the server's call port did not answer: in the Private mode no
+  // connection can form; in a Direct one it may still, device to device.
   let relayAddresses = 0;
 
   if (window._roomLocalStream) {
@@ -356,7 +426,8 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
   };
 
   pc.onicecandidate = (event) => {
-    if (event.candidate) relayAddresses++;
+    // Only a relayed address counts: in a Direct mode this device's own come too.
+    if (event.candidate && (!direct || window.HosCallConnection.isRelayCandidate(event.candidate))) relayAddresses++;
     if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'voice_room_signal',
@@ -378,8 +449,9 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
       delete window._roomPeerConnections[peerKey];
       const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
       if (audioEl) audioEl.remove();
-      // Never a direct retry: the connection is through the server or not at all.
-      if (relayAddresses === 0) roomCannotConnect();
+      // Never a direct retry: in the Private mode the connection is through the
+      // server or not at all.
+      if (relayAddresses === 0 && !direct) roomCannotConnect();
       else addSystemMessage('⚠️ Voice connection to a peer failed.');
     } else if (pc.connectionState === 'disconnected') {
       // Give it a moment, might recover
@@ -397,7 +469,8 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     console.log(`Voice ICE gathering: ${pc.iceGatheringState}`);
     if (pc.iceGatheringState === 'complete' && relayAddresses === 0
         && window._roomPeerConnections[peerKey] === pc) {
-      roomCannotConnect();
+      if (direct) sayCallsDirectOnly('room:' + id);
+      else roomCannotConnect();
     }
   };
 
@@ -487,9 +560,10 @@ async function handleVoiceRoomSignal(msg) {
     // Only for the room I am in: an offer for any other room (or while I am in
     // none) neither turns my microphone on nor gets a connection.
     if (!window._currentRoomId || String(window._currentRoomId) !== String(roomId)) return;
-    // Through the server only (step E): no microphone and no answer until this
-    // room's credentials came; without them the room is left, saying why.
-    if (!await roomCallCredentials(roomId)) {
+    // Private (step E): no microphone and no answer until this room's
+    // credentials came; without them the room is left, saying why. A Direct
+    // mode (10p) answers device to device without them (connectToRoomPeer).
+    if (!await roomCallCredentials(roomId) && callConnectionMode() === 'private') {
       if (String(window._currentRoomId) === String(roomId)) roomCannotConnect();
       return;
     }

@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width, initial-scale=1.0>
-  <title>Market, HumanityOS</title>
+  <title data-i18n="market.page_title">Market, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     :root {
@@ -152,24 +152,26 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src=/shared/shell.js data-active=market></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Buy and sell things with other players, like a flea market for everyone.</div>
-  <div class="eli5-expert">Directory entries are signed objects: a provider and its offerings are published under your own key and verified by anyone, so no server vouches for them. Signing uses Dilithium3 (ML-DSA-65), the post-quantum scheme this platform uses for identity. Categories span physical goods, digital assets, services and in-game items. The platform never handles payment: it lists and introduces, and you settle directly.</div>
+  <div class="eli5-simple" data-i18n="market.eli5_simple">Buy and sell things with other players, like a flea market for everyone.</div>
+  <div class="eli5-expert" data-i18n="market.eli5_expert">Directory entries are signed objects: a provider and its offerings are published under your own key and verified by anyone, so no server vouches for them. Signing uses Dilithium3 (ML-DSA-65), the post-quantum scheme this platform uses for identity. Categories span physical goods, digital assets, services and in-game items. The platform never handles payment: it lists and introduces, and you settle directly.</div>
 </div>
-<p class="page-hint">The marketplace. Find things people are offering, or share something you'd like to give, trade, or sell. Browse stores and post your own listings.</p>
+<p class="page-hint" data-i18n="market.page_hint">The marketplace. Find things people are offering, or share something you'd like to give, trade, or sell. Browse stores and post your own listings.</p>
 <div id=page-app><div id="tab-market" class="tab-content" style="padding:var(--space-xl);overflow-y:auto;">
   <!-- Sub-navigation -->
   <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-xl);flex-wrap:wrap;align-items:center;">
-   <button class="btn btn-clickable" onclick="showMarketSection('directory')" id="market-nav-directory" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="grid" data-size="16" aria-hidden="true"></span> Directory</button>
-   <button class="btn" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16" aria-hidden="true"></span> Classifieds</button>
-   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="storefront" data-size="16" aria-hidden="true"></span> Stores</button>
-   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="tasklist" data-size="16" aria-hidden="true"></span> My Listings</button>
+   <button class="btn btn-clickable" onclick="showMarketSection('directory')" id="market-nav-directory" data-i18n-tip="market.tab_directory_hint" data-tip-desc="Shows the shops and helpers on this server and what each one offers." style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="grid" data-size="16" aria-hidden="true"></span> <span data-i18n="market.tab_directory">Directory</span></button>
+   <button class="btn" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" data-i18n-tip="market.tab_classifieds_hint" data-tip-desc="Shows simple listings people put up to give, trade or sell something." style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16" aria-hidden="true"></span> <span data-i18n="market.tab_classifieds">Classifieds</span></button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" data-i18n-tip="market.tab_stores_hint" data-tip-desc="Shows a list of outside stores you can visit." style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="storefront" data-size="16" aria-hidden="true"></span> <span data-i18n="market.tab_stores">Stores</span></button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" data-i18n-tip="market.tab_my_listings_hint" data-tip-desc="Shows only the listings you have put up." style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="tasklist" data-size="16" aria-hidden="true"></span> <span data-i18n="market.tab_my_listings">My Listings</span></button>
    <span style="flex:1;"></span>
-   <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:none;">+ Create Listing</button>
+   <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" data-i18n="market.create_listing_button" data-i18n-tip="market.create_listing_hint" data-tip-desc="Opens a form to put up something you want to give, trade or sell." style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:none;">+ Create Listing</button>
   </div>
 
   <!-- Directory Section: the signed provider/offering catalog. Mirrors the
@@ -178,16 +180,16 @@
        /api/v2/objects, not the classifieds WebSocket. -->
   <div id="market-section-directory">
    <div class="dir-bar">
-    <button class="btn btn-clickable dir-toggle" onclick="setDirectorySub('offerings')" id="dir-sub-offerings">Offerings</button>
-    <button class="btn dir-toggle" onclick="setDirectorySub('providers')" id="dir-sub-providers">Providers</button>
+    <button class="btn btn-clickable dir-toggle" onclick="setDirectorySub('offerings')" id="dir-sub-offerings" data-i18n="market.directory.offerings" data-i18n-tip="market.directory.offerings_tab_hint" data-tip-desc="Shows the goods and services on offer.">Offerings</button>
+    <button class="btn dir-toggle" onclick="setDirectorySub('providers')" id="dir-sub-providers" data-i18n="market.directory.providers" data-i18n-tip="market.directory.providers_tab_hint" data-tip-desc="Shows the shops and helpers who offer things.">Providers</button>
     <span id="dir-breadcrumb"></span>
     <span style="flex:1;"></span>
-    <button class="btn dir-toggle" onclick="loadDirectory(true)" id="dir-refresh-btn">Refresh</button>
+    <button class="btn dir-toggle" onclick="loadDirectory(true)" id="dir-refresh-btn" data-i18n="common.refresh" data-i18n-tip="market.directory.refresh_hint" data-tip-desc="Asks the server again for the newest shops and offerings.">Refresh</button>
    </div>
    <div class="dir-bar" id="dir-filters">
-    <input type="text" id="dir-search" aria-label="Search offerings" placeholder="Search offerings..." oninput="renderDirectory()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-    <select id="dir-category-filter" aria-label="Filter offerings by category" onchange="renderDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-     <option value="">All Categories</option>
+    <input type="text" id="dir-search" data-i18n-aria-label="market.directory.search_label" aria-label="Search offerings" data-i18n-placeholder="market.directory.search" placeholder="Search offerings..." data-i18n-tip="market.directory.search_hint" data-tip-desc="Type a word to show only the offerings that mention it." oninput="renderDirectory()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="dir-category-filter" data-i18n-aria-label="market.directory.category_filter_label" aria-label="Filter offerings by category" data-i18n-tip="market.directory.category_filter_hint" data-tip-desc="Shows only the offerings in the group you choose." onchange="renderDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="" data-i18n="market.all_categories">All Categories</option>
     </select>
    </div>
    <div id="dir-status" class="dir-note"></div>
@@ -199,33 +201,38 @@
   <!-- Marketplace Section -->
   <div id="market-section-marketplace" style="display:none;">
    <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:var(--space-md) 0;">
-    <input type="text" id="market-search" aria-label="Search listings" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-    <select id="market-category-filter" aria-label="Filter by category" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-     <option value="">All Categories</option>
-     <option>Food</option><option>Water</option><option>Shelter</option><option>Energy</option><option>Health</option>
-     <option>Care</option><option>Clothing</option><option>Tools</option><option>Materials</option><option>Repair</option>
-     <option>Transport</option><option>Growing</option><option>Education</option><option>Communication</option><option>Services</option>
-     <option>Emergency</option><option>Other</option>
+    <input type="text" id="market-search" data-i18n-aria-label="market.search_listings_label" aria-label="Search listings" data-i18n-placeholder="market.search_listings_placeholder" placeholder="🔍 Search listings…" data-i18n-tip="market.search_listings_hint" data-tip-desc="Type a word to show only the listings that mention it." oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <!-- The category options below are only the no-fetch fallback copy of the
+         data vocabulary (data/market/categories.json, whose labels the app
+         shows as they are); market-app.js replaces them once it loads. Their
+         text is also their value, which listings carry, so they are not
+         translated here (translate="no"). -->
+    <select id="market-category-filter" data-i18n-aria-label="market.category_filter_label" aria-label="Filter by category" data-i18n-tip="market.category_filter_hint" data-tip-desc="Shows only the listings in the group you choose." onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="" data-i18n="market.all_categories">All Categories</option>
+     <option translate="no">Food</option><option translate="no">Water</option><option translate="no">Shelter</option><option translate="no">Energy</option><option translate="no">Health</option>
+     <option translate="no">Care</option><option translate="no">Clothing</option><option translate="no">Tools</option><option translate="no">Materials</option><option translate="no">Repair</option>
+     <option translate="no">Transport</option><option translate="no">Growing</option><option translate="no">Education</option><option translate="no">Communication</option><option translate="no">Services</option>
+     <option translate="no">Emergency</option><option translate="no">Other</option>
     </select>
-    <select id="market-condition-filter" aria-label="Filter by condition" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-     <option value="">Any Condition</option>
-     <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+    <select id="market-condition-filter" data-i18n-aria-label="market.condition_filter_label" aria-label="Filter by condition" data-i18n-tip="market.condition_filter_hint" data-tip-desc="Shows only the listings in the state you choose." onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="" data-i18n="market.any_condition">Any Condition</option>
+     <option value="New" data-i18n="market.condition_new">New</option><option value="Like New" data-i18n="market.condition_like_new">Like New</option><option value="Good" data-i18n="market.condition_good">Good</option><option value="Fair" data-i18n="market.condition_fair">Fair</option><option value="Poor" data-i18n="market.condition_poor">Poor</option><option value="N/A" data-i18n="market.condition_na">N/A</option>
     </select>
-    <select id="market-sort" aria-label="Sort listings" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-     <option value="newest">Newest</option>
-     <option value="oldest">Oldest</option>
-     <option value="alpha">A-Z</option>
+    <select id="market-sort" data-i18n-aria-label="market.sort_listings_label" aria-label="Sort listings" data-i18n-tip="market.sort_hint" data-tip-desc="Chooses the order the listings are shown in." onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="newest" data-i18n="market.sort_newest">Newest</option>
+     <option value="oldest" data-i18n="market.sort_oldest">Oldest</option>
+     <option value="alpha" data-i18n="market.sort_alpha">A-Z</option>
     </select>
    </div>
    <div id="market-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);"></div>
-   <div id="market-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">No listings yet. Be the first to list something!</div>
+   <div id="market-listings-empty" data-i18n="market.no_listings_yet" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">No listings yet. Be the first to list something!</div>
   </div>
 
   <!-- Store Directory Section -->
   <div id="market-section-stores" style="display:none;">
    <div style="margin-bottom:var(--space-xl);">
-    <select id="store-category-filter" aria-label="Filter stores by category" onchange="renderStoreDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-     <option value="">All Categories</option>
+    <select id="store-category-filter" data-i18n-aria-label="market.store_filter_label" aria-label="Filter stores by category" data-i18n-tip="market.store_filter_hint" data-tip-desc="Shows only the stores in the group you choose." onchange="renderStoreDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="" data-i18n="market.all_categories">All Categories</option>
     </select>
    </div>
    <div id="store-directory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--space-xl);"></div>
@@ -234,11 +241,11 @@
   <!-- My Listings Section -->
   <div id="market-section-mylistings" style="display:none;">
    <div id="my-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);"></div>
-   <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">You haven't listed anything yet.</div>
+   <div id="my-listings-empty" data-i18n="market.no_my_listings" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">You haven't listed anything yet.</div>
   </div>
 
   <!-- Seller Profile Modal -->
-  <div id="seller-profile-modal" role="dialog" aria-modal="true" aria-label="Seller profile" style="display:none;position:fixed;inset:0;z-index:1100;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
+  <div id="seller-profile-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.seller_profile_label" aria-label="Seller profile" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1100;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
    <div style="max-width:520px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="seller-profile-content"></div>
    </div>
@@ -246,79 +253,80 @@
 
   <!-- Offering Detail Modal (Directory). Same shell as the classifieds
        detail modal below, so both read as one page. -->
-  <div id="offering-detail-modal" role="dialog" aria-modal="true" aria-label="Offering details" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeOfferingDetail()">
+  <div id="offering-detail-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.offering_details_label" aria-label="Offering details" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeOfferingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="offering-detail-content"></div>
    </div>
   </div>
 
   <!-- Listing Detail Modal -->
-  <div id="listing-detail-modal" role="dialog" aria-modal="true" aria-label="Listing details" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
+  <div id="listing-detail-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.listing_details_label" aria-label="Listing details" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="listing-detail-content"></div>
    </div>
   </div>
 
   <!-- Create/Edit Listing Modal -->
-  <div id="listing-modal" role="dialog" aria-modal="true" aria-labelledby="listing-modal-title" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
+  <div id="listing-modal" role="dialog" aria-modal="true" aria-labelledby="listing-modal-title" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
    <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
-    <h2 style="color:var(--accent);margin-bottom:var(--space-xl);font-size:var(--text-base);" id="listing-modal-title">Create Listing</h2>
+    <h2 style="color:var(--accent);margin-bottom:var(--space-xl);font-size:var(--text-base);" id="listing-modal-title" data-i18n="market.create_listing">Create Listing</h2>
     <input type="hidden" id="listing-edit-id" value="">
     <div style="display:flex;flex-direction:column;gap:var(--space-lg);">
      <div>
-      <label for="listing-title" style="font-size:var(--text-sm);color:var(--text-muted);">Title *</label>
-      <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <label for="listing-title" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.form_title_required">Title *</label>
+      <input type="text" id="listing-title" maxlength="100" data-i18n-tip="market.form_title_hint" data-tip-desc="Type a short name for what you are offering." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div>
-      <label for="listing-description" style="font-size:var(--text-sm);color:var(--text-muted);">Description</label>
-      <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
+      <label for="listing-description" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.description">Description</label>
+      <textarea id="listing-description" rows="3" maxlength="2000" data-i18n-tip="market.form_description_hint" data-tip-desc="Type more about it: what it is, what state it is in, and anything a person should know." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
      </div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);">
       <div>
-       <label for="listing-category" style="font-size:var(--text-sm);color:var(--text-muted);">Category *</label>
-       <select id="listing-category" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
-        <option>Food</option><option>Water</option><option>Shelter</option><option>Energy</option><option>Health</option>
-        <option>Care</option><option>Clothing</option><option>Tools</option><option>Materials</option><option>Repair</option>
-        <option>Transport</option><option>Growing</option><option>Education</option><option>Communication</option><option>Services</option>
-        <option>Emergency</option><option>Other</option>
+       <label for="listing-category" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.form_category_required">Category *</label>
+       <!-- The no-fetch fallback copy of the data vocabulary, as in the filter above. -->
+       <select id="listing-category" data-i18n-tip="market.form_category_hint" data-tip-desc="Chooses the group your listing shows under, so people can find it." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+        <option translate="no">Food</option><option translate="no">Water</option><option translate="no">Shelter</option><option translate="no">Energy</option><option translate="no">Health</option>
+        <option translate="no">Care</option><option translate="no">Clothing</option><option translate="no">Tools</option><option translate="no">Materials</option><option translate="no">Repair</option>
+        <option translate="no">Transport</option><option translate="no">Growing</option><option translate="no">Education</option><option translate="no">Communication</option><option translate="no">Services</option>
+        <option translate="no">Emergency</option><option translate="no">Other</option>
        </select>
       </div>
       <div>
-       <label for="listing-condition" style="font-size:var(--text-sm);color:var(--text-muted);">Condition</label>
-       <select id="listing-condition" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
-        <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+       <label for="listing-condition" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.form_condition">Condition</label>
+       <select id="listing-condition" data-i18n-tip="market.form_condition_hint" data-tip-desc="Chooses what state the thing is in." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+        <option value="New" data-i18n="market.condition_new">New</option><option value="Like New" data-i18n="market.condition_like_new">Like New</option><option value="Good" data-i18n="market.condition_good">Good</option><option value="Fair" data-i18n="market.condition_fair">Fair</option><option value="Poor" data-i18n="market.condition_poor">Poor</option><option value="N/A" data-i18n="market.condition_na">N/A</option>
        </select>
       </div>
      </div>
      <div id="listing-3d-subcategory-wrap" style="display:none;">
-      <label for="listing-3d-subcategory" style="font-size:var(--text-sm);color:var(--text-muted);">Model Subcategory</label>
-      <select id="listing-3d-subcategory" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
-       <option value="">None</option>
-       <option>Vehicles</option><option>Architecture</option><option>Characters</option><option>Props</option>
-       <option>Weapons</option><option>Nature</option><option>Sci-Fi</option><option>Other</option>
+      <label for="listing-3d-subcategory" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.model_subcategory">Model Subcategory</label>
+      <select id="listing-3d-subcategory" data-i18n-tip="market.model_subcategory_hint" data-tip-desc="Chooses what kind of 3D model this is." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+       <option value="" data-i18n="market.model_none">None</option>
+       <option value="Vehicles" data-i18n="market.model_vehicles">Vehicles</option><option value="Architecture" data-i18n="market.model_architecture">Architecture</option><option value="Characters" data-i18n="market.model_characters">Characters</option><option value="Props" data-i18n="market.model_props">Props</option>
+       <option value="Weapons" data-i18n="market.model_weapons">Weapons</option><option value="Nature" data-i18n="market.model_nature">Nature</option><option value="Sci-Fi" data-i18n="market.model_scifi">Sci-Fi</option><option value="Other" data-i18n="market.model_other">Other</option>
       </select>
      </div>
      <div id="listing-images-area"></div>
      <div>
-      <label for="listing-price" style="font-size:var(--text-sm);color:var(--text-muted);">Price</label>
-      <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <label for="listing-price" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.form_price">Price</label>
+      <input type="text" id="listing-price" data-i18n-placeholder="market.price_placeholder_web" placeholder='$50, Trade, Free, Best offer…' maxlength="50" data-i18n-tip="market.form_price_hint" data-tip-desc="Type what you want for it, in your own words. Leave it empty to say the price is on request." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
       <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);flex-wrap:wrap;">
-       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Free</button>
-       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Donations Welcome</button>
-       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Pay What You Want</button>
+       <button type="button" onclick="document.getElementById('listing-price').value=i18n.t('market.price_value_free')" data-i18n="market.price_quick_free" data-i18n-tip="market.price_quick_free_hint" data-tip-desc="Fills the price box with the word Free." style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Free</button>
+       <button type="button" onclick="document.getElementById('listing-price').value=i18n.t('market.price_value_donations')" data-i18n="market.price_quick_donations" data-i18n-tip="market.price_quick_donations_hint" data-tip-desc="Fills the price box to say it is free, with donations welcome." style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Donations Welcome</button>
+       <button type="button" onclick="document.getElementById('listing-price').value=i18n.t('market.price_value_pwyw')" data-i18n="market.price_quick_pwyw" data-i18n-tip="market.price_quick_pwyw_hint" data-tip-desc="Fills the price box to say people may pay what they want." style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Pay What You Want</button>
       </div>
      </div>
      <div>
-      <label for="listing-payment" style="font-size:var(--text-sm);color:var(--text-muted);">Payment Methods</label>
-      <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <label for="listing-payment" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.form_payment">Payment Methods</label>
+      <input type="text" id="listing-payment" data-i18n-placeholder="market.payment_placeholder" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" data-i18n-tip="market.form_payment_hint" data-tip-desc="Type the ways you take payment, such as cash or a trade." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div>
-      <label for="listing-location" style="font-size:var(--text-sm);color:var(--text-muted);">Location</label>
-      <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <label for="listing-location" style="font-size:var(--text-sm);color:var(--text-muted);" data-i18n="market.form_location">Location</label>
+      <input type="text" id="listing-location" data-i18n-placeholder="market.location_placeholder" placeholder='Seattle area, Ships worldwide…' maxlength="100" data-i18n-tip="market.form_location_hint" data-tip-desc="Type roughly where you are, or whether you can send it far away." style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-md);">
-      <button class="btn" onclick="closeListingModal()" style="min-width:80px;min-height:36px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Cancel</button>
-      <button class="btn btn-clickable" onclick="submitListing()" style="min-width:80px;min-height:36px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Submit</button>
+      <button class="btn" onclick="closeListingModal()" data-i18n="common.cancel" data-i18n-tip="market.cancel_listing_hint" data-tip-desc="Closes the form without putting anything up." style="min-width:80px;min-height:36px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Cancel</button>
+      <button class="btn btn-clickable" onclick="submitListing()" data-i18n="market.submit" data-i18n-tip="market.submit_listing_hint" data-tip-desc="Puts your listing up, or saves your changes to it. It needs a title first." style="min-width:80px;min-height:36px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Submit</button>
      </div>
     </div>
    </div>

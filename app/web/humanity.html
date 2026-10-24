@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width,initial-scale=1.0>
-  <title>Humanity, HumanityOS</title>
+  <title data-i18n="humanity.page_title">Humanity, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* Web mirror of the native Humanity tab (src/gui/pages/humanity.rs). The
@@ -32,43 +32,45 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="humanity"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 
-<p class="page-hint">The mission and the shared civic machinery: how we govern, what we agree to, who we are, and how the work is funded.</p>
+<p class="page-hint" data-i18n="humanity.web_page_hint">The mission and the shared civic machinery: how we govern, what we agree to, who we are, and how the work is funded.</p>
 
 <div id="page-app">
   <div class="hum-header">
-    <h1>Humanity</h1>
-    <div class="hum-mission">End poverty. Unite humanity.</div>
-    <p>These are the same sections the app's Humanity tab holds. This node's own front door lives at <a href="/">the homepage</a>; the full mission text is in the <a href="/library">Library</a>.</p>
+    <h1 data-i18n="humanity.title">Humanity</h1>
+    <div class="hum-mission" data-i18n="humanity.mission">End poverty. Unite humanity.</div>
+    <p><span data-i18n="humanity.web_intro_a">These are the same sections the app's Humanity tab holds. This node's own front door lives at</span> <a href="/" data-i18n="humanity.web_intro_homepage" data-i18n-tip="humanity.web_intro_homepage_hint" data-tip-desc="Opens this server's own front page.">the homepage</a><span data-i18n="humanity.web_intro_b">; the full mission text is in the</span> <a href="/library" data-i18n="humanity.web_intro_library" data-i18n-tip="humanity.web_intro_library_hint" data-tip-desc="Opens the Library, where you can read the full mission and every other guide.">Library</a>.</p>
   </div>
 
   <div class="hum-grid">
-    <a class="hum-card" href="/civilization">
-      <div class="hum-name">Mission Dashboard</div>
-      <div class="hum-desc">Community stats and trends: how the shared work is actually going.</div>
+    <a class="hum-card" href="/civilization" data-i18n-tip="humanity.web_dashboard_hint" data-tip-desc="Opens the community's live numbers: how many people have joined and how the shared work is going.">
+      <div class="hum-name" data-i18n="humanity.nav_dashboard">Mission Dashboard</div>
+      <div class="hum-desc" data-i18n="humanity.web_dashboard_desc">Community stats and trends: how the shared work is actually going.</div>
     </a>
-    <a class="hum-card" href="/governance">
-      <div class="hum-name">Governance</div>
-      <div class="hum-desc">Civic participation: propose, deliberate, vote. Local proposals run on this server; civilization-scope proposals federate.</div>
+    <a class="hum-card" href="/governance" data-i18n-tip="humanity.shape_rules_hint" data-tip-desc="Opens Governance, where people suggest new rules and vote on them together.">
+      <div class="hum-name" data-i18n="governance.title">Governance</div>
+      <div class="hum-desc" data-i18n="humanity.web_governance_desc">Civic participation: propose, deliberate, vote. Local proposals run on this server; civilization-scope proposals federate.</div>
     </a>
-    <a class="hum-card" href="/laws">
-      <div class="hum-name">Laws</div>
-      <div class="hum-desc">HumanityOS base rules and real-world laws, filterable by jurisdiction.</div>
+    <a class="hum-card" href="/laws" data-i18n-tip="humanity.see_laws_hint" data-tip-desc="Opens Laws: the rules HumanityOS runs by, and real-world laws you can look up for where you live.">
+      <div class="hum-name" data-i18n="humanity.nav_laws">Laws</div>
+      <div class="hum-desc" data-i18n="humanity.web_laws_desc">HumanityOS base rules and real-world laws, filterable by jurisdiction.</div>
     </a>
-    <a class="hum-card" href="/identity">
-      <div class="hum-name">Identity</div>
-      <div class="hum-desc">Your DID, credentials, and trust: who you are across the federation.</div>
+    <a class="hum-card" href="/identity" data-i18n-tip="humanity.web_identity_hint" data-tip-desc="Opens Identity, where you see who you are on this network: your credentials and your trust.">
+      <div class="hum-name" data-i18n="humanity.web_identity">Identity</div>
+      <div class="hum-desc" data-i18n="humanity.web_identity_desc">Your DID, credentials, and trust: who you are across the federation.</div>
     </a>
-    <a class="hum-card" href="/donate">
-      <div class="hum-name">Donate</div>
-      <div class="hum-desc">Support the maintainer directly (not tax-deductible), or give to the nonprofit Sponsor-a-Can (tax-deductible).</div>
+    <a class="hum-card" href="/donate" data-i18n-tip="humanity.fund_work_hint" data-tip-desc="Opens Donate, where you can give money to support this work if you choose to. Giving is never required.">
+      <div class="hum-name" data-i18n="nav.donate">Donate</div>
+      <div class="hum-desc" data-i18n="humanity.web_donate_desc">Support the maintainer directly (not tax-deductible), or give to the nonprofit Sponsor-a-Can (tax-deductible).</div>
     </a>
-    <a class="hum-card" href="/accord">
-      <div class="hum-name">Humanity Accord</div>
-      <div class="hum-desc">The agreement underneath everything: rights, duties, and how humans and AI share this platform.</div>
+    <a class="hum-card" href="/accord" data-i18n-tip="humanity.web_accord_hint" data-tip-desc="Opens the Humanity Accord, the agreement everything here is built on.">
+      <div class="hum-name" data-i18n="humanity.web_accord">Humanity Accord</div>
+      <div class="hum-desc" data-i18n="humanity.web_accord_desc">The agreement underneath everything: rights, duties, and how humans and AI share this platform.</div>
     </a>
   </div>
 </div>

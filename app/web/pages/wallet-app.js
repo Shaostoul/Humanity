@@ -3,6 +3,10 @@
  *
  * Depends on window.HosWallet (from wallet.js) for all blockchain calls.
  * Identity comes from localStorage (humanity_pubkey) or window.myIdentity.
+ *
+ * Words come from data/i18n/en.json by key (i18n.t, loaded by wallet.html before
+ * this file); markup built here carries data-i18n-tip and is passed through
+ * i18n.apply so each control gets its plain-language hint.
  */
 (function () {
   'use strict';
@@ -48,9 +52,9 @@
     if (!window.HosWallet) {
       console.warn('wallet.js not loaded, HosWallet unavailable');
       document.getElementById('wallet-no-identity').style.display = '';
-      document.getElementById('wallet-no-identity').querySelector('h2').textContent = 'Wallet module loading...';
-      document.getElementById('wallet-no-identity').querySelector('p').innerHTML =
-        'The wallet module (wallet.js) is not yet available. Please try refreshing the page.';
+      document.getElementById('wallet-no-identity').querySelector('h2').textContent = i18n.t('wallet.module_loading');
+      document.getElementById('wallet-no-identity').querySelector('p').textContent =
+        i18n.t('wallet.module_missing');
       document.getElementById('wallet-main').style.display = 'none';
       return;
     }
@@ -122,7 +126,7 @@
       // Show feedback on all copy buttons
       document.querySelectorAll('.copy-btn').forEach(function (btn) {
         var orig = btn.textContent;
-        btn.textContent = 'Copied!';
+        btn.textContent = i18n.t('wallet.copied');
         btn.style.color = 'var(--success)';
         btn.style.borderColor = 'var(--success)';
         setTimeout(function () {
@@ -167,7 +171,7 @@
     }
 
     // Fallback: just show the address text
-    container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-lg);border:1px dashed var(--border);border-radius:8px;">QR code unavailable, share the address above</div>';
+    container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-lg);border:1px dashed var(--border);border-radius:8px;">' + escapeHtml(i18n.t('wallet.qr_unavailable')) + '</div>';
   }
 
   // ── Price Fetching ──
@@ -215,7 +219,7 @@
       renderBalances(cachedBalances);
     } catch (e) {
       console.error('Failed to load balances:', e);
-      document.getElementById('balance-sol').textContent = 'Error loading balance';
+      document.getElementById('balance-sol').textContent = i18n.t('wallet.balance_error');
     }
   }
 
@@ -224,7 +228,7 @@
     var solUsd = b.sol * b.solPrice;
     var totalUsd = solUsd + b.usdc;
 
-    document.getElementById('balance-sol').textContent = solDisplay + ' SOL';
+    document.getElementById('balance-sol').textContent = solDisplay + ' SOL'; // i18n-exempt: a number and the SOL unit symbol
     document.getElementById('balance-sol-usd').textContent = '$' + formatUSD(solUsd);
     document.getElementById('balance-usdc').textContent = '$' + formatUSD(b.usdc);
     document.getElementById('portfolio-total').textContent = '$' + formatUSD(totalUsd);
@@ -246,7 +250,7 @@
       renderTransactionList(txs);
     } catch (e) {
       console.error('Failed to load transactions:', e);
-      loadingEl.innerHTML = '<span style="color:var(--danger)">Failed to load transactions.</span>';
+      loadingEl.innerHTML = '<span style="color:var(--danger)">' + escapeHtml(i18n.t('wallet.tx_load_failed')) + '</span>';
     }
   }
 
@@ -263,15 +267,15 @@
 
     listEl.innerHTML = txs.map(function (tx) {
       var isSent = tx.from === solAddress || tx.direction === 'sent';
-      var dirClass = isSent ? 'sent' : 'received';
-      var dirLabel = isSent ? 'Sent' : 'Recv';
+      var dirClass = isSent ? 'sent' : 'received'; // i18n-exempt: CSS class names
+      var dirLabel = isSent ? i18n.t('wallet.sent') : i18n.t('wallet.received_short');
       var addr = isSent ? (tx.to || '-') : (tx.from || '-');
       var shortAddr = addr.length > 12 ? addr.slice(0, 6) + '...' + addr.slice(-4) : addr;
       var amount = tx.amount != null ? formatAmount(tx.amount, 4) : '-';
-      var token = tx.token || 'SOL';
+      var token = tx.token || 'SOL'; // i18n-exempt: the SOL token's name
       var time = tx.timestamp ? formatTime(tx.timestamp) : '';
       var sig = tx.signature || tx.hash || '';
-      var link = sig ? '<a class="tx-link" href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">View</a>' : '';
+      var link = sig ? '<a class="tx-link" data-i18n-tip="wallet.view_tx_hint" href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + escapeHtml(i18n.t('wallet.view_tx')) + '</a>' : '';
 
       return '<li class="tx-item">' +
         '<span class="tx-dir ' + dirClass + '">' + dirLabel + '</span>' +
@@ -281,6 +285,7 @@
         link +
         '</li>';
     }).join('');
+    i18n.apply(listEl);
   }
 
   // ── Send ──
@@ -330,21 +335,21 @@
     var token = document.getElementById('send-token').value;
 
     // Validate
-    if (!to) return showError('send-status', 'Please enter a recipient address.');
-    if (!amount || amount <= 0) return showError('send-status', 'Please enter a valid amount.');
+    if (!to) return showError('send-status', i18n.t('wallet.need_recipient'));
+    if (!amount || amount <= 0) return showError('send-status', i18n.t('wallet.need_amount'));
 
     // Validate address format (basic base58 check)
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(to)) {
-      return showError('send-status', 'Invalid Solana address format.');
+      return showError('send-status', i18n.t('wallet.bad_address'));
     }
 
     // Check sufficient balance
     if (cachedBalances) {
       if (token === 'SOL' && amount > cachedBalances.sol - 0.000005) {
-        return showError('send-status', 'Insufficient SOL balance (need to reserve fee).');
+        return showError('send-status', i18n.t('wallet.low_sol'));
       }
       if (token === 'USDC' && amount > cachedBalances.usdc) {
-        return showError('send-status', 'Insufficient USDC balance.');
+        return showError('send-status', i18n.t('wallet.low_usdc'));
       }
     }
 
@@ -379,12 +384,12 @@
     var token = document.getElementById('send-token').value;
 
     closeSendModal();
-    showPending('send-status', 'Broadcasting transaction...');
+    showPending('send-status', i18n.t('wallet.broadcasting'));
 
     try {
       var privateKey = await getPrivateKey();
       if (!privateKey) {
-        return showError('send-status', 'Cannot access signing key. Make sure you are connected to the network.');
+        return showError('send-status', i18n.t('wallet.no_signing_key_connect'));
       }
 
       var txHash;
@@ -398,7 +403,7 @@
 
       if (txHash) {
         showSuccess('send-status',
-          'Transaction confirmed! <a class="tx-link" href="https://solscan.io/tx/' + txHash + '" target="_blank" rel="noopener">View on Solscan</a>'
+          escapeHtml(i18n.t('wallet.tx_confirmed')) + ' <a class="tx-link" data-i18n-tip="wallet.solscan_hint" href="https://solscan.io/tx/' + txHash + '" target="_blank" rel="noopener">' + escapeHtml(i18n.t('wallet.view_on_solscan')) + '</a>'
         );
         // Invalidate balance cache
         cachedBalances = null;
@@ -411,7 +416,7 @@
       }
     } catch (e) {
       console.error('Send failed:', e);
-      showError('send-status', 'Transaction failed: ' + (e.message || e));
+      showError('send-status', i18n.t('wallet.tx_failed', { error: e.message || e }));
     }
   };
 
@@ -453,7 +458,7 @@
       return;
     }
 
-    document.getElementById('swap-output-amount').value = 'Loading...';
+    document.getElementById('swap-output-amount').value = i18n.t('common.loading');
     document.getElementById('btn-swap').disabled = true;
 
     try {
@@ -478,7 +483,7 @@
         var impact = quote.priceImpactPct || 0;
         var impactEl = document.getElementById('swap-impact');
         if (impact > 1) {
-          impactEl.textContent = 'Price impact: ' + impact.toFixed(2) + '%, proceed with caution';
+          impactEl.textContent = i18n.t('wallet.price_impact', { pct: impact.toFixed(2) });
           impactEl.style.display = '';
         } else {
           impactEl.style.display = 'none';
@@ -487,13 +492,13 @@
         document.getElementById('btn-swap').disabled = false;
       } else {
         document.getElementById('swap-output-amount').value = '';
-        document.getElementById('swap-rate').textContent = 'Swap not available, wallet.js does not support quotes';
+        document.getElementById('swap-rate').textContent = i18n.t('wallet.swap_unavailable');
         document.getElementById('btn-swap').disabled = true;
       }
     } catch (e) {
       console.error('Swap quote failed:', e);
       document.getElementById('swap-output-amount').value = '';
-      document.getElementById('swap-rate').textContent = 'Failed to fetch quote';
+      document.getElementById('swap-rate').textContent = i18n.t('wallet.quote_failed');
       document.getElementById('btn-swap').disabled = true;
     }
   }
@@ -545,12 +550,12 @@
 
   window.confirmSwap = async function () {
     closeSwapModal();
-    showPending('swap-status', 'Executing swap...');
+    showPending('swap-status', i18n.t('wallet.swapping'));
 
     try {
       var privateKey = await getPrivateKey();
       if (!privateKey) {
-        return showError('swap-status', 'Cannot access signing key.');
+        return showError('swap-status', i18n.t('wallet.no_signing_key'));
       }
 
       var inputToken = document.getElementById('swap-input-token').value;
@@ -562,7 +567,7 @@
       var amountLamports = Math.round(inputAmount * Math.pow(10, inputDecimals));
 
       if (!HosWallet.executeSwap) {
-        return showError('swap-status', 'Swap not implemented in wallet.js yet.');
+        return showError('swap-status', i18n.t('wallet.swap_not_built'));
       }
 
       // wallet.js signature: (inputMint, outputMint, amount, identity,
@@ -571,14 +576,14 @@
       var txHash = await HosWallet.executeSwap(inputMint, outputMint, amountLamports, privateKey, slippage * 100);
 
       showSuccess('swap-status',
-        'Swap confirmed! <a class="tx-link" href="https://solscan.io/tx/' + txHash + '" target="_blank" rel="noopener">View on Solscan</a>'
+        escapeHtml(i18n.t('wallet.swap_confirmed')) + ' <a class="tx-link" data-i18n-tip="wallet.solscan_hint" href="https://solscan.io/tx/' + txHash + '" target="_blank" rel="noopener">' + escapeHtml(i18n.t('wallet.view_on_solscan')) + '</a>'
       );
       cachedBalances = null;
       balanceCacheTime = 0;
       setTimeout(function () { loadBalances(); }, 3000);
     } catch (e) {
       console.error('Swap failed:', e);
-      showError('swap-status', 'Swap failed: ' + (e.message || e));
+      showError('swap-status', i18n.t('wallet.swap_failed', { error: e.message || e }));
     }
   };
 
@@ -592,7 +597,7 @@
     if (validators.length > 0) return; // Already loaded
 
     var listEl = document.getElementById('validator-list');
-    listEl.innerHTML = '<div style="text-align:center;padding:var(--space-lg);color:var(--text-muted)"><span class="spinner"></span> Loading validators...</div>';
+    listEl.innerHTML = '<div style="text-align:center;padding:var(--space-lg);color:var(--text-muted)"><span class="spinner"></span> ' + escapeHtml(i18n.t('wallet.loading_validators')) + '</div>';
 
     try {
       if (HosWallet.getValidators) {
@@ -604,33 +609,34 @@
       populateValidatorSelect();
     } catch (e) {
       console.error('Failed to load validators:', e);
-      listEl.innerHTML = '<div style="color:var(--danger);text-align:center;padding:var(--space-lg)">Failed to load validators.</div>';
+      listEl.innerHTML = '<div style="color:var(--danger);text-align:center;padding:var(--space-lg)">' + escapeHtml(i18n.t('wallet.validators_failed')) + '</div>';
     }
   }
 
   function renderValidators() {
     var listEl = document.getElementById('validator-list');
     if (!validators.length) {
-      listEl.innerHTML = '<div style="text-align:center;padding:var(--space-lg);color:var(--text-muted);font-style:italic">No validators available.</div>';
+      listEl.innerHTML = '<div style="text-align:center;padding:var(--space-lg);color:var(--text-muted);font-style:italic">' + escapeHtml(i18n.t('wallet.no_validators')) + '</div>';
       return;
     }
 
     listEl.innerHTML = validators.map(function (v) {
       var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 8) + '...' : '-');
       var commission = v.commission != null ? v.commission + '%' : '-';
-      var stake = v.activatedStake != null ? formatAmount(v.activatedStake / 1e9, 0) + ' SOL' : '-';
-      return '<div class="validator-item" onclick="selectValidator(\'' + escapeHtml(v.votePubkey || '') + '\')">' +
+      var stake = v.activatedStake != null ? formatAmount(v.activatedStake / 1e9, 0) + ' SOL' : '-'; // i18n-exempt: a number and the SOL unit symbol
+      return '<div role="button" tabindex="0" class="validator-item" data-i18n-tip="wallet.validator_row_hint" onclick="selectValidator(\'' + escapeHtml(v.votePubkey || '') + '\')">' +
         '<span class="v-name">' + escapeHtml(name) + '</span>' +
         '<span class="v-commission">' + commission + '</span>' +
         '<span class="v-stake">' + stake + '</span>' +
         '</div>';
     }).join('');
+    i18n.apply(listEl);
   }
 
   function populateValidatorSelect() {
     var select = document.getElementById('stake-validator');
     if (!validators.length) {
-      select.innerHTML = '<option value="">No validators found</option>';
+      select.innerHTML = '<option value="">' + escapeHtml(i18n.t('wallet.no_validators_found')) + '</option>';
       return;
     }
     select.innerHTML = validators.map(function (v) {
@@ -685,23 +691,27 @@
         totalStaked += amount;
         totalRewards += sa.rewards || 0;
 
-        var status = sa.status || 'active';
+        var status = sa.status || 'active'; // i18n-exempt: the CSS class for a stake with no status
         var statusClass = status.toLowerCase().replace(/\s/g, '');
+        // A status the network gave is shown as it came; the fallback in the person's language.
+        var statusText = sa.status ? escapeHtml(sa.status) : escapeHtml(i18n.t('wallet.stake_active'));
+        var amountText = formatAmount(amount, 4) + ' SOL'; // i18n-exempt: a number and the SOL unit symbol
         var validator = sa.validatorName || (sa.votePubkey ? sa.votePubkey.slice(0, 8) + '...' : '-');
 
         return '<div class="stake-account">' +
-          '<span class="sa-status ' + statusClass + '">' + status + '</span>' +
+          '<span class="sa-status ' + statusClass + '">' + statusText + '</span>' +
           '<span style="flex:1">' + escapeHtml(validator) + '</span>' +
-          '<span style="font-weight:600">' + formatAmount(amount, 4) + ' SOL</span>' +
-          '<button class="btn-small" onclick="unstakeSOL(\'' + escapeHtml(sa.pubkey || '') + '\')" style="margin-left:auto">Unstake</button>' +
+          '<span style="font-weight:600">' + amountText + '</span>' +
+          '<button class="btn-small" data-i18n-tip="wallet.unstake_hint" onclick="unstakeSOL(\'' + escapeHtml(sa.pubkey || '') + '\')" style="margin-left:auto">' + escapeHtml(i18n.t('wallet.unstake')) + '</button>' +
           '</div>';
       }).join('');
+      i18n.apply(listEl);
 
-      document.getElementById('staked-amount').textContent = formatAmount(totalStaked, 4) + ' SOL';
-      document.getElementById('staked-rewards').textContent = formatAmount(totalRewards, 4) + ' SOL';
+      document.getElementById('staked-amount').textContent = formatAmount(totalStaked, 4) + ' SOL'; // i18n-exempt: a number and the SOL unit symbol
+      document.getElementById('staked-rewards').textContent = formatAmount(totalRewards, 4) + ' SOL'; // i18n-exempt: a number and the SOL unit symbol
     } catch (e) {
       console.error('Failed to load stake accounts:', e);
-      listEl.innerHTML = '<div style="color:var(--danger)">Failed to load stake accounts.</div>';
+      listEl.innerHTML = '<div style="color:var(--danger)">' + escapeHtml(i18n.t('wallet.stakes_failed')) + '</div>';
     }
   }
 
@@ -710,24 +720,24 @@
     var validatorPubkey = document.getElementById('stake-validator').value;
 
     if (!amount || amount < 0.01) {
-      return alert('Minimum stake is 0.01 SOL.');
+      return alert(i18n.t('wallet.stake_min'));
     }
     if (!validatorPubkey) {
-      return alert('Please select a validator.');
+      return alert(i18n.t('wallet.pick_validator'));
     }
 
-    if (!confirm('Stake ' + amount + ' SOL with this validator?')) return;
+    if (!confirm(i18n.t('wallet.stake_confirm', { amount: amount }))) return;
 
     try {
       var privateKey = await getPrivateKey();
-      if (!privateKey) return alert('Cannot access signing key.');
+      if (!privateKey) return alert(i18n.t('wallet.no_signing_key'));
 
       if (!HosWallet.stakeSOL) {
-        return alert('Staking not implemented in wallet.js yet.');
+        return alert(i18n.t('wallet.stake_not_built'));
       }
 
       var txHash = await HosWallet.stakeSOL(amount, validatorPubkey, privateKey);
-      alert('Staking transaction submitted! It may take a few minutes to activate.');
+      alert(i18n.t('wallet.stake_submitted'));
 
       cachedBalances = null;
       balanceCacheTime = 0;
@@ -736,28 +746,28 @@
       loadStakeAccounts();
     } catch (e) {
       console.error('Stake failed:', e);
-      alert('Staking failed: ' + (e.message || e));
+      alert(i18n.t('wallet.stake_failed', { error: e.message || e }));
     }
   };
 
   window.unstakeSOL = async function (stakeAccountPubkey) {
-    if (!await holdConfirm('Unstake this account? It takes ~2-3 days to deactivate.', { seconds: 3 })) return;
+    if (!await holdConfirm(i18n.t('wallet.unstake_confirm'), { seconds: 3 })) return;
 
     try {
       var privateKey = await getPrivateKey();
-      if (!privateKey) return alert('Cannot access signing key.');
+      if (!privateKey) return alert(i18n.t('wallet.no_signing_key'));
 
       if (!HosWallet.unstakeSOL) {
-        return alert('Unstaking not implemented in wallet.js yet.');
+        return alert(i18n.t('wallet.unstake_not_built'));
       }
 
       await HosWallet.unstakeSOL(stakeAccountPubkey, privateKey);
-      alert('Unstaking initiated. Your SOL will be available in ~2-3 days.');
+      alert(i18n.t('wallet.unstake_started'));
       stakeAccounts = [];
       loadStakeAccounts();
     } catch (e) {
       console.error('Unstake failed:', e);
-      alert('Unstake failed: ' + (e.message || e));
+      alert(i18n.t('wallet.unstake_failed', { error: e.message || e }));
     }
   };
 
@@ -789,7 +799,7 @@
       renderNFTGrid(ownedNFTs);
     } catch (e) {
       console.error('Failed to load NFTs:', e);
-      loadingEl.innerHTML = '<span style="color:var(--danger)">Failed to load NFTs.</span>';
+      loadingEl.innerHTML = '<span style="color:var(--danger)">' + escapeHtml(i18n.t('wallet.nfts_failed')) + '</span>';
     }
   }
 
@@ -797,13 +807,14 @@
     var gridEl = document.getElementById('nft-grid');
     gridEl.innerHTML = nfts.map(function (nft, i) {
       var imgSrc = nft.image || nft.uri || '';
-      var name = nft.name || 'Untitled #' + (i + 1);
-      return '<div class="nft-card" onclick="showNFTDetail(' + i + ')">' +
+      var name = nft.name || i18n.t('wallet.untitled_n', { n: i + 1 });
+      return '<div role="button" tabindex="0" class="nft-card" data-i18n-tip="wallet.nft_card_hint" onclick="showNFTDetail(' + i + ')">' +
         (imgSrc ? '<img src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(name) + '" loading="lazy">' :
-          '<div style="aspect-ratio:1;background:var(--bg-input);display:flex;align-items:center;justify-content:center;color:var(--text-muted)">No image</div>') +
+          '<div style="aspect-ratio:1;background:var(--bg-input);display:flex;align-items:center;justify-content:center;color:var(--text-muted)">' + escapeHtml(i18n.t('wallet.no_image')) + '</div>') +
         '<div class="nft-name">' + escapeHtml(name) + '</div>' +
         '</div>';
     }).join('');
+    i18n.apply(gridEl);
   }
 
   window.showNFTDetail = function (index) {
@@ -816,7 +827,7 @@
 
     content.innerHTML =
       (imgSrc ? '<img src="' + escapeHtml(imgSrc) + '" style="width:100%;border-radius:8px;margin-bottom:var(--space-lg)" alt="">' : '') +
-      '<h3 style="margin:0 0 var(--space-md)">' + escapeHtml(selectedNFT.name || 'Untitled') + '</h3>' +
+      '<h3 style="margin:0 0 var(--space-md)">' + escapeHtml(selectedNFT.name || i18n.t('wallet.untitled')) + '</h3>' +
       (selectedNFT.description ? '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg)">' + escapeHtml(selectedNFT.description) + '</p>' : '') +
       (attrs.length ? '<div style="display:flex;flex-wrap:wrap;gap:var(--space-sm)">' +
         attrs.map(function (a) {
@@ -836,33 +847,33 @@
 
   window.promptSendNFT = async function () {
     if (!selectedNFT) return;
-    var toAddr = prompt('Enter recipient Solana address:');
+    var toAddr = prompt(i18n.t('wallet.nft_to_prompt'));
     if (!toAddr || !toAddr.trim()) return;
     toAddr = toAddr.trim();
 
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(toAddr)) {
-      return alert('Invalid Solana address format.');
+      return alert(i18n.t('wallet.bad_address'));
     }
 
-    if (!await holdConfirm('Send "' + (selectedNFT.name || 'this NFT') + '" to ' + toAddr.slice(0, 8) + '...?', { seconds: 5 })) return;
+    if (!await holdConfirm(i18n.t('wallet.send_nft_confirm', { name: selectedNFT.name || i18n.t('wallet.this_nft'), to: toAddr.slice(0, 8) }), { seconds: 5 })) return;
 
     try {
       var privateKey = await getPrivateKey();
-      if (!privateKey) return alert('Cannot access signing key.');
+      if (!privateKey) return alert(i18n.t('wallet.no_signing_key'));
 
       if (!HosWallet.sendNFT) {
-        return alert('NFT transfer not implemented in wallet.js yet.');
+        return alert(i18n.t('wallet.nft_not_built'));
       }
 
       var mint = selectedNFT.mint || selectedNFT.address;
       await HosWallet.sendNFT(mint, toAddr, privateKey);
-      alert('NFT sent successfully!');
+      alert(i18n.t('wallet.nft_sent'));
       closeNFTModal();
       ownedNFTs = [];
       loadNFTs();
     } catch (e) {
       console.error('NFT send failed:', e);
-      alert('NFT transfer failed: ' + (e.message || e));
+      alert(i18n.t('wallet.nft_failed', { error: e.message || e }));
     }
   };
 
@@ -960,10 +971,10 @@
       var d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
       var now = new Date();
       var diff = now - d;
-      if (diff < 60000) return 'just now';
-      if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-      if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-      if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
+      if (diff < 60000) return i18n.t('wallet.time_just_now');
+      if (diff < 3600000) return i18n.t('wallet.minutes_ago', { n: Math.floor(diff / 60000) });
+      if (diff < 86400000) return i18n.t('wallet.hours_ago', { n: Math.floor(diff / 3600000) });
+      if (diff < 604800000) return i18n.t('wallet.days_ago', { n: Math.floor(diff / 86400000) });
       return d.toLocaleDateString();
     } catch (e) {
       return '';
@@ -980,7 +991,7 @@
   function showPending(elId, msg) {
     var el = document.getElementById(elId);
     el.className = 'tx-status pending';
-    el.innerHTML = '<span class="spinner"></span> ' + msg;
+    el.innerHTML = '<span class="spinner"></span> ' + escapeHtml(msg);
     el.style.display = '';
   }
 
@@ -988,6 +999,7 @@
     var el = document.getElementById(elId);
     el.className = 'tx-status confirmed';
     el.innerHTML = msg;
+    i18n.apply(el);
     el.style.display = '';
   }
 

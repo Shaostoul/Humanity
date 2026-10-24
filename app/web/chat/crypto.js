@@ -773,8 +773,12 @@ function removeUnwrappedKey() {
 let myDilithiumPublicHex = null;   // hex of the 1952-byte ML-DSA-65 public key, THE chat identity (full-PQ)
 let myDilithiumSecret = null;      // Uint8Array secret key (in-memory only)
 // Full-PQ DM: Kyber768 (ML-KEM-768), derived from the SAME seed.
-let myKyberPublicBase64 = null;    // base64 1184-byte encapsulation key (advertised at identify)
+let myKyberPublicBase64 = null;    // base64 1184-byte encapsulation key (carried by my key card)
 let myKyberSecret = null;          // Uint8Array decapsulation key (in-memory only)
+// My key card (2026-10-22, /shared/key-card.js): my Kyber768 key signed by my
+// Dilithium3 identity, sent with every identify so anyone can check the key
+// they seal to is mine. {v,key,kyber,at,sig}; signed in attachPqIdentity.
+let myKeyCard = null;
 let mySeed32 = null;               // the 32-byte master seed (in-memory only; keys the local DM store)
 let _dmStoreKeyPromise = null;     // cached CryptoKey derivation for the local DM store
 
@@ -842,6 +846,11 @@ async function attachPqIdentity() {
     myIdentity.publicKeyHex = myDilithiumPublicHex;
     myIdentity.dilithiumPublicHex = myDilithiumPublicHex;
     myIdentity.kyberPublicBase64 = myKyberPublicBase64;
+    // My key card: the Kyber key above, signed by the identity above.
+    myKeyCard = (typeof HosKeyCard !== 'undefined')
+      ? await HosKeyCard.signCard(myDilithiumPublicHex, myKyberPublicBase64, Date.now(), (bytes) => window.pqSignMessage(myDilithiumSecret, bytes))
+      : null;
+    if (!myKeyCard) console.error('FULL-PQ: my key card could not be signed; nobody can send me private messages until it is');
     console.log('FULL-PQ identity:', myDilithiumPublicHex.substring(0, 16)
       + '… (Dilithium3 id + Kyber768 DM)');
     return true;
@@ -890,11 +899,13 @@ async function pqSignChatMessage(content, timestamp) {
 // Function NAMES/arity are kept identical to the old ECDH helpers so the
 // existing DM call sites need no structural change.
 
-/** Peer's Kyber768 public key (base64) by their identity key, or null.
- *  (Name retained for call-site compatibility, no longer ECDH.) */
+/** The Kyber768 key (base64) to seal to this person, or null: ONLY a key
+ *  from their key card, checked and pinned here (chat-key-cards.js; key
+ *  cards, 2026-10-22), never one a server merely said. Null too while their
+ *  key has changed and waits to be accepted. (Name retained for call-site
+ *  compatibility, no longer ECDH.) */
 function getPeerEcdhPublic(peerKey) {
-  const peer = peerData[peerKey];
-  return peer ? (peer.kyber_public || null) : null;
+  return (typeof hosKeyCards !== 'undefined') ? hosKeyCards.sealingKey(peerKey) : null;
 }
 
 // ── Sealed-sender DM v2 (2026-08-23) ────────────────────────────────────────
@@ -1009,7 +1020,7 @@ const DM_PAD_BUCKETS = [256, 1024, 4096, 16384, 32768]; // 32,768 since 2026-10-
 async function pqBuildContactRequest(partnerKey, myNameWord) {
   try {
     if (typeof contactRequestText !== 'function') return null;
-    if (!getPeerEcdhPublic(partnerKey)) return null;
+    if (!getPeerEcdhPublic(partnerKey) && !(typeof hosKeyCards !== 'undefined' && await hosKeyCards.ensure(partnerKey))) return null;
     const pass = await pqBuildFriendCert(partnerKey); // the default may: no calls
     if (!pass) return null;
     const text = contactRequestText(myNameWord, pass.cert);
@@ -1045,7 +1056,10 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
     if (!myDilithiumPublicHex || !myDilithiumSecret || !myKyberPublicBase64) return null;
     const selfOnly = !!(opts && opts.selfOnly);
     if (selfOnly && partnerKey !== myDilithiumPublicHex) return null;
-    const peerKyber = selfOnly ? myKyberPublicBase64 : getPeerEcdhPublic(partnerKey);
+    // Their key from a checked key card; when none is pinned yet, ask for
+    // their card and wait for it (chat-key-cards.js ensure). Fail closed.
+    let peerKyber = selfOnly ? myKyberPublicBase64 : getPeerEcdhPublic(partnerKey);
+    if (!peerKyber && !selfOnly && typeof hosKeyCards !== 'undefined') peerKyber = await hosKeyCards.ensure(partnerKey);
     if (!peerKyber) return null;
     const from = myDilithiumPublicHex;
     const preimage = _dmSigPreimage(from, partnerKey, ts, text);
@@ -1160,8 +1174,9 @@ async function pqBuildGroupReport(fields) {
     const built = groupReportText(f);
     if (!built || !built.text) return { error: (built && built.error) || 'Your report could not be built.' };
     const creator = typeof f.creator === 'string' ? f.creator.toLowerCase() : '';
-    if (!creator || !getPeerEcdhPublic(creator)) {
-      return { error: "The group's creator has not been online with a current client here, so the report cannot be sealed for them yet. Try again later, or send it to this server's admins." };
+    if (!creator || (!getPeerEcdhPublic(creator) && !(typeof hosKeyCards !== 'undefined' && await hosKeyCards.ensure(creator)))) {
+      const why = creator && typeof hosKeyCards !== 'undefined' ? hosKeyCards.refusalText(creator) : null;
+      return { error: (why || "The group's creator has no key card here, so the report cannot be sealed for them yet.") + ' You can send it to this server\'s admins instead.' };
     }
     const dm = await pqBuildDmPuts(built.text, creator, Date.now());
     if (!dm || !dm.recipientPut) return { error: 'Your identity is not ready yet. Try again in a moment.' };

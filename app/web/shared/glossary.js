@@ -30,6 +30,7 @@
   style.id = 'glossary-styles';
   style.textContent =
     /* Clickable term styling */
+    '[data-term]:focus-visible{outline:2px solid var(--border-focus,var(--accent,#ed8c24));outline-offset:2px;border-radius:2px;}' +
     '[data-term]{cursor:help;border-bottom:1px dotted var(--accent,#ed8c24);' +
     'transition:border-color 0.15s;}' +
     '[data-term]:hover{border-bottom-color:var(--text,#e0e0e0);}' +
@@ -152,7 +153,10 @@
 
     var tooltip = document.createElement('div');
     tooltip.className = 'glossary-tooltip';
-    tooltip.setAttribute('role', 'tooltip');
+    // A card that can hold a link and a close button: a small dialog named by its
+    // word (the word that opens it says aria-haspopup=dialog).
+    tooltip.setAttribute('role', 'dialog');
+    tooltip.setAttribute('aria-label', entry.term);
 
     // Term heading row
     var head = document.createElement('div');
@@ -189,7 +193,9 @@
       link.href = entry.link;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.textContent = 'Learn more \u2192';
+      link.textContent = words('glossary.learn_more') + ' \u2192';
+      link.setAttribute('data-i18n-tip', 'glossary.learn_more_hint');
+      link.setAttribute('data-tip-desc', words('glossary.learn_more_hint'));
       foot.appendChild(link);
     } else {
       foot.appendChild(document.createElement('span')); // spacer
@@ -198,7 +204,9 @@
     // Close button
     var closeBtn = document.createElement('button');
     closeBtn.className = 'glossary-tooltip__close';
-    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.setAttribute('aria-label', words('common.close'));
+    closeBtn.setAttribute('data-i18n-tip', 'glossary.close_hint');
+    closeBtn.setAttribute('data-tip-desc', words('glossary.close_hint'));
     closeBtn.textContent = '\u2715';
     closeBtn.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -222,8 +230,14 @@
     activeTooltip = tooltip;
   }
 
+  // The card's own words, by key (data/i18n/; shell.js loads i18n.js on every page).
+  function words(key) {
+    return window.i18n && typeof window.i18n.t === 'function' ? window.i18n.t(key) : key;
+  }
+
   // ── Hide tooltip ──
   function hide() {
+    pinned = false;
     if (activeTooltip) {
       activeTooltip.remove();
       activeTooltip = null;
@@ -231,20 +245,52 @@
   }
 
   // ── Scan page for data-term elements ──
+  // A word marked as a glossary term (2026-10-23, "the glossary on every page"):
+  // resting the pointer on it shows its card, as on the desktop app; a click or
+  // Enter pins the card open (a second one closes it); Escape closes it. It is
+  // reachable with Tab and read as a button, so a keyboard or screen-reader
+  // user gets the same definition. The shell's own hover hint stays out of its
+  // way (data-no-tip): the card is its hint.
+  var hoverTimer = null;
+  var pinned = false;
   function scanPage() {
     document.querySelectorAll('[data-term]').forEach(function (el) {
+      // The definition is read out with the word. Set on every scan, not only the first,
+      // because a word can be bound before /data/glossary.json has arrived.
+      var entry = getEntry(el.dataset.term);
+      if (entry && !el.hasAttribute('aria-description')) el.setAttribute('aria-description', entry.definition);
       if (el.dataset.glossaryBound) return;
       el.dataset.glossaryBound = '1';
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+      el.setAttribute('aria-haspopup', 'dialog');
+      el.setAttribute('data-no-tip', '');
 
+      function toggle() {
+        if (activeTooltip && pinned && activeTooltip.__for === el) { hide(); return; }
+        show(el.dataset.term, el);
+        pinned = true;
+        if (activeTooltip) activeTooltip.__for = el;
+      }
       el.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        var term = el.dataset.term;
-        if (activeTooltip) {
-          hide();
-          return;
-        }
-        show(term, el);
+        toggle();
+      });
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+      el.addEventListener('mouseenter', function () {
+        if (pinned) return;
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(function () {
+          show(el.dataset.term, el);
+          if (activeTooltip) activeTooltip.__for = el;
+        }, 350);
+      });
+      el.addEventListener('mouseleave', function () {
+        clearTimeout(hoverTimer);
+        if (!pinned) hide();
       });
     });
   }

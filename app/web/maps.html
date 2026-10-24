@@ -175,6 +175,7 @@ button { font-family: inherit; cursor: pointer; }
   justify-content: center;
 }
 #map-controls button:hover { border-color: var(--accent); color: var(--accent); }
+#map-controls button.map-btn-text { font-size: 11px; }
 
 /* Attribution: on a themed backing so it reads over the map tiles under it,
    the same chip the app's Maps footer sits on (maps/mod.rs MapFooter). */
@@ -229,6 +230,68 @@ button { font-family: inherit; cursor: pointer; }
 #crosshair::before { width: 1px; height: 100%; left: 50%; top: 0; }
 #crosshair::after { height: 1px; width: 100%; top: 50%; left: 0; }
 
+/* The ship's plan (Maps increment 3): the level view of the app's Maps page, the web twin of
+   src/gui/pages/maps/ship_view.rs, drawn from /data/maps/ship_plan.json (which the app writes),
+   over the map with the level picker (/shared/level-picker.js) at its right. */
+#ship-plan {
+  position: absolute;
+  inset: 0;
+  display: none;
+  z-index: 12;
+  background: var(--map-space);
+}
+#ship-plan.open { display: block; }
+#ship-plan canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+#ship-plan canvas.dragging { cursor: grabbing; }
+#ship-plan .level-picker {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 128px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm);
+  background: var(--map-float-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+#ship-plan .level-picker-title { font-size: var(--text-sm); color: var(--text-secondary); font-weight: 600; margin-bottom: 2px; }
+#ship-plan .level-picker-row {
+  text-align: left;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+#ship-plan .level-picker-row.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+#ship-plan .level-picker-row.you { font-weight: 600; }
+#ship-plan-close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--map-float-bg);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+#ship-plan-note {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  max-width: 60%;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+}
+
 /* Responsive */
 @media (max-width: 700px) {
   #info-panel { width: 240px; }
@@ -243,6 +306,8 @@ button { font-family: inherit; cursor: pointer; }
 <script src="/shared/eli5.js"></script>
 <script src="/shared/label-placer.js"></script>
 <script src="/shared/sol-orbits.js"></script>
+<script src="/shared/level-picker.js"></script>
+<script src="/shared/ship-plan.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Zoom from your own street out to the whole galaxy. Scroll in past the Sun to land on the real Earth, or click any planet to visit it. This is the real cosmos for looking up. Your in-game ship and character live in the desktop app.</div>
   <div class="eli5-expert">Multi-scale seamless zoom from galaxy to street level on a single HTML5 Canvas. 3D perspective orbit with tilt/rotation, real orbital mechanics, planet globe rendering, and OpenStreetMap tile-based surface maps.</div>
@@ -273,6 +338,18 @@ button { font-family: inherit; cursor: pointer; }
       <button onclick="zoomIn()" title="Zoom in">+</button>
       <button onclick="zoomOut()" title="Zoom out">&minus;</button>
       <button onclick="resetView()" title="Reset to galaxy view">&#x2302;</button>
+      <button onclick="openShipPlan()" title="Your ship's plan, level by level" class="map-btn-text">Ship</button>
+    </div>
+
+    <!-- Named by a hidden label, not aria-label: the shell's hover hints take any element with an
+         aria-label, so the whole plan showed a generic "Tap or click to use this control" hint
+         under the pointer. -->
+    <div id="ship-plan" role="dialog" aria-labelledby="ship-plan-label">
+      <span id="ship-plan-label" hidden>The ship's plan</span>
+      <canvas id="ship-plan-canvas"></canvas>
+      <button id="ship-plan-close" onclick="closeShipPlan()">Back to the map</button>
+      <div class="level-picker" id="ship-plan-picker"></div>
+      <div id="ship-plan-note">The ship as built, level by level: the rooms named as the game names them, your home outlined. The desktop app shows where you are and draws it for real.</div>
     </div>
 
     <div id="info-panel">
@@ -2092,6 +2169,81 @@ zoomSlider.addEventListener('input', () => {
 window.addEventListener('resize', resize);
 resize();
 requestRender();
+
+// ---- The ship's plan (Maps increment 3, /shared/ship-plan.js) ----
+// The app's level view on the web: the level picker lists the ship's levels top to bottom
+// (/shared/level-picker.js, the same rule as the app's), a level shows its rooms filled and
+// named and its walls; drag to pan, scroll to zoom, Escape to go back to the map.
+const shipPlan = { plan: null, ordinal: 0, view: null, drag: null };
+const shipCanvas = document.getElementById('ship-plan-canvas');
+const shipCtx = shipCanvas.getContext('2d');
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+function drawShipPlan() {
+  if (!shipPlan.plan) return;
+  const r = shipCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  shipCanvas.width = Math.round(r.width * dpr);
+  shipCanvas.height = Math.round(r.height * dpr);
+  shipCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const view = { ...shipPlan.view, w: r.width, h: r.height };
+  HosShipPlan.draw(shipCtx, shipPlan.plan, view, shipPlan.ordinal, {
+    space: cssVar('--map-space', '#030306'),
+    edge: cssVar('--map-room-edge', 'rgba(204,214,235,0.75)'),
+    fill: cssVar('--map-room-fill', '#8c94a3'),
+    alpha: parseFloat(cssVar('--map-room-fill-alpha', '0.32')) || 0.32,
+    label: cssVar('--map-label', '#e0e3ed'),
+    halo: cssVar('--map-label-halo', 'rgba(0,0,0,0.8)'),
+    accent: cssVar('--accent', '#ed8c24'),
+  });
+  const rows = HosLevelPicker.pickerRows(shipPlan.plan.levels, null, shipPlan.ordinal);
+  HosLevelPicker.renderPicker(document.getElementById('ship-plan-picker'), shipPlan.plan.name || shipPlan.plan.ship, rows, (o) => {
+    shipPlan.ordinal = o;
+    drawShipPlan();
+  });
+}
+function openShipPlan() {
+  document.getElementById('ship-plan').classList.add('open');
+  const show = () => {
+    if (!shipPlan.view) {
+      // Open on your home, a room's name readable.
+      const home = shipPlan.plan.bodies.find((b) => b.id === 'home') || shipPlan.plan.bodies[0];
+      const size = home.size || shipPlan.plan.designs[home.design].size;
+      shipPlan.view = { cx: home.origin[0] + size[0] / 2, cz: home.origin[2] + size[2] / 2, scale: 6 };
+    }
+    drawShipPlan();
+  };
+  if (shipPlan.plan) show();
+  else HosShipPlan.loadPlan().then((p) => { shipPlan.plan = p; show(); }).catch((e) => {
+    document.getElementById('ship-plan-note').textContent = `The ship's plan could not be loaded (${e.message}).`;
+  });
+}
+function closeShipPlan() {
+  document.getElementById('ship-plan').classList.remove('open');
+}
+shipCanvas.addEventListener('mousedown', (e) => { shipPlan.drag = [e.clientX, e.clientY]; shipCanvas.classList.add('dragging'); });
+window.addEventListener('mouseup', () => { shipPlan.drag = null; shipCanvas.classList.remove('dragging'); });
+window.addEventListener('mousemove', (e) => {
+  if (!shipPlan.drag || !shipPlan.view) return;
+  shipPlan.view.cx -= (e.clientX - shipPlan.drag[0]) / shipPlan.view.scale;
+  shipPlan.view.cz -= (e.clientY - shipPlan.drag[1]) / shipPlan.view.scale;
+  shipPlan.drag = [e.clientX, e.clientY];
+  drawShipPlan();
+});
+shipCanvas.addEventListener('wheel', (e) => {
+  if (!shipPlan.view) return;
+  e.preventDefault();
+  shipPlan.view.scale = Math.min(60, Math.max(0.05, shipPlan.view.scale * Math.pow(1.0015, -e.deltaY)));
+  drawShipPlan();
+}, { passive: false });
+window.addEventListener('keydown', (e) => {
+  if (!document.getElementById('ship-plan').classList.contains('open')) return;
+  if (e.key === 'Escape') closeShipPlan();
+  e.stopImmediatePropagation();
+}, true);
+window.addEventListener('resize', () => { if (document.getElementById('ship-plan').classList.contains('open')) drawShipPlan(); });
 
 // Continuous animation loop (ambient only; reduced motion renders on input instead)
 requestAnimationFrame(function tick(ts) {

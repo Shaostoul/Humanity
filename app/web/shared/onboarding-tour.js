@@ -1,360 +1,228 @@
 /**
- * HumanityOS Onboarding Tour, guided first-time user walkthrough.
- * Self-contained IIFE, no external dependencies beyond DOM.
- * Opt-in only: opened from the help button (?), or window.startOnboardingTour().
+ * The first five minutes, on the website (the ELI5 mandate, 2026-10-22): the
+ * same short guided tour the desktop app gives a new person (src/gui/first_minutes.rs),
+ * from the same steps (data/onboarding/tour.json; each step's words are keys in
+ * data/i18n/). The recovery phrase written down, a first message, the first
+ * steps in the world, and where help lives.
+ *
+ * A small card in the corner, never a screen-wide catcher: the tour used to put
+ * a full-viewport overlay over the page and took the first tap anywhere (see the
+ * note at the end), so the card leaves the page usable, and a step that points
+ * at something rings it without blocking it.
+ *
+ * Opt-in, as it has been since that bug: the help button (?) and the footer's
+ * "Take Tour" start it (window.startOnboardingTour). RESUMABLE: where the person
+ * is lives in localStorage (hos_first_minutes), so "Take me there" can open
+ * another page and the card carries on there; "Hide for now" puts it away until
+ * the next start, which resumes rather than restarts; "Skip the tour" ends it.
  */
 (function () {
   if (window.__HOS_TOUR_INIT__) return;
   window.__HOS_TOUR_INIT__ = true;
 
-  // Steps live in data/onboarding/tour.json (infinite-of-x); the literal below
-  // is only the offline fallback shown if the fetch fails.
-  var TOUR_STEPS = [
-    { target: null, title: 'Welcome to HumanityOS!', text: 'A cooperative platform to end poverty and unite humanity.' }
-  ];
+  var KEY = 'hos_first_minutes';
+  var steps = [];
   var stepsLoaded = fetch('/data/onboarding/tour.json')
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      if (d && Array.isArray(d.steps) && d.steps.length) TOUR_STEPS = d.steps;
-    })
-    .catch(function () { /* offline: keep the fallback welcome */ });
+    .then(function (d) { if (d && Array.isArray(d.steps)) steps = d.steps; })
+    .catch(function () { /* offline: the card says it cannot load */ });
 
-  var currentStep = 0;
-  var overlay = null;
-  var popover = null;
-  var styleEl = null;
+  function T(key, vars) {
+    return window.i18n && typeof window.i18n.t === 'function' ? window.i18n.t(key, vars) : key;
+  }
+  function read() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (_) { return {}; }
+  }
+  function write(s) {
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) { /* private window */ }
+  }
 
-  // ── Inject CSS ──
+  var card = null;
+  var ring = null;
+
   function injectStyles() {
-    if (styleEl) return;
-    styleEl = document.createElement('style');
-    styleEl.textContent =
-      '#hos-tour-overlay {' +
-        'position:fixed;inset:0;z-index:10000;' +
-        'pointer-events:none;transition:opacity 0.25s;' +
-      '}' +
-      '#hos-tour-overlay.active { pointer-events:auto; }' +
-      // On a step with no highlight target the highlight (and its 9999px
-      // dimming shadow) is switched off, which left the overlay fully
-      // transparent AND click-eating: the page looked normal and simply stopped
-      // responding. Dim it so the modal state is always visible to the user.
-      '#hos-tour-overlay.no-target { background:rgba(0,0,0,0.65); }' +
-
-      '#hos-tour-highlight {' +
-        'position:fixed;z-index:10001;' +
-        'box-shadow:0 0 0 9999px rgba(0,0,0,0.65);' +
-        'border-radius:var(--radius, 6px);' +
-        'pointer-events:none;transition:all 0.3s ease;' +
-      '}' +
-
-      '#hos-tour-popover {' +
-        'position:fixed;z-index:10002;' +
-        'background:var(--bg-card, #1a1a2e);' +
-        'border:1px solid var(--border, #333);' +
-        'border-radius:var(--radius-lg, 10px);' +
-        'padding:20px;max-width:340px;width:90vw;' +
-        'color:var(--text, #e0e0e0);' +
-        'box-shadow:0 8px 32px rgba(0,0,0,0.4);' +
-        'transition:opacity 0.25s, transform 0.25s;' +
-        'font-family:inherit;' +
-      '}' +
-      '#hos-tour-popover.entering {' +
-        'opacity:0;transform:translateY(8px);' +
-      '}' +
-
-      '#hos-tour-popover .tour-title {' +
-        'font-size:1rem;font-weight:700;margin-bottom:8px;' +
-        'color:var(--text, #fff);' +
-      '}' +
-      '#hos-tour-popover .tour-text {' +
-        'font-size:0.85rem;line-height:1.5;' +
-        'color:var(--text-muted, #aaa);margin-bottom:16px;' +
-      '}' +
-      '#hos-tour-popover .tour-footer {' +
-        'display:flex;align-items:center;justify-content:space-between;gap:8px;' +
-      '}' +
-      '#hos-tour-popover .tour-counter {' +
-        'font-size:0.72rem;color:var(--text-muted, #888);' +
-      '}' +
-      '#hos-tour-popover .tour-btns {' +
-        'display:flex;gap:8px;align-items:center;' +
-      '}' +
-      '#hos-tour-popover .tour-btn {' +
-        'padding:6px 16px;border-radius:var(--radius, 6px);' +
-        'font-size:0.8rem;cursor:pointer;border:none;font-family:inherit;' +
-      '}' +
-      '#hos-tour-popover .tour-btn-primary {' +
-        'background:var(--accent, #6c5ce7);color:#fff;' +
-      '}' +
-      '#hos-tour-popover .tour-btn-primary:hover { filter:brightness(1.15); }' +
-      '#hos-tour-popover .tour-btn-secondary {' +
-        'background:transparent;color:var(--text-muted, #aaa);' +
-        'border:1px solid var(--border, #444);' +
-      '}' +
-      '#hos-tour-popover .tour-btn-secondary:hover { color:var(--text, #fff); }' +
-      '#hos-tour-popover .tour-skip {' +
-        'background:none;border:none;color:var(--text-muted, #888);' +
-        'font-size:0.72rem;cursor:pointer;text-decoration:underline;font-family:inherit;' +
-      '}' +
-      '#hos-tour-popover .tour-skip:hover { color:var(--text, #fff); }' +
-
-      '#hos-tour-arrow {' +
-        'position:absolute;width:12px;height:12px;' +
-        'background:var(--bg-card, #1a1a2e);' +
-        'border:1px solid var(--border, #333);' +
-        'transform:rotate(45deg);' +
-      '}' +
-
-      '@media (max-width:600px) {' +
-        '#hos-tour-popover { max-width:90vw;padding:16px; }' +
-      '}';
-    document.head.appendChild(styleEl);
+    if (document.getElementById('hos-tour-styles')) return;
+    var st = document.createElement('style');
+    st.id = 'hos-tour-styles';
+    st.textContent =
+      '#hos-tour-card{position:fixed;right:16px;bottom:56px;z-index:9500;width:min(340px,calc(100vw - 32px));' +
+      'background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-lg,10px);' +
+      'padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:inherit;}' +
+      '#hos-tour-card .tour-count{font-size:0.75rem;color:var(--text-muted);}' +
+      '#hos-tour-card .tour-title{font-size:1.05rem;font-weight:700;color:var(--accent);margin:2px 0 6px;}' +
+      '#hos-tour-card .tour-text{font-size:0.9rem;line-height:1.5;margin-bottom:10px;}' +
+      '#hos-tour-card .tour-done{font-size:0.85rem;color:var(--success);margin-bottom:8px;}' +
+      '#hos-tour-card .tour-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}' +
+      '#hos-tour-card button{min-height:36px;padding:6px 12px;border-radius:var(--radius,6px);font:inherit;font-size:0.85rem;cursor:pointer;' +
+      'border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text);}' +
+      '#hos-tour-card button.primary{background:var(--accent);border-color:var(--accent);color:var(--text-on-accent);font-weight:600;}' +
+      '#hos-tour-card button.quiet{background:transparent;border-color:transparent;color:var(--text-muted);}' +
+      '#hos-tour-card button:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px;}' +
+      '#hos-tour-ring{position:fixed;z-index:9400;pointer-events:none;border:3px solid var(--accent);border-radius:var(--radius,6px);' +
+      'box-shadow:0 0 0 4px rgba(0,0,0,0.25);}' +
+      '@media (prefers-reduced-motion: no-preference){#hos-tour-card{transition:opacity 0.2s;}}';
+    document.head.appendChild(st);
   }
 
-  // ── Build DOM ──
-  function createElements() {
-    overlay = document.createElement('div');
-    overlay.id = 'hos-tour-overlay';
-    overlay.innerHTML = '<div id="hos-tour-highlight"></div>';
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) endTour();
-    });
-    document.body.appendChild(overlay);
-
-    popover = document.createElement('div');
-    popover.id = 'hos-tour-popover';
-    popover.setAttribute('role', 'dialog');
-    popover.setAttribute('aria-label', 'Onboarding tour');
-    document.body.appendChild(popover);
+  function button(cls, key, hintKey, onClick) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    if (cls) b.className = cls;
+    b.textContent = T(key);
+    if (window.i18n && typeof window.i18n.hint === 'function') window.i18n.hint(b, hintKey);
+    b.addEventListener('click', onClick);
+    return b;
   }
 
-  // ── Positioning ──
-  function positionPopover(targetEl) {
-    var highlight = document.getElementById('hos-tour-highlight');
-
-    if (!targetEl) {
-      // Centered modal (no target element)
-      highlight.style.display = 'none';
-      if (overlay) overlay.classList.add('no-target');
-      popover.style.left = '50%';
-      popover.style.top = '50%';
-      popover.style.transform = 'translate(-50%, -50%)';
-      // Remove any arrow
-      var existingArrow = popover.querySelector('#hos-tour-arrow');
-      if (existingArrow) existingArrow.remove();
-      return;
-    }
-
-    var rect = targetEl.getBoundingClientRect();
-    var pad = 6;
-
-    // Position highlight around target
-    if (overlay) overlay.classList.remove('no-target');
-    highlight.style.display = 'block';
-    highlight.style.left = (rect.left - pad) + 'px';
-    highlight.style.top = (rect.top - pad) + 'px';
-    highlight.style.width = (rect.width + pad * 2) + 'px';
-    highlight.style.height = (rect.height + pad * 2) + 'px';
-
-    // Reset transform before measuring
-    popover.style.transform = 'none';
-    popover.style.left = '0';
-    popover.style.top = '0';
-
-    var popRect = popover.getBoundingClientRect();
-    var vw = window.innerWidth;
-    var vh = window.innerHeight;
-
-    // Decide placement: prefer below, then above, then right
-    var placement = 'below';
-    var left, top;
-    var arrowLeft, arrowTop;
-
-    // Try below
-    top = rect.bottom + pad + 12;
-    left = rect.left + rect.width / 2 - popRect.width / 2;
-    if (top + popRect.height > vh - 10) {
-      // Try above
-      top = rect.top - pad - 12 - popRect.height;
-      placement = 'above';
-      if (top < 10) {
-        // Try right
-        left = rect.right + pad + 12;
-        top = rect.top + rect.height / 2 - popRect.height / 2;
-        placement = 'right';
-      }
-    }
-
-    // Clamp horizontal
-    if (left < 10) left = 10;
-    if (left + popRect.width > vw - 10) left = vw - 10 - popRect.width;
-    // Clamp vertical
-    if (top < 10) top = 10;
-    if (top + popRect.height > vh - 10) top = vh - 10 - popRect.height;
-
-    popover.style.left = left + 'px';
-    popover.style.top = top + 'px';
-
-    // Arrow
-    var existingArrow = popover.querySelector('#hos-tour-arrow');
-    if (existingArrow) existingArrow.remove();
-
-    var arrow = document.createElement('div');
-    arrow.id = 'hos-tour-arrow';
-    if (placement === 'below') {
-      arrow.style.top = '-7px';
-      arrow.style.left = Math.min(Math.max(rect.left + rect.width / 2 - left - 6, 12), popRect.width - 24) + 'px';
-      arrow.style.borderRight = 'none';
-      arrow.style.borderBottom = 'none';
-    } else if (placement === 'above') {
-      arrow.style.bottom = '-7px';
-      arrow.style.left = Math.min(Math.max(rect.left + rect.width / 2 - left - 6, 12), popRect.width - 24) + 'px';
-      arrow.style.borderLeft = 'none';
-      arrow.style.borderTop = 'none';
-    } else if (placement === 'right') {
-      arrow.style.left = '-7px';
-      arrow.style.top = Math.min(Math.max(rect.top + rect.height / 2 - top - 6, 12), popRect.height - 24) + 'px';
-      arrow.style.borderTop = 'none';
-      arrow.style.borderRight = 'none';
-    }
-    popover.appendChild(arrow);
+  function close() {
+    if (card && card.parentNode) card.parentNode.removeChild(card);
+    if (ring && ring.parentNode) ring.parentNode.removeChild(ring);
+    card = null;
+    ring = null;
   }
 
-  // ── Render step ──
-  function renderStep() {
-    var step = TOUR_STEPS[currentStep];
-    if (!step) return;
-
-    var isFirst = currentStep === 0;
-    var isLast = currentStep === TOUR_STEPS.length - 1;
-
-    var html = '<div class="tour-title">' + step.title + '</div>';
-    html += '<div class="tour-text">' + step.text + '</div>';
-    html += '<div class="tour-footer">';
-    html += '<span class="tour-counter">' + (currentStep + 1) + ' of ' + TOUR_STEPS.length + '</span>';
-    html += '<div class="tour-btns">';
-    if (!isFirst && !isLast) {
-      html += '<button class="tour-btn tour-btn-secondary" id="tour-prev">Previous</button>';
-    }
-    if (!isLast) {
-      html += '<button class="tour-skip" id="tour-skip">Skip Tour</button>';
-      html += '<button class="tour-btn tour-btn-primary" id="tour-next">Next</button>';
-    } else {
-      html += '<button class="tour-btn tour-btn-primary" id="tour-finish">Get Started</button>';
-    }
-    html += '</div></div>';
-
-    popover.classList.add('entering');
-    popover.innerHTML = html;
-
-    // Find target element
-    var targetEl = null;
-    if (step.target) {
-      targetEl = document.querySelector('.hub-nav ' + step.target) || document.querySelector(step.target);
-    }
-
-    positionPopover(targetEl);
-
-    // Remove entering class after frame to trigger transition
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        popover.classList.remove('entering');
-      });
-    });
-
-    // Bind buttons
-    var nextBtn = document.getElementById('tour-next');
-    var prevBtn = document.getElementById('tour-prev');
-    var skipBtn = document.getElementById('tour-skip');
-    var finishBtn = document.getElementById('tour-finish');
-
-    if (nextBtn) nextBtn.addEventListener('click', nextStep);
-    if (prevBtn) prevBtn.addEventListener('click', prevStep);
-    if (skipBtn) skipBtn.addEventListener('click', endTour);
-    if (finishBtn) finishBtn.addEventListener('click', endTour);
+  function pointAt(sel) {
+    if (ring && ring.parentNode) ring.parentNode.removeChild(ring);
+    ring = null;
+    if (!sel) return;
+    var el = document.querySelector('.hub-nav ' + sel) || document.querySelector(sel);
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    ring = document.createElement('div');
+    ring.id = 'hos-tour-ring';
+    ring.style.left = (r.left - 4) + 'px';
+    ring.style.top = (r.top - 4) + 'px';
+    ring.style.width = (r.width + 8) + 'px';
+    ring.style.height = (r.height + 8) + 'px';
+    document.body.appendChild(ring);
   }
 
-  function nextStep() {
-    // Skip steps whose target doesn't exist
-    var next = currentStep + 1;
-    while (next < TOUR_STEPS.length - 1 && TOUR_STEPS[next].target) {
-      var el = document.querySelector('.hub-nav ' + TOUR_STEPS[next].target) || document.querySelector(TOUR_STEPS[next].target);
-      if (el) break;
-      next++;
-    }
-    currentStep = next;
-    if (currentStep >= TOUR_STEPS.length) {
-      endTour();
-    } else {
-      renderStep();
-    }
+  /** Is this the page a step points at (its path; a #sec- part is a Settings section)? */
+  function onPage(page) {
+    var path = String(page || '').split('#')[0];
+    return !!path && location.pathname.replace(/\.html$/, '') === path;
+  }
+  /** Settings has no address per section, so open the step's section by hand. */
+  function openSection(page) {
+    var m = /#sec-([\w-]+)$/.exec(String(page || ''));
+    if (m && typeof window.showSection === 'function') window.showSection(m[1]);
   }
 
-  function prevStep() {
-    var prev = currentStep - 1;
-    while (prev > 0 && TOUR_STEPS[prev].target) {
-      var el = document.querySelector('.hub-nav ' + TOUR_STEPS[prev].target) || document.querySelector(TOUR_STEPS[prev].target);
-      if (el) break;
-      prev--;
-    }
-    if (prev < 0) prev = 0;
-    currentStep = prev;
-    renderStep();
+  /** Has the website seen this step done? */
+  function stepDone(state, step) {
+    if (step.done_when === 'phrase_written') return !!state.phrase_written;
+    return false;
   }
 
-  function endTour() {
-    localStorage.setItem('hos_tour_completed', String(Date.now()));
-    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    if (popover && popover.parentNode) popover.parentNode.removeChild(popover);
-    overlay = null;
-    popover = null;
-  }
-
-  // ── Keyboard navigation ──
-  function onKeyDown(e) {
-    if (!overlay) return;
-    if (e.key === 'Escape') { endTour(); return; }
-    if (e.key === 'ArrowRight' || e.key === 'Enter') { nextStep(); return; }
-    if (e.key === 'ArrowLeft') { prevStep(); return; }
-  }
-
-  // ── Public API ──
-  function startTour() {
-    // Wait for the data-driven steps (resolves immediately once loaded; falls
-    // back to the minimal welcome if the fetch failed).
-    stepsLoaded.then(startTourNow);
-  }
-
-  function startTourNow() {
-    if (overlay) return; // already running
-    currentStep = 0;
+  function render() {
+    var state = read();
+    if (!steps.length || !state.started || state.hidden || state.done) { close(); return; }
+    if (state.step >= steps.length) { state.done = true; write(state); close(); return; }
+    var step = steps[state.step];
     injectStyles();
-    createElements();
-    overlay.classList.add('active');
-    document.addEventListener('keydown', onKeyDown);
-    renderStep();
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'hos-tour-card';
+      card.setAttribute('role', 'dialog');
+      card.setAttribute('aria-live', 'polite');
+      document.body.appendChild(card);
+    }
+    while (card.firstChild) card.removeChild(card.firstChild);
+    card.setAttribute('aria-label', T('tour.card_name'));
 
-    // Reposition on resize
-    window.addEventListener('resize', function onResize() {
-      if (!overlay) {
-        window.removeEventListener('resize', onResize);
-        return;
-      }
-      renderStep();
+    var count = document.createElement('div');
+    count.className = 'tour-count';
+    count.textContent = T('tour.counter', { n: state.step + 1, total: steps.length });
+    var title = document.createElement('div');
+    title.className = 'tour-title';
+    title.textContent = T(step.title);
+    var text = document.createElement('div');
+    text.className = 'tour-text';
+    // A step may say something else on the website (the world is in the desktop app).
+    var textKey = (step.web && step.web.text) || step.text;
+    if (window.i18n && typeof window.i18n.fill === 'function') window.i18n.fill(text, textKey);
+    else text.textContent = T(textKey);
+    card.appendChild(count);
+    card.appendChild(title);
+    card.appendChild(text);
+    if (stepDone(state, step)) {
+      var done = document.createElement('div');
+      done.className = 'tour-done';
+      done.textContent = T('tour.step_done');
+      card.appendChild(done);
+    }
+
+    var row1 = document.createElement('div');
+    row1.className = 'tour-row';
+    var web = step.web || {};
+    if (web.page) {
+      row1.appendChild(button('', 'tour.take_me_there', 'tour.take_me_there_hint', function () {
+        if (onPage(web.page)) { openSection(web.page); pointAt(web.target); }
+        else location.href = web.page;
+      }));
+    }
+    if (step.done_when === 'phrase_written' && !stepDone(state, step)) {
+      row1.appendChild(button('', 'tour.phrase_written', 'tour.phrase_written_hint', function () {
+        var s = read(); s.phrase_written = true; write(s); render();
+      }));
+    }
+    if (row1.childNodes.length) card.appendChild(row1);
+
+    var row2 = document.createElement('div');
+    row2.className = 'tour-row';
+    if (state.step > 0) {
+      row2.appendChild(button('quiet', 'tour.back', 'tour.back_hint', function () {
+        var s = read(); s.step = Math.max(0, s.step - 1); write(s); render();
+      }));
+    }
+    var last = state.step + 1 === steps.length;
+    row2.appendChild(button('primary', last ? 'tour.finish' : 'tour.next', last ? 'tour.finish_hint' : 'tour.next_hint', function () {
+      var s = read();
+      if (last) s.done = true; else s.step += 1;
+      write(s);
+      render();
+    }));
+    card.appendChild(row2);
+
+    var row3 = document.createElement('div');
+    row3.className = 'tour-row';
+    row3.appendChild(button('quiet', 'tour.hide', 'tour.hide_hint', function () {
+      var s = read(); s.hidden = true; write(s); close();
+    }));
+    row3.appendChild(button('quiet', 'tour.skip', 'tour.skip_hint', function () {
+      var s = read(); s.done = true; write(s); close();
+    }));
+    card.appendChild(row3);
+
+    // Landed here from Take me there: open the step's Settings section once.
+    if (onPage(web.page) && !openedOnce) { openedOnce = true; openSection(web.page); }
+    pointAt(web.target && onPage(web.page) ? web.target : null);
+  }
+  var openedOnce = false;
+
+  /** Start (or resume) the tour: from the help button, the footer link, or a page's own button. */
+  function startTour() {
+    stepsLoaded.then(function () {
+      var s = read();
+      if (!s.started || s.done) s = { started: true, step: 0, phrase_written: !!s.phrase_written };
+      s.hidden = false;
+      write(s);
+      render();
     });
   }
-
   window.startOnboardingTour = startTour;
 
-  // ── No auto-start. The tour is opt-in, always. ──
-  // This used to fire 2s after load for every first-time visitor, on every page.
-  // The overlay is a full-viewport click catcher, so the tour was stealing the
-  // first tap anywhere on the page: hit-testing showed the overlay, not the
-  // button, was the top element at the centre of the landing page CTA. Beyond
-  // the bug, an unrequested popup is the thing people most reliably dislike.
-  // The tour is now reached deliberately, from the help button (?) anchored at
-  // the top right of every page, alongside that page's shortcuts and help.
-  // Entry points: window.startOnboardingTour(), the help panel, and the
-  // "Take Tour" footer link that shell.js already injects.
+  // A tour in progress carries on on every page (resumable across "Take me
+  // there"); a new visitor sees nothing until they ask.
+  stepsLoaded.then(render);
+  window.addEventListener('languagechange', render);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && card) { var s = read(); s.hidden = true; write(s); close(); }
+  });
 
+  // ── Opt-in, always (kept from the tour this replaces) ──
+  // The old tour fired 2 s after load for every first-time visitor, on every page,
+  // and its overlay was a full-viewport click catcher, so it stole the first tap
+  // anywhere on the page. The tour is reached deliberately: window.startOnboardingTour(),
+  // the help panel, and the footer's "Take Tour". The card never covers the page.
 })();

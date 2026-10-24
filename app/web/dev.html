@@ -25,9 +25,9 @@
     h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
     .page-sub { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px; }
 
-    /* The Dev tab's list (2026-10-20): the app's Dev tab holds Bugs, Testing, Performance, Dev and
-       Planet Tuner in a side list (src/gui/pages/dev_tab.rs); here the same five in a row, the
-       website's own pages linked, the desktop-only ones marked. */
+    /* The Dev tab's list (2026-10-20): the app's Dev tab holds Bugs, Testing, Performance, Dev,
+       Planet Tuner and Claude in a side list (src/gui/pages/dev_tab.rs); here the same list in a
+       row, the website's own pages linked, the desktop-only ones marked. */
     .devtools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
     .devtools a, .devtools span {
       padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius);
@@ -39,7 +39,7 @@
 
     /* ── Tab Bar ── */
     .tab-bar {
-      display: flex; gap: 2px; margin-bottom: 24px;
+      display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 24px;
       border-bottom: 2px solid var(--border);
     }
     .tab-btn {
@@ -357,6 +357,23 @@
     .var-table td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
     .var-table .has-widget { color: var(--success); }
     .var-table .no-widget { color: var(--text-muted); }
+    /* ── Claude tab (2026-10-22, web/pages/dev-claude.js): the web twin of the app's Dev > Claude ── */
+    .claude-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+    .claude-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; }
+    .claude-card h2 { font-size: 1rem; margin: 0 0 2px; }
+    .claude-hint { color: var(--text-muted); font-size: 0.8rem; margin: 0 0 8px; }
+    .claude-row { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 0.85rem; }
+    .claude-label { color: var(--text-muted); }
+    .claude-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; align-self: center; }
+    .claude-ok { background: var(--success); }
+    .claude-muted { background: var(--text-muted); }
+    .claude-line { display: flex; gap: 8px; font-size: 0.85rem; min-width: 0; }
+    .claude-line .claude-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .claude-date { color: var(--accent); flex: none; }
+    .claude-tier0 { margin: 0; padding-left: 0; list-style-position: inside; font-size: 0.85rem; }
+    .claude-tier0 li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .claude-refresh { flex: none; padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); color: var(--text); cursor: pointer; }
+    .claude-refresh:hover, .claude-refresh:focus-visible { border-color: var(--accent); }
     .var-table .swatch-inline { display: inline-block; width: 16px; height: 16px; border-radius: 3px; vertical-align: middle; margin-right: 6px; border: 1px solid var(--border); }
   </style>
 </head>
@@ -378,6 +395,7 @@
       <span class="desktop-only" title="In the desktop app's Dev tab">Performance (desktop app)</span>
       <span class="here" aria-current="page">Dev</span>
       <span class="desktop-only" title="In the desktop app's Dev tab">Planet Tuner (desktop app)</span>
+      <a href="/dev#claude" title="What Claude is doing: the part a website can reach; the rest is in the desktop app's Dev tab">Claude</a>
       <a href="/widgets">Widget Playground</a>
     </nav>
 
@@ -387,6 +405,7 @@
       <button class="tab-btn" data-tab="assets">Assets <span class="count" id="asset-count"></span></button>
       <button class="tab-btn" data-tab="components">Components</button>
       <button class="tab-btn" data-tab="theme">Theme</button>
+      <button class="tab-btn" data-tab="claude">Claude</button>
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
@@ -547,6 +566,14 @@
         <thead><tr><th>Variable</th><th>Current Value</th><th>Widget</th></tr></thead>
         <tbody id="var-table-body"></tbody>
       </table>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: CLAUDE (2026-10-22): what Claude is doing, the part a website   -->
+    <!-- can reach (web/pages/dev-claude.js); the app's Dev > Claude has all.  -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <div class="tab-panel" id="tab-claude">
+      <div id="claude-panel" aria-live="polite"></div>
     </div>
   </div>
 
@@ -1262,5 +1289,6 @@
       tbody.innerHTML = tbodyHTML;
     })();
   </script>
+  <script src="/pages/dev-claude.js"></script>
 </body>
 </html>

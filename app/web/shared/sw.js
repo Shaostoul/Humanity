@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v2751';
+const CACHE_NAME = 'humanity-v2752';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -123,7 +123,10 @@ self.addEventListener('fetch', event => {
   // server already sends `no-cache, must-revalidate` on them, so prefer the
   // network (a cheap ETag revalidate -> 304 when unchanged) and fall back to the
   // cache ONLY when offline. New deploys now appear on the next reload. (v0.469.2)
-  const isShell = SHELL_URLS.some(s => url.endsWith(s));
+  // The How-to data (2026-10-23, docs/design/how-to.md) is network-first as well: a safety fix to a
+  // how-to must reach a person on their next visit, not whenever this cache's version next changes.
+  // Offline, the copy last fetched answers, so a how-to opened once still works without a connection.
+  const isShell = SHELL_URLS.some(s => url.endsWith(s)) || url.includes('/data/how_to/');
   if (isShell) {
     event.respondWith(
       fetch(event.request).then(response => {

@@ -644,7 +644,11 @@ async function sendFriendCertTo(peer) {
   // a contact request, whose Accept needs the PIN.
   if (typeof protectedPassAllowed === 'function' && !protectedPassAllowed(peer)) return false;
   if (!window.hosServerDid || store.passServer !== window.hosServerDid) return false; // swept again once known
-  if (typeof getPeerEcdhPublic === 'function' && !getPeerEcdhPublic(peer)) return false; // cannot seal to them yet
+  if (typeof getPeerEcdhPublic === 'function' && !getPeerEcdhPublic(peer)) {
+    // No key from a checked key card yet: ask for theirs; a later sweep sends the pass (chat-key-cards.js).
+    if (typeof hosKeyCards !== 'undefined') hosKeyCards.want(peer, false);
+    return false;
+  }
   _passMinting.add(peer);
   try {
     const built = await pqBuildFriendCert(peer, store.choiceMay(peer).split(','));

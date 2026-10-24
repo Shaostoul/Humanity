@@ -54,6 +54,8 @@
     // Apps page's nav icon (filled there, outlined here like every icon of this set).
     apps: '<rect x="7" y="7" width="14" height="14" rx="3.5"/><rect x="27" y="7" width="14" height="14" rx="3.5"/><rect x="7" y="27" width="14" height="14" rx="3.5"/><rect x="27" y="27" width="14" height="14" rx="3.5"/>',
     games: '<path d="M10,16 A8,8 0 0 0 6,30 A6,6 0 0 0 14,34 L18,26 H30 L34,34 A6,6 0 0 0 42,30 A8,8 0 0 0 38,16 Z" fill="none"/><line x1="15" y1="20" x2="15" y2="26"/><line x1="12" y1="23" x2="18" y2="23"/><circle cx="31" cy="20" r="1.5"/><circle cx="35" cy="24" r="1.5"/>',
+    // How-to (2026-10-23): three steps rising, the desktop's widgets::icons::paint_stairs.
+    steps: '<polyline points="6,40 6,32 16,32 16,23 26,23 26,14 36,14 36,40 6,40"/>',
     journal: '<path d="M24,10 V40"/><path d="M24,10 C20,8 12,8 6,10 V40 C12,38 20,38 24,40" fill="none"/><path d="M24,10 C28,8 36,8 42,10 V40 C36,38 28,38 24,40" fill="none"/><line x1="12" y1="18" x2="20" y2="18"/><line x1="12" y1="24" x2="20" y2="24"/><line x1="12" y1="30" x2="18" y2="30"/><line x1="28" y1="18" x2="36" y2="18"/><line x1="28" y1="24" x2="36" y2="24"/>',
 
     // ── State / Action icons ──

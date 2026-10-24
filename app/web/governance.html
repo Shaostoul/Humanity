@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Governance, HumanityOS</title>
-  <meta name="description" content="Local + civilization-scope governance. Propose, vote, see tallies. Vote weight derives from trust score, capped at 0.95.">
+  <title data-i18n="governance.page_title">Governance, HumanityOS</title>
+  <meta name="description" data-i18n-content="governance.meta_description" content="Local + civilization-scope governance. Propose, vote, see tallies. Vote weight derives from trust score, capped at 0.95.">
   <link rel="manifest" href="/shared/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
@@ -165,6 +165,8 @@
 </head>
 <body>
   <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/pq-identity.js"></script>
   <!-- Real voting: pq.js provides the KAT-locked Dilithium3 derivation/signing,
@@ -174,27 +176,27 @@
 
   <div class="container">
     <header class="gov-hero">
-      <h1>Governance</h1>
-      <p class="page-hint">Civic participation: propose, deliberate, vote.</p>
-      <p>Local-scope proposals run on this server. Civilization-scope proposals (Accord amendments, federation floor policy) federate to all servers and need federation-wide quorum to pass.</p>
+      <h1 data-i18n="governance.title">Governance</h1>
+      <p class="page-hint" data-i18n="governance.subtitle">Civic participation: propose, deliberate, vote.</p>
+      <p data-i18n="governance.web_scope_note">Local-scope proposals run on this <span data-term="server">server</span>. Civilization-scope proposals (Accord <span data-term="amendment">amendments</span>, <span data-term="federation">federation</span> floor policy) federate to all servers and need federation-wide <span data-term="quorum">quorum</span> to pass.</p>
     </header>
 
     <div class="accord-callout">
-      <strong>Accord power-asymmetry mitigation.</strong>
-      Vote weight equals your trust score at vote time, <strong>capped at 0.95</strong>. No single high-trust voter can dominate. AI agents are excluded from voting per Accord, votes require sentient consent. See the
-      <a href="/accord#humanity-accord">Humanity Accord</a>.
+      <strong data-i18n="governance.web_callout_heading">Accord power-asymmetry mitigation.</strong>
+      <span data-i18n="governance.web_callout_a"><span data-term="vote_weight">Vote weight</span> equals your <span data-term="trust_score">trust score</span> at vote time,</span> <strong data-i18n="governance.web_callout_cap">capped at 0.95</strong>. <span data-i18n="governance.web_callout_b">No single high-trust voter can dominate. AI agents are excluded from voting per Accord, votes require sentient <span data-term="consent">consent</span>. See the</span>
+      <a href="/accord#humanity-accord" data-i18n="humanity.web_accord" data-i18n-tip="governance.web_accord_link_hint" data-tip-desc="Opens the Humanity Accord, the agreement that sets these voting rules.">Humanity Accord</a>.
     </div>
 
     <div class="scope-tabs" id="scope-tabs">
-      <button class="scope-tab active" data-scope="">All scopes</button>
-      <button class="scope-tab" data-scope="local">Local (this server)</button>
-      <button class="scope-tab" data-scope="civilization">Civilization-wide</button>
+      <button class="scope-tab active" data-scope="" data-i18n="governance.scope_all" data-i18n-tip="governance.web_scope_all_hint" data-tip-desc="Shows every proposal, whoever votes on it.">All scopes</button>
+      <button class="scope-tab" data-scope="local" data-i18n="governance.scope_local" data-i18n-tip="governance.web_scope_local_hint" data-tip-desc="Shows only the proposals for this server, voted on by its own members.">Local (this server)</button>
+      <button class="scope-tab" data-scope="civilization" data-i18n="governance.scope_civilization" data-i18n-tip="governance.web_scope_civilization_hint" data-tip-desc="Shows only the proposals that every server votes on together.">Civilization-wide</button>
     </div>
 
     <div class="filter-row">
-      <button class="filter-pill active" data-filter="open">Open</button>
-      <button class="filter-pill" data-filter="all">All</button>
-      <button class="btn-propose" id="toggle-propose" type="button">New proposal</button>
+      <button class="filter-pill active" data-filter="open" data-i18n="governance.filter_open" data-i18n-tip="governance.web_filter_open_hint" data-tip-desc="Shows only the proposals you can still vote on.">Open</button>
+      <button class="filter-pill" data-filter="all" data-i18n="governance.filter_all" data-i18n-tip="governance.web_filter_all_hint" data-tip-desc="Shows every proposal, closed ones too.">All</button>
+      <button class="btn-propose" id="toggle-propose" type="button" data-i18n="governance.new_proposal" data-i18n-tip="governance.toggle_form_hint" data-tip-desc="Opens or closes the form for writing a new proposal. Closing it keeps what you typed.">New proposal</button>
     </div>
 
     <!-- novalidate: the browser's own constraint bubble would fire before the
@@ -203,47 +205,49 @@
          report in the same status style the vote buttons use. min/max/maxlength
          stay as input affordances (spinner range, paste truncation). -->
     <form class="propose-card" id="propose-form" novalidate hidden>
-      <h2>New proposal</h2>
+      <h2 data-i18n="governance.new_proposal">New proposal</h2>
       <p class="propose-note" id="propose-identity-note" hidden></p>
 
       <div class="propose-field">
-        <label for="prop-title">Title</label>
+        <label for="prop-title" data-i18n="governance.title_label">Title</label>
         <input type="text" id="prop-title" maxlength="200" autocomplete="off"
-               placeholder="One line: what are you proposing?">
+               placeholder="One line: what are you proposing?" data-i18n-placeholder="governance.title_placeholder"
+               data-i18n-tip="governance.title_hint" data-tip-desc="Type a short line that says what you are proposing. People see it first.">
       </div>
 
       <div class="propose-field">
-        <label for="prop-body">Body</label>
+        <label for="prop-body" data-i18n="governance.body_label">Body</label>
         <textarea id="prop-body" rows="5" maxlength="8000"
-                  placeholder="What changes, why, and what happens if it passes."></textarea>
+                  placeholder="What changes, why, and what happens if it passes." data-i18n-placeholder="governance.body_placeholder"
+                  data-i18n-tip="governance.body_hint" data-tip-desc="Explain what would change, why, and what happens if it passes. People read this before they vote."></textarea>
       </div>
 
       <div class="propose-row">
         <div class="propose-field">
-          <label for="prop-type">Type</label>
-          <select id="prop-type"></select>
+          <label for="prop-type" data-i18n="governance.type_label">Type</label>
+          <select id="prop-type" data-i18n-tip="governance.type_hint" data-tip-desc="Chooses what kind of proposal this is. Each kind has its own rules for how many people must vote and how many must agree."></select>
         </div>
         <div class="propose-field">
-          <label for="prop-scope">Scope</label>
-          <select id="prop-scope"></select>
+          <label for="prop-scope" data-i18n="governance.scope_label">Scope</label>
+          <select id="prop-scope" data-i18n-tip="governance.scope_hint" data-tip-desc="Chooses who votes: the members of this server only, or every server together."></select>
         </div>
         <div class="propose-field">
-          <label for="prop-days">Voting window (days)</label>
-          <input type="number" id="prop-days" min="1" max="30" step="1" value="7">
+          <label for="prop-days" data-i18n="governance.days_label">Voting window (days)</label>
+          <input type="number" id="prop-days" min="1" max="30" step="1" value="7" data-i18n-tip="governance.web_days_hint" data-tip-desc="Type how many days people have to vote, from 1 to 30, before the proposal closes.">
         </div>
       </div>
 
       <p class="propose-note">
-        Your proposal is signed with your Dilithium3 key and posted as a
-        <code>proposal_v1</code> object. It cannot be edited or withdrawn once posted.
+        <span data-i18n="governance.web_sign_note_a">Your proposal is signed with your <span data-term="dilithium">Dilithium3</span> key and posted as a</span>
+        <code>proposal_v1</code> <span data-i18n="governance.web_sign_note_b">object. It cannot be edited or withdrawn once posted.</span>
       </p>
 
-      <button type="submit" class="btn-submit" id="prop-submit" disabled>Submit proposal</button>
+      <button type="submit" class="btn-submit" id="prop-submit" disabled data-i18n="governance.submit_proposal" data-i18n-tip="governance.submit_proposal_hint" data-tip-desc="Signs your proposal with your key and sends it to this server. Voting on it starts right away, and it cannot be changed or taken back.">Submit proposal</button>
       <div class="vote-status" id="propose-status"></div>
     </form>
 
     <div class="proposal-list" id="proposal-list">
-      <div class="empty-state">Loading proposals...</div>
+      <div class="empty-state" data-i18n="governance.loading">Loading proposals...</div>
     </div>
   </div>
 
@@ -282,10 +286,10 @@
           '<div class="abstain" style="width:' + (tally.abstain_weight / total * 100) + '%"></div>' +
         '</div>' +
         '<div class="tally-numbers">' +
-          '<span class="yes">Yes: ' + tally.yes_weight.toFixed(2) + '</span>' +
-          '<span class="no">No: ' + tally.no_weight.toFixed(2) + '</span>' +
-          '<span>Abstain: ' + tally.abstain_weight.toFixed(2) + '</span>' +
-          '<span>(' + tally.vote_count + ' voter' + (tally.vote_count === 1 ? '' : 's') + ')</span>' +
+          '<span class="yes">' + i18n.t('governance.tally_yes', { n: tally.yes_weight.toFixed(2) }) + '</span>' +
+          '<span class="no">' + i18n.t('governance.tally_no', { n: tally.no_weight.toFixed(2) }) + '</span>' +
+          '<span>' + i18n.t('governance.tally_abstain', { n: tally.abstain_weight.toFixed(2) }) + '</span>' +
+          '<span>' + i18n.tn('governance.voters', tally.vote_count) + '</span>' +
         '</div>';
     }
 
@@ -341,7 +345,7 @@
 
     async function loadProposals() {
       var list = document.getElementById('proposal-list');
-      list.innerHTML = '<div class="empty-state">Loading proposals...</div>';
+      list.innerHTML = '<div class="empty-state">' + i18n.t('governance.loading') + '</div>';
       try {
         var opts = { limit: 100 };
         if (activeScope) opts.scope = activeScope;
@@ -353,7 +357,9 @@
         var props = propsAndTexts[0];
         var texts = propsAndTexts[1];
         if (!props || !props.length) {
-          list.innerHTML = '<div class="empty-state">No proposals match these filters. Use <strong>New proposal</strong> above to start the first one.</div>';
+          list.innerHTML = '<div class="empty-state">' +
+            i18n.t('governance.web_empty', { button: '<strong>' + escapeHtml(i18n.t('governance.new_proposal')) + '</strong>' }) +
+            '</div>';
           return;
         }
         list.innerHTML = '';
@@ -373,25 +379,26 @@
             '<div class="proposal-meta">' +
               '<span class="scope-badge ' + p.scope + '">' + p.scope + '</span>' +
               (t.title ? ' <span class="prop-type-tag">' + escapeHtml(p.proposal_type) + '</span>' : '') +
-              ' Proposer: <code>' + escapeHtml(p.proposer_did.slice(0, 24)) + '...</code>' +
-              ' \u2022 Closes: ' + fmtTime(p.closes_at) +
+              ' ' + i18n.t('governance.proposer_label') + ' <code>' + escapeHtml(p.proposer_did.slice(0, 24)) + '...</code>' +
+              ' \u2022 ' + i18n.t('governance.closes_at', { time: fmtTime(p.closes_at) }) +
             '</div>' +
             '<div class="proposal-body">' +
               (t.body
                 ? escapeHtml(t.body)
-                : '<em>This proposal carries no readable text.</em>') +
+                : '<em>' + i18n.t('governance.no_text') + '</em>') +
             '</div>' +
-            '<div class="proposal-id">object_id: <code>' +
+            '<div class="proposal-id">object_id: <code>' + // i18n-exempt: the wire format's field name, shown as code
               escapeHtml(p.proposal_object_id.slice(0, 16)) + '...</code></div>' +
             '<div class="tally-wrap">' + tallyHtml(tally) + '</div>' +
             (isOpen
               ? '<div class="vote-actions">' +
-                  '<button class="btn-vote" data-choice="yes" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote Yes</button>' +
-                  '<button class="btn-vote" data-choice="no" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote No</button>' +
-                  '<button class="btn-vote" data-choice="abstain" data-id="' + escapeHtml(p.proposal_object_id) + '">Abstain</button>' +
+                  '<button class="btn-vote" data-choice="yes" data-id="' + escapeHtml(p.proposal_object_id) + '" data-i18n-tip="governance.vote_yes_hint">' + i18n.t('governance.vote_yes') + '</button>' +
+                  '<button class="btn-vote" data-choice="no" data-id="' + escapeHtml(p.proposal_object_id) + '" data-i18n-tip="governance.vote_no_hint">' + i18n.t('governance.vote_no') + '</button>' +
+                  '<button class="btn-vote" data-choice="abstain" data-id="' + escapeHtml(p.proposal_object_id) + '" data-i18n-tip="governance.abstain_hint">' + i18n.t('governance.abstain') + '</button>' +
                 '</div>' +
-                '<div class="vote-status">Votes are final and cannot be changed.</div>'
-              : '<div class="vote-status">Voting closed.</div>');
+                '<div class="vote-status">' + i18n.t('governance.votes_final') + '</div>'
+              : '<div class="vote-status">' + i18n.t('governance.voting_closed') + '</div>');
+          i18n.apply(card);
           list.appendChild(card);
         }
         list.querySelectorAll('.btn-vote').forEach(function(b){
@@ -401,7 +408,8 @@
         });
         applyMyVotes();
       } catch (err) {
-        list.innerHTML = '<div class="empty-state">Could not load proposals: ' + escapeHtml(String(err && err.message || err)) + '</div>';
+        list.innerHTML = '<div class="empty-state">' +
+          escapeHtml(i18n.t('governance.load_failed', { error: String(err && err.message || err) })) + '</div>';
       }
     }
 
@@ -470,6 +478,14 @@
       try { localStorage.setItem('hum_gov_votes_' + fp, JSON.stringify(m)); } catch (_e) {}
     }
 
+    /** The words for a vote choice ("yes", "no", "abstain" on the wire). */
+    function choiceWord(choice) {
+      if (choice === 'yes') return i18n.t('governance.choice_yes');
+      if (choice === 'no') return i18n.t('governance.choice_no');
+      if (choice === 'abstain') return i18n.t('governance.choice_abstain');
+      return String(choice);
+    }
+
     function markVoted(card, choice) {
       card.querySelectorAll('.btn-vote').forEach(function(b){
         b.disabled = true;
@@ -477,7 +493,7 @@
       });
       const st = card.querySelector('.vote-status');
       if (st) {
-        st.textContent = 'Your vote: ' + choice + ' (votes are final; if you voted before, the original stands).';
+        st.textContent = i18n.t('governance.web_your_vote', { choice: choiceWord(choice) });
         st.className = 'vote-status ok';
       }
     }
@@ -497,16 +513,16 @@
       const buttons = card.querySelectorAll('.btn-vote');
       buttons.forEach(function(b){ b.disabled = true; });
       st.className = 'vote-status';
-      st.textContent = 'Checking your identity...';
+      st.textContent = i18n.t('governance.checking_identity');
       try {
         const me = await myIdentity();
         if (!me) {
-          st.textContent = 'Sign in via Chat first: no identity key was found in this browser. Open the Chat page, unlock your account, then come back and vote.';
+          st.textContent = i18n.t('governance.web_sign_in_vote');
           st.className = 'vote-status err';
           buttons.forEach(function(b){ b.disabled = false; });
           return;
         }
-        st.textContent = 'Signing your vote (Dilithium3)...';
+        st.textContent = i18n.t('governance.signing_vote');
         const mods = await pqMods();
         const built = await mods.obj.buildVoteV1({
           proposalId: proposalId,
@@ -519,13 +535,13 @@
           },
           blake3: mods.blake3,
         });
-        st.textContent = 'Submitting vote...';
+        st.textContent = i18n.t('governance.submitting_vote');
         await window.HumOS.pq.postObject(built.submission);
         recordMyVote(me.fp, proposalId, choice);
         markVoted(card, choice);
         refreshTally(proposalId, card);
       } catch (err) {
-        st.textContent = 'Vote failed: ' + String(err && err.message || err);
+        st.textContent = i18n.t('governance.vote_failed', { error: String(err && err.message || err) });
         st.className = 'vote-status err';
         buttons.forEach(function(b){ b.disabled = false; });
       }
@@ -552,14 +568,14 @@
     // a browser, so both clients offer the same curated three. If a
     // proposal-types endpoint ever lands, both clients should read it instead.
     const PROPOSAL_TYPES = [
-      ['local_rule', 'Local rule'],
-      ['parameter_change', 'Parameter change'],
-      ['accord_amendment', 'Accord amendment'],
+      ['local_rule', i18n.t('governance.type_local_rule')],
+      ['parameter_change', i18n.t('governance.type_parameter_change')],
+      ['accord_amendment', i18n.t('governance.type_accord_amendment')],
     ];
     // Mirrors src/gui/pages/governance.rs::SCOPES (and the scope tabs above).
     const PROPOSAL_SCOPES = [
-      ['local', 'Local (this server)'],
-      ['civilization', 'Civilization-wide'],
+      ['local', i18n.t('governance.scope_local')],
+      ['civilization', i18n.t('governance.scope_civilization')],
     ];
     const TITLE_MAX = 200;
     const BODY_MAX = 8000;
@@ -602,11 +618,11 @@
       proposeSubmit.disabled = true;
       proposeNote.hidden = false;
       proposeNote.className = 'propose-note';
-      proposeNote.textContent = 'Checking your identity...';
+      proposeNote.textContent = i18n.t('governance.checking_identity');
       const me = await myIdentity();
       if (!me) {
         proposeNote.className = 'propose-note warn';
-        proposeNote.textContent = 'Sign in via Chat first: no identity key was found in this browser. Open the Chat page, unlock your account, then come back and propose.';
+        proposeNote.textContent = i18n.t('governance.web_sign_in_propose');
         return false;
       }
       proposeNote.hidden = true;
@@ -618,7 +634,7 @@
     proposeToggle.addEventListener('click', function(){
       const opening = proposeForm.hidden;
       proposeForm.hidden = !opening;
-      proposeToggle.textContent = opening ? 'Close form' : 'New proposal';
+      proposeToggle.textContent = opening ? i18n.t('governance.close_form') : i18n.t('governance.new_proposal');
       if (opening) {
         setProposeStatus('');
         refreshProposeIdentity();
@@ -631,25 +647,25 @@
       const title = fTitle.value.trim();
       const body = fBody.value.trim();
       const days = Number(fDays.value);
-      if (!title) { setProposeStatus('Give the proposal a title.', 'err'); fTitle.focus(); return null; }
+      if (!title) { setProposeStatus(i18n.t('governance.err_title_missing'), 'err'); fTitle.focus(); return null; }
       if (title.length > TITLE_MAX) {
-        setProposeStatus('Title is too long (' + title.length + ' characters, max ' + TITLE_MAX + ').', 'err');
+        setProposeStatus(i18n.t('governance.err_title_long', { n: title.length, max: TITLE_MAX }), 'err');
         fTitle.focus();
         return null;
       }
-      if (!body) { setProposeStatus('Describe what you are proposing in the body.', 'err'); fBody.focus(); return null; }
+      if (!body) { setProposeStatus(i18n.t('governance.err_body_missing'), 'err'); fBody.focus(); return null; }
       if (body.length > BODY_MAX) {
-        setProposeStatus('Body is too long (' + body.length + ' characters, max ' + BODY_MAX + ').', 'err');
+        setProposeStatus(i18n.t('governance.err_body_long', { n: body.length, max: BODY_MAX }), 'err');
         fBody.focus();
         return null;
       }
       if (!Number.isFinite(days) || days <= 0) {
-        setProposeStatus('Voting window must be a positive number of days.', 'err');
+        setProposeStatus(i18n.t('governance.err_days'), 'err');
         fDays.focus();
         return null;
       }
       if (days > WINDOW_MAX_DAYS) {
-        setProposeStatus('Voting window must be ' + WINDOW_MAX_DAYS + ' days or fewer.', 'err');
+        setProposeStatus(i18n.t('governance.err_days_max', { max: WINDOW_MAX_DAYS }), 'err');
         fDays.focus();
         return null;
       }
@@ -665,17 +681,17 @@
       const fields = readProposalForm();
       if (!fields) return;
       proposeSubmit.disabled = true;
-      setProposeStatus('Checking your identity...');
+      setProposeStatus(i18n.t('governance.checking_identity'));
       try {
         const me = await myIdentity();
         if (!me) {
-          setProposeStatus('Sign in via Chat first: no identity key was found in this browser. Open the Chat page, unlock your account, then come back and propose.', 'err');
+          setProposeStatus(i18n.t('governance.web_sign_in_propose'), 'err');
           // Leaves the button disabled with the sign-in note: there is nothing
           // to retry until an identity exists.
           await refreshProposeIdentity();
           return;
         }
-        setProposeStatus('Signing your proposal (Dilithium3)...');
+        setProposeStatus(i18n.t('governance.signing_proposal'));
         const mods = await pqMods();
         const built = await mods.obj.buildProposalV1({
           proposalType: fields.type,
@@ -691,18 +707,18 @@
           },
           blake3: mods.blake3,
         });
-        setProposeStatus('Submitting proposal...');
+        setProposeStatus(i18n.t('governance.submitting_proposal'));
         await window.HumOS.pq.postObject(built.submission);
-        setProposeStatus('Proposal submitted.', 'ok');
+        setProposeStatus(i18n.t('governance.proposal_submitted'), 'ok');
         fTitle.value = '';
         fBody.value = '';
         proposeForm.hidden = true;
-        proposeToggle.textContent = 'New proposal';
+        proposeToggle.textContent = i18n.t('governance.new_proposal');
         proposeSubmit.disabled = false;
         // The new proposal is open, so it shows under either filter.
         loadProposals();
       } catch (err) {
-        setProposeStatus('Proposal failed: ' + String(err && err.message || err), 'err');
+        setProposeStatus(i18n.t('governance.proposal_failed', { error: String(err && err.message || err) }), 'err');
         proposeSubmit.disabled = false;
       }
     }

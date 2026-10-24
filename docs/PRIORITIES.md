@@ -61,49 +61,71 @@ FarmingSystem F1+F2 for ~2.5-3 ms, then gating the Garden mirror, est. 4-9 ms ev
 to frames that draw the Inventory page). Next agent: a domain-writer for the timers + the farming
 golden-state test, then F1/F2/S1 (lib.rs: needs a quiet window).
 
-### QUEUED BY THE OPERATOR 2026-10-22 (updated 2026-10-23)
+### NOW (2026-10-24): one task at a time; the week's usage is at the ceiling
 
-Done 2026-10-23: the CLAUDE.md split by audience (81 KB to 36 KB, six `docs/ai/` documents,
-f894a9612), the saved procedures as skills (`.claude/skills/` release, merge-agent, game-checks,
-4f2d6903a), and the Rust pin (1.99.1 for the PC, GitHub and both servers, `rust-toolchain.toml`,
-plus the UPDATES row in `just brief`, 4d4bbb153). The PC restarted with a 100 GB page file.
+The operator, 2026-10-24, with the weekly meter at 84% after a day of 14 to 16 parallel agents:
+"Let's make sure we finish our current tasks before moving on sequencially." Every agent of that
+wave has merged (v0.1544.0, below). From here: one task at a time, lean, until the week resets
+(Thursday 8 PM Pacific); wide fan-out is for a fresh week.
 
-1. **In flight (16 agents):** the 14 resumed from their handoff notes (each in its own worktree's
-   `.claude/handoff/`), plus the closed-loop test design and the How-to page design. Merge each
-   as it reports (the `merge-agent` skill); review the voice/privacy diff for changed tests.
-2. **Crate updates in the next quiet window** (after this batch merges): `cargo update` has 313
-   compatible updates and 40 dependencies sit behind a newer major (docs/SOP.md "Keeping
-   components up to date"); then the batch release.
-3. **A closed-loop test, 1 person to all of humanity** (the operator, verbatim in the journal):
-   "as close to 100% closed loop self-sustaining as possible for 1 person up to 100% of Humanity",
-   with two metrics: **Earth, today, real** (sourced, dated data) and **the game's mothership**
-   housing billions across interstellar space, starting from today's technology and adding
-   promising R&D (fusion) as labelled options; "think like 1,000 years from now". The design and
-   sourced data are being written (homestead-engineer, with a refutation pass); then the headless
-   Rust test on the real systems (the headless runner's first big customer).
-4. **A How-to page for step-by-step procedures** (operator, 2026-10-23: "a page dedicated to SOP.
-   It's kind of like a crafting page but, could incorporate more stuff. Like parent categories
-   could be good and services"). The full design is being written: one procedure model that
-   Crafting shares, a category tree, services that do it for you, runs that become Tasks and
-   Calendar entries, both realities, and the platform's own SOPs with steps that are admin
-   actions a person or an AI can run.
-5. **An in-game event journal for play sessions** (after the MCP server lands): events written
-   by kind (combat, damage, AI, errors, economy...) to small capped files, a "mark" key that
-   bookmarks a moment with a screenshot, and an MCP tool that reads only one kind since a mark,
-   so reading 5 minutes of an encounter costs a few hundred lines, not the whole log.
-6. **A #claude channel and Claude Code inside the Dev tab (later):** a federated channel everyone
-   can read but only the operator's key and the AI's key can post in (the existing
-   `channels.read_only` column is the start), and Claude acts only on messages signed by the
-   operator's key, so text posted elsewhere can never steer it. Then a terminal pane running
-   Claude Code in the Dev tab.
-7. **Leftovers the CLAUDE.md split found** (doc-truth, then toolsmith): five docs still call
-   CLAUDE.md the canonical crypto table (docs/README.md, docs/admin/SELF-HOSTING.md:873,
-   docs/design/platform-architecture.md:241, docs/BUS-FACTOR.md:83, which also says DMs are
-   "pure Kyber768"); docs/design/media-round-5-plan.md:603 cites a CLAUDE.md rule that does not
-   exist; docs/ai/model-tiering.md treats Fable as a live tier; check the desktop data folder's
-   `cache/` against the no-caches rule. Lints proposed: CLAUDE.md under ~40 KB with every
-   `docs/ai/*.md` named in its Router; every "CLAUDE.md, <name>" citation resolves; every
-   `docs/ai/` file linked from docs/ai/README.md. MEMORY.md could lose ~5 KB more.
+In order:
+1. **Crate updates in this quiet window:** `cargo update` (313 compatible updates on 2026-10-23;
+   40 dependencies behind a newer major), then both checks, the lib suite and the release gates
+   (docs/SOP.md "Keeping components up to date").
+2. **The build-speed measurements** the slot made possible, on a quiet machine: debug info in
+   dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
+   whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate
+   (`relay-gate.js`); then the one Cargo.toml commit (profiles, the image crate without AVIF).
+3. **Bugs the accessibility pass found:** web Notes encrypts with 300,000 PBKDF2 rounds where
+   600,000 is promised (fix first: a privacy promise); the web wallet calls HosWallet functions
+   that do not exist (balance never loads); the web calculator works in radians, the desktop in
+   degrees; the desktop Calendar drops the Description; bug categories differ between
+   `data/bugs/taxonomy.json` and the relay; English still in shared code (`provenance_line`,
+   `not_here_reason`, `WalletNetwork::label`).
+4. **FarmingSystem and the untimed frame** (`docs/design/sim-frame-cost.md`): the timers and the
+   farming golden-state test, then F1/F2 (about 2.5 to 3 ms back) and gating the Garden mirror
+   (estimated 4 to 9 ms every world frame).
+5. **The in-game event journal** for play sessions, on top of the dev MCP (`docs/ai/mcp.md`): events
+   by kind to small capped files, a mark key with a screenshot, an MCP tool reading one kind since
+   a mark.
+6. **How-to:** an independent review of the six how-tos, and a person's dated review of the four
+   marked lethal before any shows as checked (all four real-life ones are lethal by the scale's own
+   definition: the operator may want to look at that label); decisions 3 (dangerous work) and 4
+   (publishing) are the operator's; then increment 2 (`docs/design/how-to.md`).
+7. **The closed-loop test, phase 2** (`docs/design/closed-loop-test.md` section 13): the loader, the
+   report, the home-day cases on the life-support harness, then the aggregate tier.
+8. **Smaller leftovers from the wave:**
+   - the voice call manager in `net/webrtc.rs` (~1185) still receives with a timeout each turn,
+     the BUG-201 pattern;
+   - `relay-follow.test.js` is flaky under load;
+   - Maps' CPU tile bake is over its 2 ms budget in the frames that bake;
+   - low impact does not lower CPU per frame (the wall screens' UI 10 to 13 ms, terrain streaming);
+   - construction-system pieces are unknown to `ship::standing`;
+   - the greenhouse risers' cut-away is 0.24 m short;
+   - no desktop screen reader yet (AccessKit must exist before the window is shown);
+   - 233 desktop Tab stops have no name;
+   - the admin console's relay-to-system bridge (designed only);
+   - the backups' actions onto the run endpoint;
+   - the MCP server's admin tools.
+9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).
+
+**For the operator, when it suits him:** pair the two servers' continuous backups in each Backups
+panel (docs/admin/continuous-backup.md); run the federation live check after this release reaches
+both servers (docs/admin/federation-live-check.md: until both run it, chat between them is
+refused, because the signed chat words changed); open UDP 3478 for Direct calls
+(docs/admin/call-forwarder.md); `just install-share-guard` once.
+
+### DONE 2026-10-23/24: the wave, released as v0.1544.0
+
+Rust 1.99.1 pinned for PC, CI and both servers, with an UPDATES row in `just brief`; the project
+hooks; the saved skills (release, merge-agent, game-checks); CLAUDE.md split by audience (81 KB to
+36 KB); the build slot, the test-run policy and the lint cache; the closed-loop plan, reviewed
+three times; the How-to design and increment 1; continuous backup; voice connection modes;
+low-impact rigs; federation Phases 2 and 3 and per-address limits on every route; BUG-201 and
+three timing tests; the Dev > Claude panel; the power meters on recorded days; Maps increment 3;
+increment 7 polish and the Sun aperture setting; the dev MCP server (`.mcp.json`); the admin
+console (registry, alerts, federation panel with link state, admin log); signed key cards in the
+federation log; the accessibility pass (five phases); the ship's reactor at its net 30 MWe.
 
 ### DONE 2026-10-21/22: the five pieces paused at the usage cap all shipped
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width,initial-scale=1.0>
-  <title>Bug Reports, HumanityOS</title>
+  <title data-i18n="bugs.page_title">Bug Reports, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* Colours this page uses that have no theme token. The dark values are
@@ -111,79 +111,81 @@
   </style>
 </head>
 <body>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="dev"></script>
 <div id="page-app">
   <div class="page-header">
-    <h1>Bug Reports</h1>
-    <p>Report issues or vote on existing bugs to help prioritize fixes.</p>
+    <h1 data-i18n="bugs.heading">Bug Reports</h1>
+    <p data-i18n="bugs.intro">Report issues or vote on existing bugs to help prioritize fixes.</p>
   </div>
 
   <div class="info-box">
-    You can also report bugs on <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" rel="noopener">GitHub Issues</a> for public tracking.
+    <span data-i18n="bugs.also_github">You can also report bugs on</span> <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" rel="noopener" data-i18n="bugs.github_issues" data-i18n-tip="bugs.github_hint" data-tip-desc="Opens the HumanityOS issue list on GitHub in a new tab, a public place to report problems.">GitHub Issues</a> <span data-i18n="bugs.also_github_after">for public tracking.</span>
   </div>
 
   <!-- Report form -->
   <div class="bug-form">
-    <h2>Report a Bug</h2>
+    <h2 data-i18n="bugs.report_a_bug">Report a Bug</h2>
     <form id="bug-form" autocomplete="off">
       <div class="form-row">
         <div class="form-group">
-          <label>Title <span class="req">*</span></label>
-          <input type="text" id="bug-title" required maxlength="500" placeholder="Short summary of the issue">
+          <label><span data-i18n="bugs.title_label">Title</span> <span class="req">*</span></label>
+          <input type="text" id="bug-title" required maxlength="500" placeholder="Short summary of the issue" data-i18n-placeholder="bugs.title_placeholder_web" data-i18n-tip="bugs.title_hint" data-tip-desc="A short line that says what went wrong.">
         </div>
       </div>
       <div class="form-row full">
         <div class="form-group">
-          <label>Description <span class="req">*</span></label>
-          <textarea id="bug-description" required maxlength="10000" placeholder="What happened? Provide as much detail as possible."></textarea>
+          <label><span data-i18n="bugs.description">Description</span> <span class="req">*</span></label>
+          <textarea id="bug-description" required maxlength="10000" placeholder="What happened? Provide as much detail as possible." data-i18n-placeholder="bugs.description_placeholder_web" data-i18n-tip="bugs.description_hint" data-tip-desc="Say what you were doing, what you expected, and what happened instead."></textarea>
         </div>
       </div>
       <div class="form-row full">
         <div class="form-group">
-          <label>Steps to Reproduce</label>
-          <textarea id="bug-steps" placeholder="1. Go to ...&#10;2. Click on ...&#10;3. See error"></textarea>
+          <label data-i18n="bugs.steps">Steps to Reproduce</label>
+          <textarea id="bug-steps" placeholder="1. Go to ...&#10;2. Click on ...&#10;3. See error" data-i18n-placeholder="bugs.steps_placeholder" data-i18n-tip="bugs.steps_hint" data-tip-desc="List what you did, one step per line, so someone else can make the same thing happen."></textarea>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Expected Behavior</label>
-          <input type="text" id="bug-expected" placeholder="What should have happened">
+          <label data-i18n="bugs.expected">Expected Behavior</label>
+          <input type="text" id="bug-expected" placeholder="What should have happened" data-i18n-placeholder="bugs.expected_placeholder" data-i18n-tip="bugs.expected_hint" data-tip-desc="Say what you thought would happen.">
         </div>
         <div class="form-group">
-          <label>Actual Behavior</label>
-          <input type="text" id="bug-actual" placeholder="What actually happened">
+          <label data-i18n="bugs.actual">Actual Behavior</label>
+          <input type="text" id="bug-actual" placeholder="What actually happened" data-i18n-placeholder="bugs.actual_placeholder" data-i18n-tip="bugs.actual_hint" data-tip-desc="Say what happened instead.">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Severity</label>
-          <select id="bug-severity">
-            <option value="critical">Critical - app unusable</option>
-            <option value="high">High - major feature broken</option>
-            <option value="medium" selected>Medium - feature impaired</option>
-            <option value="low">Low - minor issue</option>
-            <option value="cosmetic">Cosmetic - visual only</option>
+          <label for="bug-severity" data-i18n="bugs.severity">Severity</label>
+          <select id="bug-severity" data-i18n-tip="bugs.severity_hint_web" data-tip-desc="Choose how badly this gets in the way, from Critical (the app cannot be used) down to Cosmetic (it only looks wrong).">
+            <option value="critical" data-i18n="bugs.sev_critical_long">Critical - app unusable</option>
+            <option value="high" data-i18n="bugs.sev_high_long">High - major feature broken</option>
+            <option value="medium" selected data-i18n="bugs.sev_medium_long">Medium - feature impaired</option>
+            <option value="low" data-i18n="bugs.sev_low_long">Low - minor issue</option>
+            <option value="cosmetic" data-i18n="bugs.sev_cosmetic_long">Cosmetic - visual only</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Category</label>
-          <select id="bug-category">
-            <option value="chat">Chat</option>
-            <option value="tasks">Tasks</option>
-            <option value="market">Market</option>
-            <option value="wallet">Wallet</option>
-            <option value="maps">Maps</option>
-            <option value="game">Game</option>
-            <option value="settings">Settings</option>
-            <option value="other" selected>Other</option>
+          <label for="bug-category" data-i18n="bugs.category">Category</label>
+          <select id="bug-category" data-i18n-tip="bugs.category_hint" data-tip-desc="Choose which part of the app the problem is in.">
+            <option value="chat" data-i18n="bugs.cat_chat">Chat</option>
+            <option value="tasks" data-i18n="bugs.cat_tasks">Tasks</option>
+            <option value="market" data-i18n="bugs.cat_market">Market</option>
+            <option value="wallet" data-i18n="bugs.cat_wallet">Wallet</option>
+            <option value="maps" data-i18n="bugs.cat_maps">Maps</option>
+            <option value="game" data-i18n="bugs.cat_game">Game</option>
+            <option value="settings" data-i18n="bugs.cat_settings">Settings</option>
+            <option value="other" selected data-i18n="bugs.cat_other">Other</option>
           </select>
         </div>
       </div>
-      <div class="auto-captured" id="auto-captured">
+      <div class="auto-captured" id="auto-captured" data-i18n="bugs.auto_captured">
         Auto-captured: browser, screen size, page URL, app version, your public key (if logged in)
       </div>
       <div class="form-actions">
-        <button type="submit" class="btn-submit" id="btn-submit">Submit Bug Report</button>
+        <button type="submit" class="btn-submit" id="btn-submit" data-i18n="bugs.submit_web" data-i18n-tip="bugs.submit_web_hint" data-tip-desc="Sends this report to the server, where other members and the maintainers can read it. The details listed just above go with it.">Submit Bug Report</button>
         <span class="form-status" id="form-status"></span>
       </div>
     </form>
@@ -191,34 +193,34 @@
 
   <!-- Bug list -->
   <div class="bug-list-header">
-    <h2>Known Bugs</h2>
+    <h2 data-i18n="bugs.known">Known Bugs</h2>
     <div class="filters">
-      <select id="filter-status">
-        <option value="">All Statuses</option>
-        <option value="open">Open</option>
-        <option value="in_progress">In Progress</option>
-        <option value="fixed">Fixed</option>
-        <option value="wont_fix">Won't Fix</option>
-        <option value="duplicate">Duplicate</option>
+      <select data-i18n-aria-label="bugs.filter_status_label" aria-label="Show reports with this status" id="filter-status" data-i18n-tip="bugs.filter_status_hint" data-tip-desc="Shows only the reports with the status you choose.">
+        <option value="" data-i18n="bugs.all_statuses">All Statuses</option>
+        <option value="open" data-i18n="bugs.status_open">Open</option>
+        <option value="in_progress" data-i18n="bugs.status_in_progress">In Progress</option>
+        <option value="fixed" data-i18n="bugs.status_fixed">Fixed</option>
+        <option value="wont_fix" data-i18n="bugs.status_wont_fix">Won't Fix</option>
+        <option value="duplicate" data-i18n="bugs.status_duplicate">Duplicate</option>
       </select>
-      <select id="filter-severity">
-        <option value="">All Severities</option>
-        <option value="critical">Critical</option>
-        <option value="high">High</option>
-        <option value="medium">Medium</option>
-        <option value="low">Low</option>
-        <option value="cosmetic">Cosmetic</option>
+      <select data-i18n-aria-label="bugs.filter_severity_label" aria-label="Show reports this serious" id="filter-severity" data-i18n-tip="bugs.filter_severity_hint" data-tip-desc="Shows only the reports as serious as you choose.">
+        <option value="" data-i18n="bugs.all_severities">All Severities</option>
+        <option value="critical" data-i18n="bugs.sev_critical">Critical</option>
+        <option value="high" data-i18n="bugs.sev_high">High</option>
+        <option value="medium" data-i18n="bugs.sev_medium">Medium</option>
+        <option value="low" data-i18n="bugs.sev_low">Low</option>
+        <option value="cosmetic" data-i18n="bugs.sev_cosmetic">Cosmetic</option>
       </select>
-      <select id="filter-category">
-        <option value="">All Categories</option>
-        <option value="chat">Chat</option>
-        <option value="tasks">Tasks</option>
-        <option value="market">Market</option>
-        <option value="wallet">Wallet</option>
-        <option value="maps">Maps</option>
-        <option value="game">Game</option>
-        <option value="settings">Settings</option>
-        <option value="other">Other</option>
+      <select data-i18n-aria-label="bugs.filter_category_label" aria-label="Show reports about this part of the app" id="filter-category" data-i18n-tip="bugs.filter_category_hint" data-tip-desc="Shows only the reports about the part of the app you choose.">
+        <option value="" data-i18n="bugs.all_categories">All Categories</option>
+        <option value="chat" data-i18n="bugs.cat_chat">Chat</option>
+        <option value="tasks" data-i18n="bugs.cat_tasks">Tasks</option>
+        <option value="market" data-i18n="bugs.cat_market">Market</option>
+        <option value="wallet" data-i18n="bugs.cat_wallet">Wallet</option>
+        <option value="maps" data-i18n="bugs.cat_maps">Maps</option>
+        <option value="game" data-i18n="bugs.cat_game">Game</option>
+        <option value="settings" data-i18n="bugs.cat_settings">Settings</option>
+        <option value="other" data-i18n="bugs.cat_other">Other</option>
       </select>
     </div>
   </div>

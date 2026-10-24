@@ -21,6 +21,10 @@
 (function () {
   'use strict';
 
+  // Words come from data/i18n/en.json by key (i18n.t; donate.html loads i18n.js
+  // first). Cards built here carry data-i18n-tip and go through i18n.apply, so
+  // each link and button gets its plain-language hint.
+
   // ── Network icon colors for the colored-circle abbreviation display ──
   var networkColors = {
     'github sponsors': '#c678dd',
@@ -52,21 +56,21 @@
 
   /** Format USD amount with commas */
   function fmtUSD(n) {
-    return '$' + Math.round(n).toLocaleString('en-US');
+    return i18n.t('donate.goal_usd', { amount: Math.round(n).toLocaleString('en-US') });
   }
 
   /** Copy text to clipboard, show "Copied!" feedback on button */
   function copyAddress(addr, btnEl) {
     if (!addr) return;
     navigator.clipboard.writeText(addr).then(function () {
-      btnEl.textContent = 'Copied!';
+      btnEl.textContent = i18n.t('donate.copied');
       btnEl.classList.add('copied');
       setTimeout(function () {
-        btnEl.textContent = 'Copy';
+        btnEl.textContent = i18n.t('donate.copy');
         btnEl.classList.remove('copied');
       }, 2000);
     }).catch(function () {
-      var ta = document.createElement('textarea');
+      var ta = document.createElement('textarea'); // hint-exempt: an off-screen box used only to copy the address, never seen
       ta.value = addr;
       ta.style.position = 'fixed';
       ta.style.left = '-9999px';
@@ -74,10 +78,10 @@
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      btnEl.textContent = 'Copied!';
+      btnEl.textContent = i18n.t('donate.copied');
       btnEl.classList.add('copied');
       setTimeout(function () {
-        btnEl.textContent = 'Copy';
+        btnEl.textContent = i18n.t('donate.copy');
         btnEl.classList.remove('copied');
       }, 2000);
     });
@@ -146,13 +150,14 @@
       card.innerHTML =
         '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(r.name) + '</h3>' +
         (r.kind ? '<div class="route-kind">' + escHtml(r.kind) + '</div>' : '') +
-        '<div class="tax-badge' + (r.tax_deductible ? ' yes' : '') + '">' +
-          (r.tax_deductible ? 'Tax-deductible' : 'Not tax-deductible') + '</div>' +
+        '<div class="tax-badge' + (r.tax_deductible ? ' yes' : '') + '">' + // i18n-exempt: the CSS class "yes"
+          escHtml(r.tax_deductible ? i18n.t('donate.tax_deductible') : i18n.t('donate.not_tax_deductible')) + '</div>' +
         (r.about ? '<p class="route-about">' + escHtml(r.about) + '</p>' : '') +
         '<p class="route-goes">' + escHtml(r.goes_to || '') + '</p>' +
         (r.note ? '<div class="route-note">' + escHtml(r.note) + '</div>' : '') +
-        '<div class="route-action"><a href="' + escHtml(r.url) + '" target="_blank" rel="noopener" class="btn-sponsor">' + escHtml(r.button || 'Open') + '</a>' +
+        '<div class="route-action"><a href="' + escHtml(r.url) + '" target="_blank" rel="noopener" class="btn-sponsor" data-i18n-tip="donate.route_open_hint">' + escHtml(r.button || i18n.t('donate.open')) + '</a>' +
         '<span class="route-url">' + escHtml(r.url) + '</span></div>';
+      i18n.apply(card);
       grid.appendChild(card);
     });
     section.style.display = grid.children.length ? '' : 'none';
@@ -177,17 +182,18 @@
         card.innerHTML =
           '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(entry.network) + '</h3>' +
           '<p>' + escHtml(label) + '</p>' +
-          '<a href="' + escHtml(value) + '" target="_blank" rel="noopener" class="btn-sponsor">Open</a>';
+          '<a href="' + escHtml(value) + '" target="_blank" rel="noopener" class="btn-sponsor" data-i18n-tip="donate.link_open_hint">' + escHtml(i18n.t('donate.open')) + '</a>';
       } else {
         // Address-based source (crypto address)
         card.innerHTML =
           '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(entry.network) + '</h3>' +
           '<p>' + escHtml(label) + '</p>' +
           '<div class="addr-row"><span class="addr-text">' + escHtml(value) + '</span>' +
-          '<button class="btn-copy" onclick="window.__donateCopy(\'' + escHtml(value) + '\', this)">Copy</button></div>' +
+          '<button class="btn-copy" data-i18n-tip="donate.copy_address_hint" onclick="window.__donateCopy(\'' + escHtml(value) + '\', this)">' + escHtml(i18n.t('donate.copy')) + '</button></div>' +
           '<div class="qr-container" id="qr-addr-' + idx + '"></div>';
       }
 
+      i18n.apply(card);
       grid.appendChild(card);
     });
 
@@ -240,7 +246,8 @@
         '<h3>' + iconHtml(abbrev, c.color || '#4a9') + ' ' + escHtml(c.name) + '</h3>' +
         '<p>' + escHtml(c.mission || '') + '</p>' +
         (c.note ? '<p>' + escHtml(c.note) + '</p>' : '') +
-        (c.url ? '<a href="' + escHtml(c.url) + '" target="_blank" rel="noopener" class="btn-sponsor">Donate</a>' : '');
+        (c.url ? '<a href="' + escHtml(c.url) + '" target="_blank" rel="noopener" class="btn-sponsor" data-i18n-tip="donate.charity_donate_hint">' + escHtml(i18n.t('donate.donate_button')) + '</a>' : '');
+      i18n.apply(card);
       grid.appendChild(card);
     });
     section.style.display = grid.children.length ? '' : 'none';
@@ -259,7 +266,9 @@
       item.innerHTML =
         '<div class="faq-q">' + escHtml(e.question) + '</div>' +
         '<div class="faq-a">' + escHtml(e.answer || '') + '</div>';
-      item.querySelector('.faq-q').addEventListener('click', function () { item.classList.toggle('open'); });
+      var q = item.querySelector('.faq-q');
+      i18n.hint(q, 'donate.faq_question_hint');
+      q.addEventListener('click', function () { item.classList.toggle('open'); });
       list.appendChild(item);
     });
     section.style.display = list.children.length ? '' : 'none';

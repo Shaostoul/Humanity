@@ -88,11 +88,6 @@ async function exportContactCard() {
     ts:   Math.floor(Date.now() / 1000),
   };
 
-  // Full-PQ: attach our Kyber768 public key so the peer can seal P2P
-  // DMs to us (pure ML-KEM, same envelope as relay DMs). Set by
-  // attachPqIdentity() in crypto.js on connect.
-  if (myKyberPublicBase64) payload.kyber = myKyberPublicBase64;
-
   // Sign the canonical JSON with Dilithium3, `pub` IS the Dilithium
   // identity key, so the card must be Dilithium-signed (not Ed25519).
   const canonical = JSON.stringify(payload, Object.keys(payload).sort());
@@ -106,7 +101,11 @@ async function exportContactCard() {
     return;
   }
 
+  // My key card rides beside the signed payload (key cards, 2026-10-22): it is
+  // signed by my identity itself, so the importer checks it on its own and
+  // seals to me only with the key it carries.
   const card = { ...payload, sig };
+  if (myKeyCard) card.key_card = myKeyCard;
   const cardJson = JSON.stringify(card, null, 2);
 
   showContactCardExportModal(cardJson);
@@ -284,15 +283,23 @@ async function importContactCard(json) {
 
   // Verify the Dilithium3 signature over the canonical payload.
   const payload = { v: card.v, name: card.name, pub: card.pub, ts: card.ts };
-  if (card.kyber) payload.kyber = card.kyber;
   const canonical = JSON.stringify(payload, Object.keys(payload).sort());
   const valid = await verifyContactCardSignature(canonical, card.sig, card.pub);
   if (!valid) throw new Error('Signature verification failed, card may be tampered.');
 
+  // Their key card, when the contact card carries one: checked on its own
+  // (signed by their identity, naming them) and pinned like any other, so
+  // what is sealed to them uses only a key they signed (key cards, 2026-10-22).
+  if (card.key_card && typeof hosKeyCards !== 'undefined') {
+    const kc = typeof HosKeyCard !== 'undefined' ? HosKeyCard.parseCard(card.key_card) : null;
+    if (!kc || kc.key !== card.pub || (await hosKeyCards.ingest(kc)) === null) {
+      throw new Error('The key card in this contact card does not check out as theirs.');
+    }
+  }
+
   // Store in memory (IndexedDB persistence is a future improvement).
   p2pContacts[card.pub] = {
     name:      card.name,
-    kyber_pub: card.kyber || null,
     added_at:  Date.now(),
     dc_status: 'idle',
   };
@@ -537,9 +544,10 @@ async function sendP2PMessage(peerPubKey, text) {
   // Never my recovery phrase (step F, chat-warnings.js), on a direct channel or through the relay.
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
   const dc = p2pDataChannels[peerPubKey];
-  const contact = p2pContacts[peerPubKey];
+  // Only a key from their key card, checked and pinned here (key cards, 2026-10-22).
+  const peerKyber = getPeerEcdhPublic(peerPubKey);
 
-  if (dc && dc.readyState === 'open' && contact?.kyber_pub) {
+  if (dc && dc.readyState === 'open' && peerKyber) {
     // Happy path: sealed-sender v2 envelope over the open DataChannel.
     // Same signed-inner format as the relay path, so the receiver
     // verifies authorship identically (and can dedupe against relay
@@ -550,7 +558,7 @@ async function sendP2PMessage(peerPubKey, text) {
       const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
       if (sigBytes) {
         const inner = { v: 2, from: myKey, to: peerPubKey, ts: sentTs, text, sig: btoa(String.fromCharCode(...sigBytes)) };
-        const sealed = await window.pqDmSeal(contact.kyber_pub, JSON.stringify(inner));
+        const sealed = await window.pqDmSeal(peerKyber, JSON.stringify(inner));
         if (sealed) {
           const env = JSON.stringify({ v: 2, ek_ct_b64: sealed.ek_ct_b64, nonce_b64: sealed.nonce_b64, ct_b64: sealed.ct_b64 });
           dc.send(JSON.stringify({ type: 'p2p_dm', env }));

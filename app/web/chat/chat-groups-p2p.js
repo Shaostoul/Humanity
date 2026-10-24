@@ -325,12 +325,13 @@
     } catch (e) { return null; }
 
     // (4) Compute each member's fingerprint; identify gaps. Members without a
-    // registered Kyber pubkey are silently skipped (they cannot be sealed to
-    // until they register).
+    // key card that checks out as theirs are skipped (they cannot be sealed to
+    // until their app publishes one; key cards, 2026-10-22).
     const sealable = [];
     let hasGap = false;
     for (const m of allMembers) {
-      if (!m.kyber_public || !m.pubkey) continue;
+      const kyber = (typeof hosKeyCards !== 'undefined' && m) ? await hosKeyCards.memberKey(m) : null;
+      if (!kyber || !m.pubkey) continue;
       // Someone this device removed is never sealed to again, even while the
       // server still lists them (between the new key and the removal).
       if (_wasRemoved(groupId, m.pubkey)) continue;
@@ -338,7 +339,7 @@
       const h = blake3(pubBytes);
       let fp = '';
       for (let i = 0; i < 16; i++) fp += h[i].toString(16).padStart(2, '0');
-      sealable.push({ fp, kyber_public: m.kyber_public });
+      sealable.push({ fp, kyber_public: kyber });
       if (!coveredFps.has(fp)) hasGap = true;
     }
 
@@ -590,10 +591,13 @@
     const gone = String(without || '').toLowerCase();
     const sealable = [];
     for (const m of members) {
-      if (!m || !m.pubkey || !m.kyber_public) continue;
+      if (!m || !m.pubkey) continue;
       if (gone && String(m.pubkey).toLowerCase() === gone) continue; // even if the server still lists them
       if (_wasRemoved(groupId, m.pubkey)) continue; // nor anyone else this device removed
-      sealable.push({ fp: fpFromPubHex(m.pubkey, blake3), kyber_public: m.kyber_public });
+      // Only a key from a card that checks out as theirs (key cards, 2026-10-22).
+      const kyber = typeof hosKeyCards !== 'undefined' ? await hosKeyCards.memberKey(m) : null;
+      if (!kyber) continue;
+      sealable.push({ fp: fpFromPubHex(m.pubkey, blake3), kyber_public: kyber });
     }
     const epoch = currentEpoch + 1;
     const epochKey = obj.randomEpochKey();

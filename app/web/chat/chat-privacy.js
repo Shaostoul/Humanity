@@ -530,7 +530,7 @@ async function sendContactRequest(peer, opts) {
   }
   const built = await pqBuildContactRequest(peer, myName);
   if (!built) {
-    reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
+    reachSay('The request could not be sent yet: there is no key card for this person here that this page could check, or your identity is still loading. Try again in a moment.');
     return false;
   }
   // Recorded only when the server takes it; the self-copy is held until then.
@@ -815,6 +815,8 @@ function safetyPanelHtml(model) {
   // Files in messages (2026-10-11), beside "Who can reach me": drawn into this
   // place with createElement by drawFilesInMessages (renderSafetyPanel).
   if (window.HosFilesInMessages) html += '<div class="safety-files" data-files-in-messages></div>';
+  // Calls and voice rooms (10p, 2026-10-22): how they connect, drawn by drawCallConnection.
+  if (window.HosCallConnection) html += '<div class="safety-calls" data-call-connection></div>';
   html += `<h3 style="${SAFETY_H3}">Requests</h3>`
     + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
     + contactRequestsHtml(model.requests);
@@ -937,6 +939,8 @@ function renderSafetyPanel() {
   }
   const filesBox = window.HosFilesInMessages ? card.querySelector('[data-files-in-messages]') : null;
   if (filesBox) drawFilesInMessages(filesBox);
+  const callsBox = window.HosCallConnection ? card.querySelector('[data-call-connection]') : null;
+  if (callsBox) drawCallConnection(callsBox);
   if (typeof wireProtectedSafety === 'function') wireProtectedSafety(card);
 }
 
@@ -1050,6 +1054,94 @@ function drawFilesInMessages(box) {
   // Device-to-device big files (2026-10-11): whether a file with a friend may go straight between
   // our devices rather than through the server's call relay (chat-file-transfer.js; off by default).
   if (typeof drawFileDirectRow === 'function') drawFileDirectRow(box, row);
+}
+
+// ── Calls and voice rooms (10p, 2026-10-22) ──────────────────────────────
+// How this person's calls and voice rooms connect, kept on this device
+// (/shared/call-connection.js; the desktop app's Settings > Privacy has the
+// same choice in the same words, both from /data/net/call_connection.json):
+// Private (the default: only the server's call relay is offered, nobody in a
+// call sees my address), Direct (my own addresses too), or Direct also asking
+// a public service I pick. Each mode's summary, which says who can see my
+// address, is always shown under it. With the protected setup on, every call
+// is Private and the others cannot be picked here. A change applies to calls
+// and rooms started after it (chat-voice-rooms.js callRtcConfig).
+
+/** Keep a changed call connection setting ({mode} or {publicStun}). */
+function chooseCallConnection(change) {
+  const C = window.HosCallConnection;
+  if (!C) return false;
+  const storage = filesSettingsStorage();
+  const ok = (change.mode === undefined || C.writeMode(storage, change.mode))
+    && (change.publicStun === undefined || C.writePublic(storage, change.publicStun));
+  if (!ok) reachSay('This browser could not keep that setting.');
+  renderSafetyPanel();
+  return ok;
+}
+
+/** Draw the Calls and voice rooms choice into `box` (createElement and textContent only). */
+function drawCallConnection(box) {
+  const C = window.HosCallConnection;
+  const words = C.words();
+  // The words come from the data file, fetched the first time; drawn again once they are here.
+  if (!words) C.loadWords().then((w) => { if (w) renderSafetyPanel(); });
+  const W = words || {};
+  const prot = typeof protectedIsOn === 'function' && protectedIsOn();
+  const storage = filesSettingsStorage();
+  const mode = C.effective(C.readMode(storage), prot);
+  const mk = (tag, css, text) => {
+    const el = document.createElement(tag);
+    if (css) el.style.cssText = css;
+    if (text != null) el.textContent = text;
+    return el;
+  };
+  if (typeof box.replaceChildren === 'function') box.replaceChildren();
+  box.appendChild(mk('h3', SAFETY_H3, W.heading || 'Calls and voice rooms'));
+  if (W.intro) box.appendChild(mk('p', SAFETY_NOTE, W.intro));
+  if (prot && W.protected_line) box.appendChild(mk('p', SAFETY_NOTE, W.protected_line));
+  for (const m of C.MODES) {
+    const mw = C.modeWords(W, m);
+    const r = mk('div', 'padding:var(--space-sm) 0;border-top:1px solid var(--border);');
+    r.className = 'safety-calls-row';
+    const label = mk('label', 'display:flex;align-items:center;gap:var(--space-sm);font-weight:600;color:var(--text);cursor:pointer;');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'call-connection';
+    radio.value = m;
+    radio.checked = m === mode;
+    radio.disabled = prot && m !== 'private';
+    radio.dataset.callConnection = m;
+    radio.setAttribute('aria-label', mw.label);
+    radio.onchange = () => { if (radio.checked) chooseCallConnection({ mode: m }); };
+    label.appendChild(radio);
+    label.appendChild(mk('span', null, mw.label));
+    r.appendChild(label);
+    if (mw.summary) r.appendChild(mk('div', SAFETY_NOTE + 'margin-top:var(--space-xs);color:var(--text);', mw.summary));
+    if (mw.detail) r.appendChild(mk('div', SAFETY_NOTE, mw.detail));
+    box.appendChild(r);
+  }
+  // The third mode: which public service, named, so the person knows who sees the address.
+  const services = Array.isArray(W.public_stun) ? W.public_stun : [];
+  if (mode === 'direct_public_stun' && services.length) {
+    const picked = C.publicStunOf(W, C.readPublic(storage));
+    const sel = document.createElement('select');
+    sel.dataset.callPublicStun = '1';
+    sel.setAttribute('aria-label', W.public_stun_label || 'Which service');
+    sel.style.cssText = 'background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);';
+    for (const s of services) {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      if (picked && s.id === picked.id) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (picked) sel.value = picked.id;
+    sel.onchange = () => chooseCallConnection({ publicStun: sel.value });
+    const r = mk('div', 'display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);padding:var(--space-sm) 0;border-top:1px solid var(--border);');
+    r.appendChild(mk('span', 'font-weight:600;color:var(--text);', W.public_stun_label || 'Which service'));
+    r.appendChild(sel);
+    box.appendChild(r);
+  }
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────

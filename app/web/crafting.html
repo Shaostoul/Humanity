@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>Crafting, HumanityOS</title>
+  <title data-i18n="crafting.page_title">Crafting, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -38,23 +38,25 @@
   </style>
 </head>
 <body>
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
   <script src="/shared/shell.js" data-active="crafting"></script>
 
   <div id="page-app">
     <div class="craft-hero">
-      <h1>Crafting</h1>
-      <p>Every recipe in HumanityOS: what it takes, what it makes, and where to make it. Search and browse the full reference below.</p>
+      <h1 data-i18n="crafting.title">Crafting</h1>
+      <p data-i18n="crafting.intro">Every recipe in HumanityOS: what it takes, what it makes, and where to make it. Search and browse the full reference below.</p>
     </div>
-    <p class="craft-note">These recipes are here for looking up. To actually make them, open the <a href="/download">desktop app</a>.</p>
+    <p class="craft-note"><span data-i18n="crafting.note_lead">These recipes are here for looking up. To actually make them, open the</span> <a href="/download" data-i18n="crafting.note_link" data-i18n-tip="crafting.download_hint" data-tip-desc="Opens the page where you can get the desktop app, which is where recipes are made.">desktop app</a>.</p>
 
     <div class="craft-controls">
-      <input id="recipe-search" class="craft-search" type="search" placeholder="Search recipes, ingredients, or stations..." aria-label="Search recipes">
-      <div id="cat-filters" class="cat-filters" role="group" aria-label="Filter recipes by category"></div>
+      <input id="recipe-search" class="craft-search" type="search" data-i18n-placeholder="crafting.search_placeholder" placeholder="Search recipes, ingredients, or stations..." data-i18n-aria-label="crafting.search_label" aria-label="Search recipes" data-i18n-tip="crafting.search_hint" data-tip-desc="Type part of a name, an ingredient or a station to show only the recipes that match.">
+      <div id="cat-filters" class="cat-filters" role="group" data-i18n-aria-label="crafting.filter_label" aria-label="Filter recipes by category"></div>
     </div>
     <div id="recipe-count" class="craft-count" aria-live="polite"></div>
-    <p class="craft-reminder">Reference only. Make these in the desktop app.</p>
+    <p class="craft-reminder" data-i18n="crafting.reminder">Reference only. Make these in the desktop app.</p>
     <div id="recipe-grid" class="recipe-grid"></div>
-    <div id="recipe-empty" class="craft-empty" hidden>No recipes match your search.</div>
+    <div id="recipe-empty" class="craft-empty" hidden data-i18n="crafting.no_search_match">No recipes match your search.</div>
   </div>
 
   <script>
@@ -70,23 +72,23 @@
       function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
 
       function itemsHtml(items,cls){
-        if(!items||!items.length) return '<span class="io-items '+cls+'"><span class="io-item">nothing</span></span>';
+        if(!items||!items.length) return '<span class="io-items '+cls+'"><span class="io-item">'+esc(i18n.t('crafting.nothing'))+'</span></span>';
         return '<span class="io-items '+cls+'">'+items.map(function(it){
-          return '<span class="io-item">'+esc(it.label)+(it.qty>1?(' x'+it.qty):'')+'</span>';
+          return '<span class="io-item">'+esc(it.qty>1?i18n.t('crafting.item_count',{item:it.label,n:it.qty}):it.label)+'</span>';
         }).join('')+'</span>';
       }
 
       function card(r){
         var meta=[];
-        if(r.station) meta.push('Station: '+esc(r.station));
-        if(r.tools&&r.tools.length) meta.push('Tools: '+r.tools.map(function(t){return esc(t.label);}).join(', '));
-        if(r.skill) meta.push(esc(r.skill)+' Lv '+r.skill_level);
-        if(r.craft_time_sec) meta.push(r.craft_time_sec+'s');
+        if(r.station) meta.push(esc(i18n.t('crafting.station_meta',{station:r.station})));
+        if(r.tools&&r.tools.length) meta.push(esc(i18n.t('crafting.tools_meta',{tools:r.tools.map(function(tool){return tool.label;}).join(', ')})));
+        if(r.skill) meta.push(esc(i18n.t('crafting.skill_meta',{skill:r.skill,level:r.skill_level})));
+        if(r.craft_time_sec) meta.push(esc(i18n.t('crafting.seconds',{n:r.craft_time_sec})));
         return '<div class="recipe-card">'+
           '<h3>'+esc(r.name)+'<span class="recipe-cat">'+esc(r.category)+'</span></h3>'+
           (r.description?'<p class="recipe-desc">'+esc(r.description)+'</p>':'')+
           '<div class="recipe-io">'+itemsHtml(r.inputs,'io-in')+
-            '<span class="io-arrow" aria-label="makes">→</span>'+
+            '<span class="io-arrow" aria-label="'+esc(i18n.t('crafting.makes_label'))+'">→</span>'+
             itemsHtml(r.outputs,'io-out')+'</div>'+
           (meta.length?('<div class="recipe-meta">'+meta.map(function(m){return '<span>'+m+'</span>';}).join('')+'</div>'):'')+
         '</div>';
@@ -104,13 +106,16 @@
         });
         grid.innerHTML=filtered.map(card).join('');
         emptyEl.hidden=filtered.length>0;
-        countEl.textContent=filtered.length+' of '+recipes.length+' recipes';
+        countEl.textContent=i18n.t('crafting.count',{shown:filtered.length,total:recipes.length});
       }
 
       function buildFilters(){
         var cats=['all'].concat(categories);
         filtersEl.innerHTML=cats.map(function(c){
-          return '<button class="cat-chip" type="button" data-cat="'+esc(c)+'" aria-pressed="'+(c===activeCat)+'">'+esc(c)+'</button>';
+          var all=c==='all';
+          var hintKey=all?'crafting.all_hint':'crafting.category_chip_hint';
+          return '<button class="cat-chip" type="button" data-cat="'+esc(c)+'" aria-pressed="'+(c===activeCat)+'"'+
+            ' data-i18n-tip="'+hintKey+'" data-tip-desc="'+esc(i18n.t(hintKey))+'">'+esc(all?i18n.t('crafting.all'):c)+'</button>';
         }).join('');
         Array.prototype.forEach.call(filtersEl.querySelectorAll('.cat-chip'),function(btn){
           btn.addEventListener('click',function(){
@@ -132,7 +137,7 @@
         render();
       }).catch(function(){
         countEl.textContent='';
-        grid.innerHTML='<div class="craft-empty">Could not load recipes right now. Please try again.</div>';
+        grid.innerHTML='<div class="craft-empty">'+esc(i18n.t('crafting.load_failed'))+'</div>';
       });
     })();
   </script>

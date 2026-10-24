@@ -13,7 +13,9 @@
 // asks the relay for `call_credentials` for this call and builds its peer
 // connection from exactly the reply, relay only, so the other person sees the
 // server's address and never yours. No credentials: the call ends and the call
-// bar says why; there is no direct fallback.
+// bar says why; there is no direct fallback. That is the Private mode, the
+// default; a person who chose Direct (10p) offers their own address too, and
+// connects device to device where it can when the server cannot relay.
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── Voice Call / WebRTC (1-on-1 DM calls) ──
@@ -142,6 +144,10 @@ function resetCallState() {
   callPeerKey = null;
   callPeerName = '';
   callCredentials = null;
+  // The next call says again that it goes device to device, if it does (10p).
+  if (typeof callsToldDirect !== 'undefined') {
+    for (const k of Array.from(callsToldDirect)) if (k.startsWith('call:')) callsToldDirect.delete(k);
+  }
   isMuted = false;
   if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
   callStartTime = null;
@@ -179,15 +185,22 @@ function toggleMute() {
 }
 
 async function setupPeerConnection(isCaller) {
-  // Through the server only (step E): this call's credentials, or no connection.
+  // Private (step E): this call's credentials, or no connection. A Direct mode
+  // (10p, chat-voice-rooms.js callRtcConfig) connects device to device where it
+  // can without them.
   const peer = callPeerKey;
   const creds = await callCredentialsFor(peer);
   if (callState !== 'in-call' || callPeerKey !== peer) return false; // ended while waiting
-  if (!creds) { callCannotConnect(); return false; }
-  const pc = new RTCPeerConnection(relayOnlyRtcConfig(creds));
+  const config = await callRtcConfig(creds);
+  if (callState !== 'in-call' || callPeerKey !== peer) return false; // ended while waiting
+  if (!config) { callCannotConnect(); return false; }
+  const direct = config.iceTransportPolicy !== 'relay';
+  if (direct && !creds) sayCallsDirectOnly('call:' + peer);
+  const pc = new RTCPeerConnection(config);
   peerConnection = pc;
   // Addresses the forwarder gave this connection. None by the end of gathering
-  // means the server's call port did not answer, so no connection can form.
+  // means the server's call port did not answer: in the Private mode no
+  // connection can form; in a Direct one it may still, device to device.
   let relayAddresses = 0;
 
   // Get microphone
@@ -229,7 +242,8 @@ async function setupPeerConnection(isCaller) {
 
   // ICE candidates → send to peer
   peerConnection.onicecandidate = (event) => {
-    if (event.candidate) relayAddresses++;
+    // Only a relayed address counts: in a Direct mode this device's own come too.
+    if (event.candidate && (!direct || window.HosCallConnection.isRelayCandidate(event.candidate))) relayAddresses++;
     if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
@@ -243,14 +257,16 @@ async function setupPeerConnection(isCaller) {
 
   peerConnection.onicegatheringstatechange = () => {
     if (pc.iceGatheringState === 'complete' && relayAddresses === 0 && peerConnection === pc) {
-      callCannotConnect();
+      if (direct) sayCallsDirectOnly('call:' + peer);
+      else callCannotConnect();
     }
   };
 
   peerConnection.onconnectionstatechange = () => {
     if (peerConnection && (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed')) {
-      // Never a direct retry: the call is through the server or not at all.
-      if (peerConnection.connectionState === 'failed' && relayAddresses === 0) {
+      // Never a direct retry: in the Private mode the call is through the
+      // server or not at all.
+      if (peerConnection.connectionState === 'failed' && relayAddresses === 0 && !direct) {
         callCannotConnect();
         return;
       }

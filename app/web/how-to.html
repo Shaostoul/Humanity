@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How-to, HumanityOS</title>
+  <meta name="description" content="Step-by-step how-tos for real life and for HumanityOS: what you need, the steps to tick off, the timers, the checks, and what to do when something goes wrong, each with its sources and the dates they were read.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <link rel="stylesheet" href="/shared/files.css">
+  <link rel="stylesheet" href="/shared/how-it-works.css">
+  <style>
+    /* Web mirror of the desktop's How-to page (src/gui/pages/how_to.rs, docs/design/how-to.md):
+       three panes, the rail, the list and the how-to, side by side on a wide window and one above
+       another on a narrow one (the Files page's panes, /pages/files-panes.js, whose styles are in
+       /shared/files.css). Theme variables only. */
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    #howto-root { padding: var(--space-lg) var(--space-xl); }
+    .howto-head { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+    .howto-head h1 { font-size: var(--text-2xl); font-weight: 700; margin: 0; }
+    .howto-line { color: var(--text-muted); font-size: var(--text-sm); margin: var(--space-xs) 0 var(--space-md); max-width: 60rem; }
+    .howto-error { color: var(--danger); font-size: var(--text-sm); }
+
+    .howto-search { width: 100%; box-sizing: border-box; background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm); font: inherit; margin-bottom: var(--space-md); }
+    .howto-search:focus { outline: none; border-color: var(--border-focus); }
+    .howto-label { font-size: var(--text-sm); font-weight: 700; color: var(--text-secondary); margin: var(--space-md) 0 var(--space-xs); }
+    .howto-row { display: flex; align-items: center; gap: var(--space-xs); width: 100%; text-align: left; background: none; border: none; color: var(--text-secondary); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius); cursor: pointer; font: inherit; }
+    .howto-row:hover { background: var(--bg-tertiary); }
+    .howto-row[aria-current="true"] { background: var(--bg-secondary); color: var(--text); font-weight: 600; }
+    .howto-row .howto-fold { width: 1em; color: var(--text-muted); flex: none; }
+    .howto-row .howto-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .howto-row .howto-count { color: var(--text-muted); font-size: var(--text-sm); flex: none; }
+    .howto-doing { display: block; width: 100%; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-xs) var(--space-sm); margin-bottom: var(--space-xs); color: var(--text); cursor: pointer; font: inherit; }
+    .howto-doing small { display: block; color: var(--text-muted); }
+    .howto-refused { font-size: var(--text-sm); color: var(--text-secondary); }
+
+    .howto-tabs { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin: var(--space-xs) 0 var(--space-sm); }
+    .howto-tab { padding: var(--space-xs) var(--space-md); border-radius: var(--radius); background: var(--bg-card); border: 1px solid var(--border); color: var(--text); cursor: pointer; font: inherit; font-size: var(--text-sm); }
+    .howto-tab[aria-pressed="true"] { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+    .howto-card { display: block; width: 100%; text-align: left; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-sm); margin-bottom: var(--space-xs); color: var(--text); cursor: pointer; font: inherit; }
+    .howto-card[aria-current="true"] { border-color: var(--accent); background: var(--bg-secondary); }
+    .howto-card strong { display: block; }
+    .howto-card .howto-summary { display: block; color: var(--text-secondary); font-size: var(--text-sm); }
+    .howto-meta { color: var(--text-muted); font-size: var(--text-sm); display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+    .howto-planned strong { color: var(--text-muted); font-weight: 400; }
+    .howto-planned em { color: var(--text-muted); font-size: var(--text-sm); }
+
+    .howto-hazard { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: var(--text-sm); }
+    .howto-hazard svg { width: 1em; height: 1em; }
+    .howto-hazard-caution { color: var(--info); }
+    .howto-hazard-serious { color: var(--warning); }
+    .howto-hazard-lethal { color: var(--danger); }
+
+    .howto-view h2 { font-size: var(--text-xl); margin: 0 0 var(--space-xs); }
+    .howto-view h3 { font-size: var(--text-base); margin: var(--space-lg) 0 var(--space-xs); }
+    .howto-view p { margin: var(--space-xs) 0; }
+    .howto-muted { color: var(--text-muted); font-size: var(--text-sm); }
+    .howto-second { color: var(--text-secondary); font-size: var(--text-sm); }
+    .howto-stop { border: 2px solid var(--danger); background: var(--bg-secondary); border-radius: var(--radius); padding: var(--space-sm) var(--space-md); margin: var(--space-sm) 0; }
+    .howto-stop h3 { color: var(--danger); margin: 0 0 var(--space-xs); display: flex; align-items: center; gap: 6px; }
+    .howto-stop dt { font-weight: 700; margin-top: var(--space-xs); }
+    .howto-stop dd { margin: 0 0 var(--space-xs); }
+    .howto-need { margin: 0; padding-left: 1.2em; }
+    .howto-start { background: var(--accent); color: var(--text-on-accent); border: none; border-radius: var(--radius); padding: var(--space-sm) var(--space-lg); font: inherit; font-weight: 700; cursor: pointer; }
+    .howto-progress { color: var(--accent); font-weight: 700; }
+    .howto-steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+    .howto-step { padding: var(--space-xs) 0; border-bottom: 1px solid var(--border); }
+    .howto-step-line { display: flex; align-items: flex-start; gap: var(--space-xs); }
+    .howto-step-line .howto-marker { width: 1em; flex: none; color: var(--accent); font-weight: 700; }
+    .howto-step-line .howto-num { color: var(--text-muted); font-weight: 700; flex: none; }
+    .howto-step-line input[type="checkbox"] { width: 1.2em; height: 1.2em; flex: none; margin-top: 2px; }
+    .howto-step-done .howto-text { color: var(--text-muted); }
+    .howto-step-current .howto-text { font-weight: 700; }
+    .howto-step-body { margin-left: 3.2em; }
+    .howto-safety { border: 1px solid currentColor; border-radius: var(--radius); padding: var(--space-xs) var(--space-sm); margin: var(--space-xs) 0; }
+    .howto-safety p { color: var(--text); }
+    .howto-safety strong { color: var(--text); }
+    .howto-controls { display: flex; gap: var(--space-xs); flex-wrap: wrap; align-items: center; margin: var(--space-xs) 0; }
+    .howto-controls button { padding: 2px var(--space-sm); border-radius: var(--radius); background: var(--bg-card); color: var(--text); border: 1px solid var(--border); cursor: pointer; font: inherit; font-size: var(--text-sm); }
+    .howto-controls button[aria-pressed="true"] { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+    .howto-controls input[type="text"] { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 2px var(--space-xs); font: inherit; }
+    .howto-timer { font-family: monospace; font-weight: 700; color: var(--accent); }
+    .howto-command { font-family: monospace; background: var(--bg-tertiary); padding: 2px var(--space-xs); border-radius: var(--radius-sm); }
+    .howto-problem { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-xs) var(--space-sm); margin: var(--space-xs) 0; }
+    .howto-problem-lit { border: 2px solid var(--warning); }
+    .howto-ends { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin-top: var(--space-sm); }
+    .howto-ends button { padding: var(--space-xs) var(--space-md); border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; font: inherit; }
+    .howto-ends .howto-worked { background: var(--success); color: var(--text-on-accent); border-color: var(--success); }
+    .howto-source { margin: var(--space-xs) 0 var(--space-sm); }
+    .howto-source q { color: var(--text-secondary); font-style: italic; font-size: var(--text-sm); }
+    .howto-view a { color: var(--accent); word-break: break-word; }
+    @media print { .nav-wrap, .howto-head button, .howto-search, .files-pane-handle { display: none !important; } .files-panes { display: block !important; height: auto !important; } }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="how_to"></script>
+<script src="/shared/how-it-works.js"></script>
+<script src="/pages/files-panes.js"></script>
+<script src="/shared/how-to-logic.js"></script>
+<main id="howto-root" aria-live="off">
+  <noscript>The How-to page needs JavaScript. The same how-tos are in the desktop app, and as data in data/how_to/.</noscript>
+</main>
+<div id="howto-announce" class="sr-only" aria-live="polite" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden"></div>
+<script src="/pages/how-to-app.js"></script>
+</body>
+</html>

@@ -1,3 +1,9 @@
+/* ── Words ──
+ * Every word this page shows comes from data/i18n/ by key, through
+ * /shared/i18n.js, which tasks.html loads (with its English, i18n-en.js) before
+ * this file; a test that runs this file loads the same two first
+ * (scripts/tests/erase-sign-up-again.test.js). */
+
 /* ── Fibonacci scope definitions ──
  * The taxonomy lives in data/tasks/scopes.json (infinite-of-x); boot() fetches
  * it before init(). The literal below is only the offline emergency fallback. */
@@ -48,19 +54,20 @@ function init() {
 function buildScopeTabs() {
   const container = document.getElementById('scope-tabs');
   container.innerHTML = SCOPES.map(s => `
-    <button class="scope-tab${s.key === activeScope ? ' active' : ''}"
+    <button class="scope-tab${s.key === activeScope ? ' active' : '' /* i18n-exempt: a class name */}"
             data-key="${s.key}" onclick="setScope('${s.key}')"
-            title="${s.desc}">
+            title="${s.desc}" data-i18n-tip="tasks.scope_tab_hint">
       <span class="scope-fib scope-ink" style="--scope-c:${s.color}">${s.n}</span>
       <span class="scope-label">${s.label}</span>
       <span class="scope-tab-dot" style="background:${s.color}"></span>
     </button>`).join('');
+  i18n.apply(container);
 }
 
 function buildScopeSelect() {
   const sel = document.getElementById('f-scope');
   sel.innerHTML = SCOPES.map(s =>
-    `<option value="${s.key}"${s.key === 'city' ? ' selected' : ''}>${s.n}·${s.label}, ${s.desc}</option>`
+    `<option value="${s.key}"${s.key === 'city' ? ' selected' : '' /* i18n-exempt: an attribute, not words */}>${s.n}·${s.label}, ${s.desc}</option>`
   ).join('');
 }
 
@@ -84,7 +91,7 @@ async function loadTasks() {
     renderProjectSelectorBtn();
   } catch (e) {
     console.error('[tasks] load error:', e);
-    document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ Could not load tasks<br><small>${e.message}</small></div>`;
+    document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ ${i18n.t('tasks.load_failed')}<br><small>${e.message}</small></div>`;
   }
 }
 
@@ -128,8 +135,8 @@ function renderBoard() {
   if (!tasks.length && boardEl) {
     const anyAtAll = allTasks.length > 0;
     const msg = anyAtAll
-      ? 'No tasks in this scope yet. Pick another scope above, or add one.'
-      : 'No tasks yet. Sign in from Chat to load your tasks, or add one here.';
+      ? i18n.t('tasks.empty_scope')
+      : i18n.t('tasks.empty_board');
     ['backlog','in_progress','testing','done'].forEach(status => {
       const c = document.getElementById('count-' + status);
       if (c) c.textContent = '0';
@@ -150,8 +157,9 @@ function renderBoard() {
     if (!filtered.length) { col.innerHTML = `<div class="empty-col">-</div>`; return; }
     try {
       col.innerHTML = filtered.map(renderCard).join('');
+      i18n.apply(col);
     } catch (e) {
-      col.innerHTML = `<div class="empty-col">⚠️ Render error<br><small>${esc(e.message)}</small></div>`;
+      col.innerHTML = `<div class="empty-col">⚠️ ${i18n.t('tasks.render_error')}<br><small>${esc(e.message)}</small></div>`;
       console.error('renderCard error in', status, e);
     }
   });
@@ -163,13 +171,11 @@ function renderControls() {
     `<strong class="scope-ink" style="--scope-c:${scope.color}">${scope.n}·${scope.label}</strong>: ${scope.desc}`;
   const tasks = scopedTasks();
   const ip = allTasks.filter(t => t.status === 'in_progress').length;
-  const projLabel = activeProject === null ? 'all projects'
-    : activeProject === 'default' ? 'General'
-    : (projects.find(p => p.id === activeProject)?.name || activeProject);
+  // The counts are numbers, so their markup can ride in a word's placeholder.
   document.getElementById('stats-bar').innerHTML =
-    `<span class="stat-pill"><span>${allTasks.length}</span> total</span>` +
-    `<span class="stat-pill"><span>${tasks.length}</span> visible</span>` +
-    `<span class="stat-pill"><span>${ip}</span> active</span>`;
+    `<span class="stat-pill">${i18n.t('tasks.stat_total', { n: `<span>${allTasks.length}</span>` })}</span>` +
+    `<span class="stat-pill">${i18n.t('tasks.stat_visible', { n: `<span>${tasks.length}</span>` })}</span>` +
+    `<span class="stat-pill">${i18n.t('tasks.stat_active', { n: `<span>${ip}</span>` })}</span>`;
 }
 
 function renderCard(task) {
@@ -182,15 +188,15 @@ function renderCard(task) {
     const passes = (tv.community||[]).filter(v=>v.result==='pass').length + (tv.owner==='pass'?1:0);
     const fails  = (tv.community||[]).filter(v=>v.result==='fail').length + (tv.owner==='fail'?1:0);
     if (passes || fails) {
-      testTally = `<span class="test-tally" title="Test votes saved in this browser only">${passes?'✅'+passes:''}${fails?'❌'+fails:''}</span>`;
+      testTally = `<span class="test-tally" title="${i18n.t('tasks.test_tally_title')}">${passes?'✅'+passes:''}${fails?'❌'+fails:''}</span>`;
     } else if (task.status === 'testing') {
-      testTally = `<span class="test-tally" style="color:#555" title="Waiting for testing">🧪</span>`;
+      testTally = `<span class="test-tally" style="color:#555" title="${i18n.t('tasks.waiting_testing')}">🧪</span>`;
     }
   }
-  return `<div class="card priority-${task.priority}" onclick="openDetail(${task.id})">
+  return `<div role="button" tabindex="0" class="card priority-${task.priority}" onclick="openDetail(${task.id})" data-i18n-tip="tasks.card_hint">
     <div class="card-title">${esc(task.title)}</div>
     <div class="card-info">
-      <span class="card-prio" style="color:${priorityColor(task.priority)}">${task.priority.toUpperCase()}</span>
+      <span class="card-prio" style="color:${priorityColor(task.priority)}">${priorityName(task.priority).toUpperCase()}</span>
       <span class="card-sep">·</span>
       <span>${timeAgo(task.created_at)}</span>
       <span class="card-sep">·</span>
@@ -272,7 +278,7 @@ function settleTaskWsWaiters(ok) {
 
 /** The relay said no: remember why, stop retrying, and close (it would hold the socket open 30s). */
 function refuseTaskWs(ws, reason) {
-  taskWsRefusal = reason || 'The server refused the sign-in.';
+  taskWsRefusal = reason || i18n.t('tasks.refused_default');
   console.warn('[tasks] sign-in refused:', taskWsRefusal);
   settleTaskWsWaiters(false);
   try { ws.close(); } catch {}
@@ -280,11 +286,11 @@ function refuseTaskWs(ws, reason) {
 
 /** What to tell the person when an edit needs the signed-in socket and it is not there. */
 function taskSignInHelp() {
-  if (taskWsRefusal) return 'The server did not accept this page\'s sign-in: ' + taskWsRefusal;
+  if (taskWsRefusal) return i18n.t('tasks.signin_refused', { reason: taskWsRefusal });
   if (!localStorage.getItem('humanity_key_backup')) {
-    return 'Not signed in on this page. Open Chat in this browser first (it keeps your identity here), or enter the Admin API Key. A passphrase-protected identity cannot be read by this page yet.';
+    return i18n.t('tasks.signin_open_chat');
   }
-  return 'Could not sign in to the server from this page. Check the connection and try again.';
+  return i18n.t('tasks.signin_failed');
 }
 
 /** Resolves true once the socket is signed in, false if it cannot be (no identity, refused, timeout). */
@@ -331,7 +337,7 @@ async function ensureTaskWs() {
       if (!taskWsBound) {
         if (m.type === 'identify_challenge') {
           taskIdentifyResponse(id, m.nonce).then(resp => {
-            if (!resp) { refuseTaskWs(ws, 'this page could not sign the server\'s sign-in check with your identity.'); return; }
+            if (!resp) { refuseTaskWs(ws, i18n.t('tasks.refused_sign_check')); return; }
             if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(resp));
           });
         } else if (m.type === 'peer_list') {
@@ -347,8 +353,8 @@ async function ensureTaskWs() {
           // says why and waits for the next click instead of retrying every few seconds.
           // Coming back is the person's choice, made on the Chat page.
           refuseTaskWs(ws, m.partial === true
-            ? 'the erase of your account on this server did not finish, so open Chat, press Enter and use Erase account again.'
-            : 'your account on this server was erased, so open Chat and press Enter there to sign up again.');
+            ? i18n.t('tasks.refused_erase_unfinished')
+            : i18n.t('tasks.refused_erased'));
         } else if (m.type === 'name_taken' || m.type === 'system') {
           const text = String(m.message || '');
           // The per-connection throttle: the relay closes the socket, and the close handler backs off.
@@ -437,7 +443,7 @@ async function submitTask() {
   const apiKey = document.getElementById('f-apikey').value.trim();
   const msg = document.getElementById('form-msg');
 
-  if (!title) { msg.innerHTML = '<div class="msg-error">Title is required.</div>'; return; }
+  if (!title) { msg.innerHTML = `<div class="msg-error">${i18n.t('tasks.title_required')}</div>`; return; }
 
   const rawLabels = document.getElementById('f-labels').value.trim();
   const labelArr = rawLabels ? rawLabels.split(',').map(l => l.trim()).filter(Boolean) : [];
@@ -456,7 +462,7 @@ async function submitTask() {
 
   const btn = document.getElementById('btn-submit');
   btn.disabled = true;
-  btn.textContent = 'Creating…';
+  setWords(btn, 'tasks.creating', i18n.t('tasks.creating'));
 
   // Use API key if provided; otherwise use relay WebSocket (signed-in users).
   if (apiKey) {
@@ -468,13 +474,13 @@ async function submitTask() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'HTTP ' + res.status);
-      msg.innerHTML = `<div class="msg-success">✓ Task #${data.id} created.</div>`;
+      msg.innerHTML = `<div class="msg-success">✓ ${i18n.t('tasks.task_created', { id: data.id })}</div>`;
       setTimeout(() => { closeModal(); loadTasks(); }, 800);
     } catch(e) {
-      msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+      msg.innerHTML = `<div class="msg-error">${i18n.t('tasks.error_message', { message: esc(e.message) })}</div>`;
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create Task';
+      setWords(btn, 'tasks.create_task', i18n.t('tasks.create_task'));
     }
   } else {
     // Relay WebSocket path: the socket must be signed in (see ensureTaskWs),
@@ -482,7 +488,7 @@ async function submitTask() {
     if (!await whenTaskWsBound()) {
       msg.innerHTML = `<div class="msg-error">${esc(taskSignInHelp())}</div>`;
       btn.disabled = false;
-      btn.textContent = 'Create Task';
+      setWords(btn, 'tasks.create_task', i18n.t('tasks.create_task'));
       return;
     }
     try {
@@ -491,13 +497,13 @@ async function submitTask() {
         taskWs.send(JSON.stringify({ type: 'task_create', ...body }));
         setTimeout(() => { if (taskWsPending) { taskWsPending = null; reject(new Error('Timeout')); } }, 5000);
       });
-      msg.innerHTML = `<div class="msg-success">✓ Task #${task?.id || '?'} created.</div>`;
+      msg.innerHTML = `<div class="msg-success">✓ ${i18n.t('tasks.task_created', { id: task?.id || '?' })}</div>`;
       setTimeout(() => { closeModal(); loadTasks(); }, 800);
     } catch(e) {
-      msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+      msg.innerHTML = `<div class="msg-error">${i18n.t('tasks.error_message', { message: esc(e.message) })}</div>`;
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create Task';
+      setWords(btn, 'tasks.create_task', i18n.t('tasks.create_task'));
     }
   }
 }
@@ -518,66 +524,74 @@ function openDetail(id) {
   scopeBadge.classList.add('scope-ink');
   scopeBadge.style.setProperty('--scope-c', scope.color);
 
-  const statusLabel = task.status.replace(/_/g, ' ');
+  const statusLabel = statusName(task.status);
   document.getElementById('detail-badges').innerHTML =
     `<span class="detail-badge badge-status-${task.status}">${statusLabel}</span>` +
-    `<span class="detail-badge badge-priority-${task.priority}">${task.priority}</span>`;
+    `<span class="detail-badge badge-priority-${task.priority}">${priorityName(task.priority)}</span>`;
 
   // Status action buttons, clicking moves the task to that status.
   const statusSteps = [
-    { key: 'backlog',     label: (typeof hosIcon==='function'?hosIcon('tasklist',14):'')+' Backlog' },
-    { key: 'in_progress', label: (typeof hosIcon==='function'?hosIcon('settings',14):'')+' In Progress' },
-    { key: 'testing',     label: (typeof hosIcon==='function'?hosIcon('search',14):'')+' Testing' },
-    { key: 'done',        label: (typeof hosIcon==='function'?hosIcon('check',14):'')+' Done' },
-  ];
-  document.getElementById('detail-status-btns').innerHTML =
+    { key: 'backlog',     icon: 'tasklist' },
+    { key: 'in_progress', icon: 'settings' },
+    { key: 'testing',     icon: 'search' },
+    { key: 'done',        icon: 'check' },
+  ].map(s => ({ key: s.key, name: statusName(s.key), label: (typeof hosIcon==='function'?hosIcon(s.icon,14):'') + ' ' + statusName(s.key) }));
+  // The title names the column in words only: the label carries the icon's markup.
+  const statusBtns = document.getElementById('detail-status-btns');
+  statusBtns.innerHTML =
     statusSteps.map(s =>
       s.key === task.status
-        ? `<button class="btn-status current current-${s.key}" disabled title="Current status">${s.label}</button>`
-        : `<button class="btn-status" onclick="changeTaskStatus(${task.id},'${s.key}')" title="Move to ${s.label}">${s.label}</button>`
+        ? `<button class="btn-status current current-${s.key}" disabled title="${i18n.t('tasks.current_status')}" data-i18n-tip="tasks.status_current_hint">${s.label}</button>`
+        : `<button class="btn-status" onclick="changeTaskStatus(${task.id},'${s.key}')" title="${i18n.t('tasks.move_to', { status: s.name })}" data-i18n-tip="tasks.status_button_hint">${s.label}</button>`
     ).join('') +
-    `<span class="status-move-label">← move to</span>`;
+    `<span class="status-move-label">← ${i18n.t('tasks.move_to_label')}</span>`;
+  i18n.apply(statusBtns);
 
   // Priority change buttons.
   const priorities = [
-    { key: 'low',      label: '▽ Low' },
-    { key: 'medium',   label: '◆ Medium' },
-    { key: 'high',     label: '▲ High' },
-    { key: 'critical', label: '🔥 Critical' },
-  ];
-  document.getElementById('detail-priority-btns').innerHTML =
+    { key: 'low',      glyph: '▽' },
+    { key: 'medium',   glyph: '◆' },
+    { key: 'high',     glyph: '▲' },
+    { key: 'critical', glyph: '🔥' },
+  ].map(p => ({ key: p.key, label: p.glyph + ' ' + priorityName(p.key) }));
+  const priorityBtns = document.getElementById('detail-priority-btns');
+  priorityBtns.innerHTML =
     priorities.map(p =>
       p.key === task.priority
-        ? `<button class="btn-status current current-${p.key}" disabled title="Current priority">${p.label}</button>`
-        : `<button class="btn-status" onclick="changeTaskPriority(${task.id},'${p.key}')" title="Set priority to ${p.label}">${p.label}</button>`
+        ? `<button class="btn-status current current-${p.key}" disabled title="${i18n.t('tasks.current_priority')}" data-i18n-tip="tasks.priority_current_hint">${p.label}</button>`
+        : `<button class="btn-status" onclick="changeTaskPriority(${task.id},'${p.key}')" title="${i18n.t('tasks.set_priority_to', { priority: p.label })}" data-i18n-tip="tasks.priority_button_hint">${p.label}</button>`
     ).join('') +
-    `<span class="status-move-label">← priority</span>`;
+    `<span class="status-move-label">← ${i18n.t('tasks.priority_arrow_label')}</span>`;
+  i18n.apply(priorityBtns);
 
   // Assignee inline editor.
-  document.getElementById('detail-assignee-row').innerHTML =
+  const assigneeRow = document.getElementById('detail-assignee-row');
+  assigneeRow.innerHTML =
     `<div class="assignee-row">
-       <span style="font-size:0.68rem;color:var(--text-dim);min-width:65px;flex-shrink:0">Assignee</span>
-       <input id="detail-assignee-input" type="text" value="${esc(task.assignee || '')}" placeholder="unassigned" maxlength="80">
-       <button onclick="changeTaskAssignee(${task.id})" title="Save assignee">Save</button>
+       <span style="font-size:0.68rem;color:var(--text-dim);min-width:65px;flex-shrink:0">${i18n.t('tasks.assignee')}</span>
+       <input id="detail-assignee-input" type="text" value="${esc(task.assignee || '')}" placeholder="${i18n.t('tasks.unassigned')}" maxlength="80" data-i18n-tip="tasks.assignee_input_hint">
+       <button onclick="changeTaskAssignee(${task.id})" title="${i18n.t('tasks.save_assignee')}" data-i18n-tip="tasks.assignee_save_hint">${i18n.t('common.save')}</button>
      </div>`;
+  i18n.apply(assigneeRow);
 
-  document.getElementById('detail-desc').textContent = task.description || '(No description)';
+  document.getElementById('detail-desc').textContent = task.description || i18n.t('tasks.no_description');
 
   document.getElementById('detail-labels').innerHTML = labels.length
     ? labels.map(l => `<span class="label-tag">${esc(l)}</span>`).join('')
     : '';
 
   const created = task.created_at ? new Date(task.created_at).toLocaleString() : '-';
-  const age = task.created_at ? timeAgo(task.created_at) + ' ago' : '';
+  const age = task.created_at ? i18n.t('tasks.time_ago', { time: timeAgo(task.created_at) }) : '';
   document.getElementById('detail-meta').innerHTML =
-    `<div class="detail-meta-row"><span class="detail-meta-label">Created</span><span>${created}${age ? ' · ' + age : ''}</span></div>` +
-    (task.assignee ? `<div class="detail-meta-row"><span class="detail-meta-label">Assignee</span><span>${esc(task.assignee)}</span></div>` : '') +
-    (task.comment_count > 0 ? `<div class="detail-meta-row"><span class="detail-meta-label">Comments</span><span>${task.comment_count}</span></div>` : '');
+    `<div class="detail-meta-row"><span class="detail-meta-label">${i18n.t('tasks.created')}</span><span>${created}${age ? ' · ' + age : ''}</span></div>` +
+    (task.assignee ? `<div class="detail-meta-row"><span class="detail-meta-label">${i18n.t('tasks.assignee')}</span><span>${esc(task.assignee)}</span></div>` : '') +
+    (task.comment_count > 0 ? `<div class="detail-meta-row"><span class="detail-meta-label">${i18n.t('tasks.comments')}</span><span>${task.comment_count}</span></div>` : '');
 
   // Test voting panel (shown for testing and done tasks)
   const testPanelEl = document.getElementById('detail-test-panel');
   if (task.status === 'testing' || task.status === 'done') {
     testPanelEl.innerHTML = renderTestPanel(task);
+    i18n.apply(testPanelEl);
   } else {
     testPanelEl.innerHTML = '';
   }
@@ -596,7 +610,7 @@ async function loadTaskComments(taskId) {
     if (!res.ok) { el.innerHTML = ''; return; }
     const data = await res.json();
     const comments = data.comments || [];
-    el.innerHTML = comments.length === 0 ? '<div style="color:var(--text-muted);font-size:0.78rem;padding:var(--space-sm) 0">No comments yet.</div>' :
+    el.innerHTML = comments.length === 0 ? `<div style="color:var(--text-muted);font-size:0.78rem;padding:var(--space-sm) 0">${i18n.t('tasks.no_comments')}</div>` :
       comments.map(c => `<div style="border-left:2px solid var(--border);padding:var(--space-sm) var(--space-md);margin-bottom:var(--space-md);">
         <div style="font-size:0.72rem;color:var(--accent);font-weight:600">${esc(c.author_name)}</div>
         <div style="font-size:0.8rem;white-space:pre-wrap">${esc(c.content)}</div>
@@ -692,43 +706,44 @@ function renderTestPanel(task) {
     ? community.map(v => `
         <div class="test-vote-item">
           <span class="test-vote-result">${v.result==='pass'?'✅':'❌'}</span>
-          <span class="test-vote-name">${v.device === '_local' ? 'You (this browser)' : esc(v.name||'Anonymous')}</span>
-          <span class="test-vote-time">${v.time ? timeAgo(v.time)+' ago' : ''}</span>
+          <span class="test-vote-name">${v.device === '_local' ? i18n.t('tasks.vote_you') : esc(v.name||i18n.t('tasks.vote_anonymous'))}</span>
+          <span class="test-vote-time">${v.time ? i18n.t('tasks.time_ago', { time: timeAgo(v.time) }) : ''}</span>
         </div>`).join('')
-    : `<div style="font-size:0.72rem;color:#555;padding:var(--space-xs) 0">No tester votes yet.</div>`;
+    : `<div style="font-size:0.72rem;color:#555;padding:var(--space-xs) 0">${i18n.t('tasks.no_votes')}</div>`;
+  const yourVote = ' ← ' + i18n.t('tasks.your_vote_marker');
 
   return `
     <div class="test-panel">
-      <div class="test-panel-title">🧪 Test Results</div>
-      <div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:var(--space-sm)">Saved in this browser only. These votes are not sent to the server, so nobody else sees them.</div>
+      <div class="test-panel-title">🧪 ${i18n.t('tasks.test_results')}</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:var(--space-sm)">${i18n.t('tasks.votes_local_note')}</div>
       ${totalPass || totalFail
         ? `<div class="test-summary">
-             <span class="test-summary-pass">✅ ${totalPass} pass</span>
-             <span class="test-summary-fail">❌ ${totalFail} fail</span>
+             <span class="test-summary-pass">✅ ${i18n.t('tasks.pass_count', { n: totalPass })}</span>
+             <span class="test-summary-fail">❌ ${i18n.t('tasks.fail_count', { n: totalFail })}</span>
            </div>`
         : ''}
-      <div class="test-owner-label">Your vote (determining):</div>
+      <div class="test-owner-label">${i18n.t('tasks.your_vote')}</div>
       <div class="test-vote-row">
-        <button class="btn-test-vote${ownerPass?' vote-pass':''}" onclick="castOwnerVote(${task.id},'pass')">
-          ✅ Pass${ownerPass?' ← your vote':''}
+        <button class="btn-test-vote${ownerPass?' vote-pass':''}" onclick="castOwnerVote(${task.id},'pass')" data-i18n-tip="tasks.owner_pass_hint">
+          ✅ ${i18n.t('tasks.vote_pass')}${ownerPass?yourVote:''}
         </button>
-        <button class="btn-test-vote${ownerFail?' vote-fail':''}" onclick="castOwnerVote(${task.id},'fail')">
-          ❌ Fail${ownerFail?' ← your vote':''}
+        <button class="btn-test-vote${ownerFail?' vote-fail':''}" onclick="castOwnerVote(${task.id},'fail')" data-i18n-tip="tasks.owner_fail_hint">
+          ❌ ${i18n.t('tasks.vote_fail')}${ownerFail?yourVote:''}
         </button>
       </div>
       <div class="test-community">
         <div class="test-community-header">
-          <span style="font-size:0.68rem;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Tester votes</span>
-          <span>${cPass} pass · ${cFail} fail</span>
+          <span style="font-size:0.68rem;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${i18n.t('tasks.tester_votes')}</span>
+          <span>${i18n.t('tasks.pass_count', { n: cPass })} · ${i18n.t('tasks.fail_count', { n: cFail })}</span>
         </div>
         ${communityRows}
         <div style="margin-top:var(--space-md);display:flex;gap:var(--space-md)">
           <button class="btn-test-vote${community.find(v=>v.device==='_local')?.result==='pass'?' vote-pass':''}"
                   style="font-size:.72rem;padding:var(--space-sm) var(--space-md)"
-                  onclick="castCommunityVote(${task.id},'pass')">✅ I tested it, works</button>
+                  onclick="castCommunityVote(${task.id},'pass')" data-i18n-tip="tasks.tester_works_hint">✅ ${i18n.t('tasks.vote_works')}</button>
           <button class="btn-test-vote${community.find(v=>v.device==='_local')?.result==='fail'?' vote-fail':''}"
                   style="font-size:.72rem;padding:var(--space-sm) var(--space-md)"
-                  onclick="castCommunityVote(${task.id},'fail')">❌ Broken</button>
+                  onclick="castCommunityVote(${task.id},'fail')" data-i18n-tip="tasks.tester_broken_hint">❌ ${i18n.t('tasks.vote_broken')}</button>
         </div>
       </div>
     </div>`;
@@ -816,7 +831,7 @@ function requestProjectList() {
 function buildProjectSelect() {
   const sel = document.getElementById('f-project');
   if (!sel) return;
-  let html = '<option value="default">General (default)</option>';
+  let html = `<option value="default">${i18n.t('tasks.project_general_default')}</option>`;
   projects.forEach(p => {
     const icon = p.icon || '📋';
     const selected = activeProject === p.id ? ' selected' : '';
@@ -840,22 +855,24 @@ function renderProjectSelectorBtn() {
   if (activeProject === null) {
     iconEl.textContent = '📋';
     dotEl.style.background = '#4488ff';
-    labelEl.textContent = 'All Projects';
-    if (countEl) countEl.textContent = allTasks.length + ' tasks';
+    setWords(labelEl, 'tasks.all_projects', i18n.t('tasks.all_projects'));
+    if (countEl) countEl.textContent = i18n.tn('tasks.task_count', allTasks.length);
   } else if (activeProject === 'default') {
     iconEl.textContent = '📋';
     dotEl.style.background = '#888';
-    labelEl.textContent = 'General';
+    setWords(labelEl, 'tasks.project_general', i18n.t('tasks.project_general'));
     const cnt = allTasks.filter(t => !t.project || t.project === 'default').length;
-    if (countEl) countEl.textContent = cnt + ' tasks';
+    if (countEl) countEl.textContent = i18n.tn('tasks.task_count', cnt);
   } else {
     const proj = projects.find(p => p.id === activeProject);
     if (proj) {
       iconEl.textContent = proj.icon || '📋';
       dotEl.style.background = proj.color || '#4488ff';
+      // A project's own name is the person's words, not the page's: no key on it.
+      labelEl.removeAttribute('data-i18n');
       labelEl.textContent = proj.name;
       const cnt = allTasks.filter(t => t.project === proj.id).length;
-      if (countEl) countEl.textContent = cnt + ' tasks';
+      if (countEl) countEl.textContent = i18n.tn('tasks.task_count', cnt);
     }
   }
 }
@@ -868,9 +885,9 @@ function renderProjectDropdown() {
 
   // All Projects option
   html += `<button class="project-dropdown-item${activeProject === null ? ' active' : ''}"
-    onclick="setActiveProject(null)">
+    onclick="setActiveProject(null)" data-i18n-tip="tasks.all_projects_hint">
     <span class="proj-icon">📋</span>
-    <span>All Projects</span>
+    <span>${i18n.t('tasks.all_projects')}</span>
   </button>`;
 
   html += '<div class="project-dropdown-sep"></div>';
@@ -878,10 +895,10 @@ function renderProjectDropdown() {
   // Default / General project
   const defaultCount = allTasks.filter(t => !t.project || t.project === 'default').length;
   html += `<button class="project-dropdown-item${activeProject === 'default' ? ' active' : ''}"
-    onclick="setActiveProject('default')">
+    onclick="setActiveProject('default')" data-i18n-tip="tasks.project_general_hint">
     <span class="proj-icon">📋</span>
     <span class="proj-dot" style="background:#888"></span>
-    <span>General</span>
+    <span>${i18n.t('tasks.project_general')}</span>
     <span class="proj-vis">${defaultCount}</span>
   </button>`;
 
@@ -892,7 +909,7 @@ function renderProjectDropdown() {
     const vis = p.visibility === 'private' ? '🔒' : p.visibility === 'members-only' ? '👥' : '';
     const cnt = p.task_count != null ? p.task_count : allTasks.filter(t => t.project === p.id).length;
     html += `<button class="project-dropdown-item${activeProject === p.id ? ' active' : ''}"
-      onclick="setActiveProject('${esc(p.id)}')" oncontextmenu="event.preventDefault();openProjectSettings('${esc(p.id)}')">
+      onclick="setActiveProject('${esc(p.id)}')" oncontextmenu="event.preventDefault();openProjectSettings('${esc(p.id)}')" data-i18n-tip="tasks.project_item_hint">
       <span class="proj-icon">${icon}</span>
       <span class="proj-dot" style="background:${color}"></span>
       <span>${esc(p.name)}</span>
@@ -903,12 +920,13 @@ function renderProjectDropdown() {
   html += '<div class="project-dropdown-sep"></div>';
 
   // Create new project
-  html += `<button class="project-dropdown-item create-item" onclick="closeProjectDropdown();openProjectModal()">
+  html += `<button class="project-dropdown-item create-item" onclick="closeProjectDropdown();openProjectModal()" data-i18n-tip="tasks.new_project_button_hint">
     <span class="proj-icon">+</span>
-    <span>Create New Project</span>
+    <span>${i18n.t('tasks.project_create_new')}</span>
   </button>`;
 
   dd.innerHTML = html;
+  i18n.apply(dd);
 }
 
 function toggleProjectDropdown() {
@@ -958,11 +976,12 @@ function buildProjectColorPicker() {
   const container = document.getElementById('pf-colors');
   if (!container) return;
   container.innerHTML = PROJECT_COLORS.map((c, i) =>
-    `<div class="color-swatch${i === 0 ? ' selected' : ''}" style="background:${c}"
-      data-color="${c}" onclick="selectProjectColor(this)"></div>`
+    `<div role="button" tabindex="0" class="color-swatch${i === 0 ? ' selected' : ''}" style="background:${c}"
+      data-color="${c}" aria-label="${i18n.t('tasks.color_swatch_label', { n: i + 1 })}" onclick="selectProjectColor(this)" data-i18n-tip="tasks.color_swatch_hint"></div>`
   ).join('') + `<input type="color" value="#4488ff" id="pf-color-custom"
     style="width:28px;height:28px;border:none;padding:0;cursor:pointer;background:transparent;border-radius:50%;"
-    onchange="selectProjectColorCustom(this.value)" title="Custom color">`;
+    onchange="selectProjectColorCustom(this.value)" title="${i18n.t('tasks.custom_color')}" data-i18n-tip="tasks.custom_color_hint">`;
+  i18n.apply(container);
 }
 
 /** Build icon picker in the project modal */
@@ -970,8 +989,9 @@ function buildProjectIconPicker() {
   const container = document.getElementById('pf-icons');
   if (!container) return;
   container.innerHTML = PROJECT_ICONS.map((ic, i) =>
-    `<div class="icon-option${i === 0 ? ' selected' : ''}" data-icon="${ic}" onclick="selectProjectIcon(this)">${ic}</div>`
+    `<div role="button" tabindex="0" class="icon-option${i === 0 ? ' selected' : '' /* i18n-exempt: a class name */}" data-icon="${ic}" onclick="selectProjectIcon(this)" data-i18n-tip="tasks.icon_option_hint">${ic}</div>`
   ).join('');
+  i18n.apply(container);
 }
 
 function selectProjectColor(el) {
@@ -1011,8 +1031,8 @@ function openProjectModal(existingId) {
 
   if (editingProjectId) {
     const p = projects.find(x => x.id === editingProjectId);
-    title.textContent = 'Edit Project';
-    btn.textContent = 'Save Changes';
+    setWords(title, 'tasks.project_edit', i18n.t('tasks.project_edit'));
+    setWords(btn, 'tasks.project_save_changes', i18n.t('tasks.project_save_changes'));
     if (p) {
       document.getElementById('pf-name').value = p.name;
       document.getElementById('pf-desc').value = p.description || '';
@@ -1032,8 +1052,8 @@ function openProjectModal(existingId) {
       document.querySelectorAll('input[name="pf-visibility"]').forEach(r => { r.checked = r.value === vis; });
     }
   } else {
-    title.textContent = 'New Project';
-    btn.textContent = 'Create Project';
+    setWords(title, 'tasks.project_new', i18n.t('tasks.project_new'));
+    setWords(btn, 'tasks.project_create', i18n.t('tasks.project_create'));
     document.getElementById('pf-name').value = '';
     document.getElementById('pf-desc').value = '';
     buildProjectColorPicker();
@@ -1056,7 +1076,7 @@ async function submitProject() {
   const msg = document.getElementById('project-form-msg');
   const btn = document.getElementById('btn-project-submit');
 
-  if (!name) { msg.innerHTML = '<div class="msg-error">Name is required.</div>'; return; }
+  if (!name) { msg.innerHTML = `<div class="msg-error">${i18n.t('tasks.name_required')}</div>`; return; }
 
   const body = {
     name,
@@ -1083,12 +1103,12 @@ async function submitProject() {
       const updated = await res.json().catch(() => body);
       const idx = projects.findIndex(p => p.id === editingProjectId);
       if (idx >= 0) projects[idx] = { ...projects[idx], ...body, ...updated };
-      msg.innerHTML = '<div class="msg-success">Project updated.</div>';
+      msg.innerHTML = `<div class="msg-success">${i18n.t('tasks.project_updated')}</div>`;
     } else {
       // Create via WS if signed in, else REST
       if (taskWs && taskWsBound && taskWs.readyState === WebSocket.OPEN) {
         taskWs.send(JSON.stringify({ type: 'project_create', ...body }));
-        msg.innerHTML = '<div class="msg-success">Project created.</div>';
+        msg.innerHTML = `<div class="msg-success">${i18n.t('tasks.project_created')}</div>`;
       } else {
         const res = await fetch('/api/projects', {
           method: 'POST',
@@ -1101,14 +1121,14 @@ async function submitProject() {
         }
         const created = await res.json();
         if (created && created.id) projects.push(created);
-        msg.innerHTML = '<div class="msg-success">Project created.</div>';
+        msg.innerHTML = `<div class="msg-success">${i18n.t('tasks.project_created')}</div>`;
       }
     }
     renderProjectDropdown();
     renderProjectSelectorBtn();
     setTimeout(closeProjectModal, 600);
   } catch (e) {
-    msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+    msg.innerHTML = `<div class="msg-error">${i18n.t('tasks.error_message', { message: esc(e.message) })}</div>`;
   } finally {
     btn.disabled = false;
   }
@@ -1122,7 +1142,7 @@ function openProjectSettings(id) {
 
 /** Delete a project via REST API */
 async function deleteProject(id) {
-  if (!await holdConfirm('Delete this project? Its tasks will be moved to General.', { seconds: 3 })) return;
+  if (!await holdConfirm(i18n.t('tasks.delete_project_confirm'), { seconds: 3 })) return;
   try {
     const res = await fetch('/api/projects/' + id, { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1136,7 +1156,7 @@ async function deleteProject(id) {
     renderControls();
     closeProjectModal();
   } catch (e) {
-    alert('Failed to delete project: ' + e.message);
+    alert(i18n.t('tasks.delete_project_failed', { message: e.message }));
   }
 }
 
@@ -1149,12 +1169,44 @@ function priorityColor(p) {
   return { critical:'#e53935', high:'#f0a500', medium:'#2196f3', low:'#555' }[p] || '#555';
 }
 
+/** A priority's name in the person's language ('medium' -> "Medium"); an
+ *  unknown value from the server shows as it came. */
+function priorityName(p) {
+  const names = {
+    low: i18n.t('tasks.priority_low'),
+    medium: i18n.t('tasks.priority_medium'),
+    high: i18n.t('tasks.priority_high'),
+    critical: i18n.t('tasks.priority_critical'),
+  };
+  return names[p] || String(p);
+}
+
+/** A column's name in the person's language ('in_progress' -> "In Progress"). */
+function statusName(s) {
+  const names = {
+    backlog: i18n.t('tasks.status_backlog'),
+    in_progress: i18n.t('tasks.status_in_progress'),
+    testing: i18n.t('tasks.status_testing'),
+    done: i18n.t('tasks.status_done'),
+  };
+  return names[s] || String(s).replace(/_/g, ' ');
+}
+
+/** Show a key's words in an element this script relabels (a heading, a
+ *  button), and keep the key on it, so a change of language refills it with
+ *  the words it shows now rather than the ones it started with. */
+function setWords(el, key, words) {
+  if (!el) return;
+  el.setAttribute('data-i18n', key);
+  el.textContent = words;
+}
+
 function timeAgo(ms) {
   const s = Math.floor((Date.now() - ms) / 1000);
-  if (s < 60) return s + 's';
-  if (s < 3600) return Math.floor(s/60) + 'm';
-  if (s < 86400) return Math.floor(s/3600) + 'h';
-  return Math.floor(s/86400) + 'd';
+  if (s < 60) return i18n.t('tasks.time_seconds', { n: s });
+  if (s < 3600) return i18n.t('tasks.time_minutes', { n: Math.floor(s/60) });
+  if (s < 86400) return i18n.t('tasks.time_hours', { n: Math.floor(s/3600) });
+  return i18n.t('tasks.time_days', { n: Math.floor(s/86400) });
 }
 
 /* Close modal on overlay click */
@@ -1222,10 +1274,26 @@ function quest_setFilter(f) {
   document.querySelectorAll('.q-cat').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
   /* "Tasks" is this page's name (nav + title); "Quests" is a DIFFERENT nav
    * entry (/onboarding), so quest-vocabulary here collided with it. */
-  const labels = { all:'All Tasks', daily:'Daily Tasks', story:'Story Tasks',
-    side:'Side Tasks', personal:'Personal Tasks', done:'Completed' };
-  document.getElementById('quest-heading').textContent = labels[f] || 'Tasks';
+  const heading = document.getElementById('quest-heading');
+  if (f === 'all') setWords(heading, 'tasks.quest_cat_all', i18n.t('tasks.quest_cat_all'));
+  else if (f === 'daily') setWords(heading, 'tasks.quest_heading_daily', i18n.t('tasks.quest_heading_daily'));
+  else if (f === 'story') setWords(heading, 'tasks.quest_heading_story', i18n.t('tasks.quest_heading_story'));
+  else if (f === 'side') setWords(heading, 'tasks.quest_heading_side', i18n.t('tasks.quest_heading_side'));
+  else if (f === 'personal') setWords(heading, 'tasks.quest_heading_personal', i18n.t('tasks.quest_heading_personal'));
+  else if (f === 'done') setWords(heading, 'tasks.quest_cat_done', i18n.t('tasks.quest_cat_done'));
+  else setWords(heading, 'tasks.title', i18n.t('tasks.title'));
   quest_renderList();
+}
+
+/** A quest type's name in the person's language ('daily' -> "Daily"). */
+function quest_typeName(type) {
+  const names = {
+    daily: i18n.t('tasks.quest_cat_daily'),
+    story: i18n.t('tasks.quest_cat_story'),
+    side: i18n.t('tasks.quest_cat_side'),
+    personal: i18n.t('tasks.quest_cat_personal'),
+  };
+  return names[type] || String(type);
 }
 
 function quest_renderList() {
@@ -1257,8 +1325,9 @@ function quest_renderList() {
 
   if (!visible.length) {
     list.innerHTML = `<div class="quest-empty-state"><div class="empty-icon">${typeof hosIcon==='function'?hosIcon('tasklist',48):''}</div>
-      <p>${search ? 'No quests match your search.' : quest_currentFilter === 'done' ? 'No completed quests yet.' : 'No quests here yet.'}</p>
-      ${!search && quest_currentFilter !== 'done' ? '<button class="quest-btn-save" onclick="quest_openModal()" style="margin-top:var(--space-md);">+ Add Your First Quest</button>' : ''}</div>`;
+      <p>${search ? i18n.t('tasks.quest_none_match') : quest_currentFilter === 'done' ? i18n.t('tasks.quest_none_done') : i18n.t('tasks.quest_none')}</p>
+      ${!search && quest_currentFilter !== 'done' ? `<button class="quest-btn-save" onclick="quest_openModal()" style="margin-top:var(--space-md);" data-i18n-tip="tasks.quest_add_hint">${i18n.t('tasks.quest_add_first')}</button>` : ''}</div>`;
+    i18n.apply(list);
     return;
   }
 
@@ -1266,20 +1335,21 @@ function quest_renderList() {
   list.innerHTML = visible.map(q => {
     const overdue = q.due && q.due < today && !q.done;
     const badgeClass = 'badge-' + q.type;
-    return `<div class="quest-card${q.done ? ' done' : ''}" onclick="quest_openModal('${q.id}')">
-      <div class="quest-check" onclick="event.stopPropagation();quest_toggleDone('${q.id}')">${q.done ? '✓' : ''}</div>
+    return `<div role="button" tabindex="0" class="quest-card${q.done ? ' done' : ''}" onclick="quest_openModal('${q.id}')" data-i18n-tip="tasks.quest_card_hint">
+      <div role="button" tabindex="0" class="quest-check" onclick="event.stopPropagation();quest_toggleDone('${q.id}')" data-i18n-tip="tasks.quest_check_hint">${q.done ? '✓' : ''}</div>
       <div class="quest-body">
         <div class="quest-title">${quest_esc(q.title)}</div>
         ${q.desc ? `<div class="quest-desc">${quest_esc(q.desc)}</div>` : ''}
         <div class="quest-meta">
-          <span class="quest-xp">⭐ ${q.xp || 0} XP</span>
-          <span class="quest-type-badge ${badgeClass}">${q.type}</span>
-          ${q.due ? `<span class="quest-due${overdue ? ' overdue' : ''}">${overdue ? '⚠ ' : ''}${q.due}</span>` : ''}
+          <span class="quest-xp">⭐ ${i18n.t('tasks.quest_xp_amount', { n: q.xp || 0 })}</span>
+          <span class="quest-type-badge ${badgeClass}">${quest_typeName(q.type)}</span>
+          ${q.due ? `<span class="quest-due${overdue ? ' overdue' : '' /* i18n-exempt: a class name */}">${overdue ? '⚠ ' : ''}${q.due}</span>` : ''}
         </div>
       </div>
-      <button class="quest-delete" onclick="event.stopPropagation();quest_deleteQuest('${q.id}')" title="Delete">✕</button>
+      <button class="quest-delete" onclick="event.stopPropagation();quest_deleteQuest('${q.id}')" title="${i18n.t('common.delete')}" data-i18n-tip="tasks.quest_delete_hint">✕</button>
     </div>`;
   }).join('');
+  i18n.apply(list);
 }
 
 function quest_toggleDone(id) {
@@ -1315,8 +1385,8 @@ function awardSkillXp(skillId, amount) {
     }
     localStorage.setItem('hos_skills_v1', JSON.stringify(data));
     const msg = leveled
-      ? `🎉 Quest complete! +${amount} XP to "${skillId}" → Level ${s.level}!`
-      : `✅ Quest complete! +${amount} XP awarded to "${skillId}"`;
+      ? '🎉 ' + i18n.t('tasks.quest_xp_level', { xp: amount, skill: skillId, level: s.level })
+      : '✅ ' + i18n.t('tasks.quest_xp_awarded', { xp: amount, skill: skillId });
     quest_showToast(msg, 4000);
   } catch(e) { console.warn('awardSkillXp error:', e); }
 }
@@ -1329,7 +1399,9 @@ function quest_deleteQuest(id) {
 function quest_openModal(id) {
   quest_editingId = id || null;
   const q = id ? quest_list.find(x => x.id === id) : null;
-  document.getElementById('quest-modal-title').textContent = q ? 'Edit Quest' : 'New Quest';
+  const modalTitle = document.getElementById('quest-modal-title');
+  if (q) setWords(modalTitle, 'tasks.quest_edit', i18n.t('tasks.quest_edit'));
+  else setWords(modalTitle, 'tasks.quest_new', i18n.t('tasks.quest_new'));
   document.getElementById('q-title').value = q ? q.title : '';
   document.getElementById('q-desc').value  = q ? (q.desc || '') : '';
   document.getElementById('q-type').value  = q ? q.type : 'personal';
@@ -1397,6 +1469,19 @@ function quest_showToast(msg, duration) {
 // Initialize quests
 quest_load();
 quest_renderList();
+
+// A change of language (Settings) re-fills the static words itself; the words
+// this script built are drawn again here, in the new language.
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('languagechange', () => {
+    renderBoard();
+    renderControls();
+    renderProjectSelectorBtn();
+    renderProjectDropdown();
+    quest_setFilter(quest_currentFilter);
+    if (openDetailId !== null && document.getElementById('detail-overlay').classList.contains('open')) openDetail(openDetailId);
+  });
+}
 document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
   if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
 });

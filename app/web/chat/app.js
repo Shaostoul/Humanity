@@ -1006,11 +1006,12 @@ function openSocket(opts) {
       public_key: myKey,
       display_name: myName,
     };
-    // Full-PQ DM: advertise the Kyber768 (ML-KEM-768) public key so peers
-    // can encapsulate a fresh shared secret to us per message. Deterministic
-    // from the same BIP39 seed, so it's identical on web and native.
-    if (myKyberPublicBase64) {
-      identifyMsg.kyber_public = myKyberPublicBase64;
+    // Full-PQ DM: send my key card (2026-10-22): my Kyber768 (ML-KEM-768)
+    // key, deterministic from the BIP39 seed (identical on web and native),
+    // signed by my Dilithium3 identity, so anyone can check the key they
+    // seal to is mine (crypto.js attachPqIdentity signs it).
+    if (myKeyCard) {
+      identifyMsg.key_card = myKeyCard;
     }
     if (pendingLinkCode) {
       identifyMsg.link_code = pendingLinkCode;
@@ -1245,15 +1246,18 @@ async function handleMessage(msg) {
       break;
     }
     case 'peer_joined':
-      // Update peerData with new peer info, sidebar handles visibility.
-      // A join that carries no DM key keeps the one we already hold: a
-      // standalone page signing in without it must not cut off DMs to that
-      // person (2026-10-02).
-      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || (peerData[msg.public_key] && peerData[msg.public_key].kyber_public) || null };
+      // Update peerData with new peer info, sidebar handles visibility. No DM
+      // key comes from here any more: only their key card's time, so a newer
+      // card is fetched and checked (chat-key-cards.js, 2026-10-22).
+      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '' };
+      if (typeof hosKeyCards !== 'undefined') hosKeyCards.noteListed(msg.public_key, msg.key_card_at);
       updateStats();
       break;
+    case 'key_cards':
+      // Key cards I asked for: each checked before its key is sealed to (chat-key-cards.js).
+      if (typeof hosKeyCards !== 'undefined') await hosKeyCards.onFrame(msg);
+      break;
     case 'peer_left':
-      // Keep the peer's Kyber key in peerData for offline history decrypt
       if (peerData[msg.public_key]) {
         peerData[msg.public_key]._offline = true;
       }
@@ -1271,6 +1275,8 @@ async function handleMessage(msg) {
       if (!dmFetchSent && myKey && window.hosDmStore) {
         dmFetchSent = true;
         hosDmStore.init(myKey, location.host).then((ok) => {
+          // The key cards I pinned are loaded with the store: ask for the ones I lack.
+          if (ok && typeof hosKeyCards !== 'undefined') hosKeyCards.onStoreReady();
           if (ok && typeof loadDmListFromStore === 'function') loadDmListFromStore();
           if (pendingDmFromLink) openDmFromLink();
           // Social badges come from the local store now (follows
@@ -1374,7 +1380,7 @@ async function handleMessage(msg) {
       break;
     case 'full_user_list':
       updateUserList(msg.users || []);
-      // The member list carries the DM keys passes are sealed to.
+      // A pass owed to a friend whose key card is pinned can go now.
       if (typeof sweepFriendPasses === 'function') sweepFriendPasses();
       break;
     case 'cert_revoked':
@@ -1408,9 +1414,13 @@ async function handleMessage(msg) {
       break;
     }
     case 'delete': {
-      // Remove the deleted message from the DOM.
-      const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
-      msgs.forEach(m => m.remove());
+      // Remove the deleted message from the DOM. A message from a linked server is shown as
+      // 'fed:' + its server's key (the federated_chat case), and the relay names that server's
+      // key when the server the message came from deletes it (2026-10-22), so both are tried.
+      ['', 'fed:'].forEach(prefix => {
+        const msgs = document.querySelectorAll('.message[data-from="' + prefix + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
+        msgs.forEach(m => m.remove());
+      });
       break;
     }
     case 'message_deleted': {
@@ -1422,8 +1432,10 @@ async function handleMessage(msg) {
       break;
     }
     case 'edit': {
-      // Update the edited message in the DOM.
+      // Update the edited message in the DOM (one from a linked server is shown as 'fed:' + its
+      // server's key, as in the delete case above).
       applyEditToDOM(msg.from, msg.timestamp, msg.new_content);
+      applyEditToDOM('fed:' + msg.from, msg.timestamp, msg.new_content);
       break;
     }
     case 'pins_sync': {
@@ -2386,6 +2398,8 @@ function updatePeerList(peers) {
   // Update peerData from peer_list (online peers only, for backwards compat).
   for (const p of peers) {
     peerData[p.public_key] = p;
+    // Their key card's time: fetch the card when newer than the pinned one (chat-key-cards.js).
+    if (typeof hosKeyCards !== 'undefined') hosKeyCards.noteListed(p.public_key, p.key_card_at);
     // M-4: Capture our upload token.
     if (p.public_key === myKey && p.upload_token) {
       myUploadToken = p.upload_token;
@@ -2415,7 +2429,9 @@ function updateUserList(users) {
 
   // Update peerData from full user list.
   for (const u of users) {
-    peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '', kyber_public: u.kyber_public || null };
+    peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '' };
+    // No DM key comes from the list (key cards, 2026-10-22): only the card's time.
+    if (typeof hosKeyCards !== 'undefined') hosKeyCards.noteListed(u.public_key, u.key_card_at);
   }
 
   const online = users.filter(u => u.online);

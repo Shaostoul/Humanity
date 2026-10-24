@@ -59,9 +59,9 @@ function loadMarketCategories() {
     .then(function(j) {
       if (!j || !Array.isArray(j.categories) || !j.categories.length) return;
       MARKET_CATEGORIES = j.categories;
-      fillCategorySelect(document.getElementById('market-category-filter'), 'All Categories');
-      fillCategorySelect(document.getElementById('store-category-filter'), 'All Categories');
-      fillCategorySelect(document.getElementById('dir-category-filter'), 'All Categories');
+      fillCategorySelect(document.getElementById('market-category-filter'), i18n.t('market.all_categories'));
+      fillCategorySelect(document.getElementById('store-category-filter'), i18n.t('market.all_categories'));
+      fillCategorySelect(document.getElementById('dir-category-filter'), i18n.t('market.all_categories'));
       fillCategorySelect(document.getElementById('listing-category'), null);
       // The directory shows vocabulary LABELS for the ids in its payloads, so
       // redraw once the vocabulary lands (it may arrive after the first paint).
@@ -81,7 +81,7 @@ function renderStars(rating, size) {
   const val = Number(rating) || 0;
   const sizeCls = size >= 18 ? ' stars-lg' : (size >= 14 ? '' : (size >= 12 ? ' stars-sm' : ' stars-xs'));
   const full = Math.round(val);
-  let html = '<span class="stars' + sizeCls + '" role="img" aria-label="Rated ' + val.toFixed(1) + ' out of 5">';
+  let html = '<span class="stars' + sizeCls + '" role="img" aria-label="' + escHtml(i18n.t('market.rated', { rating: val.toFixed(1) })) + '">';
   for (let i = 0; i < 5; i++) {
     if (i < full) {
       html += '<span class="star on" aria-hidden="true">&#9733;</span>';
@@ -95,10 +95,10 @@ function renderStars(rating, size) {
 
 /** Render clickable star selector for review form. */
 function renderStarSelector(currentRating) {
-  let html = '<div id="review-star-selector" class="star-selector" role="group" aria-label="Rating">';
+  let html = '<div id="review-star-selector" class="star-selector" role="group" aria-label="' + escHtml(i18n.t('market.rating')) + '">';
   for (let i = 1; i <= 5; i++) {
     const filled = i <= currentRating;
-    html += '<span onclick="setReviewRating(' + i + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();setReviewRating(' + i + ');}" onmouseenter="previewStars(' + i + ')" onmouseleave="previewStars(0)" data-star="' + i + '" class="star' + (filled ? ' on' : '') + '" role="button" tabindex="0" aria-label="' + i + ' star' + (i === 1 ? '' : 's') + '">&#9733;</span>';
+    html += '<span onclick="setReviewRating(' + i + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();setReviewRating(' + i + ');}" onmouseenter="previewStars(' + i + ')" onmouseleave="previewStars(0)" data-star="' + i + '" class="star' + (filled ? ' on' : '') + '" role="button" tabindex="0" aria-label="' + escHtml(i18n.tn('market.star_count', i)) + '" data-i18n-tip="market.rate_star_hint">&#9733;</span>';
   }
   html += '</div>';
   return html;
@@ -248,7 +248,7 @@ function handleMarketMessage(msg) {
 
 function openListingModal(editId) {
   document.getElementById('listing-edit-id').value = editId || '';
-  document.getElementById('listing-modal-title').textContent = editId ? 'Edit Listing' : 'Create Listing';
+  document.getElementById('listing-modal-title').textContent = editId ? i18n.t('market.edit_listing') : i18n.t('market.create_listing');
   if (editId) {
     var l = marketListings.find(function(x) { return x.id === editId; });
     if (l) {
@@ -278,7 +278,7 @@ function markListingSold(id) {
 }
 
 function deleteListing(id) {
-  if (!confirm('Delete this listing?')) return;
+  if (!confirm(i18n.t('market.confirm_delete_listing'))) return;
   if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'listing_delete', id: id }));
 }
 
@@ -295,41 +295,44 @@ function showListingDetail(id) {
   var catColor = categoryColor(l.category);
   var sr = sellerRatings[l.seller_key];
   var sellerRatingHtml = sr && sr.count > 0
-    ? '<div class="detail-rating">' + renderStars(sr.avg) + '<span class="detail-rating-count">' + sr.avg.toFixed(1) + ' (' + sr.count + ' review' + (sr.count !== 1 ? 's' : '') + ')</span></div>'
+    ? '<div class="detail-rating">' + renderStars(sr.avg) + '<span class="detail-rating-count">' + sr.avg.toFixed(1) + ' (' + escHtml(i18n.tn('market.review_count', sr.count)) + ')</span></div>'
     : '';
 
+  // Words by key (data/i18n/en.json, market.*); the hints ride data-i18n-tip and
+  // i18n.apply() below fills their words in.
   content.innerHTML =
-    '<button onclick="closeListingDetail()" class="detail-close" aria-label="Close listing details">' + hosIcon('close', 14) + '</button>' +
+    '<button onclick="closeListingDetail()" class="detail-close" aria-label="' + escHtml(i18n.t('market.close_listing_details')) + '" data-i18n-tip="market.close_details_hint">' + hosIcon('close', 14) + '</button>' +
     '<h3 class="detail-title">' + escHtml(l.title) + '</h3>' +
-    '<div class="detail-price">' + escHtml(l.price || 'Contact for price') + '</div>' +
+    '<div class="detail-price">' + escHtml(l.price || i18n.t('market.contact_for_price')) + '</div>' +
     '<div class="detail-chips">' +
       '<span class="cat-chip" style="--cat:' + catColor + ';--cat-bg:' + catColor + '22;">' + escHtml(l.category) + '</span>' +
       (l.condition && l.condition !== 'N/A' ? '<span class="cond-chip">' + escHtml(l.condition) + '</span>' : '') +
     '</div>' +
     (l.description ? '<div class="detail-desc">' + escHtml(l.description) + '</div>' : '') +
-    '<div class="detail-meta">Seller: <strong>' + escHtml(l.seller_name || 'Anonymous') + '</strong></div>' +
+    '<div class="detail-meta">' + escHtml(i18n.t('market.seller_label')) + ' <strong>' + escHtml(l.seller_name || i18n.t('market.anonymous')) + '</strong></div>' +
     sellerRatingHtml +
-    (l.payment_methods ? '<div class="detail-meta">Payment: ' + escHtml(l.payment_methods) + '</div>' : '') +
+    (l.payment_methods ? '<div class="detail-meta">' + escHtml(i18n.t('market.payment_label')) + ' ' + escHtml(l.payment_methods) + '</div>' : '') +
     (l.location ? '<div class="detail-meta detail-location">' + hosIcon('mappin', 14) + ' ' + escHtml(l.location) + '</div>' : '') +
     (isMine ? '<div class="detail-actions">' +
-      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" class="detail-action">' + hosIcon('edit', 14) + ' Edit</button>' +
-      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" class="detail-action is-sold">' + hosIcon('check', 14) + ' Mark Sold</button>' +
-      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" class="detail-action is-delete">' + hosIcon('trash', 14) + ' Delete</button>' +
+      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" class="detail-action" data-i18n-tip="market.edit_listing_hint">' + hosIcon('edit', 14) + ' ' + escHtml(i18n.t('common.edit')) + '</button>' +
+      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" class="detail-action is-sold" data-i18n-tip="market.mark_sold_hint">' + hosIcon('check', 14) + ' ' + escHtml(i18n.t('market.mark_sold')) + '</button>' +
+      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" class="detail-action is-delete" data-i18n-tip="market.delete_listing_confirm_hint">' + hosIcon('trash', 14) + ' ' + escHtml(i18n.t('common.delete')) + '</button>' +
     '</div>' : '') +
     '<div id="listing-contact-section" class="detail-section">' +
-      '<h4 class="detail-section-title">Contact</h4>' +
+      '<h4 class="detail-section-title">' + escHtml(i18n.t('market.contact')) + '</h4>' +
       (isMine
-        ? '<div class="detail-empty">Buyers reach you through end-to-end encrypted direct messages: check your direct messages in Chat.</div>'
+        ? '<div class="detail-empty">' + i18n.html('market.contact_note_own_web') + '</div>'
         : marketMyKey && marketMyKey.indexOf('viewer_') !== 0
-          ? '<button onclick="messageSeller(\'' + escHtml(l.id) + '\')" class="btn btn-clickable btn-sm">Message Seller</button>' +
-            '<div class="detail-empty">Messages go directly to the seller, end-to-end encrypted. The server cannot read them and keeps no record of who contacted whom.</div>'
-          : '<div class="detail-empty">Sign in to message the seller.</div>') +
+          ? '<button onclick="messageSeller(\'' + escHtml(l.id) + '\')" class="btn btn-clickable btn-sm" data-i18n-tip="market.message_seller_hint">' + escHtml(i18n.t('market.message_seller')) + '</button>' +
+            '<div class="detail-empty">' + i18n.html('market.contact_note') + '</div>'
+          : '<div class="detail-empty">' + escHtml(i18n.t('market.contact_note_signin')) + '</div>') +
     '</div>' +
     '<div id="listing-reviews-section" class="detail-section">' +
-      '<h4 class="detail-section-title">Reviews</h4>' +
-      '<div id="listing-reviews-loading" class="detail-empty">Loading reviews...</div>' +
+      '<h4 class="detail-section-title">' + escHtml(i18n.t('market.reviews')) + '</h4>' +
+      '<div id="listing-reviews-loading" class="detail-empty">' + escHtml(i18n.t('market.loading_reviews')) + '</div>' +
       '<div id="listing-reviews-list"></div>' +
     '</div>';
+  i18n.apply(content);
 
   modal.style.display = '';
   fetchListingReviews(id).then(function(data) { renderDetailReviews(id, data); });
@@ -364,38 +367,38 @@ function renderDetailReviews(listingId, data) {
     html += '<div class="review-summary">' +
       renderStars(avg, 18) +
       '<span class="review-avg">' + avg.toFixed(1) + '</span>' +
-      '<span class="review-count">(' + count + ' review' + (count !== 1 ? 's' : '') + ')</span>' +
+      '<span class="review-count">(' + escHtml(i18n.tn('market.review_count', count)) + ')</span>' +
     '</div>';
   }
 
   if (reviews.length > 1) {
     html += '<div class="review-sort">' +
-      '<select id="review-sort-select" aria-label="Sort reviews" onchange="resortReviews(\'' + escHtml(listingId) + '\')">' +
-        '<option value="newest"' + (sortVal === 'newest' ? ' selected' : '') + '>Newest</option>' +
-        '<option value="highest"' + (sortVal === 'highest' ? ' selected' : '') + '>Highest</option>' +
-        '<option value="lowest"' + (sortVal === 'lowest' ? ' selected' : '') + '>Lowest</option>' +
+      '<select id="review-sort-select" aria-label="' + escHtml(i18n.t('market.sort_reviews_label')) + '" data-i18n-tip="market.sort_reviews_hint" onchange="resortReviews(\'' + escHtml(listingId) + '\')">' +
+        '<option value="newest"' + (sortVal === 'newest' ? ' selected' : '') + '>' + escHtml(i18n.t('market.sort_newest')) + '</option>' +
+        '<option value="highest"' + (sortVal === 'highest' ? ' selected' : '') + '>' + escHtml(i18n.t('market.sort_highest')) + '</option>' +
+        '<option value="lowest"' + (sortVal === 'lowest' ? ' selected' : '') + '>' + escHtml(i18n.t('market.sort_lowest')) + '</option>' +
       '</select>' +
     '</div>';
   }
 
   if (canReview) {
     html += '<div class="review-form">' +
-      '<div class="review-form-title">Write a Review</div>' +
+      '<div class="review-form-title">' + escHtml(i18n.t('market.write_review')) + '</div>' +
       '<div class="review-field">' +
-        '<label class="review-label">Rating</label>' +
+        '<label class="review-label">' + escHtml(i18n.t('market.rating')) + '</label>' +
         renderStarSelector(0) +
       '</div>' +
       '<div class="review-field">' +
-        '<label class="review-label" for="review-comment">Comment</label>' +
-        '<textarea id="review-comment" class="review-comment" rows="3" maxlength="2000" placeholder="Share your experience..."></textarea>' +
+        '<label class="review-label" for="review-comment">' + escHtml(i18n.t('market.comment')) + '</label>' +
+        '<textarea id="review-comment" class="review-comment" rows="3" maxlength="2000" placeholder="' + escHtml(i18n.t('market.review_placeholder')) + '" data-i18n-tip="market.review_comment_hint"></textarea>' +
       '</div>' +
-      '<button onclick="submitReview(\'' + escHtml(listingId) + '\')" class="btn btn-clickable btn-sm">Submit Review</button>' +
+      '<button onclick="submitReview(\'' + escHtml(listingId) + '\')" class="btn btn-clickable btn-sm" data-i18n-tip="market.submit_review_hint">' + escHtml(i18n.t('market.submit_review_web')) + '</button>' +
       '<div id="review-error" class="review-error" role="alert" style="display:none;"></div>' +
     '</div>';
   }
 
   if (sortedReviews.length === 0) {
-    html += '<div class="reviews-empty">No reviews yet.</div>';
+    html += '<div class="reviews-empty">' + escHtml(i18n.t('market.no_reviews')) + '</div>';
   } else {
     sortedReviews.forEach(function(r) {
       var canDelete = r.reviewer_key === marketMyKey || isAdmin;
@@ -403,12 +406,12 @@ function renderDetailReviews(listingId, data) {
       html += '<div class="review-row">' +
         '<div class="review-row-head">' +
           '<div>' +
-            '<strong class="review-author">' + escHtml(r.reviewer_name || 'Anonymous') + '</strong>' +
+            '<strong class="review-author">' + escHtml(r.reviewer_name || i18n.t('market.anonymous')) + '</strong>' +
             '<span class="review-stars">' + renderStars(r.rating, 12) + '</span>' +
           '</div>' +
           '<div class="review-meta">' +
             '<span class="review-date">' + escHtml(dateStr) + '</span>' +
-            (canDelete ? '<button onclick="deleteReview(\'' + escHtml(listingId) + '\',' + r.id + ')" class="review-delete" title="Delete review" aria-label="Delete review">' + hosIcon('trash', 12) + '</button>' : '') +
+            (canDelete ? '<button onclick="deleteReview(\'' + escHtml(listingId) + '\',' + r.id + ')" class="review-delete" title="' + escHtml(i18n.t('market.delete_review')) + '" aria-label="' + escHtml(i18n.t('market.delete_review')) + '" data-i18n-tip="market.delete_review_hint">' + hosIcon('trash', 12) + '</button>' : '') +
           '</div>' +
         '</div>' +
         (r.comment ? '<div class="review-body">' + escHtml(r.comment) + '</div>' : '') +
@@ -417,6 +420,7 @@ function renderDetailReviews(listingId, data) {
   }
 
   container.innerHTML = html;
+  i18n.apply(container);
   _reviewRating = 0;
 }
 
@@ -439,7 +443,7 @@ function refreshDetailReviews(listingId) {
 function submitReview(listingId) {
   if (_reviewRating < 1 || _reviewRating > 5) {
     var err = document.getElementById('review-error');
-    if (err) { err.textContent = 'Please select a rating (1-5 stars).'; err.style.display = ''; }
+    if (err) { err.textContent = i18n.t('market.review_needs_rating'); err.style.display = ''; }
     return;
   }
   var commentEl = document.getElementById('review-comment');
@@ -455,7 +459,7 @@ function submitReview(listingId) {
 }
 
 function deleteReview(listingId, reviewId) {
-  if (!confirm('Delete this review?')) return;
+  if (!confirm(i18n.t('market.confirm_delete_review'))) return;
   if (marketWs && marketWs.readyState === 1) {
     marketWs.send(JSON.stringify({
       type: 'review_delete',
@@ -506,8 +510,8 @@ function marketConnect() {
         if (msg.message.startsWith('__skill_verify_req__:')) {
           try {
             var payload = JSON.parse(msg.message.slice('__skill_verify_req__:'.length));
-            if (confirm(payload.from_name + ' claims ' + payload.skill_id + ' Lv ' + payload.level + ' \u2014 can you verify?\n\nClick OK to verify, Cancel to decline.')) {
-              var note = prompt('Add a note (optional):') || 'Verified';
+            if (confirm(i18n.t('market.skill_verify_confirm', { name: payload.from_name, skill: payload.skill_id, level: payload.level }))) {
+              var note = prompt(i18n.t('market.skill_verify_note')) || i18n.t('market.skill_verify_default');
               window._humanityWs.send(JSON.stringify({ type: 'skill_verify_response', skill_id: payload.skill_id, to_key: payload.from_key, approved: true, note: note }));
             }
           } catch(e2) {}
@@ -551,6 +555,7 @@ function renderMarketListings() {
   } else {
     empty.style.display = 'none';
     grid.innerHTML = filtered.map(function(l) { return renderListingCard(l, false); }).join('');
+    i18n.apply(grid);
   }
 }
 
@@ -562,26 +567,27 @@ function renderListingCard(l, showActions) {
   var ratingHtml = sr && sr.count > 0
     ? '<div class="listing-rating">' + renderStars(sr.avg, 11) + '<span class="listing-rating-count">(' + sr.count + ')</span></div>'
     : '';
+  // The hints ride data-i18n-tip; the caller's i18n.apply() fills their words in.
   var actions = (isMine || showActions) ?
     '<div class="listing-actions">' +
-     (isMine ? '<button onclick="event.stopPropagation();editListing(\'' + l.id + '\')" class="listing-action">' + hosIcon('edit', 14) + ' Edit</button>' : '') +
-     (isMine ? '<button onclick="event.stopPropagation();markListingSold(\'' + l.id + '\')" class="listing-action is-sold">' + hosIcon('check', 14) + ' Sold</button>' : '') +
-     ((isMine||isAdmin) ? '<button onclick="event.stopPropagation();deleteListing(\'' + l.id + '\')" class="listing-action is-delete">' + hosIcon('trash', 14) + ' Delete</button>' : '') +
+     (isMine ? '<button onclick="event.stopPropagation();editListing(\'' + l.id + '\')" class="listing-action" data-i18n-tip="market.edit_listing_hint">' + hosIcon('edit', 14) + ' ' + escHtml(i18n.t('common.edit')) + '</button>' : '') +
+     (isMine ? '<button onclick="event.stopPropagation();markListingSold(\'' + l.id + '\')" class="listing-action is-sold" data-i18n-tip="market.mark_sold_hint">' + hosIcon('check', 14) + ' ' + escHtml(i18n.t('market.sold')) + '</button>' : '') +
+     ((isMine||isAdmin) ? '<button onclick="event.stopPropagation();deleteListing(\'' + l.id + '\')" class="listing-action is-delete" data-i18n-tip="market.delete_listing_confirm_hint">' + hosIcon('trash', 14) + ' ' + escHtml(i18n.t('common.delete')) + '</button>' : '') +
     '</div>' : '';
-  var statusBadge = l.status === 'sold' ? '<span class="status-badge">SOLD</span>' :
-            l.status === 'withdrawn' ? '<span class="status-badge withdrawn">WITHDRAWN</span>' : '';
-  return '<div class="listing-card" role="button" tabindex="0" onclick="showListingDetail(\'' + l.id + '\')" onkeydown="if(event.key===\'Enter\'){showListingDetail(\'' + l.id + '\')}">' +
+  var statusBadge = l.status === 'sold' ? '<span class="status-badge">' + escHtml(i18n.t('market.badge_sold')) + '</span>' :
+            l.status === 'withdrawn' ? '<span class="status-badge withdrawn">' + escHtml(i18n.t('market.badge_withdrawn')) + '</span>' : '';
+  return '<div class="listing-card" role="button" tabindex="0" data-i18n-tip="market.view_hint" onclick="showListingDetail(\'' + l.id + '\')" onkeydown="if(event.key===\'Enter\'){showListingDetail(\'' + l.id + '\')}">' +
     '<div class="listing-thumb">' + (l.category === '3D Models' ? '&#129482;' : '&#128230;') + '</div>' +
     '<div class="listing-body">' +
       '<div class="listing-head">' +
        '<span class="listing-title">' + escHtml(l.title) + statusBadge + '</span>' +
       '</div>' +
-      '<div class="listing-price">' + escHtml(l.price || 'Contact for price') + '</div>' +
+      '<div class="listing-price">' + escHtml(l.price || i18n.t('market.contact_for_price')) + '</div>' +
       '<div class="listing-chips">' +
        '<span class="cat-chip" style="--cat:' + catColor + ';--cat-bg:' + catColor + '22;">' + escHtml(l.category) + '</span>' +
        (l.condition && l.condition !== 'N/A' ? '<span class="cond-chip">' + escHtml(l.condition) + '</span>' : '') +
       '</div>' +
-      '<div class="listing-seller">by ' + escHtml(l.seller_name || 'Anonymous') + '</div>' +
+      '<div class="listing-seller">' + escHtml(i18n.t('market.by_name', { name: l.seller_name || i18n.t('market.anonymous') })) + '</div>' +
       ratingHtml +
       (l.location ? '<div class="listing-location">' + hosIcon('mappin', 14) + ' ' + escHtml(l.location) + '</div>' : '') +
       actions +
@@ -630,6 +636,7 @@ function renderMyListings() {
   } else {
     empty.style.display = 'none';
     grid.innerHTML = mine.map(function(l) { return renderListingCard(l, true); }).join('');
+    i18n.apply(grid);
   }
 }
 
@@ -638,16 +645,17 @@ function renderStoreDirectory() {
   var filtered = filter ? STORE_DIRECTORY.filter(function(s) { return s.category === filter; }) : STORE_DIRECTORY;
   var grid = document.getElementById('store-directory-grid');
   if (!grid) return;
-  if (!filtered.length) { grid.innerHTML = '<div class="stores-empty">No stores listed yet.</div>'; return; }
+  if (!filtered.length) { grid.innerHTML = '<div class="stores-empty">' + escHtml(i18n.t('market.no_stores')) + '</div>'; return; }
   grid.innerHTML = filtered.map(function(s) {
     return '<div class="store-card">' +
      '<div class="store-icon">' + s.icon + '</div>' +
      '<div class="store-name">' + escHtml(s.name) + '</div>' +
      '<div class="store-category">' + escHtml(s.category) + '</div>' +
      '<div class="store-desc">' + escHtml(s.description) + '</div>' +
-     '<a href="' + s.url + '" target="_blank" rel="noopener" class="store-link">Visit Store</a>' +
+     '<a href="' + s.url + '" target="_blank" rel="noopener" class="store-link" data-i18n-tip="market.visit_store_hint">' + escHtml(i18n.t('market.visit_store')) + '</a>' +
     '</div>';
   }).join('');
+  i18n.apply(grid);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -796,28 +804,35 @@ function dirExpired(o, nowMs) {
   return o.updated_at + ttl * 86400000 <= nowMs;
 }
 
-/** Human price line: "Free", "24.99 USD each", "10.00 to 20.00 USD", "Ask". */
+/** Human price line: "Free", "24.99 USD each", "10.00 to 20.00 USD", "Ask".
+ *  The words are market.directory.price_*, the same keys as the app's price_line. */
 function dirPriceLine(o) {
+  // The unit words ("each", "per dozen"), joined to the price by price_with_unit
+  // so a language can put them in its own order.
   var unit = !o.price_unit ? ''
-    : (o.price_unit === 'each' ? ' each' : ' per ' + o.price_unit.replace(/_/g, ' '));
+    : (o.price_unit === 'each' ? i18n.t('market.directory.unit_each')
+      : i18n.t('market.directory.unit_per', { unit: o.price_unit.replace(/_/g, ' ') }));
+  var withUnit = function(price) {
+    return unit ? i18n.t('market.directory.price_with_unit', { price: price, unit: unit }) : price;
+  };
   var a = o.price_amount;
   var b = o.price_amount_max;
   switch (o.price_mode) {
-    case 'free': return 'Free';
-    case 'trade': return 'Trade';
-    case 'donation': return 'Donation';
-    case 'inquire': return 'Ask';
-    case 'pay_what_you_can': return 'Pay what you can';
+    case 'free': return i18n.t('market.directory.price_free');
+    case 'trade': return i18n.t('market.directory.price_trade');
+    case 'donation': return i18n.t('market.directory.price_donation');
+    case 'inquire': return i18n.t('market.directory.price_ask');
+    case 'pay_what_you_can': return i18n.t('market.directory.price_pwyc');
     case 'sliding_scale':
       return (a != null && b != null)
-        ? 'Sliding ' + a.toFixed(2) + ' to ' + b.toFixed(2) + ' ' + o.price_currency + unit
-        : 'Sliding scale';
+        ? withUnit(i18n.t('market.directory.price_sliding', { min: a.toFixed(2), max: b.toFixed(2), currency: o.price_currency }))
+        : i18n.t('market.directory.price_sliding_scale');
     case 'range':
       return (a != null && b != null)
-        ? a.toFixed(2) + ' to ' + b.toFixed(2) + ' ' + o.price_currency + unit
-        : 'Range';
+        ? withUnit(i18n.t('market.directory.price_range', { min: a.toFixed(2), max: b.toFixed(2), currency: o.price_currency }))
+        : i18n.t('market.directory.price_range_word');
     case 'fixed':
-      return a != null ? a.toFixed(2) + ' ' + o.price_currency + unit : 'Priced';
+      return a != null ? withUnit(a.toFixed(2) + ' ' + o.price_currency) : i18n.t('market.directory.price_priced');
     default:
       return String(o.price_mode || '').replace(/_/g, ' ');
   }
@@ -826,9 +841,9 @@ function dirPriceLine(o) {
 /** "today", "3d ago", "2mo ago" from a millisecond timestamp. */
 function dirAge(updatedMs, nowMs) {
   var days = Math.floor(Math.max(0, nowMs - updatedMs) / 86400000);
-  if (days === 0) return 'today';
-  if (days <= 59) return days + 'd ago';
-  return Math.floor(days / 30) + 'mo ago';
+  if (days === 0) return i18n.t('market.directory.age_today');
+  if (days <= 59) return i18n.t('market.directory.age_days', { n: days });
+  return i18n.t('market.directory.age_months', { n: Math.floor(days / 30) });
 }
 
 /** Enum ids ride the wire as snake_case; humans read them with spaces. */
@@ -987,25 +1002,26 @@ function renderDirectory() {
   if (filters) filters.style.display = DIRECTORY.sub === 'offerings' ? '' : 'none';
   if (refresh) {
     refresh.disabled = DIRECTORY.loading;
-    refresh.textContent = DIRECTORY.loading ? 'Loading...' : 'Refresh';
+    refresh.textContent = DIRECTORY.loading ? i18n.t('common.loading') : i18n.t('common.refresh');
   }
 
-  var plural = function(n, word) { return n === 1 ? '1 ' + word : n + ' ' + word + 's'; };
   if (status) {
-    status.textContent = plural(DIRECTORY.offerings.length, 'offering') + ' from '
-      + plural(DIRECTORY.providers.length, 'provider')
-      + '. Listings and introductions only: money never moves through the platform.';
+    status.textContent = i18n.t('market.directory.summary', {
+      offerings: i18n.tn('market.directory.offerings_count', DIRECTORY.offerings.length),
+      providers: i18n.tn('market.directory.providers_count', DIRECTORY.providers.length),
+    });
   }
   if (errEl) {
     errEl.style.display = DIRECTORY.error ? '' : 'none';
-    errEl.textContent = DIRECTORY.error ? 'Fetch failed: ' + DIRECTORY.error : '';
+    errEl.textContent = DIRECTORY.error ? i18n.t('market.directory.fetch_failed', { error: DIRECTORY.error }) : '';
   }
   if (crumb) {
     var filtered = DIRECTORY.providerFilter ? dirProviderByRoot(DIRECTORY.providerFilter) : null;
     crumb.innerHTML = filtered
-      ? '<span class="dir-crumb">Storefront: ' + escHtml(filtered.display_name)
-        + ' <button class="btn dir-toggle" onclick="clearDirectoryProviderFilter()">All providers</button></span>'
+      ? '<span class="dir-crumb">' + escHtml(i18n.t('market.directory.storefront', { name: filtered.display_name }))
+        + ' <button class="btn dir-toggle" onclick="clearDirectoryProviderFilter()" data-i18n-tip="market.directory.all_providers_hint">' + escHtml(i18n.t('market.directory.all_providers')) + '</button></span>'
       : '';
+    i18n.apply(crumb);
   }
 
   if (DIRECTORY.sub === 'providers') renderDirectoryProviders(grid, empty);
@@ -1019,8 +1035,8 @@ function renderDirectoryOfferings(grid, empty) {
     if (empty) {
       empty.style.display = '';
       empty.textContent = DIRECTORY.loading
-        ? 'Loading directory...'
-        : 'No offerings here yet. Publish yours with scripts/import-offerings.mjs (docs/admin/market-importer.md).';
+        ? i18n.t('market.directory.loading')
+        : i18n.t('market.directory.no_offerings_web');
     }
     return;
   }
@@ -1029,13 +1045,13 @@ function renderDirectoryOfferings(grid, empty) {
   grid.innerHTML = rows.map(function(o) {
     var catColor = categoryColor(o.category);
     var provider = dirProviderByRoot(o.provider_root);
-    var providerName = provider ? provider.display_name : 'Unknown provider';
+    var providerName = provider ? provider.display_name : i18n.t('market.directory.unknown_provider');
     var kindNote = o.kind === 'service'
-      ? 'service: ' + dirEnumLabel(o.action)
+      ? i18n.t('market.directory.service_kind', { action: dirEnumLabel(o.action) })
       : dirEnumLabel(o.condition);
     var sel = dirAttr(dirSelKey(o));
     var thumb = window.hosIcon ? hosIcon(o.kind === 'service' ? 'tool' : 'box', 28) : '';
-    return '<div class="listing-card" role="button" tabindex="0"' +
+    return '<div class="listing-card" role="button" tabindex="0" data-i18n-tip="market.directory.offering_card_hint"' +
       ' onclick="showOfferingDetail(\'' + sel + '\')"' +
       ' onkeydown="if(event.key===\'Enter\'){showOfferingDetail(\'' + sel + '\')}">' +
       '<div class="listing-thumb">' + thumb + '</div>' +
@@ -1048,14 +1064,15 @@ function renderDirectoryOfferings(grid, empty) {
         '<div class="listing-chips">' +
           '<span class="cat-chip" style="--cat:' + catColor + ';--cat-bg:' + catColor + '22;">' +
             escHtml(dirCategoryLabel(o.category)) + '</span>' +
-          (o.reality === 'sim' ? '<span class="cond-chip">sim</span>' : '') +
+          (o.reality === 'sim' ? '<span class="cond-chip">' + escHtml(i18n.t('market.directory.sim_badge')) + '</span>' : '') +
         '</div>' +
-        '<div class="listing-seller">by ' + escHtml(providerName) + '</div>' +
+        '<div class="listing-seller">' + escHtml(i18n.t('market.by_name', { name: providerName })) + '</div>' +
         (kindNote.trim() ? '<div class="dir-kind">' + escHtml(kindNote) + '</div>' : '') +
         (o.summary ? '<div class="dir-summary">' + escHtml(o.summary) + '</div>' : '') +
       '</div>' +
     '</div>';
   }).join('');
+  i18n.apply(grid);
 }
 
 function renderDirectoryProviders(grid, empty) {
@@ -1065,8 +1082,8 @@ function renderDirectoryProviders(grid, empty) {
     if (empty) {
       empty.style.display = '';
       empty.textContent = DIRECTORY.loading
-        ? 'Loading directory...'
-        : 'No providers yet. Publish yours with scripts/import-offerings.mjs (docs/admin/market-importer.md).';
+        ? i18n.t('market.directory.loading')
+        : i18n.t('market.directory.no_providers_web');
     }
     return;
   }
@@ -1075,16 +1092,17 @@ function renderDirectoryProviders(grid, empty) {
     var count = directoryActiveOfferingCount(p.root_id);
     var root = dirAttr(p.root_id);
     var icon = window.hosIcon ? hosIcon('storefront', 24) : '';
-    return '<div class="store-card provider-card" role="button" tabindex="0"' +
+    return '<div class="store-card provider-card" role="button" tabindex="0" data-i18n-tip="market.directory.provider_card_hint"' +
       ' onclick="showProviderStorefront(\'' + root + '\')"' +
       ' onkeydown="if(event.key===\'Enter\'){showProviderStorefront(\'' + root + '\')}">' +
       '<div class="store-icon">' + icon + '</div>' +
       '<div class="store-name">' + escHtml(p.display_name) + '</div>' +
       '<div class="store-category">' + escHtml(dirEnumLabel(p.kind)) + '</div>' +
-      '<div class="dir-provider-count">' + count + ' active offering' + (count === 1 ? '' : 's') + '</div>' +
+      '<div class="dir-provider-count">' + escHtml(i18n.tn('market.directory.active_offerings_count', count)) + '</div>' +
       (p.description ? '<div class="store-desc">' + escHtml(p.description) + '</div>' : '') +
     '</div>';
   }).join('');
+  i18n.apply(grid);
 }
 
 // ── Offering detail ──
@@ -1103,29 +1121,29 @@ function showOfferingDetail(selKey) {
     if (value) facts += '<div class="dir-fact"><span>' + escHtml(label) + '</span> ' + escHtml(value) + '</div>';
   };
   if (o.kind === 'good') {
-    fact('Condition:', dirEnumLabel(o.condition));
+    fact(i18n.t('market.condition_label'), dirEnumLabel(o.condition));
     var avail;
     if (o.availability_mode === 'in_stock' && o.quantity_available != null) {
-      avail = o.quantity_available + ' in stock';
+      avail = i18n.t('market.directory.in_stock', { n: o.quantity_available });
     } else if (o.availability_mode === 'one_off') {
-      avail = 'one of a kind';
+      avail = i18n.t('market.directory.one_off');
     } else if (o.availability_mode === 'made_to_order') {
       avail = o.lead_time_days != null
-        ? 'made to order, ' + o.lead_time_days + ' day lead'
-        : 'made to order';
+        ? i18n.t('market.directory.made_to_order_lead', { n: o.lead_time_days })
+        : i18n.t('market.directory.made_to_order');
     } else {
       avail = dirEnumLabel(o.availability_mode);
     }
-    fact('Availability:', avail);
+    fact(i18n.t('market.directory.fact_availability'), avail);
   } else {
-    fact('Service:', dirEnumLabel(o.action));
-    fact('Schedule:', dirEnumLabel(o.schedule_kind));
-    if (o.duration_minutes != null) fact('Duration:', o.duration_minutes + ' min');
+    fact(i18n.t('market.directory.fact_service'), dirEnumLabel(o.action));
+    fact(i18n.t('market.directory.fact_schedule'), dirEnumLabel(o.schedule_kind));
+    if (o.duration_minutes != null) fact(i18n.t('market.directory.fact_duration'), i18n.t('market.directory.duration_min', { n: o.duration_minutes }));
   }
-  fact('Fulfillment:', o.fulfillment.map(dirEnumLabel).join(', '));
-  fact('Location:', dirEnumLabel(o.location_mode));
-  if (o.tags.length) fact('Tags:', o.tags.join(', '));
-  fact('Updated:', dirAge(o.updated_at, Date.now()));
+  fact(i18n.t('market.directory.fact_fulfillment'), o.fulfillment.map(dirEnumLabel).join(', '));
+  fact(i18n.t('market.location_label'), dirEnumLabel(o.location_mode));
+  if (o.tags.length) fact(i18n.t('market.directory.fact_tags'), o.tags.join(', '));
+  fact(i18n.t('market.directory.fact_updated'), dirAge(o.updated_at, Date.now()));
 
   var providerHtml;
   if (provider) {
@@ -1133,41 +1151,42 @@ function showOfferingDetail(selKey) {
       '<div class="dir-fact"><strong>' + escHtml(provider.display_name) + '</strong> ' +
         '<span>' + escHtml(dirEnumLabel(provider.kind)) + '</span></div>' +
       (provider.description ? '<div class="detail-desc">' + escHtml(provider.description) + '</div>' : '') +
-      '<div class="dir-fact"><span>Contact:</span> ' + escHtml(dirEnumLabel(o.contact_via)) + '</div>' +
-      (provider.website ? '<div class="dir-fact"><span>Website:</span> ' + escHtml(provider.website) + '</div>' : '') +
+      '<div class="dir-fact"><span>' + escHtml(i18n.t('market.directory.fact_contact')) + '</span> ' + escHtml(dirEnumLabel(o.contact_via)) + '</div>' +
+      (provider.website ? '<div class="dir-fact"><span>' + escHtml(i18n.t('market.directory.fact_website')) + '</span> ' + escHtml(provider.website) + '</div>' : '') +
       (provider.author_key_hex
-        ? '<div class="dir-fact"><span>Provider key (paste into Chat to send a direct message):</span></div>' +
+        ? '<div class="dir-fact"><span>' + escHtml(i18n.t('market.directory.key_label_web')) + '</span></div>' +
           '<div class="dir-key" id="offering-provider-key">' + escHtml(provider.author_key_hex) + '</div>' +
-          '<button class="btn btn-sm" id="offering-copy-key" onclick="copyProviderKey()">Copy provider key</button>'
+          '<button class="btn btn-sm" id="offering-copy-key" onclick="copyProviderKey()" data-i18n-tip="market.directory.copy_key_hint">' + escHtml(i18n.t('market.directory.copy_key')) + '</button>'
         : '');
   } else {
-    providerHtml = '<div class="detail-empty">Provider entry not found on this server.</div>';
+    providerHtml = '<div class="detail-empty">' + escHtml(i18n.t('market.directory.provider_missing')) + '</div>';
   }
 
+  // Words by key (market.*); the hints ride data-i18n-tip and i18n.apply() below fills them in.
   content.innerHTML =
-    '<button onclick="closeOfferingDetail()" class="detail-close" aria-label="Close offering details">' +
+    '<button onclick="closeOfferingDetail()" class="detail-close" aria-label="' + escHtml(i18n.t('market.directory.close_details')) + '" data-i18n-tip="market.close_details_hint">' +
       (window.hosIcon ? hosIcon('close', 14) : 'x') + '</button>' +
     '<h3 class="detail-title">' + escHtml(o.title) + '</h3>' +
     '<div class="detail-chips">' +
       '<span class="cat-chip" style="--cat:' + catColor + ';--cat-bg:' + catColor + '22;">' +
         escHtml(dirCategoryLabel(o.category)) + '</span>' +
-      (o.reality === 'sim' ? '<span class="cond-chip">sim</span>' : '') +
+      (o.reality === 'sim' ? '<span class="cond-chip">' + escHtml(i18n.t('market.directory.sim_badge')) + '</span>' : '') +
     '</div>' +
     '<div class="detail-price">' + escHtml(dirPriceLine(o)) + '</div>' +
     (o.price_accepts.length
-      ? '<div class="detail-meta">Accepts: ' + escHtml(o.price_accepts.map(dirEnumLabel).join(', ')) + '</div>' : '') +
+      ? '<div class="detail-meta">' + escHtml(i18n.t('market.directory.accepts', { list: o.price_accepts.map(dirEnumLabel).join(', ') })) + '</div>' : '') +
     (o.price_notes ? '<div class="detail-meta">' + escHtml(o.price_notes) + '</div>' : '') +
     (o.summary ? '<div class="detail-desc">' + escHtml(o.summary) + '</div>' : '') +
     '<div class="detail-section">' +
-      '<h4 class="detail-section-title">Details</h4>' + facts +
+      '<h4 class="detail-section-title">' + escHtml(i18n.t('market.directory.details')) + '</h4>' + facts +
     '</div>' +
     '<div class="detail-section">' +
-      '<h4 class="detail-section-title">Provider</h4>' + providerHtml +
-      (o.checkout_uri ? '<div class="dir-fact"><span>Checkout:</span> ' + escHtml(o.checkout_uri) + '</div>' : '') +
+      '<h4 class="detail-section-title">' + escHtml(i18n.t('market.directory.provider')) + '</h4>' + providerHtml +
+      (o.checkout_uri ? '<div class="dir-fact"><span>' + escHtml(i18n.t('market.directory.fact_checkout')) + '</span> ' + escHtml(o.checkout_uri) + '</div>' : '') +
       (o.instructions ? '<div class="detail-desc">' + escHtml(o.instructions) + '</div>' : '') +
-      '<div class="dir-note">Money never moves through the platform: contact the provider to ' +
-        'arrange payment and handoff.</div>' +
+      '<div class="dir-note">' + escHtml(i18n.t('market.directory.money_note_web')) + '</div>' +
     '</div>';
+  i18n.apply(content);
 
   modal.style.display = '';
 }
@@ -1187,8 +1206,8 @@ function copyProviderKey() {
   var hex = keyEl.textContent || '';
   var report = function(ok) {
     if (!btn) return;
-    btn.textContent = ok ? 'Copied' : 'Copy failed, select the key above';
-    setTimeout(function() { btn.textContent = 'Copy provider key'; }, 2000);
+    btn.textContent = ok ? i18n.t('market.directory.copied') : i18n.t('market.directory.copy_failed');
+    setTimeout(function() { btn.textContent = i18n.t('market.directory.copy_key'); }, 2000);
   };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(hex).then(
@@ -1202,7 +1221,7 @@ function copyProviderKey() {
 
 function dirLegacyCopy(text) {
   try {
-    var ta = document.createElement('textarea');
+    var ta = document.createElement('textarea'); // hint-exempt: an invisible helper for the copy fallback, never seen or pressed
     ta.value = text;
     ta.setAttribute('readonly', '');
     ta.style.position = 'fixed';
@@ -1229,7 +1248,7 @@ function messageSeller(listingId) {
   try {
     sessionStorage.setItem('hos_dm_prefill', JSON.stringify({
       key: l.seller_key,
-      text: 'About your listing "' + (l.title || '') + '": ',
+      text: i18n.t('market.message_prefill', { title: l.title || '' }),
     }));
   } catch (e) { /* storage off: the conversation still opens, just empty */ }
   location.href = '/chat#dm=' + l.seller_key;

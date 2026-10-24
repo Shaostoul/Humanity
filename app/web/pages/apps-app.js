@@ -176,6 +176,7 @@
     quests: { href: null, icon: 'compass' },
     homes: { href: '/home', icon: 'home' },
     library: { href: '/library', icon: 'journal' },
+    how_to: { href: '/how-to', icon: 'steps' },
     notes: { href: '/notes', icon: null },
     calendar: { href: '/calendar', icon: null },
     calculator: { href: '/calculator', icon: null },

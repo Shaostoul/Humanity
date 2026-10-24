@@ -132,6 +132,16 @@ const hosDmStore = {
   // against my own copy of the group. Kept here, encrypted, until I dismiss
   // them; never sent to any server.
   groupReports: {},    // id -> {id, from, ts, group_id, group_name, target, reason, note, items, removed}
+  // ── Key cards (2026-10-22, docs/design/key-cards.md): the Kyber768 key of
+  // each person I sealed anything to, from a key card I checked myself
+  // (signed by their own identity key), and keys that changed and wait for me
+  // to accept them (/shared/key-card.js take). For this IDENTITY, not this
+  // server (a card is good on every server): its own encrypted record, scope
+  // SHA-256 of `${me}\nkey-pins`. The desktop app's src/net/key_pins.rs.
+  keyCards: { pins: {}, changes: {} },
+  _pinsScope: null,
+  _pinsSaving: null,
+  _pinsDirty: false,
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -267,6 +277,16 @@ const hosDmStore = {
           if (m && typeof m.warningsOn === 'boolean') this.warningsOn = m.warningsOn;
           if (m && m.groupReports && typeof m.groupReports === 'object') this.groupReports = m.groupReports;
         }
+      }
+      // The key cards I pinned, this identity's on every server (read-only pages read them too:
+      // the Recovery page seals to them).
+      this._pinsScope = await this._sha256hex(`${meHex}\nkey-pins`);
+      this.keyCards = { pins: {}, changes: {} };
+      const pinned = await this._idb(this._tx('meta', 'readonly').get(this._pinsScope)).catch(() => null);
+      if (pinned && pinned.box) {
+        const p = await this._decrypt(pinned.box);
+        if (p && p.pins && typeof p.pins === 'object') this.keyCards.pins = p.pins;
+        if (p && p.changes && typeof p.changes === 'object') this.keyCards.changes = p.changes;
       }
       if (this.readOnly) return true;
       // The scratch pad's notes (10n N8), in their own encrypted record.
@@ -907,6 +927,57 @@ const hosDmStore = {
   /** Every kept report, newest first. */
   groupReportList() {
     return Object.values(this.groupReports).filter((r) => r && r.id).sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
+  },
+
+  // ── Key cards (2026-10-22): the pins ──
+  /**
+   * Take a key card I have CHECKED (/shared/key-card.js cardFor) by the pin
+   * rule, saving when anything changed. Returns 'first' | 'same' | 'changed' |
+   * 'stale', or null when the store is not ready.
+   */
+  takeKeyCard(card) {
+    if (!this.ready || typeof HosKeyCard === 'undefined' || !card) return null;
+    const { seen, dirty } = HosKeyCard.take(this.keyCards, card);
+    if (dirty) this._persistPins();
+    return seen;
+  },
+  /** The key to seal to `person` (pinned, no change waiting), or null. */
+  keySealing(person) {
+    return typeof HosKeyCard === 'undefined' ? null : HosKeyCard.sealingKey(this.keyCards, person);
+  },
+  /** The changed key waiting for `person` ({kyber, at}), or null. */
+  keyChange(person) {
+    return Object.prototype.hasOwnProperty.call(this.keyCards.changes, person) ? this.keyCards.changes[person] : null;
+  },
+  /** Accept `person`'s changed key. Returns the new key, or null when none waited. */
+  acceptKey(person) {
+    if (!this.ready || typeof HosKeyCard === 'undefined') return null;
+    const kyber = HosKeyCard.accept(this.keyCards, person);
+    if (kyber) this._persistPins();
+    return kyber;
+  },
+  /** Write the pins' record, one write at a time (the scratch pad's way). */
+  _persistPins() {
+    if (!this.ready || this.readOnly || !this._pinsScope) return Promise.resolve();
+    if (this._pinsSaving) {
+      this._pinsDirty = true;
+      return this._pinsSaving;
+    }
+    const run = async () => {
+      try {
+        do {
+          this._pinsDirty = false;
+          if (!this.ready || this.readOnly) break;
+          const scope = this._pinsScope;
+          const box = await this._encrypt({ pins: this.keyCards.pins, changes: this.keyCards.changes });
+          await this._idb(this._tx('meta', 'readwrite').put({ scope, box })).catch(() => {});
+        } while (this._pinsDirty);
+      } finally {
+        this._pinsSaving = null;
+      }
+    };
+    this._pinsSaving = run();
+    return this._pinsSaving;
   },
 
   // ── The scratch pad (10n N8) ──
