@@ -82,12 +82,20 @@ function factorial(n) {
   return result;
 }
 
+// Angles are in DEGREES, as on the desktop calculator (src/gui/pages/calculator.rs takes
+// to_radians() before sin, cos and tan); the website worked in radians until 2026-10-24, so the
+// same keys gave different answers on the two (sin 30 was -0.988 here and 0.5 there).
+const DEG = Math.PI / 180;
+function sinDeg(x) { return Math.sin(x * DEG); }
+function cosDeg(x) { return Math.cos(x * DEG); }
+function tanDeg(x) { return Math.tan(x * DEG); }
+
 function safeEval(expr) {
-  // Replace scientific functions with Math equivalents
+  // Replace scientific functions with Math equivalents (the trigonometry in degrees)
   let e = expr
-    .replace(/sin\(/g, 'Math.sin(')
-    .replace(/cos\(/g, 'Math.cos(')
-    .replace(/tan\(/g, 'Math.tan(')
+    .replace(/sin\(/g, '__sin__(')
+    .replace(/cos\(/g, '__cos__(')
+    .replace(/tan\(/g, '__tan__(')
     .replace(/log\(/g, 'Math.log10(')
     .replace(/ln\(/g, 'Math.log(')
     .replace(/sqrt\(/g, 'Math.sqrt(')
@@ -105,8 +113,8 @@ function safeEval(expr) {
   // Create a safe scope
   const __fact__ = factorial;
   try {
-    const fn = new Function('Math', '__fact__', '"use strict"; return (' + e + ')');
-    return fn(Math, __fact__);
+    const fn = new Function('Math', '__fact__', '__sin__', '__cos__', '__tan__', '"use strict"; return (' + e + ')');
+    return fn(Math, __fact__, sinDeg, cosDeg, tanDeg);
   } catch (err) {
     return NaN;
   }

@@ -209,8 +209,8 @@
 
     try {
       var [solBal, usdcBal, solPrice] = await Promise.all([
-        HosWallet.getBalance(solAddress),
-        HosWallet.getTokenBalance ? HosWallet.getTokenBalance(solAddress, USDC_MINT).catch(function () { return 0; }) : Promise.resolve(0),
+        HosWallet.getSOLBalance(solAddress),
+        HosWallet.getUSDCBalance(solAddress).catch(function () { return 0; }),
         getSOLPrice()
       ]);
 
@@ -243,9 +243,7 @@
 
     try {
       var txs = [];
-      if (HosWallet.getTransactions) {
-        txs = await HosWallet.getTransactions(solAddress, 10);
-      }
+      txs = await HosWallet.getTransactionHistory(solAddress, 10);
       loadingEl.style.display = 'none';
       renderTransactionList(txs);
     } catch (e) {
@@ -275,7 +273,7 @@
       var token = tx.token || 'SOL'; // i18n-exempt: the SOL token's name
       var time = tx.timestamp ? formatTime(tx.timestamp) : '';
       var sig = tx.signature || tx.hash || '';
-      var link = sig ? '<a class="tx-link" data-i18n-tip="wallet.view_tx_hint" href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + escapeHtml(i18n.t('wallet.view_tx')) + '</a>' : '';
+      var link = sig ? '<a class="tx-link" data-i18n-tip="wallet.view_tx_hint" href="https://solscan.io/tx/' + encodeURIComponent(sig) + '" target="_blank" rel="noopener">' + escapeHtml(i18n.t('wallet.view_tx')) + '</a>' : '';
 
       return '<li class="tx-item">' +
         '<span class="tx-dir ' + dirClass + '">' + dirLabel + '</span>' +

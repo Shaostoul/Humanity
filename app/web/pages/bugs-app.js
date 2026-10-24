@@ -16,6 +16,40 @@
     return keys[value] ? i18n.t(keys[value]) : String(value || '');
   }
 
+  // The severity and category menus, form and filters alike, are filled from
+  // data/bugs/taxonomy.json, the one list the desktop page and the relay also use (2026-10-24; the
+  // page used to hand-write its own, and the relay kept a third). An entry's id is its word in lower
+  // case; its words come from i18n by key when there is one, otherwise the entry as written.
+  function fillMenus(t) {
+    function add(sel, value, label, selected) {
+      if (!sel) return;
+      var o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      if (selected) o.selected = true;
+      sel.appendChild(o);
+    }
+    function word(key, fallback) {
+      var w = i18n.t(key);
+      return w && w !== key ? w : fallback;
+    }
+    (t.severities || []).forEach(function (s) {
+      var id = String(s).trim().toLowerCase();
+      SEVERITY_KEYS[id] = SEVERITY_KEYS[id] || 'bugs.sev_' + id;
+      add(document.getElementById('bug-severity'), id, word('bugs.sev_' + id + '_long', s), id === 'medium');
+      add(document.getElementById('filter-severity'), id, word('bugs.sev_' + id, s), false);
+    });
+    (t.categories || []).forEach(function (c) {
+      var id = String(c).trim().toLowerCase();
+      CATEGORY_KEYS[id] = CATEGORY_KEYS[id] || 'bugs.cat_' + id;
+      add(document.getElementById('bug-category'), id, word('bugs.cat_' + id, c), id === 'other');
+      add(document.getElementById('filter-category'), id, word('bugs.cat_' + id, c), false);
+    });
+  }
+  fetch('/data/bugs/taxonomy.json').then(function (r) { return r.json(); }).then(fillMenus).catch(function (e) {
+    console.error('Could not read data/bugs/taxonomy.json:', e);
+  });
+
   var API_BASE = '';
   var form = document.getElementById('bug-form');
   var btnSubmit = document.getElementById('btn-submit');

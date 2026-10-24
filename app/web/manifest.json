@@ -1035,9 +1035,9 @@
     },
     {
       "path": "/bugs.html",
-      "hash": "sha256:da59a598294aad5a9d92abe903476a88a56e77a98644213ffdd37399dbebb510",
-      "size": 15073,
-      "modified": 1792834699
+      "hash": "sha256:c7edfd2b2bc752fcba93f36b4605a7b2f0d233b17d30be0c589c966d9c5dbc55",
+      "size": 12959,
+      "modified": 1792842595
     },
     {
       "path": "/calculator.html",
@@ -1329,9 +1329,9 @@
     },
     {
       "path": "/download.html",
-      "hash": "sha256:69c6e19a1517b7abf7266460a59350abaff4135e96334cf30d2c6f0876bcec24",
+      "hash": "sha256:fffa47411769068b672d99dda63aa886d8cbd55e4dea1afcb5bad508f54aef49",
       "size": 47712,
-      "modified": 1792836694
+      "modified": 1792872545
     },
     {
       "path": "/files.html",
@@ -1383,9 +1383,9 @@
     },
     {
       "path": "/index.html",
-      "hash": "sha256:7a3488191ccf99dc6ece610fb98b75f935e807b49511e7898fadfcfc76e8bee6",
+      "hash": "sha256:48d8de39948d9cd382831370de22fcb3a4eae949d1aedf59c702d33332f829af",
       "size": 40672,
-      "modified": 1792836694
+      "modified": 1792872545
     },
     {
       "path": "/inventory.html",
@@ -1437,9 +1437,9 @@
     },
     {
       "path": "/ops.html",
-      "hash": "sha256:3392fc18ce35333afd156a619eb36a14da2785896d6ae6fc188b893672ab438f",
+      "hash": "sha256:eb9340f9b1738e3752843499c73a47dfd7074d353ff734ec51df4ba10735bfde",
       "size": 22846,
-      "modified": 1792836694
+      "modified": 1792872544
     },
     {
       "path": "/pages/accord-app.js",
@@ -1473,15 +1473,15 @@
     },
     {
       "path": "/pages/bugs-app.js",
-      "hash": "sha256:5e1bbe44a2050af4f1ad129edd10d470188ed6c6025fd06dd9c1986e2801588a",
-      "size": 10318,
-      "modified": 1792834699
+      "hash": "sha256:ddc8ce76d813dec1bb14699414d8e85b3887b30b55d95e1f2bc9a1c3facfc0b1",
+      "size": 12027,
+      "modified": 1792842608
     },
     {
       "path": "/pages/calculator-app.js",
-      "hash": "sha256:fe129290c794e985e0e131632f57490d03e26ba67f23e7f1198da0a0a2849d4b",
-      "size": 13831,
-      "modified": 1792834699
+      "hash": "sha256:178de25ff6695e92c22f8358850333cad535ae0c71e8caf2c88226c0ed5b21b3",
+      "size": 14372,
+      "modified": 1792842155
     },
     {
       "path": "/pages/civilization-app.js",
@@ -1611,9 +1611,9 @@
     },
     {
       "path": "/pages/notes-app.js",
-      "hash": "sha256:1f75c107b5a3988827a24cfe2e68889e4ddd0a700bbf532cda5a3e12a9201961",
-      "size": 24293,
-      "modified": 1792834699
+      "hash": "sha256:c0ff15f1d899ea7c45410d7109cd54d22d281c83ce4e0503fb8b512a115f9ccd",
+      "size": 24936,
+      "modified": 1792842071
     },
     {
       "path": "/pages/recovery-app.js",
@@ -1629,9 +1629,9 @@
     },
     {
       "path": "/pages/settings-app.js",
-      "hash": "sha256:6e6aaf6e7a0b1765b420367be60209c7127d35b737ff6ee7e638ace2a9c9102c",
+      "hash": "sha256:a9dfbc9e0daea8de29a268536107b0ddaf5d0201e6a25c2d5bc485cfe1682328",
       "size": 107138,
-      "modified": 1792836694
+      "modified": 1792872544
     },
     {
       "path": "/pages/shared-files-upload.js",
@@ -1653,9 +1653,9 @@
     },
     {
       "path": "/pages/wallet-app.js",
-      "hash": "sha256:deb7d85f66b18c742ef820bedad60c6f813c2f9cf3aa1330e0336d64c6e26c81",
-      "size": 39024,
-      "modified": 1792834699
+      "hash": "sha256:d64781f678611436a412a288be7a6fd37491ec504c5daf05c1436eadd666b4b4",
+      "size": 38941,
+      "modified": 1792842209
     },
     {
       "path": "/pages/wallet-guide-app.js",
@@ -1851,9 +1851,9 @@
     },
     {
       "path": "/shared/i18n-en.js",
-      "hash": "sha256:7dc32ba6722be5a70d3bab6741841eedc014e51cee19ebb178a743552b344fe7",
-      "size": 126575,
-      "modified": 1792834730
+      "hash": "sha256:0e958b5c4bde475a88e7264716132ebdc48b14c19b4a2f8845587aeeb760a7e3",
+      "size": 126689,
+      "modified": 1792842609
     },
     {
       "path": "/shared/i18n.js",
@@ -2061,9 +2061,9 @@
     },
     {
       "path": "/shared/shell.js",
-      "hash": "sha256:b7e2ce04bdfcfc49b560ce06f7b4dacb60fb0f53407f8b2e2f352ae0407368c2",
+      "hash": "sha256:15c5ce8d21bba88b998caf59deddc5b5582038df6a6438d5156851f24021c1ed",
       "size": 111786,
-      "modified": 1792836694
+      "modified": 1792872544
     },
     {
       "path": "/shared/ship-plan.js",
@@ -2085,9 +2085,9 @@
     },
     {
       "path": "/shared/sw.js",
-      "hash": "sha256:f6eb003855c1653260e40fa931c3f51e9afe29276d94b323ffe7d8b8f60bd9e6",
+      "hash": "sha256:cec42501c988014104651e9e1402f09573315d42753969c0a1164c404eb4fe44",
       "size": 6165,
-      "modified": 1792836694
+      "modified": 1792872544
     },
     {
       "path": "/shared/theme.css",
@@ -2177,9 +2177,9 @@
       "path": "/index.html",
       "hash": "sha256:807ef9ccfde6574793792f240c8ca2fbab9472f7b7c766a7804bff183fa12a23",
       "size": 208,
-      "modified": 1792836699
+      "modified": 1792872549
     }
   ],
-  "total_size": 17346096,
+  "total_size": 17346906,
   "file_count": 363
 }

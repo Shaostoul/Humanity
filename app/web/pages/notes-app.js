@@ -28,18 +28,25 @@ let pendingUnlockId = null; // Note ID waiting for passphrase unlock
 
 // ── Crypto helpers (stand-alone, no dependency on chat crypto.js) ──
 
+// PBKDF2-SHA-256 rounds by the bundle's version. Version 2 (2026-10-24) is the 600,000 every other
+// passphrase in the app and on the website uses (docs/reference/cryptography.md); version 1 was
+// 300,000, below that promise. A version-1 note still opens and is sealed again as version 2 the
+// next time it is saved (the same pattern as the vault's 100k-to-600k move).
+const NOTE_ROUNDS = { 1: 300000, 2: 600000 };
+const NOTE_VERSION = 2;
+
 async function aesEncrypt(plaintext, passphrase) {
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv   = crypto.getRandomValues(new Uint8Array(12));
   const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 300000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations: NOTE_ROUNDS[NOTE_VERSION], hash: 'SHA-256' },
     keyMat, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
   );
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
   return {
-    v: 1,
+    v: NOTE_VERSION,
     salt: btoa(String.fromCharCode(...salt)),
     iv:   btoa(String.fromCharCode(...iv)),
     ct:   btoa(String.fromCharCode(...new Uint8Array(ct))),
@@ -51,9 +58,11 @@ async function aesDecrypt(bundle, passphrase) {
   const iv   = Uint8Array.from(atob(bundle.iv),   c => c.charCodeAt(0));
   const ct   = Uint8Array.from(atob(bundle.ct),   c => c.charCodeAt(0));
   const enc  = new TextEncoder();
+  const rounds = NOTE_ROUNDS[bundle.v];
+  if (!rounds) throw new Error('This note was sealed in a format this page does not know (version ' + bundle.v + ').');
   const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 300000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations: rounds, hash: 'SHA-256' },
     keyMat, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
   );
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
