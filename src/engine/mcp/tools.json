@@ -1,0 +1,166 @@
+{
+  "_purpose": "The tools the running game's dev MCP endpoint serves (src/engine/mcp). One list for both sides: the game compiles it in (tools.rs include_str!) and answers tools/list from it, and scripts/mcp-server.js reads it from the tree to list the game tools even before a game is booted. Every name here must have a handler in tools.rs and every handler a name here (the test every_listed_tool_has_a_handler_and_back). Each tool is a thin call into the dev IPC (src/engine/ipc.rs): the same request a rig drops as a file, handed to the same funnel. docs/ai/mcp.md.",
+  "tools": [
+    {
+      "name": "game_screenshot",
+      "title": "Screenshot of the running game",
+      "description": "Capture the game's current 3D viewport (the frame already drawn, HUD and open pages included) through the dev IPC's screenshot request. Returns the picture inline (JPEG, scaled so its long edge is at most max_inline_px) and the absolute path of the full-size lossless PNG on disk. Give width AND height for a hi-res offscreen render instead of a window grab.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "width": { "type": "integer", "minimum": 1, "maximum": 16384, "description": "Offscreen capture width in pixels (needs height too)." },
+          "height": { "type": "integer", "minimum": 1, "maximum": 16384, "description": "Offscreen capture height in pixels (needs width too)." },
+          "max_inline_px": { "type": "integer", "minimum": 0, "maximum": 4096, "description": "Longest edge of the inline copy, default 1568. 0 returns only the path." }
+        },
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+    },
+    {
+      "name": "game_player_state",
+      "title": "Where the player is and how they are",
+      "description": "One reading of the player through the dev IPC's recorder (a zero-second remote_players_request): camera position and look, whether the world is loaded and the player is aboard, the storey (floor stood on, ceiling, the room the HUD names, ladder, lift), health, food and water, what the character carries, credits and which save is live. full=true returns the recorder's whole answer.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "full": { "type": "boolean", "description": "Return the recorder's whole done file instead of the summary." }
+        },
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_camera",
+      "title": "Park the camera",
+      "description": "Send a dev IPC camera_request and return the game's camera_done answer (where the camera really went, measured). Shapes: {\"body\":\"earth\",\"lat\":23,\"lon\":13,\"altitude_km\":0.05,\"look_offset_deg\":80,\"time\":12} parks over a body; {\"station\":\"home\",\"x\":..,\"y\":..,\"z\":..,\"yaw\":..,\"pitch\":..,\"time\":12} parks aboard the home in its own coordinates; {\"station\":\"home\",\"screen\":\"wall_screen_3\"} faces an in-world screen. The world must be loaded. tests/visual/vantages.json holds hundreds of worked examples (game_goto_vantage replays one by id).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "request": { "type": "object", "description": "The camera_request body, exactly as a rig would drop it." },
+          "timeout_s": { "type": "number", "minimum": 1, "maximum": 600, "description": "How long to wait for camera_done, default 60." }
+        },
+        "required": ["request"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_console",
+      "title": "Run a build-console line",
+      "description": "Run one line of the build editor's console (the verbs its `help` lists, e.g. `add_structure deck 32.5 2.8 62 0`, `rm_structure 8`, `help`) on the live home FOR THIS SESSION ONLY, through the showcase `console` verb: never written to the data files or a save. Returns what the console said.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "line": { "type": "string", "minLength": 1, "description": "The console line." }
+        },
+        "required": ["line"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+    },
+    {
+      "name": "game_showcase",
+      "title": "Set showcase verbs and pins",
+      "description": "Send one dev IPC showcase_request: any of its verbs and pins as string values, e.g. {\"time\":\"12\",\"time_scale\":\"0\",\"weather\":\"clear\",\"hud\":\"0\",\"wind\":\"auto\",\"fov\":\"70\",\"room_gi\":\"0\",\"walk\":\"1\",\"face\":\"0,0\",\"hold\":\"forward\",\"hold_s\":\"3\"}. Pins stay set until changed; game_showcase_reset releases the sticky ones. Verbs that would reach a server or act for the identity (accept_request, choose_start, pairing, meal, water, place, take_down, drop_link, solo) are refused here. Returns the game's own log lines about the request.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "verbs": { "type": "object", "description": "Verb or pin name to value. Numbers and booleans are sent as strings.", "additionalProperties": { "type": ["string", "number", "boolean"] } }
+        },
+        "required": ["verbs"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+    },
+    {
+      "name": "game_open_page",
+      "title": "Open a page",
+      "description": "Open an app page by its id (the ids the data files use: `homes`, `inventory`, `maps`, `settings`, `dev`, `testing`, `bugs`, `files`, ...; `none` returns to the 3D view), through the showcase `page` verb, as the page's nav item does.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "string", "minLength": 1, "description": "The page id, or `none` for the world view." }
+        },
+        "required": ["page"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_map",
+      "title": "Drive the Maps page",
+      "description": "Send the Maps page's dev verbs (engine/map_rig.rs) and return its report (debug/map_done.json: where the canvas is, where the ship landed, what the world layer and symbols drew). Verbs: map (home, overview, follow, unfollow, report), map_distance (metres), map_ship (0 or 1), map_turn (degrees a second), map_layer (e.g. belts=0,names=1), map_diagram (0 or 1). Open the page first with game_open_page maps.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "verbs": { "type": "object", "description": "Map verb to value; every key starts with `map`.", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+          "timeout_s": { "type": "number", "minimum": 1, "maximum": 120, "description": "How long to wait for the report, default 30." }
+        },
+        "required": ["verbs"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_home_state",
+      "title": "The home's air, water, power and light",
+      "description": "The home's power (generation, load, batteries, the ship's feed), water (production, demand, stored) and air (O2, CO2, pressure, temperature, breathable) as the HUD shows them, the storey the player stands on and the elevators, and the room GI table (debug/room_gi.json: probes per room and each room's ambient light) when the game was started with HUMANITY_FRAME_COSTS=1 (game_boot does).",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_frame_costs",
+      "title": "What a frame costs",
+      "description": "The Performance page's live measurements: smoothed frame time, GPU milliseconds per pass (timestamps when the adapter has them), CPU milliseconds per stage, VRAM and RAM by bucket. Asks for fresh numbers first, so it takes about a second.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_logs",
+      "title": "Recent log lines and panics",
+      "description": "The tail of the game's run.log (this launch), optionally only lines containing some text. panics=true returns every PANIC block from run.log and the end of crash.log (kept across launches) instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lines": { "type": "integer", "minimum": 1, "maximum": 2000, "description": "How many lines, default 60." },
+          "contains": { "type": "string", "description": "Only lines containing this text (case-insensitive)." },
+          "panics": { "type": "boolean", "description": "Return the panics instead of the tail." }
+        },
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_wait",
+      "title": "Wait for something",
+      "description": "Wait until a condition holds, then return: `frames` (that many more frames have run), `seconds` (that much time has passed), `world_loaded` (the 3D world is up), or `log` (a run.log line written from now on contains the text in value). Fails with what was seen when timeout_s runs out.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "until": { "type": "string", "enum": ["frames", "seconds", "world_loaded", "log"] },
+          "value": { "type": ["string", "number"], "description": "Frames, seconds, or the log text, by `until`." },
+          "timeout_s": { "type": "number", "minimum": 1, "maximum": 600, "description": "Default 60." }
+        },
+        "required": ["until"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+    },
+    {
+      "name": "game_request",
+      "title": "Another read-only dev IPC dump",
+      "description": "Send one of the other read-only dev IPC requests and return its done file: remote_players (a recording, body {\"seconds\":N}), door_points (the ship's door points), cloudmap (the cloud coverage map), cloud_profile_dump (the cloud march profile). The screen and ui requests are not offered: they click through the app as a person would, and could send or sign.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["remote_players", "door_points", "cloudmap", "cloud_profile_dump"] },
+          "body": { "type": "object", "description": "The request body, default {}." },
+          "timeout_s": { "type": "number", "minimum": 1, "maximum": 600, "description": "Default 60." }
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      },
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+    }
+  ]
+}

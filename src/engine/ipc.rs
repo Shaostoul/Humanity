@@ -543,6 +543,12 @@ pub(crate) fn take_request_text(path: &std::path::Path) -> Option<String> {
 
 /// `take_request_text` with the clock passed in, for the tests.
 pub(crate) fn take_request_text_at(path: &std::path::Path, now: std::time::Instant) -> Option<String> {
+    // The funnel's other door (2026-10-22): a request the dev MCP endpoint handed in is taken here,
+    // the same way and at the same moment a dropped file would be, so every handler serves both
+    // (engine/mcp). One atomic load when the endpoint is not running.
+    if let Some(text) = crate::engine::mcp::take_injected(path) {
+        return Some(text);
+    }
     REQUEST_WAITS.with(|waits| {
         let mut waits = waits.borrow_mut();
         if !path.exists() {
@@ -4330,6 +4336,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // Every elevator aboard, its stops and its car (ship homes increment 7,
         // engine/storey_probe.rs `done_json`): what verify-storeys judges with each frame's `storey`.
         "storeys": crate::engine::storey_probe::done_json(state),
+        // The home's power, water and air as the HUD shows them (2026-10-22, engine/home_probe.rs):
+        // what the dev MCP's game_home_state reads, here for every rig too.
+        "home_systems": crate::engine::home_probe::json(&state.gui_state),
         "screen_px": [screen_w, screen_h],
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),

@@ -14301,6 +14301,7 @@ mod native_app {
                     // co-presence tests. Runs immediately BEFORE the auto-connect
                     // block so a dropped request is honored the same frame.
                     poll_autopilot_request(state);
+                    crate::engine::mcp::frame_tick(state); // the dev MCP endpoint: off unless HUMANITY_DEV_MCP=1 (docs/ai/mcp.md)
                     // Megashader hot-reload poll (v0.924 dev-aid): lives with
                     // the other unconditional per-frame polls - effectively
                     // free when idle (one try_recv); a saved shader edit

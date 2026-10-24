@@ -53,6 +53,9 @@ folder:
 - **[05-AI-ONBOARDING.md](05-AI-ONBOARDING.md)** the condensed minimum, if you need a
   30-second orientation before diving into CLAUDE.md.
 - **[../contributor/](../contributor/)** the architecture and contributing docs.
+- **[mcp.md](mcp.md)** the dev MCP: drive and inspect the running game (screenshots,
+  player state, camera, showcase pins, logs, frame costs) and run the rigs, lib tests and
+  lints as tools, from Claude Code or any MCP client.
 
 (This folder used to also list AGENTS.md / BOOTSTRAP.md / OPERATING_CONTRACT.md as
 coding-agent references. Those were a generic personal-assistant template, Discord

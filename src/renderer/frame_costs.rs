@@ -529,6 +529,14 @@ pub(crate) fn dump_enabled() -> bool {
 /// Write the current snapshot to `debug/frame_costs.json`. Dev tooling: this
 /// is how a probe-rig run reports a REAL breakdown back to whoever launched it.
 pub fn dump_json() {
+    let body = snapshot_json();
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write("debug/frame_costs.json", body.to_string());
+}
+
+/// The current snapshot as the JSON `dump_json` writes: one shape for the rig's
+/// file and the dev MCP's `game_frame_costs` (engine/mcp, 2026-10-22).
+pub fn snapshot_json() -> serde_json::Value {
     let s = snapshot();
     let col = |list: &[Entry]| -> serde_json::Value {
         serde_json::Value::Object(
@@ -537,7 +545,7 @@ pub fn dump_json() {
                 .collect(),
         )
     };
-    let body = serde_json::json!({
+    serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
         "frame_ms": s.frame_ms,
         "gpu_timing": match s.gpu_timing {
@@ -552,9 +560,7 @@ pub fn dump_json() {
         // pass was timed). Non-zero means the `gpu_ms` column is missing
         // passes and MAX_TIMED_PASSES needs raising.
         "gpu_untimed_passes": s.gpu_untimed_passes,
-    });
-    let _ = std::fs::create_dir_all("debug");
-    let _ = std::fs::write("debug/frame_costs.json", body.to_string());
+    })
 }
 
 /// Wipe every measurement (tests only; the live store is append-only).

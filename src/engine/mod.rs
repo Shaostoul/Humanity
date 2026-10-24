@@ -97,6 +97,12 @@ pub mod map_rig;
 pub mod map_rig_ship;
 pub mod map_cut;
 pub mod map_tiles;
+/// The dev MCP endpoint (2026-10-22): the running game serves the Model Context Protocol on
+/// 127.0.0.1 so an AI session drives it as tools, each a thin call into the dev IPC above. Off
+/// unless HUMANITY_DEV_MCP=1 in a portable sandbox. docs/ai/mcp.md.
+pub mod mcp;
+/// The home's air, water and power as the HUD reads them, for the recorder and the dev MCP.
+pub mod home_probe;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;
