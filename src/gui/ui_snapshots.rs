@@ -3492,6 +3492,20 @@ fn snapshot_dev_tab() {
     });
 }
 
+/// Dev > Claude (2026-10-22, pages/dev_agents/): what Claude is doing, from a fixed report (the
+/// main checkout with two uncommitted files, an agent at work, a finished one, the journal, TIER 0,
+/// a delivered exe trailing a docs-only bump, the share guard never run here, a free boot lock).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_dev_claude() {
+    use crate::gui::pages::dev_agents;
+    render_page_png("dev_claude", 1280, 860, |ctx, theme, state| {
+        state.active_dev_section = "claude".into();
+        dev_agents::pin(dev_agents::tests::fixture(dev_agents::read::now_unix()));
+        crate::gui::pages::dev_tab::draw(ctx, theme, state);
+    });
+}
+
 /// Settings > Account > Recovery through trusted people (2026-10-20, was the Platform tab's
 /// Recovery page): what it is, "Not finished yet", the two lookups, your account ID.
 #[test]

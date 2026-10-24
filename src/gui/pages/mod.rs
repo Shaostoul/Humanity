@@ -103,7 +103,10 @@ pub mod planet_tuner;
 // section of the Dev tab (the page-sized sibling of the F2 overlay).
 pub mod performance;
 // Dev, the developer tools tab (2026-10-20, replaced the Platform tab): Bugs,
-// Testing, Performance, Dev and Planet Tuner in one side list.
+// Testing, Performance, Dev, Planet Tuner and Claude in one side list.
 pub mod dev_tab;
+// Dev > Claude (2026-10-22): what the agents are doing, read-only, from this
+// computer's files (worktrees, journal, TIER 0, delivery, the guards, the boot lock).
+pub mod dev_agents;
 // v0.699.0: category_overview + settings_pages modules removed with the dead
 // two-tier-nav category-browse subsystem (5 Overview* + 12 Settings* pages).

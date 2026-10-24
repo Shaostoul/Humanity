@@ -1,5 +1,5 @@
-//! Dev, the developer tools tab (2026-10-20): Bugs, Testing, Performance, Dev
-//! and Planet Tuner in one side list, each section drawn by its own page.
+//! Dev, the developer tools tab (2026-10-20): Bugs, Testing, Performance, Dev,
+//! Planet Tuner and Claude in one side list, each section drawn by its own page.
 //!
 //! It replaced the Platform tab (page carve v0.360), which the operator called
 //! redundant on 2026-10-20 ("I feel like the platform page we had before is
@@ -10,15 +10,19 @@
 //!   beside the recovery phrase (gui/pages/settings/recovery.rs).
 //! - The five developer tools stayed together here. They are permanent: the
 //!   project is in perpetual development, so none of them is trimmed.
+//! - Claude (2026-10-22, the operator's integrations between HumanityOS and
+//!   Claude Code) joined them: what the agents are doing, read from this
+//!   computer's files (dev_agents/).
 //!
 //! The web mirror is the Dev Workbench (web/pages/dev.html), which carries the
-//! same list of five, linking the ones the website has.
+//! same list, linking the ones the website has (its Claude tab shows what a
+//! website can reach).
 
 use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{bugs, dev, performance, planet_tuner, testing};
+use super::{bugs, dev, dev_agents, performance, planet_tuner, testing};
 
 /// The Dev tab's sections, in the side list's order: (id, label). The id is
 /// what `GuiState::active_dev_section` holds.
@@ -28,6 +32,7 @@ pub const SECTIONS: &[(&str, &str)] = &[
     ("performance", "Performance"),
     ("dev", "Dev"),
     ("planet_tuner", "Planet Tuner"),
+    ("claude", "Claude"),
 ];
 
 /// The section a fresh session opens on.
@@ -60,6 +65,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "performance" => performance::draw(ctx, theme, state),
         "dev" => dev::draw(ctx, theme, state),
         "planet_tuner" => planet_tuner::draw(ctx, theme, state),
+        // What Claude is doing (2026-10-22): read-only, from this computer's files.
+        "claude" => dev_agents::draw(ctx, theme, state),
         _ => bugs::draw(ctx, theme, state),
     }
 }

@@ -1055,7 +1055,7 @@ pub struct GuiState {
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
     pub active_real_section: String,
     /// Selected section of the Dev tab (an id from `pages::dev_tab::SECTIONS`:
-    /// "bugs", "testing", "performance", "dev", "planet_tuner").
+    /// "bugs", "testing", "performance", "dev", "planet_tuner", "claude").
     pub active_dev_section: String,
     /// Selected section for the folded Humanity tab ("civilization"/
     /// "governance"/"identity"/"onboarding"/"donate"/"resources").

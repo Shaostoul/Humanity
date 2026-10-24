@@ -47,9 +47,9 @@ fn drawn(size: egui::Vec2, mut draw: impl FnMut(&egui::Context, &mut Theme)) -> 
     texts(&last.expect("three frames ran"))
 }
 
-/// THE DEV TAB LISTS THE FIVE DEVELOPER TOOLS, AND ONLY THEM: the Dev page, drawn through the
-/// app's own page table, has a side list titled Dev holding Bugs, Testing, Performance, Dev and
-/// Planet Tuner, in that order, and none of what the Platform tab also held (Recovery is in
+/// THE DEV TAB LISTS THE DEVELOPER TOOLS, AND ONLY THEM: the Dev page, drawn through the app's
+/// own page table, has a side list titled Dev holding Bugs, Testing, Performance, Dev, Planet
+/// Tuner and Claude, in that order, and none of what the Platform tab also held (Recovery is in
 /// Settings now; Calculator, Notes, Calendar and Browser are on the Apps page).
 ///
 /// Seen red 2026-10-20 with `GuiPage::Dev` still drawing the old Platform list: "Platform is not
@@ -57,8 +57,13 @@ fn drawn(size: egui::Vec2, mut draw: impl FnMut(&egui::Context, &mut Theme)) -> 
 /// 133.0), ("Calendar", 167.0), ("Bugs", 201.0), ... ("Browser", 371.0), ("Title", 91.0), ...]".
 /// The "Title" there was the Bugs page's form, which a looser column test let in; the column
 /// below is the side panel's own (it opens 190 px wide, and the page beside it starts after it).
+///
+/// Claude joined the list on 2026-10-22 (dev_agents/).
+/// Seen red 2026-10-23 with Claude taken out of SECTIONS: "Claude is in the Dev tab's list:
+/// [(\"Dev\", 13.0), (\"Bugs\", 65.0), (\"Testing\", 99.0), (\"Performance\", 133.0), (\"Dev\",
+/// 167.0), (\"Planet Tuner\", 201.0)]".
 #[test]
-fn the_dev_tab_lists_the_five_developer_tools() {
+fn the_dev_tab_lists_the_developer_tools() {
     let mut state = GuiState::default();
     let t = drawn(egui::vec2(1400.0, 1000.0), |ctx, theme| {
         crate::gui::dispatch::draw_tool_page(ctx, GuiPage::Dev, theme, &mut state);
@@ -69,7 +74,7 @@ fn the_dev_tab_lists_the_five_developer_tools() {
     for gone in ["Platform", "Recovery", "Calculator", "Notes", "Calendar", "Browser"] {
         assert!(!side.iter().any(|(s, _)| *s == gone), "{gone} is not in the Dev tab's list: {side:?}");
     }
-    let tops: Vec<f32> = ["Bugs", "Testing", "Performance", "Planet Tuner"]
+    let tops: Vec<f32> = ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude"]
         .iter()
         .map(|name| side.iter().find(|(s, _)| s == name).unwrap_or_else(|| panic!("{name} is in the Dev tab's list: {side:?}")).1)
         .collect();

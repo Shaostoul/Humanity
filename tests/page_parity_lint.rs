@@ -196,6 +196,31 @@ const PARITY_PAIRS: &[ParityPair] = &[
             ("web/pages/donate-app.js", "loadList('/data/donate/faq.json', 'entries')"),
         ],
     },
+    // Dev > Claude (2026-10-22): the app reads the checkout's journal, the website the copy it
+    // serves; both show the newest three decisions from the one file, in the words of one strings
+    // section. Seen red 2026-10-23 with the web page's journal fetch renamed: "Dev > Claude
+    // (journal): web/pages/dev-claude.js no longer reads `coordination/orchestrator_state.json`
+    // (expected a line with `settle(fetch(JOURNAL)`)".
+    ParityPair {
+        page: "Dev > Claude (journal)",
+        native: &["src/gui/pages/dev_agents/mod.rs"],
+        web: &["web/pages/dev-claude.js"],
+        data_file: "coordination/orchestrator_state.json",
+        reads: &[
+            ("src/gui/pages/dev_agents/mod.rs", "read::read_text(&checkout.join(\"data\").join(JOURNAL))"),
+            ("web/pages/dev-claude.js", "settle(fetch(JOURNAL)"),
+        ],
+    },
+    ParityPair {
+        page: "Dev > Claude (words)",
+        native: &["src/gui/pages/dev_agents/mod.rs"],
+        web: &["web/pages/dev-claude.js"],
+        data_file: "i18n/en.json",
+        reads: &[
+            ("src/gui/pages/dev_agents/mod.rs", "std::fs::read_to_string(crate::data_dir().join(STRINGS))"),
+            ("web/pages/dev-claude.js", "fetch('/data/i18n/en.json')"),
+        ],
+    },
 ];
 
 fn read(rel: &str) -> String {

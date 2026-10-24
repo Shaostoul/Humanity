@@ -4035,14 +4035,32 @@ your own home has no save yet.
 
 ### Dev Tab (the developer tools, 2026-10-20)
 One top-menu tab, Dev, holding the developer tools in a side list: Bugs, Testing, Performance,
-Dev and Planet Tuner (all permanent: perpetual development). It replaced the Platform tab, which
+Dev, Planet Tuner and (2026-10-22) Claude (all permanent: perpetual development). It replaced the Platform tab, which
 the operator called redundant on 2026-10-20: Platform's Calculator, Notes, Calendar and Browser
 are HumanityOS tools on the Apps page, its Recovery is in Settings > Account.
 - Native: `src/gui/pages/dev_tab.rs` (`SECTIONS`, `GuiPage::Dev`, page id "dev"); tests in
-  `dev_tab_tests.rs` (the five listed and nothing else; the top menu says Dev, never Platform)
-- Web: `web/pages/dev.html` (the Dev Workbench) carries the same list of five; the top menu's
+  `dev_tab_tests.rs` (the six listed and nothing else; the top menu says Dev, never Platform)
+- Web: `web/pages/dev.html` (the Dev Workbench) carries the same list; the top menu's
   Dev tab opens it; `web/pages/platform.html` retired (removed from the live site by
   `scripts/sync-web-root.sh`)
+
+### Dev > Claude: what Claude is doing (2026-10-22)
+The Dev tab's Claude section, read-only: from this computer's own files, refreshed on background
+threads only while it is on screen (files every 3 s, git every 10 s, the exe checks every minute,
+GitHub every ten minutes), it shows every git worktree (the main checkout first, then the agents'
+folders under `.claude/worktrees/`, newest commit first) with its branch, last commit subject and
+time, uncommitted files and whether the agent holding it still runs; the agents' handoff notes
+(`.claude/handoff/*.md` in the checkout and each worktree); the newest three journal decisions; the TIER 0 headings of PRIORITIES.md; Cargo.toml's version against the newest GitHub
+release; whether the taskbar exe holds this tree's code (check-delivery's verdict, ported); the
+share guard, the disk guard, the rigs' boot lock and the build slot (who compiles our crate now and
+who waits for memory). A missing guard file reads as "not running",
+never as an error. git runs with optional locks off, so the panel never holds an agent's index.
+- Native: `src/gui/pages/dev_agents/` (`mod.rs` the panel and its jobs, `read.rs` the readers,
+  `delivery.rs` the port of `scripts/check-delivery.js`, `tests.rs`); words in
+  `data/i18n/en.json` under `dev_claude`; snapshot `just snapshot dev_claude`
+- Web: the Claude tab of `web/pages/dev.html` (`web/pages/dev-claude.js`, tested by
+  `scripts/tests/dev-claude-web.test.js`): GitHub's newest release and commit on main, TIER 0 from
+  GitHub's copy, the journal the site serves; it names what only the desktop app can show
 
 ### Dev Page: Spawn Any Creature + Walk-Up Editor
 The Dev tab's Dev section (cheats-gated, like every dev affordance): searchable list of all 92
