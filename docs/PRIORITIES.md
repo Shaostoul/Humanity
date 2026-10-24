@@ -80,12 +80,13 @@ In order:
    dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
    whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate
    (`relay-gate.js`); then the one Cargo.toml commit (profiles, the image crate without AVIF).
-3. **Bugs the accessibility pass found:** web Notes encrypts with 300,000 PBKDF2 rounds where
-   600,000 is promised (fix first: a privacy promise); the web wallet calls HosWallet functions
-   that do not exist (balance never loads); the web calculator works in radians, the desktop in
-   degrees; the desktop Calendar drops the Description; bug categories differ between
-   `data/bugs/taxonomy.json` and the relay; English still in shared code (`provenance_line`,
-   `not_here_reason`, `WalletNetwork::label`).
+3. **Bugs the accessibility pass found:** FIXED 2026-10-24: web Notes now seals at 600,000 PBKDF2
+   rounds (54d40555a), the web calculator works in degrees like the app (36d821742), the web
+   wallet calls the functions wallet.js really has (c26be6d23), the desktop Calendar keeps an
+   event's description (5ddfe16be), and bug reports keep their category through one shared list
+   (845e31e8f). LEFT: English still in shared code (`provenance_line`, `not_here_reason`,
+   `WalletNetwork::label`); and, found on the way, **desktop calendar events are not saved at
+   all** (no save or load of `cal_events`: they vanish when the app closes).
 4. **FarmingSystem and the untimed frame** (`docs/design/sim-frame-cost.md`): the timers and the
    farming golden-state test, then F1/F2 (about 2.5 to 3 ms back) and gating the Garden mirror
    (estimated 4 to 9 ms every world frame).
