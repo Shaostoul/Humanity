@@ -599,6 +599,9 @@ pub struct GuiCalendarEvent {
     pub month: u32,
     pub day: u32,
     pub time: String,
+    /// What the add-event form's Description box said (2026-10-24: the form collected it and the
+    /// event dropped it). Empty when left blank; shown under the time in the day's list.
+    pub description: String,
     pub color: egui::Color32,
 }
 

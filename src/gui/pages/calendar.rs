@@ -237,6 +237,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                         .size(theme.font_size_small)
                                                         .color(theme.text_muted()),
                                                 );
+                                                if !evt.description.is_empty() {
+                                                    ui.label(
+                                                        RichText::new(&evt.description)
+                                                            .size(theme.font_size_small)
+                                                            .color(theme.text_secondary()),
+                                                    );
+                                                }
                                             });
                                         });
                                     });
@@ -304,7 +311,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if widgets::Button::primary(t("calendar.add_event")).hint("calendar.add_event_hint").show(ui, theme)
                         && !state.cal_new_title.trim().is_empty()
                     {
-                        let end_time = with_local(|local| local.new_end_time.clone());
+                        let (end_time, description) =
+                            with_local(|local| (local.new_end_time.clone(), local.new_description.trim().to_string()));
                         let time_str = if state.cal_new_time.is_empty() {
                             t("calendar.all_day").to_string()
                         } else if end_time.is_empty() {
@@ -318,6 +326,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             month: state.cal_month,
                             day: state.cal_selected_day,
                             time: time_str,
+                            description,
                             color: state.cal_new_color,
                         });
                         state.cal_new_title.clear();
