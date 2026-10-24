@@ -1024,6 +1024,13 @@ impl Storage {
             )?;
             info!("Migration: added kyber_public column to registered_names");
         }
+        // Key cards (2026-10-22) replaced this column: a Kyber key the server alone vouched for is
+        // exactly what no app may seal to any more, so none is left lying here. Nothing writes the
+        // column now; this finds nothing after the first start. After the ALTER above (BUG-046).
+        let unvouched = conn.execute("UPDATE registered_names SET kyber_public = NULL WHERE kyber_public IS NOT NULL", [])?;
+        if unvouched > 0 {
+            info!("Cleared {unvouched} Kyber keys kept without a key card (key cards replace them)");
+        }
 
         // Migration (v2 sealed-sender DMs, 2026-08-23): DROP the legacy
         // `direct_messages` table outright. It stored from_key/from_name/
@@ -2364,6 +2371,21 @@ impl Storage {
             info!("Removed {unsigned} unsigned profile copies kept for other servers (BUG-191)");
         }
 
+        // Key cards (2026-10-22, storage/key_cards.rs, docs/design/key-cards.md): each person's
+        // Kyber768 key signed by their own Dilithium3 identity, one row per person, the card's own
+        // time and signature beside it. Replaced `registered_names.kyber_public`, a key the server
+        // vouched for alone. A new table in a batch of its own, its key over its own CREATE TABLE
+        // columns, so a live database from before it simply gains it (BUG-046 concerns ALTER-added
+        // columns only). In the person's export and deleted by their erase.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS key_cards (
+                public_key   TEXT PRIMARY KEY,
+                kyber_public TEXT NOT NULL,
+                signed_at    INTEGER NOT NULL,
+                signature    TEXT NOT NULL
+            ) WITHOUT ROWID;"
+        )?;
+
         // Phase 0 substrate: generic post-quantum signed objects.
         // Every higher-level domain (signed_profiles, vouches, VCs, governance proposals,
         // recovery shares, etc.) is a projection of this table.
@@ -2983,6 +3005,8 @@ mod recovery;
 mod signed_objects;
 mod groups_p2p;
 mod signed_profiles;
+// Key cards: each person's Kyber768 key signed by their own identity (2026-10-22).
+pub mod key_cards;
 mod trust_score;
 mod notification_prefs;
 mod trading;

@@ -29,7 +29,7 @@ fn connect(st: &Arc<RelayState>, key: &str) {
     block(async {
         st.peers.write().await.insert(
             key.to_string(),
-            Peer { public_key_hex: key.to_string(), display_name: None, upload_token: None, kyber_public: None, conn_id: 1 },
+            Peer { public_key_hex: key.to_string(), display_name: None, upload_token: None, conn_id: 1 },
         );
     });
 }

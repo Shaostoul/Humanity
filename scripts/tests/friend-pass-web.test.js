@@ -137,9 +137,12 @@ async function loadChat() {
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   run("shared/events.js");
   run("shared/friend-pass.js");
+  run("shared/key-card.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
+  run("chat/chat-key-cards.js");
   run("chat/app.js");
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   for (const name of ["updateStats", "renderServerList", "renderGroupList", "addSystemMessage", "hosIcon", "shortKey", "esc", "playNotificationChime", "renderPresenceSidebarForActiveContext", "roleBadge", "isBlocked", "generateIdenticon"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";
   }

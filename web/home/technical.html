@@ -395,7 +395,11 @@ HumanityOS --headless   <span class="t-note"># server only, no window, listens o
             </tr>
             <tr>
               <td>Encryption key</td>
-              <td>ML-KEM-768 (Kyber768, FIPS 203), derived the same way with context <code>hum/kyber768/v1</code>. Published when you sign in; used for direct messages and group keys. <span class="t-st done">Shipped</span></td>
+              <td>ML-KEM-768 (Kyber768, FIPS 203), derived the same way with context <code>hum/kyber768/v1</code>. Used for direct messages, group keys and recovery pieces. <span class="t-st done">Shipped</span></td>
+            </tr>
+            <tr>
+              <td>Key card</td>
+              <td>The encryption key, signed by the signing identity over <code>hum/key-card/v1\n{key}\n{kyber}\n{at}</code>, sent when you sign in and passed between linked servers. An app seals to a person only with a key from a card it checked itself, so a server cannot hand out a key of its own; a newer card with a different key is shown as a change to accept first. <span class="t-st done">Shipped</span></td>
             </tr>
             <tr>
               <td>Identifier</td>

@@ -301,7 +301,7 @@ impl GuiState {
                 self.profile_public_key.clone()
             };
             self.ws_client =
-                Some(crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &self.user_name, &pubkey, &self.kyber_public_b64));
+                Some(crate::net::ws_client::WsClient::connect_with_key_card(&ws_url, &self.user_name, &pubkey, &self.own_key_card));
             self.connected_server_url = url.to_string();
             // A fresh socket: its sign-in, and the mailbox fetch that follows it, are still to come.
             self.ws_identified = false;

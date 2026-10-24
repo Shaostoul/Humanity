@@ -703,12 +703,15 @@ async function loadChat(me, opts = {}) {
   run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
   run("shared/drop-overlay.js"); // files dragged from the computer onto the page (2026-10-17)
   run("shared/upload-window.js"); // the window a drop on a channel opens (2026-10-17)
+  run("shared/key-card.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
+  run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
   run("chat/chat-files-card.js"); // a Media item posted in chat, as a card (2026-10-17)
   run("chat/app.js");
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");
   run("chat/chat-social.js");

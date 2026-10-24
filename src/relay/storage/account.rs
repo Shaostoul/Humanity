@@ -72,10 +72,13 @@ impl Storage {
                 out.insert(label.to_string(), serde_json::Value::Array(rows));
             };
 
-            grab("registered_names", "SELECT name, public_key, kyber_public, registered_at FROM registered_names WHERE public_key = ?1", &[&key]);
+            grab("registered_names", "SELECT name, public_key, registered_at FROM registered_names WHERE public_key = ?1", &[&key]);
             grab("membership", "SELECT public_key, name, role, joined_at, last_seen, hide_presence FROM server_members WHERE public_key = ?1", &[&key]);
             grab("profile", "SELECT * FROM profiles WHERE name = ?1 COLLATE NOCASE", &[&name]);
             grab("signed_profiles", "SELECT * FROM signed_profiles WHERE public_key = ?1", &[&key]);
+            // Their key card (2026-10-22, storage/key_cards.rs): the Kyber768 key their own app
+            // signed, which anyone may fetch to seal things to them.
+            grab("key_card", "SELECT public_key, kyber_public, signed_at, signature FROM key_cards WHERE public_key = ?1", &[&key]);
             grab("messages_authored", "SELECT id, channel_id, content, timestamp FROM messages WHERE from_key = ?1 ORDER BY timestamp ASC", &[&key]);
             // (follows removed 2026-08-24: the server stores no social
             // graph to export — following lives in the user's own client
@@ -294,6 +297,10 @@ impl Storage {
             del("dm_mailbox", "DELETE FROM dm_mailbox WHERE to_key = ?1", &[&key]);
             del("push_subscriptions", "DELETE FROM push_subscriptions WHERE public_key = ?1", &[&key]);
             del("signed_profiles", "DELETE FROM signed_profiles WHERE public_key = ?1", &[&key]);
+            // Their key card here (2026-10-22). The copies linked servers keep stay there: a card
+            // holds only public keys, and lets people reach them where they still have an account
+            // (docs/design/key-cards.md).
+            del("key_card", "DELETE FROM key_cards WHERE public_key = ?1", &[&key]);
             // Rows keyed by the NAME, and the listing images (reached through the listings):
             // once the registration and the listings are gone, nothing keyed by the key points
             // at them. So when one of them fails to delete, the erase keeps the registration
@@ -433,6 +440,7 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM reach_settings WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM key_cards WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM media_items WHERE uploader_key = ?1)
             OR EXISTS(SELECT 1 FROM media_licence_log WHERE set_by = ?1)
             OR EXISTS(SELECT 1 FROM media_picks WHERE picker_key = ?1)

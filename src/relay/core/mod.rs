@@ -20,6 +20,10 @@ pub mod error;
 pub mod hash;
 pub mod identity;
 pub mod kdf;
+/// Key cards (2026-10-22): a person's Kyber768 key signed by their own Dilithium3 identity, so
+/// any app can check the key it seals to really is theirs whatever server delivered it. Shared by
+/// the relay and the desktop app; web/shared/key-card.js is its twin.
+pub mod key_card;
 /// Market signed-object payload validators (provider_v1, offering_v1).
 pub mod market_payloads;
 /// Signed moderation objects (mod_action_v1, space_policy_v1). Rung 1 of

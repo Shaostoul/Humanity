@@ -324,10 +324,12 @@ whenever you change cryptographic code, read `docs/reference/cryptography.md`, t
 audited table, and update it in the same commit.** Never quote algorithms from memory: memory and
 docs lag the code during migrations. Orientation only: the post-quantum cutover is live since
 2026-05-20; the chat identity is Dilithium3 / ML-DSA-65 derived from the BIP39 seed; DMs are
-sealed-sender v2 (Kyber768 / ML-KEM-768, BLAKE3-KDF, AES-256-GCM, the sender signed inside); vaults
-are AES-256-GCM with PBKDF2-SHA-256 at 600,000 rounds; Ed25519's only roles are the seed source and
-the Solana wallet. Moving a server: carry `data/backup.key` and `data/erased-accounts.key` with
-`relay.db`.
+sealed-sender v2 (Kyber768 / ML-KEM-768, BLAKE3-KDF, AES-256-GCM, the sender signed inside); every
+key anything is sealed to comes ONLY from that person's key card, their Kyber768 key signed by their
+own Dilithium3 identity and checked and pinned by the sealing app, never from a server's list
+(2026-10-22, `docs/design/key-cards.md`); vaults are AES-256-GCM with PBKDF2-SHA-256 at 600,000
+rounds; Ed25519's only roles are the seed source and the Solana wallet. Moving a server: carry
+`data/backup.key` and `data/erased-accounts.key` with `relay.db`.
 
 ## Quick orientation
 

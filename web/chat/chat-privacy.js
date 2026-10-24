@@ -530,7 +530,7 @@ async function sendContactRequest(peer, opts) {
   }
   const built = await pqBuildContactRequest(peer, myName);
   if (!built) {
-    reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
+    reachSay('The request could not be sent yet: there is no key card for this person here that this page could check, or your identity is still loading. Try again in a moment.');
     return false;
   }
   // Recorded only when the server takes it; the self-copy is held until then.

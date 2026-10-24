@@ -401,6 +401,12 @@ fn kyber(seed: &[u8]) -> String {
     crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).unwrap().public_base64()
 }
 
+/// A member's key card as the roster serves it (key cards, 2026-10-22): the app takes a member's
+/// Kyber key only from a card that checks out as theirs.
+fn card(seed: &[u8]) -> Value {
+    crate::relay::core::key_card::card_json(&crate::relay::core::key_card::sign_card(seed, 1_760_000_000_000).unwrap())
+}
+
 /// "REMOVE THEM FROM THE GROUP" (10j, the web's order): a new group key for the next epoch,
 /// sealed to everyone but the person removed (left out although the server still lists them), is
 /// posted BEFORE the signed remove naming them; the others can open the new key and the person
@@ -627,9 +633,9 @@ fn a_shared_history_groups_fresh_key_never_reuses_a_number() {
     let (_, current_json) = api_v2::sign_submission(&ben_seed, current).unwrap();
     let current_b64 = serde_json::from_str::<Value>(&current_json).unwrap()["payload_b64"].as_str().unwrap().to_string();
     let members = serde_json::json!({ "members": [
-        { "pubkey": ben, "kyber_public": kyber(&ben_seed) },
-        { "pubkey": ann, "kyber_public": kyber(&ann_seed) },
-        { "pubkey": cy, "kyber_public": kyber(&cy_seed) },
+        { "pubkey": ben, "key_card": card(&ben_seed) },
+        { "pubkey": ann, "key_card": card(&ann_seed) },
+        { "pubkey": cy, "key_card": card(&cy_seed) },
     ] });
 
     let (url, posted) = group_server(group.clone(), Some(current_b64), members.clone());
@@ -663,7 +669,7 @@ fn someone_removed_then_let_back_in_is_sealed_to_again() {
     let (cy_seed, cy) = person(93);
     let (gid, group) = group_v1(&ben_seed, "Rowers");
     let listing = |who: &[(&[u8], &str)]| {
-        let members: Vec<Value> = who.iter().map(|(s, k)| serde_json::json!({ "pubkey": k, "kyber_public": kyber(s) })).collect();
+        let members: Vec<Value> = who.iter().map(|(s, k)| serde_json::json!({ "pubkey": k, "key_card": card(s) })).collect();
         serde_json::json!({ "members": members })
     };
     let (b, a, c) = ((ben_seed.as_slice(), ben.as_str()), (ann_seed.as_slice(), ann.as_str()), (cy_seed.as_slice(), cy.as_str()));

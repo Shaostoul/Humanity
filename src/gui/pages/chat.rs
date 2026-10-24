@@ -57,6 +57,7 @@ use modals::{
 /// Who can reach me (step B): the refused-message notice and the Requests rail section.
 /// See `chat/reach.rs`.
 mod reach;
+mod key_change; // key cards (2026-10-22): a changed key's notice with Accept, why a DM was not sent
 /// Block (step C): the DM header's, the profile's and the member row's Block buttons.
 mod blocking;
 /// Report (step D): the Report dialog and its buttons. See `chat/report_dialog.rs`.
@@ -478,6 +479,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // A message to this person was refused by their "who can reach me" (step B): say so, with
     // Send request, above the conversation.
     if let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) {
+        key_change::draw_key_change_notice(ui, theme, state, &peer); // their key changed: accept first
         reach::draw_refusal_notice(ui, theme, state, &peer);
         transfer_rows::draw(ui, theme, state, &peer); // files going device to device with them
     }
@@ -2833,12 +2835,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                 dm_prepared = Some((recipient_put, self_put));
             }
             Err(reason) => {
-                let human = match reason {
-                    "no_own_key" => "Can't send: your account isn't unlocked on this device. Restore it from your recovery phrase first.",
-                    "missing_peer_key" => "Can't send yet: we don't have this person's encryption key. It arrives when they next come online; try again then.",
-                    "bad_own_key" => "Can't send: your encryption key could not be derived. Try Identity → Recover.",
-                    _ => "Can't send: encrypting the message failed.",
-                };
+                let human = key_change::why_not_sent(state, reason, &partner_key); // in plain words
                 // Surface the reason INSIDE the conversation so it can't
                 // be missed, and keep the draft in the composer.
                 state.chat_messages.push(ChatMessage {
@@ -4245,7 +4242,7 @@ pub(crate) fn send_slash_command(state: &mut GuiState, command: &str) {
 /// "send unencrypted anyway" fallback — the v2 protocol has no plaintext
 /// field to fall back to):
 ///   - `"no_own_key"`        — the BIP39 seed isn't unlocked on this device
-///   - `"missing_peer_key"`  — recipient's Kyber768 public key isn't known
+///   - `"missing_peer_key"`  — no key for them from a key card checked here (engine/key_cards.rs)
 ///   - `"bad_own_key"`       — keypair derivation failed
 ///   - `"encryption_failed"` — signing or sealing errored
 fn build_dm_puts(
@@ -4561,11 +4558,11 @@ mod connect_form_tests {
         state.apply_pq_identity();
         state.server_url = address.to_string();
         state.connected_server_url = address.to_string();
-        let socket = crate::net::ws_client::WsClient::connect_with_kyber(
+        let socket = crate::net::ws_client::WsClient::connect_with_key_card(
             &derive_ws_url(address),
             &state.user_name,
             &state.profile_public_key,
-            &state.kyber_public_b64,
+            &state.own_key_card,
         );
         state.ws_client = Some(socket);
         state

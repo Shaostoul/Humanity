@@ -391,7 +391,7 @@ fn a_peer_signed_in_without_a_registered_name_is_known() {
     block(async {
         state.peers.write().await.insert(
             bo.1.clone(),
-            crate::relay::relay::Peer { public_key_hex: bo.1.clone(), display_name: None, upload_token: None, kyber_public: None, conn_id: 1 },
+            crate::relay::relay::Peer { public_key_hex: bo.1.clone(), display_name: None, upload_token: None, conn_id: 1 },
         );
     });
     let now = unix_now();

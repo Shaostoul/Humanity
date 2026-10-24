@@ -21,6 +21,8 @@ pub mod friend_passes;
 pub mod game_interest;
 pub mod game_state;
 pub mod home_plots;
+/// Key cards (2026-10-22): kept at sign-in, served on request, passed on to linked servers.
+pub mod key_cards;
 pub mod live_conns;
 pub mod move_check;
 pub mod msg_handlers;

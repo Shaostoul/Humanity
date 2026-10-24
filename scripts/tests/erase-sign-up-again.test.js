@@ -111,7 +111,8 @@ function loadChat(storage) {
     // What crypto.js and pq.js give the page before app.js runs: an identity, ready.
     getOrCreateIdentity: async () => ({ publicKeyHex: "ab12cd34", canSign: true }),
     attachPqIdentity: async () => true,
-    myKyberPublicBase64: "",
+    // My key card (key cards, 2026-10-22): what the identify carries in place of a bare Kyber key.
+    myKeyCard: null,
   };
   ctx.window = ctx;
   ctx.self = ctx;

@@ -121,6 +121,10 @@ function openDmConversation(partnerKey, partnerName) {
   // delivery window that expires).
   renderDmConversationFromStore(partnerKey);
 
+  // Their key card: asked for now, so it is here by the time a message is typed;
+  // a key change waiting for me to accept is shown (chat-key-cards.js, 2026-10-22).
+  if (typeof hosKeyCards !== 'undefined') hosKeyCards.onConversationOpened(partnerKey);
+
   if (isMobile()) closeSidebars();
 }
 

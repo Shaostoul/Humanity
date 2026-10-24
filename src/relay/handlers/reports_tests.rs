@@ -462,7 +462,7 @@ fn warn_delete_post_and_dismiss() {
     block(async {
         st.peers.write().await.insert(
             tom.key.clone(),
-            Peer { public_key_hex: tom.key.clone(), display_name: Some("Tom".into()), upload_token: None, kyber_public: None, conn_id: 1 },
+            Peer { public_key_hex: tom.key.clone(), display_name: Some("Tom".into()), upload_token: None, conn_id: 1 },
         );
     });
     st.db
@@ -630,7 +630,7 @@ fn a_report_about_a_staff_member_never_reaches_them() {
     block(async {
         let mut peers = st.peers.write().await;
         for (i, (p, name, _)) in staff.iter().enumerate() {
-            let peer = Peer { public_key_hex: p.key.clone(), display_name: Some(name.to_string()), upload_token: None, kyber_public: None, conn_id: i as u64 + 1 };
+            let peer = Peer { public_key_hex: p.key.clone(), display_name: Some(name.to_string()), upload_token: None, conn_id: i as u64 + 1 };
             peers.insert(p.key.clone(), peer);
         }
     });

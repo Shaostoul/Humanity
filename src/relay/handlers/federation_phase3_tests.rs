@@ -275,8 +275,9 @@ async fn everything_reaches_the_other_server() {
 
 /// A PAUSE LOSES NOTHING AND REPEATS NOTHING, AND A FLOOD IS SLOWED THEN PAUSED THEN CAUGHT UP.
 /// B pauses A for three seconds; meanwhile Ann posts five lines on A, edits one and deletes
-/// another. Nothing reaches B during the pause. When it ends B asks, A sends what B set aside,
-/// and B holds exactly four lines (the deleted one gone, the edited one edited), each once. Asking
+/// another, and A keeps a key card of hers. Nothing reaches B during the pause. When it ends B
+/// asks, A sends what B set aside, and B holds exactly four lines (the deleted one gone, the
+/// edited one edited), each once, and Ann's card. Asking
 /// again from three numbers back (a restart before the place was stored) changes nothing. Then,
 /// with small allowances on B, A sends 40 lines at once: B is slowed, then paused (the admin API
 /// shows the pause), and still holds all 40, each once.
@@ -285,7 +286,9 @@ async fn everything_reaches_the_other_server() {
 /// (`take_resume_due` ignored in `ingest` and `tick`): "not within 10s: B caught up after the
 /// pause"; with `serve_resume` reading from one number too far: the same; and (2026-10-23) with a
 /// repeat let through twice over (the check in `numbered` and `fed_message_held` both made false),
-/// "asking again changed what B holds: [... "during the pause 5", "during the pause 5"]".
+/// "asking again changed what B holds: [... "during the pause 5", "during the pause 5"]"; and
+/// (2026-10-24) with `key_card_gossip` taken out of `apply`, so a card in the log was never kept:
+/// "not within 10s: B keeps Ann's card after the pause" (the lines had all arrived).
 #[test]
 fn a_pause_loses_nothing_and_repeats_nothing_and_a_flood_is_slowed_then_paused() {
     on_a_big_stack(|| a_pause_and_a_flood());
@@ -310,9 +313,16 @@ async fn a_pause_and_a_flood() {
     }
     send(&mut sock, json!({ "type": "edit", "from": "", "timestamp": stamps[1], "new_content": "during the pause 2 (edited)", "channel": "general" })).await;
     send(&mut sock, json!({ "type": "delete", "from": "", "timestamp": stamps[3] })).await;
+    // And Ann's key card, kept on A as her sign-in keeps it (handlers/key_cards.rs), so it goes
+    // into A's numbered log while B has A paused.
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+    let card = crate::relay::core::key_card::sign_card(&[51; 32], now).unwrap();
+    let kept = crate::relay::handlers::key_cards::keep_from_sign_in(&a.state, &ann, crate::relay::core::key_card::card_json(&card)).await;
+    assert!(kept.is_some_and(|k| k.stored()), "A keeps Ann's card");
     tokio::time::sleep(Duration::from_millis(1_000)).await;
     assert!(paused_at.elapsed() < Duration::from_secs(3), "test setup: still inside the pause");
     assert!(copies(&b, &a.key).iter().all(|(_, _, c)| !c.starts_with("during the pause")), "a line reached B during the pause");
+    assert_eq!(b.state.db.get_key_card(&ann).unwrap(), None, "Ann's card reached B during the pause");
 
     let caught_up = |b: &Relay| {
         let held = copies(b, &a.key);
@@ -321,6 +331,7 @@ async fn a_pause_and_a_flood() {
             && n("during the pause 3") == 1 && n("during the pause 4") == 0 && n("during the pause 5") == 1
     };
     within("B caught up after the pause", || caught_up(&b)).await;
+    within("B keeps Ann's card after the pause", || b.state.db.get_key_card(&ann).ok().flatten().as_ref() == Some(&card)).await;
     let took = paused_at.elapsed();
     println!("PHASE 3: B caught up {took:?} after the pause began ({:?} after it ended)", took.saturating_sub(Duration::from_secs(3)));
     let flow = federation_log::peer_view(&b.state, Some(&a.key));
@@ -339,7 +350,7 @@ async fn a_pause_and_a_flood() {
 
     // A flood: small allowances on B, 40 lines from A at once.
     *b.state.fed.limits.write().unwrap() = FlowLimits {
-        kinds: [KindLimit { per_sec: 5.0, burst: 5.0 }; 8],
+        kinds: [KindLimit { per_sec: 5.0, burst: 5.0 }; crate::relay::handlers::federation_flow::Kind::COUNT],
         pause_after: Duration::from_secs(1),
         window: Duration::from_secs(60),
         pause_unit: Duration::from_secs(1),

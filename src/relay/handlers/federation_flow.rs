@@ -40,6 +40,10 @@ pub enum Kind {
     Moderation,
     /// A copy of someone's profile.
     Profile,
+    /// A person's key card (handlers/key_cards.rs): its own allowance, so the catch-up of a new
+    /// link (up to 1,000 copies AND up to 1,000 cards) is slowed for each in turn, never long
+    /// enough together to pause the link.
+    KeyCard,
     /// A signed object (votes, vouches, group messages, ...).
     Object,
     /// A request to send again everything after a number (costs the sender a database read).
@@ -49,7 +53,10 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 8] = [Kind::Chat, Kind::Edit, Kind::Delete, Kind::Moderation, Kind::Profile, Kind::Object, Kind::Resume, Kind::Control];
+    /// How many kinds there are (the length of every per-kind array).
+    pub const COUNT: usize = 9;
+    pub const ALL: [Kind; Kind::COUNT] =
+        [Kind::Chat, Kind::Edit, Kind::Delete, Kind::Moderation, Kind::Profile, Kind::KeyCard, Kind::Object, Kind::Resume, Kind::Control];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -58,6 +65,7 @@ impl Kind {
             Kind::Delete => "delete",
             Kind::Moderation => "moderation",
             Kind::Profile => "profile",
+            Kind::KeyCard => "key_card",
             Kind::Object => "object",
             Kind::Resume => "resume",
             Kind::Control => "control",
@@ -79,7 +87,7 @@ pub struct KindLimit {
 /// The allowances and the pause rules (`RelayState::fed`; tests set small ones).
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlowLimits {
-    pub kinds: [KindLimit; 8],
+    pub kinds: [KindLimit; Kind::COUNT],
     /// Slowed this long within [`FlowLimits::window`] and the peer is paused.
     pub pause_after: Duration,
     pub window: Duration,
@@ -92,11 +100,13 @@ pub struct FlowLimits {
 impl Default for FlowLimits {
     /// Chat at 20 a second (the old cap was 10, and dropped the rest), 100 at once. Profile copies
     /// at 500 at once and 100 a second, so the catch-up a new link is sent (up to 1,000 copies,
-    /// federation.rs `send_own_copies`) waits about 5 seconds in all, well short of a pause.
+    /// federation.rs `send_own_copies`) waits about 5 seconds in all, well short of a pause. Key
+    /// cards the same, on their own allowance: the same catch-up sends up to 1,000 of them after
+    /// the copies, so about 10 seconds slowed in all, still short of the 15 that pause a link.
     fn default() -> Self {
         let l = |per_sec: f64, burst: f64| KindLimit { per_sec, burst };
         FlowLimits {
-            kinds: [l(20.0, 100.0), l(10.0, 50.0), l(20.0, 100.0), l(2.0, 20.0), l(100.0, 500.0), l(50.0, 200.0), l(2.0, 10.0), l(200.0, 1_000.0)],
+            kinds: [l(20.0, 100.0), l(10.0, 50.0), l(20.0, 100.0), l(2.0, 20.0), l(100.0, 500.0), l(100.0, 500.0), l(50.0, 200.0), l(2.0, 10.0), l(200.0, 1_000.0)],
             pause_after: Duration::from_secs(15),
             window: Duration::from_secs(60),
             pause_unit: Duration::from_secs(5),
@@ -125,7 +135,7 @@ pub enum Admit {
 /// One linked server's flow, as this server receives it.
 #[derive(Debug, Clone)]
 pub struct PeerFlow {
-    tokens: [f64; 8],
+    tokens: [f64; Kind::COUNT],
     refilled: Option<Instant>,
     /// The waits taken in the last window, to tell a burst from a flood.
     slowed: VecDeque<(Instant, Duration)>,
@@ -140,7 +150,7 @@ pub struct PeerFlow {
     // Counts since this server started, for the admins.
     pub pauses: u64,
     pub set_aside: u64,
-    pub applied: [u64; 8],
+    pub applied: [u64; Kind::COUNT],
     pub slowed_total: Duration,
     /// Numbered frames the peer no longer had when asked (older than its outbox keeps).
     pub missed: u64,
@@ -149,7 +159,7 @@ pub struct PeerFlow {
 impl Default for PeerFlow {
     fn default() -> Self {
         PeerFlow {
-            tokens: [f64::NAN; 8],
+            tokens: [f64::NAN; Kind::COUNT],
             refilled: None,
             slowed: VecDeque::new(),
             paused_until: None,
@@ -159,7 +169,7 @@ impl Default for PeerFlow {
             asked: 0,
             pauses: 0,
             set_aside: 0,
-            applied: [0; 8],
+            applied: [0; Kind::COUNT],
             slowed_total: Duration::ZERO,
             missed: 0,
         }
@@ -302,7 +312,7 @@ mod tests {
 
     fn small() -> FlowLimits {
         FlowLimits {
-            kinds: [KindLimit { per_sec: 5.0, burst: 5.0 }; 8],
+            kinds: [KindLimit { per_sec: 5.0, burst: 5.0 }; Kind::COUNT],
             pause_after: Duration::from_secs(2),
             window: Duration::from_secs(60),
             pause_unit: Duration::from_secs(1),

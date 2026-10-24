@@ -1377,6 +1377,8 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/server-info", get(api::get_server_info))
         .route("/api/civilization", get(api::get_civilization_stats))
         .route("/api/profile/{key}", get(api::get_signed_profile))
+        // A person's key card, exactly as they signed it (2026-10-22, handlers/key_cards.rs).
+        .route("/api/key-card/{key}", get(crate::relay::handlers::key_cards::api_get_key_card))
         .route("/api/assets", get(api::get_assets).post(api::create_asset))
         .route("/api/assets/{id}", delete(api::delete_asset))
         .route("/api/projects", get(api::get_projects).post(api::create_project))

@@ -2128,14 +2128,18 @@ pub struct GuiState {
     pub pin_old_input: String,
     /// Status/error text displayed under the PIN entry fields.
     pub pin_status: String,
-    /// Full-PQ: our Kyber768 (ML-KEM-768) public key, base64. Derived
-    /// deterministically from the BIP39 seed on recovery/unlock and
-    /// advertised at identify; the secret re-derives from the seed on
-    /// demand and is never stored. Replaces the old ECDH keypair.
-    pub kyber_public_b64: String,
-    /// Map of peer Dilithium pubkey hex -> their Kyber768 public base64.
-    /// Populated from peer_list, full_user_list, profile_data, peer_joined.
+    /// Our key card (2026-10-22, core/key_card.rs): our Kyber768 (ML-KEM-768) key, derived from
+    /// the BIP39 seed, signed by our Dilithium3 identity, as the JSON sent with every sign-in.
+    /// Signed on recovery/unlock (`apply_pq_identity`, engine/key_cards.rs `sign_own_card`);
+    /// empty until then. The Kyber secret re-derives from the seed on demand and is never stored.
+    pub own_key_card: String,
+    /// Peer Dilithium pubkey hex -> the Kyber768 key (base64) to seal to them: ONLY a key from a
+    /// key card this app checked itself and pinned, never one a server merely said
+    /// (engine/key_cards.rs keeps it). A person whose key changed is left out until the change is
+    /// accepted. Every seal to a person reads this map.
     pub peer_kyber_keys: std::collections::HashMap<String, String>,
+    /// Key cards: the pins, what was asked of the servers, who has none (engine/key_cards.rs).
+    pub key_cards: crate::engine::key_cards::KeyCardsState,
     /// Map of voice-channel NAME -> its numeric relay id (as a string). Populated
     /// from voice_channel_list (the id is i64 on the wire). Needed because the
     /// relay tracks voice rooms by numeric id, but the chat UI keys channels by
@@ -2931,14 +2935,13 @@ impl GuiState {
     }
 
     /// Full-PQ: derive the Dilithium3 identity + Kyber768 DM key from
-    /// the in-memory BIP39 seed (`private_key_bytes`) and force a clean
-    /// reconnect so `identify` re-advertises `kyber_public`. Idempotent;
-    /// a no-op if the seed isn't unlocked. MUST be called from every
-    /// path that puts the seed into memory (passphrase unlock, seed
-    /// recovery, legacy plaintext load) — otherwise the client has its
-    /// persisted Dilithium identity but NO Kyber key, so it can neither
-    /// send nor receive encrypted DMs (it never advertises a key and
-    /// `try_encrypt_dm` fails `no_own_key`).
+    /// the in-memory BIP39 seed (`private_key_bytes`), sign our key card,
+    /// load this identity's pinned key cards, and force a clean reconnect
+    /// so `identify` sends the card. Idempotent; a no-op if the seed isn't
+    /// unlocked. MUST be called from every path that puts the seed into
+    /// memory (passphrase unlock, seed recovery, legacy plaintext load) —
+    /// otherwise the client has its persisted Dilithium identity but NO
+    /// key card, so nobody can send it encrypted DMs.
     pub fn apply_pq_identity(&mut self) {
         let seed = match self.private_key_bytes.as_ref() {
             Some(s) => s.clone(),
@@ -2947,12 +2950,13 @@ impl GuiState {
         match crate::net::identity::derive_pq_identity(&seed) {
             Ok(pq) => {
                 self.profile_public_key = pq.dilithium_hex;
-                self.kyber_public_b64 = pq.kyber_public_b64;
+                // Our key card, and the pins of THIS identity (another identity's pinned keys
+                // must never seal anything for this one).
+                crate::engine::key_cards::on_identity(self);
                 // Force a clean reconnect: drop the socket and clear the
                 // reconnect guards so the auto-connect path re-runs and
-                // sends `kyber_public` at identify. Without this the
-                // relay never learns our Kyber key and no peer can seal
-                // a DM to us.
+                // sends the key card at identify. Without this the relay
+                // never learns our card and no peer can seal a DM to us.
                 self.ws_client = None;
                 self.ws_manually_disconnected = false;
                 self.ws_reconnect_timer = 0.0;
@@ -2972,7 +2976,7 @@ impl GuiState {
                 self.governance_vote_rx = None;
                 self.governance_vote_status.clear();
                 let kp = &self.profile_public_key[..16.min(self.profile_public_key.len())];
-                log::info!("PQ identity applied (Dilithium {kp}…); reconnecting to advertise Kyber");
+                log::info!("PQ identity applied (Dilithium {kp}…); reconnecting to send its key card");
             }
             Err(e) => log::error!("apply_pq_identity: PQ derivation failed: {e}"),
         }
@@ -3847,8 +3851,9 @@ impl Default for GuiState {
             pin_confirm: String::new(),
             pin_old_input: String::new(),
             pin_status: String::new(),
-            kyber_public_b64: String::new(),
+            own_key_card: String::new(),
             peer_kyber_keys: std::collections::HashMap::new(),
+            key_cards: Default::default(),
             voice_channel_ids: std::collections::HashMap::new(),
             voice_rx_frames: 0,
             voice_active_room: None,

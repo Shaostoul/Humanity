@@ -295,7 +295,7 @@ fn apply_unlock_outcome(
             state.passphrase_status.clear();
             log::info!("Private key unlocked successfully");
             // Full-PQ: derive Dilithium+Kyber from the now-unlocked seed +
-            // reconnect so we advertise kyber_public (else DMs are impossible).
+            // reconnect so we send our key card (else DMs are impossible).
             state.apply_pq_identity();
             // Persist (auto_unlock_mode + any silent re-encrypt above).
             crate::config::AppConfig::from_gui_state(state).save();

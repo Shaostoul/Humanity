@@ -501,6 +501,12 @@ pub async fn run_inbound_peer(
     signature: String,
 ) {
     use axum::extract::ws::Message as AxMessage;
+    // Federation switched off: no link is taken, as no link is dialed (src/relay/mod.rs).
+    if !state.features.enabled(crate::relay::features::Feature::Federation) {
+        tracing::info!("Federation: refused a hello from {}: this server has federation switched off", key_in_log(&server_id));
+        let _ = ws_tx.close().await;
+        return;
+    }
     let Some(welcome) = crate::relay::handlers::msg_handlers::handle_federation_hello(
         &state,
         server_id.clone(),
@@ -723,6 +729,12 @@ pub async fn handle_peer_message(
             if ours {
                 gossip_profile(state, &public_key, &copy, timestamp, &signature, Some(source_server_id)).await;
             }
+        }
+        // A person's key card from a linked server (2026-10-22): kept when it checks out, by the
+        // same rule as one from a sign-in, and passed on when it is one of ours
+        // (handlers/key_cards.rs).
+        RelayMessage::KeyCardGossip { card } => {
+            crate::relay::handlers::key_cards::keep_from_link(state, source_server_id, card).await;
         }
         // Generic post-quantum signed-object gossip (Phase 3 PR 1).
         RelayMessage::SignedObjectGossip {
@@ -959,6 +971,12 @@ pub async fn send_own_copies_again(state: &Arc<RelayState>, peer_id: &str) -> us
     }
     if sent > 0 {
         tracing::info!("Federation: sent {} this server's profile copies on link up: {}", key_in_log(peer_id), sent);
+    }
+    // And this server's accounts' key cards (2026-10-22, handlers/key_cards.rs), once per link
+    // like the copies. Not counted in what this returns, which is the copies.
+    let cards = crate::relay::handlers::key_cards::queue_own_cards(state, conn);
+    if cards > 0 {
+        tracing::info!("Federation: sent {} this server's key cards on link up: {}", key_in_log(peer_id), cards);
     }
     sent
 }

@@ -108,7 +108,11 @@ async function modules() {
   return MODS;
 }
 
-const kyberOf = (k) => "kyber-" + k.slice(0, 16);
+// A stand-in Kyber768 key for each person: 1,184 bytes (their key's first 8, again and again) in
+// base64, so it has the shape a key card carries (key cards, 2026-10-22). Sealing is a stand-in
+// here (fx.seal), so only the text matters.
+const kyberOf = (k) => Buffer.concat(Array(148).fill(Buffer.from(k.slice(0, 16), "hex"))).toString("base64");
+const KC = require(path.join(WEB, "shared", "key-card.js"));
 const SERVER = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const T0 = 1760000000000;
 
@@ -125,6 +129,13 @@ async function fixture() {
   const ben = person(2, "Ben");
   const cy = person(3, "Cy");
   const dan = person(4, "Dan");
+  // Each one's key card, signed with their own key: the roster serves it, and the page seals a
+  // group key to a member only with the key in a card that checks out as theirs (key cards).
+  for (const p of [ann, ben, cy, dan]) {
+    const kyber = kyberOf(p.key);
+    const sig = noble.ml_dsa65.sign(new TextEncoder().encode(KC.cardText(p.key, kyber, T0)), p.sk);
+    p.card = { v: 1, key: p.key, kyber, at: T0, sig: Buffer.from(sig).toString("base64") };
+  }
   const signer = (p) => async (bytes) => noble.ml_dsa65.sign(bytes, p.sk);
   const fp = (key) => hex(blake3(Buffer.from(key, "hex"))).slice(0, 32);
   const served = (built, author) => ({ object_id: built.objectId, author_fp: fp(author.key), received_at: 1, ...built.submission });
@@ -357,7 +368,7 @@ async function loadChat(me, opts = {}) {
   const intervals = [];
   const relay = {
     groups: opts.groups || [],
-    members: [fx.ann, fx.ben, fx.cy].map((p) => ({ pubkey: p.key, kyber_public: kyberOf(p.key) })),
+    members: [fx.ann, fx.ben, fx.cy].map((p) => ({ pubkey: p.key, key_card: p.card })),
     log: opts.log || fx.log,
     epoch: fx.epochServed,
   };
@@ -448,11 +459,14 @@ async function loadChat(me, opts = {}) {
   run("shared/block.js");
   run("shared/report.js");
   run("shared/group-report.js");
+  run("shared/key-card.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
+  run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
   run("chat/app.js");
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");
   run("chat/chat-social.js");
@@ -1168,7 +1182,7 @@ test("the creator's own re-key on opening the group makes no key when the curren
   const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
   // Dan has joined since the last key (the server lists him), so a re-key is due; but the server
   // fails to say which key is current.
-  page.relay.members = [fx.ann, fx.ben, fx.cy, fx.dan].map((p) => ({ pubkey: p.key, kyber_public: kyberOf(p.key) }));
+  page.relay.members = [fx.ann, fx.ben, fx.cy, fx.dan].map((p) => ({ pubkey: p.key, key_card: p.card }));
   page.relay.epochStatus = 500;
   const before = page.fetched.length;
   page.fn("openP2pGroup")(fx.G, "Hikers");
@@ -1224,7 +1238,7 @@ test("someone removed and let back in with a new ticket is sealed to once the se
   const { obj, blake3, verify } = fx.m;
   page.relay.trackEpochs = true; // each new key becomes the one the server serves
   const roster = (people) => {
-    page.relay.members = people.map((p) => ({ pubkey: p.key, kyber_public: kyberOf(p.key) }));
+    page.relay.members = people.map((p) => ({ pubkey: p.key, key_card: p.card }));
     page.relay.groups = [{ group_id: fx.G, name: "Hikers", members: people.map((p) => p.key), is_creator: true }];
   };
   const recipients = async (sub) => obj.parseGroupEpochKeyPayload((await obj.verifyObjectSubmission(sub, { blake3, pqVerify: verify })).payload);

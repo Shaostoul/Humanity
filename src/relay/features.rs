@@ -206,7 +206,8 @@ impl Features {
 /// exception out of a broader one later without reordering the table.
 ///
 /// Routes NOT listed here are always served: `/health`, `/api/stats`,
-/// `/api/peers`, `/api/members*`, `/api/server-info`, `/api/profile/*`, identity,
+/// `/api/peers`, `/api/members*`, `/api/server-info`, `/api/profile/*`, `/api/key-card/*`
+/// (a person's signed key card, 2026-10-22: every private feature needs it), identity,
 /// moderation and the static web client. Those are the floor every node provides
 /// — an owner who could switch off `/api/server-info` would just be invisible,
 /// not lighter.
@@ -357,6 +358,9 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
         || msg_type == "federated_chat"
         || msg_type == "profile_gossip"
         || msg_type == "signed_object_gossip"
+        // A key card passed on by another server (2026-10-23, handlers/key_cards.rs): gossip
+        // between servers, so an owner who declined to federate does not take it in.
+        || msg_type == "key_card_gossip"
     {
         return Some(Feature::Federation);
     }
@@ -461,6 +465,12 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // receipt the admin is sent. A server can be expected to delete a child's information when
     // it learns of them (blocking-and-safe-mode.md 10i), so no feature switch may take it away.
     "admin_erase", "admin_erase_done",
+    // Asking for people's key cards, and the server's answer (2026-10-23, handlers/key_cards.rs).
+    // Every private thing a person sends (a message, a recovery share, a group key, a file pass)
+    // is sealed only to a key that checks out against its card, so checking a key is a person's
+    // own protection, like the ones above, and must work whatever the owner offers. A card is
+    // public and signed: handing one out discloses nothing a person has not published.
+    "key_card_request", "key_cards",
     // Outbound notifications (server -> client echoes of state changes).
     "message_deleted", "pin_added", "pin_removed", "pins_sync", "reactions_sync",
     "channel_list", "channel_update", "profile_data", "announcements",
@@ -576,6 +586,7 @@ mod tests {
             "/api/members/count",
             "/api/server-info",
             "/api/profile/deadbeef",
+            "/api/key-card/deadbeef",
             "/api/civilization",
             "/api/admin/stats",
             "/",
@@ -3993,6 +4004,45 @@ mod tests {
         assert_eq!(state.db.reach_audience_of(&key, "message").as_deref(), Some("anyone"), "and saved");
         use futures::SinkExt;
         sock.close(None).await.ok();
+    }
+
+    /// Asking for key cards over a real socket (handlers/key_cards.rs, docs/design/key-cards.md),
+    /// with EVERY feature switched off: the asker is answered with the card exactly as its owner
+    /// signed it and the key nobody published a card for named as missing, and the answer reaches
+    /// only the asker (the send loop routes `key_cards` by key). Every private thing a person
+    /// sends is sealed only to a key that checks out against its card, so checking a key is a
+    /// person's own protection and no choice of features may take it away (`WS_ALWAYS_ON`).
+    ///
+    /// Seen red 2026-10-24 with "key_card_request" mapped to `Feature::Chat` in
+    /// `ws_message_feature`: "key_card_request is answered with every feature off" (the relay
+    /// sent its feature-disabled notice instead).
+    #[tokio::test]
+    async fn key_cards_are_handed_out_over_the_socket_with_every_feature_off() {
+        let mut off = Features::all_enabled();
+        for f in Feature::ALL {
+            off.set(f, false);
+        }
+        let (state, port) = spawn_relay("key_cards_all_off", off).await;
+        let owner_seed = [95u8; 32];
+        let (mut owner, owner_key) = bind_socket(&state, port, owner_seed, Some("Carded"), 1).await;
+        let (mut asker, _) = bind_socket(&state, port, [96u8; 32], Some("Asker"), 1).await;
+        let card = crate::relay::core::key_card::sign_card(&owner_seed, 1_760_000_000_000).expect("a card signs");
+        assert_eq!(card.key, owner_key, "the card is the owner's");
+        state.db.store_key_card(&card).expect("the card is kept");
+        frames_until_quiet(&mut owner, 300).await;
+        frames_until_quiet(&mut asker, 300).await;
+
+        let nobody = "ab".repeat(1952);
+        send_json(&mut asker, serde_json::json!({ "type": "key_card_request", "keys": [owner_key, nobody] })).await;
+        let is_cards = |v: &Value| (v["type"] == "key_cards").then(|| v.clone());
+        let answer = next_frame_with(&mut asker, is_cards).await.expect("key_card_request is answered with every feature off");
+        assert_eq!(answer["cards"], serde_json::json!([crate::relay::core::key_card::card_json(&card)]), "{answer}");
+        assert_eq!(answer["missing"], serde_json::json!([nobody]), "{answer}");
+        let seen = frames_until_quiet(&mut owner, 700).await;
+        assert!(!seen.iter().any(|v| v["type"] == "key_cards"), "the card's owner was sent the asker's answer: {seen:?}");
+        use futures::SinkExt;
+        owner.close(None).await.ok();
+        asker.close(None).await.ok();
     }
 
     /// The answer to a `dm_put` over a real socket (spec 10l, handlers/dm_answer.rs): the sender

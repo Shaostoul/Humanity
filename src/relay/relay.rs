@@ -103,9 +103,6 @@ pub struct Peer {
     pub display_name: Option<String>,
     /// Per-session upload token (M-4: prevents impersonation on uploads).
     pub upload_token: Option<String>,
-    /// Kyber768 (ML-KEM-768) encapsulation key (base64) for E2EE DMs.
-    /// Full-PQ: `public_key_hex` is the Dilithium3 identity.
-    pub kyber_public: Option<String>,
     /// Which SOCKET owns this registration (see `NEXT_CONN_ID`). A teardown
     /// compares this against its own id and does nothing if a newer connection
     /// has since taken the slot, so a late-dying zombie cannot evict the live
@@ -791,11 +788,13 @@ pub enum RelayMessage {
         /// Required for bot_* keys: must match API_SECRET (L-1).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         bot_secret: Option<String>,
-        /// Kyber768 (ML-KEM-768) encapsulation key, base64. Full-PQ:
-        /// `public_key` is the Dilithium3 identity hex; this is the
-        /// recipient key senders encapsulate DM secrets to.
+        /// The person's key card (2026-10-22, core/key_card.rs): their Kyber768 (ML-KEM-768) key
+        /// signed by their own Dilithium3 identity, the one key anyone may seal things to them
+        /// with. Kept once the sign-in is proven, when it checks out and names this `public_key`
+        /// (handlers/key_cards.rs). A JSON value, so a card of the wrong shape refuses the card,
+        /// never the sign-in.
         #[serde(skip_serializing_if = "Option::is_none", default)]
-        kyber_public: Option<String>,
+        key_card: Option<serde_json::Value>,
         /// The person pressed Connect (native) or Enter (web) after an erase here: sign up again
         /// and forget the erase (handlers/sign_ups.rs). Never set by an automatic reconnect.
         #[serde(default)]
@@ -856,9 +855,11 @@ pub enum RelayMessage {
         display_name: Option<String>,
         #[serde(default)]
         role: String,
-        /// Kyber768 encapsulation key (base64) for E2EE DMs.
+        /// The time on the key card this server holds for them (core/key_card.rs), None when it
+        /// holds none: an app fetches the card itself (`key_card_request`) when it has none
+        /// pinned for them or this is newer. The card is never in the lists: each is 6 KB.
         #[serde(skip_serializing_if = "Option::is_none", default)]
-        kyber_public: Option<String>,
+        key_card_at: Option<u64>,
     },
 
     /// Server announces a peer left.
@@ -1482,6 +1483,12 @@ pub enum RelayMessage {
     /// `cert_revoke {serial}`, handlers/friend_passes.rs), so the client stops resending it.
     #[serde(rename = "cert_revoked")]
     CertRevoked { to: String, serial: String },
+
+    /// Server -> the asker alone: the key cards asked for with `key_card_request {keys}`
+    /// (handlers/key_cards.rs, 2026-10-22), each exactly as its owner signed it, and the keys
+    /// this server holds no card for. The app checks every card itself.
+    #[serde(rename = "key_cards")]
+    KeyCards { to: String, cards: crate::relay::handlers::key_cards::SharedCards, missing: Vec<String> },
 
     /// Server -> the person, on all their sockets: who can reach them, every kind filled in
     /// (handlers/reach.rs), after identify and after every `reach_set`. `to` routes it, unsent.
@@ -2247,6 +2254,12 @@ pub enum RelayMessage {
         signature: String,
     },
 
+    /// A person's key card passed on between federated servers (2026-10-22, core/key_card.rs,
+    /// handlers/key_cards.rs): signed by the person's own app, so which server sent it never has
+    /// to be trusted. Kept by the same rule as one from a sign-in.
+    #[serde(rename = "key_card_gossip")]
+    KeyCardGossip { card: crate::relay::core::key_card::KeyCard },
+
     /// Generic signed-object gossip (Phase 3 PR 1).
     ///
     /// Used to federate any post-quantum signed object — VCs, governance proposals,
@@ -2687,9 +2700,10 @@ pub struct PeerInfo {
     /// Custom status text.
     #[serde(default)]
     pub status_text: String,
-    /// Kyber768 encapsulation key (base64) for E2EE DMs.
+    /// The time on the key card this server holds for them, None for none (`PeerJoined`'s
+    /// `key_card_at`; the card itself is fetched with `key_card_request`).
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub kyber_public: Option<String>,
+    pub key_card_at: Option<u64>,
     /// The most this person may upload in one file on this server, in MB (their role's
     /// `max_upload_mb`, Server Settings > Roles, bounded by the 1 GB ceiling): only on the
     /// recipient's own entry, like the upload token, so each app offers what the server will take
@@ -2795,9 +2809,10 @@ pub struct UserInfo {
     pub status: String,
     #[serde(default)]
     pub status_text: String,
-    /// Kyber768 encapsulation key (base64) for E2EE DMs.
+    /// The time on the key card this server holds for them, None for none (`PeerJoined`'s
+    /// `key_card_at`).
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub kyber_public: Option<String>,
+    pub key_card_at: Option<u64>,
 }
 
 /// RAII guard that decrements the connection counter when dropped.
@@ -2847,7 +2862,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         display_name: Option<String>,
         link_code: Option<String>,
         invite_code: Option<String>,
-        kyber_public: Option<String>,
+        key_card: Option<serde_json::Value>,
         nonce: String, // hex; empty for bot fast-path (no challenge issued)
         sign_up_again: bool,
     }
@@ -2875,8 +2890,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             // string `bot_*`, not a Dilithium pubkey) and skip the
             // challenge. Closes HIGH-2 (identity spoofing at identify).
             let parsed = serde_json::from_str::<RelayMessage>(&text);
-            let (public_key, display_name, link_code, invite_code, kyber_public):
-                (String, Option<String>, Option<String>, Option<String>, Option<String>)
+            let (public_key, display_name, link_code, invite_code, key_card):
+                (String, Option<String>, Option<String>, Option<String>, Option<serde_json::Value>)
             = match parsed {
                 // A peer RELAY introducing itself (2026-08-13 repair): its
                 // proof is the server-key signature + operator-granted trust
@@ -2893,7 +2908,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     ).await;
                     return;
                 }
-                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public, sign_up_again }) => {
+                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, key_card, sign_up_again }) => {
                     // v0.279.0: per-source-IP identify rate limit. Sliding
                     // 60-second window, max 10 attempts per minute. Covers
                     // both bot and human identify paths — every fresh
@@ -2957,8 +2972,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             let _ = ws_tx.close().await;
                             return;
                         }
-                        // Bot authenticated — skip Dilithium challenge, proceed to bind.
-                        (public_key, display_name, link_code, invite_code, kyber_public)
+                        // Bot authenticated — skip Dilithium challenge, proceed to bind. A bot has
+                        // no seed, so no key card: nothing is ever sealed to a bot.
+                        let _ = key_card;
+                        (public_key, display_name, link_code, invite_code, None)
                     } else {
                         // Human identity: issue the Dilithium nonce challenge.
                         // Client must sign the canonical preimage
@@ -2975,7 +2992,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             display_name: display_name.clone(),
                             link_code: link_code.clone(),
                             invite_code: invite_code.clone(),
-                            kyber_public: kyber_public.clone(),
+                            key_card: key_card.clone(),
                             nonce: nonce.clone(),
                             sign_up_again,
                         });
@@ -3033,7 +3050,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         return;
                     }
                     // Verified — proceed to bind with the stashed fields.
-                    (pending.public_key, pending.display_name, pending.link_code, pending.invite_code, pending.kyber_public)
+                    (pending.public_key, pending.display_name, pending.link_code, pending.invite_code, pending.key_card)
                 }
                 _ => continue,
             };
@@ -3167,25 +3184,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     hex::encode(random_bytes)
                 };
 
-                // Full-PQ: `public_key` IS the Dilithium3 identity hex;
-                // store the recipient's Kyber768 DM key if provided.
-                if let Some(ref k) = kyber_public {
-                    if let Err(e) = state.db.store_kyber_public(&public_key, k) {
-                        tracing::error!("Failed to store Kyber public key: {e}");
-                    }
-                }
-                // A socket that signs in without its DM key (a standalone page
-                // such as the Tasks board) is registered and announced with
-                // the key already on file: announcing "none" made every open
-                // Chat drop this person's key, so DMs to them failed until a
-                // reload (review of the Tasks sign-in fix, 2026-10-02).
-                let kyber_public = kyber_public.or_else(|| state.db.get_kyber_public(&public_key).ok().flatten());
-
                 let peer = Peer {
                     public_key_hex: public_key.clone(),
                     display_name: final_name.clone(),
                     upload_token: Some(upload_token.clone()),
-                    kyber_public: kyber_public.clone(),
                     conn_id: my_conn_id,
                 };
 
@@ -3196,6 +3198,14 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 if !crate::relay::handlers::sign_ups::join_as_member(&state, &public_key, &final_name) {
                     crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await;
                     return;
+                }
+
+                // The person's key card (2026-10-22, handlers/key_cards.rs): kept when it checks
+                // out and names the key just proven, before anyone is told they arrived, so the
+                // lists sent below carry its time. A socket that signs in without one (a
+                // standalone page such as the Tasks board) leaves the card held as it is.
+                if let Some(card) = key_card {
+                    crate::relay::handlers::key_cards::keep_from_sign_in(&state, &public_key, card).await;
                 }
 
                 // A second socket for someone already here is the same person,
@@ -3255,8 +3265,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // Bot accounts (bot_ prefix keys) are always shown as online.
                             let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                             let (us, ust) = statuses_snap2.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
-                            let kyber_pub = state.db.get_kyber_public(&first_key).ok().flatten();
-                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, kyber_public: kyber_pub }
+                            let key_card_at = state.db.key_card_at(&first_key);
+                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, key_card_at }
                         })
                         .collect();
                     drop(statuses_snap2);
@@ -3359,17 +3369,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 let _ = ws_tx.send(Message::Text(serde_json::to_string(&crate::relay::handlers::reach::settings_message(&state, &public_key)).unwrap().into())).await;
 
                 // Announce to everyone — unless this member hides their
-                // presence (privacy tiers, 2026-08-23). Their kyber key
-                // still reaches peers via the masked full-user-list row,
-                // so DMs keep working; only the live "came online" signal
-                // is withheld.
+                // presence (privacy tiers, 2026-08-23). Their key card's
+                // time still reaches peers via the masked full-user-list
+                // row, so DMs keep working; only the live "came online"
+                // signal is withheld.
                 let peer_role = state.db.get_role(&public_key).unwrap_or_default();
                 if !state.db.presence_hidden(&public_key) && !already_here {
+                    let key_card_at = state.db.key_card_at(&public_key);
                     let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
                         public_key,
                         display_name: final_name,
                         role: peer_role.clone(),
-                        kyber_public: kyber_public.clone(),
+                        key_card_at,
                     });
                 }
 
@@ -3461,7 +3472,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it;
             // call forwarder credentials (call_credentials.rs) to whoever asked for them; an admin's
             // erase receipt (handlers/account_erase.rs) to that admin.
-            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } = msg {
+            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } | RelayMessage::KeyCards { to: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
 
@@ -3772,6 +3783,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 continue;
                             }
                             Some("cert_revoke") => { crate::relay::handlers::friend_passes::handle_cert_revoke(&state_clone, &my_key_for_recv, &raw).await; continue; }
+                            Some("key_card_request") => { crate::relay::handlers::key_cards::handle_request(&state_clone, &my_key_for_recv, &raw); continue; }
                             Some("reach_set") => { crate::relay::handlers::reach::handle_reach_set(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some("call_credentials") => { crate::relay::call_credentials::handle(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some(kind @ ("report_v2" | "reports_list" | "report_decide")) => { crate::relay::handlers::reports::handle(&state_clone, &my_key_for_recv, kind, &raw, &text).await; continue; }

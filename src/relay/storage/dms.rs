@@ -119,39 +119,8 @@ impl Storage {
         })
     }
 
-    // ── Kyber768 DM key (full-PQ cutover, v0.262.33) ──
-    //
-    // `public_key` IS the Dilithium3 identity hex. `kyber_public` is
-    // the recipient's ML-KEM-768 encapsulation key (base64) a sender
-    // encapsulates a per-message secret to (net::dm_pq / web pq.js).
-    // The relay only stores + serves it; it never sees DM plaintext.
-
-    /// Store/update the recipient's Kyber768 public key (base64).
-    pub fn store_kyber_public(&self, public_key: &str, kyber_public: &str) -> Result<(), rusqlite::Error> {
-        self.with_conn(|conn| {
-            conn.execute(
-                "UPDATE registered_names SET kyber_public = ?1 WHERE public_key = ?2",
-                params![kyber_public, public_key],
-            )?;
-            Ok(())
-        })
-    }
-
-    /// Get the Kyber768 public key (base64) for a Dilithium identity.
-    pub fn get_kyber_public(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
-        // Read-only single-row lookup (DM key fetch before sealing). Read pool.
-        self.with_read_conn(|conn| {
-            match conn.query_row(
-                "SELECT kyber_public FROM registered_names WHERE public_key = ?1 AND kyber_public IS NOT NULL LIMIT 1",
-                params![public_key],
-                |row| row.get(0),
-            ) {
-                Ok(key) => Ok(Some(key)),
-                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-                Err(e) => Err(e),
-            }
-        })
-    }
+    // The Kyber768 key a sender seals a DM to is no longer kept here: it travels in the person's
+    // own signed key card (storage/key_cards.rs, 2026-10-22), which every app checks itself.
 
     /// Look up the name for a public key.
     pub fn name_for_key(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {

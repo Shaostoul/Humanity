@@ -68,33 +68,35 @@ impl WsClient {
     /// `name` is the display name sent in the identify message.
     /// `pubkey_hex` is the Dilithium3 public key hex (the full-PQ identity).
     pub fn connect(url: &str, name: &str, pubkey_hex: &str) -> Self {
-        Self::connect_with_kyber(url, name, pubkey_hex, "")
+        Self::connect_with_key_card(url, name, pubkey_hex, "")
     }
 
-    /// Connect with a Kyber768 public key (base64) for full-PQ E2E DMs.
-    pub fn connect_with_kyber(url: &str, name: &str, pubkey_hex: &str, kyber_public_b64: &str) -> Self {
-        Self::connect_identifying(url, name, pubkey_hex, kyber_public_b64, false)
+    /// Connect, sending this identity's key card with the sign-in (`key_card_json`: the JSON of
+    /// the card its own app signed, engine/key_cards.rs; empty sends none). The card is how anyone
+    /// learns, and checks, the Kyber768 key to seal private messages to us with (2026-10-22).
+    pub fn connect_with_key_card(url: &str, name: &str, pubkey_hex: &str, key_card_json: &str) -> Self {
+        Self::connect_identifying(url, name, pubkey_hex, key_card_json, false)
     }
 
     /// The Chat page's Connect pressed on a server whose account this identity erased
     /// (BUG-135): the identify says `sign_up_again`, so the relay forgets the erase it remembers
     /// and signs the person up again (relay handlers/sign_ups.rs). Every other connect, and
-    /// every automatic reconnect, uses `connect_with_kyber`, which never says it.
-    pub fn connect_signing_up_again(url: &str, name: &str, pubkey_hex: &str, kyber_public_b64: &str) -> Self {
-        Self::connect_identifying(url, name, pubkey_hex, kyber_public_b64, true)
+    /// every automatic reconnect, uses `connect_with_key_card`, which never says it.
+    pub fn connect_signing_up_again(url: &str, name: &str, pubkey_hex: &str, key_card_json: &str) -> Self {
+        Self::connect_identifying(url, name, pubkey_hex, key_card_json, true)
     }
 
-    fn connect_identifying(url: &str, name: &str, pubkey_hex: &str, kyber_public_b64: &str, sign_up_again: bool) -> Self {
+    fn connect_identifying(url: &str, name: &str, pubkey_hex: &str, key_card_json: &str, sign_up_again: bool) -> Self {
         let (tx_to_net, rx_from_game) = mpsc::channel::<String>();
         let (tx_to_game, rx_from_net) = mpsc::channel::<String>();
 
         let url_owned = url.to_string();
         let name_owned = name.to_string();
         let pubkey_owned = pubkey_hex.to_string();
-        let kyber_owned = kyber_public_b64.to_string();
+        let card_owned = key_card_json.to_string();
 
         thread::spawn(move || {
-            run_connection(url_owned, name_owned, pubkey_owned, kyber_owned, sign_up_again, rx_from_game, tx_to_game);
+            run_connection(url_owned, name_owned, pubkey_owned, card_owned, sign_up_again, rx_from_game, tx_to_game);
         });
 
         Self {
@@ -206,7 +208,7 @@ fn run_connection(
     url: String,
     name: String,
     pubkey: String,
-    kyber_public: String,
+    key_card_json: String,
     sign_up_again: bool,
     rx_from_game: mpsc::Receiver<String>,
     tx_to_game: mpsc::Sender<String>,
@@ -230,7 +232,7 @@ fn run_connection(
     let _ = tx_to_game.send("__CONNECTED__".to_string());
 
     // Send identify (matches the relay's RelayMessage::Identify).
-    let identify_json = identify_frame(&pubkey, &name, &kyber_public, sign_up_again).to_string();
+    let identify_json = identify_frame(&pubkey, &name, &key_card_json, sign_up_again).to_string();
     crate::debug::push_debug(format!("WS >>> {}", identify_json));
     if let Err(e) = socket.send(tungstenite::Message::Text(identify_json)) {
         log::error!("WsClient: failed to send identify: {}", e);
@@ -316,17 +318,18 @@ fn run_connection(
 }
 
 /// The identify this client opens every connection with (matches the relay's
-/// `RelayMessage::Identify`). Full-PQ: `public_key` IS the Dilithium3 hex; `kyber_public` is
-/// the base64 Kyber768 encapsulation key the relay serves to DM senders, left out when empty.
+/// `RelayMessage::Identify`). Full-PQ: `public_key` IS the Dilithium3 hex; `key_card` is this
+/// identity's key card (`key_card_json`, the JSON its own app signed, core/key_card.rs), which
+/// the relay keeps and serves once the sign-in is proven; left out when empty or not JSON.
 /// `sign_up_again` is present only when true: the person's Connect after an erase (BUG-135).
-pub fn identify_frame(pubkey: &str, name: &str, kyber_public: &str, sign_up_again: bool) -> serde_json::Value {
+pub fn identify_frame(pubkey: &str, name: &str, key_card_json: &str, sign_up_again: bool) -> serde_json::Value {
     let mut identify = serde_json::json!({
         "type": "identify",
         "public_key": pubkey,
         "display_name": name,
     });
-    if !kyber_public.is_empty() {
-        identify["kyber_public"] = serde_json::json!(kyber_public);
+    if let Ok(card) = serde_json::from_str::<serde_json::Value>(key_card_json) {
+        identify["key_card"] = card;
     }
     if sign_up_again {
         identify["sign_up_again"] = serde_json::json!(true);
@@ -392,10 +395,11 @@ mod tests {
     fn only_the_connect_after_an_erase_says_sign_up_again() {
         let plain = identify_frame("ab12", "Ada", "", false);
         assert_eq!(plain, serde_json::json!({ "type": "identify", "public_key": "ab12", "display_name": "Ada" }));
-        let with_kyber = identify_frame("ab12", "Ada", "S3k=", false);
-        assert_eq!(with_kyber["kyber_public"], "S3k=");
-        assert!(with_kyber.get("sign_up_again").is_none(), "an ordinary identify carried sign_up_again: {:?}", with_kyber.get("sign_up_again"));
-        let chosen = identify_frame("ab12", "Ada", "S3k=", true);
+        let card = r#"{"v":1,"key":"ab12","kyber":"S3k=","at":5,"sig":"c2ln"}"#;
+        let with_card = identify_frame("ab12", "Ada", card, false);
+        assert_eq!(with_card["key_card"]["kyber"], "S3k=", "the key card rides the identify as JSON");
+        assert!(with_card.get("sign_up_again").is_none(), "an ordinary identify carried sign_up_again: {:?}", with_card.get("sign_up_again"));
+        let chosen = identify_frame("ab12", "Ada", card, true);
         assert_eq!(chosen["sign_up_again"], true, "the Connect after an erase did not say sign_up_again");
         assert_eq!(chosen["public_key"], "ab12");
     }

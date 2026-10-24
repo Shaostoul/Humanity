@@ -465,7 +465,7 @@ fn now_ms() -> u64 {
 /// without sending, so what goes on the wire can be tested. Theirs carries the pass THEY gave us
 /// when we hold one (`friend_cert`), so it rides the friend lane past their "who can reach me"
 /// gate: after Accept that is the pass their contact request brought (step B). None when it
-/// cannot be sealed yet (locked, or no DM key for them: they must come online once).
+/// cannot be sealed yet (locked, or no key for them from a key card checked here, engine/key_cards.rs).
 pub(crate) fn control_puts(gui_state: &GuiState, peer: &str, text: &str, cert: Option<&str>) -> Option<(serde_json::Value, serde_json::Value)> {
     control_puts_at(gui_state, peer, text, cert, now_ms())
 }
@@ -474,9 +474,11 @@ pub(crate) fn control_puts(gui_state: &GuiState, peer: &str, text: &str, cert: O
 pub(crate) fn control_puts_at(gui_state: &GuiState, peer: &str, text: &str, cert: Option<&str>, ts: u64) -> Option<(serde_json::Value, serde_json::Value)> {
     let seed = gui_state.private_key_bytes.as_ref()?;
     let me = &gui_state.profile_public_key;
+    // Only a key from their key card, checked and pinned here (engine/key_cards.rs): the sweep
+    // that calls this again once the card has arrived is what sends it.
     let Some(peer_kyber) = gui_state.peer_kyber_keys.get(peer) else {
         let what: String = text.chars().take(26).collect(); // the marker, not a whole pass
-        log::warn!("control '{what}' to {}… not sent: no kyber key yet (they must come online once)", &peer[..12.min(peer.len())]);
+        log::warn!("control '{what}' to {}… not sent: no checked key card for them yet", &peer[..12.min(peer.len())]);
         return None;
     };
     let my_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).ok()?;

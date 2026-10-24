@@ -10,7 +10,7 @@
 //!
 //! THE LOG. Everything a server sends its links goes into its outbox first and gets the next
 //! number ([`publish`]): a chat line, an edit, a delete, an account's erase, a ban or unban, a
-//! profile copy, a signed object. A link is sent `fed_event {log, seq, event}`, or `fed_skip {seq}`
+//! profile copy, a key card, a signed object. A link is sent `fed_event {log, seq, event}`, or `fed_skip {seq}`
 //! for a number not meant for it (a frame passed on from that very link) or scrubbed (the words of
 //! a deleted message). The receiver applies numbers strictly in order and remembers the last one
 //! (its cursor, stored): a number at or below it is a repeat and is ignored; one past the next is
@@ -133,7 +133,7 @@ fn skip_frame(log: &str, seq: i64) -> String {
 // ── Sending ──────────────────────────────────────────────────────────────────────────────────
 
 /// Add `event` to the outbox and send it to every link that is caught up. `kind` names it in the
-/// outbox ("chat", "edit", "delete", "erase", "mod", "profile", "object"); `author` and `stamp`
+/// outbox ("chat", "edit", "delete", "erase", "mod", "profile", "key_card", "object"); `author` and `stamp`
 /// say whose message it carries (so its words can be scrubbed); `not_to` is the link it came from,
 /// which is sent a skip instead. Returns its number (None when the outbox could not be written).
 pub async fn publish(state: &Arc<RelayState>, kind: &str, author: &str, stamp: u64, not_to: &str, event: &Value) -> Option<i64> {
@@ -319,6 +319,7 @@ fn kind_of(v: &Value) -> (Kind, bool) {
         "fed_delete" | "fed_erase" => Kind::Delete,
         "fed_mod" => Kind::Moderation,
         "profile_gossip" => Kind::Profile,
+        "key_card_gossip" => Kind::KeyCard,
         "signed_object_gossip" => Kind::Object,
         _ => Kind::Control,
     };
@@ -359,6 +360,13 @@ pub async fn tick(state: &Arc<RelayState>, peer: &str, tx: &UnboundedSender<Stri
 /// Everything a linked server sends goes through here: its flow (slowed, or set aside while it is
 /// paused), then its place in that server's log, then what the frame does.
 pub async fn ingest(state: &Arc<RelayState>, peer: &str, tx: &UnboundedSender<String>, text: &str) {
+    // An owner who switched federation off takes nothing in from other servers (no chat, no
+    // profile copies, no key cards), whichever side dialed and whenever it was switched off. The
+    // socket's feature gate (relay.rs) never sees a peer's frames: a peer's hello leaves the
+    // signed-in loop before it (2026-10-24, found while putting key cards on this log).
+    if !state.features.enabled(crate::relay::features::Feature::Federation) {
+        return;
+    }
     let Ok(v) = serde_json::from_str::<Value>(text) else { return };
     let ty = v["type"].as_str().unwrap_or("").to_string();
     let (kind, answers) = kind_of(&v);
@@ -373,7 +381,7 @@ pub async fn ingest(state: &Arc<RelayState>, peer: &str, tx: &UnboundedSender<St
         }
         let pauses_before = pin.flow.pauses;
         let admit = pin.flow.admit(kind, asked, &limits, now);
-        if admit == Admit::Paused && !answers && matches!(kind, Kind::Profile | Kind::Moderation) {
+        if admit == Admit::Paused && !answers && matches!(kind, Kind::Profile | Kind::KeyCard | Kind::Moderation) {
             pin.catch_up_wanted = true;
         }
         if pin.flow.pauses > pauses_before {
@@ -423,7 +431,8 @@ pub async fn ingest(state: &Arc<RelayState>, peer: &str, tx: &UnboundedSender<St
             }
         }
         "fed_bans" => bans_part(state, peer, &v),
-        "profile_gossip" | "federation_welcome" => {
+        // Un-numbered: the catch-up's profile copies and key cards (federation.rs `send_own_copies`).
+        "profile_gossip" | "key_card_gossip" | "federation_welcome" => {
             if let Ok(msg) = serde_json::from_value::<RelayMessage>(v) {
                 crate::relay::handlers::federation::handle_peer_message(state, peer, msg).await;
             }
@@ -563,7 +572,7 @@ async fn apply(state: &Arc<RelayState>, peer: &str, event: &Value) {
                 _ => {}
             }
         }
-        "federated_chat" | "profile_gossip" | "signed_object_gossip" => {
+        "federated_chat" | "profile_gossip" | "key_card_gossip" | "signed_object_gossip" => {
             if let Ok(msg) = serde_json::from_value::<RelayMessage>(event.clone()) {
                 crate::relay::handlers::federation::handle_peer_message(state, peer, msg).await;
             }

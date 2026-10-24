@@ -305,7 +305,7 @@ pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_j
         return Err("You blocked them. Unblock them first, in Settings > Safety > Blocked people.".into());
     }
     if !gs.peer_kyber_keys.contains_key(peer) {
-        return Err("Their key is not known yet. They need to have been online on this server once.".into());
+        return Err("There is no key card for them here that this app could check yet. If they have one, it is on its way: try again in a moment.".into());
     }
     // Step F's recovery-phrase guard: a request carries our name, so a name holding the phrase stops it.
     if crate::engine::warnings::holds_own_phrase(gs, &[&gs.user_name]) {
@@ -340,6 +340,8 @@ pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), 
     if gs.pending_puts.has_peer(peer) {
         return Err(STILL_WAITING.into());
     }
+    // Their key card, asked for now if it is not here, so trying again in a moment works.
+    crate::engine::key_cards::want(gs, peer, false);
     let (theirs, ours, sent) = contact_request_puts(gs, peer)?;
     if !crate::engine::dm::send_held(gs, peer, theirs, ours, sent, crate::net::put_answers::Held::Request) {
         return Err("Connect to the server first.".into());

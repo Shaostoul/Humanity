@@ -56,6 +56,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     crate::gui::pages::own_profile::pump(&mut state.gui_state);
     crate::engine::dm::pace_owed_passes(&mut state.gui_state, std::time::Instant::now()); // passes the sweep held back, at the server's pace
     crate::engine::file_transfer::pump(&mut state.gui_state); // device-to-device big files: offers, connections, dialling
+    crate::engine::key_cards::pump(&mut state.gui_state); // key cards wanted: asked of the server, a batch at a time
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {
@@ -292,6 +293,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             let get_tasks = serde_json::json!({"type": "task_list"});
                             ws_client.send(&get_tasks.to_string());
                         }
+                        // Key cards (2026-10-22): a new socket may have lost requests in flight on
+                        // the old one; ask again for the people this app seals to.
+                        crate::engine::key_cards::on_signed_in(&mut state.gui_state, first_on_socket);
                         if let Some(peers) = val.get("peers").and_then(|v| v.as_array()) {
                             for peer in peers {
                                 let name = peer.get("display_name")
@@ -310,12 +314,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("online")
                                     .to_string();
-                                // Capture peer's Kyber768 public key for full-PQ DM sealing
-                                if let Some(kyber) = peer.get("kyber_public").and_then(|v| v.as_str()) {
-                                    if !kyber.is_empty() && !key.is_empty() {
-                                        state.gui_state.peer_kyber_keys.insert(key.clone(), kyber.to_string());
-                                    }
-                                }
+                                // Their key card's time: fetch the card when it is newer than
+                                // the one pinned (engine/key_cards.rs). No key comes from here.
+                                crate::engine::key_cards::note_listed(&mut state.gui_state, &key, peer.get("key_card_at").and_then(|v| v.as_u64()));
                                 // If this peer is us and our local name is empty, adopt the server's display_name
                                 if key == state.gui_state.profile_public_key
                                     && state.gui_state.user_name.is_empty()
@@ -344,12 +345,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
-                        // Capture peer's Kyber768 public key for full-PQ DMs
-                        if let Some(kyber) = val.get("kyber_public").and_then(|v| v.as_str()) {
-                            if !kyber.is_empty() && !key.is_empty() {
-                                state.gui_state.peer_kyber_keys.insert(key.clone(), kyber.to_string());
-                            }
-                        }
+                        // Their key card's time (engine/key_cards.rs).
+                        crate::engine::key_cards::note_listed(&mut state.gui_state, &key, val.get("key_card_at").and_then(|v| v.as_u64()));
                         // Add if not already present
                         if !state.gui_state.chat_users.iter().any(|u| u.public_key == key) {
                             state.gui_state.chat_users.push(
@@ -616,12 +613,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 } else {
                                     "offline".to_string()
                                 };
-                                // Capture peer's Kyber768 public key for full-PQ DMs
-                                if let Some(kyber) = user.get("kyber_public").and_then(|v| v.as_str()) {
-                                    if !kyber.is_empty() && !key.is_empty() {
-                                        state.gui_state.peer_kyber_keys.insert(key.clone(), kyber.to_string());
-                                    }
-                                }
+                                // Their key card's time (engine/key_cards.rs).
+                                crate::engine::key_cards::note_listed(&mut state.gui_state, &key, user.get("key_card_at").and_then(|v| v.as_u64()));
                                 state.gui_state.chat_users.push(
                                     crate::gui::ChatUser { name, public_key: key, role, status },
                                 );
@@ -635,6 +628,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         }
                     }
                     Some("cert_revoked") => crate::engine::dm::withdrawal_confirmed(&mut state.gui_state, &val),
+                    // Key cards asked for (2026-10-22): each checked here before its key is used.
+                    Some("key_cards") => crate::engine::key_cards::on_key_cards_frame(&mut state.gui_state, &val),
                     Some("reach_settings") | Some("reach_refused") => crate::engine::reach::on_frame(&mut state.gui_state, &val), // who can reach me (step B)
                     Some("voice_channel_list") => {
                         // Voice channels received from server
@@ -1344,7 +1339,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // name-collision reconnect — the 3-arg connect()
                         // sent empty kyber, which silently broke DMs for
                         // any DesktopUser-fallback session.
-                        let new_client = crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &fallback, &state.gui_state.profile_public_key, &state.gui_state.kyber_public_b64);
+                        let new_client = crate::net::ws_client::WsClient::connect_with_key_card(&ws_url, &fallback, &state.gui_state.profile_public_key, &state.gui_state.own_key_card);
                         state.gui_state.ws_client = Some(new_client);
                         state.gui_state.connected_server_url = url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).

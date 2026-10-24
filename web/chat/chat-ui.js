@@ -1603,9 +1603,14 @@ async function sendComposedContent(content) {
       addSystemMessage(`Message too long (${content.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
       return false;
     }
-    const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub
+    // Their Kyber768 key, only from a key card checked here (2026-10-22): when
+    // none is pinned yet their card is asked for and waited on; when there is
+    // still none, say which of the three it is (chat-key-cards.js).
+    let peerKyber = getPeerEcdhPublic(activeDmPartner);
+    if (!peerKyber && typeof hosKeyCards !== 'undefined') peerKyber = await hosKeyCards.ensure(activeDmPartner);
     if (!peerKyber) {
-      addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
+      if (typeof hosKeyCards !== 'undefined') hosKeyCards.say(activeDmPartner);
+      else addSystemMessage('Nothing was sent: there is no checked key for this person yet.');
       return false;
     }
     // Sealed-sender v2: the sender's identity travels Dilithium-signed

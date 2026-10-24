@@ -190,10 +190,10 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                         let connect = if state.take_sign_up_again(&url) {
                             crate::net::ws_client::WsClient::connect_signing_up_again
                         } else {
-                            crate::net::ws_client::WsClient::connect_with_kyber
+                            crate::net::ws_client::WsClient::connect_with_key_card
                         };
                         // Full-PQ: manual Connect must advertise the Kyber key too.
-                        state.ws_client = Some(connect(&ws_url, &name, &pubkey, &state.kyber_public_b64));
+                        state.ws_client = Some(connect(&ws_url, &name, &pubkey, &state.own_key_card));
                         state.connected_server_url = state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.ws_identified = false;

@@ -168,6 +168,7 @@ fn friend_of(secret: &[u8; 32], name: &str) -> Friend {
         did: crate::relay::core::did::did_for_pubkey(&dil.public_key()),
         name: name.into(),
         kyber_b64: Some(base64::engine::general_purpose::STANDARD.encode(kyber.public_key())),
+        key_changed: false,
     }
 }
 

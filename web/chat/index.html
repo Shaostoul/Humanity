@@ -773,6 +773,10 @@
        the words my key signs, the limits and the time on it, held to the relay's builder. Before
        chat-profile.js, which signs it when the server asks. -->
   <script src="/shared/profile-copy.js?v=1"></script>
+  <!-- key-card.js: key cards (2026-10-22): a person's Kyber768 key signed by their own identity,
+       the words signed, the check, and the pin rule, held to the relay's builder. Before crypto.js,
+       which signs my own card, and chat-key-cards.js, which checks everyone else's. -->
+  <script src="/shared/key-card.js?v=1"></script>
   <!-- drop-overlay.js: files dragged from the computer onto the page (2026-10-17), the desktop's
        words while they are over it ("Drop to upload to Files and post in #general" over a channel,
        "Drop to send in Ben" in a private conversation) and its drop. upload-window.js: the window a
@@ -780,7 +784,7 @@
        before chat-messages.js, which puts them on the page. -->
   <script src="/shared/drop-overlay.js?v=2"></script>
   <script src="/shared/upload-window.js?v=4"></script>
-  <script src="/chat/crypto.js?v=15"></script>
+  <script src="/chat/crypto.js?v=16"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
@@ -789,7 +793,11 @@
        2026-08-23). The relay no longer stores readable DM history; this
        IndexedDB store, keyed from the seed, is the archive. Load before
        app.js so the dm_new/dm_batch handlers can use it. -->
-  <script src="/chat/chat-dm-store.js?v=13"></script>
+  <script src="/chat/chat-dm-store.js?v=14"></script>
+  <!-- chat-key-cards.js: asks the server for people's key cards, checks each, pins them, and
+       shows a key that changed (2026-10-22). The only source of the keys anything is sealed to.
+       After chat-dm-store.js (the pins live there), before app.js (which hands it the frames). -->
+  <script src="/chat/chat-key-cards.js?v=1"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=2"></script>
@@ -802,12 +810,12 @@
        Open bringing up the item's own page in the upload window's frame. Before app.js and
        chat-dms.js, which ask it while they draw a message. -->
   <script src="/chat/chat-files-card.js?v=3"></script>
-  <script src="/chat/app.js?v=33"></script>
+  <script src="/chat/app.js?v=34"></script>
   <script src="/chat/chat-messages.js?v=24"></script>
-  <script src="/chat/chat-dms.js?v=21"></script>
-  <script src="/chat/chat-social.js?v=21"></script>
-  <script src="/chat/chat-groups-p2p.js?v=18"></script>
-  <script src="/chat/chat-ui.js?v=19"></script>
+  <script src="/chat/chat-dms.js?v=22"></script>
+  <script src="/chat/chat-social.js?v=22"></script>
+  <script src="/chat/chat-groups-p2p.js?v=19"></script>
+  <script src="/chat/chat-ui.js?v=20"></script>
   <script src="/chat/chat-voice-rooms.js?v=9"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
@@ -820,7 +828,7 @@
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=17"></script>
+  <script src="/chat/chat-privacy.js?v=18"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
@@ -850,7 +858,7 @@
   <script src="/chat/chat-onboarding.js?v=2"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js?v=17"></script>
+  <script src="/chat/chat-p2p.js?v=18"></script>
 
   <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->
   <script>

@@ -74,7 +74,7 @@ pub const SENT_LINE: &str = "Report sent to the group's creator.";
 pub const REFUSED_LINE: &str =
     "Your report did not reach the group's creator: this server did not let it through. You can send it to this server's admins instead.";
 pub const STILL_FINDING: &str = "Still finding out who created this group. Try again in a moment.";
-pub const CANNOT_SEAL: &str = "The group's creator has not been online with a current client here, so the report cannot be sealed for them yet. Try again later, or send it to this server's admins.";
+pub const CANNOT_SEAL: &str = "The group's creator has no key card here that this app could check, so the report cannot be sealed for them yet. Try again later, or send it to this server's admins.";
 
 // The creator's side: Settings > Safety.
 pub const TITLE: &str = "Reports about your groups";

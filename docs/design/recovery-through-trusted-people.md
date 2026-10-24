@@ -105,10 +105,12 @@ keeps none:
   checked. Pieces from different setups never fit together (each setup is a fresh random
   split), so an old piece matters only if enough people from that same old setup work together.
   The section says so where the person takes pieces back.
-- **The trusted people's keys come from the server's member list**, the same as for direct
-  messages and group keys today. A server that lied about a key while the person set up could
-  open that one piece. Signed key cards would close this for every feature at once; until then
-  it is the same trust the rest of the app already places in the server.
+- **Closed 2026-10-22: the trusted people's keys no longer come from the server's word.** Each
+  piece is sealed to a key from the trusted person's key card, signed by their own identity and
+  checked by the app that seals (docs/design/key-cards.md): the one pinned on this device, or
+  their card fetched from the server and checked. A server can no longer slip in a key of its own
+  and open a piece. A trusted person whose key changed and has not been accepted is refused until
+  it is.
 - **The asking device keeps its one-time key in memory only.** Closing the app or the tab means
   asking again with a new code (on purpose: nothing on that device's disk can open the pieces).
 - **The website needs the account in this browser** (Chat's stored key) to set up or to help;

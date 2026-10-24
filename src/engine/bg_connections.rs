@@ -244,7 +244,7 @@ fn dial_missing_saved_servers(state: &mut EngineState) {
     }
     let name = state.gui_state.user_name.clone();
     let pubkey = state.gui_state.profile_public_key.clone();
-    let kyber = state.gui_state.kyber_public_b64.clone();
+    let card = state.gui_state.own_key_card.clone();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for url in targets {
         let n = norm_server_url(&url);
@@ -260,8 +260,8 @@ fn dial_missing_saved_servers(state: &mut EngineState) {
         state.gui_state.connections.push(crate::gui::ServerConnection {
             url: n,
             display_url: url.trim().to_string(),
-            ws: Some(crate::net::ws_client::WsClient::connect_with_kyber(
-                &ws_url, &name, &pubkey, &kyber,
+            ws: Some(crate::net::ws_client::WsClient::connect_with_key_card(
+                &ws_url, &name, &pubkey, &card,
             )),
             status: "Connecting...".to_string(),
             reconnect_delay: 5.0,
@@ -291,7 +291,7 @@ pub(crate) fn erased_link(gui: &crate::gui::GuiState, url: &str) -> Option<crate
 fn redial_dropped(state: &mut EngineState) {
     let name = state.gui_state.user_name.clone();
     let pubkey = state.gui_state.profile_public_key.clone();
-    let kyber = state.gui_state.kyber_public_b64.clone();
+    let card = state.gui_state.own_key_card.clone();
     for conn in state.gui_state.connections.iter_mut() {
         if redial_due(conn) {
             let ws_url = crate::gui::pages::chat::derive_ws_url(&conn.display_url);
@@ -300,8 +300,8 @@ fn redial_dropped(state: &mut EngineState) {
                 conn.url,
                 conn.reconnect_attempts + 1
             );
-            conn.ws = Some(crate::net::ws_client::WsClient::connect_with_kyber(
-                &ws_url, &name, &pubkey, &kyber,
+            conn.ws = Some(crate::net::ws_client::WsClient::connect_with_key_card(
+                &ws_url, &name, &pubkey, &card,
             ));
             conn.identified = false;
             conn.status = "Reconnecting...".to_string();
@@ -743,6 +743,9 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             }
         }
         Some("dm_batch") => bg_dm_batch(&mut state.gui_state, ci, &val),
+        // Key cards asked of this link (2026-10-22): a card is good from any server, and each
+        // is checked here before anything is sealed with it (engine/key_cards.rs).
+        Some("key_cards") => crate::engine::key_cards::on_key_cards_frame(&mut state.gui_state, &val),
         // BUG-135: an erase confirmed after the person switched away from that server.
         Some("account_erased") => crate::engine::account_erase::on_parked_server(state, ci, &val),
         // Who can reach me there (step B, 2026-10-09): kept in that server's store, where its
@@ -792,9 +795,9 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
 }
 
 /// Shared roster parse for peer_list ("display_name", all online) and
-/// full_user_list ("name" + an `online` flag). Also harvests Kyber keys
-/// into the global peer_kyber_keys map, which is keyed by user public key
-/// and therefore safely shared across servers.
+/// full_user_list ("name" + an `online` flag). Also notes each person's key
+/// card time (engine/key_cards.rs), so a card newer than the one pinned is
+/// fetched: a card is good from any server, so this link's lists count too.
 fn parse_users(
     arr: Option<&serde_json::Value>,
     name_field: &str,
@@ -811,14 +814,7 @@ fn parse_users(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        if let Some(kyber) = user.get("kyber_public").and_then(|v| v.as_str()) {
-            if !kyber.is_empty() && !key.is_empty() {
-                state
-                    .gui_state
-                    .peer_kyber_keys
-                    .insert(key.clone(), kyber.to_string());
-            }
-        }
+        crate::engine::key_cards::note_listed(&mut state.gui_state, &key, user.get("key_card_at").and_then(|v| v.as_u64()));
         let status = match online_field {
             Some(f) if !user.get(f).and_then(|v| v.as_bool()).unwrap_or(false) => {
                 "offline".to_string()

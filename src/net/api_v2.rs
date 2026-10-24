@@ -760,8 +760,10 @@ pub fn load_group_blocking(server_url: &str, seed: &[u8], group_id: &str) -> Gro
     GroupLoad { group_id: group_id.to_string(), epoch, epoch_key, messages, members }
 }
 
-/// GET /api/v2/groups/{id}/members → roster with each member's Kyber pub.
-/// Returns `Vec<(dilithium_hex, Option<kyber_pub_b64>)>`.
+/// GET /api/v2/groups/{id}/members → roster with each member's key card.
+/// Returns `Vec<(dilithium_hex, Option<kyber_pub_b64>)>`: the Kyber key ONLY from a key card that
+/// checks out as that very member's (signed by their own identity key, core/key_card.rs), None
+/// otherwise, so a group key is never sealed to a key the server put in (key cards, 2026-10-22).
 pub fn fetch_group_members(
     server_url: &str,
     group_id: &str,
@@ -782,15 +784,26 @@ pub fn fetch_group_members(
         .and_then(|x| x.as_array())
         .cloned()
         .unwrap_or_default();
+    Ok(group_members_of(&members))
+}
+
+/// The roster's members with the Kyber key of each one's checked key card (see
+/// `fetch_group_members`). A card that does not check out, or names somebody else, gives none.
+pub(crate) fn group_members_of(members: &[serde_json::Value]) -> Vec<(String, Option<String>)> {
+    use crate::relay::core::key_card;
     let mut out = Vec::with_capacity(members.len());
     for m in members {
         let pubkey = m.get("pubkey").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let kyber = m.get("kyber_public").and_then(|x| x.as_str()).map(|s| s.to_string());
+        let kyber = m
+            .get("key_card")
+            .and_then(key_card::parse_card)
+            .filter(|card| key_card::card_for(card, &pubkey))
+            .map(|card| card.kyber);
         if !pubkey.is_empty() {
             out.push((pubkey, kyber));
         }
     }
-    Ok(out)
+    out
 }
 
 /// If I am the creator AND new members have joined since the last epoch key,

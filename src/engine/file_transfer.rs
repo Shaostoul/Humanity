@@ -388,7 +388,7 @@ pub fn cannot_offer(gs: &GuiState, peer: &str) -> Option<&'static str> {
         return Some("this server has not finished signing you in yet.");
     }
     if !gs.peer_kyber_keys.contains_key(peer) {
-        return Some("their app has not been online on this server since you met, so a message cannot be sealed to them yet.");
+        return Some("there is no key card for them here that this app could check yet, so nothing can be sealed to them.");
     }
     None
 }

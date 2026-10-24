@@ -21,6 +21,10 @@ pub mod reach;
 /// Block (step C of docs/design/blocking-and-safe-mode.md, 2026-10-09): Block and Unblock, the
 /// notes to oneself, and the rules that hide a blocked key on every path in.
 pub mod block;
+/// Key cards (2026-10-22, docs/design/key-cards.md): our own card signed and sent with each
+/// sign-in, other people's asked for, checked and pinned, and the change notice. Every seal to a
+/// person reads the keys kept here.
+pub mod key_cards;
 /// The choice for each friend syncs as its own note (10n of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): making it, the notes to oneself, and Unfollows that wait for a connection.
 pub mod choice;

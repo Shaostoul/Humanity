@@ -14474,23 +14474,19 @@ mod native_app {
                             state.gui_state.profile_public_key.clone()
                         };
 
-                        // Full-PQ: advertise our Kyber768 public key so peers
-                        // can dual-seal DMs to us. It is derived from the BIP39
-                        // seed on recovery/unlock (kyber_public_b64); if the
-                        // seed isn't in memory yet we re-derive it here when
-                        // available, else connect without it (degraded: can
-                        // receive once unlocked). The secret is never stored.
-                        if state.gui_state.kyber_public_b64.is_empty() {
-                            if let Some(ref seed) = state.gui_state.private_key_bytes {
-                                if let Ok(pq) = crate::net::identity::derive_pq_identity(seed) {
-                                    state.gui_state.kyber_public_b64 = pq.kyber_public_b64;
-                                }
-                            }
+                        // Full-PQ: send our key card (our Kyber768 key signed by
+                        // our identity, engine/key_cards.rs) so peers can seal
+                        // DMs to us and check the key is ours. It is signed on
+                        // recovery/unlock; if the seed is in memory but no card
+                        // was signed yet, sign it now, else connect without one
+                        // (degraded: can receive once unlocked).
+                        if state.gui_state.own_key_card.is_empty() {
+                            crate::engine::key_cards::sign_own_card(&mut state.gui_state);
                         }
-                        let kyber_public = state.gui_state.kyber_public_b64.clone();
+                        let key_card = state.gui_state.own_key_card.clone();
 
                         state.gui_state.ws_client = Some(
-                            crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &kyber_public),
+                            crate::net::ws_client::WsClient::connect_with_key_card(&ws_url, &name, &pubkey, &key_card),
                         );
                         state.gui_state.connected_server_url = address;
                         // Fresh socket: identify handshake not yet complete (v0.794).
@@ -14527,9 +14523,9 @@ mod native_app {
                             };
                             log::info!("Attempting WebSocket reconnect (attempt {})", state.gui_state.ws_reconnect_attempts + 1);
                             // Full-PQ: backoff reconnect must also carry the
-                            // Kyber key, else DMs break after any drop.
+                            // key card, else DMs break after any drop.
                             state.gui_state.ws_client = Some(
-                                crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &state.gui_state.kyber_public_b64),
+                                crate::net::ws_client::WsClient::connect_with_key_card(&ws_url, &name, &pubkey, &state.gui_state.own_key_card),
                             );
                             state.gui_state.connected_server_url = address;
                             // Fresh socket: identify handshake not yet complete (v0.794).

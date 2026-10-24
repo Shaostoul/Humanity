@@ -759,18 +759,17 @@ impl Storage {
         let Some(stored_payload) = self.get_signed_object(&stored)?.map(|r| r.payload) else {
             return Ok(None); // the stored key object is gone, so there is nothing a new one could take away
         };
-        // Only an active member whose Kyber key is still on file can be left out (2026-10-10).
-        // Both apps can seal a key only to members whose Kyber key this server hands out, and that
-        // key goes with the member's registered name (a kick or ban, an erase, `/gc` of anyone
-        // with no public post in 90 days) while their group membership stays active. Counting
-        // such a member made every later re-seal "leave them out", so the share-history group's
-        // re-seal was refused for good and nobody who joined after got the key. Nobody can seal
-        // to them, so dropping them takes nothing they could have had; once they have a key on
-        // file again, a re-seal that leaves them out is refused as before.
+        // Only an active member whose key card is still on file can be left out (2026-10-10, key
+        // cards 2026-10-22). Both apps can seal a key only to members whose key card this server
+        // hands out, and a card can go (their erase here) while their group membership stays
+        // active. Counting such a member made every later re-seal "leave them out", so the
+        // share-history group's re-seal was refused for good and nobody who joined after got the
+        // key. Nobody can seal to them, so dropping them takes nothing they could have had; once
+        // they have a card on file again, a re-seal that leaves them out is refused as before.
         let mut active = std::collections::HashSet::new();
         for member in self.p2p_group_roster(group_id)? {
-            // registered_names keys are the lowercase hex of the Dilithium key, as hex::encode gives.
-            if self.get_kyber_public(&hex::encode(&member.member_pubkey))?.is_some() {
+            // key_cards keys are the lowercase hex of the Dilithium key, as hex::encode gives.
+            if self.has_key_card(&hex::encode(&member.member_pubkey)) {
                 active.insert(member.member_fp);
             }
         }

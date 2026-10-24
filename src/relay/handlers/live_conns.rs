@@ -129,8 +129,8 @@ pub async fn peer_list_for(state: &RelayState, public_key: &str, own_token: &str
             let own_role = own.then(|| state.db.role_def(&role));
             let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
             let (status, status_text) = statuses.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
-            // Kyber DM key: from the in-memory peer (if online) or the database.
-            let kyber_public = p.kyber_public.clone().or_else(|| state.db.get_kyber_public(&p.public_key_hex).ok().flatten());
+            // The time on their key card, so an app knows when to fetch it (handlers/key_cards.rs).
+            let key_card_at = state.db.key_card_at(&p.public_key_hex);
             crate::relay::relay::PeerInfo {
                 public_key: p.public_key_hex.clone(),
                 display_name: p.display_name.clone(),
@@ -138,7 +138,7 @@ pub async fn peer_list_for(state: &RelayState, public_key: &str, own_token: &str
                 upload_token: own.then(|| own_token.to_string()),
                 status,
                 status_text,
-                kyber_public,
+                key_card_at,
                 upload_limit_mb: own_role.as_ref().map(|d| crate::relay::upload_limits::role_upload_limit(d) / (1024 * 1024)),
                 private_limit_mb: own_role.as_ref().map(crate::relay::upload_rules::private_limit_mb),
                 private_held_limit_mb: own_role.as_ref().map(|d| d.max_private_held_mb.max(0) as u64),
@@ -320,7 +320,6 @@ mod tests {
             public_key_hex: key.to_string(),
             display_name: name.map(str::to_string),
             upload_token: None,
-            kyber_public: None,
             conn_id,
         }
     }

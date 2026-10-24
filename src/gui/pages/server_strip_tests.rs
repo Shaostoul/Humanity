@@ -276,6 +276,6 @@ fn the_chat_rows_and_the_strip_switch_the_same_way() {
         "Chat's cog, row and rooms do not each call the one switch"
     );
     assert_eq!(panel.matches("unpark_connection(").count(), 0, "a switch in Chat brings a server back by itself");
-    assert_eq!(panel.matches("connect_with_kyber(").count(), 0, "a switch in Chat dials a server by itself");
+    assert_eq!(panel.matches("connect_with_key_card(").count(), 0, "a switch in Chat dials a server by itself");
     assert_eq!(panel.matches("park_active_connection()").count(), 1, "Chat parks a server outside its Connect button");
 }

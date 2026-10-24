@@ -233,9 +233,12 @@ async function loadDevice() {
   run("shared/friend-pass.js");
   run("shared/reach.js");
   run("shared/block.js");
+  run("shared/key-card.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
+  run("chat/chat-key-cards.js");
   run("chat/app.js");
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-dms.js");
   for (const name of ["updateStats", "renderServerList", "renderGroupList", "hosIcon", "playNotificationChime", "renderPresenceSidebarForActiveContext", "roleBadge", "isBlocked", "generateIdenticon", "switchSidebarTab", "renderChannelList", "isMobile", "setStatus", "updateChannelHeader", "updateInputForChannel", "updateChannelList"]) {
     ctx[name] = () => "";

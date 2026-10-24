@@ -137,7 +137,6 @@ pub async fn send_message(
             public_key_hex: bot_key.clone(),
             display_name: Some(req.from_name.clone()),
             upload_token: None,
-            kyber_public: None,
             // Bots arrive over REST, not a socket: 0 means "no owning
             // connection", so no socket teardown will ever claim this entry.
             conn_id: 0,
@@ -711,7 +710,6 @@ pub async fn github_webhook(
             public_key_hex: bot_key,
             display_name: Some("GitHub".to_string()),
             upload_token: None,
-            kyber_public: None,
             // REST-injected webhook bot: no owning socket.
             conn_id: 0,
         });
@@ -1312,7 +1310,7 @@ pub async fn get_peers(
                 upload_token: None, // Never expose tokens via API
                 status: "online".to_string(),
                 status_text: String::new(),
-                kyber_public: p.kyber_public.clone(),
+                key_card_at: state.db.key_card_at(&p.public_key_hex),
                 upload_limit_mb: None,
                 private_limit_mb: None,
                 private_held_limit_mb: None,
@@ -1386,13 +1384,12 @@ pub async fn get_member_by_key(
     let (bio, avatar_url, location) = (field("bio"), field("avatar_url"), field("location"));
     // Who they accept files in messages from (public; the default when they have no profile).
     let accepts_files = state.db.accepts_files_of(member.name.as_deref().unwrap_or(""));
-    // Their Kyber768 public key (base64), the one the member list already hands every connected
-    // app for sealing DMs: a standalone page (the website's Recovery page, choosing trusted
-    // people) has no socket to get it from. Empty when they have never said it.
-    let kyber_public = state.db.get_kyber_public(&key).ok().flatten().unwrap_or_default();
+    // The time on their key card (2026-10-22), null for none. The card itself, which an app
+    // checks before it seals anything to them, is at /api/key-card/{key}.
+    let key_card_at = state.db.key_card_at(&key);
     Ok(Json(serde_json::json!({
         "public_key": member.public_key,
-        "kyber_public": kyber_public,
+        "key_card_at": key_card_at,
         "name": member.name,
         "role": member.role,
         "joined_at": member.joined_at,

@@ -143,6 +143,8 @@ const BUNDLE = path.join(REPO, "web", "shared", "vendor", "noble-pq.bundle.js");
 const DM = require("./lib/sealed-dm.js");
 const FRIEND_PASS = require("../web/shared/friend-pass.js");
 const REACH = require("../web/shared/reach.js");
+// Key cards (2026-10-22): the website's words for a card, its check and the pin rule.
+const KEY_CARD = require("../web/shared/key-card.js");
 
 // ── Constants, each one copied from the place that decides it ───────────────
 
@@ -543,33 +545,61 @@ function buildChatMessage(identity, name, content, timestamp, channel = CHAT_CHA
 
 // ── The connection ───────────────────────────────────────────────────────────
 
-/** Each member's DM key (base64 ML-KEM-768) as the relay's member lists carry it, by identity
- *  key: `peer_list` (everyone online when we signed in), `peer_joined` (each one who signs in
- *  after) and `full_user_list` (members, online or not, whose key the relay keeps). The desktop app
- *  fills its `peer_kyber_keys` the same way (frame_ws_poll.rs); without a member's key nothing can
- *  be sealed to them. A message that names no key changes nothing (a key once seen is kept). */
-function noteKyberKeys(book, msg) {
-  const keep = (who, kyber) => {
-    if (typeof who === "string" && who && typeof kyber === "string" && kyber) book.set(who, kyber);
-  };
+/** My key card (key cards, 2026-10-22): my Kyber768 key signed by my identity, sent with the
+ *  identify so the relay keeps it and anyone can check the key they seal to me with. */
+function keyCardOf(identity, at = Date.now()) {
+  const sig = identity.sign(new TextEncoder().encode(KEY_CARD.cardText(identity.publicKeyHex, identity.kyberPublicB64, at)));
+  return { v: KEY_CARD.CARD_VERSION, key: identity.publicKeyHex, kyber: identity.kyberPublicB64, at, sig: Buffer.from(sig).toString("base64") };
+}
+
+/** Each member's DM key (base64 ML-KEM-768), by identity key, ONLY from their key card checked
+ *  here (signed by their own identity and naming them; key cards, 2026-10-22), never a key a
+ *  server merely says. The member lists (`peer_list`, `peer_joined`, `full_user_list`) carry only
+ *  each card's time (`key_card_at`): a member with a card whose key is not kept yet is asked for
+ *  (`key_card_request`, 16 keys a frame); each `key_cards` answer is checked card by card with the
+ *  vendored noble bundle. The desktop app does the same (src/engine/key_cards.rs). A key once kept
+ *  is kept (the walker never sees a key change in a rig). Returns a promise that settles when the
+ *  message's cards are checked. */
+async function noteKeyCards(client, msg) {
   if (!msg || typeof msg !== "object") return;
-  if (msg.type === "peer_list" && Array.isArray(msg.peers)) for (const p of msg.peers) keep(p && p.public_key, p && p.kyber_public);
-  else if (msg.type === "peer_joined") keep(msg.public_key, msg.kyber_public);
-  else if (msg.type === "full_user_list" && Array.isArray(msg.users)) for (const u of msg.users) keep(u && u.public_key, u && u.kyber_public);
+  const listed = [];
+  const note = (who, at) => {
+    if (typeof who === "string" && KEY_CARD.isKeyText(who) && typeof at === "number" && !client.kyber.has(who) && !client.asked.has(who)) listed.push(who);
+  };
+  if (msg.type === "peer_list" && Array.isArray(msg.peers)) for (const p of msg.peers) note(p && p.public_key, p && p.key_card_at);
+  else if (msg.type === "peer_joined") note(msg.public_key, msg.key_card_at);
+  else if (msg.type === "full_user_list" && Array.isArray(msg.users)) for (const u of msg.users) note(u && u.public_key, u && u.key_card_at);
+  for (let i = 0; i < listed.length; i += KEY_CARD.REQUEST_MAX) {
+    const keys = listed.slice(i, i + KEY_CARD.REQUEST_MAX);
+    for (const k of keys) client.asked.add(k);
+    client.send({ type: "key_card_request", keys });
+  }
+  if (msg.type === "key_cards" && Array.isArray(msg.cards)) {
+    const noble = await loadNoble();
+    const verify = (pub, m, sig) => { try { return !!noble.ml_dsa65.verify(sig, m, pub); } catch { return false; } };
+    for (const raw of msg.cards) {
+      const card = KEY_CARD.parseCard(raw);
+      if (card && (await KEY_CARD.cardFor(card, card.key, verify))) client.kyber.set(card.key, card.kyber);
+    }
+  }
 }
 
 /** Wrap a WebSocket: JSON in and out, and game messages unwrapped. The relay
  *  delivers game messages as {"type":"system","message":"__game__:{...}"}
  *  (a private one is turned into the same shape before it is sent). The
- *  client's `kyber` map is every member's DM key seen so far (`noteKyberKeys`),
- *  kept from the first message on, so the `peer_list` that ends the sign-in
- *  is in it too. */
+ *  client's `kyber` map is every member's DM key from a key card checked here
+ *  (`noteKeyCards`), asked for from the first message on, so the members of
+ *  the `peer_list` that ends the sign-in are asked for too. */
 function wrapSocket(ws) {
   const listeners = new Set();
   const client = {
     ws,
-    /** Each member's DM key, by identity key (`noteKyberKeys`). */
+    /** Each member's DM key, by identity key, from their checked key card (`noteKeyCards`). */
     kyber: new Map(),
+    /** Members whose key card was asked for. */
+    asked: new Set(),
+    /** The key-card checks in progress (each `noteKeyCards`), so a caller can wait for them. */
+    cardsChecked: Promise.resolve(),
     /** Send one JSON message (dropped quietly if the socket has closed). */
     send(obj) {
       if (ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -597,7 +627,7 @@ function wrapSocket(ws) {
     } catch {
       return;
     }
-    noteKyberKeys(client.kyber, msg);
+    client.cardsChecked = client.cardsChecked.then(() => noteKeyCards(client, msg)).catch(() => {});
     let game = null;
     if (msg && msg.type === "system" && typeof msg.message === "string" && msg.message.startsWith("__game__:")) {
       try {
@@ -642,7 +672,8 @@ function signIn(serverUrl, identity, name, { timeoutMs = 20000, forwardedFor = n
         type: "identify",
         public_key: identity.publicKeyHex,
         display_name: name,
-        kyber_public: identity.kyberPublicB64,
+        // My key card: the only way anyone gets a key to seal to me with (key cards, 2026-10-22).
+        key_card: keyCardOf(identity),
       });
     });
     ws.addEventListener("error", (e) => {
@@ -1867,7 +1898,7 @@ function makeDms({ noble, identity, name, serverDid, kyberOf, send, log, now = (
   const passFrom = (key) => (passesFrom.has(key) ? passesFrom.get(key).cert : null);
   const sealable = (key) => {
     const kyber = kyberOf(key);
-    if (!kyber) throw new Error(`no DM key for ${k12(key)} yet: the relay's member list carries it once they have been online here`);
+    if (!kyber) throw new Error(`no checked key card for ${k12(key)} yet: it is asked for once the relay's member list shows they have one`);
     return kyber;
   };
   const hold = (puts, what, onOk) => {
@@ -2318,7 +2349,8 @@ module.exports = {
   // Private messages (ship homes 5b).
   parsePermitJson,
   wrapSocket,
-  noteKyberKeys,
+  noteKeyCards,
+  keyCardOf,
   MEMBER_KEY_RULE,
   permitNoteText,
   isPermitNote,

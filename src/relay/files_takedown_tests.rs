@@ -320,7 +320,7 @@ async fn the_admins_signed_in_now_are_told() {
         for (i, key) in [OPERATOR, "owner_key", "mod_key", "member_key"].into_iter().enumerate() {
             peers.insert(
                 key.to_string(),
-                Peer { public_key_hex: key.to_string(), display_name: None, upload_token: None, kyber_public: None, conn_id: i as u64 + 1 },
+                Peer { public_key_hex: key.to_string(), display_name: None, upload_token: None, conn_id: i as u64 + 1 },
             );
         }
     }

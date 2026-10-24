@@ -582,8 +582,10 @@ pub async fn my_p2p_groups(
 }
 
 /// `GET /api/v2/groups/{group_id}/members` — the roster with each member's
-/// Kyber public key (looked up from their registered identity), so a sender can
-/// seal the epoch group key to every member. Public keys only — no secrets.
+/// key card (2026-10-22, core/key_card.rs; null for a member with none here),
+/// so a sender can check each member's Kyber key is really theirs and seal the
+/// epoch group key to every member. Public keys only — no secrets. The cards
+/// are inline because a group is small; the member lists carry only times.
 pub async fn group_member_keys(
     State(state): State<Arc<RelayState>>,
     Path(group_id): Path<String>,
@@ -593,9 +595,9 @@ pub async fn group_member_keys(
         .into_iter()
         .map(|m| {
             let pubkey_hex: String = m.member_pubkey.iter().map(|b| format!("{b:02x}")).collect();
-            // Kyber pub is keyed by the Dilithium identity hex in registered_names.
-            let kyber = state.db.get_kyber_public(&pubkey_hex).ok().flatten();
-            serde_json::json!({ "pubkey": pubkey_hex, "kyber_public": kyber })
+            // Cards are keyed by the Dilithium identity hex.
+            let card = state.db.get_key_card(&pubkey_hex).ok().flatten().map(|c| crate::relay::core::key_card::card_json(&c));
+            serde_json::json!({ "pubkey": pubkey_hex, "key_card": card })
         })
         .collect();
     (StatusCode::OK, Json(serde_json::json!({ "members": members }))).into_response()

@@ -477,11 +477,14 @@ async function loadChat(opts = {}) {
   run("shared/file-risk.js"); // as web/chat/index.html loads it (2026-10-17): every file card's type
   run("shared/profile-changes.js");
   run("shared/profile-copy.js"); // as web/chat/index.html loads it (BUG-191)
+  run("shared/key-card.js");
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
+  run("chat/chat-key-cards.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
   run("chat/app.js");
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "key-pins-shim.js"), "utf8"), ctx, { filename: "key-pins-shim.js" }); // stand-in keys pinned as checked cards (key cards, 2026-10-22)
   run("chat/chat-messages.js");
   run("chat/chat-dms.js");
   run("chat/chat-social.js");

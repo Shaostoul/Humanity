@@ -58,6 +58,7 @@ author's Dilithium3 key:
 | Object type | What it represents |
 |-------------|--------------------|
 | `signed_profile_v1` | A reserved name only (the LoRa allowlist in `src/relay/transport/lora.rs` names it); no code makes one. The copy of a profile that other servers keep is NOT a signed object: it is the `profile_v1` words signed by the person's own app, kept in `signed_profiles` and sent as `profile_gossip` (BUG-191, `src/relay/core/profile_copy.rs`) |
+| key card | Not a signed object either: a person's Kyber768 key signed by their own identity (`hum/key-card/v1` words), kept one per person in `key_cards`, served on request and passed on as `key_card_gossip` like profile copies. Every app checks a card itself before it seals anything with its key (docs/design/key-cards.md, `src/relay/core/key_card.rs`) |
 | `vouch_v1` | One DID vouching for another |
 | Various VC schemas | Verifiable Credentials (graduation, employment, role, member, account_age, skill_endorsement, …) |
 | `revocation_v1` / `withdrawal_v1` | VC revocation by issuer / withdrawal by subject |

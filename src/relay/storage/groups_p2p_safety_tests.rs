@@ -82,14 +82,24 @@ fn fp(who: &DilithiumKeypair) -> String {
     author_fingerprint(&who.public_key())
 }
 
-/// Give `who` a registered name and a Kyber key on file here, as signing in from either app
-/// does. Only such a member is one a re-seal must cover (`epoch_key_refusal`): the apps can seal
-/// a key to nobody else.
+/// Give `who` a registered name and a key card here, as signing in from either app does. Only
+/// such a member is one a re-seal must cover (`epoch_key_refusal`): the apps can seal a key to
+/// nobody else. (The storage keeps what the relay checked; the Kyber bytes here are any 1,184.)
 fn with_kyber(db: &Storage, who: &DilithiumKeypair, name: &str) {
     let key = hex::encode(who.public_key());
     db.register_name(name, &key).unwrap();
-    db.store_kyber_public(&key, "a3liZXItcHVibGlj").unwrap();
-    assert!(db.get_kyber_public(&key).unwrap().is_some(), "precondition: {name}'s Kyber key is on file");
+    let card = crate::relay::core::key_card::sign_card_with(who, &[7u8; crate::relay::core::pq_crypto::KYBER_EK_LEN], super::now_millis());
+    db.store_key_card(&card).unwrap();
+    assert!(db.has_key_card(&key), "precondition: {name}'s key card is on file");
+}
+
+/// Take `who`'s key card off this server, as their erase here does (storage/account.rs): since
+/// key cards (2026-10-22) nothing else does, a kick included, because a card is the person's own
+/// signed statement and not this server's membership state.
+fn without_card(db: &Storage, who: &DilithiumKeypair) {
+    let key = hex::encode(who.public_key());
+    db.with_conn(|c| c.execute("DELETE FROM key_cards WHERE public_key = ?1", rusqlite::params![key])).unwrap();
+    assert!(!db.has_key_card(&key), "precondition: no card on file");
 }
 
 /// A key object for `epoch` sealed to `to` (only the fingerprints matter to the relay).
@@ -226,11 +236,12 @@ fn an_epochs_key_is_replaced_only_by_a_reseal_that_drops_no_member() {
     assert!(db.put_signed_object(&e2, None).is_ok());
 }
 
-/// A share-history group's re-seal may leave out a member with no Kyber key on file here, and
-/// may not while their key is on file. Both apps seal only to members whose Kyber key the server
-/// hands out, and that key goes with the member's registered name (a kick or ban, an erase,
-/// `/gc`) while the membership stays active, so counting such a member refused every re-seal for
-/// good and no one who joined later ever got the key.
+/// A share-history group's re-seal may leave out a member with no key card on file here, and may
+/// not while their card is on file. Both apps seal only to members whose key card the server
+/// hands out, and a card can go (their erase here) while the membership stays active, so counting
+/// such a member refused every re-seal for good and no one who joined later ever got the key.
+/// (Until key cards, 2026-10-22, the Kyber key went with the registered name, so a kick or ban or
+/// `/gc` took it too.)
 ///
 /// Seen red 2026-10-10 against the old count (every active member the stored key covers): "with
 /// Bob's Kyber key gone, the re-seal to the creator and Carol is accepted" failed.
@@ -257,10 +268,9 @@ fn a_reseal_may_leave_out_a_member_whose_kyber_key_is_gone() {
     assert!(refused.contains("not sealed to 1 member"), "with Bob's Kyber key on file, leaving him out is refused: {refused}");
     assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), Some(id(&e1)));
 
-    // A kick takes his registered name and the Kyber key with it; he stays an active member.
-    db.delete_registered_name(&hex::encode(bob.public_key())).unwrap();
+    // His erase here takes his key card with it; he stays an active member.
+    without_card(&db, bob);
     assert!(db.p2p_group_has_member(&gid, &bob.public_key()).unwrap(), "precondition: still in the group");
-    assert!(db.get_kyber_public(&hex::encode(bob.public_key())).unwrap().is_none(), "precondition: no key on file");
     assert!(put(&db, &reseal), "with Bob's Kyber key gone, the re-seal to the creator and Carol is accepted");
     assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), Some(id(&reseal)), "and it is the group's key now");
 

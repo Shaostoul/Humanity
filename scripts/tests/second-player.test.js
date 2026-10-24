@@ -1042,24 +1042,30 @@ test("the walker's permit note is the game's", async (t) => {
   });
 });
 
-// The member list carries each member's DM key; without it nothing can be sealed to them. Red
-// check run 2026-10-12, restored afterwards: the `noteKyberKeys(client.kyber, msg)` call taken out
-// of wrapSocket. FAILED at "the peer_list's keys are kept (it ends the sign-in, before anyone
-// else listens)": actual: undefined, expected: 'KYB-game'.
-test("each member's DM key is kept from the member list", () => {
+// Each member's DM key comes only from their key card, checked here (key cards, 2026-10-22):
+// the member lists carry the card's time, the walker asks for the card, and keeps the key only
+// from a card signed by that very member. Red check run 2026-10-22, restored afterwards: the
+// `KEY_CARD.cardFor` check in noteKeyCards replaced by `KEY_CARD.shapeOk`. FAILED at "a card
+// whose key the server swapped gives no key": actual: the swapped key, expected: undefined.
+test("each member's DM key comes only from a key card checked here", async () => {
+  const noble = await sp.loadNoble();
+  const game = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "cards game", "Game"));
+  const cy = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "cards cy", "TestBotCy"));
   const handlers = [];
-  const fakeWs = { readyState: 1, sent: [], send(s) { this.sent.push(s); }, addEventListener: (ev, fn) => ev === "message" && handlers.push(fn), close() {} };
+  const fakeWs = { readyState: 1, sent: [], send(s) { this.sent.push(JSON.parse(s)); }, addEventListener: (ev, fn) => ev === "message" && handlers.push(fn), close() {} };
   const client = sp.wrapSocket(fakeWs);
-  const deliver = (m) => handlers.forEach((fn) => fn({ data: JSON.stringify(m) }));
-  deliver({ type: "peer_list", peers: [{ public_key: "game", display_name: "Game", kyber_public: "KYB-game" }, { public_key: "old", display_name: "Old" }] });
-  assert.equal(client.kyber.get("game"), "KYB-game", "the peer_list's keys are kept (it ends the sign-in, before anyone else listens)");
-  assert.equal(client.kyber.has("old"), false, "a member who sent none has none");
-  deliver({ type: "peer_joined", public_key: "cy", display_name: "Cy", kyber_public: "KYB-cy" });
-  assert.equal(client.kyber.get("cy"), "KYB-cy", "and each peer_joined's");
-  deliver({ type: "full_user_list", users: [{ public_key: "away", name: "Away", kyber_public: "KYB-away", online: false }] });
-  assert.equal(client.kyber.get("away"), "KYB-away", "and the full member list's");
-  deliver({ type: "peer_joined", public_key: "game", display_name: "Game" });
-  assert.equal(client.kyber.get("game"), "KYB-game", "a later message naming none forgets nothing");
+  const deliver = async (m) => { handlers.forEach((fn) => fn({ data: JSON.stringify(m) })); await client.cardsChecked; };
+  await deliver({ type: "peer_list", peers: [{ public_key: game.publicKeyHex, display_name: "Game", key_card_at: 5, kyber_public: "KYB-bare" }, { public_key: cy.publicKeyHex, display_name: "Cy" }] });
+  assert.equal(client.kyber.has(game.publicKeyHex), false, "a list's bare key gives nothing");
+  const asks = fakeWs.sent.filter((f) => f.type === "key_card_request");
+  assert.deepEqual(asks.map((f) => f.keys), [[game.publicKeyHex]], "the card of the member who has one is asked for, once");
+  const swapped = { ...sp.keyCardOf(game, 5), kyber: cy.kyberPublicB64 };
+  await deliver({ type: "key_cards", to: "me", cards: [swapped], missing: [] });
+  assert.equal(client.kyber.get(game.publicKeyHex), undefined, "a card whose key the server swapped gives no key");
+  await deliver({ type: "key_cards", to: "me", cards: [sp.keyCardOf(game, 5)], missing: [] });
+  assert.equal(client.kyber.get(game.publicKeyHex), game.kyberPublicB64, "the member's own card gives their key");
+  await deliver({ type: "peer_joined", public_key: game.publicKeyHex, display_name: "Game", key_card_at: 5 });
+  assert.equal(fakeWs.sent.filter((f) => f.type === "key_card_request").length, 1, "a key once kept is not asked for again");
 });
 
 /** A whole cast for the DM tests: the walker Ada (makeDms, as main() makes her), and the game and
@@ -1259,10 +1265,10 @@ test("a pass that does not check out, an unfollow, a stranger's request, my own 
   // A plain message is logged in short.
   c.dms.received(c.dmFrom(c.game, "hello Ada"));
   assert.equal(c.lines[c.lines.length - 1], `second-player: dm: message from ${k12(c.game)}: "hello Ada"`);
-  // Nothing goes to someone whose DM key the member list has not shown, and a sentence says so.
+  // Nothing goes to someone with no checked key card here, and a sentence says so.
   const nobody = sp.deriveIdentity(c.noble, sp.masterSeedFrom(c.noble, "household nobody", "TestBotNobody"));
-  assert.throws(() => c.dms.befriend(nobody.publicKeyHex), /no DM key for/);
-  assert.throws(() => c.dms.givePermit(nobody.publicKeyHex, "p1", 30), /no DM key for/);
+  assert.throws(() => c.dms.befriend(nobody.publicKeyHex), /no checked key card for/);
+  assert.throws(() => c.dms.givePermit(nobody.publicKeyHex, "p1", 30), /no checked key card for/);
   const noServer = sp.makeDms({ noble: c.noble, identity: c.ada, name: "TestBotAda", serverDid: null, kyberOf: () => c.game.kyberPublicB64, send: () => {}, log: () => {} });
   assert.throws(() => noServer.givePermit(c.game.publicKeyHex, "p1", 30), /named no did:hum/);
   assert.throws(() => noServer.befriend(c.game.publicKeyHex), /named no did:hum/);

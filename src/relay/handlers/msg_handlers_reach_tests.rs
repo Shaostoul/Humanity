@@ -39,7 +39,6 @@ fn connect(st: &Arc<RelayState>, key: &str) {
                 public_key_hex: key.to_string(),
                 display_name: None,
                 upload_token: None,
-                kyber_public: None,
                 conn_id: 1,
             },
         );

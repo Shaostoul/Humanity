@@ -39,7 +39,7 @@ fn online_as(st: &Arc<RelayState>, key: &str, name: &str) {
     block(async {
         st.peers.write().await.insert(
             key.to_string(),
-            Peer { public_key_hex: key.to_string(), display_name: Some(name.to_string()), upload_token: None, kyber_public: None, conn_id: 1 },
+            Peer { public_key_hex: key.to_string(), display_name: Some(name.to_string()), upload_token: None, conn_id: 1 },
         );
     });
 }

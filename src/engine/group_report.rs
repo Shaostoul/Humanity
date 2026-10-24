@@ -88,6 +88,8 @@ pub(crate) fn start_finding(gs: &mut GuiState) {
 pub(crate) fn creator_found(gs: &mut GuiState, group_id: &str, creator: Option<String>) {
     if let Some(c) = &creator {
         gs.reports.group.creators.insert(group_id.to_string(), c.clone());
+        // Their key card, so the report can be sealed for them (engine/key_cards.rs).
+        crate::engine::key_cards::want(gs, c, false);
     }
     let creator = creator.or_else(|| {
         gs.p2p_groups.iter().any(|g| g.group_id == group_id && g.is_creator).then(|| gs.profile_public_key.to_ascii_lowercase())

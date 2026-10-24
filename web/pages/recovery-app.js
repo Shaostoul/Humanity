@@ -84,17 +84,30 @@ async function myFriends(acct) {
   if (!ok) return [];
   const keys = Array.from(window.hosDmStore.following).filter((k) => window.hosDmStore.followers.has(k));
   const mm = await noble();
+  const K = window.HosKeyCard;
+  const verify = (pub, msg, sig) => { try { return !!mm.ml_dsa65.verify(sig, msg, pub); } catch (_) { return false; } };
   const out = [];
   for (const key of keys) {
-    let name = key.slice(0, 8), kyber = null;
+    let name = key.slice(0, 8), kyberB64 = null, changed = false;
     const r = await getJson('/api/members/' + encodeURIComponent(key)).catch(() => ({ status: 0 }));
-    if (r.status === 200 && r.body) {
-      if (r.body.name) name = r.body.name;
-      if (r.body.kyber_public) { try { kyber = R.unb64(r.body.kyber_public); } catch (_) { kyber = null; } }
+    if (r.status === 200 && r.body && r.body.name) name = r.body.name;
+    // Their Kyber768 key ONLY from a key card checked here (key cards, 2026-10-22): the one
+    // Chat pinned in this browser, else their card from the server, signed by their own
+    // identity and naming them. A key that changed waits for them to be accepted in Chat.
+    if (K && window.hosDmStore.keyChange(key)) {
+      changed = true;
+    } else if (K && window.hosDmStore.keySealing(key)) {
+      kyberB64 = window.hosDmStore.keySealing(key);
+    } else if (K) {
+      const c = await getJson('/api/key-card/' + encodeURIComponent(key)).catch(() => ({ status: 0 }));
+      const card = c.status === 200 ? K.parseCard(c.body) : null;
+      if (card && await K.cardFor(card, key, verify)) kyberB64 = card.kyber;
     }
+    let kyber = null;
+    if (kyberB64) { try { kyber = R.unb64(kyberB64); } catch (_) { kyber = null; } }
     let did = '';
     try { did = R.didForPublicKey(mm, R.unhex(key)); } catch (_) { continue; }
-    out.push({ key, did, name, kyberPublic: kyber && kyber.length === R.KYBER_PUBLIC_LEN ? kyber : null });
+    out.push({ key, did, name, changed, kyberPublic: kyber && kyber.length === R.KYBER_PUBLIC_LEN ? kyber : null });
   }
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
@@ -179,7 +192,9 @@ async function openEditor() {
   }
   $('editor-list').innerHTML = friends.map((f, i) =>
     '<label class="rec-person' + (f.kyberPublic ? '' : ' rec-off') + '"><input type="checkbox" data-i="' + i + '"' + (f.kyberPublic ? '' : ' disabled') + '> ' +
-    esc(f.name) + (f.kyberPublic ? '' : ' <span class="rec-muted">(their key is not known yet: it arrives once they have been online)</span>') + '</label>').join('');
+    esc(f.name) + (f.kyberPublic ? '' : ' <span class="rec-muted">' + (f.changed
+      ? '(their encryption key changed: accept it in your conversation with them in Chat first)'
+      : '(they have no signed key card on this server yet: it appears once they sign in with a current version of the app)') + '</span>') + '</label>').join('');
   $('editor-list').querySelectorAll('input[type=checkbox]').forEach((c) => c.addEventListener('change', refreshNeeded));
   refreshNeeded();
 }

@@ -135,7 +135,8 @@ fn my_account(state: &GuiState) -> Option<(Vec<u8>, String)> {
 }
 
 /// My friends: people I follow who follow me back, from this device's message store, with the
-/// name the app knows them by and their Kyber768 key when the member list gave it.
+/// name the app knows them by and their Kyber768 key when one is pinned from their checked key
+/// card (engine/key_cards.rs).
 pub fn friends(state: &GuiState) -> Vec<Friend> {
     let Some(store) = state.dm_store.as_ref() else { return Vec::new() };
     let mut out: Vec<Friend> = store
@@ -144,11 +145,13 @@ pub fn friends(state: &GuiState) -> Vec<Friend> {
         .filter(|k| store.is_follower(k))
         .filter_map(|key| {
             let bytes = hex::decode(key).ok().filter(|b| !b.is_empty())?;
+            let pinned = crate::engine::key_cards::pinned_for_recovery(state, key);
             Some(Friend {
                 key: key.clone(),
                 did: crate::relay::core::did::did_for_pubkey(&bytes),
                 name: crate::engine::dm::dm_display_name(state, key),
-                kyber_b64: state.peer_kyber_keys.get(key).cloned(),
+                kyber_b64: pinned.clone().ok().flatten(),
+                key_changed: pinned.is_err(),
             })
         })
         .collect();
@@ -381,7 +384,13 @@ fn draw_editor(ui: &mut egui::Ui, theme: &Theme, r: &mut RecoveryState, friends:
     }
     for f in friends {
         let mut on = r.picked.contains(&f.key);
-        let label = if f.kyber_b64.is_some() { f.name.clone() } else { format!("{} (their key is fetched from the server when you send)", f.name) };
+        let label = if f.key_changed {
+            format!("{} (their encryption key changed: accept it in your conversation with them first)", f.name)
+        } else if f.kyber_b64.is_some() {
+            f.name.clone()
+        } else {
+            format!("{} (their key card is fetched from the server and checked when you send)", f.name)
+        };
         if ui.checkbox(&mut on, RichText::new(label).size(theme.font_size_small)).changed() {
             if on {
                 r.picked.insert(f.key.clone());

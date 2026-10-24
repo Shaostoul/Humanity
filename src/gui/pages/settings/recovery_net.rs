@@ -17,13 +17,16 @@ use crate::relay::core::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, Di
 use crate::relay::core::recovery::{self as proto, OneTimeAsk, ServedPiece, TrustedPerson};
 
 /// One friend who could keep a piece: their key, account id, name and Kyber768 key (base64)
-/// when it is known.
+/// when one is pinned from a key card this app checked (engine/key_cards.rs; never a key a server
+/// merely said), and whether their key changed and waits to be accepted (then no piece is sealed
+/// to them until it is).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Friend {
     pub key: String,
     pub did: String,
     pub name: String,
     pub kyber_b64: Option<String>,
+    pub key_changed: bool,
 }
 
 /// The person's own setup as this device reads it.
@@ -215,21 +218,30 @@ pub fn load_my_setup(base: &str, secret: &[u8]) -> Result<MySetup, String> {
     Ok(out)
 }
 
-/// Fill in each chosen friend's Kyber768 key from the server when this device does not have it.
+/// Each chosen friend's Kyber768 key: the pinned one, or, when this device has none, the key from
+/// their key card fetched from the server and CHECKED here (signed by their own identity key and
+/// naming them; core/key_card.rs). A server's word alone is never sealed to: a card that does not
+/// check out is the same as none. A friend whose key changed is refused until it is accepted.
 pub fn with_keys(base: &str, mut people: Vec<Friend>) -> Result<Vec<TrustedPerson>, String> {
+    use crate::relay::core::key_card::{self, Refusal};
     let mut out = Vec::new();
     for f in people.iter_mut() {
+        if f.key_changed {
+            return Err(Refusal::Changed.text(&f.name));
+        }
         if f.kyber_b64.is_none() {
-            let (code, v) = get(&format!("{base}/api/members/{}", enc(&f.key)))?;
+            let (code, v) = get(&format!("{base}/api/key-card/{}", enc(&f.key)))?;
             if code == 200 {
-                f.kyber_b64 = v.get("kyber_public").and_then(|k| k.as_str()).filter(|k| !k.is_empty()).map(String::from);
+                f.kyber_b64 = key_card::parse_card(&v).filter(|card| key_card::card_for(card, &f.key)).map(|card| card.kyber);
+            } else if code != 404 {
+                return Err(said(&v, code));
             }
         }
         let kyber = f
             .kyber_b64
             .as_deref()
             .and_then(|k| B64.decode(k.trim()).ok())
-            .ok_or_else(|| format!("{}'s key is not known yet: it arrives once they have been online.", f.name))?;
+            .ok_or_else(|| Refusal::NoCard.text(&f.name))?;
         out.push(TrustedPerson { did: f.did.clone(), name: f.name.clone(), kyber_public: kyber });
     }
     Ok(out)

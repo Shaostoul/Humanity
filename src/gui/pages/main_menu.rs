@@ -727,8 +727,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     );
                                     state.private_key_bytes = Some(privkey_bytes);
                                     // Canonical: derive Dilithium+Kyber and
-                                    // force the reconnect that advertises
-                                    // kyber_public (same path as unlock).
+                                    // force the reconnect that sends our key
+                                    // card (same path as unlock).
                                     state.apply_pq_identity();
                                     state.identity_recovered = true;
                                     state.settings.seed_phrase_input.clear();

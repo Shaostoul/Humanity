@@ -70,6 +70,11 @@ pub mod reach;
 #[cfg(feature = "native")]
 pub mod block_list;
 
+/// Key cards (2026-10-22, docs/design/key-cards.md): the people's Kyber768 keys this app checked
+/// from their own signed key cards and pinned, and keys that changed, waiting to be accepted.
+#[cfg(feature = "native")]
+pub mod key_pins;
+
 /// The choice for each friend as its own note to oneself (10n of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): `[[hum:choice:v1]]<friend key>/<may>`, so a person's devices agree on it.
 #[cfg(feature = "native")]

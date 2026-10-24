@@ -200,7 +200,7 @@ pub async fn broadcast_peer_list(state: &Arc<RelayState>) {
             let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
             let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
             let (user_status, user_status_text) = statuses.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
-            let kyber_pub = p.kyber_public.clone().or_else(|| state.db.get_kyber_public(&p.public_key_hex).ok().flatten());
+            let key_card_at = state.db.key_card_at(&p.public_key_hex);
             PeerInfo {
                 public_key: p.public_key_hex.clone(),
                 display_name: p.display_name.clone(),
@@ -208,7 +208,7 @@ pub async fn broadcast_peer_list(state: &Arc<RelayState>) {
                 upload_token: None,
                 status: user_status,
                 status_text: user_status_text,
-                kyber_public: kyber_pub,
+                key_card_at,
                 upload_limit_mb: None,
                 private_limit_mb: None,
                 private_held_limit_mb: None,
@@ -232,7 +232,7 @@ pub async fn broadcast_full_user_list(state: &Arc<RelayState>) {
             .collect();
 
         // Presence privacy (2026-08-23): hidden members stay LISTED (so
-        // friends can find them and their DM key distributes) but are
+        // friends can find them and fetch their key card) but are
         // masked as offline with no status — their real presence never
         // leaves the server.
         let hidden = state.db.hidden_presence_keys();
@@ -249,8 +249,8 @@ pub async fn broadcast_full_user_list(state: &Arc<RelayState>) {
                 } else {
                     statuses.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()))
                 };
-                let kyber_pub = state.db.get_kyber_public(&first_key).ok().flatten();
-                UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text, kyber_public: kyber_pub }
+                let key_card_at = state.db.key_card_at(&first_key);
+                UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text, key_card_at }
             })
             .collect();
         drop(statuses);

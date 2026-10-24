@@ -262,6 +262,17 @@ empty name, every other field empty and `socials` set to `{}`. The shared fixtur
 - There is no separate size limit: the field limits are the limit. The key and the signature alone
   are 10,522 hex characters, so a copy is about 11 KB to 16 KB as sent.
 
+### Key cards (2026-10-22)
+
+A person's key card (their Kyber768 key signed by their own identity, docs/design/key-cards.md)
+travels the same way as a profile copy: `{"type":"key_card_gossip","card":{...}}`, sent when a
+server keeps a card newly (from a sign-in or a link), never back to where it came from; a server
+passes on only the cards of its own accounts, and sends its accounts' newest 1,000 cards when a
+link comes up, beside the profile copies (once per link). The receiver checks the card itself
+(signed by the very key it names) and keeps it by the keep rule (`key_card::keep_rule`): the same
+key changes nothing, a different key only when newer and at most a day ahead. No server is trusted
+for a card: every app checks it again before it seals anything with it.
+
 ### Federated Message Persistence
 
 Incoming `FederatedChat` messages are persisted in the local `messages` table, tagged with `origin_server` to distinguish from local messages, with the author's key in the stored frame (`from_key`, since 2026-10-22). Messages are never lost on server restart.
