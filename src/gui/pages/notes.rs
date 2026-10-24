@@ -34,6 +34,13 @@ fn with_local<R>(f: impl FnOnce(&mut NotesPageState) -> R) -> R {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // Notes are kept between sessions in personal.json (2026-10-24): read once, written on change.
+    crate::gui::personal_store::ensure_loaded(state);
+    draw_page(ctx, theme, state);
+    crate::gui::personal_store::save_if_changed(state);
+}
+
+fn draw_page(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Left sidebar
     egui::SidePanel::left("notes_sidebar")
         .default_width(220.0)

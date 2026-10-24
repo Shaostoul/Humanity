@@ -86,7 +86,8 @@ In order:
    event's description (5ddfe16be), and bug reports keep their category through one shared list
    (845e31e8f). LEFT: English still in shared code (`provenance_line`, `not_here_reason`,
    `WalletNetwork::label`); and, found on the way, **desktop calendar events are not saved at
-   all** (no save or load of `cal_events`: they vanish when the app closes).
+   all**: FIXED 2026-10-24 together with the desktop Notes, which were not saved either:
+   both are kept in personal.json beside config.json (src/gui/personal_store.rs).
 4. **FarmingSystem and the untimed frame** (`docs/design/sim-frame-cost.md`): the timers and the
    farming golden-state test, then F1/F2 (about 2.5 to 3 ms back) and gating the Garden mirror
    (estimated 4 to 9 ms every world frame).
@@ -116,10 +117,24 @@ In order:
    is the live check passed by hand):
    - the website's #general showed Brave's federated "Huzzah!" message twice (12:47 and 12:48)
      while both servers' databases hold it once (public.guide id 21, united-humanity.us id 5661,
-     both 19:48:24 UTC): a display duplicate in the web chat, likely its own copy of a sent
-     message not merged with the server's;
+     both 19:48:24 UTC). Diagnosed 2026-10-24: not a federation echo. The web send path
+     (web/chat/app.js ~1771-1797) shows its own copy at once, keyed sender:timestamp, and the
+     server keeps the client's timestamp (the signature covers it), so an echo of the SAME send
+     dedupes. Two copies a minute apart are two sends: most likely the first was refused by the
+     relay (a limit or a check) and the page kept its optimistic copy with no sign it failed, and
+     Brave sent again. Fix: hold the own copy as "sending" until the relay's copy arrives (or a
+     refusal frame), then confirm it, or mark it "not sent" with Send again. First confirm whether
+     the relay echoes a chat line to its sender in every path and which frames carry a refusal.
+     CONFIRMED by the operator: the first send was refused for exceeding the character limit of an
+     account not verified on public.guide.
+   - **Over-limit characters shown plainly (operator, 2026-10-24, "a task for later"):** "highlight
+     the character spots that go beyond the character limit have their background highlight dark
+     red and the text change from white to red. We need to improve the visual ques for some
+     errors." On both apps' message boxes (and other limited fields), theme tokens for the colours;
+     with the "not sent" state above, the refused-for-length case explains itself;
    - the app shows message times in UTC (19:48) and the website in local time (12:48): one rule
-     for both;
+     for both. The app has no local-time source yet (no time crate, `chat.rs` `ts_parts` is
+     UTC arithmetic): needs the local offset from the OS or a small dependency;
    - the app's Commons header for #general lists 127.0.0.1:3210, a local test relay, beside the two
      real servers.
 9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).

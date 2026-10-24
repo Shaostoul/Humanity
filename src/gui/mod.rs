@@ -76,6 +76,8 @@ pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_BY_ADMI
 /// whole crate keeps the `crate::gui::ChatMessage` spelling.
 /// See `gui/state_types.rs`.
 mod state_types;
+/// The desktop Notes and Calendar kept between sessions in personal.json (2026-10-24).
+pub(crate) mod personal_store;
 pub use state_types::*;
 /// The P2P trade types (`gui/trade_types.rs`, 2026-09-29).
 mod trade_types;
@@ -1142,6 +1144,8 @@ pub struct GuiState {
     pub cal_month: u32,
     pub cal_selected_day: u32,
     pub cal_events: Vec<GuiCalendarEvent>,
+    /// personal.json (notes and calendar events) has been read this run (`personal_store`).
+    pub personal_loaded: bool,
     pub cal_new_title: String,
     pub cal_new_time: String,
     pub cal_new_color: egui::Color32,
@@ -3424,6 +3428,7 @@ impl Default for GuiState {
             cal_month: 3,
             cal_selected_day: 1,
             cal_events: Vec::new(),
+            personal_loaded: false,
             cal_new_title: String::new(),
             cal_new_time: String::new(),
             cal_new_color: egui::Color32::from_rgb(237, 140, 36), // theme-exempt: seed value of the user's per-event colour picker (calendar.rs color_edit_button_srgba); stored as event data, and Default for GuiState has no Theme in scope.
