@@ -112,6 +112,16 @@ In order:
    - the admin console's relay-to-system bridge (designed only);
    - the backups' actions onto the run endpoint;
    - the MCP server's admin tools.
+8b. **Seen in the operator's side-by-side screenshot, 2026-10-24** (federation worked both ways, which
+   is the live check passed by hand):
+   - the website's #general showed Brave's federated "Huzzah!" message twice (12:47 and 12:48)
+     while both servers' databases hold it once (public.guide id 21, united-humanity.us id 5661,
+     both 19:48:24 UTC): a display duplicate in the web chat, likely its own copy of a sent
+     message not merged with the server's;
+   - the app shows message times in UTC (19:48) and the website in local time (12:48): one rule
+     for both;
+   - the app's Commons header for #general lists 127.0.0.1:3210, a local test relay, beside the two
+     real servers.
 9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).
 
 **For the operator, when it suits him:** pair the two servers' continuous backups in each Backups
