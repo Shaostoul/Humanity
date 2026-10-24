@@ -1401,8 +1401,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // the pure-black census) pin it off so they read the scene, not the
     // dither; the rig resets it to "1" on every cell that does not pin it.
     // The Sun (2026-10-21, renderer/sun_disc.rs). {"sun_glare":"0"} takes the
-    // glare out of the present ("1" puts it back); {"sun_aperture_mm":"8"} sets
-    // the aperture whose diffraction the glare is ("auto": the default 30 mm);
+    // glare out of the present ("1" puts it back); {"sun_aperture_mm":"8"} pins
+    // the aperture whose diffraction the glare is ("auto" hands it back to
+    // Settings > Graphics > Light and sky, 2026-10-22, which is 30 mm unless changed);
     // {"godrays":"0"} stops the god-ray pass, "1" keeps it on above the air too
     // (the old behaviour, for an A/B), "auto" hands it back to Settings and the air.
     // Sticky, released by the rig between vantages (scripts/lib/showcase-pins.js).
@@ -1411,11 +1412,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         log::info!("Showcase: sun_glare -> {}", state.renderer.sun_glare_on);
     }
     if let Some(t) = grab("sun_aperture_mm") {
-        state.renderer.sun_aperture_m = match t.trim().parse::<f64>() {
-            Ok(mm) if mm > 0.0 => (mm / 1000.0).clamp(0.0005, 1.0),
-            _ => crate::renderer::sun_disc::GLARE_APERTURE_M,
+        state.renderer.sun_aperture_pin = match t.trim().parse::<f32>() {
+            Ok(mm) if mm > 0.0 => Some(crate::renderer::sun_disc::aperture_from_setting_mm(mm)),
+            _ => None,
         };
-        log::info!("Showcase: sun_aperture_mm -> {:.1}", state.renderer.sun_aperture_m * 1000.0);
+        log::info!("Showcase: sun_aperture_mm -> {:?} m (None: Settings)", state.renderer.sun_aperture_pin);
     }
     if let Some(t) = grab("godrays") {
         state.renderer.godrays_pin = match t.trim() {

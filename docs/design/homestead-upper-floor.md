@@ -648,3 +648,33 @@ The movement and editor follow-ups (2026-10-21, after v0.1535.0), each with a te
   close's search: the strict crossing test counted no crossing from a spot on the line, so either
   side passed. The search now starts from where the walk puts a body standing on the line
   (`wall_collision::resolve`), on stairs-1's wall 10 the hall side, not the dining room.
+
+The polish batch (2026-10-22, after v0.1543.0), each with a test seen red first:
+
+- **The editor's close steps a player up onto nothing.** It stood them on the storey's floor and
+  let the footing step them up 0.6 m from there, so a close on a platform 0.6 m high under a
+  floor at 2.6 stood them on its top with their head in the floor. The close now stands them at
+  the height the standing rule gives the spot (ship/standing.rs `stands_at`: the floor, or a top
+  that is a place to stand, a low piece's within a step included) and reads the footing at that
+  height only (engine/footing.rs `Footing::floor_at`). A low piece's top needs room over it like
+  any floor (`NoStanding::Low`), and a deck raised over a body's eye is a ceiling from its foot,
+  as the footing reads it.
+- **Every storey keeps a place to stand off its walls.** Only the upper floors kept 0.45 m in from
+  their rooms' edges, so a spot exactly on a ground-floor wall was a place to stand. Every storey
+  now keeps that far from the centre line of every wall that stands across a body there, and the
+  search for the nearest place steps off a wall to its own side.
+- **The elevator's and the teleporters' frame posts collide** (`wall_collision::frame_posts`):
+  each post a wall from the frame's foot to its top, the car and the pad between them walked into
+  from the open sides. The homestead's three frames add 6 segments (287 in the ship before the
+  split, 214 in the home). A frame is entered only from its open sides now, the two ends of its
+  depth: elevator-1 from the lift lobby to its south, as built; an elevator whose landing is on a
+  post side has to be turned (the footing tests' home turns its elevator 90 degrees for its west
+  landing). A close onto a car at its stop keeps the body 0.45 m off the posts.
+- **Placed boxes and stairs hide HUD labels** (`ship::sight::PieceSolid`): a label behind a built
+  wall piece or beyond a flight is hidden through the piece's solid, step by step for a flight.
+- **A machine selection follows the storey**: choosing a storey the selected machine is not on
+  lets it go (engine/editor_storeys.rs `choose_storey`).
+- **The runs to the greenhouse's air handlers g1 and g2 reach their ports**: a run's end is kept
+  under the ceiling really over it from its floor (engine/home_meshes.rs `RunSite::end_ceiling`),
+  the greenhouse's 6 m roof, not the ground storey's 2.75 m service level, which held them at
+  2.70 m, the bottom of the unit.

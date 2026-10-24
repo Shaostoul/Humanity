@@ -692,6 +692,11 @@ pub struct AppConfig {
     pub sun_shadows: bool,
     #[serde(default = "default_shadow_strength")]
     pub shadow_strength: f32,
+    /// The camera aperture the Sun's glare is the diffraction of, millimetres (Settings > Graphics
+    /// > Light and sky, 2026-10-22; renderer/sun_disc.rs). Held between
+    /// `sun_disc::APERTURE_MIN_MM` and `APERTURE_MAX_MM` on the way in.
+    #[serde(default = "default_sun_aperture_mm")]
+    pub sun_aperture_mm: f32,
     /// The one game clock (2026-09-27, systems::time): how fast the world
     /// runs (1 = real time), hours in a day, days in a year.
     #[serde(default = "default_time_speed")]
@@ -1161,6 +1166,7 @@ fn default_godray_intensity() -> f32 { 0.55 }
 /// v0.1104, which left 40% of full sunlight - in the sun's own warm colour -
 /// inside every shadow, and no way to change it.
 fn default_shadow_strength() -> f32 { 1.0 }
+fn default_sun_aperture_mm() -> f32 { crate::renderer::sun_disc::DEFAULT_APERTURE_MM }
 fn default_time_speed() -> f32 { crate::systems::time::DEFAULT_TIME_SPEED }
 fn default_hours_per_day() -> u32 { crate::systems::time::DEFAULT_HOURS_PER_DAY }
 fn default_days_per_year() -> u32 { crate::systems::time::DEFAULT_DAYS_PER_YEAR }
@@ -1633,6 +1639,7 @@ impl AppConfig {
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
             shadow_strength: state.settings.shadow_strength,
+            sun_aperture_mm: state.settings.sun_aperture_mm,
             time_speed: state.settings.time_speed,
             hours_per_day: state.settings.hours_per_day,
             days_per_year: state.settings.days_per_year,
@@ -1907,6 +1914,12 @@ impl AppConfig {
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.shadow_strength = self.shadow_strength;
+        // Held to what the glare takes; a hand-edited config's nonsense back to the default.
+        state.settings.sun_aperture_mm = if self.sun_aperture_mm.is_finite() {
+            self.sun_aperture_mm.clamp(crate::renderer::sun_disc::APERTURE_MIN_MM, crate::renderer::sun_disc::APERTURE_MAX_MM)
+        } else {
+            default_sun_aperture_mm()
+        };
         // Clamped on the way IN, not only in the UI: a hand-edited config with 0
         // would freeze the world, and a huge value would ripen the whole garden
         // the instant the save loaded.
@@ -2907,6 +2920,30 @@ mod saved_servers_tests {
         cfg.apply_to_gui_state(&mut st);
         assert_eq!(st.settings.bounced_light_detail, "high", "an unknown level loads as High");
         assert_eq!(AppConfig::default().bounced_light_detail, "high", "a fresh install is on High");
+    }
+
+    /// Settings > Graphics > Light and sky > the Sun glare's camera opening through a restart
+    /// (2026-10-22): a value set goes out through `from_gui_state`, to JSON, and back in as itself;
+    /// one past the ends loads held to them; a fresh install and a config that never held it load
+    /// 30 mm. Its red was the persistence lint's (tests/settings_persistence_lint.rs), seen first
+    /// with the control added and no config legs: "sun_aperture_mm: not a field on AppConfig,
+    /// never written by from_gui_state, never read by apply_to_state".
+    #[test]
+    fn the_sun_aperture_survives_a_restart() {
+        let round_trip = |mm: f32| {
+            let mut before = crate::gui::GuiState::default();
+            before.settings.sun_aperture_mm = mm;
+            let json = serde_json::to_string(&AppConfig::from_gui_state(&before)).expect("config serializes");
+            let cfg: AppConfig = serde_json::from_str(&json).expect("config parses");
+            let mut after = crate::gui::GuiState::default();
+            cfg.apply_to_gui_state(&mut after);
+            after.settings.sun_aperture_mm
+        };
+        assert_eq!(round_trip(3.0), 3.0, "a 3 mm opening did not survive a restart");
+        assert_eq!(round_trip(0.0), crate::renderer::sun_disc::APERTURE_MIN_MM, "held at the narrowest");
+        assert_eq!(round_trip(9000.0), crate::renderer::sun_disc::APERTURE_MAX_MM, "held at the widest");
+        assert_eq!(AppConfig::default().sun_aperture_mm, 30.0, "a fresh install is on 30 mm");
+        assert_eq!(crate::gui::GuiState::default().settings.sun_aperture_mm, 30.0, "the settings start on 30 mm");
     }
 }
 

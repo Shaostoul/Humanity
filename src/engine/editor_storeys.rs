@@ -691,7 +691,10 @@ pub(crate) fn follow_storey_view(state: &mut EngineState) {
 }
 
 /// Work on storey `k` of the edited body (kept in range). Drops a half-drawn slab's or wall's
-/// first corner, which was on the old storey's plan.
+/// first corner, which was on the old storey's plan, and a selected machine that is not on the
+/// new storey (`machine_on_storey`; the increment 7 follow-ups, 2026-10-22: it stayed selected,
+/// its handles hidden by the cut-away when it stood over the storey chosen, so the right panel
+/// worked on a machine nobody could see).
 pub(crate) fn choose_storey(g: &mut GuiState, k: usize) {
     let count = zone_body(&g.ship_structure, g.construction_zone).map_or(1, |hs| hs.storeys().len());
     let k = k.min(count.saturating_sub(1));
@@ -699,7 +702,22 @@ pub(crate) fn choose_storey(g: &mut GuiState, k: usize) {
         g.construction_storeys.chosen = k;
         g.construction_storeys.draw_start = None;
         g.construction_wall_start = None;
+        if g.construction_machine_selected.as_deref().is_some_and(|id| !machine_on_storey(g, id, k)) {
+            g.construction_machine_selected = None;
+        }
     }
+}
+
+/// True when the household's machine `id` stands on storey `k` of the edited zone: it is in that
+/// zone (`MachineInstance::zone`) and its foot (its placement's height over the zone's floor) is on
+/// that storey, by the body's own storeys, the rule the cut-away hides it by (`CutAway::hides`: a
+/// machine at or over the top of the storey being edited is taken out with the floors over it).
+fn machine_on_storey(g: &GuiState, id: &str, k: usize) -> bool {
+    let (Some(hs), Some(ship), Some(home)) = (zone_body(&g.ship_structure, g.construction_zone), g.ship_structure.as_ref(), g.home_machines.as_ref()) else {
+        return false;
+    };
+    let zone_id = ship.zones.get(g.construction_zone).map_or("", |z| z.id.as_str());
+    home.all_instances().into_iter().find(|m| m.id == id).is_some_and(|m| m.zone == zone_id && storey_index(&hs.storeys(), m.offset.1) == k)
 }
 
 /// Let go of every selection in the editor but the slab's (a slab selected takes the right panel

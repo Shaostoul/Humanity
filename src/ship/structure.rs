@@ -550,6 +550,15 @@ fn aabb_faces(min: Vec3, max: Vec3, caps: bool, out: &mut (Vec<Vertex>, Vec<u32>
     }
 }
 
+/// How wide each POST of a frame is (a Frame row: the elevator, the teleporter), metres across the
+/// piece's width: 12% of the width, held between 6 and 25 cm. The posts stand at the two sides of
+/// its width, the whole depth deep and the whole height tall, a lintel over them; it is drawn so
+/// (`local_mesh`) and walked into so (`wall_collision::wall_segments`, the increment 7 follow-ups
+/// of 2026-10-22: a frame was hollow to the walk, posts and all).
+pub fn frame_post_width(ty: &StructureType) -> f32 {
+    (ty.size.0 * 0.12).clamp(0.06, 0.25)
+}
+
 /// Build a piece's LOCAL-space geometry (footprint centred on X/Z origin, base at y=0).
 fn local_mesh(ty: &StructureType) -> (Vec<Vertex>, Vec<u32>) {
     let (w, h, d) = ty.size;
@@ -602,7 +611,7 @@ fn local_mesh(ty: &StructureType) -> (Vec<Vertex>, Vec<u32>) {
             }
         }
         MeshShape::Frame => {
-            let t = (w * 0.12).clamp(0.06, 0.25);
+            let t = frame_post_width(ty);
             // Left + right posts.
             aabb_box(Vec3::new(-hw, 0.0, -hd), Vec3::new(-hw + t, h, hd), &mut out);
             aabb_box(Vec3::new(hw - t, 0.0, -hd), Vec3::new(hw, h, hd), &mut out);

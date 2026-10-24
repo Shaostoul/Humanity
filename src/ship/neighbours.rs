@@ -753,7 +753,7 @@ mod tests {
         // standing eye's height, 1.7 m over the deck).
         let pack = |s: Vec<crate::ship::wall_collision::WallSegment>| s.into_iter().map(|w| [w.a.0, w.a.1, w.b.0, w.b.1]).collect::<Vec<_>>();
         let walk = pack(ship_wall_segments(&ship));
-        let sight = crate::ship::sight::SightBlockers { walls: ship_sight_segments(&ship), slabs: Vec::new() };
+        let sight = crate::ship::sight::SightBlockers { walls: ship_sight_segments(&ship), slabs: Vec::new(), pieces: Vec::new() };
         let eye = |p: (f32, f32)| Vec3::new(p.0, 1.7, p.1);
         let (street_eye, in_corridor) = ((70.0, 139.0), (60.0, 139.0));
         assert!(sight_blocked(street_eye, in_corridor, &walk), "the street's wall has a walking gap at p2's corridor");

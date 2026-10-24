@@ -54,8 +54,9 @@ pub struct MaterialUniforms {
 /// a material can never be drawn by a pipeline whose fragment entry does
 /// not contain its code.
 pub struct Pipeline {
-    /// SURFACE class (the procedural surfaces 0..11, the sun's radial glow
-    /// 17, gas giant bands 18, textured meshes 19, screens 24), OPAQUE
+    /// SURFACE class (the procedural surfaces 0..11, the Sun 17 (its
+    /// limb-darkened photosphere and Baumbach corona, renderer/sun_disc.rs),
+    /// gas giant bands 18, textured meshes 19, screens 24), OPAQUE
     /// state: REPLACE blend, back-face cull, depth write. Walls, floors,
     /// props, machines, photoscanned trees, planet bodies that are not
     /// terrain.
@@ -2257,8 +2258,8 @@ pub const SHADOW_FRAGMENT_ENTRY: &str = "fs_shadow";
 /// drift from the WGSL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShaderClass {
-    /// The plain surfaces: the procedural surfaces 0..11, the sun's radial
-    /// glow 17, gas giant bands 18, textured meshes 19, screens 24, and the
+    /// The plain surfaces: the procedural surfaces 0..11, the Sun 17 (its
+    /// photosphere and corona), gas giant bands 18, textured meshes 19, screens 24, and the
     /// default look for any type nothing else claims. Entry `fs_surface`.
     /// Its pipelines fold all three shell branches away.
     Surface,

@@ -16,6 +16,9 @@
 //! - a SOLID floor slab hides what is on the other side of it (the floor of the storey above is
 //!   the ceiling of the room below); a GLASS one does not, you see through a glass lid as through
 //!   the glass roof (`FloorSlab::passes_light`);
+//! - a SOLID PIECE placed in the home (a box: the wall piece, a platform, a road, a deck; or a
+//!   stair, a flight or a ramp) hides what is behind it through its solid, as the walk meets it
+//!   (`PieceSolid`, the increment 7 follow-ups of 2026-10-22: labels showed through them);
 //! - windows, guards and open doors are not blockers at all (the wall's sight spans,
 //!   `wall_collision::sight_segments_with_shell_cuts`), and a shut door blocks between its sill
 //!   and its head (`wall_collision::door_panel_segment`), which the caller adds.
@@ -78,37 +81,200 @@ impl SlabBox {
     }
 }
 
+/// How a SOLID PIECE stands over its footprint (`PieceSolid`): what its top is along its own run
+/// (local z, -half depth to +half depth), the way the walk reads it (`structure::walk_surface`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PieceTop {
+    /// A box (the wall piece, a platform, a road, a deck): one top, this far over its foot.
+    Flat(f32),
+    /// A flight of `n` steps, each a column from the foot to its tread, `rise` higher than the
+    /// last, the first at the run's low end.
+    Steps { n: u32, rise: f32 },
+    /// A ramp, rising evenly from the foot at the run's low end to this height at its high end.
+    Ramp(f32),
+}
+
+/// A SOLID PIECE as a sight blocker (the increment 7 follow-ups, 2026-10-22): a placed box (the
+/// wall piece, a train platform, a road, a deck) or a stair (a flight or a ramp), solid from its
+/// foot up to its top over its footprint, turned with the piece. A built wall piece hides what is
+/// behind it, and a flight hides what is behind or beyond it below its steps, as a floor slab does
+/// (`SlabBox`); they were left out of the sight lines, so labels showed through them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PieceSolid {
+    /// Its foot's middle (the piece's `pos`), in the blockers' frame.
+    pub foot: Vec3,
+    /// The sine and cosine of its turn (`structure::structure_mesh`'s: local (x, z) lies at
+    /// (foot.x + x cos + z sin, foot.z - x sin + z cos)).
+    pub sin_cos: (f32, f32),
+    /// Half its width (local x) and half its depth (local z, its run), metres.
+    pub half: (f32, f32),
+    pub top: PieceTop,
+    /// Its turned footprint's bounding box, from its foot to its highest top, in the blockers'
+    /// frame: a line that misses it misses the piece, and most lines do, so `blocks` tests this
+    /// first, one segment-box test, as a slab costs.
+    pub bounds: SlabBox,
+}
+
+impl PieceSolid {
+    /// This piece moved by `by`.
+    pub fn moved(self, by: Vec3) -> Self {
+        PieceSolid { foot: self.foot + by, bounds: self.bounds.moved(by), ..self }
+    }
+
+    /// Its highest top over its foot.
+    fn height(&self) -> f32 {
+        match self.top {
+            PieceTop::Flat(h) | PieceTop::Ramp(h) => h,
+            PieceTop::Steps { n, rise } => n as f32 * rise,
+        }
+    }
+
+    /// True when the straight line `eye` -> `target` passes through the INSIDE of the piece's
+    /// solid (the open solid, as `SlabBox::blocks`: a line that only touches a face does not, so a
+    /// label standing on a deck is not hidden by the deck under it).
+    ///
+    /// COST: one segment-box test against its bounding box (`bounds`, three divisions), which
+    /// most lines miss; only for a line that enters it, the line turned into the piece's own frame
+    /// (four multiplies), the slab test against its own box, and for a flight one test per step it
+    /// crosses (16 at most) or for a ramp one more comparison.
+    pub fn blocks(&self, eye: Vec3, target: Vec3) -> bool {
+        if !self.bounds.blocks(eye, target) {
+            return false;
+        }
+        let (s, c) = self.sin_cos;
+        let local = |p: Vec3| {
+            let (dx, dz) = (p.x - self.foot.x, p.z - self.foot.z);
+            Vec3::new(dx * c - dz * s, p.y - self.foot.y, dx * s + dz * c)
+        };
+        let (o, t) = (local(eye), local(target));
+        let d = t - o;
+        let (hw, hd) = self.half;
+        // The part of the line (0 at the eye, 1 at the target) strictly inside the box from
+        // `lo` to `hi` (local), if any.
+        let inside = |lo: Vec3, hi: Vec3| -> Option<(f32, f32)> {
+            let (mut t0, mut t1) = (0.0f32, 1.0f32);
+            for k in 0..3 {
+                let (ok, dk) = (o[k], d[k]);
+                if dk.abs() < 1e-9 {
+                    if ok <= lo[k] || ok >= hi[k] {
+                        return None;
+                    }
+                    continue;
+                }
+                let (a, b) = ((lo[k] - ok) / dk, (hi[k] - ok) / dk);
+                t0 = t0.max(a.min(b));
+                t1 = t1.min(a.max(b));
+                if t0 >= t1 {
+                    return None;
+                }
+            }
+            Some((t0, t1))
+        };
+        let Some((t0, t1)) = inside(Vec3::new(-hw, 0.0, -hd), Vec3::new(hw, self.height(), hd)) else {
+            return false;
+        };
+        match self.top {
+            PieceTop::Flat(_) => true,
+            PieceTop::Steps { n, rise } => {
+                // Each step's column, from the foot to its tread, over its slice of the run.
+                let tread = 2.0 * hd / n.max(1) as f32;
+                (0..n.max(1)).any(|i| {
+                    let z0 = -hd + i as f32 * tread;
+                    inside(Vec3::new(-hw, 0.0, z0), Vec3::new(hw, (i + 1) as f32 * rise, z0 + tread)).is_some()
+                })
+            }
+            PieceTop::Ramp(h) => {
+                // Under the ramp's slope where the line is in its box: the line's height less the
+                // slope's under it is straight along the line, so its least is at an end.
+                let under = |tt: f32| {
+                    let p = o + d * tt;
+                    p.y - h * ((p.z + hd) / (2.0 * hd)).clamp(0.0, 1.0)
+                };
+                under(t0).min(under(t1)) < 0.0
+            }
+        }
+    }
+}
+
+/// Every SOLID PIECE of one body as sight blockers in the body's own frame (`PieceSolid`): each
+/// stair (a flight or a ramp) and each solid box (`structure::solid_box_height`), as the walk is
+/// stopped by them (`wall_collision::wall_segments`).
+pub fn solid_pieces(home: &HomeStructure) -> impl Iterator<Item = PieceSolid> + '_ {
+    use crate::ship::structure::{self, MeshShape, StructureKind};
+    home.structures.iter().filter_map(|ps| {
+        let ty = structure::structure_type(&ps.type_id)?;
+        let (w, h, d) = ty.size;
+        let top = match (ty.kind, ty.shape) {
+            (StructureKind::Stairs, MeshShape::Steps) => PieceTop::Steps { n: ty.steps.max(1), rise: h / ty.steps.max(1) as f32 },
+            (StructureKind::Stairs, MeshShape::Ramp) => PieceTop::Ramp(h),
+            _ => PieceTop::Flat(structure::solid_box_height(ty)?),
+        };
+        let foot = Vec3::new(ps.pos.0, ps.pos.1, ps.pos.2);
+        let yaw = ps.rot_deg.to_radians();
+        let (bx, _, bz) = structure::rotated_half_extents(ty, yaw);
+        let height = match top {
+            PieceTop::Flat(t) | PieceTop::Ramp(t) => t,
+            PieceTop::Steps { n, rise } => n as f32 * rise,
+        };
+        // A hair wider than the turned footprint, so rounding never shaves the piece's own edge.
+        let pad = 1e-3;
+        let bounds = SlabBox { min: foot - Vec3::new(bx + pad, pad, bz + pad), max: foot + Vec3::new(bx + pad, height + pad, bz + pad) };
+        Some(PieceSolid { foot, sin_cos: yaw.sin_cos(), half: (w * 0.5, d * 0.5), top, bounds })
+    })
+}
+
+/// The SOLID PIECES of the whole ship in the ship's frame: each zone's, moved to its origin, as
+/// `ship_solid_slabs` places the slabs. A home put away has none.
+pub fn ship_solid_pieces(ship: &ShipStructure) -> impl Iterator<Item = PieceSolid> + '_ {
+    ship.zones.iter().enumerate().filter(move |(zi, _)| !ship.is_away_home(*zi)).flat_map(|(_, zone)| {
+        let origin = Vec3::new(zone.origin.0, zone.origin.1, zone.origin.2);
+        solid_pieces(&zone.body).map(move |p| p.moved(origin))
+    })
+}
+
 /// Every sight blocker the HUD and the walk-up test against, in one frame: the walls (static
-/// sight spans and the shut doors, each with the heights it stands between) and the solid slabs.
-/// Rebuilt by lib.rs once a frame, reusing its two lists, so a frame allocates nothing.
+/// sight spans and the shut doors, each with the heights it stands between), the solid slabs and
+/// the solid pieces (placed boxes and stairs). Rebuilt by lib.rs once a frame, reusing its lists,
+/// so a frame allocates nothing.
 #[derive(Clone, Debug, Default)]
 pub struct SightBlockers {
     pub walls: Vec<WallSegment>,
     pub slabs: Vec<SlabBox>,
+    pub pieces: Vec<PieceSolid>,
 }
 
 impl SightBlockers {
-    /// Empty both lists, keeping their room.
+    /// Empty the lists, keeping their room.
     pub fn clear(&mut self) {
         self.walls.clear();
         self.slabs.clear();
+        self.pieces.clear();
     }
 
     /// True when there is nothing to block sight (no home, the build editor): every label shows.
     pub fn is_empty(&self) -> bool {
-        self.walls.is_empty() && self.slabs.is_empty()
+        self.walls.is_empty() && self.slabs.is_empty() && self.pieces.is_empty()
     }
 
     /// True when something stands between `eye` and `target`.
     ///
     /// COST: one plan-view crossing test per wall (four 2-D cross products, and the height only
-    /// for a wall the line does cross) and one segment-box test per slab (three divisions). The
+    /// for a wall the line does cross), one segment-box test per slab (three divisions), and per
+    /// solid piece a turn into its frame and one segment-box test, with a test per step it
+    /// crosses (16 at most) only for a line that enters a flight's box (`PieceSolid::blocks`). The
     /// HUD runs it once per label inside the dot reach (21 m) per frame, and the walk-up only for
     /// a machine already in reach and in the look cone. The homestead aboard the ship is a few
-    /// hundred wall spans and about ten solid slabs, so a hundred labels in reach cost some tens
-    /// of thousands of these tests a frame, a small fraction of a millisecond.
+    /// hundred wall spans, about ten solid slabs and three pieces (stairs-1, the ramp, train-1).
+    /// MEASURED 2026-10-23 (100 of the homestead's labels from the upper hall's foot, the shipped
+    /// ship's 2,491 sight walls, in the UNOPTIMIZED test build on a machine running other builds,
+    /// so an upper bound; a release build is many times faster): the walls 400 to 460 us a frame,
+    /// the 7 solid slabs 73 to 91 us, the 3 pieces 76 us, and 50 pieces (a busy home of the
+    /// player's own) 570 to 670 us: 0.13 to 0.25 us a piece test against 0.10 to 0.13 us a slab's,
+    /// most lines turned away by the piece's bounding box (`PieceSolid::bounds`).
     pub fn blocked(&self, eye: Vec3, target: Vec3) -> bool {
-        self.walls.iter().any(|w| wall_blocks(w, eye, target)) || self.slabs.iter().any(|s| s.blocks(eye, target))
+        self.walls.iter().any(|w| wall_blocks(w, eye, target))
+            || self.slabs.iter().any(|s| s.blocks(eye, target))
+            || self.pieces.iter().any(|p| p.blocks(eye, target))
     }
 }
 
@@ -350,7 +516,7 @@ mod tests {
         let ship = ShipStructure::load_and_assemble_shipped(&root.join("data"), None).expect("the shipped ship assembles");
         let hz = &ship.zones[ship.home_zone_index()];
         let origin = Vec3::new(hz.origin.0, hz.origin.1, hz.origin.2);
-        let blockers = SightBlockers { walls: ship_sight_segments(&ship), slabs: ship_solid_slabs(&ship).collect() };
+        let blockers = SightBlockers { walls: ship_sight_segments(&ship), slabs: ship_solid_slabs(&ship).collect(), pieces: ship_solid_pieces(&ship).collect() };
         let home = crate::machines::MachineHome::load(&root.join("data").join("machines").join("home.ron")).expect("home.ron parses");
         let machines = home
             .placements(&HashMap::new(), Some(&ship.zone_rects()))
@@ -409,7 +575,7 @@ mod tests {
         let upstairs = WallSegment { a: (5.0, 0.0), b: (5.0, 10.0), half_thickness: 0.075, y0: 3.0, y1: 6.0, kind: crate::ship::wall_collision::SegmentKind::Wall };
         let ground = WallSegment { y0: 0.0, y1: 3.0, ..upstairs };
         let every = WallSegment::at_every_height(upstairs.a, upstairs.b, 0.075);
-        let one = |w: WallSegment| SightBlockers { walls: vec![w], slabs: Vec::new() };
+        let one = |w: WallSegment| SightBlockers { walls: vec![w], slabs: Vec::new(), pieces: Vec::new() };
         let (eye_down, label_down) = (Vec3::new(2.0, 1.7, 5.0), Vec3::new(8.0, 1.0, 5.0));
         let (eye_up, label_up) = (Vec3::new(2.0, 4.7, 5.0), Vec3::new(8.0, 4.0, 5.0));
         assert!(!one(upstairs).blocked(eye_down, label_down), "a wall upstairs hid a label downstairs");
@@ -445,7 +611,7 @@ mod tests {
             material: SlabMaterial::Solid,
             label: None,
         }];
-        let b = SightBlockers { walls: Vec::new(), slabs: solid_slabs(&home).collect() };
+        let b = SightBlockers { walls: Vec::new(), slabs: solid_slabs(&home).collect(), pieces: Vec::new() };
         assert_eq!(b.slabs, vec![SlabBox { min: Vec3::new(0.0, 2.75, 0.0), max: Vec3::new(10.0, 3.0, 10.0) }]);
         let (down, up) = (Vec3::new(5.0, 1.7, 5.0), Vec3::new(4.0, 4.0, 5.0));
         assert!(b.blocked(down, up), "a solid slab hid nothing upstairs from downstairs");
@@ -702,17 +868,65 @@ mod tests {
         assert_eq!(storey_floor(&w.ship, on_car, Foot::Fixture), Some(w.origin.y), "a fixture hung 3 m up in the shaft");
     }
 
+    /// A BUILT WALL PIECE AND A STAIR HIDE WHAT IS BEHIND THEM (the increment 7 follow-ups,
+    /// 2026-10-22). Placed boxes and stairs were no sight blockers, so a label behind a wall piece
+    /// built with the editor, or on the far side of a flight, showed through it. In a 12 x 12 m
+    /// body: the wall piece (0.15 x 3 x 1) at (6, 0, 2) hides a label across it at the eye's height,
+    /// and a line passing over its 3 m top is seen; turned 90 degrees the wall piece hides along
+    /// the other axis. A flight (stairs, 1.2 x 3 x 4.5 in 16 steps) at (6, 0, 8) climbing north to
+    /// south (its high end at z 10.25, 3.0 m up): a label beyond its high end at the floor is
+    /// hidden from the far side; a line across its first steps at the eye's height passes over
+    /// them; one across its top steps at 2.5 m is hidden. A ramp (0.4 m at its high end) hides a
+    /// line along the floor through its high end and not one over it. A label standing on a deck
+    /// is seen (the line only touches its top).
+    ///
+    /// Seen red first (2026-10-22) with the pieces not counted (`SightBlockers::blocked` reading the
+    /// walls and the slabs alone): "the wall piece hid nothing behind it".
+    #[test]
+    fn a_built_wall_piece_and_a_stair_hide_what_is_behind_them() {
+        let home: HomeStructure = ron::from_str(
+            "(width: 12.0, depth: 12.0, height: 6.0, structures: [ \
+               (id: \"wall-1\", type_id: \"wall\", pos: (6.0, 0.0, 2.0)), \
+               (id: \"wall-2\", type_id: \"wall\", pos: (2.0, 0.0, 6.0), rot_deg: 90.0), \
+               (id: \"stairs-1\", type_id: \"stairs\", pos: (6.0, 0.0, 8.0)), \
+               (id: \"ramp-1\", type_id: \"ramp\", pos: (10.0, 0.0, 6.0)), \
+               (id: \"deck-1\", type_id: \"deck\", pos: (2.0, 0.0, 10.0))])",
+        )
+        .expect("the test body parses");
+        let b = SightBlockers { walls: Vec::new(), slabs: Vec::new(), pieces: solid_pieces(&home).collect() };
+        assert_eq!(b.pieces.len(), 5, "the two wall pieces, the flight, the ramp and the deck");
+        assert!(b.blocked(Vec3::new(4.0, 1.7, 2.0), Vec3::new(8.0, 1.2, 2.0)), "the wall piece hid nothing behind it");
+        assert!(!b.blocked(Vec3::new(4.0, 1.7, 2.0), Vec3::new(8.0, 4.5, 2.0)), "a line over the wall piece's top (3.1 m at it) is hidden");
+        assert!(!b.blocked(Vec3::new(4.0, 1.7, 3.0), Vec3::new(8.0, 1.2, 3.0)), "past the wall piece's end, a label is hidden");
+        assert!(b.blocked(Vec3::new(2.0, 1.7, 4.0), Vec3::new(2.0, 1.2, 8.0)), "turned 90 degrees, the wall piece hid nothing behind it");
+        assert!(b.blocked(Vec3::new(6.0, 1.7, 11.5), Vec3::new(6.0, 0.3, 4.0)), "the flight hid nothing beyond its high end");
+        assert!(!b.blocked(Vec3::new(4.0, 1.7, 6.0), Vec3::new(8.0, 1.7, 6.0)), "a line over the flight's first steps is hidden");
+        assert!(b.blocked(Vec3::new(4.0, 2.5, 10.0), Vec3::new(8.0, 2.5, 10.0)), "a line through the flight's top steps is seen");
+        assert!(b.blocked(Vec3::new(10.0, 0.2, 10.0), Vec3::new(10.0, 0.2, 2.0)), "the ramp hid nothing along the floor through its high end");
+        assert!(!b.blocked(Vec3::new(10.0, 1.7, 10.0), Vec3::new(10.0, 1.0, 2.0)), "a line over the ramp is hidden");
+        assert!(!b.blocked(Vec3::new(0.5, 1.7, 10.0), Vec3::new(2.0, 0.2, 10.0)), "a label standing on the deck is hidden by it");
+        // The pieces move with their zone, as the slabs do.
+        let moved = b.pieces[0].moved(Vec3::new(1.0, 2.0, 3.0));
+        assert_eq!(moved.foot, Vec3::new(7.0, 2.0, 5.0));
+    }
+
     /// THE SIGHT TEST IS WIRED IN: lib.rs builds the blockers with the solid slabs and the shut
     /// doors' heights and picks the walk-up target with `walk_up_target`, and the HUD tests every
     /// machine label and crew nameplate with `SightBlockers::blocked`, never the plan-only test.
     /// Without these the functions above are tested and never run.
     ///
     /// Seen red first (2026-10-21) before the wiring: "src/lib.rs never has
-    /// crate::ship::sight::walk_up_target(".
+    /// crate::ship::sight::walk_up_target(". The solid pieces (2026-10-22) the same way, before
+    /// lib.rs added them: "src/lib.rs never has crate::ship::sight::ship_solid_pieces(".
     #[test]
     fn the_sight_test_is_wired_into_the_walk_up_and_the_hud() {
         let lib = include_str!("../lib.rs").replace("\r\n", "\n");
-        for wired in ["crate::ship::sight::walk_up_target(", "crate::ship::sight::ship_solid_slabs(", "crate::ship::wall_collision::door_panel_segment(p.center + off"] {
+        for wired in [
+            "crate::ship::sight::walk_up_target(",
+            "crate::ship::sight::ship_solid_slabs(",
+            "crate::ship::sight::ship_solid_pieces(",
+            "crate::ship::wall_collision::door_panel_segment(p.center + off",
+        ] {
             assert!(lib.contains(wired), "src/lib.rs never has {wired}");
         }
         let hud = include_str!("../gui/pages/hud.rs").replace("\r\n", "\n");

@@ -327,8 +327,9 @@ fn shipped_runs() -> (ShipStructure, Vec<ConduitRun>) {
 ///
 /// Every run now crosses under the ceiling of the lower storey it joins: on the shipped homestead
 /// every level leg of a run is under that storey's ceiling, a run between two machines downstairs
-/// never goes over the ground storey's ceiling at all, and no run passes through the upstairs
-/// bedroom, where no machine of any run stands.
+/// never goes over the ceiling over it downstairs (a slab's underside; the greenhouse's roof, where
+/// since 2026-10-22 a riser goes up to the port of an air handler hung 2.7 m up), and no run passes
+/// through the upstairs bedroom, where no machine of any run stands.
 ///
 /// Seen red first (2026-10-21) with the routing as it was (the higher end's level, by the ends'
 /// heights, and no risers): "64 problems in 101 runs", among them "power battery_8 -> server_1:
@@ -364,7 +365,10 @@ fn a_run_keeps_to_the_storeys_it_joins() {
             if (p.y - q.y).abs() < 1e-4 && p.y > ceiling + 1e-3 {
                 problems.push(format!("{name}: a level leg at {:.2} over its storey's ceiling at {ceiling:.2}", p.y));
             }
-            if both_down && p.y.max(q.y) > levels[0].1 + 1e-3 {
+            // Under the ceiling really over it (2026-10-22): the slab's underside, or in the
+            // double-height greenhouse its roof, where a riser goes up to a unit hung 2.7 m up.
+            let over = |v: Vec3| site.hanger_top(Vec3::new(v.x, levels[0].0, v.z), levels[0].1);
+            if both_down && (p.y > over(p) + 1e-3 || q.y > over(q) + 1e-3) {
                 problems.push(format!("{name}: two machines downstairs, the run goes up to {:.2}", p.y.max(q.y)));
             }
             // The leg's box against the bedroom's.
@@ -661,4 +665,44 @@ fn a_hanger_reaches_the_ceiling_over_it() {
     assert!(in_greenhouse > 0, "no hanger of the shipped runs is in the greenhouse, so this proves nothing there");
     problems.dedup();
     assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// A RUN TO A UNIT HUNG IN A DOUBLE-HEIGHT ROOM ENDS AT ITS PORT (the increment 7 follow-ups,
+/// 2026-10-22). Each end of a run is kept under the ceiling of its storey (`route_run`), and that
+/// ceiling was its storey's service level, the 2.75 m of the slab elsewhere on the ground storey:
+/// so in the greenhouse, open to its 6 m roof, the runs to the air handlers g1 and g2 (hung with
+/// their feet 2.7 m up, their port gizmos over their tops) ended at 2.70 m, at the bottom of the
+/// unit, short of the port. The end is kept under the ceiling really over it from its floor now
+/// (`lowest_ceiling_above`, as a hanger reaches, `RunSite::hanger_top`): there the roof, so each
+/// of the four runs to g1 and g2 ends at its port; and under a slab, as before, 0.05 m under its
+/// underside.
+///
+/// Seen red first (2026-10-22) with each end held under its storey's service level: "power
+/// battery_6 -> air_handler_g1 ends at 2.70 m, its port is at 3.24 m".
+#[test]
+fn a_run_to_a_unit_hung_in_a_double_height_room_ends_at_its_port() {
+    let (ship, runs) = shipped_runs();
+    let site = run_site(Some(&ship));
+    let o = ship.zones[ship.home_zone_index()].origin_vec();
+    let mut checked = 0;
+    for run in runs.iter().filter(|r| ["air_handler_g1", "air_handler_g2"].iter().any(|u| r.from == *u || r.to == *u)) {
+        let (route, _, _) = route_run(&site, run);
+        let (end, port) = if run.to.starts_with("air_handler_g") {
+            (*route.points.last().expect("a route has points"), run.b)
+        } else {
+            (route.points[0], run.a)
+        };
+        assert!(port.y - o.y > 2.75, "{} {} -> {}: the port at {:.2} m is under the slabs' 2.75, this proves nothing", run.kind, run.from, run.to, port.y - o.y);
+        assert!(
+            (end - port).length() < 1e-3,
+            "{} {} -> {} ends at {:.2} m, its port is at {:.2} m",
+            run.kind,
+            run.from,
+            run.to,
+            end.y - o.y,
+            port.y - o.y
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 4, "the shipped homestead runs power and water to g1 and g2");
 }

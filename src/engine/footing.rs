@@ -37,6 +37,11 @@ use crate::ship::wall_collision::{self, WallSegment, EYE_HEIGHT_M};
 /// on (`CameraController::step_up_from`), so a jump cannot carry you onto a tall box either.
 pub const STEP_UP_M: f32 = 0.6;
 
+/// How far over the height a placement found for a body the floor it is stood on may be, metres
+/// (`Footing::floor_at`): an elevator car at its stop is within [`CAR_AT_STOP_M`] of the storey's
+/// floor, and 5 cm is no step anyone sees taken.
+pub const LEVEL_M: f32 = 0.05;
+
 /// How fast an elevator car travels, metres a second: v0.590's half of its 3 m travel a second.
 pub const ELEVATOR_SPEED_M_S: f32 = 1.5;
 
@@ -130,6 +135,24 @@ impl<'a> Footing<'a> {
     ///    is the floor. With no room over the point (a doorway's cells belong to no room) the
     ///    highest such surface is the floor.
     pub fn floor_under(&self, at: Vec3, step_from: f32) -> Option<f32> {
+        self.floor_rising(at, step_from, STEP_UP_M)
+    }
+
+    /// The floor under a body PUT with its eye at `at` on the height `level` (world metres) that a
+    /// placement found for it, stepping it up onto nothing (the increment 7 follow-ups,
+    /// 2026-10-22): `floor_under`'s floor with the step up held to [`LEVEL_M`] over `level`, so it
+    /// finds the slab, the tread, the box's top or the elevator car at that height (or under it,
+    /// where nothing is there). The build editor's close (engine/home_plot.rs `editor_pick_at`)
+    /// stands a player where the standing rule found a place to stand (ship/standing.rs
+    /// `stands_at`); measured with the step up, it stood them on anything within 0.6 m over that,
+    /// a platform's top with no room over it included.
+    pub fn floor_at(&self, at: Vec3, level: f32) -> Option<f32> {
+        self.floor_rising(at, level, LEVEL_M)
+    }
+
+    /// `floor_under`, rising no more than `rise` over `step_from` (a room's floor no more than that
+    /// over the feet).
+    fn floor_rising(&self, at: Vec3, step_from: f32, rise: f32) -> Option<f32> {
         let feet = at.y - EYE_HEIGHT_M;
         let mut highest: Option<f32> = None;
         let mut lowest: Option<f32> = None;
@@ -138,7 +161,7 @@ impl<'a> Footing<'a> {
                 continue;
             }
             let f = r.min.y;
-            if f <= feet + STEP_UP_M && highest.is_none_or(|h| f > h) {
+            if f <= feet + rise && highest.is_none_or(|h| f > h) {
                 highest = Some(f);
             }
             if lowest.is_none_or(|l| f < l) {
@@ -146,7 +169,7 @@ impl<'a> Footing<'a> {
             }
         }
         let mut floor = highest.or(lowest);
-        let reach = step_from + STEP_UP_M;
+        let reach = step_from + rise;
         let mut raise = |top: f32| {
             if top <= reach && floor.is_none_or(|f| top > f) {
                 floor = Some(top);
@@ -1083,7 +1106,9 @@ pub(crate) mod test_aboard {
     /// THE TEST HOME: 12 x 12 x 6 m. Its north half (z 0 to 6) lies under floor slabs at 3.0 with
     /// an upstairs zone over all of it; its south half (z 6 to 12) is open to the roof. Two holes
     /// in the slabs: elevator-1's shaft (the elevator at (10, 0, 2), its 1.8 m footprint, x 9.1 to
-    /// 10.9 and z 1.1 to 2.9) and a ladder hatch (x 1.5 to 2.5, z 0.9 to 2.1), with ladder-1 at
+    /// 10.9 and z 1.1 to 2.9, turned 90 degrees so its frame's posts stand along its north and
+    /// south sides and its open sides face the landings west and east: the posts collide since
+    /// 2026-10-22, `wall_collision::frame_posts`) and a ladder hatch (x 1.5 to 2.5, z 0.9 to 2.1), with ladder-1 at
     /// (2, 0, 2) on the hatch's south edge, guarded upstairs by 1.0 m walls (base 3.0) on three
     /// sides and on the fourth either side of a 0.8 m gap over the 0.6 m ladder (the ladder's
     /// width and `HATCH_SIDE_CLEAR_M` each side, where the gate ends). The hatch, as the homestead's
@@ -1109,7 +1134,7 @@ pub(crate) mod test_aboard {
             (a: (2.4, 2.1), b: (2.5, 2.1), base: 3.0, height: 1.0),
         ],
         structures: [
-            (id: "elevator-1", type_id: "elevator", pos: (10.0, 0.0, 2.0)),
+            (id: "elevator-1", type_id: "elevator", pos: (10.0, 0.0, 2.0), rot_deg: 90.0),
             (id: "ladder-1", type_id: "ladder", pos: (2.0, 0.0, 2.0)),
             (id: "teleporter-1", type_id: "teleporter", pos: (4.0, 0.0, 9.0), pair: Some("teleporter-2")),
             (id: "teleporter-2", type_id: "teleporter", pos: (6.0, 3.0, 4.0), pair: Some("teleporter-1")),
@@ -1297,8 +1322,10 @@ mod storey_tests {
         assert_eq!(f.floor_under(at(2.0, 3.0, 1.5), 3.0), Some(0.0), "a body over the ladder hatch");
         assert_eq!(f.floor_under(at(10.0, 3.0, 2.0), 3.0), Some(0.0), "a body over the shaft, the car at the bottom");
         assert_eq!(f.floor_under(at(6.0, 3.0, 9.0), 3.0), Some(0.0), "a body 3 m up in the half open to the roof");
+        // Along z 4.6, clear of teleporter-2's posts (z 3.8 to 4.2 upstairs at x 5.3 and 6.7; a
+        // frame's posts collide since 2026-10-22, and a walk east along z 4 upstairs went into one).
         for storey in [0.0, 3.0] {
-            let (mut ctl, mut cam) = body_at(at(6.0, storey, 4.0));
+            let (mut ctl, mut cam) = body_at(at(6.0, storey, 4.6));
             cam.yaw = EAST;
             ctl.apply_action(A::MoveForward, true);
             frames(&mut ctl, &mut cam, &mut w, 24, "walking along a floor");

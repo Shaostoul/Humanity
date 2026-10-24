@@ -401,9 +401,13 @@ pub struct Renderer {
     pub sun_frame: Option<sun_glare::SunFrame>,
     /// Dev switch (showcase `sun_glare`): false takes the glare out of the present.
     pub sun_glare_on: bool,
-    /// The glare's aperture, metres (sun_disc::GLARE_APERTURE_M; showcase
-    /// `sun_aperture_mm`).
+    /// The glare's aperture, metres: Settings > Graphics > Light and sky
+    /// (`SettingsState::sun_aperture_mm`, set by lib.rs every frame), or the
+    /// dev pin below.
     pub sun_aperture_m: f64,
+    /// Dev pin (showcase `sun_aperture_mm`): Some(metres) holds the glare's
+    /// aperture there whatever Settings says; None ("auto") hands it back.
+    pub sun_aperture_pin: Option<f64>,
     /// The disc on the current view's screen, from step 1 to step 2 (sun_glare.rs).
     sun_vis_disc: std::cell::Cell<Option<sun_glare::VisDisc>>,
     /// The camera pads the shaders draw the disc from (light6_spot and
@@ -2058,6 +2062,7 @@ impl Renderer {
             sun_frame: None,
             sun_glare_on: true,
             sun_aperture_m: sun_disc::GLARE_APERTURE_M,
+            sun_aperture_pin: None,
             sun_vis_disc: std::cell::Cell::new(None),
             sun_disc_pad: [[0.0; 4]; 2],
             sun_air_los: [1.0; 3],

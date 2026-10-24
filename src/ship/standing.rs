@@ -30,6 +30,20 @@
 //!     more footprints to keep out of (`KeepOut`): the build editor's close keeps out of an
 //!     elevator's shaft whose car is on another floor.
 //!
+//!   - on any storey, it is not on a LOW PIECE whose top has too little room over it (the
+//!     increment 7 follow-ups, 2026-10-22): a piece rising over the floor no more than a step (a
+//!     road, a deck lying on the floor, a platform a step high, a stair's first steps) is stood on
+//!     by the walk at once (`engine::footing::Footing::floor_under` steps a body up onto it), so a
+//!     body put there stands on its top, and that top needs `STANDING_ROOM_M` over it like any
+//!     floor (`stands_at` gives the top a body put there stands on);
+//!   - on any storey, it is `STAND_CLEAR_M` from the centre line of every wall that stands across a
+//!     body there (the increment 7 follow-ups, 2026-10-22: only the upper floors kept that far in
+//!     from their rooms' edges, so a spot exactly on a ground-floor wall was a place to stand).
+//!
+//! What is over a spot is the next slab's underside, else the roof, and a solid box piece raised
+//! over a body's eye there (a deck overhead) from its foot, as the footing reads a ceiling
+//! (`Footing::ceiling_over`).
+//!
 //! `standing_on` says whether a spot is one and why not; `nearest_standing` finds the nearest spot
 //! on the same storey that is (the `_clear_of` forms with the caller's footprints kept out). Pure:
 //! body-local metres, no world, no runtime state, so the game and its tests ask the same question.
@@ -39,7 +53,7 @@
 use crate::ship::home_structure::{storey_index, FloorSlab, HomeStructure, PlacedStructure, Storey, STOREY_EPS};
 use crate::ship::moves::STANDING_ROOM_M;
 use crate::ship::structure::{self, MeshShape, StructureKind, StructureType};
-use crate::ship::wall_collision::{self, SegmentKind, EYE_HEIGHT_M, STEP_UP_M};
+use crate::ship::wall_collision::{self, SegmentKind, WallSegment, EYE_HEIGHT_M, STEP_UP_M};
 
 /// How far a standing spot must be from a room's edge (a wall stands there) and from the edge of
 /// the floor it is on, metres: 0.45, a body's radius (0.3 m, `wall_collision::PLAYER_RADIUS`) and
@@ -52,6 +66,10 @@ pub const STAND_CLEAR_M: f32 = 0.45;
 /// `structure::in_footprint` and `structure::walk_surface` give its edges, so a spot that is on a
 /// stair or in a shaft to the footing is in it here too.
 const FOOTPRINT_SLACK_M: f32 = 0.05;
+
+/// Over this much above the storey's floor (metres) a piece's top is something a body stands on
+/// rather than the floor itself (`low_top_at`): a road lying on the floor, 0.12 m, is one.
+const ON_FLOOR_M: f32 = 0.01;
 
 /// Why a spot on a storey is no place to stand (`standing_on`).
 #[derive(Debug, Clone, PartialEq)]
@@ -80,7 +98,8 @@ pub enum NoStanding {
     InShaft,
     /// Too near a wall or the edge of the floor for a body (`STAND_CLEAR_M`).
     Edge,
-    /// Less than `STANDING_ROOM_M` from the storey's floor to what is over the spot.
+    /// Less than `STANDING_ROOM_M` from what a body stands on there (the storey's floor, or the top
+    /// of a low piece the walk steps it onto, `stands_at`) to what is over the spot.
     Low,
     /// The body has no such storey.
     NoStorey,
@@ -154,10 +173,22 @@ fn over_solid(hs: &HomeStructure, floor: f32, x: f32, z: f32) -> bool {
 }
 
 /// What is over (x, z) above the height `y` (body-local): the underside of the lowest slab there
-/// whose top is over `y`, else the roof (the top storey's top).
+/// whose top is over `y`, else the roof (the top storey's top); or lower, the foot of a SOLID BOX
+/// piece raised over it there (a deck overhead, the increment 7 follow-ups of 2026-10-22), as the
+/// footing reads a ceiling (`engine::footing::Footing::ceiling_over`). Only a box whose foot is at
+/// or over the eye of a body on the floor of `y`'s storey: one under that eye is no ceiling but a
+/// solid piece of that storey (`solids_from`), which a body there stands on or is kept out of.
 fn ceiling_over(hs: &HomeStructure, storeys: &[Storey], y: f32, x: f32, z: f32) -> f32 {
     let roof = storeys.last().map_or(hs.height, |s| s.top);
-    hs.floors.iter().filter(|s| s.top > y + STOREY_EPS && s.contains(x, z)).map(FloorSlab::underside).fold(roof, f32::min)
+    let base = storeys.get(storey_index(storeys, y)).map_or(0.0, |s| s.floor);
+    let slabs = hs.floors.iter().filter(|s| s.top > y + STOREY_EPS && s.contains(x, z)).map(FloorSlab::underside);
+    let decks = hs.structures.iter().filter_map(move |ps| {
+        let ty = structure::structure_type(&ps.type_id)?;
+        structure::solid_box_height(ty)?;
+        let foot = ps.pos.1;
+        (foot > y + STOREY_EPS && foot >= base + EYE_HEIGHT_M && structure::in_footprint(ty, ps.pos, ps.rot_deg.to_radians(), x, z)).then_some(foot)
+    });
+    slabs.chain(decks).fold(roof, f32::min)
 }
 
 /// The rooms of storey `k`, each as (min x, min z, max x, max z): the zones whose floor (origin y)
@@ -188,6 +219,28 @@ fn solids_from(hs: &HomeStructure, floor: f32) -> impl Iterator<Item = (&PlacedS
     })
 }
 
+/// The highest top of the solid pieces at the spot (x, z) for a body on the floor at `floor`
+/// (`solids_from`) that is more than `over` over that floor, and whether it is a stair's.
+fn highest_top(hs: &HomeStructure, floor: f32, x: f32, z: f32, over: f32) -> Option<(f32, bool)> {
+    solids_from(hs, floor)
+        .filter_map(|(ps, ty, stair)| structure::walk_surface(ty, ps.pos, ps.rot_deg.to_radians(), x, z).map(|t| (t, stair)))
+        .filter(|(t, _)| *t > floor + over)
+        .reduce(|a, b| if b.0 > a.0 { b } else { a })
+}
+
+/// What a LOW piece makes of the spot (x, z) on storey `k`'s floor (the increment 7 follow-ups,
+/// 2026-10-22), when no piece rises there more than a step (`solid_at` is None): the top of the
+/// highest one rising over the floor (`ON_FLOOR_M`) no more than a step, a road, a deck on the
+/// floor, a stair's first steps, a platform a step high, which the walk stands a body put there on
+/// at once (`engine::footing::Footing::floor_under` steps it up). Ok with that top when it has
+/// `STANDING_ROOM_M` over it, `Err(NoStanding::Low)` when not; None when nothing rises there.
+fn low_top_at(hs: &HomeStructure, storeys: &[Storey], k: usize, x: f32, z: f32) -> Option<Result<f32, NoStanding>> {
+    let floor = storeys.get(k)?.floor;
+    let (t, _) = highest_top(hs, floor, x, z, ON_FLOOR_M)?;
+    let room = ceiling_over(hs, storeys, t, x, z) - t;
+    Some(if room >= STANDING_ROOM_M - STOREY_EPS { Ok(t) } else { Err(NoStanding::Low) })
+}
+
 /// What a solid piece makes of the spot (x, z) on storey `k`'s floor: None when none rises there
 /// more than a step over the floor (the floor, or a low step or box the footing steps a body up
 /// onto), else its top there (the highest, a stair's tread or a box's top), Ok when it is a place
@@ -196,10 +249,7 @@ fn solids_from(hs: &HomeStructure, floor: f32) -> impl Iterator<Item = (&PlacedS
 /// `NoStanding::InPiece` inside a box).
 fn solid_at(hs: &HomeStructure, storeys: &[Storey], k: usize, x: f32, z: f32) -> Option<Result<f32, NoStanding>> {
     let floor = storeys.get(k)?.floor;
-    let (t, stair) = solids_from(hs, floor)
-        .filter_map(|(ps, ty, stair)| structure::walk_surface(ty, ps.pos, ps.rot_deg.to_radians(), x, z).map(|t| (t, stair)))
-        .filter(|(t, _)| *t > floor + STEP_UP_M + 1e-4)
-        .reduce(|a, b| if b.0 > a.0 { b } else { a })?;
+    let (t, stair) = highest_top(hs, floor, x, z, STEP_UP_M + 1e-4)?;
     let room = ceiling_over(hs, storeys, t, x, z) - t;
     Some(if storey_index(storeys, t) == k && room >= STANDING_ROOM_M - STOREY_EPS {
         Ok(t)
@@ -218,6 +268,24 @@ fn solid_at(hs: &HomeStructure, storeys: &[Storey], k: usize, x: f32, z: f32) ->
 /// (`engine::footing::Footing::floor_under`).
 pub fn top_at(hs: &HomeStructure, k: usize, x: f32, z: f32) -> Option<f32> {
     solid_at(hs, &hs.storeys(), k, x, z)?.ok()
+}
+
+/// THE HEIGHT A BODY PUT AT THE SPOT (x, z) OF STOREY `k` STANDS AT, body-local (the increment 7
+/// follow-ups, 2026-10-22): the top of a piece there that is a place to stand, more than a step up
+/// (`top_at`, a tread or a box's top) or within one (a low piece the walk steps a body onto at
+/// once: a road, a deck on the floor, a platform a step high, a stair's first steps), else the
+/// storey's floor. None when the body has no storey `k`. What the build editor's close stands a
+/// player on (engine/home_plot.rs `editor_pick_at`), for a spot `standing_on` takes: it used to
+/// stand them on the storey's floor and let the footing step them up onto anything within 0.6 m
+/// there, a top with no room over it included.
+pub fn stands_at(hs: &HomeStructure, k: usize, x: f32, z: f32) -> Option<f32> {
+    let storeys = hs.storeys();
+    let floor = storeys.get(k)?.floor;
+    Some(match solid_at(hs, &storeys, k, x, z) {
+        Some(Ok(t)) => t,
+        Some(Err(_)) => floor,
+        None => low_top_at(hs, &storeys, k, x, z).and_then(Result::ok).unwrap_or(floor),
+    })
 }
 
 /// THE SOLID PIECES OF STOREY `k` AS FOOTPRINTS NOBODY IS PUT IN (`KeepOut`): each flight
@@ -259,6 +327,38 @@ pub fn solid_keep_outs(hs: &HomeStructure, k: usize) -> Vec<KeepOut> {
         .collect()
 }
 
+/// THE LOW PIECES OF STOREY `k` (the increment 7 follow-ups, 2026-10-22): each solid piece whose
+/// foot is under the eye of a body on that storey's floor (`solids_from`), rising over the floor
+/// (`ON_FLOOR_M`), with its foot under a step (so some part of it is a step or less up: a box lying
+/// low, a stair's first steps), its whole footprint, as the footing reads it. Not
+/// footprints nobody is put in (a body stands on a low piece's top where it has room over it,
+/// `low_top_at`), only where the search for a place to stand looks for a way off one
+/// (`nearest_standing_clear_of`) whose top has too little room over it.
+fn low_keep_outs(hs: &HomeStructure, k: usize) -> Vec<KeepOut> {
+    let Some(floor) = hs.storeys().get(k).map(|s| s.floor) else {
+        return Vec::new();
+    };
+    solids_from(hs, floor)
+        .filter(|(ps, ty, stair)| {
+            let top = ps.pos.1 + if *stair { ty.size.1.min(STEP_UP_M) } else { structure::solid_box_height(ty).unwrap_or(0.0) };
+            top > floor + ON_FLOOR_M && ps.pos.1 < floor + STEP_UP_M
+        })
+        .map(|(ps, ty, _)| {
+            let hd = ty.size.2 * 0.5;
+            KeepOut::of_piece((ps.pos.0, ps.pos.2), ps.rot_deg.to_radians(), ty.size.0 * 0.5, -hd, hd, NoStanding::Low)
+        })
+        .collect()
+}
+
+/// The WALLS that stand across a body on the floor at `floor` (body-local): every
+/// `SegmentKind::Wall` segment the walk is stopped by at that height (`wall_collision::
+/// wall_segments`, its doorways open), the shell's, a window's and a frame's posts included. Not a
+/// lintel over a doorway (a body passes under it), a guard's rail (the edge of an opening, which the
+/// upper floors' all-round test keeps a body off) or a stair's or a box's faces (`solid_at`).
+fn storey_walls(hs: &HomeStructure, floor: f32) -> Vec<WallSegment> {
+    wall_collision::wall_segments(hs).into_iter().filter(|s| s.kind == SegmentKind::Wall && s.stops_body(floor + EYE_HEIGHT_M)).collect()
+}
+
 /// Is the spot (x, z), body-local metres, on storey `k` of `hs` a place a person can stand? See
 /// the top of this file for the rule. Ok, or the first reason it is not, in the order a person
 /// would name it: no room to stand, a glass roof, an opening, a roof outside the rooms, inside a
@@ -271,6 +371,13 @@ pub fn standing_on(hs: &HomeStructure, k: usize, x: f32, z: f32) -> Result<(), N
 /// place to stand, for its `why`): what a caller that knows the runtime state adds, the build
 /// editor's close an elevator's shaft whose car is on another floor.
 pub fn standing_on_clear_of(hs: &HomeStructure, k: usize, x: f32, z: f32, keep_out: &[KeepOut]) -> Result<(), NoStanding> {
+    let floor = hs.storeys().get(k).ok_or(NoStanding::NoStorey)?.floor;
+    standing_among(hs, k, x, z, keep_out, &storey_walls(hs, floor))
+}
+
+/// `standing_on_clear_of` with the storey's walls already gathered (`storey_walls`), so the search
+/// for a place to stand (`nearest_standing_clear_of`) gathers them once for every spot it tries.
+fn standing_among(hs: &HomeStructure, k: usize, x: f32, z: f32, keep_out: &[KeepOut], walls: &[WallSegment]) -> Result<(), NoStanding> {
     let storeys = hs.storeys();
     let storey = *storeys.get(k).ok_or(NoStanding::NoStorey)?;
     let floor = storey.floor;
@@ -298,12 +405,24 @@ pub fn standing_on_clear_of(hs: &HomeStructure, k: usize, x: f32, z: f32, keep_o
     }
     // Inside a solid piece (the seams review, findings 1 and 5; the increment 7 follow-ups of
     // 2026-10-21 for boxes): a stair's flight or a box more than a step up whose top is no place to
-    // stand, and what the caller keeps out.
-    if let Some(Err(why)) = solid_at(hs, &storeys, k, x, z) {
-        return Err(why);
+    // stand. On a low one, within a step, whose top has too little room over it (2026-10-22): the
+    // walk stands a body there on that top. And what the caller keeps out.
+    match solid_at(hs, &storeys, k, x, z) {
+        Some(Err(why)) => return Err(why),
+        Some(Ok(_)) => {}
+        None => {
+            if let Some(Err(why)) = low_top_at(hs, &storeys, k, x, z) {
+                return Err(why);
+            }
+        }
     }
     if let Some(ko) = keep_out.iter().find(|ko| ko.holds(x, z)) {
         return Err(ko.why.clone());
+    }
+    // Clear of every wall standing across a body there, on every storey (2026-10-22): the upper
+    // floors' room edges below hold most of theirs, but nothing held a ground-floor wall.
+    if walls.iter().any(|s| distance_to_segment((x, z), s.a, s.b) < c) {
+        return Err(NoStanding::Edge);
     }
     if k == 0 {
         return Ok(());
@@ -336,12 +455,16 @@ pub fn nearest_standing(hs: &HomeStructure, k: usize, x: f32, z: f32) -> Option<
 /// stays in the hall, rather than going through a wall into the bedroom beside it) and then in
 /// every room of the storey. A point in a solid piece (a stair's flight or a box, `solid_keep_outs`,
 /// or a footprint kept out) is taken straight out of it across each of its sides to
-/// `STAND_CLEAR_M` past it (the seams review of 2026-10-21, findings 1 and 5). Of the points found,
+/// `STAND_CLEAR_M` past it (the seams review of 2026-10-21, findings 1 and 5), and so is a point on
+/// a low piece whose top has too little room over it (`low_keep_outs`, 2026-10-22); a point too
+/// near a wall is taken off it, across it either way and away from it, to `STAND_CLEAR_M` from its
+/// centre line (`ways_off_wall`, 2026-10-22: on the ground floor nothing else did). Of the points found,
 /// one reached from the spot without crossing a wall that stands on that floor
 /// (`wall_collision::wall_segments` at a body's height there, its doorways open; a guard's rail
 /// does not count, being the edge of the opening a spot over it is moved off) is taken before a
 /// nearer one through a wall, so a spot in a walled stair's flight comes out at its foot or its
-/// top, not into the room beside it. Each candidate is checked with `standing_on_clear_of`, so a
+/// top, not into the room beside it, and a spot beside a wall stays on its side. Each candidate is
+/// checked with `standing_on_clear_of`, so a
 /// spot with too little room over it is never given. A spot that is already a place to stand comes
 /// back as it is.
 ///
@@ -353,18 +476,16 @@ pub fn nearest_standing(hs: &HomeStructure, k: usize, x: f32, z: f32) -> Option<
 /// to one side), and the search starts from there: the room it looks in, the ways out of a solid
 /// piece and the crossings; the distances are still measured from the spot itself.
 pub fn nearest_standing_clear_of(hs: &HomeStructure, k: usize, x: f32, z: f32, keep_out: &[KeepOut]) -> Option<(f32, f32)> {
-    if standing_on_clear_of(hs, k, x, z, keep_out).is_ok() {
-        return Some((x, z));
-    }
     let storeys = hs.storeys();
     let floor = storeys.get(k)?.floor;
+    let wall_segs = storey_walls(hs, floor);
+    if standing_among(hs, k, x, z, keep_out, &wall_segs).is_ok() {
+        return Some((x, z));
+    }
     let c = STAND_CLEAR_M;
     let mut keeps = solid_keep_outs(hs, k);
+    keeps.extend(low_keep_outs(hs, k));
     keeps.extend(keep_out.iter().cloned());
-    let wall_segs: Vec<wall_collision::WallSegment> = wall_collision::wall_segments(hs)
-        .into_iter()
-        .filter(|s| s.kind == SegmentKind::Wall && s.stops_body(floor + EYE_HEIGHT_M))
-        .collect();
     let walls: Vec<[f32; 4]> = wall_segs.iter().map(|s| [s.a.0, s.a.1, s.b.0, s.b.1]).collect();
     // Where the search starts from: the spot, or where the walk puts a body on a wall's line.
     let on_a_line = wall_segs.iter().any(|s| distance_to_segment((x, z), s.a, s.b) < ON_LINE_M);
@@ -384,23 +505,28 @@ pub fn nearest_standing_clear_of(hs: &HomeStructure, k: usize, x: f32, z: f32, k
                 continue; // narrower than a body
             }
             let clamp = |p: (f32, f32)| (p.0.clamp(x0, x1), p.1.clamp(z0, z1));
-            // The spot brought into the area, then out of any solid piece it is in, twice over (out
-            // of one and, when that lands in another, out of that).
+            // The spot brought into the area, then out of any solid piece it is in and off any wall
+            // it is too near (2026-10-22: a ground wall too), three times over (out of one and,
+            // when that lands in or near another, out of that: a corner's two walls, a piece by a
+            // wall).
             let mut found = vec![clamp((sx, sz))];
             let mut from = 0;
-            for _ in 0..2 {
+            for _ in 0..3 {
                 let to = found.len();
                 for i in from..to {
                     let p = found[i];
                     for ko in keeps.iter().filter(|ko| ko.holds(p.0, p.1)) {
                         found.extend(ko.ways_out(p.0, p.1, c).map(clamp));
                     }
+                    for s in wall_segs.iter().filter(|s| distance_to_segment(p, s.a, s.b) < c) {
+                        found.extend(ways_off_wall(p, s, c).into_iter().flatten().map(clamp));
+                    }
                 }
                 from = to;
             }
             for p in found {
                 let rank = (wall_collision::sight_blocked((sx, sz), p, &walls), (p.0 - x).hypot(p.1 - z));
-                if best.is_none_or(|(_, r)| rank < r) && standing_on_clear_of(hs, k, p.0, p.1, keep_out).is_ok() {
+                if best.is_none_or(|(_, r)| rank < r) && standing_among(hs, k, p.0, p.1, keep_out, &wall_segs).is_ok() {
                     best = Some((p, rank));
                 }
             }
@@ -432,10 +558,35 @@ const ON_LINE_M: f32 = 1e-3;
 
 /// How far the point `p` is from the segment `a`..`b` (plan, metres).
 fn distance_to_segment(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+    let q = closest_on_segment(p, a, b);
+    (p.0 - q.0).hypot(p.1 - q.1)
+}
+
+/// The point of the segment `a`..`b` nearest `p` (plan).
+fn closest_on_segment(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> (f32, f32) {
     let (dx, dz) = (b.0 - a.0, b.1 - a.1);
     let len2 = dx * dx + dz * dz;
     let t = if len2 < 1e-12 { 0.0 } else { (((p.0 - a.0) * dx + (p.1 - a.1) * dz) / len2).clamp(0.0, 1.0) };
-    (p.0 - (a.0 + dx * t)).hypot(p.1 - (a.1 + dz * t))
+    (a.0 + dx * t, a.1 + dz * t)
+}
+
+/// The ways off a wall's centre line `s` for a spot `p` too near it (`nearest_standing_clear_of`),
+/// each `clear` (and a millimetre) from the point of the line nearest it: straight across the wall
+/// to either side, and straight away from it (past its end, round the end's cap). The search keeps
+/// the one it reaches without crossing a wall, so a spot beside a wall stays on its own side.
+fn ways_off_wall(p: (f32, f32), s: &WallSegment, clear: f32) -> [Option<(f32, f32)>; 3] {
+    let q = closest_on_segment(p, s.a, s.b);
+    let r = clear + 1e-3;
+    let (dx, dz) = (s.b.0 - s.a.0, s.b.1 - s.a.1);
+    let len = dx.hypot(dz);
+    let across = (len > 1e-6).then(|| (-dz / len, dx / len));
+    let (ox, oz) = (p.0 - q.0, p.1 - q.1);
+    let away = ox.hypot(oz);
+    [
+        across.map(|n| (q.0 + n.0 * r, q.1 + n.1 * r)),
+        across.map(|n| (q.0 - n.0 * r, q.1 - n.1 * r)),
+        (away > 1e-6).then(|| (q.0 + ox / away * r, q.1 + oz / away * r)),
+    ]
 }
 
 #[cfg(test)]
@@ -651,5 +802,95 @@ pub(crate) mod tests {
         assert_eq!(standing_on(&low, 2, 5.0, 5.0), Err(NoStanding::Low), "1.0 m under the roof");
         assert_eq!(standing_on(&low, 0, 2.0, 2.0), Err(NoStanding::Low), "0.75 m under the slab at 1.0");
         assert_eq!(standing_on(&low, 1, 2.0, 2.0), Ok(()), "on the slab at 1.0, 3.75 m to the one at 5.0");
+    }
+
+    /// A 10 x 10 m body 6 m tall with a train platform (3 x 0.4 x 8) raised to 0.2 and turned to lie
+    /// along x (x 1 to 9, z 3.5 to 6.5), so its top is 0.6 m up: a step, which the walk climbs.
+    /// `slab` puts a floor over the whole body at 2.6 (its underside 2.35), under which the
+    /// platform's top has 1.75 m over it, too little to stand on, while the floor beside it has 2.35.
+    pub(crate) fn step_high_platform(slab: bool) -> HomeStructure {
+        let floors = if slab { "floors: [(a: (0.0, 0.0), b: (10.0, 10.0), top: 2.6)]," } else { "" };
+        ron::from_str(&format!(
+            "(width: 10.0, depth: 10.0, height: 6.0, {floors} \
+             structures: [(id: \"train-1\", type_id: \"train\", pos: (5.0, 0.2, 5.0), rot_deg: 90.0)])"
+        ))
+        .expect("the step-high platform parses")
+    }
+
+    /// A LOW PIECE WHOSE TOP HAS TOO LITTLE ROOM OVER IT IS NO PLACE TO STAND, AND NEITHER IS A
+    /// FLOOR UNDER A DECK OVERHEAD (the increment 7 follow-ups, 2026-10-22). The walk steps a body
+    /// onto any piece no more than a step over its floor (`Footing::floor_under`), so a body put on a
+    /// platform 0.6 m high stands on its top: under a floor at 2.6 that top has 1.75 m over it, and
+    /// the spot is no place to stand (`NoStanding::Low`); the nearest place is on the floor beside
+    /// the platform, off its footprint. Open to the roof the top is a place to stand, and a body put
+    /// there stands on it (`stands_at`, 0.6). A deck raised with its foot at 1.8 over the floor is a
+    /// ceiling 1.8 m up, as the footing reads it (`Footing::ceiling_over`): the floor under it is no
+    /// place to stand either.
+    ///
+    /// Seen red first (2026-10-22) with the low pieces' tops not counted (only a piece more than a
+    /// step up was): "on the platform 0.6 m up under the floor at 2.6 / left: Ok(()) / right:
+    /// Err(Low)".
+    #[test]
+    fn a_low_piece_with_too_little_room_over_it_is_no_place_to_stand() {
+        let roofed = step_high_platform(true);
+        assert_eq!(standing_on(&roofed, 0, 4.0, 5.0), Err(NoStanding::Low), "on the platform 0.6 m up under the floor at 2.6");
+        let (sx, sz) = nearest_standing(&roofed, 0, 4.0, 5.0).expect("a place to stand beside the platform");
+        assert!(!(1.0..=9.0).contains(&sx) || !(3.5..=6.5).contains(&sz), "off the platform under the floor: ({sx}, {sz}) is on it");
+        assert_eq!(standing_on(&roofed, 0, sx, sz), Ok(()), "the place given off the platform, ({sx}, {sz})");
+        assert_eq!(stands_at(&roofed, 0, sx, sz), Some(0.0), "beside the platform, on the floor");
+        let open = step_high_platform(false);
+        assert_eq!(standing_on(&open, 0, 4.0, 5.0), Ok(()), "on the platform open to the roof");
+        assert!(stands_at(&open, 0, 4.0, 5.0).is_some_and(|t| (t - 0.6).abs() < 1e-4), "on the platform open to the roof, its top: {:?}", stands_at(&open, 0, 4.0, 5.0));
+        assert_eq!(stands_at(&open, 0, 0.5, 0.5), Some(0.0), "away from the platform, the floor");
+        let deck: HomeStructure =
+            ron::from_str("(width: 10.0, depth: 10.0, height: 6.0, structures: [(id: \"deck-1\", type_id: \"deck\", pos: (5.0, 1.8, 5.0))])").expect("the deck parses");
+        assert_eq!(standing_on(&deck, 0, 5.0, 5.0), Err(NoStanding::Low), "under a deck whose foot is 1.8 m up");
+        assert_eq!(standing_on(&deck, 0, 8.0, 8.0), Ok(()), "beside the deck");
+    }
+
+    /// A 10 x 10 m body 3 m tall parted by a ground wall along z 5 (its centre line), 0.1 m thick.
+    fn parted_ground() -> HomeStructure {
+        ron::from_str("(width: 10.0, depth: 10.0, height: 3.0, walls: [(a: (0.0, 5.0), b: (10.0, 5.0), height: 3.0, thickness: Some(0.1))])")
+            .expect("the parted ground parses")
+    }
+
+    /// A SPOT ON A GROUND-FLOOR WALL IS NO PLACE TO STAND (the increment 7 follow-ups, 2026-10-22).
+    /// Only the upper floors kept a body `STAND_CLEAR_M` in from their rooms' edges, where their
+    /// walls stand, so on the ground floor a spot exactly on an interior wall was a place to stand,
+    /// and a body put there was pushed out of the wall to whichever side the sweep chose. Every
+    /// storey now keeps that far from the centre line of every wall that stands across a body there:
+    /// on the parted ground, a spot on the wall's line and one 0.3 m off it are refused (`Edge`),
+    /// one 0.5 m off it is taken; from 0.2 m off it the nearest place is 0.45 m off it on the same
+    /// side, and from the line itself it is on the side the walk puts a body standing there
+    /// (`wall_collision::resolve`). On the shipped homestead, the middle of a ground wall's solid
+    /// span is refused too.
+    ///
+    /// Seen red first (2026-10-22) with only the upper floors checking room edges: "on the ground
+    /// wall's centre line / left: Ok(()) / right: Err(Edge)".
+    #[test]
+    fn a_spot_on_a_ground_floor_wall_is_no_place_to_stand() {
+        let h = parted_ground();
+        assert_eq!(standing_on(&h, 0, 5.0, 5.0), Err(NoStanding::Edge), "on the ground wall's centre line");
+        assert_eq!(standing_on(&h, 0, 5.0, 5.3), Err(NoStanding::Edge), "0.3 m off the ground wall");
+        assert_eq!(standing_on(&h, 0, 5.0, 5.5), Ok(()), "0.5 m off the ground wall");
+        let near = |x: f32, z: f32| nearest_standing(&h, 0, x, z).map(|(a, b)| ((a * 100.0).round() / 100.0, (b * 100.0).round() / 100.0));
+        assert_eq!(near(5.0, 5.2), Some((5.0, 5.45)), "from 0.2 m south of the wall, its own side");
+        assert_eq!(near(5.0, 4.8), Some((5.0, 4.55)), "from 0.2 m north of the wall, its own side");
+        let eye = glam::Vec3::new(5.0, EYE_HEIGHT_M, 5.0);
+        let pushed = wall_collision::resolve(eye, eye, wall_collision::PLAYER_RADIUS, &wall_collision::wall_segments(&h), &[]);
+        let want = if pushed.z > 5.0 { (5.0, 5.45) } else { (5.0, 4.55) };
+        assert_eq!(near(5.0, 5.0), Some(want), "from the wall's line, the walk's side ({pushed:?})");
+        // The shipped homestead: the middle of the first ground wall span over a metre long inside
+        // the shell (a solid wall standing from the ground floor, no door in it).
+        let home = homestead();
+        let span = wall_collision::wall_segments(&home)
+            .into_iter()
+            .find(|s| {
+                let inside = |p: (f32, f32)| p.0 > 1.0 && p.0 < home.width - 1.0 && p.1 > 1.0 && p.1 < home.depth - 1.0;
+                s.kind == SegmentKind::Wall && s.y0 < 0.01 && s.y1 > 2.0 && inside(s.a) && inside(s.b) && (s.b.0 - s.a.0).hypot(s.b.1 - s.a.1) > 1.0
+            })
+            .expect("the homestead has a ground wall");
+        let mid = ((span.a.0 + span.b.0) * 0.5, (span.a.1 + span.b.1) * 0.5);
+        assert_eq!(standing_on(&home, 0, mid.0, mid.1), Err(NoStanding::Edge), "the middle of the homestead's ground wall {:?} to {:?}", span.a, span.b);
     }
 }

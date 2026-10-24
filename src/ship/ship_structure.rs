@@ -3105,10 +3105,13 @@ mod tests {
     /// Since placed box pieces collide (the increment 7 follow-ups, 2026-10-21) the home's train
     /// platform, train-1, adds 9 collision segments (`wall_collision::box_faces`: its four sides,
     /// the stadium of its core and a circle in each corner; 0.4 m tall at the floor, it stops
-    /// nobody walking on the deck): 281 and 208, from 272 and 199. Sight is unchanged.
-    const WALL_SEGMENTS_BEFORE: usize = 281;
+    /// nobody walking on the deck): 281 and 208, from 272 and 199. Sight is unchanged. Since the
+    /// frames' posts collide (2026-10-22, `wall_collision::frame_posts`) the home's elevator-1 and
+    /// its two teleporters add 2 segments each: 287 and 214. Sight is unchanged (the pieces hide
+    /// labels by their solids, `ship::sight::solid_pieces`, not by segments).
+    const WALL_SEGMENTS_BEFORE: usize = 287;
     const SIGHT_SEGMENTS_BEFORE: usize = 274;
-    const HOME_SEGMENTS_BEFORE: usize = 208;
+    const HOME_SEGMENTS_BEFORE: usize = 214;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
     /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
@@ -3189,8 +3192,9 @@ mod tests {
         // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
         // 305 since increment 7's review (2026-10-21): the same 180 walls and guards, 72 lintels
         // over the doorways and the corridors' cuts, and stairs-1's 53 faces. 314 since placed box
-        // pieces collide (2026-10-21): train-1's 9 (`HOME_SEGMENTS_BEFORE`).
-        assert_eq!(ship_wall_segments(&ship).len(), 314, "the whole ship's collision segments");
+        // pieces collide (2026-10-21): train-1's 9 (`HOME_SEGMENTS_BEFORE`). 320 since the frames'
+        // posts collide (2026-10-22): elevator-1's and the two teleporters', 2 each.
+        assert_eq!(ship_wall_segments(&ship).len(), 320, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);

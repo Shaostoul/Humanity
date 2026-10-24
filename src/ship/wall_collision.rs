@@ -201,7 +201,8 @@ pub fn door_panel_segment(center: Vec3, rotation: Quat, size: Vec3) -> WallSegme
 }
 
 /// Build the STATIC blocking segments from a home (and every guard piece placed in it on its own,
-/// ship homes increment 7, every stair, and every solid box piece, `box_faces`): the 4 perimeter
+/// ship homes increment 7, every stair, every solid box piece, `box_faces`, and every frame's posts,
+/// `frame_posts`): the 4 perimeter
 /// walls + each interior wall's SOLID
 /// pier spans. DOOR apertures are cut out from their foot to their head (so a doorway is a
 /// walk-through gap, with the wall over it a lintel); WINDOW spans stay solid (you can't walk
@@ -300,16 +301,18 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
         let kind = if guard { SegmentKind::Guard } else { SegmentKind::Wall };
         wall_run(&mut segs, wall.a, wall.b, len, ht, (wy0, wy1), kind, &openings);
     }
-    // The pieces a walk is stopped by (not sight blockers: a balustrade is see-through, and a stair
-    // or a box hides no nameplate on the floor plan): a GUARD placed on its own, every STAIR, and
-    // every SOLID BOX (the increment 7 follow-ups, 2026-10-21: a placed wall piece, a train
-    // platform, a road or a deck was walked through).
+    // The pieces a walk is stopped by (not sight blockers here: a balustrade is see-through, and the
+    // stairs and boxes hide labels by their solids, `ship::sight::solid_pieces`): a GUARD placed on
+    // its own, every STAIR, every SOLID BOX (the increment 7 follow-ups, 2026-10-21: a placed wall
+    // piece, a train platform, a road or a deck was walked through), and the POSTS of every FRAME
+    // (an elevator, a teleporter; 2026-10-22: a frame was hollow to the walk, posts and all).
     if !sight {
         for ps in &home.structures {
             let Some(ty) = structure::structure_type(&ps.type_id) else { continue };
             match ty.kind {
                 StructureKind::Guard => segs.push(guard_piece_segment(ps, ty)),
                 StructureKind::Stairs => stair_faces(&mut segs, ps, ty),
+                _ if ty.shape == MeshShape::Frame => frame_posts(&mut segs, ps, ty),
                 _ => {
                     if let Some(top) = structure::solid_box_height(ty) {
                         box_faces(&mut segs, ps.pos, ps.rot_deg, (ty.size.0, ty.size.2), top);
@@ -373,6 +376,36 @@ fn box_faces(segs: &mut Vec<WallSegment>, pos: (f32, f32, f32), rot_deg: f32, si
             let at = (sx * (hw - k), sz * (hd - k));
             segs.push(part(at, at, k));
         }
+    }
+}
+
+/// THE POSTS OF A FRAME (a Frame row: an elevator, a teleporter; the increment 7 follow-ups,
+/// 2026-10-22) as the walk is stopped by them: each post (`structure::frame_post_width` across, the
+/// frame's whole depth deep, at the two sides of its width) a `SegmentKind::Wall` standing from the
+/// frame's foot to its top, one thick segment along the post's longer side whose round ends stay
+/// inside it, as a built piece's box is (`engine::build_place`'s `segment_of_box`). The open middle,
+/// the elevator's car and the teleporter's pad, is walked into from the open sides; the lintel over
+/// it is over every head.
+fn frame_posts(segs: &mut Vec<WallSegment>, ps: &PlacedStructure, ty: &StructureType) {
+    let (w, h, d) = ty.size;
+    let (hw, hd) = (w * 0.5, d * 0.5);
+    let t = structure::frame_post_width(ty).min(w * 0.5);
+    if hw <= 0.0 || hd <= 0.0 || h <= 0.0 {
+        return;
+    }
+    let (s, c) = ps.rot_deg.to_radians().sin_cos();
+    // A piece's local (x, z) at world (pos.x + x cos + z sin, pos.z - x sin + z cos)
+    // (`structure::structure_mesh`'s turn).
+    let world = |lx: f32, lz: f32| (ps.pos.0 + lx * c + lz * s, ps.pos.2 - lx * s + lz * c);
+    for side in [-1.0f32, 1.0] {
+        let mid = side * (hw - t * 0.5);
+        let (half_x, half_z) = (t * 0.5, hd);
+        let (a, b, half_thickness) = if half_z >= half_x {
+            (world(mid, -(half_z - half_x)), world(mid, half_z - half_x), half_x)
+        } else {
+            (world(mid - (half_x - half_z), 0.0), world(mid + (half_x - half_z), 0.0), half_z)
+        };
+        segs.push(WallSegment { a, b, half_thickness, y0: ps.pos.1, y1: ps.pos.1 + h, kind: SegmentKind::Wall });
     }
 }
 
@@ -930,7 +963,7 @@ mod tests {
     #[test]
     fn sight_passes_windows_and_doors_but_not_piers() {
         let h = home_with_window();
-        let sight = crate::ship::sight::SightBlockers { walls: sight_segments_with_shell_cuts(&h, &[]), slabs: Vec::new() };
+        let sight = crate::ship::sight::SightBlockers { walls: sight_segments_with_shell_cuts(&h, &[]), slabs: Vec::new(), pieces: Vec::new() };
         // A level line across the wall (z 5) at x and at the height y.
         let hidden = |x: f32, y: f32| sight.blocked(Vec3::new(x, y, 3.0), Vec3::new(x, y, 7.0));
         // Through the solid pier (x=1): blocked.
@@ -1968,6 +2001,40 @@ mod storey_walk_tests {
                 }
             }
         }
+    }
+
+    /// A TELEPORTER'S AND AN ELEVATOR'S FRAME POSTS STOP A WALK; THE PAD AND THE CAR BETWEEN THEM
+    /// DO NOT (the increment 7 follow-ups, 2026-10-22). A frame (`MeshShape::Frame`) is drawn as a
+    /// post at each side and a lintel over them (`structure::frame_post_width`), and was left out of
+    /// the walls as hollow, so a body walked through its posts. An elevator at (5, 0, 5), 1.8 m
+    /// square (its posts x 4.1 to 4.32 and 5.68 to 5.9, the whole 1.8 m deep), and a teleporter at
+    /// (2, 0, 8), 1.4 x 0.4 (its posts x 1.3 to 1.47 and 2.53 to 2.7): walking east into the
+    /// elevator's west post, and into the teleporter's, the body is held a body's radius off it;
+    /// walking north through the open side into the elevator's car, and onto the teleporter's pad,
+    /// it reaches the middle. The posts stop only the storey they stand on: a body upstairs (its
+    /// feet at 3.0, the frame's top) walks over them.
+    ///
+    /// Seen red first (2026-10-22) with the frames hollow to the walk: "the walk east went through
+    /// the elevator's west post to Vec3(4.4999986, 1.7, 5.0)".
+    #[test]
+    fn a_frames_posts_stop_a_walk_and_its_middle_does_not() {
+        let body: HomeStructure = ron::from_str(
+            "(width: 12.0, depth: 12.0, height: 6.0, structures: [ \
+               (id: \"elevator-1\", type_id: \"elevator\", pos: (5.0, 0.0, 5.0)), \
+               (id: \"teleporter-1\", type_id: \"teleporter\", pos: (2.0, 0.0, 8.0))])",
+        )
+        .expect("the test body parses");
+        let walls = wall_segments(&body);
+        let e = walk(Vec3::new(3.0, DOWN, 5.0), Vec3::new(4.5, DOWN, 5.0), &walls, &[]);
+        assert!(e.x < 4.1 - PLAYER_RADIUS + 0.01, "the walk east went through the elevator's west post to {e:?}");
+        let e = walk(Vec3::new(5.0, DOWN, 2.5), Vec3::new(5.0, DOWN, 5.0), &walls, &[]);
+        assert!((e - Vec3::new(5.0, DOWN, 5.0)).length() < 1e-3, "the walk north into the elevator's car stopped at {e:?}");
+        let e = walk(Vec3::new(0.5, DOWN, 8.0), Vec3::new(1.5, DOWN, 8.0), &walls, &[]);
+        assert!(e.x < 1.3 - PLAYER_RADIUS + 0.01, "the walk east went through the teleporter's west post to {e:?}");
+        let e = walk(Vec3::new(2.0, DOWN, 10.0), Vec3::new(2.0, DOWN, 8.0), &walls, &[]);
+        assert!((e - Vec3::new(2.0, DOWN, 8.0)).length() < 1e-3, "the walk onto the teleporter's pad stopped at {e:?}");
+        let e = walk(Vec3::new(3.0, UP, 5.0), Vec3::new(7.0, UP, 5.0), &walls, &[]);
+        assert!((e.x - 7.0).abs() < 1e-3, "upstairs, the elevator's posts under the floor stopped the walk at {e:?}");
     }
 
     /// The band itself: a segment stops a body only across its knee (`KNEE_M` over the feet) to

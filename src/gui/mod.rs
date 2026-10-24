@@ -810,8 +810,8 @@ pub struct GuiState {
     /// What blocks sight for the HUD's labels and the walk-up target (v0.975; in three
     /// dimensions since the review of ship homes increment 7, `ship::sight`), in the same world
     /// frame the labels project in (station_off applied): the static sight spans (windows open)
-    /// + live CLOSED doors, each standing between its own heights, + the SOLID floor slabs.
-    /// Rebuilt per frame by lib.rs. Empty = no occlusion (legacy layout, build editor, or not
+    /// + live CLOSED doors, each standing between its own heights, + the SOLID floor slabs, + the
+    /// solid pieces (placed boxes and stairs, 2026-10-22). Rebuilt per frame by lib.rs. Empty = no occlusion (legacy layout, build editor, or not
     /// near the home).
     pub sight_blockers: crate::ship::sight::SightBlockers,
     /// Index into machine_labels of the machine the player is currently looking at
@@ -4304,6 +4304,10 @@ pub struct SettingsState {
     /// reaches a shadowed surface and the sky-irradiance term fills it, which
     /// is what real shadows are. Lower values leak warm sunlight into shadow.
     pub shadow_strength: f32,
+    /// The camera aperture the Sun's glare is the diffraction of, millimetres (Settings > Graphics
+    /// > Light and sky, 2026-10-22; renderer/sun_disc.rs `aperture_from_setting_mm`): smaller
+    /// spreads the glare wider, as a phone camera's. 30 is a 75 mm lens at f/2.5.
+    pub sun_aperture_mm: f32,
     /// The one game clock (2026-09-27, systems::time; Settings > Gameplay >
     /// Time): the time speed (1 = real time, the only speed-up), hours in a
     /// day and days in a year.
@@ -4590,6 +4594,7 @@ impl Default for SettingsState {
             water_detail_depth: 20.0,
             sun_shadows: true,
             shadow_strength: 1.0,
+            sun_aperture_mm: crate::renderer::sun_disc::DEFAULT_APERTURE_MM,
             time_speed: crate::systems::time::DEFAULT_TIME_SPEED,
             hours_per_day: crate::systems::time::DEFAULT_HOURS_PER_DAY,
             days_per_year: crate::systems::time::DEFAULT_DAYS_PER_YEAR,

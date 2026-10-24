@@ -113,10 +113,11 @@ Maps increment 2 (v0.1539.0), the sky bodies list (v0.1540.0), recovery through 
 - **The planets' orbit rings cross the whole sky as faint green lines**, from the ground too (seen
   in the Sun's sunset capture, the operator's far-out screenshot): useful on the map, clutter in
   the sky; decide whether the sky draws them at all, or only near a body, or as a setting.
-- The Sun: the aperture (30 mm, dev key `sun_aperture_mm`) has no Settings control; the corona is
-  too faint to see until the engine has eye adaptation; within the last tenth of the radius the
-  limb law runs darker than measured (under half a pixel); `pipeline.rs` still calls the Sun's
-  material "the sun's radial glow". The home's glass roof now reads clear from inside by day (it
+- The Sun: the corona is too faint to see until the engine has eye adaptation; within the last
+  tenth of the radius the limb law runs darker than measured (under half a pixel). (Done
+  2026-10-22: the aperture is Settings > Graphics > Light and sky's "Sun glare: camera opening
+  (mm)", saved with the graphics settings, the dev key now a pin over it; `pipeline.rs` names the
+  Sun's material for what it is.) The home's glass roof now reads clear from inside by day (it
   was a grey haze lit from the far side): the operator may want to see it.
 - Two soft blue glows on the Maps overview (one by Mars and Earth, one lower right), not chased.
 
@@ -443,16 +444,24 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     pieces collide by their box and height (a raised deck is a ceiling too); a built box is solid to
     the editor's close and to the spawn a Save writes; a shut door stops E and Take down; elevator
     cars are keyed by ids; a spot on a wall's centre line is no longer moved through that wall;
-    stale comments and player-home.md's plan and walkthrough. Still open: `moves::on_my_storey` and
+    stale comments and player-home.md's plan and walkthrough. Fixed 2026-10-22 (the polish batch,
+    each with a test seen red first): the editor's close stands a player only on the floor or on a
+    top that is a place to stand, never stepped up onto by accident (`standing::stands_at`,
+    `Footing::floor_at`; a low piece's top needs room over it, a deck overhead is a ceiling); every
+    storey keeps a place to stand 0.45 m off every wall's centre line, the ground floor too;
+    teleporter and elevator frame posts collide (`wall_collision::frame_posts`), their pad and car
+    still walked into; placed boxes and stairs hide HUD labels behind them (`sight::PieceSolid`);
+    a machine selection is let go when the storey chosen is not its own; runs to the greenhouse's
+    g1 and g2 rise to the units' ports (each end kept under the ceiling really over it). Still
+    open: `moves::on_my_storey` and
     `stands_in_storey_of` (relay reach, quests) assume 3 m storeys (the relay holds no slabs);
     upstairs, slab occlusion costs +0.53 ms at 2560x1387 (pack the layer rows, cull runs per light
     tile: docs/design/room-gi.md, Floors between storeys); a jump from the stair's seventh step can
-    slip past a slab edge (walled by G1 in the homestead); the editor's close can step onto a piece
-    0.6 m up; on the ground floor a spot exactly on an interior wall still counts as a place to
-    stand (only upper floors check room edges); teleporter and elevator frame posts have no
-    collision (hollow frames); box pieces and stairs do not hide HUD labels; runs to the
-    greenhouse's g1 and g2 end at 2.70 m (the per-storey end clamp); a machine selection survives a
-    storey change (its handles hidden); the family mushroom tents settle at 68 to 82% humidity,
+    slip past a slab edge (walled by G1 in the homestead); pieces built with the construction
+    system (`build_place::built_piece_boxes`) are unknown to `ship::standing`, so a close over one
+    lands on the floor and the walk then steps onto it as walking does; in the ground storey's
+    cut-away, the greenhouse risers to g1 and g2 are cut at 3.0 m, 0.24 m short of the ports drawn
+    over them; the family mushroom tents settle at 68 to 82% humidity,
     under the oyster's 85% (known); `just launch-bg` and hand-typed boots skip the rigs' boot lock.
   - **Next for bounced light: probe streaming** (operator's question, 2026-10-20, "is there any
     other way?"): only rooms near the player hold probes, so the ship's size stops mattering and

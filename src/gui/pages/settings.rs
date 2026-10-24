@@ -3161,6 +3161,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Visible light shafts when facing the sun through clouds or terrain gaps. 0 turns the pass off.");
+        // The Sun's glare (2026-10-21, renderer/sun_disc.rs) is the diffraction of the camera's
+        // opening, and how wide it spreads depends on how wide that opening is. It was a dev key
+        // only (showcase `sun_aperture_mm`) until the GUI-first rule caught it (2026-10-22).
+        if widgets::labeled_slider(ui, theme, "Sun glare: camera opening (mm)", &mut state.settings.sun_aperture_mm, 1.0..=100.0) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "How wide the camera's opening (its aperture) is, in millimetres. The bright glow round the Sun is light bent at the edge of that opening, so a SMALLER opening spreads the glare WIDER, the way a phone camera's does (a phone's opening is about 1 to 4 mm). A larger one keeps it tight round the Sun, like a big camera lens. 30 is a 75 mm lens at f/2.5. Applies live; costs nothing.");
         if widgets::labeled_slider(ui, theme, "Ambient occlusion", &mut state.settings.ssao_strength, 0.0..=1.5) {
             state.settings_dirty = true;
         }

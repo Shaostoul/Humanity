@@ -356,6 +356,40 @@ fn the_editors_save_never_puts_the_spawn_inside_a_built_box() {
     }
 }
 
+/// A MACHINE SELECTION FOLLOWS THE STOREY (the increment 7 follow-ups, 2026-10-22). Choosing
+/// another storey in the build editor kept the selected machine selected, its handles hidden by the
+/// cut-away when it stood above the storey chosen, so the right panel worked on a machine nobody
+/// could see. On the shipped homestead with its household's machines: the bed upstairs (bed_1, on
+/// the slab at 3.0) selected on the upper storey is let go when the ground storey is chosen; the
+/// second bedroom's bed (bed_2, on the ground) selected there is kept when the ground storey is
+/// chosen again and let go when the upper one is; a storey chosen that is already the storey keeps
+/// it.
+///
+/// Seen red first (2026-10-22) with `choose_storey` leaving the machine selection alone: "the bed
+/// upstairs, the ground storey chosen / left: Some(\"bed_1\") / right: None".
+#[test]
+fn a_machine_selection_follows_the_storey() {
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
+    let hz = ship.home_zone_index();
+    let mut g = crate::gui::GuiState::default();
+    g.ship_structure = Some(ship);
+    g.home_machines = crate::machines::MachineHome::load(&data.join("machines").join("home.ron"));
+    assert!(g.home_machines.is_some(), "the household's machines load");
+    g.construction_zone = hz;
+    g.construction_storeys.chosen = 1;
+    g.construction_machine_selected = Some("bed_1".into());
+    choose_storey(&mut g, 1);
+    assert_eq!(g.construction_machine_selected.as_deref(), Some("bed_1"), "the bed upstairs, its own storey chosen again");
+    choose_storey(&mut g, 0);
+    assert_eq!(g.construction_machine_selected.as_deref(), None, "the bed upstairs, the ground storey chosen");
+    g.construction_machine_selected = Some("bed_2".into());
+    choose_storey(&mut g, 0);
+    assert_eq!(g.construction_machine_selected.as_deref(), Some("bed_2"), "the bed downstairs, the ground storey chosen again");
+    choose_storey(&mut g, 1);
+    assert_eq!(g.construction_machine_selected.as_deref(), None, "the bed downstairs, the upper storey chosen");
+}
+
 /// THE CUT-AWAY LEAVES OUT WHAT STANDS OVER IT, NOT ONLY WHAT IS IN THE BODY (ship homes increment
 /// 7 review, 2026-10-21). The machines, their screens (which share the machine's position), the
 /// door panels and the elevator cars are drawn from the whole ship, not the cut body, so `CutAway`

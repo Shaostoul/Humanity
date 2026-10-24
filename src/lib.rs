@@ -5515,6 +5515,8 @@ mod native_app {
                         blockers.walls.extend(state.sight_colliders.iter().map(|s| s.moved(off)));
                         if let Some(ship) = state.gui_state.ship_structure.as_ref() {
                             blockers.slabs.extend(crate::ship::sight::ship_solid_slabs(ship).map(|b| b.moved(off)));
+                            // The placed boxes and stairs, by their solids (2026-10-22).
+                            blockers.pieces.extend(crate::ship::sight::ship_solid_pieces(ship).map(|p| p.moved(off)));
                         }
                         for (i, (p, open)) in state.door_panels.iter().enumerate() {
                             // Same blocking rule as the collision doors, except
@@ -9431,6 +9433,11 @@ mod native_app {
                         state.renderer.sun_disc_pad = [[0.0; 4]; 2];
                         state.renderer.sun_frame = None;
                         state.renderer.sun_air_los = [1.0; 3];
+                        // The glare's aperture: Settings > Graphics > Light and sky (2026-10-22),
+                        // unless the showcase pins one (`sun_aperture_mm`).
+                        state.renderer.sun_aperture_m = state.renderer.sun_aperture_pin.unwrap_or_else(|| {
+                            crate::renderer::sun_disc::aperture_from_setting_mm(state.gui_state.settings.sun_aperture_mm)
+                        });
 
                         // Temporal clouds (phase 4): cleared each frame; the
                         // cloud branch below re-arms it for the (single)

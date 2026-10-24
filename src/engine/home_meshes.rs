@@ -2270,6 +2270,16 @@ impl RunSite {
         }
         lowest_ceiling_above(&self.slabs, h, o, at)
     }
+
+    /// The ceiling a run's END at `p` is kept under (`route_run`; the increment 7 follow-ups,
+    /// 2026-10-22): the ceiling really over it from the floor it stands on, `foot` (world metres:
+    /// the underside of the first slab over that floor there, else the roof), as a hanger reaches
+    /// (`hanger_top`); outside the home's box, its level's ceiling, `level_ceiling`. Measured from
+    /// the floor, not from the end, so an end that came to be over a slab (a port gizmo over a unit
+    /// hung under it) is still held under that slab.
+    pub(crate) fn end_ceiling(&self, p: Vec3, foot: f32, level_ceiling: f32) -> f32 {
+        self.hanger_top(Vec3::new(p.x, foot, p.z), level_ceiling)
+    }
 }
 
 /// The `RunSite` of `ship`.
@@ -2321,15 +2331,19 @@ const END_UNDER_CEILING_M: f32 = 0.05;
 ///   the ceiling (the air handlers, 2.5 m up) was in or over the floor above, and a run to it used
 ///   to rise through that floor and cross the upper storey. Since the 2026-10-21 follow-ups the
 ///   gizmos keep under the ceiling over their machine themselves (`gizmo_room`); this still holds
-///   every end, a conduit node's too, under its level's ceiling.
+///   every end, a conduit node's too, under the ceiling over it.
+/// - that ceiling is the one REALLY over the end from its floor (`RunSite::end_ceiling`: the
+///   slab's underside, else the roof; the increment 7 follow-ups, 2026-10-22), not its storey's
+///   service level: in the double-height greenhouse, open to its 6 m roof, the runs to the air
+///   handlers g1 and g2 (hung 2.7 m up) ended at the level's 2.70 m, at the bottom of the unit,
+///   short of its port; they rise to the port now, by a riser from the service height.
 pub(crate) fn route_run(site: &RunSite, run: &ConduitRun) -> (crate::ship::conduits::ConduitRoute, f32, f32) {
     use crate::ship::conduits::{add_slab_passthroughs, route_conduit, ConduitKind};
     let kind = ConduitKind::for_resource(&run.kind);
     let (service_y, ceiling) = run_level(&site.levels, run.foot_a, run.foot_b);
-    // Each end, kept under its own storey's ceiling (the level's: a unit hung in the double-height
-    // greenhouse takes its run under the ground storey's ceiling height too, inside its body).
+    // Each end, kept under the ceiling over it from its floor.
     let keep = |p: Vec3, foot: f32| {
-        let top = run_level(&site.levels, foot, foot).1 - END_UNDER_CEILING_M;
+        let top = site.end_ceiling(p, foot, run_level(&site.levels, foot, foot).1) - END_UNDER_CEILING_M;
         if p.y > top { Vec3::new(p.x, top.max(foot), p.z) } else { p }
     };
     let (a, b) = (keep(run.a, run.foot_a), keep(run.b, run.foot_b));

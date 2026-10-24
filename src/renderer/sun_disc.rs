@@ -54,7 +54,8 @@
 //!   irradiance, convolved with the limb-darkened disc ([`disc_glare`]), per
 //!   colour channel at the channel's dominant wavelength. It conserves energy:
 //!   the glare's light is light the disc does not keep ([`spill_fraction`]).
-//!   The aperture is [`GLARE_APERTURE_M`]: a narrower one spreads the glare
+//!   The aperture is a setting (Settings > Graphics > Light and sky, 30 mm,
+//!   [`GLARE_APERTURE_M`], by default): a narrower one spreads the glare
 //!   wider (the scale is lambda / D). The human eye's own glare (Spencer,
 //!   Shirley, Zimmerman & Greenberg 1995, "Physically-Based Glare Effects for
 //!   Digital Images", the PSF of Vos 1984) was considered and not used: at
@@ -112,9 +113,32 @@ pub const CHANNEL_WAVELENGTH_M: [f64; 3] = [611.4e-9, 549.1e-9, 464.3e-9];
 
 /// The camera's entrance pupil, metres: the aperture whose diffraction is the
 /// glare. 30 mm is a 75 mm lens at f/2.5 (or a 50 mm at f/1.7). Narrower
-/// spreads the glare wider: the angular scale is lambda / D. Dev override:
-/// the showcase key `sun_aperture_mm`.
+/// spreads the glare wider: the angular scale is lambda / D. The default of
+/// Settings > Graphics > Light and sky's "Sun glare: camera opening (mm)"
+/// ([`aperture_from_setting_mm`]); dev pin: the showcase key `sun_aperture_mm`.
 pub const GLARE_APERTURE_M: f64 = 0.030;
+
+/// The narrowest and the widest aperture the glare takes, millimetres
+/// (Settings, and the showcase key `sun_aperture_mm`): 0.5 mm is a phone's
+/// ultra-wide camera (a 1.5 mm lens at f/2.4 is 0.6 mm), 1000 mm a big
+/// telescope's mirror.
+pub const APERTURE_MIN_MM: f32 = 0.5;
+pub const APERTURE_MAX_MM: f32 = 1000.0;
+
+/// [`GLARE_APERTURE_M`] in millimetres: the setting's default.
+pub const DEFAULT_APERTURE_MM: f32 = 30.0;
+
+/// The glare's aperture, metres, from the Settings one in millimetres
+/// (Settings > Graphics > Light and sky, `SettingsState::sun_aperture_mm`;
+/// and the showcase key `sun_aperture_mm`): held between
+/// [`APERTURE_MIN_MM`] and [`APERTURE_MAX_MM`], the default
+/// ([`GLARE_APERTURE_M`]) where it is not a number.
+pub fn aperture_from_setting_mm(mm: f32) -> f64 {
+    if !mm.is_finite() {
+        return GLARE_APERTURE_M;
+    }
+    mm.clamp(APERTURE_MIN_MM, APERTURE_MAX_MM) as f64 / 1000.0
+}
 
 /// Below this many pixels of radius the drawn disc stops shrinking and dims
 /// instead (energy kept), so a far Sun stays a point of the right brightness.
@@ -580,5 +604,30 @@ mod tests {
         let wall = super::super::key_lights::CELESTIAL_SUN_I as f64 / PI;
         let mean_y = (super::super::key_lights::CELESTIAL_SUN_I as f64) / (PI * r * r);
         assert!((mean_y / wall / 46_000.0 - 1.0).abs() < 0.05, "the disc is {:.0} walls bright", mean_y / wall);
+    }
+
+    /// THE APERTURE IS A SETTING (the increment 7 follow-ups, 2026-10-22: it was the showcase key
+    /// `sun_aperture_mm` alone, against the GUI-first rule). Settings > Graphics > Light and sky
+    /// gives it in millimetres (`SettingsState::sun_aperture_mm`, saved with the other graphics
+    /// settings), and the glare takes it in metres, held between `APERTURE_MIN_MM` and
+    /// `APERTURE_MAX_MM`, the default where it is not a number; and lib.rs hands it to the renderer
+    /// every frame unless the showcase pins one. A narrower aperture spreads the glare wider:
+    /// a 3 mm phone camera's glare constant is ten times a 30 mm lens's.
+    ///
+    /// Seen red first (2026-10-22) with the setting not read (the aperture always 30 mm): "a
+    /// 3 mm setting / left: 0.03 / right: 0.003".
+    #[test]
+    fn the_aperture_is_a_setting() {
+        assert_eq!(aperture_from_setting_mm(3.0), 0.003, "a 3 mm setting");
+        assert_eq!(aperture_from_setting_mm(30.0), GLARE_APERTURE_M, "the default setting is the default aperture");
+        assert_eq!(aperture_from_setting_mm(0.0), APERTURE_MIN_MM as f64 / 1000.0, "held at the narrowest");
+        assert_eq!(aperture_from_setting_mm(5000.0), APERTURE_MAX_MM as f64 / 1000.0, "held at the widest");
+        assert_eq!(aperture_from_setting_mm(f32::NAN), GLARE_APERTURE_M, "not a number: the default");
+        assert!((glare_coeff(1, aperture_from_setting_mm(3.0)) / glare_coeff(1, GLARE_APERTURE_M) - 10.0).abs() < 1e-6, "a narrower aperture spreads the glare wider");
+        let lib = include_str!("../lib.rs").replace("\r\n", "\n");
+        assert!(
+            lib.contains("sun_disc::aperture_from_setting_mm(state.gui_state.settings.sun_aperture_mm)"),
+            "src/lib.rs never hands the Settings aperture to the renderer"
+        );
     }
 }
