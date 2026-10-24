@@ -896,6 +896,20 @@ pub enum RelayMessage {
         message: String,
     },
 
+    /// One of the sender's channel chat lines was NOT posted (2026-10-24): which one (its
+    /// `timestamp`, which the sender's own copy on the page also carries) and why, so the page can
+    /// mark that copy "not sent" instead of leaving it looking sent. Reasons: `too_long` (with
+    /// `limit`), `too_fast`, `new_account_wait`. Delivered only to `to`, which is never sent.
+    #[serde(rename = "chat_refused")]
+    ChatRefused {
+        #[serde(skip_serializing, default)]
+        to: String,
+        timestamp: u64,
+        reason: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        limit: Option<usize>,
+    },
+
     /// A game message for some players only, by key (ship homes increment 4: delivery to the
     /// players who have a mover in view, handlers/game_interest.rs). Made by the relay, never read
     /// from a client or written as is: the send loop turns it into a system message.
@@ -3676,6 +3690,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
+            // A refused chat line: only its sender is told (`to` is never serialised).
+            if let RelayMessage::ChatRefused { ref to, .. } = msg {
+                if to != &my_key_for_broadcast {
+                    continue;
+                }
+            }
+
             // Private messages, and game messages for some players (GameTo): only deliver to the
             // targeted peers.
             let targeted = match &msg {
@@ -3939,6 +3960,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 ),
                                             };
                                             let _ = state_clone.broadcast_tx.send(private);
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
+                                                to: my_key_for_recv.clone(), timestamp, reason: "new_account_wait".into(), limit: None,
+                                            });
                                             continue;
                                         }
                                     }
@@ -3965,12 +3989,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             ),
                                         };
                                         let _ = state_clone.broadcast_tx.send(private);
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
+                                            to: my_key_for_recv.clone(), timestamp, reason: "too_long".into(), limit: Some(limit),
+                                        });
                                         continue;
                                     }
                                 }
 
                                 // Channel chat's send limiter (handlers/chat_rate.rs); bots and admins skip it.
                                 if !crate::relay::handlers::chat_rate::allow(&state_clone, &my_key_for_recv, &user_role).await {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
+                                        to: my_key_for_recv.clone(), timestamp, reason: "too_fast".into(), limit: None,
+                                    });
                                     continue;
                                 }
 
@@ -3987,6 +4017,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         message: format!("Message too long ({} chars, max {}). Please shorten it.", user_text_len.saturating_sub(1), char_limit),
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ChatRefused {
+                                        to: my_key_for_recv.clone(), timestamp, reason: "too_long".into(), limit: Some(char_limit),
+                                    });
                                     continue;
                                 }
 

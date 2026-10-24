@@ -45,7 +45,15 @@ window.HOS_I18N_EN = {
     "send": "Send",
     "online": "online",
     "connected": "Connected",
-    "disconnected": "Disconnected"
+    "disconnected": "Disconnected",
+    "line_sending": "Sending...",
+    "line_unconfirmed": "Not confirmed by the server yet.",
+    "line_not_sent": "Not sent.",
+    "line_not_sent_too_long": "Not sent: longer than your limit of {{limit}} characters.",
+    "line_not_sent_too_fast": "Not sent: sending too fast. Wait a moment and try again.",
+    "line_not_sent_new_account": "Not sent: new accounts wait a little before posting.",
+    "line_edit_again": "Edit and send again",
+    "line_edit_again_hint": "Puts your words back in the message box, so you can shorten them or wait a moment, then send them again."
   },
   "settings": {
     "language": "Language",

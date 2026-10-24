@@ -384,3 +384,34 @@ async fn a_pause_and_a_flood() {
     assert!(row["link"]["flow"]["pauses"].as_u64().unwrap() >= 2, "the admin API shows the pause: {row}");
     assert_eq!(row["link"]["cursor"]["seq"], json!(a.state.db.fed_outbox_bounds().unwrap().1), "and where B is in A's log");
 }
+
+/// A REFUSED CHAT LINE IS NAMED TO ITS SENDER, AND ONLY TO THEM (2026-10-24). Before, a line
+/// over the length limit (or sent too fast, or by a brand new account) was answered with a plain
+/// system notice naming no line, so the website kept its own copy looking sent (the operator's
+/// screenshot: one of Brave's lines shown twice, the first refused for length). Now the sender
+/// also gets `chat_refused` with that line's timestamp, the reason and the limit; nobody else
+/// does, and the frame never carries the `to` it is addressed by.
+/// Seen red 2026-10-24 before the role-limit refusal (the first check, "exceeds your role's limit
+/// of 280") sent it: "never came: the sender is told which line was refused" (only the plain
+/// notice arrived).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_line_is_named_to_its_sender_and_no_one_else() {
+    let r = relay("refused").await;
+    let mut ann = sign_in(&r, 61, "Ann").await;
+    let mut bob = sign_in(&r, 62, "Bob").await;
+    let long = "x".repeat(2_100);
+    let ts = post(&mut ann, 61, "general", &long).await;
+    let f = frame_where(&mut ann, "the sender is told which line was refused", |f| f["type"] == "chat_refused").await;
+    assert_eq!(f["timestamp"].as_u64(), Some(ts), "it names the refused line by its timestamp");
+    assert_eq!(f["reason"], "too_long");
+    // The first check a new member meets is their role's own limit (280 for an unverified
+    // account, the case in the operator's screenshot), before the server-wide 2,000.
+    let limit = f["limit"].as_u64().expect("with the limit the line went over");
+    assert!(limit < 2_100, "the limit it names is one the line exceeded: {limit}");
+    assert!(f.get("to").is_none(), "the frame does not carry who it is addressed to: {f}");
+    // Bob, on the same server, hears nothing about it (a quiet window, then a line of his own
+    // proves his socket is live and nothing else was queued for him).
+    let bob_ts = post(&mut bob, 62, "general", "hello").await;
+    let seen = frame_where(&mut bob, "Bob's own line comes back", |f| f["type"] == "chat_refused" || (f["type"] == "chat" && f["timestamp"].as_u64() == Some(bob_ts))).await;
+    assert_eq!(seen["type"], "chat", "Bob was told about Ann's refused line: {seen}");
+}

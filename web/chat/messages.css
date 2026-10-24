@@ -839,3 +839,10 @@
 .files-card-file-name { color: var(--text); overflow-wrap: anywhere; min-width: 0; }
 .files-card-note { margin: 0; color: var(--text-muted); }
 .files-card-failed { color: var(--danger); }
+
+/* Is my line really posted? (2026-10-24, app.js markLineSending/markLineSent/markLineNotSent) */
+.message.line-sending { opacity: 0.6; }
+.message .line-status { font-size: 0.8em; color: var(--text-muted); margin-top: 2px; }
+.message.line-not-sent .line-status { color: var(--danger); }
+.message.line-not-sent .message-body, .message.line-not-sent .msg-text { text-decoration: line-through; text-decoration-color: var(--danger); }
+.line-send-again { background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 0 6px; cursor: pointer; font-size: 1em; }
