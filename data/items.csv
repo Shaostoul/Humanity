@@ -94,6 +94,17 @@ spirit_level_0,Spirit Level,tool,measuring,aluminum,0.6,1,150,Precision horizont
 pruning_shears_0,Pruning Shears,tool,gardening,steel,0.3,1,120,Spring-loaded branch cutter,solid,0.11
 wheelbarrow_0,Wheelbarrow,tool,transport,steel,15.0,1,200,Single-wheel hand cart,solid,5.46
 ladder_0,Ladder,tool,access,aluminum,8.0,1,250,Folding step ladder,solid,8.47
+# The How-to page's first how-tos (2026-10-23, docs/design/how-to.md increment 1) name these as their tools and
+# materials, and as what a helper acts on. Weights and volumes are estimates for the game, not teaching data: the
+# how-tos say how each thing is used, never what it weighs.
+spoon_0,Teaspoon,tool,kitchen,steel,0.02,10,300,Small metal spoon for stirring and for tapping a jar lid,solid,0.01
+cup_0,Cup,tool,kitchen,ceramic,0.3,5,150,Drinking cup,solid,0.3
+measuring_jug_0,Measuring Jug (1 L),tool,kitchen,plastic,0.2,5,200,Clear jug marked in millilitres up to one litre,solid,1.2
+cooking_pot_0,Cooking Pot,tool,kitchen,steel,1.5,1,300,Lidded steel pot for boiling water and cooking,solid,5.0
+canning_jar_0,Canning Jar (pint),tool,container,glass,0.35,12,200,Mason-type home-canning jar with its screw band,solid,0.5
+canning_lid_0,Canning Lid,material,container,steel,0.01,50,0,New flat self-sealing canning lid: it seals once,solid,0.01
+furnace_filter_0,Furnace Filter,material,climate,plant_fiber,0.5,5,0,Disposable air filter for a forced-air furnace,solid,6.5
+furnace_0,Furnace,machine,climate,steel,70.0,1,400,Forced-air furnace that heats a home through ducts,solid,300.0
 #
 # === WEAPONS ===
 knife_utility_0,Utility Knife,weapon,blade,steel,0.2,1,120,Folding everyday carry knife,solid,0.07

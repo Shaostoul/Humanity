@@ -1,0 +1,172 @@
+{
+  "id": "boil_water_safe",
+  "title": "Boil water to make it safe to drink",
+  "summary": "Kill the germs in water you are not sure of by boiling it, then keep it clean.",
+  "for": "Anyone whose water may be unsafe: a boil-water notice, a broken supply, or water from a source you do not trust.",
+  "audience": "everyone",
+  "category": "water_safe",
+  "tags": ["real", "water", "safety", "guide"],
+  "realities": ["real"],
+  "time": { "active_min": 15, "waiting_min": 0 },
+  "difficulty": 1,
+  "hazard": "lethal",
+  "skills": ["water_purification"],
+  "topics": ["water_purify"],
+  "reading": ["making-water-safe-to-drink"],
+  "tools": [
+    { "item": "cooking_pot_0", "qty": { "value": 1, "unit": "each" }, "note": "A clean pot with a lid." },
+    { "item": "stove_0", "note": "A stove, or another way to bring the pot to the boil." },
+    { "item": "water_jerrycan_empty_0", "note": "Clean, sanitised containers with tight covers, to keep the boiled water in." }
+  ],
+  "materials": [
+    { "proposed_item": "The water you want to make safe", "note": "As much as the pot holds." }
+  ],
+  "stop_and_call": [
+    {
+      "when": "The water may have fuel, toxic chemicals or radioactive material in it.",
+      "do": "Do not drink it, boiled or not: boiling does not make it safe. Use bottled water or water from another source, and ask your health department.",
+      "who": "role:local-health-jurisdiction",
+      "cites": ["cdc"]
+    }
+  ],
+  "steps": [
+    {
+      "id": "follow_local",
+      "kind": "do",
+      "text": "If your health department has told you how to boil or treat your water, do what they say.",
+      "why": ["The CDC's own advice is to follow your health department's recommendations for boiling or treating your water."],
+      "cites": ["cdc"]
+    },
+    {
+      "id": "cloudy",
+      "kind": "choose",
+      "text": "Is the water clear or cloudy?",
+      "options": [
+        { "id": "clear", "label": "Clear" },
+        { "id": "cloudy", "label": "Cloudy" }
+      ]
+    },
+    {
+      "id": "clear_it",
+      "kind": "do",
+      "text": "Pour it through a clean cloth, paper towel or coffee filter, or let it settle and pour off the clear water.",
+      "if": { "cloudy": "cloudy" },
+      "cites": ["cdc", "epa"]
+    },
+    {
+      "id": "height",
+      "kind": "choose",
+      "text": "How high above sea level are you?",
+      "why": ["Water boils at a lower temperature the higher you are, and the USDA notes that lower boiling temperatures kill bacteria less well; that is why high up it boils for longer (our reading: the USDA writes it of canning)."],
+      "detail": [
+        "The CDC says to boil for 3 minutes above 6,500 feet. The EPA says above 5,000 feet, and gives that as 1,000 metres, though 5,000 feet is about 1,520 metres. They disagree, so this how-to uses the lowest of the three lines, 1,000 metres (about 3,300 feet): boiling for longer is never less safe (our reading).",
+        "If you do not know your height above sea level, choose the second answer (our reading: the longer boil is the safe side)."
+      ],
+      "options": [
+        { "id": "low", "label": "Lower than 1,000 metres (about 3,300 feet)" },
+        { "id": "high", "label": "1,000 metres or higher, or I am not sure" }
+      ],
+      "cites": ["cdc", "epa", "usda"]
+    },
+    {
+      "id": "heat",
+      "kind": "do",
+      "text": "Heat the water in the pot until it comes to a rolling boil.",
+      "uses": ["cooking_pot_0", "stove_0"],
+      "safety": {
+        "level": "serious",
+        "short": "Boiling water scalds. Keep children out of the kitchen, and never carry a child and hot water at the same time.",
+        "full": ["Turn the pot's handle inward, out of a child's reach, and use a back burner when you can. Keep hot water away from the edges of counters and tables."]
+      },
+      "cites": ["cdc", "ny_doh"]
+    },
+    {
+      "id": "boil_one",
+      "kind": "wait",
+      "text": "Keep it at a rolling boil for 1 minute.",
+      "if": { "height": "low" },
+      "wait": { "min_s": 60 },
+      "cites": ["cdc", "epa"]
+    },
+    {
+      "id": "boil_three",
+      "kind": "wait",
+      "text": "Keep it at a rolling boil for 3 minutes.",
+      "if": { "height": "high" },
+      "wait": { "min_s": 180 },
+      "cites": ["cdc", "epa"]
+    },
+    {
+      "id": "cool",
+      "kind": "do",
+      "text": "Turn off the heat and let the water cool by itself.",
+      "cites": ["cdc", "epa"]
+    },
+    {
+      "id": "store",
+      "kind": "do",
+      "text": "Pour it into clean, sanitised containers and cover them tightly.",
+      "uses": ["water_jerrycan_empty_0"],
+      "cites": ["cdc"]
+    }
+  ],
+  "worked_if": [
+    "The water kept a rolling boil for the whole time your height needs.",
+    "It is stored covered, in clean containers."
+  ],
+  "problems": [
+    {
+      "id": "flat_taste",
+      "sign": "The boiled water tastes flat.",
+      "fix": "Pour it from one clean container to another and let it stand for a few hours, or add a pinch of salt to each litre.",
+      "cites": ["cdc"]
+    }
+  ],
+  "repeat": null,
+  "makes": null,
+  "sources": [
+    {
+      "key": "cdc",
+      "source": "cdc",
+      "title": "How to Make Water Safe in an Emergency",
+      "where": "https://www.cdc.gov/water-emergency/about/index.html",
+      "dated": "2024-09-19",
+      "read": "2026-10-23",
+      "quote": "Bring clear water to a rolling boil for 1 minute (at elevations above 6,500 feet, boil for 3 minutes).",
+      "note": "Also: filter cloudy water through a clean cloth, paper towel or coffee filter, or let it settle and draw off the clear water; let the boiled water cool; store it in clean, sanitized containers with tight covers; improve the flat taste by pouring it between containers and letting it stand a few hours, or a pinch of salt per quart or liter; 'You cannot make water containing fuel, toxic chemicals, or radioactive materials safe by boiling or disinfecting it.'; follow your health department's recommendations. The page gives no reason for its altitude rule; the reason in the how-to is the USDA guide's (source usda)."
+    },
+    {
+      "key": "epa",
+      "source": "epa",
+      "title": "Emergency Disinfection of Drinking Water",
+      "where": "https://www.epa.gov/ground-water-and-drinking-water/emergency-disinfection-drinking-water",
+      "dated": "2026-02-24",
+      "read": "2026-10-23",
+      "quote": "At altitudes above 5,000 feet (1,000 meters), boil water for three minutes.",
+      "note": "Also: bring water to a rolling boil for at least one minute; if water is cloudy, let it settle and filter it through a clean cloth, paper towel or coffee filter; let it cool naturally and store it in clean containers with covers. The page's two numbers for the same line disagree (5,000 feet is about 1,524 metres), and the CDC's line is 6,500 feet: this is the disagreement the how-to's height step resolves on the safe side."
+    },
+    {
+      "key": "usda",
+      "source": "usda-canning-guide",
+      "title": "Complete Guide to Home Canning, Guide 1: Principles of Home Canning",
+      "where": "https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "Water boils at lower temperatures as altitude increases.",
+      "note": "From the guide's altitude section, which goes on: lower boiling temperatures are less effective for killing bacteria. Written about canning, cited here only for why height matters. Guide 1 prints no date; its file is named rev0715 (revised July 2015), and the metadata inside the PDF carries 2009-10-29 among older dates. Read as a downloaded PDF with its text extracted locally."
+    },
+    {
+      "key": "ny_doh",
+      "source": "ny-doh",
+      "title": "Burn and Scald Prevention for Children",
+      "where": "https://www.health.ny.gov/prevention/injury_prevention/burn_scald.htm",
+      "dated": "2025-12",
+      "read": "2026-10-23",
+      "quote": "Never carry a child and hot liquids at the same time.",
+      "note": "Also: keep children out of the kitchen while preparing meals, or in a safe supervised area; turn pot handles inward and out of a child's reach and use the rear burners when possible; keep hot liquids away from counter and table edges. Read through a page reader; the page says revised December 2025."
+    }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

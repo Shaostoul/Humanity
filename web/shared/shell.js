@@ -338,6 +338,8 @@
     // up the Library tab.
     else if (p.startsWith('/library'))   active = 'library';
     else if (p.startsWith('/accord'))    active = 'library';
+    // How-to (2026-10-23, docs/design/how-to.md): what you DO, beside the Library, what you read.
+    else if (p.startsWith('/how-to'))    active = 'how_to';
     // Bugs is a section of the Dev tab in the app (2026-10-20), so its page lights up Dev.
     else if (p.startsWith('/bugs'))     active = 'dev';
     else active = '';
@@ -997,6 +999,7 @@
 
       '<span class="nav-group-red">' +
         navTab('/library',   'journal',  'Library',  'library') +
+        navTab('/how-to',    'steps',    'How-to',   'how_to') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -1114,6 +1117,7 @@
       mobileLink('/maps',      'Maps') +
       mobileLink('/dev',       'Dev') +
       mobileLink('/library',   'Library') +
+      mobileLink('/how-to',    'How-to') +
       mobileLink('/accord',    'Humanity Accord') +
       mobileLink('/settings',  'Settings') +
     '</div>' +

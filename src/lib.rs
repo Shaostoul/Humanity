@@ -121,6 +121,12 @@ pub mod systems;
 // world) stays native below.
 pub mod persistence;
 
+// How-to (docs/design/how-to.md, 2026-10-23): the model, loader, checker and runs, compiled into
+// the relay too (it will host shared how-tos); gated on `relay` for its hash's ciborium and blake3,
+// which `native` includes. The page is gui/pages/how_to.rs.
+#[cfg(feature = "relay")]
+pub mod how_to;
+
 pub mod storage;
 // save_load applies a save to the LOCAL player's world (the GUI's item pool,
 // the engine's spawned home), so it stays native even though persistence, the

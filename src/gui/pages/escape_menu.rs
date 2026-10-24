@@ -274,8 +274,11 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // Library — the Humanity Accord and its reference companions, in a
                 // nested tree (operator 2026-06-06: "a top level Library button that
                 // contains all the docs sorted into nested categories").
+                // How-to beside it (2026-10-23, docs/design/how-to.md): the Library is what you
+                // read, How-to is what you do.
                 let library_items = [
                     NavItem { label: "Library", page: GuiPage::Library, description: "" },
+                    NavItem { label: crate::gui::pages::how_to::words::w("title"), page: GuiPage::HowTo, description: "" },
                 ];
                 nav_group(ui, &library_items, theme.nav_reality(), text_muted, theme, state);
 

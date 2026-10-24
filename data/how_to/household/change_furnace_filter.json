@@ -1,0 +1,202 @@
+{
+  "id": "change_furnace_filter",
+  "title": "Change a furnace filter",
+  "summary": "Put a clean filter in a forced-air furnace, the right way round, so it runs as it should.",
+  "for": "Anyone with a forced-air furnace. No experience needed; the furnace's own manual says where its filter is.",
+  "audience": "everyone",
+  "category": "household_heating",
+  "tags": ["real", "shelter", "guide"],
+  "realities": ["real"],
+  "time": { "active_min": 10, "waiting_min": 0 },
+  "difficulty": 1,
+  "hazard": "lethal",
+  "skills": ["shelter_building"],
+  "topics": ["shelter_heating"],
+  "reading": ["heating-a-home-safely"],
+  "tools": [
+    { "item": "screwdriver_flat_0", "optional": true, "note": "Only if the filter door is screwed shut." }
+  ],
+  "materials": [
+    { "item": "furnace_filter_0", "qty": { "value": 1, "unit": "each" }, "optional": true, "note": "A new filter the same size as the old one. Not needed if yours is a washable filter." }
+  ],
+  "stop_and_call": [
+    {
+      "when": "You smell gas.",
+      "do": "Leave the building now, leaving doors and windows open behind you. Do not switch lights on or off, do not make a spark, and do not use a phone while you are inside. From a safe distance, away from the smell, call 911 and your gas company.",
+      "who": "Emergency services (911 in the United States) and your gas company",
+      "cites": ["pa_puc"]
+    }
+  ],
+  "steps": [
+    {
+      "id": "power_off",
+      "kind": "do",
+      "text": "Turn off the furnace's electrical supply.",
+      "why": ["The maker's instructions turn the electrical supply off before a filter door or the blower door comes off. Its general rule for any maintenance is to turn off the gas and the electrical supply."],
+      "detail": ["If you cannot tell how your furnace's power is turned off, ask whoever services it to show you (our reading). ENERGY STAR notes that a contractor can show you how to change the filter."],
+      "cites": ["carrier", "energy_star_checklist"]
+    },
+    {
+      "id": "take_out",
+      "kind": "do",
+      "text": "Open the filter door or cover and slide the old filter out.",
+      "detail": ["Where the filter sits depends on how the furnace is built. One maker's manual shows three places: in the return-air duct, in a cabinet beside the furnace, and inside the blower compartment. Your furnace's manual says which yours has."],
+      "uses": ["screwdriver_flat_0"],
+      "safety": {
+        "level": "caution",
+        "short": "Mind the sheet-metal edges: the maker's manual says to wear safety glasses and work gloves."
+      },
+      "cites": ["carrier"]
+    },
+    {
+      "id": "size",
+      "kind": "measure",
+      "text": "Write down the size of the old filter.",
+      "why": ["A new filter goes in only if it is the same size: the maker's instructions replace a filter only with one of the same part number and size."],
+      "record": { "type": "text", "label": "Filter size", "remember": true },
+      "cites": ["carrier"]
+    },
+    {
+      "id": "filter_kind",
+      "kind": "choose",
+      "text": "Is the old filter one you throw away, or a washable one?",
+      "detail": ["Some furnaces come with permanent, washable filters; others take throw-away ones. The furnace's manual says which it takes."],
+      "options": [
+        { "id": "disposable", "label": "Throw-away" },
+        { "id": "washable", "label": "Washable" }
+      ],
+      "cites": ["carrier"]
+    },
+    {
+      "id": "new_filter",
+      "kind": "do",
+      "text": "Take a new filter of the same size.",
+      "if": { "filter_kind": "disposable" },
+      "uses": ["furnace_filter_0"],
+      "cites": ["carrier"]
+    },
+    {
+      "id": "wash",
+      "kind": "do",
+      "text": "Wash the filter by spraying tap water through it from the side the air comes out of, rinse it, and let it dry.",
+      "if": { "filter_kind": "washable" },
+      "detail": ["Spraying against the way the air flows pushes the dust back out the way it came in (our reading). Do not oil or coat it: the maker's instructions say that is neither recommended nor needed."],
+      "cites": ["carrier"]
+    },
+    {
+      "id": "put_in",
+      "kind": "do",
+      "text": "Slide the filter into its slot with the arrow on its frame pointing toward the furnace.",
+      "why": ["The arrow shows the way air should flow through the filter: from the room, through the filter, into the furnace."],
+      "cites": ["carrier", "basc"]
+    },
+    {
+      "id": "arrow",
+      "kind": "check",
+      "text": "Look again: does the arrow on the filter point toward the furnace?",
+      "no": "arrow_backwards",
+      "cites": ["carrier", "basc"]
+    },
+    {
+      "id": "door_on",
+      "kind": "do",
+      "text": "Close the filter door or cover.",
+      "safety": {
+        "level": "lethal",
+        "short": "Never run the furnace without a filter, or with its filter door off.",
+        "full": ["The maker's instructions warn that running the furnace without a filter, or with the filter's door removed, could cause a fire, an injury or a death."]
+      },
+      "cites": ["carrier"]
+    },
+    {
+      "id": "power_on",
+      "kind": "do",
+      "text": "Turn the furnace's electrical supply back on.",
+      "cites": ["carrier"]
+    }
+  ],
+  "worked_if": [
+    "The filter door is closed and the furnace runs as it did before.",
+    "The arrow on the filter points toward the furnace."
+  ],
+  "problems": [
+    {
+      "id": "arrow_backwards",
+      "sign": "The arrow on the filter points away from the furnace.",
+      "why": "The filter is in backwards: the arrow should point the way the air flows, toward the furnace.",
+      "fix": "Take the filter out, turn it round and slide it back in.",
+      "cites": ["carrier", "basc"]
+    },
+    {
+      "id": "door_will_not_close",
+      "sign": "The filter door will not close.",
+      "why": "The filter may be the wrong size, or not all the way into its slot (our reading).",
+      "fix": "Take it out and compare its size with the old filter's. Do not run the furnace with the door off.",
+      "cites": ["carrier"]
+    },
+    {
+      "id": "torn_filter",
+      "sign": "A washable filter is torn.",
+      "fix": "Replace it rather than washing it.",
+      "cites": ["carrier"]
+    }
+  ],
+  "help": { "do": ["maintain", "repair"], "acts_on": ["furnace_0"], "teach": true, "catalog": [] },
+  "repeat": { "every_days": 90, "note": "ENERGY STAR's advice: check the filter every month, especially in the heavy-use months of winter and summer; change it if it looks dirty after a month, and at a minimum every 3 months." },
+  "makes": null,
+  "sources": [
+    {
+      "key": "energy_star",
+      "source": "energy-star",
+      "title": "Heat & Cool Efficiently",
+      "where": "https://www.energystar.gov/saveathome/heating-cooling",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "At a minimum, change the filter every 3 months.",
+      "note": "Also: check the filter every month, especially during heavy use months (winter and summer); change it if it looks dirty after a month; a dirty filter slows air flow and makes the system work harder."
+    },
+    {
+      "key": "energy_star_checklist",
+      "source": "energy-star",
+      "title": "Maintenance Checklist",
+      "where": "https://www.energystar.gov/saveathome/heating-cooling/maintenance-checklist",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "Your contractor can show you how to do this.",
+      "note": "Said of inspecting, cleaning or changing the air filters once a month."
+    },
+    {
+      "key": "carrier",
+      "source": "carrier-hvac",
+      "title": "58DXT, 58UXT WeatherMaker 8000 Two-Stage Induced-Combustion Gas Furnaces: Service and Maintenance Instructions, Catalog No. 535-80047",
+      "where": "https://www.shareddocs.com/hvac/docs/1009/Public/03/58D_U-9SM.pdf",
+      "dated": "2001",
+      "read": "2026-10-23",
+      "quote": "If the filter has an airflow direction arrow, the arrow must point toward the blower.",
+      "note": "One maker's manual for one family of gas furnaces, read as a downloaded PDF with its text extracted locally; dated by its copyright line. Its warnings: turn off gas and electrical supplies before any maintenance or service; wear safety glasses and work gloves; sharp metal edges can cause injury. Its owner steps: turn off the electrical supply before removing the filter cabinet door or the blower access door; filters in the return-air duct, a media cabinet or the blower compartment; permanent, washable filters cleaned by spraying tap water through them from the opposite direction of airflow, rinsed and let dry, oiling or coating not recommended or required; a disposable media filter replaced only with one of the same part number and size; replace if torn; and the warning, 'Never operate unit without a filter or with filter access door removed. A failure to follow this warning could result in fire, personal injury, or death.' Other furnaces follow their own manuals."
+    },
+    {
+      "key": "basc",
+      "source": "building-america",
+      "title": "New filter inserted in furnace filter slot on return side of furnace, arrow on side of filter frame pointing toward furnace (image caption)",
+      "where": "https://basc.pnnl.gov/images/new-filter-inserted-furnace-filter-slot-return-side-furnace-arrow-side-filter-frame-pointing",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "pointing in the direction of airflow, which is toward the furnace",
+      "note": "A Building America Solution Center (US Department of Energy, by PNNL) image caption, not a guide. The page shows no date; the image's file name suggests August 2024."
+    },
+    {
+      "key": "pa_puc",
+      "source": "pa-puc",
+      "title": "Gas Emergencies",
+      "where": "https://www.puc.pa.gov/pipeline/gas-emergencies/",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "Call 9-1-1 and your natural gas utility (if you know the number) from a safe distance, away from the odor.",
+      "note": "Also: if indoors, leave immediately; do not turn lights on or off; do not make calls from a landline or a cell phone while at home; do not cause a spark; wait for the gas company or emergency services to say it is safe to return. A Pennsylvania agency's page; 911 is the emergency number in the United States."
+    }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

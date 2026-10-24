@@ -481,6 +481,55 @@ pub fn paint_checklist(painter: &egui::Painter, rect: Rect, color: Color32) {
     }
 }
 
+/// Stairs: three steps rising to the right, How-to (2026-10-23): a procedure is steps.
+pub fn paint_stairs(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    let (left, bottom, step) = (c.x - w * 0.36, c.y + w * 0.32, w * 0.24);
+    let mut pts = vec![Pos2::new(left, bottom)];
+    for i in 0..3 {
+        let x = left + step * i as f32;
+        let y = bottom - step * (i + 1) as f32 * 0.85;
+        pts.push(Pos2::new(x, y));
+        pts.push(Pos2::new(x + step, y));
+    }
+    pts.push(Pos2::new(left + step * 3.0, bottom));
+    pts.push(Pos2::new(left, bottom));
+    painter.add(egui::epaint::PathShape::line(pts, stroke));
+}
+
+/// A warning triangle with its mark, outlined: a hazard (How-to, 2026-10-23). Always drawn beside
+/// the hazard's word, never alone.
+pub fn paint_warning(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let (top, left, right) = warning_corners(rect);
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.09).max(1.0), color);
+    painter.add(egui::epaint::PathShape::closed_line(vec![top, right, left], stroke));
+    warning_mark(painter, rect, color);
+}
+
+/// The same triangle filled, its mark in `mark`: the gravest hazard (Can kill you if done wrong).
+pub fn paint_warning_filled(painter: &egui::Painter, rect: Rect, color: Color32, mark: Color32) {
+    let (top, left, right) = warning_corners(rect);
+    painter.add(egui::epaint::PathShape::convex_polygon(vec![top, right, left], color, Stroke::NONE));
+    warning_mark(painter, rect, mark);
+}
+
+fn warning_corners(rect: Rect) -> (Pos2, Pos2, Pos2) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    (Pos2::new(c.x, c.y - w * 0.42), Pos2::new(c.x - w * 0.46, c.y + w * 0.38), Pos2::new(c.x + w * 0.46, c.y + w * 0.38))
+}
+
+fn warning_mark(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.1).max(1.0), color);
+    painter.line_segment([Pos2::new(c.x, c.y - w * 0.16), Pos2::new(c.x, c.y + w * 0.1)], stroke);
+    painter.circle_filled(Pos2::new(c.x, c.y + w * 0.24), (w * 0.06).max(0.8), color);
+}
+
 /// Open box — Inventory.
 pub fn paint_box(painter: &egui::Painter, rect: Rect, color: Color32) {
     let c = rect.center();
@@ -959,6 +1008,7 @@ pub fn nav_icon(page: crate::gui::GuiPage) -> Option<fn(&egui::Painter, Rect, Co
         P::Real     => paint_person,
         P::Dev      => paint_wrench,
         P::Library  => paint_scroll,
+        P::HowTo    => paint_stairs,
         P::Quests   => paint_compass,
         // None = FPS game mode; the "Play" nav button carries this page and gets
         // the play-triangle glyph.

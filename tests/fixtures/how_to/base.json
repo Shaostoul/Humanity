@@ -1,0 +1,98 @@
+{
+  "id": "fixture_base",
+  "title": "Fixture: a how-to that uses every field",
+  "summary": "Not shipped. The valid starting point every broken fixture edits.",
+  "for": "The two checkers' tests (src/how_to/tests.rs, scripts/build-how-to.js --check).",
+  "audience": "everyone",
+  "category": "household_heating",
+  "tags": ["real", "safety"],
+  "realities": ["real"],
+  "apps": ["desktop"],
+  "time": { "active_min": 10, "waiting_min": 2 },
+  "difficulty": 2,
+  "hazard": "lethal",
+  "skills": ["medicine"],
+  "topics": ["water_purify"],
+  "reading": ["making-water-safe-to-drink"],
+  "needs_first": ["boil_water_safe"],
+  "roles": ["helper"],
+  "tools": [
+    { "item": "cooking_pot_0", "qty": { "value": 1, "unit": "each" }, "note": "Any lidded pot." },
+    { "proposed_item": "A long-handled ladle", "qty": { "min": 1, "max": 2, "unit": "each" }, "optional": true, "note": "Only for a big pot." }
+  ],
+  "materials": [
+    { "item": "water_purified_0", "qty": { "value": 1, "unit": "l" }, "note": "Clean water." },
+    { "proposed_item": "Salt", "qty": { "min": 1, "max": 3, "unit": "g" }, "optional": true, "note": "For the taste." }
+  ],
+  "stop_and_call": [
+    { "when": "Something is badly wrong.", "do": "Stop, and call for help.", "who": "role:local-health-jurisdiction", "cites": ["s1"] }
+  ],
+  "steps": [
+    {
+      "id": "choose_kind",
+      "kind": "choose",
+      "text": "Which kind is yours?",
+      "why": ["The next step depends on it."],
+      "detail": ["Look at the label."],
+      "options": [ { "id": "gas", "label": "Gas" }, { "id": "electric", "label": "Electric" } ]
+    },
+    {
+      "id": "gas_only",
+      "kind": "do",
+      "text": "Do the gas part, for two minutes.",
+      "if": { "choose_kind": "gas" },
+      "safety": { "level": "lethal", "short": "This part can kill you if done wrong.", "full": ["Here is why, in full."] },
+      "uses": ["cooking_pot_0"],
+      "image": { "file": "gas_part.png", "alt": "A hand on a pot handle." },
+      "cites": ["s1"],
+      "time_min": 2,
+      "who": "helper",
+      "sim": { "mode": "watch", "kind": "plant", "target": "tomato" },
+      "ai_notes": ["Ask before you tick it."]
+    },
+    { "id": "place_note", "kind": "do", "text": "Read the rule where you live.", "if": { "place": "wa" }, "short": false },
+    { "id": "wait_a_bit", "kind": "wait", "text": "Wait for it to settle.", "wait": { "min_s": 60, "max_s": 120 }, "cites": ["s1"] },
+    { "id": "check_it", "kind": "check", "text": "Did it settle?", "no": "problem_one" },
+    {
+      "id": "measure_it",
+      "kind": "measure",
+      "text": "Write down how deep it is.",
+      "record": { "type": "number", "label": "Depth", "unit": "mm", "range": { "min": 1, "max": 9 }, "remember": true },
+      "cites": ["s1"]
+    },
+    { "id": "call_it", "kind": "call", "text": "Make the water safe first.", "how_to": "boil_water_safe" },
+    { "id": "go_there", "kind": "go", "text": "Open Settings, Data.", "page": "settings", "section": "data" },
+    { "id": "type_it", "kind": "command", "text": "Check the data.", "command": "just validate-data", "shell": "bash" }
+  ],
+  "worked_if": ["It settled."],
+  "problems": [
+    { "id": "problem_one", "sign": "It did not settle.", "why": "It was stirred.", "fix": "Leave it alone and look again.", "stop": true, "cites": ["s1"] }
+  ],
+  "help": { "do": ["maintain"], "acts_on": ["furnace_0"], "teach": true, "catalog": [] },
+  "repeat": { "every_days": 90, "note": "More often in winter." },
+  "makes": {
+    "recipe": "mix_ors",
+    "inputs": [ { "item": "ors_sachet_0", "count": 1 } ],
+    "outputs": [ { "item": "ors_solution_0", "count": 1 } ],
+    "seconds": 30,
+    "station": "stove_0",
+    "skill": "medicine",
+    "skill_level": 1
+  },
+  "sources": [
+    {
+      "key": "s1",
+      "source": "cdc",
+      "title": "How to Make Water Safe in an Emergency",
+      "where": "https://www.cdc.gov/water-emergency/about/index.html",
+      "dated": "2024-09-19",
+      "read": "2026-10-23",
+      "quote": "Let the boiled water cool.",
+      "note": "Read through a page reader."
+    },
+    { "key": "s2", "in_project": "src/how_to/check.rs", "title": "The checker", "dated": "undated", "read": "2026-10-23" }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

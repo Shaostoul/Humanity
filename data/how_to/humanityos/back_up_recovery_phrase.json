@@ -1,0 +1,154 @@
+{
+  "id": "back_up_recovery_phrase",
+  "title": "Back up your recovery phrase",
+  "summary": "Write down the 24 words that bring your HumanityOS account back on any device, and keep them where only you can find them.",
+  "for": "Anyone with an account in the HumanityOS desktop app. Do it once, the day you make your account, and again if you ever lose the paper.",
+  "audience": "everyone",
+  "category": "humanityos_account",
+  "tags": ["real", "project", "beginner", "guide"],
+  "realities": ["real"],
+  "apps": ["desktop"],
+  "time": { "active_min": 10, "waiting_min": 0 },
+  "difficulty": 1,
+  "hazard": "caution",
+  "needs_first": [],
+  "tools": [
+    { "item": "notebook_0", "note": "Paper you will keep: a page of a notebook, or a card." },
+    { "item": "pencil_0", "note": "Or a pen." }
+  ],
+  "steps": [
+    {
+      "id": "private",
+      "kind": "do",
+      "text": "Find a private moment: nobody watching, and nothing streaming, recording or sharing your screen.",
+      "why": ["Whoever sees the words can use your account. The app covers them until you choose to show them for this reason, and covers them again when you switch to another window."],
+      "cites": ["phrase_cover", "settings"]
+    },
+    {
+      "id": "open_account",
+      "kind": "go",
+      "text": "Open Settings, Account.",
+      "page": "settings",
+      "section": "account",
+      "cites": ["settings"]
+    },
+    {
+      "id": "unlock",
+      "kind": "do",
+      "text": "Under Account & Recovery Phrase, beside Reveal recovery phrase, type your passphrase and press Unlock.",
+      "detail": [
+        "If you made this identity a moment ago and have not set a passphrase yet, the words are already there, still covered.",
+        "If the protected setup is on (Settings, Safety), the app asks for its PIN first."
+      ],
+      "cites": ["settings"]
+    },
+    {
+      "id": "show",
+      "kind": "do",
+      "text": "Press and hold Hold to show the words until they appear.",
+      "why": ["The hold, three seconds, is so that a stray click never shows them."],
+      "cites": ["phrase_cover"]
+    },
+    {
+      "id": "write",
+      "kind": "do",
+      "text": "Write all 24 words on the paper in order, with the number of each beside it.",
+      "detail": ["Write them by hand rather than pressing Copy beside them: copied words stay on the computer's clipboard, where other programs can read them (our reading)."],
+      "uses": ["notebook_0", "pencil_0"],
+      "cites": ["settings", "phrase_cover"]
+    },
+    {
+      "id": "check_back",
+      "kind": "check",
+      "text": "Read each word on the paper against the screen. Do all 24 match, in the same order?",
+      "no": "write",
+      "cites": ["settings"]
+    },
+    {
+      "id": "cover_again",
+      "kind": "do",
+      "text": "Press Hide the words, then Lock if it is there.",
+      "cites": ["phrase_cover", "settings"]
+    },
+    {
+      "id": "keep_safe",
+      "kind": "do",
+      "text": "Keep the paper somewhere safe and private where you will find it again.",
+      "safety": {
+        "level": "caution",
+        "short": "Anyone who has these words can use your account: never share them or send them to anyone.",
+        "full": ["The recovery phrase backs up your account and your wallet. When the app makes a new identity it says so plainly: these words are the only way to recover the account."]
+      },
+      "cites": ["settings"]
+    },
+    {
+      "id": "second_way",
+      "kind": "do",
+      "text": "If you want a second way back in, Settings, Account also has Recovery through trusted people.",
+      "short": false,
+      "detail": ["You choose a few friends; each keeps one piece of your recovery phrase, locked, and enough of them together can help you back in if you lose your device and the paper too. The paper is still the main way back."],
+      "cites": ["recovery"]
+    }
+  ],
+  "worked_if": [
+    "The 24 words are on paper, checked against the screen, in order.",
+    "The words are covered again and the paper is somewhere private."
+  ],
+  "problems": [
+    {
+      "id": "no_identity",
+      "sign": "There is no Reveal recovery phrase, only Generate New Identity.",
+      "why": "This device has no identity yet.",
+      "fix": "Generate one, or restore yours from its recovery phrase, first. A new identity's words are shown covered, ready to write down.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "wrong_passphrase",
+      "sign": "It says Wrong passphrase.",
+      "why": "The passphrase is the one that locks this identity on this device.",
+      "fix": "Type it again: press Show beside the box to see what you typed.",
+      "cites": ["gate"]
+    }
+  ],
+  "repeat": null,
+  "makes": null,
+  "sources": [
+    {
+      "key": "settings",
+      "in_project": "src/gui/pages/settings.rs",
+      "title": "Settings, Account: Account & Recovery Phrase",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "Anyone who has it can use your account, so never share it.",
+      "note": "The desktop app's own code, as it stood on 2026-10-23 (commit 1638661e8): the section's words, the passphrase gate titled Reveal recovery phrase, the protected setup's PIN, the 24 words and Generate New Identity. The website's Settings words differ, so this how-to is for the desktop app."
+    },
+    {
+      "key": "phrase_cover",
+      "in_project": "src/gui/widgets/phrase_cover.rs",
+      "title": "The recovery phrase cover",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "Only show these when nobody can see your screen: not while streaming, recording or sharing your screen, and not where people can look over your shoulder.",
+      "note": "Hold to show the words (a 3 second hold), Hide the words, and the words covering themselves when the window is not the one in front. As the code stood on 2026-10-23."
+    },
+    {
+      "key": "gate",
+      "in_project": "src/gui/widgets/mod.rs",
+      "title": "lockable_gate: Show, Unlock and the passphrase box",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "note": "The Show and Hide button beside the passphrase box, Unlock, Lock, and the words Wrong passphrase. As the code stood on 2026-10-23."
+    },
+    {
+      "key": "recovery",
+      "in_project": "src/gui/pages/settings/recovery.rs",
+      "title": "Settings, Account: Recovery through trusted people",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "note": "Friends each keep one piece of the recovery phrase, locked; the recovery phrase stays the main way back in. As the code stood on 2026-10-23."
+    }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

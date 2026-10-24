@@ -1,10 +1,12 @@
 # How-to: step-by-step procedures for real life, the game and this platform
 
-> **Status:** design, 2026-10-23. Nothing here is built yet. This is the whole plan written
-> before the first increment, per the operator's rule (CLAUDE.md, "Plan the whole feature, build
-> it in rungs, keep performance in mind throughout"): the data shapes, the budgets and the scale
-> are decided here once, so the first slice is a rung of the real thing. The build order is the
-> increment ladder near the end. Four decisions are the operator's (the last section); every
+> **Status:** design, 2026-10-23; **increment 1 built the same day** (1a data and the desktop page,
+> 1b the website's), unreviewed content: see "Increment 1 as built" near the end for what it
+> changed in this plan. This is the whole plan written before the first increment, per the
+> operator's rule (CLAUDE.md, "Plan the whole feature, build it in rungs, keep performance in mind
+> throughout"): the data shapes, the budgets and the scale are decided here once, so the first
+> slice is a rung of the real thing. The build order is the increment ladder near the end. Four
+> decisions were the operator's (the last section): two answered on 2026-10-23, two open; every
 > other call is made here with its reason, so it can be overruled in one line.
 
 ## The idea in one paragraph
@@ -792,8 +794,10 @@ shows, not what the data is.
    CSV, field by field, **before** the CSV is deleted; the recipe lints read how-tos; the Crafting
    page and `web/pages/crafting.html` read how-tos; recipes.csv, recipes.json and
    `data/crafting/` are deleted, and the embedded fallback (`src/embedded_data.rs`) carries the
-   index, which holds every `makes`, so a bare exe can still craft. Each how-to's id is its recipe's id, so a save that names a craft in progress still
-   loads. The 36 calls of `RecipeRegistry::from_csv` in 17 files (most of them tests) move to
+   index, which holds every `makes`, so a bare exe can still craft. Each how-to's id may be its
+   recipe's id, which keeps the golden test simple; keeping old saves' crafts in progress loading
+   is not a requirement (operator, 2026-10-23: "We're not really concerned about backwards
+   compatibility until after v1.0"). The 36 calls of `RecipeRegistry::from_csv` in 17 files (most of them tests) move to
    one helper that builds the registry from the shipped how-tos. Needs a quiet
    window: `src/systems/crafting/mod.rs`, the registries and the embedded data are shared files.
    *Proves:* one model; the economy, machines, food and quests behave exactly as before (their
@@ -824,24 +828,103 @@ shows, not what the data is.
    of a measured value over time (well water tests); the AI guide in chat; MCP tools; team steps
    with `who`.
 
+## Increment 1 as built (2026-10-23)
+
+What is where: `schemas/how_to.toml` (every field, and the shape check itself: the build reads it),
+`src/how_to/` (model, checker, canonical hash, loader, runs, view rules, compiled into the relay
+too), `scripts/build-how-to.js` (the JS checker run over every file, every fixture, the index; in
+`just lints` and `just validate-data`), `web/shared/how-to-logic.js` (the rules both the website and
+the build use), `data/how_to/` (the tree, six how-tos, 48 planned, the page's words, the generated
+index), the desktop page `src/gui/pages/how_to.rs` + `how_to/`, the website's `web/pages/how-to.html`
++ `how-to-app.js`. Every gate is shown red by `tests/fixtures/how_to/broken.json`, in both checkers,
+on every run.
+
+What building it changed in this plan, each with its reason, so the next increment builds on what
+is true:
+
+- **The hazard levels of the first how-tos.** The plan said the seals and the rehydration how-tos
+  were `serious` and the furnace filter one, by its example, `caution`. By the scale's own meaning
+  ("how badly a person can be hurt by doing it wrong", the Curriculum's) the four real-life how-tos
+  are `lethal`: keeping a jar whose lid did not seal is the botulism decision; too little water in
+  an oral rehydration drink is dangerous to a baby; water not boiled long enough, or boiled when it
+  holds fuel or chemicals, can kill the vulnerable; and the furnace maker's own manual says running
+  it without its filter or filter door "could result in fire, personal injury, or death". The
+  Curriculum rates the matching topics lethal too. Whether "Can kill you if done wrong" on a filter
+  change reads as alarmist is a fair question for the reviewer and the operator; the label follows
+  the definition until someone changes the definition.
+- **Sources carry a local `key` and the registry id as `source`**, not the registry id alone,
+  because one authority gives several pages (two CDC pages in one how-to); `in_project` cites a file
+  of this repository for facts about HumanityOS itself; and `dated` (the source's own date, or the
+  word `undated`) is required beside `read`. Four authorities joined the registry:
+  `carrier-hvac`, `pa-puc`, `ny-doh`, `unicef`.
+- **The number rule is wider.** The plan flagged digits in a step with serious or lethal safety
+  and no citation. In a serious or lethal how-to, every step, problem and stop-and-call line that
+  states a number (in its words, an option's or a measurement's label, a timer, a range) must cite:
+  a boiling time sits on a step whose own note is about scalds, not about the time.
+- **Whole numbers only, everywhere** (gate `whole_numbers`): canonical CBOR has no floating point,
+  so a how-to that will be signed holds 500 ml, never 0.5 l.
+- **Field names:** a step's hands-on minutes are `time_min` (the how-to's `time` is an object);
+  `sim` is `{ mode: watch | read | skip, kind, target }`; `stop_and_call` and `problems` carry
+  `cites`; a how-to may say which HumanityOS `apps` its steps are written for (the recovery phrase
+  how-to names the desktop's buttons, which the website's Settings does not have).
+- **Planned how-tos are one list,** `data/how_to/planned.json`, not 48 nearly empty files: one
+  line to add a gap, and the checker refuses an id that is both planned and written.
+- **The page's words are a data file both apps read,** `data/how_to/words.json`, with a test that
+  fails on a word either app uses that the file lacks and on a word neither uses; the desktop keeps
+  a built-in copy. That is the i18n table the plan waited for, for this page.
+- **The Short view's second lock.** Beside the gate, `Step::in_short` (and `inShort` on the
+  website) shows a serious or lethal step in Short even if a file said `short: false`.
+- **Not built in increment 1, though the page section lists them:** Due soon and repeats (they
+  need the Calendar, increment 3), I have this and Find it on the Market (increment 3), Who can help
+  (increment 2), Print, the Emergencies branch kept offline, and browser notifications (the website
+  announces a timer that ends to its live region and the desktop posts a notice). A call step opens
+  the called how-to rather than running it inline as a sub-run. Developer how-tos are shown on the
+  website always, as its Dev tab is (it has no Developer mode switch).
+- **Content notes the reviewer should look at first:** the boiling time's height line (the CDC
+  says 6,500 feet, the EPA 5,000 feet and, on the same page, 1,000 metres; the how-to uses the
+  lowest, 1,000 metres, and says why); the furnace steps rest on one maker's manual, which is not
+  every furnace's; the rehydration how-to's warning about too little water applies WHO's warning
+  about overfilled packets (said so on the page); the seals how-to asks for all three of the
+  USDA's tests where the USDA asks for one (said so, as our reading).
+- **A fact-check before commit, not a review.** An independent agent read every cited source
+  against the six files the same day and found what the writing pass missed: the USDA's gloves
+  and skin-contact warning and its disposal steps for a spoiled jar, WHO's "blood in stool" and
+  "persistent diarrhoea" limits and the zinc course, two of the gas utility's rules, the furnace
+  maker's safety glasses and gloves, 102 F printed as 38.8 C (it is 38.9 C), and five places where
+  the author's own reasoning was not marked as such. All were fixed. It is not the independent
+  review the review field means: every how-to is still `sourced`, "Sourced, not yet checked", until
+  that review, and the four lethal ones until a person has read them and dated it.
+- **The service worker** fetches `/data/how_to/` from the network first (a safety fix must reach a
+  person on their next visit), falling back to the copy it last fetched offline.
+
 ## Decisions for the operator
 
-1. **The name.** Recommended: **How-to** for the page and the code (`how_to`, `/how-to`), with the
-   game's making page keeping the name Crafting. Chosen once, because everything is renamed
-   together.
-2. **Crafting joins the model.** Recommended: recipes become how-to files (increment 4) and the
-   Crafting page becomes a view of how-tos, with Simplified and Realistic making. The alternative
-   is to keep recipes.csv as a separate table that how-tos point at, which is less work now and
-   leaves two places to define a craft.
-3. **The line on dangerous work.** Recommended: publish how-tos for what a householder may
-   lawfully do themselves in at least one place, always with the "stop and call" line, and for
-   work that needs a licence (mains electrical, gas lines) a how-to for finding and checking a
-   professional instead; and a person's dated review before any "can kill" how-to shows as
-   checked, extending the 2026-09-16 Curriculum rule to how-tos.
-4. **Publishing for others (increment 8).** Whether people can publish how-tos to other people at
-   all, and under what licence. Recommended: yes, under CC0 like the rest of the project, but only
-   after a dated finding on licensing and on responsibility for shared instructions that can hurt
-   someone.
+1. **The name. DECIDED 2026-10-23: How-to.** The operator: "Love it, let's do it." On screen
+   "How-to", one is "a how-to", several "how-tos"; in code `how_to` (the module, the page id, the
+   data folder, the schema, the signed object `how_to_v1`); on the website `/how-to` and
+   `how-to.html`. The in-game making page stays **Crafting**.
+2. **Crafting joins the model. DECIDED 2026-10-23: yes, in increment 4,** as recommended: recipes
+   become how-to files and the Crafting page becomes a view of how-tos, with Simplified and
+   Realistic making. The operator added: "We're not really concerned about backwards compatibility
+   until after v1.0." So increment 4 **need not keep recipe ids for old saves**: the line in
+   increment 4 that says each how-to's id is its recipe's id so a save naming a craft in progress
+   still loads is now a choice, not a requirement (keep the ids if that is simply cleaner, which it
+   probably is, since the golden test compares the registries by id). And: "You have full
+   permission to close any instances of HumanityOS I may have up when you need to develop
+   something" (graceful `taskkill` first, forced after about 15 seconds; CLAUDE.md already says
+   so).
+3. **The line on dangerous work. NOT ANSWERED YET (2026-10-23).** Recommended: publish how-tos for
+   what a householder may lawfully do themselves in at least one place, always with the "stop and
+   call" line, and for work that needs a licence (mains electrical, gas lines) a how-to for finding
+   and checking a professional instead; and a person's dated review before any "can kill" how-to
+   shows as checked, extending the 2026-09-16 Curriculum rule to how-tos. **Increment 1 was built
+   with the recommended safety rule** (gate `lethal_without_person`: a lethal how-to cannot be
+   verified without `review.person`; the Stop and call someone if box always shown, first, in both
+   views), so if the operator answers otherwise, it is one gate to change.
+4. **Publishing for others (increment 8). NOT ANSWERED YET (2026-10-23).** Whether people can
+   publish how-tos to other people at all, and under what licence. Recommended: yes, under CC0
+   like the rest of the project, but only after a dated finding on licensing and on responsibility
+   for shared instructions that can hurt someone. Increment 1 has no publishing.
 
 Calls made here that he can overrule in a line: the nav button beside Library; one JSON file per
 how-to, foldered by top category; the words Short and Full; the Testing page and the quests kept

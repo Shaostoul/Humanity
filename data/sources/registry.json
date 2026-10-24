@@ -3803,6 +3803,48 @@
       "use": "facts",
       "bundle": false,
       "note": "A nonprofit: restate. Home page and Deaf, DeafBlind and Hard of Hearing Services (https://www.thehotline.org/ and https://www.thehotline.org/resources/deaf-deafblind-hard-of-hearing-services/, undated, read 2026-10-05 for Handling Conflict): call 1-800-799-SAFE (7233), chat with a live advocate, or text START to 88788; free, confidential, 24/7; contact 911 in immediate danger; the Deaf Hotline by videophone, 1-855-812-1001, with an instant messenger and email, staffed with Deaf advocates around the clock in partnership with ADWAS. Neither page lists the TTY number (1-800-787-3224) that the Office on Violence Against Women page still prints; the only TTY numbers on the Deaf page belong to local programmes."
+    },
+    {
+      "id": "carrier-hvac",
+      "name": "Carrier Corporation, furnace service and maintenance instructions",
+      "publisher": "Carrier Corporation",
+      "url": "https://www.carrier.com/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A furnace maker's own instructions for its equipment: restate, copy nothing. Read 2026-10-23 for the How-to Change a furnace filter: 58DXT, 58UXT WeatherMaker 8000 Two-Stage Induced-Combustion Gas Furnaces, Service and Maintenance Instructions, Catalog No. 535-80047, copyright 2001 (https://www.shareddocs.com/hvac/docs/1009/Public/03/58D_U-9SM.pdf, downloaded and its text extracted locally): check and clean the air filter each month or more often if required, replace if torn; turn off the electrical supply to the furnace before removing the filter cabinet door; an airflow arrow on a filter must point toward the blower; a disposable media filter is replaced only with one of the same part number and size; \"Never operate unit without a filter or with filter access door removed. A failure to follow this warning could result in fire, personal injury, or death.\" One maker and one model family: other furnaces follow their own manuals."
+    },
+    {
+      "id": "pa-puc",
+      "name": "Pennsylvania Public Utility Commission",
+      "url": "https://www.puc.pa.gov/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A state agency: Pennsylvania state works are not public domain by federal statute, so restate. Gas Emergencies (https://www.puc.pa.gov/pipeline/gas-emergencies/, undated, read 2026-10-23 for the How-to Change a furnace filter): if indoors, leave the home or building immediately; do not turn lights on or off; do not make calls from a landline or cell phone while at home; do not cause a spark; leave windows and doors open while leaving; call 9-1-1 and the natural gas utility from a safe distance away from the odor; wait for gas company or emergency personnel to say it is safe to return."
+    },
+    {
+      "id": "ny-doh",
+      "name": "New York State Department of Health",
+      "url": "https://www.health.ny.gov/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A state agency: restate. Burn and Scald Prevention for Children, revised December 2025 (https://www.health.ny.gov/prevention/injury_prevention/burn_scald.htm, read 2026-10-23 for the How-to Boil water to make it safe to drink): keep children out of the kitchen while preparing meals or in a safe supervised area; never carry a child and hot liquids at the same time; turn pot handles inward and out of a child's reach and use the rear burners when possible; keep hot liquids away from counter and table edges."
+    },
+    {
+      "id": "unicef",
+      "name": "UNICEF",
+      "publisher": "United Nations Children's Fund",
+      "url": "https://www.unicef.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Restate. Supply Division, Oral Rehydration Salts and Zinc: Market and Supply Update, September 2022 (https://www.unicef.org/supply/media/24906/file, downloaded and its text extracted locally, read 2026-10-23 for the How-to Mix oral rehydration solution from a packet): the WHO protocol after each loose motion, 50 to 100 ml for a child under 2, 100 to 200 ml from 2 to 10, freely above 10; sachets made for 1 litre (20.5 g) and, since UNICEF worked with makers, for half a litre (10.2 g)."
     }
   ]
 }

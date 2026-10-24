@@ -87,6 +87,8 @@ pub mod fleet_ledger;
 pub mod identity;
 pub mod governance;
 pub mod laws;
+/// How-to (docs/design/how-to.md, increment 1, 2026-10-23): step-by-step procedures, with runs.
+pub mod how_to;
 // Recovery through trusted people moved into Settings > Account with the
 // Platform tab's retirement (2026-10-20): pages/settings/recovery.rs.
 // The Maps page (was cosmos.rs until Maps increment 0, 2026-10-20): a folder,

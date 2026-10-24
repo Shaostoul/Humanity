@@ -1820,6 +1820,40 @@ fn snapshot_cloud_dev_collapsed() {
     });
 }
 
+/// The How-to page (2026-10-23, docs/design/how-to.md increment 1): Test the seals on home-canned
+/// jars open in the Full view, part-way through a run (the cooling timer done, the bands off, the
+/// press test passed, the tap test answered No, one jar to process again), so the photograph shows
+/// the rail with Doing now and the tree, the list, the Stop and call box, a lethal safety note at
+/// its step, the current-step marker, a check's answer pointing at its problem, and the sources.
+/// The run is made in memory and the run store points at a folder that does not exist, so the
+/// snapshot never reads or writes the person's own runs.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_how_to() {
+    render_page_png("how_to", 1600, 1500, |ctx, theme, state| {
+        if state.how_to.lib.is_none() {
+            state.how_to.store = crate::how_to::runs::RunStore::new(std::path::Path::new("target").join("no_such_how_to_runs"));
+            state.how_to.load_now(std::path::Path::new("data"));
+            let lib = state.how_to.lib.clone().expect("loaded");
+            let l = lib.find("test_jar_seals").expect("the seals how-to ships");
+            let t0 = 1_792_789_331_000;
+            let mut run = crate::how_to::runs::Run::start(&l.how_to, &l.hash, t0);
+            run.run = "r-20261023-210211-0001".into();
+            run.start_wait("cool", 43_200, t0);
+            run.set_done("cool", true, t0 + 43_200_000);
+            run.set_done("bands_off", true, t0 + 43_300_000);
+            run.answer(&l.how_to, "press", true, t0 + 43_400_000);
+            run.answer(&l.how_to, "tap", false, t0 + 43_500_000);
+            run.choose("any_failed", "some", t0 + 43_600_000);
+            run.choose("unsealed_choice", "reprocess", t0 + 43_700_000);
+            state.how_to.runs = vec![run];
+            state.how_to.branch = Some("food".into());
+            state.how_to.open("test_jar_seals");
+        }
+        crate::gui::pages::how_to::draw(ctx, theme, state);
+    });
+}
+
 /// Inventory > The fleet (2026-10-04, pages/fleet_ledger.rs): a player in the shared world
 /// standing at the mess hall's stores, 4 CR in the red after one meal and two loaves given,
 /// with the give form showing the backpack's bread.

@@ -21,7 +21,7 @@
 
 use super::pages::{
     apps, browser, bugs, calculator, calendar, chat, crafting, donate, governance,
-    dev_tab, guilds, homes, humanity, identity, inventory, laws, library, maps, market, notes, profile, quests,
+    dev_tab, guilds, homes, how_to, humanity, identity, inventory, laws, library, maps, market, notes, profile, quests,
     files, real, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
 };
@@ -75,6 +75,7 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Identity => identity::draw(ctx, theme, state),
         GuiPage::Governance => governance::draw(ctx, theme, state),
         GuiPage::Laws => laws::draw(ctx, theme, state),
+        GuiPage::HowTo => how_to::draw(ctx, theme, state),
         GuiPage::Maps => maps::draw(ctx, theme, state),
         GuiPage::Testing => testing::draw(ctx, theme, state),
         GuiPage::Browser => browser::draw(ctx, theme, state),
@@ -127,6 +128,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Identity => "identity",
         GuiPage::Governance => "governance",
         GuiPage::Laws => "laws",
+        GuiPage::HowTo => "how_to",
         GuiPage::Maps => "maps",
         GuiPage::Testing => "testing",
         GuiPage::Browser => "browser",
@@ -179,6 +181,7 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Identity,
     GuiPage::Governance,
     GuiPage::Laws,
+    GuiPage::HowTo,
     GuiPage::Maps,
     GuiPage::Testing,
     GuiPage::Browser,

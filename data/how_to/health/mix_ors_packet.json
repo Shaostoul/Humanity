@@ -1,0 +1,209 @@
+{
+  "id": "mix_ors_packet",
+  "title": "Mix oral rehydration solution from a packet",
+  "summary": "Make a packet of oral rehydration salts into the drink that replaces the water and salts lost to diarrhoea, and give it.",
+  "for": "Anyone caring for a child or an adult with diarrhoea who has a packet of oral rehydration salts (ORS).",
+  "audience": "everyone",
+  "category": "health_caring",
+  "tags": ["real", "health", "safety", "guide"],
+  "realities": ["real", "sim"],
+  "time": { "active_min": 5, "waiting_min": 0 },
+  "difficulty": 1,
+  "hazard": "lethal",
+  "skills": ["medicine"],
+  "topics": ["health_water_illness"],
+  "reading": ["when-food-or-water-makes-you-sick"],
+  "needs_first": ["boil_water_safe"],
+  "tools": [
+    { "item": "measuring_jug_0", "qty": { "value": 1, "unit": "each" }, "note": "Clean, and marked so you can measure exactly the water the packet names." },
+    { "item": "spoon_0", "note": "To stir, and to give the drink to a baby." },
+    { "item": "cup_0", "note": "To drink from." }
+  ],
+  "materials": [
+    { "item": "ors_sachet_0", "qty": { "value": 1, "unit": "each" }, "note": "One packet of oral rehydration salts." },
+    { "item": "water_purified_0", "note": "Clean drinking water: exactly the amount the packet says." }
+  ],
+  "stop_and_call": [
+    {
+      "when": "They lose consciousness, become confused or have a seizure.",
+      "do": "Call 911 or your local emergency number now.",
+      "who": "Emergency services",
+      "cites": ["medline"]
+    },
+    {
+      "when": "They have a fever over 102 F (38.9 C), or they are not getting better, or are getting worse, despite the drink.",
+      "do": "Call 911 or your local emergency number.",
+      "who": "Emergency services",
+      "cites": ["medline"]
+    },
+    {
+      "when": "They show signs of severe dehydration: no urine or very dark urine, sunken eyes, listlessness, a racing heart or fast breathing, dizziness or confusion.",
+      "do": "Get medical help now. Severe dehydration is treated with fluids given into a vein.",
+      "who": "A doctor, a clinic or the emergency room",
+      "cites": ["medline", "who_fact"]
+    },
+    {
+      "when": "There is blood in the stool, the diarrhoea has gone on for 14 days or more, or there are any signs of dehydration.",
+      "do": "See a health professional. The amounts on this page are WHO's for diarrhoea of less than 14 days with no blood in the stool.",
+      "who": "A doctor, a nurse or a clinic",
+      "cites": ["who_fact", "unicef"]
+    }
+  ],
+  "steps": [
+    {
+      "id": "wash_hands",
+      "kind": "do",
+      "text": "Wash your hands with soap and clean water.",
+      "why": ["Caring for someone sick with diarrhoea is one of the times the CDC names for washing your hands, before and after."],
+      "detail": ["Wet your hands, lather them with soap over the backs, between the fingers and under the nails, scrub for at least 20 seconds, rinse them under clean running water and dry them on a clean towel."],
+      "cites": ["cdc_hands"]
+    },
+    {
+      "id": "packet_water",
+      "kind": "choose",
+      "text": "Read the packet: how much water does it say to mix it with?",
+      "why": ["Packets are made for different amounts of water. WHO's standard packet is for one litre, and UNICEF also supplies a smaller packet for half a litre."],
+      "options": [
+        { "id": "one_litre", "label": "One litre" },
+        { "id": "half_litre", "label": "Half a litre (500 ml)" },
+        { "id": "other", "label": "Another amount" }
+      ],
+      "cites": ["who_ors", "unicef"]
+    },
+    {
+      "id": "measure_water",
+      "kind": "do",
+      "text": "Measure exactly that much clean drinking water into a clean jug.",
+      "detail": ["If you are not sure the water is safe to drink, make it safe first and let it cool (see Boil water to make it safe to drink)."],
+      "uses": ["measuring_jug_0", "water_purified_0"],
+      "safety": {
+        "level": "lethal",
+        "short": "Use exactly the amount of water the packet says.",
+        "full": ["WHO cautions that a packet filled with too much powder may give the drink a higher sodium concentration and lead to hypernatraemia (too much sodium in the blood), particularly in infants. Too little water does the same thing to the drink (our reading)."]
+      },
+      "cites": ["who_ors"]
+    },
+    {
+      "id": "add_packet",
+      "kind": "do",
+      "text": "Empty the whole packet into the water.",
+      "why": ["The packet holds the right amount of salts and sugar for that much water, and only for that much."],
+      "uses": ["ors_sachet_0"],
+      "cites": ["who_ors"]
+    },
+    {
+      "id": "stir",
+      "kind": "do",
+      "text": "Stir until the powder has dissolved.",
+      "uses": ["spoon_0"],
+      "cites": ["who_ors"]
+    },
+    {
+      "id": "give",
+      "kind": "do",
+      "text": "Give it to drink, or by spoon for a baby.",
+      "detail": [
+        "How much, by WHO's guidance as UNICEF sets it out, after each loose stool: 50 to 100 ml for a child under 2, 100 to 200 ml for a child from 2 to 10, and as much as they want above 10.",
+        "WHO's label for a one-litre packet: a baby takes the litre over 24 hours, a child over 8 to 24 hours according to age, and an adult drinks it freely, as needed."
+      ],
+      "uses": ["cup_0", "spoon_0"],
+      "cites": ["who_ors", "unicef"]
+    },
+    {
+      "id": "zinc",
+      "kind": "do",
+      "text": "For a child, ask a health worker about zinc tablets.",
+      "short": false,
+      "why": ["WHO and UNICEF treat a child's diarrhoea with the drink and a 10 to 14 day course of zinc together: zinc shortens the illness."],
+      "cites": ["who_fact", "unicef"]
+    },
+    {
+      "id": "keep_going",
+      "kind": "do",
+      "text": "Keep giving it until the diarrhoea stops, and keep feeding them, breast milk included.",
+      "cites": ["who_ors", "who_fact"]
+    },
+    {
+      "id": "throw_away",
+      "kind": "wait",
+      "text": "Throw away any drink left 24 hours after you mixed it, and mix a fresh packet if it is still needed.",
+      "wait": { "min_s": 86400 },
+      "safety": {
+        "level": "serious",
+        "short": "Never give it more than 24 hours after it was mixed.",
+        "full": ["WHO's packet label carries this as a warning: discard the remaining solution after 24 hours."]
+      },
+      "cites": ["who_ors"]
+    }
+  ],
+  "worked_if": [
+    "The whole packet dissolved in exactly the water it names.",
+    "The person is drinking it."
+  ],
+  "problems": [
+    {
+      "id": "unsure_of_water",
+      "sign": "You are not sure how much water went in.",
+      "why": "The right amount is the only thing that makes the drink right.",
+      "fix": "Throw it away and mix a fresh packet, measuring the water exactly (our reading).",
+      "cites": ["who_ors"]
+    }
+  ],
+  "repeat": null,
+  "makes": { "recipe": "mix_ors" },
+  "sources": [
+    {
+      "key": "who_ors",
+      "source": "who",
+      "title": "Oral Rehydration Salts: Production of the New ORS (WHO/FCH/CAH/06.1)",
+      "where": "https://www.who.int/publications/i/item/WHO-FCH-CAH-06.1",
+      "dated": "2006",
+      "read": "2026-10-23",
+      "quote": "Dissolve entire content of packet in one litre of drinking water",
+      "note": "Read as the PDF copy at https://files.givewell.org/files/DWDA%202009/Interventions/ORS/WHO_Oral_rehydration_salts_report_2006.pdf (WHO's own download refused a scripted request), its text extracted locally; WHO and UNICEF, copyright WHO 2006. Section 3.4.3, the label on WHO and UNICEF's packets: dissolve the entire content in one litre of drinking water; infants one litre over 24 hours, children one litre over 8 to 24 hours according to age, adults drink freely as required; continue until diarrhoea stops; 'WARNING: DISCARD REMAINING SOLUTION AFTER 24 HOURS'; the instructions to show how to measure the water, mix, stir, and that ORS is best given by spoon to infants. Section 6.6.4 cautions against overfilling packets, as it 'may result in a higher sodium concentration in the solution and ultimately lead to hypernatraemia, particularly in infants'."
+    },
+    {
+      "key": "unicef",
+      "source": "unicef",
+      "title": "Oral Rehydration Salts and Zinc: Market and Supply Update",
+      "where": "https://www.unicef.org/supply/media/24906/file",
+      "dated": "2022-09",
+      "read": "2026-10-23",
+      "quote": "In a child younger than 2 years of age, provide 50 ml to 100 ml of ORS solution.",
+      "note": "UNICEF Supply Division, read as a downloaded PDF with its text extracted locally. Its Figure 3, WHO's childhood diarrhoea treatment protocol for diarrhoea of less than 14 days and no blood in stool, with zinc for 10 to 14 days from the start, after each loose motion: under 2, 50 to 100 ml; 2 to 10, 100 to 200 ml; older than 10, freely. It also reports a 10.2 g sachet for half a litre beside the 20.5 g one for a litre."
+    },
+    {
+      "key": "who_fact",
+      "source": "who",
+      "title": "Diarrhoeal disease (fact sheet)",
+      "where": "https://www.who.int/news-room/fact-sheets/detail/diarrhoeal-disease",
+      "dated": "2024-03-07",
+      "read": "2026-10-23",
+      "quote": "Rehydration with intravenous fluids in case of severe dehydration or shock.",
+      "note": "Also: ORS is a mixture of clean water, salt and sugar, absorbed in the small intestine to replace the water and electrolytes lost in the faeces; keep giving nutrient-rich foods, including breast milk, during an episode; 'Consulting a health professional, in particular for management of persistent diarrhoea or when there is blood in stool or if there are signs of dehydration.'; a 10 to 14 day course of dispersible zinc tablets shortens diarrhoea and improves outcomes."
+    },
+    {
+      "key": "medline",
+      "source": "medlineplus",
+      "title": "Dehydration",
+      "where": "https://medlineplus.gov/ency/article/000982.htm",
+      "dated": "2025-07-01",
+      "read": "2026-10-23",
+      "quote": "You should call 911 or the local emergency number if:",
+      "note": "The page prints 102 F as 38.8 C; it is 38.9 C. The list that follows: the person loses consciousness at any time; any other change in alertness, such as confusion or seizures; a fever over 102 F (38.8 C); symptoms of heatstroke; the condition does not improve or gets worse despite treatment. Its symptoms of severe dehydration: not urinating or very dark urine, dry shrivelled skin, irritability or confusion, dizziness or lightheadedness, rapid heartbeat, rapid breathing, sunken eyes, listlessness, shock, unconsciousness or delirium. The page's review date is 7/1/2025."
+    },
+    {
+      "key": "cdc_hands",
+      "source": "cdc",
+      "title": "About Handwashing",
+      "where": "https://www.cdc.gov/clean-hands/about/index.html",
+      "dated": "2024-02-16",
+      "read": "2026-10-23",
+      "quote": "Before and after caring for someone at home who is sick with vomiting or diarrhea",
+      "note": "One of its key times to wash hands. Its steps: wet, lather (backs, between the fingers, under the nails), scrub for at least 20 seconds, rinse under clean running water, dry with a clean towel or an air dryer. Read through a page reader."
+    }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

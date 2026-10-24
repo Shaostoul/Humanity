@@ -34,6 +34,10 @@ pub const FLEET_LEDGER_RON: &str = include_str!("../data/ship/fleet_ledger.ron")
 
 // ── JSON data ───────────────────────────────────────────────────────
 pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
+// The How-to page's own words (2026-10-23, pages/how_to/words.rs), so a bare exe's page never
+// shows a bare key. The how-tos themselves are read from data/how_to/ (an index arrives with
+// increment 4, which is when the Crafting page needs one without a data folder).
+pub const HOW_TO_WORDS_JSON: &str = include_str!("../data/how_to/words.json");
 // v0.199.0: Sol moved to the multi-system shape under data/star_systems/.
 // SOLAR_SYSTEM_JSON now points at the new file. See
 // docs/design/cosmos-architecture.md for the schema.
@@ -427,6 +431,9 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         // RON — Resources
         "resources/fertilizer_basic.ron" => Some(RESOURCE_FERTILIZER_RON),
         "resources/water_clean.ron" => Some(RESOURCE_WATER_RON),
+
+        // JSON — the How-to page's words
+        "how_to/words.json" => Some(HOW_TO_WORDS_JSON),
 
         // JSON — i18n
         "i18n/en.json" => Some(I18N_EN_JSON),

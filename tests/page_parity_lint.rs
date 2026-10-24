@@ -221,6 +221,42 @@ const PARITY_PAIRS: &[ParityPair] = &[
             ("web/pages/dev-claude.js", "fetch('/data/i18n/en.json')"),
         ],
     },
+    // How-to (2026-10-23, docs/design/how-to.md): the category tree, the planned list and the page's
+    // own words, one file each for both apps. The how-tos themselves are read file by file (the
+    // desktop walks data/how_to/<top>/, the website takes the paths from the index the build writes
+    // from the same folders), and both check the same rules: src/how_to/check.rs and
+    // web/shared/how-to-logic.js, held together by tests/fixtures/how_to/broken.json.
+    ParityPair {
+        page: "How-to (categories)",
+        native: &["src/how_to/library.rs"],
+        web: &["web/pages/how-to-app.js"],
+        data_file: "how_to/categories.json",
+        reads: &[
+            ("src/how_to/library.rs", "std::fs::read(data_dir.join(\"how_to/categories.json\"))"),
+            ("src/gui/pages/how_to.rs", "Library::load(&data_dir, Some(pages))"),
+            ("web/pages/how-to-app.js", "getJson('/data/how_to/categories.json'),"),
+        ],
+    },
+    ParityPair {
+        page: "How-to (planned)",
+        native: &["src/how_to/library.rs"],
+        web: &["web/pages/how-to-app.js"],
+        data_file: "how_to/planned.json",
+        reads: &[
+            ("src/how_to/library.rs", "std::fs::read(data_dir.join(\"how_to/planned.json\"))"),
+            ("web/pages/how-to-app.js", "getJson('/data/how_to/planned.json'),"),
+        ],
+    },
+    ParityPair {
+        page: "How-to (words)",
+        native: &["src/gui/pages/how_to/words.rs"],
+        web: &["web/pages/how-to-app.js"],
+        data_file: "how_to/words.json",
+        reads: &[
+            ("src/gui/pages/how_to/words.rs", "crate::embedded_data::read_data_or_embedded(&crate::data_dir(), \"how_to/words.json\")"),
+            ("web/pages/how-to-app.js", "getJson('/data/how_to/words.json'),"),
+        ],
+    },
 ];
 
 fn read(rel: &str) -> String {

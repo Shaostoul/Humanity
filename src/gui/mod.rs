@@ -340,6 +340,9 @@ pub enum GuiPage {
     Governance,
     /// Location-aware rules + rights, nested Humanity -> locality (v0.496).
     Laws,
+    /// How-to (2026-10-23, docs/design/how-to.md): step-by-step procedures for real life and for
+    /// this app, from data/how_to/, with runs kept on this device. Beside the Library in the nav.
+    HowTo,
     // 2026-10-20: the Recovery variant went with the Platform tab. Recovery
     // through trusted people is a subsection of Settings > Account now
     // (pages/settings/recovery.rs); the website keeps /recovery.
@@ -1159,6 +1162,8 @@ pub struct GuiState {
     pub files: crate::gui::pages::files::FilesState,
     /// The Apps page (pages/apps.rs): the games read, the programs found, its details and its dialogs.
     pub apps: crate::gui::pages::apps::AppsState,
+    /// The How-to page (pages/how_to.rs): the how-tos once loaded, this person's runs, what is open.
+    pub how_to: crate::gui::pages::how_to::HowToState,
 
     /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
     /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
@@ -3421,6 +3426,7 @@ impl Default for GuiState {
             watch_input: String::new(),
             files: Default::default(),
             apps: Default::default(),
+            how_to: Default::default(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
             underwater: false,
@@ -4534,6 +4540,11 @@ pub struct SettingsState {
     pub apps_how_open: bool,
     /// Whether the Files page's "How this page works" is open (2026-10-20, closed until opened).
     pub files_how_open: bool,
+    /// The How-to page (2026-10-23, pages/how_to.rs): Short or Full, whether its "How this page
+    /// works" is open, and the split of its three panes.
+    pub how_to_view: crate::how_to::view::View,
+    pub how_to_how_open: bool,
+    pub how_to_layout: Vec<f32>,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4654,6 +4665,9 @@ impl Default for SettingsState {
             apps_epic_covers: false,
             apps_how_open: false,
             files_how_open: false,
+            how_to_view: Default::default(),
+            how_to_how_open: false,
+            how_to_layout: crate::gui::pages::how_to::SHARES.to_vec(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

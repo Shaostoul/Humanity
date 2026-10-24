@@ -57,7 +57,26 @@ A contract describing data shape, units, ranges, and invariants.
 The process of verifying that data meets schema and invariants.
 
 ### Recipe
-A deterministic transformation of inputs into outputs that declares time, requirements, and byproducts.
+A deterministic transformation of inputs into outputs that declares time, requirements, and byproducts. A how-to that makes something names its recipe in its `makes` block (2026-10-23; the recipe moves into the how-to's file in increment 4 of docs/design/how-to.md).
+
+---
+
+## How-to Terms (2026-10-23, docs/design/how-to.md)
+
+### How-to
+One procedure as data (`data/how_to/<top category>/<id>.json`, schemas/how_to.toml): its purpose, who it is for, what you need, its steps, how to tell it worked, what goes wrong, who can help, and its sources with dates. On screen "How-to" (the page), "a how-to", "how-tos"; in code `how_to`.
+
+### Step
+One thing to do in a how-to, with a stable id: a tick, a timer, a check (Yes or No), a value to write down, a choice, another how-to, a page to open, a command. A run's state is keyed by the step's id.
+
+### Run
+One time a person does a how-to: when it started, which steps are done, what they wrote down, how it ended. Kept on their own device only.
+
+### Repeat
+A person's choice to do a how-to every so often (every 90 days); the Calendar shows when it is next due (increment 3).
+
+### Variant
+A how-to adapted to a place or a kind of equipment, stating only what differs from the how-to it adapts (increment 7).
 
 ---
 

@@ -116,6 +116,16 @@
         "On a narrow window the two panes collapse into a single canvas with a Program/Preview switch above it.",
         "The broadcast transport is still rehearsal-only: nothing is actually sent anywhere yet (see the Go Live tooltip). The split controls which scene <em>would</em> be sent once real streaming lands."
       ]
+    },
+    "how-to": {
+      "title": "The How-to page",
+      "body": [
+        "A <strong>how-to</strong> is one procedure, step by step: what it achieves, what you need, the steps to tick off, the timers where a step waits, the checks where you test something, and what to do when something goes wrong. The Library is what you read; How-to is what you do.",
+        "Search finds a how-to by its title, its steps, its tools, and by what you see when something goes wrong, so you can type a symptom. A dimmed how-to is planned and not written yet.",
+        "<strong>Short</strong> shows the steps and every safety line; <strong>Full</strong> adds the reasons and the details. Short never leaves out a safety line that can seriously hurt or kill. The <strong>Stop and call someone if</strong> box comes before the steps.",
+        "<strong>Start</strong>, or ticking any step, keeps your progress on this device only. Close the app and come back and you carry on where you left off; a timer keeps running while the app is closed.",
+        "Every how-to lists its sources with the date each was read. One that can kill if done wrong shows as checked only after a person has read it and dated it."
+      ]
     }
   },
   "pages": {
@@ -171,9 +181,13 @@
     "/settings": [
       "real-sim",
       "identity"
+    ],
+    "/how-to": [
+      "how-to"
     ]
   },
   "native_pages": {
+    "HowTo": "/how-to",
     "MainMenu": "/",
     "Quests": "/onboarding",
     "Library": "/accord",

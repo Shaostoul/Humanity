@@ -487,6 +487,16 @@ pub struct AppConfig {
     /// each place is, folded until the person opens it. A config without it has it closed.
     #[serde(default)]
     pub files_how_open: bool,
+    /// The How-to page's Short or Full (2026-10-23, pages/how_to.rs), remembered for the person,
+    /// not per how-to. A config without it reads Full.
+    #[serde(default)]
+    pub how_to_view: crate::how_to::view::View,
+    /// Whether the How-to page's "How this page works" is open. Closed until opened.
+    #[serde(default)]
+    pub how_to_how_open: bool,
+    /// The split of the How-to page's three panes; an unusable one is put back to the default.
+    #[serde(default)]
+    pub how_to_layout: Vec<f32>,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1591,6 +1601,9 @@ impl AppConfig {
             apps_epic_covers: state.settings.apps_epic_covers,
             apps_how_open: state.settings.apps_how_open,
             files_how_open: state.settings.files_how_open,
+            how_to_view: state.settings.how_to_view,
+            how_to_how_open: state.settings.how_to_how_open,
+            how_to_layout: state.settings.how_to_layout.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1786,6 +1799,9 @@ impl AppConfig {
         state.settings.apps_epic_covers = self.apps_epic_covers;
         state.settings.apps_how_open = self.apps_how_open;
         state.settings.files_how_open = self.files_how_open;
+        state.settings.how_to_view = self.how_to_view;
+        state.settings.how_to_how_open = self.how_to_how_open;
+        state.settings.how_to_layout = crate::gui::widgets::panes::checked(&self.how_to_layout, &crate::gui::pages::how_to::SHARES);
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot

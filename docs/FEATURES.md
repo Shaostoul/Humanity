@@ -89,6 +89,15 @@ Nested jurisdiction tree (Humanity -> Earth -> country -> state -> county -> loc
 - Data: `data/laws/laws.json` (jurisdictions + rules + categories, hot-reloadable)
 - Design: `docs/design/laws.md`. Web mirror is a follow-up.
 
+### How-to (step-by-step procedures, with runs) (increment 1, 2026-10-23)
+One procedure per data file: what it achieves and for whom, its hazard in words and an icon, what you need, the steps to tick off (timers that run while the app is closed, Yes/No checks that point at their problem or back at a step, values to write down with last time's beside them, choices that show and hide later steps, pages to open, commands to copy), how to tell it worked, what goes wrong and what to do, and its sources with the date each was read. Short and Full views (Short never drops a serious or lethal safety line: a checker gate and a second lock in the view rule); the Stop and call someone if box first; a person's dated review required before a lethal how-to can show as checked. Runs are the person's own, on their device, keyed by step id so an edited how-to keeps them. Six how-tos shipped (Change a furnace filter, Boil water to make it safe to drink, Test the seals on home-canned jars, Mix oral rehydration solution from a packet, Back up your recovery phrase, Restore a save snapshot), each sourced from primary sources and dated, review status sourced (not yet checked); 48 planned ones shown dimmed in the tree.
+- Native: `src/gui/pages/how_to.rs` + `how_to/` (`GuiPage::HowTo`, page id `how_to`; nav button beside Library; Apps tile; rail, list and view in `widgets::panes`; words from `data/how_to/words.json` via `how_to/words.rs`)
+- Model, checker, hash, loader, runs: `src/how_to/` (compiled into the relay too); runs in `%APPDATA%/HumanityOS/how_to/runs/`
+- Checker twin and build: `web/shared/how-to-logic.js`, `scripts/build-how-to.js` (in `just lints` and `just validate-data`); every gate shown red by `tests/fixtures/how_to/broken.json` in both checkers
+- Data: `data/how_to/categories.json` (the starting tree, 11 branches), `data/how_to/<top>/<id>.json`, `planned.json`, `words.json`, generated `index.json`; shape `schemas/how_to.toml`
+- Web mirror: `web/pages/how-to.html` + `how-to-app.js` (IndexedDB runs, `/how-to#<id>/<step>` deep links); parity pairs in `tests/page_parity_lint.rs`
+- Snapshot: `src/gui/ui_snapshots.rs::snapshot_how_to`. Design: `docs/design/how-to.md`
+
 ### AI-as-Citizen
 Mandatory `subject_class_v1` declaration + `controlled_by_v1` operator binding. AI excluded from governance voting per Accord.
 - Storage: `src/relay/storage/ai_status.rs`

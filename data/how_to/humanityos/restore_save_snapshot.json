@@ -1,0 +1,127 @@
+{
+  "id": "restore_save_snapshot",
+  "title": "Restore a save snapshot",
+  "summary": "Put your game home back the way it was at an earlier save, and keep the save you replace in case you change your mind.",
+  "for": "Anyone playing in the HumanityOS desktop app whose home went wrong: a bad trade, something lost, a save spoiled by a bug.",
+  "audience": "everyone",
+  "category": "humanityos_saves",
+  "tags": ["project", "beginner", "guide"],
+  "realities": ["real"],
+  "apps": ["desktop"],
+  "time": { "active_min": 5, "waiting_min": 0 },
+  "difficulty": 1,
+  "hazard": "none",
+  "steps": [
+    {
+      "id": "open_data",
+      "kind": "go",
+      "text": "Open Settings, Data.",
+      "page": "settings",
+      "section": "data",
+      "cites": ["settings"]
+    },
+    {
+      "id": "find_save",
+      "kind": "do",
+      "text": "Find Save snapshots, and under it the save you want to put back. The one the game is using is called Your home.",
+      "detail": ["Before the game saves over your home it keeps a copy of the save it replaces: the newest 10 copies, at most one every 15 minutes. The game saves every 2 minutes while you play, and when you quit."],
+      "cites": ["settings", "persistence"]
+    },
+    {
+      "id": "pick",
+      "kind": "do",
+      "text": "Find the copy from the time you want, by its date and time, how long ago it was, and its size, and press Restore beside it.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "confirm",
+      "kind": "check",
+      "text": "It says your current save is kept as a snapshot first. Is this the copy you want? If not, press Cancel.",
+      "no": "pick",
+      "cites": ["settings"]
+    },
+    {
+      "id": "yes_restore",
+      "kind": "do",
+      "text": "Press Yes, restore.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "restored",
+      "kind": "check",
+      "text": "Does the line under the list begin with Restored?",
+      "no": "nothing_changed",
+      "cites": ["save_load"]
+    },
+    {
+      "id": "enter_world",
+      "kind": "do",
+      "text": "If it says a restored save is waiting, enter the world: the restored home loads then.",
+      "detail": ["Until you enter the world the game does not save over the restored copy."],
+      "cites": ["settings"]
+    }
+  ],
+  "worked_if": ["Your home is as it was when the copy you picked was taken."],
+  "problems": [
+    {
+      "id": "no_snapshots",
+      "sign": "It says No snapshots yet.",
+      "why": "The first copy is kept the next time the game saves over your home.",
+      "fix": "There is nothing to restore yet. For next time, play until the game saves, or press Snapshot now to keep a copy of your home as it was last saved.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "nothing_changed",
+      "sign": "The line under the list begins with Nothing was changed.",
+      "why": "The copy could not be put back; the rest of the line says why.",
+      "fix": "Your save is as it was before. Read the reason, and report a bug if it does not make sense.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "wrong_copy",
+      "sign": "You restored the wrong copy.",
+      "why": "A restore keeps the save it replaces among the snapshots.",
+      "fix": "Restore again, picking the copy the first restore kept: a restore can be undone.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "default_home_on",
+      "sign": "It says only your character is loaded now.",
+      "why": "Start every session from the default home is on (Settings, Gameplay).",
+      "fix": "Turn it off, and the restored home is the one you play.",
+      "cites": ["save_load"]
+    }
+  ],
+  "repeat": null,
+  "makes": null,
+  "sources": [
+    {
+      "key": "settings",
+      "in_project": "src/gui/pages/settings.rs",
+      "title": "Settings, Data: Save snapshots",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "Restore puts a copy back and keeps the save it replaces among the snapshots, so a restore can be undone.",
+      "note": "The desktop app's own code (draw_save_snapshots), as it stood on 2026-10-23 (commit 1638661e8): its explanation, Your home, Restore, Yes, restore and Cancel, Your current save is kept as a snapshot first, Snapshot now, No snapshots yet, A restored save is waiting, and a failure beginning Nothing was changed. Game saves are on the desktop only."
+    },
+    {
+      "key": "persistence",
+      "in_project": "src/persistence.rs",
+      "title": "Save snapshots: how many are kept and how often",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "note": "SNAPSHOTS_KEPT is 10 and SNAPSHOT_SPACING_SECS is 15 minutes; the home is saved every two minutes while you play. As the code stood on 2026-10-23."
+    },
+    {
+      "key": "save_load",
+      "in_project": "src/save_load.rs",
+      "title": "restore_snapshot_into_game: what a restore says",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "note": "Its lines begin Restored (on disk, or with the home being loaded back into the game); with Start every session from the default home on, only the character is loaded now. As the code stood on 2026-10-23."
+    }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

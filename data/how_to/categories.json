@@ -1,0 +1,177 @@
+{
+  "_comment": "The How-to page's category tree (docs/design/how-to.md, 'A category'; shape in schemas/how_to.toml, [category]). Unlimited depth. Every how-to sits in exactly ONE node (its `category`), and its file lives in the folder named after that node's TOP-level ancestor: data/how_to/<top id>/<how-to id>.json, so agents writing Food and Household how-tos in parallel never touch the same folder. Ids are unique across the whole tree and never reused. `icon` is a painter name from src/gui/widgets/icons.rs (paint_<name>); the website maps the same names in web/pages/how-to-app.js. `subjects` are Curriculum subject ids (data/curriculum/syllabus.json) a branch practises; `help` names Help and Services categories of data/external/catalog.json. Organised by where in life a task sits, not by subject: the Curriculum is the subject map, linked through `subjects`. A new category is a new node here, never code.",
+  "categories": [
+    {
+      "id": "household",
+      "title": "Household",
+      "line": "Keeping a home running: heat, water, power, cleaning and safety checks.",
+      "order": 1,
+      "icon": "house",
+      "subjects": ["shelter", "sanitation"],
+      "help": ["housing", "energy"],
+      "children": [
+        { "id": "household_heating", "title": "Heating and cooling", "line": "Furnaces, heat pumps, stoves and keeping a home at a safe temperature.", "order": 1 },
+        { "id": "household_plumbing", "title": "Plumbing", "line": "Taps, drains, pipes and the water shut-off.", "order": 2 },
+        { "id": "household_electrics", "title": "Electrics you may safely touch", "line": "Fuses, breakers, plugs and bulbs: the part of a home's wiring a householder may handle.", "order": 3 },
+        { "id": "household_appliances", "title": "Appliances", "line": "Looking after the machines in a home so they last and stay safe.", "order": 4 },
+        { "id": "household_cleaning", "title": "Cleaning", "line": "Cleaning that keeps a home healthy, and the products that must never be mixed.", "order": 5 },
+        { "id": "household_safety", "title": "Safety checks", "line": "Alarms, exits and the checks worth doing every season.", "order": 6 }
+      ]
+    },
+    {
+      "id": "food",
+      "title": "Food",
+      "line": "Cooking, keeping and growing food.",
+      "order": 2,
+      "icon": "leaf",
+      "subjects": ["food_growing", "food_preservation", "food_wild", "food_animals"],
+      "help": ["food"],
+      "children": [
+        { "id": "food_cooking", "title": "Cooking", "line": "Making meals safely from what you have.", "order": 1 },
+        { "id": "food_keeping", "title": "Keeping food", "line": "Canning, drying, freezing and storing food so it stays safe to eat.", "order": 2 },
+        { "id": "food_growing", "title": "Growing food", "line": "Seeds, soil, watering and harvest.", "order": 3 },
+        { "id": "food_animals", "title": "Animals", "line": "Keeping animals for eggs, milk and meat.", "order": 4 },
+        { "id": "food_wild", "title": "Wild food", "line": "Gathering food that grows without being planted.", "order": 5 }
+      ]
+    },
+    {
+      "id": "water",
+      "title": "Water",
+      "line": "Finding, keeping and making water safe.",
+      "order": 3,
+      "icon": "droplet",
+      "subjects": ["water"],
+      "help": ["water"],
+      "children": [
+        { "id": "water_collecting", "title": "Collecting", "line": "Rain, wells and other places water comes from.", "order": 1 },
+        { "id": "water_safe", "title": "Making it safe", "line": "Boiling, disinfecting and filtering water so it is safe to drink.", "order": 2 },
+        { "id": "water_storing", "title": "Storing", "line": "Keeping water so it is still safe to drink later.", "order": 3 },
+        { "id": "water_testing", "title": "Testing", "line": "Finding out what is in your water instead of guessing.", "order": 4 }
+      ]
+    },
+    {
+      "id": "health",
+      "title": "Health and first aid",
+      "line": "Looking after a body, and knowing when to get help.",
+      "order": 4,
+      "icon": "heart",
+      "subjects": ["health"],
+      "help": ["emergency", "health", "mental"],
+      "children": [
+        { "id": "health_first_aid", "title": "First aid", "line": "What to do until help arrives.", "order": 1 },
+        { "id": "health_staying_well", "title": "Staying well", "line": "Everyday care that keeps small problems small.", "order": 2 },
+        { "id": "health_caring", "title": "Caring for someone", "line": "Looking after a person who is ill at home, and knowing when they need more help.", "order": 3 }
+      ]
+    },
+    {
+      "id": "making",
+      "title": "Making and repair",
+      "line": "Tools, materials and fixing things.",
+      "order": 5,
+      "icon": "hammer",
+      "subjects": ["tools", "materials"],
+      "help": ["skills"],
+      "children": [
+        { "id": "making_tools", "title": "Tools", "line": "Choosing, using and looking after tools.", "order": 1 },
+        { "id": "making_wood", "title": "Wood", "line": "Cutting, joining and finishing wood.", "order": 2 },
+        { "id": "making_metal", "title": "Metal", "line": "Shaping, joining and protecting metal.", "order": 3 },
+        { "id": "making_cloth", "title": "Cloth and sewing", "line": "Mending and making clothes and other things of cloth.", "order": 4 },
+        { "id": "making_electronics", "title": "Electronics", "line": "Small, low-voltage electronics and repairs.", "order": 5 },
+        { "id": "making_vehicles", "title": "Bikes and vehicles", "line": "Keeping bicycles and vehicles running.", "order": 6 }
+      ]
+    },
+    {
+      "id": "energy",
+      "title": "Energy and power",
+      "line": "Making, storing and using power safely.",
+      "order": 6,
+      "icon": "bolt",
+      "subjects": ["energy"],
+      "help": ["energy"],
+      "children": [
+        { "id": "energy_electricity", "title": "Electricity", "line": "Using electricity safely at home.", "order": 1 },
+        { "id": "energy_fuel", "title": "Fuel and heat", "line": "Wood, gas, oil and the generators and stoves that burn them.", "order": 2 },
+        { "id": "energy_solar", "title": "Batteries and solar", "line": "Storing power and making it from sunlight.", "order": 3 }
+      ]
+    },
+    {
+      "id": "emergencies",
+      "title": "Emergencies",
+      "line": "When something goes wrong at once.",
+      "order": 7,
+      "icon": "lifebuoy",
+      "subjects": ["health", "shelter"],
+      "help": ["emergency"],
+      "children": [
+        { "id": "emergencies_power_cut", "title": "Power cut", "line": "When the electricity goes off.", "order": 1 },
+        { "id": "emergencies_storm", "title": "Storm", "line": "Before, during and after a storm.", "order": 2 },
+        { "id": "emergencies_fire", "title": "Fire", "line": "Fires at home, and getting out.", "order": 3 },
+        { "id": "emergencies_flood", "title": "Flood", "line": "Rising water and what it leaves behind.", "order": 4 },
+        { "id": "emergencies_earthquake", "title": "Earthquake", "line": "When the ground shakes, and after.", "order": 5 },
+        { "id": "emergencies_lost", "title": "Lost", "line": "When you or someone with you is lost.", "order": 6 },
+        { "id": "emergencies_leaving", "title": "Leaving in a hurry", "line": "What to take and where to go when you must leave home quickly.", "order": 7 }
+      ]
+    },
+    {
+      "id": "money",
+      "title": "Money and paperwork",
+      "line": "Budgets, benefits, documents and forms.",
+      "order": 8,
+      "icon": "wallet",
+      "subjects": ["community"],
+      "help": ["money", "legal"],
+      "children": [
+        { "id": "money_budgeting", "title": "Budgeting", "line": "Knowing where money goes and planning ahead.", "order": 1 },
+        { "id": "money_help", "title": "Getting help", "line": "Finding out what help you can get and applying for it.", "order": 2 },
+        { "id": "money_documents", "title": "Documents and IDs", "line": "Keeping, replacing and using the papers that prove who you are.", "order": 3 },
+        { "id": "money_taxes", "title": "Taxes", "line": "Filing and keeping the records taxes need.", "order": 4 }
+      ]
+    },
+    {
+      "id": "community",
+      "title": "Community",
+      "line": "Doing things together.",
+      "order": 9,
+      "icon": "person",
+      "subjects": ["community"],
+      "help": [],
+      "children": [
+        { "id": "community_meetings", "title": "Meetings and decisions", "line": "Meeting, deciding and keeping a record of what was decided.", "order": 1 },
+        { "id": "community_sharing", "title": "Sharing and lending", "line": "Sharing tools, food and space with neighbours.", "order": 2 },
+        { "id": "community_teaching", "title": "Teaching others", "line": "Passing on what you know.", "order": 3 },
+        { "id": "community_volunteering", "title": "Volunteering", "line": "Giving time where it helps.", "order": 4 }
+      ]
+    },
+    {
+      "id": "computers",
+      "title": "Computers and phones",
+      "line": "Keeping your devices and your data safe.",
+      "order": 10,
+      "icon": "server",
+      "subjects": [],
+      "help": ["technology"],
+      "children": [
+        { "id": "computers_backups", "title": "Backups", "line": "Copies of what matters, kept somewhere else.", "order": 1 },
+        { "id": "computers_passwords", "title": "Passwords and keys", "line": "Passwords, passphrases and the keys that unlock your accounts.", "order": 2 },
+        { "id": "computers_safe_online", "title": "Staying safe online", "line": "Scams, updates and what to share.", "order": 3 },
+        { "id": "computers_fixing", "title": "Fixing common problems", "line": "When a device stops doing what it should.", "order": 4 }
+      ]
+    },
+    {
+      "id": "humanityos",
+      "title": "HumanityOS",
+      "line": "Using, running and developing this app.",
+      "order": 11,
+      "icon": "globe",
+      "subjects": [],
+      "help": [],
+      "children": [
+        { "id": "humanityos_start", "title": "Getting started", "line": "Your first steps in HumanityOS.", "order": 1 },
+        { "id": "humanityos_account", "title": "Your account", "line": "Your recovery phrase, your passphrase and getting back in.", "order": 2 },
+        { "id": "humanityos_saves", "title": "Your saves", "line": "Your game saves, their snapshots and putting one back.", "order": 3 },
+        { "id": "humanityos_server", "title": "Running a server", "line": "Hosting, backing up, restoring and moving a HumanityOS server.", "order": 4 },
+        { "id": "humanityos_developing", "title": "Developing HumanityOS", "line": "The procedures for building HumanityOS itself, shown with Developer mode on.", "order": 5, "audience": "developer" }
+      ]
+    }
+  ]
+}

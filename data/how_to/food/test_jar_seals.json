@@ -1,0 +1,227 @@
+{
+  "id": "test_jar_seals",
+  "title": "Test the seals on home-canned jars",
+  "summary": "Find out which of the jars you canned have sealed, what to do with any that did not, and how to store the rest.",
+  "for": "Anyone who has just canned jars with two-piece lids by a tested recipe, the day after canning.",
+  "audience": "everyone",
+  "category": "food_keeping",
+  "tags": ["real", "food", "safety", "guide"],
+  "realities": ["real"],
+  "time": { "active_min": 15, "waiting_min": 720 },
+  "difficulty": 1,
+  "hazard": "lethal",
+  "skills": ["cooking"],
+  "topics": ["preserve_canning_acid", "preserve_spoilage"],
+  "reading": ["water-bath-canning", "why-canning-has-rules"],
+  "needs_first": ["can_fruit_water_bath"],
+  "tools": [
+    { "item": "spoon_0", "qty": { "value": 1, "unit": "each" }, "note": "A teaspoon, for the tap test." }
+  ],
+  "materials": [
+    { "item": "canning_lid_0", "optional": true, "note": "Only for a jar you will process again: a new lid for each, prepared as its maker says." }
+  ],
+  "stop_and_call": [
+    {
+      "when": "Someone ate home-canned food and has trouble swallowing, double or blurry vision, drooping eyelids, trouble moving the eyes, slurred speech, muscle weakness or trouble breathing.",
+      "do": "See a doctor or go to the emergency room immediately.",
+      "who": "A doctor, or the emergency room",
+      "cites": ["cdc_symptoms"]
+    }
+  ],
+  "steps": [
+    {
+      "id": "cool",
+      "kind": "wait",
+      "text": "Leave the jars to cool at room temperature for 12 to 24 hours.",
+      "detail": ["Do not tighten the lids while the jars are hot: tightening a hot lid may cut through its seal. Cool them on a rack or a towel, which spares the counter."],
+      "wait": { "min_s": 43200, "max_s": 86400 },
+      "cites": ["usda"]
+    },
+    {
+      "id": "bands_off",
+      "kind": "do",
+      "text": "Take the screw bands off the jars.",
+      "why": ["The tests are done on the lids alone, and some kinds of spoilage are easier to see later in jars stored without their bands."],
+      "cites": ["usda"]
+    },
+    {
+      "id": "press",
+      "kind": "check",
+      "text": "Press the middle of each lid with a finger, then let go. Does every lid stay down?",
+      "why": ["The USDA gives three tests and asks for one of them. Doing all three takes a minute, and a jar that fails any of them is treated here as not sealed (our reading: the safe side)."],
+      "no": "springs_up",
+      "cites": ["usda"]
+    },
+    {
+      "id": "tap",
+      "kind": "check",
+      "text": "Tap each lid with the bottom of a teaspoon. Does every lid give a clear, ringing sound?",
+      "uses": ["spoon_0"],
+      "no": "dull_sound",
+      "cites": ["usda"]
+    },
+    {
+      "id": "look",
+      "kind": "check",
+      "text": "Hold each jar at eye level and look across its lid. Is every lid curved down slightly in the middle?",
+      "no": "flat_or_bulging",
+      "cites": ["usda"]
+    },
+    {
+      "id": "any_failed",
+      "kind": "choose",
+      "text": "Did any jar fail a test?",
+      "options": [
+        { "id": "none", "label": "No, every jar passed" },
+        { "id": "some", "label": "Yes, one or more did not seal" }
+      ]
+    },
+    {
+      "id": "unsealed_choice",
+      "kind": "choose",
+      "text": "What will you do with each jar that did not seal?",
+      "if": { "any_failed": "some" },
+      "why": ["A jar that did not seal on canning day is food that is not canned yet, not spoiled food (our reading). The USDA gives three choices for it."],
+      "options": [
+        { "id": "reprocess", "label": "Process it again" },
+        { "id": "fridge", "label": "Keep it in the refrigerator" },
+        { "id": "freeze", "label": "Freeze it" }
+      ],
+      "cites": ["usda"]
+    },
+    {
+      "id": "reprocess",
+      "kind": "do",
+      "text": "Take off its lid, check the jar's rim for tiny nicks, and change the jar if it has one. Put on a new, prepared lid and process it again for the same time.",
+      "if": { "unsealed_choice": "reprocess" },
+      "uses": ["canning_lid_0"],
+      "safety": {
+        "level": "serious",
+        "short": "Process it again within 24 hours, for the recipe's full time.",
+        "full": ["The USDA's choice to process a jar again is for within 24 hours, using the same processing time as the first time. The guide does not say when the 24 hours start: counting from when the jar came out of the canner is the safe side, and after a 12 to 24 hour cool that can leave little or no time, so the refrigerator or the freezer may be the choice that is left (our reading)."]
+      },
+      "cites": ["usda"]
+    },
+    {
+      "id": "fridge",
+      "kind": "do",
+      "text": "Put it in the refrigerator and eat it within several days.",
+      "if": { "unsealed_choice": "fridge" },
+      "cites": ["usda"]
+    },
+    {
+      "id": "freeze",
+      "kind": "do",
+      "text": "Leave 1-1/2 inches (about 4 cm) of space at the top of the jar and freeze it.",
+      "if": { "unsealed_choice": "freeze" },
+      "cites": ["usda"]
+    },
+    {
+      "id": "wash",
+      "kind": "do",
+      "text": "Wash the sealed jars and their lids to remove any food, then rinse and dry them.",
+      "cites": ["usda"]
+    },
+    {
+      "id": "label",
+      "kind": "do",
+      "text": "Label each jar with what is in it and the date.",
+      "cites": ["usda"]
+    },
+    {
+      "id": "store",
+      "kind": "do",
+      "text": "Store the jars in a clean, cool, dark, dry place.",
+      "detail": [
+        "Not near hot pipes, a range or a furnace, under a sink, in an uninsulated attic, or in direct sunlight: there the food loses quality within weeks or months and may spoil, and damp may corrode the lids and break the seals.",
+        "Never above 95 F (35 C). Between 50 and 70 F (10 and 21 C) keeps the quality best."
+      ],
+      "safety": {
+        "level": "lethal",
+        "short": "Never taste food from a jar whose lid came unsealed, or that shows signs of spoilage.",
+        "full": ["Check each jar again when you take it to use (the problems below say what to look for). If in doubt, throw it out: never taste food to see if it is safe."]
+      },
+      "cites": ["usda", "cdc_canned"]
+    }
+  ],
+  "worked_if": [
+    "Every jar you kept passed the tests and is labelled and stored.",
+    "Any jar that did not seal is being processed again, is in the refrigerator, or is in the freezer."
+  ],
+  "problems": [
+    {
+      "id": "springs_up",
+      "sign": "A lid springs up when you press it and let go.",
+      "why": "The lid did not seal.",
+      "fix": "Put that jar aside and choose what to do with it: process it again within 24 hours, keep it in the refrigerator and eat it within several days, or freeze it.",
+      "cites": ["usda"]
+    },
+    {
+      "id": "dull_sound",
+      "sign": "A lid gives a dull sound when tapped.",
+      "why": "The lid is not sealed, or food is touching its underside.",
+      "fix": "Treat it as a jar that did not seal (our reading: from outside you cannot tell the two apart).",
+      "cites": ["usda"]
+    },
+    {
+      "id": "flat_or_bulging",
+      "sign": "A lid is flat, or bulges up in the middle.",
+      "why": "It may not be sealed.",
+      "fix": "Treat it as a jar that did not seal.",
+      "cites": ["usda"]
+    },
+    {
+      "id": "unsealed_in_storage",
+      "sign": "A jar's lid has come unsealed while it was stored.",
+      "why": "Spoilage bacteria and yeast make gas that swells lids and breaks seals.",
+      "fix": "Do not taste it. Treat it as spoiled food that may hold botulinum toxin, which the USDA warns can be fatal through the skin as well as by mouth: wear rubber or heavy plastic gloves to touch it. A jar still sealed goes, closed, in a heavy garbage bag in the trash; one that is open, unsealed or leaking is boiled for 30 minutes, fully covered with water, before it goes. The USDA's full steps, cleaning up included, are a how-to still to be written.",
+      "stop": true,
+      "cites": ["usda"]
+    },
+    {
+      "id": "signs_of_spoilage",
+      "sign": "A jar is leaking, bulging or swollen, looks damaged or cracked, has streaks of dried food down the outside from the top, shows rising bubbles or an unnatural colour, spurts liquid or foam when opened, smells wrong, or has cotton-like mould on the food or under the lid.",
+      "why": "These are the signs that canned food may be contaminated.",
+      "fix": "Do not taste it: if in doubt, throw it out. Wear rubber or heavy plastic gloves to handle it, and get rid of it as for a jar that came unsealed in storage (above).",
+      "stop": true,
+      "cites": ["cdc_canned", "usda"]
+    }
+  ],
+  "repeat": null,
+  "makes": null,
+  "sources": [
+    {
+      "key": "usda",
+      "source": "usda-canning-guide",
+      "title": "Complete Guide to Home Canning, Guide 1: Principles of Home Canning",
+      "where": "https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf",
+      "dated": "undated",
+      "read": "2026-10-23",
+      "quote": "After cooling jars for 12 to 24 hours, remove the screw bands and test seals with one of the following options:",
+      "note": "Read as a downloaded PDF with its text extracted locally. Guide 1 prints no date; its file is named rev0715 (revised July 2015), and the metadata inside the PDF carries 2009-10-29 among older dates. Used from it: do not retighten hot lids, which may cut through the gasket; cool at room temperature for 12 to 24 hours on racks or towels; the three tests (press, tap with a teaspoon, look across at eye level; a dull sound also when food touches the lid's underside); reprocess an unsealed jar within 24 hours with a new lid and the same processing time after checking the rim for nicks, or adjust its headspace to 1-1/2 inches and freeze it, or refrigerate it and eat it within several days; remove the bands, wash, rinse, dry, label and date; store clean, cool, dark and dry, not above 95 F, not near hot pipes, a range or a furnace, under a sink, in an uninsulated attic or in sunlight, best at 50 to 70 F; 'Do not taste food from a jar with an unsealed lid or food that shows signs of spoilage.'; spoilage is easier to see without bands; spoilage bacteria and yeast produce gas that swells lids and breaks seals. Its steps for getting rid of a spoiled jar are planned as the how-to dispose_of_a_spoiled_jar."
+    },
+    {
+      "key": "cdc_canned",
+      "source": "cdc",
+      "title": "Home-Canned Foods",
+      "where": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+      "dated": "2024-04-25",
+      "read": "2026-10-23",
+      "quote": "If in doubt, throw it out!",
+      "note": "The four signs that canned food may be contaminated: leaking, bulging or swollen; damaged, cracked or abnormal; spurts liquid or foam when opened; discolored, moldy or smells bad. And: 'Never taste food to see if it's safe.' Read through a page reader."
+    },
+    {
+      "key": "cdc_symptoms",
+      "source": "cdc",
+      "title": "Symptoms of Botulism",
+      "where": "https://www.cdc.gov/botulism/signs-symptoms/index.html",
+      "dated": "2024-04-01",
+      "read": "2026-10-23",
+      "quote": "If you or your child has signs and symptoms of botulism, immediately see your doctor or go to the emergency room.",
+      "note": "Its list: difficulty swallowing, muscle weakness, double vision, drooping eyelids, blurry vision, slurred speech, difficulty breathing, difficulty moving the eyes; foodborne botulism may also bring vomiting, nausea, stomach pain and diarrhea. Read through a page reader."
+    }
+  ],
+  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "written_by": "ai",
+  "updated": "2026-10-23"
+}

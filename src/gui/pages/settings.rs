@@ -114,6 +114,27 @@ fn styled_slider(
     changed
 }
 
+/// The Settings sections, in the sidebar's order, with their names. Also what a How-to's go step
+/// may open (pages/how_to.rs `app_pages`, by the name in lower case: "account", "data").
+pub const SECTIONS: &[(&str, SettingsCategory)] = &[
+    ("Account", SettingsCategory::Account),
+    ("Appearance", SettingsCategory::Appearance),
+    ("Animations", SettingsCategory::Animations),
+    ("Widgets", SettingsCategory::Widgets),
+    ("Notifications", SettingsCategory::Notifications),
+    ("Wallet", SettingsCategory::Wallet),
+    ("Audio", SettingsCategory::Audio),
+    ("Graphics", SettingsCategory::Graphics),
+    ("Gameplay", SettingsCategory::Gameplay),
+    ("Controls", SettingsCategory::Controls),
+    ("Privacy", SettingsCategory::Privacy),
+    ("Safety", SettingsCategory::Safety),
+    ("Media", SettingsCategory::Media),
+    ("Data", SettingsCategory::Data),
+    ("Updates", SettingsCategory::Updates),
+    ("Credits", SettingsCategory::Credits),
+];
+
 pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
     // Left sidebar: Table of Contents with jump links
     egui::SidePanel::left("settings_sidebar")
@@ -128,24 +149,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
             ui.label(RichText::new("Settings").size(theme.font_size_heading).color(theme.text_primary()));
             ui.add_space(theme.spacing_md);
 
-            let categories = [
-                ("Account", SettingsCategory::Account),
-                ("Appearance", SettingsCategory::Appearance),
-                ("Animations", SettingsCategory::Animations),
-                ("Widgets", SettingsCategory::Widgets),
-                ("Notifications", SettingsCategory::Notifications),
-                ("Wallet", SettingsCategory::Wallet),
-                ("Audio", SettingsCategory::Audio),
-                ("Graphics", SettingsCategory::Graphics),
-                ("Gameplay", SettingsCategory::Gameplay),
-                ("Controls", SettingsCategory::Controls),
-                ("Privacy", SettingsCategory::Privacy),
-                ("Safety", SettingsCategory::Safety),
-                ("Media", SettingsCategory::Media),
-                ("Data", SettingsCategory::Data),
-                ("Updates", SettingsCategory::Updates),
-                ("Credits", SettingsCategory::Credits),
-            ];
+            let categories = SECTIONS;
 
             // The nav mirrors the section tints on the right: each item wears
             // its own section colour, and the active one gets the SAME animated
@@ -154,7 +158,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
             // set in Animations).
             let time = ui.ctx().input(|i| i.time) as f32;
             let attack_pulse = state.attack_pulse_active;
-            for (label, cat) in &categories {
+            for (label, cat) in categories {
                 let is_active = state.settings.category == *cat;
                 let accent = section_accent(*cat, theme);
                 // Inactive items wear their section colour; the active one goes
