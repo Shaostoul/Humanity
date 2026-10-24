@@ -95,43 +95,61 @@ async fn a_lost_finish_answer_is_found_again() {
 /// than starting a second finish. Once the first is done, the PATCH answers with its result, and
 /// the file is stored once.
 ///
+/// Every step waits for the event itself (the finish reached its hold, a second finish began, the
+/// first one ended: `FINISHES_REACHED` and `FINISHES_ENDED`), never for a length of time. Until
+/// 2026-10-22 it waited 300 ms for the finish to be held, and under load that ran out while the
+/// piece before it was still being written: the request was dropped before its finish began, and
+/// the test failed (twice on 2026-10-21, while other builds loaded the machine).
+///
 /// Seen red 2026-10-11 with the marker held by the request alone (`writing.clone()` not moved
 /// into the finish): "a second request while the finish runs is told it is busy:
-/// Err(Elapsed(()))" (it started a second finish, which waited behind the first).
+/// Err(Elapsed(()))" (it started a second finish, which waited behind the first). Seen red again
+/// 2026-10-22, the same break against the event-driven form: "a second request while the finish
+/// runs is told it is busy, but it began a second finish".
 #[tokio::test]
 async fn a_dropped_request_keeps_its_finish_to_itself() {
+    use std::sync::atomic::Ordering::SeqCst;
+    // Only a hang guard: each wait below ends at its event, which comes in milliseconds alone and
+    // within seconds on a loaded machine. A minute without it means something is stuck.
+    const HANG: std::time::Duration = std::time::Duration::from_secs(60);
     let r = rig("resume_r2b");
     r.person("ann", "tok_ann").await;
     let data = bytes(1200);
     let id = r.start("tok_ann", file(HELD_FINISH_NAME, 1200, "video/mp4")).await.unwrap();
+    // Only this test names HELD_FINISH_NAME, so the counts move only for it.
+    let (reached, ended) = (FINISHES_REACHED.load(SeqCst), FINISHES_ENDED.load(SeqCst));
     let hold = FINISH_HOLD.lock().unwrap_or_else(|p| p.into_inner());
     {
         let mut first = Box::pin(r.send(&id, "tok_ann", 0, &data));
-        let waited = tokio::time::timeout(std::time::Duration::from_millis(300), &mut first).await;
-        assert!(waited.is_err(), "test setup: the finish is held");
+        let held = tokio::time::timeout(HANG, async {
+            tokio::select! {
+                answer = &mut first => panic!("test setup: the finish is held, so the request cannot answer: {answer:?}"),
+                () = counted(&FINISHES_REACHED, reached + 1) => {}
+            }
+        });
+        held.await.expect("test setup: the piece is written and its finish reaches the hold");
     } // the app's connection drops: its request is gone, its finish is not
 
-    let second = tokio::time::timeout(std::time::Duration::from_secs(2), r.send(&id, "tok_ann", 1200, &[])).await;
-    match second {
-        Ok(Err(busy)) => {
+    let second = tokio::time::timeout(HANG, async {
+        tokio::select! {
+            answer = r.send(&id, "tok_ann", 1200, &[]) => answer,
+            () = counted(&FINISHES_REACHED, reached + 2) => panic!("a second request while the finish runs is told it is busy, but it began a second finish"),
+        }
+    });
+    match second.await.expect("the second request answers") {
+        Err(busy) => {
             assert_eq!(busy.status(), StatusCode::CONFLICT, "{busy:?}");
             assert!(matches!(&busy, Refused::Json(_, b) if b["busy"] == true), "{busy:?}");
         }
-        other => panic!("a second request while the finish runs is told it is busy: {other:?}"),
+        Ok(answer) => panic!("a second request while the finish runs is told it is busy: {answer:?}"),
     }
     drop(hold);
-    let mut done = None;
-    for _ in 0..100 {
-        let s = status_core(&r.state, &id, Some("tok_ann")).await.unwrap().0;
-        if s.get("done").is_some() {
-            done = Some(s["done"].clone());
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    }
-    let done = done.expect("the first finish completed on its own");
+    tokio::time::timeout(HANG, counted(&FINISHES_ENDED, ended + 1)).await.expect("the first finish ends once let go");
+    let s = status_core(&r.state, &id, Some("tok_ann")).await.unwrap().0;
+    let done = s.get("done").cloned().unwrap_or_else(|| panic!("the first finish completed on its own: {s}"));
     assert_eq!(r.send(&id, "tok_ann", 1200, &[]).await.unwrap(), done, "the PATCH answers with its result");
     assert_eq!(stored_count(&r, "ann"), 1, "stored once");
+    assert_eq!(FINISHES_REACHED.load(SeqCst), reached + 1, "one finish, ever");
 }
 
 /// R3. A FILE THAT CANNOT BE WRITTEN AT THE FINISH KEEPS ITS UPLOAD: the pieces' file is made

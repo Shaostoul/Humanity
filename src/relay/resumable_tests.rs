@@ -704,6 +704,36 @@ fn the_single_request_strips_videos_too() {
 /// (R2, in resumable_follow_ups_tests.rs).
 pub(super) const HELD_FINISH_NAME: &str = "held-finish.mp4";
 pub(super) static FINISH_HOLD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+/// How many finishes of [`HELD_FINISH_NAME`] have reached the hold, and how many have ended
+/// (returned, whatever their answer). A test waits for these moments themselves, never for a
+/// length of time: on 2026-10-21 a 300 ms wait for "the finish is held" ran out, under load, while
+/// the piece before it was still being written, so the request was dropped before its finish
+/// began and the test failed.
+pub(super) static FINISHES_REACHED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub(super) static FINISHES_ENDED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// What `finish` holds while it runs, for an upload named [`HELD_FINISH_NAME`]: counted as
+/// reached before it waits for [`FINISH_HOLD`], and as ended when the finish returns.
+pub(super) struct HeldFinish(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
+
+pub(super) fn hold_finish() -> HeldFinish {
+    FINISHES_REACHED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    HeldFinish(FINISH_HOLD.lock().unwrap_or_else(|p| p.into_inner()))
+}
+
+impl Drop for HeldFinish {
+    fn drop(&mut self) {
+        FINISHES_ENDED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Wait until `counter` reaches `n`. No deadline of its own: a caller that needs one (a hang
+/// would otherwise stop the run) puts it around this, far past anything a loaded machine takes.
+pub(super) async fn counted(counter: &std::sync::atomic::AtomicUsize, n: usize) {
+    while counter.load(std::sync::atomic::Ordering::SeqCst) < n {
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    }
+}
 
 // The increment 2 follow-ups and the review's fixes (2026-10-11): R1, R2, R3, B1, B3, B4, R7.
 #[path = "resumable_follow_ups_tests.rs"]

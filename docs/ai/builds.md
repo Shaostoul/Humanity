@@ -67,6 +67,11 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   reported FLAKY (a banner), written to `data/coordination/flaky-tests.jsonl` with its first
   failure's message, and does not fail the run. One that fails again is a REAL FAILURE. More
   than five failures are not timing, and none is rerun.
+- A FLAKY line is a lead, not a verdict: "passes alone" is also how a bug that shows only under
+  load looks. Of the four tests that failed under load on 2026-10-21, three waited on the clock
+  and one was BUG-201, the file link losing datagrams on a loaded machine. A test that comes
+  back to the ledger gets its cause found (run it many times beside a busy machine, before and
+  after); the fix is a test that waits for the event it means, never a longer timeout.
 - `--run-timeout-min N` limits the test RUN, not the build before it or a wait in the slot.
 
 ## Lints

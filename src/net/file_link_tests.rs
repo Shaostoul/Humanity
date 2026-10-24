@@ -569,3 +569,26 @@ fn a_channel_label_names_its_transfer() {
     assert_eq!(label_id("hum-data"), None, "the app's own data channel");
     assert_eq!(label_id("file:not-an-id"), None);
 }
+
+/// THE LOOP NEVER WAITS INSIDE A RECEIVE (BUG-201, 2026-10-22): when a turn moved nothing it
+/// sleeps (a millisecond at first, longer as the quiet goes on, at most 20 ms, never past the
+/// Rtc's next deadline), and the next turn reads what came meanwhile from a nonblocking socket. A
+/// receive with a timeout on Windows can lose a datagram arriving as it times out; on a loaded
+/// machine the link lost a receiver's `done` and all its resends that way (`Link::run`, step 7).
+/// The source is read too, so a timed receive put back anywhere in the link fails here.
+/// Seen red 2026-10-22 with the timed receive put back in step 7: "the link never receives with
+/// a timeout".
+#[test]
+fn the_loop_sleeps_and_never_receives_with_a_timeout() {
+    let ms = Duration::from_millis;
+    assert_eq!(idle_sleep(ms(0), None), ms(1), "a millisecond right after something moved");
+    assert_eq!(idle_sleep(ms(80), None), ms(10), "longer as the quiet goes on");
+    assert_eq!(idle_sleep(Duration::from_secs(60), None), IDLE_WAIT, "at most 20 ms");
+    assert_eq!(idle_sleep(Duration::from_secs(60), Some(ms(3))), ms(3), "never past the Rtc's deadline");
+    assert_eq!(idle_sleep(Duration::from_secs(60), Some(ms(0))), ms(1), "but at least a millisecond");
+    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/net/file_link.rs")).unwrap();
+    let code: String = source.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+    assert!(!code.contains("set_read_timeout"), "the link never receives with a timeout");
+    assert!(code.contains("set_nonblocking(true)"), "its socket is nonblocking");
+    assert!(!code.contains("set_nonblocking(false)"), "for good");
+}

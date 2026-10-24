@@ -496,11 +496,13 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
     never a false FAIL); a machine-wide boot lock (`scripts/lib/boot-lock.js`) so two rigs never
     boot at once; worktrees find the DXC compiler in the main checkout. Gaps: `just launch-bg` and
     hand-typed boots skip the lock; other rigs still ignore unknown flags; perf-report does not yet
-    refuse an FXC sweep. Flaky under load (passed alone): `engine::file_transfer` "one dial one
-    allocation", `net::webrtc::turn` wrong credentials, `relay::resumable` follow-ups "a dropped
-    request keeps its finish to itself" (2026-10-21, 3 of 3 alone), `gui::pages::files::resumable`
-    "pause_resume_and_cancel" (2026-10-21, 3 of 3 alone). Also the relay-follower rig tests (scripts/tests/relay-follow.test.js: a different one of its 12 failed in two loaded runs, 12 of 12 twice alone, 2026-10-22). Two upload tests in one day: make the
-    resumable-upload tests independent of timing (they fail only while other builds load the machine).
+    refuse an FXC sweep. The four lib tests flaky under load are DONE 2026-10-22 (12 of 60 loaded
+    runs failed before, none after): the two upload tests wait for events, not times; the TURN test
+    goes step by step; "one dial one allocation" was a real bug, BUG-201 (the file link's timed
+    receive lost datagrams on a loaded Windows machine). Left: the call manager in `net/webrtc.rs`
+    waits the same way (BUG-201, "Left"); and the relay-follower rig tests are still flaky under
+    load (scripts/tests/relay-follow.test.js: a different one of its 12 failed in two loaded runs,
+    12 of 12 twice alone, 2026-10-22).
   - **DONE 2026-10-21: BUG-140, the planets orbit the right way** (v0.1534.0): the ecliptic enters
     the world by a rotation, not a mirror; the planets match JPL Horizons within 0.32 degrees, the
     Moon's phases match the US Naval Observatory within 1.44 (it had no elements and took its phase
@@ -547,8 +549,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   - **Media round 5: Waves 0, 1 and 2 are DONE** (released through v0.1494.0): the desktop and
     website item pages and editors, counts, the item page for social sites, the strips, the
     Admin tab, the snapshots, the Reports page's Open. Not built: the browser proof rig
-    `scripts/verify-media-round5.js` (plan section 6). Known flake:
-    `resumable::tests::pause_resume_and_cancel` failed once under load.
+    `scripts/verify-media-round5.js` (plan section 6). The flake in
+    `resumable::tests::pause_resume_and_cancel` under load is fixed (2026-10-22).
     In v0.1491.0 and v0.1492.0: Wave 0, 1A (relay edits), 1B (counts, the item page for social
     sites; the live nginx routes `/media/<number>` to the relay), 1C (desktop list and Admin tab),
     1E (desktop strip), 1F (web strip), 1G (web list). Next: Wave 2 (2A the website's item page

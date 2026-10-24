@@ -66,6 +66,13 @@ pub(crate) struct Server {
     /// Status requests whose answer is lost, from the next one on (a connection that keeps
     /// dropping), counted down.
     pub(crate) status_lost: usize,
+    /// Pause is pressed on this control as the start is answered: the person pressed it while the
+    /// start was on its way, so the worker finds it before its first piece whatever the machine's
+    /// load. A press from the test's own thread when `Started` reaches it races the worker, which
+    /// under load sent pieces, or the whole file, before it (2026-10-21).
+    pub(crate) pause_at_start: Option<Arc<Control>>,
+    /// Pieces that arrived while that control was paused (none should).
+    pub(crate) pieces_while_paused: usize,
 }
 
 /// A server simulated in memory, answering as src/relay/resumable.rs does.
@@ -109,6 +116,9 @@ impl Transport for Fake {
         s.blake3 = b.blake3.unwrap_or_default();
         s.id = Some("0123456789abcdef0123456789abcdef".into());
         s.start_body = body.clone();
+        if let Some(ctl) = &s.pause_at_start {
+            ctl.pause(true);
+        }
         Ok(Reply { status: 201, body: json!({ "id": s.id, "offset": 0, "size": s.size, "chunk_max": s.chunk_max }).to_string() })
     }
 
@@ -135,6 +145,9 @@ impl Transport for Fake {
     fn piece(&self, token: &str, id: &str, offset: u64, bytes: &[u8]) -> Result<Reply, String> {
         let mut s = self.s();
         s.log.push(format!("piece {offset}+{}", bytes.len()));
+        if s.pause_at_start.as_ref().is_some_and(|c| c.is_paused()) {
+            s.pieces_while_paused += 1;
+        }
         if token != s.token {
             return refuse(403, "Invalid upload token.");
         }
@@ -396,39 +409,51 @@ fn no_room_at_the_finish_is_retried_with_the_empty_piece() {
 
 /// PAUSE STOPS THE PIECES AND RESUME CARRIES ON; CANCEL TELLS THE SERVER AND NOTHING FINISHES.
 ///
+/// Pause is pressed as the server answers the start (`Server::pause_at_start`), the moment the
+/// person can press it with nothing yet on its way. Until 2026-10-22 the test pressed it from its
+/// own thread when `Started` reached it; the worker does not wait for that, and under load it sent
+/// pieces, or the whole file, first (failed 2026-10-21 while other builds loaded the machine).
+///
 /// Seen red 2026-10-11 with Cancel ending the worker without telling the server: "the server was
-/// told" (no "cancel" in its log).
+/// told" (no "cancel" in its log). Seen red 2026-10-22 with `hold` ignoring Pause (the worker
+/// sending on while paused): "no piece while paused" (left: Some(3) / right: Some(0)).
 #[test]
 fn pause_resume_and_cancel() {
     // Paused before the first piece: none goes until Resume, then all of it.
     let fake = Fake::new(8192);
     let (_f, plan, bytes) = file(20_000);
+    let ctl = Arc::new(Control::with_pace(Some(TOKEN.to_string()), Duration::from_millis(1)));
+    fake.s().pause_at_start = Some(ctl.clone());
     let paused_pieces = Arc::new(Mutex::new(None));
     let seen = paused_pieces.clone();
     let probe = fake.clone();
-    let events = run_with(fake.clone(), plan, TOKEN, |ctl, e| match e {
-        Event::Started { .. } => ctl.pause(true),
-        Event::Paused => {
+    let events = run_on(fake.clone(), plan, ctl, |ctl, e| {
+        if *e == Event::Paused {
+            // A worker that said Paused and sent on anyway would show in this moment. It can only
+            // miss such a break on a slow machine, never fail a worker that holds.
             std::thread::sleep(Duration::from_millis(50));
-            *seen.lock().unwrap() = Some(probe.s().log.iter().filter(|l| l.starts_with("piece")).count());
+            *seen.lock().unwrap() = Some(probe.count("piece"));
             ctl.pause(false);
         }
-        _ => {}
     });
-    assert!(*paused_pieces.lock().unwrap() <= Some(1), "no piece while paused (at most the one already under way)");
+    assert_eq!(*paused_pieces.lock().unwrap(), Some(0), "no piece while paused: {events:?}");
+    assert_eq!(fake.s().pieces_while_paused, 0, "and none by the server's own count");
     assert!(events.contains(&Event::Paused) && done_answer(&events).is_some(), "{events:?}");
     assert_eq!(fake.s().data, bytes);
 
     // Cancelled while paused: the server is told, and nothing is published.
     let fake = Fake::new(8192);
     let (_g, plan, _) = file(20_000);
-    let events = run_with(fake.clone(), plan, TOKEN, |ctl, e| match e {
-        Event::Started { .. } => ctl.pause(true),
-        Event::Paused => ctl.cancel(),
-        _ => {}
+    let ctl = Arc::new(Control::with_pace(Some(TOKEN.to_string()), Duration::from_millis(1)));
+    fake.s().pause_at_start = Some(ctl.clone());
+    let events = run_on(fake.clone(), plan, ctl, |ctl, e| {
+        if *e == Event::Paused {
+            ctl.cancel();
+        }
     });
     assert_eq!(events.last(), Some(&Event::Cancelled { told: Told::Gone }));
     assert!(done_answer(&events).is_none(), "nothing finishes");
+    assert_eq!(fake.count("piece"), 0, "no piece went: {events:?}");
     assert!(fake.s().cancelled && fake.s().log.contains(&"cancel".to_string()), "the server was told");
 }
 

@@ -102,8 +102,19 @@ pub const OPEN_WAIT: Duration = Duration::from_secs(45);
 /// sent again before the connection closed, and a website sender then waited until the pass ran
 /// out and ended "expired" with the file delivered.
 pub const LINGER: Duration = Duration::from_secs(15);
-/// The longest the loop blocks on the socket when nothing is going on.
-const IDLE_WAIT: Duration = Duration::from_millis(20);
+/// The longest the loop sleeps when nothing is going on, so the longest a command or a datagram
+/// waits to be read then.
+pub const IDLE_WAIT: Duration = Duration::from_millis(20);
+
+/// How long the loop sleeps after a turn that moved nothing, `quiet` after the last one that did:
+/// a millisecond at first, longer as the quiet goes on, at most [`IDLE_WAIT`], and never past the
+/// Rtc's next deadline (`to_deadline`), but at least a millisecond. A sleep, never a receive with
+/// a timeout: `Link::run`, step 7.
+pub fn idle_sleep(quiet: Duration, to_deadline: Option<Duration>) -> Duration {
+    let floor = Duration::from_millis(1);
+    let by_quiet = (quiet / 8).clamp(floor, IDLE_WAIT);
+    by_quiet.min(to_deadline.unwrap_or(IDLE_WAIT)).max(floor)
+}
 /// Messages written per loop turn at most, so commands and datagrams are never starved.
 const WRITES_PER_TURN: usize = 64;
 /// Rule 8: after the other side closed a receiving transfer's channel, how long before it is
@@ -549,6 +560,13 @@ impl Link {
     fn run(mut self) {
         str0m::crypto::from_feature_flags().install_process_default();
         let mut buf = vec![0u8; 2048];
+        // Nonblocking for good: the loop never waits inside a receive (step 7 says why).
+        if let Err(e) = self.alloc.udp.set_nonblocking(true) {
+            log::warn!("file link: the socket could not be made nonblocking: {e}");
+            self.emit(LinkEvent::RelayUnavailable);
+            return self.close();
+        }
+        let mut moved_at = Instant::now();
         loop {
             // 1. Commands, each one that touches the Rtc followed by a full drain.
             loop {
@@ -567,7 +585,6 @@ impl Link {
             }
             // 3. Everything waiting on the socket, each datagram followed by a drain.
             let mut busy = false;
-            let _ = self.alloc.udp.set_nonblocking(true);
             for _ in 0..512 {
                 match self.alloc.udp.recv_from(&mut buf) {
                     Ok((n, src)) => {
@@ -611,19 +628,23 @@ impl Link {
                 log::info!("file link: no channel opened in time");
                 return self.close();
             }
-            // 7. Nothing moved: wait on the socket a little (or until the Rtc's next deadline).
-            if !busy {
-                let wait = self
-                    .deadline
-                    .map(|d| d.saturating_duration_since(Instant::now()))
-                    .unwrap_or(IDLE_WAIT)
-                    .clamp(Duration::from_millis(1), IDLE_WAIT);
-                let _ = self.alloc.udp.set_nonblocking(false);
-                let _ = self.alloc.udp.set_read_timeout(Some(wait));
-                if let Ok((n, src)) = self.alloc.udp.recv_from(&mut buf) {
-                    let data = buf[..n].to_vec();
-                    self.datagram(src, &data);
-                }
+            // 7. Nothing moved: sleep a little ([`idle_sleep`]), and step 3 of the next turn reads
+            //    whatever came meanwhile. NEVER a receive with a timeout (BUG-201, 2026-10-22): on
+            //    Windows a receive that times out is cancelled, Microsoft documents the socket's
+            //    state as indeterminate after it, and on a loaded machine datagrams arriving around
+            //    those cancellations were lost. This loop did it about fifty times a second, and
+            //    under load it lost nearly everything the other side sent once the transfer went
+            //    quiet: a receiver's `done` and every resend of it for 15 seconds (the sender stayed
+            //    at "Sending" with the file delivered), and once the forwarder's answers to the
+            //    Allocate for 10 seconds (the server read as not set up). The engine's one-dial
+            //    test, 3 copies at once beside 16 busy processes, failed 16 runs in 45 that way and
+            //    none after (the measurements are in BUG-201). A socket that stays nonblocking is
+            //    never cancelled mid-datagram.
+            if busy {
+                moved_at = Instant::now();
+            } else {
+                let to_deadline = self.deadline.map(|d| d.saturating_duration_since(Instant::now()));
+                std::thread::sleep(idle_sleep(moved_at.elapsed(), to_deadline));
             }
         }
     }

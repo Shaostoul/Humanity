@@ -4555,17 +4555,22 @@ pub(crate) mod turn {
         use crate::net::webrtc::test_forwarder::{Forwarder, Trap};
         use std::time::Duration;
 
+        /// A client's socket on loopback, NONBLOCKING: a receive with a timeout on Windows can
+        /// lose a datagram arriving as it times out, and on a loaded machine these tests lost
+        /// the forwarder's answers that way (file_link.rs `run`, step 7, BUG-201). The readers
+        /// below sleep a millisecond when nothing is there instead.
         fn socket() -> UdpSocket {
             let s = UdpSocket::bind("127.0.0.1:0").expect("bind loopback");
-            s.set_read_timeout(Some(Duration::from_millis(5))).unwrap();
+            s.set_nonblocking(true).unwrap();
             s
         }
 
         /// Drive each client and read whatever the forwarder sent it, until
         /// `done` holds or twenty seconds pass. Relayed data is collected per client.
-        /// The bound is generous on purpose: it returns the moment `done` holds, and under
-        /// the whole library suite in parallel the forwarder thread can be starved past the
-        /// old 3 s ("all three allocated" failed that way twice on 2026-10-10).
+        /// The bound is only a hang guard: it returns the moment `done` holds. ("All three
+        /// allocated" failed twice on 2026-10-10 against the old 3 s; the sockets then received
+        /// with a timeout, which on a loaded Windows machine loses datagrams, so a lost answer
+        /// waited for the client's 2 s resend. Nothing here receives with a timeout now.)
         fn pump(
             clients: &mut [(&mut TurnClient, &UdpSocket, &mut Vec<(SocketAddr, Vec<u8>)>)],
             done: impl Fn(&[(&mut TurnClient, &UdpSocket, &mut Vec<(SocketAddr, Vec<u8>)>)]) -> bool,
@@ -4573,9 +4578,11 @@ pub(crate) mod turn {
             let deadline = Instant::now() + Duration::from_secs(20);
             let mut buf = [0u8; 2048];
             while Instant::now() < deadline {
+                let mut read = false;
                 for (client, udp, got) in clients.iter_mut() {
                     client.drive(udp);
                     while let Ok((n, src)) = udp.recv_from(&mut buf) {
+                        read = true;
                         if src != client.server_addr() {
                             continue;
                         }
@@ -4586,6 +4593,9 @@ pub(crate) mod turn {
                 }
                 if done(clients) {
                     return true;
+                }
+                if !read {
+                    std::thread::sleep(Duration::from_millis(1));
                 }
             }
             false
@@ -4671,23 +4681,61 @@ pub(crate) mod turn {
             }
         }
 
+        /// The forwarder's next answer to `client`, handed to it. Waits for the answer itself:
+        /// nothing is driven meanwhile, so nothing is resent and no deadline of the client's
+        /// passes. A minute without one is a hang (the forwarder answers within milliseconds
+        /// alone, and within seconds on a loaded machine).
+        fn next_answer(client: &mut TurnClient, udp: &UdpSocket) {
+            let hang = Instant::now() + Duration::from_secs(60);
+            let mut buf = [0u8; 2048];
+            while Instant::now() < hang {
+                match udp.recv_from(&mut buf) {
+                    Ok((n, src)) if src == client.server_addr() => {
+                        client.handle_from_server(udp, &buf[..n]);
+                        return;
+                    }
+                    Ok(_) => {}
+                    Err(_) => std::thread::sleep(Duration::from_millis(1)),
+                }
+            }
+            panic!("the forwarder never answered");
+        }
+
         /// Wrong credentials and a silent server both end in a failure the
         /// manager can say, rather than a retry loop. Seen red 2026-10-09 with the
         /// `!self.allocate_authed` guard taken off the 401 arm: the client asked
-        /// again and again and the first assertion timed out.
+        /// again and again and the first assertion timed out. Seen red 2026-10-22,
+        /// the same break against the step-by-step form below: "a 401 to signed
+        /// credentials ends it" (left: None / right: Some(Refused(401))).
+        ///
+        /// The wrong credentials go step by step, each answer awaited before the next
+        /// drive (until 2026-10-22 they were pumped against the clock, and on a loaded
+        /// machine the client's 10 s give-up, or the pump's 20 s, could pass before the
+        /// forwarder's two answers came, which reads as a different failure). The
+        /// give-up is the silent server's half, below.
         #[test]
         fn wrong_credentials_and_a_silent_server_fail() {
             let fwd = Forwarder::start(vec![Trap::bind().addr]);
             fwd.add_account("1:a", "right", "r1");
             let ua = socket();
             let mut wrong = TurnClient::new(fwd.addr, "1:a".into(), "wrong".into());
-            let mut got = Vec::new();
-            {
-                let mut one = [(&mut wrong, &ua, &mut got)];
-                assert!(pump(&mut one, |cs| cs[0].0.failure().is_some()), "a 401 to signed credentials ends it");
-            }
-            assert_eq!(wrong.failure(), Some(TurnFailure::Refused(401)));
+            wrong.give_up = Duration::from_secs(24 * 3600);
+            wrong.drive(&ua); // the Allocate without credentials
+            next_answer(&mut wrong, &ua); // the 401 challenge, with the realm and nonce
+            assert!(wrong.failure().is_none(), "the challenge is not a failure");
+            wrong.drive(&ua); // the Allocate signed with the wrong credentials
+            next_answer(&mut wrong, &ua); // refused
+            assert_eq!(wrong.failure(), Some(TurnFailure::Refused(401)), "a 401 to signed credentials ends it");
+            assert_eq!(fwd.refused(), vec!["Allocate with wrong credentials".to_string()], "asked once with them");
+            // Rather than a retry loop: nothing more to do, ever, and nothing more is sent.
+            assert!(wrong.next_deadline().is_none());
+            wrong.last_allocate = Some(Instant::now() - super::super::TURN_ALLOC_RETRY_INTERVAL);
+            assert!(wrong.drive(&ua).is_none());
+            assert!(wrong.pending.is_empty(), "no request waits for an answer");
 
+            // The silent server: here the give-up IS the subject, a real deadline (300 ms in
+            // place of 10 s), and the pump returns the moment it has passed.
+            let mut got = Vec::new();
             let silent = UdpSocket::bind("127.0.0.1:0").unwrap();
             let ub = socket();
             let mut lonely = TurnClient::new(silent.local_addr().unwrap(), "1:a".into(), "right".into());
@@ -4799,7 +4847,9 @@ pub(crate) mod test_forwarder {
         /// Start one on 127.0.0.1, giving out relayed addresses from `pool`.
         pub fn start(pool: Vec<SocketAddr>) -> Forwarder {
             let sock = UdpSocket::bind("127.0.0.1:0").expect("bind loopback");
-            sock.set_read_timeout(Some(Duration::from_millis(10))).unwrap();
+            // Nonblocking, polled with a millisecond's sleep when nothing is there: a receive
+            // with a timeout can lose a datagram on Windows (file_link.rs `run`, step 7).
+            sock.set_nonblocking(true).unwrap();
             let addr = sock.local_addr().unwrap();
             let mut pool = pool;
             pool.reverse(); // given out in the order the test listed them
@@ -4809,9 +4859,13 @@ pub(crate) mod test_forwarder {
             let thread = std::thread::spawn(move || {
                 let mut buf = [0u8; 4096];
                 while !halt.load(Ordering::Relaxed) {
-                    if let Ok((n, src)) = sock.recv_from(&mut buf) {
-                        let mut s = st.lock().unwrap();
-                        handle(&sock, &mut s, src, &buf[..n]);
+                    match sock.recv_from(&mut buf) {
+                        Ok((n, src)) => {
+                            let mut s = st.lock().unwrap();
+                            handle(&sock, &mut s, src, &buf[..n]);
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(1)),
+                        Err(_) => {} // a reset from a client gone: carry on
                     }
                 }
             });

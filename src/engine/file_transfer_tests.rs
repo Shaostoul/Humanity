@@ -32,7 +32,12 @@ fn app(n: u8, tag: &str, peer: &(Vec<u8>, String), peer_name: &str, peer_online:
     let mut gs = GuiState::default();
     gs.profile_public_key = key.clone();
     gs.private_key_bytes = Some(seed.clone());
+    // The process id too: two test programs running at once (two checkouts verifying) share the
+    // temporary folder, so a name from the clock alone can be another program's. With three copies
+    // of this test at once, one failed on 2026-10-22 reading its saved file ("The system cannot
+    // find the path specified"), its folder apparently gone; the id rules that out.
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let nanos = format!("{}_{nanos}", std::process::id());
     gs.server_url = format!("https://{tag}-{nanos}.example");
     let mut store = DmStore::load(&seed, &key, &crate::gui::pages::chat::norm_server_url(&gs.server_url));
     store.set_pass_server(SERVER);

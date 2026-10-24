@@ -700,7 +700,7 @@ fn finish(state: &RelayState, folders: Folders, s: &UploadSession) -> Result<Val
     };
     // A test can hold one named finish at its start (relay/resumable_tests.rs, R2).
     #[cfg(test)]
-    let _held = (s.filename == tests::HELD_FINISH_NAME).then(|| tests::FINISH_HOLD.lock().unwrap_or_else(|p| p.into_inner()));
+    let _held = (s.filename == tests::HELD_FINISH_NAME).then(tests::hold_finish);
     // A finish that could not move the pieces file back after a refusal left it staged under its
     // session's name (R3-5): it comes back first. Only a file that is nowhere is lost.
     if !part.is_file() && !restore_staged_part(folders, &s.id) {

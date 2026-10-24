@@ -6230,7 +6230,7 @@ tighten. Tests: `the_own_copy_says_whether_a_profile_is_stored_here` (relay),
 `a_never_seen_server_holding_a_profile_keeps_the_tighter_word` and the `which_word_wins_on_a_server`
 table (desktop), the step table and "... the tighter word wins" (web), each seen red.
 
-## BUG-201: a device-to-device file can finish on the receiver while the sender never says "Sent" (OPEN, found 2026-10-12)
+## BUG-201: a device-to-device file can finish on the receiver while the sender never says "Sent" (FIXED 2026-10-22, found 2026-10-12)
 
 - **Seen:** `engine::file_transfer::tests::one_dial_one_allocation_carries_every_file_with_a_late_candidate`
   failed twice on 2026-10-12 while six worktree builds and a release build loaded the machine
@@ -6238,13 +6238,38 @@ table (desktop), the step table and "... the tighter word wins" (web), each seen
   files whole and Done, and Sam, the sender, still had the first one short of Done). Each time it
   passed alone in under 2 seconds, and the 60 s loop (`all_done` needs both sides Done) had run
   out, so this is not only slowness: the sender waited a minute for something that never came.
-- **Suspected:** the receiver's last word for a transfer (its done or acknowledgement over the
-  data channel) can be lost or never sent when its last piece is processed late, and nothing
-  resends it or lets the sender find out another way. In real use the sender's row would sit at
-  "Sending" with the file already whole on the other device.
-- **Next:** reproduce under load deliberately (a busy loop on every core, or a forwarder that delays
-  datagrams), log both sides' channel messages for the stuck transfer, then fix the rule in the
-  sender (ask again, as rule 9 asks again for a lost answer) rather than lengthen the test.
+- **Cause (found 2026-10-22, not the one suspected):** the connection's own socket lost datagrams.
+  Reproduced with three copies of the test at once beside 16 busy processes (16 of 45 runs failed)
+  and logged both sides, every datagram and the test forwarder's own counts: the receiver wrote
+  `done` and SCTP sent it again at 1, 2, 4 and 8 seconds; the forwarder received and delivered
+  every one to the sender's socket; the sender's loop never read any of them, while answers to
+  its own requests did arrive. The receiver closed 15 seconds on (`LINGER`) with `done` never
+  acknowledged. Once the forwarder's answers to the Allocate went the same way for 10 seconds,
+  and the connection gave up with the server read as not set up. The loop in
+  `net/file_link.rs` waited for datagrams with a receive that has a timeout, about fifty times
+  a second; on Windows a receive that times out is cancelled, Microsoft documents the socket's
+  state as indeterminate after it, and on a loaded machine the datagrams arriving around those
+  cancellations were lost. Measured with the diagnosis build: 7 of 9 runs failed with the timed
+  receive, 5 of 9 with it and the socket never switched to nonblocking, 0 of 9 with the socket
+  nonblocking and the loop sleeping instead.
+- **Fixed:** the link's socket is nonblocking for good and the loop sleeps when a turn moved
+  nothing (`idle_sleep`: a millisecond at first, at most 20 ms, never past the Rtc's deadline;
+  `Link::run`, step 7). `the_loop_sleeps_and_never_receives_with_a_timeout` holds the sleep and
+  reads the source so a timed receive put back fails it (seen red). The test forwarder and the
+  TURN tests' sockets are nonblocking too. The engine test under load, three copies at once
+  beside 16 busy processes: alone, 16 of 45 runs failed before (the first diagnosis build, which
+  only printed the links' events) and 0 of 45 after; with the three other flaky tests beside it,
+  3 of 60 before and 0 of 60 after. The link's own rule-8 test,
+  `a_channel_the_other_side_closes_ends_a_sending_transfer_with_words` (seen failing under load
+  on 2026-10-23 by other work), the same way: 7 of 30 loaded runs failed before (the channel never
+  opened: the forwarder's answers to the Allocate lost, or the connection's first messages), 0 of
+  30 after.
+- **Left:** the call manager in `net/webrtc.rs` (voice rooms and calls) waits the same way, a
+  receive with a timeout each turn, so on a loaded Windows machine it can lose datagrams too
+  (audio, and its data channel's messages). Not changed here: it was not under test, and its
+  loop feeds one input per turn by design; the same fix (nonblocking, a short sleep) applies.
+  The rule-9 idea (the sender asking again) stays worth having for a real lost `done`, such as a
+  connection that drops between the receiver's check and its `done`.
 
 ## BUG-202: one wrong word in a recovery phrase restored a different, empty identity on the desktop (FIXED v0.1505.0, found 2026-10-16)
 
