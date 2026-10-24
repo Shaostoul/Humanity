@@ -225,6 +225,11 @@ test("each reaction reads as the desktop pill paints it: emoji then count, sorte
 
 function popupPage(view) {
   const p = standIn(view);
+  // The settings the page's time formatter reads (view/timestampPill.js, loaded before this file
+  // on the page): the zone stated, UTC, so the full time does not depend on where the machine
+  // running the test is (2026-10-24, when the zone became a setting).
+  p.win.localStorage = { getItem: (k) => (k === "humanity_settings" ? JSON.stringify({ timestamp_zone: "utc" }) : null) };
+  p.run("chat/view/timestampPill.js");
   assert.ok(has("chat/view/pillPopup.js"), "web/chat/view/pillPopup.js exists");
   p.run("chat/view/pillPopup.js");
   return p;
@@ -261,7 +266,7 @@ test("hovering the Þ opens the bar at the pill's right edge: Reply, Pin, Edit, 
   assert.equal(b.querySelector(".pill-popup-react").getAttribute("data-no-tip"), "", "a reaction has none");
   assert.equal(thorn.getAttribute("aria-expanded"), "true");
   const ts = p.doc.body.querySelector(".pill-ts-expand");
-  assert.equal(ts && ts.textContent, "2026-10-22 20:55:03 UTC", "the full time, UTC, native's format");
+  assert.equal(ts && ts.textContent, "2026-10-22 20:55:03 UTC", "the full time, in the zone set (UTC here), native's format");
   // Placed: re-place with the bar's real size (the stand-in measures nothing until told).
   sizeBar(p);
   ts.rect = { left: 0, top: 0, width: 160, height: 22 };

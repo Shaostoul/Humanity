@@ -1300,7 +1300,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         widgets::setting_hint(ui, theme, hint, t("tour.settings_tour_hint"));
 
         // Chat timestamp display format (operator request). Applies app-wide and
-        // instantly, re-formatting already-shown messages too. All UTC.
+        // instantly, re-formatting already-shown messages too, in the zone below.
         widgets::form_row(ui, theme, t("settings.timestamp_format"), |ui| {
             let mut current = crate::gui::pages::chat::timestamp_format();
             let before = current;
@@ -1318,6 +1318,31 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                 crate::gui::pages::chat::set_timestamp_format(current);
                 crate::config::AppConfig::from_gui_state(state).save();
                 // Re-format already-rendered messages so the change is instant.
+                for m in state.chat_messages.iter_mut() {
+                    if m.timestamp_ms > 0 {
+                        m.timestamp = crate::gui::pages::chat::format_timestamp(m.timestamp_ms);
+                    }
+                }
+            }
+        });
+        // The time zone those times are in: this computer's (the default, as the website shows
+        // them) or UTC (2026-10-24, chat/timestamps.rs).
+        widgets::form_row(ui, theme, t("settings.timestamp_zone"), |ui| {
+            let mut current = crate::gui::pages::chat::timestamp_zone();
+            let before = current;
+            egui::ComboBox::from_id_salt("timestamp_zone_combo")
+                .selected_text(current.label())
+                .width(320.0)
+                .show_ui(ui, |ui| {
+                    for zone in crate::gui::pages::chat::TimestampZone::ALL {
+                        ui.selectable_value(&mut current, zone, zone.label()).hint("settings.timestamp_zone_hint");
+                    }
+                })
+                .response
+                .hint("settings.timestamp_zone_hint");
+            if current != before {
+                crate::gui::pages::chat::set_timestamp_zone(current);
+                crate::config::AppConfig::from_gui_state(state).save();
                 for m in state.chat_messages.iter_mut() {
                     if m.timestamp_ms > 0 {
                         m.timestamp = crate::gui::pages::chat::format_timestamp(m.timestamp_ms);

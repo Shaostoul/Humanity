@@ -197,10 +197,9 @@ pub fn sorted(entries: &[FsEntry], by: SortBy, desc: bool) -> Vec<FsEntry> {
 
 /// A date changed as words: "2026-10-17 21:03 UTC", or empty when not known.
 pub fn changed_words(t: Option<std::time::SystemTime>) -> String {
-    let Some(secs) = t.and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64) else { return String::new() };
-    let (y, m, d) = crate::persistence::civil_from_days(secs.div_euclid(86_400));
-    let s = secs.rem_euclid(86_400);
-    format!("{y:04}-{m:02}-{d:02} {:02}:{:02} UTC", s / 3600, (s % 3600) / 60)
+    // In the zone Settings > Time zone says, as the chat's times are (chat/timestamps.rs).
+    let Some(ms) = t.and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64) else { return String::new() };
+    crate::gui::pages::chat::format_date_minute(ms)
 }
 
 /// The Details view: a heading row (a click sorts by it, a second click reverses it), then a row

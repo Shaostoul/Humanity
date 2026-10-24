@@ -140,8 +140,9 @@ In order:
      DONE 2026-10-24 for both message boxes (theme token danger_bg; the relay's my_limits, re-sent
      when a role changes). Still open: other limited fields (a profile's bio and the like);
    - the app shows message times in UTC (19:48) and the website in local time (12:48): one rule
-     for both. The app has no local-time source yet (no time crate, `chat.rs` `ts_parts` is
-     UTC arithmetic): needs the local offset from the OS or a small dependency;
+     for both. DONE 2026-10-24: both apps show this computer's time by default, with Settings >
+     Time zone (Local or UTC) and the five timestamp formats on the website too; the offset is the
+     OS's own (no time crate), and the website's expanded pill, which was UTC, follows the setting;
    - the app's Commons header for #general lists 127.0.0.1:3210, a local test relay, beside the two
      real servers.
 9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).

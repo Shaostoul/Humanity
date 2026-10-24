@@ -702,22 +702,25 @@ pub(crate) fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
+/// The inverse: days since 1970-01-01 of a (year, month, day) civil date. Howard Hinnant's
+/// public-domain `days_from_civil`: the one copy, shared by the save snapshots' names here, the
+/// How-to run times (how_to/time.rs) and the chat's local times (2026-10-24, when the copies in
+/// this file and how_to/time.rs became this one).
+pub(crate) fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
 /// The UTC date of `ms` (Unix milliseconds) as yyyy-mm-dd: the day an erased account's server save
 /// is set aside under (engine/save_slot.rs `set_aside`, ship homes increment 6).
 pub fn utc_day(ms: u64) -> String {
     let (y, m, d) = civil_from_days((ms / 86_400_000) as i64);
     format!("{y:04}-{m:02}-{d:02}")
-}
-
-/// The inverse of `civil_from_days` (Hinnant's `days_from_civil`).
-fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let m = m as i64;
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d as i64 - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146_097 + doe - 719_468
 }
 
 /// `offline_home_2026-10-03_03-41-12.345Z.json` (and `..Z_2.json` for a second
@@ -760,7 +763,7 @@ fn parse_snapshot_name(stem: &str, file_name: &str) -> Option<(u64, u32)> {
     if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || s > 59 {
         return None;
     }
-    let days = days_from_civil(y as i64, mo as u32, d as u32);
+    let days = days_from_civil(y as i64, mo as i64, d as i64);
     let secs = days * 86_400 + (h * 3600 + mi * 60 + s) as i64;
     if secs < 0 {
         return None;

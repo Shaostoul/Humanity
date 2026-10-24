@@ -36,12 +36,12 @@
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
-  // native format_full_timestamp: always UTC, always the full form, whatever the display setting.
+  // native format_full_timestamp: always the full form, whatever the display format, in the zone
+  // the settings say (view/timestampPill.js formatFullStamp, loaded before this file).
   function fullTimestamp(ms) {
     var d = new Date(Number(ms));
     if (!isFinite(d.getTime())) return '';
-    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' '
-      + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + ' UTC';
+    return window.formatFullStamp(ms, window.timestampSettings().zone);
   }
 
   // What the bar holds, in native's order. o: { privateRow, canPin, canEdit, top, all }.

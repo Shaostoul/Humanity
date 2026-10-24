@@ -992,6 +992,11 @@ pub struct AppConfig {
     #[serde(default)]
     pub timestamp_format: String,
 
+    /// The time zone times are shown in: "local" (this computer's time, the default; empty or
+    /// unknown reads as it) or "utc". Applied app-wide via chat::set_timestamp_zone on load.
+    #[serde(default)]
+    pub timestamp_zone: String,
+
     /// Legacy plaintext private key (kept only for migration, removed after encryption).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub private_key_hex: String,
@@ -1723,6 +1728,7 @@ impl AppConfig {
             voice_vad_threshold: state.voice_vad_threshold,
             keybind_overrides: state.keybinds.overrides(),
             timestamp_format: crate::gui::pages::chat::timestamp_format().as_str().to_string(),
+            timestamp_zone: crate::gui::pages::chat::timestamp_zone().as_str().to_string(),
             // Never write plaintext key back; use encrypted fields from state
             private_key_hex: String::new(),
             encrypted_private_key: state.encrypted_private_key.clone(),
@@ -2066,6 +2072,7 @@ impl AppConfig {
         crate::gui::pages::chat::set_timestamp_format(
             crate::gui::pages::chat::TimestampFormat::from_config_str(&self.timestamp_format),
         );
+        crate::gui::pages::chat::set_timestamp_zone(crate::gui::pages::chat::TimestampZone::from_config_str(&self.timestamp_zone));
         // Chat panel state
         state.chat_connection_collapsed = self.chat_connection_collapsed;
         state.chat_dm_collapsed = self.chat_dm_collapsed;

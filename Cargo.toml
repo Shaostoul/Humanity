@@ -278,8 +278,11 @@ serialport = { version = "4.9", optional = true }
 # ApplicationModel, ApplicationModel_Core and Management_Deployment (2026-10-20): the Apps page
 # finds a program installed from the Microsoft Store through Windows' own PackageManager, asked
 # only to find this person's packages of the families the catalog names (src/software/store.rs).
+# Win32_System_Time (2026-10-24): this computer's offset from UTC for a given date, daylight
+# saving included, through Windows' own SystemTimeToTzSpecificLocalTime, so the app shows times
+# in local time as the website does (src/gui/pages/chat/timestamps.rs). No time library.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", optional = true, features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Variant", "Win32_UI_Shell"] }
+windows = { version = "0.62", optional = true, features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell"] }
 
 [build-dependencies]
 winres = "0.1"

@@ -136,6 +136,13 @@ Real-time text chat with channels, threads, and message history.
   again; "Not confirmed by the server yet" after 20 s. The relay names each refusal to its sender
   (`chat_refused`, `src/relay/handlers/chat_gate.rs`, the checks a line meets). Web
   `web/chat/app.js` `markLineSending`; desktop `src/gui/pages/chat/line_limit.rs`.
+- **Times in this computer's time or UTC (2026-10-24):** Settings > Timestamp format (five, from
+  17:42 to milliseconds) and Time zone (this computer's time, the default, or UTC) in both apps,
+  under the same config strings and words. The offset comes from the system for each time shown,
+  daylight saving included (Windows `SystemTimeToTzSpecificLocalTime`, `localtime_r` elsewhere; no
+  time library). In UTC a time says so; the expanded pill names its offset ("(UTC-07:00)"). Desktop
+  `src/gui/pages/chat/timestamps.rs` (also the Files page's dates); web `web/chat/view/timestampPill.js`
+  `formatStamp`, `web/pages/settings.html` Chat > Messages.
 - **Characters past the limit in red on dark red (2026-10-24):** both message boxes colour every
   character past my line limit (theme tokens `danger` on `danger_bg`), with a "312 / 280"
   counter near it, in rooms only (a DM, a group and the scratch pad are not measured). The limit
