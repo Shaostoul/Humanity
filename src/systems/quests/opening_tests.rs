@@ -1234,7 +1234,14 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
                 QuestObjective::Build { blueprint_id } => {
                     has(t, "Crafting > Structures", "the section");
                     has(t, "then E", "the key that builds it");
-                    assert!(crafting.contains("RichText::new(\"Structures\")"), "the Crafting page has Structures");
+                    // The word is shown by key since the 2026-10-23 accessibility pass: the page draws
+                    // t("crafting.structures"), and data/i18n/en.json says what that key reads.
+                    let en = src("data/i18n/en.json");
+                    assert!(
+                        crafting.contains("RichText::new(\"Structures\")")
+                            || (crafting.contains("t(\"crafting.structures\")") && en.contains("\"structures\": \"Structures\"")),
+                        "the Crafting page has Structures"
+                    );
                     assert!(blueprints.blueprints.contains_key(blueprint_id), "the blueprint ships");
                 }
                 QuestObjective::Travel { destination } if destination == "front_door" => {

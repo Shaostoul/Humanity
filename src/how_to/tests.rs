@@ -166,9 +166,15 @@ fn the_shipped_how_tos_load_and_pass_every_gate() {
 #[test]
 fn every_gate_refuses_its_broken_fixture() {
     let cx = fixture_context();
+    // The page check needs the app's list of pages, which only the desktop build has (`pages()`);
+    // the relay build checks everything else, so there `page_unknown` is not expected to fire.
+    let checks_pages = pages().is_some();
     let mut red: BTreeSet<Code> = BTreeSet::new();
+    if !checks_pages {
+        red.insert(Code::PageUnknown);
+    }
     let mut failures = Vec::new();
-    for c in cases().iter().filter(|c| c.code.is_some()) {
+    for c in cases().iter().filter(|c| c.code.is_some() && (checks_pages || c.code != Some(Code::PageUnknown))) {
         let code = c.code.unwrap();
         let (findings, _) = check::check_file(&c.file, &c.bytes, &cx);
         if findings.iter().any(|f| f.code == code) {
