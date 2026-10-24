@@ -288,7 +288,7 @@
         "Luxury dwelling: 16 x 20 m = 320 m2 x 3 m = 960 m3 across ten rooms (docs/design/homestead.md section 3).",
         "Climate consequence, CORRECTED: 40 m2 gives about 30 W/K and 650 kWh/year of net heat; 320 m2 gives 182 W/K and 9,800 kWh/year. Wood goes from 0.4 m3 (0.2 cords) to 5.9 m3 (2.4 cords) a year, a 15x swing on an 8x floor area.",
         "Land: greenhouse 200 m2 + arable 1,700 to 2,100 m2 + woodlot 5,900 to 11,800 m2 + house and yard 500 m2 = 8,300 to 14,600 m2, about 0.83 to 1.46 ha (2.1 to 3.6 acres).",
-        "Land at the bare minimum tier: the same greenhouse and arable but a 400 to 800 m2 woodlot, so about 0.28 to 0.34 ha (0.7 to 0.8 acre). The house size, not the diet, is what decides whether a homestead needs one acre or three.",
+        "Land at the bare minimum tier: the same greenhouse, arable and house and yard but a 400 to 800 m2 woodlot, 200 + 1,700 to 2,100 + 400 to 800 + 500 = 2,800 to 3,600 m2, so about 0.28 to 0.36 ha (0.7 to 0.9 acre). CORRECTED 2026-10-23 (docs/design/closed-loop-test.md): it read 0.28 to 0.34 ha, but the parts sum to 0.36 at the top. Heated by anything but a woodlot it is 0.24 to 0.28 ha. The house size, not the diet, is what decides whether a homestead needs one acre or three.",
         "Cross-check: the arable line of 0.17 to 0.21 ha matches FAO's global arable per capita of about 0.19 ha."
       ],
       "assumptions": [

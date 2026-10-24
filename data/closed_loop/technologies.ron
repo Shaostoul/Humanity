@@ -55,10 +55,10 @@
                     quote: "Area occupied by plants per person (m2) 13 30 56"),
                 (quantity: "Crop area per person, NASA planning", value: 45.0, unit: "m2/person", display: "40 to 50 m2 (430 to 540 sq ft)", source: "johnson-wheeler-2021",
                     quote: "estimates ranging from about 40 to 50 m2 (or more) of crop growing area needed per person"),
-                (quantity: "LED efficacy limit, white plus red", value: 3.4, unit: "umol/J", display: "3.4 umol/J", source: "kusuma-2020",
-                    quote: "With current LED technology, the calculations indicate efficacy limits of 3.4 umol J-1 for white + red fixtures, and 4.1 umol J-1 for blue + red fixtures."),
+                (quantity: "LED fixture efficacy demonstrated, white plus red (blue plus red 3.0)", value: 2.8, unit: "umol/J", display: "2.5 to 2.8 umol/J (3.0 blue plus red)", source: "kusuma-2020",
+                    quote: "Now, fixture efficacies of 2.5 to 2.8 umol J-1 for white + red fixtures and 3 umol J-1 for blue + red fixtures have been achieved (Table 2)."),
             ],
-            changes: [(figure: "pp.food.power", to: 8.0, unit: "kW/person")],
+            changes: [(figure: "pp.food.power", to: 9.0, unit: "kW/person at 2.8 umol/J (the first pass used the 3.4 limit and 8 kW)")],
         ),
         (
             id: "fission_power", loop_id: Energy, era: Today, trl: (low: 6, high: 9),
@@ -67,8 +67,13 @@
             performance: [
                 (quantity: "Energy per kg of heavy metal fissioned", value: 8.21e13, unit: "J/kg", display: "82 TJ per kg", source: "nist-masses",
                     quote: "200 MeV per U-235 fission / (235.04 u x 1.6605e-27 kg/u) = 8.21e13 J/kg  [Derived; 200 MeV is the textbook round figure, not re-read]"),
+                (quantity: "Electricity out over heat made, the game's reactor class (gross 70 MWe from 300 MWth)", value: 0.233, unit: "fraction", display: "23.3%; core outlet 316 C (601 F)", source: "klt40s-iaea",
+                    quote: "Reactor thermal output 2x150 MW(th) / Power plant output, gross 2x35 MW(e) / Power plant output, net 2x30 MW(e) / Power plant efficiency, net 23.3* %"),
             ],
-            changes: [(figure: "pp.fuel.fission", to: 89800.0, unit: "t/yr at 33%")],
+            changes: [
+                (figure: "pp.fuel.fission", to: 140500.0, unit: "t/yr at 23.3%"),
+                (figure: "pp.heat.reactor_radiator", to: 41.3, unit: "m2/person at 23.3% and a 300 K condenser"),
+            ],
         ),
         (
             id: "passive_shielding", loop_id: Habitat, era: Today, trl: (low: 9, high: 9),
@@ -95,18 +100,20 @@
         (
             id: "fusion_dt", loop_id: Energy, era: Research, trl: (low: 3, high: 4),
             name: "Fusion power (deuterium-tritium), the operator's first-named research option",
-            trl_note: "Ignition at the target is demonstrated: NIF's eighth ignition (April 2025) gave 8.6 MJ from 2.08 MJ of laser energy on target, a target gain above four (llnl-2025). That gain is over the laser light delivered, not over the electricity the facility drew, and no fusion device has yet sent net electricity to a grid. ITER, the largest magnetic device, plans its first deuterium-tritium operation in 2039 (iter-2024, a schedule that has slipped before). Proof of concept (3) to lab validation of the core physics (4).",
+            trl_note: "Ignition at the target is demonstrated: NIF's eighth ignition (April 2025) gave 8.6 MJ from 2.08 MJ of laser energy on target, a target gain above four (llnl-2025). That gain is over the laser light delivered, not over the electricity the facility drew, and no fusion device has yet sent net electricity to a grid. ITER, the largest magnetic device, plans its first deuterium-tritium operation in 2039 (iter-2024, a schedule that has slipped before). Proof of concept (3) to lab validation of the core physics (4). UNPROVEN for the ship: a power plant's efficiency and the power it spends on itself (magnets, heating, cryogenics, tritium handling), so its own waste heat and radiators are unknown; the test may assume 33 to 40% only when it says so.",
             performance: [
                 (quantity: "Energy per D-T reaction", value: 17.59, unit: "MeV", display: "17.6 MeV", source: "nist-masses",
                     quote: "(2.01410177812 + 3.0160492779) - (4.00260325413 + 1.00866491606) = 0.018883 u x 931.494 MeV/u = 17.589 MeV  [Derived from NIST/CODATA masses]"),
-                (quantity: "Energy per kg of D-T fuel", value: 3.374e14, unit: "J/kg", display: "337 TJ per kg, about 4.1 times fission's per kg", source: "nist-masses",
-                    quote: "17.589 MeV x 1.602e-13 J/MeV / (5.03015 u x 1.6605e-27 kg/u) = 3.374e14 J/kg  [Derived]"),
+                (quantity: "Energy released breeding each tritium in the lithium blanket (Li-6 + n -> T + He-4)", value: 4.78, unit: "MeV", display: "4.8 MeV, so 22.4 MeV per fusion in all", source: "nist-lithium",
+                    quote: "(6.0151228874 + 1.00866491606) - (3.0160492779 + 4.00260325413) = 0.005135 u x 931.494 MeV/u = 4.783 MeV  [Derived from NIST/CODATA masses; Li-6 from nist-lithium]"),
+                (quantity: "Energy per kg of fuel CARRIED (deuterium plus lithium-6), blanket included", value: 2.688e14, unit: "J/kg", display: "269 TJ per kg carried, 3.3 times fission's per kg fissioned (0.31 of its mass per joule)", source: "nist-masses",
+                    quote: "22.373 MeV x 1.602e-13 J/MeV / ((2.01410 + 6.01512) u x 1.6605e-27 kg/u) = 2.688e14 J/kg; per kg of D-T burned, 22.373 MeV / 5.03015 u = 4.291e14 J/kg  [Derived. CORRECTED in the second review: the first pass used 17.59 MeV over the D-T mass alone, 3.374e14 J/kg, '4.1 times fission', leaving out the blanket and the lithium carried]"),
                 (quantity: "Record fusion yield and target gain", value: 4.13, unit: "target gain", display: "8.6 MJ out for 2.08 MJ of laser on target", source: "llnl-2025",
                     quote: "a NIF experiment back in Livermore achieved ignition for an eighth time, producing a record fusion yield of 8.6 megajoules (MJ) (+/- 0.45 MJ) from 2.08 MJ of laser energy delivered to the target. The result for target gain (the multiple of fusion energy produced over laser energy delivered) exceeding four also represented a record."),
             ],
             changes: [
                 (figure: "pp.fuel.fission", to: 0.0, unit: "t/yr (replaced)"),
-                (figure: "pp.fuel.fusion_dt", to: 21800.0, unit: "t/yr of D-T at 33% (18,000 at 40%); tritium bred from 21,600 to 26,100 t of lithium-6 a year"),
+                (figure: "pp.fuel.fusion_dt", to: 30300.0, unit: "t/yr carried (deuterium plus lithium-6) at an assumed 33% (25,000 at 40%); 15,700 to 19,000 t of D-T burned"),
             ],
         ),
         (
@@ -141,7 +148,7 @@
                 (quantity: "Electricity per kg of dry biomass (DERIVED from 2.7, not published)", value: 31.0, unit: "kWh/kg", display: "about 31 to 34 kWh per kg (14 to 15 kWh per lb); the 2017 lab figure was 24", source: "solar-foods-2025",
                     quote: "H2 per C fixed = 2 x 2.7 (burned with O2) + 2.1 (to reduce CO2 to biomass) = 7.5 mol; x 40.7 C-mol per kg of biomass x 2.016 g/mol = 0.615 kg H2 per kg; x 50 to 55 kWh per kg H2 = 31 to 34 kWh per kg  [Derived; the 2.1 and the biomass formula CH1.8O0.5N0.2 are textbook values not re-read]"),
             ],
-            changes: [(figure: "pp.food.power", to: 5.8, unit: "kW/person if it supplies 30% of calories (0.7 x 8 + 0.23); the 30% is a game choice")],
+            changes: [(figure: "pp.food.power", to: 6.5, unit: "kW/person if it supplies 30% of calories (0.7 x 9 + 0.23); the 30% is a game choice")],
         ),
         (
             id: "electro_acetate_food", loop_id: Food, era: Research, trl: (low: 3, high: 4),
@@ -160,13 +167,15 @@
         ),
         (
             id: "led_at_limit", loop_id: Food, era: Research, trl: (low: 6, high: 8),
-            name: "Grow lights at the physical limit of today's LEDs (blue plus red, 4.1 umol/J)",
-            trl_note: "A calculated limit (kusuma-2020); fixtures approach 3.4 for white plus red. Moving from 2.9 to 4.1 cuts a crop's lighting electricity by 29%: a real saving, and the last big one LEDs offer.",
+            name: "Grow lights at the calculated limit of today's LED technology (white plus red 3.4, blue plus red 4.1 umol/J)",
+            trl_note: "A calculated limit (kusuma-2020); fixtures had demonstrated 2.5 to 2.8 (white plus red) and 3.0 (blue plus red) by 2020. From today's 2.8 to the white plus red limit of 3.4 cuts a crop's lighting electricity by 18%; to the blue plus red limit of 4.1, by 32%: a real saving, and the last big one LEDs offer. (CORRECTED in the second review: the first pass said 29% from 2.9, while its own baseline was 3.4, from which the saving is 17%.)",
             performance: [
+                (quantity: "Efficacy limit, white plus red", value: 3.4, unit: "umol/J", display: "3.4 umol/J", source: "kusuma-2020",
+                    quote: "With current LED technology, the calculations indicate efficacy limits of 3.4 umol J-1 for white + red fixtures, and 4.1 umol J-1 for blue + red fixtures."),
                 (quantity: "Efficacy limit, blue plus red", value: 4.1, unit: "umol/J", display: "4.1 umol/J", source: "kusuma-2020",
                     quote: "4.1 umol J-1 for blue + red fixtures"),
             ],
-            changes: [(figure: "pp.food.power", to: 6.6, unit: "kW/person (8 x 3.4 / 4.1)")],
+            changes: [(figure: "pp.food.power", to: 6.1, unit: "kW/person at 4.1 (9 x 2.8 / 4.1); 7.4 at 3.4")],
         ),
         (
             id: "full_mineral_recycling", loop_id: Nutrients, era: Research, trl: (low: 4, high: 5),
@@ -176,7 +185,7 @@
                 (quantity: "Aim", value: 1.0, unit: "fraction", display: "close to 100% efficiency", source: "esa-melissa-2009",
                     quote: "The target of the work is the creation of a closed loop life support system with close to 100% efficiency"),
             ],
-            changes: [(figure: "pp.nutrients.p_makeup", to: 0.0026, unit: "kg P/person/yr at 99.9% retention")],
+            changes: [(figure: "pp.nutrients.p_makeup", to: 0.0011, unit: "kg P/person/yr at 99.9% retention (0.8 to 1.4 g)")],
         ),
         (
             id: "active_shielding", loop_id: Habitat, era: Research, trl: (low: 2, high: 3),

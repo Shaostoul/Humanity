@@ -385,8 +385,14 @@ description = "snake_case, the phase-2 Rust test's name."
 
 [case.fields.tier]
 type = "enum"
-values = ["Unit", "HomeDay", "HomeYear", "Aggregate", "Millennium", "Calibration"]
+values = ["Unit", "HomeDay", "HomeYear", "Aggregate", "Millennium", "Calibration", "SourceCheck"]
 required = true
+description = """
+SourceCheck runs on demand (it needs the network), never in CI. Every case whose
+pass line says INDEPENDENT ROUTE checks a figure by a route that shares none of its
+inputs (a law of physics, a second source, a sum of parts, another loop's ledger):
+added in the second review, after a critic showed the first pass's cases could not
+have caught its errors because they re-derived the same arithmetic."""
 
 [case.fields.mode]
 type = "enum"

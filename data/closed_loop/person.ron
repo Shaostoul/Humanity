@@ -16,7 +16,7 @@
 (
     tiers: [
         (id: "bare", kcal_per_day: 2100.0, protein_g_per_day: 57.0, water_kg_per_day: 4.48,
-            why: "2,100 kcal: enn-1997. Protein 10 to 12% of energy (enn-1997) is 52 to 63 g; 57 is the middle. Water 4.48 kg: bvad-2022 Table 4-20's Early Planetary Base (2.0 drinking + 0.5 food rehydration + 1.98 hygiene)."),
+            why: "2,100 kcal: enn-1997 (a 1997 summary of the WFP/UNHCR guidelines), confirmed as current practice by fsc-2023 ('full 2100 kcal/person/day', 'as per Sphere Standards'); the WHO, UNHCR, IFRC and WFP edition itself was not read. Protein 10 to 12% of energy (enn-1997) is 52 to 63 g; 57 is the middle. Water 4.48 kg: bvad-2022 Table 4-20's Early Planetary Base (2.0 drinking + 0.5 food rehydration + 1.98 hygiene)."),
         (id: "comfort", kcal_per_day: 2600.0, protein_g_per_day: 75.0, water_kg_per_day: 85.0,
             why: "2,600 kcal and 75 g of protein: data/home_outline.json (one moderately active adult). Water 85 L: the outline's household fixture list (drinking and cooking 5, kitchen sink 15, bathroom sink 5, shower 35, toilet 14, laundry 11), which the solo home uses. bvad-2022's Mature Planetary Base is 9.12 kg: a ship can choose either, because recycled water costs energy and buffer, not supply."),
     ],
@@ -128,18 +128,18 @@
 
         // ---- WHAT A BODY RETURNS (the nutrient loop) ------------------------------------
         (
-            id: "person.excreta.n", loop_id: Nutrients, quantity: "Nitrogen excreted (urine 4.13, faeces 0.52, other household wastewater 0.37)", value: 5.02, low: Some(3.7), high: Some(5.02),
-            unit: "kg/person/year", display: "5.0 kg (11 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018"],
-            quote: "Urine   4.13   0.40   1.83 / Faeces  0.52   0.21   5.48 / Other   0.37   0.15   10.95 / Total   5.02   0.75   18.25  [N, P, BOD in kg/person, year]",
-            check: (status: Survived, against: ["viskari-2018", "game-homes"], note: "Vinneras and Jonsson (2002), quoted in the same paper: 3.7 kg N recoverable from urine alone. data/home_outline.json cites the source-separation literature at 2.5 to 4.3 kg N per person-year. Finnish values sit at the top of the range because of a high-protein diet; nitrogen excreted follows protein eaten. Low end 3.7 (urine alone, Swedish)."),
-            note: "Scale with protein: the body excretes, at steady state, the nitrogen it eats.",
+            id: "person.excreta.n", loop_id: Nutrients, quantity: "Nitrogen excreted (urine 4.13, faeces 0.52)", value: 4.65, low: Some(3.7), high: Some(4.65),
+            unit: "kg/person/year", display: "4.65 kg (10.3 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018"],
+            quote: "TABLE 1 | The estimated amount of nutrients produced in excreta and greywater by one person per year ... Urine   4.13   0.40   1.83 / Faeces  0.52   0.21   5.48 / Other   0.37   0.15   10.95 / Total   5.02   0.75   18.25  [N, P, BOD in kg/person, year]",
+            check: (status: Corrected, against: ["viskari-2018", "game-homes"], note: "CORRECTED in the second review: the first draft took the table's Total (5.02), which includes the 'Other' row, household greywater (0.37 N), as excreted; the table's own caption says 'excreta and greywater'. Excreta are urine plus faeces, 4.65. Vinneras and Jonsson (2002), quoted in the same paper: 3.7 kg N recoverable from urine alone. data/home_outline.json cites the source-separation literature at 2.5 to 4.3 kg N per person-year; Finnish values sit high because of a high-protein diet."),
+            note: "Scale with protein: the body excretes, at steady state, the nitrogen it eats. Greywater adds about 0.37 kg N a year from the household, not the body.",
         ),
         (
-            id: "person.excreta.p", loop_id: Nutrients, quantity: "Phosphorus excreted (urine 0.40, faeces 0.21, other 0.15)", value: 0.75, low: Some(0.34), high: Some(0.75),
-            unit: "kg/person/year", display: "0.75 kg (1.7 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018"],
-            quote: "Total   5.02   0.75   18.25",
-            check: (status: Survived, against: ["game-homes"], note: "data/home_outline.json: 0.4 to 1.0 kg P per person-year in the source-separation literature. Inside it."),
-            note: "The 'other' 0.15 kg is household greywater (detergents, food scraps), not the body.",
+            id: "person.excreta.p", loop_id: Nutrients, quantity: "Phosphorus excreted (urine 0.40, faeces 0.21; world average about 1.2 g a day)", value: 0.61, low: Some(0.44), high: Some(0.61),
+            unit: "kg/person/year", display: "0.44 to 0.61 kg (1.0 to 1.3 lb) a year", basis: PerPerson, data_year: None, source: ["viskari-2018", "cordell-2010"],
+            quote: "Urine   4.13   0.40 / Faeces  0.52   0.21  (viskari-2018, Finland)  /  Human defecation 3 ... 1.2g/person/day (1-1.5g/person/day av)  (cordell-2010, world, 2005 baseline)",
+            check: (status: Corrected, against: ["cordell-2010", "game-homes"], note: "CORRECTED in the second review: the first draft used the table's Total, 0.75, which includes greywater's 0.15. Excreta proper are 0.61 (Finland); Cordell's world average of 1.2 g a day is 0.44 kg a year (her range 1 to 1.5 g, 0.37 to 0.55 kg). The Finnish figure sits just above the world range, as a high-protein diet would. data/home_outline.json's 0.4 to 1.0 kg holds both."),
+            note: "Cordell also notes '~98% P eaten is excreted in adults', which makes excreted phosphorus an independent check on the phosphorus a diet carries (test_cases.ron, phosphorus_uptake_matches_what_people_excrete).",
         ),
         (
             id: "person.excreta.k_urine", loop_id: Nutrients, quantity: "Potassium recoverable from urine", value: 1.2, low: Some(0.9), high: Some(1.4),
@@ -166,9 +166,9 @@
         ),
         (
             id: "person.radiation.career_limit", loop_id: Habitat, quantity: "NASA career limit on space radiation dose", value: 600.0, low: None, high: None,
-            unit: "mSv/career", display: "600 mSv over a career", basis: PerPerson, data_year: None, source: ["nasa-std-3001-rad"],
-            quote: "An individual astronaut's total career effective radiation dose due to space flight radiation exposure shall be less than 600 mSv. This limit is universal for all ages and sexes.",
-            check: (status: Uncertain, against: ["sp-413"], note: "A limit for astronauts who choose a career of exposure, not for children born aboard over a lifetime. SP-413's settlement target was 0.5 rem (5 mSv) a year, about 400 mSv over an 80-year life, the same order. The test uses SP-413's 5 mSv a year for residents; no source read sets a lifetime limit for a general population in space."),
+            unit: "mSv/career", display: "600 mSv over a career", basis: PerPerson, data_year: Some(2023), source: ["nasa-std-3001-rev-c"],
+            quote: "[V1 4030] An individual crewmember's total career effective radiation dose due to spaceflight radiation exposure shall be less than 600 mSv. This limit is universal for all ages and sexes.",
+            check: (status: Uncertain, against: ["nasa-std-3001-rad", "sp-413"], note: "The value survives: Revision C (approved 2023-09-15) keeps Revision B's 600 mSv (first read in a Rev B brief). Uncertain as a figure for THIS use: a limit for astronauts who choose a career of exposure, not for children born aboard over a lifetime. SP-413's settlement target was 0.5 rem (5 mSv) a year, about 400 mSv over an 80-year life, the same order. The test uses SP-413's 5 mSv a year for residents; no source read sets a lifetime limit for a general population in space."),
             note: "",
         ),
         (

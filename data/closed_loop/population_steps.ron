@@ -52,7 +52,7 @@
             ],
             unlocks: ["A repair shop and smithy working recycled metal.", "A midwife, first aid and a few specialists (estimate).", "Shared woodlot, mill, granary."],
             limits: [
-                "GENETICS: 98 people is the minimum crew Marin and Beluffi found for a 6,300-year voyage under their demographic model with inbreeding forbidden (marin-2018); Smith's genetic review puts a healthy founding population at 14,000 to 44,000 (smith-2014). The sources disagree by two orders of magnitude because they ask different questions (surviving at all against staying healthy); the test carries both.",
+                "GENETICS: 98 people is the minimum crew Marin and Beluffi found for a 6,300-year voyage under their demographic model with inbreeding forbidden (marin-2018); Smith's genetic review puts a healthy founding population at 14,000 to 44,000 (smith-2014). The sources disagree by two orders of magnitude, and BOTH claim health: Marin and Beluffi write that their 'adaptive social engineering principles (namely yearly evaluations of the vessel population, offspring restrictions and breeding constraints)' 'create and maintain a healthy population virtually indefinitely', while Smith applies population-genetics rules for drift, mutation and effective size to an unmanaged population. The difference is the models and their assumptions, which this pass could not adjudicate (CORRECTED in the second review: the first pass glossed it as 'surviving at all against staying healthy', which Marin's abstract does not support). The test carries both.",
                 "KNOWLEDGE: a small, isolated population can lose complex skills while keeping simple ones; Henrich's model of Tasmania after the sea cut it off (henrich-2004), contested by later modelling (Vaesen et al. 2016, not read).",
             ],
             evidence: ["marin-2018", "smith-2014", "henrich-2004", "salisbury-1997", "estimate"],
@@ -105,18 +105,18 @@
         (
             id: "humanity", name: "All of humanity", n: 8.2e9, n_low: 8.2e9, n_high: 10.3e9,
             loops: [
-                (loop_id: Air, earth: Partly, ship: Closes, why: "Earth: half of the CO2 people emit comes back (earth_today.ron). Ship: the crops make the air."),
+                (loop_id: Air, earth: Partly, ship: Closes, why: "Earth: about half of the CO2 people emit comes back over a decade, about a third in 2024 (earth_today.ron). Ship: the crops make the air."),
                 (loop_id: Water, earth: Partly, ship: Nearly, why: "Earth: closes for the planet, not where people live. Ship: 98% today; leak-limited at best."),
-                (loop_id: Food, earth: Partly, ship: Closes, why: "Earth: 3,016 kcal supplied, about 70% reaching people. Ship: 50 m2 and about 8 kW of light a person."),
-                (loop_id: Nutrients, earth: Open, ship: Open, why: "Earth: phosphorus mined, about 290 years of reserves. Ship: 20% measured mineral retention (BIOS-3); the ship works only above about 99.9%."),
-                (loop_id: Energy, earth: Open, ship: Partly, why: "Earth: 86% fossil. Ship: 77 TW of electricity, 21 times Earth's, a thousand years of fuel carried."),
+                (loop_id: Food, earth: Partly, ship: Closes, why: "Earth: 3,016 kcal supplied, about 70% reaching people. Ship: 50 m2 and about 9 kW of light a person."),
+                (loop_id: Nutrients, earth: Open, ship: Open, why: "Earth: about 43% of the phosphorus put on land is recycled (2005), the rest mined, about 290 years of reserves. Ship: 20% measured mineral retention (BIOS-3, all minerals); the ship works only above about 99.9%."),
+                (loop_id: Energy, earth: Open, ship: Partly, why: "Earth: 86% of traded supply fossil. Ship: 85 TW of electricity, 23 times Earth's, a thousand years of fuel carried, and radiators 2.9 times the hull's side."),
                 (loop_id: Materials, earth: Open, ship: Open, why: "Earth: 6.9% circular. Ship: every industry can exist, no new matter arrives."),
                 (loop_id: Habitat, earth: Partly, ship: Closes, why: "Earth: cropland 0.19 ha a person and falling, soil slower to form than to lose. Ship: 479,000 m3 a person in the lore's hull."),
             ],
             unlocks: ["Every industry that exists, including the chip supply chain, which on Earth exists only at this scale."],
             limits: [
-                "EARTH, EVERYONE ON A HOMESTEAD: at the bare tier the homestead model needs 0.28 to 0.34 ha a person, 2,300 to 2,800 million ha for 8.2 billion people, against 1,600 million ha of cropland and 4,800 of agricultural land (fao-land-2025); at the comfort tier, with a woodlot for heat, 0.83 to 1.46 ha, 6,800 to 12,000 million ha, more than all agricultural land and close to all 13,000 million ha of land. Self-sufficiency for everyone is a land question before it is a technology question.",
-                "SHIP: 77 TW of power and 107,000 km2 of radiators, both dominated by lighting crops.",
+                "EARTH, EVERYONE ON A HOMESTEAD: at the bare tier the homestead model needs 0.28 to 0.36 ha a person (greenhouse 200 m2 + arable 1,700 to 2,100 + woodlot 400 to 800 + house and yard 500), 2,300 to 2,950 million ha for 8.2 billion people, against 1,600 million ha of cropland and 4,800 of agricultural land (fao-land-2025). Heated by anything but a woodlot it is 0.24 to 0.28 ha, 1,970 to 2,300 million ha. At the comfort tier, with a woodlot for heat, 0.83 to 1.46 ha, 6,800 to 12,000 million ha: more than all agricultural land, and at the top of the range 92% of all 13,000 million ha of land. So the land needed is decided mostly by how the house is heated, which is a technology choice: the woodlot is most of it (CORRECTED in the second review: the first pass summed the bare tier to 0.34 ha, copying data/home_outline.json's slip, and called it 'a land question before a technology question', which the outline itself contradicts).",
+                "SHIP: 85 TW of power and 457,000 km2 of radiator fin, both dominated by lighting crops and by the reactors' own waste heat.",
             ],
             evidence: ["fao-land-2025", "wpp-2024", "game-homes"],
         ),
@@ -132,7 +132,7 @@
         "KNOWLEDGE follows the number of skilled people who can teach a skill, not the population; Henrich's model ties loss to effective population (henrich-2004).",
         "REDUNDANCY gets cheaper per person: one spare pump protects four people or forty thousand; N + 1 spares cost 1/N per person.",
         "SHIELDING per person falls as N grows inside one habitat: shield mass follows surface, about volume to the two-thirds, so a bigger hull shields each person for less (mothership.ron: 95 t a person over the lore's hull).",
-        "HEAT REJECTION does not get cheaper: every person's 9.4 kW must leave as radiation, so radiator area grows with N while a hull's surface grows only with its size. At 290 K the lore's hull side (157,080 km2) holds radiators for about 12 billion people at 9.4 kW each if they are double-sided fins of that area (13 m2 a person), and about 6 billion if they lie flat on the hull and radiate from one side only (26 m2 a person). The ship is close to its heat limit, not its space limit.",
+        "HEAT REJECTION does not get cheaper: every person's 10.4 kW, and the reactors' 34 kW of waste heat behind it, must leave as radiation, so radiator area grows with N while a hull's surface grows only with its size. With the game's reactor class (23.3%, rejecting at about 300 K) a person needs about 56 m2 of double-sided fin, and fins as large as the lore's hull side (157,080 km2) serve about 2.8 billion people (3.9 billion with an unsourced 33% plant). The ship is past its heat limit at 8.2 billion people unless its radiators extend well beyond the hull, its reactors reject heat hotter, or each person needs less electricity (CORRECTED in the second review: the first pass counted the habitat's heat only, 13 m2 a person and 12 billion people).",
         "BUFFERS: one shared store (air, water, grain) covers correlated failures only if it is connected; a ship of sealed decks has a buffer per deck, not one per ship.",
     ],
 )
