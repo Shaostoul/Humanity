@@ -67,6 +67,15 @@ pub mod pie;
 /// run so star and street names never print over each other. Web twin:
 /// `web/shared/label-placer.js`.
 pub mod label_placer;
+/// A plain-language hint on every control, by key, honouring the hint mode
+/// (the ELI5 mandate, 2026-10-22). See `widgets/hint.rs`.
+pub mod hint;
+pub use hint::{with_hint, Hint};
+/// Words with glossary terms in them: a `[[term]]` mark in `data/i18n/` draws
+/// underlined and shows its definition on hover, the desktop twin of the
+/// website's `[data-term]` overlay (2026-10-23). See `widgets/glossary_text.rs`.
+pub mod glossary_text;
+pub use glossary_text::{definition_card, glossary_note, glossary_text, glossary_words};
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
@@ -626,13 +635,16 @@ pub fn definition_text(ui: &mut Ui, display: &str, term: &str) -> egui::Response
     resp
 }
 
-/// Collapsible section with header.
+/// Collapsible section with header. A hint waiting for it (`with_hint`) goes on its
+/// header, the part a person presses, and not on the controls inside it.
 pub fn collapsible_section(ui: &mut Ui, title: &str, default_open: bool, add_contents: impl FnOnce(&mut Ui)) {
-    egui::CollapsingHeader::new(title)
+    let key = hint::pending(ui);
+    let r = egui::CollapsingHeader::new(title)
         .default_open(default_open)
-        .show(ui, |ui| {
-            add_contents(ui);
-        });
+        .show(ui, |ui| hint::without_pending(ui, add_contents));
+    if let Some(key) = key {
+        r.header_response.hint(key);
+    }
 }
 
 /// Aligned settings row: fixed-width label on left, control on right.
@@ -653,11 +665,32 @@ pub fn settings_row(ui: &mut Ui, theme: &Theme, label: &str, add_control: impl F
             |ui| {
                 ui.set_min_width(theme.settings_label_width);
                 ui.set_max_width(theme.settings_label_width);
-                ui.label(RichText::new(label).color(theme.text_secondary()));
+                let label_resp = ui.label(RichText::new(label).color(theme.text_secondary()));
+                // A hint waiting for this row's control (`with_hint`) shows on
+                // its label too: people point at the words, not the box.
+                hint::apply_pending(ui, label_resp);
             },
         );
-        add_control(ui);
+        // The row's words also NAME its control for a screen reader (a box or
+        // a slider that paints itself has no words of its own; WCAG 4.1.2).
+        hint::with_name(ui, label, add_control);
     });
+}
+
+/// A keyboard focus ring (WCAG 2.4.7; the accessibility audit,
+/// docs/design/wcag-audit-2026-10-23.md): a 2 px `border_focus` outline around a
+/// control the keyboard has reached. egui focuses a button, a box or a slider only
+/// through Tab (a click does not), so the ring never shows for the mouse. The
+/// project's controls paint their own fill and stroke, which hid egui's focus look.
+pub fn focus_ring(ui: &Ui, theme: &Theme, response: &egui::Response) {
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            response.rect.expand(2.0),
+            Rounding::same((theme.border_radius as u8).saturating_add(2)),
+            Stroke::new(2.0, theme.border_focus()),
+            egui::epaint::StrokeKind::Outside,
+        );
+    }
 }
 
 /// The step a slider SNAPS to while dragging: the precision its value label
@@ -714,6 +747,9 @@ fn custom_slider_with_width(
         Vec2::new(desired_width, widget_height),
         Sense::click_and_drag(),
     );
+    let response = hint::apply_pending(ui, response);
+    let name = hint::pending_name(ui).unwrap_or_default();
+    response.widget_info(|| egui::WidgetInfo::slider(ui.is_enabled(), *value as f64, &name));
     // The thumb CENTRE travels between these two x positions, one thumb
     // radius in from each end, so the whole knob stays inside the allocated
     // rect. With the centre running edge to edge, a slider at its maximum
@@ -734,6 +770,30 @@ fn custom_slider_with_width(
             let step = slider_display_step(max);
             let raw = min + t * (max - min);
             *value = ((raw / step).round() * step).clamp(min, max);
+        }
+    }
+    // The keyboard moves it too (WCAG 2.1.1): once Tab reaches it, the arrow keys
+    // step it by the precision its label shows, and stay on it instead of moving
+    // focus to the next control.
+    if response.has_focus() {
+        ui.memory_mut(|m| {
+            m.set_focus_lock_filter(
+                response.id,
+                egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() },
+            )
+        });
+        let step = slider_display_step(max);
+        let (down, up) = ui.input(|i| {
+            (
+                i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::ArrowDown),
+                i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::ArrowUp),
+            )
+        });
+        if down {
+            *value = (*value - step).clamp(min, max);
+        }
+        if up {
+            *value = (*value + step).clamp(min, max);
         }
     }
 
@@ -808,6 +868,7 @@ fn custom_slider_with_width(
         // Request repaint for animation
         ui.ctx().request_repaint();
     }
+    focus_ring(ui, theme, &response);
 
     let changed = (*value - old_value).abs() > f32::EPSILON;
     changed
@@ -887,6 +948,7 @@ pub fn labeled_slider_entry(
                 .range(lo..=hi)
                 .max_decimals(2),
         );
+        let resp = hint::apply_pending(ui, resp);
         if resp.changed() && (typed - *value).abs() > f32::EPSILON {
             *value = typed;
             changed = true;
@@ -943,10 +1005,14 @@ pub fn slider(ui: &mut Ui, theme: &Theme, slider: egui::Slider<'_>) -> egui::Res
 pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
     let size = theme.checkbox_size;
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(size), Sense::click());
+    let response = hint::apply_pending(ui, response);
 
     if response.clicked() {
         *value = !*value;
     }
+    let name = hint::pending_name(ui).unwrap_or_default();
+    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, ui.is_enabled(), *value, &name));
+    focus_ring(ui, theme, &response);
 
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
@@ -1096,6 +1162,7 @@ pub fn stepper_button(
     // inline buttons (operator 2026-06-08).
     let s = theme.compact_button_height;
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::click());
+    let resp = hint::apply_pending(ui, resp);
     let (border, fill, fg) = if !enabled {
         (theme.text_muted(), theme.bg_secondary(), theme.text_muted())
     } else if positive {
@@ -1617,11 +1684,19 @@ pub struct SectionNavItem {
     /// `Some(header)` renders an uppercase group header (with an `accent` dot)
     /// above this item — set it on the FIRST item of each group.
     pub group: Option<String>,
+    /// The row's plain-language hint, by its key in `data/i18n/` (`.hint`).
+    pub hint: Option<String>,
 }
 
 impl SectionNavItem {
     pub fn new(id: impl Into<String>, label: impl Into<String>, accent: Color32) -> Self {
-        Self { id: id.into(), label: label.into(), accent, group: None }
+        Self { id: id.into(), label: label.into(), accent, group: None, hint: None }
+    }
+    /// What this section holds, in plain words, shown when the pointer rests
+    /// on the row (`widgets/hint.rs`, the person's hint mode decides).
+    pub fn hint(mut self, key: impl Into<String>) -> Self {
+        self.hint = Some(key.into());
+        self
     }
     /// Open a new group, with `header` shown above this item.
     pub fn group(mut self, header: impl Into<String>) -> Self {
@@ -1694,7 +1769,12 @@ pub fn section_nav(
         .stroke(stroke)
         .rounding(Rounding::same(4))
         .min_size(Vec2::new(ui.available_width(), 28.0));
-        if ui.add(btn).clicked() {
+        let resp = ui.add(btn);
+        let resp = match &item.hint {
+            Some(key) => resp.hint_dyn(key),
+            None => resp,
+        };
+        if resp.clicked() {
             clicked = Some(item.id.clone());
         }
     }
@@ -1731,7 +1811,7 @@ pub fn role_badge(ui: &mut Ui, theme: &Theme, role: &str) {
         "donor" => (Theme::c32(&theme.badge_donor), "D"),
         _ => return,
     };
-    let text = RichText::new(letter).size(theme.font_size_small).color(Color32::WHITE);
+    let text = RichText::new(letter).size(theme.font_size_small).color(Theme::ink_on(color));
     egui::Frame::none()
         .fill(color)
         .rounding(Rounding::same(3))
@@ -1750,7 +1830,7 @@ pub fn badge(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
         .rounding(Rounding::same(theme.badge_radius as u8))
         .inner_margin(theme.badge_padding())
         .show(ui, |ui| {
-            ui.label(RichText::new(text).size(theme.small_size).color(Color32::WHITE));
+            ui.label(RichText::new(text).size(theme.small_size).color(Theme::ink_on(color)));
         });
 }
 
@@ -1764,7 +1844,7 @@ pub fn badge_sm(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
             // A badge is one word or two and never breaks: in a wrapping row
             // with little room left, a wrapping label split "Medium" into
             // "Medi / um" inside its pill (Tasks, 2026-09-27 snapshot review).
-            ui.add(egui::Label::new(RichText::new(text).size(theme.small_size).color(Color32::WHITE)).extend());
+            ui.add(egui::Label::new(RichText::new(text).size(theme.small_size).color(Theme::ink_on(color))).extend());
         });
 }
 
@@ -1808,12 +1888,13 @@ pub fn detail_row_bold(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
 pub fn search_bar(ui: &mut Ui, theme: &Theme, value: &mut String, hint: &str) -> bool {
     let before = value.clone();
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Search:").color(theme.text_secondary()).size(theme.body_size));
-        ui.add(
+        ui.label(RichText::new(crate::gui::i18n::t("common.search_label")).color(theme.text_secondary()).size(theme.body_size));
+        let resp = ui.add(
             egui::TextEdit::singleline(value)
                 .desired_width(200.0)
                 .hint_text(hint),
         );
+        self::hint::apply_pending(ui, resp);
     });
     *value != before
 }

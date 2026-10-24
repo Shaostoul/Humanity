@@ -12,6 +12,8 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::{t, t_marked, tf};
+use crate::gui::widgets::{with_hint, Hint};
 use std::cell::RefCell;
 
 /// A donation source/method -- built dynamically from config.
@@ -156,8 +158,8 @@ fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
     // offering people their own wallet as the place to send money.
     if dynamic.is_empty() {
         let legacy = [
-            ("Solana (SOL)", "Send SOL or SPL tokens", &state.donate_solana_address),
-            ("Bitcoin (BTC)", "Send BTC", &state.donate_btc_address),
+            ("Solana (SOL)", t("donate.send_sol_label"), &state.donate_solana_address), // i18n-exempt: the network's name
+            ("Bitcoin (BTC)", t("donate.send_btc_label"), &state.donate_btc_address), // i18n-exempt: the network's name
         ];
         for (network, label, value) in legacy {
             if !admit(state, &sources, &mut seen, network, value) { continue; }
@@ -243,9 +245,9 @@ fn draw_route_card(ui: &mut egui::Ui, theme: &Theme, route: &crate::gui::DonateR
         });
         ui.add_space(theme.spacing_xs);
         if route.tax_deductible {
-            widgets::badge_sm(ui, theme, "Tax-deductible", theme.success());
+            widgets::badge_sm(ui, theme, t("donate.tax_deductible"), theme.success());
         } else {
-            widgets::badge_sm(ui, theme, "Not tax-deductible", theme.text_muted());
+            widgets::badge_sm(ui, theme, t("donate.not_tax_deductible"), theme.text_muted());
         }
         if !route.about.is_empty() {
             ui.add_space(theme.spacing_xs);
@@ -258,8 +260,8 @@ fn draw_route_card(ui: &mut egui::Ui, theme: &Theme, route: &crate::gui::DonateR
         }
         ui.add_space(theme.spacing_sm);
         ui.horizontal_wrapped(|ui| {
-            let button = if route.button.is_empty() { "Open" } else { route.button.as_str() };
-            if widgets::primary_button(ui, theme, button) {
+            let button = if route.button.is_empty() { t("donate.open") } else { route.button.as_str() };
+            if widgets::Button::primary(button).hint("donate.route_open_hint").show(ui, theme) {
                 ui.ctx().open_url(egui::OpenUrl::new_tab(&route.url));
             }
             ui.label(RichText::new(&route.url).size(theme.font_size_small).color(Theme::c32(&theme.info)).monospace());
@@ -280,23 +282,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Heading = the nav label ("Donate"); the warm phrase
                     // moves to the subtitle line below (naming rule).
                     ui.label(
-                        RichText::new("Donate")
+                        RichText::new(t("donate.title"))
                             .size(theme.title_size + 8.0)
                             .color(theme.text_primary()),
                     );
                     ui.label(
-                        RichText::new("Support HumanityOS")
+                        RichText::new(t("donate.subtitle"))
                             .size(theme.font_size_heading)
                             .color(theme.text_secondary()),
                     );
                     ui.add_space(theme.spacing_sm);
+                    widgets::glossary_words(ui, theme, t_marked("donate.free_cc0"), theme.font_size_body, theme.text_secondary());
                     ui.label(
-                        RichText::new("HumanityOS is free and public-domain (CC0), with no company or nonprofit behind it.")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    );
-                    ui.label(
-                        RichText::new("It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.")
+                        RichText::new(t("donate.one_person"))
                             .size(theme.font_size_body)
                             .color(theme.text_secondary()),
                     );
@@ -315,7 +313,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // which the FAQ spells out.
                 if state.donate_routes.iter().any(route_is_shown) {
                     ui.label(
-                        RichText::new("Ways to give")
+                        RichText::new(t("donate.ways_to_give"))
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
@@ -332,12 +330,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let show_direct = !sources.is_empty() || state.donate_funding_goal.is_some();
                 if show_direct {
                     ui.label(
-                        RichText::new("More ways to give to the maintainer directly")
+                        RichText::new(t("donate.more_ways"))
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
                     ui.label(
-                        RichText::new("These also go to the maintainer personally, and are not tax-deductible.")
+                        RichText::new(t("donate.more_ways_note"))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -355,14 +353,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if let Some((goal_usd, goal_label)) = &state.donate_funding_goal {
                     widgets::card(ui, theme, |ui| {
                         ui.label(
-                            RichText::new("Funding Goal")
+                            RichText::new(t("donate.funding_goal_title"))
                                 .size(theme.font_size_heading)
                                 .color(theme.text_primary()),
                         );
                         ui.add_space(theme.spacing_sm);
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new(format!("${:.0}", goal_usd))
+                                RichText::new(tf("donate.goal_usd", &[("amount", &format!("{:.0}", goal_usd))]))
                                     .size(theme.title_size)
                                     .color(theme.accent()),
                             );
@@ -407,7 +405,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .color(Theme::c32(&theme.info))
                                                 .monospace(),
                                         );
-                                        if widgets::primary_button(ui, theme, "Open") {
+                                        if widgets::Button::primary(t("donate.open")).hint("donate.link_open_hint").show(ui, theme) {
                                             ui.ctx().open_url(egui::OpenUrl::new_tab(&source.value));
                                         }
                                     } else {
@@ -417,12 +415,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .color(theme.text_primary())
                                                 .monospace(),
                                         );
-                                        if widgets::secondary_button(ui, theme, "Copy Address") {
+                                        if with_hint(ui, "donate.copy_address_hint", |ui| widgets::secondary_button(ui, theme, t("donate.copy_address"))) {
                                             ui.output_mut(|o| {
                                                 o.copied_text = source.value.clone();
                                             });
                                             with_local(|ds| {
-                                                ds.copied_message = format!("Copied {} address!", source.network);
+                                                ds.copied_message = tf("donate.copied_address", &[("network", &source.network)]);
                                                 ds.copied_timer = 3.0;
                                             });
                                         }
@@ -457,12 +455,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // the section is hidden.
                 if !state.donate_charities.is_empty() {
                     ui.label(
-                        RichText::new("Charities I support")
+                        RichText::new(t("donate.charities"))
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
                     ui.label(
-                        RichText::new("Independent nonprofits I personally stand behind, unaffiliated with HumanityOS. Donate to them directly; deductibility depends on the charity and your situation.")
+                        RichText::new(t("donate.charities_note"))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -492,7 +490,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                             if !c.url.is_empty() {
                                 ui.add_space(theme.spacing_sm);
-                                if widgets::Button::primary("Donate").show(ui, theme) {
+                                if widgets::Button::primary(t("donate.donate_button")).hint("donate.charity_donate_hint").show(ui, theme) {
                                     ui.ctx().open_url(egui::OpenUrl::new_tab(&c.url));
                                 }
                             }
@@ -506,7 +504,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // heading over an empty FAQ, and every answer starts closed.
                 if !state.donate_faq.is_empty() {
                     ui.label(
-                        RichText::new("Frequently Asked Questions")
+                        RichText::new(t("donate.faq"))
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
@@ -537,7 +535,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             );
                         }).response;
 
-                        if question_resp.interact(egui::Sense::click()).clicked() {
+                        if question_resp.interact(egui::Sense::click()).hint("donate.faq_question_hint").clicked() {
                             with_local(|ds| {
                                 if i < ds.faq_open.len() {
                                     ds.faq_open[i] = !ds.faq_open[i];

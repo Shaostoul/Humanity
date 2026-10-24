@@ -1,0 +1,72 @@
+# The native HINT ratchet's budgets: per page (a file or folder under src/gui/pages/, or
+# another src/gui file), how many controls still have no plain-language hint. Checked by
+# tests/i18n_lint.rs (native_hint_coverage_only_grows); the numbers only go DOWN and a page
+# not listed has a budget of zero. HINT_REPORT=1 prints controls and coverage per page.
+# Controls without a hint: 1246 of 1833
+15 page apps
+5 page browser
+123 page chat
+1 page chat_text
+28 page cloud_dev
+280 page construction
+13 page dev
+1 page escape_menu
+108 page files
+4 page fleet_ledger
+3 page game_admin
+1 page homes
+8 page host_node
+8 page household
+5 page hud
+3 page identity
+55 page inventory
+1 page keymap
+15 page library
+22 page main_menu
+9 page maps
+1 page onboarding
+17 page planet_tuner
+3 page privacy
+17 page profile
+2 page real
+8 page relay_control
+4 page safety
+1 page safety_group_reports
+22 page safety_protected
+78 page server_settings
+3 page server_strip
+169 page settings
+4 page settings_time
+12 page showroom
+33 page studio
+13 page testing
+18 page trade
+5 page vendor
+4 page watch
+14 page weather_panel
+3 page where_you_live
+2 page world_clock_admin
+1 src/gui/model_view/mod.rs
+1 src/gui/screen_surface.rs
+3 src/gui/widgets/body_pill.rs
+5 src/gui/widgets/button.rs
+1 src/gui/widgets/cover_tile.rs
+1 src/gui/widgets/dialog.rs
+6 src/gui/widgets/file_browser.rs
+5 src/gui/widgets/file_views.rs
+3 src/gui/widgets/help_modal.rs
+1 src/gui/widgets/icons.rs
+5 src/gui/widgets/image_cache_view.rs
+2 src/gui/widgets/markdown.rs
+22 src/gui/widgets/mod.rs
+1 src/gui/widgets/panes.rs
+25 src/gui/widgets/passphrase_modal.rs
+2 src/gui/widgets/phrase_cover.rs
+1 src/gui/widgets/row.rs
+3 src/gui/widgets/search_bar.rs
+1 src/gui/widgets/shelf.rs
+4 src/gui/widgets/sound_view.rs
+3 src/gui/widgets/tree.rs
+4 src/gui/widgets/video_view.rs
+1 src/gui/widgets/waveform.rs
+4 src/gui/widgets/web_view.rs

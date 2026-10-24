@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>Wallet, HumanityOS</title>
+  <title data-i18n="wallet.page_title">Wallet, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -175,49 +175,51 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="wallet"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Your digital wallet for sending, receiving, and managing crypto on Solana.</div>
-  <div class="eli5-expert">Self-custody Solana wallet derived from the same 24-word recovery phrase as your identity (Solana keys are Ed25519; your identity signature scheme is Dilithium3). Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
+  <div class="eli5-simple" data-i18n="wallet.eli5_simple">Your digital <span data-term="wallet">wallet</span> for sending, receiving, and managing crypto on <span data-term="Solana">Solana</span>.</div>
+  <div class="eli5-expert" data-i18n="wallet.eli5_expert">Self-custody Solana wallet derived from the same 24-word recovery phrase as your identity (Solana keys are Ed25519; your identity signature scheme is Dilithium3). Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
 </div>
-<p class="page-hint">Manage your Solana wallet. Send and receive SOL and tokens, swap between assets, stake for rewards, and view your NFTs.</p>
+<p class="page-hint" data-i18n="wallet.page_hint">Manage your Solana wallet. Send and receive SOL and tokens, swap between assets, stake for rewards, and view your NFTs.</p>
 
 <div id="page-app">
   <!-- No identity state -->
   <div id="wallet-no-identity" class="wallet-no-identity" style="display:none;">
-    <h2>Connect to the network first</h2>
-    <p>Visit the <a href="/chat">Chat</a> page to create or import your identity.<br>
-    Your identity key doubles as your Solana wallet, no extra setup needed.</p>
+    <h2 data-i18n="wallet.no_identity_title">Connect to the network first</h2>
+    <p><span data-i18n="wallet.visit_before">Visit the</span> <a href="/chat" data-i18n="nav.chat" data-i18n-tip="wallet.chat_link_hint" data-tip-desc="Opens Chat, where you can make your identity or bring in one you already have.">Chat</a> <span data-i18n="wallet.visit_after">page to create or import your identity.</span><br>
+    <span data-i18n="wallet.key_is_wallet">Your identity key doubles as your Solana wallet, no extra setup needed.</span></p>
   </div>
 
   <!-- Main wallet UI (hidden until identity confirmed) -->
   <div id="wallet-main" style="display:none;">
     <!-- Warning banner -->
     <div class="wallet-warning" id="wallet-warning">
-      <span><span aria-hidden="true">&#9888;&#65039;</span> HumanityOS is pre-v1.0 software. Your wallet keys are stored locally. We cannot recover lost keys or reverse transactions. <strong>Back up your 24-word recovery phrase.</strong></span>
-      <button class="dismiss-btn" onclick="dismissWarning()">Dismiss</button>
+      <span><span aria-hidden="true">&#9888;&#65039;</span> <span data-i18n="wallet.warning">HumanityOS is pre-v1.0 software. Your wallet keys are stored locally. We cannot recover lost keys or reverse transactions.</span> <strong data-i18n="wallet.warning_backup">Back up your 24-word <span data-term="recovery phrase">recovery phrase</span>.</strong></span>
+      <button class="dismiss-btn" onclick="dismissWarning()" data-i18n="wallet.dismiss" data-i18n-tip="wallet.dismiss_hint" data-tip-desc="Hides this warning until you open the page again.">Dismiss</button>
     </div>
 
     <!-- Tabs -->
     <div class="wallet-tabs" id="wallet-tabs">
-      <button class="wallet-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
-      <a href="/wallet-guide" class="wallet-help-link" title="Wallet Guide, learn how to use your wallet" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);font-size:0.8rem;text-decoration:none;padding:var(--space-sm) var(--space-md);border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1.5px solid currentColor;border-radius:50%;font-weight:700;font-size:0.75rem" aria-hidden="true">?</span> Guide</a>
-      <button class="wallet-tab" data-tab="send" onclick="switchTab('send')">Send</button>
-      <button class="wallet-tab" data-tab="swap" onclick="switchTab('swap')">Swap</button>
-      <button class="wallet-tab" data-tab="stake" onclick="switchTab('stake')">Stake</button>
-      <button class="wallet-tab" data-tab="nfts" onclick="switchTab('nfts')">NFTs</button>
+      <button class="wallet-tab active" data-tab="overview" onclick="switchTab('overview')" data-i18n="wallet.tab_overview" data-i18n-tip="wallet.tab_overview_hint" data-tip-desc="Shows your address, your balances and your recent transactions.">Overview</button>
+      <a href="/wallet-guide" class="wallet-help-link" title="Wallet Guide, learn how to use your wallet" data-i18n-title="wallet.guide_title" data-i18n-tip="wallet.guide_hint" data-tip-desc="Opens the Wallet Guide, which explains step by step how to use your wallet." style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);font-size:0.8rem;text-decoration:none;padding:var(--space-sm) var(--space-md);border-radius:6px;transition:color 0.2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1.5px solid currentColor;border-radius:50%;font-weight:700;font-size:0.75rem" aria-hidden="true">?</span> <span data-i18n="wallet.guide">Guide</span></a>
+      <button class="wallet-tab" data-tab="send" onclick="switchTab('send')" data-i18n="wallet.send" data-i18n-tip="wallet.tab_send_hint" data-tip-desc="Shows the form for sending SOL or USDC to someone.">Send</button>
+      <button class="wallet-tab" data-tab="swap" onclick="switchTab('swap')" data-i18n="wallet.swap" data-i18n-tip="wallet.tab_swap_hint" data-tip-desc="Shows the form for trading one coin for another.">Swap</button>
+      <button class="wallet-tab" data-tab="stake" onclick="switchTab('stake')" data-i18n="wallet.stake" data-i18n-tip="wallet.tab_stake_hint" data-tip-desc="Shows staking: lending your SOL to a validator, a computer that helps run the Solana network, for a small reward.">Stake</button>
+      <button class="wallet-tab" data-tab="nfts" onclick="switchTab('nfts')" data-i18n="wallet.nfts" data-i18n-tip="wallet.tab_nfts_hint" data-tip-desc="Shows the NFTs this wallet holds.">NFTs</button>
     </div>
 
     <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
     <div id="tab-overview" class="tab-panel active">
       <div class="panel">
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-sm)">Solana Address</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-sm)" data-i18n="wallet.solana_address">Solana Address</div>
         <div class="address-row">
           <span id="sol-address">-</span>
-          <button class="copy-btn" onclick="copyAddress()">Copy</button>
+          <button class="copy-btn" onclick="copyAddress()" data-i18n="wallet.copy" data-i18n-tip="wallet.copy_hint" data-tip-desc="Copies your wallet address, so you can paste it to someone who wants to pay you.">Copy</button>
         </div>
         <div id="address-qr" class="qr-container" style="margin-top:var(--space-lg)"></div>
       </div>
@@ -225,17 +227,17 @@
       <div class="panel">
         <div style="display:flex;align-items:baseline;gap:var(--space-md);flex-wrap:wrap">
           <div>
-            <div class="balance-main" id="balance-sol">- SOL</div>
+            <div class="balance-main" id="balance-sol" translate="no">- SOL</div>
             <div class="balance-usd" id="balance-sol-usd"></div>
           </div>
           <div style="margin-left:auto;text-align:right">
-            <div style="font-size:0.75rem;color:var(--text-muted)">Total Value</div>
+            <div style="font-size:0.75rem;color:var(--text-muted)" data-i18n="wallet.total_value">Total Value</div>
             <div style="font-size:1.3rem;font-weight:700" id="portfolio-total">-</div>
           </div>
         </div>
         <div style="margin-top:var(--space-lg);border-top:1px solid var(--border);padding-top:var(--space-md)">
           <div class="balance-row" id="balance-usdc-row">
-            <span class="balance-token">USDC</span>
+            <span class="balance-token" translate="no">USDC</span>
             <span class="balance-amount"><span class="amt" id="balance-usdc">-</span></span>
           </div>
           <div id="other-tokens"></div>
@@ -243,44 +245,44 @@
       </div>
 
       <div class="action-row">
-        <button class="btn-action btn-send" onclick="switchTab('send')">Send</button>
-        <button class="btn-action btn-receive" onclick="showReceiveModal()">Receive</button>
+        <button class="btn-action btn-send" onclick="switchTab('send')" data-i18n="wallet.send" data-i18n-tip="wallet.send_open_hint" data-tip-desc="Opens the Send tab, where you fill in who to pay and how much.">Send</button>
+        <button class="btn-action btn-receive" onclick="showReceiveModal()" data-i18n="wallet.receive" data-i18n-tip="wallet.receive_hint" data-tip-desc="Shows your address and its QR code, for someone who wants to pay you.">Receive</button>
       </div>
 
       <div class="panel">
-        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)">Recent Transactions</h3>
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)" data-i18n="wallet.recent_tx">Recent Transactions</h3>
         <div id="tx-loading" style="text-align:center;padding:var(--space-xl);color:var(--text-muted)">
-          <span class="spinner" aria-hidden="true"></span> Loading transactions...
+          <span class="spinner" aria-hidden="true"></span> <span data-i18n="wallet.loading_tx">Loading transactions...</span>
         </div>
         <ul class="tx-list" id="tx-list"></ul>
-        <div id="tx-empty" style="display:none;text-align:center;padding:var(--space-xl);color:var(--text-muted);font-style:italic">No transactions yet.</div>
+        <div id="tx-empty" style="display:none;text-align:center;padding:var(--space-xl);color:var(--text-muted);font-style:italic" data-i18n="wallet.no_transactions">No transactions yet.</div>
       </div>
     </div>
 
     <!-- ═══════════════════ SEND TAB ═══════════════════ -->
     <div id="tab-send" class="tab-panel">
       <div class="panel">
-        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg)">Send Tokens</h3>
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg)" data-i18n="wallet.send_tokens">Send Tokens</h3>
         <div class="send-form">
-          <label for="send-to">Recipient Address</label>
+          <label for="send-to" data-i18n="wallet.recipient_address">Recipient Address</label>
           <div class="input-row">
-            <input type="text" id="send-to" placeholder="Solana address (base58)..." autocomplete="off">
-            <button class="btn-small" onclick="pasteAddress()">Paste</button>
+            <input type="text" id="send-to" placeholder="Solana address (base58)..." data-i18n-placeholder="wallet.recipient_placeholder_web" data-i18n-tip="wallet.send_to_hint" data-tip-desc="Type or paste the Solana address of the person you are paying." autocomplete="off">
+            <button class="btn-small" onclick="pasteAddress()" data-i18n="wallet.paste" data-i18n-tip="wallet.paste_hint" data-tip-desc="Puts the address you copied into the box. Your browser may ask you to allow it first.">Paste</button>
           </div>
 
-          <label for="send-amount">Amount</label>
+          <label for="send-amount" data-i18n="wallet.amount">Amount</label>
           <div class="input-row">
-            <input type="number" id="send-amount" placeholder="0.00" min="0" step="any" oninput="updateSendEstimate()">
-            <select id="send-token" onchange="updateSendEstimate()">
+            <input type="number" id="send-amount" placeholder="0.00" min="0" step="any" oninput="updateSendEstimate()" data-i18n-tip="wallet.send_amount_web_hint" data-tip-desc="How much to send, in the coin chosen beside it.">
+            <select data-i18n-aria-label="wallet.send_token_label" aria-label="Coin to send" id="send-token" onchange="updateSendEstimate()" translate="no" data-i18n-tip="wallet.send_token_hint" data-tip-desc="Chooses which coin to send: SOL or USDC.">
               <option value="SOL">SOL</option>
               <option value="USDC">USDC</option>
             </select>
-            <button class="btn-small" onclick="fillMaxBalance()">Max</button>
+            <button class="btn-small" onclick="fillMaxBalance()" data-i18n="wallet.max_send" data-i18n-tip="wallet.max_send_hint" data-tip-desc="Fills in the most you can send: all your USDC, or all your SOL except a little kept back for the fee.">Max</button>
           </div>
           <div class="send-estimate" id="send-estimate"></div>
-          <div class="send-fee">Estimated fee: ~$0.00025 (5000 lamports)</div>
+          <div class="send-fee" data-i18n="wallet.fee_estimate">Estimated fee: ~$0.00025 (5000 lamports)</div>
 
-          <button class="btn-confirm" id="btn-review-send" onclick="prepareSend()">Review Send</button>
+          <button class="btn-confirm" id="btn-review-send" onclick="prepareSend()" data-i18n="wallet.review_send" data-i18n-tip="wallet.review_send_hint" data-tip-desc="Checks the address and the amount, then shows everything for you to look over. Nothing is sent until you press Confirm Send.">Review Send</button>
         </div>
       </div>
 
@@ -290,13 +292,13 @@
     <!-- ═══════════════════ SWAP TAB ═══════════════════ -->
     <div id="tab-swap" class="tab-panel">
       <div class="swap-card">
-        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);text-align:center">Swap Tokens</h3>
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);text-align:center" data-i18n="wallet.swap_tokens">Swap Tokens</h3>
 
         <div class="swap-box" id="swap-input-box">
-          <label for="swap-input-amount">You pay</label>
+          <label for="swap-input-amount" data-i18n="wallet.you_pay">You pay</label>
           <div class="input-row">
-            <input type="number" id="swap-input-amount" placeholder="0.00" min="0" step="any" oninput="onSwapInputChange()">
-            <select id="swap-input-token" onchange="onSwapInputChange()">
+            <input type="number" id="swap-input-amount" placeholder="0.00" min="0" step="any" oninput="onSwapInputChange()" data-i18n-tip="wallet.swap_amount_hint" data-tip-desc="How much of the coin chosen beside it you want to trade away.">
+            <select data-i18n-aria-label="wallet.swap_from_label" aria-label="Coin you pay with" id="swap-input-token" onchange="onSwapInputChange()" translate="no" data-i18n-tip="wallet.swap_from_hint" data-tip-desc="Chooses the coin you pay with.">
               <option value="SOL">SOL</option>
               <option value="USDC">USDC</option>
               <option value="USDT">USDT</option>
@@ -305,14 +307,14 @@
         </div>
 
         <div class="swap-flip">
-          <button onclick="flipSwapDirection()" title="Reverse swap direction" aria-label="Reverse swap direction">&#8597;</button>
+          <button onclick="flipSwapDirection()" title="Reverse swap direction" aria-label="Reverse swap direction" data-i18n-title="wallet.swap_reverse" data-i18n-aria-label="wallet.swap_reverse" data-i18n-tip="wallet.swap_reverse_hint" data-tip-desc="Turns the trade around, so you pay with the coin you were going to receive.">&#8597;</button>
         </div>
 
         <div class="swap-box" id="swap-output-box">
-          <label for="swap-output-amount">You receive</label>
+          <label for="swap-output-amount" data-i18n="wallet.you_receive">You receive</label>
           <div class="input-row">
-            <input type="text" id="swap-output-amount" placeholder="0.00" readonly>
-            <select id="swap-output-token" onchange="onSwapInputChange()">
+            <input type="text" id="swap-output-amount" placeholder="0.00" readonly data-i18n-tip="wallet.swap_out_hint" data-tip-desc="How much you would get back at the current price. It fills itself in; you cannot type here.">
+            <select data-i18n-aria-label="wallet.swap_to_label" aria-label="Coin you get" id="swap-output-token" onchange="onSwapInputChange()" translate="no" data-i18n-tip="wallet.swap_to_hint" data-tip-desc="Chooses the coin you want to get.">
               <option value="USDC">USDC</option>
               <option value="SOL">SOL</option>
               <option value="USDT">USDT</option>
@@ -324,15 +326,15 @@
         <div class="price-impact-warn" id="swap-impact" style="display:none"></div>
 
         <div class="swap-slippage">
-          <span>Slippage:</span>
-          <button class="active" onclick="setSlippage(0.5,this)">0.5%</button>
-          <button onclick="setSlippage(1,this)">1%</button>
-          <button onclick="setSlippage(2,this)">2%</button>
-          <input type="number" id="swap-custom-slippage" placeholder="Custom" min="0.01" max="50" step="0.01" onchange="setSlippage(parseFloat(this.value)||0.5,this)">
+          <span data-i18n="wallet.slippage_label">Slippage:</span>
+          <button class="active" onclick="setSlippage(0.5,this)" data-i18n-tip="wallet.slippage_hint" data-tip-desc="Sets how far the price may move before the trade goes through. If it moves more than this, the trade is stopped.">0.5%</button>
+          <button onclick="setSlippage(1,this)" data-i18n-tip="wallet.slippage_hint" data-tip-desc="Sets how far the price may move before the trade goes through. If it moves more than this, the trade is stopped.">1%</button>
+          <button onclick="setSlippage(2,this)" data-i18n-tip="wallet.slippage_hint" data-tip-desc="Sets how far the price may move before the trade goes through. If it moves more than this, the trade is stopped.">2%</button>
+          <input type="number" id="swap-custom-slippage" placeholder="Custom" data-i18n-placeholder="wallet.slippage_custom" data-i18n-tip="wallet.slippage_custom_hint" data-tip-desc="Type your own slippage, as a percent." min="0.01" max="50" step="0.01" onchange="setSlippage(parseFloat(this.value)||0.5,this)">
         </div>
 
-        <button class="btn-confirm" id="btn-swap" onclick="prepareSwap()" disabled>Swap</button>
-        <div class="swap-attribution">Powered by Jupiter</div>
+        <button class="btn-confirm" id="btn-swap" onclick="prepareSwap()" disabled data-i18n="wallet.swap" data-i18n-tip="wallet.swap_hint" data-tip-desc="Shows the trade for you to look over. Nothing is traded until you press Confirm Swap.">Swap</button>
+        <div class="swap-attribution" data-i18n="wallet.powered_by_jupiter">Powered by Jupiter</div>
       </div>
 
       <div id="swap-status" class="tx-status" style="display:none"></div>
@@ -342,49 +344,49 @@
     <div id="tab-stake" class="tab-panel">
       <div class="stake-summary">
         <div class="stake-stat">
-          <div class="label">Staked SOL</div>
+          <div class="label" data-i18n="wallet.staked_sol">Staked SOL</div>
           <div class="value" id="staked-amount">-</div>
         </div>
         <div class="stake-stat">
-          <div class="label">Rewards Earned</div>
+          <div class="label" data-i18n="wallet.rewards">Rewards Earned</div>
           <div class="value" id="staked-rewards">-</div>
         </div>
         <div class="stake-stat">
-          <div class="label">Estimated APY</div>
+          <div class="label" data-i18n="wallet.apy">Estimated APY</div>
           <div class="value">~7%</div>
         </div>
       </div>
 
       <div class="panel">
-        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg)">Stake SOL</h3>
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg)" data-i18n="wallet.stake_sol">Stake SOL</h3>
         <div class="send-form">
-          <label for="stake-amount">Amount to Stake</label>
+          <label for="stake-amount" data-i18n="wallet.stake_amount">Amount to Stake</label>
           <div class="input-row">
-            <input type="number" id="stake-amount" placeholder="0.00" min="0.01" step="any">
-            <span style="color:var(--text-muted);font-size:0.85rem">SOL</span>
+            <input type="number" id="stake-amount" placeholder="0.00" min="0.01" step="any" data-i18n-tip="wallet.stake_amount_hint" data-tip-desc="How much SOL to stake. The least you can stake is 0.01 SOL.">
+            <span style="color:var(--text-muted);font-size:0.85rem" translate="no">SOL</span>
           </div>
 
-          <label for="stake-validator">Select Validator</label>
-          <select id="stake-validator" style="width:100%">
-            <option value="">Loading validators...</option>
+          <label for="stake-validator" data-i18n="wallet.select_validator">Select Validator</label>
+          <select id="stake-validator" style="width:100%" data-i18n-tip="wallet.validator_hint" data-tip-desc="Chooses the validator to stake with. A validator is a computer that helps run the Solana network.">
+            <option value="" data-i18n="wallet.loading_validators">Loading validators...</option>
           </select>
 
-          <button class="btn-confirm" onclick="stakeSOL()" style="margin-top:var(--space-lg)">Stake SOL</button>
+          <button class="btn-confirm" onclick="stakeSOL()" style="margin-top:var(--space-lg)" data-i18n="wallet.stake_sol" data-i18n-tip="wallet.stake_hint" data-tip-desc="Asks you to confirm first. Staking from this page is still being built: it gets the stake ready but does not send it yet.">Stake SOL</button>
         </div>
       </div>
 
       <div class="stake-accounts" id="stake-accounts">
-        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)">Active Stake Accounts</h3>
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)" data-i18n="wallet.active_stakes">Active Stake Accounts</h3>
         <div id="stake-accounts-list"></div>
-        <div id="stake-accounts-empty" style="display:none;text-align:center;padding:var(--space-xl);color:var(--text-muted);font-style:italic">No active stakes.</div>
+        <div id="stake-accounts-empty" style="display:none;text-align:center;padding:var(--space-xl);color:var(--text-muted);font-style:italic" data-i18n="wallet.no_stakes">No active stakes.</div>
       </div>
 
       <div class="validator-list" id="validator-list-section">
         <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)">
-          Validators
-          <select id="validator-sort" onchange="sortValidators()" style="margin-left:var(--space-md);font-size:0.75rem;padding:var(--space-xs) var(--space-sm)">
-            <option value="commission">Sort: Commission</option>
-            <option value="stake">Sort: Active Stake</option>
+          <span data-i18n="wallet.validators">Validators</span>
+          <select data-i18n-aria-label="wallet.validator_sort_label" aria-label="Order of the validators" id="validator-sort" onchange="sortValidators()" style="margin-left:var(--space-md);font-size:0.75rem;padding:var(--space-xs) var(--space-sm)" data-i18n-tip="wallet.sort_hint" data-tip-desc="Changes the order of the validator list: the lowest commission (the share of rewards a validator keeps) first, or the most SOL staked first.">
+            <option value="commission" data-i18n="wallet.sort_commission">Sort: Commission</option>
+            <option value="stake" data-i18n="wallet.sort_stake">Sort: Active Stake</option>
           </select>
         </h3>
         <div id="validator-list"></div>
@@ -394,75 +396,75 @@
     <!-- ═══════════════════ NFTS TAB ═══════════════════ -->
     <div id="tab-nfts" class="tab-panel">
       <div id="nft-loading" style="text-align:center;padding:var(--space-xl);color:var(--text-muted)">
-        <span class="spinner" aria-hidden="true"></span> Loading NFTs...
+        <span class="spinner" aria-hidden="true"></span> <span data-i18n="wallet.loading_nfts">Loading NFTs...</span>
       </div>
       <div class="nft-grid" id="nft-grid"></div>
       <div id="nft-empty" class="nft-empty" style="display:none;">
-        <h3 style="color:var(--text);font-size:1rem;margin-bottom:var(--space-md)">No NFTs yet</h3>
-        <p>NFTs are unique digital items stored on the Solana blockchain. They can represent game items, art, certificates, and more.</p>
-        <p style="margin-top:var(--space-md);font-size:0.8rem">Future: Mint your own NFTs directly from HumanityOS.</p>
+        <h3 style="color:var(--text);font-size:1rem;margin-bottom:var(--space-md)" data-i18n="wallet.no_nfts">No NFTs yet</h3>
+        <p data-i18n="wallet.nfts_explain">NFTs are unique digital items stored on the Solana <span data-term="blockchain">blockchain</span>. They can represent game items, art, certificates, and more.</p>
+        <p style="margin-top:var(--space-md);font-size:0.8rem" data-i18n="wallet.nfts_future">Future: Mint your own NFTs directly from HumanityOS.</p>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Receive Modal -->
-<div class="wallet-modal-overlay" id="receive-modal" onclick="if(event.target===this)closeReceiveModal()">
+<div class="wallet-modal-overlay" id="receive-modal" onclick="if(event.target===this)closeReceiveModal()" data-i18n-tip="wallet.backdrop_hint" data-tip-desc="Pressing outside the box closes it.">
   <div class="wallet-modal">
-    <h3>Receive</h3>
-    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg)">Share your Solana address to receive SOL, USDC, or other tokens.</p>
+    <h3 data-i18n="wallet.receive">Receive</h3>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg)" data-i18n="wallet.receive_explain">Share your Solana address to receive SOL, <span data-term="USDC">USDC</span>, or other <span data-term="token">tokens</span>.</p>
     <div class="address-row" style="margin-bottom:var(--space-lg)">
       <span id="receive-address">-</span>
-      <button class="copy-btn" onclick="copyAddress()">Copy</button>
+      <button class="copy-btn" onclick="copyAddress()" data-i18n="wallet.copy" data-i18n-tip="wallet.copy_hint" data-tip-desc="Copies your wallet address, so you can paste it to someone who wants to pay you.">Copy</button>
     </div>
     <div id="receive-qr" class="qr-container"></div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeReceiveModal()">Close</button>
+      <button class="btn-cancel" onclick="closeReceiveModal()" data-i18n="common.close" data-i18n-tip="wallet.close_hint" data-tip-desc="Closes this box.">Close</button>
     </div>
   </div>
 </div>
 
 <!-- Send Confirmation Modal -->
-<div class="wallet-modal-overlay" id="send-confirm-modal" onclick="if(event.target===this)closeSendModal()">
+<div class="wallet-modal-overlay" id="send-confirm-modal" onclick="if(event.target===this)closeSendModal()" data-i18n-tip="wallet.backdrop_hint" data-tip-desc="Pressing outside the box closes it.">
   <div class="wallet-modal">
-    <h3>Confirm Send</h3>
-    <div class="modal-row"><span class="label">From</span><span class="value" id="confirm-from">-</span></div>
-    <div class="modal-row"><span class="label">To</span><span class="value" id="confirm-to">-</span></div>
-    <div class="modal-row"><span class="label">Amount</span><span class="value" id="confirm-amount">-</span></div>
-    <div class="modal-row"><span class="label">Fee</span><span class="value" id="confirm-fee">~0.000005 SOL</span></div>
-    <div class="modal-row"><span class="label">USD Value</span><span class="value" id="confirm-usd">-</span></div>
+    <h3 data-i18n="wallet.confirm_send">Confirm Send</h3>
+    <div class="modal-row"><span class="label" data-i18n="wallet.from">From</span><span class="value" id="confirm-from">-</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.to">To</span><span class="value" id="confirm-to">-</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.amount">Amount</span><span class="value" id="confirm-amount">-</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.fee">Fee</span><span class="value" id="confirm-fee" translate="no">~0.000005 SOL</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.usd_value">USD Value</span><span class="value" id="confirm-usd">-</span></div>
     <div id="send-high-value-warn" role="alert" style="display:none;color:var(--warning);font-size:0.8rem;margin-top:var(--space-md);text-align:center">
-      <span aria-hidden="true">&#9888;</span> Large transaction. Please double-check the recipient address.
+      <span aria-hidden="true">&#9888;</span> <span data-i18n="wallet.large_tx_warn">Large transaction. Please double-check the recipient address.</span>
     </div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeSendModal()">Cancel</button>
-      <button class="btn-confirm" onclick="confirmSend()" style="margin-top:0;width:auto;flex:1">Confirm Send</button>
+      <button class="btn-cancel" onclick="closeSendModal()" data-i18n="common.cancel" data-i18n-tip="wallet.cancel_send_hint" data-tip-desc="Closes this box without sending anything.">Cancel</button>
+      <button class="btn-confirm" onclick="confirmSend()" style="margin-top:0;width:auto;flex:1" data-i18n="wallet.confirm_send" data-i18n-tip="wallet.confirm_send_hint" data-tip-desc="Signs the payment with your key and sends it over the Solana network. A payment cannot be taken back once it is sent.">Confirm Send</button>
     </div>
   </div>
 </div>
 
 <!-- Swap Confirmation Modal -->
-<div class="wallet-modal-overlay" id="swap-confirm-modal" onclick="if(event.target===this)closeSwapModal()">
+<div class="wallet-modal-overlay" id="swap-confirm-modal" onclick="if(event.target===this)closeSwapModal()" data-i18n-tip="wallet.backdrop_hint" data-tip-desc="Pressing outside the box closes it.">
   <div class="wallet-modal">
-    <h3>Confirm Swap</h3>
-    <div class="modal-row"><span class="label">You pay</span><span class="value" id="confirm-swap-input">-</span></div>
-    <div class="modal-row"><span class="label">You receive</span><span class="value" id="confirm-swap-output">-</span></div>
-    <div class="modal-row"><span class="label">Rate</span><span class="value" id="confirm-swap-rate">-</span></div>
-    <div class="modal-row"><span class="label">Slippage</span><span class="value" id="confirm-swap-slippage">-</span></div>
+    <h3 data-i18n="wallet.confirm_swap">Confirm Swap</h3>
+    <div class="modal-row"><span class="label" data-i18n="wallet.you_pay">You pay</span><span class="value" id="confirm-swap-input">-</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.you_receive">You receive</span><span class="value" id="confirm-swap-output">-</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.rate">Rate</span><span class="value" id="confirm-swap-rate">-</span></div>
+    <div class="modal-row"><span class="label" data-i18n="wallet.slippage">Slippage</span><span class="value" id="confirm-swap-slippage">-</span></div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeSwapModal()">Cancel</button>
-      <button class="btn-confirm" onclick="confirmSwap()" style="margin-top:0;width:auto;flex:1">Confirm Swap</button>
+      <button class="btn-cancel" onclick="closeSwapModal()" data-i18n="common.cancel" data-i18n-tip="wallet.cancel_swap_hint" data-tip-desc="Closes this box without trading anything.">Cancel</button>
+      <button class="btn-confirm" onclick="confirmSwap()" style="margin-top:0;width:auto;flex:1" data-i18n="wallet.confirm_swap" data-i18n-tip="wallet.confirm_swap_hint" data-tip-desc="Signs the trade with your key and sends it through Jupiter, a trading service outside HumanityOS. A trade cannot be undone.">Confirm Swap</button>
     </div>
   </div>
 </div>
 
 <!-- NFT Detail Modal -->
-<div class="wallet-modal-overlay" id="nft-detail-modal" onclick="if(event.target===this)closeNFTModal()">
+<div class="wallet-modal-overlay" id="nft-detail-modal" onclick="if(event.target===this)closeNFTModal()" data-i18n-tip="wallet.backdrop_hint" data-tip-desc="Pressing outside the box closes it.">
   <div class="wallet-modal" style="max-width:550px">
     <div id="nft-detail-content"></div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeNFTModal()">Close</button>
-      <button class="btn-confirm" id="btn-send-nft" onclick="promptSendNFT()" style="margin-top:0;width:auto;flex:1">Send NFT</button>
+      <button class="btn-cancel" onclick="closeNFTModal()" data-i18n="common.close" data-i18n-tip="wallet.close_hint" data-tip-desc="Closes this box.">Close</button>
+      <button class="btn-confirm" id="btn-send-nft" onclick="promptSendNFT()" style="margin-top:0;width:auto;flex:1" data-i18n="wallet.send_nft" data-i18n-tip="wallet.send_nft_hint" data-tip-desc="Asks for the address to send this NFT to, then asks you to hold to confirm. Sending NFTs from this page is not finished yet, and it will tell you so.">Send NFT</button>
     </div>
   </div>
 </div>

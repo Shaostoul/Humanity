@@ -33,6 +33,9 @@
     // Navigation
     'rgb-nav': true,
     'nav-tips': true,
+    // The hint mode (2026-10-22): 'full' | 'hover' | 'off', as the desktop app's
+    // Settings > Appearance; shell.js applies it as <html data-hints>.
+    hint_display: 'full',
     // Notifications
     'notif-dm': true,
     'notif-group': true,

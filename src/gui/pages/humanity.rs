@@ -12,7 +12,8 @@
 use egui::{Align2, Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, SectionNavItem};
+use crate::gui::i18n::{t, t_marked};
+use crate::gui::widgets::{self, with_hint, Hint, SectionNavItem};
 use super::{civilization, governance, identity, donate};
 
 /// The Humanity Accord, embedded at compile time from the canonical repo copy so
@@ -105,16 +106,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             let c = theme.nav_reality();
             let items = [
-                SectionNavItem::new("civilization", "Mission Dashboard", c),
-                SectionNavItem::new("governance", "Governance", c),
-                SectionNavItem::new("laws", "Laws", c),
-                SectionNavItem::new("identity", "Directory", c),
-                SectionNavItem::new("donate", "Donate", c),
+                SectionNavItem::new("civilization", t("humanity.nav_dashboard"), c).hint("humanity.nav_dashboard_hint"), // i18n-exempt: the section's id, not words
+                SectionNavItem::new("governance", t("governance.title"), c).hint("humanity.nav_governance_hint"), // i18n-exempt: the section's id, not words
+                SectionNavItem::new("laws", t("humanity.nav_laws"), c).hint("humanity.nav_laws_hint"), // i18n-exempt: the section's id, not words
+                SectionNavItem::new("identity", t("humanity.nav_directory"), c).hint("humanity.nav_directory_hint"), // i18n-exempt: the section's id, not words
+                SectionNavItem::new("donate", t("nav.donate"), c).hint("humanity.nav_donate_hint"), // i18n-exempt: the section's id, not words
             ];
             if let Some(clicked) = widgets::section_nav(
                 ui,
                 theme,
-                Some("Humanity"),
+                Some(t("humanity.title")),
                 &items,
                 &state.active_humanity_section,
             ) {
@@ -169,7 +170,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         // Heading = the nav label ("Humanity", the tab), not the product
         // name (naming rule 2026-08-16). The mission line below stays.
         ui.label(
-            RichText::new("Humanity")
+            RichText::new(t("humanity.title"))
                 .size(theme.font_size_title * 1.3)
                 .strong()
                 .color(theme.text_primary()),
@@ -177,7 +178,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_xs);
     ui.label(
-        RichText::new("End poverty. Unite humanity.")
+        RichText::new(t("humanity.mission"))
             .size(theme.font_size_heading)
             .strong()
             .color(theme.accent()),
@@ -189,13 +190,13 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // the individual AND the civilization must stay easily identifiable, and the
     // experience must stay consistent app to web. This is the spine of the page.)
     ui.label(
-        RichText::new("For you: the tools to feed, power, and provide for yourself and the people you love.")
+        RichText::new(t("humanity.for_you"))
             .size(theme.font_size_body)
             .color(theme.text_secondary()),
     );
     ui.add_space(theme.spacing_xs);
     ui.label(
-        RichText::new("For all of us: a fair way to end poverty together. No tyrants, no corporations, no catch. Free and public domain, for every human and every AI.")
+        RichText::new(t("humanity.for_all"))
             .size(theme.font_size_body)
             .color(theme.text_secondary()),
     );
@@ -203,27 +204,27 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
 
     // Start here: the first action a newcomer can take, right under the hero, so
     // the page leads with "what do I do" before the deeper manifesto below.
-    accent_card_with_header(ui, theme, "Start here", |ui| {
+    accent_card_with_header(ui, theme, t("humanity.start_here"), |ui| {
         ui.label(
-            RichText::new("New here? Pick a place to begin, then read as much or as little below as you like.")
+            RichText::new(t("humanity.start_here_desc"))
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );
         ui.add_space(theme.spacing_sm);
         ui.horizontal_wrapped(|ui| {
-            if widgets::Button::primary("Get oriented").show(ui, theme) {
+            if widgets::Button::primary(t("humanity.get_oriented")).hint("humanity.get_oriented_hint").show(ui, theme) {
                 // Quests is its own top-level page now (not a Real-tab section);
                 // the old `active_real_section = "quests"` was an unknown id that
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
                 state.active_page = crate::gui::GuiPage::Quests;
             }
-            if widgets::Button::secondary("See your Laws").show(ui, theme) {
+            if widgets::Button::secondary(t("humanity.see_laws")).hint("humanity.see_laws_hint").show(ui, theme) {
                 state.active_humanity_section = "laws".to_string();
             }
-            if widgets::Button::secondary("Fund the work").show(ui, theme) {
+            if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
                 state.active_humanity_section = "donate".to_string();
             }
-            if widgets::Button::secondary("Shape the rules").show(ui, theme) {
+            if widgets::Button::secondary(t("humanity.shape_rules")).hint("humanity.shape_rules_hint").show(ui, theme) {
                 state.active_humanity_section = "governance".to_string();
             }
         });
@@ -231,18 +232,14 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.add_space(theme.spacing_md);
 
     // Why this exists (the personal "why" that grounds the grand mission)
-    quiet_card_with_header(ui, theme, "Why this exists", |ui| {
+    quiet_card_with_header(ui, theme, t("humanity.why_exists"), |ui| {
         ui.label(
-            RichText::new("HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.")
+            RichText::new(t("humanity.why_exists_1"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
-        ui.label(
-            RichText::new("Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, open source, and released into the public domain under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.")
-                .size(theme.font_size_body)
-                .color(theme.text_secondary()),
-        );
+        widgets::glossary_words(ui, theme, t_marked("humanity.why_exists_2"), theme.font_size_body, theme.text_secondary());
     });
     ui.add_space(theme.spacing_md);
 
@@ -251,15 +248,15 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // real users is how it gets fixed; no small team can test everything). Sits
     // high, right after the personal why, so it frames the capability claims that
     // follow (which themselves flag anything not ready as "in progress").
-    quiet_card_with_header(ui, theme, "Early days, built in the open", |ui| {
+    quiet_card_with_header(ui, theme, t("humanity.early_days"), |ui| {
         ui.label(
-            RichText::new("HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.")
+            RichText::new(t("humanity.early_days_1"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
         ui.label(
-            RichText::new("No team, ours included, can test everything. Real people, in every kind of place, on every kind of device and connection, find what we never could. So a bug you hit or a gap you notice is not the project failing. It is the project working: building in the open is how it gets better. Tell us what breaks, and you are already helping build it.")
+            RichText::new(t("humanity.early_days_2"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
@@ -267,15 +264,21 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.add_space(theme.spacing_md);
 
     // The mission
-    quiet_card_with_header(ui, theme, "Our mission", |ui| {
+    quiet_card_with_header(ui, theme, t("humanity.our_mission"), |ui| {
         ui.label(
-            RichText::new("We are here to end and prevent corruption, fraud, tyranny, poverty, and pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal is to free humanity from the grasp of tyrants, whether they are individuals, businesses, or governments.")
+            RichText::new(t("humanity.mission_body"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
         ui.horizontal_wrapped(|ui| {
-            for goal in ["Corruption", "Fraud", "Tyranny", "Poverty", "Pollution"] {
+            for goal in [
+                t("humanity.end_corruption"),
+                t("humanity.end_fraud"),
+                t("humanity.end_tyranny"),
+                t("humanity.end_poverty"),
+                t("humanity.end_pollution"),
+            ] {
                 goal_chip(ui, theme, goal);
             }
         });
@@ -287,30 +290,30 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // poverty and WHY each system, by its design and intended use, serves that,
     // the way the Onboarding page is concrete about it. This is the mechanism,
     // the heart of the pitch, not just the aspiration.
-    widgets::collapsible_section(ui, "Why it's built this way", false, |ui| {
+    with_hint(ui, "humanity.why_built_hint", |ui| widgets::collapsible_section(ui, t("humanity.why_built"), false, |ui| {
         ui.label(
-            RichText::new("Poverty is forced dependence. When you cannot provide your own water, food, or power, someone else sets the price of your survival. Every part of HumanityOS is built to remove that dependence: teach the skills, connect the people, and cut out the middlemen. Here is how each part pulls its weight.")
+            RichText::new(t("humanity.why_built_body"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
-        scope_block(ui, theme, "Guided quests and a free-to-fail simulation",
-            "Learn to collect water, grow food, and generate power by doing it in the simulation first, where a mistake costs nothing. The skills carry straight into real life, so a lack of know-how is never what keeps you poor.");
-        scope_block(ui, theme, "Encrypted chat, no sign-up needed",
-            "Find people already doing it and learn from them directly. No sign-up, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.");
-        scope_block(ui, theme, "Tasks and a private notebook",
-            "Turn a vague hope (get off the water bill) into a plan you actually finish, and keep a private record of what works, so your hard-won experience compounds instead of evaporating.");
-        scope_block(ui, theme, "Maps of what is near you",
-            "See the gardens, tools, workshops, and people around you. Providing for yourself is easier together, and cooperation is easiest when it is local.");
-        scope_block(ui, theme, "A marketplace with trust scores",
-            "Trade your surplus straight with your neighbors. No middleman takes a cut, so the value you create stays with you and your community instead of leaking away to a distant corporation.");
-        scope_block(ui, theme, "An identity you own, on a network no one owns",
-            "Your identity is a key on your device, not an account a company can suspend. The network is federated, with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.");
-        scope_block(ui, theme, "Built to be remade by anyone",
-            "Every plant, recipe, quest, and price is a plain data file, not locked-up code. A teacher in a remote village can add the crops that grow in their soil and the lessons their people need, with no programming, and pass it on as a single file. The tool bends to fit the place, instead of forcing every place to fit the tool.");
-        scope_block(ui, theme, "Public domain, forever",
-            "The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.");
-    });
+        scope_block(ui, theme, t("humanity.why_quests"),
+            t("humanity.why_quests_body"));
+        scope_block(ui, theme, t("humanity.why_chat"),
+            t("humanity.why_chat_body"));
+        scope_block(ui, theme, t("humanity.why_tasks"),
+            t("humanity.why_tasks_body"));
+        scope_block(ui, theme, t("humanity.why_maps"),
+            t("humanity.why_maps_body"));
+        scope_block(ui, theme, t("humanity.why_market"),
+            t("humanity.why_market_body"));
+        scope_block(ui, theme, t("humanity.why_identity"),
+            t_marked("humanity.why_identity_body"));
+        scope_block(ui, theme, t("humanity.why_remade"),
+            t("humanity.why_remade_body"));
+        scope_block(ui, theme, t("humanity.why_public"),
+            t("humanity.why_public_body"));
+    }));
     ui.add_space(theme.spacing_md);
 
     // What it protects: the freedoms a free people needs, and how the design
@@ -319,30 +322,30 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // speech is a death sentence for a free and independent people"). Ending
     // poverty is not enough if the result is a cage, so this sits beside the
     // poverty mechanism above, the liberty half of the same promise.
-    widgets::collapsible_section(ui, "What it protects", false, |ui| {
+    with_hint(ui, "humanity.protects_hint", |ui| widgets::collapsible_section(ui, t("humanity.protects"), false, |ui| {
         ui.label(
-            RichText::new("Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.")
+            RichText::new(t("humanity.protects_body"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
-        scope_block(ui, theme, "Free speech",
-            "A people who cannot speak freely cannot defend anything else they have. Losing that voice is a death sentence for a free and independent people, so it comes first. There is no central censor and no off switch: messages are encrypted, your identity lives on your device, and once two people connect they can speak directly with no server in the middle. No company, government, or mob can quietly erase what you said or forbid you from saying it.");
-        scope_block(ui, theme, "Privacy, even from us",
-            "Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device with post-quantum encryption, the kind built to resist even tomorrow's computers, and the server holds nothing but unreadable ciphertext. Even we cannot read them, and a warrant cannot force us to hand over what does not exist.");
-        scope_block(ui, theme, "What is yours stays yours",
-            "Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.");
-        scope_block(ui, theme, "You can never be locked out",
-            "There is no company account to suspend and no password for anyone else to reset. Your account is a key on your own device, which you can restore from your 24-word recovery phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.");
-        scope_block(ui, theme, "Rules made by the people they bind",
-            "The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.");
-        scope_block(ui, theme, "Bound by a constitution, not a promise",
-            "None of this rests on trusting us. It rests on the Humanity Accord, a public-domain constitution that places dignity, consent, transparency, and freedom from domination above any operator, company, or government. Anyone can read it, adopt it for their own community, or hold us to it.");
+        scope_block(ui, theme, t("humanity.protects_speech"),
+            t("humanity.protects_speech_body"));
+        scope_block(ui, theme, t("humanity.protects_privacy"),
+            t_marked("humanity.protects_privacy_body"));
+        scope_block(ui, theme, t("humanity.protects_yours"),
+            t_marked("humanity.protects_yours_body"));
+        scope_block(ui, theme, t("humanity.protects_locked_out"),
+            t_marked("humanity.protects_locked_out_body"));
+        scope_block(ui, theme, t("humanity.protects_rules"),
+            t_marked("humanity.protects_rules_body"));
+        scope_block(ui, theme, t("humanity.protects_constitution"),
+            t_marked("humanity.protects_constitution_body"));
         ui.add_space(theme.spacing_xs);
-        if widgets::Button::secondary("Read the Humanity Accord").show(ui, theme) {
-            open_doc("The Humanity Accord", ACCORD_TEXT);
+        if widgets::Button::secondary(t("humanity.read_accord")).hint("humanity.read_accord_hint").show(ui, theme) {
+            open_doc(t("humanity.accord_title"), ACCORD_TEXT);
         }
-    });
+    }));
     ui.add_space(theme.spacing_md);
 
     // Built for every situation: the resilience / universality angle the operator
@@ -351,47 +354,47 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // no-home-server identity, social recovery, no-accounts + VCs/reputation,
     // accessibility + i18n, off-site backups; radio mesh flagged in-progress so the
     // pitch stays honest, shipped vs planned).
-    widgets::collapsible_section(ui, "Built for every situation", false, |ui| {
+    with_hint(ui, "humanity.every_situation_hint", |ui| widgets::collapsible_section(ui, t("humanity.every_situation"), false, |ui| {
         ui.label(
-            RichText::new("A tool that only works when everything is going well is not much help. HumanityOS is built to keep working when things go wrong, wherever you are and whatever you have.")
+            RichText::new(t("humanity.every_situation_body"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
         ui.add_space(theme.spacing_sm);
-        scope_block(ui, theme, "When there is no internet",
-            "The app, your data, your saved work, and your skills all live on your device. You can learn, plan, and build completely offline, and sync only when, and if, a connection comes back. A mountain village, a boat, or a blackout does not stop you.");
-        scope_block(ui, theme, "When the server goes down",
-            "No one owns the network. Anyone can run their own in minutes, and your identity moves with you to any of them, because it is yours, not an account on someone else's machine. Take one server down and the rest carry on.");
-        scope_block(ui, theme, "When you lose your device",
-            "Restore everything from your 24-word recovery phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.");
-        scope_block(ui, theme, "When you have no money, papers, or bank",
-            "No sign-up, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.");
-        scope_block(ui, theme, "Whatever your language or ability",
-            "It speaks several languages, with high-contrast, colorblind, and reduced-motion modes, keyboard-only navigation, and a plain-language glossary for every term. It runs on cheap, old, low-power hardware, not just new machines.");
-        scope_block(ui, theme, "When disaster strikes",
-            "Off-site backups survive a fire, a flood, or a seizure, so a community can rebuild from nothing. Radio links that need no internet (in progress) aim to carry the essentials, calls for help, recovery, coordination, even when the grid and the network are down.");
-    });
+        scope_block(ui, theme, t("humanity.situation_offline"),
+            t("humanity.situation_offline_body"));
+        scope_block(ui, theme, t("humanity.situation_server_down"),
+            t("humanity.situation_server_down_body"));
+        scope_block(ui, theme, t("humanity.situation_lost_device"),
+            t_marked("humanity.situation_lost_device_body"));
+        scope_block(ui, theme, t("humanity.situation_no_money"),
+            t("humanity.situation_no_money_body"));
+        scope_block(ui, theme, t("humanity.situation_language"),
+            t("humanity.situation_language_body"));
+        scope_block(ui, theme, t("humanity.situation_disaster"),
+            t_marked("humanity.situation_disaster_body"));
+    }));
     ui.add_space(theme.spacing_md);
 
     // How we get there (three scopes)
-    quiet_card_with_header(ui, theme, "How we get there", |ui| {
+    quiet_card_with_header(ui, theme, t("humanity.get_there"), |ui| {
         scope_block(
             ui,
             theme,
-            "Civilization",
-            "All of us, human and AI, pointed at the same horizon, with a shared agreement on how we treat one another.",
+            t("humanity.get_there_civ"),
+            t("humanity.get_there_civ_body"),
         );
         scope_block(
             ui,
             theme,
-            "Earth, our first focus",
-            "End poverty through voluntary cooperation. People help because they choose to, compensated in resources for the work. (The Moon and Mars come later, about a decade out.)",
+            t("humanity.get_there_earth"),
+            t("humanity.get_there_earth_body"),
         );
         scope_block(
             ui,
             theme,
-            "Your community",
-            "It starts where you live. Help your neighbors, and be helped in return. Coordinated by the software, never commanded.",
+            t("humanity.get_there_community"),
+            t("humanity.get_there_community_body"),
         );
     });
     ui.add_space(theme.spacing_md);
@@ -406,15 +409,15 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // follows were invisible to users. It renders HERE now (same fetch, same
     // GuiState cache, one visual language). The standalone Civilization page
     // still exists and still works; this is a rescue, not a replacement.
-    widgets::card_with_header(ui, theme, "Where we stand", |ui| {
+    widgets::card_with_header(ui, theme, t("humanity.where_we_stand"), |ui| {
         ui.label(
-            RichText::new("This is the beginning. Every person who joins and every contribution moves the needle. These are the server's real numbers, not estimates.")
+            RichText::new(t("humanity.where_we_stand_body"))
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            if widgets::Button::secondary("Refresh").show(ui, theme) {
+            if widgets::Button::secondary(t("common.refresh")).hint("civilization.refresh_hint").show(ui, theme) {
                 // poll_stats (pumped from `draw`) re-fetches on the next frame.
                 state.civ_stats_loaded = false;
             }
@@ -431,17 +434,17 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             .num_columns(2)
             .spacing(egui::Vec2::new(theme.spacing_sm, theme.spacing_sm))
             .show(ui, |ui| {
-                civilization::draw_stat_card(ui, theme, "AI building alongside us", "Yes", "", 0.0);
-                civilization::draw_stat_card(ui, theme, "Federated communities", "Forming", "", 0.0);
+                civilization::draw_stat_card(ui, theme, t("humanity.stat_ai"), t("humanity.stat_ai_value"), "", 0.0);
+                civilization::draw_stat_card(ui, theme, t("humanity.stat_federated"), t("humanity.stat_federated_value"), "", 0.0);
                 ui.end_row();
             });
     });
     ui.add_space(theme.spacing_md);
 
     // Be part of it (calls to action)
-    widgets::card_with_header(ui, theme, "Be part of it", |ui| {
+    widgets::card_with_header(ui, theme, t("humanity.be_part"), |ui| {
         ui.horizontal_wrapped(|ui| {
-            if widgets::Button::primary("Get oriented").show(ui, theme) {
+            if widgets::Button::primary(t("humanity.get_oriented")).hint("humanity.get_oriented_hint").show(ui, theme) {
                 // Onboarding was retired into the unified Quests (Real tab) on
                 // 2026-06-06; "Get oriented" now jumps straight to the quests.
                 // Quests is its own top-level page now (not a Real-tab section);
@@ -449,10 +452,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 // silently fell through to Profile > Body & Measurements (v0.699 fix).
                 state.active_page = crate::gui::GuiPage::Quests;
             }
-            if widgets::Button::secondary("Fund the work").show(ui, theme) {
+            if widgets::Button::secondary(t("humanity.fund_work")).hint("humanity.fund_work_hint").show(ui, theme) {
                 state.active_humanity_section = "donate".to_string();
             }
-            if widgets::Button::secondary("Shape the rules").show(ui, theme) {
+            if widgets::Button::secondary(t("humanity.shape_rules")).hint("humanity.shape_rules_hint").show(ui, theme) {
                 state.active_humanity_section = "governance".to_string();
             }
         });
@@ -461,7 +464,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
 
     // AI as Humanity
     ui.label(
-        RichText::new("Humans and AI, building this together. If you are reading this, human or AI, you are part of it. We are Humanity, you included.")
+        RichText::new(t("humanity.together"))
             .size(theme.font_size_body)
             .italics()
             .color(theme.text_secondary()),
@@ -517,7 +520,7 @@ fn quiet_card_with_header(
         });
 }
 
-/// A chip naming one of the five things the mission ends.
+/// A chip naming one of the five things the mission ends ("End Poverty").
 fn goal_chip(ui: &mut egui::Ui, theme: &Theme, goal: &str) {
     Frame::none()
         .fill(theme.bg_card())
@@ -526,7 +529,7 @@ fn goal_chip(ui: &mut egui::Ui, theme: &Theme, goal: &str) {
         .stroke(Stroke::new(1.0, theme.border()))
         .show(ui, |ui| {
             ui.label(
-                RichText::new(format!("End {goal}"))
+                RichText::new(goal)
                     .size(theme.font_size_small)
                     .color(theme.text_primary()),
             );
@@ -543,11 +546,8 @@ fn scope_block(ui: &mut egui::Ui, theme: &Theme, title: &str, body: &str) {
             .strong()
             .color(theme.accent()),
     );
-    ui.label(
-        RichText::new(body)
-            .size(theme.font_size_small)
-            .color(theme.text_secondary()),
-    );
+    // Its words may mark glossary terms ([[term]]): underlined, explained on hover.
+    widgets::glossary_words(ui, theme, body, theme.font_size_small, theme.text_secondary());
     ui.add_space(theme.spacing_xs);
 }
 

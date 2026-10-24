@@ -151,6 +151,9 @@ pub const I18N_FR_JSON: &str = include_str!("../data/i18n/fr.json");
 pub const I18N_JA_JSON: &str = include_str!("../data/i18n/ja.json");
 pub const I18N_ZH_JSON: &str = include_str!("../data/i18n/zh.json");
 
+// ── The first five minutes (JSON): the guided tour's steps, shared with the website ──
+pub const ONBOARDING_TOUR_JSON: &str = include_str!("../data/onboarding/tour.json");
+
 // ── Language data (JSON) ────────────────────────────────────────────
 pub const LANGUAGE_ACRONYMS_JSON: &str = include_str!("../data/language/acronyms.json");
 pub const LANGUAGE_DICTIONARY_JSON: &str = include_str!("../data/language/dictionary.json");
@@ -441,6 +444,9 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "i18n/fr.json" => Some(I18N_FR_JSON),
         "i18n/ja.json" => Some(I18N_JA_JSON),
         "i18n/zh.json" => Some(I18N_ZH_JSON),
+
+        // JSON — the first five minutes
+        "onboarding/tour.json" => Some(ONBOARDING_TOUR_JSON),
 
         // JSON — Language
         "language/acronyms.json" => Some(LANGUAGE_ACRONYMS_JSON),

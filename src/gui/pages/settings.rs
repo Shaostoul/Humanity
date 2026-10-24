@@ -1254,28 +1254,54 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     let hint = state.settings.hint_display;
     let accent = section_accent(SettingsCategory::Appearance, theme);
     // ── Basics: the everyday knobs (theme, text size, help text, timestamps) ──
-    widgets::subsection_header(ui, theme, accent, "Basics", "");
+    // Words by key and a hint on every control (the ELI5 mandate, 2026-10-22):
+    // each control's hover hint is its own description line, so one plain
+    // sentence explains it inline (Full), behind the (?) (Hover), and on hover.
+    use crate::gui::i18n::t;
+    use crate::gui::widgets::{with_hint, Hint};
+    widgets::subsection_header(ui, theme, accent, t("settings.basics"), "");
     widgets::card(ui, theme, |ui| {
-        if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
+        if with_hint(ui, "settings.dark_mode_desc", |ui| widgets::toggle(ui, theme, t("settings.dark_mode"), &mut state.settings.dark_mode)) {
             state.settings_dirty = true;
         }
-        widgets::setting_hint(ui, theme, hint, "Dark backgrounds with light text (easier on the eyes at night). Off = light theme.");
+        widgets::setting_hint(ui, theme, hint, t("settings.dark_mode_desc"));
 
-        if widgets::labeled_slider(ui, theme, "Font Size", &mut state.settings.font_size, 10.0..=24.0) {
+        if with_hint(ui, "settings.font_size_desc", |ui| {
+            widgets::labeled_slider(ui, theme, t("settings.font_size"), &mut state.settings.font_size, 10.0..=24.0)
+        }) {
             state.settings_dirty = true;
         }
-        widgets::setting_hint(ui, theme, hint, "Base text size in points. Higher = larger, easier-to-read text that fits less on screen. Per-element sizes live under Widgets > Fonts.");
+        widgets::setting_hint(ui, theme, hint, t("settings.font_size_desc"));
 
-        // The hint-display mode itself (Full / Hover / Off) — controls how every
-        // description on this page, including the ones right here, is shown.
+        // The hint-display mode itself (Full / Hover / Off): how every
+        // description on this page, and every control's hover hint, is shown.
         if hint_display_picker(ui, theme, &mut state.settings.hint_display) {
             state.settings_dirty = true;
         }
-        widgets::setting_hint(ui, theme, hint, "How each setting's help text on this page is shown. Full keeps every description visible and tucked under its control; Hover hides them behind a small (?) you point at; Off removes them entirely.");
+        widgets::setting_hint(ui, theme, hint, t("settings.hints_desc"));
+
+        // The language the app's words are shown in (2026-10-22): every
+        // data/i18n/<code>.json, each with how much of it is translated so far.
+        if language_picker(ui, theme, &mut state.settings.language) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t("settings.language_hint"));
+
+        // The first five minutes (gui/first_minutes.rs): take the guided tour again,
+        // or carry on with one that was put away, from where it was left.
+        widgets::settings_row(ui, theme, t("tour.settings_tour_label"), |ui| {
+            let fm = &state.first_minutes;
+            let label = if fm.started && !fm.done { t("tour.settings_continue") } else { t("tour.settings_start") };
+            if widgets::Button::secondary(label).hint("tour.settings_tour_hint").show(ui, theme) {
+                state.first_minutes.resume();
+                state.settings_dirty = true;
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("tour.settings_tour_hint"));
 
         // Chat timestamp display format (operator request). Applies app-wide and
-        // instantly — re-formats already-shown messages too. All UTC.
-        widgets::form_row(ui, theme, "Timestamp format", |ui| {
+        // instantly, re-formatting already-shown messages too. All UTC.
+        widgets::form_row(ui, theme, t("settings.timestamp_format"), |ui| {
             let mut current = crate::gui::pages::chat::timestamp_format();
             let before = current;
             egui::ComboBox::from_id_salt("timestamp_format_combo")
@@ -1283,9 +1309,11 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                 .width(320.0)
                 .show_ui(ui, |ui| {
                     for fmt in crate::gui::pages::chat::TimestampFormat::ALL {
-                        ui.selectable_value(&mut current, fmt, fmt.label());
+                        ui.selectable_value(&mut current, fmt, fmt.label()).hint("settings.timestamp_format_hint");
                     }
-                });
+                })
+                .response
+                .hint("settings.timestamp_format_hint");
             if current != before {
                 crate::gui::pages::chat::set_timestamp_format(current);
                 crate::config::AppConfig::from_gui_state(state).save();
@@ -1832,6 +1860,50 @@ fn u8_radio_picker(
     changed
 }
 
+/// The language picker: every language `data/i18n/` holds, English first, each
+/// other one with how many of English's words it has translated (a missing word
+/// shows in English, so a part-translated language still shows every page
+/// whole). Returns true when the choice changed. A new translation file appears
+/// here with no code change.
+fn language_picker(ui: &mut egui::Ui, theme: &Theme, value: &mut String) -> bool {
+    use crate::gui::i18n;
+    use crate::gui::widgets::Hint;
+    let label_for = |code: &str, name: &str| -> String {
+        if code == "en" {
+            return name.to_string();
+        }
+        let (done, total) = i18n::coverage(code);
+        i18n::tf("settings.language_coverage", &[("name", &name), ("done", &done), ("total", &total)])
+    };
+    let mut changed = false;
+    widgets::settings_row(ui, theme, i18n::t("settings.language"), |ui| {
+        let langs = i18n::languages();
+        let shown = langs
+            .iter()
+            .find(|(c, _)| *c == value.as_str())
+            .map(|(c, n)| label_for(c, n))
+            .unwrap_or_else(|| value.clone());
+        egui::ComboBox::from_id_salt("language_combo")
+            .selected_text(shown)
+            .width(320.0)
+            .show_ui(ui, |ui| {
+                for (code, name) in &langs {
+                    let on = value.as_str() == *code;
+                    if ui.selectable_label(on, label_for(code, name)).hint("settings.language_hint").clicked()
+                        && !on
+                        && i18n::set_language(code)
+                    {
+                        *value = code.to_string();
+                        changed = true;
+                    }
+                }
+            })
+            .response
+            .hint("settings.language_hint");
+    });
+    changed
+}
+
 /// Segmented picker for the per-setting description mode (Full / Hover / Off).
 /// Same look as `u8_radio_picker`; returns true if the value changed. Kept
 /// generic over `HintDisplay::ALL` so a new mode appears here automatically.
@@ -1840,11 +1912,18 @@ fn hint_display_picker(
     theme: &Theme,
     value: &mut crate::gui::HintDisplay,
 ) -> bool {
+    use crate::gui::i18n::t;
+    use crate::gui::HintDisplay;
     let mut changed = false;
-    widgets::settings_row(ui, theme, "Setting descriptions", |ui| {
-        for mode in crate::gui::HintDisplay::ALL {
+    widgets::settings_row(ui, theme, t("settings.hints"), |ui| {
+        for mode in HintDisplay::ALL {
             let active = *value == mode;
-            if widgets::Button::secondary(mode.label()).active(active).show(ui, theme) {
+            let (label, hint) = match mode {
+                HintDisplay::Full => (t("settings.hints_full"), "settings.hints_full_hint"),
+                HintDisplay::Hover => (t("settings.hints_hover"), "settings.hints_hover_hint"),
+                HintDisplay::Off => (t("settings.hints_off"), "settings.hints_off_hint"),
+            };
+            if widgets::Button::secondary(label).hint(hint).active(active).show(ui, theme) {
                 if !active {
                     *value = mode;
                     changed = true;

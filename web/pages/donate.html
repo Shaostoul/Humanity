@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>Donate, HumanityOS</title>
+  <title data-i18n="donate.page_title">Donate, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -78,27 +78,29 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="donate"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Two ways to give: straight to the maintainer, which is not tax-deductible, or to the nonprofit Sponsor-a-Can, which is.</div>
-  <div class="eli5-expert">Donation page. Reads the giving routes from /data/donate/routes.json, the other direct links from /data/donate/methods.json, endorsed charities from /data/donate/charities.json and the FAQ from /data/donate/faq.json (the same four files the desktop app's Donate page reads), plus the connected server's funding block from /api/server-info.</div>
+  <div class="eli5-simple" data-i18n="donate.eli5_simple">Two ways to give: straight to the maintainer, which is not tax-deductible, or to the nonprofit Sponsor-a-Can, which is.</div>
+  <div class="eli5-expert" data-i18n="donate.eli5_expert">Donation page. Reads the giving routes from /data/donate/routes.json, the other direct links from /data/donate/methods.json, endorsed charities from /data/donate/charities.json and the FAQ from /data/donate/faq.json (the same four files the desktop app's Donate page reads), plus the connected server's funding block from /api/server-info.</div>
 </div>
-<p class="page-hint">Give to the maintainer directly (not tax-deductible), or to the nonprofit Sponsor-a-Can (tax-deductible).</p>
+<p class="page-hint" data-i18n="donate.page_hint">Give to the maintainer directly (not tax-deductible), or to the nonprofit Sponsor-a-Can (tax-deductible).</p>
 
 <div id="page-app">
   <!-- Hero -->
   <div class="donate-hero">
-    <h1>Donate</h1>
-    <p class="page-hint">Support HumanityOS.</p>
-    <p>HumanityOS is free and public-domain (CC0), with no company or nonprofit behind it. It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.</p>
+    <h1 data-i18n="donate.title">Donate</h1>
+    <p class="page-hint" data-i18n="donate.subtitle_web">Support HumanityOS.</p>
+    <p><span data-i18n="donate.free_cc0">HumanityOS is free and <span data-term="public_domain">public-domain</span> (<span data-term="CC0">CC0</span>), with no company or nonprofit behind it.</span> <span data-i18n="donate.one_person">It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.</span></p>
   </div>
 
   <!-- Ways to give: data/donate/routes.json (the maintainer on Patreon, then the nonprofit) -->
   <div class="donate-section" id="routes-section" style="display:none;">
-    <h2 class="section-heading">Ways to give</h2>
+    <h2 class="section-heading" data-i18n="donate.ways_to_give">Ways to give</h2>
     <div class="route-grid" id="routes-grid">
       <!-- Populated by donate-app.js from /data/donate/routes.json -->
     </div>
@@ -106,10 +108,10 @@
 
   <!-- More direct links (data/donate/methods.json) + the server's funding block -->
   <div class="donate-section" id="direct-section" style="display:none;">
-    <h2 class="section-heading">More ways to give to the maintainer directly</h2>
-    <p class="section-note">These also go to the maintainer personally, and are not tax-deductible.</p>
+    <h2 class="section-heading" data-i18n="donate.more_ways">More ways to give to the maintainer directly</h2>
+    <p class="section-note" data-i18n="donate.more_ways_note">These also go to the maintainer personally, and are not tax-deductible.</p>
     <div class="goal-card" id="goal-section" style="display:none;">
-      <span class="goal-title">Funding goal</span>
+      <span class="goal-title" data-i18n="donate.funding_goal">Funding goal</span>
       <span class="goal-amount" id="goal-amount"></span>
       <span class="goal-label" id="goal-label"></span>
     </div>
@@ -120,8 +122,8 @@
 
   <!-- Charities the maintainer personally supports (curated, data-driven; hidden while the list is empty) -->
   <div class="donate-section" id="charities-section" style="display:none;">
-    <h2 class="section-heading">Charities I support</h2>
-    <p class="section-note">Independent nonprofits the maintainer personally stands behind. These are their own organizations, unaffiliated with HumanityOS; donate to them directly. Tax-deductibility depends on the charity and your situation.</p>
+    <h2 class="section-heading" data-i18n="donate.charities">Charities I support</h2>
+    <p class="section-note" data-i18n="donate.charities_note_web">Independent nonprofits the maintainer personally stands behind. These are their own organizations, unaffiliated with HumanityOS; donate to them directly. Tax-deductibility depends on the charity and your situation.</p>
     <div class="source-grid" id="charities-grid">
       <!-- Populated by donate-app.js from /data/donate/charities.json -->
     </div>
@@ -129,7 +131,7 @@
 
   <!-- FAQ: data/donate/faq.json, the same entries the desktop app shows -->
   <div class="donate-section faq" id="faq-section" style="display:none;">
-    <h2>Frequently Asked Questions</h2>
+    <h2 data-i18n="donate.faq">Frequently Asked Questions</h2>
     <div id="faq-list">
       <!-- Populated by donate-app.js from /data/donate/faq.json -->
     </div>
@@ -137,8 +139,8 @@
 
   <!-- Transparency footer -->
   <div class="transparency">
-    HumanityOS is fully open source: <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">view the code</a>.<br>
-    No funds are held on behalf of donors.
+    <span data-i18n="donate.open_source">HumanityOS is fully <span data-term="open_source">open source</span>:</span> <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener" data-i18n="donate.view_code" data-i18n-tip="donate.view_code_hint" data-tip-desc="Opens the HumanityOS code on GitHub in a new tab, where anyone can read it.">view the code</a>.<br>
+    <span data-i18n="donate.no_funds_held">No funds are held on behalf of donors.</span>
   </div>
 </div>
 

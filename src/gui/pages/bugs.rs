@@ -19,6 +19,8 @@ use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::{t, tf, tn};
+use crate::gui::widgets::{with_hint, Hint};
 
 // Severity and category lists are loaded from `data/bugs/taxonomy.json` into
 // `GuiState.bug_severities` / `GuiState.bug_categories` at startup.
@@ -88,7 +90,7 @@ fn fetch_bugs_blocking(server_url: &str) -> ListResult {
     let base = server_url.trim_end_matches('/');
     let body = ureq::get(&format!("{base}/api/bugs?limit=50"))
         .call()
-        .map_err(|e| format!("Could not load reports: {e}"))?
+        .map_err(|e| tf("bugs.load_failed", &[("error", &e)]))?
         .into_string()
         .map_err(|e| format!("read: {e}"))?;
     let val: serde_json::Value =
@@ -185,9 +187,9 @@ fn submit_bug_blocking(
         }
         Err(ureq::Error::Status(code, r)) => {
             let msg = r.into_string().unwrap_or_default();
-            Err(format!("Submit failed ({code}): {msg}"))
+            Err(tf("bugs.submit_failed_code", &[("code", &code), ("message", &msg)]))
         }
-        Err(e) => Err(format!("Submit failed: {e}")),
+        Err(e) => Err(tf("bugs.submit_failed", &[("error", &e)])),
     }
 }
 
@@ -206,12 +208,12 @@ fn spawn_list_fetch(bs: &mut BugReporterState, server_url: &str) {
 /// duplicate); show them the way a human writes them.
 fn status_label(status: &str) -> String {
     match status {
-        "open" => "Open".to_string(),
-        "in_progress" => "In Progress".to_string(),
-        "fixed" => "Fixed".to_string(),
-        "wont_fix" => "Won't Fix".to_string(),
-        "duplicate" => "Duplicate".to_string(),
-        other if other.is_empty() => "Open".to_string(),
+        "open" => t("bugs.status_open").to_string(),
+        "in_progress" => t("bugs.status_in_progress").to_string(),
+        "fixed" => t("bugs.status_fixed").to_string(),
+        "wont_fix" => t("bugs.status_wont_fix").to_string(),
+        "duplicate" => t("bugs.status_duplicate").to_string(),
+        other if other.is_empty() => t("bugs.status_open").to_string(),
         other => other.to_string(),
     }
 }
@@ -284,7 +286,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     bs.description.clear();
                     bs.severity_idx = 0;
                     bs.category_idx = 0;
-                    bs.status_message = format!("Report saved on the server (#{id}). Thank you.");
+                    bs.status_message = tf("bugs.saved", &[("id", &id)]);
                     spawn_list_fetch(bs, &server);
                 }
                 Ok(Err(e)) => {
@@ -309,18 +311,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("Report a Bug")
+                    RichText::new(t("bugs.report_a_bug"))
                         .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::secondary_button(ui, theme, "Refresh") {
+                    if with_hint(ui, "bugs.refresh_hint", |ui| widgets::secondary_button(ui, theme, t("common.refresh"))) {
                         with_state(|bs| spawn_list_fetch(bs, &server));
                     }
                 });
             });
             ui.label(
-                RichText::new(format!("Version: v{}", env!("CARGO_PKG_VERSION")))
+                RichText::new(tf("bugs.version", &[("version", &env!("CARGO_PKG_VERSION"))]))
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -333,22 +335,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Form
                     widgets::card(ui, theme, |ui| {
                         // Title
-                        ui.label(RichText::new("Title").color(theme.text_secondary()));
+                        ui.label(RichText::new(t("bugs.title_label")).color(theme.text_secondary()));
                         ui.add(
                             egui::TextEdit::singleline(&mut bs.title)
                                 .desired_width(f32::INFINITY)
-                                .hint_text("Brief summary of the bug"),
-                        );
+                                .hint_text(t("bugs.title_placeholder")),
+                        ).hint("bugs.title_hint");
                         ui.add_space(theme.spacing_xs);
 
                         // Description
-                        ui.label(RichText::new("Description").color(theme.text_secondary()));
+                        ui.label(RichText::new(t("bugs.description")).color(theme.text_secondary()));
                         ui.add(
                             egui::TextEdit::multiline(&mut bs.description)
                                 .desired_width(f32::INFINITY)
                                 .desired_rows(4)
-                                .hint_text("Steps to reproduce, expected vs actual behavior..."),
-                        );
+                                .hint_text(t("bugs.description_placeholder")),
+                        ).hint("bugs.description_hint");
                         ui.add_space(theme.spacing_xs);
 
                         // Severity + Category dropdowns (lists from data/bugs/taxonomy.json)
@@ -357,32 +359,36 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let sev_label = severities.get(bs.severity_idx).map(String::as_str).unwrap_or("");
                         let cat_label = categories.get(bs.category_idx).map(String::as_str).unwrap_or("");
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Severity:").color(theme.text_secondary()));
+                            ui.label(RichText::new(t("bugs.severity_label")).color(theme.text_secondary()));
                             egui::ComboBox::from_id_salt("severity")
                                 .selected_text(sev_label)
                                 .show_ui(ui, |ui| {
                                     for (i, sev) in severities.iter().enumerate() {
-                                        ui.selectable_value(&mut bs.severity_idx, i, sev.as_str());
+                                        ui.selectable_value(&mut bs.severity_idx, i, sev.as_str()).hint("bugs.severity_option_hint");
                                     }
-                                });
+                                })
+                                .response
+                                .hint("bugs.severity_hint");
 
                             ui.add_space(theme.spacing_md);
 
-                            ui.label(RichText::new("Category:").color(theme.text_secondary()));
+                            ui.label(RichText::new(t("bugs.category_label")).color(theme.text_secondary()));
                             egui::ComboBox::from_id_salt("category")
                                 .selected_text(cat_label)
                                 .show_ui(ui, |ui| {
                                     for (i, cat) in categories.iter().enumerate() {
-                                        ui.selectable_value(&mut bs.category_idx, i, cat.as_str());
+                                        ui.selectable_value(&mut bs.category_idx, i, cat.as_str()).hint("bugs.category_option_hint");
                                     }
-                                });
+                                })
+                                .response
+                                .hint("bugs.category_hint");
                         });
                         ui.add_space(theme.spacing_sm);
 
                         // Submit: goes to the server, not to a local list.
                         ui.horizontal(|ui| {
-                            let submit_label = if submitting { "Sending..." } else { "Submit Report" };
-                            let clicked = widgets::primary_button(ui, theme, submit_label);
+                            let submit_label = if submitting { t("bugs.sending") } else { t("bugs.submit") };
+                            let clicked = widgets::Button::primary(submit_label).hint("bugs.submit_hint").show(ui, theme);
                             if clicked && !submitting {
                                 let title = bs.title.trim().to_string();
                                 let description = bs.description.trim().to_string();
@@ -390,9 +396,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 // otherwise), so say so here rather than let a
                                 // report bounce off the server.
                                 if title.is_empty() {
-                                    bs.status_message = "Title is required.".into();
+                                    bs.status_message = t("bugs.title_required").into();
                                 } else if description.is_empty() {
-                                    bs.status_message = "Description is required.".into();
+                                    bs.status_message = t("bugs.description_required").into();
                                 } else if crate::engine::warnings::holds_own_phrase(state, &[&title, &description, &my_name]) {
                                     bs.status_message = crate::net::warnings::GUARD_LINE.into(); // step F's guard
                                 } else {
@@ -420,7 +426,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         ));
                                     });
                                     bs.submit_rx = Some(rx);
-                                    bs.status_message = "Sending to the server...".into();
+                                    bs.status_message = t("bugs.sending_to_server").into();
                                 }
                             }
                             if !bs.status_message.is_empty() {
@@ -438,15 +444,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Reports the SERVER holds (survives a restart, visible to
                     // every other member and to maintainers).
                     ui.label(
-                        RichText::new("Reports on this server")
+                        RichText::new(t("bugs.on_this_server"))
                             .size(theme.font_size_body)
                             .color(theme.text_secondary()),
                     );
                     if bs.reports.is_empty() {
                         let empty = if bs.list_rx.is_some() {
-                            "Loading reports from the server..."
+                            t("bugs.loading")
                         } else {
-                            "No reports on this server yet."
+                            t("bugs.none_yet")
                         };
                         ui.label(RichText::new(empty).color(theme.text_muted()));
                     }
@@ -476,7 +482,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 meta.push_str(&format!(" | {}", report.reporter_name));
                             }
                             if report.votes > 0 {
-                                meta.push_str(&format!(" | {} votes", report.votes));
+                                meta.push_str(&format!(" | {}", tn("bugs.votes", report.votes, &[])));
                             }
                             ui.label(
                                 RichText::new(meta)

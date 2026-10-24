@@ -95,18 +95,21 @@ function renderList() {
   });
 
   if (!filtered.length) {
-    list.innerHTML = '<div style="padding:var(--space-xl);color:#444;font-size:.78rem;text-align:center">No notes yet.</div>';
+    list.innerHTML = '<div style="padding:var(--space-xl);color:#444;font-size:.78rem;text-align:center">' + esc(i18n.t('notes.no_notes')) + '</div>';
     return;
   }
 
+  const encryptedWord = i18n.t('notes.encrypted_lower');
+  const openHint = esc(i18n.t('notes.open_hint'));
   list.innerHTML = filtered.map(n => {
-    const title = n.title || 'Untitled';
-    const preview = n.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',12):'') + ' encrypted' : (n.content || '').slice(0, 60).replace(/\n/g, ' ');
+    const title = n.title || i18n.t('notes.untitled');
+    const preview = n.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',12):'') + ' ' + encryptedWord : (n.content || '').slice(0, 60).replace(/\n/g, ' ');
     const date = new Date(n.updatedAt).toLocaleDateString();
-    return `<div class="note-item${n.id === activeId ? ' active' : ''}" onclick="openNote('${n.id}')">
+    const activeClass = n.id === activeId ? ' active' : ''; // i18n-exempt: a class name
+    return `<div role="button" tabindex="0" class="note-item${activeClass}" onclick="openNote('${n.id}')" data-i18n-tip="notes.open_hint" data-tip-desc="${openHint}">
       <div class="note-item-title">${esc(title)}</div>
       <div class="note-item-preview">${esc(preview)}</div>
-      <div class="note-item-date">${date}${n.encrypted ? ' <span class="note-item-encrypted">encrypted</span>' : ''}</div>
+      <div class="note-item-date">${date}${n.encrypted ? ' <span class="note-item-encrypted">' + esc(encryptedWord) + '</span>' : ''}</div>
     </div>`;
   }).join('');
 }
@@ -121,15 +124,21 @@ function showNotePanel(show) {
 function updateWordCount() {
   const text = document.getElementById('note-content').value;
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  document.getElementById('word-count').textContent = words + ' words · ' + text.length + ' chars';
+  document.getElementById('word-count').textContent = i18n.t('notes.word_char_count', { words: words, chars: text.length });
 }
 
 function setStatus(msg, timeout) {
   document.getElementById('status-msg').textContent = msg;
   if (timeout) setTimeout(() => {
     const cur = document.getElementById('status-msg');
-    if (cur && cur.textContent === msg) cur.textContent = 'All changes saved';
+    if (cur && cur.textContent === msg) cur.textContent = i18n.t('notes.all_saved');
   }, timeout);
+}
+
+/** The encryption button's face: its lock icon and the words for the state. */
+function setEncryptButton(encBtn, encrypted) {
+  const icon = typeof hosIcon === 'function' ? hosIcon(encrypted ? 'lock' : 'unlock', 14) : '';
+  encBtn.innerHTML = icon + ' ' + esc(encrypted ? i18n.t('notes.encrypted_state') : i18n.t('notes.plain'));
 }
 
 // ── Note operations ──
@@ -161,7 +170,7 @@ function openNote(id) {
     showNotePanel(true);
     document.getElementById('note-title-input').value = note.title || '';
     document.getElementById('note-content').value = '';
-    document.getElementById('note-content').placeholder = 'Enter passphrase to view…';
+    document.getElementById('note-content').placeholder = i18n.t('notes.passphrase_to_view');
     document.getElementById('note-content').readOnly = true;
     setTimeout(() => document.getElementById('unlock-pass').focus(), 100);
   } else {
@@ -171,10 +180,10 @@ function openNote(id) {
     showNotePanel(true);
     document.getElementById('note-title-input').value = note.title || '';
     document.getElementById('note-content').value = note.content || '';
-    document.getElementById('note-content').placeholder = 'Start writing…';
+    document.getElementById('note-content').placeholder = i18n.t('notes.start_writing');
     document.getElementById('note-content').readOnly = false;
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.innerHTML = note.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted' : (typeof hosIcon==='function'?hosIcon('unlock',14):'') + ' Plain';
+    setEncryptButton(encBtn, note.encrypted);
     encBtn.classList.toggle('encrypt-on', note.encrypted);
     // Reset markdown preview to edit mode
     if (mdPreviewOn) {
@@ -182,7 +191,7 @@ function openNote(id) {
       document.getElementById('md-preview').style.display = 'none';
       document.getElementById('note-content').style.display = '';
       document.getElementById('btn-md-toggle').classList.remove('active-toggle');
-      document.getElementById('btn-md-toggle').textContent = 'Preview';
+      document.getElementById('btn-md-toggle').textContent = i18n.t('notes.preview');
     }
     updateWordCount();
     setStatus('');
@@ -203,24 +212,24 @@ async function doUnlock() {
     pendingUnlockId = null;
     document.getElementById('unlock-overlay').classList.remove('open');
     document.getElementById('note-content').value = plain;
-    document.getElementById('note-content').placeholder = 'Start writing…';
+    document.getElementById('note-content').placeholder = i18n.t('notes.start_writing');
     document.getElementById('note-content').readOnly = false;
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.innerHTML = (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted';
+    setEncryptButton(encBtn, true);
     encBtn.classList.add('encrypt-on');
     updateWordCount();
     setStatus('');
     renderList();
     document.getElementById('note-content').focus();
   } catch (e) {
-    document.getElementById('unlock-err').textContent = 'Wrong passphrase.';
+    document.getElementById('unlock-err').textContent = i18n.t('notes.wrong_passphrase');
   }
 }
 
 function scheduleAutoSave() {
   if (!activeId) return;
   updateWordCount();
-  setStatus('Saving…');
+  setStatus(i18n.t('notes.saving'));
   clearTimeout(saveTimer);
   saveTimer = setTimeout(autoSave, 800);
 }
@@ -241,7 +250,7 @@ async function autoSave() {
 
   saveNotes();
   renderList();
-  setStatus('Saved ' + new Date().toLocaleTimeString(), 3000);
+  setStatus(i18n.t('notes.saved_at', { time: new Date().toLocaleTimeString() }), 3000);
 }
 
 async function toggleEncrypt() {
@@ -250,35 +259,35 @@ async function toggleEncrypt() {
 
   if (!note.encrypted) {
     // Enable encryption, prompt for passphrase
-    const pass = prompt('Choose a passphrase for this note.\nYou must enter it every time you open the note.');
-    if (!pass || pass.length < 4) { alert('Passphrase too short (min 4 characters).'); return; }
+    const pass = prompt(i18n.t('notes.choose_passphrase'));
+    if (!pass || pass.length < 4) { alert(i18n.t('notes.passphrase_too_short')); return; }
     note.encrypted = true;
     note._unlockPassphrase = pass;
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.innerHTML = (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted';
+    setEncryptButton(encBtn, true);
     encBtn.classList.add('encrypt-on');
     scheduleAutoSave(); // triggers aesEncrypt on the content
-    setStatus('Note will be encrypted on next save.');
+    setStatus(i18n.t('notes.will_encrypt'));
   } else {
     // Disable encryption
-    if (!await holdConfirm('Remove encryption from this note? The content will be stored in plain text.', { seconds: 3 })) return;
+    if (!await holdConfirm(i18n.t('notes.remove_encryption_confirm'), { seconds: 3 })) return;
     note.encrypted = false;
     note._unlockPassphrase = null;
     note.content = document.getElementById('note-content').value;
     note.updatedAt = Date.now();
     saveNotes();
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.innerHTML = (typeof hosIcon==='function'?hosIcon('unlock',14):'') + ' Plain';
+    setEncryptButton(encBtn, false);
     encBtn.classList.remove('encrypt-on');
     renderList();
-    setStatus('Encryption removed.');
+    setStatus(i18n.t('notes.encryption_removed'));
   }
 }
 
 async function deleteActiveNote() {
   if (!activeId) return;
   const note = getNote(activeId);
-  if (!await holdConfirm('Delete "' + (note?.title || 'Untitled') + '"? This cannot be undone.', { seconds: 3 })) return;
+  if (!await holdConfirm(i18n.t('notes.delete_named_confirm', { title: note?.title || i18n.t('notes.untitled') }), { seconds: 3 })) return;
   notes = notes.filter(n => n.id !== activeId);
   activeId = null;
   saveNotes();
@@ -304,17 +313,17 @@ function toggleMarkdownPreview() {
     preview.style.display = 'block';
     textarea.style.display = 'none';
     btn.classList.add('active-toggle');
-    btn.textContent = 'Edit';
+    btn.textContent = i18n.t('common.edit');
   } else {
     preview.style.display = 'none';
     textarea.style.display = '';
     btn.classList.remove('active-toggle');
-    btn.textContent = 'Preview';
+    btn.textContent = i18n.t('notes.preview');
   }
 }
 
 function renderMarkdown(text) {
-  if (!text) return '<p style="color:var(--text-muted)">Nothing to preview.</p>';
+  if (!text) return '<p style="color:var(--text-muted)">' + esc(i18n.t('notes.nothing_to_preview')) + '</p>';
   let html = esc(text);
   // Code blocks (fenced)
   html = html.replace(/```([\s\S]*?)```/g, function(_, code) {
@@ -338,7 +347,8 @@ function renderMarkdown(text) {
   html = html.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
   // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  const linkHint = esc(i18n.t('notes.md_link_hint'));
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" data-i18n-tip="notes.md_link_hint" data-tip-desc="' + linkHint + '">$1</a>');
   // Line breaks (double newline = paragraph, single = br)
   html = html.replace(/\n\n/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
@@ -359,12 +369,12 @@ function exportNote(format) {
   document.getElementById('export-menu').classList.remove('open');
   const note = getNote(activeId);
   if (!note) return;
-  const title = (note.title || 'Untitled').replace(/[^a-zA-Z0-9_\- ]/g, '');
+  const title = (note.title || i18n.t('notes.untitled')).replace(/[^a-zA-Z0-9_\- ]/g, '');
   const content = document.getElementById('note-content').value;
   const ext = format === 'md' ? '.md' : '.txt';
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement('a'); // hint-exempt: a hidden download link, clicked by script and removed at once
   a.href = url;
   a.download = title + ext;
   document.body.appendChild(a);
@@ -422,7 +432,7 @@ function log_newEntry() {
   const now = new Date();
   const e = {
     id: log_uid(),
-    title: 'Entry, ' + now.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+    title: i18n.t('notes.log_entry_title', { date: now.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) }),
     body: '',
     tags: [],
     created: now.toISOString(),
@@ -460,7 +470,7 @@ function log_openEntry(id) {
 
 async function log_deleteCurrentEntry() {
   if (!log_activeId) return;
-  if (!await holdConfirm('Delete this entry? This cannot be undone.', { seconds: 3 })) return;
+  if (!await holdConfirm(i18n.t('notes.log_delete_confirm'), { seconds: 3 })) return;
   log_entries = log_entries.filter(x => x.id !== log_activeId);
   log_activeId = null;
   log_save();
@@ -505,7 +515,7 @@ function log_onTagInput() {
   const e = log_entries.find(x => x.id === log_activeId);
   if (!e) return;
   e.tags = document.getElementById('log-tag-input').value
-    .split(',').map(t => t.trim()).filter(Boolean);
+    .split(',').map(tag => tag.trim()).filter(Boolean);
   log_scheduleSave();
   log_renderSidebar();
 }
@@ -520,9 +530,9 @@ function log_updateWordCount() {
   const words = txt.trim() ? txt.trim().split(/\s+/).length : 0;
   const chars = txt.length;
   const lines = txt ? txt.split('\n').length : 0;
-  document.getElementById('wc-words').textContent = words + ' word' + (words !== 1 ? 's' : '');
-  document.getElementById('wc-chars').textContent = chars + ' char' + (chars !== 1 ? 's' : '');
-  document.getElementById('wc-lines').textContent = lines + ' line' + (lines !== 1 ? 's' : '');
+  document.getElementById('wc-words').textContent = i18n.tn('notes.words', words);
+  document.getElementById('wc-chars').textContent = i18n.tn('notes.chars', chars);
+  document.getElementById('wc-lines').textContent = i18n.tn('notes.lines', lines);
 }
 
 function log_tagColor(tag) {
@@ -538,22 +548,24 @@ function log_renderSidebar() {
     visible = log_entries.filter(e =>
       e.title.toLowerCase().includes(search) ||
       (e.body || '').toLowerCase().includes(search) ||
-      (e.tags || []).some(t => t.toLowerCase().includes(search))
+      (e.tags || []).some(tag => tag.toLowerCase().includes(search))
     );
   }
   const list = document.getElementById('log-entry-list');
   if (!visible.length) {
     list.innerHTML = '<div style="color:#444;font-size:0.8rem;text-align:center;padding:var(--space-2xl) var(--space-md);">' +
-      (search ? 'No entries match your search.' : 'No entries yet.') + '</div>';
+      log_esc(search ? i18n.t('notes.log_no_match') : i18n.t('notes.log_no_entries')) + '</div>';
     return;
   }
+  const openHint = esc(i18n.t('notes.log_open_hint'));
   list.innerHTML = visible.map(e => {
     const isActive = e.id === log_activeId;
     const preview = (e.body || '').replace(/\n/g, ' ').trim().slice(0, 60);
-    const tags = (e.tags || []).slice(0, 3).map(t =>
-      `<span class="log-tag" style="background:${log_tagColor(t)}22;color:${log_tagColor(t)};border:1px solid ${log_tagColor(t)}44;">${log_esc(t)}</span>`
+    const tags = (e.tags || []).slice(0, 3).map(tag =>
+      `<span class="log-tag" style="background:${log_tagColor(tag)}22;color:${log_tagColor(tag)};border:1px solid ${log_tagColor(tag)}44;">${log_esc(tag)}</span>`
     ).join('');
-    return `<div class="log-entry-item${isActive ? ' active' : ''}" onclick="log_openEntry('${e.id}')">
+    const activeClass = isActive ? ' active' : ''; // i18n-exempt: a class name
+    return `<div role="button" tabindex="0" class="log-entry-item${activeClass}" onclick="log_openEntry('${e.id}')" data-i18n-tip="notes.log_open_hint" data-tip-desc="${openHint}">
       <div class="log-item-date">${new Date(e.created).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
       <div class="log-item-title">${log_esc(e.title)}</div>
       ${preview ? `<div class="log-item-preview">${log_esc(preview)}</div>` : ''}

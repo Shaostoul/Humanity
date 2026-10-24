@@ -3,8 +3,9 @@
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiCalendarEvent, GuiState};
+use crate::gui::i18n::{t, t_dyn, tf};
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, with_hint, Hint};
 use std::cell::RefCell;
 
 /// Page-local state for additional fields not in GuiState.
@@ -36,7 +37,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             // Navigation header
             ui.horizontal(|ui| {
-                if widgets::secondary_button(ui, theme, "<") {
+                if with_hint(ui, "calendar.prev_month_hint", |ui| widgets::secondary_button(ui, theme, "<")) {
                     if state.cal_month == 1 {
                         state.cal_month = 12;
                         state.cal_year -= 1;
@@ -47,11 +48,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 let month_name = month_name(state.cal_month);
                 ui.label(
-                    RichText::new(format!("{} {}", month_name, state.cal_year))
+                    RichText::new(tf("calendar.month_year", &[("month", &month_name), ("year", &state.cal_year)]))
                         .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );
-                if widgets::secondary_button(ui, theme, ">") {
+                if with_hint(ui, "calendar.next_month_hint", |ui| widgets::secondary_button(ui, theme, ">")) {
                     if state.cal_month == 12 {
                         state.cal_month = 1;
                         state.cal_year += 1;
@@ -61,7 +62,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     state.cal_selected_day = 1;
                 }
                 ui.add_space(theme.spacing_sm);
-                if widgets::primary_button(ui, theme, "Today") {
+                if widgets::Button::primary(t("calendar.today")).hint("calendar.today_hint").show(ui, theme) {
                     let now = current_date();
                     state.cal_year = now.0;
                     state.cal_month = now.1;
@@ -77,16 +78,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.set_min_width(330.0);
 
                     // Day-of-week headers
-                    let days_header = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                     egui::Grid::new("cal_header")
                         .spacing(Vec2::new(2.0, 2.0))
                         .show(ui, |ui| {
-                            for d in &days_header {
+                            // Sunday first: calendar.weekday_short_0 .. _6.
+                            for d in 0..7 {
                                 let (rect, _) = ui.allocate_exact_size(Vec2::new(44.0, 22.0), egui::Sense::hover());
                                 ui.painter().text(
                                     rect.center(),
                                     egui::Align2::CENTER_CENTER,
-                                    *d,
+                                    t_dyn(&format!("calendar.weekday_short_{d}")),
                                     egui::FontId::proportional(theme.font_size_small),
                                     theme.text_muted(),
                                 );
@@ -117,10 +118,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     e.year == state.cal_year && e.month == state.cal_month && e.day == day
                                 }).count();
 
-                                let (rect, response) = ui.allocate_exact_size(
-                                    Vec2::new(44.0, 40.0),
-                                    egui::Sense::click(),
-                                );
+                                // allocate_exact_size's own first step, so the hint can
+                                // sit on the cell's statement; a grid cell is never
+                                // stretched, so its rect is exactly the size asked for.
+                                let response = ui
+                                    .allocate_response(Vec2::new(44.0, 40.0), egui::Sense::click())
+                                    .hint("calendar.day_hint");
+                                let rect = response.rect;
 
                                 if response.clicked() {
                                     state.cal_selected_day = day;
@@ -182,11 +186,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.vertical(|ui| {
                     ui.set_min_width(280.0);
                     ui.label(
-                        RichText::new(format!(
-                            "Events - {} {} {}",
-                            month_name(state.cal_month),
-                            state.cal_selected_day,
-                            state.cal_year,
+                        RichText::new(tf(
+                            "calendar.events_for",
+                            &[
+                                ("month", &month_name(state.cal_month)),
+                                ("day", &state.cal_selected_day),
+                                ("year", &state.cal_year),
+                            ],
                         ))
                         .size(theme.font_size_heading)
                         .color(theme.text_primary()),
@@ -207,7 +213,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                     if selected_events.is_empty() {
                         ui.label(
-                            RichText::new("No events for this day")
+                            RichText::new(t("calendar.no_events_day"))
                                 .color(theme.text_muted()),
                         );
                     } else {
@@ -245,56 +251,62 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                     // Add event form
                     ui.label(
-                        RichText::new("Add Event")
+                        RichText::new(t("calendar.add_event"))
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
                     ui.add_space(theme.spacing_xs);
 
-                    widgets::form_row(ui, theme, "Title", |ui| {
+                    widgets::form_row(ui, theme, t("calendar.field_title"), |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut state.cal_new_title)
                                 .desired_width(220.0)
-                                .hint_text("Event name"),
-                        );
+                                .hint_text(t("calendar.title_placeholder")),
+                        )
+                        .hint("calendar.title_hint");
                     });
-                    widgets::form_row(ui, theme, "Start time", |ui| {
+                    widgets::form_row(ui, theme, t("calendar.start_time"), |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut state.cal_new_time)
                                 .desired_width(80.0)
-                                .hint_text("09:00"),
-                        );
+                                .hint_text(t("calendar.start_time_example")),
+                        )
+                        .hint("calendar.start_time_hint");
                     });
                     with_local(|local| {
-                        widgets::form_row(ui, theme, "End time", |ui| {
+                        widgets::form_row(ui, theme, t("calendar.end_time"), |ui| {
                             ui.add(
                                 egui::TextEdit::singleline(&mut local.new_end_time)
                                     .desired_width(80.0)
-                                    .hint_text("10:00"),
-                            );
+                                    .hint_text(t("calendar.end_time_example")),
+                            )
+                            .hint("calendar.end_time_hint");
                         });
                     });
-                    widgets::form_row(ui, theme, "Color", |ui| {
+                    widgets::form_row(ui, theme, t("calendar.color"), |ui| {
                         let mut c = state.cal_new_color;
-                        ui.color_edit_button_srgba(&mut c);
+                        ui.color_edit_button_srgba(&mut c).hint("calendar.color_hint");
                         state.cal_new_color = c;
                     });
                     with_local(|local| {
-                        widgets::form_row(ui, theme, "Description", |ui| {
+                        widgets::form_row(ui, theme, t("calendar.description"), |ui| {
                             ui.add(
                                 egui::TextEdit::multiline(&mut local.new_description)
                                     .desired_width(280.0)
                                     .desired_rows(2)
-                                    .hint_text("Optional details..."),
-                            );
+                                    .hint_text(t("calendar.description_placeholder")),
+                            )
+                            .hint("calendar.details_hint");
                         });
                     });
 
                     ui.add_space(theme.spacing_sm);
-                    if widgets::primary_button(ui, theme, "Add Event") && !state.cal_new_title.trim().is_empty() {
+                    if widgets::Button::primary(t("calendar.add_event")).hint("calendar.add_event_hint").show(ui, theme)
+                        && !state.cal_new_title.trim().is_empty()
+                    {
                         let end_time = with_local(|local| local.new_end_time.clone());
                         let time_str = if state.cal_new_time.is_empty() {
-                            "All day".to_string()
+                            t("calendar.all_day").to_string()
                         } else if end_time.is_empty() {
                             state.cal_new_time.clone()
                         } else {
@@ -355,25 +367,15 @@ fn days_in_month(y: i32, m: u32) -> u32 {
 }
 
 fn day_of_week(y: i32, m: u32, d: u32) -> u32 {
-    let t = [0i32, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let offsets = [0i32, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
     let y = if m < 3 { y - 1 } else { y };
-    ((y + y / 4 - y / 100 + y / 400 + t[(m - 1) as usize] + d as i32) % 7).unsigned_abs()
+    ((y + y / 4 - y / 100 + y / 400 + offsets[(m - 1) as usize] + d as i32) % 7).unsigned_abs()
 }
 
+/// A month's name in the person's language: calendar.month_1 .. calendar.month_12.
 fn month_name(m: u32) -> &'static str {
     match m {
-        1 => "January",
-        2 => "February",
-        3 => "March",
-        4 => "April",
-        5 => "May",
-        6 => "June",
-        7 => "July",
-        8 => "August",
-        9 => "September",
-        10 => "October",
-        11 => "November",
-        12 => "December",
-        _ => "Unknown",
+        1..=12 => t_dyn(&format!("calendar.month_{m}")),
+        _ => t("calendar.month_unknown"),
     }
 }

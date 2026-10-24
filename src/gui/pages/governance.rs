@@ -16,8 +16,9 @@
 //! server-side. The UI says so before the user commits.
 
 use egui::{RichText, ScrollArea};
+use crate::gui::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::GuiState;
 
 /// One proposal joined for display: index row + payload title/body + tally.
@@ -50,13 +51,57 @@ pub struct TallyView {
     pub passing: Option<bool>,
 }
 
-/// Proposal types the form offers, (wire id, display label).
-const PROPOSAL_TYPES: [(&str, &str); 3] = [
-    ("local_rule", "Local rule"),
-    ("parameter_change", "Parameter change"),
-    ("accord_amendment", "Accord amendment"),
-];
-const SCOPES: [(&str, &str); 2] = [("local", "Local (this server)"), ("civilization", "Civilization-wide")];
+/// Proposal types the form offers, by wire id; their words are `type_label`.
+const PROPOSAL_TYPES: [&str; 3] = ["local_rule", "parameter_change", "accord_amendment"];
+/// Scopes the form offers, by wire id; their words are `scope_label`.
+const SCOPES: [&str; 2] = ["local", "civilization"];
+
+/// The words for a proposal type the form offers.
+fn type_label(id: &str) -> &'static str {
+    match id {
+        "local_rule" => t("governance.type_local_rule"),
+        "parameter_change" => t("governance.type_parameter_change"),
+        _ => t("governance.type_accord_amendment"),
+    }
+}
+
+/// The words for a scope the form offers.
+fn scope_label(id: &str) -> &'static str {
+    match id {
+        "local" => t("governance.scope_local"),
+        _ => t("governance.scope_civilization"),
+    }
+}
+
+/// The words for a vote choice ("yes", "no", "abstain" on the wire).
+fn choice_label(choice: &str) -> String {
+    match choice {
+        "yes" => t("governance.choice_yes").to_string(),
+        "no" => t("governance.choice_no").to_string(),
+        "abstain" => t("governance.choice_abstain").to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Is this status line one of the failures (shown in the danger colour)? Read
+/// off each failure's fixed opening words, the part before any `{{`, so the
+/// check holds in every language rather than only for the English "failed".
+fn is_failure_status(status: &str) -> bool {
+    [
+        t("governance.vote_failed"),
+        t("governance.proposal_failed"),
+        t("governance.vote_worker_exited"),
+        t("governance.proposal_worker_exited"),
+        // A vote that was not sent is a failure too (it showed in the success
+        // green before, 2026-10-23, found by the ELI5 conversion).
+        t("governance.not_connected_vote"),
+    ]
+    .iter()
+    .any(|words| {
+        let head = words.split("{{").next().unwrap_or("");
+        !head.is_empty() && status.starts_with(head)
+    })
+}
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -70,19 +115,19 @@ fn fmt_window(opens_at: i64, closes_at: i64, now: i64) -> (bool, String) {
     fn span(ms: i64) -> String {
         let mins = ms / 60_000;
         if mins >= 2880 {
-            format!("{}d", mins / 1440)
+            tf("governance.span_days", &[("n", &(mins / 1440))])
         } else if mins >= 120 {
-            format!("{}h", mins / 60)
+            tf("governance.span_hours", &[("n", &(mins / 60))])
         } else {
-            format!("{}m", mins.max(1))
+            tf("governance.span_minutes", &[("n", &mins.max(1))])
         }
     }
     if now < opens_at {
-        (false, format!("opens in {}", span(opens_at - now)))
+        (false, tf("governance.opens_in", &[("time", &span(opens_at - now))]))
     } else if now < closes_at {
-        (true, format!("closes in {}", span(closes_at - now)))
+        (true, tf("governance.closes_in", &[("time", &span(closes_at - now))]))
     } else {
-        (false, "closed".to_string())
+        (false, t("governance.closed").to_string())
     }
 }
 
@@ -175,23 +220,23 @@ fn fetch_proposals_blocking(base: &str) -> Result<Vec<ProposalView>, String> {
         let (title, body) = joined
             .and_then(|s| serde_json::from_str::<ObjectResp>(&s).ok())
             .and_then(|o| payload_texts(&o.payload_b64))
-            .unwrap_or_else(|| ("(untitled proposal)".to_string(), String::new()));
+            .unwrap_or_else(|| (t("governance.untitled").to_string(), String::new()));
         let tally = if consecutive_failures < GIVE_UP_AFTER {
             get(&format!("{base}/api/v2/proposals/{}/tally", r.proposal_object_id)).ok()
         } else {
             None
         }
         .and_then(|s| serde_json::from_str::<TallyResp>(&s).ok())
-            .map(|t| TallyView {
-                yes_weight: t.yes_weight,
-                no_weight: t.no_weight,
-                abstain_weight: t.abstain_weight,
-                total_weight: t.total_weight,
-                vote_count: t.vote_count,
-                quorum_fraction: t.quorum_fraction,
-                electorate: t.electorate,
-                quorum_met: t.quorum_met,
-                passing: t.passing,
+            .map(|tr| TallyView {
+                yes_weight: tr.yes_weight,
+                no_weight: tr.no_weight,
+                abstain_weight: tr.abstain_weight,
+                total_weight: tr.total_weight,
+                vote_count: tr.vote_count,
+                quorum_fraction: tr.quorum_fraction,
+                electorate: tr.electorate,
+                quorum_met: tr.quorum_met,
+                passing: tr.passing,
             });
         out.push(ProposalView {
             id: r.proposal_object_id,
@@ -328,13 +373,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             state.governance_proposals = props;
                             state.governance_error.clear();
                         }
-                        Err(e) => state.governance_error = format!("Could not load proposals: {e}"),
+                        Err(e) => state.governance_error = tf("governance.load_failed", &[("error", &e)]),
                     }
                 }
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 state.governance_rx = None;
-                state.governance_error = "Proposal fetch worker exited unexpectedly.".to_string();
+                state.governance_error = t("governance.fetch_worker_exited").to_string();
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
         }
@@ -347,9 +392,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // Honest wording: the server keeps the FIRST vote per voter
                 // (INSERT OR IGNORE) but still 200s a duplicate submission, so
                 // a re-vote from an earlier session cannot be detected here.
-                state.governance_vote_status =
-                    "Vote submitted. If this identity already voted on this proposal in an earlier session, the original vote stands."
-                        .to_string();
+                state.governance_vote_status = t("governance.vote_submitted").to_string();
                 // Refetch so the tally reflects the new vote. governance_refresh
                 // is cleared only when a fetch SPAWNS, so this survives a fetch
                 // that is already in flight (no clobbered invalidation).
@@ -357,11 +400,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
             Ok(Err(e)) => {
                 state.governance_vote_rx = None;
-                state.governance_vote_status = format!("Vote failed: {e}");
+                state.governance_vote_status = tf("governance.vote_failed", &[("error", &e)]);
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 state.governance_vote_rx = None;
-                state.governance_vote_status = "Vote worker exited unexpectedly.".to_string();
+                state.governance_vote_status = t("governance.vote_worker_exited").to_string();
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
         }
@@ -370,7 +413,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         match rx.try_recv() {
             Ok(Ok(())) => {
                 state.governance_propose_rx = None;
-                state.governance_vote_status = "Proposal submitted.".to_string();
+                state.governance_vote_status = t("governance.proposal_submitted").to_string();
                 state.governance_new_title.clear();
                 state.governance_new_body.clear();
                 state.governance_show_propose = false;
@@ -378,11 +421,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
             Ok(Err(e)) => {
                 state.governance_propose_rx = None;
-                state.governance_vote_status = format!("Proposal failed: {e}");
+                state.governance_vote_status = tf("governance.proposal_failed", &[("error", &e)]);
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 state.governance_propose_rx = None;
-                state.governance_vote_status = "Proposal worker exited unexpectedly.".to_string();
+                state.governance_vote_status = t("governance.proposal_worker_exited").to_string();
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
         }
@@ -420,43 +463,36 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ScrollArea::vertical().show(ui, |ui| {
                 // Heading = the nav label; the old "Civic Participation"
                 // phrase survives as the subtitle (naming rule 2026-08-16).
-                widgets::section_header(ui, theme, "Governance");
+                widgets::section_header(ui, theme, t("governance.title"));
                 ui.label(
-                    RichText::new("Civic participation: propose, deliberate, vote.")
+                    RichText::new(t("governance.subtitle"))
                         .size(theme.font_size_small)
                         .color(theme.text_secondary()),
                 );
                 ui.add_space(theme.spacing_sm);
-                ui.label(
-                    RichText::new(
-                        "Local-scope proposals run on this server. Civilization-scope proposals \
-                         (Accord amendments, federation floor policy) federate to all servers and \
-                         need federation-wide quorum to pass. Vote weight equals your trust score \
-                         at vote time, capped at 0.95, so no single high-trust voter can dominate. \
-                         AI agents are excluded from tallies per the Accord: votes require \
-                         sentient consent.",
-                    )
-                    .color(theme.text_muted())
-                    .size(theme.font_size_small),
-                );
+                widgets::glossary_words(ui, theme, t_marked("governance.explainer"), theme.font_size_small, theme.text_muted());
                 ui.add_space(theme.spacing_md);
 
                 // Scope + open/all filters, refresh, and the new-proposal toggle.
                 ui.horizontal(|ui| {
-                    let scopes = ["All scopes", "Local", "Civilization"];
-                    widgets::tab_bar(ui, theme, &scopes, &mut state.governance_scope_tab);
+                    let scopes = [t("governance.scope_all"), t("governance.tab_local"), t("governance.tab_civilization")];
+                    with_hint(ui, "governance.scope_tabs_hint", |ui| widgets::tab_bar(ui, theme, &scopes, &mut state.governance_scope_tab));
                     ui.add_space(theme.spacing_sm);
-                    let filters = ["Open", "All"];
-                    widgets::tab_bar(ui, theme, &filters, &mut state.governance_filter_tab);
+                    let filters = [t("governance.filter_open"), t("governance.filter_all")];
+                    with_hint(ui, "governance.filter_tabs_hint", |ui| widgets::tab_bar(ui, theme, &filters, &mut state.governance_filter_tab));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if widgets::secondary_button(ui, theme, "Refresh") {
+                        if with_hint(ui, "governance.refresh_hint", |ui| widgets::secondary_button(ui, theme, t("common.refresh"))) {
                             // A flag, not a state clear: survives an in-flight
                             // fetch (the spawn logic runs it as soon as the
                             // current one lands) instead of being a no-op.
                             state.governance_refresh = true;
                         }
-                        let label = if state.governance_show_propose { "Close form" } else { "New proposal" };
-                        if widgets::primary_button(ui, theme, label) {
+                        let label = if state.governance_show_propose {
+                            t("governance.close_form")
+                        } else {
+                            t("governance.new_proposal")
+                        };
+                        if widgets::Button::primary(label).hint("governance.toggle_form_hint").show(ui, theme) {
                             state.governance_show_propose = !state.governance_show_propose;
                         }
                     });
@@ -465,9 +501,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // Status lines.
                 if !state.governance_vote_status.is_empty() {
-                    let col = if state.governance_vote_status.contains("failed")
-                        || state.governance_vote_status.contains("exited")
-                    {
+                    let col = if is_failure_status(&state.governance_vote_status) {
                         theme.danger()
                     } else {
                         theme.success()
@@ -478,54 +512,59 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new(&state.governance_error).color(theme.danger()).size(theme.font_size_small));
                 }
                 if state.governance_rx.is_some() {
-                    ui.label(RichText::new("Loading proposals...").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(RichText::new(t("governance.loading")).color(theme.text_muted()).size(theme.font_size_small));
                 }
 
                 // ── New-proposal form ──
                 if state.governance_show_propose {
                     ui.add_space(theme.spacing_sm);
-                    widgets::card_with_header(ui, theme, "New proposal", |ui| {
+                    widgets::card_with_header(ui, theme, t("governance.new_proposal"), |ui| {
                         if !can_sign {
-                            ui.label(
-                                RichText::new("Unlock your identity to submit a proposal (it is signed with your Dilithium key).")
-                                    .color(theme.warning())
-                                    .size(theme.font_size_small),
-                            );
+                            widgets::glossary_words(ui, theme, t_marked("governance.unlock_to_propose"), theme.font_size_small, theme.warning());
                         }
-                        ui.label(RichText::new("Title").color(theme.text_secondary()).size(theme.font_size_small));
-                        ui.add(egui::TextEdit::singleline(&mut state.governance_new_title).desired_width(420.0));
+                        ui.label(RichText::new(t("governance.title_label")).color(theme.text_secondary()).size(theme.font_size_small));
+                        ui.add(egui::TextEdit::singleline(&mut state.governance_new_title).desired_width(420.0))
+                            .hint("governance.title_hint");
                         ui.add_space(theme.spacing_xs);
-                        ui.label(RichText::new("Body").color(theme.text_secondary()).size(theme.font_size_small));
+                        ui.label(RichText::new(t("governance.body_label")).color(theme.text_secondary()).size(theme.font_size_small));
                         ui.add(
                             egui::TextEdit::multiline(&mut state.governance_new_body)
                                 .desired_width(420.0)
                                 .desired_rows(4),
-                        );
+                        )
+                        .hint("governance.body_hint");
                         ui.add_space(theme.spacing_xs);
                         ui.horizontal(|ui| {
                             egui::ComboBox::from_id_salt("gov_new_type")
-                                .selected_text(PROPOSAL_TYPES[state.governance_new_type_idx.min(2)].1)
+                                .selected_text(type_label(PROPOSAL_TYPES[state.governance_new_type_idx.min(2)]))
                                 .show_ui(ui, |ui| {
-                                    for (i, (_, label)) in PROPOSAL_TYPES.iter().enumerate() {
-                                        ui.selectable_value(&mut state.governance_new_type_idx, i, *label);
+                                    for (i, id) in PROPOSAL_TYPES.iter().enumerate() {
+                                        ui.selectable_value(&mut state.governance_new_type_idx, i, type_label(id))
+                                            .hint("governance.type_option_hint");
                                     }
-                                });
+                                })
+                                .response
+                                .hint("governance.type_hint");
                             egui::ComboBox::from_id_salt("gov_new_scope")
-                                .selected_text(SCOPES[state.governance_new_scope_idx.min(1)].1)
+                                .selected_text(scope_label(SCOPES[state.governance_new_scope_idx.min(1)]))
                                 .show_ui(ui, |ui| {
-                                    for (i, (_, label)) in SCOPES.iter().enumerate() {
-                                        ui.selectable_value(&mut state.governance_new_scope_idx, i, *label);
+                                    for (i, id) in SCOPES.iter().enumerate() {
+                                        ui.selectable_value(&mut state.governance_new_scope_idx, i, scope_label(id))
+                                            .hint("governance.scope_option_hint");
                                     }
-                                });
+                                })
+                                .response
+                                .hint("governance.scope_hint");
                             widgets::slider(
                                 ui,
                                 theme,
                                 egui::Slider::new(&mut state.governance_new_days, 1.0..=30.0)
                                     .step_by(1.0)
                                     .fixed_decimals(0)
-                                    .suffix(" days")
-                                    .text("voting window"),
-                            );
+                                    .suffix(format!(" {}", t("governance.days_unit")))
+                                    .text(t("governance.voting_window")),
+                            )
+                            .hint("governance.days_hint");
                         });
                         ui.add_space(theme.spacing_sm);
                         let ready = can_sign
@@ -534,18 +573,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             && !state.governance_new_title.trim().is_empty()
                             && !state.governance_new_body.trim().is_empty();
                         if state.governance_propose_rx.is_some() {
-                            ui.label(RichText::new("Submitting proposal...").color(theme.text_muted()).size(theme.font_size_small));
+                            ui.label(RichText::new(t("governance.submitting_proposal")).color(theme.text_muted()).size(theme.font_size_small));
                         }
                         ui.add_enabled_ui(ready, |ui| {
-                            if widgets::primary_button(ui, theme, "Submit proposal") {
+                            if widgets::Button::primary(t("governance.submit_proposal"))
+                                .hint("governance.submit_proposal_hint")
+                                .show(ui, theme)
+                            {
                                 let words = [state.governance_new_title.clone(), state.governance_new_body.clone()];
                                 if crate::engine::warnings::guard_stops(state, &[&words[0], &words[1]]) {
                                     // Step F's guard: nothing is signed or sent, and the text stays.
                                 } else if let Some(seed) = state.private_key_bytes.clone() {
                                     let (tx, rx) = std::sync::mpsc::channel();
                                     let url = base.clone();
-                                    let ptype = PROPOSAL_TYPES[state.governance_new_type_idx.min(2)].0.to_string();
-                                    let scope = SCOPES[state.governance_new_scope_idx.min(1)].0.to_string();
+                                    let ptype = PROPOSAL_TYPES[state.governance_new_type_idx.min(2)].to_string();
+                                    let scope = SCOPES[state.governance_new_scope_idx.min(1)].to_string();
                                     let title = state.governance_new_title.trim().to_string();
                                     let body = state.governance_new_body.trim().to_string();
                                     let days = state.governance_new_days;
@@ -568,14 +610,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if !state.server_connected {
                     widgets::card(ui, theme, |ui| {
                         ui.label(
-                            RichText::new("Connect to a server to see its proposals and vote.")
+                            RichText::new(t("governance.not_connected_feed"))
                                 .color(theme.text_muted()),
                         );
                     });
                 } else if state.governance_proposals.is_empty() && state.governance_rx.is_none() {
                     widgets::card(ui, theme, |ui| {
                         ui.label(
-                            RichText::new("No proposals yet. Use \"New proposal\" to start the first one.")
+                            RichText::new(t("governance.no_proposals"))
                                 .color(theme.text_muted()),
                         );
                     });
@@ -607,9 +649,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         None,
                         |ui| {
                             let (chip, chip_col) = if is_open {
-                                ("OPEN", theme.success())
+                                (t("governance.chip_open"), theme.success())
                             } else {
-                                ("CLOSED", theme.text_muted())
+                                (t("governance.chip_closed"), theme.text_muted())
                             };
                             ui.label(RichText::new(chip).strong().color(chip_col).size(theme.font_size_small));
                             ui.add_space(theme.spacing_sm);
@@ -621,15 +663,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             );
                             ui.add_space(theme.spacing_sm);
                             let mut meta = window_label.clone();
-                            if let Some(t) = &p.tally {
-                                meta = format!("{meta} \u{00b7} {} votes", t.vote_count);
+                            if let Some(tally) = &p.tally {
+                                let votes = tn("governance.votes_count", tally.vote_count as i64, &[]);
+                                meta = format!("{meta} \u{00b7} {votes}");
                                 // Data-driven verdicts (v0.759): the server's
                                 // proposal-type rules say what this needs.
-                                if let (Some(qm), Some(pass)) = (t.quorum_met, t.passing) {
+                                if let (Some(qm), Some(pass)) = (tally.quorum_met, tally.passing) {
                                     let verdict = match (qm, pass) {
-                                        (true, true) => "quorum met \u{00b7} passing",
-                                        (true, false) => "quorum met \u{00b7} not passing",
-                                        (false, _) => "below quorum",
+                                        (true, true) => t("governance.verdict_passing"),
+                                        (true, false) => t("governance.verdict_not_passing"),
+                                        (false, _) => t("governance.verdict_below_quorum"),
                                     };
                                     meta = format!("{meta} \u{00b7} {verdict}");
                                 }
@@ -643,17 +686,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ui.add_space(theme.spacing_xs);
                             }
                             ui.label(
-                                RichText::new(format!("Type: {}   Proposer: {}", p.proposal_type, p.proposer_did))
+                                RichText::new(tf(
+                                    "governance.type_proposer",
+                                    &[("type", &p.proposal_type), ("proposer", &p.proposer_did)],
+                                ))
                                     .color(theme.text_muted())
                                     .size(theme.font_size_small),
                             );
-                            if let Some(t) = &p.tally {
+                            if let Some(tally) = &p.tally {
                                 ui.add_space(theme.spacing_xs);
-                                let total = t.total_weight.max(f64::EPSILON);
+                                let total = tally.total_weight.max(f64::EPSILON);
                                 for (label, weight, col) in [
-                                    ("Yes", t.yes_weight, theme.success()),
-                                    ("No", t.no_weight, theme.danger()),
-                                    ("Abstain", t.abstain_weight, theme.text_muted()),
+                                    (t("governance.yes"), tally.yes_weight, theme.success()),
+                                    (t("governance.no"), tally.no_weight, theme.danger()),
+                                    (t("governance.abstain"), tally.abstain_weight, theme.text_muted()),
                                 ] {
                                     ui.horizontal(|ui| {
                                         ui.add_sized(
@@ -662,7 +708,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 RichText::new(label).color(theme.text_secondary()).size(theme.font_size_small),
                                             ),
                                         );
-                                        let frac = if t.total_weight > 0.0 { (weight / total) as f32 } else { 0.0 };
+                                        let frac = if tally.total_weight > 0.0 { (weight / total) as f32 } else { 0.0 };
                                         ui.add(
                                             egui::ProgressBar::new(frac)
                                                 .desired_width(180.0)
@@ -672,20 +718,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     });
                                 }
                                 ui.label(
-                                    RichText::new(format!(
-                                        "{} votes, {:.2} total weight (weight = trust score, capped 0.95)",
-                                        t.vote_count, t.total_weight
+                                    RichText::new(tn(
+                                        "governance.tally_summary",
+                                        tally.vote_count as i64,
+                                        &[("weight", &format!("{:.2}", tally.total_weight))],
                                     ))
                                     .color(theme.text_muted())
                                     .size(theme.font_size_small),
                                 );
                                 // Data-driven quorum requirement (v0.759).
-                                if let (Some(qf), Some(el)) = (t.quorum_fraction, t.electorate) {
+                                if let (Some(qf), Some(el)) = (tally.quorum_fraction, tally.electorate) {
                                     let needed = ((qf * el as f64).ceil() as i64).max(1);
                                     ui.label(
-                                        RichText::new(format!(
-                                            "Quorum: {needed} of {el} members must vote ({} have)",
-                                            t.vote_count
+                                        RichText::new(tf(
+                                            "governance.quorum",
+                                            &[("needed", &needed), ("electorate", &el), ("n", &tally.vote_count)],
                                         ))
                                         .color(theme.text_muted())
                                         .size(theme.font_size_small),
@@ -695,37 +742,37 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_xs);
                             if let Some(choice) = &my_vote {
                                 ui.label(
-                                    RichText::new(format!("Your vote: {choice} (votes are final)"))
+                                    RichText::new(tf("governance.your_vote", &[("choice", &choice_label(choice))]))
                                         .color(theme.accent())
                                         .size(theme.font_size_small),
                                 );
                             } else if is_open {
                                 if !can_sign {
                                     ui.label(
-                                        RichText::new("Unlock your identity to vote.")
+                                        RichText::new(t("governance.unlock_to_vote"))
                                             .color(theme.text_muted())
                                             .size(theme.font_size_small),
                                     );
                                 } else if state.governance_vote_rx.is_some() {
                                     ui.label(
-                                        RichText::new("Submitting vote...")
+                                        RichText::new(t("governance.submitting_vote"))
                                             .color(theme.text_muted())
                                             .size(theme.font_size_small),
                                     );
                                 } else {
                                     ui.horizontal(|ui| {
                                         for choice in ["yes", "no", "abstain"] {
-                                            let label = match choice {
-                                                "yes" => "Vote Yes",
-                                                "no" => "Vote No",
-                                                _ => "Abstain",
+                                            let (label, hint) = match choice {
+                                                "yes" => (t("governance.vote_yes"), "governance.vote_yes_hint"),
+                                                "no" => (t("governance.vote_no"), "governance.vote_no_hint"),
+                                                _ => (t("governance.abstain"), "governance.abstain_hint"),
                                             };
-                                            if widgets::secondary_button(ui, theme, label) {
+                                            if with_hint(ui, hint, |ui| widgets::secondary_button(ui, theme, label)) {
                                                 vote_click = Some((p.id.clone(), choice.to_string()));
                                             }
                                         }
                                         ui.label(
-                                            RichText::new("Votes are final and cannot be changed.")
+                                            RichText::new(t("governance.votes_final"))
                                                 .color(theme.text_muted())
                                                 .size(theme.font_size_small),
                                         );
@@ -737,7 +784,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 if shown == 0 && !state.governance_proposals.is_empty() {
                     ui.label(
-                        RichText::new("No proposals match the current filters.")
+                        RichText::new(t("governance.no_match"))
                             .color(theme.text_muted())
                             .size(theme.font_size_small),
                     );
@@ -745,7 +792,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(theme.spacing_md);
                 ui.label(
-                    RichText::new("Same view on the web: united-humanity.us/governance")
+                    RichText::new(t("governance.web_link"))
                         .color(theme.text_muted())
                         .size(theme.font_size_small),
                 );
@@ -758,7 +805,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // list is on screen.
     if let Some((pid, choice)) = vote_click {
         if !state.server_connected {
-            state.governance_vote_status = "Not connected -- vote not sent.".to_string();
+            state.governance_vote_status = t("governance.not_connected_vote").to_string();
         } else if let Some(seed) = state.private_key_bytes.clone() {
             let (tx, rx) = std::sync::mpsc::channel();
             let url = base.clone();
@@ -771,7 +818,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 let _ = tx.send(res);
             });
             state.governance_vote_rx = Some(rx);
-            state.governance_vote_status = "Submitting vote...".to_string();
+            state.governance_vote_status = t("governance.submitting_vote").to_string();
         }
     }
 }

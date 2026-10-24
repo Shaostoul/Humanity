@@ -1,12 +1,67 @@
 {
-  "_purpose": "First-run guided tour steps (infinite-of-x: was hardcoded in web/shared/onboarding-tour.js). target is a CSS selector to highlight (null = centered welcome card). Edit here; the tour fetches this file. Native has no tour yet; if one is added it should read this same file.",
+  "_purpose": "The first five minutes: the short guided tour a new person meets, the same steps on the desktop app (src/gui/first_minutes.rs) and the website (web/shared/onboarding-tour.js). Each step's title and text are KEYS in data/i18n/ (translated like every other word; the text may carry [[glossary]] marks). web.page / web.target: where the website's 'Take me there' goes and which element its ring points at. native.page: the desktop page id (gui/dispatch.rs page_id), native.settings: a Settings section. done_when: a fact the app can see that ticks the step by itself (phrase_written, message_sent, entered_world); without it the person moves on with Next. Edit here: no code change needed to add, remove or reorder a step.",
+  "version": 2,
   "steps": [
-    { "target": null, "title": "Welcome to HumanityOS!", "text": "A cooperative platform to end poverty and unite humanity. Let's show you around." },
-    { "target": "a[href=\"/chat\"]", "title": "Network", "text": "Chat with others, join voice channels, and send encrypted DMs." },
-    { "target": "a[href=\"/tasks\"]", "title": "Tasks", "text": "Track projects with the kanban board. Create tasks, assign them, and organize by project." },
-    { "target": "a[href=\"/market\"]", "title": "Marketplace", "text": "Buy, sell, and trade with other members. Zero middleman fees." },
-    { "target": "a[href=\"/wallet\"]", "title": "Wallet", "text": "Your identity IS your wallet. Send, receive, and manage crypto." },
-    { "target": "a[href=\"/settings\"]", "title": "Settings", "text": "Customize your experience, manage your identity, and configure notifications." },
-    { "target": null, "title": "You're all set!", "text": "Start by chatting in the Network tab, or explore at your own pace. Your identity is secured with post-quantum cryptography, back up your recovery phrase in Settings!" }
+    {
+      "id": "welcome",
+      "title": "tour.welcome_title",
+      "text": "tour.welcome_text"
+    },
+    {
+      "id": "phrase",
+      "title": "tour.phrase_title",
+      "text": "tour.phrase_text",
+      "done_when": "phrase_written",
+      "web": {
+        "page": "/settings#sec-security"
+      },
+      "native": {
+        "page": "settings",
+        "settings": "account"
+      }
+    },
+    {
+      "id": "message",
+      "title": "tour.message_title",
+      "text": "tour.message_text",
+      "done_when": "message_sent",
+      "web": {
+        "page": "/chat",
+        "target": "#msg-input"
+      },
+      "native": {
+        "page": "chat"
+      }
+    },
+    {
+      "id": "world",
+      "title": "tour.world_title",
+      "text": "tour.world_text",
+      "done_when": "entered_world",
+      "web": {
+        "page": "/download",
+        "text": "tour.world_text_web"
+      },
+      "native": {
+        "page": "main_menu"
+      }
+    },
+    {
+      "id": "help",
+      "title": "tour.help_title",
+      "text": "tour.help_text",
+      "web": {
+        "page": "/settings#sec-appearance"
+      },
+      "native": {
+        "page": "settings",
+        "settings": "appearance"
+      }
+    },
+    {
+      "id": "done",
+      "title": "tour.done_title",
+      "text": "tour.done_text"
+    }
   ]
 }

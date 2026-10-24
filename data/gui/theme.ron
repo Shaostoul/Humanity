@@ -79,7 +79,7 @@
     title_size: 32.115623,
     border_radius_widget: 3.9643755,
     settings_label_width: 199.625,
-    slider_track: (0.2, 0.2, 0.25, 1.0),
+    slider_track: (0.38, 0.38, 0.44, 1.0),
     slider_track_height: 2.8934903,
     slider_thumb_radius: 5.9696875,
     checkbox_size: 15.780624,

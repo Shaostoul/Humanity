@@ -5,8 +5,9 @@
 //! memory. Worker-thread + mpsc for every request (the Server Settings fetch
 //! pattern); the relay's response is the only truth.
 
+use crate::gui::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::{GuiGuild, GuiState};
 use egui::{Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use std::collections::HashSet;
@@ -116,7 +117,7 @@ fn spawn_guild_action(
     }
     let (tx, rx) = std::sync::mpsc::channel();
     state.guild_action_rx = Some(rx);
-    state.guild_status = "Working...".to_string();
+    state.guild_status = t("guilds.working").to_string();
     std::thread::spawn(move || {
         let run = || -> Result<String, String> {
             let req = match method {
@@ -132,7 +133,7 @@ fn spawn_guild_action(
             match resp {
                 Ok(_) => Ok(ok_msg.to_string()),
                 Err(ureq::Error::Status(_code, r)) => {
-                    Err(r.into_string().unwrap_or_else(|_| "Request refused.".to_string()))
+                    Err(r.into_string().unwrap_or_else(|_| t("guilds.request_refused").to_string()))
                 }
                 Err(e) => Err(format!("{e}")),
             }
@@ -210,16 +211,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("Guilds")
+                    RichText::new(t("guilds.title"))
                         .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::primary_button(ui, theme, "+ Create Guild") {
+                    if widgets::Button::primary(t("guilds.create_button")).hint("guilds.create_button_hint").show(ui, theme) {
                         state.guild_show_create = true;
                         state.guild_selected = None;
                     }
-                    if widgets::secondary_button(ui, theme, "Refresh") {
+                    if widgets::Button::secondary(t("common.refresh")).hint("guilds.refresh_hint").show(ui, theme) {
                         state.guilds_loaded = false;
                     }
                 });
@@ -233,7 +234,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
 
             ui.add_space(theme.spacing_sm);
-            widgets::search_bar(ui, theme, &mut state.guild_search, "Search guilds by name...");
+            with_hint(ui, "guilds.search_hint", |ui| widgets::search_bar(ui, theme, &mut state.guild_search, t("guilds.search_native")));
             ui.add_space(theme.spacing_md);
 
             if state.guild_show_create {
@@ -259,15 +260,15 @@ fn draw_guild_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.spacing_xl);
         ui.vertical_centered(|ui| {
             ui.label(
-                RichText::new("No guilds found")
+                RichText::new(t("guilds.none_found"))
                     .size(theme.font_size_heading)
                     .color(theme.text_muted()),
             );
             ui.add_space(theme.spacing_sm);
             let hint = if state.guilds_rx.is_some() {
-                "Loading from the server..."
+                t("guilds.loading")
             } else {
-                "Create one to get started!"
+                t("guilds.create_one")
             };
             ui.label(RichText::new(hint).size(theme.font_size_body).color(theme.text_muted()));
         });
@@ -312,7 +313,7 @@ fn draw_guild_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 );
                             });
                             ui.label(
-                                RichText::new(format!("{} members", guild.member_count))
+                                RichText::new(tn("guilds.members_count", guild.member_count as i64, &[]))
                                     .size(theme.font_size_small)
                                     .color(theme.text_muted()),
                             );
@@ -330,12 +331,12 @@ fn draw_guild_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             );
                             ui.add_space(theme.spacing_sm);
                             ui.horizontal(|ui| {
-                                if widgets::secondary_button(ui, theme, "View") {
+                                if widgets::Button::secondary(t("guilds.view")).hint("guilds.view_hint").show(ui, theme) {
                                     select_id = Some(guild.id.clone());
                                 }
                                 if !guild.is_member
                                     && !my_key.is_empty()
-                                    && widgets::primary_button(ui, theme, "Join")
+                                    && widgets::Button::primary(t("guilds.join")).hint("guilds.join_hint").show(ui, theme)
                                 {
                                     join_id = Some(guild.id.clone());
                                 }
@@ -362,13 +363,13 @@ fn draw_guild_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             "POST",
             format!("{base}/api/guilds/{id}/members"),
             Some(serde_json::json!({"public_key": my_key})),
-            "Joined the guild.",
+            t("guilds.joined"),
         );
     }
 }
 
 fn draw_guild_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    if widgets::secondary_button(ui, theme, "< Back to Guilds") {
+    if widgets::Button::secondary(&format!("< {}", t("guilds.back"))).hint("guilds.back_hint").show(ui, theme) {
         state.guild_selected = None;
         return;
     }
@@ -403,13 +404,13 @@ fn draw_guild_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         widgets::card(ui, theme, |ui| {
             ui.label(
-                RichText::new("About")
+                RichText::new(t("guilds.about"))
                     .size(theme.font_size_heading)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_xs);
             if guild.description.is_empty() {
-                ui.label(RichText::new("No description provided").color(theme.text_muted()));
+                ui.label(RichText::new(t("guilds.no_description_provided")).color(theme.text_muted()));
             } else {
                 ui.label(RichText::new(&guild.description).color(theme.text_secondary()));
             }
@@ -420,13 +421,13 @@ fn draw_guild_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         widgets::card_with_header(
             ui,
             theme,
-            &format!("Members ({})", guild.member_count),
+            &tf("guilds.members_heading", &[("n", &guild.member_count)]),
             |ui| {
                 if state.guild_members.is_empty() {
                     let hint = if state.guild_members_rx.is_some() {
-                        "Loading..."
+                        t("common.loading")
                     } else {
-                        "No members listed."
+                        t("guilds.no_members")
                     };
                     ui.label(RichText::new(hint).color(theme.text_muted()));
                 }
@@ -452,51 +453,47 @@ fn draw_guild_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Guild chat: the Chat page's P2P groups are the real conversation
         // surface today; a guild-scoped channel is a follow-up, so say so
         // instead of shipping a fake echo box.
-        ui.label(
-            RichText::new("Guild chat arrives with guild-scoped channels; use a Chat page group meanwhile.")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
-        );
+        widgets::glossary_words(ui, theme, t_marked("guilds.chat_note"), theme.font_size_small, theme.text_muted());
 
         ui.add_space(theme.spacing_md);
 
         if my_key.is_empty() {
             ui.label(
-                RichText::new("Sign in (Chat page) to join guilds.")
+                RichText::new(t("guilds.sign_in_to_join"))
                     .color(theme.text_muted())
                     .size(theme.font_size_small),
             );
         } else if guild.owner_key == my_key {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("You own this guild.")
+                    RichText::new(t("guilds.you_own"))
                         .color(theme.text_secondary())
                         .size(theme.font_size_small),
                 );
-                if widgets::danger_button(ui, theme, "Delete Guild") {
+                if widgets::Button::danger(t("guilds.delete")).hint("guilds.delete_hint").show(ui, theme) {
                     action = Some((
                         "DELETE",
                         format!("{base}/api/guilds/{}?owner_key={my_key}", guild.id),
                         None,
-                        "Guild deleted.",
+                        t("guilds.deleted"),
                     ));
                 }
             });
         } else if guild.is_member {
-            if widgets::danger_button(ui, theme, "Leave Guild") {
+            if widgets::Button::danger(t("guilds.leave")).hint("guilds.leave_hint").show(ui, theme) {
                 action = Some((
                     "POST",
                     format!("{base}/api/guilds/{}/leave", guild.id),
                     Some(serde_json::json!({"public_key": my_key})),
-                    "Left the guild.",
+                    t("guilds.left"),
                 ));
             }
-        } else if widgets::primary_button(ui, theme, "Join Guild") {
+        } else if widgets::Button::primary(t("guilds.join_guild")).hint("guilds.join_hint").show(ui, theme) {
             action = Some((
                 "POST",
                 format!("{base}/api/guilds/{}/members", guild.id),
                 Some(serde_json::json!({"public_key": my_key})),
-                "Joined the guild.",
+                t("guilds.joined"),
             ));
         }
     });
@@ -507,36 +504,38 @@ fn draw_guild_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_create_form(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    if widgets::secondary_button(ui, theme, "< Back to Guilds") {
+    if widgets::Button::secondary(&format!("< {}", t("guilds.back"))).hint("guilds.back_hint").show(ui, theme) {
         state.guild_show_create = false;
         return;
     }
     ui.add_space(theme.spacing_md);
     ui.label(
-        RichText::new("Create Guild")
+        RichText::new(t("guilds.create_title"))
             .size(theme.font_size_heading)
             .color(theme.accent()),
     );
     ui.add_space(theme.spacing_md);
 
     widgets::card(ui, theme, |ui| {
-        widgets::form_row(ui, theme, "Name", |ui| {
+        widgets::form_row(ui, theme, t("guilds.name"), |ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.guild_new_name)
                     .desired_width(280.0)
-                    .hint_text("Guild name"),
-            );
+                    .hint_text(t("guilds.name_placeholder")),
+            )
+            .hint("guilds.name_hint");
         });
-        widgets::form_row(ui, theme, "Description", |ui| {
+        widgets::form_row(ui, theme, t("guilds.description"), |ui| {
             ui.add(
                 egui::TextEdit::multiline(&mut state.guild_new_desc)
                     .desired_width(280.0)
                     .desired_rows(4)
-                    .hint_text("What is this guild about?"),
-            );
+                    .hint_text(t("guilds.desc_placeholder")),
+            )
+            .hint("guilds.desc_hint");
         });
-        widgets::form_row(ui, theme, "Color", |ui| {
-            ui.color_edit_button_srgba(&mut state.guild_new_color);
+        widgets::form_row(ui, theme, t("guilds.color"), |ui| {
+            ui.color_edit_button_srgba(&mut state.guild_new_color).hint("guilds.color_hint");
         });
     });
 
@@ -545,7 +544,7 @@ fn draw_create_form(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let my_key = state.profile_public_key.clone();
     if my_key.is_empty() {
         ui.label(
-            RichText::new("Sign in (Chat page) to create a guild - the owner is your identity key.")
+            RichText::new(t("guilds.sign_in_to_create"))
                 .color(theme.text_muted())
                 .size(theme.font_size_small),
         );
@@ -553,7 +552,7 @@ fn draw_create_form(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.horizontal(|ui| {
         let can_create = !state.guild_new_name.trim().is_empty() && !my_key.is_empty();
         ui.add_enabled_ui(can_create, |ui| {
-            if widgets::primary_button(ui, theme, "Create Guild") {
+            if widgets::Button::primary(t("guilds.create_title")).hint("guilds.create_submit_hint").show(ui, theme) {
                 let c = state.guild_new_color;
                 let base = state.server_url.trim_end_matches('/').to_string();
                 let body = serde_json::json!({
@@ -571,11 +570,11 @@ fn draw_create_form(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     "POST",
                     format!("{base}/api/guilds"),
                     Some(body),
-                    "Guild created.",
+                    t("guilds.created"),
                 );
             }
         });
-        if widgets::secondary_button(ui, theme, "Cancel") {
+        if widgets::Button::secondary(t("common.cancel")).hint("guilds.cancel_hint").show(ui, theme) {
             state.guild_show_create = false;
         }
     });

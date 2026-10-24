@@ -371,6 +371,61 @@ h4 { font-size: var(--text-base); }
 [data-no-rgb] .footer-toggle,
 [data-no-rgb] .mobile-hub-group a.active { animation: none !important; }
 
+/* A visible focus ring on every control reached by keyboard (WCAG 2.4.7; the
+   accessibility audit, docs/design/wcag-audit-2026-10-23.md). Many pages set
+   `outline: none` on their buttons for the mouse, which left a Tab user with no
+   way to see where they were; :focus-visible draws only for the keyboard, so
+   the mouse look is unchanged. Text boxes keep their own focus border. */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="link"]:focus-visible,
+[role="option"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="switch"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible,
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--border-focus) !important;
+  outline-offset: 2px !important;
+}
+
+/* "Skip to the page" (web/shared/shell.js): the keyboard's first stop, out of sight
+   until it has focus (WCAG 2.4.1). */
+.hos-skip-link {
+  position: fixed;
+  left: 8px;
+  top: -48px;
+  z-index: 100002;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 2px solid var(--border-focus);
+  border-radius: var(--radius);
+  text-decoration: none;
+}
+.hos-skip-link:focus { top: 8px; }
+
+/* Targets a finger can hit at phone width: at least 24 by 24 CSS px (WCAG 2.5.8,
+   Target Size (Minimum), the AA level of WCAG 2.2; the accessibility audit,
+   docs/design/wcag-audit-2026-10-23.md, measured these below it at 375 px).
+   Links inside a sentence are exempt by the same rule. */
+@media (max-width: 600px) {
+  .site-footer .footer-links a,
+  .footer-toggle,
+  .calc-copy,
+  .hist-clear,
+  #sort-select,
+  .cat-chip {
+    min-height: 24px;
+    min-width: 24px;
+  }
+}
+
 /* Large Cursor Focus: thick, high-visibility outline on the focused element. */
 [data-focus-ring] :focus,
 [data-focus-ring] :focus-visible {

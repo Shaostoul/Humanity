@@ -682,6 +682,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(40.0);
                 if widgets::secondary_button(ui, theme, FIRST_RUN_DONE) {
                     state.settings.seed_phrase_visible = false;
+                    // The tour's first step (gui/first_minutes.rs) is already done.
+                    state.first_minutes.phrase_written = true;
                     state.settings.seed_phrase_recovery_status =
                         "Good. Keep that paper somewhere safe -- you can see the words again any time in Settings -> Identity.".to_string();
                 }
@@ -720,6 +722,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             // Ed25519 hex is kept only as the Solana wallet.
                             match crate::net::identity::derive_pq_identity(&privkey_bytes) {
                                 Ok(pq) => {
+                                    // Restoring from the words means they are on paper already.
+                                    state.first_minutes.phrase_written = true;
                                     state.settings.seed_phrase_recovery_status = format!(
                                         "Recovered: {}...{}",
                                         &pq.dilithium_hex[..8],
@@ -870,6 +874,11 @@ pub(crate) fn skip_server_step(state: &mut GuiState) {
 /// (a test never writes the real one).
 pub(crate) fn finish_onboarding(state: &mut GuiState) {
     state.onboarding_complete = true;
+    // The first five minutes begin (gui/first_minutes.rs): the tour card shows on the
+    // next page opened, and Esc in the world opens one.
+    if !state.first_minutes.started {
+        state.first_minutes.start();
+    }
     if state.server_connected {
         state.active_page = GuiPage::Chat;
     } else {
@@ -1022,6 +1031,25 @@ mod first_session_tests {
     /// too: it guards the exception, so the fix cannot overreach. Broken on purpose 2026-10-04
     /// with the home start applied on this path as well: "a player who chose a server is kept
     /// out of its world".
+    /// The first five minutes (gui/first_minutes.rs) begin when the first-run setup ends,
+    /// on both of its paths, and a tour already finished is not restarted by it.
+    #[test]
+    fn finishing_the_first_run_starts_the_first_minutes_tour() {
+        for connected in [false, true] {
+            let mut state = GuiState::default();
+            state.server_connected = connected;
+            assert!(!state.first_minutes.showing());
+            finish_onboarding(&mut state);
+            assert!(state.first_minutes.showing(), "connected={connected}: the tour starts");
+            assert_eq!(state.first_minutes.step, 0);
+        }
+        let mut state = GuiState::default();
+        state.first_minutes.start();
+        state.first_minutes.done = true;
+        finish_onboarding(&mut state);
+        assert!(!state.first_minutes.showing(), "a finished tour stays finished");
+    }
+
     #[test]
     fn connecting_and_continuing_keeps_the_servers_shared_world() {
         let mut state = GuiState::default();

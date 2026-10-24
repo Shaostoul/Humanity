@@ -1,0 +1,22 @@
+# The website ACCESSIBILITY ratchet's budgets: per page and kind of problem, how many the
+# static checks (scripts/a11y-web.js) still find. Checked by scripts/tests/a11y-web.test.js;
+# the numbers only go DOWN, and a page not listed has a budget of zero.
+# Problems: 147
+1 page admin name
+1 page chat img-alt
+18 page chat keyboard
+15 page chat name
+4 page dev name
+2 page files keyboard
+2 page files name
+24 page inventory keyboard
+6 page inventory name
+1 page maps name
+1 page maps zoom
+7 page profile name
+1 page roadmap keyboard
+24 page settings keyboard
+35 page settings name
+3 page trade name
+1 web/shared/qrcode.js img-alt
+1 web/shared/shell.js keyboard

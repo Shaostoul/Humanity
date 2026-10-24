@@ -42,6 +42,103 @@ The rules that do belong here, because they are rules rather than values:
   without wiring it into the Settings editor breaks the coverage test.
 - Do not hand-edit `web/shared/theme.css`. Edit the RON and run `just theme`.
 
+## Words: every string by key from `data/i18n/` (2026-10-22)
+
+Operator, 2026-10-22: "let's only focus on English for now but, make sure we prep for all
+the other languages." So a page never writes the words a person reads into its code. It asks
+`data/i18n/en.json` by KEY, both apps read the same file, and a translation is a new
+`data/i18n/<code>.json` with no code change. Any key a language has not translated shows in
+English; a key English lacks fails the build.
+
+| | Native | Web |
+|---|---|---|
+| Module | `src/gui/i18n.rs` | `web/shared/i18n.js` (+ `i18n-en.js`, generated) |
+| Words | `t("page.key")` | `i18n.t('page.key')`; in HTML `data-i18n="page.key"` |
+| Placeholders | `tf("k", &[("name", &v)])` fills `{{name}}` | `i18n.t('k', { name: v })` |
+| Counts | `tn("k", n, &[])` reads `k.one` / `k.other` | `i18n.tn('k', n)` |
+| Attributes | n/a | `data-i18n-title`, `-placeholder`, `-aria-label`, `-alt`, `-tip`, `-tip-title` |
+| Language | Settings > Appearance > Language (`config.json` `language`) | Settings > App > Language |
+
+**Keys** are `<page>.<thing>`, lower case with underscores (`calculator.clear_hint`). Shared
+words (`common.save`, `common.cancel`) live under `common`; reuse them rather than adding a
+second "Save".
+
+**Adding words:** `node scripts/i18n-add.js --json '{"notes":{"title":"Notes"}}'` (or a
+fragment file). It merges under a lock (several sessions share this checkout), refuses to
+change an existing key's words unless told `--replace`, and regenerates
+`web/shared/i18n-en.js`. On the website, a static page keeps its English in the markup so it
+reads without script; `just i18n` (or `node scripts/i18n-web.js --html-write`) rewrites every
+`data-i18n` element from `en.json`, and the test fails while the two differ.
+
+**Glossary marks:** a word a newcomer may not know is marked in the string itself,
+`[[relay]]` or `[[relays|relay]]` (shown word, glossary entry). `t()` returns the words alone;
+`t_marked()` / `i18n.tMarked()` keep the marks for a widget that shows the definition, and
+`data-i18n` on the website builds each mark as a `[data-term]` span for the glossary overlay.
+
+**The ratchets** (both fail on MORE words in a file than its budget, and on FEWER, asking for
+the click that locks the win in):
+
+- Native: `tests/i18n_lint.rs` (in `just lints`), budgets in `tests/i18n_literal_budget.txt`.
+  It also fails on a key the code asks for that `en.json` lacks, and on a translation holding a
+  key English no longer has. `I18N_DUMP=src/gui/pages/notes.rs` lists a file's remaining words.
+- Web: `scripts/tests/i18n-web.test.js` (in `just rig-tests`), budgets in
+  `scripts/tests/fixtures/i18n-web-budget.txt`. `node scripts/i18n-web.js --list <file>` lists
+  a file's remaining words.
+- Escape hatches, for words that are the same in every language (a brand name, a unit, a code
+  sample): `// i18n-exempt: <reason>` on a Rust or script line; `translate="no"` on an HTML
+  element (the HTML standard's own "do not translate").
+
+## The glossary on every page (2026-10-23)
+
+A marked word is underlined in the accent colour on both apps, and resting the pointer on it
+shows its card from `data/glossary.json`: the word, its category, the plain definition and where
+to read more. Mark the first time a page uses the word in its body text (an intro, a note, an
+explanation), not every button that repeats it: a hint is already the explanation of its control.
+
+| | Native | Web |
+|---|---|---|
+| Body text by key | `widgets::glossary_words(ui, theme, t_marked("notes.intro"), size, color)` (`widgets/glossary_text.rs`) | `<p data-i18n="notes.intro">` (`just i18n` writes the spans into the markup) |
+| Made in script | n/a | `i18n.fill(el, key)`, or `i18n.html(key)` inside a string of markup |
+| The card | a hover card | hover shows it, a click or Enter pins it, Escape closes it; Tab reaches the word, which reads as a button with its definition |
+
+`scripts/tests/glossary-terms.test.js` (in `just rig-tests`) fails on a mark whose term the
+glossary lacks, a half-written mark, a `data-term` or `definition_text` term the glossary lacks,
+and a marked key read without its marks (`t("key")` on the desktop, `i18n.t('key')` or a hint
+attribute on the website), because the link would be lost without anyone noticing; a hint that
+needs the same words takes a key of its own. `GLOSSARY_REPORT=1` prints the marks per page. To mark
+a word: add its entry to `data/glossary.json` if it has none, put the mark in `en.json`, and run
+`just i18n`.
+
+## Hints: a plain-language hint on every control (2026-10-22)
+
+Every button, box, list, slider, link and clickable row says what it does, in one or two short
+sentences a person new to computers understands ("Starts a new, empty note."), shown when the
+pointer rests on it and, on the website, when the keyboard reaches it. The words are keys in
+`data/i18n/` like any other (`<page>.<thing>_hint`), so a translation translates them too.
+
+| | Native (`src/gui/widgets/hint.rs`) | Web (`web/shared/shell.js`) |
+|---|---|---|
+| On a control | `.hint("notes.new_hint")` on any `Response`; `Button::primary(..).hint(key)` | `data-i18n-tip="notes.new_hint"` + `data-tip-desc="<English>"` (`just i18n` fills it) |
+| A helper returning bool | `with_hint(ui, key, \|ui\| widgets::toggle(..))` | n/a |
+| Made in script | n/a | `i18n.hint(el, 'notes.open_hint')` |
+| Explains itself, no hint | `// hint-exempt: <reason>` on the line | `data-no-tip` on it or around it |
+
+**The hint modes** are the person's (Settings > Appearance on the desktop app, Settings > Appearance
+> Page Hints on the website, the same three): **Full** shows each setting's description under it
+and every control's hint on hover; **Hover** tucks the descriptions behind a small (?) and keeps
+the hover hints; **Off** hides both, for someone who knows the app. A Settings row's description is
+also its control's hover hint.
+
+**The ratchets:** `native_hint_coverage_only_grows` in `tests/i18n_lint.rs`
+(`tests/hint_budget.txt`, per page; `HINT_REPORT=1` prints the table, `HINT_DUMP=<file>` the lines)
+and `scripts/tests/hints-web.test.js` (`scripts/tests/fixtures/hint-web-budget.txt`). Both count a
+control without a hint and fail when a page has more than its budget, or fewer (lock the win in with
+`I18N_RATCHET_WRITE=1`). The native scanner reads a statement's `.hint(..)` / `with_hint(..)` /
+`.tooltip(..)` / `on_hover_text(..)`, a later `r.hint(..)` or `r.response.hint(..)` on the
+control's binding (a tuple binding too), a `with_hint` closure around it, and the Settings
+description line right after it; the web scanner reads the attributes as written, so write
+`data-i18n-tip` / `data-tip-desc` out in markup rather than through a helper that returns them.
+
 ## Component registry
 
 Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS class or shared JS component), with the same visual signature and the same theme tokens consumed.
@@ -70,6 +167,7 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 | Detail row | `detail_row` | `.detail-row` | `text_secondary`, `text_primary`, `small_size` |
 | Detail row bold | `detail_row_bold` | `.detail-row.bold` | above + `.strong` |
 | Search bar | `search_bar` | `.search-bar` | `text_secondary`, `body_size` |
+| Words with glossary terms | `glossary_words` / `glossary_text` / `glossary_note` (`glossary_text.rs`) | `[data-term]` + `.glossary-tooltip` (`web/shared/glossary.js`) | `accent`, `text_primary`, `text_muted`, `font_size_body`, `font_size_small`, `spacing_xs` |
 | Sidebar nav | `sidebar_nav` | `.sidebar-nav` + `.sidebar-nav-item.active` | `accent`, `text_secondary`, `body_size` |
 | Category filter | `category_filter` | `.category-filter` | `accent`, `bg_card`, `text_on_accent`, `badge_radius`, `small_size` |
 | Stat card | `stat_card` | `.stat-card` | card tokens + `success`, `danger`, `small_size`, `heading_size` |

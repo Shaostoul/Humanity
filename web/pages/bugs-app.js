@@ -1,9 +1,20 @@
 /**
  * HumanityOS Bug Reporter, Client logic
  * Submits bug reports to POST /api/bugs and lists known bugs from GET /api/bugs.
+ *
+ * Words come from data/i18n/en.json by key (i18n.t; bugs.html loads i18n.js
+ * first), the same keys as the desktop app's Bug Reporter where the words match.
  */
 (function () {
   'use strict';
+
+  // The server's values, shown in the person's language (an unknown one as it came).
+  var STATUS_KEYS = { open: 'bugs.status_open', in_progress: 'bugs.status_in_progress', fixed: 'bugs.status_fixed', wont_fix: 'bugs.status_wont_fix', duplicate: 'bugs.status_duplicate' };
+  var SEVERITY_KEYS = { critical: 'bugs.sev_critical', high: 'bugs.sev_high', medium: 'bugs.sev_medium', low: 'bugs.sev_low', cosmetic: 'bugs.sev_cosmetic' };
+  var CATEGORY_KEYS = { chat: 'bugs.cat_chat', tasks: 'bugs.cat_tasks', market: 'bugs.cat_market', wallet: 'bugs.cat_wallet', maps: 'bugs.cat_maps', game: 'bugs.cat_game', settings: 'bugs.cat_settings', other: 'bugs.cat_other' };
+  function wordsFor(keys, value) {
+    return keys[value] ? i18n.t(keys[value]) : String(value || '');
+  }
 
   var API_BASE = '';
   var form = document.getElementById('bug-form');
@@ -60,12 +71,12 @@
     var title = document.getElementById('bug-title').value.trim();
     var description = document.getElementById('bug-description').value.trim();
     if (!title || !description) {
-      showStatus('Title and description are required.', 'error');
+      showStatus(i18n.t('bugs.need_title_desc'), 'error');
       return;
     }
 
     btnSubmit.disabled = true;
-    showStatus('Submitting...', '');
+    showStatus(i18n.t('bugs.submitting'), '');
 
     var body = {
       title: title,
@@ -92,13 +103,13 @@
         return res.json();
       })
       .then(function (data) {
-        showStatus('Bug #' + data.id + ' submitted. Thank you!', 'success');
+        showStatus(i18n.t('bugs.submitted', { id: data.id }), 'success');
         form.reset();
         loadBugs();
         setTimeout(function () { btnSubmit.disabled = false; }, 2000);
       })
       .catch(function (err) {
-        showStatus('Failed: ' + err.message, 'error');
+        showStatus(i18n.t('bugs.failed', { error: err.message }), 'error');
         btnSubmit.disabled = false;
       });
   });
@@ -122,38 +133,39 @@
         renderBugs(data.bugs || []);
       })
       .catch(function () {
-        bugList.innerHTML = '<div class="empty-state">Could not load bug reports.</div>';
+        bugList.innerHTML = '<div class="empty-state">' + escapeHtml(i18n.t('bugs.list_failed')) + '</div>';
       });
   }
 
   function renderBugs(bugs) {
     if (!bugs.length) {
-      bugList.innerHTML = '<div class="empty-state">No bug reports found. Everything looks good!</div>';
+      bugList.innerHTML = '<div class="empty-state">' + escapeHtml(i18n.t('bugs.none_found')) + '</div>';
       return;
     }
 
     bugList.innerHTML = bugs.map(function (b) {
-      var statusLabel = b.status.replace(/_/g, ' ');
+      var statusLabel = wordsFor(STATUS_KEYS, b.status);
       var ago = timeAgo(b.created_at);
       var desc = b.description.length > 150 ? b.description.substring(0, 150) + '...' : b.description;
 
       return '<div class="bug-card" data-id="' + b.id + '">' +
         '<div class="bug-card-top">' +
-          '<span class="badge badge-' + b.severity + '">' + b.severity + '</span>' +
-          '<span class="badge badge-' + b.status + '">' + statusLabel + '</span>' +
+          '<span class="badge badge-' + escapeHtml(b.severity) + '">' + escapeHtml(wordsFor(SEVERITY_KEYS, b.severity)) + '</span>' +
+          '<span class="badge badge-' + escapeHtml(b.status) + '">' + escapeHtml(statusLabel) + '</span>' +
           '<span class="bug-card-title">' + escapeHtml(b.title) + '</span>' +
         '</div>' +
         '<div class="bug-card-desc">' + escapeHtml(desc) + '</div>' +
         '<div class="bug-card-meta">' +
-          '<span>' + (b.category || 'other') + '</span>' +
+          '<span>' + escapeHtml(wordsFor(CATEGORY_KEYS, b.category || 'other')) + '</span>' + // i18n-exempt: 'other', the server's category value
           '<span>' + ago + '</span>' +
-          (b.reporter_name ? '<span>by ' + escapeHtml(b.reporter_name) + '</span>' : '') +
-          '<button class="vote-btn" onclick="window.__voteBug(' + b.id + ', this)">' +
+          (b.reporter_name ? '<span>' + escapeHtml(i18n.t('bugs.by', { name: b.reporter_name })) + '</span>' : '') +
+          '<button class="vote-btn" data-i18n-aria-label="bugs.vote_label" data-i18n-tip="bugs.vote_hint" onclick="window.__voteBug(' + b.id + ', this)">' +
             '\u25B2 ' + b.votes +
           '</button>' +
         '</div>' +
       '</div>';
     }).join('');
+    i18n.apply(bugList);
   }
 
   // ---- Voting ----
@@ -167,8 +179,7 @@
   // sig }, with key the Dilithium public key hex the relay knows people by.
   // It reads the seed from the backup Chat leaves in localStorage, so it
   // works on browsers without WebCrypto Ed25519 too. It returns null when
-  // this device has no such backup.
-  var NO_IDENTITY_MSG = 'Open Chat once on this device to sign in, then vote.';
+  // this device has no such backup (then the bugs.no_identity words say what to do).
 
   function signVote() {
     if (typeof window.getPqSignedAuth !== 'function') {
@@ -185,7 +196,7 @@
     signVote()
       .then(function (auth) {
         if (!auth) {
-          alert(NO_IDENTITY_MSG);
+          alert(i18n.t('bugs.no_identity'));
           return null;
         }
         return fetch(API_BASE + '/api/bugs/' + id + '/vote', {
@@ -210,7 +221,7 @@
         btn.innerHTML = '\u25B2 ' + data.votes;
       })
       .catch(function (err) {
-        alert('Vote failed: ' + (err && err.message ? err.message : 'network error'));
+        alert(i18n.t('bugs.vote_failed', { error: err && err.message ? err.message : i18n.t('bugs.network_error') }));
       })
       .then(function () { btn.disabled = false; });
   };
@@ -225,14 +236,14 @@
   function timeAgo(ms) {
     var diff = Date.now() - ms;
     var s = Math.floor(diff / 1000);
-    if (s < 60) return 'just now';
+    if (s < 60) return i18n.t('bugs.just_now');
     var m = Math.floor(s / 60);
-    if (m < 60) return m + 'm ago';
+    if (m < 60) return i18n.t('bugs.minutes_ago', { n: m });
     var h = Math.floor(m / 60);
-    if (h < 24) return h + 'h ago';
+    if (h < 24) return i18n.t('bugs.hours_ago', { n: h });
     var d = Math.floor(h / 24);
-    if (d < 30) return d + 'd ago';
-    return Math.floor(d / 30) + 'mo ago';
+    if (d < 30) return i18n.t('bugs.days_ago', { n: d });
+    return i18n.t('bugs.months_ago', { n: Math.floor(d / 30) });
   }
 
   // ---- Filter listeners ----

@@ -17,8 +17,10 @@ use egui::{RichText, ScrollArea};
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver};
 
+use crate::gui::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::Hint;
 use crate::gui::GuiState;
 use crate::relay::core::market_payloads as vocab;
 
@@ -172,11 +174,11 @@ pub fn take_published() -> bool {
 
 type CborMap = Vec<(ciborium::Value, ciborium::Value)>;
 
-fn t(s: &str) -> ciborium::Value {
+fn txt(s: &str) -> ciborium::Value {
     ciborium::Value::Text(s.to_string())
 }
 fn kv(k: &str, v: ciborium::Value) -> (ciborium::Value, ciborium::Value) {
-    (t(k), v)
+    (txt(k), v)
 }
 fn int(n: i64) -> ciborium::Value {
     ciborium::Value::Integer(n.into())
@@ -187,27 +189,27 @@ fn int(n: i64) -> ciborium::Value {
 fn provider_payload(ps: &PublishState, provider_root: Option<&str>, now: i64) -> ciborium::Value {
     let mut m: CborMap = Vec::new();
     if let Some(root) = provider_root {
-        m.push(kv("provider_ref", t(root)));
+        m.push(kv("provider_ref", txt(root)));
     }
-    m.push(kv("display_name", t(ps.p_display_name.trim())));
-    m.push(kv("kind", t(vocab::PROVIDER_KINDS[ps.p_kind_idx])));
-    m.push(kv("description", t(ps.p_description.trim())));
-    m.push(kv("backed_by", t("identity")));
-    m.push(kv("status", t("active")));
+    m.push(kv("display_name", txt(ps.p_display_name.trim())));
+    m.push(kv("kind", txt(vocab::PROVIDER_KINDS[ps.p_kind_idx])));
+    m.push(kv("description", txt(ps.p_description.trim())));
+    m.push(kv("backed_by", txt("identity")));
+    m.push(kv("status", txt("active")));
     m.push(kv("updated_at", int(now)));
     let mut contact: CborMap =
-        vec![kv("preferred", t(vocab::CONTACT_CHANNELS[ps.p_contact_idx]))];
+        vec![kv("preferred", txt(vocab::CONTACT_CHANNELS[ps.p_contact_idx]))];
     if !ps.p_website.trim().is_empty() {
-        contact.push(kv("website", t(ps.p_website.trim())));
+        contact.push(kv("website", txt(ps.p_website.trim())));
     }
     m.push(kv("contact", ciborium::Value::Map(contact)));
     let mode = vocab::LOCATION_MODES[ps.p_area_mode_idx];
     let mut area: CborMap = vec![
-        kv("mode", t(mode)),
-        kv("label", t(ps.p_area_label.trim())),
+        kv("mode", txt(mode)),
+        kv("label", txt(ps.p_area_label.trim())),
     ];
     if mode == "region" {
-        area.push(kv("region_code", t(ps.p_region_code.trim())));
+        area.push(kv("region_code", txt(ps.p_region_code.trim())));
     }
     m.push(kv(
         "service_areas",
@@ -224,28 +226,28 @@ fn offering_payload(
     now: i64,
 ) -> ciborium::Value {
     let mut m: CborMap = vec![
-        kv("provider_ref", t(provider_root)),
-        kv("offering_key", t(ps.o_key.trim())),
-        kv("kind", t(if ps.o_is_good { "good" } else { "service" })),
-        kv("reality", t(reality)),
-        kv("title", t(ps.o_title.trim())),
-        kv("category", t(ps.o_category_id.as_str())),
-        kv("status", t("active")),
+        kv("provider_ref", txt(provider_root)),
+        kv("offering_key", txt(ps.o_key.trim())),
+        kv("kind", txt(if ps.o_is_good { "good" } else { "service" })),
+        kv("reality", txt(reality)),
+        kv("title", txt(ps.o_title.trim())),
+        kv("category", txt(ps.o_category_id.as_str())),
+        kv("status", txt("active")),
         kv("updated_at", int(now)),
     ];
-    m.push(kv("description", t(ps.o_description.trim())));
+    m.push(kv("description", txt(ps.o_description.trim())));
     let fulfillment: Vec<ciborium::Value> = vocab::FULFILLMENT_MODES
         .iter()
         .zip(&ps.o_fulfillment)
         .filter(|(_, on)| **on)
-        .map(|(f, _)| t(f))
+        .map(|(f, _)| txt(f))
         .collect();
     m.push(kv("fulfillment", ciborium::Value::Array(fulfillment)));
 
     // Price. Amount fields only ride along when the mode uses them, so a
     // mode switch can never leave a stale amount that the validator rejects.
     let mode = vocab::PRICE_MODES[ps.o_price_mode_idx];
-    let mut price: CborMap = vec![kv("mode", t(mode))];
+    let mut price: CborMap = vec![kv("mode", txt(mode))];
     let wants_amount = matches!(mode, "fixed" | "range" | "sliding_scale" | "pay_what_you_can");
     let amount: Option<f64> = ps.o_amount.trim().parse().ok().filter(|_| wants_amount);
     if let Some(a) = amount {
@@ -255,31 +257,31 @@ fn offering_payload(
                 price.push(kv("amount_max", ciborium::Value::Float(mx)));
             }
         }
-        price.push(kv("currency", t(ps.o_currency.trim())));
+        price.push(kv("currency", txt(ps.o_currency.trim())));
         if ps.o_unit_idx > 0 {
-            price.push(kv("unit", t(vocab::PRICE_UNITS[ps.o_unit_idx - 1])));
+            price.push(kv("unit", txt(vocab::PRICE_UNITS[ps.o_unit_idx - 1])));
         }
     }
     m.push(kv("price", ciborium::Value::Map(price)));
 
     // Settlement: directory-only, always (the money firewall).
     let via = vocab::SETTLEMENT_CONTACTS[ps.o_contact_via_idx];
-    let mut settlement: CborMap = vec![kv("mode", t("directory")), kv("contact_via", t(via))];
+    let mut settlement: CborMap = vec![kv("mode", txt("directory")), kv("contact_via", txt(via))];
     if via == "provider_checkout" || !ps.o_checkout_uri.trim().is_empty() {
         if !ps.o_checkout_uri.trim().is_empty() {
-            settlement.push(kv("checkout_uri", t(ps.o_checkout_uri.trim())));
+            settlement.push(kv("checkout_uri", txt(ps.o_checkout_uri.trim())));
         }
     }
     if !ps.o_instructions.trim().is_empty() {
-        settlement.push(kv("instructions", t(ps.o_instructions.trim())));
+        settlement.push(kv("instructions", txt(ps.o_instructions.trim())));
     }
     m.push(kv("settlement", ciborium::Value::Map(settlement)));
 
     if ps.o_is_good {
         let avail = vocab::GOOD_AVAILABILITY[ps.g_avail_idx];
         let mut good: CborMap = vec![
-            kv("condition", t(vocab::GOOD_CONDITIONS[ps.g_condition_idx])),
-            kv("availability_mode", t(avail)),
+            kv("condition", txt(vocab::GOOD_CONDITIONS[ps.g_condition_idx])),
+            kv("availability_mode", txt(avail)),
         ];
         match avail {
             "in_stock" => {
@@ -294,7 +296,7 @@ fn offering_payload(
         m.push(kv("good", ciborium::Value::Map(good)));
     } else {
         let sk = vocab::SCHEDULE_KINDS[ps.s_schedule_idx];
-        let mut avail: CborMap = vec![kv("schedule_kind", t(sk))];
+        let mut avail: CborMap = vec![kv("schedule_kind", txt(sk))];
         if matches!(sk, "walk_in" | "recurring") {
             let rows: Vec<ciborium::Value> = vocab::WEEKDAYS
                 .iter()
@@ -302,16 +304,16 @@ fn offering_payload(
                 .filter(|(_, on)| **on)
                 .map(|(day, _)| {
                     ciborium::Value::Map(vec![
-                        kv("day", t(day)),
-                        kv("start_time", t(ps.s_start.trim())),
-                        kv("end_time", t(ps.s_end.trim())),
+                        kv("day", txt(day)),
+                        kv("start_time", txt(ps.s_start.trim())),
+                        kv("end_time", txt(ps.s_end.trim())),
                     ])
                 })
                 .collect();
             avail.push(kv("recurring", ciborium::Value::Array(rows)));
         }
         let service: CborMap = vec![
-            kv("action", t(vocab::SERVICE_ACTIONS[ps.s_action_idx])),
+            kv("action", txt(vocab::SERVICE_ACTIONS[ps.s_action_idx])),
             kv("availability", ciborium::Value::Map(avail)),
         ];
         m.push(kv("service", ciborium::Value::Map(service)));
@@ -442,19 +444,22 @@ pub(crate) fn sign_and_submit(
                     v.get("error").or_else(|| v.get("message")).and_then(|e| e.as_str()).map(String::from)
                 })
                 .unwrap_or(body);
-            Err(format!("server said no ({code}): {msg}"))
+            Err(tf("market.publish.server_said_no", &[("code", &code), ("message", &msg)]))
         }
-        Err(e) => Err(format!("network: {e}")),
+        Err(e) => Err(tf("market.publish.network_error", &[("error", &e)])),
     }
 }
 
 // ── Draw ────────────────────────────────────────────────────────────────────
 
+/// A labelled dropdown over one vocabulary list. `hint` is the key of the
+/// plain-language hint, shown on the dropdown and on each of its choices.
 fn combo(
     ui: &mut egui::Ui,
     theme: &Theme,
     id: &str,
     label: &str,
+    hint: &'static str,
     options: &[&str],
     idx: &mut usize,
 ) {
@@ -463,11 +468,13 @@ fn combo(
             .selected_text(options.get(*idx).copied().unwrap_or("?").replace('_', " "))
             .show_ui(ui, |ui| {
                 for (i, opt) in options.iter().enumerate() {
-                    if ui.selectable_label(*idx == i, opt.replace('_', " ")).clicked() {
+                    if ui.selectable_label(*idx == i, opt.replace('_', " ")).hint(hint).clicked() {
                         *idx = i;
                     }
                 }
-            });
+            })
+            .response
+            .hint(hint);
     });
 }
 
@@ -489,9 +496,9 @@ pub fn draw(
                     ps.published = true;
                     if ok.was_provider {
                         ps.created_provider_root = Some(ok.object_id.clone());
-                        ps.status = "Shop published. You can add offerings now.".to_string();
+                        ps.status = t("market.publish.shop_published").to_string();
                     } else {
-                        ps.status = format!("Offering \"{}\" published.", ps.o_key.trim());
+                        ps.status = tf("market.publish.offering_published", &[("key", &ps.o_key.trim())]);
                     }
                     ps.error.clear();
                 }
@@ -518,26 +525,27 @@ pub fn draw(
     let reality = if state.nav_top_category == "sim" { "sim" } else { "real" };
 
     ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-        if widgets::secondary_button(ui, theme, "< Back to Directory") {
+        if widgets::Button::secondary(t("market.directory.back"))
+            .hint("market.publish.back_hint")
+            .show(ui, theme)
+        {
             with_pub(|ps| ps.open = false);
         }
         ui.add_space(theme.spacing_sm);
         ui.label(
-            RichText::new(format!("Publish to {base}"))
+            RichText::new(tf("market.publish.title", &[("server", &base)]))
                 .size(theme.font_size_title)
                 .color(theme.text_primary()),
         );
         ui.label(
-            RichText::new(
-                "Signed with your identity, validated before anything is sent. The platform lists and introduces; money never moves through it.",
-            )
-            .size(theme.font_size_small)
-            .color(theme.text_muted()),
+            RichText::new(t("market.publish.intro"))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
         );
         if !have_identity {
             ui.add_space(theme.spacing_md);
             ui.label(
-                RichText::new("Sign in on the Chat page first: publishing needs your identity key.")
+                RichText::new(t("market.publish.needs_identity"))
                     .color(theme.warning()),
             );
             return;
@@ -550,68 +558,91 @@ pub fn draw(
             ui.label(RichText::new(error).color(theme.warning()));
         }
         if busy {
-            ui.label(RichText::new("Publishing...").color(theme.text_muted()));
+            ui.label(RichText::new(t("market.publishing")).color(theme.text_muted()));
         }
         ui.add_space(theme.spacing_sm);
 
         // ── Shop ──
-        let shop_title = if my_provider.is_some() { "Your shop" } else { "Create your shop" };
+        let shop_title = if my_provider.is_some() {
+            t("market.publish.your_shop")
+        } else {
+            t("market.publish.create_shop")
+        };
         widgets::card_with_header(ui, theme, shop_title, |ui| {
             with_pub(|ps| {
-                widgets::form_row(ui, theme, "Name", |ui| {
-                    ui.add(egui::TextEdit::singleline(&mut ps.p_display_name).desired_width(280.0));
+                widgets::form_row(ui, theme, t("market.publish.name"), |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut ps.p_display_name).desired_width(280.0))
+                        .hint("market.publish.name_hint");
                 });
-                combo(ui, theme, "pub_p_kind", "Kind", vocab::PROVIDER_KINDS, &mut ps.p_kind_idx);
-                widgets::form_row(ui, theme, "Description", |ui| {
+                combo(
+                    ui,
+                    theme,
+                    "pub_p_kind",
+                    t("market.publish.kind"),
+                    "market.publish.kind_hint",
+                    vocab::PROVIDER_KINDS,
+                    &mut ps.p_kind_idx,
+                );
+                widgets::form_row(ui, theme, t("market.description"), |ui| {
                     ui.add(
                         egui::TextEdit::multiline(&mut ps.p_description)
                             .desired_width(280.0)
                             .desired_rows(2),
-                    );
+                    )
+                    .hint("market.publish.shop_description_hint");
                 });
                 combo(
                     ui,
                     theme,
                     "pub_p_contact",
-                    "Contact",
+                    t("market.publish.contact"),
+                    "market.publish.contact_hint",
                     vocab::CONTACT_CHANNELS,
                     &mut ps.p_contact_idx,
                 );
-                widgets::form_row(ui, theme, "Website", |ui| {
+                widgets::form_row(ui, theme, t("market.publish.website"), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut ps.p_website)
-                            .hint_text("https:// (optional)")
+                            .hint_text(t("market.publish.website_placeholder"))
                             .desired_width(280.0),
-                    );
+                    )
+                    .hint("market.publish.website_hint");
                 });
                 combo(
                     ui,
                     theme,
                     "pub_p_area",
-                    "Service area",
+                    t("market.publish.service_area"),
+                    "market.publish.service_area_hint",
                     vocab::LOCATION_MODES,
                     &mut ps.p_area_mode_idx,
                 );
-                widgets::form_row(ui, theme, "Area label", |ui| {
+                widgets::form_row(ui, theme, t("market.publish.area_label"), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut ps.p_area_label)
-                            .hint_text("e.g. Riverside neighborhood")
+                            .hint_text(t("market.publish.area_label_placeholder"))
                             .desired_width(280.0),
-                    );
+                    )
+                    .hint("market.publish.area_label_hint");
                 });
                 if vocab::LOCATION_MODES[ps.p_area_mode_idx] == "region" {
-                    widgets::form_row(ui, theme, "Region code", |ui| {
+                    widgets::form_row(ui, theme, t("market.publish.region_code"), |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut ps.p_region_code)
-                                .hint_text("US-WA")
+                                .hint_text("US-WA") // i18n-exempt: a region code sample, the same in every language
                                 .desired_width(100.0),
-                        );
+                        )
+                        .hint("market.publish.region_code_hint");
                     });
                 }
             });
             ui.add_space(theme.spacing_sm);
-            let label = if my_provider.is_some() { "Update shop" } else { "Publish shop" };
-            if !busy && widgets::Button::primary(label).show(ui, theme) {
+            let (label, hint) = if my_provider.is_some() {
+                (t("market.publish.update_shop"), "market.publish.update_shop_hint")
+            } else {
+                (t("market.publish.publish_shop"), "market.publish.publish_shop_hint")
+            };
+            if !busy && widgets::Button::primary(label).hint(hint).show(ui, theme) {
                 let root = my_provider.map(|p| p.root_id.clone());
                 let (payload, seed) = with_pub(|ps| {
                     (
@@ -640,50 +671,58 @@ pub fn draw(
         ui.add_space(theme.spacing_sm);
 
         // ── Offering ──
-        widgets::card_with_header(ui, theme, "Publish an offering", |ui| {
+        widgets::card_with_header(ui, theme, t("market.publish.offering_heading"), |ui| {
             let Some(root) = provider_root.clone() else {
                 ui.label(
-                    RichText::new("Publish your shop first: every offering belongs to one.")
+                    RichText::new(t("market.publish.shop_first"))
                         .color(theme.text_muted()),
                 );
                 return;
             };
             with_pub(|ps| {
-                widgets::form_row(ui, theme, "Your SKU", |ui| {
+                widgets::form_row(ui, theme, t("market.publish.sku"), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut ps.o_key)
-                            .hint_text("stable key, e.g. eggs-dozen")
+                            .hint_text(t("market.publish.sku_placeholder"))
                             .desired_width(200.0),
                     )
-                    .on_hover_text(
-                        "Lowercase a-z, 0-9, . _ - only. Re-publishing the same SKU updates the offering instead of duplicating it.",
-                    );
+                    .hint("market.publish.sku_hint");
                 });
-                widgets::form_row(ui, theme, "Type", |ui| {
-                    if ui.selectable_label(ps.o_is_good, "Good").clicked() {
+                widgets::form_row(ui, theme, t("market.publish.type"), |ui| {
+                    if ui
+                        .selectable_label(ps.o_is_good, t("market.publish.good"))
+                        .hint("market.publish.good_hint")
+                        .clicked()
+                    {
                         ps.o_is_good = true;
                     }
-                    if ui.selectable_label(!ps.o_is_good, "Service").clicked() {
+                    if ui
+                        .selectable_label(!ps.o_is_good, t("market.publish.service"))
+                        .hint("market.publish.service_hint")
+                        .clicked()
+                    {
                         ps.o_is_good = false;
                     }
                 });
-                widgets::form_row(ui, theme, "Title", |ui| {
-                    ui.add(egui::TextEdit::singleline(&mut ps.o_title).desired_width(280.0));
+                widgets::form_row(ui, theme, t("market.form_title"), |ui| {
+                    ui.add(egui::TextEdit::singleline(&mut ps.o_title).desired_width(280.0))
+                        .hint("market.publish.offering_title_hint");
                 });
-                widgets::form_row(ui, theme, "Description", |ui| {
+                widgets::form_row(ui, theme, t("market.description"), |ui| {
                     ui.add(
                         egui::TextEdit::multiline(&mut ps.o_description)
                             .desired_width(280.0)
                             .desired_rows(2),
-                    );
+                    )
+                    .hint("market.publish.offering_description_hint");
                 });
-                widgets::form_row(ui, theme, "Category", |ui| {
+                widgets::form_row(ui, theme, t("market.form_category"), |ui| {
                     let selected = state
                         .market_categories
                         .iter()
                         .find(|c| c.id == ps.o_category_id)
                         .map(|c| c.label.as_str())
-                        .unwrap_or("Select...");
+                        .unwrap_or(t("market.select"));
                     egui::ComboBox::from_id_salt("pub_o_cat")
                         .selected_text(selected)
                         .show_ui(ui, |ui| {
@@ -696,37 +735,43 @@ pub fn draw(
                                     ps.o_category_id = c.id.clone();
                                 }
                             }
-                        });
+                        })
+                        .response
+                        .hint("market.publish.offering_category_hint");
                 });
                 combo(
                     ui,
                     theme,
                     "pub_o_price",
-                    "Price",
+                    t("market.form_price"),
+                    "market.publish.price_mode_hint",
                     vocab::PRICE_MODES,
                     &mut ps.o_price_mode_idx,
                 );
                 let mode = vocab::PRICE_MODES[ps.o_price_mode_idx];
                 if matches!(mode, "fixed" | "range" | "sliding_scale" | "pay_what_you_can") {
-                    widgets::form_row(ui, theme, "Amount", |ui| {
-                        ui.add(egui::TextEdit::singleline(&mut ps.o_amount).desired_width(70.0));
+                    widgets::form_row(ui, theme, t("market.publish.amount"), |ui| {
+                        ui.add(egui::TextEdit::singleline(&mut ps.o_amount).desired_width(70.0))
+                            .hint("market.publish.amount_hint");
                         if matches!(mode, "range" | "sliding_scale") {
-                            ui.label(RichText::new("to").color(theme.text_muted()));
+                            ui.label(RichText::new(t("market.publish.to")).color(theme.text_muted()));
                             ui.add(
                                 egui::TextEdit::singleline(&mut ps.o_amount_max).desired_width(70.0),
-                            );
+                            )
+                            .hint("market.publish.amount_max_hint");
                         }
                         // Sim prices in CR only; the validator enforces it, the
                         // form just spares the round-trip.
                         if reality == "sim" {
                             ps.o_currency = "CR".to_string();
-                            ui.label(RichText::new("CR").color(theme.text_secondary()));
+                            ui.label(RichText::new("CR").color(theme.text_secondary())); // i18n-exempt: the sim currency's code, the same in every language
                         } else {
                             ui.add(
                                 egui::TextEdit::singleline(&mut ps.o_currency).desired_width(60.0),
-                            );
+                            )
+                            .hint("market.publish.currency_hint");
                         }
-                        let mut unit_opts: Vec<&str> = vec!["(no unit)"];
+                        let mut unit_opts: Vec<&str> = vec![t("market.publish.no_unit")];
                         unit_opts.extend(vocab::PRICE_UNITS);
                         egui::ComboBox::from_id_salt("pub_o_unit")
                             .selected_text(unit_opts[ps.o_unit_idx].replace('_', " "))
@@ -734,18 +779,22 @@ pub fn draw(
                                 for (i, u) in unit_opts.iter().enumerate() {
                                     if ui
                                         .selectable_label(ps.o_unit_idx == i, u.replace('_', " "))
+                                        .hint("market.publish.unit_hint")
                                         .clicked()
                                     {
                                         ps.o_unit_idx = i;
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .hint("market.publish.unit_hint");
                     });
                 }
-                widgets::form_row(ui, theme, "Fulfillment", |ui| {
+                widgets::form_row(ui, theme, t("market.publish.fulfillment"), |ui| {
                     ui.vertical(|ui| {
                         for (i, f) in vocab::FULFILLMENT_MODES.iter().enumerate() {
-                            ui.checkbox(&mut ps.o_fulfillment[i], f.replace('_', " "));
+                            ui.checkbox(&mut ps.o_fulfillment[i], f.replace('_', " "))
+                                .hint("market.publish.fulfillment_hint");
                         }
                     });
                 });
@@ -753,25 +802,28 @@ pub fn draw(
                     ui,
                     theme,
                     "pub_o_via",
-                    "Arrange via",
+                    t("market.publish.arrange_via"),
+                    "market.publish.arrange_via_hint",
                     vocab::SETTLEMENT_CONTACTS,
                     &mut ps.o_contact_via_idx,
                 );
                 if vocab::SETTLEMENT_CONTACTS[ps.o_contact_via_idx] == "provider_checkout" {
-                    widgets::form_row(ui, theme, "Checkout URL", |ui| {
+                    widgets::form_row(ui, theme, t("market.publish.checkout_url"), |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut ps.o_checkout_uri)
-                                .hint_text("https://")
+                                .hint_text("https://") // i18n-exempt: the start of a web address, the same in every language
                                 .desired_width(280.0),
-                        );
+                        )
+                        .hint("market.publish.checkout_url_hint");
                     });
                 }
-                widgets::form_row(ui, theme, "Instructions", |ui| {
+                widgets::form_row(ui, theme, t("market.publish.instructions"), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut ps.o_instructions)
-                            .hint_text("how to arrange (optional)")
+                            .hint_text(t("market.publish.instructions_placeholder"))
                             .desired_width(280.0),
-                    );
+                    )
+                    .hint("market.publish.instructions_hint");
                 });
 
                 if ps.o_is_good {
@@ -779,7 +831,8 @@ pub fn draw(
                         ui,
                         theme,
                         "pub_g_cond",
-                        "Condition",
+                        t("market.publish.condition"),
+                        "market.publish.condition_hint",
                         vocab::GOOD_CONDITIONS,
                         &mut ps.g_condition_idx,
                     );
@@ -787,25 +840,28 @@ pub fn draw(
                         ui,
                         theme,
                         "pub_g_avail",
-                        "Availability",
+                        t("market.publish.availability"),
+                        "market.publish.availability_hint",
                         vocab::GOOD_AVAILABILITY,
                         &mut ps.g_avail_idx,
                     );
                     match vocab::GOOD_AVAILABILITY[ps.g_avail_idx] {
                         "in_stock" => {
-                            widgets::form_row(ui, theme, "Quantity", |ui| {
+                            widgets::form_row(ui, theme, t("market.publish.quantity"), |ui| {
                                 ui.add(
                                     egui::TextEdit::singleline(&mut ps.g_quantity)
                                         .desired_width(60.0),
-                                );
+                                )
+                                .hint("market.publish.quantity_hint");
                             });
                         }
                         "made_to_order" => {
-                            widgets::form_row(ui, theme, "Lead days", |ui| {
+                            widgets::form_row(ui, theme, t("market.publish.lead_days"), |ui| {
                                 ui.add(
                                     egui::TextEdit::singleline(&mut ps.g_lead_days)
                                         .desired_width(60.0),
-                                );
+                                )
+                                .hint("market.publish.lead_days_hint");
                             });
                         }
                         _ => {}
@@ -815,7 +871,8 @@ pub fn draw(
                         ui,
                         theme,
                         "pub_s_action",
-                        "Service",
+                        t("market.publish.service"),
+                        "market.publish.service_action_hint",
                         vocab::SERVICE_ACTIONS,
                         &mut ps.s_action_idx,
                     );
@@ -823,29 +880,45 @@ pub fn draw(
                         ui,
                         theme,
                         "pub_s_sched",
-                        "Schedule",
+                        t("market.publish.schedule"),
+                        "market.publish.schedule_hint",
                         vocab::SCHEDULE_KINDS,
                         &mut ps.s_schedule_idx,
                     );
                     if matches!(vocab::SCHEDULE_KINDS[ps.s_schedule_idx], "walk_in" | "recurring") {
-                        widgets::form_row(ui, theme, "Days", |ui| {
+                        widgets::form_row(ui, theme, t("market.publish.days"), |ui| {
                             for (i, d) in vocab::WEEKDAYS.iter().enumerate() {
-                                ui.checkbox(&mut ps.s_days[i], &d[..3]);
+                                // Each day's short name by key (market.publish.day_monday ...),
+                                // falling back to the vocabulary's first three letters.
+                                let key = format!("market.publish.day_{d}");
+                                let short = if crate::gui::i18n::has(&key) {
+                                    crate::gui::i18n::t_dyn(&key)
+                                } else {
+                                    &d[..3]
+                                };
+                                ui.checkbox(&mut ps.s_days[i], short)
+                                    .hint("market.publish.day_hint");
                             }
                         });
-                        widgets::form_row(ui, theme, "Hours", |ui| {
-                            ui.add(egui::TextEdit::singleline(&mut ps.s_start).desired_width(56.0));
-                            ui.label(RichText::new("to").color(theme.text_muted()));
-                            ui.add(egui::TextEdit::singleline(&mut ps.s_end).desired_width(56.0));
+                        widgets::form_row(ui, theme, t("market.publish.hours"), |ui| {
+                            ui.add(egui::TextEdit::singleline(&mut ps.s_start).desired_width(56.0))
+                                .hint("market.publish.start_hint");
+                            ui.label(RichText::new(t("market.publish.to")).color(theme.text_muted()));
+                            ui.add(egui::TextEdit::singleline(&mut ps.s_end).desired_width(56.0))
+                                .hint("market.publish.end_hint");
                             ui.label(
-                                RichText::new("24h HH:MM").size(theme.font_size_small).color(theme.text_muted()),
+                                RichText::new(t("market.publish.hours_format")).size(theme.font_size_small).color(theme.text_muted()),
                             );
                         });
                     }
                 }
             });
             ui.add_space(theme.spacing_sm);
-            if !busy && widgets::Button::primary("Publish offering").show(ui, theme) {
+            if !busy
+                && widgets::Button::primary(t("market.publish.publish_offering"))
+                    .hint("market.publish.publish_offering_hint")
+                    .show(ui, theme)
+            {
                 let (payload, seed) = with_pub(|ps| {
                     (
                         offering_payload(ps, &root, reality, now_ms()),

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Notes, HumanityOS</title>
+  <title data-i18n="notes.page_title">Notes, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* Colours this page uses that have no theme token. The dark values are
@@ -602,21 +602,23 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="notes"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Write private notes or keep a daily log, everything is encrypted and safe.</div>
-  <div class="eli5-expert">Dual-mode journal: Notes use AES-256-GCM client-side encryption with a per-note passphrase via Web Crypto API. Log entries are unencrypted timestamped records with tag categorization and word count tracking. Both persist in localStorage (hos_notes_v1, hos_logbook_v1).</div>
+  <div class="eli5-simple" data-i18n="notes.eli5_simple">Write notes or keep a daily log. They stay in this browser, and a note you lock with a <span data-term="passphrase">passphrase</span> is <span data-term="encryption">encrypted</span> so only you can read it.</div>
+  <div class="eli5-expert" data-i18n="notes.eli5_expert">Dual-mode journal: Notes use AES-256-GCM client-side encryption with a per-note passphrase via Web Crypto API. Log entries are unencrypted timestamped records with tag categorization and word count tracking. Both persist in localStorage (hos_notes_v1, hos_logbook_v1).</div>
 </div>
-<p class="page-hint" id="hint-notes">Your private notes. Write anything you want to remember, ideas, lists, plans. Everything is encrypted so only you can read it.</p>
-<p class="page-hint" id="hint-log" style="display:none">Your personal journal. Write about your day, track your thoughts, and look back on what you've done. Only you can see your entries.</p>
+<p class="page-hint" id="hint-notes" data-i18n="notes.page_hint_notes">Your notes. Write anything you want to remember: ideas, lists, plans. Lock a note with a <span data-term="passphrase">passphrase</span> and only you can read it.</p>
+<p class="page-hint" id="hint-log" style="display:none" data-i18n="notes.page_hint_log">Your personal journal. Write about your day, track your thoughts, and look back on what you've done. Only you can see your entries.</p>
 
 <!-- ── Tab bar ── -->
 <div id="journal-tabs">
-  <button class="journal-tab active" id="tab-notes" onclick="switchTab('notes')">Notes</button>
-  <button class="journal-tab" id="tab-log" onclick="switchTab('log')">Log</button>
+  <button class="journal-tab active" id="tab-notes" onclick="switchTab('notes')" data-i18n="notes.title" data-i18n-tip="notes.tab_notes_hint" data-tip-desc="Shows your notes.">Notes</button>
+  <button class="journal-tab" id="tab-log" onclick="switchTab('log')" data-i18n="notes.log" data-i18n-tip="notes.tab_log_hint" data-tip-desc="Shows your log, a diary of dated entries.">Log</button>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -626,23 +628,23 @@
   <!-- Sidebar -->
   <div id="notes-sidebar">
     <div id="sidebar-header">
-      <h2>Notes</h2>
-      <button id="btn-new-note" onclick="newNote()">+ New</button>
+      <h2 data-i18n="notes.title">Notes</h2>
+      <button id="btn-new-note" onclick="newNote()" data-i18n="notes.new_short" data-i18n-tip="notes.new_hint" data-tip-desc="Starts a new, empty note.">+ New</button>
     </div>
     <div id="note-search">
-      <input type="text" id="search-input" placeholder="Search notes…" oninput="renderList()">
+      <input type="text" id="search-input" placeholder="Search notes..." data-i18n-placeholder="notes.search_placeholder" oninput="renderList()" data-i18n-tip="notes.search_hint" data-tip-desc="Shows only the notes whose title or words contain what you type.">
     </div>
     <div id="note-sort">
-      <select id="sort-select" onchange="renderList()">
-        <option value="modified">Last modified</option>
-        <option value="created">Created</option>
-        <option value="alpha">Alphabetical</option>
+      <select data-i18n-aria-label="notes.sort_label" aria-label="Order of the notes" id="sort-select" onchange="renderList()" data-i18n-tip="notes.sort_hint" data-tip-desc="Changes the order of the list: the last changed first, the newest first, or A to Z.">
+        <option value="modified" data-i18n="notes.sort_modified">Last modified</option>
+        <option value="created" data-i18n="notes.sort_created">Created</option>
+        <option value="alpha" data-i18n="notes.sort_alpha">Alphabetical</option>
       </select>
     </div>
     <div id="note-list"></div>
     <div id="sidebar-footer">
       <span class="lock-status"><span class="pg-ico" data-icon="lock" data-size="14"></span></span>
-      <span id="lock-label">Encrypted locally</span>
+      <span id="lock-label" data-i18n="notes.encrypted_locally">Kept in this browser</span>
     </div>
   </div>
 
@@ -651,45 +653,45 @@
     <!-- Unlock overlay (shown when opening an encrypted note) -->
     <div id="unlock-overlay">
       <div id="unlock-box">
-        <h3><span class="pg-ico" data-icon="lock" data-size="16"></span> Encrypted Note</h3>
-        <p>Enter your note passphrase to read this note.</p>
-        <input id="unlock-pass" type="password" placeholder="Passphrase…" autocomplete="current-password"
-               onkeydown="if(event.key==='Enter')doUnlock()">
-        <button id="unlock-btn" onclick="doUnlock()">Unlock</button>
+        <h3><span class="pg-ico" data-icon="lock" data-size="16"></span> <span data-i18n="notes.encrypted_note">Encrypted Note</span></h3>
+        <p data-i18n="notes.unlock_prompt">Enter your note passphrase to read this note.</p>
+        <input id="unlock-pass" type="password" placeholder="Passphrase..." data-i18n-placeholder="notes.passphrase_placeholder" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')doUnlock()" data-i18n-tip="notes.unlock_pass_hint" data-tip-desc="Type the passphrase you chose for this note, then press Enter.">
+        <button id="unlock-btn" onclick="doUnlock()" data-i18n="notes.unlock" data-i18n-tip="notes.unlock_hint" data-tip-desc="Opens the note with the passphrase you typed.">Unlock</button>
         <div id="unlock-err"></div>
       </div>
     </div>
 
     <!-- Toolbar (shown when a note is selected) -->
     <div id="note-toolbar" style="display:none">
-      <input type="text" id="note-title-input" placeholder="Note title…" oninput="scheduleAutoSave()">
-      <button class="toolbar-btn" id="btn-md-toggle" onclick="toggleMarkdownPreview()" title="Toggle markdown preview">Preview</button>
+      <input type="text" id="note-title-input" placeholder="Note title..." data-i18n-placeholder="notes.title_placeholder" oninput="scheduleAutoSave()" data-i18n-tip="notes.title_hint" data-tip-desc="The note's name. Type here to change it.">
+      <button class="toolbar-btn" id="btn-md-toggle" onclick="toggleMarkdownPreview()" title="Toggle markdown preview" data-i18n-title="notes.preview_title" data-i18n="notes.preview" data-i18n-tip="notes.preview_hint" data-tip-desc="Shows the note the way it looks with its formatting, like bold words and headings. Press again to go back to writing.">Preview</button>
       <div class="export-drop">
-        <button class="toolbar-btn" onclick="toggleExportMenu()" title="Export note">Export</button>
+        <button class="toolbar-btn" onclick="toggleExportMenu()" title="Export note" data-i18n-title="notes.export_title" data-i18n="notes.export" data-i18n-tip="notes.export_hint" data-tip-desc="Opens a menu to save this note as a file on your device.">Export</button>
         <div class="export-menu" id="export-menu">
-          <button onclick="exportNote('txt')">Export as .txt</button>
-          <button onclick="exportNote('md')">Export as .md</button>
+          <button onclick="exportNote('txt')" data-i18n="notes.export_txt" data-i18n-tip="notes.export_txt_hint" data-tip-desc="Saves the note as a plain text file that any computer can open.">Export as .txt</button>
+          <button onclick="exportNote('md')" data-i18n="notes.export_md" data-i18n-tip="notes.export_md_hint" data-tip-desc="Saves the note as a Markdown file: plain text that keeps its formatting marks, like ** for bold.">Export as .md</button>
         </div>
       </div>
-      <button class="toolbar-btn" id="btn-encrypt-toggle" onclick="toggleEncrypt()" title="Toggle per-note encryption"><span class="pg-ico" data-icon="unlock" data-size="14"></span> Plain</button>
-      <button class="toolbar-btn danger" onclick="deleteActiveNote()" title="Delete note"><span class="pg-ico" data-icon="trash" data-size="14"></span></button>
+      <button class="toolbar-btn" id="btn-encrypt-toggle" onclick="toggleEncrypt()" title="Toggle per-note encryption" data-i18n-title="notes.encrypt_title" data-i18n-tip="notes.encrypt_hint" data-tip-desc="Locks this note with its own passphrase, or takes the lock off. A locked note needs the passphrase every time you open it."><span class="pg-ico" data-icon="unlock" data-size="14"></span> <span data-i18n="notes.plain">Plain</span></button>
+      <button class="toolbar-btn danger" onclick="deleteActiveNote()" title="Delete note" data-i18n-title="notes.delete_title" data-i18n-tip="notes.delete_hint" data-tip-desc="Removes this note. You will be asked first."><span class="pg-ico" data-icon="trash" data-size="14"></span></button>
     </div>
 
     <!-- Body -->
     <div id="note-body" style="display:none">
-      <textarea id="note-content" placeholder="Start writing…" oninput="scheduleAutoSave()"></textarea>
+      <textarea id="note-content" placeholder="Start writing..." data-i18n-placeholder="notes.start_writing" oninput="scheduleAutoSave()" data-i18n-tip="notes.content_hint" data-tip-desc="Type your note here. Your words are kept as you type."></textarea>
       <div id="md-preview"></div>
     </div>
     <div id="note-status" style="display:none">
-      <span id="status-msg">All changes saved</span>
+      <span id="status-msg" data-i18n="notes.all_saved">All changes saved</span>
       <span id="word-count" style="margin-left:auto"></span>
     </div>
 
     <!-- Empty state -->
     <div id="empty-state">
       <div class="big"><span class="pg-ico" data-icon="edit" data-size="48"></span></div>
-      <p>Select a note or create one.</p>
-      <p style="font-size:.75rem">Notes are stored locally, encrypted with AES-256-GCM.</p>
+      <p data-i18n="notes.empty_select">Select a note or create one.</p>
+      <p style="font-size:.75rem" data-i18n="notes.empty_storage">Notes are kept in this browser. A note you lock is <span data-term="encryption">encrypted</span> with AES-256-GCM.</p>
     </div>
   </div>
 </div>
@@ -701,9 +703,9 @@
   <!-- Sidebar -->
   <nav id="log-sidebar">
     <div id="log-sidebar-header">
-      <h2><span class="pg-ico" data-icon="edit" data-size="16"></span> Log</h2>
-      <input id="log-search" type="text" placeholder="Search entries…" oninput="log_renderSidebar()">
-      <button id="new-entry-btn" onclick="log_newEntry()">+ New Entry</button>
+      <h2><span class="pg-ico" data-icon="edit" data-size="16"></span> <span data-i18n="notes.log">Log</span></h2>
+      <input id="log-search" type="text" placeholder="Search entries..." data-i18n-placeholder="notes.log_search_placeholder" oninput="log_renderSidebar()" data-i18n-tip="notes.log_search_hint" data-tip-desc="Shows only the entries whose title, words or tags contain what you type.">
+      <button id="new-entry-btn" onclick="log_newEntry()" data-i18n="notes.log_new_entry" data-i18n-tip="notes.log_new_hint" data-tip-desc="Starts a new log entry, dated today.">+ New Entry</button>
     </div>
     <div id="log-entry-list"></div>
   </nav>
@@ -711,25 +713,26 @@
   <!-- Editor -->
   <div id="log-main">
     <div id="log-editor-bar">
-      <input id="log-entry-title-input" type="text" placeholder="Entry title…" oninput="log_onTitleInput()" style="display:none;">
+      <input id="log-entry-title-input" type="text" placeholder="Entry title..." data-i18n-placeholder="notes.log_title_placeholder" oninput="log_onTitleInput()" style="display:none;" data-i18n-tip="notes.log_title_hint" data-tip-desc="The entry's name. Type here to change it.">
       <span id="log-date-display"></span>
-      <input id="log-tag-input" type="text" placeholder="Tags (comma-separated)" oninput="log_onTagInput()" style="display:none;">
-      <button id="log-delete-btn" onclick="log_deleteCurrentEntry()" style="display:none;"><span class="pg-ico" data-icon="trash" data-size="14"></span> Delete</button>
-      <span id="log-save-indicator">✓ Saved</span>
+      <input id="log-tag-input" type="text" placeholder="Tags (comma-separated)" data-i18n-placeholder="notes.log_tags_placeholder" oninput="log_onTagInput()" style="display:none;" data-i18n-tip="notes.log_tags_hint" data-tip-desc="Words that sort your entries, like work or garden. Put a comma between each one.">
+      <button id="log-delete-btn" onclick="log_deleteCurrentEntry()" style="display:none;" data-i18n-tip="notes.log_delete_hint" data-tip-desc="Removes this entry. You will be asked first."><span class="pg-ico" data-icon="trash" data-size="14"></span> <span data-i18n="common.delete">Delete</span></button>
+      <span id="log-save-indicator">✓ <span data-i18n="notes.saved">Saved</span></span>
     </div>
     <div id="log-empty">
       <div class="empty-icon"><span class="pg-ico" data-icon="edit" data-size="48"></span></div>
-      <p>Your personal log.<br>Record thoughts, discoveries, and daily reflections.</p>
-      <button class="btn-new" onclick="log_newEntry()"
+      <p><span data-i18n="notes.log_empty_title">Your personal log.</span><br><span data-i18n="notes.log_empty_body">Record thoughts, discoveries, and daily reflections.</span></p>
+      <button class="btn-new" onclick="log_newEntry()" data-i18n-tip="notes.log_new_hint" data-tip-desc="Starts a new log entry, dated today."
         style="background:#1a4a2a;border:1px solid var(--success);color:var(--success);padding:var(--space-md) var(--space-xl);border-radius:6px;cursor:pointer;font-size:0.88rem;font-weight:600;margin-top:var(--space-md);">
-        + Write First Entry
+        <span data-i18n="notes.log_first_entry">+ Write First Entry</span>
       </button>
     </div>
-    <textarea id="log-textarea" placeholder="Start writing…" oninput="log_onTextInput()" style="display:none;"></textarea>
+    <textarea id="log-textarea" placeholder="Start writing..." data-i18n-placeholder="notes.start_writing" oninput="log_onTextInput()" style="display:none;" data-i18n-tip="notes.log_text_hint" data-tip-desc="Type your entry here. It is kept as you type."></textarea>
+    <!-- The counts are written by log_updateWordCount() when an entry opens. -->
     <div id="log-footer-bar" style="display:none;">
-      <span id="wc-words">0 words</span>
-      <span id="wc-chars">0 chars</span>
-      <span id="wc-lines">0 lines</span>
+      <span id="wc-words"></span>
+      <span id="wc-chars"></span>
+      <span id="wc-lines"></span>
     </div>
   </div>
 </div>

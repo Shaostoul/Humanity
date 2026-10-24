@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content="width=device-width, initial-scale=1.0">
-  <title>Guilds, HumanityOS</title>
+  <title data-i18n="guilds.page_title">Guilds, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
 /* Colours this page uses that have no theme token. The dark value is exactly
@@ -251,6 +251,8 @@ button { font-family: inherit; cursor: pointer; }
   </style>
 </head>
 <body>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src=/shared/shell.js data-active=guilds></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
@@ -259,22 +261,22 @@ button { font-family: inherit; cursor: pointer; }
   <!-- Browse view -->
   <div id="browse-view">
     <div class="guilds-header">
-      <h1>Guilds</h1>
+      <h1 data-i18n="guilds.title">Guilds</h1>
       <div class="search-row">
-        <input type="text" id="search-input" placeholder="Search guilds...">
+        <input type="text" id="search-input" placeholder="Search guilds..." data-i18n-placeholder="guilds.search_web" data-i18n-tip="guilds.search_web_hint" data-tip-desc="Type a word to show only the guilds whose name or description holds it.">
       </div>
-      <button class="btn-primary" onclick="showCreateModal()">+ Create Guild</button>
+      <button class="btn-primary" onclick="showCreateModal()" data-i18n="guilds.create_button" data-i18n-tip="guilds.create_button_hint" data-tip-desc="Opens a form to start a new guild of your own.">+ Create Guild</button>
     </div>
     <div id="guilds-grid" class="guilds-grid"></div>
     <div id="empty-state" class="empty-state" style="display:none">
-      <h3>No guilds found</h3>
-      <p>Create the first guild or adjust your search.</p>
+      <h3 data-i18n="guilds.none_found">No guilds found</h3>
+      <p data-i18n="guilds.web_empty">Create the first guild or adjust your search.</p>
     </div>
   </div>
 
   <!-- Detail view -->
   <div id="detail-view" class="guild-detail">
-    <button class="back-btn" onclick="showBrowse()">&larr; Back to Guilds</button>
+    <button class="back-btn" onclick="showBrowse()" data-i18n-tip="guilds.back_hint" data-tip-desc="Goes back to the list of all guilds.">&larr; <span data-i18n="guilds.back">Back to Guilds</span></button>
     <div class="guild-detail-header">
       <div id="detail-icon" class="guild-detail-icon"></div>
       <div>
@@ -285,32 +287,32 @@ button { font-family: inherit; cursor: pointer; }
     <div id="detail-desc" style="color:var(--text-muted);margin-bottom:16px"></div>
     <div id="detail-actions" style="display:flex;gap:8px;margin-bottom:16px"></div>
 
-    <h3 style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px">Members</h3>
+    <h3 style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px" data-i18n="guilds.members">Members</h3>
     <ul id="detail-members" class="member-list"></ul>
 
     <div id="invite-section" class="invite-section" style="display:none">
-      <h4 style="margin:0 0 8px;font-size:var(--text-sm)">Invite Link</h4>
+      <h4 style="margin:0 0 8px;font-size:var(--text-sm)" data-i18n="guilds.invite_link">Invite Link</h4>
       <div id="invite-code" class="invite-code"></div>
-      <button class="btn-primary" onclick="generateInvite()" style="margin-left:8px">Generate New</button>
+      <button class="btn-primary" onclick="generateInvite()" style="margin-left:8px" data-i18n="guilds.generate_invite" data-i18n-tip="guilds.generate_invite_hint" data-tip-desc="Makes a new invite code for this guild. Give the code to someone so they can join.">Generate New</button>
     </div>
   </div>
 </div>
 
 <!-- Create Guild Modal -->
-<div id="create-modal" class="modal-overlay" onclick="if(event.target===this)closeCreateModal()">
+<div id="create-modal" class="modal-overlay" onclick="if(event.target===this)closeCreateModal()" data-i18n-tip="guilds.backdrop_hint" data-tip-desc="Clicking the dark area outside the form closes it without making a guild.">
   <div class="modal">
-    <h2>Create Guild</h2>
-    <label>Name</label>
-    <input type="text" id="guild-name" maxlength="100" placeholder="My Guild">
-    <label>Description</label>
-    <textarea id="guild-desc" maxlength="2000" placeholder="What is this guild about?"></textarea>
-    <label>Color</label>
-    <input type="color" id="guild-color" value="#4488ff" style="width:48px;height:32px;padding:2px">
-    <label>Icon (emoji)</label>
-    <input type="text" id="guild-icon" maxlength="4" value="" placeholder="optional emoji">
+    <h2 data-i18n="guilds.create_title">Create Guild</h2>
+    <label data-i18n="guilds.name">Name</label>
+    <input type="text" id="guild-name" maxlength="100" placeholder="My Guild" data-i18n-placeholder="guilds.name_placeholder_web" data-i18n-tip="guilds.name_hint" data-tip-desc="Type the name people will see for your guild.">
+    <label data-i18n="guilds.description">Description</label>
+    <textarea id="guild-desc" maxlength="2000" placeholder="What is this guild about?" data-i18n-placeholder="guilds.desc_placeholder" data-i18n-tip="guilds.desc_hint" data-tip-desc="Tell people what your guild is about, so they can decide whether to join."></textarea>
+    <label for="guild-color" data-i18n="guilds.color">Color</label>
+    <input type="color" id="guild-color" value="#4488ff" style="width:48px;height:32px;padding:2px" data-i18n-tip="guilds.color_hint" data-tip-desc="Picks the color that marks your guild in the list.">
+    <label data-i18n="guilds.icon_label">Icon (emoji)</label>
+    <input type="text" id="guild-icon" maxlength="4" value="" placeholder="optional emoji" data-i18n-placeholder="guilds.icon_placeholder" data-i18n-tip="guilds.icon_hint" data-tip-desc="Type one emoji to stand for your guild. You can leave it empty.">
     <div class="modal-actions">
-      <button onclick="closeCreateModal()" style="background:transparent;border:1px solid var(--border);color:var(--text)">Cancel</button>
-      <button class="btn-primary" onclick="submitCreateGuild()">Create</button>
+      <button onclick="closeCreateModal()" style="background:transparent;border:1px solid var(--border);color:var(--text)" data-i18n="common.cancel" data-i18n-tip="guilds.cancel_hint" data-tip-desc="Closes this form without making a guild.">Cancel</button>
+      <button class="btn-primary" onclick="submitCreateGuild()" data-i18n="guilds.create" data-i18n-tip="guilds.create_submit_hint" data-tip-desc="Starts your new guild on this server, with you as its owner.">Create</button>
     </div>
   </div>
 </div>
@@ -411,20 +413,21 @@ function renderGuilds(guilds) {
   empty.style.display = 'none';
 
   grid.innerHTML = guilds.map(g => `
-    <div class="guild-card" onclick="showDetail('${g.id}')">
+    <div class="guild-card" role="button" tabindex="0" data-guild-id="${escHtml(g.id)}" onclick="showDetail(this.dataset.guildId)" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showDetail(this.dataset.guildId); }" data-i18n-tip="guilds.view_hint">
       <div class="guild-card-header">
-        <div class="guild-icon" style="background:${g.color || '#4488ff'}22;color:${g.color || '#4488ff'}">
-          ${g.icon || g.name.charAt(0).toUpperCase()}
+        <div class="guild-icon" style="background:${guildColor(g.color)}22;color:${guildColor(g.color)}">
+          ${escHtml(g.icon || g.name.charAt(0).toUpperCase())}
         </div>
         <div class="guild-name">${escHtml(g.name)}</div>
       </div>
-      <div class="guild-desc">${escHtml(g.description || 'No description')}</div>
+      <div class="guild-desc">${escHtml(g.description || i18n.t('guilds.no_description'))}</div>
       <div class="guild-meta">
-        <span>${g.member_count || 0} member${g.member_count === 1 ? '' : 's'}</span>
-        <span>Created ${g.created_at ? g.created_at.split('T')[0] : 'recently'}</span>
+        <span>${i18n.tn('guilds.members_count', g.member_count || 0)}</span>
+        <span>${i18n.t('guilds.created_on', { date: g.created_at ? g.created_at.split('T')[0] : i18n.t('guilds.created_recently') })}</span>
       </div>
     </div>
   `).join('');
+  i18n.apply(grid);
 }
 
 async function showDetail(id) {
@@ -436,12 +439,12 @@ async function showDetail(id) {
   const detail = document.getElementById('detail-view');
   detail.classList.add('open');
 
-  document.getElementById('detail-icon').innerHTML = guild.icon || guild.name.charAt(0).toUpperCase();
-  document.getElementById('detail-icon').style.background = (guild.color || '#4488ff') + '22';
-  document.getElementById('detail-icon').style.color = guild.color || '#4488ff';
+  document.getElementById('detail-icon').textContent = guild.icon || guild.name.charAt(0).toUpperCase();
+  document.getElementById('detail-icon').style.background = guildColor(guild.color) + '22';
+  document.getElementById('detail-icon').style.color = guildColor(guild.color);
   document.getElementById('detail-name').textContent = guild.name;
-  document.getElementById('detail-meta').textContent = `${guild.member_count} members`;
-  document.getElementById('detail-desc').textContent = guild.description || 'No description.';
+  document.getElementById('detail-meta').textContent = i18n.tn('guilds.members_count', guild.member_count || 0);
+  document.getElementById('detail-desc').textContent = guild.description || i18n.t('guilds.no_description_dot');
 
   // Actions
   const myKey = getMyKey();
@@ -453,21 +456,22 @@ async function showDetail(id) {
   const isOwner = guild.owner_key === myKey;
 
   if (myKey && !isMember) {
-    actionsHtml += `<button class="btn-primary" onclick="joinCurrentGuild()">Join Guild</button>`;
+    actionsHtml += `<button class="btn-primary" onclick="joinCurrentGuild()" data-i18n-tip="guilds.join_hint">${i18n.t('guilds.join_guild')}</button>`;
   } else if (myKey && isMember && !isOwner) {
-    actionsHtml += `<button class="btn-danger" onclick="leaveCurrentGuild()">Leave Guild</button>`;
+    actionsHtml += `<button class="btn-danger" onclick="leaveCurrentGuild()" data-i18n-tip="guilds.leave_hint">${i18n.t('guilds.leave')}</button>`;
   }
   if (isMember) {
-    actionsHtml += `<button class="btn-primary" onclick="toggleInviteSection()">Invite</button>`;
+    actionsHtml += `<button class="btn-primary" onclick="toggleInviteSection()" data-i18n-tip="guilds.invite_hint">${i18n.t('guilds.invite')}</button>`;
   }
   actions.innerHTML = actionsHtml;
+  i18n.apply(actions);
 
   // Members list
   const memberList = document.getElementById('detail-members');
   memberList.innerHTML = members.map(m => `
     <li>
       <span>${escHtml(m.name || m.public_key.substring(0, 12) + '...')}</span>
-      <span class="member-role ${m.role}">${m.role}</span>
+      <span class="member-role ${/^[a-z_-]+$/.test(m.role || '') ? m.role : ''}">${escHtml(m.role || '')}</span>
     </li>
   `).join('');
 
@@ -485,7 +489,7 @@ function showBrowse() {
 async function joinCurrentGuild() {
   if (!currentGuild) return;
   const myKey = getMyKey();
-  if (!myKey) { alert('Please sign in first.'); return; }
+  if (!myKey) { alert(i18n.t('guilds.sign_in_first')); return; }
   if (await apiJoinGuild(currentGuild.id, myKey)) {
     showDetail(currentGuild.id);
   }
@@ -532,10 +536,10 @@ function closeCreateModal() {
 
 async function submitCreateGuild() {
   const myKey = getMyKey();
-  if (!myKey) { alert('Please sign in first.'); return; }
+  if (!myKey) { alert(i18n.t('guilds.sign_in_first')); return; }
 
   const name = document.getElementById('guild-name').value.trim();
-  if (!name) { alert('Guild name is required.'); return; }
+  if (!name) { alert(i18n.t('guilds.name_required')); return; }
 
   const data = {
     name,
@@ -551,7 +555,7 @@ async function submitCreateGuild() {
     await loadGuilds();
     showDetail(result.id);
   } else {
-    alert('Failed to create guild.');
+    alert(i18n.t('guilds.create_failed'));
   }
 }
 
@@ -569,10 +573,18 @@ async function loadGuilds(search) {
   renderGuilds(allGuilds);
 }
 
+// Text into markup, escaped for element content AND attribute values (2026-10-23: the old
+// helper left quotes alone, and a guild's icon, its id in an onclick and a member's role went
+// into the page unescaped; all three come from what people type).
 function escHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// A guild's colour, only when it is a plain #hex colour (it goes into a style).
+function guildColor(c) {
+  return /^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : '#4488ff';
 }
 
 loadGuilds();

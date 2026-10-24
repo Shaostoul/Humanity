@@ -14,8 +14,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver};
 
+use crate::gui::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::{with_hint, Hint};
 use crate::gui::{GuiState, MarketCategory};
 
 // ── Decoded view rows ───────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ fn get<'a>(m: &'a CborMap, key: &str) -> Option<&'a ciborium::Value> {
         .map(|(_, v)| v)
 }
 
-fn text(m: &CborMap, key: &str) -> Option<String> {
+fn field_text(m: &CborMap, key: &str) -> Option<String> {
     match get(m, key) {
         Some(ciborium::Value::Text(t)) => Some(t.clone()),
         _ => None,
@@ -156,18 +158,18 @@ fn tbl<'a>(m: &'a CborMap, key: &str) -> Option<&'a CborMap> {
 fn decode_provider(object_id: &str, author_key_hex: &str, payload: &[u8]) -> Option<DirProvider> {
     let value: ciborium::Value = ciborium::from_reader(payload).ok()?;
     let m = as_map(&value)?;
-    let root_id = text(m, "provider_ref").unwrap_or_else(|| object_id.to_string());
+    let root_id = field_text(m, "provider_ref").unwrap_or_else(|| object_id.to_string());
     let contact = tbl(m, "contact");
     Some(DirProvider {
         root_id,
         author_key_hex: author_key_hex.to_string(),
-        display_name: text(m, "display_name")?,
-        kind: text(m, "kind").unwrap_or_default(),
-        backed_by: text(m, "backed_by").unwrap_or_default(),
-        description: text(m, "description").unwrap_or_default(),
-        status: text(m, "status").unwrap_or_default(),
-        contact_preferred: contact.and_then(|c| text(c, "preferred")).unwrap_or_default(),
-        website: contact.and_then(|c| text(c, "website")),
+        display_name: field_text(m, "display_name")?,
+        kind: field_text(m, "kind").unwrap_or_default(),
+        backed_by: field_text(m, "backed_by").unwrap_or_default(),
+        description: field_text(m, "description").unwrap_or_default(),
+        status: field_text(m, "status").unwrap_or_default(),
+        contact_preferred: contact.and_then(|c| field_text(c, "preferred")).unwrap_or_default(),
+        website: contact.and_then(|c| field_text(c, "website")),
         area_count: match get(m, "service_areas") {
             Some(ciborium::Value::Array(a)) => a.len(),
             _ => 0,
@@ -186,37 +188,37 @@ fn decode_offering(payload: &[u8]) -> Option<DirOffering> {
     let service = tbl(m, "service");
     let availability = service.and_then(|s| tbl(s, "availability"));
     Some(DirOffering {
-        provider_root: text(m, "provider_ref")?,
-        offering_key: text(m, "offering_key")?,
-        kind: text(m, "kind")?,
-        reality: text(m, "reality").unwrap_or_else(|| "real".to_string()),
-        title: text(m, "title")?,
-        description: text(m, "description").unwrap_or_default(),
-        category: text(m, "category").unwrap_or_default(),
+        provider_root: field_text(m, "provider_ref")?,
+        offering_key: field_text(m, "offering_key")?,
+        kind: field_text(m, "kind")?,
+        reality: field_text(m, "reality").unwrap_or_else(|| "real".to_string()),
+        title: field_text(m, "title")?,
+        description: field_text(m, "description").unwrap_or_default(),
+        category: field_text(m, "category").unwrap_or_default(),
         tags: strs(m, "tags"),
-        status: text(m, "status").unwrap_or_default(),
+        status: field_text(m, "status").unwrap_or_default(),
         updated_at: int(m, "updated_at").unwrap_or(0),
         expires_at: int(m, "expires_at"),
         ttl_days: int(m, "ttl_days").unwrap_or(30),
         fulfillment: strs(m, "fulfillment"),
-        price_mode: price.and_then(|p| text(p, "mode")).unwrap_or_default(),
+        price_mode: price.and_then(|p| field_text(p, "mode")).unwrap_or_default(),
         price_amount: price.and_then(|p| float(p, "amount")),
         price_amount_max: price.and_then(|p| float(p, "amount_max")),
-        price_currency: price.and_then(|p| text(p, "currency")).unwrap_or_default(),
-        price_unit: price.and_then(|p| text(p, "unit")).unwrap_or_default(),
+        price_currency: price.and_then(|p| field_text(p, "currency")).unwrap_or_default(),
+        price_unit: price.and_then(|p| field_text(p, "unit")).unwrap_or_default(),
         price_accepts: price.map(|p| strs(p, "accepts")).unwrap_or_default(),
-        price_notes: price.and_then(|p| text(p, "notes")).unwrap_or_default(),
-        contact_via: settlement.and_then(|s| text(s, "contact_via")).unwrap_or_default(),
-        checkout_uri: settlement.and_then(|s| text(s, "checkout_uri")),
-        instructions: settlement.and_then(|s| text(s, "instructions")).unwrap_or_default(),
-        condition: good.and_then(|g| text(g, "condition")).unwrap_or_default(),
-        availability_mode: good.and_then(|g| text(g, "availability_mode")).unwrap_or_default(),
+        price_notes: price.and_then(|p| field_text(p, "notes")).unwrap_or_default(),
+        contact_via: settlement.and_then(|s| field_text(s, "contact_via")).unwrap_or_default(),
+        checkout_uri: settlement.and_then(|s| field_text(s, "checkout_uri")),
+        instructions: settlement.and_then(|s| field_text(s, "instructions")).unwrap_or_default(),
+        condition: good.and_then(|g| field_text(g, "condition")).unwrap_or_default(),
+        availability_mode: good.and_then(|g| field_text(g, "availability_mode")).unwrap_or_default(),
         quantity_available: good.and_then(|g| int(g, "quantity_available")),
         lead_time_days: good.and_then(|g| int(g, "lead_time_days")),
-        action: service.and_then(|s| text(s, "action")).unwrap_or_default(),
-        schedule_kind: availability.and_then(|a| text(a, "schedule_kind")).unwrap_or_default(),
+        action: service.and_then(|s| field_text(s, "action")).unwrap_or_default(),
+        schedule_kind: availability.and_then(|a| field_text(a, "schedule_kind")).unwrap_or_default(),
         duration_minutes: service.and_then(|s| int(s, "duration_minutes")),
-        location_mode: tbl(m, "location").and_then(|l| text(l, "mode")).unwrap_or_default(),
+        location_mode: tbl(m, "location").and_then(|l| field_text(l, "mode")).unwrap_or_default(),
     })
 }
 
@@ -448,33 +450,46 @@ pub fn seed_for_snapshot() {
 // ── Display helpers ─────────────────────────────────────────────────────────
 
 /// Human price line: "Free", "12.50 USD each", "10 to 20 USD", "Donation".
+/// The words come from `market.directory.price_*` (the website's dirPriceLine
+/// reads the same keys).
 fn price_line(o: &DirOffering) -> String {
-    let unit = if o.price_unit.is_empty() {
-        String::new()
+    // The unit words ("each", "per dozen"), joined to the price by
+    // `price_with_unit` so a language can put them in its own order.
+    let unit: Option<String> = if o.price_unit.is_empty() {
+        None
     } else if o.price_unit == "each" {
-        " each".to_string()
+        Some(t("market.directory.unit_each").to_string())
     } else {
-        format!(" per {}", o.price_unit.replace('_', " "))
+        let u = o.price_unit.replace('_', " ");
+        Some(tf("market.directory.unit_per", &[("unit", &u)]))
+    };
+    let with_unit = |price: String| match &unit {
+        Some(u) => tf("market.directory.price_with_unit", &[("price", &price), ("unit", u)]),
+        None => price,
     };
     match o.price_mode.as_str() {
-        "free" => "Free".to_string(),
-        "trade" => "Trade".to_string(),
-        "donation" => "Donation".to_string(),
-        "inquire" => "Ask".to_string(),
-        "pay_what_you_can" => "Pay what you can".to_string(),
+        "free" => t("market.directory.price_free").to_string(),
+        "trade" => t("market.directory.price_trade").to_string(),
+        "donation" => t("market.directory.price_donation").to_string(),
+        "inquire" => t("market.directory.price_ask").to_string(),
+        "pay_what_you_can" => t("market.directory.price_pwyc").to_string(),
         "sliding_scale" => match (o.price_amount, o.price_amount_max) {
-            (Some(a), Some(b)) => {
-                format!("Sliding {a:.2} to {b:.2} {}{unit}", o.price_currency)
-            }
-            _ => "Sliding scale".to_string(),
+            (Some(a), Some(b)) => with_unit(tf(
+                "market.directory.price_sliding",
+                &[("min", &format!("{a:.2}")), ("max", &format!("{b:.2}")), ("currency", &o.price_currency)],
+            )),
+            _ => t("market.directory.price_sliding_scale").to_string(),
         },
         "range" => match (o.price_amount, o.price_amount_max) {
-            (Some(a), Some(b)) => format!("{a:.2} to {b:.2} {}{unit}", o.price_currency),
-            _ => "Range".to_string(),
+            (Some(a), Some(b)) => with_unit(tf(
+                "market.directory.price_range",
+                &[("min", &format!("{a:.2}")), ("max", &format!("{b:.2}")), ("currency", &o.price_currency)],
+            )),
+            _ => t("market.directory.price_range_word").to_string(),
         },
         "fixed" => match o.price_amount {
-            Some(a) => format!("{a:.2} {}{unit}", o.price_currency),
-            None => "Priced".to_string(),
+            Some(a) => with_unit(format!("{a:.2} {}", o.price_currency)),
+            None => t("market.directory.price_priced").to_string(),
         },
         other => other.replace('_', " "),
     }
@@ -484,9 +499,9 @@ fn price_line(o: &DirOffering) -> String {
 fn age_line(updated_ms: i64, now_ms: i64) -> String {
     let days = (now_ms.saturating_sub(updated_ms)) / 86_400_000;
     match days {
-        0 => "today".to_string(),
-        1..=59 => format!("{days}d ago"),
-        _ => format!("{}mo ago", days / 30),
+        0 => t("market.directory.age_today").to_string(),
+        1..=59 => tf("market.directory.age_days", &[("n", &days)]),
+        _ => tf("market.directory.age_months", &[("n", &(days / 30))]),
     }
 }
 
@@ -609,7 +624,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
     ui.horizontal(|ui| {
         ui.label(
-            RichText::new("Market Directory")
+            RichText::new(t("market.directory.title"))
                 .size(theme.font_size_title)
                 .color(theme.text_primary()),
         );
@@ -617,7 +632,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Publishing needs a connected server + a signed-in identity.
             if !base.is_empty()
                 && state.private_key_bytes.is_some()
-                && widgets::primary_button(ui, theme, "+ Publish")
+                && widgets::Button::primary(t("market.directory.publish_button"))
+                    .hint("market.directory.publish_hint")
+                    .show(ui, theme)
             {
                 let mine = with_dir(|ps| {
                     ps.providers
@@ -627,7 +644,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
                 super::market_publish::open(mine.as_ref());
             }
-            if !base.is_empty() && widgets::secondary_button(ui, theme, "Refresh") {
+            if !base.is_empty()
+                && widgets::Button::secondary(t("common.refresh"))
+                    .hint("market.directory.refresh_hint")
+                    .show(ui, theme)
+            {
                 with_dir(|ps| {
                     if ps.rx.is_none() {
                         spawn_fetch(ps);
@@ -635,15 +656,18 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             }
             if loading {
-                ui.label(RichText::new("Loading...").color(theme.text_muted()));
+                ui.label(RichText::new(t("common.loading")).color(theme.text_muted()));
             }
         });
     });
 
     // Sub-view toggle + storefront filter breadcrumb.
     ui.horizontal(|ui| {
-        for (v, label) in [(SubView::Offerings, "Offerings"), (SubView::Providers, "Providers")] {
-            if ui.selectable_label(sub == v, label).clicked() {
+        for (v, label, hint) in [
+            (SubView::Offerings, t("market.directory.offerings"), "market.directory.offerings_tab_hint"),
+            (SubView::Providers, t("market.directory.providers"), "market.directory.providers_tab_hint"),
+        ] {
+            if ui.selectable_label(sub == v, label).hint(hint).clicked() {
                 with_dir(|ps| ps.sub = v);
             }
         }
@@ -655,21 +679,22 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let Some(name) = filter_name {
             ui.separator();
             ui.label(
-                RichText::new(format!("Storefront: {name}")).color(theme.accent()),
+                RichText::new(tf("market.directory.storefront", &[("name", &name)])).color(theme.accent()),
             );
-            if widgets::secondary_button(ui, theme, "All providers") {
+            if widgets::Button::secondary(t("market.directory.all_providers"))
+                .hint("market.directory.all_providers_hint")
+                .show(ui, theme)
+            {
                 with_dir(|ps| ps.provider_filter = None);
             }
         }
     });
-    let plural = |n: usize, word: &str| {
-        if n == 1 { format!("1 {word}") } else { format!("{n} {word}s") }
-    };
+    let offerings = tn("market.directory.offerings_count", n_off as i64, &[]);
+    let providers = tn("market.directory.providers_count", n_prov as i64, &[]);
     ui.label(
-        RichText::new(format!(
-            "{} from {}. Listings and introductions only: money never moves through the platform.",
-            plural(n_off, "offering"),
-            plural(n_prov, "provider"),
+        RichText::new(tf(
+            "market.directory.summary",
+            &[("offerings", &offerings), ("providers", &providers)],
         ))
         .size(theme.font_size_small)
         .color(theme.text_muted()),
@@ -677,7 +702,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let err = with_dir(|ps| ps.error.clone());
     if !err.is_empty() {
         ui.label(
-            RichText::new(format!("Fetch failed: {err}"))
+            RichText::new(tf("market.directory.fetch_failed", &[("error", &err)]))
                 .size(theme.font_size_small)
                 .color(theme.warning()),
         );
@@ -685,7 +710,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if base.is_empty() {
         ui.add_space(theme.spacing_md);
         ui.label(
-            RichText::new("Connect to a server (Chat page) to browse its directory.")
+            RichText::new(t("market.directory.needs_server"))
                 .color(theme.warning()),
         );
         return;
@@ -706,7 +731,7 @@ fn draw_offerings(
     filter_cat_id: Option<&str>,
 ) {
     let mut search = with_dir(|ps| ps.search.clone());
-    if widgets::search_bar(ui, theme, &mut search, "Search offerings...") {
+    if with_hint(ui, "market.directory.search_hint", |ui| widgets::search_bar(ui, theme, &mut search, t("market.directory.search"))) {
         // edited; stored below either way
     }
     with_dir(|ps| ps.search = search.clone());
@@ -736,14 +761,12 @@ fn draw_offerings(
     if rows.is_empty() {
         let loaded = with_dir(|ps| ps.loaded);
         if loaded {
-            ui.label(
-                RichText::new(if reality == "sim" {
-                    "No sim offerings here yet."
-                } else {
-                    "No offerings match. Publish yours with scripts/import-offerings.mjs (see docs/admin/market-importer.md)."
-                })
-                .color(theme.text_muted()),
-            );
+            let empty = if reality == "sim" {
+                t("market.directory.no_sim_offerings")
+            } else {
+                t("market.directory.no_offerings")
+            };
+            ui.label(RichText::new(empty).color(theme.text_muted()));
         }
         return;
     }
@@ -755,7 +778,7 @@ fn draw_offerings(
                     .iter()
                     .find(|p| p.root_id == o.provider_root)
                     .map(|p| p.display_name.clone())
-                    .unwrap_or_else(|| "Unknown provider".to_string())
+                    .unwrap_or_else(|| t("market.directory.unknown_provider").to_string())
             });
             let resp = widgets::card_clickable(ui, theme, |ui| {
                 ui.horizontal(|ui| {
@@ -781,7 +804,7 @@ fn draw_offerings(
                         super::market::category_color(&o.category),
                     );
                     let kind_note = if o.kind == "service" {
-                        format!("service: {}", enum_label(&o.action))
+                        tf("market.directory.service_kind", &[("action", &enum_label(&o.action))])
                     } else {
                         enum_label(&o.condition)
                     };
@@ -791,7 +814,7 @@ fn draw_offerings(
                             .color(theme.text_secondary()),
                     );
                     ui.label(
-                        RichText::new(format!("by {provider_name}"))
+                        RichText::new(tf("market.by_name", &[("name", &provider_name)]))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -810,7 +833,8 @@ fn draw_offerings(
                             .color(theme.text_secondary()),
                     );
                 }
-            });
+            })
+            .hint("market.directory.offering_card_hint");
             if resp.clicked() {
                 with_dir(|ps| ps.selected = Some(o.sel_key()));
             }
@@ -841,7 +865,7 @@ fn draw_providers(ui: &mut egui::Ui, theme: &Theme) {
         let loaded = with_dir(|ps| ps.loaded);
         if loaded {
             ui.label(
-                RichText::new("No providers yet. Publish yours with scripts/import-offerings.mjs.")
+                RichText::new(t("market.directory.no_providers"))
                     .color(theme.text_muted()),
             );
         }
@@ -864,7 +888,7 @@ fn draw_providers(ui: &mut egui::Ui, theme: &Theme) {
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            RichText::new(format!("{n_offerings} offerings"))
+                            RichText::new(tn("market.directory.offerings_count", *n_offerings as i64, &[]))
                                 .size(theme.font_size_small)
                                 .color(theme.text_muted()),
                         );
@@ -877,7 +901,8 @@ fn draw_providers(ui: &mut egui::Ui, theme: &Theme) {
                             .color(theme.text_secondary()),
                     );
                 }
-            });
+            })
+            .hint("market.directory.provider_card_hint");
             if resp.clicked() {
                 with_dir(|ps| {
                     ps.provider_filter = Some(p.root_id.clone());
@@ -897,7 +922,10 @@ fn draw_detail(
     provider: Option<&DirProvider>,
 ) {
     ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-        if widgets::secondary_button(ui, theme, "< Back to Directory") {
+        if widgets::Button::secondary(t("market.directory.back"))
+            .hint("market.directory.back_hint")
+            .show(ui, theme)
+        {
             with_dir(|ps| ps.selected = None);
         }
         ui.add_space(theme.spacing_sm);
@@ -912,7 +940,7 @@ fn draw_detail(
                 super::market::category_color(&o.category),
             );
             if o.reality == "sim" {
-                widgets::badge_sm(ui, theme, "sim", theme.text_muted());
+                widgets::badge_sm(ui, theme, t("market.directory.sim_badge"), theme.text_muted());
             }
         });
         ui.add_space(theme.spacing_sm);
@@ -921,7 +949,7 @@ fn draw_detail(
         );
         if !o.price_accepts.is_empty() {
             ui.label(
-                RichText::new(format!("Accepts: {}", o.price_accepts.join(", ")))
+                RichText::new(tf("market.directory.accepts", &[("list", &o.price_accepts.join(", "))]))
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),
             );
@@ -941,7 +969,7 @@ fn draw_detail(
             ui.add_space(theme.spacing_sm);
         }
 
-        widgets::card_with_header(ui, theme, "Details", |ui| {
+        widgets::card_with_header(ui, theme, t("market.directory.details"), |ui| {
             let mut fact = |label: &str, value: String| {
                 if !value.is_empty() {
                     ui.horizontal(|ui| {
@@ -951,37 +979,37 @@ fn draw_detail(
                 }
             };
             if o.kind == "good" {
-                fact("Condition:", enum_label(&o.condition));
+                fact(t("market.condition_label"), enum_label(&o.condition));
                 let avail = match (o.availability_mode.as_str(), o.quantity_available) {
-                    ("in_stock", Some(q)) => format!("{q} in stock"),
-                    ("one_off", _) => "one of a kind".to_string(),
+                    ("in_stock", Some(q)) => tf("market.directory.in_stock", &[("n", &q)]),
+                    ("one_off", _) => t("market.directory.one_off").to_string(),
                     ("made_to_order", _) => match o.lead_time_days {
-                        Some(d) => format!("made to order, {d} day lead"),
-                        None => "made to order".to_string(),
+                        Some(d) => tf("market.directory.made_to_order_lead", &[("n", &d)]),
+                        None => t("market.directory.made_to_order").to_string(),
                     },
                     (a, _) => enum_label(a),
                 };
-                fact("Availability:", avail);
+                fact(t("market.directory.fact_availability"), avail);
             } else {
-                fact("Service:", enum_label(&o.action));
-                fact("Schedule:", enum_label(&o.schedule_kind));
+                fact(t("market.directory.fact_service"), enum_label(&o.action));
+                fact(t("market.directory.fact_schedule"), enum_label(&o.schedule_kind));
                 if let Some(d) = o.duration_minutes {
-                    fact("Duration:", format!("{d} min"));
+                    fact(t("market.directory.fact_duration"), tf("market.directory.duration_min", &[("n", &d)]));
                 }
             }
             fact(
-                "Fulfillment:",
+                t("market.directory.fact_fulfillment"),
                 o.fulfillment.iter().map(|f| enum_label(f)).collect::<Vec<_>>().join(", "),
             );
-            fact("Location:", enum_label(&o.location_mode));
+            fact(t("market.location_label"), enum_label(&o.location_mode));
             if !o.tags.is_empty() {
-                fact("Tags:", o.tags.join(", "));
+                fact(t("market.directory.fact_tags"), o.tags.join(", "));
             }
-            fact("Updated:", age_line(o.updated_at, now_ms()));
+            fact(t("market.directory.fact_updated"), age_line(o.updated_at, now_ms()));
         });
         ui.add_space(theme.spacing_sm);
 
-        widgets::card_with_header(ui, theme, "Provider", |ui| {
+        widgets::card_with_header(ui, theme, t("market.directory.provider"), |ui| {
             match provider {
                 Some(p) => {
                     ui.horizontal(|ui| {
@@ -1007,29 +1035,33 @@ fn draw_detail(
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!(
-                                "Contact: {}",
+                                "{} {}",
+                                t("market.directory.fact_contact"),
                                 enum_label(&o.contact_via)
                             ))
                             .color(theme.text_primary()),
                         );
                         if !p.author_key_hex.is_empty()
-                            && widgets::secondary_button(ui, theme, "Copy provider key")
+                            && widgets::Button::secondary(t("market.directory.copy_key"))
+                                .hint("market.directory.copy_key_hint")
+                                .show(ui, theme)
                         {
                             ui.ctx().copy_text(p.author_key_hex.clone());
                         }
                     });
                     ui.label(
-                        RichText::new(
-                            "Paste the key into Chat to DM the provider. Arrange payment and handoff directly; the platform only lists.",
-                        )
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
+                        RichText::new(t("market.directory.key_note"))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
                     );
                     if let Some(w) = &p.website {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Website:").color(theme.text_muted()));
+                            ui.label(RichText::new(t("market.directory.fact_website")).color(theme.text_muted()));
                             ui.label(RichText::new(w).color(theme.text_primary()));
-                            if widgets::secondary_button(ui, theme, "Copy") {
+                            if widgets::Button::secondary(t("market.directory.copy"))
+                                .hint("market.directory.copy_website_hint")
+                                .show(ui, theme)
+                            {
                                 ui.ctx().copy_text(w.clone());
                             }
                         });
@@ -1037,16 +1069,19 @@ fn draw_detail(
                 }
                 None => {
                     ui.label(
-                        RichText::new("Provider entry not found on this server.")
+                        RichText::new(t("market.directory.provider_missing"))
                             .color(theme.warning()),
                     );
                 }
             }
             if let Some(uri) = &o.checkout_uri {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Checkout:").color(theme.text_muted()));
+                    ui.label(RichText::new(t("market.directory.fact_checkout")).color(theme.text_muted()));
                     ui.label(RichText::new(uri).color(theme.text_primary()));
-                    if widgets::secondary_button(ui, theme, "Copy") {
+                    if widgets::Button::secondary(t("market.directory.copy"))
+                        .hint("market.directory.copy_checkout_hint")
+                        .show(ui, theme)
+                    {
                         ui.ctx().copy_text(uri.clone());
                     }
                 });

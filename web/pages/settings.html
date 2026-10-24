@@ -923,18 +923,29 @@
       </div>
 
       <div class="settings-group">
-        <div class="settings-group-title">Page Hints</div>
+        <div class="settings-group-title" data-i18n="settings.page_hints">Page Hints</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show Simple Explanations</strong>
-            <span>Plain-language descriptions on every page</span>
+            <strong id="lbl-hint-display" data-i18n="settings.hints">Hints</strong>
+            <span data-i18n="settings.hints_desc">How help is shown. Full: each setting's description under it, and a hint when you rest the pointer on a button or box. Hover: the descriptions hide behind a small (?) you point at, and the hints still show. Off: no descriptions and no hints, for when you know your way around.</span>
+          </div>
+          <select class="setting-select" id="pref-hint_display" aria-labelledby="lbl-hint-display" onchange="savePref(); if (window.hosApplyA11yToggles) hosApplyA11yToggles();">
+            <option value="full" data-i18n="settings.hints_full">Full</option>
+            <option value="hover" data-i18n="settings.hints_hover">Hover</option>
+            <option value="off" data-i18n="settings.hints_off">Off</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong data-i18n="settings.show_simple">Show Simple Explanations</strong>
+            <span data-i18n="settings.show_simple_desc">Plain-language descriptions on every page</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show Expert Details</strong>
-            <span>Technical info for developers and power users</span>
+            <strong data-i18n="settings.show_expert">Show Expert Details</strong>
+            <span data-i18n="settings.show_expert_desc">Technical info for developers and power users</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="toggle-track"></span></label>
         </div>
@@ -1219,10 +1230,10 @@
         <div class="settings-group-title">Regional</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Language</strong>
+            <strong id="lbl-language">Language</strong>
             <span>Display language for the interface</span>
           </div>
-          <select class="setting-select" id="pref-language" onchange="savePref(); applyLanguagePref();">
+          <select class="setting-select" id="pref-language" aria-labelledby="lbl-language" onchange="savePref(); applyLanguagePref();">
             <option value="en">English</option>
             <option value="es">Español</option>
             <option value="fr">Français</option>

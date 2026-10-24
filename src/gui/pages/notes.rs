@@ -6,6 +6,8 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::{GuiNote, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::{t, tf, tn};
+use crate::gui::widgets::{Hint, with_hint};
 use std::cell::RefCell;
 
 /// Page-local state for delete confirmation and other transient UI.
@@ -39,19 +41,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(8.0))
         .show(ctx, |ui| {
             ui.label(
-                RichText::new("Notes")
+                RichText::new(t("notes.title"))
                     .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_xs);
 
-            if widgets::primary_button(ui, theme, "+ New Note") {
+            if widgets::Button::primary(t("notes.new_note"))
+                .hint("notes.new_hint")
+                .show(ui, theme)
+            {
                 let id = state.notes_next_id;
                 state.notes_next_id += 1;
                 let now = current_timestamp();
                 state.notes.push(GuiNote {
                     id,
-                    title: "Untitled".to_string(),
+                    title: t("notes.untitled").to_string(),
                     content: String::new(),
                     modified: now,
                 });
@@ -63,7 +68,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             // Search notes
             with_local(|local| {
-                widgets::search_bar(ui, theme, &mut local.search, "Search notes...");
+                with_hint(ui, "notes.search_hint", |ui| widgets::search_bar(ui, theme, &mut local.search, t("notes.search_placeholder")));
             });
 
             ui.add_space(theme.spacing_sm);
@@ -130,7 +135,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     );
                                 }
                             }).response;
-                            if resp.interact(egui::Sense::click()).clicked() {
+                            let resp = resp.interact(egui::Sense::click()).hint("notes.open_hint");
+                            if resp.clicked() {
                                 select_id = Some(note_id);
                             }
                         });
@@ -145,7 +151,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(theme.spacing_sm);
             ui.label(
-                RichText::new(format!("{} notes", state.notes.len()))
+                RichText::new(tn("notes.count", state.notes.len() as i64, &[]))
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -164,8 +170,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             egui::TextEdit::singleline(&mut note.title)
                                 .font(egui::FontId::proportional(theme.font_size_heading))
                                 .desired_width(300.0)
-                                .hint_text("Note title"),
-                        );
+                                .hint_text(t("notes.title_placeholder")),
+                        )
+                        .hint("notes.title_hint");
                         if title_resp.changed() {
                             note.modified = current_timestamp();
                         }
@@ -173,12 +180,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             // Auto-save indicator
                             let ts = note.modified;
-                            let save_text = if current_timestamp().saturating_sub(ts) < 2 {
-                                "Unsaved changes"
-                            } else {
-                                "Saved"
-                            };
-                            let save_color = if save_text == "Saved" { theme.success() } else { theme.warning() };
+                            let unsaved = current_timestamp().saturating_sub(ts) < 2;
+                            let save_text = if unsaved { t("notes.unsaved") } else { t("notes.saved") };
+                            let save_color = if unsaved { theme.warning() } else { theme.success() };
                             ui.label(
                                 RichText::new(save_text)
                                     .size(theme.font_size_small)
@@ -192,11 +196,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Formatting toolbar
                     ui.horizontal(|ui| {
                         // Bold/Italic markers
-                        if widgets::secondary_button(ui, theme, "B") {
+                        if widgets::Button::secondary("B") // i18n-exempt: the bold mark's letter, as in every word processor
+                            .hint("notes.bold_hint")
+                            .show(ui, theme)
+                        {
                             note.content.push_str("**");
                             note.modified = current_timestamp();
                         }
-                        if widgets::secondary_button(ui, theme, "I") {
+                        if widgets::Button::secondary("I") // i18n-exempt: the italics mark's letter, as in every word processor
+                            .hint("notes.italic_hint")
+                            .show(ui, theme)
+                        {
                             note.content.push_str("_");
                             note.modified = current_timestamp();
                         }
@@ -207,7 +217,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let word_count = note.content.split_whitespace().count();
                         let char_count = note.content.len();
                         ui.label(
-                            RichText::new(format!("{} words | {} chars", word_count, char_count))
+                            RichText::new(tf(
+                                "notes.word_char_count",
+                                &[("words", &word_count), ("chars", &char_count)],
+                            ))
                                 .size(theme.font_size_small)
                                 .color(theme.text_muted()),
                         );
@@ -215,7 +228,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.separator();
 
                         ui.label(
-                            RichText::new(format!("Modified: {}", format_timestamp(note.modified)))
+                            RichText::new(tf("notes.modified", &[("when", &format_timestamp(note.modified))]))
                                 .size(theme.font_size_small)
                                 .color(theme.text_muted()),
                         );
@@ -230,9 +243,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         egui::TextEdit::multiline(&mut note.content)
                             .desired_width(f32::INFINITY)
                             .desired_rows(rows)
-                            .hint_text("Start writing...")
+                            .hint_text(t("notes.start_writing"))
                             .font(egui::FontId::proportional(theme.font_size_body)),
-                    );
+                    )
+                    .hint("notes.content_hint");
                     if content_resp.changed() {
                         note.modified = current_timestamp();
                     }
@@ -245,19 +259,28 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if confirming {
                         ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new("Delete this note?")
+                                RichText::new(t("notes.delete_question"))
                                     .color(theme.danger()),
                             );
-                            if widgets::danger_button(ui, theme, "Yes, Delete") {
+                            if widgets::Button::danger(t("notes.yes_delete"))
+                                .hint("notes.yes_delete_hint")
+                                .show(ui, theme)
+                            {
                                 state.notes.retain(|n| n.id != delete_id);
                                 state.notes_selected = state.notes.first().map(|n| n.id);
                                 with_local(|local| local.confirm_delete = None);
                             }
-                            if widgets::secondary_button(ui, theme, "Cancel") {
+                            if widgets::Button::secondary(t("common.cancel"))
+                                .hint("notes.cancel_delete_hint")
+                                .show(ui, theme)
+                            {
                                 with_local(|local| local.confirm_delete = None);
                             }
                         });
-                    } else if widgets::danger_button(ui, theme, "Delete Note") {
+                    } else if widgets::Button::danger(t("notes.delete_note"))
+                        .hint("notes.delete_hint")
+                        .show(ui, theme)
+                    {
                         with_local(|local| local.confirm_delete = Some(delete_id));
                     }
                 } else {
@@ -266,7 +289,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             } else {
                 ui.centered_and_justified(|ui| {
                     ui.label(
-                        RichText::new("Select or create a note")
+                        RichText::new(t("notes.select_or_create"))
                             .size(theme.font_size_heading)
                             .color(theme.text_muted()),
                     );
@@ -284,17 +307,17 @@ fn current_timestamp() -> u64 {
 
 fn format_timestamp(ts: u64) -> String {
     if ts == 0 {
-        return "Never".to_string();
+        return t("notes.never").to_string();
     }
     let now = current_timestamp();
     let diff = now.saturating_sub(ts);
     if diff < 60 {
-        "Just now".to_string()
+        t("notes.just_now").to_string()
     } else if diff < 3600 {
-        format!("{}m ago", diff / 60)
+        tf("notes.minutes_ago", &[("n", &(diff / 60))])
     } else if diff < 86400 {
-        format!("{}h ago", diff / 3600)
+        tf("notes.hours_ago", &[("n", &(diff / 3600))])
     } else {
-        format!("{}d ago", diff / 86400)
+        tf("notes.days_ago", &[("n", &(diff / 86400))])
     }
 }

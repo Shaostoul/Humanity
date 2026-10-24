@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculator, HumanityOS</title>
+  <title data-i18n="calculator.page_title">Calculator, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* Colours this page uses that have no theme token. The dark values are
@@ -326,98 +326,101 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="calculator"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">A calculator with basic math, scientific functions, and unit conversion.</div>
-  <div class="eli5-expert">Multi-mode calculator: basic arithmetic with operator precedence via eval (sanitized), scientific functions (trig, log, factorial), unit converter with 6 categories, and currency converter stub with manual rate input. History persisted in localStorage.</div>
+  <div class="eli5-simple" data-i18n="calculator.eli5_simple">A calculator with basic math, scientific functions, and unit conversion.</div>
+  <div class="eli5-expert" data-i18n="calculator.eli5_expert">Multi-mode calculator: basic arithmetic with operator precedence via eval (sanitized), scientific functions (trig, log, factorial), unit converter with 6 categories, and currency converter stub with manual rate input. History persisted in localStorage.</div>
 </div>
-<p class="page-hint">Calculator with basic and scientific modes, plus unit and currency conversion.</p>
+<p class="page-hint" data-i18n="calculator.page_hint">Calculator with basic and scientific modes, plus unit and currency conversion.</p>
 
 <div id="calc-app">
   <!-- Mode tabs -->
   <div class="calc-tabs">
-    <button class="calc-tab active" data-mode="basic" onclick="setMode('basic')">Basic</button>
-    <button class="calc-tab" data-mode="scientific" onclick="setMode('scientific')">Scientific</button>
-    <button class="calc-tab" data-mode="converter" onclick="setMode('converter')">Converter</button>
-    <button class="calc-tab" data-mode="currency" onclick="setMode('currency')">Currency</button>
+    <button class="calc-tab active" data-mode="basic" onclick="setMode('basic')" data-i18n="calculator.mode_basic" data-i18n-tip="calculator.mode_basic_hint" data-tip-desc="Shows the everyday calculator: numbers, plus, minus, times and divide.">Basic</button>
+    <button class="calc-tab" data-mode="scientific" onclick="setMode('scientific')" data-i18n="calculator.mode_scientific" data-i18n-tip="calculator.mode_scientific_hint" data-tip-desc="Shows more buttons, for angles, powers, roots and logs.">Scientific</button>
+    <button class="calc-tab" data-mode="converter" onclick="setMode('converter')" data-i18n="calculator.mode_converter" data-i18n-tip="calculator.mode_converter_hint" data-tip-desc="Changes a measurement from one unit to another, like meters to feet.">Converter</button>
+    <button class="calc-tab" data-mode="currency" onclick="setMode('currency')" data-i18n="calculator.mode_currency" data-i18n-tip="calculator.mode_currency_hint" data-tip-desc="Changes an amount of money from one currency to another, using a rate you type in.">Currency</button>
   </div>
 
   <div class="calc-container">
     <!-- ═══ Basic mode ═══ -->
     <div class="mode-panel active" id="panel-basic">
       <div class="calc-display">
-        <button class="calc-copy" onclick="copyResult()" title="Copy result">Copy</button>
+        <button class="calc-copy" onclick="copyResult()" title="Copy result" data-i18n-title="calculator.copy_title" data-i18n="calculator.copy" data-i18n-tip="calculator.copy_hint" data-tip-desc="Copies the answer, so you can paste it somewhere else.">Copy</button>
         <div class="calc-expr" id="basic-expr"></div>
         <div class="calc-result" id="basic-result">0</div>
       </div>
       <div class="calc-grid basic">
-        <button class="calc-btn clr" onclick="clearCalc()">C</button>
-        <button class="calc-btn op" onclick="inputOp('(')">(</button>
-        <button class="calc-btn op" onclick="inputOp(')')">)</button>
-        <button class="calc-btn op" onclick="inputOp('/')">/</button>
-        <button class="calc-btn" onclick="inputNum('7')">7</button>
-        <button class="calc-btn" onclick="inputNum('8')">8</button>
-        <button class="calc-btn" onclick="inputNum('9')">9</button>
-        <button class="calc-btn op" onclick="inputOp('*')">*</button>
-        <button class="calc-btn" onclick="inputNum('4')">4</button>
-        <button class="calc-btn" onclick="inputNum('5')">5</button>
-        <button class="calc-btn" onclick="inputNum('6')">6</button>
-        <button class="calc-btn op" onclick="inputOp('-')">-</button>
-        <button class="calc-btn" onclick="inputNum('1')">1</button>
-        <button class="calc-btn" onclick="inputNum('2')">2</button>
-        <button class="calc-btn" onclick="inputNum('3')">3</button>
-        <button class="calc-btn op" onclick="inputOp('+')">+</button>
-        <button class="calc-btn" onclick="inputNum('0')">0</button>
-        <button class="calc-btn" onclick="inputNum('.')">.</button>
-        <button class="calc-btn op" onclick="inputOp('%')">%</button>
-        <button class="calc-btn eq" onclick="evaluate()">=</button>
+        <button class="calc-btn clr" onclick="clearCalc()" data-i18n-tip="calculator.clear_hint" data-tip-desc="Empties the display so you can start again.">C</button>
+        <button class="calc-btn op" onclick="inputOp('(')" data-i18n-tip="calculator.paren_open_hint" data-tip-desc="Opens a bracket. The part of the sum inside brackets is worked out first.">(</button>
+        <button class="calc-btn op" onclick="inputOp(')')" data-i18n-tip="calculator.paren_close_hint" data-tip-desc="Closes the bracket you opened.">)</button>
+        <button class="calc-btn op" onclick="inputOp('/')" data-i18n-tip="calculator.divide_hint" data-tip-desc="Divide: the slash shares a number into equal parts. 6 / 3 makes 2.">/</button>
+        <button class="calc-btn" onclick="inputNum('7')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">7</button>
+        <button class="calc-btn" onclick="inputNum('8')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">8</button>
+        <button class="calc-btn" onclick="inputNum('9')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">9</button>
+        <button class="calc-btn op" onclick="inputOp('*')" data-i18n-tip="calculator.multiply_hint" data-tip-desc="Times: the star multiplies. 2 * 3 makes 6.">*</button>
+        <button class="calc-btn" onclick="inputNum('4')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">4</button>
+        <button class="calc-btn" onclick="inputNum('5')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">5</button>
+        <button class="calc-btn" onclick="inputNum('6')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">6</button>
+        <button class="calc-btn op" onclick="inputOp('-')" data-i18n-tip="calculator.subtract_hint" data-tip-desc="Minus: takes the next number away. 5 - 2 makes 3.">-</button>
+        <button class="calc-btn" onclick="inputNum('1')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">1</button>
+        <button class="calc-btn" onclick="inputNum('2')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">2</button>
+        <button class="calc-btn" onclick="inputNum('3')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">3</button>
+        <button class="calc-btn op" onclick="inputOp('+')" data-i18n-tip="calculator.add_hint" data-tip-desc="Plus: adds the next number. 2 + 3 makes 5.">+</button>
+        <button class="calc-btn" onclick="inputNum('0')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">0</button>
+        <button class="calc-btn" onclick="inputNum('.')" data-i18n-tip="calculator.point_hint" data-tip-desc="Types a decimal point, for part of a whole number, like the .5 in 2.5.">.</button>
+        <button class="calc-btn op" onclick="inputOp('%')" data-i18n-tip="calculator.percent_hint" data-tip-desc="Percent: out of a hundred. 50% is worked out as 0.5.">%</button>
+        <button class="calc-btn eq" onclick="evaluate()" data-i18n-tip="calculator.equals_hint" data-tip-desc="Works out the answer and adds the sum to the history.">=</button>
       </div>
     </div>
 
     <!-- ═══ Scientific mode ═══ -->
     <div class="mode-panel" id="panel-scientific">
       <div class="calc-display">
-        <button class="calc-copy" onclick="copyResult()" title="Copy result">Copy</button>
+        <button class="calc-copy" onclick="copyResult()" title="Copy result" data-i18n-title="calculator.copy_title" data-i18n="calculator.copy" data-i18n-tip="calculator.copy_hint" data-tip-desc="Copies the answer, so you can paste it somewhere else.">Copy</button>
         <div class="calc-expr" id="sci-expr"></div>
         <div class="calc-result" id="sci-result">0</div>
       </div>
       <div class="calc-grid scientific">
-        <button class="calc-btn fn" onclick="inputFn('sin(')">sin</button>
-        <button class="calc-btn fn" onclick="inputFn('cos(')">cos</button>
-        <button class="calc-btn fn" onclick="inputFn('tan(')">tan</button>
-        <button class="calc-btn fn" onclick="inputFn('log(')">log</button>
-        <button class="calc-btn fn" onclick="inputFn('ln(')">ln</button>
-        <button class="calc-btn fn" onclick="inputFn('sqrt(')">sqrt</button>
-        <button class="calc-btn fn" onclick="inputFn('pow(')">pow</button>
-        <button class="calc-btn fn" onclick="inputNum(String(Math.PI))">pi</button>
-        <button class="calc-btn fn" onclick="inputNum(String(Math.E))">e</button>
-        <button class="calc-btn fn" onclick="inputFn('fact(')">n!</button>
-        <button class="calc-btn clr" onclick="clearCalc()">C</button>
-        <button class="calc-btn op" onclick="inputOp('(')">(</button>
-        <button class="calc-btn op" onclick="inputOp(')')">)</button>
-        <button class="calc-btn op" onclick="inputOp('/')">/</button>
-        <button class="calc-btn op" onclick="backspace()">DEL</button>
-        <button class="calc-btn" onclick="inputNum('7')">7</button>
-        <button class="calc-btn" onclick="inputNum('8')">8</button>
-        <button class="calc-btn" onclick="inputNum('9')">9</button>
-        <button class="calc-btn op" onclick="inputOp('*')">*</button>
-        <button class="calc-btn op" onclick="inputOp('^')">^</button>
-        <button class="calc-btn" onclick="inputNum('4')">4</button>
-        <button class="calc-btn" onclick="inputNum('5')">5</button>
-        <button class="calc-btn" onclick="inputNum('6')">6</button>
-        <button class="calc-btn op" onclick="inputOp('-')">-</button>
-        <button class="calc-btn op" onclick="inputOp('%')">%</button>
-        <button class="calc-btn" onclick="inputNum('1')">1</button>
-        <button class="calc-btn" onclick="inputNum('2')">2</button>
-        <button class="calc-btn" onclick="inputNum('3')">3</button>
-        <button class="calc-btn op" onclick="inputOp('+')">+</button>
-        <button class="calc-btn" onclick="inputNum('.')">.</button>
-        <button class="calc-btn wide" onclick="inputNum('0')">0</button>
-        <button class="calc-btn clr" onclick="backspace()">DEL</button>
-        <button class="calc-btn eq" onclick="evaluate()">=</button>
+        <!-- The function names (sin, cos, log, ...) are the same in every language: translate="no". -->
+        <button class="calc-btn fn" onclick="inputFn('sin(')" translate="no" data-i18n-tip="calculator.sin_fn_hint" data-tip-desc="sin: types sin( into the sum, for the sine of an angle. The angle is in radians, where a half turn is pi. Close it with ).">sin</button>
+        <button class="calc-btn fn" onclick="inputFn('cos(')" translate="no" data-i18n-tip="calculator.cos_fn_hint" data-tip-desc="cos: types cos( into the sum, for the cosine of an angle in radians. Close it with ).">cos</button>
+        <button class="calc-btn fn" onclick="inputFn('tan(')" translate="no" data-i18n-tip="calculator.tan_fn_hint" data-tip-desc="tan: types tan( into the sum, for the tangent of an angle in radians: how steep a slope at that angle is. Close it with ).">tan</button>
+        <button class="calc-btn fn" onclick="inputFn('log(')" translate="no" data-i18n-tip="calculator.log_fn_hint" data-tip-desc="log: types log( into the sum: how many times 10 is multiplied by itself to make a number. log(100) is 2.">log</button>
+        <button class="calc-btn fn" onclick="inputFn('ln(')" translate="no" data-i18n-tip="calculator.ln_fn_hint" data-tip-desc="ln: types ln( into the sum: the natural log, like log but counting in e (about 2.718) instead of 10.">ln</button>
+        <button class="calc-btn fn" onclick="inputFn('sqrt(')" translate="no" data-i18n-tip="calculator.sqrt_fn_hint" data-tip-desc="sqrt: types sqrt( into the sum: the square root, the number that times itself gives this one. sqrt(9) is 3.">sqrt</button>
+        <button class="calc-btn fn" onclick="inputFn('pow(')" translate="no" data-i18n-tip="calculator.pow_fn_hint" data-tip-desc="pow: types pow( into the sum: a number to a power. pow(2, 3) is 2 times 2 times 2, which makes 8.">pow</button>
+        <button class="calc-btn fn" onclick="inputNum(String(Math.PI))" translate="no" data-i18n-tip="calculator.pi_fn_hint" data-tip-desc="pi: types pi into the sum, about 3.14159: how many times a circle's width fits around its edge.">pi</button>
+        <button class="calc-btn fn" onclick="inputNum(String(Math.E))" translate="no" data-i18n-tip="calculator.e_fn_hint" data-tip-desc="e: types the number e into the sum, about 2.718, used for growth and interest.">e</button>
+        <button class="calc-btn fn" onclick="inputFn('fact(')" translate="no" data-i18n-tip="calculator.fact_fn_hint" data-tip-desc="n!: types fact( into the sum: a whole number times every whole number below it. fact(4) is 4 x 3 x 2 x 1, which makes 24.">n!</button>
+        <button class="calc-btn clr" onclick="clearCalc()" data-i18n-tip="calculator.clear_hint" data-tip-desc="Empties the display so you can start again.">C</button>
+        <button class="calc-btn op" onclick="inputOp('(')" data-i18n-tip="calculator.paren_open_hint" data-tip-desc="Opens a bracket. The part of the sum inside brackets is worked out first.">(</button>
+        <button class="calc-btn op" onclick="inputOp(')')" data-i18n-tip="calculator.paren_close_hint" data-tip-desc="Closes the bracket you opened.">)</button>
+        <button class="calc-btn op" onclick="inputOp('/')" data-i18n-tip="calculator.divide_hint" data-tip-desc="Divide: the slash shares a number into equal parts. 6 / 3 makes 2.">/</button>
+        <button class="calc-btn op" onclick="backspace()" data-i18n="calculator.del" data-i18n-tip="calculator.backspace_hint" data-tip-desc="Removes the last thing you typed.">DEL</button>
+        <button class="calc-btn" onclick="inputNum('7')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">7</button>
+        <button class="calc-btn" onclick="inputNum('8')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">8</button>
+        <button class="calc-btn" onclick="inputNum('9')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">9</button>
+        <button class="calc-btn op" onclick="inputOp('*')" data-i18n-tip="calculator.multiply_hint" data-tip-desc="Times: the star multiplies. 2 * 3 makes 6.">*</button>
+        <button class="calc-btn op" onclick="inputOp('^')" data-i18n-tip="calculator.power_hint" data-tip-desc="To the power of: 2 ^ 3 means 2 times 2 times 2, which makes 8.">^</button>
+        <button class="calc-btn" onclick="inputNum('4')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">4</button>
+        <button class="calc-btn" onclick="inputNum('5')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">5</button>
+        <button class="calc-btn" onclick="inputNum('6')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">6</button>
+        <button class="calc-btn op" onclick="inputOp('-')" data-i18n-tip="calculator.subtract_hint" data-tip-desc="Minus: takes the next number away. 5 - 2 makes 3.">-</button>
+        <button class="calc-btn op" onclick="inputOp('%')" data-i18n-tip="calculator.percent_hint" data-tip-desc="Percent: out of a hundred. 50% is worked out as 0.5.">%</button>
+        <button class="calc-btn" onclick="inputNum('1')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">1</button>
+        <button class="calc-btn" onclick="inputNum('2')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">2</button>
+        <button class="calc-btn" onclick="inputNum('3')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">3</button>
+        <button class="calc-btn op" onclick="inputOp('+')" data-i18n-tip="calculator.add_hint" data-tip-desc="Plus: adds the next number. 2 + 3 makes 5.">+</button>
+        <button class="calc-btn" onclick="inputNum('.')" data-i18n-tip="calculator.point_hint" data-tip-desc="Types a decimal point, for part of a whole number, like the .5 in 2.5.">.</button>
+        <button class="calc-btn wide" onclick="inputNum('0')" data-i18n-tip="calculator.digit_hint" data-tip-desc="Types this number into the sum.">0</button>
+        <button class="calc-btn clr" onclick="backspace()" data-i18n="calculator.del" data-i18n-tip="calculator.backspace_hint" data-tip-desc="Removes the last thing you typed.">DEL</button>
+        <button class="calc-btn eq" onclick="evaluate()" data-i18n-tip="calculator.equals_hint" data-tip-desc="Works out the answer and adds the sum to the history.">=</button>
       </div>
     </div>
 
@@ -425,15 +428,15 @@
     <div class="mode-panel" id="panel-converter">
       <div class="conv-category" id="conv-cats"></div>
       <div class="conv-row">
-        <input class="conv-input" id="conv-from-val" type="number" value="1" oninput="doConvert()">
-        <select class="conv-select" id="conv-from-unit" onchange="doConvert()"></select>
+        <input class="conv-input" data-i18n-aria-label="calculator.from_value_label" aria-label="Amount to change" id="conv-from-val" type="number" value="1" oninput="doConvert()" data-i18n-tip="calculator.from_value_hint" data-tip-desc="Type the amount you want to change into the other unit.">
+        <select class="conv-select" data-i18n-aria-label="calculator.from_unit_label" aria-label="Unit to change from" id="conv-from-unit" onchange="doConvert()" data-i18n-tip="calculator.from_unit_hint" data-tip-desc="Picks the unit you are changing from."></select>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;">
-        <button class="conv-swap" onclick="swapUnits()" title="Swap units">&#8645;</button>
+        <button class="conv-swap" onclick="swapUnits()" title="Swap units" data-i18n-title="calculator.swap_title" data-i18n-tip="calculator.swap_hint" data-tip-desc="Swaps the two units, so the change goes the other way.">&#8645;</button>
       </div>
       <div class="conv-row">
-        <input class="conv-input" id="conv-to-val" type="text" readonly>
-        <select class="conv-select" id="conv-to-unit" onchange="doConvert()"></select>
+        <input class="conv-input" data-i18n-aria-label="calculator.to_value_label" aria-label="Answer" id="conv-to-val" type="text" readonly data-i18n-tip="calculator.to_value_hint" data-tip-desc="The answer: the same amount in the other unit. You cannot type here.">
+        <select class="conv-select" data-i18n-aria-label="calculator.to_unit_label" aria-label="Unit for the answer" id="conv-to-unit" onchange="doConvert()" data-i18n-tip="calculator.to_unit_hint" data-tip-desc="Picks the unit you want the answer in."></select>
       </div>
       <div class="conv-result-label" id="conv-formula"></div>
     </div>
@@ -441,22 +444,23 @@
     <!-- ═══ Currency mode ═══ -->
     <div class="mode-panel" id="panel-currency">
       <div class="currency-notice">
-        <h3>Currency Converter</h3>
-        <p>Live exchange rates coming soon. Use manual rate entry below.</p>
+        <h3 data-i18n="calculator.currency_title">Currency Converter</h3>
+        <p data-i18n="calculator.currency_notice">Live exchange rates coming soon. Use manual rate entry below.</p>
       </div>
       <div class="manual-rate">
-        <label>Enter exchange rate manually:</label>
+        <label data-i18n="calculator.currency_manual">Enter exchange rate manually:</label>
         <div class="conv-row">
-          <input class="conv-input" id="cur-amount" type="number" value="1" oninput="doCurrConvert()">
-          <input class="conv-select" id="cur-from" type="text" placeholder="USD" style="text-transform:uppercase;width:70px;" oninput="doCurrConvert()">
+          <input class="conv-input" data-i18n-aria-label="calculator.cur_amount_label" aria-label="Amount of money" id="cur-amount" type="number" value="1" oninput="doCurrConvert()" data-i18n-tip="calculator.cur_amount_hint" data-tip-desc="Type the amount of money you want to change.">
+          <!-- USD, EUR: currency codes, the same in every language. -->
+          <input class="conv-select" id="cur-from" type="text" placeholder="USD" translate="no" style="text-transform:uppercase;width:70px;" oninput="doCurrConvert()" data-i18n-tip="calculator.cur_from_hint" data-tip-desc="Type the short code of the money you have, like USD for US dollars.">
         </div>
         <div class="conv-row">
-          <label style="font-size:0.78rem;color:var(--text-muted)">Rate: 1 <span id="cur-from-label">unit</span> =</label>
-          <input class="conv-input" id="cur-rate" type="number" value="1" step="any" style="max-width:120px" oninput="doCurrConvert()">
-          <input class="conv-select" id="cur-to" type="text" placeholder="EUR" style="text-transform:uppercase;width:70px;" oninput="doCurrConvert()">
+          <label style="font-size:0.78rem;color:var(--text-muted)"><span data-i18n="calculator.rate_prefix">Rate: 1</span> <span id="cur-from-label" data-i18n="calculator.unit_word">unit</span> =</label>
+          <input class="conv-input" data-i18n-aria-label="calculator.cur_rate_label" aria-label="Exchange rate" id="cur-rate" type="number" value="1" step="any" style="max-width:120px" oninput="doCurrConvert()" data-i18n-tip="calculator.cur_rate_hint" data-tip-desc="Type how much one of your money is worth in the other money. A bank or a news site shows today's rate.">
+          <input class="conv-select" id="cur-to" type="text" placeholder="EUR" translate="no" style="text-transform:uppercase;width:70px;" oninput="doCurrConvert()" data-i18n-tip="calculator.cur_to_hint" data-tip-desc="Type the short code of the money you want, like EUR for euros.">
         </div>
         <div class="conv-row">
-          <input class="conv-input" id="cur-result" type="text" readonly>
+          <input class="conv-input" data-i18n-aria-label="calculator.cur_result_label" aria-label="Amount in the other money" id="cur-result" type="text" readonly data-i18n-tip="calculator.cur_result_hint" data-tip-desc="The answer: your amount in the other money. You cannot type here.">
         </div>
       </div>
     </div>
@@ -464,11 +468,11 @@
     <!-- ═══ History ═══ -->
     <div class="calc-history" id="calc-history">
       <div class="hist-header">
-        <span>History</span>
-        <button class="hist-clear" onclick="clearHistory()">Clear</button>
+        <span data-i18n="calculator.history">History</span>
+        <button class="hist-clear" onclick="clearHistory()" data-i18n="calculator.clear_history_short" data-i18n-tip="calculator.clear_history_hint" data-tip-desc="Removes every sum from the history list. The sum on the display stays.">Clear</button>
       </div>
       <div id="hist-list">
-        <div class="hist-empty">No calculations yet.</div>
+        <div class="hist-empty" data-i18n="calculator.no_history">No calculations yet.</div>
       </div>
     </div>
   </div>

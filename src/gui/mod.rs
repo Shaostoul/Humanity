@@ -15,6 +15,14 @@ pub mod pages;
 pub mod fonts;
 #[cfg(feature = "native")]
 pub mod glossary;
+/// Every word a person reads, by key, from `data/i18n/<language>.json` with
+/// English as the fallback (the ELI5 mandate, 2026-10-22). See `gui/i18n.rs`.
+#[cfg(feature = "native")]
+pub mod i18n;
+/// The first five minutes: the short guided tour a new person meets after the
+/// first-run setup (the ELI5 mandate, 2026-10-23). See `gui/first_minutes.rs`.
+#[cfg(feature = "native")]
+pub mod first_minutes;
 /// The one page dispatch table (in-world screens, rung 1): every plain tool
 /// page's draw call, shared by the main UI and the world screens.
 #[cfg(feature = "native")]
@@ -183,6 +191,11 @@ impl GuiState {
 /// The Donate page's funding tests, in their own file to keep this one under its line budget.
 #[cfg(all(test, feature = "native"))]
 mod donate_funding_tests;
+
+/// Keyboard and screen-reader checks of the converted pages (the accessibility audit,
+/// docs/design/wcag-audit-2026-10-23.md): Tab through each page, every stop named and hinted.
+#[cfg(all(test, feature = "native"))]
+mod a11y_tests;
 
 /// What the passphrase / PIN prompt is for.
 ///
@@ -754,6 +767,8 @@ pub struct GuiState {
     /// The controls hint (I, E, hold Alt, hold F1) was shown on the first entry into the world;
     /// it is shown once ever (AppConfig `controls_hint_shown`, gui/first_steps.rs).
     pub controls_hint_shown: bool,
+    /// Where the person is in the first-five-minutes tour (AppConfig `first_minutes`).
+    pub first_minutes: first_minutes::FirstMinutes,
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
@@ -3231,6 +3246,7 @@ impl Default for GuiState {
             user_name: "Player".to_string(),
             concept_tour_seen: false,
             controls_hint_shown: false,
+            first_minutes: first_minutes::FirstMinutes::default(),
             default_page: GuiPage::Humanity,
 
             // Task board defaults
@@ -4453,7 +4469,10 @@ pub struct SettingsState {
     /// How per-setting descriptions are shown on THIS page (v0.1116): Full
     /// (inline, tightened) / Hover ("(?)" marker) / Off. See `HintDisplay`.
     pub hint_display: HintDisplay,
-    // Notifications: no Settings fields - the live prefs are relay-synced
+    /// The language the app's words are shown in, a `data/i18n/<code>.json`
+    /// code (2026-10-22). See `gui/i18n.rs`; English fills any gap.
+    pub language: String,
+    //Notifications: no Settings fields - the live prefs are relay-synced
     // (GuiState::notif_*, edited by Settings > Notifications AND the chat DM
     // cog; v0.980 removed the dead notify_*/dnd_* placebos nothing read).
     // Gameplay
@@ -4641,6 +4660,7 @@ impl Default for SettingsState {
             dark_mode: true,
             font_size: 14.0,
             hint_display: HintDisplay::default(),
+            language: "en".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,
             body_heat_realistic: false,

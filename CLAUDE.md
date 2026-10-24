@@ -236,6 +236,15 @@ new colour, add a token to `theme.ron` and an accessor in `theme.rs`; never "fix
 file to `LEGACY_OFFENDERS`**, a list meant to shrink. `icon_glyph_lint` fails on glyphs the egui
 font draws as boxes. Escape hatches and the safe glyphs: `docs/ai/code-patterns.md`.
 
+**One word source (the ELI5 mandate, 2026-10-22).** Every word a person reads comes from
+`data/i18n/en.json` by key (`t("page.key")` native, `i18n.t()` / `data-i18n` web; other languages
+fall back to English per key), every control carries a plain-language hint by key, and a jargon
+word is marked `[[term]]` for its glossary card. Add words with `node scripts/i18n-add.js`, never
+by writing them into a UI call. Ratchets fail when a file writes more words, or leaves more
+controls without a hint, than its budget (`tests/i18n_lint.rs`, `scripts/tests/i18n-web.test.js`,
+`hints-web.test.js`, `glossary-terms.test.js`, `a11y-web.test.js`). How: `docs/design/ui-system.md`
+(Words, The glossary on every page, Hints).
+
 **Same rule for the in-app Library.** `data/library/*.md` is a curated copy of `docs/accord/*.md`
 (only `data/` ships with the exe). After editing `docs/accord/`, run `node scripts/build-library.js`
 to resync it and its `index.json`. It drifted silently for months; `node

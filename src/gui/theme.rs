@@ -419,6 +419,23 @@ pub mod attack {
 }
 
 impl Theme {
+    /// The ink for words painted ON a filled colour (a danger or success button, a
+    /// badge): white or black, whichever reads better on that fill by the WCAG contrast
+    /// formula (the accessibility audit, docs/design/wcag-audit-2026-10-23.md). White on
+    /// the dark theme's success green was 2.4:1 and on its danger red 4.1:1, under the
+    /// 4.5:1 that words need. `scripts/tests/contrast.test.js` holds every filled control
+    /// to this rule and every pair it makes to 4.5:1.
+    pub fn ink_on(fill: Color32) -> Color32 {
+        fn linear(c: u8) -> f32 {
+            let c = c as f32 / 255.0;
+            if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+        }
+        let l = 0.2126 * linear(fill.r()) + 0.7152 * linear(fill.g()) + 0.0722 * linear(fill.b());
+        let on_white = 1.05 / (l + 0.05);
+        let on_black = (l + 0.05) / 0.05;
+        if on_white >= on_black { Color32::WHITE } else { Color32::BLACK }
+    }
+
     pub fn c32(c: &C) -> Color32 {
         Color32::from_rgba_unmultiplied(
             (c.0 * 255.0) as u8,

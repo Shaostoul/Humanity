@@ -5,6 +5,8 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::t;
+use crate::gui::widgets::Hint;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Handle keyboard input
@@ -39,7 +41,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
-                RichText::new("Calculator")
+                RichText::new(t("calculator.title"))
                     .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
@@ -75,12 +77,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     let sci_btns: &[&str] = &["sin", "cos", "tan", "log", "sqrt", "pow", "pi"];
                     ui.horizontal(|ui| {
                         for &label in sci_btns {
-                            let btn = egui::Button::new(
-                                RichText::new(label).size(theme.font_size_small).color(Theme::c32(&theme.info)),
+                            let resp = ui.add(
+                                egui::Button::new(
+                                    RichText::new(label).size(theme.font_size_small).color(Theme::c32(&theme.info)),
+                                )
+                                .fill(theme.bg_card())
+                                .min_size(Vec2::new(42.0, 32.0)),
                             )
-                            .fill(theme.bg_card())
-                            .min_size(Vec2::new(42.0, 32.0));
-                            if ui.add(btn).clicked() {
+                            .hint(key_hint(label));
+                            if resp.clicked() {
                                 handle_calc_input(state, label);
                             }
                         }
@@ -118,15 +123,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     theme.bg_card()
                                 };
                                 let display_label = if label == "BS" { "<-" } else { label };
-                                let btn = egui::Button::new(
-                                    RichText::new(display_label)
-                                        .size(theme.font_size_heading)
-                                        .color(text_color),
+                                let resp = ui.add(
+                                    egui::Button::new(
+                                        RichText::new(display_label)
+                                            .size(theme.font_size_heading)
+                                            .color(text_color),
+                                    )
+                                    .fill(fill)
+                                    .rounding(Rounding::same(6))
+                                    .min_size(btn_size),
                                 )
-                                .fill(fill)
-                                .rounding(Rounding::same(6))
-                                .min_size(btn_size);
-                                if ui.add(btn).clicked() {
+                                .hint(key_hint(label));
+                                if resp.clicked() {
                                     handle_calc_input(state, label);
                                 }
                             }
@@ -135,7 +143,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                     ui.add_space(theme.spacing_sm);
                     ui.label(
-                        RichText::new("Tip: Type numbers and operators with your keyboard")
+                        RichText::new(t("calculator.keyboard_tip"))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -147,10 +155,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.vertical(|ui| {
                     ui.set_min_width(220.0);
 
-                    widgets::card_with_header(ui, theme, "History", |ui| {
+                    widgets::card_with_header(ui, theme, t("calculator.history"), |ui| {
                         if state.calc_history.is_empty() {
                             ui.label(
-                                RichText::new("No calculations yet")
+                                RichText::new(t("calculator.no_history"))
                                     .color(theme.text_muted()),
                             );
                         } else {
@@ -170,7 +178,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                     .color(theme.text_secondary()),
                                             );
                                             // Click to reuse result
-                                            if resp.interact(egui::Sense::click()).clicked() {
+                                            let resp = resp
+                                                .interact(egui::Sense::click())
+                                                .hint("calculator.history_item_hint");
+                                            if resp.clicked() {
                                                 if let Some(result) = entry.split('=').last() {
                                                     let result = result.trim();
                                                     state.calc_display = result.to_string();
@@ -193,13 +204,42 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                     if !state.calc_history.is_empty() {
                         ui.add_space(theme.spacing_sm);
-                        if widgets::danger_button(ui, theme, "Clear History") {
+                        if widgets::Button::danger(t("calculator.clear_history"))
+                            .hint("calculator.clear_history_hint")
+                            .show(ui, theme)
+                        {
                             state.calc_history.clear();
                         }
                     }
                 });
             });
         });
+}
+
+/// The hint key for a keypad key, by what the key does. The key labels are
+/// the symbols themselves, the same in every language; the hint says in words
+/// what each one does.
+fn key_hint(label: &str) -> &'static str {
+    match label {
+        "C" => "calculator.clear_hint",
+        "BS" => "calculator.backspace_hint",
+        "=" => "calculator.equals_hint",
+        "+" => "calculator.add_hint",
+        "-" => "calculator.subtract_hint",
+        "*" => "calculator.multiply_hint",
+        "/" => "calculator.divide_hint",
+        "(" => "calculator.paren_open_hint",
+        ")" => "calculator.paren_close_hint",
+        "." => "calculator.point_hint",
+        "sin" => "calculator.sin_hint",
+        "cos" => "calculator.cos_hint",
+        "tan" => "calculator.tan_hint",
+        "log" => "calculator.log_hint",
+        "sqrt" => "calculator.sqrt_hint",
+        "pow" => "calculator.square_hint",
+        "pi" => "calculator.pi_hint",
+        _ => "calculator.digit_hint",
+    }
 }
 
 fn handle_calc_input(state: &mut GuiState, input: &str) {
@@ -258,7 +298,7 @@ fn handle_calc_input(state: &mut GuiState, input: &str) {
                 if val > 0.0 {
                     state.calc_display = format_result(val.log10());
                 } else {
-                    state.calc_display = "Error".to_string();
+                    state.calc_display = t("calculator.error").to_string();
                 }
             }
         }
@@ -267,7 +307,7 @@ fn handle_calc_input(state: &mut GuiState, input: &str) {
                 if val >= 0.0 {
                     state.calc_display = format_result(val.sqrt());
                 } else {
-                    state.calc_display = "Error".to_string();
+                    state.calc_display = t("calculator.error").to_string();
                 }
             }
         }
@@ -293,7 +333,7 @@ fn handle_calc_input(state: &mut GuiState, input: &str) {
 
 fn format_result(val: f64) -> String {
     if val.is_nan() || val.is_infinite() {
-        return "Error".to_string();
+        return t("calculator.error").to_string();
     }
     if val.fract() == 0.0 && val.abs() < 1e15 {
         format!("{}", val as i64)
@@ -330,7 +370,7 @@ fn evaluate_expression(expr: &str) -> String {
             "*" => result * operand,
             "/" => {
                 if operand == 0.0 {
-                    return "Error: div/0".to_string();
+                    return t("calculator.error_div_zero").to_string();
                 }
                 result / operand
             }

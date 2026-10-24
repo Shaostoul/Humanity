@@ -10,6 +10,8 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiState, WalletNetwork, WalletTransaction};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::{t, tf};
+use crate::gui::widgets::{with_hint, Hint};
 
 /// Below this panel width the two columns stack into one.
 const TWO_COL_MIN: f32 = 820.0;
@@ -20,7 +22,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("Wallet")
+                    RichText::new(t("wallet.title"))
                         .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );
@@ -35,10 +37,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             RichText::new(net.label()).color(theme.text_secondary()).size(theme.font_size_small)
                         };
                         let fill = if is_active { theme.accent() } else { theme.bg_card() };
-                        let btn = egui::Button::new(text)
-                            .fill(fill)
-                            .rounding(Rounding::same(4));
-                        if ui.add(btn).clicked() {
+                        let resp = ui.add(
+                            egui::Button::new(text)
+                                .fill(fill)
+                                .rounding(Rounding::same(4)),
+                        ).hint("wallet.network_hint");
+                        if resp.clicked() {
                             state.wallet_network = *net;
                         }
                     }
@@ -60,7 +64,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let has_vault = !enc.is_empty() && !salt.is_empty();
             let unlocked = if has_vault {
                 let lock = state.section_locks.entry("wallet".to_string()).or_default();
-                widgets::lockable_gate(ui, theme, lock, "Private wallet data", |pass| {
+                widgets::lockable_gate(ui, theme, lock, t("wallet.private_data"), |pass| {
                     crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
                 })
             } else {
@@ -92,13 +96,13 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Balance card
     widgets::card(ui, theme, |ui| {
         ui.label(
-            RichText::new("Balance")
+            RichText::new(t("wallet.balance"))
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(format!("{:.4} SOL", state.wallet_balance))
+                RichText::new(format!("{:.4} SOL", state.wallet_balance)) // i18n-exempt: a number and the SOL unit symbol
                     .size(theme.title_size)
                     .color(theme.accent()),
             );
@@ -106,14 +110,14 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.horizontal(|ui| {
             let usd = state.wallet_balance * state.wallet_sol_price;
             ui.label(
-                RichText::new(format!("~${:.2} USD", usd))
+                RichText::new(tf("wallet.usd_about", &[("amount", &format!("{:.2}", usd))]))
                     .size(theme.font_size_body)
                     .color(theme.text_muted()),
             );
             ui.add_space(theme.spacing_md);
             // 24h change placeholder
             ui.label(
-                RichText::new("24h: --")
+                RichText::new(t("wallet.change_24h_none"))
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
@@ -125,7 +129,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Address section
     widgets::card(ui, theme, |ui| {
         ui.label(
-            RichText::new("Address")
+            RichText::new(t("wallet.address"))
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );
@@ -134,7 +138,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let display = if addr.len() > 16 {
                 format!("{}...{}", &addr[..8], &addr[addr.len() - 8..])
             } else if addr.is_empty() {
-                "No address set".to_string()
+                t("wallet.no_address").to_string()
             } else {
                 addr.clone()
             };
@@ -144,7 +148,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_primary())
                     .monospace(),
             );
-            if widgets::secondary_button(ui, theme, "Copy") {
+            if with_hint(ui, "wallet.copy_hint", |ui| widgets::secondary_button(ui, theme, t("wallet.copy"))) {
                 ui.output_mut(|o| o.copied_text = state.wallet_address.clone());
             }
         });
@@ -156,7 +160,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.painter().text(
             qr_rect.center(),
             egui::Align2::CENTER_CENTER,
-            "QR Code",
+            t("wallet.qr_placeholder"),
             egui::FontId::proportional(theme.font_size_small),
             theme.text_muted(),
         );
@@ -165,26 +169,26 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
 
     // Send form
-    widgets::card_with_header(ui, theme, "Send SOL", |ui| {
+    widgets::card_with_header(ui, theme, t("wallet.send_sol"), |ui| {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("To:").color(theme.text_secondary()).size(theme.font_size_body));
+            ui.label(RichText::new(t("wallet.to_label")).color(theme.text_secondary()).size(theme.font_size_body));
             ui.add(
                 egui::TextEdit::singleline(&mut state.wallet_send_to)
                     .desired_width(320.0)
-                    .hint_text("Recipient address"),
-            );
+                    .hint_text(t("wallet.recipient_placeholder")),
+            ).hint("wallet.send_to_hint");
         });
         ui.add_space(theme.spacing_xs);
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Amount:").color(theme.text_secondary()).size(theme.font_size_body));
+            ui.label(RichText::new(t("wallet.amount_label")).color(theme.text_secondary()).size(theme.font_size_body));
             ui.add(
                 egui::TextEdit::singleline(&mut state.wallet_send_amount)
                     .desired_width(140.0)
                     .hint_text("0.0"),
-            );
-            ui.label(RichText::new("SOL").color(theme.text_muted()));
+            ).hint("wallet.send_amount_hint");
+            ui.label(RichText::new("SOL").color(theme.text_muted())); // i18n-exempt: the SOL unit symbol
             // MAX button
-            if widgets::secondary_button(ui, theme, "MAX") {
+            if with_hint(ui, "wallet.max_hint", |ui| widgets::secondary_button(ui, theme, t("wallet.max"))) {
                 state.wallet_send_amount = format!("{:.4}", state.wallet_balance);
             }
         });
@@ -194,7 +198,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             && amount > 0.0
             && amount <= state.wallet_balance;
         ui.add_enabled_ui(can_send, |ui| {
-            if widgets::primary_button(ui, theme, "Send") {
+            if widgets::Button::primary(t("wallet.send")).hint("wallet.send_hint").show(ui, theme) {
                 let amount_val = state.wallet_send_amount.parse().unwrap_or(0.0);
                 let to = state.wallet_send_to.clone();
                 state.wallet_transactions.insert(0, WalletTransaction {
@@ -202,7 +206,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     direction: "Sent".to_string(),
                     amount: amount_val,
                     counterparty: to,
-                    timestamp: "Just now".to_string(),
+                    timestamp: t("wallet.just_now").to_string(),
                 });
                 state.wallet_balance -= amount_val;
                 state.wallet_send_to.clear();
@@ -211,7 +215,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
         if !can_send && amount > state.wallet_balance && amount > 0.0 {
             ui.label(
-                RichText::new("Insufficient balance")
+                RichText::new(t("wallet.insufficient"))
                     .size(theme.font_size_small)
                     .color(theme.danger()),
             );
@@ -222,26 +226,26 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// Right pane: transaction history + token list (read-only display).
 fn pane_history_tokens(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     // Transaction history
-    widgets::card_with_header(ui, theme, "Transaction History", |ui| {
+    widgets::card_with_header(ui, theme, t("wallet.history"), |ui| {
         if state.wallet_transactions.is_empty() {
             ui.label(
-                RichText::new("No transactions yet")
+                RichText::new(t("wallet.no_tx"))
                     .color(theme.text_muted()),
             );
         } else {
             // Table header
             ui.horizontal(|ui| {
                 ui.set_min_width(500.0);
-                let header_style = |t: &str| RichText::new(t).size(theme.font_size_small).color(theme.text_muted());
-                ui.label(header_style("Date"));
+                let header_style = |words: &str| RichText::new(words).size(theme.font_size_small).color(theme.text_muted());
+                ui.label(header_style(t("wallet.date")));
                 ui.add_space(40.0);
-                ui.label(header_style("Type"));
+                ui.label(header_style(t("wallet.type")));
                 ui.add_space(20.0);
-                ui.label(header_style("Amount"));
+                ui.label(header_style(t("wallet.amount")));
                 ui.add_space(30.0);
-                ui.label(header_style("Status"));
+                ui.label(header_style(t("wallet.status")));
                 ui.add_space(20.0);
-                ui.label(header_style("Tx Hash"));
+                ui.label(header_style(t("wallet.tx_hash")));
             });
             ui.separator();
 
@@ -263,20 +267,22 @@ fn pane_history_tokens(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
                                 theme.success()
                             };
                             let dir_prefix = if tx.direction == "Sent" { "-" } else { "+" };
+                            // "Sent" is the stored direction; show it in the person's language.
+                            let dir_words = if tx.direction == "Sent" { t("wallet.sent") } else { tx.direction.as_str() };
                             ui.label(
-                                RichText::new(&tx.direction)
+                                RichText::new(dir_words)
                                     .size(theme.font_size_small)
                                     .color(dir_color),
                             );
                             ui.add_space(10.0);
                             ui.label(
-                                RichText::new(format!("{}{:.4} SOL", dir_prefix, tx.amount))
+                                RichText::new(format!("{}{:.4} SOL", dir_prefix, tx.amount)) // i18n-exempt: a signed number and the SOL unit symbol
                                     .size(theme.font_size_small)
                                     .color(dir_color),
                             );
                             ui.add_space(10.0);
                             ui.label(
-                                RichText::new("Confirmed")
+                                RichText::new(t("wallet.confirmed"))
                                     .size(theme.font_size_small)
                                     .color(theme.success()),
                             );
@@ -301,11 +307,11 @@ fn pane_history_tokens(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     ui.add_space(theme.spacing_md);
 
     // Token list
-    widgets::card_with_header(ui, theme, "Tokens", |ui| {
+    widgets::card_with_header(ui, theme, t("wallet.tokens"), |ui| {
         // SOL always shown
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new("SOL")
+                RichText::new("SOL") // i18n-exempt: the SOL token's name
                     .size(theme.font_size_body)
                     .color(theme.text_primary()),
             );
@@ -320,7 +326,7 @@ fn pane_history_tokens(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
         ui.separator();
         // Placeholder for SPL tokens
         ui.label(
-            RichText::new("No other tokens found")
+            RichText::new(t("wallet.no_other_tokens"))
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );

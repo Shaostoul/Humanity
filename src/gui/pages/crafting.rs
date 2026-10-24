@@ -3,8 +3,9 @@
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::{GuiState, GuiRecipe};
+use crate::gui::i18n::{t, tf};
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, with_hint, Hint};
 use crate::systems::crafting::home_store::Draw;
 use std::cell::RefCell;
 
@@ -111,16 +112,24 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             ui.label(
-                RichText::new("Categories")
+                RichText::new(t("crafting.categories"))
                     .size(theme.font_size_heading)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_xs);
             ui.horizontal(|ui| {
-                if widgets::Button::ghost("Expand all").size(widgets::ButtonSize::Small).show(ui, theme) {
+                if widgets::Button::ghost(t("crafting.expand_all"))
+                    .size(widgets::ButtonSize::Small)
+                    .hint("crafting.expand_all_hint")
+                    .show(ui, theme)
+                {
                     with_local(|l| l.force_groups_open = Some(true));
                 }
-                if widgets::Button::ghost("Collapse all").size(widgets::ButtonSize::Small).show(ui, theme) {
+                if widgets::Button::ghost(t("crafting.collapse_all"))
+                    .size(widgets::ButtonSize::Small)
+                    .hint("crafting.collapse_all_hint")
+                    .show(ui, theme)
+                {
                     with_local(|l| l.force_groups_open = Some(false));
                 }
             });
@@ -138,10 +147,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if ui
                     .selectable_label(
                         current.is_none(),
-                        RichText::new("All")
+                        RichText::new(t("crafting.all"))
                             .size(theme.font_size_body)
                             .color(theme.text_primary()),
                     )
+                    .hint("crafting.all_hint")
                     .clicked()
                 {
                     newly_selected = Some(None);
@@ -152,10 +162,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if ui
                     .selectable_label(
                         current.as_deref() == Some(STRUCTURES_CATEGORY),
-                        RichText::new("Structures")
+                        RichText::new(t("crafting.structures"))
                             .size(theme.font_size_body)
                             .color(theme.text_primary()),
                     )
+                    .hint("crafting.structures_hint")
                     .clicked()
                 {
                     newly_selected = Some(Some(STRUCTURES_CATEGORY.to_string()));
@@ -184,12 +195,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         .size(theme.font_size_body)
                                         .color(theme.text_primary()),
                                 )
+                                .hint("crafting.category_hint")
                                 .clicked()
                             {
                                 newly_selected = Some(Some(cat.clone()));
                             }
                         }
-                    });
+                    })
+                    .header_response
+                    .hint("crafting.group_hint");
                 }
 
                 if let Some(sel) = newly_selected {
@@ -229,7 +243,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.add_space(theme.spacing_xl);
                         ui.centered_and_justified(|ui| {
                             ui.label(
-                                RichText::new("Select a recipe to view details")
+                                RichText::new(t("crafting.select_recipe"))
                                     .size(theme.font_size_body)
                                     .color(theme.text_muted()),
                             );
@@ -245,7 +259,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.label(
-                RichText::new("Craft Queue")
+                RichText::new(t("crafting.craft_queue"))
                     .size(theme.font_size_heading)
                     .color(theme.text_primary()),
             );
@@ -253,7 +267,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             with_local(|local| {
                 if local.queue.is_empty() {
                     ui.label(
-                        RichText::new("No active crafts")
+                        RichText::new(t("crafting.no_active_crafts"))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -271,7 +285,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add(
                                 egui::ProgressBar::new(progress)
                                     .fill(theme.accent())
-                                    .text(format!("{:.1}s remaining", remaining)),
+                                    .text(tf("crafting.seconds_remaining", &[("s", &format!("{:.1}", remaining))])),
                             );
                         });
                     }
@@ -291,23 +305,23 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.label(
-                RichText::new("Crafting")
+                RichText::new(t("crafting.title"))
                     .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_sm);
             with_local(|local| {
-                widgets::search_bar(ui, theme, &mut local.search, "Filter recipes...");
+                with_hint(ui, "crafting.filter_hint", |ui| widgets::search_bar(ui, theme, &mut local.search, t("crafting.filter_placeholder")));
             });
             // Dev/creative provisioning (the "develop as if 100% unlocked" posture):
             // stock the player with one stack of every recipe input (raws AND
             // intermediates) so EVERY recipe is craftable in one click right now.
             // Dev play mode + cheats switch, both required (task #50 gate).
             if state.dev_cheats_active(theme)
-                && widgets::primary_button(ui, theme, "Dev: stock all materials")
+                && widgets::Button::primary(t("crafting.dev_stock")).hint("crafting.dev_stock_hint").show(ui, theme)
             {
                 state.dev_stock_materials = true;
-                state.craft_status = "Stocking all materials...".to_string();
+                state.craft_status = t("crafting.dev_stocking").to_string();
             }
             if state.dev_cheats_active(theme) {
                 ui.add_space(theme.spacing_sm);
@@ -323,15 +337,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // the player's own keys.
                 let key = |a| crate::input::bindings::pretty_key_name(state.keybinds.pair(a).0);
                 ui.label(
-                    RichText::new(format!(
-                        "Build puts the piece in your hands: aim at the floor, [{}] turns it, [{}] builds it there, \
-                         [{}] takes down the piece you look at (all its materials come back, except that a fire \
-                         gives back only its stones and the whole logs it has not burned), [Esc] when done. Built \
-                         pieces are solid. A roof rests on top of the walls it covers; three walls and a roof keep \
-                         out the wind and rain when the open side faces away from the wind.",
-                        key(crate::input::bindings::GameAction::ToggleRoof),
-                        key(crate::input::bindings::GameAction::Interact),
-                        key(crate::input::bindings::GameAction::AttackSwing),
+                    RichText::new(tf(
+                        "crafting.build_help",
+                        &[
+                            ("turn", &key(crate::input::bindings::GameAction::ToggleRoof)),
+                            ("build", &key(crate::input::bindings::GameAction::Interact)),
+                            ("remove", &key(crate::input::bindings::GameAction::AttackSwing)),
+                        ],
                     ))
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),
@@ -352,7 +364,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .show(ui, |ui| {
                         if blueprints.is_empty() {
                             ui.label(
-                                RichText::new("No blueprints loaded (data/blueprints/basic.ron).")
+                                RichText::new(t("crafting.no_blueprints"))
                                     .color(theme.text_muted()),
                             );
                         }
@@ -383,7 +395,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     );
                                     if !bp.provides.is_empty() {
                                         ui.label(
-                                            RichText::new(format!("provides {}", bp.provides))
+                                            RichText::new(tf("crafting.provides", &[("what", &bp.provides)]))
                                                 .size(theme.font_size_small)
                                                 .color(theme.accent()),
                                         );
@@ -392,7 +404,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     // that name these machine types.
                                     if !bp.stations.is_empty() {
                                         ui.label(
-                                            RichText::new(format!("works as a {}", bp.stations.join(" and ")))
+                                            RichText::new(tf(
+                                                "crafting.works_as",
+                                                &[("stations", &bp.stations.join(t("crafting.and_separator")))],
+                                            ))
                                                 .size(theme.font_size_small)
                                                 .color(theme.text_secondary()),
                                         );
@@ -400,18 +415,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if widgets::compact_button(
+                                            if with_hint(ui, "crafting.build_hint", |ui| widgets::compact_button(
                                                 ui,
                                                 theme,
-                                                "Build",
+                                                t("crafting.build"),
                                                 widgets::ButtonVariant::Primary,
-                                            ) {
+                                            )) {
                                                 state.pending_build = Some(bp.id.clone());
-                                                state.build_status =
-                                                    format!("Placing {}...", bp.name);
+                                                state.build_status = tf("crafting.placing", &[("name", &bp.name)]);
                                             }
                                             ui.label(
-                                                RichText::new(format!("{}s", bp.build_time))
+                                                RichText::new(tf("crafting.seconds", &[("n", &bp.build_time)]))
                                                     .size(theme.font_size_small)
                                                     .color(theme.text_muted()),
                                             );
@@ -450,13 +464,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_muted()).strong());
                     });
                 };
-                h(ui, CRAFT_NAME_W, "Recipe");
-                h(ui, CRAFT_TIME_W, "Time");
-                h(ui, CRAFT_STATION_W, "Station");
-                h(ui, CRAFT_SKILL_W, "Skill");
+                h(ui, CRAFT_NAME_W, t("crafting.col_recipe"));
+                h(ui, CRAFT_TIME_W, t("crafting.col_time"));
+                h(ui, CRAFT_STATION_W, t("crafting.col_station"));
+                h(ui, CRAFT_SKILL_W, t("crafting.col_skill"));
                 // What "have" counts (BUG-147): home storage too, at home.
-                let have = if storage_not_here(state).is_none() { "backpack + home storage" } else { "backpack" };
-                ui.label(RichText::new(format!("Materials (have in {have} / need) and output")).size(theme.font_size_small).color(theme.text_muted()).strong());
+                let have = if storage_not_here(state).is_none() {
+                    t("crafting.have_backpack_home")
+                } else {
+                    t("crafting.have_backpack")
+                };
+                ui.label(
+                    RichText::new(tf("crafting.materials_header", &[("have", &have)]))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted())
+                        .strong(),
+                );
             });
             ui.separator();
 
@@ -482,7 +505,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if filtered.is_empty() {
                         ui.add_space(theme.spacing_md);
                         ui.label(
-                            RichText::new("No recipes match your filter")
+                            RichText::new(t("crafting.no_match"))
                                 .color(theme.text_muted()),
                         );
                     }
@@ -513,7 +536,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     ).truncate());
                                 });
                                 col(ui, CRAFT_TIME_W, |ui| {
-                                    ui.label(RichText::new(format!("{}s", recipe.craft_time_sec)).size(theme.font_size_small).color(theme.text_muted()));
+                                    ui.label(
+                                        RichText::new(tf("crafting.seconds", &[("n", &recipe.craft_time_sec)]))
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
                                 });
                                 col(ui, CRAFT_STATION_W, |ui| {
                                     let st = if recipe.station_required.is_empty() || recipe.station_required == "none" {
@@ -540,11 +567,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     format!("{} {}/{}", pretty_id(id), have, qty)
                                 }).collect::<Vec<_>>().join(", ");
                                 let outs = recipe.outputs.iter().map(|(id, qty)| {
-                                    if *qty > 1 { format!("{} x{}", pretty_id(id), qty) } else { pretty_id(id) }
+                                    if *qty > 1 {
+                                        tf("crafting.item_count", &[("item", &pretty_id(id)), ("n", qty)])
+                                    } else {
+                                        pretty_id(id)
+                                    }
                                 }).collect::<Vec<_>>().join(", ");
                                 let line = match (mats.is_empty(), outs.is_empty()) {
-                                    (false, false) => format!("{}  ·  makes {}", mats, outs),
-                                    (true, false) => format!("makes {}", outs),
+                                    (false, false) => tf("crafting.makes_with", &[("materials", &mats), ("outputs", &outs)]),
+                                    (true, false) => tf("crafting.makes", &[("outputs", &outs)]),
                                     (false, true) => mats,
                                     (true, true) => String::new(),
                                 };
@@ -553,7 +584,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ).truncate());
                             });
                         });
-                        if inner.response.interact(egui::Sense::click()).clicked() {
+                        if inner.response.interact(egui::Sense::click()).hint("crafting.recipe_row_hint").clicked() {
                             state.craft_selected = Some(*idx);
                         }
                         ui.add_space(1.0);
@@ -585,17 +616,21 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
 
     // Station & time
     let station = if recipe.station_required.is_empty() {
-        "Hand-craftable"
+        t("crafting.hand_craftable")
     } else {
         &recipe.station_required
     };
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Station:").size(theme.font_size_small).color(theme.text_muted()));
+        ui.label(RichText::new(t("crafting.station_label")).size(theme.font_size_small).color(theme.text_muted()));
         ui.label(RichText::new(station).size(theme.font_size_small).color(theme.text_primary()));
     });
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Craft time:").size(theme.font_size_small).color(theme.text_muted()));
-        ui.label(RichText::new(format!("{}s", recipe.craft_time_sec)).size(theme.font_size_small).color(theme.text_primary()));
+        ui.label(RichText::new(t("crafting.craft_time_label")).size(theme.font_size_small).color(theme.text_muted()));
+        ui.label(
+            RichText::new(tf("crafting.seconds", &[("n", &recipe.craft_time_sec)]))
+                .size(theme.font_size_small)
+                .color(theme.text_primary()),
+        );
     });
 
     ui.add_space(theme.spacing_md);
@@ -606,47 +641,59 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     let not_here = storage_not_here(state);
     let draws: Vec<(String, u32, Draw)> =
         recipe.inputs.iter().map(|(id, qty)| (id.clone(), *qty, draw_for(state, id, *qty))).collect();
-    widgets::card_with_header(ui, theme, "Ingredients", |ui| {
-        let small = |t: String, c| RichText::new(t).size(theme.font_size_small).color(c);
+    widgets::card_with_header(ui, theme, t("crafting.ingredients"), |ui| {
+        let small = |s: String, c| RichText::new(s).size(theme.font_size_small).color(c);
         for (item_id, qty, d) in &draws {
             let ok = d.short == 0;
             ui.horizontal(|ui| {
                 ui.label(RichText::new(pretty_id(item_id)).size(theme.font_size_body).color(theme.text_primary()));
-                ui.label(small(format!("{} in backpack", in_backpack(state, item_id)), theme.text_secondary()));
+                ui.label(small(
+                    tf("crafting.in_backpack_count", &[("n", &in_backpack(state, item_id))]),
+                    theme.text_secondary(),
+                ));
                 if not_here.is_none() {
-                    ui.label(small(format!("+ {} in home storage", in_home_storage(state, item_id)), theme.text_secondary()));
+                    ui.label(small(
+                        tf("crafting.in_home_storage_count", &[("n", &in_home_storage(state, item_id))]),
+                        theme.text_secondary(),
+                    ));
                 }
                 if d.tap > 0 {
-                    ui.label(small(format!("+ {} from the tanks", d.tap), theme.text_secondary()));
+                    ui.label(small(tf("crafting.from_tanks", &[("n", &d.tap)]), theme.text_secondary()));
                 }
-                ui.label(small(format!("/ needs {qty}"), if ok { theme.success() } else { theme.danger() }));
+                ui.label(small(tf("crafting.needs_qty", &[("n", qty)]), if ok { theme.success() } else { theme.danger() }));
                 if !ok {
-                    ui.label(small(format!("{} short", d.short), theme.danger()));
+                    ui.label(small(tf("crafting.short_count", &[("n", &d.short)]), theme.danger()));
                 }
             });
         }
-        let short: Vec<String> =
-            draws.iter().filter(|(_, _, d)| d.short > 0).map(|(id, _, d)| format!("{} more {}", d.short, pretty_id(id))).collect();
+        let short: Vec<String> = draws
+            .iter()
+            .filter(|(_, _, d)| d.short > 0)
+            .map(|(id, _, d)| tf("crafting.more_item", &[("n", &d.short), ("item", &pretty_id(id))]))
+            .collect();
         if !short.is_empty() {
             ui.add_space(theme.spacing_xs);
-            let held = if not_here.is_none() { "your backpack and home storage hold together" } else { "your backpack holds" };
-            ui.label(small(format!("Not enough: this needs {} than {held}.", short.join(", ")), theme.danger()));
+            let held = if not_here.is_none() { t("crafting.held_both") } else { t("crafting.held_backpack") };
+            ui.label(small(
+                tf("crafting.not_enough", &[("list", &short.join(", ")), ("held", &held)]),
+                theme.danger(),
+            ));
         }
         if let Some(why) = not_here {
-            ui.label(small(format!("Home storage does not count here: {why}."), theme.text_muted()));
+            ui.label(small(tf("crafting.storage_not_here", &[("why", &why)]), theme.text_muted()));
         }
     });
 
     // Hand tools (2026-09-26): carried in the backpack, worn by each craft.
     if !recipe.tools.is_empty() {
         ui.add_space(theme.spacing_sm);
-        widgets::card_with_header(ui, theme, "Tools (not used up)", |ui| {
+        widgets::card_with_header(ui, theme, t("crafting.tools"), |ui| {
             for tool in &recipe.tools {
                 let have = in_backpack(state, tool) > 0;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(pretty_id(tool)).size(theme.font_size_body).color(theme.text_primary()));
                     ui.label(
-                        RichText::new(if have { "in your backpack" } else { "not in your backpack" })
+                        RichText::new(if have { t("crafting.tool_in_backpack") } else { t("crafting.tool_not_in_backpack") })
                             .size(theme.font_size_small)
                             .color(if have { theme.success() } else { theme.danger() }),
                     );
@@ -662,21 +709,23 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     // vehicle the game drives rolls out in front of you.
     let free_l = (state.carry.input.volume_capacity_l - state.carry.input.volume_l).max(0.0);
     let too_big = !recipe.rolls_out && recipe.output_volume_l > free_l && state.carry.input.volume_capacity_l > 0.0;
+    let size = format!("{:.0}", recipe.output_volume_l);
+    let free = format!("{:.0}", free_l);
     let destination = if recipe.rolls_out {
-        "Rolls out in front of you when it is done.".to_string()
+        t("crafting.rolls_out").to_string()
     } else if too_big && not_here.is_none() {
-        format!("Too big for your backpack ({:.0} L, {:.0} L free): it goes to home storage.", recipe.output_volume_l, free_l)
+        tf("crafting.too_big_home", &[("size", &size), ("free", &free)])
     } else if too_big {
-        format!("Too big for your backpack ({:.0} L, {:.0} L free), and home storage is not here.", recipe.output_volume_l, free_l)
+        tf("crafting.too_big_nowhere", &[("size", &size), ("free", &free)])
     } else {
-        "Goes into your backpack.".to_string()
+        t("crafting.into_backpack").to_string()
     };
     let no_room = too_big && not_here.is_some();
-    widgets::card_with_header(ui, theme, "Produces", |ui| {
+    widgets::card_with_header(ui, theme, t("crafting.produces"), |ui| {
         for (item_id, qty) in &recipe.outputs {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(format!("{} x{}", pretty_id(item_id), qty))
+                    RichText::new(tf("crafting.item_count", &[("item", &pretty_id(item_id)), ("n", qty)]))
                         .size(theme.font_size_body)
                         .color(theme.text_primary()),
                 );
@@ -715,7 +764,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             .unwrap_or(&recipe.station_required);
         state.home_machines.is_none() || state.stations_here.contains(machine_type)
     };
-    let missing_tool = recipe.tools.iter().find(|t| in_backpack(state, t) == 0).cloned();
+    let missing_tool = recipe.tools.iter().find(|tool| in_backpack(state, tool) == 0).cloned();
     // Power (2026-09-26): lib.rs publishes the electric station types that
     // have no powered machine, mirroring CraftingSystem::station_unpowered.
     let unpowered = recipe
@@ -735,11 +784,13 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
                 theme.danger()
             };
             ui.label(
-                RichText::new(format!(
-                    "Requires {} Lv {} (you: Lv {})",
-                    skill_display_name(state, skill),
-                    recipe.skill_level,
-                    lvl
+                RichText::new(tf(
+                    "crafting.requires_skill",
+                    &[
+                        ("skill", &skill_display_name(state, skill)),
+                        ("level", &recipe.skill_level),
+                        ("yours", &lvl),
+                    ],
                 ))
                 .size(theme.font_size_small)
                 .color(color),
@@ -760,19 +811,23 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         let q = &state.quality_levels;
         let lo = q.name(q.grade_for(score(f, 0.0))).unwrap_or("?").to_string();
         let hi = q.name(q.grade_for(score(f, 0.999))).unwrap_or("?").to_string();
-        let text = if lo == hi { format!("Expected quality: {lo}") } else { format!("Expected quality: {lo} to {hi}") };
+        let text = if lo == hi {
+            tf("crafting.expected_quality", &[("grade", &lo)])
+        } else {
+            tf("crafting.expected_quality_range", &[("low", &lo), ("high", &hi)])
+        };
         ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
         ui.add_space(theme.spacing_xs);
     }
 
     ui.add_enabled_ui(can_craft, |ui| {
-        if widgets::primary_button(ui, theme, "Craft") {
+        if widgets::Button::primary(t("crafting.craft")).hint("crafting.craft_hint").show(ui, theme) {
             // Real craft: hand the recipe id to the ECS CraftingSystem (via the
             // main-loop bridge -> DataStore "craft_request"), which consumes inputs
             // and produces outputs on the player's actual inventory. The local queue
             // below is just a visual progress indicator.
             state.pending_craft_recipe = Some(recipe.id.clone());
-            state.craft_status = format!("Crafting {}...", recipe.name);
+            state.craft_status = tf("crafting.crafting_status", &[("name", &recipe.name)]);
             with_local(|local| {
                 local.queue.push(CraftQueueItem {
                     recipe_name: recipe.name.clone(),
@@ -787,23 +842,23 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         ui.add_space(theme.spacing_xs);
         let msg = if !has_ingredients {
             // The Ingredients card above names what is short and from where.
-            "Not enough ingredients: see what is short above".to_string()
+            t("crafting.not_enough_ingredients").to_string()
         } else if no_room {
-            format!("No room for the result here: {}", not_here.unwrap_or("make room in your backpack"))
-        } else if let Some(t) = &missing_tool {
-            format!("Needs a {} in your backpack", pretty_id(t))
+            tf("crafting.no_room", &[("why", &not_here.unwrap_or(t("crafting.make_room")))])
+        } else if let Some(tool) = &missing_tool {
+            tf("crafting.needs_tool", &[("tool", &pretty_id(tool))])
         } else if unpowered {
             let station = recipe.station_required.trim_end_matches("_0").replace('_', " ");
             match &state.stations_where {
                 // A station built on a planet is not on the home's grid
                 // (construction::wire_built_stations), so say so.
                 crate::systems::construction::StationsWhere::Site(_) => {
-                    format!("The {station} has no power: nothing at this site makes power, and the home's grid is in orbit")
+                    tf("crafting.no_power_site", &[("station", &station)])
                 }
-                _ => format!("The {station} has no power"),
+                _ => tf("crafting.no_power", &[("station", &station)]),
             }
         } else if !skill_ok {
-            "Skill level too low".to_string()
+            t("crafting.skill_too_low").to_string()
         } else {
             // Name the structure that would serve, when one can be built,
             // so the message is a way forward and not only a wall.
@@ -817,12 +872,14 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             use crate::systems::construction::StationsWhere;
             match (&state.stations_where, buildable) {
                 (StationsWhere::Site(_), Some(name)) => {
-                    format!("Needs a {station} at this site: build a {name} here (the home's machines are in orbit)")
+                    tf("crafting.needs_station_site_build", &[("station", &station), ("name", &name)])
                 }
-                (StationsWhere::Site(_), None) => format!("Needs a {station}, and the home's machines are in orbit"),
-                (StationsWhere::Nowhere, _) => format!("Needs a {station}: go aboard your home, or to a site you built"),
-                (StationsWhere::Home, Some(name)) => format!("Needs a {station} in your home, or build a {name}"),
-                (StationsWhere::Home, None) => format!("Needs a {station} placed in your home"),
+                (StationsWhere::Site(_), None) => tf("crafting.needs_station_site", &[("station", &station)]),
+                (StationsWhere::Nowhere, _) => tf("crafting.needs_station_nowhere", &[("station", &station)]),
+                (StationsWhere::Home, Some(name)) => {
+                    tf("crafting.needs_station_home_build", &[("station", &station), ("name", &name)])
+                }
+                (StationsWhere::Home, None) => tf("crafting.needs_station_home", &[("station", &station)]),
             }
         };
         ui.label(

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calendar, HumanityOS</title>
+  <title data-i18n="calendar.page_title">Calendar, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* Colours this page uses that have no theme token. The dark values are
@@ -431,7 +431,7 @@
       letter-spacing: 0.06em;
       color: var(--text-muted);
     }
-    .today-sidebar-header span { color: var(--accent); }
+    .today-sidebar-header #today-date-label { color: var(--accent); }
     #today-events-list {
       flex: 1;
       overflow-y: auto;
@@ -487,31 +487,33 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="calendar"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/hold-confirm.js?v=1"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Your calendar, see what's happening today, this week, or this month.</div>
-  <div class="eli5-expert">Client-side calendar with day/week/month views. Events stored in localStorage (hos_calendar_v1). Supports recurring events, color-coded categories, and drag-to-reschedule. No server sync yet, planned for future release.</div>
+  <div class="eli5-simple" data-i18n="calendar.eli5_simple">Your calendar, see what's happening today, this week, or this month.</div>
+  <div class="eli5-expert" data-i18n="calendar.eli5_expert">Client-side calendar with day/week/month views. Events stored in localStorage (hos_calendar_v1). Supports recurring events, color-coded categories, and drag-to-reschedule. No server sync yet, planned for future release.</div>
 </div>
-<p class="page-hint">Your calendar. Add events, set reminders, and see what's coming up. Share events with friends so everyone knows when to show up.</p>
+<p class="page-hint" data-i18n="calendar.page_hint">Your calendar. Add events, set reminders, and see what's coming up. Share events with friends so everyone knows when to show up.</p>
 <div id="cal-app">
   <!-- Topbar -->
   <div id="cal-topbar">
     <div id="cal-nav">
-      <button class="nav-btn" onclick="navigate(-1)">‹</button>
-      <button class="nav-btn today" onclick="goToday()">Today</button>
-      <button class="nav-btn" onclick="navigate(1)">›</button>
+      <button class="nav-btn" onclick="navigate(-1)" data-i18n-tip="calendar.prev_hint" data-tip-desc="Goes back one month, week or day, whichever you are looking at.">‹</button>
+      <button class="nav-btn today" onclick="goToday()" data-i18n="calendar.today" data-i18n-tip="calendar.today_hint" data-tip-desc="Jumps back to today's date.">Today</button>
+      <button class="nav-btn" onclick="navigate(1)" data-i18n-tip="calendar.next_hint" data-tip-desc="Goes forward one month, week or day, whichever you are looking at.">›</button>
     </div>
     <div id="cal-title"></div>
     <div id="view-tabs">
-      <button class="view-tab active" id="tab-month" onclick="setView('month')">Month</button>
-      <button class="view-tab" id="tab-week" onclick="setView('week')">Week</button>
-      <button class="view-tab" id="tab-day" onclick="setView('day')">Day</button>
+      <button class="view-tab active" id="tab-month" onclick="setView('month')" data-i18n="calendar.view_month" data-i18n-tip="calendar.view_month_hint" data-tip-desc="Shows the whole month at once.">Month</button>
+      <button class="view-tab" id="tab-week" onclick="setView('week')" data-i18n="calendar.view_week" data-i18n-tip="calendar.view_week_hint" data-tip-desc="Shows one week, hour by hour.">Week</button>
+      <button class="view-tab" id="tab-day" onclick="setView('day')" data-i18n="calendar.view_day" data-i18n-tip="calendar.view_day_hint" data-tip-desc="Shows one day, hour by hour.">Day</button>
     </div>
-    <button id="add-event-btn" onclick="openAddEvent()">+ Event</button>
+    <button id="add-event-btn" onclick="openAddEvent()" data-i18n="calendar.new_event_button" data-i18n-tip="calendar.new_event_hint" data-tip-desc="Opens a form to add a new event.">+ Event</button>
   </div>
 
   <div style="display:flex;flex:1;overflow:hidden;">
@@ -521,67 +523,67 @@
       <div id="day-view" style="display:none"></div>
     </div>
     <div id="today-sidebar">
-      <div class="today-sidebar-header">Today's Events <span id="today-date-label"></span></div>
+      <div class="today-sidebar-header"><span data-i18n="calendar.todays_events">Today's Events</span> <span id="today-date-label"></span></div>
       <div id="today-events-list"></div>
     </div>
   </div>
 </div>
 
 <!-- Event Modal -->
-<div id="ev-backdrop" onclick="closeBdrop(event)">
+<div id="ev-backdrop" onclick="closeBdrop(event)" data-i18n-tip="calendar.backdrop_hint" data-tip-desc="Pressing outside the form closes it without saving.">
   <div id="ev-modal">
-    <h2 id="ev-modal-title">New Event</h2>
+    <h2 id="ev-modal-title" data-i18n="calendar.new_event">New Event</h2>
     <div class="ev-field">
-      <label>Title *</label>
-      <input type="text" id="ef-title" placeholder="Event title">
+      <label data-i18n="calendar.field_title_required">Title *</label>
+      <input type="text" id="ef-title" data-i18n-placeholder="calendar.event_title_placeholder" placeholder="Event title" data-i18n-tip="calendar.title_hint" data-tip-desc="Type a short name for the event.">
     </div>
     <div class="ev-row">
       <div class="ev-field">
-        <label>Date *</label>
-        <input type="date" id="ef-date">
+        <label for="ef-date" data-i18n="calendar.field_date_required">Date *</label>
+        <input type="date" id="ef-date" data-i18n-tip="calendar.date_hint" data-tip-desc="Picks the day the event is on.">
       </div>
       <div class="ev-field">
-        <label>All day?</label>
-        <select id="ef-allday" onchange="toggleTime()">
-          <option value="1">All day</option>
-          <option value="0">Time range</option>
+        <label for="ef-allday" data-i18n="calendar.all_day_question">All day?</label>
+        <select id="ef-allday" onchange="toggleTime()" data-i18n-tip="calendar.all_day_hint" data-tip-desc="Choose whether the event lasts all day or has a start and an end time.">
+          <option value="1" data-i18n="calendar.all_day">All day</option>
+          <option value="0" data-i18n="calendar.time_range">Time range</option>
         </select>
       </div>
     </div>
     <div id="ef-time-row" class="ev-row" style="display:none">
       <div class="ev-field">
-        <label>Start time</label>
-        <input type="time" id="ef-start">
+        <label for="ef-start" data-i18n="calendar.start_time">Start time</label>
+        <input type="time" id="ef-start" data-i18n-tip="calendar.start_time_hint" data-tip-desc="Type when the event starts, like 09:00.">
       </div>
       <div class="ev-field">
-        <label>End time</label>
-        <input type="time" id="ef-end">
+        <label for="ef-end" data-i18n="calendar.end_time">End time</label>
+        <input type="time" id="ef-end" data-i18n-tip="calendar.end_time_hint" data-tip-desc="Type when the event ends, like 10:00. You can leave it empty.">
       </div>
     </div>
     <div class="ev-field">
-      <label>Color</label>
+      <label data-i18n="calendar.color">Color</label>
       <div class="color-picker" id="color-picker"></div>
     </div>
     <div class="ev-row">
       <div class="ev-field">
-        <label>Repeat</label>
-        <select id="ef-recur">
-          <option value="">No repeat</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
+        <label for="ef-recur" data-i18n="calendar.repeat">Repeat</label>
+        <select id="ef-recur" data-i18n-tip="calendar.repeat_hint" data-tip-desc="Choose whether the event comes back every day, week, month or year.">
+          <option value="" data-i18n="calendar.repeat_none">No repeat</option>
+          <option value="daily" data-i18n="calendar.repeat_daily">Daily</option>
+          <option value="weekly" data-i18n="calendar.repeat_weekly">Weekly</option>
+          <option value="monthly" data-i18n="calendar.repeat_monthly">Monthly</option>
+          <option value="yearly" data-i18n="calendar.repeat_yearly">Yearly</option>
         </select>
       </div>
       <div class="ev-field">
-        <label>Notes</label>
-        <input type="text" id="ef-notes" placeholder="Optional description">
+        <label data-i18n="calendar.notes">Notes</label>
+        <input type="text" id="ef-notes" data-i18n-placeholder="calendar.notes_placeholder" placeholder="Optional description" data-i18n-tip="calendar.details_hint" data-tip-desc="Type any extra details about the event. You can leave it empty.">
       </div>
     </div>
     <div class="ev-actions">
-      <button class="ev-btn danger" id="ev-delete-btn" style="display:none;margin-right:auto" onclick="deleteEvent()">Delete</button>
-      <button class="ev-btn" onclick="closeModal()">Cancel</button>
-      <button class="ev-btn primary" onclick="saveEvent()">Save</button>
+      <button class="ev-btn danger" id="ev-delete-btn" style="display:none;margin-right:auto" onclick="deleteEvent()" data-i18n="common.delete" data-i18n-tip="calendar.delete_hint" data-tip-desc="Removes this event for good. You will be asked to hold the button to be sure.">Delete</button>
+      <button class="ev-btn" onclick="closeModal()" data-i18n="common.cancel" data-i18n-tip="calendar.cancel_hint" data-tip-desc="Closes this form without saving.">Cancel</button>
+      <button class="ev-btn primary" onclick="saveEvent()" data-i18n="common.save" data-i18n-tip="calendar.save_hint" data-tip-desc="Keeps this event on your calendar. It needs a title first.">Save</button>
     </div>
   </div>
 </div>
@@ -643,8 +645,20 @@ const today = new Date();
 let cursor = new Date(today);
 let view = 'month';
 
-const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+// Day and month names in the person's language (the same keys as the desktop
+// app's calendar): dayName(0) is Sunday, monthName(0) is January.
+function dayName(i) { return i18n.t(`calendar.weekday_short_${i}`); }
+function monthName(i) { return i18n.t(`calendar.month_${i + 1}`); }
+function hourLabel(h) {
+  if (h === 0) return '';
+  if (h < 12) return i18n.t('calendar.hour_am', { h: h });
+  return i18n.t('calendar.hour_pm', { h: h === 12 ? 12 : h - 12 });
+}
+// The words of a hover hint for a control this script makes, escaped for a
+// data-tip-desc attribute (the key goes beside it as data-i18n-tip).
+function hintWords(key) {
+  return esc(i18n.t(key));
+}
 
 function fmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -691,10 +705,10 @@ function renderTodaySidebar() {
   const evs = eventsOn(td);
   const dateLabel = document.getElementById('today-date-label');
   const list = document.getElementById('today-events-list');
-  dateLabel.textContent = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  dateLabel.textContent = today.toLocaleDateString(i18n.getLanguage(), { month: 'short', day: 'numeric' });
 
   if (!evs.length) {
-    list.innerHTML = '<div class="today-ev-empty">No events today.</div>';
+    list.innerHTML = '<div class="today-ev-empty">' + esc(i18n.t('calendar.no_events_today')) + '</div>';
     return;
   }
 
@@ -706,30 +720,41 @@ function renderTodaySidebar() {
     return 0;
   });
 
+  const openHint = hintWords('calendar.event_open_hint');
   list.innerHTML = evs.map(e => {
-    const timeStr = e.allday || !e.startTime ? 'All day' :
+    const timeStr = e.allday || !e.startTime ? esc(i18n.t('calendar.all_day')) :
       e.startTime + (e.endTime ? ' - ' + e.endTime : '');
-    return `<div class="today-ev-item" onclick="openEditEvent('${e.id}')" title="${esc(e.notes || '')}">
+    return `<div class="today-ev-item" onclick="openEditEvent('${e.id}')" title="${esc(e.notes || '')}" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">
       <div class="today-ev-dot" style="background:${e.color || '#3498db'}"></div>
       <div class="today-ev-info">
         <div class="today-ev-title">${esc(e.title)}</div>
-        <div class="today-ev-time">${timeStr}${e._recurring ? ' (recurring)' : ''}</div>
+        <div class="today-ev-time">${timeStr}${e._recurring ? ' ' + esc(i18n.t('calendar.recurring_note')) : ''}</div>
       </div>
     </div>`;
   }).join('');
 }
 
 function updateTitle() {
-  let t;
-  if (view === 'month') t = `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`;
-  else if (view === 'week') {
+  let title;
+  if (view === 'month') {
+    title = i18n.t('calendar.month_year', { month: monthName(cursor.getMonth()), year: cursor.getFullYear() });
+  } else if (view === 'week') {
     const ws = weekStart(cursor);
     const we = new Date(ws); we.setDate(we.getDate() + 6);
-    t = `${MONTHS[ws.getMonth()]} ${ws.getDate()} - ${ws.getMonth() !== we.getMonth() ? MONTHS[we.getMonth()] + ' ' : ''}${we.getDate()}, ${we.getFullYear()}`;
+    const range = { month: monthName(ws.getMonth()), start: ws.getDate(), end: we.getDate(), year: we.getFullYear() };
+    if (ws.getMonth() !== we.getMonth()) {
+      range.end_month = monthName(we.getMonth());
+      title = i18n.t('calendar.week_range_cross', range);
+    } else {
+      title = i18n.t('calendar.week_range_same', range);
+    }
   } else {
-    t = `${DAYS[cursor.getDay()]}, ${MONTHS[cursor.getMonth()]} ${cursor.getDate()}, ${cursor.getFullYear()}`;
+    title = i18n.t('calendar.day_title', {
+      weekday: dayName(cursor.getDay()), month: monthName(cursor.getMonth()),
+      day: cursor.getDate(), year: cursor.getFullYear(),
+    });
   }
-  document.getElementById('cal-title').textContent = t;
+  document.getElementById('cal-title').textContent = title;
 }
 
 // ─────────────────────────────────────────────
@@ -743,7 +768,7 @@ function renderMonth() {
   const startDow = first.getDay();
   const td = todayStr();
 
-  let html = `<div class="weekday-header">${DAYS.map(d=>`<div>${d}</div>`).join('')}</div>
+  let html = `<div class="weekday-header">${[0,1,2,3,4,5,6].map(d=>`<div>${esc(dayName(d))}</div>`).join('')}</div>
     <div class="month-grid">`;
 
   // leading days from prev month
@@ -771,12 +796,14 @@ function dayCell(d, otherMonth, todayStr) {
   const isToday = ds === todayStr;
   const maxShow = 3;
 
+  const openHint = hintWords('calendar.event_open_hint');
+  const recurringTitle = '↻ ' + esc(i18n.t('calendar.recurring'));
   let chips = evs.slice(0, maxShow).map(e =>
-    `<div class="event-chip" style="background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')" title="${e._recurring ? '↻ Recurring' : ''}">${e._recurring ? '↻ ' : ''}${esc(e.title)}</div>`
+    `<div class="event-chip" style="background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')" title="${e._recurring ? recurringTitle : ''}" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${e._recurring ? '↻ ' : ''}${esc(e.title)}</div>`
   ).join('');
-  if (evs.length > maxShow) chips += `<div class="more-chip">+${evs.length - maxShow} more</div>`;
+  if (evs.length > maxShow) chips += `<div class="more-chip">${esc(i18n.t('calendar.more', { n: evs.length - maxShow }))}</div>`;
 
-  return `<div class="cal-day${otherMonth?' other-month':''}${isToday?' today':''}" onclick="dayClick('${ds}')">
+  return `<div class="cal-day${otherMonth?' other-month':''}${isToday?' today':''}" onclick="dayClick('${ds}')" data-i18n-tip="calendar.day_add_hint" data-tip-desc="${hintWords('calendar.day_add_hint')}">
     <div class="day-num">${d.getDate()}</div>
     <div class="day-events">${chips}</div>
   </div>`;
@@ -801,7 +828,7 @@ function renderWeek() {
   days.forEach(d => {
     const isToday = fmtDate(d) === td;
     header += `<div class="week-header-cell${isToday?' today-col':''}">
-      <div class="wday">${DAYS[d.getDay()]}</div>
+      <div class="wday">${esc(dayName(d.getDay()))}</div>
       <div class="wdate">${d.getDate()}</div>
     </div>`;
   });
@@ -810,23 +837,25 @@ function renderWeek() {
   // Time labels
   let timeCol = '';
   for (let h = 0; h < 24; h++) {
-    timeCol += `<div class="week-time-label">${h===0?'':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM'}</div>`;
+    timeCol += `<div class="week-time-label">${esc(hourLabel(h))}</div>`;
   }
 
   // Day columns with events
+  const hourHint = hintWords('calendar.hour_add_hint');
+  const openHint = hintWords('calendar.event_open_hint');
   let daysCols = days.map((d, di) => {
     const ds = fmtDate(d);
     const dayEvs = eventsOn(ds).filter(e => !e.allday && e.startTime);
     let cells = '';
     for (let h = 0; h < 24; h++) {
-      cells += `<div class="week-hour-cell" onclick="dayHourClick('${ds}',${h})"></div>`;
+      cells += `<div class="week-hour-cell" onclick="dayHourClick('${ds}',${h})" data-i18n-tip="calendar.hour_add_hint" data-tip-desc="${hourHint}"></div>`;
     }
     let eventMarkup = dayEvs.map(e => {
       const [sh,sm] = e.startTime.split(':').map(Number);
       const [eh,em] = (e.endTime||e.startTime).split(':').map(Number);
       const top = (sh*60+sm) * 48/60;
       const height = Math.max(20, ((eh*60+em)-(sh*60+sm)) * 48/60);
-      return `<div class="week-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')">${esc(e.title)}</div>`;
+      return `<div class="week-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}</div>`;
     }).join('');
     return `<div class="week-day-col" style="position:relative">${cells}${eventMarkup}</div>`;
   }).join('');
@@ -847,11 +876,12 @@ function renderDay() {
   const ds = fmtDate(cursor);
   const dayEvs = eventsOn(ds).filter(e => !e.allday && e.startTime);
 
+  const hourHint = hintWords('calendar.hour_add_hint');
+  const openHint = hintWords('calendar.event_open_hint');
   let timeLabels = '', hourCells = '';
   for (let h = 0; h < 24; h++) {
-    const lbl = h === 0 ? '' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h-12) + ' PM';
-    timeLabels += `<div class="day-hour-label">${lbl}</div>`;
-    hourCells   += `<div class="day-hour-cell" onclick="dayHourClick('${ds}',${h})"></div>`;
+    timeLabels += `<div class="day-hour-label">${esc(hourLabel(h))}</div>`;
+    hourCells   += `<div class="day-hour-cell" onclick="dayHourClick('${ds}',${h})" data-i18n-tip="calendar.hour_add_hint" data-tip-desc="${hourHint}"></div>`;
   }
 
   const eventMarkup = dayEvs.map(e => {
@@ -859,15 +889,18 @@ function renderDay() {
     const [eh,em] = (e.endTime||e.startTime).split(':').map(Number);
     const top = (sh*60+sm) * 56/60;
     const height = Math.max(24, ((eh*60+em)-(sh*60+sm)) * 56/60);
-    return `<div class="day-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')">${esc(e.title)}<br><span style="opacity:.7;font-size:.65rem">${e.startTime}-${e.endTime||''}</span></div>`;
+    return `<div class="day-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}<br><span style="opacity:.7;font-size:.65rem">${e.startTime}-${e.endTime||''}</span></div>`;
   }).join('');
 
   const allDay = eventsOn(ds).filter(e => e.allday);
   const allDayBar = allDay.length ? `<div style="padding:.4rem .8rem;border-bottom:1px solid var(--bg-secondary);display:flex;gap:.4rem;flex-wrap:wrap">
-    ${allDay.map(e=>`<span class="event-chip" style="background:${e.color||'#3498db'};cursor:pointer" onclick="openEditEvent('${e.id}')">${esc(e.title)}</span>`).join('')}
+    ${allDay.map(e=>`<span class="event-chip" style="background:${e.color||'#3498db'};cursor:pointer" onclick="openEditEvent('${e.id}')" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}</span>`).join('')}
   </div>` : '';
 
-  el.innerHTML = `<div class="day-header">${DAYS[cursor.getDay()]}, ${MONTHS[cursor.getMonth()]} ${cursor.getDate()}</div>
+  const dayHeader = i18n.t('calendar.day_header', {
+    weekday: dayName(cursor.getDay()), month: monthName(cursor.getMonth()), day: cursor.getDate(),
+  });
+  el.innerHTML = `<div class="day-header">${esc(dayHeader)}</div>
     ${allDayBar}
     <div class="day-grid-wrap">
       <div class="day-time-col">${timeLabels}</div>
@@ -921,8 +954,9 @@ function dayHourClick(ds, hour) {
 // Modal
 // ─────────────────────────────────────────────
 function buildColorPicker() {
+  const swatchHint = hintWords('calendar.color_swatch_hint');
   document.getElementById('color-picker').innerHTML = EVENT_COLORS.map(c =>
-    `<div class="color-swatch${c===selectedColor?' selected':''}" style="background:${c}" onclick="pickColor('${c}')"></div>`
+    `<div class="color-swatch${c===selectedColor?' selected':''}" style="background:${c}" onclick="pickColor('${c}')" data-i18n-tip="calendar.color_swatch_hint" data-tip-desc="${swatchHint}"></div>` // i18n-exempt: a CSS class name, not words
   ).join('');
 }
 
@@ -938,7 +972,7 @@ function toggleTime() {
 
 function openAddEvent(dateStr, startTime, endTime) {
   editingId = null;
-  document.getElementById('ev-modal-title').textContent = 'New Event';
+  document.getElementById('ev-modal-title').textContent = i18n.t('calendar.new_event');
   document.getElementById('ef-title').value = '';
   document.getElementById('ef-date').value = dateStr || fmtDate(cursor);
   document.getElementById('ef-allday').value = '1';
@@ -958,7 +992,7 @@ function openEditEvent(id) {
   const ev = events.find(e => e.id === id);
   if (!ev) return;
   editingId = id;
-  document.getElementById('ev-modal-title').textContent = 'Edit Event';
+  document.getElementById('ev-modal-title').textContent = i18n.t('calendar.edit_event');
   document.getElementById('ef-title').value = ev.title;
   document.getElementById('ef-date').value = ev.date;
   document.getElementById('ef-allday').value = ev.allday ? '1' : '0';
@@ -1009,7 +1043,7 @@ function saveEvent() {
 
 async function deleteEvent() {
   if (!editingId) return;
-  if (!await holdConfirm('Delete this event?', { seconds: 3 })) return;
+  if (!await holdConfirm(i18n.t('calendar.delete_confirm'), { seconds: 3 })) return;
   events = events.filter(e => e.id !== editingId);
   save();
   closeModal();

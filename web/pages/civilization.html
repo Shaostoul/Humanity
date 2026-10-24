@@ -3,7 +3,7 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width,initial-scale=1.0>
-  <title>Civilization, HumanityOS</title>
+  <title data-i18n="civilization.page_title">Civilization, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
@@ -88,20 +88,22 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src=/shared/shell.js data-active=civilization></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
-<p class="page-hint">The big picture. Community infrastructure, population, resources, and governance.</p>
+<p class="page-hint" data-i18n="civilization.web_page_hint">The big picture. Community infrastructure, population, resources, and governance.</p>
 
 <div id="page-app">
   <div class="civ-header">
     <div class="civ-header-left">
-      <h1 id="real-title">Civilization</h1>
-      <p id="civ-desc">Live stats from the community. Auto-refreshes every 60 seconds.</p>
+      <h1 id="real-title" data-i18n="civilization.title">Civilization</h1>
+      <p id="civ-desc" data-i18n="civilization.web_desc">Live stats from the community. Auto-refreshes every 60 seconds.</p>
     </div>
     <div class="civ-meta">
-      <span>Updated <span id="civ-last-updated">...</span></span>
-      <button id="civ-refresh" type="button" aria-label="Refresh community stats now">Refresh</button>
+      <span><span data-i18n="civilization.updated">Updated</span> <span id="civ-last-updated">...</span></span>
+      <button id="civ-refresh" type="button" aria-label="Refresh community stats now" data-i18n-aria-label="civilization.refresh_label" data-i18n="common.refresh" data-i18n-tip="civilization.refresh_hint" data-tip-desc="Asks the server again for the latest community numbers.">Refresh</button>
     </div>
   </div>
 

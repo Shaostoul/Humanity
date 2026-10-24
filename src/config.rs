@@ -380,6 +380,11 @@ pub struct AppConfig {
     /// existing install sees it once too (a rig's autopilot marks it shown).
     #[serde(default)]
     pub controls_hint_shown: bool,
+    /// Where the person is in the first-five-minutes tour (the ELI5 mandate, 2026-10-23;
+    /// gui/first_minutes.rs): started, the step, hidden for now, finished or skipped, and
+    /// whether the 24 words are on paper. Absent = not started.
+    #[serde(default)]
+    pub first_minutes: crate::gui::first_minutes::FirstMinutes,
     // Settings
     #[serde(default = "default_fov")]
     pub fov: f32,
@@ -521,6 +526,11 @@ pub struct AppConfig {
     /// reorderings of the enum. See `crate::gui::HintDisplay`.
     #[serde(default)]
     pub hint_display: crate::gui::HintDisplay,
+    /// The language the app's words are shown in (2026-10-22, the ELI5
+    /// mandate): a `data/i18n/<code>.json` code. Any word that language has not
+    /// translated shows in English (`gui/i18n.rs`). Absent => "en".
+    #[serde(default = "default_language")]
+    pub language: String,
     /// Saved chat servers (name + url). Until 2026-08-14 the saved-server
     /// list lived only in GuiState, so every server added in the Chat
     /// sidebar or Relays rail VANISHED on relaunch (the operator hit it the
@@ -1154,6 +1164,7 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+fn default_language() -> String { "en".to_string() }
 // Settings that were reachable in the UI but never persisted until v0.1066.
 // Defaults MUST match the `Settings::default()` values in src/gui/mod.rs, so
 // an existing install sees no behaviour change on upgrade.
@@ -1576,6 +1587,7 @@ impl AppConfig {
             completed_onboarding: state.onboarding_complete,
             concept_tour_seen: state.concept_tour_seen,
             controls_hint_shown: state.controls_hint_shown,
+            first_minutes: state.first_minutes.clone(),
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
             invert_y: state.settings.invert_y,
@@ -1608,6 +1620,7 @@ impl AppConfig {
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
+            language: state.settings.language.clone(),
             saved_servers: state
                 .chat_servers
                 .iter()
@@ -1769,6 +1782,7 @@ impl AppConfig {
         state.onboarding_complete = self.completed_onboarding;
         state.concept_tour_seen = self.concept_tour_seen;
         state.controls_hint_shown = self.controls_hint_shown;
+        state.first_minutes = self.first_minutes.clone();
         state.settings.fov = self.fov;
         // Guard against a non-positive saved value (a 0.0 would freeze the camera look).
         state.settings.mouse_sensitivity = if self.mouse_sensitivity > 0.0 {
@@ -1809,6 +1823,14 @@ impl AppConfig {
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);
         state.settings.dark_mode = self.dark_mode;
         state.settings.hint_display = self.hint_display;
+        // The language: a code no file provides (a translation removed since)
+        // falls back to English rather than leaving the choice pointing nowhere.
+        state.settings.language = if crate::gui::i18n::set_language(&self.language) {
+            self.language.clone()
+        } else {
+            crate::gui::i18n::set_language("en");
+            "en".to_string()
+        };
         // Rehydrate the saved-server list (identity only; channels and
         // connection state fill in when each server is actually connected).
         for s in &self.saved_servers {

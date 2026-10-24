@@ -36,34 +36,34 @@
     const act = data.activity || {};
 
     const roles = p.roles || {};
-    const roleText = Object.entries(roles).map(([r, c]) => c + ' ' + r).join(', ') || 'None';
+    const roleText = Object.entries(roles).map(([r, c]) => c + ' ' + r).join(', ') || i18n.t('civilization.web_roles_none');
 
     grid.innerHTML =
-      civCard('Population', p.total_members || 0, 'people', [
-        (p.online_now || 0) + ' online now',
-        (p.new_this_week || 0) + ' joined this week',
-        'Roles: ' + roleText
+      civCard(i18n.t('civilization.web_population'), p.total_members || 0, i18n.t('civilization.web_unit_people'), [
+        i18n.t('civilization.web_online_now', { n: p.online_now || 0 }),
+        i18n.t('civilization.web_joined_week', { n: p.new_this_week || 0 }),
+        i18n.t('civilization.web_roles', { roles: roleText })
       ], '#27ae60') +
-      civCard('Infrastructure', inf.channels || 0, 'channels', [
-        (inf.voice_channels || 0) + ' voice channels',
-        (inf.projects || 0) + ' projects',
-        (inf.total_messages || 0).toLocaleString() + ' total messages'
+      civCard(i18n.t('civilization.web_infrastructure'), inf.channels || 0, i18n.t('civilization.web_unit_channels'), [
+        i18n.t('civilization.web_voice_channels', { n: inf.voice_channels || 0 }),
+        i18n.t('civilization.web_projects', { n: inf.projects || 0 }),
+        i18n.t('civilization.web_total_messages', { n: (inf.total_messages || 0).toLocaleString() })
       ], 'var(--nav-blue)') +
-      civCard('Economy', eco.active_listings || 0, 'listings', [
-        (eco.total_trades || 0) + ' trades',
-        (eco.total_reviews || 0) + ' reviews'
+      civCard(i18n.t('civilization.web_economy'), eco.active_listings || 0, i18n.t('civilization.web_unit_listings'), [
+        i18n.t('civilization.web_trades', { n: eco.total_trades || 0 }),
+        i18n.t('civilization.web_reviews', { n: eco.total_reviews || 0 })
       ], '#e67e22') +
-      civCard('Resources', res.total_tasks || 0, 'tasks', [
-        (res.tasks_completed || 0) + ' completed',
-        (res.tasks_in_progress || 0) + ' in progress',
-        (res.tasks_open || 0) + ' open'
+      civCard(i18n.t('civilization.web_resources'), res.total_tasks || 0, i18n.t('civilization.web_unit_tasks'), [
+        i18n.t('civilization.web_completed', { n: res.tasks_completed || 0 }),
+        i18n.t('civilization.web_in_progress', { n: res.tasks_in_progress || 0 }),
+        i18n.t('civilization.web_open', { n: res.tasks_open || 0 })
       ], '#9b59b6') +
-      civCard('Social', soc.total_follows || 0, 'connections', [
-        (soc.total_dms || 0) + ' direct messages'
+      civCard(i18n.t('civilization.web_social'), soc.total_follows || 0, i18n.t('civilization.web_unit_connections'), [
+        i18n.t('civilization.web_direct_messages', { n: soc.total_dms || 0 })
       ], 'var(--nav-red)') +
-      civCard('Activity', act.messages_today || 0, 'messages today', [
-        'Most active: #' + (act.most_active_channel || 'general'),
-        'Peak online: ' + (act.peak_online || 0)
+      civCard(i18n.t('civilization.activity'), act.messages_today || 0, i18n.t('civilization.web_unit_messages_today'), [
+        i18n.t('civilization.web_most_active', { channel: act.most_active_channel || 'general' }),
+        i18n.t('civilization.web_peak_online', { n: act.peak_online || 0 })
       ], '#1abc9c');
 
     // Animate all stat numbers
@@ -74,14 +74,20 @@
   }
 
   // ── Card HTML builder ─────────────────────────────────────
+  // Every word here is text, never markup: the stats carry names that came from
+  // the server (a channel's name, the roles), so they are escaped on the way in
+  // (2026-10-23, found while the page's words moved to data/i18n/).
+  function escText(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   function civCard(title, mainStat, unit, subStats, accentColor) {
-    const subs = subStats.map(s => '<div class="civ-sub">' + s + '</div>').join('');
+    const subs = subStats.map(s => '<div class="civ-sub">' + escText(s) + '</div>').join('');
     return '<div class="civ-card">' +
       '<div class="civ-card-accent" style="background:' + accentColor + '"></div>' +
-      '<h3 class="civ-card-title">' + title + '</h3>' +
+      '<h3 class="civ-card-title">' + escText(title) + '</h3>' +
       '<div class="civ-stat">' +
-        '<span class="civ-stat-num" data-target="' + mainStat + '">0</span>' +
-        '<span class="civ-stat-unit">' + unit + '</span>' +
+        '<span class="civ-stat-num" data-target="' + (parseInt(mainStat, 10) || 0) + '">0</span>' +
+        '<span class="civ-stat-unit">' + escText(unit) + '</span>' +
       '</div>' +
       '<div class="civ-subs">' + subs + '</div>' +
     '</div>';
@@ -105,7 +111,7 @@
     const el = document.getElementById('civ-last-updated');
     if (el) {
       const ago = Math.round((Date.now() - lastFetch) / 1000);
-      el.textContent = ago < 5 ? 'Just now' : ago + 's ago';
+      el.textContent = ago < 5 ? i18n.t('civilization.just_now') : i18n.t('civilization.seconds_ago', { n: ago });
     }
   }
 

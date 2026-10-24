@@ -8,6 +8,7 @@
 //! v0.197.0 note kept: this page commits to the Real (community) framing;
 //! a colony/sim variant would be a separate in-world surface.
 
+use crate::gui::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiCivStats, GuiState};
@@ -92,9 +93,9 @@ pub(crate) fn draw_live_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
         ui.vertical_centered(|ui| {
             ui.add_space(theme.spacing_xl);
             let hint = if state.civ_stats_rx.is_some() {
-                "Loading community stats from the server..."
+                t("civilization.loading")
             } else {
-                "Could not reach the server - Refresh to retry."
+                t("civilization.unreachable")
             };
             ui.label(
                 RichText::new(hint)
@@ -112,30 +113,35 @@ pub(crate) fn draw_live_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
         0.0
     };
     let new_week = if s.new_this_week > 0 {
-        format!("+{} this week", s.new_this_week)
+        tf("civilization.new_this_week", &[("n", &s.new_this_week)])
     } else {
         String::new()
     };
     let msgs_today = if s.messages_today > 0 {
-        format!("+{} today", s.messages_today)
+        tf("civilization.new_today", &[("n", &s.messages_today)])
     } else {
         String::new()
     };
     let stats: Vec<(&str, String, String, f32)> = vec![
-        ("Members", s.total_members.to_string(), new_week, 0.0),
-        ("Online Now", s.online_now.to_string(), String::new(), 0.0),
-        ("Messages", s.total_messages.to_string(), msgs_today, 0.0),
-        ("Channels", format!("{} (+{} voice)", s.channels, s.voice_channels), String::new(), 0.0),
-        ("Projects", s.projects.to_string(), String::new(), 0.0),
-        ("Market Listings", s.active_listings.to_string(), String::new(), 0.0),
-        ("Trades Completed", s.total_trades.to_string(), String::new(), 0.0),
+        (t("civilization.members"), s.total_members.to_string(), new_week, 0.0),
+        (t("civilization.online_now"), s.online_now.to_string(), String::new(), 0.0),
+        (t("civilization.messages"), s.total_messages.to_string(), msgs_today, 0.0),
         (
-            "Tasks Done",
-            format!("{} of {}", s.tasks_completed, s.total_tasks),
+            t("civilization.channels"),
+            tf("civilization.channels_value", &[("n", &s.channels), ("voice", &s.voice_channels)]),
+            String::new(),
+            0.0,
+        ),
+        (t("civilization.projects"), s.projects.to_string(), String::new(), 0.0),
+        (t("civilization.market_listings"), s.active_listings.to_string(), String::new(), 0.0),
+        (t("civilization.trades_completed"), s.total_trades.to_string(), String::new(), 0.0),
+        (
+            t("civilization.tasks_done"),
+            tf("civilization.tasks_done_value", &[("done", &s.tasks_completed), ("total", &s.total_tasks)]),
             String::new(),
             task_progress,
         ),
-        ("Follows", s.total_follows.to_string(), String::new(), 0.0),
+        (t("civilization.follows"), s.total_follows.to_string(), String::new(), 0.0),
     ];
 
     egui::Grid::new("civ_stats_grid_3col")
@@ -155,25 +161,25 @@ pub(crate) fn draw_live_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     // Activity summary.
     widgets::card(ui, theme, |ui| {
         ui.label(
-            RichText::new("Activity")
+            RichText::new(t("civilization.activity"))
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
         ui.add_space(theme.spacing_xs);
         let rows: Vec<(&str, String)> = vec![
             (
-                "Most active channel",
+                t("civilization.most_active_channel"),
                 if s.most_active_channel.is_empty() {
                     "-".to_string()
                 } else {
                     format!("#{}", s.most_active_channel)
                 },
             ),
-            ("Peak online", s.peak_online.to_string()),
-            ("Tasks in progress", s.tasks_in_progress.to_string()),
-            ("Tasks open", s.tasks_open.to_string()),
-            ("Listing reviews", s.total_reviews.to_string()),
-            ("Direct message threads", s.total_dms.to_string()),
+            (t("civilization.peak_online"), s.peak_online.to_string()),
+            (t("civilization.tasks_in_progress"), s.tasks_in_progress.to_string()),
+            (t("civilization.tasks_open"), s.tasks_open.to_string()),
+            (t("civilization.listing_reviews"), s.total_reviews.to_string()),
+            (t("civilization.dm_threads"), s.total_dms.to_string()),
         ];
         for (label, value) in rows {
             ui.horizontal(|ui| {

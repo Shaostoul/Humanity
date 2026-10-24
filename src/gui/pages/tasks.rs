@@ -16,6 +16,8 @@ use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::{GuiState, TaskPriority, TaskStatus, GuiTask};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::{t, t_marked, tf};
+use crate::gui::widgets::{with_hint, Hint};
 use super::onboarding;
 use std::cell::RefCell;
 
@@ -93,18 +95,18 @@ fn priority_color(theme: &Theme, priority: TaskPriority) -> Color32 {
 
 fn priority_label(priority: TaskPriority) -> &'static str {
     match priority {
-        TaskPriority::Low => "Low",
-        TaskPriority::Medium => "Medium",
-        TaskPriority::High => "High",
-        TaskPriority::Critical => "Critical",
+        TaskPriority::Low => t("tasks.priority_low"),
+        TaskPriority::Medium => t("tasks.priority_medium"),
+        TaskPriority::High => t("tasks.priority_high"),
+        TaskPriority::Critical => t("tasks.priority_critical"),
     }
 }
 
 fn status_label(status: TaskStatus) -> &'static str {
     match status {
-        TaskStatus::Todo => "Todo",
-        TaskStatus::InProgress => "In Progress",
-        TaskStatus::Done => "Done",
+        TaskStatus::Todo => t("tasks.status_todo"),
+        TaskStatus::InProgress => t("tasks.status_in_progress"),
+        TaskStatus::Done => t("tasks.status_done"),
     }
 }
 
@@ -125,9 +127,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .show(ctx, |ui| {
                         ScrollArea::vertical().show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Task Detail").size(theme.font_size_heading).color(theme.text_primary()));
+                                ui.label(RichText::new(t("tasks.detail_title")).size(theme.font_size_heading).color(theme.text_primary()));
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if widgets::secondary_button(ui, theme, "X") {
+                                    if with_hint(ui, "tasks.close_detail_hint", |ui| widgets::secondary_button(ui, theme, "X")) {
                                         close_detail = true;
                                     }
                                 });
@@ -145,18 +147,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             // Status
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Status:").color(theme.text_secondary()));
+                                ui.label(RichText::new(t("tasks.status_label")).color(theme.text_secondary()));
                                 if ps.editing {
                                     egui::ComboBox::from_id_salt("edit_status")
                                         .selected_text(status_label(ps.edit_status))
                                         .width(120.0)
                                         .show_ui(ui, |ui| {
                                             for s in [TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Done] {
-                                                if ui.selectable_label(ps.edit_status == s, status_label(s)).clicked() {
+                                                if ui.selectable_label(ps.edit_status == s, status_label(s)).hint("tasks.status_option_hint").clicked() {
                                                     ps.edit_status = s;
                                                 }
                                             }
-                                        });
+                                        })
+                                        .response
+                                        .hint("tasks.edit_status_hint");
                                 } else {
                                     ui.label(RichText::new(status_label(task.status)).color(theme.text_primary()));
                                 }
@@ -164,18 +168,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             // Priority (editable)
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Priority:").color(theme.text_secondary()));
+                                ui.label(RichText::new(t("tasks.priority_label")).color(theme.text_secondary()));
                                 if ps.editing {
                                     egui::ComboBox::from_id_salt("edit_priority")
                                         .selected_text(priority_label(ps.edit_priority))
                                         .width(120.0)
                                         .show_ui(ui, |ui| {
                                             for p in [TaskPriority::Low, TaskPriority::Medium, TaskPriority::High, TaskPriority::Critical] {
-                                                if ui.selectable_label(ps.edit_priority == p, priority_label(p)).clicked() {
+                                                if ui.selectable_label(ps.edit_priority == p, priority_label(p)).hint("tasks.priority_option_hint").clicked() {
                                                     ps.edit_priority = p;
                                                 }
                                             }
-                                        });
+                                        })
+                                        .response
+                                        .hint("tasks.edit_priority_hint");
                                 } else {
                                     ui.label(RichText::new(priority_label(task.priority)).color(theme.text_primary()));
                                 }
@@ -184,7 +190,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // Assignee
                             if !task.assignee.is_empty() {
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Assignee:").color(theme.text_secondary()));
+                                    ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
                                     ui.label(RichText::new(&task.assignee).color(theme.text_primary()));
                                 });
                             }
@@ -193,7 +199,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             // Full description
                             if !task.description.is_empty() {
-                                ui.label(RichText::new("Description").size(theme.font_size_body).color(theme.text_secondary()));
+                                ui.label(RichText::new(t("tasks.description")).size(theme.font_size_body).color(theme.text_secondary()));
                                 widgets::card(ui, theme, |ui| {
                                     ui.label(RichText::new(&task.description).color(theme.text_primary()));
                                 });
@@ -203,7 +209,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             // Labels
                             if !task.labels.is_empty() {
-                                ui.label(RichText::new("Labels").size(theme.font_size_body).color(theme.text_secondary()));
+                                ui.label(RichText::new(t("tasks.labels")).size(theme.font_size_body).color(theme.text_secondary()));
                                 ui.horizontal_wrapped(|ui| {
                                     for label in &task.labels {
                                         widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
@@ -215,16 +221,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             // Task ID
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Task ID:").color(theme.text_muted()));
+                                ui.label(RichText::new(t("tasks.task_id_label")).color(theme.text_muted()));
                                 ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()));
                             });
 
                             ui.add_space(theme.spacing_md);
 
                             // Comments section
-                            ui.label(RichText::new("Comments").size(theme.font_size_body).color(theme.text_secondary()));
+                            ui.label(RichText::new(t("tasks.comments")).size(theme.font_size_body).color(theme.text_secondary()));
                             widgets::card(ui, theme, |ui| {
-                                ui.label(RichText::new("No comments yet.").color(theme.text_muted()));
+                                ui.label(RichText::new(t("tasks.no_comments")).color(theme.text_muted()));
                             });
 
                             ui.add_space(theme.spacing_md);
@@ -232,14 +238,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // Edit / Save buttons
                             ui.horizontal(|ui| {
                                 if ps.editing {
-                                    if widgets::primary_button(ui, theme, "Save") {
+                                    if widgets::Button::primary(t("common.save")).hint("tasks.save_edit_hint").show(ui, theme) {
                                         apply_edit = Some((sel_idx, ps.edit_status, ps.edit_priority));
                                         ps.editing = false;
                                     }
-                                    if widgets::secondary_button(ui, theme, "Cancel") {
+                                    if widgets::Button::secondary(t("common.cancel")).hint("tasks.cancel_edit_hint").show(ui, theme) {
                                         ps.editing = false;
                                     }
-                                } else if widgets::primary_button(ui, theme, "Edit") {
+                                } else if widgets::Button::primary(t("common.edit")).hint("tasks.edit_hint").show(ui, theme) {
                                     ps.edit_status = task.status;
                                     ps.edit_priority = task.priority;
                                     ps.editing = true;
@@ -270,16 +276,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Header
             ui.horizontal(|ui| {
                 // Heading matches the nav button ("Tasks"): one page, one name.
-                ui.label(RichText::new("Tasks").size(theme.font_size_title).color(theme.text_primary()));
+                ui.label(RichText::new(t("tasks.title")).size(theme.font_size_title).color(theme.text_primary()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::primary_button(ui, theme, "+ New Task") {
+                    if widgets::Button::primary(t("tasks.new_task")).hint("tasks.new_task_hint").show(ui, theme) {
                         state.task_show_new_form = !state.task_show_new_form;
                     }
                     // Guide-panel toggle. Right-to-left layout puts this just
                     // left of the New Task button.
                     with_state(|ps| {
-                        let label = if ps.show_guides { "Hide guides" } else { "Guides" };
-                        if widgets::secondary_button(ui, theme, label) {
+                        let label = if ps.show_guides { t("tasks.hide_guides") } else { t("tasks.guides") };
+                        if with_hint(ui, "tasks.guides_hint", |ui| widgets::secondary_button(ui, theme, label)) {
                             ps.show_guides = !ps.show_guides;
                         }
                     });
@@ -291,49 +297,54 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Project selector bar
             with_state(|ps| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Project:").color(theme.text_secondary()));
-                    let current_project = if ps.project_filter.is_empty() { "All Projects" } else { &ps.project_filter };
+                    ui.label(RichText::new(t("tasks.project_label")).color(theme.text_secondary()));
+                    let current_project = if ps.project_filter.is_empty() { t("tasks.all_projects") } else { &ps.project_filter };
                     egui::ComboBox::from_id_salt("project_selector")
                         .selected_text(current_project)
                         .width(160.0)
                         .show_ui(ui, |ui| {
-                            if ui.selectable_label(ps.project_filter.is_empty(), "All Projects").clicked() {
+                            if ui.selectable_label(ps.project_filter.is_empty(), t("tasks.all_projects")).hint("tasks.all_projects_hint").clicked() {
                                 ps.project_filter.clear();
                             }
                             for proj in &ps.projects {
-                                if ui.selectable_label(ps.project_filter == *proj, proj).clicked() {
+                                if ui.selectable_label(ps.project_filter == *proj, proj).hint("tasks.project_option_hint").clicked() {
                                     ps.project_filter = proj.clone();
                                 }
                             }
-                        });
+                        })
+                        .response
+                        .hint("tasks.project_filter_hint");
                 });
             });
 
             ui.add_space(theme.spacing_xs);
 
             // Filter bar
-            widgets::search_bar(ui, theme, &mut state.task_search, "Filter tasks...");
+            with_hint(ui, "tasks.filter_tasks_hint", |ui| widgets::search_bar(ui, theme, &mut state.task_search, t("tasks.filter_tasks")));
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Priority:").color(theme.text_secondary()));
-                let current_label = state.task_filter_priority.map_or("All", priority_label);
+                ui.label(RichText::new(t("tasks.priority_label")).color(theme.text_secondary()));
+                let current_label = state.task_filter_priority.map_or(t("tasks.all"), priority_label);
                 egui::ComboBox::from_id_salt("priority_filter")
                     .selected_text(current_label)
                     .width(100.0)
                     .show_ui(ui, |ui| {
-                        if ui.selectable_label(state.task_filter_priority.is_none(), "All").clicked() {
+                        if ui.selectable_label(state.task_filter_priority.is_none(), t("tasks.all")).hint("tasks.priority_all_hint").clicked() {
                             state.task_filter_priority = None;
                         }
                         for p in [TaskPriority::Low, TaskPriority::Medium, TaskPriority::High, TaskPriority::Critical] {
-                            if ui.selectable_label(state.task_filter_priority == Some(p), priority_label(p)).clicked() {
+                            if ui.selectable_label(state.task_filter_priority == Some(p), priority_label(p)).hint("tasks.priority_filter_option_hint").clicked() {
                                 state.task_filter_priority = Some(p);
                             }
                         }
-                    });
+                    })
+                    .response
+                    .hint("tasks.priority_filter_hint");
                 ui.add_space(theme.spacing_md);
-                ui.label(RichText::new("Assignee:").color(theme.text_secondary()));
+                ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
                 ui.add(egui::TextEdit::singleline(&mut state.task_filter_assignee)
                     .desired_width(120.0)
-                    .hint_text("Filter by assignee"));
+                    .hint_text(t("tasks.filter_assignee")))
+                    .hint("tasks.filter_assignee_hint");
             });
 
             ui.add_space(theme.spacing_sm);
@@ -341,59 +352,67 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // New task form (inline)
             if state.task_show_new_form {
                 widgets::card(ui, theme, |ui| {
-                    ui.label(RichText::new("New Task").size(theme.font_size_heading).color(theme.accent()));
+                    ui.label(RichText::new(t("tasks.new_task_heading")).size(theme.font_size_heading).color(theme.accent()));
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Title:").color(theme.text_secondary()));
-                        ui.add(egui::TextEdit::singleline(&mut state.task_new_title).desired_width(300.0));
+                        ui.label(RichText::new(t("tasks.title_label")).color(theme.text_secondary()));
+                        ui.add(egui::TextEdit::singleline(&mut state.task_new_title).desired_width(300.0))
+                            .hint("tasks.new_title_hint");
                     });
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Description:").color(theme.text_secondary()));
+                        ui.label(RichText::new(t("tasks.description_label")).color(theme.text_secondary()));
                         ui.add(egui::TextEdit::multiline(&mut state.task_new_description)
                             .desired_width(300.0)
-                            .desired_rows(2));
+                            .desired_rows(2))
+                            .hint("tasks.new_description_hint");
                     });
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Priority:").color(theme.text_secondary()));
+                        ui.label(RichText::new(t("tasks.priority_label")).color(theme.text_secondary()));
                         egui::ComboBox::from_id_salt("new_task_priority")
                             .selected_text(priority_label(state.task_new_priority))
                             .show_ui(ui, |ui| {
                                 for p in [TaskPriority::Low, TaskPriority::Medium, TaskPriority::High, TaskPriority::Critical] {
-                                    if ui.selectable_label(state.task_new_priority == p, priority_label(p)).clicked() {
+                                    if ui.selectable_label(state.task_new_priority == p, priority_label(p)).hint("tasks.new_priority_option_hint").clicked() {
                                         state.task_new_priority = p;
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .hint("tasks.new_priority_hint");
                         ui.add_space(theme.spacing_md);
-                        ui.label(RichText::new("Assignee:").color(theme.text_secondary()));
-                        ui.add(egui::TextEdit::singleline(&mut state.task_new_assignee).desired_width(120.0));
+                        ui.label(RichText::new(t("tasks.assignee_label")).color(theme.text_secondary()));
+                        ui.add(egui::TextEdit::singleline(&mut state.task_new_assignee).desired_width(120.0))
+                            .hint("tasks.new_assignee_hint");
                     });
                     with_state(|ps| {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Labels:").color(theme.text_secondary()));
+                            ui.label(RichText::new(t("tasks.labels_label")).color(theme.text_secondary()));
                             ui.add(egui::TextEdit::singleline(&mut ps.new_labels_input)
                                 .desired_width(200.0)
-                                .hint_text("comma-separated"));
+                                .hint_text(t("tasks.labels_placeholder")))
+                                .hint("tasks.new_labels_hint");
                             ui.add_space(theme.spacing_md);
-                            ui.label(RichText::new("Project:").color(theme.text_secondary()));
+                            ui.label(RichText::new(t("tasks.project_label")).color(theme.text_secondary()));
                             let projects_clone = ps.projects.clone();
                             egui::ComboBox::from_id_salt("new_task_project")
-                                .selected_text(if ps.new_project.is_empty() { "None" } else { &ps.new_project })
+                                .selected_text(if ps.new_project.is_empty() { t("tasks.project_none") } else { &ps.new_project })
                                 .show_ui(ui, |ui| {
-                                    if ui.selectable_label(ps.new_project.is_empty(), "None").clicked() {
+                                    if ui.selectable_label(ps.new_project.is_empty(), t("tasks.project_none")).hint("tasks.new_project_none_hint").clicked() {
                                         ps.new_project.clear();
                                     }
                                     for proj in &projects_clone {
-                                        if ui.selectable_label(ps.new_project == *proj, proj).clicked() {
+                                        if ui.selectable_label(ps.new_project == *proj, proj).hint("tasks.new_project_option_hint").clicked() {
                                             ps.new_project = proj.clone();
                                         }
                                     }
-                                });
+                                })
+                                .response
+                                .hint("tasks.new_project_hint");
                         });
                     });
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal(|ui| {
-                        if widgets::primary_button(ui, theme, "Create") && !state.task_new_title.is_empty() {
+                        if widgets::Button::primary(t("tasks.create")).hint("tasks.create_hint").show(ui, theme) && !state.task_new_title.is_empty() {
                             let labels: Vec<String> = with_state(|ps| {
                                 let mut all_labels: Vec<String> = ps.new_labels_input.split(',')
                                     .map(|s| s.trim().to_string())
@@ -423,7 +442,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             state.task_new_assignee.clear();
                             state.task_show_new_form = false;
                         }
-                        if widgets::secondary_button(ui, theme, "Cancel") {
+                        if widgets::Button::secondary(t("common.cancel")).hint("tasks.cancel_new_hint").show(ui, theme) {
                             state.task_show_new_form = false;
                         }
                     });
@@ -436,19 +455,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let assignee_lower = state.task_filter_assignee.to_lowercase();
             let project_filter = with_state(|ps| ps.project_filter.clone());
             let filtered: Vec<usize> = state.tasks.iter().enumerate()
-                .filter(|(_, t)| {
-                    if !search_lower.is_empty() && !t.title.to_lowercase().contains(&search_lower)
-                        && !t.description.to_lowercase().contains(&search_lower) {
+                .filter(|(_, task)| {
+                    if !search_lower.is_empty() && !task.title.to_lowercase().contains(&search_lower)
+                        && !task.description.to_lowercase().contains(&search_lower) {
                         return false;
                     }
                     if let Some(pf) = state.task_filter_priority {
-                        if t.priority != pf { return false; }
+                        if task.priority != pf { return false; }
                     }
-                    if !assignee_lower.is_empty() && !t.assignee.to_lowercase().contains(&assignee_lower) {
+                    if !assignee_lower.is_empty() && !task.assignee.to_lowercase().contains(&assignee_lower) {
                         return false;
                     }
                     if !project_filter.is_empty() {
-                        if !t.labels.iter().any(|l| l == &project_filter) { return false; }
+                        if !task.labels.iter().any(|l| l == &project_filter) { return false; }
                     }
                     true
                 })
@@ -544,14 +563,16 @@ fn draw_board(
     filtered: &[usize],
     select_task: &mut Option<usize>,
 ) {
+    // (scroll id, status): the shown name comes from `status_label`, by key,
+    // so the id stays the same whatever language the words are in.
     let columns = [
-        ("Todo", TaskStatus::Todo),
-        ("In Progress", TaskStatus::InProgress),
-        ("Done", TaskStatus::Done),
+        ("task_col_todo", TaskStatus::Todo),
+        ("task_col_in_progress", TaskStatus::InProgress),
+        ("task_col_done", TaskStatus::Done),
     ];
 
     ui.columns(3, |cols| {
-        for (col_idx, (col_name, col_status)) in columns.iter().enumerate() {
+        for (col_idx, (col_id, col_status)) in columns.iter().enumerate() {
             cols[col_idx].vertical(|ui| {
                 let col_tasks: Vec<usize> = filtered.iter()
                     .copied()
@@ -560,7 +581,7 @@ fn draw_board(
 
                 // Column header with count
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(*col_name).size(theme.font_size_heading).color(theme.text_primary()));
+                    ui.label(RichText::new(status_label(*col_status)).size(theme.font_size_heading).color(theme.text_primary()));
                     widgets::badge(ui, theme, &col_tasks.len().to_string(), theme.bg_secondary());
                 });
                 ui.add_space(theme.spacing_xs);
@@ -568,14 +589,14 @@ fn draw_board(
                 ui.add_space(theme.spacing_xs);
 
                 if col_tasks.is_empty() {
-                    ui.label(RichText::new("No tasks").color(theme.text_muted()));
+                    ui.label(RichText::new(t("tasks.no_tasks_column")).color(theme.text_muted()));
                 }
 
                 // Each kanban column needs its OWN ScrollArea id — they
                 // live inside ui.columns(3,..) which gives each the same
                 // auto-id, so egui flags a duplicate-id clash and the
-                // columns can stop scrolling independently. Salt by name.
-                ScrollArea::vertical().id_salt(*col_name).show(ui, |ui| {
+                // columns can stop scrolling independently. Salt by column.
+                ScrollArea::vertical().id_salt(*col_id).show(ui, |ui| {
                     for &idx in &col_tasks {
                         let task = &state.tasks[idx];
                         let pc = priority_color(theme, task.priority);
@@ -621,7 +642,7 @@ fn draw_board(
                                 ui.label(RichText::new(format!("{}{}", preview, suffix)).color(theme.text_muted()).size(theme.font_size_small));
                             }
                             if !task.assignee.is_empty() {
-                                ui.label(RichText::new(format!("Assignee: {}", task.assignee)).color(theme.text_secondary()).size(theme.font_size_small));
+                                ui.label(RichText::new(tf("tasks.card_assignee", &[("name", &task.assignee)])).color(theme.text_secondary()).size(theme.font_size_small));
                             }
                             // Labels as small badges
                             if !task.labels.is_empty() {
@@ -634,7 +655,7 @@ fn draw_board(
                             // Task ID
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()).size(theme.font_size_small));
-                                if widgets::secondary_button(ui, theme, "View") {
+                                if widgets::Button::secondary(t("tasks.view")).hint("tasks.view_hint").show(ui, theme) {
                                     *select_task = Some(idx);
                                 }
                             });
@@ -650,8 +671,8 @@ fn draw_board(
     if state.tasks.is_empty() {
         ui.add_space(theme.spacing_lg);
         ui.vertical_centered(|ui| {
-            ui.label(RichText::new("No tasks yet").size(theme.font_size_heading).color(theme.text_muted()));
-            ui.label(RichText::new("Click '+ New Task' to create one.").color(theme.text_secondary()));
+            ui.label(RichText::new(t("tasks.empty_title")).size(theme.font_size_heading).color(theme.text_muted()));
+            ui.label(RichText::new(t("tasks.empty_body")).color(theme.text_secondary()));
         });
     }
 }
@@ -661,19 +682,13 @@ fn draw_board(
 /// (`data/onboarding/quests.json`), so adding a guide never needs a recompile.
 fn draw_guides(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(
-        RichText::new("LEARN BY DOING")
+        RichText::new(t("tasks.guides_eyebrow"))
             .size(theme.font_size_small)
             .color(theme.accent())
             .strong(),
     );
     ui.add_space(theme.spacing_xs);
-    ui.label(
-        RichText::new(
-            "Guided tutorials from setup to self-sufficiency. Check steps off as you do them. Progress saved locally.",
-        )
-        .size(theme.font_size_small)
-        .color(theme.text_secondary()),
-    );
+    widgets::glossary_words(ui, theme, t_marked("tasks.guides_intro"), theme.font_size_small, theme.text_secondary());
     ui.add_space(theme.spacing_sm);
     onboarding::draw_quests(ui, theme, state);
 }

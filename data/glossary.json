@@ -2658,6 +2658,24 @@
       "category": "survival",
       "definition": "A water filter rating meaning no hole in the filter is larger than the stated size. A nominal rating is only an average, so some holes are bigger. When a filter is meant to keep something out, absolute is the rating that counts.",
       "link": "https://en.wikipedia.org/wiki/Water_filter"
+    },
+    "encryption": {
+      "term": "Encryption",
+      "category": "crypto",
+      "definition": "Scrambling information with a secret key so that only someone who has the key can read it. To anyone else, the server that stores it included, an encrypted note or message looks like nonsense.",
+      "link": "https://en.wikipedia.org/wiki/Encryption"
+    },
+    "server": {
+      "term": "Server",
+      "category": "platform",
+      "definition": "A computer, usually far away and always on, that other computers connect to. A HumanityOS server passes messages along and keeps shared things such as channels, tasks and listings. Anyone can run one.",
+      "link": "https://en.wikipedia.org/wiki/Server_(computing)"
+    },
+    "wallet": {
+      "term": "Wallet",
+      "category": "crypto",
+      "definition": "Where your coins are kept track of. A crypto wallet is really a key: whoever holds the key can move the coins. Your HumanityOS wallet key is made from your recovery phrase and stays on your device, so nobody else can move what is in it, and if you lose both the device and the phrase, nobody can get it back for you.",
+      "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet"
     }
   }
 }

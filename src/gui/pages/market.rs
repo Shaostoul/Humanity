@@ -5,8 +5,10 @@
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::{GuiState, GuiListing};
+use crate::gui::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::widgets::{with_hint, Hint};
 use std::cell::RefCell;
 
 // Marketplace categories are loaded from `data/market/categories.json` into
@@ -24,10 +26,10 @@ enum SortOrder {
 impl SortOrder {
     fn label(self) -> &'static str {
         match self {
-            Self::Newest => "Newest",
-            Self::PriceLowHigh => "Price: Low to High",
-            Self::PriceHighLow => "Price: High to Low",
-            Self::Relevance => "Relevance",
+            Self::Newest => t("market.sort_newest"),
+            Self::PriceLowHigh => t("market.sort_price_low"),
+            Self::PriceHighLow => t("market.sort_price_high"),
+            Self::Relevance => t("market.sort_relevance"),
         }
     }
 }
@@ -216,18 +218,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .max_width(170.0)
         .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(10.0))
         .show(ctx, |ui| {
-            ui.label(RichText::new("Categories").size(theme.font_size_heading).color(theme.text_primary()));
+            ui.label(RichText::new(t("market.categories")).size(theme.font_size_heading).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
             ui.separator();
             ui.add_space(theme.spacing_xs);
 
-            let mut cat_strs: Vec<&str> = vec!["All"];
+            let all = t("market.all");
+            let mut cat_strs: Vec<&str> = vec![all];
             cat_strs.extend(state.market_categories.iter().map(|c| c.label.as_str()));
             let active_idx = cat_strs.iter().position(|c| {
-                (*c == "All" && state.listing_filter_category.is_empty())
+                (*c == all && state.listing_filter_category.is_empty())
                     || state.listing_filter_category == *c
             }).unwrap_or(0);
-            if let Some(new_idx) = widgets::sidebar_nav(ui, theme, &cat_strs, active_idx) {
+            if let Some(new_idx) = with_hint(ui, "market.category_hint", |ui| {
+                widgets::sidebar_nav(ui, theme, &cat_strs, active_idx)
+            }) {
                 state.listing_filter_category = if new_idx == 0 {
                     String::new()
                 } else {
@@ -242,18 +247,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Tab strip: Directory (signed catalog) | Classifieds (free-form).
             let mut tab = with_state(|ps| ps.tab);
             ui.horizontal(|ui| {
-                for (t, label) in [
-                    (MarketTab::Directory, "Directory"),
-                    (MarketTab::Classifieds, "Classifieds"),
+                for (which, label, hint) in [
+                    (MarketTab::Directory, t("market.tab_directory"), "market.tab_directory_hint"),
+                    (MarketTab::Classifieds, t("market.tab_classifieds"), "market.tab_classifieds_hint"),
                 ] {
                     if ui
                         .selectable_label(
-                            tab == t,
+                            tab == which,
                             RichText::new(label).size(theme.font_size_body),
                         )
+                        .hint(hint)
                         .clicked()
                     {
-                        tab = t;
+                        tab = which;
                     }
                 }
             });
@@ -272,7 +278,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ScrollArea::vertical().show(ui, |ui| {
                         // Back button
                         ui.horizontal(|ui| {
-                            if widgets::secondary_button(ui, theme, "< Back to Listings") {
+                            if widgets::Button::secondary(t("market.back_to_listings"))
+                                .hint("market.back_to_listings_hint")
+                                .show(ui, theme)
+                            {
                                 close_detail = true;
                             }
                         });
@@ -292,7 +301,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.painter().text(
                             img_rect.center(),
                             egui::Align2::CENTER_CENTER,
-                            "No Image",
+                            t("market.no_image"),
                             egui::FontId::proportional(16.0),
                             theme.text_muted(),
                         );
@@ -300,16 +309,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.add_space(theme.spacing_md);
 
                         // Price (free text, matching web)
-                        let price = if listing.price.is_empty() { "Price on request" } else { &listing.price };
+                        let price = if listing.price.is_empty() { t("market.price_on_request") } else { &listing.price };
                         ui.label(RichText::new(price).size(theme.font_size_title).color(theme.accent()));
 
                         ui.add_space(theme.spacing_sm);
 
                         // Description
                         widgets::card(ui, theme, |ui| {
-                            ui.label(RichText::new("Description").size(theme.font_size_body).color(theme.text_secondary()));
+                            ui.label(RichText::new(t("market.description")).size(theme.font_size_body).color(theme.text_secondary()));
                             ui.add_space(theme.spacing_xs);
-                            let desc = if listing.description.is_empty() { "No description." } else { &listing.description };
+                            let desc = if listing.description.is_empty() { t("market.no_description") } else { &listing.description };
                             ui.label(RichText::new(desc).color(theme.text_primary()));
                         });
 
@@ -317,17 +326,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                         // Seller + trade details
                         widgets::card(ui, theme, |ui| {
-                            ui.label(RichText::new("Seller Information").size(theme.font_size_body).color(theme.text_secondary()));
+                            ui.label(RichText::new(t("market.seller_information")).size(theme.font_size_body).color(theme.text_secondary()));
                             ui.add_space(theme.spacing_xs);
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new("Seller:").color(theme.text_muted()));
+                                ui.label(RichText::new(t("market.seller_label")).color(theme.text_muted()));
                                 ui.label(RichText::new(seller_label(&listing)).color(theme.text_primary()));
                             });
                             for (label, value) in [
-                                ("Condition:", &listing.condition),
-                                ("Payment:", &listing.payment_methods),
-                                ("Location:", &listing.location),
-                                ("Listed:", &listing.created_at),
+                                (t("market.condition_label"), &listing.condition),
+                                (t("market.payment_label"), &listing.payment_methods),
+                                (t("market.location_label"), &listing.location),
+                                (t("market.listed_label"), &listing.created_at),
                             ] {
                                 if !value.is_empty() {
                                     ui.horizontal(|ui| {
@@ -346,18 +355,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let mut delete_review_id: Option<i64> = None;
                         widgets::card(ui, theme, |ui| {
                             let header = if state.listing_reviews_count > 0 {
-                                format!(
-                                    "Reviews ({}) - {:.1} average",
-                                    state.listing_reviews_count, state.listing_reviews_avg
+                                let avg = format!("{:.1}", state.listing_reviews_avg);
+                                tf(
+                                    "market.reviews_summary",
+                                    &[("n", &state.listing_reviews_count), ("avg", &avg)],
                                 )
                             } else {
-                                "Reviews".to_string()
+                                t("market.reviews").to_string()
                             };
                             ui.label(RichText::new(header).size(theme.font_size_body).color(theme.text_secondary()));
                             ui.add_space(theme.spacing_xs);
                             if state.listing_reviews.is_empty() {
                                 ui.label(
-                                    RichText::new("No reviews yet.")
+                                    RichText::new(t("market.no_reviews"))
                                         .color(theme.text_muted())
                                         .size(theme.font_size_small),
                                 );
@@ -381,7 +391,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             .size(theme.font_size_small),
                                     );
                                     if r.reviewer_key == my_key
-                                        && widgets::secondary_button(ui, theme, "Delete")
+                                        && widgets::Button::secondary(t("common.delete"))
+                                            .hint("market.review_delete_hint")
+                                            .show(ui, theme)
                                     {
                                         delete_review_id = Some(r.id);
                                     }
@@ -399,13 +411,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ui.add_space(theme.spacing_xs);
                                 ui.horizontal(|ui| {
                                     ui.label(
-                                        RichText::new("Rate:")
+                                        RichText::new(t("market.rate_label"))
                                             .color(theme.text_muted())
                                             .size(theme.font_size_small),
                                     );
                                     for i in 1..=5 {
                                         let mark = if state.review_rating_draft >= i { "⭐" } else { "·" };
-                                        if ui.selectable_label(false, mark).clicked() {
+                                        if ui.selectable_label(false, mark).hint("market.rate_star_hint").clicked() {
                                             state.review_rating_draft = i;
                                         }
                                     }
@@ -413,10 +425,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ui.horizontal(|ui| {
                                     ui.add(
                                         egui::TextEdit::singleline(&mut state.review_comment_draft)
-                                            .hint_text("Optional comment")
+                                            .hint_text(t("market.review_comment"))
                                             .desired_width(220.0),
-                                    );
-                                    if widgets::secondary_button(ui, theme, "Submit review") {
+                                    )
+                                    .hint("market.review_comment_hint");
+                                    if widgets::Button::secondary(t("market.submit_review"))
+                                        .hint("market.submit_review_hint")
+                                        .show(ui, theme)
+                                    {
                                         if crate::engine::warnings::holds_own_phrase(state, &[&state.review_comment_draft]) {
                                             state.listing_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
                                         } else if connected {
@@ -432,10 +448,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 );
                                             }
                                             state.review_comment_draft.clear();
-                                            state.listing_status = "Review submitted.".to_string();
+                                            state.listing_status = t("market.review_submitted").to_string();
                                         } else {
                                             state.listing_status =
-                                                "Connect to a server to review listings.".to_string();
+                                                t("market.review_needs_server").to_string();
                                         }
                                     }
                                 });
@@ -462,13 +478,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         widgets::card(ui, theme, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    RichText::new("Contact")
+                                    RichText::new(t("market.contact"))
                                         .size(theme.font_size_body)
                                         .color(theme.text_secondary()),
                                 );
                                 if listing.seller_key != my_key
                                     && connected
-                                    && widgets::secondary_button(ui, theme, "Message Seller")
+                                    && widgets::Button::secondary(t("market.message_seller"))
+                                        .hint("market.message_seller_hint")
+                                        .show(ui, theme)
                                 {
                                     // Open the encrypted DM with the seller,
                                     // prefilled with a listing reference so
@@ -479,23 +497,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     );
                                     if state.chat_input.trim().is_empty() {
                                         state.chat_input =
-                                            format!("About your listing \"{}\": ", listing.title);
+                                            tf("market.message_prefill", &[("title", &listing.title)]);
                                     }
                                     state.active_page = crate::gui::GuiPage::Chat;
                                 }
                             });
                             let hint = if listing.seller_key == my_key {
-                                "Buyers reach you through end-to-end encrypted DMs; check your Chat DM panel."
+                                t_marked("market.contact_note_own")
                             } else if connected {
-                                "Messages go directly to the seller, end-to-end encrypted. The server cannot read them and keeps no record of who contacted whom."
+                                t_marked("market.contact_note")
                             } else {
-                                "Connect to a server to message the seller."
+                                t_marked("market.contact_note_offline")
                             };
-                            ui.label(
-                                RichText::new(hint)
-                                    .color(theme.text_muted())
-                                    .size(theme.font_size_small),
-                            );
+                            widgets::glossary_words(ui, theme, hint, theme.font_size_small, theme.text_muted());
                         });
 
                         ui.add_space(theme.spacing_md);
@@ -503,7 +517,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         // Your own listing can be removed; escrow buying still
                         // waits for the trade-flow follow-up (no dead buttons).
                         if listing.seller_key == my_key {
-                            if widgets::secondary_button(ui, theme, "Delete Listing") {
+                            if widgets::Button::secondary(t("market.delete_listing"))
+                                .hint("market.delete_listing_hint")
+                                .show(ui, theme)
+                            {
                                 delete_listing_id = Some(listing.id.clone());
                             }
                         }
@@ -519,12 +536,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal(|ui| {
                     // Heading matches the tab label ("Classifieds"): the word
                     // "Marketplace" inside the Market page named nothing.
-                    ui.label(RichText::new("Classifieds").size(theme.font_size_title).color(theme.text_primary()));
+                    ui.label(RichText::new(t("market.tab_classifieds")).size(theme.font_size_title).color(theme.text_primary()));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if widgets::primary_button(ui, theme, "+ Create Listing") {
+                        if widgets::Button::primary(t("market.create_listing_button"))
+                            .hint("market.create_listing_hint")
+                            .show(ui, theme)
+                        {
                             state.listing_show_new_form = !state.listing_show_new_form;
                         }
-                        if connected && widgets::secondary_button(ui, theme, "Refresh") {
+                        if connected
+                            && widgets::Button::secondary(t("common.refresh"))
+                                .hint("market.refresh_listings_hint")
+                                .show(ui, theme)
+                        {
                             if let Some(ws) = &state.ws_client {
                                 ws.send(&serde_json::json!({"type": "listing_browse"}).to_string());
                             }
@@ -533,7 +557,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
                 if !connected {
                     ui.label(
-                        RichText::new("Offline - connect to a server (Chat page) to browse the live market.")
+                        RichText::new(t("market.offline"))
                             .color(theme.warning())
                             .size(theme.font_size_small),
                     );
@@ -549,20 +573,26 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_sm);
 
                 // Search bar and sort
-                widgets::search_bar(ui, theme, &mut state.listing_search, "Search listings...");
+                with_hint(ui, "market.search_listings_hint", |ui| widgets::search_bar(ui, theme, &mut state.listing_search, t("market.search_listings")));
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Sort:").color(theme.text_secondary()));
+                    ui.label(RichText::new(t("market.sort_label")).color(theme.text_secondary()));
                     with_state(|ps| {
                         egui::ComboBox::from_id_salt("listing_sort")
                             .selected_text(ps.sort_order.label())
                             .width(140.0)
                             .show_ui(ui, |ui| {
                                 for order in [SortOrder::Newest, SortOrder::PriceLowHigh, SortOrder::PriceHighLow, SortOrder::Relevance] {
-                                    if ui.selectable_label(ps.sort_order == order, order.label()).clicked() {
+                                    if ui
+                                        .selectable_label(ps.sort_order == order, order.label())
+                                        .hint("market.sort_option_hint")
+                                        .clicked()
+                                    {
                                         ps.sort_order = order;
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .hint("market.sort_hint");
                     });
                 });
 
@@ -570,36 +600,49 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // New listing form
                 if state.listing_show_new_form {
-                    widgets::card_with_header(ui, theme, "Create Listing", |ui| {
-                        widgets::form_row(ui, theme, "Title", |ui| {
-                            ui.add(egui::TextEdit::singleline(&mut state.listing_new_title).desired_width(280.0));
+                    widgets::card_with_header(ui, theme, t("market.create_listing"), |ui| {
+                        widgets::form_row(ui, theme, t("market.form_title"), |ui| {
+                            ui.add(egui::TextEdit::singleline(&mut state.listing_new_title).desired_width(280.0))
+                                .hint("market.form_title_hint");
                         });
-                        widgets::form_row(ui, theme, "Description", |ui| {
+                        widgets::form_row(ui, theme, t("market.description"), |ui| {
                             ui.add(egui::TextEdit::multiline(&mut state.listing_new_description)
                                 .desired_width(280.0)
-                                .desired_rows(2));
+                                .desired_rows(2))
+                                .hint("market.form_description_hint");
                         });
-                        widgets::form_row(ui, theme, "Price", |ui| {
+                        widgets::form_row(ui, theme, t("market.form_price"), |ui| {
                             ui.add(egui::TextEdit::singleline(&mut state.listing_new_price)
-                                .hint_text("e.g. 5 SOL, 20 CR, free")
-                                .desired_width(160.0));
+                                .hint_text(t("market.price_placeholder"))
+                                .desired_width(160.0))
+                                .hint("market.form_price_hint");
                         });
-                        widgets::form_row(ui, theme, "Category", |ui| {
+                        widgets::form_row(ui, theme, t("market.form_category"), |ui| {
                             let create_cats: Vec<String> =
                                 state.market_categories.iter().map(|c| c.label.clone()).collect();
                             egui::ComboBox::from_id_salt("new_listing_category")
-                                .selected_text(if state.listing_new_category.is_empty() { "Select..." } else { &state.listing_new_category })
+                                .selected_text(if state.listing_new_category.is_empty() { t("market.select") } else { &state.listing_new_category })
                                 .show_ui(ui, |ui| {
                                     for cat in &create_cats {
-                                        if ui.selectable_label(state.listing_new_category == *cat, cat.as_str()).clicked() {
+                                        if ui
+                                            .selectable_label(state.listing_new_category == *cat, cat.as_str())
+                                            .hint("market.category_option_hint")
+                                            .clicked()
+                                        {
                                             state.listing_new_category = cat.clone();
                                         }
                                     }
-                                });
+                                })
+                                .response
+                                .hint("market.form_category_hint");
                         });
                         ui.add_space(theme.spacing_sm);
                         ui.horizontal(|ui| {
-                            if widgets::Button::primary("Publish").show(ui, theme) && !state.listing_new_title.trim().is_empty() {
+                            if widgets::Button::primary(t("market.publish_button"))
+                                .hint("market.publish_listing_hint")
+                                .show(ui, theme)
+                                && !state.listing_new_title.trim().is_empty()
+                            {
                                 let fields = [&state.listing_new_title, &state.listing_new_description, &state.listing_new_price];
                                 if crate::engine::warnings::holds_own_phrase(state, &fields.map(|s| s.as_str())) {
                                     state.listing_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
@@ -619,7 +662,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     if let Some(ws) = &state.ws_client {
                                         ws.send(&msg.to_string());
                                     }
-                                    state.listing_status = "Publishing...".to_string();
+                                    state.listing_status = t("market.publishing").to_string();
                                     state.listing_new_title.clear();
                                     state.listing_new_description.clear();
                                     state.listing_new_price.clear();
@@ -627,11 +670,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     state.listing_show_new_form = false;
                                 } else {
                                     state.listing_status =
-                                        "Connect to a server (Chat page) to publish listings.".to_string();
+                                        t("market.publish_needs_server").to_string();
                                 }
                             }
                             ui.add_space(theme.spacing_sm);
-                            if widgets::Button::secondary("Cancel").show(ui, theme) {
+                            if widgets::Button::secondary(t("common.cancel"))
+                                .hint("market.cancel_listing_hint")
+                                .show(ui, theme)
+                            {
                                 state.listing_show_new_form = false;
                             }
                         });
@@ -686,17 +732,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if filtered.is_empty() {
                     ui.add_space(theme.spacing_xl);
                     ui.vertical_centered(|ui| {
-                        ui.label(RichText::new("No listings").size(theme.font_size_heading).color(theme.text_muted()));
+                        ui.label(RichText::new(t("market.no_listings")).size(theme.font_size_heading).color(theme.text_muted()));
                         let hint = if connected {
-                            "Create one to get started."
+                            t("market.no_listings_connected")
                         } else {
-                            "Connect to a server to see the live market."
+                            t("market.no_listings_offline")
                         };
                         ui.label(RichText::new(hint).color(theme.text_secondary()));
                     });
                 } else {
                     // Result count
-                    ui.label(RichText::new(format!("{} listing(s)", filtered.len())).color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(RichText::new(tn("market.listings_count", filtered.len() as i64, &[])).color(theme.text_muted()).size(theme.font_size_small));
                     ui.add_space(theme.spacing_xs);
 
                     ScrollArea::vertical().show(ui, |ui| {
@@ -713,7 +759,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 ui.label(RichText::new(&listing.title).color(theme.text_primary()));
                                                 widgets::badge_sm(ui, theme, &listing.category, category_color(&listing.category));
                                             });
-                                            let price = if listing.price.is_empty() { "Price on request".to_string() } else { listing.price.clone() };
+                                            let price = if listing.price.is_empty() { t("market.price_on_request").to_string() } else { listing.price.clone() };
                                             ui.label(RichText::new(price).size(theme.font_size_heading).color(theme.accent()));
                                             // Short description
                                             if !listing.description.is_empty() {
@@ -721,9 +767,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 let suffix = if listing.description.chars().count() > 60 { "..." } else { "" };
                                                 ui.label(RichText::new(format!("{}{}", preview, suffix)).color(theme.text_muted()).size(theme.font_size_small));
                                             }
-                                            ui.label(RichText::new(format!("Seller: {}", seller_label(listing))).color(theme.text_muted()).size(theme.font_size_small));
+                                            ui.label(RichText::new(tf("market.seller_line", &[("name", &seller_label(listing))])).color(theme.text_muted()).size(theme.font_size_small));
                                             let id = listing.id.clone();
-                                            if widgets::secondary_button(ui, theme, "View") {
+                                            if widgets::Button::secondary(t("market.view"))
+                                                .hint("market.view_hint")
+                                                .show(ui, theme)
+                                            {
                                                 state.listing_selected = Some(id);
                                                 with_state(|ps| ps.detail_view = true);
                                             }
@@ -745,7 +794,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         if let Some(ws) = &state.ws_client {
             ws.send(&serde_json::json!({"type": "listing_delete", "id": id}).to_string());
         }
-        state.listing_status = "Deleting listing...".to_string();
+        state.listing_status = t("market.deleting_listing").to_string();
         close_detail = true;
     }
 

@@ -185,15 +185,23 @@
   if (!window.a11y) loadSharedModule('/shared/accessibility.js');
   if (!window.glossary) loadSharedModule('/shared/glossary.js');
   if (!window.i18n) {
-    loadSharedModule('/shared/i18n.js', function () {
-      // Apply the stored language as early as possible. Falls back to English
-      // inside i18n.load() when a language file is missing, so this never throws.
-      try {
-        if (window.i18n && typeof window.i18n.load === 'function') {
-          window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
-        }
-      } catch (e) { /* non-fatal */ }
-    });
+    // English first (generated from data/i18n/en.json), so i18n.t() has every
+    // word the moment i18n.js runs. A page that builds with i18n.t() loads both
+    // itself, before its own script (web/shared/i18n.js says how). Chained, not
+    // side by side: two added scripts run in whichever order they arrive.
+    var loadI18n = function () {
+      loadSharedModule('/shared/i18n.js', function () {
+        // Apply the stored language as early as possible. Falls back to English
+        // inside i18n.load() when a language file is missing, so this never throws.
+        try {
+          if (window.i18n && typeof window.i18n.load === 'function') {
+            window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
+          }
+        } catch (e) { /* non-fatal */ }
+      });
+    };
+    if (window.HOS_I18N_EN) loadI18n();
+    else loadSharedModule('/shared/i18n-en.js', loadI18n);
   } else if (typeof window.i18n.load === 'function') {
     window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
   }
@@ -220,6 +228,11 @@
     // ON by default; the attribute marks the OFF state so pages without
     // saved settings still get the galaxy.
     setAttr('data-space-bg-off', s['space-bg'] === false);
+    // The hint mode (2026-10-22, the desktop app's Settings > Appearance hint
+    // mode): "full" (descriptions under each setting, a hint on every control),
+    // "hover" (descriptions behind a (?), hints on hover), "off" (neither).
+    var hints = s.hint_display === 'hover' || s.hint_display === 'off' ? s.hint_display : 'full';
+    root.setAttribute('data-hints', hints);
   };
   window.hosApplyA11yToggles();
 
@@ -880,6 +893,12 @@
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
       .hub-nav-spacer { height: 37px; }
     }
+    /* The hint mode (Settings > Appearance > Page Hints, 2026-10-22, the desktop
+       app's Full / Hover / Off): a setting's description line hides behind a
+       "(?)" in Hover and is gone in Off; its words stay the hover hint. */
+    :root[data-hints="hover"] .setting-label > span,
+    :root[data-hints="off"] .setting-label > span { display: none; }
+    :root[data-hints="hover"] .setting-label > strong::after { content: " (?)"; font-weight: 400; color: var(--text-muted); cursor: help; }
   `;
   document.head.appendChild(style);
 
@@ -1020,6 +1039,33 @@
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:var(--hos-chrome-bg);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
+
+  // ── Skip to the page (WCAG 2.4.1; the accessibility audit, docs/design/wcag-audit-2026-10-23.md) ──
+  // The keyboard's first stop: it jumps past the top menu and the footer bar to the page's
+  // own content, so a Tab user does not walk the whole menu on every page. Out of sight
+  // until it has focus (theme.css .hos-skip-link).
+  var skipWrap = document.createElement('div');
+  skipWrap.innerHTML = '<a class="hos-skip-link" href="#" data-i18n="nav.skip_to_page" data-i18n-tip="nav.skip_to_page_hint" data-tip-desc="Jumps past the menu at the top to the content of this page.">Skip to the page</a>';
+  var skipLink = skipWrap.firstChild;
+  skipLink.addEventListener('click', function (e) {
+    e.preventDefault();
+    // The page's <main> or its heading when it has one; otherwise its first control
+    // outside the shell's own menu, footer bar and help button.
+    var target = document.querySelector('main, [role="main"]') || document.querySelector('h1');
+    if (target) {
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    } else {
+      var shellParts = '.hos-skip-link, .hub-nav, .site-footer, #mobile-hub-drawer, #webview-tabs-bar, #hos-help-toggle';
+      var all = document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      for (var i = 0; i < all.length && !target; i++) {
+        if (!all[i].closest(shellParts) && all[i].offsetParent !== null && !all[i].disabled) target = all[i];
+      }
+    }
+    if (!target) return;
+    target.focus();
+    target.scrollIntoView({ block: 'start' });
+  });
+  document.body.prepend(skipLink);
   // Spacer so fixed nav doesn't overlap page content
   var navSpacer = document.createElement('div');
   navSpacer.className = 'hub-nav-spacer';
@@ -1089,6 +1135,10 @@
   mobileDrawer.setAttribute('aria-modal', 'true');
   mobileDrawer.setAttribute('aria-label', 'Site menu');
   mobileDrawer.setAttribute('aria-hidden', 'true');
+  // inert while closed (2026-10-23, the accessibility audit): aria-hidden alone left every
+  // link of the closed drawer in the Tab order, so a keyboard user went through ~40
+  // hidden page links before reaching the page itself.
+  mobileDrawer.setAttribute('inert', '');
   // Whether the developer/operator group starts expanded. Remembered per
   // browser, so someone who works on this project opens it once; a visitor
   // who never touches it never sees eleven dev pages in their menu.
@@ -1189,6 +1239,7 @@
     // off-screen. An !important inline style wins in every engine.
     mobileDrawer.style.setProperty('transform', 'translateY(100%)', 'important');
     mobileDrawer.setAttribute('aria-hidden', 'true');
+    mobileDrawer.setAttribute('inert', '');
     // Restore the page's body scroll (locked while the overlay was open).
     document.body.style.overflow = mobileDrawer._prevBodyOverflow || '';
     document.removeEventListener('keydown', onMobileDrawerKey);
@@ -1198,6 +1249,7 @@
     mobileDrawer.classList.add('open');
     mobileDrawer.style.setProperty('transform', 'translateY(0)', 'important'); // see closeMobileDrawer note
     mobileDrawer.setAttribute('aria-hidden', 'false');
+    mobileDrawer.removeAttribute('inert');
     // Lock body scroll so the page behind cannot scroll under the full-screen menu.
     mobileDrawer._prevBodyOverflow = document.body.style.overflow || '';
     document.body.style.overflow = 'hidden';
@@ -1278,7 +1330,10 @@
     if (l.includes('wallet')) return 'Solana wallet: send, receive, swap, and stake crypto.';
     if (l.includes('calendar')) return 'Events, schedules, and recurring plans.';
     if (l.includes('home')) return 'Manage your homes, rooms, and property.';
-    return 'Tap or click to use this control.';
+    // No made-up sentence for anything else (2026-10-22): "Tap or click to use
+    // this control" told nobody anything. A control's own hint is its
+    // data-tip-desc (data-i18n-tip), counted by scripts/tests/hints-web.test.js.
+    return '';
   }
 
   function initRichTooltips() {
@@ -1303,20 +1358,45 @@
 
     function showFor(el, x, y) {
       if (!el) return;
+      // A control's own words: a box's placeholder, a list's chosen option (a
+      // <select>'s text is every option run together), anything else's text.
+      var tag = (el.tagName || '').toLowerCase();
+      var own;
+      if (tag === 'select') {
+        own = el.options && el.selectedIndex >= 0 && el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '';
+      } else if (tag === 'input' || tag === 'textarea') {
+        own = el.getAttribute('placeholder') || '';
+      } else {
+        own = (el.textContent || '').trim().slice(0, 48);
+      }
       var name = el.getAttribute('data-tip-title') || el.getAttribute('data-native-title') ||
-                 el.getAttribute('aria-label') || el.getAttribute('data-tip') ||
-                 (el.textContent || '').trim().slice(0, 48);
-      if (!name) return;
+                 el.getAttribute('aria-label') || el.getAttribute('data-tip') || own;
       var hotkey = el.getAttribute('data-tip-hotkey') || '';
       var desc   = el.getAttribute('data-tip-desc')   || defaultTooltipDescription(name);
+      // A hint with no name above it still shows (a text box, a clickable card).
+      if (!name && !desc) return;
       var detail = el.getAttribute('data-tip-detail')  || '';
-
-      var html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:' + (desc ? '4' : '0') + 'px;">' +
-        '<span style="font-weight:600;color:#fff;font-size:12.5px;">' + esc(name) + '</span>';
-      if (hotkey) {
-        html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:var(--radius-sm);padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>'; // theme-exempt: inside the always-dark tooltip
+      // The hint mode (Settings > Appearance > Page Hints, like the desktop
+      // app's): Off keeps only what names a control that has no words of its
+      // own (an icon), and shows nothing at all for one that does.
+      var root = document.documentElement;
+      var hintMode = (root && root.getAttribute && root.getAttribute('data-hints')) || 'full';
+      if (hintMode === 'off') {
+        if ((el.textContent || '').trim()) { hideTip(); return; }
+        desc = '';
+        detail = '';
       }
-      html += '</div>';
+      if (!name && !desc) { hideTip(); return; }
+
+      var html = '';
+      if (name || hotkey) {
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:' + (desc ? '4' : '0') + 'px;">' +
+          '<span style="font-weight:600;color:#fff;font-size:12.5px;">' + esc(name) + '</span>';
+        if (hotkey) {
+          html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:var(--radius-sm);padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>'; // theme-exempt: inside the always-dark tooltip
+        }
+        html += '</div>';
+      }
       if (desc) {
         html += '<div style="color:#b9c2d0;margin-bottom:' + (detail ? '4' : '0') + 'px;">' + esc(desc) + '</div>';
       }
@@ -1368,7 +1448,9 @@
     });
     obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
 
-    var SELECTOR = '[data-native-title],[data-tip-title],[data-tip],[aria-label],button,a,[role="button"]';
+    // [data-tip-desc] and the form controls too (2026-10-23): a text box, a list or
+    // a clickable card that carries only its hint showed nothing on hover or focus.
+    var SELECTOR = '[data-native-title],[data-tip-title],[data-tip],[data-tip-desc],[aria-label],button,a,[role="button"],input:not([type="hidden"]),select,textarea';
     // A control marked data-no-tip (or inside one) explains itself and shows no hint: the chat's
     // Þ, whose hover opens the expanded pill at once, and the reactions (2026-10-22, native shows
     // none on either), where a hint would only cover what just opened.
@@ -1377,6 +1459,11 @@
       if (!el) return;
       if (el.closest('.hub-nav')) return; // nav tabs use CSS ::after tooltips
       if (el.closest('[data-no-tip]')) { hideTip(); return; }
+      // A dialog's dark backdrop says what pressing IT does, so its hint shows on
+      // the backdrop itself, never over the dialog it holds (2026-10-23: hovering
+      // empty space inside the Market's form showed "press outside to close").
+      var cls = (el.getAttribute && el.getAttribute('class')) || '';
+      if (el !== e.target && /overlay|backdrop/i.test((el.id || '') + ' ' + cls)) { hideTip(); return; }
       showFor(el, e.clientX || 8, e.clientY || 8);
     });
     document.addEventListener('mousemove', function(e) {
@@ -1404,6 +1491,37 @@
   }
 
   setTimeout(initRichTooltips, 0);
+
+  // ── Setting descriptions follow the hint mode (2026-10-22) ──
+  // A Settings row (.setting-row) carries its plain-language description under
+  // its name (.setting-label span), as the desktop app's Settings page does.
+  // That description is also the hover hint of the row's controls and of its
+  // name, so it shows wherever the pointer rests. In the Hover mode the line
+  // under each name hides behind a "(?)" (CSS in the shell styles below), in
+  // the Off mode it hides; Full shows it.
+  function initSettingHints(root) {
+    (root || document).querySelectorAll('.setting-row').forEach(function (row) {
+      var label = row.querySelector('.setting-label');
+      if (!label) return;
+      var name = label.querySelector('strong');
+      var desc = label.querySelector('span');
+      var words = desc ? (desc.textContent || '').trim() : '';
+      if (!words) return;
+      var title = name ? (name.textContent || '').trim() : '';
+      if (name && !name.hasAttribute('data-tip-desc')) {
+        name.setAttribute('data-tip-title', title);
+        name.setAttribute('data-tip-desc', words);
+      }
+      row.querySelectorAll('input:not([type="hidden"]), select, textarea, button').forEach(function (c) {
+        if (c.hasAttribute('data-tip-desc') || c.hasAttribute('data-no-tip')) return;
+        if (title && !c.hasAttribute('aria-label') && !c.hasAttribute('data-tip-title')) c.setAttribute('data-tip-title', title);
+        c.setAttribute('data-tip-desc', words);
+      });
+    });
+  }
+  window.hosApplySettingHints = initSettingHints;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { initSettingHints(); });
+  else setTimeout(function () { initSettingHints(); }, 0);
 
   // ── Fix external links for Tauri desktop app ──
   // target="_blank" doesn't work in Tauri's single webview; window.open() opens system browser
@@ -1585,6 +1703,21 @@
       bar.appendChild(btn);
     });
   }
+
+  // ── Clickable cards answer the keyboard ──
+  // A card or a row that is not a <button> but says role="button" with a tabindex
+  // (a note in the list, a quest, a validator) opens with Enter or Space, as a
+  // button does (WCAG 2.1.1; the accessibility audit, docs/design/wcag-audit-2026-10-23.md).
+  // One that answers its own keys (an onkeydown, a glossary word) is left to them.
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || (e.key !== 'Enter' && e.key !== ' ')) return;
+    var el = e.target;
+    if (!el || !el.getAttribute || el.getAttribute('role') !== 'button') return;
+    if (/^(BUTTON|A|INPUT|SELECT|TEXTAREA|SUMMARY)$/.test(el.tagName)) return;
+    if (el.hasAttribute('onkeydown') || el.hasAttribute('data-term')) return;
+    e.preventDefault();
+    el.click();
+  });
 
   // ── Footer toggle logic ──
   setTimeout(function () {

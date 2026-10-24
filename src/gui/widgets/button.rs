@@ -85,6 +85,9 @@ pub struct Button<'a> {
     /// Overrides the variant fill: any non-Primary variant flips to filled-accent.
     active: bool,
     tooltip: Option<&'a str>,
+    /// The plain-language hint's key in `data/i18n/` (`.hint`), shown as the
+    /// tooltip unless the person turned hints off. See `widgets/hint.rs`.
+    hint: Option<&'static str>,
     /// Where the tooltip opens: `None` at the pointer (egui's own), or above a bar whose top edge
     /// is this screen y (`tooltip_above`).
     tooltip_above: Option<f32>,
@@ -106,6 +109,7 @@ impl<'a> Button<'a> {
             disabled: false,
             active: false,
             tooltip: None,
+            hint: None,
             tooltip_above: None,
             min_height: None,
         }
@@ -200,6 +204,15 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// The plain-language hint for this button, by its key in `data/i18n/`:
+    /// what it does, in words a person new to computers understands. Shown on
+    /// hover in the Full and Hover hint modes, hidden in Off. With a `.tooltip`
+    /// (an icon-only button's name) the name comes first, the hint under it.
+    pub fn hint(mut self, key: &'static str) -> Self {
+        self.hint = Some(key);
+        self
+    }
+
     /// Show a tooltip on hover ABOVE a bar whose top edge is `bar_top` (screen y), instead of at
     /// the pointer: for buttons beside a text box, such as the chat composer's, so the hint never
     /// covers what is being typed. (Operator, 2026-10-11: the Attach hint, still showing when the
@@ -264,12 +277,12 @@ impl<'a> Button<'a> {
                 Stroke::new(1.0, theme.text_muted()),
             ),
             ButtonVariant::Danger => (
-                Color32::WHITE,
+                Theme::ink_on(theme.danger()),
                 theme.danger(),
                 Stroke::NONE,
             ),
             ButtonVariant::Success => (
-                Color32::WHITE,
+                Theme::ink_on(theme.success()),
                 theme.success(),
                 Stroke::NONE,
             ),
@@ -301,14 +314,30 @@ impl<'a> Button<'a> {
             ui.add(btn)
         };
 
-        let response = match (self.tooltip, self.tooltip_above) {
+        // The words on hover: the name (an icon-only button's `.tooltip`) and the
+        // plain-language hint, the hint only while hints are on.
+        let hint_key = self.hint.or_else(|| super::hint::pending(ui));
+        let hint_words = hint_key.filter(|_| super::hint::shown(ui.ctx())).map(crate::gui::i18n::t_dyn);
+        let composed_tip: Option<String> = match (self.tooltip, hint_words) {
+            (Some(name), Some(h)) => Some(format!("{name}\n{h}")),
+            (Some(name), None) => Some(name.to_string()),
+            (None, Some(h)) => Some(h.to_string()),
+            (None, None) => None,
+        };
+        let response = match (composed_tip, self.tooltip_above) {
             (Some(tip), Some(bar_top)) => {
-                show_tip_above(ui, &response, tip, bar_top);
+                show_tip_above(ui, &response, &tip, bar_top);
                 response
             }
-            (Some(tip), None) => response.on_hover_text(tip),
+            (Some(tip), None) => {
+                let r = response.on_hover_text(tip.clone()).on_disabled_hover_text(tip.clone());
+                // The same words when the keyboard reaches it (widgets::hint).
+                super::hint::show_on_focus(&r, &tip);
+                r
+            }
             _ => response,
         };
+        super::focus_ring(ui, theme, &response);
 
         response.clicked() && !self.disabled
     }
@@ -377,8 +406,8 @@ pub fn compact_button(ui: &mut Ui, theme: &Theme, label: &str, variant: ButtonVa
             theme.bg_tertiary(),
             Stroke::new(1.0, theme.text_muted()),
         ),
-        ButtonVariant::Danger => (Color32::WHITE, theme.danger(), Stroke::NONE),
-        ButtonVariant::Success => (Color32::WHITE, theme.success(), Stroke::NONE),
+        ButtonVariant::Danger => (Theme::ink_on(theme.danger()), theme.danger(), Stroke::NONE),
+        ButtonVariant::Success => (Theme::ink_on(theme.success()), theme.success(), Stroke::NONE),
         ButtonVariant::Ghost => (theme.text_secondary(), Color32::TRANSPARENT, Stroke::NONE),
     };
     // Tighten the button padding for just this widget, then restore it (the rest of
@@ -394,6 +423,8 @@ pub fn compact_button(ui: &mut Ui, theme: &Theme, label: &str, variant: ButtonVa
         .min_size(Vec2::new(0.0, theme.compact_button_height));
     let r = ui.add(btn);
     ui.spacing_mut().button_padding = prev;
+    let r = super::hint::apply_pending(ui, r);
+    super::focus_ring(ui, theme, &r);
     r.clicked()
 }
 

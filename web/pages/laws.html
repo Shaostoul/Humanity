@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laws, HumanityOS</title>
-  <meta name="description" content="The rules that apply where you live, nested from Humanity down to your town. HumanityOS base set plus plain-language summaries of real laws with sources.">
+  <title data-i18n="laws.page_title">Laws, HumanityOS</title>
+  <meta name="description" data-i18n-content="laws.meta_description" content="The rules that apply where you live, nested from Humanity down to your town. HumanityOS base set plus plain-language summaries of real laws with sources.">
   <link rel="manifest" href="/shared/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/shared/theme.css">
@@ -129,42 +129,44 @@
 </head>
 <body>
   <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/laws-logic.js"></script>
 
   <div class="container">
     <header class="laws-hero">
-      <h1>Laws and <em>Rights</em></h1>
-      <p>The rules that apply where you live, nested from Humanity down to your town. Two kinds: the HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source to verify).</p>
+      <h1><span data-i18n="laws.heading_lead">Laws and</span> <em data-i18n="laws.heading_accent">Rights</em></h1>
+      <p data-i18n="laws.intro">The rules that apply where you live, nested from Humanity down to your town. Two kinds: the HumanityOS base set (our framework, from the <span data-term="humanity_accord">Humanity Accord</span>) and real laws (plain-language summaries with a source to verify).</p>
     </header>
 
     <!-- Deliberately NOT hidden and NOT empty. This element used to be blank
          until the JSON fetch resolved, so a slow or failed load could show law
          with no caveat attached. The text below is the fallback that exists
          before any script runs; the fetch replaces it with the file's own. -->
-    <div class="disclaimer-card" id="laws-disclaimer">This is a worked example, not the law. Entries may be incomplete, out of date, or wrong, and most have never been checked by a person. Not legal advice. Always read the cited source.</div>
+    <div class="disclaimer-card" id="laws-disclaimer" data-i18n="laws.disclaimer_fallback">This is a worked example, not the law. Entries may be incomplete, out of date, or wrong, and most have never been checked by a person. Not legal advice. Always read the cited source.</div>
 
     <section class="where-card">
-      <h3>Where you are</h3>
-      <select id="laws-location" aria-label="Choose your jurisdiction"></select>
+      <h3 data-i18n="laws.where_you_are">Where you are</h3>
+      <select id="laws-location" data-i18n-aria-label="laws.location_label" aria-label="Choose your jurisdiction" data-i18n-tip="laws.location_hint" data-tip-desc="Choose the place you live. The page then shows the rules for that place and for every larger place it sits in."></select>
       <p class="where-breadcrumb" id="laws-breadcrumb"></p>
     </section>
 
-    <div class="kind-tabs" id="laws-kind-tabs" role="tablist" aria-label="Rule kind">
-      <button class="kind-tab active" type="button" data-kind="0">All</button>
-      <button class="kind-tab" type="button" data-kind="1">HumanityOS base</button>
-      <button class="kind-tab" type="button" data-kind="2">Real laws</button>
+    <div class="kind-tabs" id="laws-kind-tabs" role="tablist" data-i18n-aria-label="laws.kind_label" aria-label="Rule kind">
+      <button class="kind-tab active" type="button" data-kind="0" data-i18n="laws.kind_all" data-i18n-tip="laws.kind_all_hint" data-tip-desc="Shows every rule: the HumanityOS base set and real laws together.">All</button>
+      <button class="kind-tab" type="button" data-kind="1" data-i18n="laws.kind_base" data-i18n-tip="laws.kind_base_hint" data-tip-desc="Shows only the HumanityOS base set, the rules of our own framework from the Humanity Accord.">HumanityOS base</button>
+      <button class="kind-tab" type="button" data-kind="2" data-i18n="laws.kind_real" data-i18n-tip="laws.kind_real_hint" data-tip-desc="Shows only real laws, in plain words, each with a source you can check.">Real laws</button>
     </div>
 
     <div class="category-row" id="laws-categories" hidden></div>
 
     <div class="search-row">
-      <label for="laws-search">Search</label>
-      <input type="search" id="laws-search" placeholder="Title, summary, category, or tag" autocomplete="off">
+      <label for="laws-search" data-i18n="laws.search">Search</label>
+      <input type="search" id="laws-search" data-i18n-placeholder="laws.search_placeholder" placeholder="Title, summary, category, or tag" autocomplete="off" data-i18n-tip="laws.search_hint" data-tip-desc="Type a word to show only the rules that mention it.">
     </div>
 
     <div class="laws-list" id="laws-list">
-      <div class="empty-state">Loading laws...</div>
+      <div class="empty-state" data-i18n="laws.loading">Loading laws...</div>
     </div>
   </div>
 
@@ -198,7 +200,7 @@
       function renderJurisdictionSelect() {
         var html = '';
         (lawsData.jurisdictions || []).forEach(function (j) {
-          var label = j.name + (j.level ? ' (' + j.level + ')' : '');
+          var label = j.level ? i18n.t('laws.location_option', { name: j.name, level: j.level }) : j.name;
           html += '<option value="' + escapeHtml(j.id) + '"' +
             (j.id === state.location ? ' selected' : '') + '>' +
             escapeHtml(label) + '</option>';
@@ -215,10 +217,13 @@
         if (!cats.length) { categoriesEl.hidden = true; return; }
         categoriesEl.hidden = false;
         var html = '<button class="category-pill' + (state.category === '' ? ' active' : '') +
-          '" type="button" data-category="">All categories</button>';
+          '" type="button" data-category="" data-i18n-tip="laws.all_categories_hint" data-tip-desc="' +
+          escapeHtml(i18n.t('laws.all_categories_hint')) + '">' + escapeHtml(i18n.t('laws.all_categories')) + '</button>';
+        var catHint = escapeHtml(i18n.t('laws.category_hint'));
         cats.forEach(function (cat) {
           html += '<button class="category-pill' + (state.category === cat ? ' active' : '') +
-            '" type="button" data-category="' + escapeHtml(cat) + '">' + escapeHtml(cat) + '</button>';
+            '" type="button" data-category="' + escapeHtml(cat) + '" data-i18n-tip="laws.category_hint" data-tip-desc="' +
+            catHint + '">' + escapeHtml(cat) + '</button>';
         });
         categoriesEl.innerHTML = html;
       }
@@ -231,15 +236,16 @@
         });
         if (!rules.length) {
           var msg = (lawsData.rules || []).length
-            ? 'No rules match. Try the All filter or clear the search.'
-            : 'No laws data is available on this server yet.';
-          listEl.innerHTML = '<div class="empty-state">' + msg + '</div>';
+            ? i18n.t('laws.no_match')
+            : i18n.t('laws.no_data');
+          listEl.innerHTML = '<div class="empty-state">' + escapeHtml(msg) + '</div>';
           return;
         }
         // Grouped under jurisdiction headers, broadest (Humanity) first,
         // exactly like the native page.
         var html = '';
         var lastJur = null;
+        var rowHint = escapeHtml(i18n.t('laws.row_hint'));
         rules.forEach(function (r) {
           if (r.jurisdiction !== lastJur) {
             lastJur = r.jurisdiction;
@@ -254,10 +260,10 @@
           // a caveat that lives at the top of the page does not go with it.
           var prov;
           if (r.verified && r.verified.on) {
-            prov = 'Checked ' + escapeHtml(r.verified.on) +
-              (r.verified.human_reviewed ? ' by a reviewer.' : ', not yet reviewed by a person.');
+            prov = escapeHtml(i18n.t(r.verified.human_reviewed ? 'laws.checked_reviewed' : 'laws.checked_not_reviewed',
+              { date: r.verified.on }));
           } else {
-            prov = 'Never checked by anyone. Treat as a draft.';
+            prov = escapeHtml(i18n.t('laws.never_checked'));
           }
 
           // The gate. For rules whose failure mode is prison, deportation or
@@ -268,24 +274,26 @@
           // the answer position at all. Show the citation and a human to ask.
           var gated = r.risk_class === 'liberty_or_life' && !(r.verified && r.verified.on);
           var preview = gated
-            ? 'Not shown: this one can cost you your liberty and nobody has checked it. Read the source.'
+            ? escapeHtml(i18n.t('laws.gated_preview'))
             : escapeHtml(r.summary);
           html += '<div class="law-row">' +
             '<button class="law-row-head" type="button" data-rule-id="' + escapeHtml(r.id) + '"' +
-              ' aria-expanded="' + (isOpen ? 'true' : 'false') + '">' +
-              '<span class="kind-chip ' + (base ? 'base' : 'real') + '">' + (base ? 'BASE' : 'REAL') + '</span>' +
+              ' aria-expanded="' + (isOpen ? 'true' : 'false') + '" data-i18n-tip="laws.row_hint" data-tip-desc="' +
+              rowHint + '">' +
+              '<span class="kind-chip ' + (base ? 'base' : 'real') + '">' +
+              escapeHtml(i18n.t(base ? 'laws.badge_base' : 'laws.badge_real')) + '</span>' +
               (r.category ? '<span class="law-cat">' + escapeHtml(r.category) + '</span>' : '') +
               '<span class="law-title">' + escapeHtml(r.title) + '</span>' +
               '<span class="law-summary-preview">' + preview + '</span>' +
             '</button>' +
             '<div class="law-detail"' + (isOpen ? '' : ' hidden') + '>' +
               (gated
-                ? '<p><strong>We are not going to summarise this one.</strong> Getting it wrong here means prison or a death, a short summary is exactly what drops the condition that matters, and nobody has checked this entry. Read the law itself, and talk to a person: a lawyer, your county public defender, or for anything involving violence at home, a domestic violence advocate.</p>'
+                ? '<p><strong>' + escapeHtml(i18n.t('laws.gated_lead')) + '</strong> ' + escapeHtml(i18n.t('laws.gated_rest')) + '</p>'
                 : '<p>' + escapeHtml(r.summary) + '</p>') +
-              (r.source ? '<p class="law-source">Source: ' + escapeHtml(r.source) + '</p>' : '') +
+              (r.source ? '<p class="law-source">' + escapeHtml(i18n.t('laws.source', { source: r.source })) + '</p>' : '') +
               '<p class="law-source">' + prov + '</p>' +
               (r.tags && r.tags.length
-                ? '<p class="law-tags">Tags: ' + escapeHtml(r.tags.join(', ')) + '</p>'
+                ? '<p class="law-tags">' + escapeHtml(i18n.t('laws.tags', { tags: r.tags.join(', ') })) + '</p>'
                 : '') +
             '</div>' +
           '</div>';
@@ -347,6 +355,9 @@
         .then(function (data) {
           lawsData = data || {};
           if (data.disclaimer) {
+            // The file's own words now; a later language switch must not put
+            // the fallback back over them.
+            disclaimerEl.removeAttribute('data-i18n');
             disclaimerEl.textContent = data.disclaimer;
             disclaimerEl.hidden = false;
           }
@@ -362,7 +373,7 @@
         })
         .catch(function (err) {
           console.warn('[HOS] Could not load laws data:', err);
-          listEl.innerHTML = '<div class="empty-state">Could not load the laws data. Try refreshing.</div>';
+          listEl.innerHTML = '<div class="empty-state">' + escapeHtml(i18n.t('laws.load_failed')) + '</div>';
         });
     })();
   </script>

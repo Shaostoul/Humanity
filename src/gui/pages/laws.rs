@@ -6,9 +6,21 @@
 
 use egui::{Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 
+use crate::gui::i18n::{t, t_marked, tf};
+use crate::gui::laws::Rule;
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, Hint};
 use crate::gui::GuiState;
+
+/// How far a rule has been checked, in the person's language: the words of
+/// `Rule::provenance_line`, by key, so the website's twin shares them.
+fn provenance(r: &Rule) -> String {
+    match &r.verified {
+        Some(v) if v.human_reviewed => tf("laws.checked_reviewed", &[("date", &v.on)]),
+        Some(v) => tf("laws.checked_not_reviewed", &[("date", &v.on)]),
+        None => t("laws.never_checked").to_string(),
+    }
+}
 
 /// A small bordered chip (BASE / REAL kind badge). Outline + colored text so it
 /// reads as a real chip (operator ask, 2026-07-01) without any literal colors.
@@ -28,16 +40,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(widgets::page_frame(theme))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
-                widgets::section_header(ui, theme, "Laws and rights");
-                ui.label(
-                    RichText::new(
-                        "The rules that apply where you live, nested from Humanity down to your \
-                         town. Two kinds: the HumanityOS base set (our framework, from the Humanity \
-                         Accord) and real laws (plain-language summaries with a source to verify).",
-                    )
-                    .color(theme.text_muted())
-                    .size(theme.font_size_small),
-                );
+                widgets::section_header(ui, theme, t("laws.title"));
+                widgets::glossary_words(ui, theme, t_marked("laws.intro"), theme.font_size_small, theme.text_muted());
                 ui.add_space(theme.spacing_sm);
 
                 if !laws.disclaimer.is_empty() {
@@ -51,7 +55,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
 
                 // Where you are: pick a jurisdiction; the breadcrumb shows the nest.
-                widgets::card_with_header(ui, theme, "Where you are", |ui| {
+                widgets::card_with_header(ui, theme, t("laws.where_you_are"), |ui| {
                     if state.laws_location.is_empty() {
                         state.laws_location = laws
                             .jurisdictions
@@ -67,10 +71,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ui.selectable_value(
                                     &mut state.laws_location,
                                     j.id.clone(),
-                                    format!("{} ({})", j.name, j.level),
-                                );
+                                    tf("laws.location_option", &[("name", &j.name), ("level", &j.level)]),
+                                )
+                                .hint("laws.location_option_hint");
                             }
-                        });
+                        })
+                        .response
+                        .hint("laws.location_hint");
                     ui.add_space(theme.spacing_xs);
                     ui.label(
                         RichText::new(laws.location_breadcrumb(&state.laws_location))
@@ -80,22 +87,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
 
                 ui.add_space(theme.spacing_sm);
-                let kinds = ["All", "HumanityOS base", "Real laws"];
-                widgets::tab_bar(ui, theme, &kinds, &mut state.laws_filter_tab);
+                // The kind tabs: what widgets::tab_bar draws, with each tab's own hint.
+                let kinds: [(&'static str, &'static str); 3] = [
+                    ("laws.kind_all", "laws.kind_all_hint"),
+                    ("laws.kind_base", "laws.kind_base_hint"),
+                    ("laws.kind_real", "laws.kind_real_hint"),
+                ];
+                ui.horizontal(|ui| {
+                    for (i, &(label, hint)) in kinds.iter().enumerate() {
+                        let active = i == state.laws_filter_tab;
+                        if widgets::Button::tab(t(label), active).hint(hint).show(ui, theme) && !active {
+                            state.laws_filter_tab = i;
+                        }
+                    }
+                });
                 // Category chips from the data file's own `categories` list
                 // (loaded since v0.496 but never surfaced until 2026-07-01).
                 // Click to filter to one category; click again to clear.
                 if !laws.categories.is_empty() {
                     ui.add_space(theme.spacing_xs);
                     ui.horizontal_wrapped(|ui| {
-                        if widgets::Button::tab("All categories", state.laws_category.is_empty())
+                        if widgets::Button::tab(t("laws.all_categories"), state.laws_category.is_empty())
+                            .hint("laws.all_categories_hint")
                             .show(ui, theme)
                         {
                             state.laws_category.clear();
                         }
                         for cat in &laws.categories {
                             let active = state.laws_category == *cat;
-                            if widgets::Button::tab(cat, active).show(ui, theme) {
+                            if widgets::Button::tab(cat, active).hint("laws.category_hint").show(ui, theme) {
                                 state.laws_category = if active { String::new() } else { cat.clone() };
                             }
                         }
@@ -104,11 +124,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_xs);
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("Search")
+                        RichText::new(t("laws.search"))
                             .color(theme.text_secondary())
                             .size(theme.font_size_small),
                     );
-                    ui.text_edit_singleline(&mut state.laws_search);
+                    ui.text_edit_singleline(&mut state.laws_search).hint("laws.search_hint");
                 });
                 ui.add_space(theme.spacing_sm);
 
@@ -156,9 +176,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // row IN PLACE (no modal) into the full summary + source + tags,
                     // pushing the rows below it down.
                     let (badge, badge_col) = if r.is_base() {
-                        ("BASE", theme.accent())
+                        (t("laws.badge_base"), theme.accent())
                     } else {
-                        ("REAL", theme.success())
+                        (t("laws.badge_real"), theme.success())
                     };
                     widgets::expandable_row(
                         ui,
@@ -190,9 +210,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // to forget: the preview is what a person reads
                             // while scrolling, without ever opening the row.
                             let preview = if r.is_gated() {
-                                "Not shown: this one can cost you your liberty and nobody has \
-                                 checked it. Read the source."
-                                    .to_string()
+                                t("laws.gated_preview").to_string()
                             } else {
                                 r.summary.clone()
                             };
@@ -209,15 +227,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_xs);
                             if r.is_gated() {
                                 ui.label(
-                                    RichText::new(
-                                        "We are not going to summarise this one. Getting it wrong \
-                                         here means prison or a death, a short summary is exactly \
-                                         what drops the condition that matters, and nobody has \
-                                         checked this entry. Read the law itself, and talk to a \
-                                         person: a lawyer, your county public defender, or for \
-                                         anything involving violence at home, a domestic violence \
-                                         advocate.",
-                                    )
+                                    // Two keys because the website sets the first
+                                    // sentence in bold; the desktop shows them as one.
+                                    RichText::new(format!(
+                                        "{} {}",
+                                        t("laws.gated_lead"),
+                                        t("laws.gated_rest")
+                                    ))
                                     .color(theme.text_primary()),
                                 );
                             } else {
@@ -226,7 +242,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             if !r.source.is_empty() {
                                 ui.add_space(theme.spacing_xs);
                                 ui.label(
-                                    RichText::new(format!("Source: {}", r.source))
+                                    RichText::new(tf("laws.source", &[("source", &r.source)]))
                                         .color(theme.text_muted())
                                         .size(theme.font_size_small),
                                 );
@@ -235,13 +251,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // can be read as checked when it never was.
                             ui.add_space(theme.spacing_xs);
                             ui.label(
-                                RichText::new(r.provenance_line())
+                                RichText::new(provenance(r))
                                     .color(theme.text_muted())
                                     .size(theme.font_size_small),
                             );
                             if !r.tags.is_empty() {
                                 ui.label(
-                                    RichText::new(format!("Tags: {}", r.tags.join(", ")))
+                                    RichText::new(tf("laws.tags", &[("tags", &r.tags.join(", "))]))
                                         .color(theme.text_muted())
                                         .size(theme.font_size_small),
                                 );
@@ -254,7 +270,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if shown == 0 {
                     ui.add_space(theme.spacing_md);
                     ui.label(
-                        RichText::new("No rules match. Try the All filter or clear the search.")
+                        RichText::new(t("laws.no_match"))
                             .color(theme.text_muted()),
                     );
                 }

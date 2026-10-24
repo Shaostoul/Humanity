@@ -12,8 +12,8 @@ let currentMode = 'basic';
 
 function setMode(mode) {
   currentMode = mode;
-  document.querySelectorAll('.calc-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.mode === mode)
+  document.querySelectorAll('.calc-tab').forEach(tab =>
+    tab.classList.toggle('active', tab.dataset.mode === mode)
   );
   document.querySelectorAll('.mode-panel').forEach(p =>
     p.classList.toggle('active', p.id === 'panel-' + mode)
@@ -115,7 +115,7 @@ function safeEval(expr) {
 function evaluate() {
   if (!expression.trim()) return;
   const result = safeEval(expression);
-  const resultStr = isNaN(result) ? 'Error' : formatNumber(result);
+  const resultStr = isNaN(result) ? i18n.t('calculator.error') : formatNumber(result);
 
   // Add to history
   if (!isNaN(result)) {
@@ -145,7 +145,7 @@ function copyResult() {
     const btn = document.querySelector('.mode-panel.active .calc-copy');
     if (btn) {
       const orig = btn.textContent;
-      btn.textContent = 'Copied!';
+      btn.textContent = i18n.t('calculator.copied');
       setTimeout(() => { btn.textContent = orig; }, 1200);
     }
   }).catch(() => {});
@@ -178,11 +178,13 @@ function clearHistory() {
 function renderHistory() {
   const list = document.getElementById('hist-list');
   if (!history.length) {
-    list.innerHTML = '<div class="hist-empty">No calculations yet.</div>';
+    list.innerHTML = '<div class="hist-empty">' + esc(i18n.t('calculator.no_history')) + '</div>';
     return;
   }
+  const reuseTitle = esc(i18n.t('calculator.history_reuse_title'));
+  const reuseHint = esc(i18n.t('calculator.history_reuse_hint'));
   list.innerHTML = history.map((h, i) =>
-    `<div class="hist-item" onclick="useHistory(${i})" title="Click to reuse">
+    `<div role="button" tabindex="0" class="hist-item" onclick="useHistory(${i})" title="${reuseTitle}" data-i18n-tip="calculator.history_reuse_hint" data-tip-desc="${reuseHint}">
       <div class="hist-expr">${esc(h.expr)}</div>
       <div class="hist-result">= ${esc(h.result)}</div>
     </div>`
@@ -199,69 +201,71 @@ function useHistory(idx) {
 
 // ── Unit Converter ──
 
+// The unit names are words, by key from data/i18n/ (the symbols m, km, ft ...
+// are the same in every language and stay as they are).
 const UNITS = {
   length: {
-    label: 'Length',
+    label: i18n.t('calculator.cat_length'),
     units: {
-      m: { name: 'Meters', toBase: 1 },
-      km: { name: 'Kilometers', toBase: 1000 },
-      cm: { name: 'Centimeters', toBase: 0.01 },
-      mm: { name: 'Millimeters', toBase: 0.001 },
-      ft: { name: 'Feet', toBase: 0.3048 },
-      in: { name: 'Inches', toBase: 0.0254 },
-      mi: { name: 'Miles', toBase: 1609.344 },
-      yd: { name: 'Yards', toBase: 0.9144 },
+      m: { name: i18n.t('calculator.unit_meters'), toBase: 1 },
+      km: { name: i18n.t('calculator.unit_kilometers'), toBase: 1000 },
+      cm: { name: i18n.t('calculator.unit_centimeters'), toBase: 0.01 },
+      mm: { name: i18n.t('calculator.unit_millimeters'), toBase: 0.001 },
+      ft: { name: i18n.t('calculator.unit_feet'), toBase: 0.3048 },
+      in: { name: i18n.t('calculator.unit_inches'), toBase: 0.0254 },
+      mi: { name: i18n.t('calculator.unit_miles'), toBase: 1609.344 },
+      yd: { name: i18n.t('calculator.unit_yards'), toBase: 0.9144 },
     }
   },
   weight: {
-    label: 'Weight',
+    label: i18n.t('calculator.cat_weight'),
     units: {
-      kg: { name: 'Kilograms', toBase: 1 },
-      g: { name: 'Grams', toBase: 0.001 },
-      mg: { name: 'Milligrams', toBase: 0.000001 },
-      lb: { name: 'Pounds', toBase: 0.453592 },
-      oz: { name: 'Ounces', toBase: 0.0283495 },
-      t: { name: 'Metric Tons', toBase: 1000 },
+      kg: { name: i18n.t('calculator.unit_kilograms'), toBase: 1 },
+      g: { name: i18n.t('calculator.unit_grams'), toBase: 0.001 },
+      mg: { name: i18n.t('calculator.unit_milligrams'), toBase: 0.000001 },
+      lb: { name: i18n.t('calculator.unit_pounds'), toBase: 0.453592 },
+      oz: { name: i18n.t('calculator.unit_ounces'), toBase: 0.0283495 },
+      t: { name: i18n.t('calculator.unit_metric_tons'), toBase: 1000 },
     }
   },
   temperature: {
-    label: 'Temperature',
+    label: i18n.t('calculator.cat_temperature'),
     units: {
-      C: { name: 'Celsius' },
-      F: { name: 'Fahrenheit' },
-      K: { name: 'Kelvin' },
+      C: { name: i18n.t('calculator.unit_celsius') },
+      F: { name: i18n.t('calculator.unit_fahrenheit') },
+      K: { name: i18n.t('calculator.unit_kelvin') },
     },
     custom: true
   },
   volume: {
-    label: 'Volume',
+    label: i18n.t('calculator.cat_volume'),
     units: {
-      L: { name: 'Liters', toBase: 1 },
-      mL: { name: 'Milliliters', toBase: 0.001 },
-      gal: { name: 'Gallons (US)', toBase: 3.78541 },
-      qt: { name: 'Quarts (US)', toBase: 0.946353 },
-      cup: { name: 'Cups (US)', toBase: 0.236588 },
-      floz: { name: 'Fluid Oz (US)', toBase: 0.0295735 },
+      L: { name: i18n.t('calculator.unit_liters'), toBase: 1 },
+      mL: { name: i18n.t('calculator.unit_milliliters'), toBase: 0.001 },
+      gal: { name: i18n.t('calculator.unit_gallons_us'), toBase: 3.78541 },
+      qt: { name: i18n.t('calculator.unit_quarts_us'), toBase: 0.946353 },
+      cup: { name: i18n.t('calculator.unit_cups_us'), toBase: 0.236588 },
+      floz: { name: i18n.t('calculator.unit_fluid_oz_us'), toBase: 0.0295735 },
     }
   },
   area: {
-    label: 'Area',
+    label: i18n.t('calculator.cat_area'),
     units: {
-      sqm: { name: 'Square Meters', toBase: 1 },
-      sqkm: { name: 'Square Km', toBase: 1e6 },
-      sqft: { name: 'Square Feet', toBase: 0.092903 },
-      sqmi: { name: 'Square Miles', toBase: 2.59e6 },
-      acre: { name: 'Acres', toBase: 4046.86 },
-      ha: { name: 'Hectares', toBase: 10000 },
+      sqm: { name: i18n.t('calculator.unit_square_meters'), toBase: 1 },
+      sqkm: { name: i18n.t('calculator.unit_square_km'), toBase: 1e6 },
+      sqft: { name: i18n.t('calculator.unit_square_feet'), toBase: 0.092903 },
+      sqmi: { name: i18n.t('calculator.unit_square_miles'), toBase: 2.59e6 },
+      acre: { name: i18n.t('calculator.unit_acres'), toBase: 4046.86 },
+      ha: { name: i18n.t('calculator.unit_hectares'), toBase: 10000 },
     }
   },
   speed: {
-    label: 'Speed',
+    label: i18n.t('calculator.cat_speed'),
     units: {
-      'km/h': { name: 'km/h', toBase: 1 },
-      'mph': { name: 'mph', toBase: 1.60934 },
-      'm/s': { name: 'm/s', toBase: 3.6 },
-      'kn': { name: 'Knots', toBase: 1.852 },
+      'km/h': { name: 'km/h', toBase: 1 }, // i18n-exempt: a unit symbol
+      'mph': { name: 'mph', toBase: 1.60934 }, // i18n-exempt: a unit symbol
+      'm/s': { name: 'm/s', toBase: 3.6 }, // i18n-exempt: a unit symbol
+      'kn': { name: i18n.t('calculator.unit_knots'), toBase: 1.852 },
     }
   }
 };
@@ -270,8 +274,9 @@ let convCategory = 'length';
 
 function buildConverterUI() {
   const cats = document.getElementById('conv-cats');
+  const hint = esc(i18n.t('calculator.category_hint'));
   cats.innerHTML = Object.entries(UNITS).map(([key, cat]) =>
-    `<button class="conv-cat-btn${key === convCategory ? ' active' : ''}" onclick="setConvCategory('${key}')">${cat.label}</button>`
+    `<button class="conv-cat-btn${key === convCategory ? ' active' : ''}" data-cat="${key}" onclick="setConvCategory('${key}')" data-i18n-tip="calculator.category_hint" data-tip-desc="${hint}">${esc(cat.label)}</button>` // i18n-exempt: ' active' is a class name
   ).join('');
   populateUnitSelects();
   doConvert();
@@ -280,7 +285,7 @@ function buildConverterUI() {
 function setConvCategory(cat) {
   convCategory = cat;
   document.querySelectorAll('.conv-cat-btn').forEach(b =>
-    b.classList.toggle('active', b.textContent === UNITS[cat].label)
+    b.classList.toggle('active', b.dataset.cat === cat)
   );
   populateUnitSelects();
   doConvert();
@@ -358,10 +363,10 @@ function swapUnits() {
 function doCurrConvert() {
   const amount = parseFloat(document.getElementById('cur-amount').value) || 0;
   const rate = parseFloat(document.getElementById('cur-rate').value) || 0;
-  const fromCode = document.getElementById('cur-from').value.toUpperCase() || 'FROM';
-  const toCode = document.getElementById('cur-to').value.toUpperCase() || 'TO';
+  const fromCode = document.getElementById('cur-from').value.toUpperCase() || i18n.t('calculator.code_from');
+  const toCode = document.getElementById('cur-to').value.toUpperCase() || i18n.t('calculator.code_to');
 
-  document.getElementById('cur-from-label').textContent = fromCode || 'unit';
+  document.getElementById('cur-from-label').textContent = fromCode || i18n.t('calculator.unit_word');
   const result = amount * rate;
   document.getElementById('cur-result').value = isNaN(result) ? '' :
     formatNumber(result) + ' ' + toCode;

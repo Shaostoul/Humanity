@@ -35,6 +35,9 @@ use super::{GuiPage, GuiState};
 /// `theme` is `&mut` only because the Settings page edits the live theme in
 /// place (the appearance editor); every other page reads it.
 pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, state: &mut GuiState) -> bool {
+    // The person's hint mode, for every control's plain-language hint this
+    // frame (`widgets/hint.rs`): Full and Hover show them, Off hides them.
+    super::widgets::hint::set_mode(ctx, state.settings.hint_display);
     // The server strip (Media round 5, 3.11): which server Media, Watch, Chat and Server Settings
     // show, fixed under the top menu. Its panel goes in before the page's own, so it sits above
     // them across the whole width and does not scroll with the page.

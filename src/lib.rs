@@ -15834,6 +15834,9 @@ mod native_app {
                                 // Confirmation toasts (v0.861): floats a "Saved" style
                                 // note over everything so actions are never silent.
                                 crate::gui::widgets::draw_toasts(ctx, &state.theme, &mut state.gui_state);
+                                // The first five minutes' tour card (gui/first_minutes.rs): bottom right,
+                                // over the open page, never over the world.
+                                crate::gui::first_minutes::draw(ctx, &state.theme, &mut state.gui_state);
                                 crate::gui::widgets::draw_underwater_tint(ctx, &state.gui_state);
 
                                 // Draw debug console overlay (F12 toggle, on top of everything)

@@ -12,6 +12,8 @@ use egui::{Frame, RichText, ScrollArea};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::i18n::{t, tf};
+use crate::gui::widgets::with_hint;
 
 /// Widest the content column gets. With the second column gone, an unclamped
 /// card would stretch the full width of an ultrawide window and read as a
@@ -31,7 +33,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Page title matches the nav button; before v0.1144 the
                     // page never stated its own name (only section eyebrows).
                     ui.label(
-                        RichText::new("Quests")
+                        RichText::new(t("quests.title"))
                             .size(theme.font_size_title)
                             .color(theme.text_primary()),
                     );
@@ -39,7 +41,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // page is sim now) and points at where the real-life
                     // tutorials went.
                     ui.label(
-                        RichText::new("Auto-tracked from the game. Real-life guides live in Tasks.")
+                        RichText::new(t("quests.subtitle"))
                             .size(theme.font_size_small)
                             .color(theme.text_secondary()),
                     );
@@ -67,7 +69,7 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !has_active && !has_completed && state.quests_available.is_empty() {
         widgets::card(ui, theme, |ui| {
             ui.label(
-                RichText::new("No quests yet, start a game session to receive your first quest.")
+                RichText::new(t("quests.empty"))
                     .size(theme.font_size_body)
                     .color(theme.text_muted()),
             );
@@ -77,18 +79,20 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Active quests: current step + a step-progress bar.
     if has_active {
-        ui.label(RichText::new("Active").size(theme.font_size_body).color(theme.text_secondary()));
+        ui.label(RichText::new(t("quests.active")).size(theme.font_size_body).color(theme.text_secondary()));
         ui.add_space(theme.spacing_xs);
         for q in state.quests.iter().filter(|q| !q.completed) {
             widgets::card(ui, theme, |ui| {
                 ui.label(RichText::new(&q.name).size(theme.font_size_body).color(theme.text_primary()));
                 if q.step_total > 0 {
                     ui.label(
-                        RichText::new(format!(
-                            "Step {} of {}: {}",
-                            q.step_index + 1,
-                            q.step_total,
-                            q.step_desc
+                        RichText::new(tf(
+                            "quests.step",
+                            &[
+                                ("n", &(q.step_index + 1)),
+                                ("total", &q.step_total),
+                                ("step", &q.step_desc),
+                            ],
                         ))
                         .size(theme.font_size_small)
                         .color(theme.text_secondary()),
@@ -107,7 +111,7 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !state.quests_available.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(
-            RichText::new("Available")
+            RichText::new(t("quests.available"))
                 .size(theme.font_size_body)
                 .color(theme.text_secondary()),
         );
@@ -122,7 +126,7 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_primary()),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if widgets::compact_button(ui, theme, "Accept", widgets::ButtonVariant::Primary) {
+                        if with_hint(ui, "quests.accept_hint", |ui| widgets::compact_button(ui, theme, t("quests.accept"), widgets::ButtonVariant::Primary)) {
                             state.pending_accept_quest = Some(q.id.clone());
                         }
                     });
@@ -142,7 +146,7 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Completed quests.
     if has_completed {
         ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Completed").size(theme.font_size_body).color(theme.text_secondary()));
+        ui.label(RichText::new(t("quests.completed")).size(theme.font_size_body).color(theme.text_secondary()));
         ui.add_space(theme.spacing_xs);
         widgets::card(ui, theme, |ui| {
             for q in state.quests.iter().filter(|q| q.completed) {
