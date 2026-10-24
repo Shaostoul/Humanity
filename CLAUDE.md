@@ -100,8 +100,8 @@ yet. No compatibility shims, no migration code for old save/vault/schema formats
 deprecated-but-kept fields, no "legacy" fallback branches, unless a specific past migration is
 documented as active (the PBKDF2 100k-to-600k vault migration; version-tagged blueprint schemas
 that must keep loading old player saves). Change a format or API shape outright: compat code
-written now is bloat to find and remove later. Revisit this once real users exist, before deleting
-it. **The same goes for NAMES (operator, 2026-10-19):** when something a person sees is renamed,
+written now is bloat to find and remove later. Operator, 2026-10-23: "We're not really concerned
+about backwards compatibility until after v1.0." Revisit this at v1.0, before deleting it. **The same goes for NAMES (operator, 2026-10-19):** when something a person sees is renamed,
 rename it in the code, routes, file names, config fields, tests and docs too, in the same piece of
 work; never keep an old internal name "so links keep working". Verbatim: "I'd rather sync the
 names now while no one is using HOS where no one gets hurt. If we have differing names for anything
