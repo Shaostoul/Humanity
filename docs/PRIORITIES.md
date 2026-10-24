@@ -127,6 +127,11 @@ In order:
      the relay echoes a chat line to its sender in every path and which frames carry a refusal.
      CONFIRMED by the operator: the first send was refused for exceeding the character limit of an
      account not verified on public.guide.
+     FIXED 2026-10-24 (c7b3edcbc): the relay names a refused line to its sender (chat_refused,
+     every refusal path), and the website shows "Sending...", then posted or "Not sent" with the
+     reason and Edit and send again. It reaches public.guide with the next release (its follower
+     updates on tags); the desktop app does not show the state yet (it waits for the server's copy
+     and shows the plain notice).
    - **Over-limit characters shown plainly (operator, 2026-10-24, "a task for later"):** "highlight
      the character spots that go beyond the character limit have their background highlight dark
      red and the text change from white to red. We need to improve the visual ques for some
