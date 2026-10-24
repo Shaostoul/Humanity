@@ -5567,6 +5567,11 @@ other's address.
 
 ## BUG-174: the library test program stopped linking on Windows, failing `just verify` (WORKED AROUND 2026-10-09)
 
+**2026-10-24: no longer reached.** With line-tables-only debug info for our crate and none for the
+dependencies (Cargo.toml, 41e1e8b3f), `scripts/build-ab/linker-ab.js` linked the test program
+WITH its debug file under link.exe: a 446 MB PDB, no LNK1318 (it failed at 1,084,010,496 bytes).
+The /DEBUG:NONE link in `scripts/lib-tests.js` stays as a harmless speed-up.
+
 **What happened.** `cargo test --features native --lib` failed to link with
 "LNK1318: Unexpected PDB error; LIMIT (12)", so `just verify` failed before running a test.
 Linux CI was never affected (it writes no PDB), and the same tests linked on 2026-10-05. The

@@ -105,9 +105,28 @@ logical processor (twelve here). The dependency crates are not gated by the slot
 2026-10-23 eighty cargo and rustc processes left 690 MB of 32 GB free. `CARGO_BUILD_JOBS`
 overrides it for one command.
 
+## Measured 2026-10-24 (quiet machine, Rust 1.99.1, about 23 GB of RAM free throughout)
+
+- **Debug info (adopted, 41e1e8b3f):** line tables only for our crate, none for the dependencies.
+  The lib test build after a one-line edit: 81 s, 13.3 GB peak, 136 CPU s before; 56 s, 10.1 GB,
+  68 CPU s after. Cold: 522 s and 14.7 GB before, 431 s and 11.5 GB after. Deps on disk: 3.8 to
+  2.4 GB. The image crate lost its unused AVIF encoder in the same commit.
+- **rust-lld (rejected):** the link step is 2.97 s against link.exe's 4.91 s (4.54 against 5.80
+  with a debug file), about 2% of a build: under the operator's 5% bar for a change that would
+  also mean trusting another linker for the release exe.
+- **BUG-174 after the debug-info change:** link.exe linked the test program WITH its debug file
+  (a 446 MB PDB) without LNK1318. The /DEBUG:NONE workaround in scripts/lib-tests.js stays (it is
+  harmless and faster), but the limit is no longer reached.
+- **Where one cold compile of our crate goes (time-passes, 241 s):** type checking 46 s and borrow
+  checking 50 s (single-threaded inside one crate), code generation 105 s (37 s to LLVM IR, 54 s
+  of LLVM passes, already spread across the CPUs), linking 5 s. So about 40% of every compile is
+  analysis that one crate cannot run in parallel, and a one-line edit still re-checks the whole
+  crate (56 s). Splitting the crate is what would cut that; it reverses the 2026-06-30 one-crate
+  decision, so it is the operator's call (PRIORITIES).
+
 ## Still to measure (scripted in scripts/build-ab/)
 
-On 2026-10-23 the machine never had room to measure: at 12:45 fourteen compiles of our crate
+`relay-gate.js` and `seed-ab.js` below are still unmeasured. On 2026-10-23 the machine never had room to measure: at 12:45 fourteen compiles of our crate
 from twelve worktrees held about 102 GB of commit (each 3 to 12 GB of private memory, each with
 under 1 GB of it in physical memory), free physical memory was 0.6 GB and free commit 10.5 GB.
 A timing then measures the paging. Run these once the slot is installed and the machine is quiet,
