@@ -46,7 +46,11 @@ kira = { version = "0.9", optional = true }
 symphonia = { version = "0.5", optional = true, default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
 # Asset loading
 gltf = "1.4"
-image = "0.25"
+# Without the AVIF encoder (2026-10-24): nothing here writes AVIF (every save path writes PNG or
+# JPEG; the "avif" in chat.rs and protected.rs is a file type an attachment may have), and the
+# encoder pulled in ravif and rav1e, about 26 crates, for both feature sets. Reading AVIF was never
+# on (that needs the separate avif-native feature).
+image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 ron = "0.8"
@@ -291,6 +295,17 @@ sha2 = "0.10"
 # the media playback tests time out. Optimising just this one package in the
 # dev profile (which `cargo test` inherits) fixes both at the cost of a one-off
 # longer compile of that crate; the rest of a dev build stays unoptimised.
+# Debug info in dev and test builds (2026-10-24, measured on a quiet machine with
+# scripts/build-ab/ab-debug.js, Rust 1.99.1): line tables only for our crate (panics and backtraces
+# keep file and line; a debugger loses variables, which nothing here uses) and none for the
+# dependencies. The lib test build after a one-line edit went from 81 s, 13.3 GB peak and 136 CPU
+# seconds to 56 s, 10.1 GB and 68; a cold one from 522 s and 14.7 GB to 431 s and 11.5 GB; the
+# target's deps from 3.8 GB to 2.4 GB. Release builds are unaffected.
+[profile.dev]
+debug = "line-tables-only"
+[profile.dev.package."*"]
+debug = false
+
 [profile.dev.package.rav1d]
 opt-level = 3
 
