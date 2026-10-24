@@ -835,7 +835,8 @@ Encrypted cloud backup of settings/keys (AES-256-GCM + PBKDF2-SHA-256 at 600,000
 
 ### Rate Limiting
 Fibonacci backoff per public key to prevent spam.
-- Server: `src/relay/relay.rs`
+- Server: `src/relay/relay.rs`, `src/relay/handlers/chat_rate.rs`
+- Per-address limits on every HTTP route (2026-10-22): one edge layer decides the client's address (headers believed only from a trusted proxy, `TRUSTED_PROXIES`, loopback by default) and takes each request from that address's allowance for the route's class (bot, costly, write, upload, read, socket, static); 429 with `Retry-After`, Fibonacci holds for an address that keeps asking; a bounded table. `src/relay/client_addr.rs`, `src/relay/ip_limit.rs`; summary in the admin stats (`ip_limits`)
 
 ---
 
@@ -1185,6 +1186,9 @@ Message routing with authentication, rate limiting, federation.
 ### Federation
 Server-to-server WebSocket connections, trust tiers, profile gossip.
 - Server: `src/relay/handlers/federation.rs`
+- Numbered log and catch-up (2026-10-22): everything a server sends its links (chat, edits, deletes, erases, bans, profile copies, signed objects) is numbered in its outbox; a link applies it once and in order and catches up after being down or paused. The origin's edits and deletes reach every copy; bans are honoured in shared rooms. `src/relay/handlers/federation_log.rs`, `src/relay/storage/federation_log.rs`
+- Per-peer flow limits (2026-10-22): every kind of frame has an allowance; a peer over it is slowed, then paused, never dropped; shown per peer in the admin API (`link.flow`). `src/relay/handlers/federation_flow.rs`
+- Phase 3 test, two relays on loopback: `src/relay/handlers/federation_phase3_tests.rs`; live check: `docs/admin/federation-live-check.md`
 
 ### Server Membership
 Auto-join on connect, paginated member roster, role management.

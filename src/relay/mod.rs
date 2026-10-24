@@ -6,6 +6,10 @@
 
 pub mod relay;
 pub mod api;
+/// Who a request comes from: client headers are believed only from a trusted proxy (2026-10-22).
+pub mod client_addr;
+/// Per-address limits on every HTTP route, applied by one edge layer (2026-10-22).
+pub mod ip_limit;
 pub mod upload_limits;
 /// The rules every upload is held to (type lists, sharing switches, the picture strip, the
 /// stored name), shared by the single request and the resumable upload (2026-10-11).
@@ -608,7 +612,9 @@ pub async fn serve_relay(
     let router = build_router(state.clone());
     let state_for_return = state.clone();
     tokio::spawn(async move {
-        let _ = axum::serve(listener, router).await;
+        // With each connection's own address (client_addr.rs): a header naming a client is
+        // believed only from a trusted proxy, so the edge has to know who connected.
+        let _ = axum::serve(listener, router.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
     });
     state_for_return
 }
@@ -1252,7 +1258,7 @@ pub async fn run_relay() {
     // with SIGTERM). Without this, anything since the last 30s periodic save
     // would be lost on a clean restart.
     let shutdown_state = state.clone();
-    axum::serve(listener, app)
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .with_graceful_shutdown(shutdown_signal(shutdown_state))
         .await
         .unwrap();
@@ -1501,6 +1507,9 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // added later wrap earlier ones, so security_headers is the outer one
         // and its headers land on the 403 refusal too.
         .layer(middleware::from_fn_with_state(state.clone(), feature_gate))
+        // Per-address limits (ip_limit.rs), outside the capability gate so a flood is cut before
+        // any other work, inside security_headers so the 429 carries every answer's headers.
+        .layer(middleware::from_fn_with_state(state.clone(), ip_limit::edge))
         .layer(middleware::from_fn(security_headers))
         .layer(
             CorsLayer::new()
@@ -1602,20 +1611,12 @@ async fn ws_handler(
             return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
         }
     }
-    // v0.279.0: extract the real client IP for per-IP rate limiting at
-    // identify. nginx fronts the relay so the WS socket's peer is always
-    // 127.0.0.1 — the real IP is in X-Forwarded-For (or X-Real-IP as a
-    // fallback). Take only the first hop from XFF: it's the most trusted
-    // (closest-to-client) IP nginx itself wrote. Strip a port suffix if
-    // present. Falls back to "unknown" when neither header is set — the
-    // rate limiter treats "unknown" as a shared bucket, which is the
-    // strictest safe default (won't accidentally exempt anyone).
-    let client_ip = headers.get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_string())
-        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()).map(|s| s.trim().to_string()))
-        .unwrap_or_else(|| "unknown".to_string());
+    // The client's address for the per-address limits at identify (attempts a minute, new accounts
+    // an hour). The edge (ip_limit.rs) has already decided it and left it as the only X-Real-IP:
+    // a header is believed only from a trusted proxy (client_addr.rs). Until 2026-10-22 this read
+    // the FIRST X-Forwarded-For entry, the one a client writes, so a script could be a new address
+    // on every connection. No address is the one shared "unknown" bucket, the strictest.
+    let client_ip = files_counts::address_of(&headers);
 
     // One frame may be as large as one message (2026-10-09): browsers send a message as a
     // single frame, and a report may carry 64 KB of evidence plus its keys and signature

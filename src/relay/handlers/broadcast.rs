@@ -335,6 +335,8 @@ pub async fn handle_mod_command(
                 if let Err(e) = state.db.ban_user(key, target_name) {
                     tracing::error!("Failed to ban: {e}");
                 }
+                // Honoured in the rooms this server shares with linked servers (federation_log.rs).
+                crate::relay::handlers::federation_log::after_ban(state, key, target_name, true).await;
             }
             // Mark keys as kicked so their WebSocket loops will close.
             {
@@ -360,6 +362,7 @@ pub async fn handle_mod_command(
                 if let Err(e) = state.db.set_banned(key, false) {
                     tracing::error!("Failed to unban: {e}");
                 }
+                crate::relay::handlers::federation_log::after_ban(state, key, "", false).await;
             }
             format!("Unbanned {}.", target_name)
         }

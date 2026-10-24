@@ -663,7 +663,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
 
         let client = reqwest::Client::new();
@@ -751,7 +751,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
         (state, port)
     }
@@ -1143,7 +1143,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
 
         // 1. The leaver joins the world, then steps out on purpose. Its
@@ -1209,7 +1209,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
 
         let (mut admin, admin_key) = bind_socket(&state, port, [47u8; 32], Some("BanAdmin"), 1).await;
@@ -1732,7 +1732,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
         (state, port, server)
     }
@@ -2731,7 +2731,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
         let (mut a, key) = bind_socket(&state, port, [110u8; 32], Some("JoinAgain"), 1).await;
         welcome_after_join(&mut a, "JoinAgain").await;
@@ -2909,7 +2909,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await;
         });
 
         let (mut a, key) = bind_socket(&state, port, [97u8; 32], Some("PlotRejoin"), 1).await;

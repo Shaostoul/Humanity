@@ -105,7 +105,9 @@ async fn two_relays_handshake_chat_and_gossip() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis() as u64;
-    federation::forward_to_federation(&a, "general", "Alice", "hello across servers", now_ms).await;
+    // The author's key travels with the line since 2026-10-22 (a server refuses the words of a
+    // key it, or a server sharing the room, banned); any stand-in key will do here.
+    federation::forward_to_federation(&a, "general", "alice-key", "Alice", "hello across servers", now_ms).await;
 
     let b_for_chat = b.clone();
     eventually("B persists the federated chat line", || {
@@ -125,7 +127,7 @@ async fn two_relays_handshake_chat_and_gossip() {
     // dialed while messages identify their origin by PUBLIC KEY, so the
     // source-identity check dropped every message arriving on an outbound
     // socket. Both directions must key peers by their pinned key.
-    federation::forward_to_federation(&b, "general", "Bela", "hello back the other way", now_ms + 5).await;
+    federation::forward_to_federation(&b, "general", "bela-key", "Bela", "hello back the other way", now_ms + 5).await;
     let a_for_chat = a.clone();
     eventually("A persists the federated chat line from B (outbound-socket leg)", || {
         a_for_chat.db.load_recent_messages(50)

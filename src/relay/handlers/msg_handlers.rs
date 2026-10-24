@@ -1264,6 +1264,8 @@ async fn mod_action_carry_out(state: &Arc<RelayState>, my_key: &str, action: &st
                     if let Err(e) = state.db.ban_user(k, &display_name) {
                         tracing::error!("mod_action ban set_banned error: {e}");
                     }
+                    // Honoured in the rooms this server shares with linked servers (federation_log.rs).
+                    crate::relay::handlers::federation_log::after_ban(state, k, &display_name, true).await;
                 }
             }
 
@@ -2074,19 +2076,23 @@ pub async fn handle_federated_chat(
     timestamp: u64,
     channel: String,
     signature: Option<String>,
+    from_key: String,
 ) {
     // Security audit 2026-05-03 H3: previously this handler only checked
     // that the source server was trust-tier ≥ 2 and that the channel was
     // federated. The signature field was passed through to broadcast
     // without ever being verified — a compromised tier-2 server could
-    // forge chat from any name. Now: reject stale timestamps, then
-    // require + verify the signature against the source server's stored
-    // pubkey. Unsigned messages are rejected outright.
-    if !crate::relay::handlers::broadcast::is_timestamp_fresh(timestamp) {
-        tracing::warn!(
-            "Federation: rejected chat from {} — timestamp outside ±5 min window (replay?)",
-            server_id
-        );
+    // forge chat from any name. Now: require + verify the signature against
+    // the source server's stored pubkey. Unsigned messages are rejected outright.
+    //
+    // Replays (2026-10-22): a chat line arrives NUMBERED in its origin's log
+    // (federation_log.rs), applied once and in order, so the old five-minute
+    // freshness window, which refused every line a link caught up on, is gone.
+    // A line from the future is still refused, and a line already held is not
+    // stored twice.
+    let a_day_ahead = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64 + 86_400_000;
+    if timestamp > a_day_ahead || from_key.is_empty() {
+        tracing::warn!("Federation: rejected chat from {}: dated ahead, or no author key", crate::relay::handlers::federation::key_in_log(&server_id));
         return;
     }
 
@@ -2111,10 +2117,9 @@ pub async fn handle_federated_chat(
         return;
     }
 
-    // Verify signature. Canonical message: "fed_chat\n<from_name>\n<channel>\n<content>"
-    // The trailing `timestamp` arg goes into the `\n<timestamp>` suffix that
-    // verify_ed25519_signature appends; this is the same shape as profile gossip.
-    let canonical = format!("fed_chat\n{}\n{}\n{}", from_name, channel, content);
+    // Verify the signature over the canonical words (federation.rs `chat_words`, the author's key
+    // among them); the verify helper appends the time as the signer did.
+    let canonical = format!("fed_chat\n{}\n{}\n{}\n{}", from_key, from_name, channel, content);
     let sig_valid = match (signature.as_deref(), server.public_key.as_deref()) {
         (Some(sig), Some(pk)) => crate::relay::handlers::broadcast::verify_dilithium_signature(pk, &canonical, timestamp, sig),
         _ => false,
@@ -2130,6 +2135,16 @@ pub async fn handle_federated_chat(
     if !state.db.is_channel_federated(&channel).unwrap_or(false) {
         return;
     }
+    // Moderation honoured across the shared rooms (federation_log.rs, decided 2026-10-22): a key
+    // banned HERE, or by any server linked here at tier 2 that shares the rooms, is not shown, and
+    // a line already held (a catch-up after a restart) is not stored twice.
+    if state.db.is_banned(&from_key).unwrap_or(false) || state.db.fed_banned_by(&from_key).ok().flatten().is_some() {
+        tracing::info!("Federation: a chat line from {} by a banned key was not shown", crate::relay::handlers::federation::key_in_log(&server_id));
+        return;
+    }
+    if state.db.fed_message_held(&server_id, &from_key, timestamp).unwrap_or(false) {
+        return;
+    }
     // Persist BEFORE broadcasting so the line survives a restart. This was
     // the last split-brain of the federation repair (2026-08-13): the
     // verifying handler only broadcast, while the persisting path (the old
@@ -2143,6 +2158,8 @@ pub async fn handle_federated_chat(
         "content": &content,
         "timestamp": timestamp,
         "channel": &channel,
+        // The author: what the origin's edits, deletes and erases name (storage/federation_log.rs).
+        "from_key": &from_key,
     });
     let _ = state.db.store_federated_message(
         &channel,
@@ -2154,7 +2171,7 @@ pub async fn handle_federated_chat(
         &server_id,
     );
     let federated_msg = RelayMessage::FederatedChat {
-        server_id, server_name, from_name, content, timestamp, channel, signature,
+        server_id, server_name, from_name, content, timestamp, channel, signature, from_key: Some(from_key),
     };
     let _ = state.broadcast_tx.send(federated_msg);
 }

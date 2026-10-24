@@ -67,7 +67,10 @@ pub enum ErasedBy {
 pub async fn carry_out(state: &Arc<RelayState>, key: &str, name: &str, by: ErasedBy) -> Vec<(String, usize)> {
     crate::relay::handlers::sign_ups::remember_erase(state, key);
     let left = crate::relay::handlers::home_plots::leave_world_for_erase(state, key).await;
+    // Asked before the rows go: linked servers are told to remove their copies only if there are any.
+    let posted_shared = crate::relay::handlers::federation_log::posted_in_shared_rooms(state, key);
     let mut receipt = state.db.delete_account(key, name);
+    crate::relay::handlers::federation_log::after_erase(state, key, posted_shared).await;
     left.add_to(&mut receipt); // the plot freed there, and the pieces that came down with it, count with the rest
     let summary: Vec<String> = erased_counts(&receipt).iter().map(|(label, n)| format!("{label}: {n}")).collect();
     // No key and no name in either line: the log outlives what the person was promised.

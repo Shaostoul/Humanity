@@ -591,6 +591,7 @@ server {
         proxy_read_timeout 900s;
         proxy_pass http://127.0.0.1:3210/api/upload;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
     }
 
     # Resumable Media uploads: a big Media file arrives as many pieces of at most 8 MiB, so this
@@ -606,11 +607,13 @@ server {
         proxy_read_timeout 900s;
         proxy_pass http://127.0.0.1:3210;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
     }
 
     # Serve uploads
     location /uploads/ {
         proxy_pass http://127.0.0.1:3210/uploads/;
+        proxy_set_header X-Real-IP $remote_addr;
         add_header X-Content-Type-Options nosniff;
     }
 
@@ -676,6 +679,23 @@ over it: the copy would throw those changes away.
 3. `sudo nginx -t && sudo systemctl reload nginx`. `nginx -t` checks the file
    before anything changes, and a reload keeps the site up throughout.
 
+**A server set up before 2026-10-22** may be missing `proxy_set_header X-Real-IP
+$remote_addr;` in the locations that pass uploads and files to the relay. The
+relay limits requests per visitor address from then on, so every location
+that passes requests to it needs the header (see "How the relay knows who a
+request comes from" under step 5). To see which ones lack it, without changing
+anything:
+
+```bash
+sudo nginx -T 2>/dev/null | grep -n -E "location |proxy_pass http://127.0.0.1:3210|X-Real-IP"
+```
+
+Every `location` whose block has a `proxy_pass http://127.0.0.1:3210` line
+needs an `X-Real-IP` line in the same block. Add it by hand (the guide's
+example config above has it in all of them: `/ws`, `/api/`, `/api/upload`,
+`/api/upload/resumable`, `/uploads/` and the `/files/<number>` block), then
+`sudo nginx -t && sudo systemctl reload nginx`.
+
 ### 5. Open firewall ports
 
 ```bash
@@ -691,15 +711,42 @@ Optionally, add `BIND_ADDRESS=127.0.0.1` to `/opt/Humanity/.env` (then
 `sudo systemctl restart humanity-relay`). nginx reaches the relay over
 loopback, so nothing changes for users, and the relay then does not listen on
 the network at all, so 3210 stays closed even if the firewall is ever changed
-by mistake. It also matters for one detail: the relay takes a client's address
-for rate limiting from the `X-Forwarded-For` header nginx sets, which is only
-trustworthy when nginx is the only thing that can reach it. The Files page's
-view and download counts read `X-Real-IP` instead, the one header nginx writes
-from the connection itself and a client cannot add to (a client can put
-anything at the front of `X-Forwarded-For`); they hold an address in memory for
-the day only and write nothing about who looked, only the numbers. A config
-from before 2026-10-12 lacks that header: see "A server set up before
-2026-10-12" under step 4.
+by mistake.
+
+**How the relay knows who a request comes from (2026-10-22).** Every request
+the relay sees through nginx comes from nginx itself, on 127.0.0.1. The
+visitor's own address arrives in the `X-Real-IP` header nginx writes from the
+connection (`proxy_set_header X-Real-IP $remote_addr;`), which a visitor
+cannot change, since nginx replaces whatever they sent. The relay believes that
+header ONLY when the connection comes from a trusted proxy: loopback by
+default, or the addresses and networks in `TRUSTED_PROXIES` in
+`/opt/Humanity/.env` (for example `TRUSTED_PROXIES=127.0.0.1,10.0.0.0/8` when
+nginx runs on another machine of yours; `TRUSTED_PROXIES=none` for a relay
+that faces the internet with no proxy). From anyone else every such header is
+ignored and the connection's own address counts. Without `X-Real-IP` it reads
+`X-Forwarded-For` from the right (the last entry is the one nginx appended; a
+visitor can write anything to the left of it).
+
+The relay uses that address for its own per-address limits on every route
+(`src/relay/ip_limit.rs`): the bot API's `/api/send` and the other routes
+authenticated by a shared secret (20 at once, then 1 a second), costly public
+reads such as search (the same), other writes (30, then 2 a second), uploads,
+reads, sockets and files (more generous). Over a limit the answer is `429 Too
+Many Requests` with `Retry-After`, and an address that keeps asking anyway
+waits longer each time (1, 1, 2, 3, 5, 8, 13, then 21 seconds). It also uses it for
+the WebSocket's limits (sign-in attempts a minute, new accounts an hour) and
+for the Files page's view and download counts, which hold an address in memory
+for the day only and write nothing about who looked, only the numbers.
+
+So **every location that passes requests to the relay needs `proxy_set_header
+X-Real-IP $remote_addr;`**. A location without it sends every visitor as
+nginx's own address: they then share one allowance (ten times a single
+address's, so the site stays usable, but one heavy visitor can use it up for
+everyone) and count as one person on the Files page. If nginx itself sits
+behind another proxy or a CDN, set nginx's real-IP module up for it first, or
+every visitor arrives as that proxy's address. A config from before 2026-10-12
+lacks the header in `/api/`, and one from before 2026-10-22 in the upload
+locations and `/uploads/`: see "A server set up before 2026-10-22" under step 4.
 
 ---
 
@@ -711,9 +758,15 @@ Federation is servers agreeing to talk to each other. Without it, your
 server is a private island: only people who connect directly to your
 address can see each other. With it, your server and another server
 exchange **signed profiles** (so people on both servers can recognise each
-other) and discover one another's existence. Your messages and data STAY
-on your server -- federation shares identities and server discovery, not
-your chat history.
+other) and discover one another's existence. Your messages and data stay
+on your server, except in the rooms you mark **Federated** (Server
+Settings > Channels): those rooms are shared, so what is said there is
+also kept by the linked servers that share them. In a shared room, the
+server a message was posted on decides its edits and deletes everywhere,
+and a person banned on one server cannot post in the rooms it shares
+(each server's own rooms stay its own call). The details are in
+`docs/design/federation-activation.md`; to check a live pair end to end,
+follow [federation-live-check.md](federation-live-check.md).
 
 You do not need federation to use your server. A family server that never
 federates works fine forever. Federate when you want your community to be

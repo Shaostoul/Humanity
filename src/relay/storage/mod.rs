@@ -773,6 +773,36 @@ impl Storage {
             );"
         )?;
 
+        // Federation's numbered outbox, this server's place in each linked server's, and the bans
+        // linked servers told it about (2026-10-22, storage/federation_log.rs). New tables, so no
+        // ALTER-added column is named here (BUG-046).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS federation_outbox (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL,
+                author TEXT NOT NULL DEFAULT '',
+                stamp INTEGER NOT NULL DEFAULT 0,
+                not_to TEXT NOT NULL DEFAULT '',
+                frame TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_federation_outbox_author ON federation_outbox(author, stamp);
+            CREATE INDEX IF NOT EXISTS idx_federation_outbox_created ON federation_outbox(created_at);
+            CREATE TABLE IF NOT EXISTS federation_cursors (
+                peer_key TEXT PRIMARY KEY,
+                log_id TEXT NOT NULL,
+                last_seq INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE TABLE IF NOT EXISTS federated_bans (
+                origin_key TEXT NOT NULL,
+                public_key TEXT NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                banned_at INTEGER NOT NULL,
+                PRIMARY KEY (origin_key, public_key)
+            ) WITHOUT ROWID;"
+        )?;
+
         // DM mailbox — sealed-sender store-and-forward (v2, 2026-08-23).
         // Deliberately NO sender column and only day-granularity arrival:
         // the sender's identity is Dilithium-signed INSIDE the sealed
@@ -2873,6 +2903,8 @@ pub mod backup_crypto;
 pub mod backups;
 pub mod erased_accounts;
 mod expiry;
+/// Federation's numbered outbox, places in linked servers' outboxes, and their bans (2026-10-22).
+pub mod federation_log;
 mod board;
 mod channels;
 mod dms;

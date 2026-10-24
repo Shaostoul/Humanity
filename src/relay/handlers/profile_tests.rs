@@ -65,11 +65,13 @@ fn link_a_server(st: &Arc<RelayState>, id: &str) -> tokio::sync::mpsc::Unbounded
     rx
 }
 
-/// The `profile_gossip` frames a linked server has received since last asked.
+/// The `profile_gossip` frames a linked server has received since last asked: on their own (a
+/// link's catch-up) or carried by a numbered frame (federation_log.rs, since 2026-10-22).
 fn gossip_got(rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>) -> Vec<Value> {
     let mut got = Vec::new();
     while let Ok(text) = rx.try_recv() {
         let frame: Value = serde_json::from_str(&text).expect("a frame is JSON");
+        let frame = if frame["type"] == "fed_event" { frame["event"].clone() } else { frame };
         if frame["type"] == "profile_gossip" {
             got.push(frame);
         }

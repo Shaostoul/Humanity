@@ -45,57 +45,37 @@ pub fn should_accept_profile_gossip(public_key_hex: &str, copy: &PublicCopy, tim
     profile_copy::within_limits(public_key_hex, copy) && profile_copy::verify_copy(public_key_hex, copy, timestamp, signature_hex)
 }
 
-/// Forward a chat message to all connected federated servers.
-pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_name: &str, content: &str, timestamp: u64) {
+/// The words a server signs for a chat line it sends its links, and a receiver checks: domain
+/// separated ("fed_chat") so a chat signature can never pass as any other kind, and naming the
+/// author's KEY (since 2026-10-22: a receiver refuses the words of a key it, or a server sharing
+/// the room, has banned, so the key has to be what the origin vouches for, not just the name).
+/// The verify helper appends the time the same way.
+pub fn chat_words(from_key: &str, from_name: &str, channel: &str, content: &str, timestamp: u64) -> String {
+    format!("fed_chat\n{from_key}\n{from_name}\n{channel}\n{content}\n{timestamp}")
+}
+
+/// Send a chat line posted here in a shared room to the linked servers: signed, numbered in the
+/// outbox (federation_log.rs), so a link that is down or paused gets it when it catches up.
+/// Before 2026-10-22 it went live only, and a link over 10 a second simply lost the rest.
+pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_key: &str, from_name: &str, content: &str, timestamp: u64) {
     let (server_id, _) = match state.db.get_or_create_server_keypair() {
         Ok(kp) => kp,
         Err(_) => return,
     };
     let server_name = std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string());
-
-    // Sign the message for authenticity. Canonical preimage matches the
-    // receiving relay's verify exactly: "fed_chat\n{from}\n{channel}\n
-    // {content}\n{ts}" (domain-separated so a chat signature can never be
-    // replayed as any other message kind). The old code signed
-    // "{content}\n{ts}\n{channel}", the second of the three mismatches
-    // that kept federation dormant (repaired 2026-08-13).
-    let sig_message = format!("fed_chat\n{}\n{}\n{}\n{}", from_name, channel, content, timestamp);
-    let signature = sign_with_server_key(&state.db, &sig_message);
-
+    let signature = sign_with_server_key(&state.db, &chat_words(from_key, from_name, channel, content, timestamp));
     let federated_msg = RelayMessage::FederatedChat {
-        server_id: server_id.clone(),
+        server_id,
         server_name,
         from_name: from_name.to_string(),
         content: content.to_string(),
         timestamp,
         channel: channel.to_string(),
         signature,
+        from_key: Some(from_key.to_string()),
     };
-
-    let json = match serde_json::to_string(&federated_msg) {
-        Ok(j) => j,
-        Err(_) => return,
-    };
-
-    let connections = state.federation_connections.read().await;
-    for conn in connections.values() {
-        // Rate limit: max 10 messages per second per server.
-        let allow = {
-            let mut rate = state.federation_rate.lock().unwrap();
-            let times = rate.entry(conn.server_id.clone()).or_default();
-            let now = Instant::now();
-            times.retain(|t| now.duration_since(*t).as_secs() < 1);
-            if times.len() < 10 {
-                times.push(now);
-                true
-            } else {
-                false
-            }
-        };
-        if allow {
-            let _ = conn.tx.send(json.clone());
-        }
-    }
+    let Ok(event) = serde_json::to_value(&federated_msg) else { return };
+    crate::relay::handlers::federation_log::publish(state, "chat", from_key, timestamp, "", &event).await;
 }
 
 /// A server key as the log shows it: its first 16 hex characters. A whole Dilithium3 key is 3,904
@@ -233,6 +213,9 @@ pub async fn federation_connect_loop(
                 }
                 let _ = state.db.update_federated_server_status(&server_id, "online");
                 broadcast_federation_status(&state).await;
+                // Its place in our numbered log, and ours in its log (federation_log.rs). The
+                // request is queued behind the hello written below.
+                let queued = crate::relay::handlers::federation_log::link_up(&state, &peer_id, &tx).await;
 
                 // Send federation hello.
                 let timestamp = std::time::SystemTime::now()
@@ -283,6 +266,7 @@ pub async fn federation_connect_loop(
                                     if write.send(TMessage::Text(m.into())).await.is_err() {
                                         break;
                                     }
+                                    crate::relay::handlers::federation_log::written(&queued);
                                 }
                                 None => break,
                             },
@@ -303,32 +287,33 @@ pub async fn federation_connect_loop(
                 // NAT mapping forever.
                 let state_for_read = state.clone();
                 let _sid_for_read = peer_id.clone();
+                let tx_for_read = tx.clone();
                 let read_task = tokio::spawn(async move {
                     use tokio_tungstenite::tungstenite::Message as TMessage;
+                    let silent = Duration::from_secs(90);
+                    let mut heard = Instant::now();
                     loop {
-                        match tokio::time::timeout(
-                            tokio::time::Duration::from_secs(90),
-                            read.next(),
-                        )
-                        .await
-                        {
+                        // Woken sooner when a pause on this peer ends, to ask for its catch-up.
+                        let wait = crate::relay::handlers::federation_log::read_wait(&state_for_read, &_sid_for_read, silent.saturating_sub(heard.elapsed()));
+                        match tokio::time::timeout(wait, read.next()).await {
                             Err(_) => {
-                                tracing::warn!(
-                                    "Federation: peer {} silent for 90s, dropping the link to reconnect",
-                                    key_in_log(&_sid_for_read)
-                                );
-                                break;
+                                crate::relay::handlers::federation_log::tick(&state_for_read, &_sid_for_read, &tx_for_read).await;
+                                if heard.elapsed() >= silent {
+                                    tracing::warn!(
+                                        "Federation: peer {} silent for 90s, dropping the link to reconnect",
+                                        key_in_log(&_sid_for_read)
+                                    );
+                                    break;
+                                }
                             }
                             Ok(None) | Ok(Some(Err(_))) => break,
                             Ok(Some(Ok(msg))) => {
+                                heard = Instant::now();
                                 if let TMessage::Text(text) = msg {
-                                    if let Ok(relay_msg) =
-                                        serde_json::from_str::<RelayMessage>(&text)
-                                    {
-                                        // One shared handler for both federation
-                                        // directions; see handle_peer_message.
-                                        handle_peer_message(&state_for_read, &_sid_for_read, relay_msg).await;
-                                    }
+                                    // One shared path for both federation directions: the flow
+                                    // limits, the numbered log, then handle_peer_message.
+                                    crate::relay::handlers::federation_log::ingest(&state_for_read, &_sid_for_read, &tx_for_read, &text).await;
+                                    heard = Instant::now();
                                 }
                             }
                         }
@@ -358,6 +343,7 @@ pub async fn federation_connect_loop(
                     let mut conns = state.federation_connections.write().await;
                     conns.remove(&peer_id);
                 }
+                crate::relay::handlers::federation_log::link_down(&state, &peer_id);
                 let _ = state.db.update_federated_server_status(&server_id, "disconnected");
                 broadcast_federation_status(&state).await;
                 tracing::warn!("Federation: disconnected from {}", server_name);
@@ -562,6 +548,9 @@ pub async fn run_inbound_peer(
     }
     broadcast_federation_status(&state).await;
     tracing::info!("Federation: inbound peer {} ({}) connected", name, key_in_log(&server_id));
+    // Its place in our numbered log, and ours in its log (federation_log.rs): our request goes
+    // after the welcome already on the socket.
+    let queued = crate::relay::handlers::federation_log::link_up(&state, &server_id, &tx).await;
     // The catch-up (BUG-191 plan 3.7): queued now, sent by the write pump below once it starts,
     // after the welcome already on the socket. The dialer sends its own on our welcome.
     send_own_copies(&state, &server_id).await;
@@ -573,6 +562,7 @@ pub async fn run_inbound_peer(
             if ws_tx.send(AxMessage::Text(msg.into())).await.is_err() {
                 break;
             }
+            crate::relay::handlers::federation_log::written(&queued);
         }
     });
     // Read pump: same shared handler as the outbound direction. The DIALER
@@ -582,22 +572,30 @@ pub async fn run_inbound_peer(
     // of a zombie "connected" that delivers nothing.
     let state_for_read = state.clone();
     let sid_for_read = server_id.clone();
+    let tx_for_read = tx.clone();
     let read_task = tokio::spawn(async move {
+        let silent = Duration::from_secs(120);
+        let mut heard = Instant::now();
         loop {
-            match tokio::time::timeout(tokio::time::Duration::from_secs(120), ws_rx.next()).await {
+            // Woken sooner when a pause on this peer ends, to ask for its catch-up.
+            let wait = crate::relay::handlers::federation_log::read_wait(&state_for_read, &sid_for_read, silent.saturating_sub(heard.elapsed()));
+            match tokio::time::timeout(wait, ws_rx.next()).await {
                 Err(_) => {
-                    tracing::warn!(
-                        "Federation: inbound peer {} silent for 120s, closing",
-                        key_in_log(&sid_for_read)
-                    );
-                    break;
+                    crate::relay::handlers::federation_log::tick(&state_for_read, &sid_for_read, &tx_for_read).await;
+                    if heard.elapsed() >= silent {
+                        tracing::warn!(
+                            "Federation: inbound peer {} silent for 120s, closing",
+                            key_in_log(&sid_for_read)
+                        );
+                        break;
+                    }
                 }
                 Ok(None) | Ok(Some(Err(_))) => break,
                 Ok(Some(Ok(msg))) => {
+                    heard = Instant::now();
                     if let AxMessage::Text(text) = msg {
-                        if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
-                            handle_peer_message(&state_for_read, &sid_for_read, relay_msg).await;
-                        }
+                        crate::relay::handlers::federation_log::ingest(&state_for_read, &sid_for_read, &tx_for_read, &text).await;
+                        heard = Instant::now();
                     }
                 }
             }
@@ -621,6 +619,7 @@ pub async fn run_inbound_peer(
         let mut conns = state.federation_connections.write().await;
         conns.remove(&server_id);
     }
+    crate::relay::handlers::federation_log::link_down(&state, &server_id);
     let _ = state.db.update_federated_server_status(&server_id, "offline");
     broadcast_federation_status(&state).await;
     tracing::info!("Federation: inbound peer {} disconnected", key_in_log(&server_id));
@@ -641,18 +640,18 @@ pub async fn handle_peer_message(
     relay_msg: RelayMessage,
 ) {
     match relay_msg {
-        RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature } => {
+        RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature, from_key } => {
             if server_id != source_server_id {
                 tracing::warn!(
                     "Federation: peer {} sent chat claiming server_id {} — dropped",
-                    source_server_id, server_id
+                    key_in_log(source_server_id), key_in_log(&server_id)
                 );
                 return;
             }
-            // Full verified path: freshness + trust tier + signature over the
-            // canonical preimage, then persist + broadcast.
+            // Full verified path: trust tier + signature over the canonical words, the author's
+            // standing here, then persist + broadcast. It arrives only numbered (federation_log.rs).
             crate::relay::handlers::msg_handlers::handle_federated_chat(
-                state, server_id, server_name, from_name, content, timestamp, channel, signature,
+                state, server_id, server_name, from_name, content, timestamp, channel, signature, from_key.unwrap_or_default(),
             )
             .await;
         }
@@ -765,41 +764,10 @@ pub async fn handle_peer_message(
                 signature,
             };
 
-            // Per-SOURCE inbound rate limit (audit 2026-06-12): one peer
-            // sending valid objects at line rate would otherwise be
-            // AMPLIFIED N-fold by re-gossip to every other peer.
-            {
-                const INBOUND_MAX_PER_SEC: usize = 50;
-                let allow = {
-                    let mut rate = state.federation_rate.lock().unwrap();
-                    const FED_RATE_MAP_CAP: usize = 10_000;
-                    if rate.len() > FED_RATE_MAP_CAP {
-                        let cutoff = Instant::now();
-                        rate.retain(|_, times| {
-                            times.retain(|t| cutoff.duration_since(*t).as_secs() < 300);
-                            !times.is_empty()
-                        });
-                    }
-                    let times = rate
-                        .entry(format!("{}:inbound", source_server_id))
-                        .or_default();
-                    let now = Instant::now();
-                    times.retain(|t| now.duration_since(*t).as_secs() < 1);
-                    if times.len() < INBOUND_MAX_PER_SEC {
-                        times.push(now);
-                        true
-                    } else {
-                        false
-                    }
-                };
-                if !allow {
-                    tracing::warn!(
-                        "Federation: inbound gossip rate limit hit for source {} — dropping object {}",
-                        source_server_id, object_id
-                    );
-                    return;
-                }
-            }
+            // The per-source inbound limit (audit 2026-06-12: one peer sending valid objects at
+            // line rate would be AMPLIFIED N-fold by re-gossip) is the object allowance in
+            // federation_flow.rs since 2026-10-22: over it the peer is slowed, then paused, and
+            // nothing is dropped (the old 50-a-second cap here dropped the rest for good).
 
             // put_signed_object verifies the Dilithium3 signature.
             match state.db.put_signed_object(&object, Some(source_server_id)) {
@@ -887,45 +855,11 @@ pub async fn gossip_signed_object(
         signature_b64: B64.encode(&object.signature),
     };
 
-    let json = match serde_json::to_string(&msg) {
-        Ok(j) => j,
-        Err(_) => return,
-    };
-
-    let connections = state.federation_connections.read().await;
-    let mut sent = 0;
-    for conn in connections.values() {
-        if let Some(exclude) = exclude_server_id {
-            if conn.server_id == exclude {
-                continue;
-            }
-        }
-        // Per-peer rate limit: max 50 gossiped objects per second.
-        let allow = {
-            let mut rate = state.federation_rate.lock().unwrap();
-            let times = rate.entry(format!("{}:obj", conn.server_id)).or_default();
-            let now = Instant::now();
-            times.retain(|t| now.duration_since(*t).as_secs() < 1);
-            if times.len() < 50 {
-                times.push(now);
-                true
-            } else {
-                false
-            }
-        };
-        if allow {
-            let _ = conn.tx.send(json.clone());
-            sent += 1;
-        }
-    }
-    tracing::debug!(
-        "Federation: gossiped {} object {} to {}/{} peer(s) (excluded={:?})",
-        object.object_type,
-        object_id,
-        sent,
-        connections.len(),
-        exclude_server_id
-    );
+    let Ok(event) = serde_json::to_value(&msg) else { return };
+    // Numbered in the outbox (federation_log.rs) and sent to every link but the one it came from.
+    // The old outbound cap of 50 a second dropped the rest; the receiver's allowance paces it now.
+    let seq = crate::relay::handlers::federation_log::publish(state, "object", "", 0, exclude_server_id.unwrap_or(""), &event).await;
+    tracing::debug!("Federation: gossiped {} object {} as {:?} (excluded={:?})", object.object_type, object_id, seq, exclude_server_id);
 }
 
 /// Send the copy of `public_key`'s profile that other servers keep to every linked server but
@@ -945,13 +879,10 @@ pub async fn gossip_profile(
     let Some(json) = profile_gossip_text(public_key, copy, timestamp, signature) else {
         return;
     };
-    let connections = state.federation_connections.read().await;
-    for conn in connections.values() {
-        if exclude.is_some_and(|source| conn.server_id == source) {
-            continue;
-        }
-        let _ = conn.tx.send(json.clone());
-    }
+    // Numbered in the outbox (federation_log.rs), so a link that is down or paused gets it when it
+    // catches up; the link it came from is sent a skip.
+    let Ok(event) = serde_json::from_str::<serde_json::Value>(&json) else { return };
+    crate::relay::handlers::federation_log::publish(state, "profile", "", 0, exclude.unwrap_or(""), &event).await;
 }
 
 /// The `profile_gossip` frame carrying one signed copy, or None for an unsigned one (never sent).
@@ -998,6 +929,13 @@ pub async fn send_own_copies(state: &Arc<RelayState>, peer_id: &str) -> usize {
         }
         *mark = vec![link];
     }
+    send_own_copies_again(state, peer_id).await
+}
+
+/// The catch-up itself, whatever was sent on this link before: for a peer that asked for it again
+/// because it set copies aside while paused, or that was behind more than the outbox keeps
+/// (federation_log.rs `serve_resume`). Returns how many were queued.
+pub async fn send_own_copies_again(state: &Arc<RelayState>, peer_id: &str) -> usize {
     let copies = match state.db.copies_of_accounts_here() {
         Ok(copies) => copies,
         Err(e) => {
@@ -1212,11 +1150,18 @@ mod receiving_tests {
         rx
     }
 
-    /// Every frame queued for a fake link since the last look.
+    /// Every frame queued for a fake link since the last look, as it would be applied: a numbered
+    /// frame (federation_log.rs, since 2026-10-22) is read as the event it carries, and a skip (a
+    /// frame not meant for that link) as nothing.
     fn sent(rx: &mut UnboundedReceiver<String>) -> Vec<serde_json::Value> {
         let mut frames = Vec::new();
         while let Ok(text) = rx.try_recv() {
-            frames.push(serde_json::from_str(&text).expect("a frame is JSON"));
+            let frame: serde_json::Value = serde_json::from_str(&text).expect("a frame is JSON");
+            match frame["type"].as_str() {
+                Some("fed_event") => frames.push(frame["event"].clone()),
+                Some("fed_skip") => {}
+                _ => frames.push(frame),
+            }
         }
         frames
     }

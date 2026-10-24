@@ -2815,6 +2815,8 @@ async fn admin_stats_inner(
             "accord_compliant": s.accord_compliant,
             "status": s.status,
             "last_seen": s.last_seen,
+            // Read-only: its flow (ok, slowed, paused), places in each other's logs, its bans here.
+            "link": crate::relay::handlers::federation_log::peer_view(&state, s.public_key.as_deref()),
         })
     }).collect();
 
@@ -2855,6 +2857,8 @@ async fn admin_stats_inner(
         "game_time_scale": game_time_scale,
         "system": system,
         "continuous_backup": continuous_backup,
+        // Per-address limits (ip_limit.rs): addresses tracked and held, requests refused by class.
+        "ip_limits": state.ip_limits.summary(std::time::Instant::now()),
     })))
 }
 
@@ -3057,6 +3061,7 @@ pub async fn post_admin_federation(
                 "status": s.status,
                 "last_seen": s.last_seen,
                 "added_at": s.added_at,
+                "link": crate::relay::handlers::federation_log::peer_view(&state, s.public_key.as_deref()),
             })
         })
         .collect();

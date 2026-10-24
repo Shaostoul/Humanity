@@ -8,6 +8,14 @@ pub mod chat_rate;
 pub mod dm_answer;
 pub mod dm_rate;
 pub mod federation;
+/// How fast each linked server may send; slowed, then paused, never dropped (2026-10-22).
+pub mod federation_flow;
+/// The numbered log a server sends its links, the catch-up, and what edits, deletes and bans
+/// from a linked server do here (2026-10-22).
+pub mod federation_log;
+/// Phase 3's load-bearing test: two relays on loopback, end to end (2026-10-22).
+#[cfg(test)]
+mod federation_phase3_tests;
 pub mod fleet_ledger;
 pub mod friend_passes;
 pub mod game_interest;

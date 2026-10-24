@@ -247,6 +247,10 @@ pub struct RelayState {
     pub profile_sign_asks: std::sync::Mutex<HashMap<String, Instant>>,
     /// Rate limiter for federation message forwarding (server_id → last send times).
     pub federation_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
+    /// Per-address limits on every HTTP route, and the proxies trusted to name a client (ip_limit.rs).
+    pub ip_limits: crate::relay::ip_limit::IpLimits,
+    /// Federation's numbered log, each link's place in it, and each peer's flow (handlers/federation_log.rs).
+    pub fed: crate::relay::handlers::federation_log::FedState,
     /// v0.279.0: per-source-IP identify rate limit. Sliding 60-second
     /// window of identify-attempt timestamps. Pre-identify is the right
     /// gate because identify is the only thing on the WS that's free
@@ -512,6 +516,8 @@ impl RelayState {
             federation_connections: RwLock::new(HashMap::new()),
             profile_sign_asks: std::sync::Mutex::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
+            ip_limits: Default::default(),
+            fed: Default::default(),
             identify_rate: std::sync::Mutex::new(HashMap::new()),
             new_identity_per_ip: std::sync::Mutex::new(HashMap::new()),
             object_submit_rate: std::sync::Mutex::new(HashMap::new()),
@@ -2211,6 +2217,9 @@ pub enum RelayMessage {
         channel: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
+        /// The author's key, vouched for by the origin's signature (2026-10-22).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        from_key: Option<String>,
     },
 
     /// Federation status update (connection state of federated servers).
@@ -2890,9 +2899,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     // both bot and human identify paths — every fresh
                     // connection has to come through here, so this is the
                     // single chokepoint for "stop a script from spamming
-                    // open-WS-identify-disconnect cycles." Behind nginx, the
-                    // real client IP arrives via X-Forwarded-For (see
-                    // mod.rs::ws_handler); if missing, we bucket as
+                    // open-WS-identify-disconnect cycles." The address is the
+                    // one the edge decided (ip_limit.rs, client_addr.rs: headers
+                    // only from a trusted proxy); if missing, we bucket as
                     // "unknown" which means anonymous-IP traffic shares a
                     // single bucket — strictest safe default.
                     const IDENTIFY_RATE_WINDOW_SECS: u64 = 60;
@@ -3884,6 +3893,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
                                 }
+                                // A shared room refuses a key a linked server banned (handlers/federation_log.rs).
+                                if crate::relay::handlers::federation_log::refused_in_shared_room(&state_clone, &my_key_for_recv, &channel) { continue; }
 
                                 // v0.280.0 anti-spam: time-gate new identities
                                 // from posting in public channels for the
@@ -4783,7 +4794,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
                                                 let last_ts = state_clone.db.get_last_user_message_timestamp(&my_key_for_recv, &ch).unwrap_or(None);
                                                 if let Some(ts) = last_ts {
-                                                    match state_clone.db.edit_message(&my_key_for_recv, ts, &new_content) {
+                                                    match crate::relay::handlers::federation_log::edit_own_message(&state_clone, &my_key_for_recv, ts, &new_content).await {
                                                         Ok(true) => {
                                                             let edit = RelayMessage::Edit {
                                                                 from: my_key_for_recv.clone(),
@@ -5322,15 +5333,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     }
                                 }
 
-                                // Federation Phase 2: forward to federated servers if channel is federated.
+                                // A shared room's line goes to the linked servers, numbered (handlers/federation_log.rs).
                                 if state_clone.db.is_channel_federated(&ch).unwrap_or(false) {
-                                    let fed_state = state_clone.clone();
-                                    let fed_channel = ch.clone();
-                                    let fed_content = content.clone();
-                                    let fed_display = display.clone();
-                                    tokio::spawn(async move {
-                                        forward_to_federation(&fed_state, &fed_channel, &fed_display, &fed_content, timestamp).await;
-                                    });
+                                    let (fs, fch, fkey, fname, fcontent) = (state_clone.clone(), ch.clone(), my_key_for_recv.clone(), display.clone(), content.clone());
+                                    tokio::spawn(async move { forward_to_federation(&fs, &fch, &fkey, &fname, &fcontent, timestamp).await });
                                 }
 
                                 // Link previews placeholder (future feature).
@@ -5419,7 +5425,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                 } else {
-                                    match state_clone.db.delete_message(&target_from, timestamp) {
+                                    match crate::relay::handlers::federation_log::delete_own_message(&state_clone, &target_from, timestamp).await {
                                         Ok(true) => {
                                             // Broadcast removal so every connected
                                             // client drops the row. The 'from'
@@ -5462,7 +5468,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                 } else {
-                                    match state_clone.db.edit_message(&my_key_for_recv, timestamp, &new_content) {
+                                    match crate::relay::handlers::federation_log::edit_own_message(&state_clone, &my_key_for_recv, timestamp, &new_content).await {
                                         Ok(true) => {
                                             let ch = if edit_channel.is_empty() { "general".to_string() } else { edit_channel };
                                             let edit = RelayMessage::Edit {
@@ -5714,6 +5720,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             // Clear any transient kick flag too so a
                                             // since-reconnected session isn't stuck.
                                             state_clone.kicked_keys.write().await.remove(&target);
+                                            crate::relay::handlers::federation_log::after_ban(&state_clone, &target, "", false).await;
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
                                                 message: "✓ Ban lifted.".to_string(),
@@ -5993,7 +6000,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::DeleteById { message_id } => {
                                 let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 let is_admin = user_role == "admin" || user_role == "mod";
-                                match state_clone.db.delete_message_by_id(message_id, &my_key_for_recv, is_admin) {
+                                match crate::relay::handlers::federation_log::delete_message_by_id(&state_clone, message_id, &my_key_for_recv, is_admin).await {
                                     Ok(Some((from_key, channel_id))) => {
                                         // Find the timestamp from the message (we need it for client-side removal).
                                         // Broadcast deletion to all clients.

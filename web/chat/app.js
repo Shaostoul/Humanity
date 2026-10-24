@@ -1408,9 +1408,13 @@ async function handleMessage(msg) {
       break;
     }
     case 'delete': {
-      // Remove the deleted message from the DOM.
-      const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
-      msgs.forEach(m => m.remove());
+      // Remove the deleted message from the DOM. A message from a linked server is shown as
+      // 'fed:' + its server's key (the federated_chat case), and the relay names that server's
+      // key when the server the message came from deletes it (2026-10-22), so both are tried.
+      ['', 'fed:'].forEach(prefix => {
+        const msgs = document.querySelectorAll('.message[data-from="' + prefix + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
+        msgs.forEach(m => m.remove());
+      });
       break;
     }
     case 'message_deleted': {
@@ -1422,8 +1426,10 @@ async function handleMessage(msg) {
       break;
     }
     case 'edit': {
-      // Update the edited message in the DOM.
+      // Update the edited message in the DOM (one from a linked server is shown as 'fed:' + its
+      // server's key, as in the delete case above).
       applyEditToDOM(msg.from, msg.timestamp, msg.new_content);
+      applyEditToDOM('fed:' + msg.from, msg.timestamp, msg.new_content);
       break;
     }
     case 'pins_sync': {

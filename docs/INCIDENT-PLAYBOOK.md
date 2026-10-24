@@ -235,8 +235,8 @@ The trust-tier system gates inbound federation. If a peer goes bad:
 2. Demote: `UPDATE federated_servers SET trust_tier = 0 WHERE server_id = '...';` (trust_tier < 2 disconnects them; see `federation.rs::start_federation_connections`).
 3. Restart relay to drop active connection.
 
-### Federation profile gossip flood
-A misconfigured or hostile peer floods profile updates. We don't currently rate-limit profile gossip per-server. If symptoms (DB write storm, log noise): demote the peer per above, then add per-server profile-gossip rate limit (parallel to the federation chat rate limit already in `state.federation_rate`).
+### Federation flood (any kind of frame)
+A misconfigured or hostile peer sends faster than its allowance (chat, edits, deletes, bans, profile copies, signed objects or catch-up requests). Since 2026-10-22 every kind has a per-peer allowance (`src/relay/handlers/federation_flow.rs`): the peer is slowed, and after 15 seconds of the last minute spent slowed it is paused, for longer each time (5, 5, 10, 15, 25, 40, 65, 105 s). The log says `Federation: <key> sent faster than its allowance for too long and is paused`. What it sent while paused is asked for again from its numbered log afterwards, so nothing is lost. The Admin page's federation list shows each peer's `link.flow` (state, pauses, frames set aside, what it sent by kind). If it keeps happening: demote or remove the peer per above. (Before 2026-10-22 profile copies had no limit at all, and chat and objects over their limits were dropped for good.)
 
 ### Multi-device same-identity sync conflict
 A user logs in from web + native simultaneously, edits profile from both, clocks are off by minutes. Last-timestamp-wins per `signed_profiles`. If a user reports "I edited my bio and it reverted", suspect clock skew. Mitigation: warn users in Settings → Profile about multi-device editing.

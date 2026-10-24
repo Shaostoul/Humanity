@@ -244,9 +244,13 @@ empty name, every other field empty and `socials` set to `{}`. The shared fixtur
   registered there, is that person's own server's to send.
 - Copies go to every linked server. A link exists only with a server the operator granted tier 2
   or above: the outbound dial and the inbound hello both require it.
-- There is no rate limit on profile copies yet (`docs/design/federation-activation.md`, Phase 2).
-  A copy is sent only when its owner's app signed a newer one, a receiver passes on only what it
-  newly kept, and the catch-up goes once per link.
+- Profile copies have a per-peer allowance since 2026-10-22, like every kind of federated frame
+  (`docs/design/federation-activation.md`, Phase 2): 500 at once, then 100 a second; over it the
+  peer is slowed, then paused, and nothing is dropped. A copy is sent only when its owner's app
+  signed a newer one, a receiver passes on only what it newly kept, and the catch-up goes once per
+  link (again only when a linked server asks for it, after a pause or a gap).
+- Every copy a server sends is numbered in its outbox, so a linked server that was down or paused
+  catches up on exactly what it missed (`docs/design/federation-activation.md`, Phase 3).
 - Receiving servers keep a copy only if:
   - it carries a signature that verifies as its owner's Dilithium3 signature over the words;
   - it keeps the limits a save holds (`profile_copy::within_limits`): the key is 3,904 lowercase
@@ -260,7 +264,20 @@ empty name, every other field empty and `socials` set to `{}`. The shared fixtur
 
 ### Federated Message Persistence
 
-Incoming `FederatedChat` messages are persisted in the local `messages` table, tagged with `origin_server` to distinguish from local messages. Messages are never lost on server restart.
+Incoming `FederatedChat` messages are persisted in the local `messages` table, tagged with `origin_server` to distinguish from local messages, with the author's key in the stored frame (`from_key`, since 2026-10-22). Messages are never lost on server restart.
+
+### The numbered log, and moderation across shared rooms (2026-10-22)
+
+Everything a server sends its links (chat lines, edits, deletes, account erases, bans and unbans,
+profile copies, signed objects) is numbered in its outbox and applied by the receiver once and in
+order; a receiver that missed numbers (down, restarting, or pausing a peer that sent too fast)
+asks for everything after its place and gets exactly that. The server a message was first posted
+on decides its edits and deletes everywhere; a ban is honoured in the rooms the servers share. The
+protocol, the decision and its reasons are in `docs/design/federation-activation.md` (Phases 2 and
+3); the code is `src/relay/handlers/federation_log.rs` and `federation_flow.rs`.
+
+The words a server signs for a chat line it sends (`fed_chat`) name the author's key since
+2026-10-22, so both servers of a link must run a version from after that date for chat to cross.
 
 ---
 
@@ -366,7 +383,7 @@ accord_url = ""
 - **Key theft**: If a server operator modifies the client JS to exfiltrate private keys, users on that server are compromised. Verified servers reduce this risk. Long-term: native apps eliminate it.
 - **Registry tampering**: The server registry is signed. Clients verify the signature before trusting it.
 - **Sybil servers**: An attacker could spin up many unverified servers. Trust tiers and the verification process mitigate this.
-- **Profile spam**: A server sends only its own accounts' copies, each signed by its owner's app, and a receiver passes on only a copy it newly kept for one of its own accounts, never back to where it came from, so nothing loops. There is no per-peer rate limit on profile copies yet (`docs/design/federation-activation.md`, Phase 2).
+- **Profile spam**: A server sends only its own accounts' copies, each signed by its owner's app, and a receiver passes on only a copy it newly kept for one of its own accounts, never back to where it came from, so nothing loops. Since 2026-10-22 a peer sending faster than its per-peer allowance is slowed, then paused, and what it sent meanwhile is asked for again afterwards (`docs/design/federation-activation.md`, Phase 2).
 
 ---
 
