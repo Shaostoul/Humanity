@@ -761,6 +761,149 @@ Needs increment 7 merged (`FloorSlab`, `storeys()`).
   changes exactly the tiles it touched; `permutation_tests` if the shader switch exists;
   `just verify-runtime`.
 
+**BUILT 2026-10-22** (what differs from the plan above, and the measurements: "Increment 3
+as built" below).
+
+#### Increment 3 as built (2026-10-22)
+
+Built as planned above, with these differences, each for a stated reason.
+
+- **The levels are data** (`src/ship/levels.rs`, new). A ship's levels are the distinct
+  storey floors of every body standing in it (`standing_bodies`: each zone, and each
+  neighbour's home as the game draws it, its kind's shipped design on its plot), in ship
+  metres, each ending at the next floor up or the ship's highest top. The shipped ship has
+  two: "Storey 1 (ground)" (0 to 3 m) and "Storey 2" (3 m to the Commons' 8 m roof). The
+  ordinal is IMDF's (0 the level the deck datum, y = 0, is on; negative is a basement,
+  "Basement 1", "B1"), the names are the build editor's storey names, which now come from
+  the same function (`level_name`; `editor_storeys::storey_name` calls it).
+- **The cutaway is the editor's own, not a shader cut** (`src/engine/map_cut.rs`, new). The
+  plan's preference, object-level culling, was not possible as it stood (a home's walls are
+  one mesh per wall material across the whole ship), but the build editor already draws a
+  home cut at a storey by rebuilding its shell from the home cut away, and leaves out what
+  stands over the cut through `HomeDraw::cut`. The map does exactly that: its rule moved from
+  `editor_storeys::cut_away_body` to `HomeStructure::cut_away` (the editor calls it), a level
+  cuts each body at the storey that level is on (`levels::level_cuts`, `level_meshes`;
+  neighbours through `ShipStructure::generate_meshes_at` and `neighbours::neighbour_view_at`,
+  which keeps the whole view and the level view both, so moving between them bakes neither),
+  and `HomeDraw::cut` became `Cuts` (one `CutAway` per body cut) so the machines, screens,
+  doors, lift cars, plants, tents and pipes follow every cut the way they followed the
+  editor's. `editor::wanted_cuts` says what the home should be drawn as (the editor while it
+  is open, else the map's level, else whole) and the editor's per-frame follower
+  (`follow_storey_view`) redraws it when that changes. The roof (both ceiling meshes) and the
+  hull are whole meshes, left out of the map's view by object (`map_cut::inside_lists`). No
+  shader, pipeline or permutation changed, so `permutation_tests` has nothing new to hold.
+  The live frame is not drawn while the page is open, so the game never shows the cut.
+- **When a level shows** (`gui/pages/maps/ship_view.rs`, new). The picker shows within three
+  ship lengths of the ship's centre, aboard, on the System view, not on the Diagram, and only
+  for a place of two levels or more. The page opens on the whole ship, as before: picking a
+  level shows it, from far off flying to YOU (`MapAnchor::You`, new: where you stand,
+  followed as you walk, turning with the ship as `Me` does) 90 m out at 60 degrees down;
+  "Whole" goes back to the ship. "Back to me" and Home go to you on the level shown. A level
+  is not shown from farther than the picker shows (the whole ship is the view again).
+- **Rooms, names, you.** The rooms on a level are the HUD's own (`GuiState::room_bounds`,
+  whose floor is on the level by `levels::level_at`), filled in their room type's colour
+  (`default_color` in `data/rooms.ron`, now parsed and joined onto `RoomBounds::fill`;
+  `map_room_fill` for a room with no type) at `map_room_fill_alpha`, outlined in
+  `map_room_edge`, named by `RoomBounds::display_name` inside the room or not at all (your
+  room first, then the bigger rooms, through the label placer). Your dot and a wedge the way
+  you face are drawn on the level you are on: the feed gives your level (the level your FEET
+  are on, the rule the editor seeds its avatar's storey by) and the room the HUD's room card
+  names (`hud::room_card_at`), so the map and the game cannot disagree. With no world drawn
+  under the level (a snapshot, before the world loads) its walls are drawn from the data as
+  lines (`wall_in_storey`, the body's outline). The ship's orbit ring and the increment 1
+  "You" marker are left out while a level shows.
+- **Plan tiles** (`src/engine/map_tiles.rs`, new), as section 5.7 planned, with these
+  specifics: a tile is a square of a level's floor in ship metres keyed by (level ordinal,
+  zoom, x, y), zoom 0 is 512 m at 1 m a pixel and each zoom halves it to zoom 6 (8 m at
+  1.6 cm a pixel); the page asks for the tiles its view covers at the zoom that keeps a
+  tile's pixel no bigger than a screen pixel (at most 48, coarser if more; only over the
+  ship; nearest the centre first) and draws a coarser tile's part where a finer one is not
+  baked yet. The bake is not orthographic: the renderer's orthographic projection is not
+  reverse-Z (the pipelines' depth test is), so a tile is rendered through a 2 degree field
+  of view from 28.6 tile widths up (a 3 m wall's top sits 1.3% off at the finest zoom, 0.02%
+  at the coarsest), with a new `ViewPasses::Plan` (the scene objects on black, no sky) timed
+  as its own passes (`SceneView::MapTile`, `gpu.map_tile_*`, `cpu.map_tiles`, budget rows
+  "Maps: plan tiles"). A tile draws the shell without roof or hull, the machines and their
+  screens, and the plants; no people, doors or pipes. It is lit as the game is, by the Sun
+  and the rooms' lights, so a tile baked at night is lamp-lit. Invalidation: every wall,
+  slab, piece, light and room volume of every zone as the level cuts it, each zone's shell,
+  each corridor, each neighbour's home and each machine is an item with a footprint and a
+  hash; when the home's shell or machines are rebuilt (`HomeDraw::edits`, new) a level's
+  items are made again and the footprints of the items that went or came drop exactly the
+  tiles of that level under them. Plants growing are not edits.
+- **The plan as the camera's mode**: "Plan" on the picker flies straight down over you (89
+  degrees, the camera's limit; tiles and fills are placed on the floor plane by their
+  corners, so they are exact at any tilt), the ship's bow up the screen; a drag pans, as on
+  any flat map. The world layer is not rendered then (`WorldLayerWant::Plan`, new) and the
+  sky's bodies are not painted over the floor.
+- **Rig** (`src/engine/map_rig_ship.rs`, new): `{"map_level":"<ordinal>|you|whole"}`,
+  `{"map_plan":"0|1"}`; the report's `ship` block (levels, the level shown, the rooms named
+  and filled, your dot, the tiles wanted, kept, baked, the last bake's time, the tiles an
+  edit dropped and the footprints that dropped them). Vantages `maps-ship-upstairs`, its
+  control `maps-ship-upstairs-ground` (the ground level shown, which must fail the upstairs
+  check) and `maps-ship-plan` (with a strip of road surface added upstairs through the
+  `console` verb), judged
+  by `scripts/lib/map-ship-check.js`; snapshots `maps_ship_upstairs`, `maps_ship_plan`.
+- **The web** (`web/shared/level-picker.js`, `web/shared/ship-plan.js`, `web/pages/maps.html`):
+  a "Ship" button opens the ship's plan level by level, with the same picker rule, the rooms
+  filled and named, the walls of the level and your home outlined, from
+  `data/maps/ship_plan.json`. The web cannot read the RON the ship is made of (the deploy
+  copies only JSON), so the APP writes that file by its own rules
+  (`the_web_ship_plan_is_current`, which fails when it is stale). Not mirrored, and why: the
+  cutaway in 3D and the plan tiles (the web has no renderer of the ship; increment 8's `.glb`
+  export is the route), and your dot (the web is not the game and has no position).
+- **Not built here**: other people on the map (decision 7) belong with increment 4's search
+  for people, and need the presence-sharing setting read on this page.
+
+- **What the first rig run found, and fixed:** room names that were ids (`corridor_0`,
+  `commons:room_1`, the HUD's fallback for a room the data does not name) over the Commons and
+  the corridors: such a room is filled and not named now (`ship_view::room_is_named`, and the
+  web's `roomIsNamed`); the plan read faintly, its walls being thin tops from straight above:
+  the level's walls are drawn as lines over the tiles; the edit vantage's deck did not show from
+  above (a deck is the floor's own grey), so the vantage adds a strip of road surface; and a
+  placed piece's footprint for the tiles is now its type's size (it was a fixed 3 m, under an
+  8 m train platform). And from the snapshots: your dot sat on your room's name ("Bed(dot)oom");
+  the dot is placed first now and your room's name goes beside it.
+- **The web plan, looked at in a browser** (2026-10-23, the preview server on this tree): the
+  "Ship" button opens the plan on your home; "2" shows the Bedroom, Bathroom, Study and Hall
+  named, the Dressing Room and Wet Room filled but too narrow to name; "1" the Dining Room,
+  Second Bedroom, Entry, Hall, Storage Room, Kitchen and Living Room. One fix from it: the
+  dialog was named by `aria-label`, which the shell's hover hints take, so the whole plan
+  showed a generic "Tap or click to use this control" hint under the pointer; it is named by a
+  hidden label now.
+
+**Proof (2026-10-22 and 23):** every new test seen red first (its red output in its comment) and
+green with the whole lib suite (4,968 passed); `just lints` and `just rig-tests` green;
+`cargo check` for both feature sets clean; snapshots `maps_ship_upstairs`, `maps_ship_plan`
+rendered and looked at. Rig, first run (release build of the merged tree, sweep
+`20261024-011034`, 4 of 4 captured, no panics): `maps-ship-upstairs` passes (Storey 2, the
+Bedroom, Study and Halls named, 8 rooms filled, your dot drawn; the capture shows the upper
+floor with its furniture, roof and hull gone); its control `maps-ship-upstairs-ground` fails the
+check as it must (the ground floor cut open at 3 m: Dining Room, Kitchen, Living Room, Workshop
+named, the upper floor gone, the neighbour on p2 cut the same way, the Commons whole);
+`maps-ship-plan` passes (25 tiles baked and kept, 25 MB, the last bake 4.4 ms of CPU) and its
+edit through the `console` verb dropped exactly one tile of 25, the one under it;
+`maps-follow-home` still passes (ship centred, 3.2% of the canvas height off). The symbols took
+0.40 to 0.49 ms by the page's own clock on three vantages and 1.8 ms on one (a machine running
+fourteen other agents' builds: the captures were marked contaminated).
+Rig, second run, after the fixes above (release build of the tree merged with main on
+2026-10-24, sweep `20261024-080924`, frame costs armed, 4 of 4 captured, no panics):
+`maps-ship-upstairs` passes with no id named (Bedroom, Study, Halls; 8 filled; your dot);
+the control fails as it must (17 rooms named, none by id); `maps-ship-plan` passes (27 tiles
+baked and kept, the last bake 3.6 ms) and the strip of road dropped 2 tiles of 27, both under
+it (its 4 x 6 m footprint straddles a tile edge), and the capture after the edit differs from
+the one before in one 45 x 69 pixel patch, the strip; `maps-follow-home` still passes. Costs:
+`cpu.maps_symbology` 0.27 to 0.44 ms on the three ship vantages (budget 1 ms); a tile's bake
+0.47 ms of GPU (`gpu.map_tile_*`, the scene 0.42), inside its 2 ms; on the CPU, `cpu.map_tiles`
+3.9 ms in a frame that bakes a tile (the scene's submission 2.75 ms), over the 2 ms the design
+gave the bake, paid only in the frames that bake (27 here, then none). Left to look at:
+`maps-follow-home`, where no level is shown, averaged 13.7 ms of `cpu.maps_symbology` over its
+window while the page's own clock read 0.47 ms at its capture; it is the first vantage after the
+boot, so its window holds the page's first opening. A first try of this run lost the game a
+second after its first park with nothing in its log (sweep `20261024-080239`); the rerun was
+clean. `just verify-runtime` on the same build: 3 of 3 vantages entered the world and
+captured, no panics.
+
 ### Increment 4: finding your way aboard
 
 - Search (rooms, places, services such as a mess hall or clinic, people who share their

@@ -19,6 +19,9 @@ pub mod alert;
 pub mod dialog;
 pub mod tree;
 pub mod body_pill;
+// The level picker (Maps increment 3, 2026-10-22): a multi-level place's levels top to bottom, yours
+// marked, the one shown highlighted (web twin: web/shared/level-picker.js).
+pub mod level_picker;
 pub mod markdown;
 pub mod msg_format;
 pub mod file_browser;

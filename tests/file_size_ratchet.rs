@@ -35,6 +35,17 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-23: `maps/ship_view.rs` 395 -> 410, from Maps increment 3's first rig run: a room
+///   the data does not name is not named, and your room's name goes beside your dot, not under it.
+/// - 2026-10-22: MAPS INCREMENT 3'S NEW FILES JOIN ("into the ship, deck by deck",
+///   docs/design/maps-zoom-to-anything.md), each at its size plus about 3%:
+///   `maps/ship_view.rs` (the level picker's use, the rooms, you, the plan's
+///   tiles on the page), `engine/map_tiles.rs` (the plan tiles), `engine/map_cut.rs`
+///   (the cutaway), `engine/map_rig_ship.rs` (the level verbs and the report's ship
+///   block), `ship/levels.rs` (the ship's levels) and `widgets/level_picker.rs`. The
+///   files whose tests moved out to make room go DOWN: `engine/map_feed.rs`
+///   265 -> 200, `engine/map_rig.rs` 280 -> 250, `engine/map_view.rs` 355 -> 315,
+///   `maps/world_layer.rs` 170 -> 145.
 /// - 2026-10-21: MAPS INCREMENT 2'S NEW FILES JOIN ("a solar system that looks
 ///   real", docs/design/maps-zoom-to-anything.md). Each part of the picture is a
 ///   file of its own beside the view, at its size plus about 3%:
@@ -437,7 +448,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/pages/maps/camera.rs", 540),
     ("src/gui/pages/maps/controls.rs", 125),
     ("src/gui/pages/maps/you_layer.rs", 275),
-    ("src/gui/pages/maps/world_layer.rs", 170),
+    ("src/gui/pages/maps/world_layer.rs", 145),
     ("src/gui/pages/maps/stations.rs", 125),
     ("src/gui/pages/maps/bodies.rs", 355),
     ("src/gui/pages/maps/orbits.rs", 290),
@@ -446,9 +457,15 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/pages/maps/overlays.rs", 470),
     ("src/gui/pages/maps/diagram.rs", 120),
     ("src/gui/pages/maps/scene.rs", 145),
-    ("src/engine/map_feed.rs", 265),
-    ("src/engine/map_view.rs", 355),
-    ("src/engine/map_rig.rs", 280),
+    ("src/engine/map_feed.rs", 200),
+    ("src/engine/map_view.rs", 315),
+    ("src/engine/map_rig.rs", 250),
+    ("src/engine/map_tiles.rs", 450),
+    ("src/engine/map_cut.rs", 75),
+    ("src/engine/map_rig_ship.rs", 115),
+    ("src/gui/pages/maps/ship_view.rs", 410),
+    ("src/ship/levels.rs", 200),
+    ("src/gui/widgets/level_picker.rs", 160),
     ("src/gui/pages/maps/planet_view.rs", 435),
     ("src/gui/pages/maps/galaxy_view.rs", 395),
     ("src/gui/pages/maps/night_sky.rs", 265),

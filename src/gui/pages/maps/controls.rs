@@ -33,7 +33,8 @@ pub(super) fn handle_input(ui: &egui::Ui, response: &egui::Response, rect: Rect,
     let cam = &mut state.maps.camera;
     if response.dragged() {
         let d = response.drag_delta();
-        let pan = ui.input(|i| i.modifiers.shift) || response.dragged_by(egui::PointerButton::Middle);
+        // On the plan (Maps increment 3) a drag pans, as on any flat map.
+        let pan = ui.input(|i| i.modifiers.shift) || response.dragged_by(egui::PointerButton::Middle) || state.maps.plan;
         if pan {
             cam.pan_by(d.x as f64, d.y as f64, rect.height() as f64, &scene);
         } else {
@@ -45,7 +46,7 @@ pub(super) fn handle_input(ui: &egui::Ui, response: &egui::Response, rect: Rect,
         cam.zoom_by(ZOOM_PER_PT.powf(-scroll as f64), &scene);
     }
     if ui.input(|i| i.key_pressed(egui::Key::Home)) {
-        cam.back_to_me(&scene);
+        super::ship_view::back_to_me(&mut state.maps); // to you on the level shown, or your ship
     }
 }
 
@@ -68,7 +69,7 @@ pub(super) fn draw_follow_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
             .tooltip("Fly back to you and follow you again (the Home key does this too).")
             .show(&mut ui, theme)
         {
-            state.maps.camera.back_to_me(&scene);
+            super::ship_view::back_to_me(&mut state.maps);
         }
     }
     if widgets::toggle(&mut ui, theme, "Open where I left it", &mut state.settings.maps_open_where_left) {

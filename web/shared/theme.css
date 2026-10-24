@@ -150,6 +150,11 @@
   --map-reference: rgba(89, 158, 242, 0.85);
   --map-orbit-width: 1.2px;
   --map-label-size: 12.5px;
+  /* Maps increment 3, the level shown inside the ship: a room with no type colour, the line
+     round each room and the walls, and how opaque a room's fill is */
+  --map-room-fill: #8c94a3;
+  --map-room-edge: rgba(204, 214, 235, 0.75);
+  --map-room-fill-alpha: 0.32;
 
   /* Radii */
   --radius-sm: 3.9643755px;

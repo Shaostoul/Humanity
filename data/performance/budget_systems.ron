@@ -240,6 +240,40 @@
         note: "Drawing the Maps page's orbits, bodies, belts and names this frame.",
     ),
     (
+        id: "map_tiles",
+        display: "Maps: plan tiles",
+        category: "gpu",
+        // Maps increment 3 (engine/map_tiles.rs): one 512 px tile of a level's
+        // plan baked at most a frame while the plan is shown, every pass of it
+        // under its own key (map_tile_clear / _scene / _transparent / _overlay /
+        // _lines / _present). Its budget is 2 ms while baking (the design's
+        // section 5.7); kept tiles are textured quads and cost nothing here.
+        sources: [
+            "gpu.map_tile_clear", "gpu.map_tile_scene", "gpu.map_tile_transparent",
+            "gpu.map_tile_overlay", "gpu.map_tile_lines", "gpu.map_tile_present",
+        ],
+        locked: false,
+        base_frac: 0.01,
+        color: "nav_tools",
+        note: "Baking the Maps page's plan of a ship's level, one tile a frame.",
+    ),
+    (
+        id: "cpu_map_tiles",
+        display: "Maps: plan tiles",
+        category: "cpu",
+        // The CPU side of the row above: the tile's draw submission, one stage
+        // per pass (the gpu.x / cpu.x twins the no-timestamp fallback reads), and
+        // cpu.map_tiles, the whole bake (texture, lists, render).
+        sources: [
+            "cpu.map_tiles", "cpu.map_tile_clear", "cpu.map_tile_scene", "cpu.map_tile_transparent",
+            "cpu.map_tile_overlay", "cpu.map_tile_lines", "cpu.map_tile_present",
+        ],
+        locked: false,
+        base_frac: 0.01,
+        color: "nav_tools",
+        note: "Preparing the Maps page's plan tiles while they bake.",
+    ),
+    (
         id: "cpu_screens",
         display: "In-world screens",
         category: "cpu",

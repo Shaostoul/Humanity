@@ -105,10 +105,12 @@ impl NeighbourKey {
 }
 
 thread_local! {
-    /// The last view made on this thread, and what it was made from. One entry: a game runs one
-    /// ship, and every reader in one rebuild (the meshes, the hull, the sight lines, the doors)
-    /// asks for the same one.
-    static VIEW: RefCell<Option<(NeighbourKey, Rc<NeighbourView>)>> = const { RefCell::new(None) };
+    /// The views made on this thread, what each was made from and the level it was cut at (None:
+    /// whole). At most two: a game runs one ship, every reader in one rebuild (the meshes, the
+    /// hull, the sight lines, the doors) asks for the same whole view, and the Maps page's level
+    /// (Maps increment 3, `neighbour_view_at`) is the second, so moving between the two re-bakes
+    /// neither.
+    static VIEW: RefCell<Vec<(NeighbourKey, Option<u32>, Rc<NeighbourView>)>> = const { RefCell::new(Vec::new()) };
     /// How many views this thread has made (the test that an edit of the home makes none).
     static MADE: Cell<usize> = const { Cell::new(0) };
 }
@@ -123,25 +125,40 @@ pub(crate) fn views_made() -> usize {
 /// while what they are made from is unchanged (`NeighbourKey`), else made afresh
 /// (`make_view`). Cheap to call from every reader of one rebuild.
 pub fn neighbour_view(ship: &ShipStructure) -> Rc<NeighbourView> {
+    neighbour_view_at(ship, None)
+}
+
+/// `neighbour_view` with every neighbour's home CUT AWAY at the ship level whose floor is `level`
+/// (ship metres; Maps increment 3, ship/levels.rs): each design drawn as `HomeStructure::cut_away`
+/// leaves it at the storey that level is on, the rule the build editor and the map's own zones
+/// are cut by. None is the whole view. The holes, doors and lights are the whole view's.
+pub fn neighbour_view_at(ship: &ShipStructure, level: Option<f32>) -> Rc<NeighbourView> {
     let key = NeighbourKey::of(ship);
+    let lv = level.map(f32::to_bits);
     VIEW.with(|slot| {
-        if let Some((k, v)) = slot.borrow().as_ref() {
-            if *k == key {
-                return v.clone();
-            }
+        let mut views = slot.borrow_mut();
+        if let Some(i) = views.iter().position(|(k, l, _)| *k == key && *l == lv) {
+            let hit = views.remove(i);
+            let v = hit.2.clone();
+            views.push(hit);
+            return v;
         }
-        let view = Rc::new(make_view(ship));
+        let view = Rc::new(make_view(ship, level));
         MADE.with(|m| m.set(m.get() + 1));
-        *slot.borrow_mut() = Some((key, view.clone()));
+        views.push((key, lv, view.clone()));
+        if views.len() > 2 {
+            views.remove(0);
+        }
         view
     })
 }
 
 /// Make the view: each neighbour plot with the shipped design of its kind, its door corridor from
 /// that design's box, the hole its corridor makes in the shared zone it runs to, and the meshes,
-/// one shell baked per (design, door) and moved to each plot that uses it. A plot whose kind has
-/// no built-in design, or whose design does not fit it, is left out. Pure but for the log line.
-fn make_view(ship: &ShipStructure) -> NeighbourView {
+/// one shell baked per (design, door, storey cut) and moved to each plot that uses it. A plot
+/// whose kind has no built-in design, or whose design does not fit it, is left out. Pure but for
+/// the log line. `level`: the ship level each home is cut away at (`neighbour_view_at`).
+fn make_view(ship: &ShipStructure, level: Option<f32>) -> NeighbourView {
     let mut neighbours = Vec::new();
     let mut zone_cuts = Vec::new();
     for plot in ship.neighbour_plots() {
@@ -158,8 +175,17 @@ fn make_view(ship: &ShipStructure) -> NeighbourView {
         }
         neighbours.push(Neighbour { plot: plot.clone(), design, tube });
     }
-    let (meshes, shells_baked) = bake(&neighbours);
+    let (meshes, shells_baked) = bake(&neighbours, level);
     NeighbourView { neighbours, zone_cuts, meshes, shells_baked }
+}
+
+/// The storey of neighbour `n`'s design that ship level `level` (its floor, ship metres) cuts at,
+/// when something of the design is above it (`HomeStructure::cut_away`), else None (drawn whole).
+fn storey_cut(n: &Neighbour, level: Option<f32>) -> Option<usize> {
+    let y = level?;
+    let body = &n.design.body;
+    let k = crate::ship::home_structure::storey_index(&body.storeys(), y - n.plot.origin.1);
+    (k + 1 < body.storeys().len()).then_some(k)
 }
 
 /// The door a neighbour's home has, as a hole in its own shell where its corridor leaves (in the
@@ -178,24 +204,28 @@ type Shell = Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])>;
 /// Every neighbour's shell (`HomeStructure::bake_shell_groups`, its door cut through it) at its
 /// plot's origin, merged into opaque colour groups the way the district fillers are, and its
 /// corridor tube (`push_corridor_tube`, the one a ship corridor is drawn with). One bake per
-/// (design, door): plots sharing both share the bake, moved. No room is registered for either.
-/// Returns the meshes and how many shells it baked.
-fn bake(neighbours: &[Neighbour]) -> (HomesteadMeshes, usize) {
+/// (design, door, storey cut): plots sharing all three share the bake, moved. No room is
+/// registered for either. Returns the meshes and how many shells it baked. `level`: the ship
+/// level each home is cut away at (Maps increment 3), None whole.
+fn bake(neighbours: &[Neighbour], level: Option<f32>) -> (HomesteadMeshes, usize) {
     let mut out = empty_meshes();
-    let mut shells: Vec<(&'static HomeDesign, Option<ShellCut>, Shell)> = Vec::new();
+    let mut shells: Vec<(&'static HomeDesign, Option<ShellCut>, Option<usize>, Shell)> = Vec::new();
     let mut groups: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> = std::collections::HashMap::new();
     for n in neighbours {
         let cut = own_cut(n);
-        let at = match shells.iter().position(|(d, c, _)| std::ptr::eq(*d, n.design) && *c == cut) {
+        let storey = storey_cut(n, level);
+        let at = match shells.iter().position(|(d, c, k, _)| std::ptr::eq(*d, n.design) && *c == cut && *k == storey) {
             Some(at) => at,
             None => {
                 let cuts: Vec<ShellCut> = cut.into_iter().collect();
-                shells.push((n.design, cut, n.design.body.bake_shell_groups(&cuts)));
+                let body = storey.and_then(|k| n.design.body.cut_away(k));
+                let shell = body.as_ref().unwrap_or(&n.design.body).bake_shell_groups(&cuts);
+                shells.push((n.design, cut, storey, shell));
                 shells.len() - 1
             }
         };
         let (ox, oy, oz) = n.plot.origin;
-        for (verts, idx, rgb) in &shells[at].2 {
+        for (verts, idx, rgb) in &shells[at].3 {
             let key = [(rgb[0] * 64.0) as i32, (rgb[1] * 64.0) as i32, (rgb[2] * 64.0) as i32];
             let g = groups.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), *rgb));
             let base = g.0.len() as u32;
@@ -660,7 +690,7 @@ mod tests {
             let _ = crate::ship::hull::hull_geom(&ship, &profile);
         });
         let one_view = time(&|| {
-            let _ = make_view(&ship);
+            let _ = make_view(&ship, None);
         });
         println!("rebuild with the neighbours kept: {kept:.1} ms; one neighbour view made: {one_view:.1} ms (the old rebuild made two: about {:.1} ms)", kept + 2.0 * one_view);
     }

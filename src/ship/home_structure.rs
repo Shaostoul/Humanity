@@ -1047,6 +1047,41 @@ impl HomeStructure {
         self.storey_of_y(zone.origin.1)
     }
 
+    /// THE CUT-AWAY of this body at storey `k`: a copy with everything above that storey taken
+    /// out, so it can be seen from above. Out go the floors of the storeys above (the slabs whose
+    /// top is over storey k's floor), the walls standing on them, the pieces, lights and zones up
+    /// there; a wall rising through the cut is cut at it, with any opening that would be over the
+    /// cut. The shell keeps its full height, so there is no lid at the cut. None when nothing is
+    /// above storey `k` (or there is no storey `k`).
+    ///
+    /// ONE RULE for the build editor's cut-away (ship homes increment 7, engine/editor_storeys.rs
+    /// `cut_away_body`, which was this function's home until Maps increment 3) and the Maps page's
+    /// levels (ship/levels.rs), so the map and the editor can never cut a home differently.
+    pub fn cut_away(&self, k: usize) -> Option<HomeStructure> {
+        let storeys = self.storeys();
+        if k + 1 >= storeys.len() {
+            return None;
+        }
+        let (floor, cut) = (storeys[k].floor, storeys[k].top);
+        let mut out = self.clone();
+        out.floors.retain(|s| s.top < floor + STOREY_EPS);
+        out.walls.retain(|w| w.base < cut - STOREY_EPS);
+        for w in out.walls.iter_mut() {
+            let under = cut - w.base;
+            if w.height > under {
+                w.height = under;
+                w.openings.retain(|o| o.sill < under - STOREY_EPS);
+                for o in w.openings.iter_mut() {
+                    o.height = o.height.min(under - o.sill);
+                }
+            }
+        }
+        out.structures.retain(|p| p.pos.1 < cut - STOREY_EPS);
+        out.lights.retain(|l| l.pos.1 < cut - STOREY_EPS);
+        out.zones.retain(|z| z.origin.1 < cut - STOREY_EPS);
+        Some(out)
+    }
+
     /// Resolved shell (perimeter + floor) thickness in metres. (v0.556)
     pub fn shell_resolved_thickness(&self) -> f32 {
         self.shell_thickness

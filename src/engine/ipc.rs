@@ -2050,6 +2050,11 @@ pub(crate) enum ViewPasses {
     /// The star pass depends only on the camera's direction, so it is exact
     /// from any distance; nothing after it runs.
     SkyOnly,
+    /// The scene objects alone on black, NO sky: a Maps plan tile (Maps
+    /// increment 3, engine/map_tiles.rs), a level's floor seen from straight
+    /// above, where stars between the zones would be noise on a plan. Timed
+    /// as its own passes (`SceneView::MapTile`, `gpu.map_tile_*`).
+    Plan,
 }
 
 /// THE DAYLIGHT GATE for the star pass (v0.1059), shared by the live frame
@@ -2263,6 +2268,7 @@ pub(crate) fn render_view_onto_kept(
     let who = match passes {
         ViewPasses::Everything | ViewPasses::SkyOnly => crate::renderer::frame_costs::SceneView::Main,
         ViewPasses::SceneOnly => crate::renderer::frame_costs::SceneView::Screen,
+        ViewPasses::Plan => crate::renderer::frame_costs::SceneView::MapTile,
     };
     // The view's own depth buffer goes in; the window's is parked, not
     // recreated (see `Renderer::begin_view_depth`).
@@ -2291,7 +2297,8 @@ pub(crate) fn render_view_onto_kept(
         // is the submission twin the no-timestamp fallback reads.
         let (sky_gpu, sky_cpu) = who.sky_ids();
         let _cost = crate::renderer::frame_costs::stage(sky_cpu);
-        if let Some(ref star_r) = state.star_renderer {
+        let stars = passes != ViewPasses::Plan; // a plan tile clears to black, no sky
+        if let Some(ref star_r) = state.star_renderer.as_ref().filter(|_| stars) {
             star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), fades);
         }
         let mut encoder = state.renderer.device.create_command_encoder(
@@ -2312,7 +2319,7 @@ pub(crate) fn render_view_onto_kept(
                 depth_stencil_attachment: None,
                 ..Default::default()
             });
-            if let Some(ref star_r) = state.star_renderer {
+            if let Some(ref star_r) = state.star_renderer.as_ref().filter(|_| stars) {
                 // The live frame's daylight gate, not a hard-coded "night".
                 star_r.render_pass(&mut pass, daylight);
             }

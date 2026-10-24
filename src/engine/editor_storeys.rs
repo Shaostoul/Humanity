@@ -85,11 +85,8 @@ pub(crate) fn edit_storey(state: &EngineState) -> Option<EditStorey> {
 /// Storey `k`'s name as the panel shows it, counted from 1 as people count floors in a plan:
 /// "Storey 1 (ground)", "Storey 2", ...
 pub(crate) fn storey_name(k: usize) -> String {
-    if k == 0 {
-        "Storey 1 (ground)".to_string()
-    } else {
-        format!("Storey {}", k + 1)
-    }
+    // One naming rule with the Maps page's ship levels (ship/levels.rs, Maps increment 3).
+    crate::ship::levels::level_name(k as i32)
 }
 
 /// A floor slab's name: its label, else "Floor slab N" (counted from 1).
@@ -534,35 +531,11 @@ pub(crate) fn move_slab_corner(s: &mut FloorSlab, c: u8, to: (f32, f32)) -> u8 {
     }
 }
 
-/// THE CUT-AWAY of body `hs` while storey `k` is edited: a copy with everything above that
-/// storey taken out, so it can be seen and edited from above. Out go the floors of the storeys
-/// above (the slabs whose top is over storey k's floor), the walls standing on them, the pieces,
-/// lights and zones up there; a wall rising through the cut is cut at it, with any opening that
-/// would be over the cut. The shell keeps its full height, so there is no lid at the cut. None
-/// when nothing is above storey `k` (or there is no storey `k`).
+/// THE CUT-AWAY of body `hs` while storey `k` is edited (`HomeStructure::cut_away`, the one rule
+/// the Maps page's levels cut a home by too): a copy with everything above that storey taken out,
+/// so it can be seen and edited from above. None when nothing is above storey `k`.
 pub(crate) fn cut_away_body(hs: &HomeStructure, k: usize) -> Option<HomeStructure> {
-    let storeys = hs.storeys();
-    if k + 1 >= storeys.len() {
-        return None;
-    }
-    let (floor, cut) = (storeys[k].floor, storeys[k].top);
-    let mut out = hs.clone();
-    out.floors.retain(|s| s.top < floor + STOREY_EPS);
-    out.walls.retain(|w| w.base < cut - STOREY_EPS);
-    for w in out.walls.iter_mut() {
-        let under = cut - w.base;
-        if w.height > under {
-            w.height = under;
-            w.openings.retain(|o| o.sill < under - STOREY_EPS);
-            for o in w.openings.iter_mut() {
-                o.height = o.height.min(under - o.sill);
-            }
-        }
-    }
-    out.structures.retain(|p| p.pos.1 < cut - STOREY_EPS);
-    out.lights.retain(|l| l.pos.1 < cut - STOREY_EPS);
-    out.zones.retain(|z| z.origin.1 < cut - STOREY_EPS);
-    Some(out)
+    hs.cut_away(k)
 }
 
 /// `cut_away_body` for zone `zone` of the ship, the rest of the ship as it is. None when nothing is
@@ -626,6 +599,32 @@ impl CutAway {
     }
 }
 
+/// EVERY CUT-AWAY the home is drawn with (`HomeDraw::cut`): none for the whole ship, the build
+/// editor's one (its storey of the zone it edits), or one per home with a storey above the level
+/// the Maps page shows cut open (Maps increment 3, engine/map_cut.rs). A thing is left out when
+/// any of them hides it. `From<Option<CutAway>>` keeps the editor's one-cut callers and tests
+/// as they were.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct Cuts(pub(crate) Vec<CutAway>);
+
+impl Cuts {
+    /// True when any cut-away takes out a thing standing at `at` (`CutAway::hides`).
+    pub(crate) fn hides(&self, at: Vec3) -> bool {
+        self.0.iter().any(|c| c.hides(at))
+    }
+
+    /// True for the whole ship: nothing is cut.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<Option<CutAway>> for Cuts {
+    fn from(c: Option<CutAway>) -> Self {
+        Cuts(c.into_iter().collect())
+    }
+}
+
 /// The cut-away of storey `k` of zone `zone` (`CutAway`): None when nothing is above that storey,
 /// as `cut_away_body`.
 pub(crate) fn cut_away_of(ship: &ShipStructure, zone: usize, k: usize) -> Option<CutAway> {
@@ -651,6 +650,27 @@ pub(crate) fn editor_cut_of(g: &GuiState) -> Option<CutAway> {
     cut_away_of(g.ship_structure.as_ref()?, zone, k)
 }
 
+/// WHAT THE HOME SHOULD BE DRAWN AS NOW (Maps increment 3): the build editor's cut-away while it
+/// is open (`editor_cut`, empty when its storey has nothing above it); else the level the Maps
+/// page shows cut open (engine/map_cut.rs `map_cuts`); else the whole ship (empty). The editor
+/// wins: the page and the editor are never both on screen, and the editor is the one that edits.
+pub(crate) fn wanted_cuts(state: &EngineState) -> Cuts {
+    if state.gui_state.construction_active {
+        return editor_cut(state).into();
+    }
+    crate::engine::map_cut::map_cuts(&state.gui_state)
+}
+
+/// The shell meshes for `wanted_cuts` (`rebuild_homestead` draws them): the editor's cut-away
+/// ship, the Maps page's level, or None for the whole ship. The rooms are the caller's to keep
+/// whole (a cut changes the picture only).
+pub(crate) fn wanted_cut_meshes(state: &EngineState) -> Option<crate::ship::fibonacci::HomesteadMeshes> {
+    if state.gui_state.construction_active {
+        return editor_cut_away(state).map(|cut| cut.generate_meshes());
+    }
+    crate::engine::map_cut::map_level_meshes(&state.gui_state)
+}
+
 /// Per frame (from `construction_history_tick`): when the cut-away that should be drawn is not
 /// the one that was (`HomeDraw::view_stale`, the record every upload of the home keeps), redraw
 /// the home. Choosing a storey, another zone, adding the slab that makes a storey above, closing
@@ -661,7 +681,7 @@ pub(crate) fn editor_cut_of(g: &GuiState) -> Option<CutAway> {
 /// and makes no undo step (the way `editor_restore` rebuilds); and when an edit's own rebuild is
 /// due this frame, that one draws it.
 pub(crate) fn follow_storey_view(state: &mut EngineState) {
-    let want = editor_cut(state);
+    let want = wanted_cuts(state);
     if !state.home_draw.view_stale(want) {
         return;
     }

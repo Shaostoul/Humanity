@@ -690,6 +690,7 @@ mod tests {
             actions: Vec::new(),
             action_pages: Vec::new(),
             access: String::new(),
+            fill: None,
         };
         Room { rooms: vec![room], ship: ShipStructure { zones: vec![zone], ..Default::default() }, cars: ElevatorCars::new(), built: Vec::new() }
     }
@@ -1146,6 +1147,7 @@ pub(crate) mod test_aboard {
                     actions: Vec::new(),
                     action_pages: Vec::new(),
                     access: String::new(),
+                    fill: None,
                 })
                 .collect();
             let walls = wall_collision::ship_wall_segments(&ship);

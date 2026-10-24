@@ -34,10 +34,22 @@ pub struct RoomTypeDef {
     /// home-visiting / multiplayer layer; private rooms (bathroom, bedroom) stay unseen.
     #[serde(default = "default_access")]
     pub access: String,
+    /// The type's colour (RGBA, 0 to 1), which the Maps page fills the room with on its level
+    /// (Maps increment 3). Optional: a type without one is filled in the theme's room colour.
+    /// Written in rooms.ron as a plain tuple, `default_color: (0.3, 0.4, 0.5, 1.0)`, so it is read
+    /// through `present_color` (RON reads an `Option` field only as `Some(...)`; a plain `Option`
+    /// here failed the whole file, and every room fell back to its zone's label).
+    #[serde(default, deserialize_with = "present_color")]
+    pub default_color: Option<(f32, f32, f32, f32)>,
 }
 
 fn default_access() -> String {
     "private".to_string()
+}
+
+/// A `default_color` that is written is a colour (`RoomTypeDef::default_color`).
+fn present_color<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<(f32, f32, f32, f32)>, D::Error> {
+    <(f32, f32, f32, f32) as Deserialize>::deserialize(d).map(Some)
 }
 
 /// One in-room action from `data/rooms/room_actions.ron`: a label + the page/action it
@@ -158,9 +170,16 @@ impl RoomTypeRegistry {
                     actions: f.actions,
                     action_pages: self.action_pages(r),
                     access: f.access,
+                    fill: self.fill_for(r),
                 }
             })
             .collect()
+    }
+
+    /// A detected room's colour: its type's `default_color` (joined on `RoomInfo::type_key`, as
+    /// `function_for` is), None for a room with no type or a type with no colour.
+    pub fn fill_for(&self, room: &RoomInfo) -> Option<[f32; 4]> {
+        self.types.get(room.type_key()).and_then(|t| t.default_color).map(|(r, g, b, a)| [r, g, b, a])
     }
 
     /// Look up a room TYPE by its rooms.ron key. None also logs a warning: a `Zone::room_type`

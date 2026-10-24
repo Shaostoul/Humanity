@@ -132,6 +132,7 @@ impl<'a> MapScene<'a> {
     pub fn anchor_m(&self, anchor: &MapAnchor) -> Option<DVec3> {
         match anchor {
             MapAnchor::Me => self.me_m(),
+            MapAnchor::You => self.me.map(|m| self.ship_place(m.you_world_m)),
             MapAnchor::Body(id) => self.body_m(id),
             MapAnchor::Point { body, offset_m } => self.body_m(body).map(|b| b + *offset_m),
         }

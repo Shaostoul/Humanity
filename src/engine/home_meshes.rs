@@ -45,39 +45,43 @@ pub(crate) struct HomeDraw {
     /// can go to the spares and come back as anything. Before the 2026-10-21 follow-ups the world
     /// entry asked the renderer for a fresh slot per machine every time, orphaning the last entry's.
     machine_slots: Vec<Slot>,
-    /// The build editor's cut-away as last drawn, None when the whole ship is drawn: set by every
+    /// The cut-aways as last drawn, empty when the whole ship is drawn (the build editor's one, or
+    /// one per home of the level the Maps page shows cut open, Maps increment 3): set by every
     /// upload of the home's shell (`apply_homestead_meshes` draws the whole ship, which a world load
-    /// does; `rebuild_homestead` then records the cut it drew). It is THE record of what is drawn,
-    /// so `editor::follow_storey_view` redraws when it is not what the editor wants
-    /// (`view_stale`). The machines, their screens, the door panels, the elevator cars, the plants
-    /// and the grow tents come from the whole ship, so they are left out where it says
-    /// (`CutAway::hides`).
-    pub(crate) cut: Option<crate::engine::editor::CutAway>,
+    /// does; `rebuild_homestead` then records the cuts it drew). It is THE record of what is drawn,
+    /// so `editor::follow_storey_view` redraws when it is not what is wanted
+    /// (`view_stale`, `editor::wanted_cuts`). The machines, their screens, the door panels, the
+    /// elevator cars, the plants and the grow tents come from the whole ship, so they are left out
+    /// where it says (`Cuts::hides`).
+    pub(crate) cut: crate::engine::editor::Cuts,
     /// Which door panels stand at an elevator's landing (`footing::lift_landing_open` answers for
     /// them), parallel to `EngineState::door_panels`. Worked out with the doors
     /// (`rebuild_door_panels`), so each frame asks the elevators about these doors only.
     landing_doors: Vec<bool>,
+    /// Counts every upload of the home's shell and every rebuild of its machines (Maps increment
+    /// 3): the plan tiles (engine/map_tiles.rs) look for what an edit touched only when it moves.
+    pub(crate) edits: u64,
 }
 
 impl HomeDraw {
     /// The home's shell was just uploaded whole (`apply_homestead_meshes`: every world load, and
     /// every rebuild before it says which cut it drew).
     pub(crate) fn drew_whole_ship(&mut self) {
-        self.cut = None;
+        self.cut = Default::default();
     }
 
     /// The home's shell was just drawn as `cut` (`rebuild_homestead`, after its upload): the
-    /// editor's cut-away, or None for the whole ship.
-    pub(crate) fn drew_cut(&mut self, cut: Option<crate::engine::editor::CutAway>) {
-        self.cut = cut;
+    /// editor's cut-away, a Maps level's, or none for the whole ship.
+    pub(crate) fn drew_cut(&mut self, cut: impl Into<crate::engine::editor::Cuts>) {
+        self.cut = cut.into();
     }
 
     /// True when the home drawn is not the view `want` (the cut-away the editor should show, None
     /// for the whole ship), so it must be drawn again (`editor::follow_storey_view`). A world load
     /// draws the whole ship (`apply_homestead_meshes`), so with the editor open on a storey with
     /// another over it the cut-away is stale after it, and is drawn again on the next frame.
-    pub(crate) fn view_stale(&self, want: Option<crate::engine::editor::CutAway>) -> bool {
-        self.cut != want
+    pub(crate) fn view_stale(&self, want: impl Into<crate::engine::editor::Cuts>) -> bool {
+        self.cut != want.into()
     }
 }
 
@@ -211,6 +215,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
     // load ends here, so the editor's cut-away, if it is open on a storey with another over it, is
     // drawn again on the next frame (`HomeDraw::view_stale`).
     state.home_draw.drew_whole_ship();
+    state.home_draw.edits += 1;
     let needs = shell_family_needs(&homestead);
     let held = |s: Option<Slot>| s.into_iter().collect::<Vec<_>>();
     let prior: [Vec<Slot>; 8] = [
@@ -358,9 +363,9 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         // drawn with those storeys taken out, so the storey can be seen and edited from above. The
         // rooms stay the whole ship's (the lights, room GI, the HUD, footing), so choosing a storey
         // changes nothing but the picture. Two mesh builds while a cut is shown, editor only.
-        match crate::engine::editor::editor_cut_away(state) {
-            Some(cut) => {
-                let mut m = cut.generate_meshes();
+        // Maps increment 3: or the level the Maps page shows cut open (`editor::wanted_cut_meshes`).
+        match crate::engine::editor::wanted_cut_meshes(state) {
+            Some(mut m) => {
                 m.room_info = ship.generate_meshes().room_info;
                 m
             }
@@ -388,7 +393,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // door panels and the elevator cars, drawn from the whole ship, follow it by where they stand
     // (`HomeDraw::cut`; increment 7 review, 2026-10-21). It is also the record the editor's view
     // follows (`editor::follow_storey_view`).
-    let drawn = crate::engine::editor::editor_cut(state);
+    let drawn = crate::engine::editor::wanted_cuts(state);
     state.home_draw.drew_cut(drawn);
     // Room GI follows the rooms (engine/room_gi.rs; a no-op when they did not change).
     crate::engine::room_gi::rooms_changed(state, &room_info);
@@ -752,6 +757,7 @@ pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate
 
 pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     use std::collections::HashMap;
+    state.home_draw.edits += 1; // the plan tiles look for what moved (engine/map_tiles.rs)
     let rooms: HashMap<String, crate::machines::RoomGeom> = state
         .gui_state
         .room_bounds
@@ -2031,10 +2037,11 @@ const TENT_ROUGHNESS: f32 = 0.12;
 /// (2026-10-21): the plants and the grow tents ignored the cut-away, so a grow machine upstairs
 /// would have left its plants in the air over the cut. Nothing grows upstairs in the homestead
 /// today; a player can put a bed anywhere.
-pub(crate) fn plant_draws(plants: &[(usize, usize, Vec3)], cut: Option<crate::engine::editor::CutAway>) -> Vec<RenderObject> {
+pub(crate) fn plant_draws(plants: &[(usize, usize, Vec3)], cut: impl Into<crate::engine::editor::Cuts>) -> Vec<RenderObject> {
+    let cut = cut.into();
     plants
         .iter()
-        .filter(|(_, _, foot)| !cut.is_some_and(|c| c.hides(*foot)))
+        .filter(|(_, _, foot)| !cut.hides(*foot))
         .map(|&(mesh, material, _)| RenderObject {
             fade: 0.0,
             position: Vec3::ZERO,
@@ -2050,9 +2057,10 @@ pub(crate) fn plant_draws(plants: &[(usize, usize, Vec3)], cut: Option<crate::en
 /// `GardenDraw::tents`) the build editor's cut-away does not leave out (`plant_draws`).
 pub(crate) fn tents_shown(
     tents: &[(Vec3, f32, (f32, f32, f32))],
-    cut: Option<crate::engine::editor::CutAway>,
+    cut: impl Into<crate::engine::editor::Cuts>,
 ) -> Vec<(Vec3, f32, (f32, f32, f32))> {
-    tents.iter().filter(|(pos, _, _)| !cut.is_some_and(|c| c.hides(*pos))).copied().collect()
+    let cut = cut.into();
+    tents.iter().filter(|(pos, _, _)| !cut.hides(*pos)).copied().collect()
 }
 
 /// Push this frame's garden plants (v0.862: one merged world-space mesh per planted machine and
@@ -2060,10 +2068,10 @@ pub(crate) fn tents_shown(
 /// lib.rs), but those the build editor's cut-away leaves out (`HomeDraw::cut`): a plant by the
 /// foot of its machine (`plant_draws`), a decoration by where it stands.
 pub(crate) fn push_home_plants(state: &EngineState, out: &mut Vec<RenderObject>) {
-    let cut = state.home_draw.cut;
-    out.extend(plant_draws(&state.plant_objects, cut));
+    let cut = &state.home_draw.cut;
+    out.extend(plant_draws(&state.plant_objects, cut.clone()));
     for &(mesh, material, pos, yaw, scl, _anchor) in &state.decoration_objects {
-        if !cut.is_some_and(|c| c.hides(pos)) {
+        if !cut.hides(pos) {
             out.push(RenderObject {
                 fade: 0.0,
                 position: pos,
@@ -2098,7 +2106,7 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Ve
         }
     };
     // Those the build editor's cut-away leaves out are not drawn (`tents_shown`).
-    for (pos, yaw, size) in tents_shown(&state.garden_draw.tents, state.home_draw.cut) {
+    for (pos, yaw, size) in tents_shown(&state.garden_draw.tents, state.home_draw.cut.clone()) {
         let mesh = match state.garden_draw.tent_meshes.iter().find(|(s, _)| *s == size) {
             Some(&(_, m)) => m,
             None => {
@@ -2343,10 +2351,11 @@ pub(crate) fn route_run(site: &RunSite, run: &ConduitRun) -> (crate::ship::condu
 /// increment 7 review): what stands over the cut, in the cut zone (`CutAway::hides`), is left out
 /// with the machines up there, and a leg passing out of that (a riser through the cut) is cut where
 /// it does. Each part is a path of its own; with no cut, the whole path.
-pub(crate) fn parts_under_cut(points: &[Vec3], cut: Option<crate::engine::editor::CutAway>) -> Vec<Vec<Vec3>> {
-    let Some(c) = cut else {
+pub(crate) fn parts_under_cut(points: &[Vec3], cut: impl Into<crate::engine::editor::Cuts>) -> Vec<Vec<Vec3>> {
+    let c = cut.into();
+    if c.is_empty() {
         return vec![points.to_vec()];
-    };
+    }
     // Where along p->q the drawn and the hidden meet (p and q on either side): halved to a
     // millimetre on a metre-long leg, which is all the eye can see.
     let edge = |p: Vec3, q: Vec3| {
@@ -2553,7 +2562,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     let site = run_site(state.gui_state.ship_structure.as_ref());
     // The build editor's cut-away (`HomeDraw::cut`, set before this rebuild): the parts of a run
     // over its cut are left out with the machines up there (`parts_under_cut`).
-    let cut = state.home_draw.cut;
+    let cut = state.home_draw.cut.clone();
     const CYL_R: f32 = 0.05; // the unit cylinder's modeled radius
     // Dedup the support fittings ACROSS all connections (v0.626): many pipes share the same service-
     // height run, so without this their ceiling hangers + wall gaskets stack at the SAME spot --
@@ -2566,7 +2575,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         let (from_id, to_id, kind_str) = (&run.from, &run.to, &run.kind);
         let kind = crate::ship::conduits::ConduitKind::for_resource(kind_str);
         let (route, service_y, ceiling) = route_run(&site, run);
-        let parts = parts_under_cut(&route.points, cut);
+        let parts = parts_under_cut(&route.points, cut.clone());
         // Stash the routed path + the from/to ids, so the SELECTED machine's connections animate
         // their flow markers (v0.623) while every other pipe stays a quiet static line.
         for part in parts.iter().filter(|p| p.len() >= 2) {
@@ -2612,7 +2621,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         // Procedural support structures: a ceiling hanger at each service-height bracket + a
         // material-aware gasket collar at each wall passthrough. The fitting colour comes from the
         // material it attaches to, so a steel vs wood wall reads differently.
-        for f in route.fittings.iter().filter(|f| !cut.is_some_and(|c| c.hides(f.at))) {
+        for f in route.fittings.iter().filter(|f| !cut.hides(f.at)) {
             // Skip a fitting whose spot is already bracketed by another pipe's run (v0.626 dedup).
             let pos_key = ((f.at.x * 5.0) as i32, (f.at.y * 5.0) as i32, (f.at.z * 5.0) as i32);
             if placed_fittings.insert(pos_key, ()).is_some() {
@@ -2765,13 +2774,14 @@ const CAR_THICK_M: f32 = 0.15;
 pub(crate) fn elevator_car_poses(
     ship: &ShipStructure,
     cars: &crate::engine::footing::ElevatorCars,
-    cut: Option<crate::engine::editor::CutAway>,
+    cut: impl Into<crate::engine::editor::Cuts>,
 ) -> Vec<(Vec3, Quat, Vec3)> {
+    let cut = cut.into();
     crate::engine::footing::lifts(ship)
         .into_iter()
         .filter_map(|lift| {
             let top = lift.base.y + cars.get(&lift.key).map_or(0.0, |e| e.0);
-            if cut.is_some_and(|c| c.hides(Vec3::new(lift.base.x, top, lift.base.z))) {
+            if cut.hides(Vec3::new(lift.base.x, top, lift.base.z)) {
                 return None;
             }
             let (w, _, d) = lift.ty.size;
@@ -2789,8 +2799,8 @@ pub(crate) fn elevator_car_poses(
 /// (`screens::Screens::push_render_objects`). Before this the upper floor's furniture and screens
 /// drew in the air over the cut.
 pub(crate) fn push_home_machines(state: &EngineState, out: &mut Vec<RenderObject>) {
-    let cut = state.home_draw.cut;
-    let shown = |at: Vec3| !cut.is_some_and(|c| c.hides(at));
+    let cut = &state.home_draw.cut;
+    let shown = |at: Vec3| !cut.hides(at);
     for &(mesh, material, pos, yaw) in &state.machine_objects {
         if shown(pos) {
             out.push(RenderObject {
@@ -2807,7 +2817,7 @@ pub(crate) fn push_home_machines(state: &EngineState, out: &mut Vec<RenderObject
     // drawn with the body's own position + yaw. Hidden with the machines, since each sits on one.
     let first = out.len();
     state.screens.push_render_objects(out);
-    if cut.is_some() {
+    if !cut.is_empty() {
         let screens: Vec<RenderObject> = out.drain(first..).filter(|o| shown(o.position)).collect();
         out.extend(screens);
     }
@@ -3089,7 +3099,7 @@ pub(crate) fn render_door_panels(
     let landing_doors = &state.home_draw.landing_doors;
     // The editor's cut-away leaves out the doors over its cut (they still open and close: only
     // their drawing goes), with their rings, panels and locks.
-    let cut = state.home_draw.cut;
+    let cut = state.home_draw.cut.clone();
     for (di, (p, open)) in state.door_panels.iter_mut().enumerate() {
         // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
         // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
@@ -3097,7 +3107,7 @@ pub(crate) fn render_door_panels(
         let operable = !p.is_window && crate::systems::door_anim::is_operable(&p.style);
         // Is the door LOCKED right now (v0.570)? Live lock states if present, else the legacy bool.
         let locked_now = door_locked_now(p, locks_live.get(di));
-        let drawn = !cut.is_some_and(|c| c.hides(p.center));
+        let drawn = !cut.hides(p.center);
         // Interaction-distance ring on the floor at the door (v0.547), drawn as a LINE circle
         // (v0.565, operator's idea -- like the orbit paths) so its width is CONSTANT regardless of
         // radius, instead of a polygon strip that thickened as open_dist grew.

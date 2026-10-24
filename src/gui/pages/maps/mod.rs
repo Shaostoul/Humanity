@@ -51,6 +51,7 @@ mod orbits;
 pub mod overlays;
 mod planet_view;
 mod scene;
+pub mod ship_view;
 mod sky_events;
 mod stations;
 mod system_view;

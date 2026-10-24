@@ -167,6 +167,11 @@ function buildCss(tokens) {
   lines.push(`  --map-reference: ${c('map_reference')};`);
   lines.push(`  --map-orbit-width: ${n(t.map_orbit_width, 1.2)}px;`);
   lines.push(`  --map-label-size: ${n(t.map_label_size, 12.5)}px;`);
+  lines.push('  /* Maps increment 3, the level shown inside the ship: a room with no type colour, the line');
+  lines.push('     round each room and the walls, and how opaque a room\'s fill is */');
+  lines.push(`  --map-room-fill: ${c('map_room_fill')};`);
+  lines.push(`  --map-room-edge: ${c('map_room_edge')};`);
+  lines.push(`  --map-room-fill-alpha: ${n(t.map_room_fill_alpha, 0.32)};`);
   lines.push('');
   lines.push('  /* Radii */');
   lines.push(`  --radius-sm: ${n(t.border_radius_widget, 3)}px;`);
@@ -368,6 +373,8 @@ const LIGHT = {
   '--map-belt': 'same',
   '--map-belt-outer': 'same',
   '--map-reference': 'same',
+  '--map-room-fill': 'same',
+  '--map-room-edge': 'same',
 };
 
 /** Emit the light block, refusing to run if it does not cover every colour

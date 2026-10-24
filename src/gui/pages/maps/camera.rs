@@ -84,6 +84,9 @@ const FLY_MAX_S: f64 = 3.0;
 pub enum MapAnchor {
     /// You: your ship while you are aboard it (its centre), else wherever you are.
     Me,
+    /// You yourself, where you stand aboard (your eye), followed as you walk: the level view's
+    /// anchor (Maps increment 3), turning with the ship like `Me`.
+    You,
     /// A body of the Sun's family, by its `sol.json` id.
     Body(String),
     /// A fixed point: `offset_m` from a body's centre, in world axes. What a
@@ -222,7 +225,7 @@ impl MapCamera {
 
     /// Whether it follows YOU.
     pub fn follows_me(&self) -> bool {
-        self.anchor == MapAnchor::Me && self.fly.is_none()
+        matches!(self.anchor, MapAnchor::Me | MapAnchor::You) && self.fly.is_none()
     }
 
     /// The frame's rotation (frame axes to world) at `distance` for `anchor`.
@@ -230,7 +233,7 @@ impl MapCamera {
         match self.frame {
             MapFrame::Held(q) => q,
             MapFrame::Auto => match (anchor, scene.me) {
-                (MapAnchor::Me, Some(me)) if me.aboard => {
+                (MapAnchor::Me | MapAnchor::You, Some(me)) if me.aboard => {
                     DQuat::IDENTITY.slerp(me.ship_rot, ship_frame_weight(distance)).normalize()
                 }
                 _ => DQuat::IDENTITY,

@@ -1641,17 +1641,17 @@ pub struct RoomBounds {
     pub id: String,
     pub min: glam::Vec3,
     pub max: glam::Vec3,
-    /// Function joined from data/rooms.ron at load (v0.439): the room finally knows what it
-    /// is FOR. Display name, purpose text, the in-room action labels, and access class.
+    /// Function joined from data/rooms.ron at load (v0.439): display name, purpose text, the
+    /// in-room action labels, access class, and (Maps increment 3) the type's colour, `fill`.
     pub display_name: String,
     pub purpose: String,
     /// Human LABELS for the in-room actions ("Change Outfit"), for showing to a person.
     pub actions: Vec<String>,
-    /// The PAGE each of those actions opens ("wardrobe", "appearance", "inventory"), which
-    /// is what code matches on. A label is written to be read and can be reworded; the page
-    /// is the action's identity. See `RoomTypeRegistry::action_pages` for why this is split.
+    /// The PAGE each of those actions opens ("wardrobe", ...), which is what code matches on: a
+    /// label can be reworded, the page is the action's identity (`RoomTypeRegistry::action_pages`).
     pub action_pages: Vec<String>,
     pub access: String,
+    pub fill: Option<[f32; 4]>,
 }
 
 /// Kind of a placed opening in the editor mirror (v0.469). Mirrors a subset of

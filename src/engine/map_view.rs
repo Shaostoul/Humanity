@@ -88,6 +88,8 @@ pub(crate) struct MapViewGpu {
     last_half: bool,
     /// Buffers are parked in the renderer for the next render.
     buffers_kept: bool,
+    /// The plan tiles (Maps increment 3, engine/map_tiles.rs).
+    pub(crate) tiles: crate::engine::map_tiles::MapTilesGpu,
 }
 
 /// What a render depends on, in the render frame.
@@ -99,6 +101,10 @@ struct ViewKey {
     size: (u32, u32),
     draw_ship: bool,
     sky_only: bool,
+    /// The level shown cut open, and the home's rebuilds (Maps increment 3): a pick or an edit
+    /// shows at once, not at the next rest refresh.
+    level: Option<i32>,
+    edits: u64,
 }
 
 impl ViewKey {
@@ -156,6 +162,7 @@ pub(crate) fn frame(
         return;
     }
     let want = world_layer_want(&state.gui_state.maps);
+    crate::engine::map_tiles::frame(state, want == WorldLayerWant::Plan);
     if state.world_loaded && (want == WorldLayerWant::Draw || want.draws_sky()) {
         let lists = SceneDrawLists { celestial, celestial_transparent, orbit_lines, opaque, transparent, overlay, ring_lines };
         render_if_due(state, &lists, want != WorldLayerWant::Draw);
@@ -180,7 +187,8 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
     let cam_full = render_camera(&pose, &me, full.0 as f32 / full.1 as f32);
     // The sky depends on the direction only: where the eye is does not count.
     let eye = if sky_only { Vec3::ZERO } else { cam_full.position };
-    let key = ViewKey { eye: bits(eye), fwd: bits(cam_full.forward()), up: bits(cam_full.up), size: full, draw_ship, sky_only };
+    let level = crate::gui::pages::maps::ship_view::shown_level(maps);
+    let key = ViewKey { eye: bits(eye), fwd: bits(cam_full.forward()), up: bits(cam_full.up), size: full, draw_ship, sky_only, level, edits: state.home_draw.edits };
 
     let now = Instant::now();
     let mv = &mut state.map_view;
@@ -190,7 +198,7 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
     }
     let half = mv.last_move.is_some_and(|t| now.duration_since(t) < REFINE_AFTER);
     let due = moved
-        || mv.last_key.map_or(true, |k| k.size != key.size || k.draw_ship != key.draw_ship || k.sky_only != key.sky_only)
+        || mv.last_key.map_or(true, |k| (k.size, k.draw_ship, k.sky_only, k.level, k.edits) != (key.size, key.draw_ship, key.sky_only, key.level, key.edits))
         || (mv.last_half && !half)
         || mv.last_render.map_or(true, |t| now.duration_since(t) >= REST_REFRESH);
     if !due {
@@ -201,13 +209,16 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
     let _cost = crate::renderer::frame_costs::stage("cpu.map_view");
     let empty_objects: [RenderObject; 0] = [];
     let empty_lines: [LineVertex; 0] = [];
+    // A level shown: no roof, no hull, nothing over the cut (engine/map_cut.rs).
+    let inside = crate::engine::map_cut::inside_lists(state, lists.opaque, lists.transparent, lists.overlay);
+    let [opaque, transparent, overlay] = inside.as_ref().map_or([lists.opaque, lists.transparent, lists.overlay], |[o, t, v]| [o.as_slice(), t.as_slice(), v.as_slice()]);
     let ship_lists = SceneDrawLists {
         celestial: lists.celestial,
         celestial_transparent: lists.celestial_transparent,
         orbit_lines: lists.orbit_lines,
-        opaque: if draw_ship { lists.opaque } else { &empty_objects },
-        transparent: if draw_ship { lists.transparent } else { &empty_objects },
-        overlay: if draw_ship { lists.overlay } else { &empty_objects },
+        opaque: if draw_ship { opaque } else { &empty_objects },
+        transparent: if draw_ship { transparent } else { &empty_objects },
+        overlay: if draw_ship { overlay } else { &empty_objects },
         ring_lines: if draw_ship { lists.ring_lines } else { &empty_lines },
     };
     let passes = if sky_only { ViewPasses::SkyOnly } else { ViewPasses::Everything };
@@ -274,6 +285,7 @@ fn ensure_target(state: &mut EngineState, half: bool, size: (u32, u32)) -> (wgpu
 /// The page closed: give back the textures, their egui ids and the parked
 /// view buffers, so a closed map holds no video memory.
 fn release(state: &mut EngineState) {
+    crate::engine::map_tiles::release(state);
     for t in [state.map_view.full.take(), state.map_view.half.take()].into_iter().flatten() {
         state.egui_renderer.free_texture(&t.id);
     }
@@ -287,61 +299,5 @@ fn release(state: &mut EngineState) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::gui::pages::maps::camera::{MapCamera, MapProjector};
-
-    /// A point on the hull lands where the symbols say it is: the renderer
-    /// camera built from the map's pose projects a ship-frame point (the
-    /// render frame while riding) onto the same canvas pixel the page's f64
-    /// projector puts its world position, within half a pixel, at the
-    /// opening framing and turned and zoomed round, at four hours of the day.
-    ///
-    /// Seen red 2026-10-21 with `render_camera` leaving out `station::to_hull`
-    /// (the world's axes, not the hull's): "hour 0, view 0: the hull corner is
-    /// 24.2 px from where the symbols put it".
-    #[test]
-    fn a_point_on_the_hull_lands_where_the_symbols_say() {
-        let rect = egui::Rect::from_min_size(egui::pos2(260.0, 60.0), egui::vec2(1400.0, 900.0));
-        for hour in [0.0, 5.0, 11.0, 19.5] {
-            let me = crate::gui::pages::maps::camera::tests::feed_at(hour * 3600.0, DVec3::ZERO);
-            let scene = MapScene::new(Some(&me), me.sky_seconds, true);
-            for view in 0..3 {
-                let mut cam = MapCamera::default();
-                cam.open_on_me(Some(&me));
-                if view >= 1 {
-                    cam.rotate_by(1.3, 0.4, &scene);
-                }
-                if view == 2 {
-                    cam.set_distance(320.0);
-                }
-                let pose = cam.pose(&scene);
-                let proj = MapProjector::new(pose, rect);
-                let rcam = render_camera(&pose, &me, rect.width() / rect.height());
-                let vp = rcam.view_projection_matrix();
-                let (lo, hi) = me.ship_box_m.expect("the feed carries the ship's box");
-                let corners = (0..8).map(|i| DVec3::new(if i & 1 == 0 { lo.x } else { hi.x }, if i & 2 == 0 { lo.y } else { hi.y }, if i & 4 == 0 { lo.z } else { hi.z }));
-                let mut checked = 0;
-                for local in corners.chain([me.you_ship_m]) {
-                    // Only what is drawn: a point tens of thousands of pixels off the
-                    // canvas (one a few metres in front of the eye at 320 m) carries
-                    // f32 noise magnified by its angle, and nobody sees it.
-                    let Some((want, _)) = proj.project(me.ship_to_world(local)) else { continue };
-                    if !rect.expand(rect.height()).contains(want) {
-                        continue;
-                    }
-                    checked += 1;
-                    let clip = vp * local.as_vec3().extend(1.0);
-                    let ndc = clip.truncate() / clip.w;
-                    let got = egui::pos2(
-                        rect.left() + (ndc.x + 1.0) * 0.5 * rect.width(),
-                        rect.top() + (1.0 - ndc.y) * 0.5 * rect.height(),
-                    );
-                    let off = (got - want).length();
-                    assert!(off < 0.5, "hour {hour}, view {view}: the hull corner is {off:.1} px from where the symbols put it");
-                }
-                assert!(checked >= 3, "hour {hour}, view {view}: only {checked} hull points were on the canvas to compare");
-            }
-        }
-    }
-}
+#[path = "map_view_tests.rs"]
+mod tests;

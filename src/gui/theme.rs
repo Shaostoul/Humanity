@@ -79,6 +79,15 @@ pub struct Theme {
     /// bodies draw at 85%).
     #[serde(default = "default_map_label_size")]
     pub map_label_size: f32,
+    /// Maps increment 3, the level shown inside the ship: a room's fill when its room type has
+    /// no colour of its own (rooms.ron `default_color`), the line round each room and the
+    /// level's walls, and how opaque a fill is (0 to 1) over the floor it names.
+    #[serde(default = "default_map_room_fill")]
+    pub map_room_fill: C,
+    #[serde(default = "default_map_room_edge")]
+    pub map_room_edge: C,
+    #[serde(default = "default_map_room_fill_alpha")]
+    pub map_room_fill_alpha: f32,
     pub border: C,
     pub border_focus: C,
     pub badge_admin: C,
@@ -452,6 +461,8 @@ impl Theme {
     pub fn map_belt(&self) -> Color32 { Self::c32(&self.map_belt) }
     pub fn map_belt_outer(&self) -> Color32 { Self::c32(&self.map_belt_outer) }
     pub fn map_reference(&self) -> Color32 { Self::c32(&self.map_reference) }
+    pub fn map_room_fill(&self) -> Color32 { Self::c32(&self.map_room_fill) }
+    pub fn map_room_edge(&self) -> Color32 { Self::c32(&self.map_room_edge) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
     pub fn border_focus(&self) -> Color32 { Self::c32(&self.border_focus) }
 
@@ -758,6 +769,9 @@ fn default_map_belt_outer() -> C { (0.62, 0.74, 0.88, 0.7) } // ice dust
 fn default_map_reference() -> C { (0.35, 0.62, 0.95, 0.85) }
 fn default_map_orbit_width() -> f32 { 1.2 }
 fn default_map_label_size() -> f32 { 12.5 }
+fn default_map_room_fill() -> C { (0.55, 0.58, 0.64, 1.0) } // a neutral grey-blue floor
+fn default_map_room_edge() -> C { (0.80, 0.84, 0.92, 0.75) } // a pale line round a room
+fn default_map_room_fill_alpha() -> f32 { 0.32 }
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
 fn default_badge_padding() -> f32 { 6.0 }
@@ -858,6 +872,9 @@ fn default_theme() -> Theme {
         map_reference: default_map_reference(),
         map_orbit_width: default_map_orbit_width(),
         map_label_size: default_map_label_size(),
+        map_room_fill: default_map_room_fill(),
+        map_room_edge: default_map_room_edge(),
+        map_room_fill_alpha: default_map_room_fill_alpha(),
         border: (0.165, 0.165, 0.208, 1.0),            // #2a2a35
         border_focus: (0.929, 0.549, 0.141, 1.0),      // #ED8C24
         badge_admin: (0.9, 0.5, 0.13, 1.0),

@@ -3242,6 +3242,64 @@ fn snapshot_maps_earth_moon() {
     });
     crate::gui::pages::maps::set_clock_for_snapshot(None);
 }
+/// Maps increment 3: you in the homestead's upstairs Bedroom on the shipped ship, the page
+/// showing the level you are on (Storey 2) from 70 m, no engine (so the walls are drawn from the
+/// data as lines, the world layer being the game's): the level picker with Storey 2 shown and
+/// marked yours, the upstairs rooms filled in their room types' colours and named as the HUD
+/// names them (the Bedroom among them), never the Dining Room under the Bedroom, and your dot
+/// with the way you face.
+fn ship_view_state(state: &mut crate::gui::GuiState, plan: bool) {
+    use crate::gui::pages::maps::camera::{MapAnchor, MapFrame};
+    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
+    state.room_bounds = crate::ship::room_types::RoomTypeRegistry::load(&data).room_bounds(&ship.generate_meshes().room_info);
+    let mut me = crate::gui::pages::maps::camera::tests::feed_at(3600.0, glam::DVec3::ZERO);
+    me.world_loaded = false;
+    me.ship_box_m = ship.aboard_bounds().map(|(lo, hi)| (lo.as_dvec3(), hi.as_dvec3()));
+    me.you_ship_m = glam::DVec3::new(38.0, 4.7, 34.0);
+    me.you_world_m = me.ship_to_world(me.you_ship_m);
+    me.you_facing_ship = glam::DVec3::new(0.6, 0.0, -0.8);
+    me.level = Some(1);
+    me.you_room = Some(("room-bedroom".into(), "Bedroom".into()));
+    state.ship_structure = Some(ship);
+    crate::engine::map_feed::frame_update(&mut state.maps, me, true, false);
+    state.maps.level_pick = Some(1);
+    state.maps.plan = plan;
+    let cam = &mut state.maps.camera;
+    cam.anchor = MapAnchor::You;
+    cam.frame = MapFrame::Auto;
+    cam.fly = None;
+    cam.set_distance(if plan { 60.0 } else { 70.0 });
+    cam.yaw = if plan { 0.0 } else { 0.35 };
+    cam.pitch = if plan { -crate::gui::pages::maps::camera::PITCH_LIMIT_RAD } else { -55.0_f64.to_radians() };
+}
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_ship_upstairs() {
+    crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("maps_ship_upstairs", 1280, 900, |ctx, theme, state| {
+        if state.ship_structure.is_none() {
+            ship_view_state(state, false);
+        }
+        crate::gui::pages::maps::draw(ctx, theme, state);
+    });
+    crate::gui::pages::maps::set_clock_for_snapshot(None);
+}
+/// Maps increment 3: the same, on the plan: straight down over you from 60 m, the ship's bow up
+/// the screen, the upper floor's rooms filled and named, walls as lines (no engine, so no baked
+/// plan tiles: in the game the tiles draw the floor under these symbols).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_ship_plan() {
+    crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
+    render_page_png("maps_ship_plan", 1280, 900, |ctx, theme, state| {
+        if state.ship_structure.is_none() {
+            ship_view_state(state, true);
+        }
+        crate::gui::pages::maps::draw(ctx, theme, state);
+    });
+    crate::gui::pages::maps::set_clock_for_snapshot(None);
+}
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {

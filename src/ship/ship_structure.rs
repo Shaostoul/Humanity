@@ -2045,6 +2045,13 @@ impl ShipStructure {
     /// zones prefix "<zone_id>:" so ids stay unique across the ship. Only the home zone keeps a
     /// spawn room (the camera spawns there on world load).
     pub fn generate_meshes(&self) -> HomesteadMeshes {
+        self.generate_meshes_at(None)
+    }
+
+    /// `generate_meshes` with the neighbours' homes cut away at the ship level whose floor is
+    /// `level` (ship metres; Maps increment 3, src/ship/levels.rs `level_meshes`, which cuts the
+    /// zones themselves first). None draws them whole, as `generate_meshes` does.
+    pub fn generate_meshes_at(&self, level: Option<f32>) -> HomesteadMeshes {
         let home_idx = self.home_zone_index();
         let mut out = HomesteadMeshes {
             floors: Vec::new(),
@@ -2061,7 +2068,7 @@ impl ShipStructure {
         // door corridor, render only. Their corridors also open a hole in the shared zone they
         // run to (the street's wall where a neighbour's corridor arrives); those holes are cut
         // in the meshes only, so the wall still stops anyone walking into a neighbour's home.
-        let neighbours = crate::ship::neighbours::neighbour_view(self);
+        let neighbours = crate::ship::neighbours::neighbour_view_at(self, level);
         for (zi, z) in self.zones.iter().enumerate() {
             // A home put away is drawn nowhere (`put_home_away`).
             if self.is_away_home(zi) {

@@ -1162,6 +1162,7 @@ pub(crate) fn lift_card(
             },
             action_pages: Vec::new(),
             access: String::new(),
+            fill: None,
         });
     }
     None
@@ -2224,6 +2225,7 @@ mod room_card_tests {
                 actions: Vec::new(),
                 action_pages: Vec::new(),
                 access: String::new(),
+                fill: None,
             })
             .collect()
     }
@@ -2287,6 +2289,7 @@ mod room_card_tests {
                 actions: Vec::new(),
                 action_pages: Vec::new(),
                 access: String::new(),
+                fill: None,
             })
             .collect();
         let keys = crate::input::bindings::Keybinds::default();

@@ -38,6 +38,8 @@ pub(crate) fn feed_at(t: f64, origin: DVec3) -> MapSelf {
         game_day_s: day,
         sky_seconds: 843_782_400.0,
         level: None,
+        you_room: None,
+        you_facing_ship: DVec3::NEG_Z,
         world_loaded: true,
     }
 }

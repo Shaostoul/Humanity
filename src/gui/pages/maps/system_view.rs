@@ -95,6 +95,10 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     if world == WorldDrawn::Nothing {
         paint.rect_filled(rect, 0.0, theme.map_space());
     }
+    let plan = you_layer::world_layer_want(&state.maps) == you_layer::WorldLayerWant::Plan;
+    if plan {
+        super::ship_view::draw_tiles(&paint, &proj, state); // the level's plan tiles (Maps increment 3)
+    }
     let globes_drawn = world == WorldDrawn::Everything;
     let mut stats = crate::gui::MapSymbology { band: band.name().to_string(), ..Default::default() };
 
@@ -142,7 +146,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     let mut placer = LabelPlacer::new(rect.shrink(2.0), LABEL_GAP);
     placer.reserve(Rect::from_min_max(rect.min, Pos2::new(rect.right(), rect.top() + 64.0)));
     let hud = Hud::layout(ui, theme, state, rect, &proj, (sim_time, &conjunctions, eclipse.as_ref()));
-    for r in hud.rects() {
+    for r in hud.rects().into_iter().chain(super::ship_view::picker_rect(theme, state, rect)) {
         placer.reserve(r);
     }
 
@@ -157,6 +161,9 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         drawn.push(Drawn { body, screen, depth, world_m, true_r, r });
     }
     drawn.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    if super::ship_view::shown_level(&state.maps).is_some() {
+        drawn.clear(); // a level of the ship shown: no sky body painted over it (Maps increment 3)
+    }
     let sun_m = scene.body_m("sun").unwrap_or_default();
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
 
@@ -382,6 +389,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     //    first through the placer, the mining asteroids; at ship scale with
     //    no world layer, why the ship is not drawn for real. ──
     let asteroid_markers = you_layer::draw_you(&paint, theme, &proj, &scene, state, world, &mut placer);
+    super::ship_view::draw_inside(&paint, theme, &proj, state, &mut placer, world); // the level shown (Maps increment 3)
     if world != WorldDrawn::Everything && you_layer::near_the_ship(&state.maps) {
         if let Some(why) = you_layer::world_layer_want(&state.maps).reason() {
             paint.text(rect.center_top() + Vec2::new(0.0, 70.0), Align2::CENTER_TOP, why, egui::FontId::proportional(12.0), theme.text_secondary());
@@ -483,6 +491,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
         paint.text(Pos2::new(rect.right() - 8.0, rect.top() + 66.0), Align2::RIGHT_TOP, credit, egui::FontId::proportional(9.5), theme.text_muted());
     }
     overlays::draw_layer_bar(ui, theme, state, rect, band);
+    super::ship_view::draw_picker(ui, theme, state, rect);
     controls::draw_follow_row(ui, theme, state, rect);
     stats.ms = started.elapsed().as_secs_f32() * 1000.0;
     state.maps.symbology = stats;
@@ -662,6 +671,7 @@ fn format_distance(m: f64) -> String {
 fn anchor_name(maps: &crate::gui::state_types::MapsState) -> String {
     use super::camera::MapAnchor;
     match &maps.camera.anchor {
+        MapAnchor::You => "you (following)".to_string(),
         MapAnchor::Me => match maps.me.as_ref() {
             Some(me) if me.aboard => format!("{} (following you)", me.ship_name),
             Some(_) => "you (following)".to_string(),

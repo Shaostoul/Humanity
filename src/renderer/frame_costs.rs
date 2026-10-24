@@ -648,6 +648,10 @@ pub enum SceneView {
     /// `gpu.screen_transparent`, with matching `cpu.*` stages so the
     /// no-timestamp fallback rule (`gpu.x` reads `cpu.x`) still holds.
     Screen,
+    /// A Maps plan tile's bake (Maps increment 3, engine/map_tiles.rs): one
+    /// 512 px render at most a frame while the plan is shown, its own number
+    /// (`gpu.map_tile_scene`, ...) so its budget (2 ms) is read on its own.
+    MapTile,
 }
 
 impl SceneView {
@@ -656,6 +660,7 @@ impl SceneView {
         match self {
             SceneView::Main => ("gpu.scene", "cpu.scene"),
             SceneView::Screen => ("gpu.screen_scene", "cpu.screen_scene"),
+            SceneView::MapTile => ("gpu.map_tile_scene", "cpu.map_tile_scene"),
         }
     }
 
@@ -664,6 +669,7 @@ impl SceneView {
         match self {
             SceneView::Main => ("gpu.transparent", "cpu.transparent"),
             SceneView::Screen => ("gpu.screen_transparent", "cpu.screen_transparent"),
+            SceneView::MapTile => ("gpu.map_tile_transparent", "cpu.map_tile_transparent"),
         }
     }
 
@@ -674,6 +680,7 @@ impl SceneView {
         match self {
             SceneView::Main => ("gpu.stars", "cpu.stars"),
             SceneView::Screen => ("gpu.screen_sky", "cpu.screen_sky"),
+            SceneView::MapTile => ("gpu.map_tile_clear", "cpu.map_tile_clear"),
         }
     }
 
@@ -684,6 +691,7 @@ impl SceneView {
         match self {
             SceneView::Main => ("gpu.overlay", "cpu.overlay"),
             SceneView::Screen => ("gpu.screen_overlay", "cpu.screen_overlay"),
+            SceneView::MapTile => ("gpu.map_tile_overlay", "cpu.map_tile_overlay"),
         }
     }
 
@@ -692,6 +700,7 @@ impl SceneView {
         match self {
             SceneView::Main => ("gpu.lines", "cpu.lines"),
             SceneView::Screen => ("gpu.screen_lines", "cpu.screen_lines"),
+            SceneView::MapTile => ("gpu.map_tile_lines", "cpu.map_tile_lines"),
         }
     }
 
@@ -703,6 +712,7 @@ impl SceneView {
         match self {
             SceneView::Main => ("gpu.present", "cpu.present"),
             SceneView::Screen => ("gpu.screen_present", "cpu.screen_present"),
+            SceneView::MapTile => ("gpu.map_tile_present", "cpu.map_tile_present"),
         }
     }
 }

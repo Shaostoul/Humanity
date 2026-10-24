@@ -18,6 +18,9 @@ pub mod door_panels;
 pub mod door_points;
 pub mod fibonacci;
 pub mod home_structure;
+/// The ship's levels (its distinct storey floors), and the ship cut away at one (Maps increment 3:
+/// the Maps page's level picker, cutaway, room plan and plan tiles read one list).
+pub mod levels;
 /// The homestead's upper floor checked as the shipped design carries it (ship homes increment 7).
 #[cfg(test)]
 mod homestead_layout_tests;

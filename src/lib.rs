@@ -7911,7 +7911,7 @@ mod native_app {
                             .gui_state
                             .ship_structure
                             .as_ref()
-                            .map(|ship| crate::engine::home_meshes::elevator_car_poses(ship, &state.elevator_state, state.home_draw.cut))
+                            .map(|ship| crate::engine::home_meshes::elevator_car_poses(ship, &state.elevator_state, state.home_draw.cut.clone()))
                             .unwrap_or_default();
                         for (position, rotation, scale) in cars {
                             all_objects.push(RenderObject { fade: 0.0, position, rotation, scale, mesh: car_mesh, material: car_mat });
@@ -8848,8 +8848,8 @@ mod native_app {
                             // drawn (`HomeDraw::cut`, by the machine's placement as the body is;
                             // machine_pick is in placement order with machine_objects).
                             const MB: [f32; 4] = [0.55, 0.8, 0.95, 0.5];
-                            let cut = state.home_draw.cut;
-                            let shown_machine = |i: usize| !cut.is_some_and(|c| state.machine_objects.get(i).is_some_and(|m| c.hides(m.2)));
+                            let cut = state.home_draw.cut.clone();
+                            let shown_machine = |i: usize| !state.machine_objects.get(i).is_some_and(|m| cut.hides(m.2));
                             for (_id, center, radius) in state
                                 .machine_pick
                                 .iter()
@@ -8982,7 +8982,7 @@ mod native_app {
                                 for n in hm
                                     .conduit_nodes
                                     .iter()
-                                    .filter(|n| !hide_pipe_nodes && !cut.is_some_and(|c| c.hides(Vec3::new(n.pos.0, n.pos.1, n.pos.2))))
+                                    .filter(|n| !hide_pipe_nodes && !cut.hides(Vec3::new(n.pos.0, n.pos.1, n.pos.2)))
                                 {
                                     let c = [n.pos.0, n.pos.1, n.pos.2];
                                     // TIER sizes the node (v0.632): tier 0 main = a big ring, subs smaller,

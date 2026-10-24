@@ -13847,6 +13847,137 @@
         "min_labels": 6,
         "max_symbology_ms": 1.0
       }
+    },
+    {
+      "id": "maps-ship-upstairs",
+      "desc": "You upstairs in the homestead's Bedroom (the station park's pose, 3 m up, eye at 4.7 m), the Maps page opened the way the game opens it, then the level you are on shown (map_level \"you\": Storey 2).",
+      "expect": "The upper floor of your home seen from about 90 m, everything over it cut away (no glass roof, no hull): the upstairs rooms filled in their room types' colours and named (Bedroom, Study, Upper hall's Hall, Wet Room, Dressing Room, ...), your dot in the Bedroom with a wedge the way you face, the level picker at the right with Storey 2 shown and marked \"you\". The rooms of the ground floor under it (the Dining Room, the Kitchen) are NOT named over it.",
+      "_why": "Maps increment 3 (docs/design/maps-zoom-to-anything.md, 2026-10-22), \"into the ship, deck by deck\". Operator 2026-10-20: \"Eventually we need to use the map page to navigate the multikilometer long spaceships AND planet surfaces including subterranean structures.\" The level picker shows the ship's levels (ship/levels.rs, from the storeys of every body aboard); picking one cuts everything above it away by the build editor's own rule (engine/map_cut.rs) and names its rooms as the HUD names them (gui/pages/maps/ship_view.rs).",
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "38,4.7,34,0,-0.3"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 6,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "map_level": "you"
+        }
+      ],
+      "map_ship": {
+        "expect": "pass",
+        "level": "Storey 2",
+        "named": [
+          "Bedroom"
+        ],
+        "not_named": [
+          "Dining Room"
+        ],
+        "you_drawn": true
+      }
+    },
+    {
+      "id": "maps-ship-upstairs-ground",
+      "desc": "THE CONTROL: maps-ship-upstairs with the ground level shown instead (map_level \"0\").",
+      "expect": "The ground floor cut open at its ceiling: its rooms named (the Dining Room under the Bedroom, the Kitchen, the Great Room), no Bedroom; your dot not drawn (you are upstairs). The upstairs check must FAIL here, or it cannot fail anywhere.",
+      "_why": "Maps increment 3 (docs/design/maps-zoom-to-anything.md, 2026-10-22), \"into the ship, deck by deck\". Operator 2026-10-20: \"Eventually we need to use the map page to navigate the multikilometer long spaceships AND planet surfaces including subterranean structures.\" The level picker shows the ship's levels (ship/levels.rs, from the storeys of every body aboard); picking one cuts everything above it away by the build editor's own rule (engine/map_cut.rs) and names its rooms as the HUD names them (gui/pages/maps/ship_view.rs). A check that cannot fail proves nothing (memory feedback_checks_that_cannot_fail): this vantage passes only when the map_ship check fails.",
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "38,4.7,34,0,-0.3"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 6,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "map_level": "0"
+        }
+      ],
+      "map_ship": {
+        "expect": "fail",
+        "level": "Storey 2",
+        "named": [
+          "Bedroom"
+        ],
+        "not_named": [
+          "Dining Room"
+        ],
+        "you_drawn": true
+      }
+    },
+    {
+      "id": "maps-ship-plan",
+      "desc": "maps-ship-upstairs on the plan (map_plan \"1\"): straight down over you, the level drawn from baked plan tiles; then a strip of road surface added upstairs through the build editor's console (the `console` verb, this session only) and the plan judged to drop exactly the tiles under it.",
+      "expect": "The upper floor as a plan from straight above, the ship's bow up the screen: walls, floors and furniture from the baked tiles, the rooms filled and named over them, your dot. After the edit (the -after-edit capture), a dark 4 x 6 m strip of road surface in the Bedroom (chosen because it shows from above; a deck is the floor's own grey), the tile under it baked again.",
+      "_why": "Maps increment 3 (docs/design/maps-zoom-to-anything.md, 2026-10-22), \"into the ship, deck by deck\". Operator 2026-10-20: \"Eventually we need to use the map page to navigate the multikilometer long spaceships AND planet surfaces including subterranean structures.\" The level picker shows the ship's levels (ship/levels.rs, from the storeys of every body aboard); picking one cuts everything above it away by the build editor's own rule (engine/map_cut.rs) and names its rooms as the HUD names them (gui/pages/maps/ship_view.rs). The design's proof for plan tiles: \"an edit through the editor's IPC changes exactly the tiles it touched\" (engine/map_tiles.rs plan_items, dirty_rects, touched). Costs: gpu.map_tile_* and cpu.map_tiles while the tiles bake, cpu.maps_symbology.",
+      "camera": {
+        "station": "home",
+        "time": 20.15,
+        "pose": "38,4.7,34,0,-0.3"
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_settle_s": 8,
+      "perf_floor_fps": 10,
+      "final_showcase": [
+        {
+          "page": "maps",
+          "map": "home"
+        },
+        {
+          "map_level": "you"
+        },
+        {
+          "map_plan": "1"
+        }
+      ],
+      "map_ship": {
+        "expect": "pass",
+        "level": "Storey 2",
+        "named": [
+          "Bedroom"
+        ],
+        "not_named": [
+          "Dining Room"
+        ],
+        "plan": true,
+        "min_tiles": 2,
+        "max_bake_ms": 50,
+        "edit": {
+          "console": "add_structure road 40 3 36 0",
+          "footprint": [
+            36.1,
+            32.1,
+            43.9,
+            39.9
+          ]
+        }
+      }
     }
   ],
   "ladder": {

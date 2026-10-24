@@ -130,6 +130,7 @@ mod tests {
             actions: Vec::new(),
             action_pages: Vec::new(),
             access: String::new(),
+            fill: None,
         }
     }
 

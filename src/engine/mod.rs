@@ -92,6 +92,11 @@ pub mod map_feed;
 pub mod map_view;
 /// The Maps page's dev verbs and the rig's report (Maps increments 1 and 2).
 pub mod map_rig;
+/// Maps increment 3 (2026-10-22): the level verbs and the ship block of the rig's report, the
+/// cutaway of the level shown (the editor's cut-away rule), and the plan tiles.
+pub mod map_rig_ship;
+pub mod map_cut;
+pub mod map_tiles;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;

@@ -1409,6 +1409,29 @@ orbits, v0.647.0).
   lit toward the Sun, with fading orbit trails, the real belts from the same
   belts.json and the names through `web/shared/label-placer.js`
   (`web/shared/sol-orbits.js`, the web twin of the orbit model).
+- **Into the ship, deck by deck (Maps increment 3, 2026-10-22).** Close to your ship the
+  LEVEL PICKER (`src/gui/widgets/level_picker.rs`) lists its levels top to bottom with yours
+  marked; the levels come from the data (`src/ship/levels.rs`: every distinct storey floor of
+  every body aboard, neighbours' homes included; ordinals as IMDF's, named as the editor names
+  storeys). Picking one shows it CUT OPEN: the home is drawn cut at that level by the build
+  editor's own rule (`HomeStructure::cut_away`, which moved there from the editor;
+  `src/engine/map_cut.rs`, `editor::wanted_cuts`, `HomeDraw::cut` now `Cuts`), roof and hull
+  left out; its rooms are filled in their room types' colours (`default_color` in
+  `data/rooms.ron`, `RoomBounds::fill`) and named as the HUD names them, with your dot and the
+  way you face (the feed's `level` and `you_room`, by the game's own rules)
+  (`src/gui/pages/maps/ship_view.rs`). "Plan" turns it straight down and draws it from baked
+  PLAN TILES (`src/engine/map_tiles.rs`: 512 px tiles keyed by level, zoom, x, y, one baked a
+  frame through `ViewPasses::Plan`, 64 MB least recently used, and only the tiles an edit
+  touched dropped, from a hash of every wall, slab, piece, light, room volume, corridor,
+  neighbour and machine). Theme tokens `map_room_fill`, `map_room_edge`,
+  `map_room_fill_alpha`. Cost stages `gpu.map_tile_*`, `cpu.map_tiles` (rows "Maps: plan
+  tiles"). Rig verbs `map_level`, `map_plan` (`src/engine/map_rig_ship.rs`), the report's
+  `ship` block; vantages `maps-ship-upstairs`, its control `maps-ship-upstairs-ground` and
+  `maps-ship-plan` (with an edit through the `console` verb) judged by
+  `scripts/lib/map-ship-check.js`; snapshots `maps_ship_upstairs`, `maps_ship_plan`. Web: a
+  "Ship" button on `web/pages/maps.html` opens the ship's plan level by level
+  (`web/shared/level-picker.js`, `web/shared/ship-plan.js`) from `data/maps/ship_plan.json`,
+  which the app writes (`the_web_ship_plan_is_current`).
 
 ### Profile Page
 User profile view/edit.

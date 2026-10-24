@@ -1243,6 +1243,7 @@ mod collision_tests {
             actions: Vec::new(),
             action_pages: Vec::new(),
             access: String::new(),
+            fill: None,
         };
         let rooms = [room];
         let cars = ElevatorCars::new();

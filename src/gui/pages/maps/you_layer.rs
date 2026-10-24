@@ -128,9 +128,13 @@ pub(super) fn draw_you(
     // The ship's own meshes are in the world layer only in the ship band.
     let world_drawn = world == WorldDrawn::Everything && near_the_ship(&state.maps);
 
-    // The ship's orbit, from its own state vector.
+    // The ship's orbit, from its own state vector; not across a level shown inside the ship,
+    // where `ship_view` draws you itself (Maps increment 3).
+    let inside = super::ship_view::shown_level(&state.maps).is_some();
     let ring: Vec<DVec3> = orbit_ring(me.ship_pos_m, me.ship_vel_mps, me.parent_mu, 192).into_iter().map(|p| scene.ship_place(p)).collect();
-    stroke_ring(paint, proj, &ring, Stroke::new(1.2, accent.gamma_multiply(0.7)));
+    if !inside {
+        stroke_ring(paint, proj, &ring, Stroke::new(1.2, accent.gamma_multiply(0.7)));
+    }
 
     let centre = scene.ship_place(me.ship_centre_m());
     let Some((at, depth)) = proj.project(centre) else { return markers };
@@ -141,14 +145,14 @@ pub(super) fn draw_you(
 
     // The ship itself: the world layer draws it when it is there; otherwise
     // its outline when it is big on screen and an icon of a minimum size.
-    if !world_drawn && big {
+    if !world_drawn && big && !inside {
         if let Some(edges) = box_edges(proj, me) {
             for e in edges {
                 paint.line_segment(e, Stroke::new(1.0, accent.gamma_multiply(0.8)));
             }
         }
     }
-    if !world_drawn || length_px < ICON_FLOOR_PX {
+    if (!world_drawn || length_px < ICON_FLOOR_PX) && !inside {
         paint.circle_filled(at, 4.0, accent);
         paint.circle_stroke(at, 9.0, Stroke::new(1.6, accent));
     }
@@ -170,7 +174,7 @@ pub(super) fn draw_you(
     super::labels::paint_with_halo(paint, theme, line(&g2, spot.top() + g1.size().y), line2, 10.5, theme.text_secondary());
 
     // You, where you are aboard, once the ship is big enough to tell.
-    if big {
+    if big && !inside {
         if let Some((you, _)) = proj.project(me.you_world_m) {
             paint.circle_filled(you, 3.5, theme.info());
             paint.circle_stroke(you, 6.0, Stroke::new(1.2, theme.info()));

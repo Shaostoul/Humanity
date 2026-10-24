@@ -65,8 +65,15 @@ pub struct MapSelf {
     /// The sky clock the engine places the planets by, seconds since
     /// J2000.0 (the wall clock until increment 6 gives the sky one clock).
     pub sky_seconds: f64,
-    /// Which storey you are on, once the map shows storeys (increment 3).
+    /// Which level of the ship you are on, its ordinal (Maps increment 3, ship/levels.rs
+    /// `level_at` of your feet, the rule the build editor finds your storey by), while aboard
+    /// with the page open; None otherwise.
     pub level: Option<i32>,
+    /// The room the HUD's room card names for you (`hud::room_card_at`, its id and the name it
+    /// shows), so the map and the game never disagree about which room you are in.
+    pub you_room: Option<(String, String)>,
+    /// Which way you face, a unit vector in the ship's own frame (the camera's look).
+    pub you_facing_ship: DVec3,
     /// Whether the 3D world is loaded (the world layer needs it).
     pub world_loaded: bool,
 }
@@ -153,6 +160,21 @@ pub struct MapVerb {
     pub layers: Vec<(String, bool)>,
     /// Diagram mode on or off ("map_diagram":"1" / "0").
     pub diagram: Option<bool>,
+    /// The level shown (Maps increment 3, "map_level": an ordinal, "you" or "whole").
+    pub level: Option<LevelVerb>,
+    /// The straight-down plan on or off ("map_plan":"1" / "0").
+    pub plan: Option<bool>,
+}
+
+/// Which level a rig asks the map to show (`MapVerb::level`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LevelVerb {
+    /// The level with this ordinal.
+    Ordinal(i32),
+    /// The level you are on.
+    You,
+    /// The whole ship, no level.
+    Whole,
 }
 
 /// What one draw of the Solar System view put on the map (Maps increment 2):
@@ -301,6 +323,50 @@ pub struct MapsState {
     /// Every `data/stations/*.ron`, with its computed altitude, for the
     /// body list's Stations rows (loaded on first use).
     pub stations: Option<Vec<StationRow>>,
+
+    // ── Maps increment 3: into the ship, deck by deck ──
+    /// The level a person picked on the level picker (its ordinal, ship/levels.rs), shown cut
+    /// open; None is the whole ship.
+    pub level_pick: Option<i32>,
+    /// The straight-down plan of the level shown (your level when none is picked), drawn from
+    /// baked plan tiles (engine/map_tiles.rs).
+    pub plan: bool,
+    /// The plan tiles: the ones the page wants this frame and the ones the engine has baked.
+    pub tiles: MapTiles,
+    /// What the ship view drew last frame, for the rig's report.
+    pub ship_drawn: MapShipDrawn,
+}
+
+/// The plan tiles between the page and the engine (Maps increment 3, engine/map_tiles.rs): the
+/// page says which it wants, the engine bakes the missing ones (one a frame) and says which it
+/// has.
+#[derive(Debug, Clone, Default)]
+pub struct MapTiles {
+    /// The tiles the plan's view covers this frame, finest first.
+    pub want: Vec<crate::engine::map_tiles::TileKey>,
+    /// The tiles baked and kept, each with its texture as registered with the window's egui.
+    pub have: std::collections::HashMap<crate::engine::map_tiles::TileKey, egui::TextureId>,
+    /// What the engine did: tiles baked this opening of the page, the last one's cost, the bytes
+    /// kept, and the tiles an edit made it drop (each with the reason's footprint).
+    pub baked: u32,
+    pub last_bake_ms: f32,
+    pub bytes: usize,
+    pub dropped: Vec<crate::engine::map_tiles::TileKey>,
+    pub dirty: Vec<[f32; 4]>,
+}
+
+/// What the ship view put on the map in its last draw (Maps increment 3), for the rig's report.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MapShipDrawn {
+    /// The ship's levels as the picker lists them (top to bottom), and the one shown.
+    pub levels: Vec<String>,
+    pub level: Option<String>,
+    /// The rooms named on the level shown, by the names the HUD gives them.
+    pub rooms_named: Vec<String>,
+    /// Rooms filled on the level shown.
+    pub rooms_filled: u32,
+    /// Whether your dot was drawn (you are on the level shown).
+    pub you_drawn: bool,
 }
 
 impl MapsState {
@@ -356,6 +422,10 @@ impl Default for MapsState {
             turn_dps: 0.0,
             report_after_seq: None,
             stations: None,
+            level_pick: None,
+            plan: false,
+            tiles: MapTiles::default(),
+            ship_drawn: MapShipDrawn::default(),
         }
     }
 }

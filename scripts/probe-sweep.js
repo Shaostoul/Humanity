@@ -182,6 +182,8 @@ const TG = require("./lib/tree-ground-check.js");
 const MC = require("./lib/map-centre-check.js");
 // The Maps overview check (Maps increment 2): the vantage's `map_overview`.
 const MO = require("./lib/map-overview-check.js");
+// The Maps ship check (Maps increment 3): the vantage's `map_ship`.
+const MS = require("./lib/map-ship-check.js");
 const WR = require("./lib/write-request.js");
 // The DESCENT LADDER (environment program increment 1): instead of the
 // vantage list, fly one fixed surface column down a rung list from orbit
@@ -1216,6 +1218,47 @@ async function main() {
           rec.map_overview = { ok: verdict.ok, expect, check_ok: check.ok, message: verdict.message };
           log(`  map overview: ${verdict.ok ? "ok" : "FAILED"}: ${verdict.message}`);
         }
+        // MAP SHIP (Maps increment 3, 2026-10-22): a vantage with `map_ship`
+        // asks the game what the ship view drew (debug/map_done.json's `ship`
+        // block: the level shown, the rooms named, your dot, the plan's tiles)
+        // and judges it (scripts/lib/map-ship-check.js). With `map_ship.edit`
+        // (a build-editor console line and its footprint, ship metres) it then
+        // makes that edit through the `console` verb, judges that the plan
+        // dropped exactly the tiles under it, and captures the plan again once
+        // they are baked again. `expect: "fail"` marks a control.
+        if (v.map_ship) {
+          clearDone("map_done.json");
+          req("showcase_request.json", { map: "report" });
+          const rep = await waitFile("map_done.json", 20000);
+          if (!rep) throw new Error("map ship: the game wrote no debug/map_done.json");
+          const expect = v.map_ship.expect || "pass";
+          const check = MS.judgeShip(rep, v.map_ship);
+          let verdict = MS.vantageVerdict(check, expect);
+          const record = { report: rep };
+          if (v.map_ship.edit && verdict.ok) {
+            const before = (rep.ship && rep.ship.tiles && rep.ship.tiles.have) || [];
+            req("showcase_request.json", { console: v.map_ship.edit.console });
+            await sleep(1500);
+            clearDone("map_done.json");
+            req("showcase_request.json", { map: "report" });
+            const after = await waitFile("map_done.json", 20000);
+            record.after_edit = after;
+            const edit = MS.judgeEdit(before, after && after.ship, v.map_ship.edit.footprint);
+            verdict = edit.ok ? { ok: true, message: `${verdict.message}; edit: ${edit.message}` } : { ok: false, message: `EDIT: ${edit.message}` };
+            log(`  map ship edit: ${edit.ok ? "ok" : "FAILED"}: ${edit.message}`);
+            await sleep(2500); // the tiles under the edit, baked again (one a frame)
+            clearDone("screenshot_done.json");
+            req("screenshot_request.json", {});
+            const shotE = await waitFile("screenshot_done.json", 60000);
+            if (shotE && shotE.ok === true) {
+              fs.copyFileSync(path.join(RIG, shotE.path), path.join(OUT, `${v.id}-after-edit.png`));
+              rec.screenshot_after_edit = `${v.id}-after-edit.png`;
+            }
+          }
+          fs.writeFileSync(path.join(OUT, `${v.id}-map.json`), JSON.stringify(record, null, 2));
+          rec.map_ship = { ok: verdict.ok, expect, check_ok: check.ok, message: verdict.message };
+          log(`  map ship: ${verdict.ok ? "ok" : "FAILED"}: ${verdict.message}`);
+        }
         // PROFILE ATLAS DUMP (the far rung, perf increment 4): a vantage
         // with `dump_cloud_profile: true` asks the engine, after the
         // capture(s), to write every slice of the cloud PROFILE atlas as
@@ -1326,6 +1369,10 @@ async function main() {
         if (rec.ok && rec.map_overview && !rec.map_overview.ok) {
           rec.ok = false;
           rec.error = `MAP OVERVIEW: ${rec.map_overview.message}`;
+        }
+        if (rec.ok && rec.map_ship && !rec.map_ship.ok) {
+          rec.ok = false;
+          rec.error = `MAP SHIP: ${rec.map_ship.message}`;
         }
         // A page a final_showcase opened stays open into the next vantage,
         // which would then capture the page instead of the world (and the

@@ -1407,6 +1407,8 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Maps: name edge", &mut theme.map_label_halo as *mut _),
                     ("Maps: belt dust (rock)", &mut theme.map_belt as *mut _),
                     ("Maps: belt dust (ice)", &mut theme.map_belt_outer as *mut _),
+                    ("Maps: room fill (a room with no type colour)", &mut theme.map_room_fill as *mut _),
+                    ("Maps: room edges and walls", &mut theme.map_room_edge as *mut _),
                 ];
                 for (label, ptr) in labels_right {
                     let color_tuple = unsafe { &mut *ptr };
@@ -1912,6 +1914,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Compact Button Height", &mut theme.compact_button_height, 12.0..=36.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Maps: Orbit Line Width", &mut theme.map_orbit_width, 0.5..=4.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Maps: Name Size", &mut theme.map_label_size, 8.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Maps: Room Fill Opacity", &mut theme.map_room_fill_alpha, 0.0..=1.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Cell Narrow Width", &mut theme.cell_narrow_width, 30.0..=120.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Cell Short Width", &mut theme.cell_short_width, 40.0..=180.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Cell Name Width", &mut theme.cell_name_width, 80.0..=300.0, label_color);
