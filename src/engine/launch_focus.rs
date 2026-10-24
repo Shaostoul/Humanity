@@ -286,6 +286,15 @@ pub fn show_window_behind(window: &winit::window::Window) {
     unsafe {
         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
+        // A rig's LOW IMPACT window (engine::low_impact, 2026-10-22) keeps the small size it was
+        // created at: the fewest pixels to draw while the operator uses his PC. Bottom of the Z
+        // order, never activated, as below; only the maximize-sizing is skipped.
+        if let Some((w, h)) = crate::engine::low_impact::window() {
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+            log::info!("focus: shown via SW_SHOWNOACTIVATE at bottom of Z order, at the low-impact size {w}x{h} (not maximized)");
+            return;
+        }
+
         // Work area = the monitor minus the taskbar: exactly what a maximize
         // targets. Failure here is not fatal, it just means the window keeps
         // its created size, so say so loudly rather than silently capturing

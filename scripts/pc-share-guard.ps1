@@ -15,8 +15,9 @@
 # build is covered from its first few seconds.
 #
 # The GPU cannot be split this way on a GeForce card under Windows; the GPU side is the rigs'
-# machine guard, which waits while one of the operator's listed programs runs
-# (scripts/lib/operator-apps.json).
+# own: while one of the operator's listed programs runs (scripts/lib/operator-apps.json), a rig
+# whose checks are about behaviour runs its game in low impact beside it and a rig that judges
+# the picture or times frames waits for it (scripts/lib/rig-needs.js).
 #
 # It never touches the operator's own HumanityOS (the repo root's HumanityOS.exe or a
 # v<version>_HumanityOS.exe archive): only copies under .probe-rig, a worktree, or a target folder.

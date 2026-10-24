@@ -87,6 +87,10 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22): its checks are about behaviour, so while one
+// of the operator's GPU-heavy programs runs it boots its game in LOW IMPACT beside it rather than
+// wait (--low-impact asks for it anyway; --full-graphics waits for his program instead).
+const RN = require("./lib/rig-needs.js");
 const DXC = require("./lib/dxc-dlls.js");
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 const GL = require("./lib/game-launch.js");
@@ -204,9 +208,11 @@ const FRESH = runFreshGate(EXE, args, { cwd: REPO });
 if (FRESH.status !== 0) refuse(["verify-storeys: REFUSED - see the freshness failure above. Nothing was booted."]);
 const OTHER_BUILD = FRESH.other_build;
 
+// How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
+const BOOT_PLAN = RN.planOrRefuse("verify-storeys", { log });
 // One GPU: wait for another rig (or the operator's game) to finish, never boot beside it.
 {
-  const running = MG.listInstances();
+  const running = MG.blockingInstances(BOOT_PLAN.own);
   if (running.length && NO_WAIT) {
     refuse([
       `REFUSED: HumanityOS is already running (pid ${running.map((p) => p.pid).join(", ")}), and --no-wait.`,
@@ -215,7 +221,7 @@ const OTHER_BUILD = FRESH.other_build;
   }
   // Ends by taking the machine-wide boot lock (lib/boot-lock.js); a wait that gives up is the one
   // refusal every rig gives (exit 1, "the machine never went quiet in N min; nothing was booted").
-  const w = MG.waitForFree({ own: { gameOnly: true }, label: "verify-storeys", rig: "verify-storeys", timeoutMs: WAIT_MIN * 60 * 1000, log });
+  const w = MG.waitForFree({ own: { gameOnly: true, ...BOOT_PLAN.own }, label: "verify-storeys", rig: "verify-storeys", timeoutMs: WAIT_MIN * 60 * 1000, log });
   if (!w.free) {
     MG.refuseBusy(w, {
       rig: "verify-storeys",
@@ -417,7 +423,9 @@ async function main() {
     detached: true,
     stdio: "ignore",
     env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+    lowImpact: BOOT_PLAN.lowImpact,
   });
+  manifest.low_impact = RN.manifestRecord(BOOT_PLAN, null);
   const pid = game.child.pid;
   game.child.unref();
   let killed = false;
@@ -647,6 +655,7 @@ async function main() {
 
   manifest.panics = panicCount();
   manifest.builtin_data = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");
+  manifest.low_impact = RN.manifestRecord(BOOT_PLAN, game.low_impact && game.low_impact.confirmed);
   save();
   try {
     fs.copyFileSync(LOG, path.join(OUT, "run.log"));
@@ -656,6 +665,7 @@ async function main() {
 
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   if (manifest.builtin_data.length) log(GL.builtinDataRefusal(manifest.builtin_data));
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   const result = printVerdict(manifest, manifest.error ? `(the run stopped early: ${manifest.error}) ` : "RESULT: ");
   log(`evidence: ${path.relative(REPO, OUT)} (manifest.json, the screenshots, run.log)`);
   process.exit(result.ok && !manifest.error ? 0 : 2);

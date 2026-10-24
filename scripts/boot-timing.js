@@ -63,6 +63,10 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22, lib/rig-needs.js): it judges times (how long a boot takes), so while
+// one of the operator's GPU-heavy programs runs it WAITS for it to close, and it refuses low impact
+// (--low-impact, or an inherited HUMANITY_LOW_IMPACT): minimum graphics would make it meaningless.
+const RN = require("./lib/rig-needs.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
 // The freshness gate and the boot-copy check (BUG-133).
@@ -463,6 +467,9 @@ function report(runs) {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 (async () => {
+  // Refuses low impact (lib/rig-needs.js); each boot's machine wait (waitForFree, no lowImpact)
+  // already waits for the operator's program as for any other contender.
+  RN.planOrRefuse("boot-timing");
   // This tree's build, or another on purpose (--allow-other-build "<why>").
   FRESH = runFreshGate(EXE_SRC, args, { cwd: REPO });
   if (FRESH.status !== 0) {

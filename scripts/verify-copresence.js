@@ -255,6 +255,12 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22): its checks are about behaviour, so while one
+// of the operator's GPU-heavy programs runs it boots its game in LOW IMPACT beside it rather than
+// wait, at 30 frames a second and the full window (its steady-speed band and its pixel counts are
+// sized to those: lib/rig-needs.js). --low-impact asks for it anyway; --full-graphics waits for his
+// program instead.
+const RN = require("./lib/rig-needs.js");
 const DXC = require("./lib/dxc-dlls.js");
 const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 const TR = require("./lib/throwaway-relay.js");
@@ -600,7 +606,11 @@ if (!PLOTS && !BUILD && !HOUSEHOLD && !STARTS) {
   if (2 * RADIUS <= LIMITS.START_MARGIN_M + LIMITS.END_MARGIN_M + 1) refuse([`--radius ${RADIUS} leaves too short a pass to judge`]);
 }
 
-const instances = MG.listInstances();
+// How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
+// Planned first, because a light run is not held by his own HumanityOS (MG.blockingInstances), and
+// at full graphics (--full-graphics) it waits for his program to close (waitForOperator, below).
+const BOOT_PLAN = RN.planOrRefuse("verify-copresence", { log });
+const instances = MG.blockingInstances(BOOT_PLAN.own);
 if (instances.length) {
   refuse([
     `REFUSED: HumanityOS.exe is already running (${instances.map((p) => `pid ${p.pid} ${p.exe}`).join("; ")}).`,
@@ -609,6 +619,7 @@ if (instances.length) {
     "If it is a leftover rig of ours: taskkill //PID <pid> //F",
   ]);
 }
+RN.waitForOperator(BOOT_PLAN, { exe: RIG_EXE, log });
 
 // This tree's build (or another, on purpose, with --allow-other-build
 // "<reason>", recorded in the manifest as other_build; BUG-133).
@@ -835,6 +846,10 @@ async function main() {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
     manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = panicCount();
+
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+    for (const l of RN.verdictLines(manifest.low_impact)) log(l);
     save();
     killAll();
     printVerdict("RESULT: ", manifest, OUT);
@@ -863,12 +878,12 @@ async function main() {
     // ── 3. The game, pointed at OUR relay.
     // gameplay.server_url: the sandbox's server is this run's throwaway relay, never one off this
     // computer (lib/rig-gameplay.js; spawnGame pins it and clears every saved server).
-    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", lowImpact: BOOT_PLAN.lowImpact, log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
     const child = game.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
     child.unref();
-    manifest.foreign_before = MG.foreignProcs({ pids: [gamePid, relay.pid], exe: RIG_EXE, gameOnly: true }).map(MG.describe);
+    manifest.foreign_before = MG.foreignProcs({ pids: [gamePid, relay.pid], exe: RIG_EXE, gameOnly: true, ...BOOT_PLAN.own }).map(MG.describe);
     step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
     await waitBoot(180000, game);
     step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
@@ -1076,8 +1091,12 @@ async function main() {
   // just hands back its record).
   if (heldBuilds) manifest.builds_held = heldBuilds.release();
   clearTimeout(watchdog);
-  manifest.foreign_after = MG.foreignProcs({ pids: [gamePid, relay && relay.pid].filter(Boolean), exe: RIG_EXE, gameOnly: true }).map(MG.describe);
+  manifest.foreign_after = MG.foreignProcs({ pids: [gamePid, relay && relay.pid].filter(Boolean), exe: RIG_EXE, gameOnly: true, ...BOOT_PLAN.own }).map(MG.describe);
   manifest.panics = panicCount();
+
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   // BUILT-IN DATA (BUG-133): the game's run.log and the relay's log, each line
   // where a loader served the exe's own copy of a data file instead of the tree's.
   manifest.builtin_data = [
@@ -1856,6 +1875,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
     manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = earlierPanics + panicCount();
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
     save();
     killAll();
     printPlotsVerdict("RESULT: ", manifest, out);
@@ -2036,7 +2056,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   const bootAndEnter = async (entry, label) => {
     // The sandbox's server is this run's relay (lib/rig-gameplay.js); the plot it remembers for
     // that relay (loopback) survives the pin, which is what the second boot proves.
-    plotsGame = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
+    plotsGame = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", lowImpact: BOOT_PLAN.lowImpact, log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
     const child = plotsGame.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
@@ -3006,6 +3026,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   // The relay helper removes the folder; give the game a moment to be gone
   // before the next run copies the exe over its file.
   await sleep(2000);
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   return printPlotsVerdict("RESULT: ", manifest, out);
 }
 
@@ -3437,6 +3459,10 @@ async function runBuildOnce(runStamp, cleanups) {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
     manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = panicCount();
+
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+    for (const l of RN.verdictLines(manifest.low_impact)) log(l);
     save();
     killAll();
     printBuildVerdict("RESULT: ", manifest, out);
@@ -3610,7 +3636,7 @@ async function runBuildOnce(runStamp, cleanups) {
     manifest.walkers.builder = builderRecord(A);
     step("builder", !!A.plot, `${A.name} in the world as entity ${A.id} at ${fmt(A.start)}, holding ${A.plot || "no plot"}; its welcome's ranks ${JSON.stringify(A.ranks)}`);
     save();
-    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", lowImpact: BOOT_PLAN.lowImpact, log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
     gamePid = game.child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
     game.child.unref();
@@ -3922,6 +3948,10 @@ async function runBuildOnce(runStamp, cleanups) {
   }
   clearTimeout(watchdog);
   manifest.panics = panicCount();
+
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   // BUILT-IN DATA (BUG-133), as every rig: the game's run.log and the relay's log.
   manifest.builtin_data = [
     ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
@@ -4191,6 +4221,10 @@ async function runHouseholdOnce(runStamp, cleanups) {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
     manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = panicCount();
+
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+    for (const l of RN.verdictLines(manifest.low_impact)) log(l);
     save();
     killAll();
     printHouseholdVerdict("RESULT: ", manifest, out);
@@ -4412,7 +4446,7 @@ async function runHouseholdOnce(runStamp, cleanups) {
     const wallId = herWall && Number.isInteger(herWall.piece_id) ? herWall.piece_id : null;
 
     // The game, second (p2).
-    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", lowImpact: BOOT_PLAN.lowImpact, log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
     gamePid = game.child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
     game.child.unref();
@@ -4846,6 +4880,10 @@ async function runHouseholdOnce(runStamp, cleanups) {
   }
   clearTimeout(watchdog);
   manifest.panics = panicCount();
+
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   // BUILT-IN DATA (BUG-133), as every rig: the game's run.log and the relay's log.
   manifest.builtin_data = [
     ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
@@ -5078,6 +5116,10 @@ async function runStartsOnce(runStamp, cleanups) {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
     manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = panicCount();
+
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+    for (const l of RN.verdictLines(manifest.low_impact)) log(l);
     save();
     killAll();
     printStartsVerdict("RESULT: ", manifest, out);
@@ -5185,7 +5227,7 @@ async function runStartsOnce(runStamp, cleanups) {
     if (!relay.health) throw new Error("the throwaway relay did not come up");
     game = GL.spawnGame(RIG_EXE, [], {
       fresh,
-      rigName: "verify-copresence",
+      rigName: "verify-copresence", lowImpact: BOOT_PLAN.lowImpact,
       log,
       cwd: RIG,
       detached: true,
@@ -5490,6 +5532,10 @@ async function runStartsOnce(runStamp, cleanups) {
   }
   clearTimeout(watchdog);
   manifest.panics = panicCount();
+
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   // BUILT-IN DATA (BUG-133), as every rig: the game's run.log and the relay's log.
   manifest.builtin_data = [
     ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),

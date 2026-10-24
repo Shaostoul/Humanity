@@ -33,6 +33,22 @@ const m = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 const base = baselineArg && fs.existsSync(baselineArg) ? JSON.parse(fs.readFileSync(baselineArg, "utf8")) : null;
 const baseById = base ? Object.fromEntries(base.vantages.map((v) => [v.id, v])) : {};
 
+// LOW IMPACT (2026-10-22, scripts/lib/rig-needs.js): a sweep that ran its game at minimum graphics,
+// a capped frame rate and a small window (verify-runtime's boot check beside the operator's
+// program) holds frame times of THAT, not of the game at its settings. Grading them would put a
+// number in a table that looks like a reading and is not one. Refused (exit 1: nothing graded),
+// for the sweep and for a baseline alike.
+for (const [which, man, file] of [["sweep", m, manifestPath], ["baseline", base, baselineArg]]) {
+  if (man && man.low_impact) {
+    console.error("");
+    console.error(`perf-report: REFUSED - the ${which} ${file} ran in LOW IMPACT (HUMANITY_LOW_IMPACT=${man.low_impact.value}, because of ${(man.low_impact.because || []).join(", ")}).`);
+    console.error("Its frame times are of minimum graphics at a capped frame rate, not of the game: nothing was graded.");
+    console.error("Grade a sweep run at full graphics: `just probe-sweep` waits for the operator's program to close by itself.");
+    console.error("");
+    process.exit(1);
+  }
+}
+
 const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 

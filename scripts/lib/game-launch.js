@@ -59,6 +59,17 @@
 //      the exe it starts (the game's own test, src/renderer/mod.rs), records it
 //      on the watch (shader_compiler) and in the "booted" signal, and on FXC
 //      prints lib/dxc-dlls.js fxcBanner as the rig's last lines.
+//
+//   7. The game ran at full graphics beside the operator's program when the rig
+//      meant it to run light (2026-10-22, lib/rig-needs.js): low impact
+//      (src/engine/low_impact.rs) is asked for ONLY through opts.lowImpact, which
+//      sets HUMANITY_LOW_IMPACT for the game; an inherited one is dropped, so a
+//      picture rig started from a shell that has it set never photographs a
+//      low-impact game. A game asked to run light must say it does by writing
+//      debug/low_impact.json in its folder (a stale one is deleted before the
+//      spawn); one that has not said so within lowImpactConfirmMs (5 min) is
+//      stopped and the rig refuses (exit 1): a build from before the switch would
+//      otherwise run at full graphics beside his game for the whole check.
 
 const fs = require("fs");
 const path = require("path");
@@ -140,7 +151,10 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
  *            may ask for fresh_world_each_launch, and a rig with a throwaway relay
  *            names it as server_url, which must be on this computer),
  *            lockWaitMs (how long to wait for another rig's boot lock; the
- *            machine guard's WAIT_MIN_DEFAULT) }
+ *            machine guard's WAIT_MIN_DEFAULT),
+ *            lowImpact (the HUMANITY_LOW_IMPACT value lib/rig-needs.js planBoot chose, or
+ *            null for full graphics; point 7), lowImpactConfirmMs (how long the game has to
+ *            confirm it, LOW_IMPACT_CONFIRM_MS) }
  * Refuses (exit 1, nothing started) unless `exe` is byte-identical to the exe the
  * gate judged. Always sets HUMANITY_NO_HANDOFF=1. Pins the Dev play mode, the
  * default home every launch, the rig's server and no saved servers into the config
@@ -155,13 +169,21 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
  *   handoff       the hand-off processes found and stopped (after an exit)
  *   describe()    one sentence for a rig's error, naming a hand-off when there was one
  *   expectExit()  call before the rig stops the game itself: that exit is not news
+ *   low_impact    null at full graphics, else { asked, confirmed } (confirmed: the game's
+ *                 debug/low_impact.json once it has written it)
  * }
  */
 function spawnGame(exe, args, opts = {}) {
   const rigName = opts.rigName || "rig";
   requireBootCopy(exe, opts.fresh, rigName);
   const env = { ...(opts.env || process.env), HUMANITY_NO_HANDOFF: "1" };
+  // LOW IMPACT (point 7): only the rig asks, never the shell it was started from.
+  delete env[LOW_IMPACT_ENV];
+  if (opts.lowImpact) env[LOW_IMPACT_ENV] = String(opts.lowImpact);
   const log = opts.log || console.log;
+  // The game's proof it runs light lands in its own folder's debug/ (its working directory).
+  const lowImpactFile = path.join(opts.cwd || process.cwd(), "debug", LOW_IMPACT_FILE);
+  if (opts.lowImpact) fs.rmSync(lowImpactFile, { force: true });
   // The sandbox's settings, in the config this very game reads, immediately before it starts
   // (point 4 at the top): a rig is a Dev sandbox on this computer whatever its config.json held.
   const gameplay = RG.pinSandboxGameplay(exe, env, opts.gameplay, log, rigName);
@@ -213,7 +235,7 @@ function spawnGame(exe, args, opts = {}) {
   }
   // The game exists: a parent gate's clock starts now (verify-runtime). No pid
   // means the start failed (an 'error' event follows): no boot to time.
-  if (child.pid) MG.signalPhase("booted", { rig: rigName, game_pid: child.pid, shader_compiler: compiler });
+  if (child.pid) MG.signalPhase("booted", { rig: rigName, game_pid: child.pid, shader_compiler: compiler, low_impact: opts.lowImpact || null });
   const pattern = opts.handoffPattern || /HumanityOS/i;
   let expected = false;
   const w = {
@@ -262,13 +284,68 @@ function spawnGame(exe, args, opts = {}) {
   child.on("error", (e) => {
     w.exit = `could not be started (${e.message})`;
   });
+  // LOW IMPACT, CONFIRMED (point 7): the game writes what it runs at; until it does, the rig
+  // does not know it is light. Polled, never blocking the rig's own work meanwhile.
+  w.low_impact = opts.lowImpact ? { asked: String(opts.lowImpact), confirmed: null } : null;
+  if (opts.lowImpact && child.pid) {
+    const limit = opts.lowImpactConfirmMs != null ? opts.lowImpactConfirmMs : LOW_IMPACT_CONFIRM_MS;
+    const t0 = Date.now();
+    const timer = setInterval(() => {
+      if (w.exit) return clearInterval(timer); // the rig deals with an exit
+      const c = readLowImpact(lowImpactFile);
+      if (c && c.on === true && String(c.value) === String(opts.lowImpact)) {
+        clearInterval(timer);
+        w.low_impact.confirmed = c;
+        const win = Array.isArray(c.window) ? c.window.join("x") : c.window;
+        log(`[${rigName}] low impact confirmed by the game: ${c.fps} fps, window ${win}, ${Object.keys(c.settings || {}).length} settings laid over its config (${c.preset_found ? `the "${c.preset}" preset` : "NO PRESET FOUND: frame cap and window only"})`);
+        return;
+      }
+      if (Date.now() - t0 < limit) return;
+      clearInterval(timer);
+      w.expectExit();
+      try {
+        execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
+      } catch {
+        /* already gone */
+      }
+      console.error("");
+      console.error(`${rigName}: REFUSED - the game was asked to run in low impact (HUMANITY_LOW_IMPACT=${opts.lowImpact}) and had not`);
+      console.error(`said it does (${lowImpactFile}) ${Math.round(limit / 1000)} s after it started, so it was stopped: it would have run at`);
+      console.error("full graphics beside the operator's program. A build from before src/engine/low_impact.rs does that; rebuild,");
+      console.error("or run this check when his program has closed. Nothing was judged.");
+      console.error("");
+      MG.signalPhase("refused", { rig: rigName, reason: "low_impact", headline: `${rigName}: REFUSED: the game never confirmed low impact` });
+      process.exit(1);
+    }, 500);
+    if (timer.unref) timer.unref();
+  }
   return w;
+}
+
+/** The variable that asks the game for low impact (src/engine/low_impact.rs ENV). */
+const LOW_IMPACT_ENV = "HUMANITY_LOW_IMPACT";
+/** The file the game writes in its debug/ when it runs light (low_impact.rs write_confirmation). */
+const LOW_IMPACT_FILE = "low_impact.json";
+/** How long a game asked to run light has to say it does: boot on FXC takes minutes. */
+const LOW_IMPACT_CONFIRM_MS = 5 * 60 * 1000;
+
+/** A low-impact confirmation file, or null (missing, or half written). */
+function readLowImpact(p) {
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 /** SHA-256 hex of a file (for tests and callers that build a fresh record). */
 const fileSha256 = (p) => crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
 
 module.exports = {
+  LOW_IMPACT_ENV,
+  LOW_IMPACT_FILE,
+  LOW_IMPACT_CONFIRM_MS,
+  readLowImpact,
   BUILTIN_COPY_MARKER,
   builtinDataLines,
   builtinDataRefusal,

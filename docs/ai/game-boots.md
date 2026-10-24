@@ -81,10 +81,19 @@ operator launches, so it is superseded.
 want to do on my PC ... the rest for you but, enough for me to still comfortably use my PC."**
 `scripts/pc-share-guard.ps1` (`just share-guard`; `just install-share-guard` makes it start at
 every logon) keeps every build, test program and rig copy of HumanityOS at below-normal
-priority and off the last physical CPU core. The GPU cannot be split, so the rigs' machine
-guard waits while one of his GPU-heavy programs runs (`scripts/lib/operator-apps.json`, starting
-with Helldivers 2; add his others there). Never start work that defeats either (no
-above-normal priorities, no pinning a build to every core).
+priority and off the last physical CPU core. The GPU cannot be split, so while one of his
+GPU-heavy programs runs (`scripts/lib/operator-apps.json`, starting with Helldivers 2; add his
+others there; his own HumanityOS counts too, any copy outside `.probe-rig`, a worktree, `target` or
+temp, so a behaviour rig no longer needs to close his game) a rig whose checks are about behaviour
+boots its game in LOW IMPACT beside it (`HUMANITY_LOW_IMPACT`, `src/engine/low_impact.rs`:
+minimum graphics, a frame cap, a small window, never saved), and a rig that judges the picture or
+times frames waits for it and refuses low impact (operator, 2026-10-22: "I'd rather development
+testing continue if possible ... minimum graphics vs max"). Which rig is which:
+`scripts/lib/rig-needs.js` (a new rig goes there or `just rig-tests` fails; `--low-impact` /
+`--full-graphics` override). A low-impact `verify-runtime` PASS does not cover the passes it
+turned off: before a release, run it at full graphics. Never start work that defeats any of this
+(no above-normal priorities, no pinning a build to every core, never set `HUMANITY_LOW_IMPACT` by
+hand for a picture rig).
 
 ## No Windows Firewall prompts from dev work
 

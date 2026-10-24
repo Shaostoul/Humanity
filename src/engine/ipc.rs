@@ -610,8 +610,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         return;
     };
     // Delegates to the named, unit-tested extractor above; the closure stays so
-    // the ~60 call sites below read unchanged.
-    let grab = |key: &str| -> Option<String> { showcase_value(&text, key) };
+    // the ~60 call sites below read unchanged. While a rig runs the game in low
+    // impact (engine::low_impact, 2026-10-22), the pins that would put a cost back
+    // (room_gi, bounced_light_detail, sun_shadows, godrays, ...) are HELD: the rigs
+    // send every sticky pin's release between vantages (scripts/lib/showcase-pins.js),
+    // and those releases would otherwise undo low impact a minute into the run.
+    let grab = |key: &str| -> Option<String> {
+        let v = showcase_value(&text, key)?;
+        if crate::engine::low_impact::holds_pin(key) {
+            log::info!("Showcase: {key} -> {v:?} HELD by low impact (HUMANITY_LOW_IMPACT): left as low impact set it");
+            return None;
+        }
+        Some(v)
+    };
     // Plant only when BOTH keys are present; a cam-only request just moves
     // the camera (the perpetual-showcase auto-seed owns default planting).
     if let (Some(tower), Some(plant)) = (grab("tower"), grab("plant")) {

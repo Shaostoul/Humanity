@@ -1413,7 +1413,7 @@ impl AppConfig {
         match std::fs::read_to_string(&path) {
             Ok(json) => {
                 log::info!("Loaded config from {}", path.display());
-                serde_json::from_str(&json).unwrap_or_default()
+                Self::parse_file_text(&json)
             }
             Err(_) => {
                 log::info!("No config file found at {}, using defaults", path.display());
@@ -1474,7 +1474,7 @@ impl AppConfig {
         match std::fs::read_to_string(&path) {
             Ok(json) => {
                 log::info!("Loaded config from {}", path.display());
-                Some(serde_json::from_str(&json).unwrap_or_default())
+                Some(Self::parse_file_text(&json))
             }
             Err(_) => {
                 log::info!(
@@ -1483,6 +1483,16 @@ impl AppConfig {
                 );
                 None
             }
+        }
+    }
+
+    /// config.json's text as the running game reads it: with a rig's low impact laid over it when
+    /// HUMANITY_LOW_IMPACT asks (engine::low_impact; `save_at` takes it back out, so it is never
+    /// written), else exactly as the file says. A file that does not parse reads as the defaults.
+    fn parse_file_text(json: &str) -> Self {
+        match crate::engine::low_impact::lay_over_text(json) {
+            Some(v) => serde_json::from_value(v).unwrap_or_default(),
+            None => serde_json::from_str(json).unwrap_or_default(),
         }
     }
 
@@ -1499,7 +1509,13 @@ impl AppConfig {
     /// file, then a rename: persistence.rs `write_atomic`), so a crash mid-save leaves the old
     /// file rather than a torn one that would load as the defaults.
     pub fn save_at(&self, path: &std::path::Path) {
-        if let Ok(json) = serde_json::to_string_pretty(self) {
+        // A rig's low impact (engine::low_impact) is never written: the sandbox keeps its own
+        // settings for the next run, which may be a picture rig at full graphics.
+        let text = match crate::engine::low_impact::strip_for_save(self) {
+            Some(v) => serde_json::to_string_pretty(&v),
+            None => serde_json::to_string_pretty(self),
+        };
+        if let Ok(json) = text {
             match crate::persistence::write_atomic(path, json.as_bytes()) {
                 Ok(_) => log::info!("Saved config to {}", path.display()),
                 Err(e) => log::warn!("Failed to save config to {}: {}", path.display(), e),

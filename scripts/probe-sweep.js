@@ -109,6 +109,13 @@ const G = require("./rig-graphics.js");
 // (both 2026-09-18). Neither failure looked like a failure; both produced a
 // number.
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22, lib/rig-needs.js). A sweep judges the picture
+// and times frames: while one of the operator's GPU-heavy programs runs it WAITS for it, and it
+// refuses low impact (--low-impact, or an inherited HUMANITY_LOW_IMPACT). --boot-check is the one
+// exception: verify-runtime runs the sweep as a boot-and-enter check, whose verdict is behaviour
+// (captures taken, none compared), under verify-runtime's own entry: beside his program it boots in
+// low impact and does not wait.
+const RN = require("./lib/rig-needs.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
 const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
@@ -199,6 +206,8 @@ function achievedAltKm(rig) {
   }
 }
 const KEEP_OPEN = flag("--keep-open");
+// --boot-check: this sweep is verify-runtime's boot-and-enter check (see RN above).
+const BOOT_CHECK = flag("--boot-check");
 // Expected capture width. See the header block: a resolution-dependent gate
 // judged at the wrong width is worse than no reading at all, because it looks
 // like a baseline. 2560 is the operator's own client width (2560x1440 monitor,
@@ -232,6 +241,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // The freshness gate's result (set first thing in main(), before the rig is
 // touched) and, when --allow-other-build let another build through, its record.
 let FRESH = null;
+// How this sweep boots (lib/rig-needs.js planBoot), set before the machine wait in main().
+let BOOT_PLAN = null;
 let OTHER_BUILD = null;
 
 function log(msg) {
@@ -660,6 +671,9 @@ async function main() {
   // sweep that sat waiting 150 s ran NEXT TO somebody, which is worth knowing
   // when its numbers are compared with one that did not.
   const rigExePath = path.join(RIG, "HumanityOS.exe");
+  // How this sweep boots (lib/rig-needs.js): a picture sweep waits for the operator's program and
+  // refuses low impact; a --boot-check runs light beside it.
+  BOOT_PLAN = BOOT_CHECK ? RN.planOrRefuse("verify-runtime", { log }) : RN.planOrRefuse("probe-sweep", { log });
   // Builds are waited for only with --wait-builds (a timing sweep); every run
   // waits for other games and for free memory (lib/machine-guard.js). Captures
   // beside a build are still marked contaminated below, so no timing is graded.
@@ -670,7 +684,7 @@ async function main() {
   // another rig's included, which broke the one-GPU rule and produced a sweep
   // perf-report refuses to grade anyway.
   const preBoot = MG.waitForFree({
-    own: { exe: rigExePath, waitForBuilds: flag("--wait-builds") },
+    own: { exe: rigExePath, waitForBuilds: flag("--wait-builds"), ...BOOT_PLAN.own },
     label: "pre-boot",
     rig: "probe-sweep",
     timeoutMs: WAIT_MS,
@@ -734,6 +748,7 @@ async function main() {
   const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
     fresh: FRESH,
     rigName: "probe-sweep",
+    lowImpact: BOOT_PLAN.lowImpact,
     log,
     cwd: RIG,
     detached: true,
@@ -771,7 +786,7 @@ async function main() {
   // Ownership, handed to the guard around every capture: our spawned pid PLUS
   // the rig exe path (the engine can delegate to a second copy of itself, whose
   // pid we never see - the same reason `kill` uses taskkill /T).
-  const OWN = { pids: [pid], exe: rigExePath };
+  const OWN = { pids: [pid], exe: rigExePath, ...BOOT_PLAN.own };
   // Guard one capture window: sample competing processes before the shot and
   // again after, and mark on the union. Checking both ends catches one that
   // arrives and exits INSIDE the window, which is the exact shape of the V1
@@ -1278,12 +1293,16 @@ async function main() {
           rec.capture_w = hdr.readUInt32BE(16);
           rec.capture_h = hdr.readUInt32BE(20);
         } catch { /* dimensions stay absent rather than wrong */ }
-        rec.expect_w = EXPECT_W || null;
+        // A low-impact boot check (--boot-check beside the operator's program) captures at the
+        // small window the game confirmed it opened (lib/game-launch.js), not the full one.
+        const lowWin = game.low_impact && game.low_impact.confirmed && Array.isArray(game.low_impact.confirmed.window) ? game.low_impact.confirmed.window : null;
+        const expectW = lowWin ? lowWin[0] : EXPECT_W;
+        rec.expect_w = expectW || null;
         // A blind sweep must not be mistakable for a baseline.
-        if (EXPECT_W && rec.capture_w !== EXPECT_W) {
+        if (expectW && rec.capture_w !== expectW) {
           rec.ok = false;
-          rec.error = `WRONG CAPTURE WIDTH: ${rec.capture_w}x${rec.capture_h}, expected ${EXPECT_W} wide`;
-          log(`  !! ${rec.id}: WRONG CAPTURE WIDTH ${rec.capture_w}x${rec.capture_h} (expected ${EXPECT_W} wide).`);
+          rec.error = `WRONG CAPTURE WIDTH: ${rec.capture_w}x${rec.capture_h}, expected ${expectW} wide`;
+          log(`  !! ${rec.id}: WRONG CAPTURE WIDTH ${rec.capture_w}x${rec.capture_h} (expected ${expectW} wide).`);
           log(`  !! Resolution-dependent gates (backlit canopy, crown gap, canopy overdraw) CANNOT be`);
           log(`  !! baselined from this capture. Check that the window maximized: run.log should carry`);
           log(`  !! "focus: ... maximized-without-activating to the work area". Pass --width ${rec.capture_w} to accept it.`);
@@ -1397,6 +1416,10 @@ async function main() {
     shipped_assets: SHIPPED_ASSETS,
     shipped_ok,
     expect_w: EXPECT_W || null,
+    // LOW IMPACT (2026-10-22, lib/rig-needs.js): set only for a --boot-check beside the operator's
+    // program. perf-report.js refuses to grade such a sweep: its frame times are not the game's.
+    boot_check: BOOT_CHECK,
+    low_impact: RN.recordFromRig(BOOT_PLAN, RIG),
     panics,
     // Lines of run.log where a loader served the copy built into the exe
     // instead of the tree's data file; any at all fails the sweep.

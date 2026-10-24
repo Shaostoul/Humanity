@@ -984,10 +984,20 @@ mod native_app {
             // force background explicitly. Full decision order + history:
             // src/engine/launch_focus.rs.
             let background = crate::engine::launch_focus::launch_in_background();
+            // A rig's low impact (engine::low_impact, 2026-10-22) asks for a small window, never
+            // maximized: the fewest pixels to shade while the operator uses his PC.
+            let low_impact_window = crate::engine::low_impact::window();
             let window_attrs = Window::default_attributes()
-                .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
-                .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
-                .with_maximized(true)
+                .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")));
+            let window_attrs = match low_impact_window {
+                Some((w, h)) => window_attrs
+                    .with_inner_size(winit::dpi::PhysicalSize::new(w, h))
+                    .with_maximized(false),
+                None => window_attrs
+                    .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
+                    .with_maximized(true),
+            };
+            let window_attrs = window_attrs
                 .with_active(!background)
                 // EVERY launch creates the window HIDDEN and shows it once the
                 // renderer is ready (no white flash). Background launches used
@@ -1026,6 +1036,9 @@ mod native_app {
             let t_boot = std::time::Instant::now();
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
             boot_timer.since("renderer_init", t_boot);
+            // Low impact's renderer switches that have no setting (god rays, the aurora, the
+            // Sun's glare, sun shadows): off for the whole run. A no-op in a normal game.
+            crate::engine::low_impact::hold_renderer(&mut renderer);
 
             // Both modes were created hidden. A human launch shows normally
             // (activating); a background launch shows WITHOUT activation, at
@@ -1699,7 +1712,15 @@ mod native_app {
             // no atmosphere / no clouds (see AppConfig::load_if_exists).
             if let Some(config) = boot_config {
                 config.apply_to_gui_state(&mut gui_state);
+            } else if crate::engine::low_impact::on() {
+                // A rig sandbox with no config.json yet still runs light: the overlay over the
+                // built-in defaults (none of it is ever saved back; engine::low_impact).
+                crate::engine::low_impact::lay_over_config(crate::config::AppConfig::from_gui_state(&gui_state))
+                    .apply_to_gui_state(&mut gui_state);
             }
+            // The proof a rig waits for (debug/low_impact.json) and the run.log line. A no-op in
+            // a normal game.
+            crate::engine::low_impact::write_confirmation();
             gui_state.save_slot = boot_slot;
             // The protected setup has its own file, read whether or not config.json exists or reads (10h).
             gui_state.protected.setup = crate::config::AppConfig::load_protected_setup();
@@ -16536,7 +16557,9 @@ mod native_app {
                                 // The flag clears on a genuine click-in (v0.1020),
                                 // so a deliberately-focused instance applies modes
                                 // normally from then on.
-                                if !state.background_no_cursor {
+                                // Nor a rig's low-impact window (engine::low_impact): it
+                                // stays the small window it was made, whoever clicks in.
+                                if !state.background_no_cursor && crate::engine::low_impact::window().is_none() {
                                     apply_window_mode_once(&state.window, state.gui_state.settings.window_mode);
                                 }
 

@@ -175,8 +175,11 @@ function runGate(argv, { procs = "", env = {}, onOut = () => {}, limitMs = 15000
   });
 }
 const BUILD = "4242|cargo.exe|C:\\elsewhere\\cargo.exe\n";
-// Another game on the one GPU: holds every rig, with or without --wait-builds.
-const GAME = "4242|HumanityOS.exe|C:\\elsewhere\\HumanityOS.exe\n";
+// Another RIG's game on the one GPU: holds every rig, with or without --wait-builds. A development
+// copy (under .probe-rig): since 2026-10-23 a HumanityOS anywhere else is the operator's own game,
+// one of his programs, which this behaviour gate runs beside in low impact rather than waiting
+// (lib/machine-guard.js isOperatorGame, tested in machine-guard.test.js).
+const GAME = "4242|HumanityOS.exe|C:\\Humanity\\.probe-rig\\another-rig\\HumanityOS.exe\n";
 const tail = (r) => r.out.slice(-2500);
 
 test("the gate's clock starts with the game: a machine wait longer than the gate does not trip it, a hang after the boot does", async () => {

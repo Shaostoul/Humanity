@@ -67,6 +67,12 @@ const { spawn, spawnSync, execSync } = require("child_process");
 // gating on the GAME only (listInstances); the sweep it spawns applies the
 // wider build-aware guard to its own capture windows.
 const MG = require("./lib/machine-guard.js");
+// What this gate needs from the machine (2026-10-22, lib/rig-needs.js): its verdict is behaviour
+// (boot, world entry, panics, captures taken but never compared), so while one of the operator's
+// GPU-heavy programs runs, the sweep boots the game in LOW IMPACT beside it rather than wait; the
+// verdict then says which passes the run did not cover. --low-impact asks for it anyway;
+// --full-graphics waits for his program instead (the full check, before a release).
+const RN = require("./lib/rig-needs.js");
 // Which shader compiler the probe's game ran, for the verdict (FXC is minutes slower).
 const DXC = require("./lib/dxc-dlls.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
@@ -93,7 +99,7 @@ const VALUE_FLAGS = [
   "--dry-exit",
   "--log",
 ];
-const BOOL_FLAGS = ["--keep-open", "--operator-config", "--wait-builds"];
+const BOOL_FLAGS = ["--keep-open", "--operator-config", "--wait-builds", ...RN.FLAGS];
 function unknownArgs(argv) {
   const bad = [];
   for (let i = 0; i < argv.length; i++) {
@@ -268,13 +274,20 @@ if (fresh.status !== 0) {
 OTHER_BUILD = fresh.other_build;
 
 // ── 4. Boot it ───────────────────────────────────────────────────────────────
+// Full graphics, or low impact beside the operator's program (lib/rig-needs.js). The sweep plans
+// again as this gate (--boot-check) when it boots, and gets --low-impact when this plan is light,
+// so it cannot end up at full graphics beside him.
+const BOOT_PLAN = RN.planOrRefuse("verify-runtime", { log: (m) => console.log(m) });
 const sweepArgs = [
   path.join(__dirname, "probe-sweep.js"),
   "--rig", RIG,
   "--exe", EXE,
   "--out", OUT,
   "--only", RUNTIME_VANTAGES.join(","),
+  "--boot-check",
 ];
+if (BOOT_PLAN.lowImpact) sweepArgs.push("--low-impact");
+if (args.includes("--full-graphics")) sweepArgs.push("--full-graphics");
 if (KEEP_OPEN) sweepArgs.push("--keep-open");
 // The sweep's wait for the machine has its own limit and its own refusal; the
 // gate passes its number down so both say the same thing.
@@ -508,6 +521,9 @@ function report(sweepExit) {
       `fog ${g.fog_density}  rd ${g.render_distance}  tree ${g.tree_model_distance}  godray ${g.godray_intensity}`
     );
   }
+  // LOW IMPACT (lib/rig-needs.js): the settings above are the rig's config.json, which low impact
+  // laid its minimum over without saving; say so, and what the run did not cover.
+  for (const l of RN.verdictLines(m.low_impact)) console.log(l);
   console.log("");
 
   for (const id of RUNTIME_VANTAGES) {
@@ -536,7 +552,7 @@ function report(sweepExit) {
   }
 
   if (failed === 0 && panics === 0 && sweepExit === 0) {
-    console.log(`${VERDICT}PASS  ${RUNTIME_VANTAGES.length}/${RUNTIME_VANTAGES.length} vantages entered the world and captured, panics=0`);
+    console.log(`${VERDICT}PASS  ${RUNTIME_VANTAGES.length}/${RUNTIME_VANTAGES.length} vantages entered the world and captured, panics=0${m.low_impact ? "  (LOW IMPACT: see above for what it did not cover)" : ""}`);
     console.log(`        screenshots ${rel(OUT)}`);
     console.log("-".repeat(72));
     console.log("");

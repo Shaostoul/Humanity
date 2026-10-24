@@ -80,19 +80,71 @@ test("our own rig instance is NOT a contender (by pid and by exe path)", () => {
   assert.deepStrictEqual(foreignIn(CLEAN, { pids: [], exe: "c:/humanity/.probe-rig/humanityos.exe" }), []);
 });
 
-// The operator's own programs (2026-10-22: "dedicate ... 1 GPU core to whatever I want to do on my
-// PC, like play Helldivers 2"). A GeForce cannot be split, so a rig waits while one of the
-// programs in scripts/lib/operator-apps.json runs, even a boot-only check that ignores builds.
-// Seen red first (2026-10-22) against the guard without the list: "a boot-only check booted
-// beside the operator's game / actual: 0, expected: 1".
-test("the operator's own programs hold every rig, even a boot-only check", () => {
-  const HD2 = "D:\\SteamLibrary\\steamapps\\common\\Helldivers 2\\bin\\helldivers2.exe";
-  const busy = `${CLEAN}\n7777|helldivers2.exe|${HD2}`;
-  const f = foreignIn(busy, { ...OWN, gameOnly: true });
-  assert.strictEqual(f.length, 1, "a boot-only check booted beside the operator's game");
-  assert.strictEqual(f[0].name, "helldivers2.exe");
+// The operator's own programs (scripts/lib/operator-apps.json). 2026-10-22, morning: "dedicate
+// ... 1 GPU core to whatever I want to do on my PC, like play Helldivers 2", and every rig waited
+// while one ran. 2026-10-22, evening: "I'd rather development testing continue if possible ...
+// minimum graphics vs max." So the rule is now what each rig's verdict is made of
+// (scripts/lib/rig-needs.js): a rig that judges the picture or times frames waits for his program;
+// a rig whose checks are about behaviour runs beside it with its game in LOW IMPACT
+// (own.lowImpact), and another HumanityOS still holds it (one booted instance).
+// Seen red first (2026-10-22) against the morning's guard: see the two tests below.
+const HD2 = "D:\\SteamLibrary\\steamapps\\common\\Helldivers 2\\bin\\helldivers2.exe";
+const BUSY_HD2 = `${CLEAN}\n7777|helldivers2.exe|${HD2}`;
+test("the operator's programs hold a rig that judges the picture or times frames", () => {
+  for (const own of [OWN, { ...OWN, gameOnly: true }]) {
+    const f = foreignIn(BUSY_HD2, own);
+    assert.strictEqual(f.length, 1, `a full-graphics rig (${JSON.stringify(own)}) booted beside the operator's game`);
+    assert.strictEqual(f[0].name, "helldivers2.exe");
+  }
   assert.ok(MG.psQuery().includes("Name='helldivers2.exe'"), "the guard's query never asks for the operator's programs");
   assert.ok(MG.isOperatorApp("HellDivers2.EXE"), "names match regardless of case");
+});
+
+test("a behaviour rig in low impact runs beside the operator's program, and still waits for another game", () => {
+  const f = foreignIn(BUSY_HD2, { ...OWN, gameOnly: true, lowImpact: true });
+  assert.deepStrictEqual(f, [], "a behaviour rig in low impact waited for the operator's program");
+  // One booted HumanityOS at a time still holds: low impact is no licence to boot beside another game.
+  const two = foreignIn(`${BUSY_HD2}\n9001|HumanityOS.exe|${FOREIGN_EXE}`, { ...OWN, gameOnly: true, lowImpact: true });
+  assert.deepStrictEqual(two.map((p) => p.pid), [9001], "low impact booted beside another HumanityOS");
+});
+
+test("listInstances lists HumanityOS only; operatorApps lists his programs", () => {
+  const rows = withFake(`${BUSY_HD2}\n9001|v0.1543.1_HumanityOS.exe|C:\\Humanity\\v0.1543.1_HumanityOS.exe`, () => ({
+    games: MG.listInstances().map((p) => p.pid),
+    apps: typeof MG.operatorApps === "function" ? MG.operatorApps().map((p) => p.pid) : "no operatorApps()",
+  }));
+  // Every rig that refuses on "HumanityOS is already running" asks listInstances: with his
+  // program in it, each refused while he played, whatever the rig needed.
+  assert.deepStrictEqual(rows.games, [4242, 9001], "the operator's program was listed as a HumanityOS instance");
+  // His own HumanityOS (an archive in C:\Humanity, not a rig's copy) is one of his programs too.
+  assert.deepStrictEqual(rows.apps, [7777, 9001]);
+});
+
+// HIS OWN GAME (2026-10-23, the orchestrator: "The operator's own game is running right now
+// (C:\Humanity\HumanityOS.exe): a good live test of low-impact mode. Do not close it"). His game
+// is a GPU-heavy program of his like Helldivers: a behaviour rig runs light beside it, a picture
+// rig waits for it. A DEVELOPMENT copy (a rig's, a worktree's, a target folder's, a temp folder's)
+// still holds every rig: one booted development instance at a time. Seen red first against the
+// guard without isOperatorGame: "a light rig waited for the operator's own game".
+test("the operator's own HumanityOS is his program; a development copy still holds every rig", () => {
+  const LI = { ...OWN, gameOnly: true, lowImpact: true };
+  for (const exe of ["C:\\Humanity\\HumanityOS.exe", "C:\\Humanity\\v0.1543.1_HumanityOS.exe", "C:\\Program Files\\HumanityOS\\HumanityOS.exe"]) {
+    const name = exe.split("\\").pop();
+    assert.deepStrictEqual(foreignIn(`${CLEAN}\n5150|${name}|${exe}`, LI), [], `a light rig waited for the operator's own game (${exe})`);
+    assert.strictEqual(foreignIn(`${CLEAN}\n5150|${name}|${exe}`, { ...OWN, gameOnly: true }).length, 1, `a full-graphics rig booted beside his game (${exe})`);
+    assert.deepStrictEqual(withFake(`${CLEAN}\n5150|${name}|${exe}`, () => MG.blockingInstances(LI).map((p) => p.pid)), [4242], "his game blocked a light rig's refusal check");
+  }
+  for (const exe of [
+    "C:\\Humanity\\.probe-rig\\storeys\\HumanityOS.exe",
+    "C:\\Humanity\\.claude\\worktrees\\agent-x\\target\\release\\HumanityOS.exe",
+    "C:\\Humanity\\target\\debug\\HumanityOS.exe",
+    "C:\\Users\\Shaos\\AppData\\Local\\Temp\\hos-relay-1\\HumanityOS.exe",
+    "C:\\Users\\Shaos\\AppData\\Local\\HumanityOS-probe-rig-shipped\\HumanityOS.exe",
+    "", // a path nobody may read: not his, erring loud
+  ]) {
+    assert.strictEqual(foreignIn(`${CLEAN}\n5151|HumanityOS.exe|${exe}`, LI).length, 1, `a light rig booted beside a development copy (${exe || "unreadable path"})`);
+    assert.ok(!MG.isOperatorGame({ pid: 5151, name: "HumanityOS.exe", exe }), `a development copy counted as his game (${exe || "unreadable"})`);
+  }
 });
 
 test("RED: a second game instance arriving mid-sweep marks the capture contaminated", () => {

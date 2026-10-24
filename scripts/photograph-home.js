@@ -75,6 +75,10 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22, lib/rig-needs.js): it judges the picture, so while
+// one of the operator's GPU-heavy programs runs it WAITS for it to close, and it refuses low impact
+// (--low-impact, or an inherited HUMANITY_LOW_IMPACT): minimum graphics would make it meaningless.
+const RN = require("./lib/rig-needs.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
 // The freshness gate and the boot-copy check (BUG-133).
@@ -127,6 +131,9 @@ if (running.length) {
     "One GPU, one instance (CLAUDE.md). Wait for it to exit, then run again.",
   ]);
 }
+// Refuses low impact; waits for the operator's program (lib/rig-needs.js).
+const BOOT_PLAN = RN.planOrRefuse("photograph-home");
+RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, "HumanityOS.exe") });
 if (!fs.existsSync(EXE)) {
   refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
 }

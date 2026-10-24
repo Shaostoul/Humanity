@@ -3911,6 +3911,33 @@ fail on their own, each proven red against the original mistake:
 - Tests: `scripts/tests/check-encoding.test.js`, `scripts/tests/tag-release.test.js` (temporary
   repos; push and gh are recorded, never run).
 
+### Low impact: rigs that keep running while the operator plays (2026-10-22)
+The operator: "I'd rather development testing continue if possible ... minimum graphics vs max."
+A GeForce cannot be split, so what a rig does while one of his GPU-heavy programs runs
+(`scripts/lib/operator-apps.json`, and his own HumanityOS: any copy outside a rig folder, a
+worktree, a target or a temp folder, `machine-guard.js isOperatorGame`) depends on what its verdict is made of, one table for every rig
+(`scripts/lib/rig-needs.js`): a rig whose checks are about behaviour (verify-runtime's
+boot-and-enter check, verify-storeys, verify-falls, verify-copresence and its --build, --starts and
+--household modes, verify-screens, verify-live-screen) does not wait for it, it boots its game in
+LOW IMPACT beside it; a rig that judges the picture or times frames (probe-sweep, photograph-home,
+make-clips, boot-timing, perf-report) waits for it to close and refuses low impact. `--low-impact`
+and `--full-graphics` override per run. Low impact is one environment variable the rig sets for
+its game only (`HUMANITY_LOW_IMPACT`, read once at boot, never shown to players): the rig-only
+"minimum" graphics preset laid over the sandbox config and never saved (clouds off, bounced light
+at Ambient, sun shadows, god rays, ambient occlusion and grass off, few 3D tree models), VSync off
+and a 15 fps cap, a 960 x 540 window not maximized, the god-ray, aurora and Sun-glare passes off,
+and the showcase pins that would put any of it back held. Nothing the game does changes. The game
+confirms with `debug/low_impact.json`; a game that never does is stopped. Every manifest records
+`low_impact`; perf-report refuses a low-impact sweep; a low-impact verify-runtime PASS says which
+passes it did not cover.
+- Engine: `src/engine/low_impact.rs`; hooks in `src/config.rs` (load / save), `src/lib.rs` (the
+  window, the renderer switches), `src/engine/ipc.rs` (held pins), `src/engine/launch_focus.rs`
+- Rigs: `scripts/lib/rig-needs.js`, `scripts/lib/game-launch.js` (point 7),
+  `scripts/lib/machine-guard.js` (`own.lowImpact`, `operatorApps`)
+- Data: `data/gui/graphics_presets.json` ("minimum", `rig_only`)
+- Tests: `scripts/tests/rig-needs.test.js`, `machine-guard.test.js`, `game-launch.test.js`,
+  `perf-report.test.js` (`just rig-tests`); `src/engine/low_impact.rs` tests (`just test-lib low_impact`)
+
 ### Headless UI Snapshots
 Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no extra dependency; egui_kittest was rejected over an accesskit / egui-winit 0.31.1 incompatibility), so the native UI can be reviewed without launching the app. Output lands in `tests/snapshots/`.
 - Native: `src/gui/ui_snapshots.rs`

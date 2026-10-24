@@ -2712,6 +2712,10 @@ pub struct GraphicsPreset {
     pub note: String,
     #[serde(default)]
     pub values: serde_json::Map<String, serde_json::Value>,
+    /// A preset for the verification rigs only (2026-10-22: "minimum", engine::low_impact, which
+    /// a rig asks for while the operator uses his PC): never listed in Settings.
+    #[serde(default)]
+    pub rig_only: bool,
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -2720,12 +2724,13 @@ struct GraphicsPresetsFile {
     presets: Vec<GraphicsPreset>,
 }
 
-/// The presets, read from disk each call (a click, not a frame).
+/// The presets Settings lists, read from disk each call (a click, not a frame). A `rig_only`
+/// preset (the rigs' low impact, engine::low_impact) is never among them.
 pub fn graphics_presets() -> Vec<GraphicsPreset> {
     std::fs::read_to_string("data/gui/graphics_presets.json")
         .ok()
         .and_then(|t| serde_json::from_str::<GraphicsPresetsFile>(&t).ok())
-        .map(|f| f.presets)
+        .map(|f| f.presets.into_iter().filter(|p| !p.rig_only).collect())
         .unwrap_or_default()
 }
 

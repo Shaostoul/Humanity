@@ -87,6 +87,31 @@
         "sky_milkyway_intensity": 2.0,
         "render_distance": 2000.0
       }
+    },
+    {
+      "id": "minimum",
+      "name": "Minimum (rigs only)",
+      "rig_only": true,
+      "note": "NOT listed in Settings. The graphics the verification rigs run at while the operator uses his PC (2026-10-22, HUMANITY_LOW_IMPACT, src/engine/low_impact.rs; which rigs and when: scripts/lib/rig-needs.js): laid over the sandbox config and never saved. Drawing only: clouds off, bounced light at its Ambient level, sun shadows, god rays, ambient occlusion, grass and the night-sky extras off, rain at its least, few 3D tree models. It never names a setting that changes what the game does: the water waves (water_fft is the float), the trees that stand (tree_density), the rain path (gpu_particles off moves rain to the processor), the terrain shape or streaming, the weather. Keys are config.json names; src/engine/low_impact.rs tests that each one is.",
+      "values": {
+        "cloud_quality": "low",
+        "planet_clouds": false,
+        "cloud_res_div": 4,
+        "bounced_light_detail": "ambient",
+        "sun_shadows": false,
+        "godray_intensity": 0.0,
+        "ssao_strength": 0.0,
+        "precip_density": 0.1,
+        "planet_atmo_scatter": false,
+        "sky_constellations": false,
+        "sky_milkyway_glow": false,
+        "sky_star_halos": false,
+        "sky_orbit_mode": "off",
+        "star_catalog_tier": "standard",
+        "grass_density": 0.0,
+        "tree_model_distance": 40.0,
+        "near_tree_budget": 32.0
+      }
     }
   ]
 }

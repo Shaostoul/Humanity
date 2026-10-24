@@ -143,3 +143,64 @@ test("builtinDataLines finds the marker the game writes, and the marker matches 
   assert.match(GL.builtinDataRefusal(lines), /data\/ground\/materials\.ron: it does not parse/);
   assert.strictEqual(GL.builtinDataRefusal([]), null);
 });
+
+// LOW IMPACT (point 7, 2026-10-22, lib/rig-needs.js). The rig, and only the rig, asks for it; the
+// game must say it runs light, or it is stopped. Seen red first against spawnGame without point 7:
+// "an inherited HUMANITY_LOW_IMPACT reached the game" and "the game was never asked".
+const fakeGame = (dir, { confirm }) => [
+  "-e",
+  `const fs=require('fs');const v=process.env.HUMANITY_LOW_IMPACT||null;` +
+    `fs.writeFileSync(${JSON.stringify(path.join(dir, "env.json"))},JSON.stringify(v));` +
+    (confirm
+      ? `if(v){fs.mkdirSync('debug',{recursive:true});fs.writeFileSync('debug/low_impact.json',JSON.stringify({on:true,value:v,fps:30,window:'keep',settings:{a:1},preset:'minimum',preset_found:true}));}`
+      : "") +
+    `setTimeout(()=>{},60000);`,
+];
+
+test("an inherited HUMANITY_LOW_IMPACT never reaches the game: only the rig asks", async () => {
+  const dir = fs.mkdtempSync(path.join(tmpRoot, "li-inherit-"));
+  const w = GL.spawnGame(NODE, fakeGame(dir, { confirm: false }), { fresh: judged(NODE), rigName: "test", cwd: dir, env: { ...process.env, HUMANITY_LOW_IMPACT: "1" }, log: () => {} });
+  await until(() => fs.existsSync(path.join(dir, "env.json")));
+  w.expectExit();
+  w.child.kill();
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, "env.json"), "utf8")), null, "an inherited HUMANITY_LOW_IMPACT reached the game");
+  assert.ok(!w.low_impact, "a rig that did not ask is recorded as low impact");
+});
+
+test("a rig that asks for low impact gets it, and the game's confirmation is read", async () => {
+  const dir = fs.mkdtempSync(path.join(tmpRoot, "li-ask-"));
+  const logs = [];
+  const w = GL.spawnGame(NODE, fakeGame(dir, { confirm: true }), { fresh: judged(NODE), rigName: "test", cwd: dir, lowImpact: "fps=30,window=keep", log: (m) => logs.push(m) });
+  await until(() => fs.existsSync(path.join(dir, "env.json")));
+  await until(() => w.low_impact && w.low_impact.confirmed);
+  w.expectExit();
+  w.child.kill();
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, "env.json"), "utf8")), "fps=30,window=keep", "the game was never asked");
+  assert.ok(w.low_impact && w.low_impact.confirmed, "the game's confirmation was never read");
+  assert.strictEqual(w.low_impact.confirmed.fps, 30);
+  assert.ok(logs.some((l) => /low impact confirmed by the game: 30 fps, window keep/.test(l)), logs.join("\n"));
+});
+
+test("a game asked for low impact that never confirms is stopped, and the rig refuses", () => {
+  const dir = fs.mkdtempSync(path.join(tmpRoot, "li-silent-"));
+  // A stale confirmation from an earlier run must not count: spawnGame deletes it first.
+  fs.mkdirSync(path.join(dir, "debug"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "debug", "low_impact.json"), JSON.stringify({ on: true, value: "1", fps: 15, window: [960, 540] }));
+  const pidFile = path.join(dir, "pid.txt");
+  const script = `
+    process.env.HUMANITY_RIG_LOCK = ${JSON.stringify(path.join(dir, "lock"))};
+    const GL = require(${JSON.stringify(path.join(REPO, "scripts", "lib", "game-launch.js"))});
+    const w = GL.spawnGame(process.execPath, ${JSON.stringify(fakeGame(dir, { confirm: false }))}, {
+      fresh: { result: { exe: process.execPath, exe_sha256: GL.fileSha256(process.execPath), exe_fingerprint: null } },
+      rigName: "the-test-rig", cwd: ${JSON.stringify(dir)}, lowImpact: "1", lowImpactConfirmMs: 2500, log: () => {},
+    });
+    require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(w.pid));
+    setTimeout(() => process.exit(0), 20000);
+  `;
+  const r = spawnSync(NODE, ["-e", script], { encoding: "utf8", timeout: 40000 });
+  const out = `${r.stdout}\n${r.stderr}`;
+  assert.strictEqual(r.status, 1, `a game that never confirmed low impact was left running (status ${r.status})\n${out}`);
+  assert.match(out, /the-test-rig: REFUSED - the game was asked to run in low impact/);
+  const pid = Number(fs.readFileSync(pidFile, "utf8"));
+  assert.ok(!alive(pid), "the silent game was not stopped");
+});

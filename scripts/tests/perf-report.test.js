@@ -153,3 +153,22 @@ test("a pre-boot wait is surfaced in the report header", () => {
   assert.strictEqual(r.status, 0, r.out);
   assert.match(r.out, /waited 150 s/);
 });
+
+// LOW IMPACT (2026-10-22, scripts/lib/rig-needs.js). verify-runtime's boot check runs its sweep at
+// minimum graphics beside the operator's program; those frame times are not the game's. Seen red
+// first against the report without the refusal: "a low-impact sweep was graded / actual: 0,
+// expected: 1".
+test("RED: a sweep that ran in low impact is refused, not graded", () => {
+  const li = { low_impact: { value: "1", because: ["helldivers2.exe"], confirmed: { on: true, fps: 15 } } };
+  const r = runReport(manifest([fast()], li));
+  assert.strictEqual(r.status, 1, `a low-impact sweep was graded\n${r.out}`);
+  assert.match(r.out, /REFUSED - the sweep .* ran in LOW IMPACT/);
+  assert.doesNotMatch(r.out, /All captured vantages at\/above floor/);
+  // As a baseline too: a low-impact baseline would make every real sweep look like a regression or a win.
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "perf-report-base-"));
+  const basePath = path.join(baseDir, "baseline.json");
+  fs.writeFileSync(basePath, JSON.stringify(manifest([fast({ fps: 12 })], li)));
+  const b = runReport(manifest([fast()]), ["--baseline", basePath]);
+  assert.strictEqual(b.status, 1, `a low-impact baseline was compared against\n${b.out}`);
+  assert.match(b.out, /REFUSED - the baseline/);
+});

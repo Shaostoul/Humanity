@@ -79,6 +79,11 @@ const G = require("./rig-graphics.js");
 // timings, so it keeps refusing on the GAME only; a concurrent build slows it
 // but cannot change its verdict.
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22): its checks are about behaviour (the wall
+// screen's own texture, not the window), so while one of the operator's GPU-heavy programs runs it
+// boots its game in LOW IMPACT beside it rather than wait. --low-impact asks for it anyway;
+// --full-graphics waits for his program instead (lib/rig-needs.js).
+const RN = require("./lib/rig-needs.js");
 const DXC = require("./lib/dxc-dlls.js");
 const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
@@ -418,7 +423,11 @@ console.log("");
 
 // 1. ONE GPU: nothing else may be running, the operator's game included.
 const runningInstances = MG.listInstances;
-const instances = runningInstances();
+// How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
+// Planned first, because a light run is not held by his own HumanityOS (MG.blockingInstances), and
+// at full graphics (--full-graphics) it waits for his program to close (waitForOperator, below).
+const BOOT_PLAN = RN.planOrRefuse("verify-screens", { log });
+const instances = MG.blockingInstances(BOOT_PLAN.own);
 if (instances.length) {
   refuse([
     `REFUSED: HumanityOS.exe is already running (pid ${instances.map((p) => `${p.pid} ${p.exe}`).join("; ")}).`,
@@ -427,6 +436,7 @@ if (instances.length) {
     `leftover rig of ours (exe under ${rel(RIG)}): taskkill //PID <pid> //F`,
   ]);
 }
+RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, "HumanityOS.exe"), log });
 
 // 2. The binary must be this tree's build (or another, on purpose, with
 //    --allow-other-build "<reason>", recorded in the manifest as other_build).
@@ -617,7 +627,7 @@ async function main() {
   // v*_HumanityOS.exe, BUG-133), and an exit we did not ask for is watched for.
   const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
     fresh,
-    rigName: "verify-screens",
+    rigName: "verify-screens", lowImpact: BOOT_PLAN.lowImpact,
     log,
     cwd: RIG,
     detached: true,
@@ -648,6 +658,10 @@ async function main() {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing the rig`);
     manifest.steps.push({ id: "timeout", ok: false, error: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = panicCount();
+
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+    for (const l of RN.verdictLines(manifest.low_impact)) log(l);
     save();
     kill();
     printVerdict("RESULT: ", manifest, OUT);
@@ -821,6 +835,10 @@ async function main() {
   clearTimeout(watchdog);
   // (c) Panics, read after everything else so a late one still counts.
   manifest.panics = panicCount();
+
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   // BUILT-IN DATA (BUG-133): each run.log line where a loader served the exe's
   // own copy of a data file instead of the tree's.
   manifest.builtin_data = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");

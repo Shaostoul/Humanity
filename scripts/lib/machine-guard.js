@@ -44,6 +44,11 @@
 //                        at BelowNormal priority and put each back afterwards.
 //                        See the section above it for what it may and may not do.
 //
+// And, since 2026-10-22, the operator's own programs (operator-apps.json): a rig
+// that judges the picture or times frames waits for them; a rig whose checks are
+// about behaviour runs beside them with its game in LOW IMPACT (own.lowImpact;
+// which rig is which: lib/rig-needs.js).
+//
 // And, since 2026-10-21, the boot lock and the refusal (lib/boot-lock.js):
 //   5. waitForFree() takes the machine-wide boot lock when the machine goes
 //      quiet, and counts another rig's held lock as NOT quiet, so rigs that
@@ -98,9 +103,12 @@ const GAME = "HumanityOS.exe";
 const isGameName = (name) => /humanityos\.exe$/i.test(String(name || ""));
 
 /// The operator's own GPU-heavy programs (scripts/lib/operator-apps.json, 2026-10-22). A GeForce
-/// cannot be split between him and the rigs, so while one of these runs every rig waits, even a
-/// boot-only check that ignores builds; they are never "ours". Read once; a missing or broken file
-/// means none (a rig must still work on a machine without it).
+/// cannot be split between him and the rigs. What a rig does while one runs depends on what its
+/// verdict is made of (scripts/lib/rig-needs.js): a rig that judges the picture or times frames
+/// WAITS for it to close; a rig whose checks are about behaviour runs beside it with its game in
+/// LOW IMPACT (src/engine/low_impact.rs), and says so with own.lowImpact (foreignProcs). They are
+/// never "ours". Read once; a missing or broken file means none (a rig must still work on a
+/// machine without it).
 const OPERATOR_APPS = (() => {
   try {
     const j = JSON.parse(fs.readFileSync(path.join(__dirname, "operator-apps.json"), "utf8"));
@@ -110,6 +118,19 @@ const OPERATOR_APPS = (() => {
   }
 })();
 const isOperatorApp = (name) => OPERATOR_APPS.includes(String(name || "").toLowerCase());
+
+/// Is this HumanityOS the operator's OWN game (2026-10-23)? His game is a GPU-heavy program of his
+/// like any other in operator-apps.json: a rig that judges the picture or times frames waits for
+/// it, and a behaviour rig runs beside it in low impact instead of closing it. What is his and
+/// what is a development copy is decided by the path, the way the PC share guard decides it
+/// (scripts/pc-share-guard.ps1 Test-DevProcess): a copy under a .probe-rig folder, a worktree, a
+/// target folder or a temp folder (the rigs' throwaway relays, the storeys sandbox, the tests'
+/// rigs), or the shipped-assets rig, is a development copy and still holds every rig (one booted
+/// development instance at a time). Anything else (C:\Humanity\HumanityOS.exe, a
+/// v<version>_HumanityOS.exe archive, an installed copy) is his. A path nobody may read is NOT his:
+/// erring loud, it holds every rig.
+const DEV_COPY_PATH = /\\\.probe-rig|\\\.claude\\worktrees\\|\\target\\(debug|release)\\|\\temp\\|\\tmp\\|HumanityOS-probe-rig/i;
+const isOperatorGame = (p) => !!p && isGameName(p.name) && !!p.exe && !DEV_COPY_PATH.test(String(p.exe).replace(/\//g, "\\"));
 
 /// The build tools among WATCHED: everything watched that is not the game. One
 /// list of what a build is, so a build added to WATCHED is also held back by
@@ -182,9 +203,25 @@ function listProcs() {
 }
 
 /// Only the game. verify-runtime and verify-screens gate on this: their rule is
-/// "no second renderer", which a compile does not violate.
+/// "no second renderer", which a compile does not violate. The operator's own
+/// programs are not HumanityOS and are not listed here (2026-10-22: for a day they
+/// were, and every rig that refuses on another instance refused while he played);
+/// what each rig does about them is operatorApps() and scripts/lib/rig-needs.js.
 function listInstances() {
-  return listProcs().filter((p) => !p.name || isGameName(p.name) || isOperatorApp(p.name));
+  return listProcs().filter((p) => !p.name || isGameName(p.name));
+}
+
+/// The operator's own GPU-heavy programs running now: those in operator-apps.json, and his own
+/// HumanityOS (isOperatorGame).
+function operatorApps() {
+  return listProcs().filter((p) => isOperatorApp(p.name) || isOperatorGame(p));
+}
+
+/// The HumanityOS instances in a rig's way: every one, except the operator's own game when the
+/// rig runs light beside it (own.lowImpact). For the rigs that refuse at once on another instance
+/// rather than wait (verify-copresence, verify-screens, verify-live-screen).
+function blockingInstances(own = {}) {
+  return listInstances().filter((p) => !(own.lowImpact && isOperatorGame(p)));
 }
 
 const sameName = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
@@ -210,12 +247,20 @@ const sameExe = (a, b) =>
 ///               own timeout). Timings from such a run are not readings, so
 ///               the sweep still marks every capture beside a build as
 ///               contaminated.
+///
+/// `own.lowImpact` - this rig boots its game in LOW IMPACT (scripts/lib/rig-needs.js
+///               planBoot, for a rig whose checks are about behaviour): the
+///               operator's own programs (operator-apps.json) are then NOT in
+///               its way, and it runs beside them. Without it they are, and the
+///               rig waits for them to close (a rig that judges the picture or
+///               times frames, or a behaviour rig run with --full-graphics).
 function foreignProcs(own = {}) {
   const pids = new Set((own.pids || []).map(Number));
   const exe = own.exe || "";
   return listProcs().filter((p) => {
     if (pids.has(p.pid)) return false;
-    if (isOperatorApp(p.name)) return true; // the operator is using the GPU: always wait
+    if (isGameName(p.name) && sameExe(p.exe, exe)) return false; // our own rig copy, wherever its folder is (never a build)
+    if (isOperatorApp(p.name) || isOperatorGame(p)) return !own.lowImpact; // his program (or his own game): in the way unless we run light beside it
     if (isGameName(p.name) || !p.name) return !sameExe(p.exe, exe);
     return !own.gameOnly; // a build: a contender unless only games count
   });
@@ -843,9 +888,13 @@ module.exports = {
   WATCHED,
   GAME,
   isGameName,
-  // 2026-10-22: the operator's own GPU-heavy programs hold every rig.
+  // 2026-10-22: the operator's own GPU-heavy programs: a picture or timing rig waits for
+  // them, a behaviour rig runs beside them in low impact (scripts/lib/rig-needs.js).
   OPERATOR_APPS,
   isOperatorApp,
+  isOperatorGame,
+  operatorApps,
+  blockingInstances,
   parseProcs,
   listProcs,
   listInstances,

@@ -250,6 +250,10 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22): its checks are about behaviour, so while one
+// of the operator's GPU-heavy programs runs it boots its game in LOW IMPACT beside it rather than
+// wait (--low-impact asks for it anyway; --full-graphics waits for his program instead).
+const RN = require("./lib/rig-needs.js");
 const DXC = require("./lib/dxc-dlls.js");
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 const GL = require("./lib/game-launch.js");
@@ -393,7 +397,9 @@ if (DRY) {
 // elsewhere, until 2026-10-21).
 const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
 if (!(WAIT_MIN > 0)) refuse([`verify-falls: REFUSED - --wait-min must be a number of minutes above 0, got "${opt("--wait-min", "")}". Nothing was booted.`]);
-const wait = MG.waitForFree({ own: { exe: path.join(RIG, "HumanityOS.exe"), gameOnly: true }, label: "verify-falls", rig: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
+// How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
+const BOOT_PLAN = RN.planOrRefuse("verify-falls", { log });
+const wait = MG.waitForFree({ own: { exe: path.join(RIG, "HumanityOS.exe"), gameOnly: true, ...BOOT_PLAN.own }, label: "verify-falls", rig: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
 if (!wait.free) {
   MG.refuseBusy(wait, {
     rig: "verify-falls",
@@ -616,7 +622,9 @@ async function main() {
     detached: true,
     stdio: "ignore",
     env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+    lowImpact: BOOT_PLAN.lowImpact,
   });
+  manifest.low_impact = RN.manifestRecord(BOOT_PLAN, null);
   const pid = game.child.pid;
   game.child.unref();
   let killed = false;
@@ -897,6 +905,7 @@ async function main() {
   manifest.panics = panicCount();
   manifest.builtin_data = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");
   manifest.falls_log = fallLines();
+  manifest.low_impact = RN.manifestRecord(BOOT_PLAN, game.low_impact && game.low_impact.confirmed);
   save();
   try {
     fs.copyFileSync(LOG, path.join(OUT, "run.log"));
@@ -906,6 +915,7 @@ async function main() {
 
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   if (manifest.builtin_data.length) log(GL.builtinDataRefusal(manifest.builtin_data));
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   if (manifest.falls_log.length) {
     log("run.log's fall lines:");
     for (const l of manifest.falls_log) log(`  ${l.replace(/^\[[^\]]*\]\s*/, "")}`);

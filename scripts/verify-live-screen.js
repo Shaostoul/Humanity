@@ -47,6 +47,11 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
+// What this rig needs from the machine (2026-10-22): its checks are about behaviour (the wall
+// screen's own texture, not the window), so while one of the operator's GPU-heavy programs runs it
+// boots its game in LOW IMPACT beside it rather than wait. --low-impact asks for it anyway;
+// --full-graphics waits for his program instead (lib/rig-needs.js).
+const RN = require("./lib/rig-needs.js");
 const DXC = require("./lib/dxc-dlls.js");
 const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // For its loopback-only check and address only; this rig runs its relay
@@ -278,7 +283,11 @@ console.log("");
 console.log("verify-live-screen  a real relay, a real stream, a real wall screen");
 console.log("");
 
-const instances = MG.listInstances();
+// How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
+// Planned first, because a light run is not held by his own HumanityOS (MG.blockingInstances), and
+// at full graphics (--full-graphics) it waits for his program to close (waitForOperator, below).
+const BOOT_PLAN = RN.planOrRefuse("verify-live-screen", { log });
+const instances = MG.blockingInstances(BOOT_PLAN.own);
 if (instances.length) {
   refuse([
     `REFUSED: HumanityOS.exe is already running (pid ${instances.map((p) => `${p.pid} ${p.exe}`).join("; ")}).`,
@@ -287,6 +296,7 @@ if (instances.length) {
     "If it is a leftover rig of ours: taskkill //PID <pid> //F",
   ]);
 }
+RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, "HumanityOS.exe"), log });
 
 // This tree's build (or another, on purpose, with --allow-other-build
 // "<reason>", recorded in the manifest as other_build; BUG-133).
@@ -528,6 +538,10 @@ async function main() {
     log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
     manifest.steps.push({ id: "timeout", ok: false, error: `run exceeded ${TIMEOUT_MS / 60000} min` });
     manifest.panics = panicCount();
+
+    manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+    for (const l of RN.verdictLines(manifest.low_impact)) log(l);
     save();
     killAll();
     printVerdict("RESULT: ", manifest, OUT);
@@ -621,7 +635,7 @@ async function main() {
     // v*_HumanityOS.exe), and an exit we did not ask for is watched for.
     game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
       fresh,
-      rigName: "verify-live-screen",
+      rigName: "verify-live-screen", lowImpact: BOOT_PLAN.lowImpact,
       log,
       cwd: RIG,
       detached: true,
@@ -766,6 +780,10 @@ async function main() {
   }
   clearTimeout(watchdog);
   manifest.panics = panicCount();
+
+  manifest.low_impact = RN.recordFromRig(BOOT_PLAN, RIG);
+
+  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   // BUILT-IN DATA (BUG-133): the game's run.log and the relay's log, each line
   // where a loader served the exe's own copy of a data file instead of the tree's.
   manifest.builtin_data = [
