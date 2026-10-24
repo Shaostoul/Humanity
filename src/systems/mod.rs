@@ -14,6 +14,9 @@ pub mod encumbrance;
 /// What the home's machines hold (battery charge, tank litres, vessel
 /// contents), kept across a restart and across world entry (2026-09-27).
 pub mod machine_levels;
+/// What each home machine drew over its last game day, the record every daily-energy figure
+/// reads (2026-10-22).
+pub mod day_energy;
 pub mod combat;
 pub mod quests;
 pub mod crafting;

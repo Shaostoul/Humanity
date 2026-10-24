@@ -17,8 +17,10 @@
 //!   is reserved that was not;
 //! - a machine rests at its keep target (the mill's 20 flour);
 //! - an electric machine works only on power the home could have spared: the
-//!   Usage meter's day average of what the home makes less what it uses
-//!   (`day_power_balance`), paid out no faster than the home made it. A home
+//!   Usage meter's day average of what the home makes less what it uses, each
+//!   machine at what it really drew over its last game day where it has run
+//!   one (`day_power_balance`, `systems::day_energy`), paid out no faster than
+//!   the home made it. A home
 //!   that does not cover its own day runs no electric machine while away;
 //! - a batch still running when the time runs out is left running, where
 //!   the player finds it.
@@ -26,7 +28,7 @@
 //! What this never does is the doc's "must NOT advance offline": a machine
 //! only turns stock the player chose to automate into its product.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::{ActiveCraft, CraftingSystem, Recipe, RecipeRegistry};
@@ -36,9 +38,9 @@ use crate::systems::inventory::{Inventory, ItemRegistry};
 /// DataStore key for the time away handed to the machines.
 pub const AWAY_WORK: &str = "crafting_away_work";
 
-/// The sun-hours the construction page reads the Usage meter at. Only a panel
-/// with no site `average_watts` uses it.
-const METER_SUN_HOURS: f32 = 4.5;
+/// The sun-hours the pages read the Usage meter at (only a panel with no site
+/// `average_watts` uses it).
+use crate::machines::METER_SUN_HOURS;
 
 /// Most batches one return may catch up, across every machine. A real home
 /// runs out of inputs or reaches its keep targets long before this; it only
@@ -66,60 +68,30 @@ pub struct AwayWork {
 
 /// The home's power balance averaged over a day, in watts, as the Usage meter
 /// counts both sides (`MachineHome::utility_meters`: each panel's yield at the
-/// site, a turbine's site average, no backstop genset, every machine's day
-/// average draw): `[Station-supplied, Realistic]` ship life support. Negative
-/// when the home does not make what it uses. This is the whole of the power an
-/// electric machine may draw while the player is away: the doc's rule that
-/// nothing runs on power the home could not have supplied, and the batteries
-/// are not a source (they only move a day's power from noon to night).
+/// site, a turbine's site average, no backstop genset, every machine's day):
+/// `[Station-supplied, Realistic]` ship life support. Negative when the home
+/// does not make what it uses. This is the whole of the power an electric
+/// machine may draw while the player is away: the doc's rule that nothing runs
+/// on power the home could not have supplied, and the batteries are not a
+/// source (they only move a day's power from noon to night).
 ///
-/// A space heater is the one exception to the meter's day averages (the
-/// review of BUG-155, 2026-10-05). How much of the day its thermostat runs
-/// it depends on the air it stands in, which the meter cannot see, so the
-/// meter charges it its full draw; the time away charges each heater in
-/// `heater_draw_w` (by instance id, saved with the home: `heater_draws`)
-/// the draw its thermostat was running it at instead. A heater with none
-/// there (placed since the save, or a save from before) keeps the meter's
-/// full draw.
-pub fn day_power_balance(home: &crate::machines::MachineHome, heater_draw_w: &BTreeMap<String, f32>) -> [f32; 2] {
-    // What the heaters' thermostats spared of what the meter charges them, W:
-    // the same in both modes, since a heater is not ship life support.
-    let heaters_spared: f32 = home
-        .all_instances()
-        .iter()
-        .filter_map(|inst| {
-            let def = home.catalog.get(&inst.machine).filter(|d| d.heats_w > 0.0)?;
-            let ran = heater_draw_w.get(&inst.id)?;
-            let charged = def.average_load_watts(crate::machines::MeterBasis::default(), false);
-            Some(charged - ran.clamp(0.0, charged))
-        })
-        .sum();
+/// Each machine is charged what it really drew over its last game day, from
+/// the simulation's record saved with the home (`recorded`,
+/// `systems::day_energy`, 2026-10-22): a fan or a humidifier at what its
+/// controller ran it at in the room it stands in, a heater at what its
+/// thermostat did. One that has not run a whole day yet (placed since, or a
+/// new game) is charged its data's estimate, which for a heater is its full
+/// draw. Until 2026-10-22 only a heater had a figure of its own here, the draw
+/// its thermostat was running it at when the game was saved (the review of
+/// BUG-155, 2026-10-05); the record replaced that with a day of its draw.
+pub fn day_power_balance(home: &crate::machines::MachineHome, recorded: &crate::systems::day_energy::DayEnergy) -> [f32; 2] {
     let balance = |life_support_on_grid: bool| {
-        home.utility_meters(METER_SUN_HOURS, crate::machines::MeterBasis { life_support_on_grid })
+        home.utility_meters(METER_SUN_HOURS, crate::machines::MeterBasis { life_support_on_grid, recorded: Some(recorded) })
             .into_iter()
             .find(|m| m.utility == "power")
-            .map_or(0.0, |m| (m.generation - m.demand) * 1000.0 / 24.0 + heaters_spared)
+            .map_or(0.0, |m| (m.generation - m.demand) * 1000.0 / 24.0)
     };
     [balance(false), balance(true)]
-}
-
-/// What each placed space heater draws now, W, by its machine instance id:
-/// its watts for the share of the time its thermostat runs it, as the air
-/// step last set it (`farming::heat`; a heater the electrical sim has shed
-/// asks for what it would draw with power). The share settles within minutes
-/// of the air reaching the thermostat's setting and holds while the air
-/// around it does, which the time away does not change: flat out where the
-/// heater never gets its air to 24 C (a grow room, the home's own air), about
-/// an eighth of the time in a mushroom rack's fruiting tent. A heater the air
-/// step has not measured yet is at the draw it was spawned with, its full
-/// watts, so a save written before then charges it in full, as before. Saved
-/// with the home (`WorldSave::heater_draw_w`) for `day_power_balance`.
-pub fn heater_draws(world: &hecs::World) -> BTreeMap<String, f32> {
-    world
-        .query::<(&crate::ecs::components::MachineInstanceId, &crate::ecs::components::SpaceHeater, &crate::ecs::components::PowerConsumer)>()
-        .iter()
-        .map(|(_e, (id, _h, pc))| (id.0.clone(), pc.draw_watts.max(0.0)))
-        .collect()
 }
 
 /// Meter what the time away drew from the ship's reactor (2026-09-27,

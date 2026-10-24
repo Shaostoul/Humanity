@@ -260,7 +260,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // The home's food, computed from the crops in its placed grow machines: the
             // same figure the machine cards and the garden overview sum.
             let grown_kcal = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, grown_kcal, power, water, air);
+            // Each loop's live daily energy (2026-10-22): the machines as they ran over their last
+            // game day, by the meter the Construction page shows.
+            let basis = crate::machines::MeterBasis {
+                life_support_on_grid: state.garden_pests.life_support_realistic,
+                recorded: Some(&state.machine_day_energy),
+            };
+            let metered: Vec<Option<String>> = state
+                .homestead_loops
+                .iter()
+                .map(|l| l.meter.zip(state.home_machines.as_ref()).and_then(|(m, h)| h.loop_meter_line(m, crate::machines::METER_SUN_HOURS, basis)))
+                .collect();
+            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, &metered, grown_kcal, power, water, air);
         });
 }
 
@@ -315,6 +326,7 @@ fn draw_design(
     towers: &[TowerConfig],
     compat: &[TowerCompat],
     loops: &[crate::machines::HomeLoop],
+    metered: &[Option<String>],
     grown_kcal: f32,
     power: LivePower,
     water: LiveWater,
@@ -526,7 +538,7 @@ fn draw_design(
                     .color(theme.text_muted()),
                 );
                 ui.add_space(theme.spacing_xs);
-                for l in loops {
+                for (i, l) in loops.iter().enumerate() {
                     let (mark, mark_color) = if l.closes_given(grown_kcal) {
                         ("closed", theme.success())
                     } else {
@@ -545,6 +557,10 @@ fn draw_design(
                         widgets::detail_row(ui, theme, "  grown", &grown);
                     }
                     widgets::detail_row(ui, theme, "  supply", &l.supply);
+                    // As the home runs (2026-10-22): measured over the last game day, or estimated.
+                    if let Some(Some(line)) = metered.get(i) {
+                        widgets::detail_row(ui, theme, "  running", line);
+                    }
                     ui.label(RichText::new(&l.note).size(theme.font_size_small).color(theme.text_secondary()));
                     ui.add_space(theme.spacing_xs);
                 }

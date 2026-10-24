@@ -244,13 +244,14 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   it uses has nothing to spare and runs no electric machine while away, and
   the notice says so instead of leaving an idle machine unexplained.
   Batteries are not a source: they move a day's power from noon to night,
-  they do not add to it. One machine is not charged the meter's figure: a
-  space heater, which the meter charges its full 1,500 W because it cannot
-  see the air the heater stands in, is charged the draw its thermostat was
-  running it at when the game was saved (`WorldSave::heater_draw_w`,
-  2026-10-05): about 182 W in a mushroom rack's fruiting tent, its full
-  1,500 W in a grow room or the home's own air, which it never warms to its
-  24 C. No automated machine in the shipped homes has a
+  they do not add to it. Each machine is charged what it really drew over
+  its last game day, from the day record saved with the home
+  (`WorldSave::machine_day_energy`, `systems::day_energy`, 2026-10-22), and
+  its data's estimate until it has run one: a space heater about 182 W in a
+  mushroom rack's fruiting tent, its full 1,500 W in a grow room or the
+  home's own air, which it never warms to its 24 C. The time away adds
+  nothing to the record. (From 2026-10-05 only a heater had a figure of its
+  own here, its draw at the moment of the save, `heater_draw_w`.) No automated machine in the shipped homes has a
   power role today, and neither shipped home makes what it uses (the meter
   of 2026-09-27), so this rule bites the moment one does
   (`the_shipped_homes_have_no_power_to_spare_while_away` pins it).

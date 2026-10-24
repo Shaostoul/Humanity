@@ -305,38 +305,41 @@ fn the_heat_step_keeps_every_joule() {
     assert!((one - many.warmed_k).abs() < 1e-9, "{one} against {}", many.warmed_k);
 }
 
-/// THE TIME AWAY CHARGES A HEATER WHAT ITS THERMOSTAT RAN IT AT (the second
-/// seam review of BUG-155, 2026-10-05). While the player is away the power
-/// ledger charges the home's machines the Usage meter's day averages
-/// (`crafting::away::day_power_balance`), and the meter cannot see the air a
-/// heater stands in, so it charged every heater its full 1,500 W, 36 kWh a
-/// day, even one its thermostat runs an eighth of the time.
+/// THE TIME AWAY CHARGES EACH MACHINE THE DAY IT REALLY DREW (the second seam
+/// review of BUG-155, 2026-10-05; the day record, 2026-10-22). While the
+/// player is away the power ledger charges the home's machines the Usage
+/// meter's day (`crafting::away::day_power_balance`), and a heater's data
+/// says only its full 1,500 W, 36 kWh a day, even for one its thermostat runs
+/// an eighth of the time.
 ///
 /// Two of the shipped catalog's heaters, spawned the way the engine spawns
 /// them: one in a mushroom rack's fruiting tent (the shipped tent of
 /// data/garden/grow_media.ron, 1.3 x 1.9 x 0.7 m around 22.7 kg of
 /// substrate, standing in no room, so the air around it stays at its own
-/// temperature), one in a grow room the size of the family home's
-/// greenhouse. By hand the tent's walls and top, 2 x (1.3 + 0.7) x 1.9 + 1.3
-/// x 0.7 = 8.51 m2, lose 53.1 W a degree, and its fresh air
-/// (`tent_fresh_air_m3_h`, 22.6 m3 an hour) about 7.6 W, so its heater holds
-/// it 3 C over its 21 C on about 182 W, 12% of the time; the greenhouse's
-/// never reaches 24 C and runs flat out. The save keeps both draws (through
-/// JSON), and the time away `resume_home` hands the machines, with the
-/// shipped family home and the two heaters placed in it, has a day's balance
-/// better than the meter's by the tent heater's unused 1,318 W in both life
-/// support modes: the flat-out heater is charged its full 1,500 W, the tent's
-/// its 182.
+/// temperature), one in a greenhouse-sized grow room, 44.5 x 21 m and 6 m
+/// tall. By hand the tent's walls and top, 2 x (1.3 + 0.7) x 1.9 + 1.3 x 0.7
+/// = 8.51 m2, lose 53.1 W a degree, and its fresh air (`tent_fresh_air_m3_h`,
+/// 22.6 m3 an hour) about 7.6 W, so its heater holds it 3 C over its 21 C on
+/// about 182 W, 12% of the time; the greenhouse's never reaches 24 C and runs
+/// flat out. They run a game day and two hours with the machines' power tick
+/// recording what each drew (`systems::day_energy`); the save keeps that day
+/// (through the save file), it comes back with the home, and the time away
+/// `resume_home` hands the machines, with the shipped family home and the two
+/// heaters placed in it, has a day's balance better than the meter's estimate
+/// by the tent heater's unused 1,318 W in both life support modes: the
+/// flat-out heater is charged its full 1,500 W, the tent's its 182.
 ///
-/// Seen red with the saved draws ignored, the code before this fix in effect:
-///   Station-supplied: the time away charges the heaters 0.0 W less than their
-///   full draw, not the tent heater's unused 1317.8 W
-/// and with the save not keeping them (`extract_world_save` without
-/// `heater_draw_w`): "the save has heater_tent's draw: {}".
+/// Seen red (2026-10-23) with `MachineHome::day_draw` reading only the data:
+///   "Station-supplied: the time away charges the heaters 0.0 W less than their
+///   full draw, not the tent heater's unused 1317.8 W"
+/// and with `save_home_at` not writing the record: "the save has heater_tent's
+/// day: None". Until 2026-10-22 the save kept each heater's draw at the moment
+/// it was written (`heater_draw_w`); the record replaced it with a day of it.
 #[cfg(feature = "native")]
 #[test]
-fn the_time_away_charges_a_heater_what_its_thermostat_ran_it_at() {
+fn the_time_away_charges_each_machine_the_day_it_drew() {
     use crate::machines::{MachineHome, MachineInstance};
+    use crate::systems::day_energy;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let tent = crate::systems::grow_machines::load_grow_media(&root.join("data"))
         .into_iter()
@@ -346,7 +349,9 @@ fn the_time_away_charges_a_heater_what_its_thermostat_ran_it_at() {
     let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [44.5, 6.0, 21.0], ..Default::default() };
     let bed = GrowPlot { id: "bed_a".into(), pos: [20.0, 0.0, 10.0], ..Default::default() };
     let rack = GrowPlot { id: "rack_a".into(), pos: [60.0, 0.0, 5.0], enclosure: Some(tent.clone()), ..Default::default() };
-    let data = store(vec![greenhouse], vec![bed, rack]);
+    let mut data = store(vec![greenhouse], vec![bed, rack]);
+    day_energy::register(&mut data);
+    data.insert("power_status", Mutex::new(crate::systems::electrical::PowerStatus::default()));
 
     // The shipped family home, with the two heaters placed in it and spawned.
     let mut home = MachineHome::load(&root.join("data/machines/home.ron")).expect("home.ron parses");
@@ -366,31 +371,51 @@ fn the_time_away_charges_a_heater_what_its_thermostat_ran_it_at() {
         crate::engine::home_spawn::spawn_home_machine_entity(&mut world, &inst, &def, &empty, &empty, None, None);
         home.instances.push(inst);
     }
+    // A supply on their island (0, the spawn's with no wiring) that carries both.
+    world.spawn((
+        crate::ecs::components::PowerGenerator { output_watts: 10_000.0, fuel_per_second: 0.0, active: true },
+        crate::ecs::components::PowerCircuit { island: 0 },
+    ));
     let mut sys = FarmingSystem::new();
-    run(&mut sys, &mut world, &data, 30, 5.0);
+    let mut power = crate::systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
+    // 26 game hours, a tick a tenth of one (5 s at the store's 72x): the day the
+    // record keeps starts after the heaters have settled.
+    for _ in 0..260 {
+        power.tick(&mut world, 5.0, &data);
+        sys.tick(&mut world, 5.0, &data);
+    }
 
     // The tent's heater by hand; the greenhouse's flat out.
     let d = air();
     let g_tent = 6.24 * (2.0 * (1.3 + 0.7) * 1.9 + 1.3 * 0.7) + air_j_m3_k(21.0) * d.tent_fresh_air_m3_h(22.7) / 3600.0;
     let tent_w = 3.0 * g_tent;
     assert!((tent_w - 182.2).abs() < 0.1, "by hand, the tent's heater draws {tent_w} W");
-    let saved = crate::save_load::extract_world_save(&world);
-    let saved: crate::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&saved).unwrap()).unwrap();
-    let draw = |id: &str| f64::from(*saved.heater_draw_w.get(id).unwrap_or_else(|| panic!("the save has {id}'s draw: {:?}", saved.heater_draw_w)));
-    assert!((draw("heater_tent") - tent_w).abs() < 0.01, "the tent's heater saved at {} W, by hand {tent_w} W", draw("heater_tent"));
-    assert!((draw("heater_greenhouse") - 1500.0).abs() < 1e-3, "the greenhouse's flat out: {} W", draw("heater_greenhouse"));
+    // Saved through the save file, as the game saves.
+    let dir = std::env::temp_dir().join(format!("hos_day_energy_away_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("saves").join("offline_home.json");
+    crate::save_load::save_home_at(&path, &world, &[], &data, true, None);
+    let saved = crate::persistence::load_world(&path).expect("the save reads back");
+    let _ = std::fs::remove_dir_all(&dir);
+    let day = |id: &str| saved.machine_day_energy.day_of(id, "heater").map(|d| d.average_w());
+    let tent_day = day("heater_tent").unwrap_or_else(|| panic!("the save has heater_tent's day: {:?}", day("heater_tent")));
+    assert!((tent_day - tent_w).abs() < 0.01, "the tent's heater drew {tent_day} W over its day, by hand {tent_w} W");
+    let greenhouse_day = day("heater_greenhouse").expect("the save has heater_greenhouse's day");
+    assert!((greenhouse_day - 1500.0).abs() < 1e-3, "the greenhouse's flat out: {greenhouse_day} W");
 
-    // An hour later the game resumes the home: the time away it hands the
-    // machines charges each heater its saved draw.
+    // An hour later the game resumes the home: the record comes back with it,
+    // and the time away it hands the machines charges each heater its day.
     let mut save = saved;
     save.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() - 3600;
     let mut away_data = DataStore::new();
     away_data.insert("auto_mine_order", Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
     crate::systems::crafting::register(&mut away_data);
     crate::systems::livestock::register(&mut away_data);
+    day_energy::register(&mut away_data);
     let mut fresh = hecs::World::new();
     crate::save_load::apply_save_to_world(&mut fresh, &save);
     crate::save_load::resume_home(&mut fresh, &away_data, &save, true, 1.0, Some(&home));
+    assert_eq!(day_energy::snapshot(&away_data).machines, save.machine_day_energy.machines, "the record comes back with the home");
     let work = crate::systems::crafting::away::take(&away_data).expect("an hour away handed to the machines");
     let meter = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
     for (mode, (away, full)) in ["Station-supplied", "Realistic"].iter().zip(work.power_balance_w.iter().zip(meter.iter())) {
@@ -630,10 +655,10 @@ fn greenhouse_w_k() -> f64 {
 /// its 24 C, so flat out: it draws its 620 W, not the 2,814.8 W it gives.
 /// The COP follows the sheet's table as the air it draws from cools: 2.63 at
 /// -8.3 C (17 F), 3.585 at 0 C, its last point's 1.89 below -25 C. And the
-/// bill is its draw: the save keeps 620 W for it (`heater_draws`), and the
-/// family home with it placed is 620 W a day-average worse off, not 2,814.8,
-/// whether the time away charges its saved draw or, with none saved, the
-/// meter's full draw (`day_power_balance`, both Ship life support modes).
+/// bill is its draw: its recorded day is 620 W (`systems::day_energy`), and
+/// the family home with it placed is 620 W a day-average worse off, not
+/// 2,814.8, whether the time away charges that day or, with none recorded,
+/// the meter's full draw (`day_power_balance`, both Ship life support modes).
 ///
 /// Seen red (2026-10-20), each mutation alone: with the COP left out
 /// (`heat::heaters` reading the heat pump as a resistance heater, its heat
@@ -674,9 +699,15 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
         assert_eq!((h[0].watts, h[0].kind), (620.0, super::heat::HeaterKind::HeatPump), "its draw stays 620 W");
     }
 
-    // The bill is its draw, never its heat.
-    let saved = crate::systems::crafting::away::heater_draws(&world);
-    assert_eq!(saved.get("heat_pump_t").copied(), Some(620.0), "the save keeps its draw: {saved:?}");
+    // The bill is its draw, never its heat: a day of it recorded by the power tick.
+    let mut rec = DataStore::new();
+    crate::systems::day_energy::register(&mut rec);
+    for _ in 0..24 {
+        crate::systems::day_energy::record_world(&world, &rec, 3600.0);
+    }
+    let saved = crate::systems::day_energy::snapshot(&rec);
+    let pump_day = saved.day_of("heat_pump_t", "heat_pump").map(|d| d.average_w());
+    assert!(pump_day.is_some_and(|w| (w - 620.0).abs() < 1e-6), "its day is its draw: {pump_day:?}");
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut home = crate::machines::MachineHome::load(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let without = crate::systems::crafting::away::day_power_balance(&home, &Default::default());

@@ -82,8 +82,10 @@ pub enum MachinePower {
     /// humidifier holding a setpoint, a scrubber cycling) averages this over a
     /// day in its home at full planting, as the model measures it
     /// (farming::life_support_tests pins each figure to the measured balance).
-    /// The static power meters charge it for the day instead of `watts`.
-    /// Absent = the meters charge its full draw (or its idle draw).
+    /// Since 2026-10-22 it is only the ESTIMATE: the power meters charge a
+    /// placed machine what it really drew over its last game day
+    /// (`systems::day_energy`), and this until it has run one. Absent = the
+    /// estimate is its full draw (or its idle draw).
     Consumer {
         watts: f32,
         priority: u8,
@@ -509,15 +511,23 @@ impl MachineDef {
         self.dehumidifies_m3_h > 0.0 || self.scrubs_co2_kg_day > 0.0
     }
 
+    /// One of the machines that hold an air's water or carbon dioxide (2026-10-22, the Air
+    /// loop's live line): an air handler, a CO2 scrubber, a fan or a humidifier.
+    pub fn holds_air(&self) -> bool {
+        self.is_ship_life_support() || self.ventilation_m3_h > 0.0 || self.humidifies_l_h > 0.0
+    }
+
     /// The watts this machine takes from the home's grid AVERAGED over a day,
-    /// for the static power meters (2026-09-27; they charged every consumer its
-    /// full draw for 24 hours, so an air handler read 7.8 kWh a day whatever it
-    /// did): none for storage, none for a ship life support machine the
-    /// station's plant powers (`basis`), a controller-driven machine's measured
-    /// `average_watts`, a work station's idle draw (its working draw is
-    /// `working_extra_watts`, charged by the hour it works), a grow light
-    /// (`grow_light`) for its timer's `GROW_LIGHT_DUTY_HOURS`, and anything else
-    /// its full electrical load.
+    /// BY ITS DATA (2026-09-27; the meters charged every consumer its full draw
+    /// for 24 hours, so an air handler read 7.8 kWh a day whatever it did):
+    /// none for storage, none for a ship life support machine the station's
+    /// plant powers (`basis`), a controller-driven machine's `average_watts`, a
+    /// work station's idle draw (its working draw is `working_extra_watts`,
+    /// charged by the hour it works), a grow light (`grow_light`) for its
+    /// timer's `GROW_LIGHT_DUTY_HOURS`, and anything else its full electrical
+    /// load. Since 2026-10-22 this is the ESTIMATE: a placed machine the
+    /// simulation records is charged what it really drew over its last game
+    /// day once it has run one (`MachineHome::day_draw`).
     pub fn average_load_watts(&self, basis: MeterBasis, grow_light: bool) -> f32 {
         if matches!(self.power, Some(MachinePower::Battery { .. })) {
             return 0.0;
@@ -532,6 +542,17 @@ impl MachineDef {
             _ if grow_light => full * GROW_LIGHT_DUTY_HOURS / 24.0,
             _ => full,
         }
+    }
+
+    /// Whether the simulation's day record decides this machine's daily figure
+    /// (2026-10-22, `systems::day_energy`): a machine on the grid with a power
+    /// role of its own, whose draw the system that runs it sets as it goes (an
+    /// air machine's controller, a heater's thermostat, a grow light's timer, a
+    /// steady load's own watts). Not a work station: its working draw is
+    /// charged by the hour it works (`working_extra_watts`), on top of the day,
+    /// so its day stays its idle draw.
+    pub fn day_is_recorded(&self) -> bool {
+        matches!(self.power, Some(MachinePower::Consumer { idle_watts: None, .. }))
     }
 
     /// What a work station draws over its idle draw while a craft runs at it
@@ -771,6 +792,26 @@ pub struct HomeLoop {
     /// whether it closes is computed against this, not read from `closes`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub food_demand_kcal: Option<f32>,
+    /// Which of the home's daily energy figures the Home page shows live under this loop
+    /// (2026-10-22, `MachineHome::loop_meter_line`), read the way the Construction page's
+    /// meter reads them: each machine at what it drew over its last game day once it has run
+    /// one, else its data's estimate. The loop's own words describe the shipped home as
+    /// measured; this line is the home as it runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meter: Option<LoopMeter>,
+}
+
+/// The live daily-energy figure a Home page loop shows (`HomeLoop::meter`, 2026-10-22).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LoopMeter {
+    /// The power meter: what the home uses a day and what it makes.
+    Power,
+    /// What the machines that hold the home's air draw a day: the air handlers, the CO2
+    /// scrubbers, the fans and the humidifiers (`MachineDef::holds_air`).
+    Air,
+    /// What the machines that move, clean and heat its water draw a day: every water machine
+    /// that is not one of the air machines (whose condensate line makes them water machines too).
+    Water,
 }
 
 impl HomeLoop {
@@ -939,17 +980,65 @@ pub struct BuildabilityReport {
     pub checks: Vec<BuildabilityCheck>,
 }
 
-/// What the static power meters charge a day (2026-09-27): who powers ship
-/// life support. The default is the game's default mode, Station-supplied.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct MeterBasis {
+/// What the power meters charge a day (2026-09-27): who powers ship life
+/// support, and (2026-10-22) what each machine really drew. The default is the
+/// game's default mode, Station-supplied, with nothing recorded.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MeterBasis<'a> {
     /// Settings > Gameplay > Ship life support is Realistic: the home's grid
     /// powers the air handlers and the CO2 scrubber, which the meters then
-    /// charge at their `average_watts`, and the home runs on what it makes and
-    /// stores. False (Station-supplied): the ship's reactor powers them and
-    /// feeds the home's grid past what the home makes (`UtilityMeter::reactor`,
+    /// charge for their day, and the home runs on what it makes and stores.
+    /// False (Station-supplied): the ship's reactor powers them and feeds the
+    /// home's grid past what the home makes (`UtilityMeter::reactor`,
     /// 2026-09-27); they are not charged to the home's grid line.
     pub life_support_on_grid: bool,
+    /// The simulation's record of each placed machine's last game day
+    /// (`systems::day_energy`, 2026-10-22). A machine with a whole day on it
+    /// is charged that day; one without, its data's figure, the estimate
+    /// (`MachineHome::day_draw`). None: every figure from the data.
+    pub recorded: Option<&'a crate::systems::day_energy::DayEnergy>,
+}
+
+/// The sun-hours the pages and the time away read the power meter at. Only a panel with no site
+/// `average_watts` uses it (the self-sufficiency model's representative 4.5).
+pub const METER_SUN_HOURS: f32 = 4.5;
+
+/// Where a placed machine's daily figure comes from (2026-10-22).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DaySource {
+    /// The simulation's record of what it drew over its last game day
+    /// (`systems::day_energy`).
+    Measured,
+    /// Its data's figure (`MachineDef::average_load_watts`), until it has run
+    /// a whole game day: `hours` of that day are recorded so far.
+    Estimated { hours: f32 },
+    /// Its data's figure, which the record does not decide: a work station's
+    /// idle draw (its working draw is charged by the hour it works), a machine
+    /// whose electrical port carries its continuous draw with no power role of
+    /// its own (a tower's pump), a battery's none.
+    Data,
+}
+
+/// A placed machine's draw averaged over a day, W, and where the figure comes
+/// from (`MachineHome::day_draw`, 2026-10-22).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DayDraw {
+    /// What it needs over a day: what it drew, and what it asked for while shed.
+    pub watts: f32,
+    /// Of that, what it asked for while its island had shed it (only ever
+    /// measured).
+    pub shed_watts: f32,
+    pub source: DaySource,
+}
+
+/// One placed machine's line in a power meter's account (2026-10-22): the
+/// figure it is charged and where that comes from, so a page can say which
+/// figures are measured and which are estimated.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeterSource {
+    pub id: String,
+    pub machine: String,
+    pub draw: DayDraw,
 }
 
 /// A placed machine whose catalog id names it a grow light (`grow_light`, or a
@@ -983,6 +1072,89 @@ pub struct UtilityMeter {
     /// 0 in the Realistic mode, where the home runs on its own.
     pub reactor: f32,
     pub returned: f32,
+    /// Power only (2026-10-22): every placed machine that draws power, with the
+    /// figure the meter charges it and where that comes from (measured over its
+    /// last game day, or its data's estimate). The ship life support machines
+    /// the station powers are listed too, at what the reactor gives them.
+    pub sources: Vec<MeterSource>,
+}
+
+impl UtilityMeter {
+    /// How many of the figures the record decides are measured, and how many
+    /// are still the data's estimate (2026-10-22). Figures only ever from the
+    /// data (`DaySource::Data`) are in neither.
+    pub fn measured_and_estimated(&self) -> (usize, usize) {
+        self.sources.iter().fold((0, 0), |(m, e), s| match s.draw.source {
+            DaySource::Measured => (m + 1, e),
+            DaySource::Estimated { .. } => (m, e + 1),
+            DaySource::Data => (m, e),
+        })
+    }
+
+    /// The machines whose figure is measured, and those whose figure is still the data's
+    /// estimate, each grouped by type for a page (2026-10-22): (label, how many, kWh a day
+    /// together), sorted by label. `catalog` gives each type its label.
+    pub fn source_groups(&self, catalog: &BTreeMap<String, MachineDef>) -> [Vec<(String, usize, f32)>; 2] {
+        let measured = self.sources.iter().filter(|s| s.draw.source == DaySource::Measured);
+        let estimated = self.sources.iter().filter(|s| matches!(s.draw.source, DaySource::Estimated { .. }));
+        [group_sources(measured, catalog), group_sources(estimated, catalog)]
+    }
+}
+
+/// `sources` grouped by their machines' labels (`catalog`): (label, how many, kWh a day
+/// together), sorted by label (2026-10-22).
+fn group_sources<'a>(sources: impl Iterator<Item = &'a MeterSource>, catalog: &BTreeMap<String, MachineDef>) -> Vec<(String, usize, f32)> {
+    let mut by_label: BTreeMap<String, (usize, f32)> = BTreeMap::new();
+    for s in sources {
+        let label = catalog.get(&s.machine).map(|d| d.label.clone()).filter(|l| !l.is_empty()).unwrap_or_else(|| s.machine.clone());
+        let g = by_label.entry(label).or_default();
+        g.0 += 1;
+        g.1 += s.draw.watts * 24.0 / 1000.0;
+    }
+    by_label.into_iter().map(|(label, (n, kwh))| (label, n, kwh)).collect()
+}
+
+/// A machine card's line for its daily energy (2026-10-22), from its `MachineHome::day_draw`.
+pub fn day_draw_line(d: &DayDraw) -> String {
+    let kwh = d.watts * 24.0 / 1000.0;
+    match d.source {
+        DaySource::Measured if d.shed_watts > 0.0 => format!(
+            "{kwh:.2} kWh a day, measured over its last game day ({:.2} kWh of it asked for while its power was shed)",
+            d.shed_watts * 24.0 / 1000.0
+        ),
+        DaySource::Measured => format!("{kwh:.2} kWh a day, measured over its last game day"),
+        DaySource::Estimated { hours } => format!(
+            "about {kwh:.2} kWh a day, its data's estimate; measured once it has run a whole game day ({:.0} of 24 hours so far)",
+            hours.floor()
+        ),
+        DaySource::Data => format!("{kwh:.2} kWh a day, from its data"),
+    }
+}
+
+/// One line of a page's account of a group of machines (2026-10-22): "Air handler x7, 36.9
+/// kWh/day", the count only when there are several.
+pub fn source_group_line(groups: &[(String, usize, f32)]) -> String {
+    groups
+        .iter()
+        .map(|(label, n, kwh)| if *n > 1 { format!("{label} x{n}, {kwh:.1} kWh/day") } else { format!("{label}, {kwh:.1} kWh/day") })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// The sentence a power figure adds about where its machines' figures come
+/// from (2026-10-22), for `n_measured` measured and `n_estimated` estimated.
+pub fn day_sources_sentence(n_measured: usize, n_estimated: usize) -> String {
+    let machines = |n: usize| if n == 1 { "1 machine's".to_string() } else { format!("{n} machines'") };
+    match (n_measured, n_estimated) {
+        (0, 0) => String::new(),
+        (m, 0) => format!("; {} draw measured over the last game day", machines(m)),
+        (0, e) => format!("; {} draw estimated from their data until they have run a whole game day", machines(e)),
+        (m, e) => format!(
+            "; {} draw measured over the last game day, {} estimated from their data until they have run one",
+            machines(m),
+            machines(e)
+        ),
+    }
 }
 
 /// Build one meter from a utility's daily generation + demand, with a plain-language, NON-PUNITIVE
@@ -1014,6 +1186,7 @@ fn make_utility_meter(utility: &str, generation: f32, demand: f32, unit: &str) -
         backstop_fuel_lph: 0.0,
         reactor: 0.0,
         returned: 0.0,
+        sources: Vec::new(),
     }
 }
 
@@ -1874,6 +2047,78 @@ impl MachineHome {
         })
     }
 
+    /// What the placed machine `inst` (of catalog type `def`) draws averaged over a day, W, and
+    /// where that figure comes from (2026-10-22, the operator's "Do rooms not automatically
+    /// calculate their volumes on the fly?"): what it really drew over its last game day, from
+    /// the simulation's record (`recorded`, `systems::day_energy`), once it has run a whole one;
+    /// until then, and for a machine the record does not decide (`MachineDef::day_is_recorded`),
+    /// its data's figure (`MachineDef::average_load_watts`). Its own draw, whoever powers it:
+    /// `grid_day_draw` says what of it the home's grid carries.
+    ///
+    /// Before this a controller-driven machine was charged the `average_watts` a person had
+    /// measured once in the shipped home, so a room resized, a fan moved or a player's own room
+    /// left the figure where it was (`day_energy_tests`).
+    pub fn day_draw(&self, inst: &MachineInstance, def: &MachineDef, recorded: Option<&crate::systems::day_energy::DayEnergy>) -> DayDraw {
+        let estimate = def.average_load_watts(MeterBasis { life_support_on_grid: true, recorded: None }, is_grow_light(&inst.machine));
+        if !def.day_is_recorded() {
+            return DayDraw { watts: estimate, shed_watts: 0.0, source: DaySource::Data };
+        }
+        match recorded.and_then(|r| r.day_of(&inst.id, &inst.machine)) {
+            Some(day) => DayDraw {
+                watts: day.average_w() as f32,
+                shed_watts: (day.shed_wh / crate::systems::day_energy::DAY_HOURS as f64) as f32,
+                source: DaySource::Measured,
+            },
+            None => DayDraw {
+                watts: estimate,
+                shed_watts: 0.0,
+                source: DaySource::Estimated { hours: recorded.map_or(0.0, |r| r.hours_of(&inst.id, &inst.machine)) as f32 },
+            },
+        }
+    }
+
+    /// What the placed machine `inst` takes from the home's GRID averaged over a day under
+    /// `basis` (2026-10-22): its `day_draw`, or nothing for a ship life support machine the
+    /// station's plant powers (Station-supplied).
+    pub fn grid_day_draw(&self, inst: &MachineInstance, def: &MachineDef, basis: MeterBasis) -> DayDraw {
+        let d = self.day_draw(inst, def, basis.recorded);
+        if def.is_ship_life_support() && !basis.life_support_on_grid {
+            DayDraw { watts: 0.0, shed_watts: 0.0, ..d }
+        } else {
+            d
+        }
+    }
+
+    /// The live line a Home page loop shows (`HomeLoop::meter`, 2026-10-22): for `Power`, what
+    /// the home uses a day and what it makes, by the power meter under `basis`; for `Air` and
+    /// `Water`, what that loop's machines draw a day, by type. Each says how many of its figures
+    /// are measured over the last game day and how many are still the data's estimate. None when
+    /// nothing in the home answers it.
+    pub fn loop_meter_line(&self, which: LoopMeter, sun_hours: f32, basis: MeterBasis) -> Option<String> {
+        let power = self.utility_meters(sun_hours, basis).into_iter().find(|m| m.utility == "power")?;
+        let catalog = &self.catalog;
+        let pick = |s: &MeterSource| {
+            let Some(def) = catalog.get(&s.machine) else { return false };
+            match which {
+                LoopMeter::Power => true,
+                LoopMeter::Air => def.holds_air(),
+                LoopMeter::Water => def.is_water_machine() && !def.holds_air(),
+            }
+        };
+        let picked = UtilityMeter { sources: power.sources.iter().filter(|s| pick(s)).cloned().collect(), ..power.clone() };
+        let (measured, estimated) = picked.measured_and_estimated();
+        let how = day_sources_sentence(measured, estimated);
+        if which == LoopMeter::Power {
+            return Some(format!("uses {:.1} kWh/day, makes {:.1}, by the power meter{how}", power.demand, power.generation));
+        }
+        if picked.sources.is_empty() {
+            return None;
+        }
+        let kwh: f32 = picked.sources.iter().map(|s| s.draw.watts * 24.0 / 1000.0).sum();
+        let groups = group_sources(picked.sources.iter(), catalog);
+        Some(format!("its machines draw {kwh:.1} kWh/day ({}){how}", source_group_line(&groups)))
+    }
+
     pub fn utility_meters(&self, sun_hours: f32, basis: MeterBasis) -> Vec<UtilityMeter> {
         let (mut supply_watts, mut consumer_watts) = (0.0f32, 0.0f32);
         let (mut backstop_w, mut backstop_lph) = (0.0f32, 0.0f32);
@@ -1881,6 +2126,7 @@ impl MachineHome {
         let mut life_support_watts = 0.0f32; // Station-supplied: what the reactor gives ship life support
         let (mut water_prod, mut water_dem) = (0.0f32, 0.0f32);
         let (mut data_sup, mut data_dem) = (0.0f32, 0.0f32);
+        let mut sources = Vec::new();
         let all = self.all_instances();
         for inst in &all {
             if let Some(def) = self.catalog.get(&inst.machine) {
@@ -1888,10 +2134,15 @@ impl MachineHome {
                 let (w, lph) = def.backstop_watts();
                 backstop_w += w;
                 backstop_lph += lph;
-                // A battery is STORAGE, not demand (fixed v0.664; `average_load_watts` gives it 0).
-                consumer_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
+                // Each machine's day (2026-10-22): measured once it has run one, else its data's
+                // estimate. A battery is STORAGE, not demand (fixed v0.664; it draws 0 here).
+                let day = self.day_draw(inst, def, basis.recorded);
+                consumer_watts += self.grid_day_draw(inst, def, basis).watts;
                 if def.is_ship_life_support() && !basis.life_support_on_grid {
-                    life_support_watts += def.average_load_watts(MeterBasis { life_support_on_grid: true }, false);
+                    life_support_watts += day.watts;
+                }
+                if day.watts > 0.0 || def.day_is_recorded() {
+                    sources.push(MeterSource { id: inst.id.clone(), machine: inst.machine.clone(), draw: day });
                 }
                 working_watts += def.working_extra_watts();
                 water_prod += def.water_production_lpm();
@@ -1939,6 +2190,10 @@ impl MachineHome {
                     m.summary.push_str(&format!("; {:.1} kWh/day goes back to the ship", m.returned));
                 }
             }
+            // Where the figures come from (2026-10-22): measured, or the data's estimate.
+            m.sources = sources;
+            let (measured, estimated) = m.measured_and_estimated();
+            m.summary.push_str(&day_sources_sentence(measured, estimated));
             meters.push(m);
         }
         // WATER: L/day (lpm over 1440 min).
@@ -1976,6 +2231,8 @@ impl MachineHome {
     pub fn grow_light_report(&self, sun_hours: f32, basis: MeterBasis) -> Option<GrowLightReport> {
         let mut count = 0usize;
         let mut grow_watts = 0.0f32;
+        // The lights' day (2026-10-22): measured once each has run one, else its timer's hours.
+        let (mut lights_day_watts, mut lights_measured) = (0.0f32, 0usize);
         let (mut supply_watts, mut other_watts) = (0.0f32, 0.0f32);
         for inst in self.all_instances() {
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
@@ -1985,10 +2242,13 @@ impl MachineHome {
             if is_grow_light(&inst.machine) {
                 count += 1;
                 grow_watts += def.electrical_load_watts();
+                let day = self.grid_day_draw(&inst, def, basis);
+                lights_day_watts += day.watts;
+                lights_measured += usize::from(day.source == DaySource::Measured);
             } else {
                 // What the rest takes averaged over a day, as utility_meters charges it
-                // (2026-09-27; batteries none).
-                other_watts += def.average_load_watts(basis, false);
+                // (2026-09-27; batteries none; measured or estimated, 2026-10-22).
+                other_watts += self.grid_day_draw(&inst, def, basis).watts;
             }
         }
         if count == 0 {
@@ -1997,7 +2257,7 @@ impl MachineHome {
         let generation_kwh_day = supply_watts * 24.0 / 1000.0;
         let other_demand_kwh_day = other_watts * 24.0 / 1000.0;
         let headroom_kwh_day = generation_kwh_day - other_demand_kwh_day;
-        let draw_kwh_day = grow_watts * GROW_LIGHT_DUTY_HOURS / 1000.0;
+        let draw_kwh_day = lights_day_watts * 24.0 / 1000.0;
         let (verdict, tail) = if draw_kwh_day > generation_kwh_day {
             (
                 GrowLightVerdict::ExceedsGeneration,
@@ -2023,9 +2283,12 @@ impl MachineHome {
             )
         };
         let plural = if count == 1 { "light" } else { "lights" };
-        let summary = format!(
-            "{count} grow {plural} draw {draw_kwh_day:.1} kWh/day ({grow_watts:.0} W x {GROW_LIGHT_DUTY_HOURS:.0} h) -- {tail}"
-        );
+        let how = match lights_measured {
+            0 => format!("{grow_watts:.0} W x {GROW_LIGHT_DUTY_HOURS:.0} h, estimated until they have run a whole game day"),
+            n if n == count => "measured over the last game day".to_string(),
+            n => format!("{n} of them measured over the last game day, the rest estimated at their timer's {GROW_LIGHT_DUTY_HOURS:.0} h"),
+        };
+        let summary = format!("{count} grow {plural} draw {draw_kwh_day:.1} kWh/day ({how}) -- {tail}");
         Some(GrowLightReport {
             count,
             watts: grow_watts,
@@ -2100,7 +2363,8 @@ impl MachineHome {
                 if !matches!(def.power, Some(MachinePower::Battery { .. })) {
                     consumer_watts += def.electrical_load_watts();
                 }
-                average_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
+                // Measured over its last game day once it has run one (2026-10-22).
+                average_watts += self.grid_day_draw(inst, def, basis).watts;
                 match &def.power {
                     Some(MachinePower::Solar { peak_watts, .. }) => solar_peak += peak_watts,
                     Some(MachinePower::Generator { watts, fuel_lph, .. }) => {
@@ -3656,20 +3920,20 @@ mod tests {
             paid: Default::default(),
         };
         let power = |basis: MeterBasis| home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").unwrap();
-        let (station, realistic) = (power(MeterBasis { life_support_on_grid: false }), power(MeterBasis { life_support_on_grid: true }));
+        let (station, realistic) = (power(MeterBasis { life_support_on_grid: false, recorded: None }), power(MeterBasis { life_support_on_grid: true, recorded: None }));
         // Station-supplied: the handler 0, the idle stove 0, the light 100 W x 6 h, the load 100 W x 24 h.
         assert!((station.demand - 3.0).abs() < 1e-3, "station {}", station.demand);
         // Realistic: plus the handler's 200 W average for the day.
         assert!((realistic.demand - 7.8).abs() < 1e-3, "realistic {}", realistic.demand);
         assert!(station.summary.contains("1.2 kW more while a craft runs"), "{}", station.summary);
-        let report = home.buildability_report(4.5, MeterBasis { life_support_on_grid: true });
+        let report = home.buildability_report(4.5, MeterBasis { life_support_on_grid: true, recorded: None });
         assert!(report.checks.iter().any(|c| c.name == "Energy balance" && c.detail.contains("< 7.8 consumed")), "{:?}", report.checks);
 
         // The shipped family home: the modes differ by its air handlers' measured average.
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
         let family = MachineHome::load(&path).expect("home.ron parses");
         let kwh = |basis: MeterBasis| family.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").unwrap().demand;
-        let (s, r) = (kwh(MeterBasis { life_support_on_grid: false }), kwh(MeterBasis { life_support_on_grid: true }));
+        let (s, r) = (kwh(MeterBasis { life_support_on_grid: false, recorded: None }), kwh(MeterBasis { life_support_on_grid: true, recorded: None }));
         let Some(MachinePower::Consumer { average_watts: Some(avg), .. }) = family.catalog["air_handler"].power else { panic!("an average") };
         let handlers = family.all_instances().iter().filter(|i| i.machine == "air_handler").count() as f32;
         let old: f32 = family
@@ -3782,7 +4046,7 @@ mod tests {
             // The Energy loop states the meter's figures, and whether the demand closes against
             // what the home makes on its own.
             let power = |basis: MeterBasis| home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").expect("a power meter");
-            let (station, realistic) = (power(MeterBasis { life_support_on_grid: false }).demand, power(MeterBasis { life_support_on_grid: true }).demand);
+            let (station, realistic) = (power(MeterBasis { life_support_on_grid: false, recorded: None }).demand, power(MeterBasis { life_support_on_grid: true, recorded: None }).demand);
             let made = power(MeterBasis::default()).generation;
             let energy = home.loops.iter().find(|l| l.name == "Energy").expect("an Energy loop");
             let (said_station, said_realistic) = (stated(&energy.demand, " kWh/day Station-supplied"), stated(&energy.demand, " kWh/day in the Realistic mode"));
@@ -3791,10 +4055,10 @@ mod tests {
             if let Some(m) = home.utility_meters(4.5, MeterBasis::default()).into_iter().find(|m| m.utility == "power") {
                 println!("  summary: {}", m.summary);
             }
-            if let Some(m) = home.utility_meters(4.5, MeterBasis { life_support_on_grid: true }).into_iter().find(|m| m.utility == "power") {
+            if let Some(m) = home.utility_meters(4.5, MeterBasis { life_support_on_grid: true, recorded: None }).into_iter().find(|m| m.utility == "power") {
                 println!("  Realistic summary: {}", m.summary);
             }
-            for c in home.buildability_report(4.5, MeterBasis::default()).checks.iter().chain(home.buildability_report(4.5, MeterBasis { life_support_on_grid: true }).checks.iter()) {
+            for c in home.buildability_report(4.5, MeterBasis::default()).checks.iter().chain(home.buildability_report(4.5, MeterBasis { life_support_on_grid: true, recorded: None }).checks.iter()) {
                 if c.name == "Energy balance" || c.name == "Power source" {
                     println!("  {}: {:?} {}", c.name, c.status, c.detail);
                 }
@@ -4679,7 +4943,7 @@ mod tests {
         let mut ship = MachineHome::load_file(&src.join("ship.ron")).expect("ship.ron parses");
         ship.conduit_nodes.push(ConduitNode { id: "commons_main".into(), pos: (70.0, 0.0, 30.0), tier: 0, kind: "water".into(), grid_tie: true });
         ship.conduit_edges.push(ConduitEdge { from: ConduitEnd::Node("commons_main".into()), to: ConduitEnd::Machine("aqua_c1".into()), kind: "water".into() });
-        ship.loops.push(HomeLoop { name: "Commons water".into(), demand: "d".into(), supply: "s".into(), closes: true, weakest: false, note: String::new(), food_demand_kcal: None });
+        ship.loops.push(HomeLoop { name: "Commons water".into(), demand: "d".into(), supply: "s".into(), closes: true, weakest: false, note: String::new(), food_demand_kcal: None, meter: None });
         ship.write_ron(&dir.join("ship.ron")).unwrap();
 
         let mut layout = MachineHome::load(&dir.join("home.ron")).expect("loads merged");

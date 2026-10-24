@@ -684,9 +684,12 @@ carbon monoxide this guide is about.
   room to lose heat the way single glass does, 6.24 W for each square
   metre of wall and ceiling and each degree it is warmer than the air
   around it, the University of Georgia's figure for a glass greenhouse.
-  So one heater flat out holds a 300 m3 room about 1 C warmer and never
-  reaches 24 C; it warms the family home's 5,607 m3 greenhouse by about
-  0.13 C, and the whole home's air by a few hundredths of a degree. In a
+  So one heater flat out holds a room 10 m by 10 m and 3 m tall about
+  1 C warmer and never reaches 24 C; it warms a greenhouse-sized room,
+  44.5 m by 21 m and 6 m tall, by about 0.13 C, and the whole home's air
+  by a few hundredths of a degree. The game measures each of your rooms
+  from its walls, floor and ceiling as they stand, so a heater in your
+  own room does what that room's size and walls make it do. In a
   mushroom rack's small fruiting tent it would run about 25 C over its
   room if its thermostat did not stop it at 24 C. That is the real lesson
   of the Georgia sizing rule above: a heater has to match the heat the
@@ -713,8 +716,9 @@ carbon monoxide this guide is about.
   8 C, 2.63 at minus 8 C and 1.89 at minus 25 C, and the game follows
   that table. The ship holds its air at about 20 C, warmer than the
   sheet's warmest figure, so aboard it is always 4.54, which if anything
-  understates it. The power meter and the time you are away charge it its
-  620 W, never its heat. Flat out it uses 14.9 kWh a day, 41% of the
+  understates it. The power meter and the time you are away charge it what
+  it draws, never its heat: once it has run a whole game day, what its
+  thermostat really ran it at, and its full 620 W until then. Flat out it uses 14.9 kWh a day, 41% of the
   space heater's 36, for 1.9 times the heat; that is the real case for a
   heat pump, and the reason ENERGY STAR's advice above is about choosing
   the right thermostat for one.
@@ -1139,7 +1143,7 @@ used here and the wording is not.
   and `data/machines/home_solo.ron`); the heat balance of each air, its
   walls' single-glass heat loss and its sources (`src/systems/farming/heat.rs`,
   THE HEAT in `data/garden/humidity.ron`), and the tests that measure the
-  300 m3 room's 1 C, the greenhouse-sized room's 0.13 C and the thermostat
+  10 x 10 x 3 m room's 1 C, the greenhouse-sized room's 0.13 C and the thermostat
   (`src/systems/farming/heat_tests.rs`);
   the heat pump and the wood stove (`heat_pump` and `wood_stove` in
   `data/machines/home.ron`, where their sources are quoted and the stove's

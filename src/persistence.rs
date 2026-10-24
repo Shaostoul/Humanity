@@ -176,15 +176,15 @@ pub struct WorldSave {
     /// since) keeps its spawn level. See systems::machine_levels.
     #[serde(default)]
     pub machine_levels: Vec<crate::systems::machine_levels::MachineLevels>,
-    /// What each placed space heater was drawing when this was saved, W, by
-    /// its machine instance id (the review of BUG-155, 2026-10-05): its watts
-    /// for the share of the time its thermostat ran it (`farming::heat`),
-    /// which holds while the air around it does. The time away charges each
-    /// heater this (`crafting::away::day_power_balance`), not the full draw the
-    /// Usage meter charges it. Empty in a save from before it, or with no
-    /// heater placed: the meter's full draw then stands.
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub heater_draw_w: std::collections::BTreeMap<String, f32>,
+    /// What each placed machine drew over its last game day, by its machine
+    /// instance id (2026-10-22, `systems::day_energy`): the rolling record the
+    /// power meters, the machine cards and the time away
+    /// (`crafting::away::day_power_balance`) read in place of a figure measured
+    /// once by hand. It replaced `heater_draw_w`, a space heater's draw at the
+    /// moment of the save. Empty for a new game, where every machine is charged
+    /// its data's estimate until it has run a whole day.
+    #[serde(default, skip_serializing_if = "crate::systems::day_energy::DayEnergy::is_empty")]
+    pub machine_day_energy: crate::systems::day_energy::DayEnergy,
     /// What the home has drawn from and returned to the ship's supply
     /// (2026-09-27, systems::ship_power): the reactor's kWh, metered. Empty in
     /// a save from before it; the meter then starts at zero.
@@ -433,7 +433,7 @@ impl WorldSave {
             mining_order: None,
             mining_drone: None,
             machine_levels: Vec::new(),
-            heater_draw_w: Default::default(),
+            machine_day_energy: Default::default(),
             ship_supply: Default::default(),
             settled_trades: Vec::new(),
             home_id: String::new(),
@@ -1157,7 +1157,7 @@ mod tests {
             mining_order: None,
             mining_drone: None,
             machine_levels: Vec::new(),
-            heater_draw_w: Default::default(),
+            machine_day_energy: Default::default(),
             ship_supply: Default::default(),
             settled_trades: Vec::new(),
             home_id: String::new(),

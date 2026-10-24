@@ -1114,6 +1114,8 @@ mod native_app {
                 "power_status",
                 std::sync::Mutex::new(crate::systems::electrical::PowerStatus::default()),
             );
+            // What each machine drew over its last game day (2026-10-22): ElectricalSystem records it.
+            crate::systems::day_energy::register(&mut data_store);
             // Live home WATER readout (production/demand/stored L): PlumbingSystem writes it each tick.
             data_store.insert(
                 "water_status",
@@ -13730,6 +13732,10 @@ mod native_app {
                         state.gui_state.power_battery_capacity_wh = ps.battery_capacity_wh;
                         state.gui_state.power_autonomy_hours = ps.autonomy_hours;
                         state.gui_state.power_ship = ps.ship;
+                    }
+                    // The machines' day record (2026-10-22), copied when an hour completes.
+                    if crate::systems::day_energy::revision(&state.data_store) != state.gui_state.machine_day_energy.revision {
+                        state.gui_state.machine_day_energy = crate::systems::day_energy::snapshot(&state.data_store);
                     }
 
                     // Bridge the live home WATER readout (PlumbingSystem writes it via Mutex). (v0.608)

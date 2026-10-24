@@ -586,7 +586,11 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // Who powers ship life support (Settings > Gameplay), so the
                 // meters charge the air handlers and the scrubber to the home or
                 // to the station (2026-09-27).
-                let basis = crate::machines::MeterBasis { life_support_on_grid: state.garden_pests.life_support_realistic };
+                // And what each machine really drew over its last game day (2026-10-22).
+                let basis = crate::machines::MeterBasis {
+                    life_support_on_grid: state.garden_pests.life_support_realistic,
+                    recorded: Some(&state.machine_day_energy),
+                };
                 draw_buildability(ui, theme, home, basis, legend_mode(state));
             }
 
@@ -1626,10 +1630,17 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // A direct instance can be removed; an array-derived one cannot (it is synthesized from
             // a MachineArray at load, so remove_instance would silently no-op).
             let is_direct = home.instances.iter().any(|i| i.id == id);
-            (inst, def, conns, is_direct)
+            // Its daily energy (2026-10-22): measured over its last game day, or its data's estimate.
+            let day = home
+                .catalog
+                .get(&inst.machine)
+                .map(|d| home.day_draw(&inst, d, Some(&state.machine_day_energy)))
+                .filter(|d| d.watts > 0.0 || d.source != crate::machines::DaySource::Data)
+                .map(|d| crate::machines::day_draw_line(&d));
+            (inst, def, conns, is_direct, day)
         })
     });
-    let (inst, def, conns, is_direct) = match resolved {
+    let (inst, def, conns, is_direct, day) = match resolved {
         Some(t) => t,
         None => {
             // The machine was removed out from under the selection.
@@ -1685,6 +1696,9 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 crate::machines::MachinePower::Battery { capacity_wh, .. } => format!("Battery  {capacity_wh:.0} Wh"),
             };
             ui.label(RichText::new(role).size(theme.font_size_small).color(theme.text_primary()));
+        }
+        if let Some(day) = &day {
+            ui.label(RichText::new(format!("Daily energy  {day}")).size(theme.font_size_small).color(theme.text_secondary()));
         }
         if !d.stats.is_empty() {
             ui.add_space(theme.spacing_xs);
@@ -3760,7 +3774,7 @@ fn draw_buildability(
     ui.add_space(theme.spacing_md);
     ui.separator();
     ui.label(RichText::new("Buildability").strong().color(theme.text_primary()));
-    let report = home.buildability_report(4.5, basis);
+    let report = home.buildability_report(crate::machines::METER_SUN_HOURS, basis);
     if report.checks.is_empty() {
         ui.label(
             RichText::new("No systems to check yet -- place a panel, battery, and a load.")
@@ -3784,17 +3798,18 @@ fn draw_buildability(
     }
     // Usage / self-sufficiency METERS (v0.630, grid S2): per-utility daily generation vs demand, framed
     // to TEACH (how much you make + use, how self-sufficient you are) -- never a penalty for consuming.
-    let meters = home.utility_meters(4.5, basis);
+    let meters = home.utility_meters(crate::machines::METER_SUN_HOURS, basis);
     if !meters.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Usage + self-sufficiency").strong().color(theme.text_primary()));
         // What the power figure charges (2026-09-27): each machine's average
-        // draw over a day, not its full draw around the clock.
+        // draw over a day, not its full draw around the clock; since 2026-10-22
+        // what it really drew over its last game day once it has run one.
         ui.label(
             RichText::new(if basis.life_support_on_grid {
-                "Each machine at its average draw over a day. The air handlers and the CO2 scrubber are on your home's grid (Settings, Ship life support: Realistic)."
+                "Each machine at what it drew over its last game day, or its data's estimate until it has run one. The air handlers and the CO2 scrubber are on your home's grid (Settings, Ship life support: Realistic)."
             } else {
-                "Each machine at its average draw over a day. The ship's reactor supplies what your home does not make, the air handlers and the CO2 scrubber included, metered (Settings, Ship life support: Station-supplied)."
+                "Each machine at what it drew over its last game day, or its data's estimate until it has run one. The ship's reactor supplies what your home does not make, the air handlers and the CO2 scrubber included, metered (Settings, Ship life support: Station-supplied)."
             })
             .size(theme.font_size_small)
             .color(theme.text_muted()),
@@ -3806,6 +3821,14 @@ fn draw_buildability(
                 ui.label(RichText::new(format!("{}:", m.utility)).size(theme.font_size_small).strong().color(look.text));
                 ui.label(RichText::new(&m.summary).size(theme.font_size_small).color(theme.text_muted()));
             });
+            // Which figures are measured and which are estimated (2026-10-22).
+            let [measured, estimated] = m.source_groups(&home.catalog);
+            for (title, groups) in [("Measured over the last game day", measured), ("Estimated from the data until each has run a whole game day", estimated)] {
+                if !groups.is_empty() {
+                    let line = format!("{title}: {}.", crate::machines::source_group_line(&groups));
+                    ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_muted()));
+                }
+            }
         }
     }
     // GROW-LIGHT POWER METER (v0.664, homestead-solo-design.md gap #5; self-sufficiency.md calls it
@@ -3813,7 +3836,7 @@ fn draw_buildability(
     // placed: green = the lights fit inside the free solar headroom; amber = the home now eats its
     // battery reserves every day to keep them on; red = the lights ALONE outdraw everything the
     // home generates -- the visceral proof of why the garden grows under the sun, not LEDs.
-    if let Some(gl) = home.grow_light_report(4.5, basis) {
+    if let Some(gl) = home.grow_light_report(crate::machines::METER_SUN_HOURS, basis) {
         use crate::machines::GrowLightVerdict;
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Grow-light power meter").strong().color(theme.text_primary()));

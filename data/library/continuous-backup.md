@@ -195,8 +195,10 @@ Nothing here was done on the live servers; these are the steps, in order.
 
 ## What it costs
 
-Each segment is the changed pages, compressed: a busy chat relay sends a few kilobytes every ten
-seconds. A full copy is the database compressed, once a day and on a new generation. Capture holds
+Each segment is the pages changed in those ten seconds, compressed (a message touches a few
+pages: its table, its indexes, the search index), so the traffic follows how busy the server is,
+not how big its database is; a quiet ten seconds sends nothing. A full copy is the database
+compressed, once a day and when a new generation starts. Capture holds
 the writer lock only while it reads the new frames and writes a small file; a snapshot is copied
 from a read transaction, so writes go on during it.
 

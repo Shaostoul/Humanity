@@ -2200,10 +2200,12 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   (`systems::animal_care`, the character feeding them). Nothing else is
   used up, and nothing dies, without the player's say. A character select now
   restores the Barn with the save (`save_load::after_resume`). The power the
-  time away charges a space heater is what its thermostat was running it at
-  when the game was saved (2026-10-05, `WorldSave.heater_draw_w`), not the
-  Usage meter's full draw: about 182 W in a fruiting tent, 1,500 W where it
-  never reaches 24 C.
+  time away charges each machine is what it really drew over its last game
+  day (2026-10-22, the day record, `systems::day_energy`, saved as
+  `WorldSave.machine_day_energy`), its data's estimate until it has run one:
+  a space heater about 182 W in a fruiting tent, 1,500 W where it never
+  reaches 24 C. (From 2026-10-05 only a heater had its own figure, its draw
+  at the moment of the save, `heater_draw_w`, which the record replaced.)
 
 ### Data-Driven Tools (v0.90.7)
 The tool catalog loads from external JSON instead of hardcoded data (the Apps page's Other programs,
@@ -3178,6 +3180,21 @@ with the community)" or "... 60% self-sufficient (X imported from the grid)". Pu
 (`MachineHome::utility_meters`, computed from the placed machines' catalog roles), so it runs in the
 editor and an AI can read it; no penalty for consuming, just understanding what you use + make.
 - Native: `src/machines.rs` (`UtilityMeter` + `utility_meters` + `data_supply_mbps`), `src/gui/pages/construction.rs` (`draw_buildability` usage section)
+
+**The day record (2026-10-22, the operator's "Do rooms not automatically calculate their volumes on
+the fly?").** The meters read the simulation: the machines' power tick (`ElectricalSystem`) records
+what every placed machine drew, an hour at a time on the game clock, as a rolling record of its last
+24 game hours (`src/systems/day_energy.rs`, `DayEnergy`), its request kept apart for the hours its
+island had shed it. Once a machine has run a whole game day the meters charge that day (what it drew
+plus what it asked for while shed: what the home needs); until then, and for a work station's idle
+draw or a battery, the data's figure (`MachineDef::average_load_watts`, the estimate). So a fan in a
+room made bigger or smaller, or a player's own room, is charged what its controller really did there.
+Every daily figure reads the same record (`MachineHome::day_draw`): the Usage meter and the
+Buildability energy balance, the grow-light meter, the Construction page's machine card ("Daily
+energy"), the Home page's Energy, Water and Air loops (a live "running" line, `HomeLoop::meter`) and
+the time away (`crafting::away::day_power_balance`). The pages say which figures are measured and which
+are estimated. Saved with the home (`WorldSave::machine_day_energy`); the time away adds nothing to it.
+- Native: `src/systems/day_energy.rs`, `src/systems/electrical.rs` (step 3b), `src/machines.rs` (`DayDraw`, `DaySource`, `MeterSource`, `day_draw`, `grid_day_draw`, `loop_meter_line`), `src/gui/pages/construction.rs`, `src/gui/pages/homes.rs`; tests `src/systems/day_energy_tests.rs`, `farming::humidity_tests::a_room_resized_changes_its_fans_day_on_the_meter`, `farming::heat_tests::the_time_away_charges_each_machine_the_day_it_drew`
 
 ### Viewport conduit-node placement + drag-a-port-to-a-node (build Phase 2, v0.629)
 The pipe GRAPH is now built in the view, not via panel dropdowns. The Conduit-nodes panel has a "Place in

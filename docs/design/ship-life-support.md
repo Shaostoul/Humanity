@@ -18,7 +18,7 @@ Where things live:
 | The boundary test, the shipped homes' balance, the modes | `src/systems/farming/life_support_tests.rs` |
 | The machines | `air_handler` and `air_recycler` (now the CO2 scrubber) in `data/machines/home.ron` and `home_solo.ron` |
 | The mushrooms' air (2026-09-27): what stale air costs them, what each fungus breathes, the CO2 fans' controller | `data/garden/humidity.ron` (STALE AIR, THE FUNGI'S BREATH, THE CO2 FANS); `tent_co2_fan` and `room_co2_fan` in both home files |
-| What the static power meter charges a day (2026-09-27) | `MachineDef::average_load_watts` in `src/machines.rs`; `average_watts` on the air machines in both home files |
+| What the power meter charges a day (2026-09-27; measured since 2026-10-22) | `MachineHome::day_draw` in `src/machines.rs`: what each machine drew over its last game day (`src/systems/day_energy.rs`), else its data's estimate (`MachineDef::average_load_watts`, `average_watts` on the air machines in both home files) |
 | What it credits a day, and the backstop apart (2026-09-27) | `MachineDef::average_supply_watts` and `backstop_watts` in `src/machines.rs`; the solar panel's `average_watts`, the wind turbine's day-average `watts` and the generator in both home files (section 7) |
 | Who the electrical sim feeds first on a short island (2026-09-27) | `src/systems/electrical.rs` |
 | The ship's reactor, its feed taps and the per-home supply ledger (2026-09-27) | `data/ship_power.ron`, `src/systems/ship_power.rs` (section 8) |
@@ -164,7 +164,13 @@ measured wind (4.4 W), and the backstop generator nothing: the meter shows what 
 can add while it runs, and the hours and fuel it would take to cover the day. The
 Buildability energy balance charges what the Usage meter charges and warns when a
 home balances only on the generator's fuel. The figures, sources and tests are in
-section 7.
+section 7. Since 2026-10-22 those per-machine averages are only the first day's
+estimate: the machines' power tick records what each placed machine really drew
+(`src/systems/day_energy.rs`), and once a machine has run a whole game day every
+meter, card and the time away charge that day instead (`MachineHome::day_draw`), so
+a room resized or a player's own room is charged what its machines really do. The
+shipped-homes test checks both: each `average_watts` against the measured day, and
+the record against the same day.
 
 **Cost**: one pass over the airs per tick (a few dozen rooms and tents, a few
 machines each, a few `exp()` each); gameplay state only, nothing drawn or

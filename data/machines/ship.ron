@@ -251,8 +251,9 @@
                     status: "ok",
                 ),
             ],
-            // average_watts (2026-09-27): what the static power meter charges it
-            // for a day, about 1.7 W a tent, on about 6% of the time, measured by src/systems/farming/life_support_tests.rs
+            // average_watts (2026-09-27): the power meter's estimate for a day
+            // until it has run one (then what it drew, src/systems/day_energy.rs),
+            // about 1.7 W a tent, on about 6% of the time, measured by src/systems/farming/life_support_tests.rs
             // (which holds this figure to the measured draw).
             power: Some(Consumer(
                 watts: 28.0,
@@ -297,8 +298,9 @@
                     status: "ok",
                 ),
             ],
-            // average_watts (2026-09-27): what the static power meter charges it
-            // for a day, about 20 W a tent with the tents' CO2 fans running, measured by src/systems/farming/life_support_tests.rs
+            // average_watts (2026-09-27): the power meter's estimate for a day
+            // until it has run one (then what it drew, src/systems/day_energy.rs),
+            // about 20 W a tent with the tents' CO2 fans running, measured by src/systems/farming/life_support_tests.rs
             // (which holds this figure to the measured draw).
             power: Some(Consumer(
                 watts: 24.0,

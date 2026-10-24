@@ -223,19 +223,20 @@
     // terms, "Air permeability"; its "Envelope area" is "The total area of all
     // floors, walls and ceilings bordering the internal volume that is the
     // subject of a pressure test"). The homestead's greenhouse rises through
-    // an opening in the floor slabs to the 6 m roof (5,607 m3 inside its
-    // walls), but above 3 m it meets only the glass lids over the house and
-    // the hull, which hold none of the home's air: its boundary with the home
-    // is the same storey-tall wall it had when it was a 3 m room. So it trades
-    // 0.25 of its box an hour, about 1,400 m3, as that wall did; at 0.5 of its
+    // an opening in the floor slabs to the 6 m roof, but above 3 m it meets
+    // only the glass lids over the house and the hull, which hold none of the
+    // home's air: its boundary with the home is the same storey-tall wall it
+    // had when it was a 3 m room. So it trades 0.25 of its box an hour, half an
+    // air change of its lowest storey, as that wall did; at 0.5 of its
     // whole box it put twice the water into the house and the house's air
     // handlers held 53% instead of 50% (src/systems/farming/
     // life_support_tests.rs, the_shipped_homes_hold_their_air_and_return_their_water).
     // Every room a storey tall or less leaks 0.5, as before.
     //
     // With that alone the home's 3-person greenhouse does not stay healthy: at
-    // its full planting (about 540 L a day breathed out into 5,607 m3 that
-    // trade about 1,400 m3 an hour with the home) the balance settles above
+    // its full planting (about 540 L a day breathed out into a room that
+    // trades half an air change of its lowest storey an hour with the home;
+    // the game measures the room from its walls as they stand) the balance settles above
     // saturation, so it runs at 100% with water condensing. The home therefore
     // carries one exhaust fan there (the "exhaust_fan" machine in
     // data/machines/home.ron), and two air handlers that hold it at 75%. The
@@ -267,8 +268,9 @@
     // THE HUMIDIFIER (the mushroom room, 2026-09-26). The mushroom racks'
     // crops are fungi, whose plants.csv window is far above what their room
     // holds on its own: oyster 85 to 95%, while the home's six racks breathe
-    // out only about 7 L a day into the 300 m3 mushroom room, which settles
-    // near 48% on its leakage (the one-person home's two racks, about 41%).
+    // out only about 7 L a day into the mushroom room, which settled near 48%
+    // on its leakage when this was measured, 2026-09-26 (the one-person home's
+    // two racks, about 41%).
     // So the racks need a humidifier. The first answer was one for the whole
     // room (the "humidifier" machine below, still in the catalog for a
     // player who wants a humidified grow room); the shipped homes now fruit
@@ -430,8 +432,8 @@
     //   intake_co2_ppm 400: the air the tent is SIZED for, outdoor air's 0.04%
     //     CO2, a GAME CHOICE. Since 2026-09-26 ship life support tracks every
     //     room's carbon dioxide (data/life_support.ron), so a tent really draws
-    //     its room's air: six racks' tents lift a 300 m3 mushroom room about
-    //     540 ppm over the home's, and each tent then sat about 600 ppm over
+    //     its room's air: six racks' tents lifted the mushroom room about
+    //     540 ppm over the home's (measured 2026-09-26), and each tent then sat about 600 ppm over
     //     that, 1,570 to 1,640 ppm, past the 1,000 limit below. Since
     //     2026-09-27 each tent has a CO2 fan and the mushroom room one of its
     //     own (THE CO2 FANS, at the end): this fresh air is the tent's own
@@ -668,7 +670,8 @@
     // this high holding its volume on a square floor. 3.0 is each storey of the
     // shipped homestead (data/homes/homestead.ron: its body is 6.0 m, two 3.0 m
     // storeys, since its upper floor of 2026-10-20), and its own air is nearly all
-    // one storey: of its 11,160 m3, the upper floor's rooms are about 740. The
+    // one storey: the upper floor's rooms hold a small share of it (the game
+    // measures every room from its walls as they stand). The
     // same storey is the height of the walls a grow room trades air with the home
     // through (HOW THE AIR IS EXCHANGED, above).
     //
@@ -676,13 +679,13 @@
     // 24 C. In a 300 m3 room (10 x 3 x 10 m) the walls and ceiling lose 1,373 W
     // for each degree it is warmer and its leakage 51 W, so flat out the heater
     // holds the room 1.05 C over the air around it and never reaches 24 C. In a
-    // room the size of the family home's greenhouse (44.5 x 6 x 21 m inside its
-    // walls, 5,607 m3: 1,720.5 m2 of walls and roof losing 10,736 W a degree, and
-    // its leakage, 0.25 of it an hour, 473 W) it adds 0.134 C.
+    // greenhouse-sized room, 44.5 x 21 m and 6 m tall (1,720.5 m2 of walls and
+    // roof losing 10,736 W a degree, and its leakage, half an air change of its
+    // lowest 3 m an hour, 473 W), it adds 0.134 C.
     // src/systems/farming/heat_tests.rs measures both, and the thermostat holding
     // 24 C in a small room. The same arithmetic gives the rest: in the family
-    // home's own air (about 11,160 m3, so about 4,450 m2 of walls and roof), about
-    // 0.05 C; and in a mushroom rack's 1.73 m3 fruiting tent,
+    // home's own air (its walls and roof those of one storey holding all of it,
+    // home_storey_m below), a few hundredths of a degree; and in a mushroom rack's 1.73 m3 fruiting tent,
     // which loses about 61 W a degree (its walls and top 53, its fresh air 8),
     // it would run the tent about 25 C over its room if its thermostat did not
     // stop it at 24 C, which it holds by running about an eighth of the time.

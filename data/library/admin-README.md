@@ -34,11 +34,14 @@ community a home without becoming its gatekeeper.
 - **[torrent-infrastructure.md](/library#torrent-infrastructure)** the BitTorrent seeder setup
   for sovereign, censorship-resistant distribution.
 - **[forgejo-setup.md](https://github.com/Shaostoul/Humanity/blob/main/docs/admin/forgejo-setup.md)** running the self-hosted Forgejo git mirror.
+- **[continuous-backup.md](/library#continuous-backup)** continuous backup: every change copied
+  within seconds, sealed, to a folder, an S3-compatible bucket or another HumanityOS server;
+  restores, the restore drill, and two servers keeping each other's copies.
 
 ## Related
 
-- Live-ops notes (backup replication and the like) live in
-  **[../operations/](../operations/)**.
+- Backup replication is [continuous-backup.md](/library#continuous-backup), above (the old
+  `operations/` folder held only the never-deployed Litestream plan it replaces).
 - Incident recipes for when something breaks are in
   **[../INCIDENT-PLAYBOOK.md](https://github.com/Shaostoul/Humanity/blob/main/docs/INCIDENT-PLAYBOOK.md)**.
 - The team's operational posture: **[../SECURITY-CADENCE.md](https://github.com/Shaostoul/Humanity/blob/main/docs/SECURITY-CADENCE.md)**,

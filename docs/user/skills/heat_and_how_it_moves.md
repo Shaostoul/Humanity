@@ -438,13 +438,15 @@ wood stove puts into the air it stands in aboard.
   and ceiling, and by convection with the air it trades with the air
   around it (`src/systems/farming/heat.rs`). Its thermostat stops it at
   24 C. In a fruiting tent it holds 24 C, running about an eighth of the
-  time. The home's grow rooms are far bigger, the smallest of them about
-  260 m3, and in them it runs flat out and never gets there: one holds a
-  300 m3 room about 1 C warmer, and the family home's greenhouse, 6 m
-  tall and 5,607 m3, about 0.13 C. In any other room, a bedroom or the
-  kitchen, it does not warm that room at all: it warms the home's whole
-  air, about 11,200 m3 in the family home, by a few hundredths of a
-  degree, running flat out all the while. Your body feels the air of the
+  time. The home's grow rooms are far bigger, and in them it runs flat
+  out and never gets there: it holds a room 10 m by 10 m and 3 m tall
+  about 1 C warmer, and a greenhouse-sized room, 44.5 m by 21 m and 6 m
+  tall, about 0.13 C. How big a room is, the game measures from its
+  walls, floor and ceiling as they stand, so a room you build or change
+  is the size you made it, and its heater does what that size asks. In
+  any other room, a bedroom or the kitchen, it does not warm that room at
+  all: it warms the home's whole air, every room that is not a grow room,
+  by a few hundredths of a degree, running flat out all the while. Your body feels the air of the
   grow room you stand in, or the home's own air everywhere else.
   [Heating a Home Safely](heating_a_home_safely.md) has the numbers.
 - **A heat pump moves heat; a wood stove makes it.** Both warm the air

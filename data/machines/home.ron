@@ -159,8 +159,8 @@
                     status: "ok",
                 ),
             ],
-            // average_watts: what the static power meter charges it for a day, about 219 W a
-            // unit over a day at full planting (the seven: greenhouse, court, home), measured by
+            // average_watts: the power meter's estimate for a day until it has run one (then what
+            // it drew, src/systems/day_energy.rs), about 219 W a unit over a day at full planting (the seven: greenhouse, court, home), measured by
             // src/systems/farming/life_support_tests.rs (which holds this figure to the measured
             // draw) on the rooms the game publishes (2026-10-21; 224.8 W on 2026-09-27).
             power: Some(Consumer(
@@ -225,8 +225,9 @@
                     status: "ok",
                 ),
             ],
-            // average_watts (2026-09-27): what the static power meter charges it
-            // for a day, idle: the crops hold the carbon dioxide far under its 2,636 ppm, measured by src/systems/farming/life_support_tests.rs
+            // average_watts (2026-09-27): the power meter's estimate for a day
+            // until it has run one (then what it drew, src/systems/day_energy.rs),
+            // idle: the crops hold the carbon dioxide far under its 2,636 ppm, measured by src/systems/farming/life_support_tests.rs
             // (which holds this figure to the measured draw).
             power: Some(Consumer(
                 watts: 860.0,
@@ -274,10 +275,9 @@
             // no degrees: 75 F, the middle of the University of Georgia's "Most
             // plants require day temperatures of 70 to 80 °F" (Bulletin 792,
             // cited in humidity.ron). The grow rooms sit at 21 C, so it runs in
-            // any of them. One heater cannot warm a big room much: in the family
-            // greenhouse (5,607 m3, open to the 6 m roof, 1,720 m2 of walls and roof
-            // inside its own walls) it adds 0.13 C and never reaches 24 C, so it runs
-            // flat out, 36 kWh a day.
+            // any of them. One heater cannot warm a big room much: in a greenhouse-sized room
+            // (44.5 x 21 m and 6 m tall, src/systems/farming/heat_tests.rs) it adds
+            // 0.13 C and never reaches 24 C, so it runs flat out, 36 kWh a day.
             heats_w: 1500.0,
             heat_setpoint_c: 24.0,
             stats: [
@@ -293,16 +293,15 @@
                 ),
             ],
             // No average_watts: how much of the day it runs depends on the air
-            // it stands in, which the static power meter cannot see, so the
-            // meter charges it its full draw. The time away charges it instead
-            // the draw its thermostat was running it at when the game was saved
-            // (2026-10-05, crafting::away::day_power_balance, the save's
-            // heater_draw_w): about 182 W in a mushroom rack's fruiting tent,
-            // which it holds at 24 C an eighth of the time (humidity.ron, THE
-            // HEAT), and its full 1,500 W in a grow room or the home's own air,
-            // which it never warms to 24 C. src/systems/farming/heat_tests.rs
-            // (the_time_away_charges_a_heater_what_its_thermostat_ran_it_at)
-            // measures both.
+            // it stands in, so its data's estimate is its full draw. Once it has
+            // run a game day the power meters and the time away charge what its
+            // thermostat really ran it at (2026-10-22, src/systems/day_energy.rs;
+            // from 2026-10-05 the time away charged its draw at the moment of the
+            // save): about 182 W in a mushroom rack's fruiting tent, which it
+            // holds at 24 C an eighth of the time (humidity.ron, THE HEAT), and its
+            // full 1,500 W in a grow room or the home's own air, which it never
+            // warms to 24 C. src/systems/farming/heat_tests.rs
+            // (the_time_away_charges_each_machine_the_day_it_drew) measures both.
             // Priority 4, shed before the air handlers, with the garden's fans.
             power: Some(Consumer(
                 watts: 1500.0,
@@ -355,9 +354,9 @@
             // 80 F days).
             // Not placed in either home: built at a workbench (build_heat_pump, data/recipes.csv)
             // and placed from the Construction page's Life support tab with one heat_pump_0.
-            // Charged as electricity, like the heater: the static meter its full 620 W (no
-            // average_watts), the time away the draw its thermostat was running it at when the
-            // game was saved (crafting::away::heater_draws), never its heat. Like the heater it is
+            // Charged as electricity, like the heater: its data's estimate is its full 620 W (no
+            // average_watts), and once it has run a game day the meters and the time away charge
+            // what its thermostat ran it at (src/systems/day_energy.rs), never its heat. Like the heater it is
             // on the home's power in either Ship life support mode; the mode decides only whether
             // the ship's reactor backs that power.
             heats_w: 2814.8,
@@ -813,8 +812,9 @@
                     status: "ok",
                 ),
             ],
-            // average_watts (2026-09-27): what the static power meter charges it
-            // for a day, idle: the air handlers hold the greenhouse under its 80%, measured by src/systems/farming/life_support_tests.rs
+            // average_watts (2026-09-27): the power meter's estimate for a day
+            // until it has run one (then what it drew, src/systems/day_energy.rs),
+            // idle: the air handlers hold the greenhouse under its 80%, measured by src/systems/farming/life_support_tests.rs
             // (which holds this figure to the measured draw).
             power: Some(Consumer(
                 watts: 250.0,
@@ -864,8 +864,9 @@
                     status: "ok",
                 ),
             ],
-            // average_watts (2026-09-27): what the static power meter charges it
-            // for a day, about 1.7 W a tent, on about 6% of the time, measured by src/systems/farming/life_support_tests.rs
+            // average_watts (2026-09-27): the power meter's estimate for a day
+            // until it has run one (then what it drew, src/systems/day_energy.rs),
+            // about 1.7 W a tent, on about 6% of the time, measured by src/systems/farming/life_support_tests.rs
             // (which holds this figure to the measured draw).
             power: Some(Consumer(
                 watts: 28.0,
@@ -895,7 +896,7 @@
             // (data/garden/humidity.ron, THE CO2 FANS). 600 ppm is a GAME CHOICE
             // from the model's balance (docs/design/ship-life-support.md): six
             // racks lift the room about 630 ppm over the home on its own leakage
-            // (half its 256.5 m3 an hour, the room inside its walls); held at 550
+            // (half the air inside its walls an hour, as the game measures the room); held at 550
             // instead, this fan runs all but 0.3% of the time and the room still
             // reaches 593 ppm, for no saving at the tents. At the family home's
             // evening peak (the home near 495 ppm) it holds 600 (measured
@@ -914,12 +915,13 @@
                     status: "ok",
                 ),
             ],
-            // average_watts: what the static power meter charges it for a day, measured by
+            // average_watts: the power meter's estimate for a day until it has run one (then what
+            // it drew, src/systems/day_energy.rs), measured by
             // src/systems/farming/life_support_tests.rs (which holds this figure to the measured
             // draw): about 50 W, on about 72% of the time (2026-10-21), on the rooms the game
             // publishes. 44.1 W (63%) was measured on 2026-10-20 against the home's zones, whose
-            // storey-tall greenhouse left the house about 2,600 m3 more air than the game gives it
-            // (its greenhouse rises to the 6 m roof); 50.7 W, 72%, on 2026-09-27.
+            // storey-tall greenhouse left the house more air than the game gives it (its
+            // greenhouse rises to the 6 m roof); 50.7 W, 72%, on 2026-09-27.
             power: Some(Consumer(
                 watts: 70.0,
                 priority: 4,
@@ -1008,8 +1010,9 @@
                     status: "ok",
                 ),
             ],
-            // average_watts (2026-09-27): what the static power meter charges it
-            // for a day, about 20 W a tent with the tents' CO2 fans running, measured by src/systems/farming/life_support_tests.rs
+            // average_watts (2026-09-27): the power meter's estimate for a day
+            // until it has run one (then what it drew, src/systems/day_energy.rs),
+            // about 20 W a tent with the tents' CO2 fans running, measured by src/systems/farming/life_support_tests.rs
             // (which holds this figure to the measured draw).
             power: Some(Consumer(
                 watts: 24.0,
@@ -5104,7 +5107,9 @@
             supply: "~11.0 kWh/day: 10 solar panels ~10.9 (their yield at the home's site after the batteries' round trip; ~5.1 in January) + wind ~0.1; 8 batteries; the backstop generator (1.8 kW while it runs) counted apart",
             closes: false,
             weakest: true,
-            note: "Does NOT close in either mode, on the year's average or in winter. THE METER (2026-09-27): these figures are the Construction page's power meter, which charges every machine its real daily energy and credits every source what it makes at the home's site (Silverdale, WA, data/self_sufficiency/location.ron), and a test (the_household_machines_charge_their_sourced_daily_energy in src/machines.rs) holds this loop to it. SUPPLY: a 400 W panel makes 1.09 kWh a day there averaged over the year and 0.51 in January, the worst month (NREL's PVWatts: 440.7 kWh a year at the inverter for a panel tilted 40 degrees to the south, less the batteries' 90% round trip, Tesla Powerwall 2), and the wind turbine (a Primus AIR 40, 160 W at 12.5 m/s) makes 0.11 kWh a day, because the nearest measured wind, the Bremerton airport's, averages 2.4 m/s (5.3 mph) and the turbine needs 3.1 to start. So the home makes about 11.0 kWh a day on its own, about 5.2 in January. The backstop generator (a 1.8 kW inverter set, 1.1 L of fuel an hour) is not counted as supply: the meter shows what it can add while it runs. Until this the meter counted the generator's 2 kW and the turbine's 150 W for 24 hours and each panel's 400 W for 4.5 sun-hours with nothing lost, 69.6 kWh a day and 'fully self-sufficient', and this loop's 15.1 rested on a generic 4.5 sun-hours and an unsourced 0.7 kWh a day of wind. DEMAND: the household's machines are EIA's 2020 Residential Energy Consumption Survey averages for a three-person household (Tables CE5.3a and CE5.3b): the water heater is the home's largest load, 9.5 kWh a day (3,482 kWh a year for a home that heats its water with electricity, standby losses and the laundry's hot water included); the freezer 1.5 (559 kWh a year); the washer's motor 0.21 (77 kWh a year). The towers' pumps are 4.1 (Tower Garden's 48 W and 35 W pumps on the maker's indoor timer, 5 minutes on in every 50), and the three fish tanks' air pumps 1.2 (a 17 W HIBLOW HP-20 each, all day, the top of FAO's 5 to 8 L of air a minute for each cubic metre of water). In the Station-supplied mode, the default, the station's own plant powers the air handlers and the scrubber, and the home draws about 24.0 kWh a day against the 11.0 it makes: the water heater 9.5, the tower pumps 4.1, the mushroom tent humidifiers 3.4, the freezer 1.5, the mushrooms' CO2 fans 1.5 (the room's 1.2, the tents' 0.3), the fish tanks' air pumps 1.2 and the rest 2.6 (the home server, the defense turret, the water purifier and pump, the network, the irrigation, the washer, and the work stations at idle). It does NOT close: 13.0 kWh a day short, about 12 more panels on the year's average and about 37 more for January; the backstop would have to run about 7.2 hours a day on 8.1 L of fuel to cover it. Cooking and crafting come on top, by the hour: the work stations draw 3.6 kW more while a craft runs at all of them, and a real three-person household's cooking averages 0.89 kWh a day (RECS Table CE5.3b, 325 kWh a year). Not counted yet, because no data carries them: lighting, small appliances, and the fish tanks' water pumps (FAO sizes 25 to 50 W for a 1,000 L unit; how these tanks' water reaches the towers is not modelled). In the Realistic mode the air handlers' 36.9 kWh a day come onto the home's grid as well, about 60.9 kWh a day against 11.0: it does NOT close, about 46 more panels on the year's average, and even the backstop running all day (43.2 kWh on 27 L of fuel) would leave it 6.7 kWh short. The cheapest lever in the house is the water heater (a heat pump water heater moves heat instead of making it; not placed or sourced here yet), and its RECS figure is about twice the heat in this home's own 110 L of hot water a day (the Water loop): the average US household it comes from draws more. Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries seven air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): two in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 541 L a day, the court's towers 106 L), and four in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs, on the rooms the game publishes since 2026-10-21) they average about 1,536 W, 36.9 kWh a day: the greenhouse's two condense about 367 L a day, the court's one 79 and the home's four 242. The home's share is mostly the grow rooms' water: the court leaks 0.5 air changes an hour into the drier home air and the greenhouse 0.25 of its 6 m box (half an air change of its lowest storey, because above 3 m it meets only the glass lids over the house and the hull; data/garden/humidity.ron), about 200 L of their water a day, and every litre condensed there costs about 105 Wh of fan power against 27 Wh in the greenhouse. (On 2026-10-20 the model read the greenhouse as its storey-tall zone, 2,970 m3; the room the game runs rises to the 6 m roof, 5,607 m3, and leaked at half its whole box an hour the house's four would have held only 53%.) The exhaust fan now idles (the handlers hold the greenhouse under its 80%), and the CO2 scrubber that replaced the 25 W air recycler idles too (the crops keep the carbon dioxide far under its 2,636 ppm). Since 2026-09-27 each mushroom tent has a CO2 fan (an AC Infinity CLOUDLINE S4, 28 W, switched at 900 ppm by a CO2 controller) and the mushroom room one of its own (a CLOUDLINE S6, 70 W, at 600 ppm): about 62 W together (the room fan 50, on about 72% of the time), 1.5 kWh a day, and the fresh air they bring in makes the tent humidifiers work harder, 3.4 kWh a day at the average the catalog carries (was 0.6). The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 950 W, 23 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 20 kW of it latent (689 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. Grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, so the garden uses the sun, not LEDs.",
+            // Its live line on the Home page (2026-10-22): what the machines draw as they run.
+            meter: Some(Power),
+            note: "Does NOT close in either mode, on the year's average or in winter. THE METER (2026-09-27): these figures are the Construction page's power meter, which charges every machine its real daily energy and credits every source what it makes at the home's site (Silverdale, WA, data/self_sufficiency/location.ron), and a test (the_household_machines_charge_their_sourced_daily_energy in src/machines.rs) holds this loop to it. SUPPLY: a 400 W panel makes 1.09 kWh a day there averaged over the year and 0.51 in January, the worst month (NREL's PVWatts: 440.7 kWh a year at the inverter for a panel tilted 40 degrees to the south, less the batteries' 90% round trip, Tesla Powerwall 2), and the wind turbine (a Primus AIR 40, 160 W at 12.5 m/s) makes 0.11 kWh a day, because the nearest measured wind, the Bremerton airport's, averages 2.4 m/s (5.3 mph) and the turbine needs 3.1 to start. So the home makes about 11.0 kWh a day on its own, about 5.2 in January. The backstop generator (a 1.8 kW inverter set, 1.1 L of fuel an hour) is not counted as supply: the meter shows what it can add while it runs. Until this the meter counted the generator's 2 kW and the turbine's 150 W for 24 hours and each panel's 400 W for 4.5 sun-hours with nothing lost, 69.6 kWh a day and 'fully self-sufficient', and this loop's 15.1 rested on a generic 4.5 sun-hours and an unsourced 0.7 kWh a day of wind. DEMAND: the household's machines are EIA's 2020 Residential Energy Consumption Survey averages for a three-person household (Tables CE5.3a and CE5.3b): the water heater is the home's largest load, 9.5 kWh a day (3,482 kWh a year for a home that heats its water with electricity, standby losses and the laundry's hot water included); the freezer 1.5 (559 kWh a year); the washer's motor 0.21 (77 kWh a year). The towers' pumps are 4.1 (Tower Garden's 48 W and 35 W pumps on the maker's indoor timer, 5 minutes on in every 50), and the three fish tanks' air pumps 1.2 (a 17 W HIBLOW HP-20 each, all day, the top of FAO's 5 to 8 L of air a minute for each cubic metre of water). In the Station-supplied mode, the default, the station's own plant powers the air handlers and the scrubber, and the home draws about 24.0 kWh a day against the 11.0 it makes: the water heater 9.5, the tower pumps 4.1, the mushroom tent humidifiers 3.4, the freezer 1.5, the mushrooms' CO2 fans 1.5 (the room's 1.2, the tents' 0.3), the fish tanks' air pumps 1.2 and the rest 2.6 (the home server, the defense turret, the water purifier and pump, the network, the irrigation, the washer, and the work stations at idle). It does NOT close: 13.0 kWh a day short, about 12 more panels on the year's average and about 37 more for January; the backstop would have to run about 7.2 hours a day on 8.1 L of fuel to cover it. Cooking and crafting come on top, by the hour: the work stations draw 3.6 kW more while a craft runs at all of them, and a real three-person household's cooking averages 0.89 kWh a day (RECS Table CE5.3b, 325 kWh a year). Not counted yet, because no data carries them: lighting, small appliances, and the fish tanks' water pumps (FAO sizes 25 to 50 W for a 1,000 L unit; how these tanks' water reaches the towers is not modelled). In the Realistic mode the air handlers' 36.9 kWh a day come onto the home's grid as well, about 60.9 kWh a day against 11.0: it does NOT close, about 46 more panels on the year's average, and even the backstop running all day (43.2 kWh on 27 L of fuel) would leave it 6.7 kWh short. The cheapest lever in the house is the water heater (a heat pump water heater moves heat instead of making it; not placed or sourced here yet), and its RECS figure is about twice the heat in this home's own 110 L of hot water a day (the Water loop): the average US household it comes from draws more. Aboard a sealed station every litre the crops breathe out has to be condensed back out of the air, because there is no outside to vent it to; until this the model held the home's air at 40% for nothing. The home now carries seven air handlers (Carrier 42CT size 14 fan coils on the station's cooling loop: 1,842 m3/h, 325 W flat out, data/life_support.ron): two in the greenhouse and one in the court, holding them at 75% (the greenhouse's crops breathe out about 541 L a day, the court's towers 106 L), and four in the plant room, holding the home's own air at 50%. Measured over a day and a night at full planting (src/systems/farming/life_support_tests.rs, on the rooms the game publishes since 2026-10-21) they average about 1,536 W, 36.9 kWh a day: the greenhouse's two condense about 367 L a day, the court's one 79 and the home's four 242. The home's share is mostly the grow rooms' water: the court leaks 0.5 air changes an hour into the drier home air and the greenhouse 0.25 of its 6 m box (half an air change of its lowest storey, because above 3 m it meets only the glass lids over the house and the hull; data/garden/humidity.ron), about 200 L of their water a day, and every litre condensed there costs about 105 Wh of fan power against 27 Wh in the greenhouse. (On 2026-10-20 the model read the greenhouse as its storey-tall zone; the room the game runs rises to the 6 m roof, nearly twice the air, and leaked at half its whole box an hour the house's four would have held only 53%.) The exhaust fan now idles (the handlers hold the greenhouse under its 80%), and the CO2 scrubber that replaced the 25 W air recycler idles too (the crops keep the carbon dioxide far under its 2,636 ppm). Since 2026-09-27 each mushroom tent has a CO2 fan (an AC Infinity CLOUDLINE S4, 28 W, switched at 900 ppm by a CO2 controller) and the mushroom room one of its own (a CLOUDLINE S6, 70 W, at 600 ppm): about 62 W together (the room fan 50, on about 72% of the time), 1.5 kWh a day, and the fresh air they bring in makes the tent humidifiers work harder, 3.4 kWh a day at the average the catalog carries (was 0.6). The cheaper levers are design calls: holding the home's air at 60% instead of 50% (the EPA's line; the handlers then average about 950 W, 23 kWh a day, measured), sealing the greenhouse and the court from the home more tightly than an Earth greenhouse's 0.5 air changes an hour, or fan coils with EC motors (the catalogue's are permanent split capacitor motors, the least efficient kind, and its EC option publishes no figures to model). The coils' heat, about 20 kW of it latent (689 L a day at 2.45 MJ a litre, FAO-56), goes to the station's radiators, which the game does not model yet: the Climate loop. Grow-lights to feed 3 people indoors would draw 30 to 150+ kWh/d, so the garden uses the sun, not LEDs.",
         ),
         (
             name: "Water",
@@ -5112,6 +5117,8 @@
             supply: "rain + well + ~155 L/day greywater recycling; the air handlers hand ~689 L/day back to the tanks; 8000 L cistern = ~24 days",
             closes: true,
             weakest: false,
+            // Its live line on the Home page (2026-10-22): what the machines draw as they run.
+            meter: Some(Water),
             note: "Closes, and the garden's water is now a real loop (2026-09-26, ship life support). The irrigation draws what the crops breathe out plus what their tissue keeps (NASA's measured share, 2 to 10% by crop, data/life_support.ron), about 780 L a day at full planting, and the seven air handlers condense what the air carries and pipe it back to the cistern: about 689 L a day, every litre the indoor crops (647), the mushroom tents (7 breathed, 29 humidified, up from 6 since their CO2 fans bring in drier air) and the household (5) put into the air, to within 1% (src/systems/farming/life_support_tests.rs). The garden's net draw is therefore about 91 L a day: the water its crops keep (~40 L, which leaves in the harvest), what the outdoor fields breathe into the weather (~57 L), less the household's breath the coils catch (~5 L). Net demand is the household plus that, about 346 L a day, and the cistern's dry-season reach is about 23 days (it was quoted at 32 when the garden's water was billed at a fraction of its real rate and its vapour vanished into the home's air, and at 24 against a 240 L household). THE HOUSEHOLD (2026-09-27): three people at data/home_outline.json's one-person fixture list, 255 L a day (drinking and cooking 15, the kitchen sink 45, the bathroom sink 15, the shower 105, the toilet 42, the laundry 33); until then a 240 L household tap drew on top of fixtures whose ports drew about 1,270 L a day more, and whose hot ports added to 403 L a day against the heater's 432. Each fixture's hot water is its measured share (the Water Research Foundation's Residential End Uses of Water, 94 homes: showers 66.2%, faucets 57.0%, clothes washers 20.0%), 110 L a day, 43% of the household's water, and the water heater makes exactly that; the washer now has the hot and cold hoses a real one has (data/machines/home.ron quotes the sources). THE SHOWER ROOM (2026-10-20, ship homes increment 7): the house has two sets of bathroom fixtures since its upper floor, the bathroom and the wet room upstairs and the shower room on the entrance floor, and a household's water follows its people, not its taps. Each fixture's daily figure is the household's use of that kind of fixture, and every fixture of the kind shares it (`household_use` in this file, src/machines.rs and systems::plumbing), so the shower room's toilet, basin and shower add nothing to the day; counted on their own they would have added about 162 L a day. The air runs on game hours and the tanks on real minutes, which is still the operator's open question; the flows cross as litres a day on both sides, so a day's water balances on either clock. If the air handlers lose power, the greenhouse's water stays in the air and the tanks stop getting it back.",
         ),
         (
@@ -5120,7 +5127,9 @@
             supply: "the crops' photosynthesis (they take up the carbon dioxide and give out ~0.72 kg of oxygen per kg of it); CO2 scrubber (ISS CDRA, 860 W) above 2,636 ppm; seven air handlers for the water; a CO2 fan in each mushroom tent and one for the mushroom room",
             closes: false,
             weakest: false,
-            note: "The carbon closes on the crops; the oxygen does not quite (2026-09-26, ship life support, data/life_support.ron). People breathe in proportion to the food they burn (NASA's crew figures, 0.835 kg of oxygen in and 0.998 kg of carbon dioxide out at 11.82 MJ, scaled to the Food loop's 6,600 kcal: 1.95 and 2.33 kg), and the tents' substrate breathes out 1.09 g of carbon dioxide per kg an hour. The crops take it up through the pores they breathe water out of, at NASA's measured grams per litre, in their lit hours, and less in thin air (Kimball: 33% more per doubling). Over a measured day and night at full planting they took up about 5.0 of the 5.9 kg while the home's air went through 445 to 495 ppm; they catch up as it rises, and it settles near 670 ppm (measured on the rooms the game publishes, 2026-10-21: started at 700, its day ran 595 to 658 with the crops taking up 5.71 kg; started at 800, 645 to 714 and 5.93), so the scrubber idles. Oxygen falls short: the crops give out one molecule of oxygen for each of carbon dioxide they fix, but people burning fat and protein take in more oxygen than the carbon dioxide they breathe out (respiratory quotient 0.87), so once the carbon settles the home still loses about 0.3 kg of oxygen a day, plus about 0.14 kg in the 0.60 kg of air a day that leaks overboard (BVAD's 0.02 kg a day per module, each of the home's 30 rooms on its two storeys counted as one). That is years before it matters out of the ~3,100 kg of oxygen in the home's own 11,160 m3 of air, but it is not closed: an electrolyser splitting water would make it back for about 6.5 kWh per kg of oxygen (data/home_outline.json), about 2.6 kWh a day, and the home does not carry one yet. The leaked nitrogen has to be brought in. The mushrooms' own air is held since 2026-09-27: each tent's CO2 fan (an AC Infinity CLOUDLINE S4 on a CO2 controller) holds it at 900 ppm, under the 1,000 the oysters fruit under, and the room's (a CLOUDLINE S6) holds the room near 600, so every tent sits at 900 ppm and 90% humidity where they ran 1,570 to 1,640 ppm; stale air now costs a mushroom its crop (26.7% per 1,000 ppm over, data/garden/humidity.ron). That holds on a game's first days. Once the home's air settles near 670 ppm it does not: the room sits at 690 to 810 ppm with its fan flat out, and the tents' fans hold 900 only by pulling so much of that air through that their humidifiers, flat out, let the tents fall to 68 to 82% humidity, under the oyster's 85% (measured from the two starts above). The mushrooms make 3.6 of the home's 5.9 kg of carbon dioxide a day and cannot fruit in the air they enrich: a home of their own for their air, or a way for it to reach the crops, is the next rung. The carbon closes in either Ship life support mode; the mode only decides who powers the machines.",
+            // Its live line on the Home page (2026-10-22): what the machines draw as they run.
+            meter: Some(Air),
+            note: "The carbon closes on the crops; the oxygen does not quite (2026-09-26, ship life support, data/life_support.ron). People breathe in proportion to the food they burn (NASA's crew figures, 0.835 kg of oxygen in and 0.998 kg of carbon dioxide out at 11.82 MJ, scaled to the Food loop's 6,600 kcal: 1.95 and 2.33 kg), and the tents' substrate breathes out 1.09 g of carbon dioxide per kg an hour. The crops take it up through the pores they breathe water out of, at NASA's measured grams per litre, in their lit hours, and less in thin air (Kimball: 33% more per doubling). Over a measured day and night at full planting they took up about 5.0 of the 5.9 kg while the home's air went through 445 to 495 ppm; they catch up as it rises, and it settles near 670 ppm (measured on the rooms the game publishes, 2026-10-21: started at 700, its day ran 595 to 658 with the crops taking up 5.71 kg; started at 800, 645 to 714 and 5.93), so the scrubber idles. Oxygen falls short: the crops give out one molecule of oxygen for each of carbon dioxide they fix, but people burning fat and protein take in more oxygen than the carbon dioxide they breathe out (respiratory quotient 0.87), so once the carbon settles the home still loses about 0.3 kg of oxygen a day, plus about 0.14 kg in the 0.60 kg of air a day that leaks overboard (BVAD's 0.02 kg a day per module, each of the home's 30 rooms on its two storeys counted as one). That is years before it matters out of the oxygen in the home's own air (about 0.28 kg in every cubic metre of it, the air the game measures from the home's rooms as they stand), but it is not closed: an electrolyser splitting water would make it back for about 6.5 kWh per kg of oxygen (data/home_outline.json), about 2.6 kWh a day, and the home does not carry one yet. The leaked nitrogen has to be brought in. The mushrooms' own air is held since 2026-09-27: each tent's CO2 fan (an AC Infinity CLOUDLINE S4 on a CO2 controller) holds it at 900 ppm, under the 1,000 the oysters fruit under, and the room's (a CLOUDLINE S6) holds the room near 600, so every tent sits at 900 ppm and 90% humidity where they ran 1,570 to 1,640 ppm; stale air now costs a mushroom its crop (26.7% per 1,000 ppm over, data/garden/humidity.ron). That holds on a game's first days. Once the home's air settles near 670 ppm it does not: the room sits at 690 to 810 ppm with its fan flat out, and the tents' fans hold 900 only by pulling so much of that air through that their humidifiers, flat out, let the tents fall to 68 to 82% humidity, under the oyster's 85% (measured from the two starts above). The mushrooms make 3.6 of the home's 5.9 kg of carbon dioxide a day and cannot fruit in the air they enrich: a home of their own for their air, or a way for it to reach the crops, is the next rung. The carbon closes in either Ship life support mode; the mode only decides who powers the machines.",
         ),
         (
             name: "Food",

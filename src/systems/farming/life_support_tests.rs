@@ -894,6 +894,8 @@ mod shipped {
         /// The mushroom room's own CO2 and humidity, the day's range.
         mushroom_room_ppm: (f64, f64),
         mushroom_room_rh: (f64, f64),
+        /// The day record the machines' draw wrote over the two days (2026-10-22).
+        recorded: crate::systems::day_energy::DayEnergy,
     }
 
     /// Run a shipped home a game day to settle, then one to measure, each tick
@@ -911,6 +913,9 @@ mod shipped {
         let mut ld = life();
         tweak(&mut ld);
         data.insert(life_support::DATA_KEY, ld);
+        // The day record the meters read (2026-10-22), written each tick as the machines' power
+        // tick writes it, over the tick's game seconds.
+        crate::systems::day_energy::register(&mut data);
         let d = air();
         let mut sys = FarmingSystem::new();
         let dt = 6.0_f32;
@@ -918,6 +923,7 @@ mod shipped {
         for tick in 0..per_day {
             advance(&data, f64::from(dt));
             sys.tick(&mut world, dt, &data);
+            crate::systems::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
             if tick == 0 {
                 tweak_world(&mut world);
             }
@@ -942,6 +948,7 @@ mod shipped {
         for _ in 0..per_day {
             advance(&data, f64::from(dt));
             sys.tick(&mut world, dt, &data);
+            crate::systems::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
             let m = memory(&world);
             let n = per_day as f64;
             day.greenhouse_rh += m.rooms.get("room-greenhouse").map_or(0.0, |a: &RoomAir| d.rh_of(a.vapour_g_m3, d.room_temp_c)) / n;
@@ -1008,6 +1015,7 @@ mod shipped {
         }
         println!("  {file} ledger {:?}", m.home_air.ledger);
         println!("{file}: {day:#?}");
+        day.recorded = crate::systems::day_energy::snapshot(&data);
         day
     }
 
@@ -1035,13 +1043,20 @@ mod shipped {
     ///
     /// Since 2026-10-21 the homes are measured on the rooms the running game
     /// publishes (`shipped_home`), where the greenhouse rises to the 6 m roof
-    /// (5,607 m3, against the 2,970 of the storey-tall zone the test used to
-    /// read), and the home's own air leaks for its own rooms only. Seen red
-    /// first that day on the game's rooms: "home.ron: home 0.5263749356690928"
-    /// (the greenhouse, leaking half its whole 6 m box an hour into the
-    /// house, put more water in the house's air than its four handlers held at
-    /// 50%), with the leak at 0.96 kg a day for the ship's 48 published rooms
-    /// where the home has 30.
+    /// (nearly twice the air of the storey-tall zone the test used to read),
+    /// and the home's own air leaks for its own rooms only. Seen red first
+    /// that day on the game's rooms: "home.ron: home 0.5263749356690928" (the
+    /// greenhouse, leaking half its whole 6 m box an hour into the house, put
+    /// more water in the house's air than its four handlers held at 50%), with
+    /// the leak at 0.96 kg a day for the ship's 48 published rooms where the
+    /// home has 30.
+    ///
+    /// Since 2026-10-22 the day also writes the record the meters read
+    /// (`systems::day_energy`), and the test holds it to what the day measured:
+    /// each type's recorded days add up to its average draw, and the power
+    /// meter read from the record is within 5% of the meter on the data's
+    /// estimates. Seen red (2026-10-23) with `MachineHome::day_draw` reading
+    /// only the data: "home.ron: the meter read the record".
     #[test]
     fn the_shipped_homes_hold_their_air_and_return_their_water() {
         let ld = life();
@@ -1085,7 +1100,132 @@ mod shipped {
                     "{file}: `{id}` averages {measured:.1} W a unit over the day, its catalog says {avg}"
                 );
             }
+            // The day record holds what the day measured (2026-10-22): each type's units'
+            // recorded days add up to what the day averaged, and the power meter read with the
+            // record charges about what it charges on the data's estimates, which is what a new
+            // game shows until its machines have run a day.
+            let placed: Vec<_> = home.all_instances().into_iter().filter(|i| i.zone == "home").collect();
+            for (id, (total, _)) in &day.by_type {
+                let recorded: f64 = placed.iter().filter(|i| &i.machine == id).filter_map(|i| day.recorded.day_of(&i.id, &i.machine)).map(|d| d.average_w()).sum();
+                assert!((recorded - total).abs() <= 1e-6 * total.max(1.0), "{file}: `{id}`'s units recorded {recorded} W over the day, the day averaged {total} W");
+            }
+            let power = |recorded: Option<&crate::systems::day_energy::DayEnergy>| {
+                let basis = crate::machines::MeterBasis { life_support_on_grid: true, recorded };
+                home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").expect("a power meter")
+            };
+            let (with_record, estimated) = (power(Some(&day.recorded)), power(None));
+            assert!(with_record.measured_and_estimated().0 > 0, "{file}: the meter read the record");
+            assert!(
+                (with_record.demand - estimated.demand).abs() <= 0.05 * estimated.demand,
+                "{file}: the meter charges {:.2} kWh a day as measured, {:.2} on the data's estimates",
+                with_record.demand,
+                estimated.demand
+            );
         }
+    }
+
+    /// How a room's volume might be written in prose: whole cubic metres with
+    /// and without a thousands comma, and to a tenth.
+    fn volume_spellings(v: f64) -> Vec<String> {
+        let whole = v.round() as i64;
+        let plain = whole.to_string();
+        let mut comma = String::new();
+        for (i, c) in plain.chars().enumerate() {
+            if i > 0 && (plain.len() - i) % 3 == 0 {
+                comma.push(',');
+            }
+            comma.push(c);
+        }
+        let mut forms = vec![plain, comma, format!("{v:.1}")];
+        forms.sort();
+        forms.dedup();
+        forms
+    }
+
+    /// Every place in `text` that quotes one of `volumes` as cubic metres
+    /// ("5,607 m3"), with the volume it names.
+    fn quoted_volumes(text: &str, volumes: &[(String, f64)]) -> Vec<String> {
+        let mut hits = Vec::new();
+        for (room, v) in volumes {
+            for form in volume_spellings(*v) {
+                for unit in [" m3", " m³", " cubic metre", " cubic meter"] {
+                    let needle = format!("{form}{unit}");
+                    // Whole numbers only: "15,607 m3" is not "5,607 m3".
+                    let quoted = text.match_indices(&needle).any(|(at, _)| {
+                        !text[..at].chars().next_back().is_some_and(|c| c.is_ascii_digit() || c == ',' || c == '.')
+                    });
+                    if quoted {
+                        hits.push(format!("{needle} ({room})"));
+                    }
+                }
+            }
+        }
+        hits
+    }
+
+    /// NO LIBRARY GUIDE OR DATA COMMENT QUOTES A SHIPPED ROOM'S VOLUME
+    /// (2026-10-22, the operator's "Do rooms not automatically calculate their
+    /// volumes on the fly?"). They do: the ship's flood fill measures every
+    /// room from its walls as they stand, and the air model runs on that. A
+    /// figure copied by hand into a guide or a comment goes stale the first
+    /// time a room is edited, and the guides read as if the game used it (the
+    /// greenhouse's 2,970 m3 zone lived on in prose for a day after the game
+    /// stopped reading it). So the guides and the data say how the game
+    /// measures a room, or give a worked example room by its dimensions, and
+    /// this test computes every room the shipped ship publishes, and the
+    /// shipped home's own air, and fails on any of their volumes quoted as
+    /// cubic metres in the Library (docs/user/skills, data/library) or in the
+    /// machine, garden and life support data.
+    ///
+    /// Seen red (2026-10-23) on the guides and data as they stood before:
+    /// "docs/user/skills\extending_the_season.md: 5,607 m3 (room-greenhouse)",
+    /// and the same in heating_a_home_safely.md, heat_and_how_it_moves.md and
+    /// their data/library copies, in data/garden/humidity.ron, and in
+    /// data/machines/home.ron and home_solo.ron, which also quoted the mushroom
+    /// room's "256.5 m3 (room-mushroom)".
+    #[test]
+    fn no_guide_or_data_comment_quotes_a_shipped_rooms_volume() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let data_dir = root.join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
+        let room_types = crate::ship::room_types::RoomTypeRegistry::load(&data_dir);
+        let mut volumes: Vec<(String, f64)> = room_types
+            .room_bounds(&ship.generate_meshes().room_info)
+            .iter()
+            .map(|r| {
+                let d = r.max - r.min;
+                (r.id.clone(), f64::from(d.x) * f64::from(d.y) * f64::from(d.z))
+            })
+            // Rooms of 100 m3 and more, the ones a guide talks about: a closet's volume is a
+            // small number that turns up in prose for other reasons.
+            .filter(|(_, v)| *v >= 100.0)
+            .collect();
+        let shipped = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped homestead");
+        volumes.push(("the home's own air".into(), f64::from(crate::ship::ship_space::home_air_volume_m3(&shipped.body))));
+        assert!(volumes.iter().any(|(id, _)| id == "room-greenhouse"), "the ship publishes the greenhouse: {volumes:?}");
+        // The scan can fail: a sentence quoting the greenhouse as computed is caught.
+        let (_, greenhouse) = volumes.iter().find(|(id, _)| id == "room-greenhouse").unwrap();
+        let sample = format!("it rises to the 6 m roof ({} m3)", volume_spellings(*greenhouse).last().unwrap());
+        assert!(!quoted_volumes(&sample, &volumes).is_empty(), "the scan finds a quoted volume in {sample:?}");
+
+        let mut files: Vec<std::path::PathBuf> = Vec::new();
+        for dir in ["docs/user/skills", "data/library", "data/machines", "data/garden"] {
+            for e in std::fs::read_dir(root.join(dir)).unwrap_or_else(|e| panic!("{dir}: {e}")).flatten() {
+                let p = e.path();
+                if matches!(p.extension().and_then(|x| x.to_str()), Some("md" | "ron")) {
+                    files.push(p);
+                }
+            }
+        }
+        files.push(data_dir.join("life_support.ron"));
+        let mut found = Vec::new();
+        for p in &files {
+            let text = std::fs::read_to_string(p).unwrap_or_default();
+            for hit in quoted_volumes(&text, &volumes) {
+                found.push(format!("{}: {hit}", p.strip_prefix(root).unwrap_or(p).display()));
+            }
+        }
+        assert!(found.is_empty(), "describe how the game measures the room instead of quoting its volume:\n{}", found.join("\n"));
     }
 
     /// The same two homes with the home's own air held at 60% (the EPA's

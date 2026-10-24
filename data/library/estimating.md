@@ -558,12 +558,15 @@ The game does not test your eye. It does do one kind of estimating in
 front of you, and doing it yourself beside it is good practice.
 
 - **The power meters on the Construction page are a rate-times-time
-  estimate.** Under "Usage + self-sufficiency" the page says each machine
-  is counted at its average draw over a day, and the energy for the day
-  is that average multiplied by 24 hours. A solar panel whose data gives
+  estimate.** Under "Usage + self-sufficiency" the page counts each
+  machine at what it really drew over its last game day, once it has run
+  a whole one, and at its data's average draw until then, and it lists
+  which figures are measured and which are still estimates. The energy
+  for the day is that average multiplied by 24 hours. A solar panel whose data gives
   no yearly average output is credited with its peak output for a
   representative day of 4.5 hours of full sun. The machines, their
-  draws and their averages come from `data/machines/home.ron`. Before you read the meter,
+  draws and the averages it starts from come from `data/machines/home.ron`;
+  what each one drew is recorded as the game runs (`src/systems/day_energy.rs`). Before you read the meter,
   add up a few machines yourself and see how close you get.
 - **The Buildability checks on the same page do the comparison for
   you.** The "Energy balance" check sets what the home makes in a day

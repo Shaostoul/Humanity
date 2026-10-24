@@ -486,9 +486,10 @@ its numbers come from them.
   room's heat loss, the way Georgia sizes a heater: the game takes every
   grow room as single glass (Georgia's R-value of 0.91, 6.24 W per square
   metre and degree) and counts the air the room trades
-  (`data/garden/humidity.ron`, THE HEAT). One heater holds a 300 m3 room
-  about 1 C warmer, and a room the size of the family greenhouse (6 m
-  tall, 5,607 m3) only 0.13 C, flat out at 36 kWh a day. The warmer air
+  (`data/garden/humidity.ron`, THE HEAT). One heater holds a room 10 m by
+  10 m and 3 m tall about 1 C warmer, and a greenhouse-sized room (44.5 m
+  by 21 m and 6 m tall) only 0.13 C, flat out at 36 kWh a day; the game
+  measures each of your grow rooms from its walls as they stand. The warmer air
   reads drier, because warm air holds more water, and the fans and
   humidifiers work to their setpoints at the new temperature; the pests
   read the warmth too. The crops' own growth does not yet answer a grow

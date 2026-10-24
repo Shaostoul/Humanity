@@ -420,9 +420,6 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // tank's litres, each vessel's contents, with any saved contents still
     // held for world entry (systems::machine_levels).
     save.machine_levels = crate::systems::machine_levels::levels(world);
-    // What each space heater's thermostat was running it at (the review of
-    // BUG-155, 2026-10-05), which the time away charges it.
-    save.heater_draw_w = crate::systems::crafting::away::heater_draws(world);
     // The relay trades this backpack has settled (2026-10-02), in the same
     // save as the backpack they changed.
     save.settled_trades = settled_trades(world);
@@ -1054,6 +1051,9 @@ pub(crate) fn save_home_at(
     save.mining_drone = crate::systems::mining::unit(data);
     // So does the ship supply ledger (systems::ship_power): the reactor's kWh.
     save.ship_supply = crate::systems::ship_power::ledger(data);
+    // And the record of what each machine drew over its last game day (2026-10-22,
+    // systems::day_energy), which the meters and the time away read.
+    save.machine_day_energy = crate::systems::day_energy::for_save(world, data);
     // And the mess hall's meter on this computer (ship homes increment 6): the meals and water
     // the ship's stores gave this save away from a server. With no meter registered (nothing has
     // counted this session) the save keeps the one it had, rather than writing it back to zero.
@@ -1624,7 +1624,11 @@ pub fn resume_home(
     // THE MESS HALL'S METER (ship homes increment 6) comes back as saved: meals are not taken
     // while you are away.
     restore_ship_meals(data, &save.ship_meals);
-    let balance_w = home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.heater_draw_w));
+    // THE DAY RECORD (2026-10-22, systems::day_energy): what each machine drew over its
+    // last game day comes back as saved; the time away adds nothing to it, and charges
+    // each machine that day (an estimate for one that had not run a whole one).
+    crate::systems::day_energy::restore(data, &save.machine_day_energy);
+    let balance_w = home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.machine_day_energy));
     let dock_spare_w = crate::systems::ship_power::feed_watts(data)
         .unwrap_or_else(|| f64::from(balance_w[usize::from(crate::systems::life_support::is_realistic(data))].max(0.0)));
     let drone_away = crate::systems::mining::advance_away(world, data, r.away_secs, dock_spare_w);
