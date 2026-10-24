@@ -58,6 +58,8 @@ For the session the operator talks to directly (it orients, dispatches, merges, 
   build slot, the test-run policy, the lint cache, what the rigs wait for, the disk guard).
 - **boot the game** (a rig, `just launch-bg`, a relay run by hand, a screenshot of the running 3D
   game): `docs/ai/game-boots.md`; which check fits a change: the `game-checks` skill.
+- **drive or inspect the running game, or run rigs and lib tests, as tools**: `docs/ai/mcp.md`
+  (the dev MCP server in `.mcp.json`; `just mcp-smoke --boot --close` proves it end to end).
 - **bump a version, tag, release, deliver the exe to the operator, or deploy** (Version SOP, Deploy
   pipeline, VPS paths, the server recipes): `docs/ai/release.md` and the `release` skill.
 - **merge an agent's branch**: the `merge-agent` skill.
