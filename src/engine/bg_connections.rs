@@ -51,6 +51,8 @@ pub(crate) fn pump_background_connections(state: &mut EngineState, dt: f32) {
     }
 
     pump_carrier_history(state);
+    // Each signed-in server's federation list: which of my servers a Commons room may merge.
+    crate::gui::pages::chat::pump_federation_links(&mut state.gui_state);
     redial_dropped(state);
 }
 

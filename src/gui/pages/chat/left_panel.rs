@@ -990,8 +990,8 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // nothing here -- which is the point: the list stays
                     // short at dozens of servers.
                     let bg_channels: Vec<(String, String, bool, bool)> = {
-                        let commons: std::collections::HashSet<String> =
-                            commons_rooms(state).into_iter().map(|r| r.name).collect();
+                        // The Commons rooms THIS server is a linked carrier of (chat/commons.rs).
+                        let commons = commons_rooms_carried_by(state, &server.url);
                         let filter_map = |ch: &crate::gui::ChatChannel| {
                             if ch.local_only || (ch.federated && commons.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
                                 None
@@ -1017,8 +1017,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     };
                     // Bridged rooms this server carries (federation badge).
                     let bridges: Vec<String> = {
-                        let commons: std::collections::HashSet<String> =
-                            commons_rooms(state).into_iter().map(|r| r.name).collect();
+                        let commons = commons_rooms_carried_by(state, &server.url);
                         let pick = |chs: &Vec<crate::gui::ChatChannel>| {
                             chs.iter()
                                 .filter(|c| c.federated && commons.contains(&c.id))
@@ -1552,8 +1551,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let svr_collapsed = state
                         .chat_server_sections_collapsed
                         .contains(&norm_server_url(&state.server_url));
-                    let commons_set: std::collections::HashSet<String> =
-                        commons_rooms(state).into_iter().map(|r| r.name).collect();
+                    let commons_set = commons_rooms_carried_by(state, &state.server_url);
                     let bridges: Vec<String> = state
                         .chat_channels
                         .iter()
@@ -1649,8 +1647,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let channels = state.chat_channels.clone();
                     // Rooms that render ONCE in the COMMONS section above are
                     // hidden from every per-server list (federation-ux.md).
-                    let commons_names: std::collections::HashSet<String> =
-                        commons_rooms(state).into_iter().map(|r| r.name).collect();
+                    let commons_names = commons_rooms_carried_by(state, &state.server_url);
                     let is_channel_admin = {
                         let vr = viewer_role(state);
                         vr == "admin" || vr == "moderator" || vr == "mod"

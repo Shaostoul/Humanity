@@ -1258,6 +1258,7 @@ Server-to-server WebSocket connections, trust tiers, profile gossip.
 - Numbered log and catch-up (2026-10-22): everything a server sends its links (chat, edits, deletes, erases, bans, profile copies, signed objects) is numbered in its outbox; a link applies it once and in order and catches up after being down or paused. The origin's edits and deletes reach every copy; bans are honoured in shared rooms. `src/relay/handlers/federation_log.rs`, `src/relay/storage/federation_log.rs`
 - Per-peer flow limits (2026-10-22): every kind of frame has an allowance; a peer over it is slowed, then paused, never dropped; shown per peer in the admin API (`link.flow`). `src/relay/handlers/federation_flow.rs`
 - Phase 3 test, two relays on loopback: `src/relay/handlers/federation_phase3_tests.rs`; live check: `docs/admin/federation-live-check.md`
+- The desktop's Commons merges a room only across LINKED servers (2026-10-24): each signed-in server's own /api/federation/servers is read, and a federated room of the same name on a server linked to none of the others (a private node on this PC) stays in that server's list and is never routed through. One rule for the sidebar, the merged view, the header, the composer and send routing: `src/gui/pages/chat/commons.rs` `commons_carriers`; design: `docs/design/federation-ux.md`, build order 6.
 
 ### Server Membership
 Auto-join on connect, paginated member roster, role management.

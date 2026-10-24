@@ -156,6 +156,28 @@ graph; it never walks it for you.
    no peers yet; the Server Settings header names its server loudly
    ("Server: <name>" + URL). Remaining niceties for later: per-channel
    per-peer bridge scoping, and a merged per-server admin panel layout.
+6. DONE 2026-10-24: **A Commons room merges only servers that are linked.** Found on the
+   operator's own app: his "Super Secret Invite Only Server" (a node on this PC,
+   `http://127.0.0.1:3210`) marks its #general federated, so the desktop listed it as a third
+   carrier of the public #general beside united-humanity.us and public.guide, though it is linked
+   to neither. Matching by name alone (the KNOWN LIMIT above) merged two separate rooms into one
+   view, and a message typed there could be sent through the private server. The rule, the same
+   everywhere the app decides it (one function, `chat.rs` `commons_carriers`):
+   - Two of my servers are LINKED when either one's federation list (GET /api/federation/servers,
+     fetched by the app when it signs in to that server, kept per server address) names the
+     other. Listed counts, whatever its momentary status (online, offline, unreachable): the
+     status is reachability, the listing is the operator's decision to bridge.
+   - A room's carriers are my connected servers that mark it federated. The Commons room is the
+     group of carriers joined by links (a connected component) that holds the active server, or
+     else the largest; it needs two or more. A carrier outside that group keeps the room in its
+     own server list, with the bridge badge, as a room federated on one of my servers.
+   - A server whose list has not arrived (or failed) is linked to nobody: safe by default, so
+     the worst a slow fetch does is keep a room under its server for a moment.
+   - The sidebar, the per-server lists' hiding, the merged view, the composer's hint and limit,
+     read-only, and send routing all take the carriers from that one function, so they cannot
+     disagree about which servers a Commons room is.
+   Later rungs: per-channel per-peer bridge scoping (a room bridged with only some peers), and
+   the extended graph for the Federation Directory, which reads the same lists.
 
 ## Related
 

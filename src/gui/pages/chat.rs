@@ -101,6 +101,13 @@ pub(crate) mod line_limit;
 // The timestamp formats and formatters (moved out 2026-10-24, file-size ratchet).
 mod timestamps;
 pub use timestamps::*;
+// The Commons: which of my LINKED servers make up a bridged room, and its routing (2026-10-24).
+mod commons;
+pub use commons::FederationLinks;
+pub(crate) use commons::{
+    commons_carriers, commons_room_of, commons_room_read_only, commons_rooms, commons_rooms_carried_by, commons_route,
+    open_commons_room, pump_federation_links, CommonsRoom,
+};
 #[cfg(test)]
 mod composer_tests; // the composer grows upward and stays on screen (2026-10-10)
 
@@ -439,15 +446,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_primary())
                             .strong(),
                     );
+                    // The room's linked carriers that are signed in (chat/commons.rs).
+                    let linked = commons_carriers(state, &room);
                     let mut carriers: Vec<String> = Vec::new();
-                    if state.chat_channels.iter().any(|c| c.id == room && c.federated)
-                        && state.ws_client.as_ref().map_or(false, |c| c.is_connected())
-                    {
+                    if linked.active && state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
                         carriers.push(server_display_name(&state.server_url));
                     }
-                    for conn in state.connections.iter().filter(|c| c.identified) {
-                        if conn.channels.iter().any(|c| c.id == room && c.federated) {
-                            carriers.push(server_display_name(&conn.url));
+                    for &i in &linked.parked {
+                        if state.connections[i].identified {
+                            carriers.push(server_display_name(&state.connections[i].url));
                         }
                     }
                     ui.label(
@@ -563,22 +570,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // several carriers collapse on (origin, timestamp, content).
                 let filtered: Vec<&ChatMessage> =
                     if let Some(room) = commons_room_of(&active_channel) {
-                        let active_carries = state
-                            .chat_channels
-                            .iter()
-                            .any(|c| c.id == room && c.federated);
+                        // Only the linked carriers' copies (chat/commons.rs): a server that names
+                        // a room the same but bridges with none of them holds a different room.
+                        let linked = commons_carriers(state, room);
                         let mut merged: Vec<&ChatMessage> = Vec::new();
-                        if active_carries {
+                        if linked.active {
                             merged.extend(
                                 state.chat_messages.iter().filter(|m| m.channel == room),
                             );
                         }
-                        for conn in state.connections.iter() {
-                            if conn.channels.iter().any(|c| c.id == room && c.federated) {
-                                merged.extend(
-                                    conn.messages.iter().filter(|m| m.channel == room),
-                                );
-                            }
+                        for &i in &linked.parked {
+                            merged.extend(
+                                state.connections[i].messages.iter().filter(|m| m.channel == room),
+                            );
                         }
                         let natives: std::collections::HashSet<(u64, &str)> = merged
                             .iter()
@@ -1707,24 +1711,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // field test a Commons send silently routed through a
                         // background carrier while the operator sat on an
                         // offline private server -- the composer must say
-                        // where the message will actually go.
-                        let active_carries = state
-                            .chat_channels
-                            .iter()
-                            .any(|c| c.id == room && c.federated)
-                            && state.ws_client.as_ref().map_or(false, |c| c.is_connected());
-                        let via = if active_carries {
-                            Some(server_display_name(&state.server_url))
-                        } else {
-                            state
-                                .connections
-                                .iter()
-                                .find(|c| {
-                                    c.identified
-                                        && c.ws.is_some()
-                                        && c.channels.iter().any(|ch| ch.id == room && ch.federated)
-                                })
-                                .map(|c| server_display_name(&c.url))
+                        // where the message will actually go. The send's own route
+                        // (chat/commons.rs), so the two cannot disagree.
+                        let via = match commons_route(state, room) {
+                            (true, _) => Some(server_display_name(&state.server_url)),
+                            (false, Some(i)) => Some(server_display_name(&state.connections[i].url)),
+                            (false, None) => None,
                         };
                         if commons_room_read_only(state, room) == Some(true) {
                             format!("#{} is read-only (announcements from the operators)", room)
@@ -2788,22 +2780,6 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 
 }
 
-/// How a Commons room is reached (federation-ux.md): whether the ACTIVE server carries it (a
-/// federated channel of that name on a live socket), and if not, which background connection
-/// does. The send below and the message box's limit (chat/line_limit.rs) both ask this, so the
-/// limit shown is always the one of the server the line goes to.
-pub(crate) fn commons_route(state: &GuiState, room: &str) -> (bool, Option<usize>) {
-    let active = state.ws_client.as_ref().map_or(false, |c| c.is_connected())
-        && state.chat_channels.iter().any(|c| c.id == room && c.federated);
-    if active {
-        return (true, None);
-    }
-    let carrier = state.connections.iter().position(|c| {
-        c.identified && c.ws.is_some() && c.channels.iter().any(|ch| ch.id == room && ch.federated)
-    });
-    (false, carrier)
-}
-
 /// THE single content-routing authority for native chat (v0.708), mirroring
 /// the web's `sendComposedContent` (v0.698.2): a typed message, a pasted
 /// image URL, and an attached file URL all flow through HERE, so the
@@ -3406,27 +3382,6 @@ pub(crate) fn norm_server_url(u: &str) -> String {
     u.trim().trim_end_matches('/').to_string()
 }
 
-/// One Commons room: a federated channel that TWO OR MORE of the user's
-/// servers carry, so it renders once in the COMMONS sidebar section
-/// instead of once per server (docs/design/federation-ux.md, "The
-/// Commons"). Rooms are matched BY NAME across servers -- an accepted
-/// limit until channels gain a portable identity; two unrelated servers
-/// that both federate a "#general" will merge in this view.
-pub(crate) struct CommonsRoom {
-    /// Channel id/name (the wire channel string).
-    pub name: String,
-    /// How many of my servers carry it (active + background).
-    pub carriers: usize,
-    /// Whether the ACTIVE connection is one of the carriers (send path:
-    /// active if possible, else a background carrier).
-    pub active_carries: bool,
-    /// Any carrier holds unread activity in this room.
-    pub unread: bool,
-    /// The carriers' urls, for the at-a-glance identity-color dots on the
-    /// room row (field test 6: WHICH servers relay a room, without menus).
-    pub carrier_urls: Vec<String>,
-}
-
 /// A server's stable identity color, derived from its normalized URL (FNV
 /// hash to a hue). Shown as a chip on the server row and as matching dots
 /// on the Commons rooms it carries -- the glanceable "who relays what".
@@ -3437,107 +3392,6 @@ pub(crate) fn server_color(url: &str) -> Color32 {
     }
     let hue = (h % 360) as f32 / 360.0;
     crate::gui::pages::escape_menu::hsv_to_rgb(hue, 0.55, 0.95)
-}
-
-/// The room name behind a Commons view id ("commons:general" -> "general"),
-/// or None when the active channel is not a Commons view. A Commons room and
-/// a same-named LOCAL channel are DIFFERENT rooms: the qualified id keeps
-/// them apart (the operator's private #general must never blend into the
-/// bridged #general, and vice versa).
-pub(crate) fn commons_room_of(active_channel: &str) -> Option<&str> {
-    active_channel.strip_prefix("commons:")
-}
-
-/// Open a Commons room: qualified view id, fresh buffer, history refetch,
-/// and the unread mark cleared on every carrier.
-pub(crate) fn open_commons_room(state: &mut GuiState, name: &str) {
-    state.chat_active_channel = format!("commons:{}", name);
-    state.chat_messages.clear();
-    state.history_fetched = false;
-    if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == name) {
-        c.unread = false;
-    }
-    for conn in state.connections.iter_mut() {
-        if let Some(c) = conn.channels.iter_mut().find(|c| c.id == name) {
-            c.unread = false;
-        }
-    }
-}
-
-/// Whether the resolved Commons send carrier treats `room` as read-only for
-/// THIS user (admins/mods still post -- e.g. #announcements). None = no
-/// connected carrier at all. Field test 5: bridged read-only rooms must not
-/// accept posts through the side door of a different carrier.
-pub(crate) fn commons_room_read_only(state: &GuiState, room: &str) -> Option<bool> {
-    let is_mod = |role: &str| role == "admin" || role == "owner" || role == "moderator" || role == "mod";
-    let active_carries = state.ws_client.as_ref().map_or(false, |c| c.is_connected())
-        && state.chat_channels.iter().any(|c| c.id == room && c.federated);
-    if active_carries {
-        let ro = state
-            .chat_channels
-            .iter()
-            .find(|c| c.id == room)
-            .map(|c| c.read_only)
-            .unwrap_or(false);
-        return Some(ro && !is_mod(&viewer_role(state)));
-    }
-    let conn = state.connections.iter().find(|c| {
-        c.identified
-            && c.ws.is_some()
-            && c.channels.iter().any(|ch| ch.id == room && ch.federated)
-    })?;
-    let ro = conn
-        .channels
-        .iter()
-        .find(|ch| ch.id == room)
-        .map(|ch| ch.read_only)
-        .unwrap_or(false);
-    let role = conn
-        .users
-        .iter()
-        .find(|u| u.public_key == state.profile_public_key)
-        .map(|u| u.role.clone())
-        .unwrap_or_default();
-    Some(ro && !is_mod(&role))
-}
-
-/// Compute the Commons rooms from the active connection + every background
-/// connection. A room qualifies when it is FLAGGED federated and at least
-/// two of my servers carry it.
-pub(crate) fn commons_rooms(state: &GuiState) -> Vec<CommonsRoom> {
-    use std::collections::BTreeMap;
-    // name -> (carriers, active_carries, unread, carrier_urls)
-    let mut rooms: BTreeMap<String, (usize, bool, bool, Vec<String>)> = BTreeMap::new();
-    let active_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
-    if active_connected {
-        let active_url = norm_server_url(&state.server_url);
-        for ch in state.chat_channels.iter().filter(|c| c.federated) {
-            let e = rooms.entry(ch.id.clone()).or_insert((0, false, false, Vec::new()));
-            e.0 += 1;
-            e.1 = true;
-            e.2 |= ch.unread;
-            e.3.push(active_url.clone());
-        }
-    }
-    for conn in state.connections.iter().filter(|c| c.identified) {
-        for ch in conn.channels.iter().filter(|c| c.federated) {
-            let e = rooms.entry(ch.id.clone()).or_insert((0, false, false, Vec::new()));
-            e.0 += 1;
-            e.2 |= ch.unread;
-            e.3.push(conn.url.clone());
-        }
-    }
-    rooms
-        .into_iter()
-        .filter(|(_, (carriers, _, _, _))| *carriers >= 2)
-        .map(|(name, (carriers, active_carries, unread, carrier_urls))| CommonsRoom {
-            name,
-            carriers,
-            active_carries,
-            unread,
-            carrier_urls,
-        })
-        .collect()
 }
 
 /// The COMMONS sidebar section: federated rooms carried by 2+ of my
@@ -4220,82 +4074,6 @@ pub(crate) fn open_dm_conversation(state: &mut GuiState, key: &str) {
     }
     crate::engine::dm::reload_dm_channel(state, key);
 }
-
-#[cfg(test)]
-mod commons_rooms_tests {
-    use super::commons_rooms;
-    use crate::gui::{ChatChannel, GuiState, ServerConnection};
-
-    fn conn(url: &str, identified: bool, channels: &[(&str, bool, bool)]) -> ServerConnection {
-        ServerConnection {
-            url: url.to_string(),
-            identified,
-            channels: channels
-                .iter()
-                .map(|(id, federated, unread)| ChatChannel {
-                    id: id.to_string(),
-                    name: id.to_string(),
-                    federated: *federated,
-                    unread: *unread,
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn a_room_two_servers_bridge_is_commons_and_one_server_is_not() {
-        let mut state = GuiState::default();
-        // Active connection is offline (no ws), so carriers come from the
-        // two background connections.
-        state.connections.push(conn("https://a", true, &[("general", true, false), ("ops", true, false)]));
-        state.connections.push(conn("https://b", true, &[("general", true, true), ("lounge", false, false)]));
-        let rooms = commons_rooms(&state);
-        assert_eq!(rooms.len(), 1, "only the room BOTH servers federate qualifies");
-        assert_eq!(rooms[0].name, "general");
-        assert_eq!(rooms[0].carriers, 2);
-        assert!(!rooms[0].active_carries, "active connection is offline");
-        assert!(rooms[0].unread, "unread on ANY carrier lights the room");
-    }
-
-    #[test]
-    fn same_name_without_the_federated_flag_never_merges() {
-        let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", false, false)]));
-        state.connections.push(conn("https://b", true, &[("general", false, false)]));
-        assert!(commons_rooms(&state).is_empty(), "two plain #general rooms stay separate");
-    }
-
-    #[test]
-    fn opening_a_commons_room_uses_the_qualified_id_and_clears_carrier_unread() {
-        let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", true, true)]));
-        state.connections.push(conn("https://b", true, &[("general", true, true)]));
-        super::open_commons_room(&mut state, "general");
-        // The qualified id keeps the bridged room distinct from any
-        // same-named LOCAL channel (the private #general must never blend
-        // into the Commons view).
-        assert_eq!(state.chat_active_channel, "commons:general");
-        assert_eq!(super::commons_room_of(&state.chat_active_channel), Some("general"));
-        assert!(
-            state
-                .connections
-                .iter()
-                .all(|c| c.channels.iter().all(|ch| !ch.unread)),
-            "opening the room clears unread on every carrier"
-        );
-    }
-
-    #[test]
-    fn unidentified_connections_do_not_count_as_carriers() {
-        let mut state = GuiState::default();
-        state.connections.push(conn("https://a", true, &[("general", true, false)]));
-        state.connections.push(conn("https://b", false, &[("general", true, false)]));
-        assert!(commons_rooms(&state).is_empty(), "a half-connected server is not a carrier yet");
-    }
-}
-
 
 #[cfg(test)]
 mod ingame_chat_mode_tests {

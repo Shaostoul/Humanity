@@ -144,7 +144,10 @@ In order:
      Time zone (Local or UTC) and the five timestamp formats on the website too; the offset is the
      OS's own (no time crate), and the website's expanded pill, which was UTC, follows the setting;
    - the app's Commons header for #general lists 127.0.0.1:3210, a local test relay, beside the two
-     real servers.
+     real servers. DONE 2026-10-24: it is the operator's own "Super Secret Invite Only Server", a node
+     on his PC whose #general is marked federated but linked to neither public server; the Commons
+     now merges a room only across servers whose federation lists link them (federation-ux.md,
+     build order 6), so that room stays under its own server and is never sent through.
 9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).
 
 **For the operator, when it suits him:** pair the two servers' continuous backups in each Backups
