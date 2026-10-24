@@ -740,7 +740,7 @@ impl Storage {
             // truncate it, so a bulk wipe does not leave content in the -wal file
             // (audit 2026-06-12). Best-effort: a busy reader makes this a no-op; never
             // fail the wipe over a checkpoint hiccup.
-            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            self.wal_truncate(conn);
             Ok(rows)
         })
     }
@@ -753,7 +753,7 @@ impl Storage {
                 params![channel_id],
             )?;
             // See wipe_messages: truncate the WAL after a bulk delete (best-effort).
-            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            self.wal_truncate(conn);
             Ok(rows)
         })
     }
@@ -873,7 +873,7 @@ impl Storage {
                 rusqlite::params![cutoff_ms],
             )?;
             if n > 0 {
-                let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+                self.wal_truncate(conn);
             }
             Ok(n)
         })

@@ -377,7 +377,7 @@ impl Storage {
             // name nobody, and deleting them would let a sign-up with the same key (the same
             // recovery phrase) bring back every pass it had withdrawn.
             // Fold the secure_delete-zeroed pages out of the WAL.
-            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            self.wal_truncate(conn);
             // What was kept on purpose above is said in the receipt as not erased, the way a
             // failed delete is, so the erase reports `partial` and the person erases again.
             for (kept, went) in [("listings", images_went), ("registered_name", name_rows_went)] {

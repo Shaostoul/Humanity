@@ -60,6 +60,41 @@ If `/opt` is near 100%:
 
 > **AUTOMATED since v0.286.0:** the relay now boots via `Storage::open_resilient`, on a failed integrity check it auto-restores the newest *healthy* `backups/relay-*.db` (quarantining the corrupt file to `relay.db.corrupt-<ts>`), and if NO healthy backup exists it refuses to start (loud failure, watchdog alerts) rather than silently wiping. The manual steps above are the fallback if the automated recovery itself can't find a good backup. The relay watchdog (`humanity-relay-watchdog.timer`, every 2 min) catches the refuse-to-start case and logs CRITICAL.
 
+### Server lost, or its database gone (restore from continuous backup)
+**Symptom**: the machine is gone (disk dead, VPS deleted), or the database is damaged beyond what
+the start-up recovery fixes.
+
+**Recovery** (`docs/admin/continuous-backup.md`, "Restoring"):
+1. On the replacement machine, install the release as usual, and put copies of the old server's
+   `backup.key` and `backup-destination.secrets.json` in `data/` (the operator's PC keeps them
+   in `%USERPROFILE%\HumanityBackups\keys\<server>\`).
+2. `./target/release/HumanityOS --restore-backup data/relay.restored.db` (the newest state; add
+   `--at YYYY-MM-DDTHH:MM:SSZ` for a moment before a mistake). It prints the time it restored to
+   and checks integrity.
+3. Move it into place as `data/relay.db` (old `relay.db`, `-wal`, `-shm` moved aside), carry
+   `erased-accounts.key` if it survived, start the relay. It keeps streaming to the same
+   destination, starting a new generation there.
+4. If the destination is the other server and that one is fine, nothing else changes. If both are
+   lost, the PC's pulled snapshot is the last resort: `scripts/decrypt-backup.sh <file.db.aes>
+   <backup.key>`, at most a few hours old.
+
+### Backups are behind (alert "continuous backup ... behind" or "refused")
+**Diagnosis**: Server Settings > ADMIN > Backups says why in one sentence; the relay log has
+`continuous backup:` lines.
+- **Destination unreachable** (the other server down, the bucket's provider down, the folder's
+  disk unmounted): nothing to do on this server; changes wait in `data/backup-stream/pending/`
+  and are sent, in order, when it is back (retries back off to every 5 minutes). Watch that
+  folder's size on a long outage.
+- **"no more room"**: the keeping server's limit for this server is full: raise it there (Keep
+  other servers' backups here), or shorten the history kept here.
+- **"refused"**: the destination holds another server's backups, or ones made with another
+  backup key (the key was replaced?). Choose another folder or prefix; never delete the other
+  server's copies to make room.
+- **The other server says "not allowed"**: its list no longer has this server's sending key
+  (removed, or `backup-destination.secrets.json` was lost here, which makes a new key): give its
+  admin the key shown in this server's Backups panel again.
+After any fix, press Restore drill.
+
 ### Stolen recovery phrase (user reports)
 The user's identity is the seed. Anyone with the seed is them. There is no central revocation today (key_rotation was removed in Inc5b).
 

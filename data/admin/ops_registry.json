@@ -539,10 +539,10 @@
     },
     {
       "name": "Restore the database from a backup",
-      "what": "Bringing data back from a snapshot is fully manual: stop the server, copy the backup file over the live one, start again. No script and no in-app flow exist.",
+      "what": "Rebuild the database from the continuous backup (the newest state, or any moment inside the history kept) or from a snapshot, then put it in place while the server is stopped. Rebuilding needs no running server; putting it in place is still an attended step.",
       "where": "vps-shell",
       "audience": "owner",
-      "how": "ssh humanity-vps; systemctl stop humanity-relay; cp /opt/Humanity/backups/relay-<ts>.db /opt/Humanity/data/relay.db; chown humanity:humanity; systemctl start humanity-relay (listed as CLI debt in docs/design/in-app-ops.md:39)."
+      "how": "HumanityOS --restore-backup data/relay.restored.db [--at YYYY-MM-DDTHH:MM:SSZ] (reads data/backup.key and data/backup-destination.secrets.json; integrity-checked before the file appears; src/relay/backup_stream/restore.rs cli_main), then systemctl stop humanity-relay; move relay.db (and -wal, -shm) aside; put the restored file in its place; systemctl start humanity-relay. From a snapshot: scripts/decrypt-backup.sh <file> <key> instead of the first step. docs/admin/continuous-backup.md \"Restoring\"."
     },
     {
       "name": "Off-site backup pull to the owner's PC",
@@ -629,11 +629,14 @@
       "how": "ssh humanity-vps 'systemctl status forgejo' / restart / journalctl -u forgejo / edit /etc/forgejo/app.ini / DB copy backup; upgrade = replace binary + restart (docs/admin/forgejo-setup.md:102-171)."
     },
     {
-      "name": "Litestream streaming replication (optional, not deployed)",
-      "what": "Continuous off-site database replication to cloud storage is a documented optional layer, installed and restored from entirely via shell; the live server verified 2026-07-03 does NOT run it.",
-      "where": "vps-shell",
-      "audience": "owner",
-      "how": "Install the .deb, write /etc/litestream.yml + credentials, enable litestream.service; disaster-restore with litestream restore then integrity_check + restart (docs/operations/litestream.md:29-117)."
+      "name": "Continuous backup: see how far behind it is and what can be restored",
+      "what": "Every change to the database reaches another place within seconds, sealed with the server's backup key. The panel shows where the copies go, the newest copy there and how far behind, which moments can be restored, the size at the destination, the history kept, the backup key's fingerprint, and the last alert.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Backups (src/gui/pages/server_settings/continuous_backup.rs); web: the admin page's Backups panel (web/pages/backups-admin.js); both POST /api/admin/backups (src/relay/backup_stream/api.rs), action status. Engine: src/relay/backup_stream/ (WAL shipping), docs/admin/continuous-backup.md.",
+      "also_available": [
+        "web-page: /admin, Backups panel"
+      ]
     },
     {
       "name": "Claim a fresh server (become the first admin)",
@@ -647,10 +650,51 @@
     },
     {
       "name": "View backups and back up now",
-      "what": "See every database backup with its size and age, and take a fresh consistent snapshot with one click while the server keeps running.",
+      "what": "See every database backup in the server's backups folder with its size and age, and take a fresh consistent snapshot with one click while the server keeps running; with continuous backup on, the same press also sends a fresh full copy to its destination.",
       "where": "native-app",
-      "how": "Server Settings > ADMIN > Backups: auto-loads the list; Back up now takes a VACUUM INTO snapshot into backups/ (works on any host, no scripts). Restoring a backup is an attended host-side step, see docs/admin/SELF-HOSTING.md (src/relay/storage/backups.rs; panel in src/gui/pages/server_settings.rs).",
-      "audience": "any-admin"
+      "how": "Server Settings > ADMIN > Backups: auto-loads the list; Back up now takes a VACUUM INTO snapshot into backups/ (works on any host, no scripts) and, when continuous backup is on, asks it for a fresh full copy (src/relay/storage/backups.rs backup_now; panel in src/gui/pages/server_settings.rs). Web: the admin page's Backups panel, action back_up_now of POST /api/admin/backups.",
+      "audience": "any-admin",
+      "also_available": [
+        "web-page: /admin, Backups panel, Back up now"
+      ]
+    },
+    {
+      "name": "Run a restore drill",
+      "what": "Prove the backup restores: the server brings the destination up to date, restores from it into a scratch file, runs SQLite's full integrity check, compares every table with the live database at the same moment (which it only reads), deletes the scratch file, and says whether it passed.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Backups (src/gui/pages/server_settings/continuous_backup.rs); web: the admin page's Backups panel (web/pages/backups-admin.js); both POST /api/admin/backups (src/relay/backup_stream/api.rs), action restore_drill (src/relay/backup_stream/mod.rs drill); the result appears in the panel.",
+      "also_available": [
+        "web-page: /admin, Backups panel, Restore drill",
+        "vps-shell: HumanityOS --backup-drill --data <folder with backup.key> (restores the newest state into a temporary file; exit 0 passed, 7 too old)"
+      ]
+    },
+    {
+      "name": "Choose where continuous backups go",
+      "what": "Pick the destination (a folder on another disk or a mounted share, an S3-compatible bucket, or another HumanityOS server you trust), how much history to keep, how often a full copy is taken, and how far behind before an alert. A destination is tested (a sealed copy written, read back, deleted) before it is saved; one holding another server's backups is refused. Secrets left empty keep the saved ones and are never shown.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Backups (src/gui/pages/server_settings/continuous_backup.rs); web: the admin page's Backups panel (web/pages/backups-admin.js); both POST /api/admin/backups (src/relay/backup_stream/api.rs), actions test_destination and set_destination; saved to data/backup-destination.secrets.json (src/relay/backup_stream/mod.rs apply_settings).",
+      "also_available": [
+        "web-page: /admin, Backups panel, Change where the copies go"
+      ]
+    },
+    {
+      "name": "Keep another server's backups here",
+      "what": "Let another HumanityOS server stream its continuous backup to this one: list it by its backup sending key with a size limit. Its copies are sealed with its own key, so this server stores ciphertext it cannot read; copies past the limit, or once this server's disk is 90% full, are refused. Stopping keeps or deletes the copies already here.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Backups (src/gui/pages/server_settings/continuous_backup.rs); web: the admin page's Backups panel (web/pages/backups-admin.js); both POST /api/admin/backups (src/relay/backup_stream/api.rs), actions host_allow and host_remove; the list is data/backup-host.json, the copies data/backup-host/<fingerprint>/ (src/relay/backup_stream/host.rs). The other server copies its key from its own panel (This server's backup sending key).",
+      "also_available": [
+        "web-page: /admin, Backups panel, Keep other servers' backups here"
+      ]
+    },
+    {
+      "name": "Monthly restore drill from the owner's PC",
+      "what": "From the owner's home computer, once a month: restore the server's newest state from the other server into a temporary file and check it, and decrypt and check the newest snapshot the pull task brought to the PC. Silent scheduled task.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "powershell -File scripts/backup-drill-pc.ps1 (needs copies of the server's backup.key and backup-destination.secrets.json in %USERPROFILE%\\HumanityBackups\\keys\\<server>; task recipe at the top of the script; log %USERPROFILE%\\HumanityBackups\\backup-drill.log)."
     }
   ],
   "planned": [
@@ -713,6 +757,12 @@
       "today": "The off-site third copy is a hidden Windows scheduled task running an scp script (scripts/backup-relay-from-vps.ps1), invisible and fragile for a non-technical owner.",
       "proposal": "Native app 'Mirror backups to this PC' setting: an admin-authenticated endpoint serves the newest snapshot and the desktop app downloads it on a schedule, showing last-mirrored age.",
       "effort": "medium"
+    },
+    {
+      "name": "Restore on next restart, from inside the app",
+      "today": "Rebuilding a database from the continuous backup is one command (HumanityOS --restore-backup), but putting it in place is a shell step with the relay stopped (docs/admin/continuous-backup.md \"Restoring\").",
+      "proposal": "Backups panel: pick a moment inside the history, the relay rebuilds the file beside the live one and swaps it in at its next start (keeping the replaced database as relay.db.before-restore-<time>); type-to-confirm. Needs the relay-control restart bridge to be one click.",
+      "effort": "medium"
     }
   ],
   "vps_only": [
@@ -747,10 +797,6 @@
     {
       "name": "Forgejo mirror administration",
       "reason": "A separate product with its own service, database, and web admin UI; not part of the HumanityOS binary's domain."
-    },
-    {
-      "name": "Litestream replication",
-      "reason": "An optional host-level daemon holding cloud credentials beside the app; infrastructure around the app, not behavior of it (and not currently deployed)."
     }
   ]
 }

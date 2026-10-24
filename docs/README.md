@@ -70,7 +70,6 @@ pipeline guides live in **[dev/](dev/)**.
 | **[mission/](mission/)** | Why HumanityOS exists: the five adversaries, good humans and good AI, homesteading, the interstellar horizon. |
 | **[outreach/](outreach/)** | Audience-tailored "how it helps" briefs: individuals, families, public leaders, funders, partners, players. |
 | **[reference/](reference/)** | Schemas, runbooks, templates, data definitions. |
-| **[operations/](operations/)** | Live-ops notes (backup replication, etc.). |
 | **[history/](history/)** | Dated session notes, superseded plans, vision essays. |
 | **[website/](website/)** | The public Jekyll site (built and deployed separately). |
 

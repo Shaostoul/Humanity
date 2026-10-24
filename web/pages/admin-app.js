@@ -154,12 +154,12 @@
     renderFederation(data.federation || []);
 
     // System health (in-app-ops first slice)
-    renderSystem(data.system || null);
+    renderSystem(data.system || null, data.continuous_backup || null);
   }
 
   // Render the System Health panel from the admin-stats `system` object.
   // Replaces the operator's SSH for disk / version / watchdog / backup.
-  function renderSystem(sys) {
+  function renderSystem(sys, cb) {
     const el = document.getElementById('system-health');
     if (!el) return;
     if (!sys) { el.innerHTML = '<p style="color:#666">No system data.</p>'; return; }
@@ -192,6 +192,13 @@
         formatBytes(b.newest_size_bytes) + ', ' + b.count + ' kept)']);
     } else {
       rows.push(['Backups', '<span style="color:#e67e22">none found</span>']);
+    }
+    // Continuous backup (2026-10-22): its state in one row; the Backups panel below has the rest.
+    if (cb && cb.state && cb.state !== 'off') {
+      const good = cb.state === 'up_to_date' || cb.state === 'catching_up';
+      rows.push(['Continuous backup', '<span style="color:' + (good ? 'var(--success)' : 'var(--danger)') + '">' + escapeHtml(cb.words || cb.state) + '</span>']);
+    } else if (cb) {
+      rows.push(['Continuous backup', '<span style="color:var(--text-muted)">off (see Backups below)</span>']);
     }
     el.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
       rows.map(r => '<tr><td style="padding:4px 12px 4px 0;color:#888;white-space:nowrap">' +

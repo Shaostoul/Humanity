@@ -16,7 +16,7 @@ test = false
 [features]
 default = ["native"]
 native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc", "dep:windows"]
-relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj"]
+relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
@@ -197,7 +197,9 @@ console_log = { version = "0.2", optional = true }
 # === Platform: Relay (server mode) ===
 axum = { version = "0.8", optional = true, features = ["ws", "multipart"] }
 tower-http = { version = "0.6", optional = true, features = ["cors", "fs"] }
-rusqlite = { version = "0.34", optional = true, features = ["bundled"] }
+# `backup`: SQLite's online backup API, the continuous backup's snapshots (2026-10-22,
+# src/relay/backup_stream/capture.rs). A compile switch inside rusqlite, no new crate.
+rusqlite = { version = "0.34", optional = true, features = ["bundled", "backup"] }
 # Connection pool for the relay's SQLite store (R3 concurrency work). r2d2 is a
 # generic pool; r2d2_sqlite adapts rusqlite into it. Gives the relay a pool of
 # concurrent READ connections (WAL allows many readers) alongside the single
@@ -229,6 +231,9 @@ uuid = { version = "1", optional = true, features = ["v4"] }
 tokio-tungstenite = { version = "0.26", optional = true, features = ["rustls-tls-webpki-roots"] }
 ciborium = { version = "0.2", optional = true }
 blake3 = { version = "1", optional = true }
+# Deflate for the continuous backup's objects, compressed before they are sealed (2026-10-22,
+# src/relay/backup_stream/seal.rs). Already in the build through image and png: no new crate.
+miniz_oxide = { version = "0.8", optional = true }
 rand_core_06 = { package = "rand_core", version = "0.6", optional = true, features = ["getrandom"] }
 
 # === Post-quantum cryptography (Phase 0 baseline; see plan decision 4) ===

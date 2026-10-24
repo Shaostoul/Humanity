@@ -15,7 +15,7 @@
 - 45 storage modules in `src/relay/storage/` (was 38 at v0.115; grown with governance,
   recovery, agent_sessions, and other additions since)
 - Single SQLite file with WAL mode (`PRAGMA journal_mode=WAL` set in `Storage::open`)
-- Litestream-ready for async S3-compatible replication (see `docs/operations/litestream.md`)
+- Continuous backup built in: the relay ships its WAL frames, sealed, to a folder, an S3-compatible bucket or another HumanityOS server (`src/relay/backup_stream/`, `docs/admin/continuous-backup.md`)
 - Stores both:
   - **Substrate**: the generic `signed_objects` table, every higher-level
     domain projects from this
@@ -262,8 +262,8 @@ fast can we search?* Concrete numbers, all on a single mid-range VPS (4 CPU,
 
 ### What 1 billion items actually looks like
 
-- **Storage**: ~1KB per item row + indexes ≈ **2–3 TB** raw. Use Litestream
-  to replicate to S3-compatible storage for durability.
+- **Storage**: ~1KB per item row + indexes ≈ **2–3 TB** raw. The built-in
+  continuous backup replicates it to S3-compatible storage (or another server) for durability.
 - **Single SQLite file**: handles up to 2^63-1 rows in theory, ~140 TB max
   size. We never approach that.
 - **Per-server practical ceiling**: ~100M rows on commodity hardware before
@@ -331,7 +331,7 @@ without touching any item file.
 - `docs/network/object_format.md`, canonical CBOR signed object format
 - `docs/design/p2p-groups.md`, what replicates P2P vs centralized (groups)
 - `docs/network/server_federation.md`, federation protocol
-- `docs/operations/litestream.md`, replication ops
+- `docs/admin/continuous-backup.md`, continuous backup (replication) ops
 - `docs/design/identity.md`, DID + key rotation
 - `docs/design/credentials.md`, VC schema details (when written)
 - `docs/design/multi-agent-development.md`, how AI agents coordinate without nuking each other's work

@@ -44,6 +44,8 @@ pub mod api_v2_solana;
 pub mod api_v2_trust;
 pub mod api_v2_zk;
 pub mod storage;
+/// Continuous backup of the database: WAL shipping to a folder, a bucket or another server (2026-10-22).
+pub mod backup_stream;
 pub mod handlers;
 pub mod core;
 /// The server capability manifest (v0.1113): which features this owner offers,
@@ -651,6 +653,13 @@ pub async fn run_relay() {
     let db = storage::Storage::open_resilient(std::path::Path::new(&db_path), &backups_dir)
         .expect("Failed to open database (corrupt + no healthy backup — see logs)");
 
+    // Continuous backup (2026-10-22, backup_stream): start following the write-ahead log
+    // BEFORE anything below writes, so no change made at start is missed. Off unless the
+    // admin chose a destination (Server Settings > Backups).
+    if let Err(e) = db.backup_stream_install() {
+        tracing::error!("continuous backup could not start: {e}");
+    }
+
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
@@ -880,6 +889,10 @@ pub async fn run_relay() {
     }
 
     let state = Arc::new(relay_state);
+
+    // The continuous backup's shipper: always running, idle while backup is off, so turning it
+    // on in the app needs no restart.
+    tokio::spawn(backup_stream::run(state.clone()));
 
     // Federation Phase 2: start outbound connections to verified federated servers.
     // Skipped entirely when the owner switched federation off — refusing the
@@ -1243,6 +1256,9 @@ pub async fn run_relay() {
         .with_graceful_shutdown(shutdown_signal(shutdown_state))
         .await
         .unwrap();
+    // The last capture, the log emptied into the database, and the marker that lets the next
+    // start carry on the same backup generation instead of sending a new full copy.
+    state.db.backup_stream_close();
 }
 
 /// Build the HTTP/WS router the relay serves.
@@ -1406,6 +1422,19 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // and a proxy would reject as 414 (the same reason admin stats grew a
         // POST form). Signs the purpose "admin_federation", not "admin_stats".
         .route("/api/admin/federation", post(api::post_admin_federation))
+        // The Backups panel on both apps (2026-10-22, backup_stream/api.rs): status, back up
+        // now, the restore drill, where the copies go, whose backups this server keeps.
+        .route("/api/admin/backups", post(backup_stream::api::post_admin_backups))
+        // Another server's backups kept here (backup_stream/host.rs): signed by that server's
+        // backup sending key, sealed with its own key, capped by the space given to it.
+        .route("/api/backup-host/list", get(backup_stream::host::list_objects))
+        .route(
+            "/api/backup-host/o/{*name}",
+            get(backup_stream::host::get_object)
+                .put(backup_stream::host::put_object)
+                .delete(backup_stream::host::delete_object)
+                .layer(axum::extract::DefaultBodyLimit::max(backup_stream::host::BODY_LIMIT)),
+        )
         // Account export. POST because the Dilithium key plus signature are
         // ~10 KB, which a GET would carry in the URL; and because it moved off
         // the WebSocket, where it was broadcast to every connected client task

@@ -1941,6 +1941,15 @@
           ]
         },
         {
+          "title": "Continuous Backup",
+          "src": "docs/admin/continuous-backup.md",
+          "tags": [
+            "admin",
+            "guide",
+            "technical"
+          ]
+        },
+        {
           "title": "Distribution Mirrors",
           "src": "docs/admin/distribution-mirrors.md",
           "tags": [

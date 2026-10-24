@@ -1184,8 +1184,23 @@ Auto-join on connect, paginated member roster, role management.
 - Server: `src/relay/storage/members.rs`
 
 ### Database Backups
-Automated SQLite backup every 6 hours, keep last 5.
-- Server: `src/main.rs` (background task)
+Automated SQLite backup every 6 hours, keep last 5; "Back up now" in Server Settings (newest 10).
+- Server: `src/relay/mod.rs` (background task), `src/relay/storage/backups.rs`
+
+### Continuous Backup (2026-10-22)
+WAL shipping built into the relay: every committed change reaches a destination within
+seconds (recovery point about a minute), sealed (deflate + AES-256-GCM under a key derived
+from `data/backup.key`, object names authenticated). Destinations: a folder, an
+S3-compatible bucket (SigV4), or another HumanityOS server (signed by a Dilithium3 backup
+sending key; the keeper allowlists senders with a size limit and stores ciphertext only).
+Generations with periodic snapshots, retention window (default 72 h), point-in-time restore
+(`HumanityOS --restore-backup <file> [--at <time>]`), restore drill (in-app, compares with
+the live database; `--backup-drill` for the PC's monthly task, `scripts/backup-drill-pc.ps1`),
+alerts when behind. Both apps: Server Settings > ADMIN > Backups and the web admin page's
+Backups panel, one endpoint `POST /api/admin/backups`. Runbook: `docs/admin/continuous-backup.md`.
+- Server: `src/relay/backup_stream/` (wal, capture, seal, names, dest, s3, peer, host, restore, api)
+- Native: `src/gui/pages/server_settings/continuous_backup.rs`
+- Web: `web/pages/backups-admin.js`, `web/pages/admin.html`
 
 ### Environment Validation
 Fail-fast startup with clear error messages for missing config.

@@ -2057,6 +2057,15 @@
           ]
         },
         {
+          "title": "Continuous Backup",
+          "file": "continuous-backup.md",
+          "tags": [
+            "admin",
+            "guide",
+            "technical"
+          ]
+        },
+        {
           "title": "Distribution Mirrors",
           "file": "distribution-mirrors.md",
           "tags": [

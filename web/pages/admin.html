@@ -125,6 +125,33 @@
     }
 
     .loading { text-align: center; padding: var(--space-3xl); color: var(--text-muted); }
+
+    /* Backups (2026-10-22, backups-admin.js) */
+    .bk-h { font-size: 0.9rem; margin: var(--space-xl) 0 var(--space-md); }
+    .bk-row { display: flex; gap: var(--space-md); flex-wrap: wrap; margin: var(--space-md) 0; }
+    #backups-panel button { background: var(--pg-raised); border: 1px solid var(--border); color: var(--text); padding: var(--space-sm) var(--space-lg); border-radius: 6px; font-size: var(--text-sm); cursor: pointer; }
+    #backups-panel button:hover { border-color: var(--accent); color: var(--accent); }
+    #backups-panel button.danger:hover { border-color: var(--danger); color: var(--danger); }
+    #backups-panel button:disabled { opacity: 0.5; cursor: default; }
+    .bk-state { display: flex; align-items: baseline; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-md); font-size: 0.85rem; }
+    .bk-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--text-muted); }
+    .bk-dot.ok { background: var(--success); } .bk-dot.info { background: var(--accent); }
+    .bk-dot.warn { background: var(--warning); } .bk-dot.err { background: var(--danger); }
+    .bk-ok { color: var(--success); } .bk-err { color: var(--danger); } .bk-warn { color: var(--warning); }
+    .bk-info { color: var(--accent); } .bk-muted, .bk-words { color: var(--text-muted); }
+    #backups-panel td, #backups-panel th { padding: var(--space-sm) var(--space-md); overflow-wrap: anywhere; }
+    #backups-panel table { table-layout: fixed; }
+    .bk-k { color: var(--text-muted); width: 36%; }
+    .bk-drill, .bk-message { font-size: var(--text-sm); margin: var(--space-md) 0; min-height: 1.2em; }
+    .bk-message.ok { color: var(--success); } .bk-message.err { color: var(--danger); }
+    .bk-details { margin-top: var(--space-xl); border-top: 1px solid var(--border); padding-top: var(--space-lg); }
+    .bk-details > summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; margin-bottom: var(--space-md); }
+    .bk-kinds { display: flex; gap: var(--space-lg); flex-wrap: wrap; margin-bottom: var(--space-md); font-size: var(--text-sm); }
+    .bk-field { display: flex; flex-direction: column; gap: var(--space-xs); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-md); max-width: 520px; }
+    .bk-field input, .bk-field textarea { background: var(--pg-raised); border: 1px solid var(--border); color: var(--text); padding: var(--space-sm) var(--space-md); border-radius: 6px; font-size: var(--text-sm); width: 100%; box-sizing: border-box; }
+    .bk-check { font-size: var(--text-sm); color: var(--text-muted); display: block; margin-bottom: var(--space-md); }
+    .bk-sender { display: flex; gap: var(--space-md); align-items: center; flex-wrap: wrap; padding: var(--space-md); background: var(--pg-raised); border-radius: 6px; margin-bottom: var(--space-md); font-size: var(--text-sm); }
+    #bk-sending { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
@@ -293,6 +320,91 @@
       </div>
     </div>
 
+    <!-- Backups (2026-10-22): the mirror of the desktop app's Server Settings > ADMIN >
+         Backups (src/gui/pages/server_settings/continuous_backup.rs). Both use POST
+         /api/admin/backups; web/pages/backups-admin.js fills this in. -->
+    <div class="panel" id="backups-panel">
+      <h2>Backups</h2>
+      <h3 class="bk-h">This server's backups folder</h3>
+      <p id="bk-local-note"></p>
+      <table><thead><tr><th>Copy</th><th>Size</th><th>Made</th></tr></thead><tbody id="bk-local"></tbody></table>
+      <div class="bk-row">
+        <button type="button" id="bk-now" title="A sealed copy in the backups folder now, and, when continuous backup is on, a fresh full copy to its destination.">Back up now</button>
+        <button type="button" id="bk-refresh">Refresh</button>
+      </div>
+
+      <h3 class="bk-h">Continuous backup</h3>
+      <p>Every change to this server's database is copied, within seconds, to a place you choose: another
+        disk, an S3-compatible bucket, or another HumanityOS server you trust. Each copy is sealed with this
+        server's backup key before it leaves, so the place keeping it cannot read it. If the server's machine
+        is lost, about a minute of changes is the most that is lost, and any moment inside the history you
+        keep can be restored.</p>
+      <div id="bk-state" class="bk-state"></div>
+      <table class="bk-table"><tbody id="bk-rows"></tbody></table>
+      <p class="bk-muted">Keep a copy of data/backup.key and data/backup-destination.secrets.json somewhere off
+        the server: a restore needs both, and the fingerprint above tells you the key you kept is this one.</p>
+      <div class="bk-row">
+        <button type="button" id="bk-drill-btn" title="Restore from the destination into a scratch file, check it, and compare it with the live database at the same moment. The live database is only read.">Restore drill</button>
+      </div>
+      <div id="bk-drill" class="bk-drill"></div>
+      <div id="bk-message" class="bk-message" role="status" aria-live="polite"></div>
+
+      <details class="bk-details">
+        <summary>Change where the copies go</summary>
+        <div class="bk-kinds">
+          <label><input type="radio" name="bk-kind" value="off" checked> Off</label>
+          <label><input type="radio" name="bk-kind" value="folder"> A folder (another disk)</label>
+          <label><input type="radio" name="bk-kind" value="s3"> An S3-compatible bucket</label>
+          <label><input type="radio" name="bk-kind" value="server"> Another HumanityOS server</label>
+        </div>
+        <div id="bk-fields-off"><p class="bk-muted">Off: nothing is copied. What was already sent stays where it is.</p></div>
+        <div id="bk-fields-folder">
+          <p class="bk-muted">A folder on the server: best on another disk, or a share mounted from another machine. A folder on the
+            same disk as the database does not survive that disk failing.</p>
+          <label class="bk-field">Folder (full path) <input id="bk-path" type="text" placeholder="/mnt/backup/relay" autocomplete="off"></label>
+        </div>
+        <div id="bk-fields-s3">
+          <p class="bk-muted">Any S3-compatible storage: a provider's bucket, or your own (Garage and MinIO are free software).
+            Leave the key fields empty to keep the saved ones.</p>
+          <label class="bk-field">Endpoint <input id="bk-endpoint" type="text" placeholder="https://s3.eu-central-1.amazonaws.com" autocomplete="off"></label>
+          <label class="bk-field">Region <input id="bk-region" type="text" value="us-east-1" autocomplete="off"></label>
+          <label class="bk-field">Bucket <input id="bk-bucket" type="text" placeholder="my-relay-backups" autocomplete="off"></label>
+          <label class="bk-field">Folder in the bucket <input id="bk-prefix" type="text" value="humanityos" autocomplete="off"></label>
+          <label class="bk-field">Access key ID <input id="bk-keyid" type="text" placeholder="access key ID" autocomplete="off"></label>
+          <label class="bk-field">Secret access key <input id="bk-secret" type="password" placeholder="secret access key" autocomplete="new-password"></label>
+          <label class="bk-check"><input id="bk-pathstyle" type="checkbox" checked> Bucket name in the path (works with every S3-compatible server)</label>
+        </div>
+        <div id="bk-fields-server">
+          <p class="bk-muted">Another HumanityOS server keeps the copies. First give its admin this server's backup sending key
+            (below, under Keep other servers' backups here): they add it on their server, with the space they give
+            you. Then enter that server's address here and save.</p>
+          <label class="bk-field">Server address <input id="bk-url" type="text" placeholder="https://public.guide" autocomplete="off"></label>
+        </div>
+        <label class="bk-field">History kept (hours) <input id="bk-retention" type="text" inputmode="numeric" value="72"></label>
+        <label class="bk-field">Full copy every (hours) <input id="bk-snapshot" type="text" inputmode="numeric" value="24"></label>
+        <label class="bk-field">Alert after (minutes behind) <input id="bk-alert" type="text" inputmode="numeric" value="5"></label>
+        <p class="bk-muted">Alerts go to the alert channels in data/alert-channels.secrets.json (ntfy, Discord, Telegram, a webhook).
+          This panel always shows the state.</p>
+        <div class="bk-row">
+          <button type="button" id="bk-test" title="Write a sealed test copy there, read it back and delete it. Nothing is saved.">Test</button>
+          <button type="button" id="bk-save" title="Test the destination, then save. A new destination gets a fresh full copy.">Save</button>
+        </div>
+      </details>
+
+      <details class="bk-details">
+        <summary>Keep other servers' backups here</summary>
+        <p class="bk-muted">Other HumanityOS servers can keep their continuous backup here, sealed with their own keys: this server
+          stores ciphertext it cannot read. Each one you add gets the space you give it, and this server also refuses
+          copies once its own disk is 90% full.</p>
+        <p>This server's backup sending key: <code id="bk-sending"></code> <button type="button" id="bk-copy">Copy</button></p>
+        <div id="bk-senders"></div>
+        <label class="bk-field">Name <input id="bk-host-label" type="text" placeholder="the server's name, for you" autocomplete="off"></label>
+        <label class="bk-field">Its backup sending key <textarea id="bk-host-key" rows="2" placeholder="paste the key from that server's Backups panel"></textarea></label>
+        <label class="bk-field">Space to give (GB) <input id="bk-host-gb" type="text" inputmode="decimal" value="20"></label>
+        <div class="bk-row"><button type="button" id="bk-allow">Keep its backups here</button></div>
+      </details>
+    </div>
+
     <!-- Reports (step D, docs/design/blocking-and-safe-mode.md 10e). The Reports
          view lives in Chat, not here: its requests go over Chat's signed-in
          connection, and moderators review reports too, while this page is for
@@ -323,6 +435,7 @@
 <!-- `pq-relay-auth.js` installs window.getPqSignedAuth which the page uses. -->
 <script src="/chat/pq.js?v=1"></script>
 <script src="/shared/pq-relay-auth.js?v=3"></script>
-<script src="/pages/admin-app.js?v=3"></script>
+<script src="/pages/admin-app.js?v=4"></script>
+<script src="/pages/backups-admin.js?v=1"></script>
 </body>
 </html>

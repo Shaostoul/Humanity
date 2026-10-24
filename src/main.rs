@@ -87,6 +87,22 @@ fn main() {
         }
     }
 
+    // ── Continuous backup, from a machine with no running relay (2026-10-22): rebuild the
+    //    database from the copies at a destination, or drill that rebuild into a scratch file
+    //    (docs/admin/continuous-backup.md). Run and exit before any relay or window starts. ──
+    #[cfg(feature = "relay")]
+    {
+        if args.iter().any(|a| a == "--restore-backup") {
+            std::process::exit(humanity_engine::relay::backup_stream::restore::cli_main(&args));
+        }
+        if args.iter().any(|a| a == "--backup-drill") {
+            std::process::exit(humanity_engine::relay::backup_stream::restore::cli_drill(&args));
+        }
+        if args.iter().any(|a| a == "--check-db") {
+            std::process::exit(humanity_engine::relay::backup_stream::restore::cli_check_db(&args));
+        }
+    }
+
     if headless {
         // Server-only mode: run the relay without any GPU/window
         #[cfg(feature = "relay")]

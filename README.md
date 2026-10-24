@@ -193,7 +193,7 @@ Every AI decision is documented. AI agents are **first-class citizens** with the
 | Object format | Canonical CBOR + BLAKE3 + signed substrate |
 | Federation | WebSocket multi-hop gossip with cycle-breaking via dedup |
 | Web realtime | WebSocket + WebRTC for voice/video/data channels |
-| Hosting | nginx + systemd (optional Litestream replication to S3-compatible storage - see [docs/operations/litestream.md](docs/operations/litestream.md)) |
+| Hosting | nginx + systemd; continuous backup built into the relay (every change within seconds, sealed, to a folder, an S3-compatible bucket or another HumanityOS server - see [docs/admin/continuous-backup.md](docs/admin/continuous-backup.md)) |
 
 ### Layout
 
@@ -233,7 +233,7 @@ Humanity/
 - **[UI system](docs/design/ui-system.md)** - Theme tokens, universal Button widget, design tokens
 - **[Federation](docs/network/server_federation.md)** - Federation protocol, signed-object gossip, peer trust
 - **[Humanity Accord](docs/accord/humanity_accord.md)** - Voluntary constitution every server may adopt
-- **[Litestream replication](docs/operations/litestream.md)** - Disaster recovery for self-hosters
+- **[Continuous backup](docs/admin/continuous-backup.md)** - Disaster recovery for self-hosters: about a minute of data at most, restorable to any moment in the history kept
 
 ### Tests
 

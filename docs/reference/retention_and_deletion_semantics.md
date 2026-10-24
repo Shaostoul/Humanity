@@ -66,8 +66,12 @@ What we do to bound it (as of the 2026-06-12 security pass):
 The honest residual (NOT removed by code):
 - Rotating backups still contain a deleted public message until they age out: the
   in-process snapshot (every 6h, keep 5), the VPS `.backup` (every 30 min, keep 15),
-  and, if enabled, the Litestream replica (30-day retention). A message deleted at
-  minute 5 survives in every snapshot taken before it until that snapshot rotates.
+  and, when continuous backup is on (2026-10-22, `docs/admin/continuous-backup.md`), its
+  history at the destination until retention removes it (72 hours by default, settable
+  from 1 hour to 30 days in Server Settings > Backups). A message deleted at minute 5
+  survives in every snapshot taken before it until that snapshot rotates, and in the
+  continuous backup until the history that holds it falls out of the window. Those
+  copies are sealed with the server's backup key; whoever keeps them cannot read them.
 - The in-app "Back up now" copies (`manual-<ts>.db.enc` in the same backups folder)
   are capped by COUNT, not by age (since 2026-10-03): the server keeps the newest 10
   (`MANUAL_BACKUPS_KEPT` in `src/relay/storage/backups.rs`) and removes the oldest
@@ -82,7 +86,7 @@ The honest residual (NOT removed by code):
   DB can run an offline `VACUUM` during maintenance.
 
 This is by design in a replicated system (consistent with the rest of this document):
-operators who need a tighter window can lower the Litestream retention and the
+operators who need a tighter window can shorten the continuous backup's history and the
 backup-keep counts (the manual-copy count of 10 is a fixed constant for now, not a
 setting). This is operator-readable-by-design; note the old plaintext
 `/dm` server command was removed in v0.279, so no server-mediated plaintext DM

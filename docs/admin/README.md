@@ -34,11 +34,14 @@ community a home without becoming its gatekeeper.
 - **[torrent-infrastructure.md](torrent-infrastructure.md)** the BitTorrent seeder setup
   for sovereign, censorship-resistant distribution.
 - **[forgejo-setup.md](forgejo-setup.md)** running the self-hosted Forgejo git mirror.
+- **[continuous-backup.md](continuous-backup.md)** continuous backup: every change copied
+  within seconds, sealed, to a folder, an S3-compatible bucket or another HumanityOS server;
+  restores, the restore drill, and two servers keeping each other's copies.
 
 ## Related
 
-- Live-ops notes (backup replication and the like) live in
-  **[../operations/](../operations/)**.
+- Backup replication is [continuous-backup.md](continuous-backup.md), above (the old
+  `operations/` folder held only the never-deployed Litestream plan it replaces).
 - Incident recipes for when something breaks are in
   **[../INCIDENT-PLAYBOOK.md](../INCIDENT-PLAYBOOK.md)**.
 - The team's operational posture: **[../SECURITY-CADENCE.md](../SECURITY-CADENCE.md)**,

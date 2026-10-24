@@ -38,6 +38,14 @@
 | Cross-server message propagation latency (p95) | < 2 seconds | Not measured |
 | Profile gossip rejection rate | < 0.1% (rejections = signature failures = potential abuse) | Logged but not alerted |
 
+### Backups
+| Metric | Target | Current measurement |
+|---|---|---|
+| Recovery point (data a dead disk would lose) | about 1 minute | Continuous backup (2026-10-22): the "Behind by" row in Server Settings > Backups; alert past the threshold (default 5 min) |
+| Restore proven | a passing drill every month | In-app Restore drill (on demand), and the PC's monthly `scripts/backup-drill-pc.ps1` (log in `%USERPROFILE%\HumanityBackups\backup-drill.log`) |
+| History restorable | the window set (default 72 h) | "Can restore: any moment from ... to ..." in the Backups panel |
+| Offline copy on the operator's PC | newest pulled snapshot under 2 h old | `scripts/backup-relay-from-vps.ps1` fails the run past 2 h |
+
 ### Resource limits
 | Metric | Target | Current measurement |
 |---|---|---|
@@ -56,6 +64,8 @@
 ### P1: notify next morning
 - Relay uptime over last 24h below 98%.
 - Backup automation hasn't fired in > 48 hours.
+- Continuous backup behind by more than its alert threshold (default 5 minutes), or refused by its destination: the relay alerts through the alert channels itself, once per episode, and again when it has caught up (`docs/admin/continuous-backup.md`).
+- The monthly PC restore drill (`scripts/backup-drill-pc.ps1`, task "HumanityOS Backup Drill") ended non-zero: read `%USERPROFILE%\HumanityBackups\backup-drill.log`.
 - > 10 `tracing::error!` events in the relay log over the last hour.
 - A federation peer that was trusted (trust_tier ≥ 2) has been disconnected for > 24 hours.
 

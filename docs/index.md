@@ -18,7 +18,6 @@ The guide to this folder is **[README.md](README.md)**, organized by who you are
 - **[game/](game/)** the educational simulation.
 - **[accord/](accord/)** the Humanity Accord (the constitution).
 - **[reference/](reference/)** schemas, runbooks, templates, data definitions.
-- **[operations/](operations/)** live-ops notes.
 - **[history/](history/)** dated notes, superseded plans, vision essays.
 - **[website/](website/)** the public Jekyll site.
 

@@ -496,8 +496,12 @@ Every operator gets the same sovereignty tools, not just the original.
   contributed. The server is a mailbox, not an archive; many servers, not one big one.
 - `[planned]` Device mesh: a "My Devices" dashboard, backup designation, restore flow,
   and direct LAN sync, so your own devices back each other up.
-- `[planned]` Litestream continuous replication (roughly 1-minute recovery point) and
-  a quarterly backup-restore drill.
+- `[building]` Continuous backup (2026-10-22, `docs/admin/continuous-backup.md`): every change
+  copied within seconds (about a 1-minute recovery point), sealed with the server's backup key,
+  to a folder, an S3-compatible bucket or another HumanityOS server; restore to any moment in
+  the history kept; a restore drill in the app and a monthly one from the owner's PC. Built
+  into the relay (WAL shipping in Rust) instead of Litestream. Live once released and turned
+  on: united-humanity.us and public.guide keeping each other's copies.
 - `[planned]` GitHub branch + tag protection and required signed commits on `main`
   (deploy auto-pushes to the live relay today with no approval gate).
 - `[future]` Between planets (`docs/design/interplanetary.md`, 2026-10-11): designing for

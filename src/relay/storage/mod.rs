@@ -214,6 +214,10 @@ pub struct Storage {
     /// `erased-accounts.key`): this run uses a secret of its own, so the erases remembered now
     /// are forgotten at the next start. Reported by /health (`erase_memory`) and `just brief`.
     pub(crate) erase_secret_kept: bool,
+    /// Continuous backup (2026-10-22, relay/backup_stream): the capturer that follows this
+    /// database's write-ahead log, and what the Backups panel shows. Empty until
+    /// `backup_stream_install` (relay start) or the panel turns it on.
+    pub(crate) stream: crate::relay::backup_stream::Slot,
     /// Test builds only (BUG-159): the temporary database (or folder) this storage was opened
     /// on by `open_temp`, `open_temp_dir` or `open_sharing`, deleted when the last holder of it
     /// is dropped. Declared last so it is dropped after the writer and the read pool have
@@ -2817,6 +2821,7 @@ impl Storage {
             read_pool,
             erase_secret,
             erase_secret_kept,
+            stream: Default::default(),
             #[cfg(test)]
             temp: None,
         })

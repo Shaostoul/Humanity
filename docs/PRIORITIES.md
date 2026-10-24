@@ -1806,8 +1806,10 @@ agreement), so ad-blocking defaults do not apply there.
    session, S1 web studio widget and modal, S2 viewer widgets and modal, S3
    privacy guard (independent, can land early), S4 native mirror.
 3. **In-app ops console.** `docs/design/in-app-ops.md`. Slice 1 (System/Health)
-   shipped on both clients. Remaining: the alert-channels editor (the first
-   write panel), a backups panel, a federation panel, then fail2ban /
+   shipped on both clients. The backups panel shipped 2026-10-22 with continuous
+   backup (item 12; an in-app "restore on next restart" remains). Remaining: the
+   alert-channels editor (the first write panel; continuous backup's alerts go
+   through its file today), a federation panel, then fail2ban /
    relay-control / secrets (these need a sudo-gated relay-to-system bridge),
    then factoring out the action registry with AI-facing list and run endpoints
    plus a coverage test.
@@ -1846,8 +1848,13 @@ agreement), so ad-blocking defaults do not apply there.
 11. **Real-life-first boot and the real/fake multi-save model** (revised
     2026-06-30; the operator rejected the "game/simulator toggle" framing as too
     confusing). Multiple saves, each house or character flagged real or fake.
-12. **Litestream or equivalent continuous backup.** Documented-optional today
-    and verified NOT deployed. SQLite WAL to blob storage, RPO about a minute.
+12. **Continuous backup: BUILT 2026-10-22, waiting on release and the operator's
+    setup.** WAL shipping inside the relay (`src/relay/backup_stream/`,
+    `docs/admin/continuous-backup.md`) to a folder, an S3-compatible bucket or another
+    HumanityOS server, sealed with the backup key, RPO about a minute, point-in-time
+    restore, in-app Restore drill, PC monthly drill (`scripts/backup-drill-pc.ps1`).
+    Next: the operator's deployment steps in that doc (united-humanity.us and
+    public.guide keeping each other's copies), then an in-app restore-on-restart.
 13. **PARKED (operator, 2026-10-22, with streaming). Mobile clients.** Android needs a JNI bridge for the keyring plus an
     AndroidKeyStore backend; iOS mostly needs a build target.
 

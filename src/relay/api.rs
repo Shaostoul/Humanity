@@ -2833,6 +2833,9 @@ async fn admin_stats_inner(
     // SSHes for (disk, version, watchdog state, backup status). All
     // best-effort — a probe failure yields a null/"unknown", never a 500.
     let system = gather_system_health();
+    // Continuous backup at a glance (backup_stream; the Backups panel has the rest).
+    let cb = state.db.backup_stream_status();
+    let continuous_backup = serde_json::json!({ "state": cb.state, "words": cb.words, "lag_secs": cb.lag_secs, "restorable_to_ms": cb.restorable_to_ms });
 
     Ok(Json(serde_json::json!({
         "user_count": user_count,
@@ -2851,6 +2854,7 @@ async fn admin_stats_inner(
         "game_time": game_time,
         "game_time_scale": game_time_scale,
         "system": system,
+        "continuous_backup": continuous_backup,
     })))
 }
 

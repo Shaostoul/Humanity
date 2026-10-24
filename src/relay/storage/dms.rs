@@ -98,7 +98,7 @@ impl Storage {
             // Fold the secure_delete-zeroed pages out of the WAL so the
             // purged blobs don't linger there (same discipline as the
             // channel bulk-wipe paths).
-            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            self.wal_truncate(conn);
             Ok(n)
         })
     }
@@ -113,7 +113,7 @@ impl Storage {
                 params![cutoff],
             )?;
             if n > 0 {
-                let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+                self.wal_truncate(conn);
             }
             Ok(n)
         })

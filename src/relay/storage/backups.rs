@@ -83,6 +83,9 @@ pub enum PruneOutcome {
 pub struct BackupDone {
     pub entry: BackupEntry,
     pub prune: PruneOutcome,
+    /// When continuous backup is on, the sentence about the fresh full copy this press also
+    /// started at the destination (2026-10-22, relay/backup_stream).
+    pub stream_note: Option<String>,
 }
 
 impl BackupDone {
@@ -92,6 +95,14 @@ impl BackupDone {
     /// instead of finding out from the server log (critic's review,
     /// 2026-10-03).
     pub fn reply(&self) -> String {
+        match &self.stream_note {
+            Some(note) => format!("{} {note}", self.local_reply()),
+            None => self.local_reply(),
+        }
+    }
+
+    /// What the press did in the backups folder.
+    fn local_reply(&self) -> String {
         let made = format!(
             "Backup complete: {} ({:.1} MB)",
             self.entry.file,
@@ -275,7 +286,9 @@ impl super::Storage {
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|e| e.to_string())?
             .as_secs();
-        self.backup_into(std::path::Path::new(BACKUPS_DIR), secs)
+        let mut done = self.backup_into(std::path::Path::new(BACKUPS_DIR), secs)?;
+        done.stream_note = self.backup_stream_request_snapshot();
+        Ok(done)
     }
 
     /// The body of `backup_now`, with its two inputs passed in: the folder
@@ -320,7 +333,7 @@ impl super::Storage {
                  resumes once the clock passes that date, or remove the future-dated copy by hand."
             ),
         }
-        Ok(BackupDone { entry: BackupEntry { file, size_bytes, modified_epoch: secs }, prune })
+        Ok(BackupDone { entry: BackupEntry { file, size_bytes, modified_epoch: secs }, prune, stream_note: None })
     }
 }
 

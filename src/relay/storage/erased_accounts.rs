@@ -255,7 +255,7 @@ impl Storage {
             let trimmed = trim_erased_accounts(conn, cap, "")?;
             if expired + trimmed > 0 {
                 // Fold the secure_delete-zeroed pages out of the WAL, as the mailbox expiry does.
-                let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+                self.wal_truncate(conn);
             }
             Ok((expired, trimmed))
         })

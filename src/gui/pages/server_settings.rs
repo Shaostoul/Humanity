@@ -40,6 +40,10 @@ use crate::net::admin_erase as admin_erase_rules;
 /// Each role's upload limits, under the roles table (the Media follow-ups B1 to B5, 2026-10-11).
 pub(crate) mod role_limits;
 
+/// Continuous backup, under Backups (2026-10-22): status, the restore drill, where the copies go,
+/// and whose backups this server keeps.
+pub(crate) mod continuous_backup;
+
 /// Section identity colors — match the nav bar grouping in escape_menu.rs.
 /// theme-exempt: these encode the privilege tier (red/green/blue) and are
 /// referenced by both `widgets::tinted_section` calls AND the design
@@ -1019,6 +1023,9 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // ── Backups (v0.938): list + back-up-now ──
         draw_backups_admin(ui, theme, state);
+        ui.add_space(theme.spacing_md);
+        // ── Continuous backup (2026-10-22): every change, within seconds, to a place you choose ──
+        continuous_backup::draw(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
