@@ -1384,8 +1384,20 @@
     "turn_server": {
       "term": "TURN Server",
       "category": "platform",
-      "definition": "A go-between that carries voice and video when two people's networks refuse a direct connection. HumanityOS hands out short-lived credentials for it, and a server operator can turn the service on or off.",
+      "definition": "A go-between that carries voice and video between the people in a call. Every HumanityOS server runs its own, the call relay, so in a call set to Private the others see only the server's address, never yours. It hands out short-lived credentials for one call or voice room at a time, and it cannot hear the call.",
       "link": "https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT"
+    },
+    "stun_server": {
+      "term": "STUN Server",
+      "category": "platform",
+      "definition": "An address lookup: your device asks it which public network address it sees you at, which a direct call needs. HumanityOS servers answer this themselves. In the Direct call setting with a public service, a company such as Google is asked as well, and it then sees your address.",
+      "link": "https://en.wikipedia.org/wiki/STUN"
+    },
+    "ip_address": {
+      "term": "IP Address",
+      "category": "platform",
+      "definition": "The number that identifies your connection on the internet. It usually shows roughly where you are and who your internet provider is, not your name. Every server you use sees it. In a call set to Private nobody else in the call does; set to Direct, they do.",
+      "link": "https://en.wikipedia.org/wiki/IP_address"
     },
     "webrtc": {
       "term": "WebRTC",

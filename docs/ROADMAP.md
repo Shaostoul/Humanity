@@ -220,7 +220,9 @@ of your identity, and your identity is portable across all of them.
 - `[done]` Voice and video calling on the web (WebRTC with screen share). Since v0.1470 calls and
   voice rooms go through the server's own call forwarder, so nobody in a call sees another
   person's network address, and Google is no longer asked for anything (calls work once the
-  server's call port is opened).
+  server's call port is opened). Since 2026-10-22 each person chooses how their own calls
+  connect, on both apps: Private (the default), Direct (device to device where possible, the
+  people in the call see your address), or Direct also asking a public address service you pick.
 - `[done]` Safety tools, on both clients (v0.1465 to v0.1473, design
   `docs/design/blocking-and-safe-mode.md`): safe by default, with "who can reach me" for
   messages, calls and trades and a Message, Call and Trade tick per friend; Block (they are not

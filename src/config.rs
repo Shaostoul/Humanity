@@ -783,6 +783,17 @@ pub struct AppConfig {
     /// chose, plus the images it declares; no cookies, no scripts).
     #[serde(default)]
     pub readable_web: bool,
+    /// How calls and voice rooms connect (Settings > Privacy, 10p, 2026-10-22): "private" (the
+    /// default: only the server's call relay is offered, nobody in a call sees this device's
+    /// address), "direct" (this device's own addresses too) or "direct_public_stun" (and a public
+    /// STUN server is asked as well). Kept as text so a mode an older app does not know reads as
+    /// private (`CallConnection::from_id`) rather than failing the whole config; empty = private.
+    #[serde(default)]
+    pub call_connection: String,
+    /// The public STUN server the third call mode asks, by its id in data/net/call_connection.json.
+    /// Empty = the first listed.
+    #[serde(default)]
+    pub call_public_stun: String,
     /// The video file each in-world screen plays, keyed by the screen's
     /// placed instance id (`wall_screen_5`), chosen with the screen's Open
     /// button (2026-09-18). The data file's `video:` source is only the
@@ -1627,6 +1638,8 @@ impl AppConfig {
             planet_clouds: state.settings.planet_clouds,
             live_weather: state.settings.live_weather,
             readable_web: state.settings.readable_web,
+            call_connection: state.settings.call_connection.id().to_string(),
+            call_public_stun: state.settings.call_public_stun.clone(),
             screen_media: state.settings.screen_media.clone(),
             ffmpeg_path: state.settings.ffmpeg_path.clone(),
             cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
@@ -1902,6 +1915,8 @@ impl AppConfig {
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.live_weather = self.live_weather;
         state.settings.readable_web = self.readable_web;
+        state.settings.call_connection = crate::net::call_connection::CallConnection::from_id(&self.call_connection);
+        state.settings.call_public_stun = self.call_public_stun.clone();
         state.settings.screen_media = self.screen_media.clone();
         state.settings.ffmpeg_path = self.ffmpeg_path.clone();
         // The cloud resolution rides GuiState directly (the F10 page and the
@@ -2382,6 +2397,40 @@ mod play_mode_tests {
         assert!(!fresh.settings.readable_web);
         saved.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.readable_web, "apply_to_gui_state must carry the opt-in");
+    }
+
+    /// How calls connect (10p): Private for a config written before the setting existed and for a
+    /// fresh install; a chosen Direct mode and its public service survive a save and a load; a mode
+    /// this app does not know reads as Private and does not spoil the rest of the config. Seen red
+    /// 2026-10-22 with the load leg's `call_connection` line removed: "the chosen mode survives a
+    /// restart".
+    #[test]
+    fn the_call_connection_starts_private_and_a_choice_survives_a_restart() {
+        use crate::net::call_connection::CallConnection;
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":""}"#).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        old.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.call_connection, CallConnection::Private, "an old config is Private");
+        let mut new_install = crate::gui::GuiState::default();
+        AppConfig::default().apply_to_gui_state(&mut new_install);
+        assert_eq!(new_install.settings.call_connection, CallConnection::Private, "a fresh install is Private");
+
+        let mut state = crate::gui::GuiState::default();
+        state.settings.call_connection = CallConnection::DirectPublicStun;
+        state.settings.call_public_stun = "two".into();
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"call_connection\":\"direct_public_stun\""), "the mode is written: {json}");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut after = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut after);
+        assert_eq!(after.settings.call_connection, CallConnection::DirectPublicStun, "the chosen mode survives a restart");
+        assert_eq!(after.settings.call_public_stun, "two", "and the service chosen");
+
+        let unknown: AppConfig = serde_json::from_str(r#"{"server_url":"x","call_connection":"by_carrier_pigeon"}"#).unwrap();
+        assert_eq!(unknown.server_url, "x", "the rest of the config still loads");
+        let mut s = crate::gui::GuiState::default();
+        unknown.apply_to_gui_state(&mut s);
+        assert_eq!(s.settings.call_connection, CallConnection::Private, "an unknown mode is Private");
     }
 
     /// "Warnings on messages" (step F of blocking-and-safe-mode.md 10g): On for a config written

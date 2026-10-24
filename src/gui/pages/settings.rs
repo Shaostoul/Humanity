@@ -11,6 +11,9 @@ use crate::updater::{UpdateChannel, UpdateState};
 
 /// Settings > Data > "Data folder": what the last update refreshed and kept (BUG-163 part 2).
 mod data_folder;
+/// Settings > Privacy > "Calls and voice rooms" (10p, 2026-10-22): Private, Direct, or Direct
+/// also asking a public service, and who can see the person's address in each.
+mod calls;
 /// Settings > Account > "Recovery through trusted people" (2026-10-20, was the Platform tab's
 /// Recovery page; finished 2026-10-21): choosing trusted people, helping someone back in, and
 /// asking for help on a new device. `recovery_net` is the work it runs on threads.
@@ -4124,6 +4127,9 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     ui.add_space(theme.spacing_sm);
     // Files in messages (2026-10-11): who files are taken from, pictures, the attach button.
     widgets::card(ui, theme, |ui| crate::gui::pages::files::in_messages::draw_files_in_messages(ui, theme, state));
+    ui.add_space(theme.spacing_sm);
+    // Calls and voice rooms (10p, 2026-10-22): how they connect, and who sees the person's address.
+    widgets::card(ui, theme, |ui| calls::draw_calls(ui, theme, state));
     ui.add_space(theme.spacing_sm);
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible) {

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "_comment": "How a person's calls and voice rooms connect (Settings > Privacy in the desktop app, Settings > Safety in the web chat; docs/design/blocking-and-safe-mode.md 10p, 2026-10-22). Both apps read the words from here, so they say the same thing. Each person's choice covers only their OWN network address: Private offers the other side only the server's call relay; the two Direct modes also offer this device's own addresses. A Private person and a Direct person still connect, through the relay on the Private person's side. The ids are the saved values (desktop AppConfig.call_connection, web localStorage hos_call_connection); an unknown or missing id reads as private. public_stun lists the outside address-lookup services a person may opt into with the third mode, one chosen at a time; nothing on the list is ever asked unless that person chose that mode. With the protected setup on, every call is Private whatever is chosen.",
+  "heading": "Calls and voice rooms",
+  "intro": "How your calls and voice rooms connect, and who can see your network address. Your network address shows roughly where you are and who your internet provider is. Your choice covers only your own address: someone set to Private still connects with you, through the server, and their address stays hidden whatever you choose.",
+  "protected_line": "With the protected setup on, calls and voice rooms always go through the server, so nobody in them sees your address.",
+  "direct_without_server": "This server cannot carry calls yet, so this one connects device to device where your networks allow it. The people in it can see your network address.",
+  "public_stun_label": "Which service",
+  "modes": [
+    {
+      "id": "private",
+      "label": "Private (the default)",
+      "summary": "Your sound goes through your server's call relay. Nobody in the call sees your network address.",
+      "detail": "Your server sees your address already, as it does for everything you do on it, and it passes your call on without being able to hear it: the sound is encrypted between the people in the call (the keys for that are agreed through the server's chat connection, so this relies on the server passing them on unchanged). This uses some of the server's bandwidth, and can add a little delay when the server is far from you."
+    },
+    {
+      "id": "direct",
+      "label": "Direct",
+      "summary": "Connect device to device when your networks allow it: a little faster, and less load on the server. The people in the call can see your network address.",
+      "detail": "Your server's own address lookup finds a direct route, so no other company is asked. When no direct route works, the call still goes through the server. The sound is encrypted between the people in the call either way."
+    },
+    {
+      "id": "direct_public_stun",
+      "label": "Direct, also asking a public service",
+      "summary": "As Direct, and also asks a public address-lookup service, such as Google's, which finds a direct route on more networks. That service sees your network address each time you start a call or join a voice room.",
+      "detail": "Use this only if you are fine with the service you choose seeing your address and when you call. It never hears your calls. The people in the call can see your network address, as with Direct."
+    }
+  ],
+  "public_stun": [
+    { "id": "google", "name": "Google", "url": "stun:stun.l.google.com:19302" },
+    { "id": "cloudflare", "name": "Cloudflare", "url": "stun:stun.cloudflare.com:3478" }
+  ]
+}

@@ -159,6 +159,31 @@
 //! sync is unchanged. The direct machinery (host and srflx candidates, our own
 //! server's STUN) stays for the later opt-in step.
 //!
+//! # Each person chooses how their calls connect (10p, 2026-10-22)
+//!
+//! The paragraphs above are the Private mode, the default
+//! (`CallConnection::Private`, src/net/call_connection.rs). A person may choose
+//! Direct instead, or Direct also asking a public STUN server, and the choice
+//! governs only THEIR OWN address, set on each voice connection as it is made
+//! (`PeerConn::hides_address`):
+//!
+//! - Private: as above. The relayed address is the one candidate; the
+//!   connection waits for it and never goes direct.
+//! - Direct: the connection is made at once, with this device's host
+//!   candidate, its server-reflexive one once the connected server's own STUN
+//!   responder (and in the third mode the public server the person picked)
+//!   reports it, and the relayed address once the forwarder gives it. Late
+//!   candidates are trickled (`apply_srflx_to_all_peers`,
+//!   `relay_ready_for_direct`), and the forwarder permissions for the other
+//!   side's relayed candidates are put in when the allocation comes
+//!   (`PeerConn::remote_addrs`). When the server cannot relay, it stays device
+//!   to device. A Private connection never gets the server-reflexive address.
+//!
+//! So a Private person and a Direct person connect over the relayed pair: the
+//! forwarder carries only allocation-to-allocation traffic, and the Private
+//! side offers nothing else. The Direct side's attempts toward the Private
+//! side's relayed address go to a port that is never bound, and are dropped.
+//!
 //! # Why str0m does NOT trickle our srflx for us (the inc-3a footgun)
 //!
 //! str0m is sans-IO and has *no* built-in candidate discovery: its own docs say
@@ -191,8 +216,9 @@ use str0m::channel::ChannelId;
 use str0m::format::Codec;
 use str0m::media::{Direction, Frequency, MediaKind, MediaTime, Mid};
 use str0m::net::{Protocol, Receive};
-use str0m::{Candidate, Event, Input, Output, Rtc};
+use str0m::{Candidate, CandidateKind, Event, Input, Output, Rtc};
 
+use crate::net::call_connection::CallConnection;
 use crate::net::call_relay::{CallCredentials, CallScope};
 
 // The STUN servers asked for this device's server-reflexive (public) address
@@ -462,14 +488,18 @@ fn host_of(base: &str) -> &str {
     authority.split(':').next().unwrap_or(authority)
 }
 
-/// The addresses of the `a=candidate:` lines in an SDP, so a relay-only peer's
-/// forwarder permissions can be installed as soon as its offer or answer
-/// arrives, before str0m first sends toward it.
+/// The relayed addresses among the `a=candidate:` lines in an SDP, so a voice
+/// peer's forwarder permissions can be installed as soon as its offer or answer
+/// arrives, before str0m first sends toward it. Only relayed ones: the
+/// forwarder passes data only between its own allocations, so a permission
+/// toward someone's own address (a Direct person's host or server-reflexive
+/// candidate, 10p) would only be refused.
 fn sdp_candidate_addrs(sdp: &str) -> Vec<SocketAddr> {
     sdp.lines()
         .filter_map(|l| l.trim().strip_prefix("a="))
         .filter(|l| l.starts_with("candidate:"))
         .filter_map(|l| Candidate::from_sdp_string(l).ok())
+        .filter(|c| c.kind() == CandidateKind::Relayed)
         .map(|c| c.addr())
         .collect()
 }
@@ -516,8 +546,13 @@ enum Command {
     RelayUnavailable(CallScope),
     /// The call ended or the room was left: let `scope`'s allocation go.
     EndRelay(CallScope),
-    /// Internal: the server's own STUN responder(s), for a direct connection.
-    StunServers(Vec<SocketAddr>),
+    /// Internal: the STUN servers looked up for a direct connection: the
+    /// server's own responder, and in the third call mode the public one the
+    /// person picked (10p), with the public choice the lookup was made for.
+    StunServers { servers: Vec<SocketAddr>, for_public: Vec<String> },
+    /// How this person's calls connect, and the public STUN servers (`host:port`)
+    /// the third mode asks (10p). Applies to voice connections made from now on.
+    SetCallConnection { mode: CallConnection, public_stun: Vec<String> },
     /// An inbound `webrtc_signal` the GUI received and forwarded to us.
     Signal {
         from: String,
@@ -568,9 +603,28 @@ pub struct WebrtcHandle {
     /// Our own Dilithium pubkey hex (used for the offerer-rule comparison so the
     /// GUI can pre-check, and for diagnostics).
     my_pubkey_hex: String,
+    /// The call connection last handed to the thread, so the every-frame
+    /// `set_call_connection` sends only a change.
+    call_connection_sent: std::sync::Mutex<Option<(CallConnection, Vec<String>)>>,
 }
 
 impl WebrtcHandle {
+    /// How this person's calls and voice rooms connect (10p): `mode`, and the
+    /// public STUN servers (`host:port`) the third mode asks. Called every frame
+    /// by src/engine/call_relay.rs with the setting as it stands (the protected
+    /// setup already applied); only a change goes down to the thread. Until the
+    /// first call the thread is Private.
+    pub fn set_call_connection(&self, mode: CallConnection, public_stun: Vec<String>) {
+        let mut sent = self.call_connection_sent.lock().unwrap_or_else(|e| e.into_inner());
+        let next = (mode, public_stun);
+        if sent.as_ref() == Some(&next) {
+            return;
+        }
+        let (mode, public_stun) = next.clone();
+        *sent = Some(next);
+        let _ = self.tx_cmd.send(Command::SetCallConnection { mode, public_stun });
+    }
+
     /// Feed an inbound `webrtc_signal` (from the relay, via the GUI) into the
     /// manager. `from` is the sender's pubkey hex, `signal_type` is
     /// `dc_answer` or `dc_ice`, and `data` is the JSON value the relay
@@ -754,6 +808,14 @@ pub struct WebrtcManager {
     /// so a self-hosted node's clients ask THAT node, never a hardcoded host.
     /// `HUMANITY_RELAY_BASE` still overrides for debugging.
     relay_base: String,
+
+    // ── 10p: how this person's calls connect ────────────────────────────────
+    /// The person's call connection mode, for voice connections made from now
+    /// on (`SetCallConnection`). Private until the app says otherwise.
+    call_mode: CallConnection,
+    /// The public STUN servers (`host:port`) the third mode asks, looked up with
+    /// the server's own (`request_stun_servers`). Empty in the other modes.
+    public_stun: Vec<String>,
 }
 
 /// The call or voice room whose connection goes through the server (step E).
@@ -774,6 +836,20 @@ enum RelayPhase {
     Turn(turn::TurnClient),
     /// Nothing will connect for it; the call UI was told.
     Unavailable,
+}
+
+/// What a new voice connection is built with (`voice_plan`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VoicePlan {
+    /// Private: only this relayed address.
+    RelayOnly(SocketAddr),
+    /// Direct (10p): this device's own candidates, and the relayed address when
+    /// the forwarder has given one already (otherwise it is trickled later).
+    Direct(Option<SocketAddr>),
+    /// Private, not yet: hold it until the allocation is live.
+    Wait,
+    /// Private, and the server cannot carry it: nothing is made.
+    Refuse,
 }
 
 /// A command held until its scope's connection through the server is ready.
@@ -825,6 +901,66 @@ struct PeerConn {
     voice_room_id: Option<String>,
     /// Whether we've surfaced VoiceConnected for this peer yet (dedupe).
     voice_announced: bool,
+    /// Whether this connection keeps this device's address to itself: a voice
+    /// connection made in the Private mode (step E), whose only candidate is the
+    /// relayed address and whose datagrams go through the forwarder or nowhere.
+    /// False for a Direct-mode voice connection and for a data channel (10p).
+    hides_address: bool,
+    /// The other side's candidate addresses seen so far (a voice connection),
+    /// so their forwarder permissions can be put in when this device's
+    /// allocation comes after them (a Direct connection is made before it).
+    remote_addrs: Vec<SocketAddr>,
+    /// Whether the relayed address is among this connection's local candidates.
+    has_relayed: bool,
+    /// The mid of the first m-line of this connection's own SDP, which a
+    /// trickled candidate names (`emit_ice_candidate`): str0m picks random mids
+    /// when it offers, and a browser refuses a candidate for a mid it lacks.
+    first_mid: Option<String>,
+}
+
+impl PeerConn {
+    /// A connection just made: nothing negotiated or learned yet.
+    fn new(rtc: Rtc, pending: Option<SdpPendingOffer>, audio_mid: Option<Mid>, voice_room_id: Option<String>, hides_address: bool) -> PeerConn {
+        PeerConn {
+            rtc,
+            pending,
+            channel: None,
+            remote_addr: None,
+            announced_open: false,
+            audio_mid,
+            voice_rtp_ts: 0,
+            voice_room_id,
+            voice_announced: false,
+            hides_address,
+            remote_addrs: Vec::new(),
+            has_relayed: false,
+            first_mid: None,
+        }
+    }
+}
+
+/// The first m-line's mid of an offer or answer (`{type, sdp}` when serialized).
+fn desc_first_mid<T: serde::Serialize>(desc: &T) -> Option<String> {
+    let v = serde_json::to_value(desc).ok()?;
+    first_mid_of(v.get("sdp")?.as_str()?)
+}
+
+/// The mid of an SDP's first m-line (`a=mid:` before any second `m=` line).
+fn first_mid_of(sdp: &str) -> Option<String> {
+    let mut m_lines = 0;
+    for line in sdp.lines().map(str::trim) {
+        if line.starts_with("m=") {
+            m_lines += 1;
+            if m_lines > 1 {
+                return None;
+            }
+        } else if let Some(mid) = line.strip_prefix("a=mid:") {
+            if m_lines == 1 {
+                return Some(mid.to_string());
+            }
+        }
+    }
+    None
 }
 
 impl WebrtcManager {
@@ -851,6 +987,7 @@ impl WebrtcManager {
             rx_event,
             rx_outbound,
             my_pubkey_hex: my_pubkey_hex.clone(),
+            call_connection_sent: std::sync::Mutex::new(None),
         };
 
         thread::spawn(move || {
@@ -922,6 +1059,8 @@ impl WebrtcManager {
             tx_internal,
             rx_internal,
             relay_base,
+            call_mode: CallConnection::Private,
+            public_stun: Vec::new(),
         }
     }
 
@@ -1154,15 +1293,16 @@ impl WebrtcManager {
                     // with the connection — matching on the TURN server address
                     // would never find the peer.
                     //
-                    // Step E: relayed data goes only to relay-only (voice)
-                    // peers, and a datagram that came straight to our socket
-                    // only to direct ones. A voice peer never takes traffic
-                    // around the forwarder.
+                    // Step E: relayed data goes only to voice peers, and a
+                    // datagram that came straight to our socket only to peers
+                    // that show this device's address (a data channel, or a
+                    // Direct-mode voice connection, 10p). A Private voice peer
+                    // never takes traffic around the forwarder (`takes`).
                     let relayed_in = recv_range.is_some();
                     let owner: Option<String> = {
                         let mut found = None;
                         // Fast path: a peer whose learned remote_addr matches.
-                        for (k, p) in self.peers.iter().filter(|(_, p)| p.relay_only() == relayed_in) {
+                        for (k, p) in self.peers.iter().filter(|(_, p)| p.takes(relayed_in)) {
                             if p.remote_addr == Some(recv_source) {
                                 found = Some(k.clone());
                                 break;
@@ -1170,7 +1310,7 @@ impl WebrtcManager {
                         }
                         if found.is_none() {
                             // Slow path: ask each Rtc if it accepts this input.
-                            for (k, p) in self.peers.iter().filter(|(_, p)| p.relay_only() == relayed_in) {
+                            for (k, p) in self.peers.iter().filter(|(_, p)| p.takes(relayed_in)) {
                                 if p.rtc.accepts(&input) {
                                     found = Some(k.clone());
                                     break;
@@ -1453,12 +1593,112 @@ impl WebrtcManager {
             }
             Command::RelayUnavailable(scope) => self.cmd_relay_unavailable(scope),
             Command::EndRelay(scope) => self.cmd_end_relay(scope),
-            Command::StunServers(servers) => {
-                if !servers.is_empty() {
-                    log::info!("WebRTC: the server's own STUN at {servers:?}");
+            Command::SetCallConnection { mode, public_stun } => self.cmd_set_call_connection(mode, public_stun),
+            Command::StunServers { servers, for_public } => {
+                // A lookup made for another public choice (the person changed
+                // it meanwhile) is dropped: it may name a service no longer
+                // chosen. The next due request looks up the current one.
+                if for_public != self.public_stun {
+                    log::debug!("WebRTC: a STUN lookup for an earlier call setting dropped");
+                } else if !servers.is_empty() {
+                    log::info!("WebRTC: STUN servers for direct connections: {servers:?}");
                     self.stun_servers = servers;
                 }
             }
+        }
+    }
+
+    /// The person's call connection mode changed (10p). It applies to voice
+    /// connections made from now on; ones already made keep what they offered
+    /// (an address already handed over cannot be taken back). A change of the
+    /// public STUN choice drops the servers looked up for the old one, so a
+    /// service no longer chosen is never asked again.
+    fn cmd_set_call_connection(&mut self, mode: CallConnection, public_stun: Vec<String>) {
+        log::info!("WebRTC: calls connect {} from now on", mode.id());
+        self.call_mode = mode;
+        if public_stun != self.public_stun {
+            self.public_stun = public_stun;
+            self.stun_servers.clear();
+            self.stun_pending.clear();
+            self.stun_fetch_last = None;
+        }
+    }
+
+    /// What a new voice connection for `scope` is built with: the Private mode's
+    /// relay gate (wait for the allocation, or refuse), or, in a Direct mode,
+    /// at once with this device's own candidates and the relayed address if it
+    /// is live already. Asking the gate also tells it which scope is wanted.
+    fn voice_plan(&mut self, scope: &CallScope) -> VoicePlan {
+        let gate = self.relay_gate(scope);
+        match (self.call_mode.shows_my_address(), gate) {
+            (false, Gate::Ready(addr)) => VoicePlan::RelayOnly(addr),
+            (false, Gate::Wait) => VoicePlan::Wait,
+            (false, Gate::Refuse) => VoicePlan::Refuse,
+            (true, Gate::Ready(addr)) => VoicePlan::Direct(Some(addr)),
+            (true, Gate::Wait | Gate::Refuse) => VoicePlan::Direct(None),
+        }
+    }
+
+    /// Give a Direct-mode voice connection its own candidates (10p): the host
+    /// address, the server-reflexive one if already learned, and the relayed
+    /// address if the forwarder gave one. Before the offer or answer is made,
+    /// so they ride in its SDP; whatever comes later is trickled. False if
+    /// str0m refused the host candidate.
+    fn add_direct_candidates(&self, rtc: &mut Rtc, relayed: Option<SocketAddr>) -> bool {
+        match Candidate::host(self.local_addr, "udp") {
+            Ok(cand) => {
+                rtc.add_local_candidate(cand);
+            }
+            Err(e) => {
+                log::error!("WebRTC: bad host candidate {}: {e}", self.local_addr);
+                return false;
+            }
+        }
+        if let Some(srflx) = self.srflx {
+            match Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
+                Ok(cand) => {
+                    rtc.add_local_candidate(cand);
+                }
+                Err(e) => log::warn!("WebRTC: bad srflx candidate {srflx}: {e}"),
+            }
+        }
+        if let Some(relayed) = relayed {
+            self.add_relayed_candidate(rtc, relayed);
+        }
+        true
+    }
+
+    /// The forwarder gave this device its relayed address for `scope`: add it
+    /// to every Direct-mode voice connection of that scope made before it came,
+    /// trickle it to the other side, and put in the forwarder permissions for
+    /// the candidates they already sent (10p). Each connection's Rtc is changed
+    /// once; the loop drains them all right after.
+    fn relay_ready_for_direct(&mut self, scope: &CallScope, relayed: SocketAddr) {
+        let keys: Vec<String> = self
+            .peers
+            .iter()
+            .filter(|(k, p)| {
+                !p.hides_address
+                    && !p.has_relayed
+                    && p.rtc.is_alive()
+                    && p.voice_room_id.as_deref().is_some_and(|room| &CallScope::for_voice_peer(room, k) == scope)
+            })
+            .map(|(k, _)| k.clone())
+            .collect();
+        for key in keys {
+            let Ok(cand) = Candidate::relayed(relayed, self.local_addr, Protocol::Udp) else { continue };
+            let line = cand.to_sdp_string();
+            let addrs = match self.peers.get_mut(&key) {
+                Some(p) => {
+                    p.rtc.add_local_candidate(cand);
+                    p.has_relayed = true;
+                    p.remote_addrs.clone()
+                }
+                None => continue,
+            };
+            self.permit(&addrs);
+            self.emit_ice_candidate(&key, &line);
+            log::debug!("WebRTC: trickled the relayed address to {}", short(&key));
         }
     }
 
@@ -1485,22 +1725,24 @@ impl WebrtcManager {
             }
         }
 
-        // Step E: a voice connection goes through the server only. Wait for its
-        // allocation, or give up on it; never offer it direct.
-        let relayed = match voice_room.as_deref() {
+        // Step E: in the Private mode a voice connection goes through the server
+        // only. Wait for its allocation, or give up on it; never offer it direct.
+        // In a Direct mode (10p) it is offered at once with this device's own
+        // candidates, and the relayed address when there is one.
+        let plan = match voice_room.as_deref() {
             Some(room) => {
                 let scope = CallScope::for_voice_peer(room, &peer);
-                match self.relay_gate(&scope) {
-                    Gate::Ready(addr) => Some(addr),
-                    Gate::Wait => {
+                match self.voice_plan(&scope) {
+                    VoicePlan::Wait => {
                         log::debug!("WebRTC: voice offer to {} waits for the {}", short(&peer), scope.label());
                         self.defer(scope, Command::OfferTo { peer, wants_voice, voice_room });
                         return;
                     }
-                    Gate::Refuse => {
+                    VoicePlan::Refuse => {
                         log::info!("WebRTC: no voice offer to {}: the {} cannot go through the server", short(&peer), scope.label());
                         return;
                     }
+                    plan => Some(plan),
                 }
             }
             None if !DIRECT_CONNECTIONS => {
@@ -1520,40 +1762,34 @@ impl WebrtcManager {
         // resulting Transmits — we don't need to drain inline here.
         let mut rtc = Rtc::builder().build(Instant::now());
 
-        if let Some(relayed) = relayed {
-            // Relay only: the relayed address is the ONE candidate, so the
-            // offer's SDP names the server's address and nothing of ours.
-            if !self.add_relayed_candidate(&mut rtc, relayed) {
-                return;
-            }
-        } else {
-            // A direct (data) connection, which both people asked for. Our host
-            // ICE candidate is the shared UDP socket's address. This still rides
-            // inside the SDP offer (added before apply()) and is all that's
-            // needed on a LAN.
-            match Candidate::host(self.local_addr, "udp") {
-                Ok(cand) => {
-                    rtc.add_local_candidate(cand);
-                }
-                Err(e) => {
-                    log::error!("WebRTC: bad host candidate {}: {e}", self.local_addr);
+        let (hides_address, has_relayed) = match plan {
+            Some(VoicePlan::RelayOnly(relayed)) => {
+                // Relay only: the relayed address is the ONE candidate, so the
+                // offer's SDP names the server's address and nothing of ours.
+                if !self.add_relayed_candidate(&mut rtc, relayed) {
                     return;
                 }
+                (true, true)
             }
-
-            // inc-3a: if we ALREADY know our server-reflexive address (a previous
-            // peer's gathering learned it), add it before apply() so it rides in
-            // THIS offer's SDP too, with no extra trickle round-trip for it.
-            // (If srflx is learned later, apply_srflx_to_all_peers trickles it.)
-            if let Some(srflx) = self.srflx {
-                match Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
-                    Ok(cand) => {
-                        rtc.add_local_candidate(cand);
-                    }
-                    Err(e) => log::warn!("WebRTC: bad srflx candidate {srflx} for offer: {e}"),
+            // A Direct-mode voice connection (10p), or a direct data channel,
+            // which both people asked for: our host candidate (the shared UDP
+            // socket's address; all that is needed on a LAN), and (inc-3a) our
+            // server-reflexive address if a previous connection already learned
+            // it, so it rides in THIS offer's SDP with no extra trickle; one
+            // learned later is trickled by apply_srflx_to_all_peers. A voice
+            // connection also gets the relayed address when it is live already;
+            // otherwise `relay_ready_for_direct` trickles it when it comes.
+            other => {
+                let relayed = match other {
+                    Some(VoicePlan::Direct(r)) => r,
+                    _ => None,
+                };
+                if !self.add_direct_candidates(&mut rtc, relayed) {
+                    return;
                 }
+                (false, relayed.is_some())
             }
-        }
+        };
 
         // Create the ordered data channel. `add_channel` returns a ChannelId,
         // but that id is NOT writable yet — we must wait for Event::ChannelOpen
@@ -1580,6 +1816,9 @@ impl WebrtcManager {
                 return;
             }
         };
+
+        // The first m-line's mid, which our trickled candidates name.
+        let first_mid = desc_first_mid(&offer);
 
         // Emit the offer. VOICE rides the voice_room_signal envelope with `data`
         // as a JSON OBJECT ({type,sdp}, an RTCSessionDescription the browser reads
@@ -1608,21 +1847,12 @@ impl WebrtcManager {
             self.emit_signal(&peer, "dc_offer", offer_json);
         }
 
-        self.peers.insert(
-            peer.clone(),
-            PeerConn {
-                rtc,
-                pending: Some(pending),
-                channel: None,
-                remote_addr: None,
-                announced_open: false,
-                audio_mid,
-                voice_rtp_ts: 0,
-                voice_room_id: voice_room,
-                voice_announced: false,
-            },
-        );
-        if relayed.is_some() {
+        let is_voice = voice_room.is_some();
+        let mut conn = PeerConn::new(rtc, Some(pending), audio_mid, voice_room, hides_address);
+        conn.has_relayed = has_relayed;
+        conn.first_mid = first_mid;
+        self.peers.insert(peer.clone(), conn);
+        if is_voice {
             self.replay_early_ice(&peer);
         }
         log::info!("WebRTC: sent dc_offer to {}", short(&peer));
@@ -1715,31 +1945,15 @@ impl WebrtcManager {
             }
         };
 
+        // Our host candidate, and (inc-3a) as on the offerer side our srflx if
+        // already known, so it rides in the SDP answer; otherwise it's trickled
+        // later by apply_srflx_to_all_peers once STUN resolves. (A data
+        // connection carries no relayed candidate since step E: the server's
+        // forwarder is for calls and voice rooms, per room or call.)
         let mut rtc = Rtc::builder().build(Instant::now());
-        match Candidate::host(self.local_addr, "udp") {
-            Ok(cand) => {
-                rtc.add_local_candidate(cand);
-            }
-            Err(e) => {
-                log::error!("WebRTC: bad host candidate {}: {e}", self.local_addr);
-                return;
-            }
+        if !self.add_direct_candidates(&mut rtc, None) {
+            return;
         }
-
-        // inc-3a: as on the offerer side, if our srflx is already known, add it
-        // before accept_offer() so it rides in the SDP answer. Otherwise it's
-        // trickled later by apply_srflx_to_all_peers once STUN resolves.
-        if let Some(srflx) = self.srflx {
-            match Candidate::server_reflexive(srflx, self.local_addr, Protocol::Udp) {
-                Ok(cand) => {
-                    rtc.add_local_candidate(cand);
-                }
-                Err(e) => log::warn!("WebRTC: bad srflx candidate {srflx} for answer: {e}"),
-            }
-        }
-
-        // (A data connection carries no relayed candidate since step E: the
-        // server's forwarder is for calls and voice rooms, per room or call.)
 
         // accept_offer consumes the sdp_api and yields the answer to send back.
         let answer = match rtc.sdp_api().accept_offer(offer) {
@@ -1758,24 +1972,13 @@ impl WebrtcManager {
         };
 
         // Insert the peer BEFORE emitting the signal (order doesn't strictly
-        // matter, but this keeps state consistent if emit ever did work).
-        self.peers.insert(
-            from.clone(),
-            PeerConn {
-                rtc,
-                pending: None, // answerer has no pending offer
-                channel: None,
-                remote_addr: None,
-                announced_open: false,
-                // Voice (Phase B): accept_offer auto-mirrors any audio m-line the
-                // offer carried; we learn its mid from Event::MediaAdded.
-                audio_mid: None,
-                voice_rtp_ts: 0,
-                // Data-path answerer (P2P groups), not voice.
-                voice_room_id: None,
-                voice_announced: false,
-            },
-        );
+        // matter, but this keeps state consistent if emit ever did work). The
+        // answerer has no pending offer; accept_offer auto-mirrors any audio
+        // m-line the offer carried (its mid comes with Event::MediaAdded). A
+        // data-path answerer (P2P groups), not voice, so it shows our address.
+        let mut conn = PeerConn::new(rtc, None, None, None, false);
+        conn.first_mid = desc_first_mid(&answer);
+        self.peers.insert(from.clone(), conn);
         self.emit_signal(&from, "dc_answer", answer_json);
         log::info!("WebRTC: accepted offer from {}, sent answer", short(&from));
         crate::debug::push_debug(format!("WebRTC answer -> {}", short(&from)));
@@ -1925,25 +2128,26 @@ impl WebrtcManager {
             log::debug!("WebRTC: voice offer from {} but a connection already exists", short(&from));
             return;
         }
-        // Step E: answered only through the server. Hold it until the call or
-        // room's allocation is live, or drop it when that cannot be had.
+        // Step E: in the Private mode answered only through the server. Hold it
+        // until the call or room's allocation is live, or drop it when that
+        // cannot be had. In a Direct mode (10p) answered at once.
         let scope = CallScope::for_voice_peer(&room_id, &from);
-        let relayed = match self.relay_gate(&scope) {
-            Gate::Ready(addr) => addr,
-            Gate::Wait => {
+        let plan = match self.voice_plan(&scope) {
+            VoicePlan::Wait => {
                 log::debug!("WebRTC: voice offer from {} waits for the {}", short(&from), scope.label());
                 let cmd = Command::VoiceSignal { from, room_id, signal_type: "offer".into(), data };
                 self.defer(scope, cmd);
                 return;
             }
-            Gate::Refuse => {
+            VoicePlan::Refuse => {
                 log::info!("WebRTC: voice offer from {} not answered: the {} cannot go through the server", short(&from), scope.label());
                 return;
             }
+            plan => plan,
         };
-        // The offer's own candidates (a native offerer puts its relayed address
-        // in the SDP): their forwarder permissions go in now, before str0m
-        // first sends toward them.
+        // The offer's own candidates (a native offerer puts its in the SDP):
+        // their forwarder permissions go in now, before str0m first sends
+        // toward them, and are kept for an allocation that comes later.
         let offered = data.get("sdp").and_then(Value::as_str).map(sdp_candidate_addrs).unwrap_or_default();
         let offer: SdpOffer = match serde_json::from_value(data) {
             Ok(o) => o,
@@ -1953,9 +2157,21 @@ impl WebrtcManager {
             }
         };
         let mut rtc = Rtc::builder().build(Instant::now());
-        if !self.add_relayed_candidate(&mut rtc, relayed) {
-            return;
-        }
+        let (hides_address, has_relayed) = match plan {
+            VoicePlan::RelayOnly(relayed) => {
+                if !self.add_relayed_candidate(&mut rtc, relayed) {
+                    return;
+                }
+                (true, true)
+            }
+            VoicePlan::Direct(relayed) => {
+                if !self.add_direct_candidates(&mut rtc, relayed) {
+                    return;
+                }
+                (false, relayed.is_some())
+            }
+            VoicePlan::Wait | VoicePlan::Refuse => return, // handled above
+        };
         self.permit(&offered);
         let answer = match rtc.sdp_api().accept_offer(offer) {
             Ok(a) => a,
@@ -1971,20 +2187,11 @@ impl WebrtcManager {
                 return;
             }
         };
-        self.peers.insert(
-            from.clone(),
-            PeerConn {
-                rtc,
-                pending: None,
-                channel: None,
-                remote_addr: None,
-                announced_open: false,
-                audio_mid: None,
-                voice_rtp_ts: 0,
-                voice_room_id: Some(room_id.clone()),
-                voice_announced: false,
-            },
-        );
+        let mut conn = PeerConn::new(rtc, None, None, Some(room_id.clone()), hides_address);
+        conn.has_relayed = has_relayed;
+        conn.remote_addrs = offered;
+        conn.first_mid = answer_val.get("sdp").and_then(Value::as_str).and_then(first_mid_of);
+        self.peers.insert(from.clone(), conn);
         self.emit_voice_signal(&from, &room_id, "answer", answer_val);
         self.replay_early_ice(&from);
         log::info!("WebRTC: voice answer -> {} (room {})", short(&from), room_id);
@@ -2017,6 +2224,12 @@ impl WebrtcManager {
                 return;
             }
         };
+        // Kept for an allocation that comes after them (a Direct connection, 10p).
+        for a in answered {
+            if !p.remote_addrs.contains(&a) {
+                p.remote_addrs.push(a);
+            }
+        }
         if let Err(e) = p.rtc.sdp_api().accept_answer(pending, answer) {
             log::warn!("WebRTC: voice accept_answer from {} failed: {e}", short(&from));
             p.rtc.disconnect();
@@ -2053,9 +2266,19 @@ impl WebrtcManager {
             log::debug!("WebRTC: voice ICE from {} before its connection exists, kept", short(&from));
             return;
         }
-        // Its forwarder permission and channel first (no Rtc touched), so the
-        // relayed pair can carry data from the first check.
-        self.permit(&[cand.addr()]);
+        // A relayed candidate's forwarder permission and channel first (no Rtc
+        // touched), so the relayed pair can carry data from the first check;
+        // it is also kept for an allocation that comes later (10p). Someone's
+        // own address gets none: the forwarder would only refuse it.
+        if cand.kind() == CandidateKind::Relayed {
+            let addr = cand.addr();
+            self.permit(&[addr]);
+            if let Some(p) = self.peers.get_mut(&from) {
+                if !p.remote_addrs.contains(&addr) {
+                    p.remote_addrs.push(addr);
+                }
+            }
+        }
         if let Some(p) = self.peers.get_mut(&from) {
             p.rtc.add_remote_candidate(cand);
             log::trace!("WebRTC: added voice ICE from {}", short(&from));
@@ -2124,9 +2347,11 @@ impl WebrtcManager {
     /// the first connection, and the address it learns is trickled to the peer
     /// (`apply_srflx_to_all_peers`), the way a candidate learned late always was.
     ///
-    /// Since step E only a DIRECT connection counts (the Dev tools "P2P test"):
-    /// voice is relay only and needs no STUN. The servers asked are the
-    /// connected server's own (`request_stun_servers`), never a third party's.
+    /// Since step E only a connection that shows this device's address counts:
+    /// a Direct-mode voice connection (10p) or the Dev tools "P2P test". A
+    /// Private voice connection is relay only and needs no STUN. The servers
+    /// asked are the connected server's own (`request_stun_servers`), and a
+    /// public one only when the person chose the third mode.
     ///
     /// This only sends opaque UDP datagrams on the shared socket — it touches no
     /// `Rtc` — so it is exempt from str0m's single-mutation drain invariant.
@@ -2228,7 +2453,9 @@ impl WebrtcManager {
     /// already exist.
     fn apply_srflx_to_all_peers(&mut self, srflx: SocketAddr) {
         // Snapshot keys so we can mutate self.peers / emit signals in the loop.
-        let keys: Vec<String> = self.peers.keys().cloned().collect();
+        // Never a connection that keeps this device's address to itself (a
+        // Private-mode voice connection, 10p): the srflx IS that address.
+        let keys: Vec<String> = self.peers.iter().filter(|(_, p)| !p.hides_address).map(|(k, _)| k.clone()).collect();
         for key in keys {
             self.add_and_trickle_srflx(&key, srflx);
         }
@@ -2258,10 +2485,11 @@ impl WebrtcManager {
         let sdp_line = cand.to_sdp_string();
 
         match self.peers.get_mut(peer_key) {
-            Some(p) if p.rtc.is_alive() => {
+            Some(p) if p.rtc.is_alive() && !p.hides_address => {
                 // add_local_candidate is a mutation, but the surrounding run
                 // loop always drains poll_output to Timeout afterward (step B),
-                // satisfying str0m's single-mutation invariant.
+                // satisfying str0m's single-mutation invariant. Never to a
+                // connection that keeps this device's address to itself.
                 p.rtc.add_local_candidate(cand);
             }
             _ => {
@@ -2288,24 +2516,27 @@ impl WebrtcManager {
     /// `RTCIceCandidate` constructor REQUIRES an object with a `candidate`
     /// field, and the candidate must be tied to an m-line — passing a bare
     /// string throws `TypeError`. So `data` must stringify to
-    /// `{"candidate":"candidate:...","sdpMid":"0","sdpMLineIndex":0}`.
+    /// `{"candidate":"candidate:...","sdpMid":"<mid>","sdpMLineIndex":0}`.
     ///
-    /// The **load-bearing** field is `sdpMLineIndex: 0`, NOT `sdpMid`. We have
-    /// exactly ONE m-line (the single data channel), so index 0 always resolves
-    /// to it on the receiving browser. str0m assigns the data-channel m-line a
-    /// random mid via `new_mid()` (not literally "0"), so a future reader must
-    /// NOT try to "fix" `sdpMid` to chase str0m's mid — the browser matches a
-    /// remote candidate by `sdpMLineIndex` when `sdpMid` doesn't match, and with
-    /// a single m-line index 0 is unambiguous. `sdpMid:"0"` is just a benign
-    /// placeholder. Native↔native is unaffected either way: our own `on_ice`
-    /// reads only the `.candidate` line and ignores both mid fields.
+    /// `sdpMid` is the mid of the connection's FIRST m-line, read from its own
+    /// offer or answer (`PeerConn::first_mid`), and `sdpMLineIndex` is 0 to
+    /// match; with BUNDLE every m-line shares the one transport, so the first
+    /// is enough. Until 2026-10-22 this sent `"0"` and said the browser would
+    /// fall back to the index when the mid did not match. It does not: the
+    /// WebRTC spec has `addIceCandidate` reject a candidate whose `sdpMid`
+    /// names no media description, and str0m's own offers use random mids, so
+    /// `"0"` held only when a browser had made the offer (its mids are "0",
+    /// "1", ...). That case is unchanged: an answer mirrors the offer's mids.
+    /// `"0"` stays the fallback. Native to native reads only the `.candidate`
+    /// line (`on_ice`, `on_voice_ice`).
     fn emit_ice_candidate(&self, to: &str, sdp_line: &str) {
         // The candidate object the far side will JSON.parse. `data` itself is a
         // JSON STRING per the signaling envelope contract (matching the web
         // client's `JSON.stringify(candidate)`).
+        let mid = self.peers.get(to).and_then(|p| p.first_mid.clone()).unwrap_or_else(|| "0".to_string());
         let cand_obj = serde_json::json!({
             "candidate": sdp_line,
-            "sdpMid": "0",
+            "sdpMid": mid,
             "sdpMLineIndex": 0,
         });
         // Voice peers trickle over voice_room_signal with `data` as an OBJECT;
@@ -2321,23 +2552,33 @@ impl WebrtcManager {
     //  Step E: calls and voice rooms through the server's forwarder
     // ════════════════════════════════════════════════════════════════════
 
-    /// Fetch the connected server's own STUN entry and look it up, on a helper
-    /// thread (an HTTP request and a name lookup must not stall the loop). The
-    /// answer comes back as `Command::StunServers`. At most once per
-    /// `STUN_FETCH_INTERVAL`; `HUMANITY_RELAY_BASE` overrides the server for
-    /// debugging, as before.
+    /// Fetch the connected server's own STUN entry and look it up, with the
+    /// public STUN server the person chose in the third call mode (10p), on a
+    /// helper thread (an HTTP request and a name lookup must not stall the
+    /// loop). The answer comes back as `Command::StunServers`, tagged with the
+    /// public choice it was made for. At most once per `STUN_FETCH_INTERVAL`;
+    /// `HUMANITY_RELAY_BASE` overrides the server for debugging, as before.
     fn request_stun_servers(&mut self, now: Instant) {
         if self.stun_fetch_last.is_some_and(|t| now.duration_since(t) < STUN_FETCH_INTERVAL) {
             return;
         }
         self.stun_fetch_last = Some(now);
         let base = std::env::var("HUMANITY_RELAY_BASE").unwrap_or_else(|_| self.relay_base.clone());
-        if base.is_empty() {
+        let public = self.public_stun.clone();
+        if base.is_empty() && public.is_empty() {
             return;
         }
         let tx = self.tx_internal.clone();
         thread::spawn(move || {
-            let _ = tx.send(Command::StunServers(fetch_own_stun_servers(&base)));
+            let mut servers = if base.is_empty() { Vec::new() } else { fetch_own_stun_servers(&base) };
+            for hp in &public {
+                if let Some(addr) = hp.to_socket_addrs().ok().and_then(|mut a| a.find(|a| a.is_ipv4())) {
+                    if !servers.contains(&addr) {
+                        servers.push(addr);
+                    }
+                }
+            }
+            let _ = tx.send(Command::StunServers { servers, for_public: public });
         });
     }
 
@@ -2473,7 +2714,13 @@ impl WebrtcManager {
             self.relay_failed(false);
             return;
         };
-        if self.socket_used_for_turn {
+        // A fresh socket for this allocation, unless a Direct-mode voice
+        // connection (10p) already lives on this one: it was made before the
+        // credentials came and would end with the socket. It then shares the
+        // socket, and if the server still holds an earlier allocation from it
+        // (437), this call stays device to device.
+        let direct_live = self.peers.values().any(|p| p.voice_room_id.is_some() && !p.hides_address && p.rtc.is_alive());
+        if self.socket_used_for_turn && !direct_live {
             self.rebind_socket();
         }
         self.socket_used_for_turn = true;
@@ -2525,9 +2772,17 @@ impl WebrtcManager {
 
     /// Close every voice connection that belongs to `scope`.
     fn close_scope_peers(&mut self, scope: &CallScope) {
+        self.close_scope_peers_where(scope, false);
+    }
+
+    /// Close `scope`'s voice connections; with `relay_only_ones`, only those
+    /// that hide this device's address (a lost forwarder ends those, while a
+    /// Direct-mode one may carry on device to device, 10p).
+    fn close_scope_peers_where(&mut self, scope: &CallScope, relay_only_ones: bool) {
         let gone: Vec<String> = self
             .peers
             .iter()
+            .filter(|(_, p)| !relay_only_ones || p.hides_address)
             .filter(|(k, p)| p.voice_room_id.as_deref().is_some_and(|room| &CallScope::for_voice_peer(room, k) == scope))
             .map(|(k, _)| k.clone())
             .collect();
@@ -2539,8 +2794,10 @@ impl WebrtcManager {
     }
 
     /// The call or room in hand cannot go through the server: drop what waits
-    /// for it, close its connections when a live allocation was lost, and tell
-    /// the call UI once. Nothing falls back to a direct connection.
+    /// for it, close its Private-mode connections when a live allocation was
+    /// lost, and tell the call UI once. A Private connection never falls back
+    /// to a direct one; a Direct-mode one (10p) carries on device to device
+    /// when its own addresses connected.
     fn relay_failed(&mut self, lost: bool) {
         let Some(r) = self.relay.as_mut() else { return };
         if matches!(r.phase, RelayPhase::Unavailable) {
@@ -2550,7 +2807,7 @@ impl WebrtcManager {
         let scope = r.scope.clone();
         self.deferred.retain(|d| d.scope != scope);
         if lost {
-            self.close_scope_peers(&scope);
+            self.close_scope_peers_where(&scope, true);
         }
         log::info!("WebRTC: the {} cannot go through the server (lost: {lost})", scope.label());
         crate::debug::push_debug(format!("WebRTC: {} cannot go through the server", scope.label()));
@@ -2625,6 +2882,7 @@ impl WebrtcManager {
                 crate::debug::push_debug(format!("WebRTC: {} ready through the server", scope.label()));
                 let _ = self.tx_event.send(WebrtcEvent::RelayReady { scope: scope.clone() });
                 self.flush_deferred(&scope);
+                self.relay_ready_for_direct(&scope, relayed);
             }
             Some(Err(lost)) => self.relay_failed(lost),
             None => {}
@@ -2679,10 +2937,22 @@ fn fetch_own_stun_servers(base: &str) -> Vec<SocketAddr> {
 }
 
 impl PeerConn {
-    /// A voice connection (a call or a voice room): relay only since step E,
-    /// never direct.
+    /// A voice connection made in the Private mode: relay only since step E,
+    /// never direct (`hides_address`). A Direct-mode one (10p) is not.
     fn relay_only(&self) -> bool {
-        self.voice_room_id.is_some()
+        self.hides_address
+    }
+
+    /// Whether this connection takes an inbound datagram: one the forwarder
+    /// relayed (`relayed_in`) goes only to a voice connection; one that came
+    /// straight to the socket only to a connection that shows this device's
+    /// address (a data channel, or a Direct-mode voice connection).
+    fn takes(&self, relayed_in: bool) -> bool {
+        if relayed_in {
+            self.voice_room_id.is_some()
+        } else {
+            !self.hides_address
+        }
     }
 }
 
@@ -5290,6 +5560,13 @@ mod relay_only_tests {
 /// hands out relayed addresses that are `Trap` sockets, so a datagram either
 /// app sent straight to the other's relayed address, around the forwarder,
 /// would be caught.
+/// Each person chooses how their calls connect (10p, 2026-10-22): the candidates each mode
+/// offers, the public STUN server asked only in the third, and two loopback rigs (a Private and a
+/// Direct person through the relay; two Direct people with no relay).
+#[cfg(test)]
+#[path = "webrtc_call_mode_tests.rs"]
+mod call_mode_tests;
+
 #[cfg(test)]
 mod relay_only_rig_tests {
     use super::test_forwarder::{Forwarder, Trap};

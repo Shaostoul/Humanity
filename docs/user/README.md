@@ -18,6 +18,12 @@ Chat in channels, send end-to-end encrypted direct messages, make voice and vide
 calls, follow and friend people, keep tasks and notes, browse a marketplace, track an
 inventory, grow a garden in the simulation, and read the in-app Library.
 
+## Your privacy
+
+- **[privacy.md](privacy.md)** calls and voice rooms: the three ways they can connect (Private,
+  the default; Direct; Direct also asking a public service) and who can see your network address
+  in each.
+
 ## What makes it different
 
 - **No sign-up, no stored passwords.** Your account is a key that lives on your device. You

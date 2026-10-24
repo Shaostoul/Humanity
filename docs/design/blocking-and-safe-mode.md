@@ -815,7 +815,9 @@ checks it ran.
    port** in the relay binary, and remove Google from every list. Calls and
    rooms go through the forwarder by default for everyone ("Hide my address
    in calls": on). A direct connection is an opt-in that applies only when
-   both people chose it, and it uses our own STUN, never Google.
+   both people chose it, and it uses our own STUN, never Google. (Superseded
+   in part on 2026-10-22 by 10p: each person's choice covers their own
+   address, and a public STUN server is a third, explicit opt-in.)
 3. **In hide-address mode, skip the group mesh and contact-card channels**:
    both already have a path through the server (7.2), so only a few seconds
    of delay is lost. Data sync becomes own-devices only (3.7.1).
@@ -2155,6 +2157,65 @@ there is no fallback); "read" is set only after its own last page's rows were ap
 from an old socket, read after a new one opened, neither pages on nor counts; a non-final page
 that does not advance stops the fetch rather than asking again forever. O3: Block drops a queued
 Unfollow at once on both.
+
+## 10p. Each person chooses how their calls connect (2026-10-22)
+
+The operator asked, verbatim: "Is it possible to support multiple forms? Like, what if someone is
+okay using google servers? How would our server's voice chats have to accommodate the multiple
+forms?" He then directed this design: a setting per person, on both apps, safe by default, each
+person's choice governing only their own address. It replaces TIER 2 item 6's "a native TURN
+toggle", and it supersedes the part of 7.4 that said a direct connection applies "only when both
+people chose it, and it uses our own STUN, never Google": a direct path still forms only when both
+offered a direct address (ICE needs an address on each side), and a public STUN server is now an
+explicit third opt-in.
+
+| Mode (saved id) | What this device offers the other side | Who sees this person's address |
+|---|---|---|
+| Private (`private`, the default) | The forwarder's relayed address only (10f, unchanged) | The server, which sees it already |
+| Direct (`direct`) | Its host address, its server-reflexive address from the server's own STUN responder, and the relayed address | Also the people in the call |
+| Direct, also asking a public service (`direct_public_stun`) | As Direct; the public STUN server the person picks (`data/net/call_connection.json`) is asked as well | Also that service |
+
+**Mixing.** A Private person offers only their relayed address, so with a Direct person the only
+pair that can work is relayed to relayed, through the forwarder, which carries only traffic between
+its own allocations of one room or call. The Direct person's attempts toward the Private person's
+relayed address go to a port the server never binds and are dropped. Two Direct people connect
+device to device where their networks allow it, with the relay still offered as the fallback. A
+voice room is a mesh of such pairs, each pair settling the same way.
+
+**The server.** Nothing new: the STUN responder already answers on the forwarder's UDP port
+(`TURN_PORT`, 3478; `src/relay/call_forwarder.rs`), and `/api/turn-credentials` and every
+`call_credentials` reply already name it. A Direct person still asks for credentials and gets an
+allocation, so they can reach Private people. Opening the one port is the operator's call
+(`docs/admin/call-forwarder.md`).
+
+**When the server cannot relay** (no credentials, or the forwarder never answers): a Private call
+says 10f's sentence and connects nothing, as before. A Direct call connects device to device where
+it can, and the person is told once: "This server cannot carry calls yet, so this one connects
+device to device where your networks allow it. The people in it can see your network address."
+
+**The protected setup** is always Private (7.4: "Hide my address" is on and cannot be turned off).
+
+**Where.** Words and the public list: `data/net/call_connection.json`, read by both apps. Desktop:
+`src/net/call_connection.rs` (the modes, `effective`, the public hosts), `src/net/webrtc.rs`
+(`voice_plan`, `add_direct_candidates`, `relay_ready_for_direct`: a Direct voice connection is made
+at once and its relayed address trickled when it comes; `PeerConn::hides_address` keeps a Private
+connection relay only and never gives it the server-reflexive address), `src/engine/call_relay.rs`
+(hands the mode over every frame), `src/gui/pages/settings/calls.rs` (Settings > Privacy), kept in
+`AppConfig.call_connection` and `call_public_stun`. Web: `web/shared/call-connection.js`,
+`web/chat/chat-voice-rooms.js` (`callRtcConfig`) and `chat-voice-calls.js`, `chat-privacy.js`
+(Settings > Safety), kept in localStorage `hos_call_connection` and `hos_call_public_stun`.
+
+**Proof.** Desktop: `src/net/webrtc_call_mode_tests.rs` (the candidates each mode offers; a Private
+connection never given the public address; the public service asked only in the third mode; on
+127.0.0.1 with the test forwarder, a Private and a Direct app in one room connecting through it
+with voice both ways, and two Direct apps connecting with no relay at all),
+`src/net/call_connection.rs` tests, `config.rs`
+`the_call_connection_starts_private_and_a_choice_survives_a_restart`, and
+`tests/settings_persistence_lint.rs`. Web: `scripts/tests/calls-through-server.test.js` items 7 to
+12.
+
+**Not in this step.** A choice per call (it is per person and device); IPv6 host candidates on the
+desktop app (its socket is IPv4); voice over TCP for networks that block UDP (7.4 step 4).
 
 ## 11. Docs to update as each piece ships
 

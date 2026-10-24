@@ -408,3 +408,33 @@ fn a_file_sent_under_a_higher_limit_opens() {
     assert_eq!(max_ciphertext(), 1024 * 1024 * 1024 + 4096, "Save's cap is the relay's 1 GB ceiling and its 4 KiB");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// EVERY PLACE A PRIVATE PICTURE APPEARS (checked 2026-10-22 for PRIORITIES Tier 2 item 6): a
+/// marker in a direct message from a friend, in a P2P group, and kept in the scratch pad opens and
+/// draws inline the same way. The chat page draws all three through one message loop (chat.rs,
+/// `attach_view::plan` then `draw`), so this holds the plan and the drawing for each channel.
+///
+/// Seen red 2026-10-22 with `plan` answering `Show::AskPicture` for every message outside a P2P
+/// group: "a picture in dm:ann loads".
+#[test]
+fn a_private_picture_draws_inline_in_a_dm_a_group_and_the_scratch_pad() {
+    let picture = png(32, 20);
+    let (att, ct) = sealed(&picture, "/uploads/bb.enc", "garden.png", "image/png");
+    let gs = app("view-every-place");
+    let ctx = egui::Context::default();
+    let mut cache = ImageCache::new();
+    let key = cache_key(&att);
+    let (k, n) = (att.k.clone(), att.n.clone());
+    cache.request_bytes(&key, move || open("unused", &k, &n, |_, _| Ok(ct)));
+    assert!(matches!(settle(&mut cache, &ctx, &key), ImageStatus::Ready { .. }), "the picture opens");
+    let texture = cache.get_texture(&key).expect("a texture").id();
+    for (channel, from, name) in [("dm:ann", "ann", "Ann"), ("p2pgroup:g1", "ann", "Ann"), ("scratchpad", "me", "Me")] {
+        let msg = carrying(channel, from, name, &att);
+        let found = file_in(&msg).unwrap_or_else(|| panic!("the marker is recognised in {channel}"));
+        let plan = plan(&gs, &msg, &found);
+        assert_eq!(plan.show, Show::Load, "a picture in {channel} loads");
+        let (_, meshes) = draw_frame(&ctx, &mut cache, name, &found, &plan);
+        assert!(meshes.contains(&texture), "and is drawn inline in {channel}");
+    }
+    tidy(&gs);
+}

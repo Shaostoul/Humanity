@@ -10,7 +10,10 @@
 //! said at once. lib.rs passes the manager's two relay events to `on_event`. Whenever the call
 //! or room cannot go through the server, the person is told once (a notice) and the call bar
 //! keeps the line (src/gui/pages/chat/call_relay_bar.rs); nothing falls back to a direct
-//! connection.
+//! connection in the Private mode. `pump` also hands the WebRTC manager the person's call
+//! connection mode every frame (10p, src/net/call_connection.rs; the protected setup is always
+//! Private): in a Direct mode a call the server cannot relay connects device to device where it
+//! can, and the line says so.
 
 use std::time::Instant;
 
@@ -44,15 +47,30 @@ pub(crate) fn wanted_scope(gs: &GuiState) -> Option<CallScope> {
 /// left, and give up on an unanswered request. Nothing happens without a WebRTC manager (it
 /// rides the chat socket; a new one starts with nothing asked).
 pub(crate) fn pump(gs: &mut GuiState) {
+    // How this person's calls connect (10p): the setting, the protected setup applied, handed to
+    // the WebRTC manager (only a change goes down) and to the call UI's lines.
+    let mode = effective_call_connection(gs);
+    gs.call_relay.set_direct(mode.shows_my_address());
     if gs.webrtc.is_none() {
         gs.call_relay.reset();
         return;
+    }
+    if let Some(webrtc) = &gs.webrtc {
+        let words = crate::net::call_connection::words();
+        let public = crate::net::call_connection::public_stun_hosts(mode, &gs.settings.call_public_stun, words);
+        webrtc.set_call_connection(mode, public);
     }
     let wanted = wanted_scope(gs);
     let steps = gs.call_relay.update(wanted, Instant::now());
     for step in steps {
         apply(gs, step);
     }
+}
+
+/// The call connection mode that applies now: the person's choice (Settings > Privacy), except
+/// that the protected setup is always Private (src/net/call_connection.rs `effective`).
+pub(crate) fn effective_call_connection(gs: &GuiState) -> crate::net::call_connection::CallConnection {
+    crate::net::call_connection::effective(gs.settings.call_connection, crate::engine::protected::is_on(gs))
 }
 
 /// A frame the message pump did not handle. True when it was a `call_credentials` reply (taken
@@ -109,7 +127,9 @@ fn apply(gs: &mut GuiState, step: Step) {
             }
         }
         Step::GaveUp(scope) => {
-            gs.pending_notices.push(call_relay::NOT_SET_UP_LINE.to_string());
+            // 10f's sentence, or in a Direct mode the line that it goes device to device (10p).
+            let line = gs.call_relay.line_for(&scope).unwrap_or(call_relay::NOT_SET_UP_LINE);
+            gs.pending_notices.push(line.to_string());
             if let Some(webrtc) = &gs.webrtc {
                 webrtc.relay_unavailable(scope);
             }
@@ -227,6 +247,25 @@ mod tests {
         // The forwarder failing later is not said again.
         on_event(&mut gs, WebrtcEvent::RelayUnavailable { scope: call, lost: false });
         assert_eq!(gs.pending_notices.len(), 1);
+    }
+
+    /// The person's call connection reaches the call UI every frame (10p), and the protected
+    /// setup turns it back to Private whatever was chosen. Seen red 2026-10-22 with `pump`
+    /// passing the chosen mode unchanged: "the protected setup is always Private".
+    #[test]
+    fn the_call_connection_reaches_the_call_ui_and_the_protected_setup_is_private() {
+        use crate::net::call_connection::CallConnection;
+        let mut gs = app();
+        pump(&mut gs);
+        assert!(!gs.call_relay.direct(), "Private by default");
+        gs.settings.call_connection = CallConnection::Direct;
+        pump(&mut gs);
+        assert!(gs.call_relay.direct(), "Direct reaches the call UI");
+        assert_eq!(effective_call_connection(&gs), CallConnection::Direct);
+        gs.protected.setup.on = true;
+        pump(&mut gs);
+        assert!(!gs.call_relay.direct(), "the protected setup is always Private");
+        assert_eq!(effective_call_connection(&gs), CallConnection::Private);
     }
 
     /// The manager's failure is said once; no manager, nothing in hand.

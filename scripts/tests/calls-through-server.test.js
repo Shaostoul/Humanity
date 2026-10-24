@@ -38,6 +38,28 @@
 //  6. Credentials came but the forwarder gave a connection no address by the end of gathering (its
 //     port not open yet, 10f): the sentence, the room is left or the call hung up, nothing retried;
 //     a connection that did get an address is left alone.
+//  1-6 are the Private mode, everyone's default. Since 2026-10-22 (10p) a person may choose how
+//  their calls connect (/shared/call-connection.js, words from /data/net/call_connection.json):
+//  7. The module: three modes, an unknown one Private, the protected setup always Private, and the
+//     settings each mode builds a connection with.
+//  8. Direct: a room's and a call's connections are built from the same credentials with
+//     iceTransportPolicy 'all', so this device's own addresses are offered too.
+//  9. Direct, also asking a public service: the one picked (else the first listed) is added after
+//     the relay's; Direct alone never names one.
+// 10. Direct and no credentials: the Direct line once (never 10f's sentence), the room is not left,
+//     its connections are built device to device and an offer is answered, and gathering that ends
+//     with no relayed address tears nothing down.
+// 11. The protected setup: relay only whatever this device chose.
+// 12. Settings > Safety: the three choices in the data file's words with each summary shown, the
+//     choice kept on this device, the service picker in the third mode, and under the protected
+//     setup only Private can be picked.
+//
+// Red first, 2026-10-22, each with HOS_WEB_DIR at a copy of web/ holding the mutation named:
+//  callRtcConfig building relay only whatever the mode: 8 "the relay's credentials, every kind of
+//  address offered", 9 "the service picked: cloudflare", 10 "a connection to Ann";
+//  callConnectionMode passing false for the protected setup: 11 "relay only under the protected
+//  setup"; joinVoiceRoom leaving the room without credentials in every mode: 10 "the Direct line,
+//  in the chat"; drawCallConnection never disabling the other choices: 12 "only Private".
 //
 // Red first, 2026-10-09: each run with HOS_WEB_DIR at a copy of web/ holding the mutation named,
 // and seen failing with the assertion named (each passing again on the real web/):
@@ -178,7 +200,14 @@ async function settle() {
   }
 }
 
-function loadChat() {
+// The words and the public services both apps read (10p).
+const CALL_WORDS_FILE = process.env.HOS_DATA_DIR
+  ? path.join(process.env.HOS_DATA_DIR, "net", "call_connection.json")
+  : path.join(__dirname, "..", "..", "data", "net", "call_connection.json");
+
+// opts.mode / opts.publicStun: this device's kept call connection setting (10p), set before the
+// page loads; opts.protectedOn: the protected setup on.
+function loadChat(opts = {}) {
   const pcs = [];
   const fetches = [];
   const media = { asked: 0 };
@@ -217,11 +246,15 @@ function loadChat() {
     location: { hash: "", host: "localhost", hostname: "localhost", protocol: "https:", pathname: "/chat", search: "", reload() {} },
     localStorage: fakeStorage(),
     sessionStorage: fakeStorage(),
-    // No network but the server's own STUN list (a link between my own devices may use it).
+    // No network but the server's own STUN list (a link between my own devices may use it) and
+    // the call connection words (10p), read from the real data file.
     fetch: (url) => {
       fetches.push(String(url));
       if (String(url).startsWith("/api/turn-credentials")) {
         return Promise.resolve({ ok: true, json: async () => ({ iceServers: [{ urls: OWN_STUN }], ttl: 3600 }) });
+      }
+      if (String(url).startsWith("/data/net/call_connection.json")) {
+        return Promise.resolve({ ok: true, json: async () => JSON.parse(fs.readFileSync(CALL_WORDS_FILE, "utf8")) });
       }
       return Promise.reject(new Error("no network in tests"));
     },
@@ -250,6 +283,8 @@ function loadChat() {
   };
   ctx.window = ctx;
   ctx.self = ctx;
+  if (opts.mode) ctx.localStorage.setItem("hos_call_connection", opts.mode);
+  if (opts.publicStun) ctx.localStorage.setItem("hos_call_public_stun", opts.publicStun);
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   // In index.html's order.
@@ -259,6 +294,8 @@ function loadChat() {
   run("shared/block.js");
   run("shared/blake3.js");
   run("shared/file-transfer.js");
+  // How this person's calls connect (10p); a copy of web/ from before it has none.
+  if (fs.existsSync(path.join(WEB, "shared", "call-connection.js"))) run("shared/call-connection.js");
   run("chat/app.js");
   // Page pieces from scripts this test does not load (chat-ui.js, icons.js, hold-confirm.js).
   for (const name of ["updateUserList", "updateStats", "renderServerList", "renderGroupList", "hosIcon", "shortKey", "holdConfirm", "playNotificationChime"]) {
@@ -276,6 +313,8 @@ function loadChat() {
   run("chat/chat-p2p.js");
   // What is written into the message area (system lines).
   ctx.appendMessage = (el) => { appended.push(el); };
+  // The protected setup (chat-protected.js, not loaded here).
+  if (opts.protectedOn) ctx.protectedIsOn = () => true;
   const sock = fakeSocket();
   vm.runInContext("(s, me) => { ws = s; myKey = me; myName = 'Me_1'; }", ctx)(sock, ME);
   const handle = async (msg) => { await vm.runInContext("handleMessage", ctx)(msg); await settle(); };
@@ -522,4 +561,155 @@ test("credentials but no address from the forwarder (its port closed): the sente
     assert.strictEqual(vm.runInContext("callState", ctx), "idle");
     assert.strictEqual(pcs.length, 1, "no other connection made");
   }
+});
+
+// ── Each person chooses how their calls connect (10p, 2026-10-22) ──
+
+// The words and the public services, as both apps read them.
+const CALL_WORDS = JSON.parse(fs.readFileSync(CALL_WORDS_FILE, "utf8"));
+const DIRECT_LINE = CALL_WORDS.direct_without_server;
+// The settings a Direct mode builds a connection with: the relay's credentials (its turn: and its
+// own stun: address), every kind of address offered ('all').
+const DIRECT = {
+  iceServers: [{ urls: [TURN_URL, STUN_URL], username: "1760000000:abc123", credential: "c2VjcmV0LW1hYw==" }],
+  iceTransportPolicy: "all",
+};
+
+test("the call connection module: three modes, Private by default, the protected setup always Private", { timeout: 20000 }, () => {
+  const C = require(path.join(WEB, "shared", "call-connection.js"));
+  assert.deepStrictEqual(C.MODES, ["private", "direct", "direct_public_stun"]);
+  assert.deepStrictEqual(CALL_WORDS.modes.map((m) => m.id), C.MODES, "the data file describes the same modes, in order");
+  const store = fakeStorage();
+  assert.strictEqual(C.readMode(store), "private", "nothing kept: Private");
+  store.setItem(C.MODE_KEY, "by_carrier_pigeon");
+  assert.strictEqual(C.readMode(store), "private", "an unknown mode is Private");
+  assert.ok(C.writeMode(store, "direct") && C.readMode(store) === "direct");
+  for (const m of C.MODES) assert.strictEqual(C.effective(m, true), "private", "the protected setup: " + m);
+  const creds = { urls: [TURN_URL, STUN_URL], username: "u", credential: "c" };
+  assert.deepStrictEqual(C.rtcConfig("private", creds), { iceServers: [{ urls: [TURN_URL, STUN_URL], username: "u", credential: "c" }], iceTransportPolicy: "relay" });
+  assert.strictEqual(C.rtcConfig("private", null), null, "Private without credentials connects nothing");
+  assert.deepStrictEqual(C.rtcConfig("direct", null), { iceServers: [], iceTransportPolicy: "all" }, "Direct without credentials: device to device");
+  const pub = "stun:stun.example.org:3478";
+  assert.strictEqual(C.rtcConfig("direct", creds, pub).iceServers.length, 1, "Direct asks no public service");
+  assert.deepStrictEqual(C.rtcConfig("direct_public_stun", creds, pub).iceServers[1], { urls: pub }, "the third mode adds it");
+  assert.strictEqual(C.publicStunOf(CALL_WORDS, "cloudflare").id, "cloudflare");
+  assert.strictEqual(C.publicStunOf(CALL_WORDS, "").id, CALL_WORDS.public_stun[0].id, "the first when none was picked");
+  assert.ok(C.isRelayCandidate({ type: "relay" }) && !C.isRelayCandidate({ type: "host" }));
+  assert.ok(C.isRelayCandidate({ candidate: "candidate:1 1 udp 2 203.0.113.5 50000 typ relay raddr 0.0.0.0 rport 0" }));
+  assert.ok(!C.isRelayCandidate({ candidate: "candidate:1 1 udp 2 192.168.1.4 50000 typ host" }));
+});
+
+test("Direct: a room's and a call's connections offer this device's addresses too, still with the relay", { timeout: 20000 }, async () => {
+  // A room.
+  {
+    const { ctx, sock, pcs, handle, fn } = loadChat({ mode: "direct" });
+    ctx._voiceChannels = [{ id: 7, name: "Lounge", participants: [{ public_key: ANN, display_name: "Ann" }] }];
+    fn("joinVoiceRoom")(7);
+    await settle();
+    assert.deepStrictEqual(kinds(sock), ["voice_room:join", "call_credentials"], "credentials are still asked for");
+    await handle(reply({ room: ROOM }));
+    await handle({ type: "voice_channel_list", channels: [{ id: 7, name: "Lounge", participants: [{ public_key: ME }, { public_key: ANN }] }] });
+    assert.strictEqual(pcs.length, 1);
+    assert.deepStrictEqual(pcs[0].config, DIRECT, "the relay's credentials, every kind of address offered");
+  }
+  // A call.
+  {
+    const { pcs, handle, fn } = loadChat({ mode: "direct" });
+    fn("startCall")(ANN, "Ann");
+    await handle({ type: "voice_call", from: ANN, from_name: "Ann", to: ME, action: "accept" });
+    await handle(reply({ call: ANN }));
+    assert.strictEqual(pcs.length, 1);
+    assert.deepStrictEqual(pcs[0].config, DIRECT, "the call's too");
+  }
+});
+
+test("Direct, also asking a public service: the one picked is added, and only in that mode", { timeout: 20000 }, async () => {
+  for (const [pick, want] of [["cloudflare", "cloudflare"], ["", CALL_WORDS.public_stun[0].id]]) {
+    const { pcs, handle, fn } = loadChat({ mode: "direct_public_stun", publicStun: pick });
+    fn("startCall")(ANN, "Ann");
+    await handle({ type: "voice_call", from: ANN, from_name: "Ann", to: ME, action: "accept" });
+    await handle(reply({ call: ANN }));
+    assert.strictEqual(pcs.length, 1);
+    const url = CALL_WORDS.public_stun.find((s) => s.id === want).url;
+    assert.deepStrictEqual(pcs[0].config, { iceServers: DIRECT.iceServers.concat([{ urls: url }]), iceTransportPolicy: "all" }, "the service picked: " + (pick || "none, so the first"));
+  }
+  // Direct alone never names a public service.
+  const { pcs, handle, fn } = loadChat({ mode: "direct", publicStun: "cloudflare" });
+  fn("startCall")(ANN, "Ann");
+  await handle({ type: "voice_call", from: ANN, from_name: "Ann", to: ME, action: "accept" });
+  await handle(reply({ call: ANN }));
+  assert.deepStrictEqual(pcs[0].config, DIRECT, "Direct asks no public service");
+});
+
+test("Direct and the server cannot relay: device to device, said once, never 10f's sentence", { timeout: 20000 }, async () => {
+  const { ctx, sock, pcs, media, handle, fn, fire, waitMs, said } = loadChat({ mode: "direct" });
+  fn("joinVoiceRoom")(ROOM);
+  await settle();
+  await fire(waitMs); // no credentials come
+  assert.ok(said().some((t) => t.includes(DIRECT_LINE)), "the Direct line, in the chat");
+  assert.ok(!said().some((t) => t.includes(SENTENCE)), "not 10f's sentence");
+  assert.strictEqual(ctx._currentRoomId, ROOM, "the room is not left");
+  assert.ok(!kinds(sock).includes("voice_room:leave"));
+  assert.strictEqual(media.asked, 1, "the microphone is asked for");
+  await handle({ type: "voice_channel_list", channels: [{ id: 7, name: "Lounge", participants: [{ public_key: ME }, { public_key: ANN }] }] });
+  assert.strictEqual(pcs.length, 1, "a connection to Ann");
+  assert.deepStrictEqual(pcs[0].config, { iceServers: [], iceTransportPolicy: "all" }, "device to device only");
+  // Ben's offer is answered the same way, and the line is not said again.
+  await handle({ type: "voice_room_signal", from: BEN, to: ME, room_id: ROOM, signal_type: "offer", data: { type: "offer", sdp: "v=0 ben" } });
+  assert.strictEqual(sock.sent.filter((m) => m.type === "voice_room_signal" && m.signal_type === "answer" && m.to === BEN).length, 1, "Ben's offer is answered");
+  assert.strictEqual(said().filter((t) => t.includes(DIRECT_LINE)).length, 1, "said once");
+  // Gathering ends with only this device's own address: nothing is torn down.
+  pcs[0].onicecandidate({ candidate: { type: "host", toJSON: () => ({ candidate: "candidate:1 1 udp 2 192.168.1.4 50000 typ host", sdpMid: "0" }) } });
+  pcs[0].iceGatheringState = "complete";
+  pcs[0].onicegatheringstatechange();
+  await settle();
+  assert.strictEqual(ctx._currentRoomId, ROOM, "still in the room");
+  assert.notStrictEqual(pcs[0].connectionState, "closed", "the connection goes on");
+});
+
+test("the protected setup is always Private, whatever this device chose", { timeout: 20000 }, async () => {
+  const { pcs, handle, fn } = loadChat({ mode: "direct_public_stun", protectedOn: true });
+  fn("startCall")(ANN, "Ann");
+  await handle({ type: "voice_call", from: ANN, from_name: "Ann", to: ME, action: "accept" });
+  await handle(reply({ call: ANN }));
+  assert.strictEqual(pcs.length, 1);
+  assert.deepStrictEqual(pcs[0].config, RELAY_ONLY, "relay only under the protected setup");
+});
+
+test("Settings > Safety: the three choices in the data file's words, kept on this device", { timeout: 20000 }, async () => {
+  const { ctx, fn } = loadChat();
+  // Every element under `el`.
+  const all = (el, out = []) => { out.push(el); for (const c of el.children || []) all(c, out); return out; };
+  const draw = () => { const box = ctx.document.createElement("div"); fn("drawCallConnection")(box); return all(box); };
+  draw(); // the first draw fetches the words
+  await settle();
+  let els = draw();
+  const radios = els.filter((e) => e.type === "radio");
+  assert.deepStrictEqual(radios.map((r) => r.value), ["private", "direct", "direct_public_stun"], "three choices");
+  assert.deepStrictEqual(radios.map((r) => !!r.checked), [true, false, false], "Private by default");
+  const texts = els.map((e) => String(e.textContent || ""));
+  for (const m of CALL_WORDS.modes) {
+    assert.ok(texts.includes(m.label), "the label of " + m.id);
+    assert.ok(texts.includes(m.summary), "and its summary, saying who sees the address: " + m.id);
+  }
+  assert.ok(!els.some((e) => e.dataset && e.dataset.callPublicStun), "no service picker outside the third mode");
+  // Choosing Direct, also asking a public service: kept, and the service picker appears.
+  const third = radios[2];
+  third.checked = true;
+  third.onchange();
+  assert.strictEqual(ctx.localStorage.getItem("hos_call_connection"), "direct_public_stun", "kept on this device");
+  els = draw();
+  const picker = els.find((e) => e.dataset && e.dataset.callPublicStun);
+  assert.ok(picker, "the service picker");
+  assert.deepStrictEqual(picker.children.map((o) => o.textContent), CALL_WORDS.public_stun.map((s) => s.name), "each service by name");
+  picker.value = "cloudflare";
+  picker.onchange();
+  assert.strictEqual(ctx.localStorage.getItem("hos_call_public_stun"), "cloudflare");
+  // The protected setup: only Private can be picked, and it says why.
+  ctx.protectedIsOn = () => true;
+  els = draw();
+  const locked = els.filter((e) => e.type === "radio");
+  assert.deepStrictEqual(locked.map((r) => !!r.disabled), [false, true, true], "only Private");
+  assert.deepStrictEqual(locked.map((r) => !!r.checked), [true, false, false], "and it is what applies");
+  assert.ok(els.some((e) => e.textContent === CALL_WORDS.protected_line), "the protected setup's line");
 });

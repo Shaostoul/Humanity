@@ -4373,6 +4373,12 @@ pub struct SettingsState {
     /// card fetches the page (one HTTPS GET for the URL, plus its images)
     /// and draws it in the in-app web view; off, cards open the OS browser.
     pub readable_web: bool,
+    /// How calls and voice rooms connect (Settings > Privacy, 10p): Private (the default),
+    /// Direct, or Direct also asking the public STUN server `call_public_stun` names.
+    pub call_connection: crate::net::call_connection::CallConnection,
+    /// The public STUN server the third call mode asks, by its id in data/net/call_connection.json
+    /// (empty: the first listed).
+    pub call_public_stun: String,
     /// The video file each in-world screen plays, keyed by the placed
     /// instance id, chosen with the screen's Open button (2026-09-18).
     /// Persisted in AppConfig; the data file's `video:` source is only the
@@ -4600,6 +4606,8 @@ impl Default for SettingsState {
             // at every altitude. The Settings toggle turns it back on.
             live_weather: false,
             readable_web: false,
+            call_connection: crate::net::call_connection::CallConnection::Private,
+            call_public_stun: String::new(),
             screen_media: std::collections::BTreeMap::new(),
             ffmpeg_path: String::new(),
             track_station: true,

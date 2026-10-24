@@ -101,6 +101,12 @@ pub mod outside_help;
 #[cfg(feature = "native")]
 pub mod call_relay;
 
+/// How this person's calls and voice rooms connect (10p, 2026-10-22): Private (the server's call
+/// relay only, the default), Direct (this device's own addresses too), or Direct also asking a
+/// public STUN server the person picked; the words and the public list from data/net/.
+#[cfg(feature = "native")]
+pub mod call_connection;
+
 /// Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): the warnings file, the matching rule both clients share, and the guard's test.
 #[cfg(feature = "native")]

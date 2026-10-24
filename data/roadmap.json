@@ -222,7 +222,7 @@
         {
           "status": "done",
           "version": null,
-          "text": "Voice and video calling on the web (WebRTC with screen share). Since v0.1470 calls and voice rooms go through the server's own call forwarder, so nobody in a call sees another person's network address, and Google is no longer asked for anything (calls work once the server's call port is opened)."
+          "text": "Voice and video calling on the web (WebRTC with screen share). Since v0.1470 calls and voice rooms go through the server's own call forwarder, so nobody in a call sees another person's network address, and Google is no longer asked for anything (calls work once the server's call port is opened). Since 2026-10-22 each person chooses how their own calls connect, on both apps: Private (the default), Direct (device to device where possible, the people in the call see your address), or Direct also asking a public address service you pick."
         },
         {
           "status": "done",

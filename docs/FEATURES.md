@@ -951,7 +951,14 @@ moderators; kept 90 days. **Help outside this server** (v0.1472): for a child or
 danger, the report dialog shows the emergency number and child-report body for a country the
 person picks (`data/safety/outside_help.json`, from a dated finding). **Calls through the
 server** (v0.1470): our own STUN and a room-scoped forwarder on UDP 3478, so nobody in a call sees
-another's address. **Warnings on messages and the recovery-phrase guard** (v0.1471): warnings
+another's address. **How my calls connect** (10p, 2026-10-22): a per-person choice in Settings >
+Privacy (desktop) and Settings > Safety (web), words from `data/net/call_connection.json`: Private
+(the default, relay only), Direct (this device's own addresses too, found with the server's own
+STUN), or Direct also asking a public service the person picks; each choice covers only that
+person's address, so Private and Direct people still connect through the relay, and the protected
+setup is always Private (native `src/net/call_connection.rs`, `src/net/webrtc.rs` `voice_plan`,
+`src/gui/pages/settings/calls.rs`; web `web/shared/call-connection.js`,
+`web/chat/chat-voice-rooms.js` `callRtcConfig`). **Warnings on messages and the recovery-phrase guard** (v0.1471): warnings
 from `data/safety/warnings.json` checked on the device only; a send holding 4 or more of your
 own recovery phrase's words in a row is stopped. **An admin erases another person's data** (v0.1474): admins and the owner only, with the person's name typed to confirm, the same steps as erasing your own account; the erased person is told an admin did it (native `src/net/admin_erase.rs`, `src/gui/pages/server_settings/admin_erase.rs`; web `web/shared/admin-erase.js`; relay `src/relay/handlers/account_erase.rs`). **A report about a group reaches its creator** (v0.1475): a sealed DM the creator's app checks against its own copy of the group, with Remove (which changes the group key first), Block and Dismiss (native `src/net/group_report.rs`, `src/engine/group_report.rs`, `src/net/group_remove.rs`, `src/gui/pages/safety_group_reports.rs`; web `web/shared/group-report.js`; relay the `group_report` exception in `src/relay/handlers/reach.rs`). **Files in private conversations are encrypted** (v0.1476): picked, pasted or dropped files in a DM or a P2P group, on both clients, shown inline under the click-to-load rule (native `src/gui/pages/chat/attach_send.rs`, `attach_view.rs`; web `web/chat/chat-messages.js` `sendAttachment`, `chat-dms.js` `privateFileHtml`); Pin, Edit and React are offered and accepted only in a server's own rooms (BUG-178). **A pass counts once the server took it** (v0.1478, spec 10l): every friendship pass put carries a `ref`, the relay answers `dm_put_ok` or `dm_put_refused` to the sender alone, and only `dm_put_ok` records the pass (relay `src/relay/handlers/dm_answer.rs`; native `src/net/put_answers.rs`, `src/engine/put_answer.rs`; web `web/chat/chat-social.js` `holdPassPut`, `settlePassPut`).
 - Native: `src/gui/pages/safety.rs`, `src/net/reach.rs`, `src/engine/reach.rs`,

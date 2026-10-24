@@ -1825,14 +1825,38 @@ agreement), so ad-blocking defaults do not apply there.
    becomes signaling-only), P4 relay-independence (multi-relay signaling plus
    peer-assisted plus TURN: the actual payoff, a group survives a dead home
    relay), P5 serverless discovery (mDNS/DHT).
-6. **Privacy follow-ups** from the 2026-08 arc: full native inline image decrypt
-   and render; group-chat attachments (the same pattern as DM attachments, not
-   yet done); friendship certificate expiry and revocation; a native TURN
-   toggle. Beyond these the honest remaining set is mixnet-class traffic
-   analysis and fundamental limits.
+6. **Privacy follow-ups** from the 2026-08 arc. Checked item by item on
+   2026-10-22; the four named here are DONE:
+   - Full native inline decrypt and display of encrypted pictures: DONE in
+     v0.1476.0 (10k). A picture in a DM, a P2P group or the scratch pad is
+     fetched, decrypted on a worker and drawn inline under the click-to-load
+     rule, through the one message loop all three share (`chat/attach_view.rs`;
+     locked by `a_private_picture_draws_inline_in_a_dm_a_group_and_the_scratch_pad`).
+     The web does the same (`chat-dms.js` `privateFileHtml`, the scratch pad
+     included).
+   - Group-chat attachments: DONE in v0.1476.0 on both apps: a picked, pasted
+     or dropped file in a P2P group is encrypted like a DM's. The only plain
+     upload left on either app is a public channel's, which is meant.
+   - Friendship pass expiry and revocation: DONE in v0.1466.0. Passes are
+     withdrawn on Unfollow and on Block (`cert_revoke`), and by design never run
+     out: withdrawal replaced an end date (v2 has none).
+   - "A native TURN toggle": REPLACED and DONE 2026-10-22 by **How my calls
+     connect** (10p, both apps): Private (the default, relay only), Direct, or
+     Direct also asking a public STUN server the person picks; each choice
+     covers only that person's address. Opening UDP 3478 on the live server,
+     which both the relay and the server's STUN need, is the operator's step in
+     `docs/admin/call-forwarder.md`.
+   What honestly remains: mixnet-class traffic analysis and fundamental limits;
+   signing the call setup with the identity key, so a server that altered it
+   would be caught (design 7.4 step 4); voice over the WebSocket for networks
+   that block UDP.
 7. **Native voice tail.** The str0m arc shipped voice itself. Remaining:
-   per-peer volume / mute / squelch UI, web transmit-mode UI, a two-str0m CI
-   harness, graceful relay restart.
+   per-peer volume / mute / squelch UI, web transmit-mode UI, graceful relay
+   restart, and a two-str0m harness in CI. The harness itself exists as lib
+   tests on 127.0.0.1 (`relay_only_rig_tests`, and since 2026-10-22
+   `call_mode_tests`: a Private and a Direct app through the test forwarder,
+   two Direct apps with no relay), run by `just verify`; CI does not build the
+   native feature set, so it is not in CI.
 8. **Native trade UI completion.** DONE: the page has sent `trade_response`
    and `trade_confirm` since v0.756, and since v0.1433.0 a completed trade
    moves the items (see Tier D above).

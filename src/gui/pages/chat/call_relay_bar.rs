@@ -29,6 +29,12 @@ pub(super) fn draw_room_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         .find(|c| c.id == room)
         .map(|c| c.name.clone())
         .unwrap_or(room);
+    // In a Direct mode (10p) the room may well be connected, device to device.
+    let title = if state.call_relay.direct() {
+        format!("Voice in {name}: device to device only")
+    } else {
+        format!("Voice in {name}: not connected")
+    };
     let mut dismiss = false;
     egui::Window::new("voice_room_relay_bar")
         .title_bar(false)
@@ -39,7 +45,7 @@ pub(super) fn draw_room_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(format!("Voice in {name}: not connected"))
+                    RichText::new(&title)
                         .size(theme.font_size_body)
                         .color(theme.text_primary())
                         .strong(),

@@ -79,6 +79,63 @@ packet and 1.25 MB a second per allocation.
 
 A self-hoster opens the same UDP port on their own firewall or router, the same way.
 
+## Direct calls and the STUN responder (2026-10-22)
+
+Since 2026-10-22 each person chooses how their own calls and voice rooms connect (Settings >
+Privacy in the desktop app, Settings > Safety in the web chat; the design is
+`docs/design/blocking-and-safe-mode.md` 10p):
+
+- **Private** (everyone's default): only the forwarder's relayed address is offered, as above.
+- **Direct**: the person's own addresses are offered too, so two Direct people can talk device to
+  device (less of the server's bandwidth, a little less delay). Their app learns its public address
+  from **this server's own STUN responder**, which is the same UDP port as the forwarder.
+- **Direct, also asking a public service**: as Direct, and a public STUN server the person picks
+  (`data/net/call_connection.json`: Google's or Cloudflare's) is asked as well. Your server is not
+  involved in that; the person chose to let that company see their address.
+
+Each person's choice covers only their own address. A Direct person still asks this server for
+call credentials and still gets an allocation, so a call between a Private person and a Direct
+person connects through the forwarder on the Private side. Nothing about the forwarder's rules
+changed: it still passes data only between its own allocations of one room or call.
+
+**What it needs from the server: the same one port, nothing more.** The STUN responder answers on
+`TURN_PORT` (3478) whenever the forwarder runs, and `/api/turn-credentials` names it
+(`stun:<TURN_PUBLIC_HOST>:3478`) only while it does. It answers a Binding request with the address
+it came from and nothing else, never larger than the request plus a few dozen bytes, at most 20 a
+second per address and 1,000 a second in total. There is no separate switch for STUN: opening the
+call port opens both.
+
+Until the port is open, Direct people can still reach each other device to device where their
+networks allow it (on one home network, say, or when they also ask a public service), and their
+apps tell them the server cannot carry calls yet. Private people's calls still cannot connect.
+
+### The operator's steps to open it (your call; nothing here touches the live servers)
+
+1. Deploy a release that has this change (the version after v0.1543.0 that carries 10p). Check
+   the refusal tests on that code first:
+   `cargo test --features relay --no-default-features --lib call_`
+2. On the VPS, as root, open the port the way the section above describes (it survives reboots
+   and later provision runs):
+   ```bash
+   echo 'HUMANITY_OPEN_CALL_PORT=1' >> /opt/Humanity/node.env && bash /opt/Humanity/scripts/provision-vps.sh
+   ```
+   The provision script ends by checking that the firewall lets UDP 3478 in and that the relay,
+   and nothing else, listens on it; it says `!!` and fails if not.
+3. Check on the box: `ss -Hulnp 'sport = :3478'` shows one line, the HumanityOS relay, and
+   `curl -s https://united-humanity.us/api/turn-credentials` lists
+   `{"urls":"stun:united-humanity.us:3478"}`.
+4. Check from outside, from your own PC: in the desktop app choose Settings > Privacy > Calls and
+   voice rooms > Direct, join a voice room with someone, and look in
+   `%APPDATA%\HumanityOS\logs\run.log` for `WebRTC: learned server-reflexive address ... (via STUN`
+   naming the server: that is the STUN responder answering through the firewall. Set it back to
+   Private afterwards if you prefer.
+
+To close it again, the same line as above: remove `HUMANITY_OPEN_CALL_PORT` from `node.env` and
+run the provision script. Closing it stops calls for Private people and the server's STUN for
+Direct people; Direct people on networks that allow it keep reaching each other.
+
+A self-hoster does the same: open UDP `TURN_PORT` on their own firewall or router.
+
 ## Files sent device to device
 
 Since 2026-10-12 the same forwarder carries big files sent straight from one person's device to

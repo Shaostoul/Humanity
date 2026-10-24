@@ -760,6 +760,12 @@
        file pass, the offer notes and the channel protocol. Before chat-file-transfer.js. -->
   <script src="/shared/blake3.js?v=2"></script>
   <script src="/shared/file-transfer.js?v=3"></script>
+  <!-- call-connection.js: how this person's calls and voice rooms connect (10p, 2026-10-22):
+       Private (the default, the server's call relay only), Direct, or Direct also asking a public
+       service, with their words from /data/net/call_connection.json (the desktop app reads the
+       same file), shared with Node tests. Before chat-voice-rooms.js, chat-voice-calls.js and
+       chat-privacy.js, which use it. -->
+  <script src="/shared/call-connection.js?v=1"></script>
   <!-- profile-changes.js: which profile fields were changed in this browser and not yet on the
        server (BUG-195), before chat-profile.js and chat-privacy.js, which use it. -->
   <script src="/shared/profile-changes.js?v=2"></script>
@@ -802,8 +808,8 @@
   <script src="/chat/chat-social.js?v=21"></script>
   <script src="/chat/chat-groups-p2p.js?v=18"></script>
   <script src="/chat/chat-ui.js?v=19"></script>
-  <script src="/chat/chat-voice-rooms.js?v=8"></script>
-  <script src="/chat/chat-voice-calls.js?v=8"></script>
+  <script src="/chat/chat-voice-rooms.js?v=9"></script>
+  <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
   <script src="/chat/chat-voice-streaming.js?v=1"></script>
   <!-- Live-now mirror of the native Chat live strip: /api/live directory, links to /watch (v0.1151) -->
@@ -814,7 +820,7 @@
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=16"></script>
+  <script src="/chat/chat-privacy.js?v=17"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins

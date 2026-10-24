@@ -594,9 +594,19 @@ pass     = {"v":2, "serial", "may", "sig": ML-DSA-65 over the preimage}</pre>
       <p>
         <span class="t-st done">Shipped</span> The relay answers STUN itself and carries calls and
         voice rooms through itself on one UDP port (3478 by default), so people in a call see only
-        the server's address, never each other's. Neither app asks Google, or anyone else, for its
-        own address, and both use relay-only connections for calls and voice rooms: nothing falls
-        back to a direct connection.
+        the server's address, never each other's. By default neither app asks Google, or anyone
+        else, for its own address, and both use relay-only connections for calls and voice rooms:
+        nothing falls back to a direct connection.
+      </p>
+      <p>
+        <span class="t-st done">Shipped</span> <b>Each person chooses how their own calls connect</b>
+        (2026-10-22), in Settings on both apps: <b>Private</b> (the default, relay only),
+        <b>Direct</b> (the person's own addresses are offered too, found with the server's own STUN
+        responder, so two Direct people can talk device to device), or <b>Direct, also asking a
+        public service</b> they pick (Google's or Cloudflare's, which then sees their address). A
+        choice covers only the chooser's address: a Private person and a Direct person connect
+        through the relay. The protected setup is always Private. Words and the public list:
+        <code>data/net/call_connection.json</code>, read by both apps.
       </p>
       <ul>
         <li><b>A closed subset of TURN</b> (RFC 5766: Allocate, Refresh, CreatePermission, ChannelBind, Send and Data, ChannelData) with long-term credentials. Relayed addresses are virtual, ports that are never bound, and data passes only between live allocations of the same voice room, call or file transfer. Nothing is ever sent to an address a client names.</li>

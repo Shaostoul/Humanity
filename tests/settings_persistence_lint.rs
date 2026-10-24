@@ -92,6 +92,11 @@ const SETTINGS_FILES: &[&str] = &[
     // pages/files/how.rs. Seen red 2026-10-20 with its save leg removed from config.rs:
     // "files_how_open: never written by from_gui_state".
     "src/gui/pages/files/how.rs",
+    // Settings > Privacy's "Calls and voice rooms" (10p, 2026-10-22): how calls connect
+    // (`call_connection`) and the public service the third mode asks (`call_public_stun`), drawn
+    // by settings/calls.rs. Seen red 2026-10-22 with the load leg of `call_connection` removed
+    // from config.rs: "call_connection: never read by apply_to_state".
+    "src/gui/pages/settings/calls.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget
@@ -178,9 +183,15 @@ fn every_setting_the_ui_exposes_is_persisted() {
     let struct_end = config[struct_start..].find("\n}").expect("struct closes") + struct_start;
     let struct_body = &config[struct_start..struct_end];
 
-    // The save leg and the load leg.
+    // The save leg and the load leg. The save leg is the whole of `from_gui_state`, up to the
+    // next function (`apply_to_gui_state`). It was its first 8,000 bytes until 2026-10-22, when
+    // the function had grown past that: two lines added near its middle pushed `hud_vitals` and
+    // `play_mode` out of the window, and the lint reported them unsaved although they were saved.
     let save_start = config.find("pub fn from_gui_state").expect("from_gui_state present");
-    let save_body = &config[save_start..save_start + 8000.min(config.len() - save_start)];
+    let save_end = config[save_start..]
+        .find("pub fn apply_to_gui_state")
+        .map_or(config.len(), |i| save_start + i);
+    let save_body = &config[save_start..save_end];
 
     let transient: HashSet<&str> = INTENTIONALLY_TRANSIENT.iter().copied().collect();
     let mut broken = Vec::new();

@@ -34,6 +34,11 @@
 //! with the same credentials for as long as it lives: the relay accepts that past their `ttl`
 //! (up to a cap of its own), so nothing is asked again in the middle of a call.
 //!
+//! That is the Private mode, the default. A person who chose Direct (10p, 2026-10-22,
+//! src/net/call_connection.rs) is asked for credentials the same way, but a call the server cannot
+//! relay still connects device to device where their networks allow, and the line says that
+//! instead (`CallRelayUi::set_direct`).
+//!
 //! This file is the protocol and a small state machine, with no socket and no GUI, so each rule
 //! is unit tested here. The glue to the app's state is src/engine/call_relay.rs; the forwarder
 //! client (TURN, RFC 5766) is `mod turn` in src/net/webrtc.rs.
@@ -227,9 +232,24 @@ pub struct CallRelayUi {
     asked_at: Option<Instant>,
     /// The person closed the room's notice; it stays closed for this scope.
     dismissed: bool,
+    /// The person's calls show their address (a Direct mode, 10p): a call the
+    /// server cannot relay then connects device to device where it can, and the
+    /// line says so instead of [`NOT_SET_UP_LINE`].
+    direct: bool,
 }
 
 impl CallRelayUi {
+    /// Whether this person's calls connect directly where they can (a Direct mode,
+    /// src/net/call_connection.rs). Set every frame from the setting.
+    pub fn set_direct(&mut self, direct: bool) {
+        self.direct = direct;
+    }
+
+    /// Whether the line for a call the server cannot relay is the Direct one.
+    pub fn direct(&self) -> bool {
+        self.direct
+    }
+
     /// The scope being asked for or connected.
     pub fn scope(&self) -> Option<&CallScope> {
         self.scope.as_ref()
@@ -244,9 +264,14 @@ impl CallRelayUi {
         }
     }
 
-    /// The line the call UI shows for `scope`, when there is one to show.
+    /// The line the call UI shows for `scope`, when there is one to show. In a Direct mode
+    /// (10p) a call the server cannot relay still connects device to device where it can, so
+    /// the line says that, from data/net/call_connection.json.
     pub fn line_for(&self, scope: &CallScope) -> Option<&'static str> {
         match self.status_of(scope)? {
+            RelayStatus::Unavailable | RelayStatus::Lost if self.direct => {
+                Some(crate::net::call_connection::words().direct_without_server_line())
+            }
             RelayStatus::Unavailable => Some(NOT_SET_UP_LINE),
             RelayStatus::Lost => Some(LOST_LINE),
             _ => None,
@@ -337,9 +362,10 @@ impl CallRelayUi {
         true
     }
 
-    /// Forget everything (the chat socket and the WebRTC manager riding it went away).
+    /// Forget everything (the chat socket and the WebRTC manager riding it went away). The
+    /// person's Direct setting is theirs, not the call's, and stays.
     pub fn reset(&mut self) {
-        *self = CallRelayUi::default();
+        *self = CallRelayUi { direct: self.direct, ..CallRelayUi::default() };
     }
 }
 
@@ -496,9 +522,35 @@ mod tests {
         assert_eq!(mid_call.line_for(&call), Some(LOST_LINE));
     }
 
+    /// A person who chose Direct (10p) is told their call goes device to device instead of
+    /// that it cannot be put through, and the choice survives the socket going away. Seen red
+    /// 2026-10-22 with `line_for` not checking `direct`: "the Direct line".
+    #[test]
+    fn a_direct_person_is_told_it_connects_device_to_device() {
+        let t0 = Instant::now();
+        let call = CallScope::Call("ab".into());
+        let mut ui = CallRelayUi::default();
+        ui.set_direct(true);
+        ui.update(Some(call.clone()), t0);
+        ui.on_reply(parse_reply(&json!({ "type": "call_credentials", "call": "ab", "refused": true })).unwrap());
+        let line = ui.line_for(&call).expect("a line");
+        assert_eq!(line, crate::net::call_connection::words().direct_without_server_line(), "the Direct line");
+        assert!(line.contains("device to device") && line.contains("network address"), "{line}");
+        assert_ne!(line, NOT_SET_UP_LINE);
+        ui.reset();
+        assert!(ui.direct(), "the setting is the person's, not the call's");
+        ui.set_direct(false);
+        ui.update(Some(call.clone()), t0);
+        ui.update(Some(call.clone()), t0 + CREDENTIALS_WAIT);
+        assert_eq!(ui.line_for(&call), Some(NOT_SET_UP_LINE), "Private keeps 10f's sentence");
+    }
+
     /// No Google STUN host anywhere in the desktop app's source, the relay's or the web
     /// client's (step E, 10f: "Every Google STUN entry is removed"). A STUN request shows the
-    /// company that answers it this device's address, so the app asks only its own server.
+    /// company that answers it this device's address, so the app asks only its own server. Since
+    /// 2026-10-22 (10p) a person may opt into a public STUN server; that list lives only in
+    /// data/net/call_connection.json, which this scan leaves out on purpose, and is asked only in
+    /// the mode that names it (src/net/call_connection.rs `public_stun_hosts`).
     ///
     /// `PENDING_OTHER_HALVES` names files the parallel halves of step E change, which this
     /// branch may not edit (the relay's `/api/turn-credentials` list, the web client's
