@@ -85,11 +85,13 @@ impl Rule {
     /// with the ENTRY rather than the page, because the entry is what travels:
     /// people screenshot a single row or deep-link to it, and a caveat sitting
     /// at the top of the page does not go with it.
+    /// The words are the website's own (data/i18n/en.json `laws.checked_*`, `laws.never_checked`).
     pub fn provenance_line(&self) -> String {
+        use crate::gui::i18n::{t, tf};
         match &self.verified {
-            Some(v) if v.human_reviewed => format!("Checked {} by a reviewer.", v.on),
-            Some(v) => format!("Checked {}, not yet reviewed by a person.", v.on),
-            None => "Never checked by anyone. Treat as a draft.".to_string(),
+            Some(v) if v.human_reviewed => tf("laws.checked_reviewed", &[("date", &v.on)]),
+            Some(v) => tf("laws.checked_not_reviewed", &[("date", &v.on)]),
+            None => t("laws.never_checked").to_string(),
         }
     }
 }

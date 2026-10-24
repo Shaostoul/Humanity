@@ -962,5 +962,6 @@ fn count_in_inventory(state: &GuiState, item_id: &str) -> u32 {
 
 /// Why home storage does not count where the player is, or None.
 fn storage_not_here(state: &GuiState) -> Option<&'static str> {
-    crate::systems::crafting::home_store::not_here_reason(&state.stations_where, state.home_storage_here)
+    use crate::systems::crafting::home_store::{not_here_reason, words};
+    not_here_reason(&state.stations_where, state.home_storage_here).map(words)
 }

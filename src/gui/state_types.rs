@@ -629,9 +629,9 @@ pub enum WalletNetwork {
 impl WalletNetwork {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Mainnet => "Mainnet",
-            Self::Devnet => "Devnet",
-            Self::Testnet => "Testnet",
+            Self::Mainnet => crate::gui::i18n::t("wallet.network_mainnet"),
+            Self::Devnet => crate::gui::i18n::t("wallet.network_devnet"),
+            Self::Testnet => crate::gui::i18n::t("wallet.network_testnet"),
         }
     }
 }

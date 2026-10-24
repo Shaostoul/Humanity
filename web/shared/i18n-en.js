@@ -1387,7 +1387,10 @@ window.HOS_I18N_EN = {
     "send_token_label": "Coin to send",
     "swap_from_label": "Coin you pay with",
     "swap_to_label": "Coin you get",
-    "validator_sort_label": "Order of the validators"
+    "validator_sort_label": "Order of the validators",
+    "network_mainnet": "Mainnet",
+    "network_devnet": "Devnet",
+    "network_testnet": "Testnet"
   },
   "notes": {
     "title": "Notes",
@@ -1740,7 +1743,10 @@ window.HOS_I18N_EN = {
     "needs_station_site": "Needs a {{station}}, and the home's machines are in orbit",
     "needs_station_nowhere": "Needs a {{station}}: go aboard your home, or to a site you built",
     "needs_station_home_build": "Needs a {{station}} in your home, or build a {{name}}",
-    "needs_station_home": "Needs a {{station}} placed in your home"
+    "needs_station_home": "Needs a {{station}} placed in your home",
+    "storage_not_here_planet": "on a planet you craft from what you carry: your home's storage is in orbit",
+    "storage_not_here_away": "away from your home you craft from what you carry",
+    "storage_not_here_guest": "your home is not on this ship, so its storage does not count"
   },
   "donate": {
     "title": "Donate",

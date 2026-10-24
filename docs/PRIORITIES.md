@@ -84,8 +84,11 @@ In order:
    rounds (54d40555a), the web calculator works in degrees like the app (36d821742), the web
    wallet calls the functions wallet.js really has (c26be6d23), the desktop Calendar keeps an
    event's description (5ddfe16be), and bug reports keep their category through one shared list
-   (845e31e8f). LEFT: English still in shared code (`provenance_line`, `not_here_reason`,
-   `WalletNetwork::label`); and, found on the way, **desktop calendar events are not saved at
+   (845e31e8f). English in shared code: FIXED 2026-10-24 (`provenance_line` and
+   `WalletNetwork::label` read the word source; `not_here_reason` returns a word key, shown through
+   `home_store::words`, the lookup in the desktop build). Still English: the crafting system's other
+   notices, built in shared code that also compiles into the server (a later rung: systems speak in
+   keys and arguments); and, found on the way, **desktop calendar events are not saved at
    all**: FIXED 2026-10-24 together with the desktop Notes, which were not saved either:
    both are kept in personal.json beside config.json (src/gui/personal_store.rs).
 4. **FarmingSystem and the untimed frame** (`docs/design/sim-frame-cost.md`): the timers and the

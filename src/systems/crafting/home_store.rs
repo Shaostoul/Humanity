@@ -91,7 +91,7 @@ impl<'a> HomeStore<'a> {
             .get::<Mutex<bool>>(HOME_STORAGE_HERE)
             .and_then(|m| m.lock().ok().map(|g| *g))
             .unwrap_or(true);
-        let not_here = not_here_reason(&place, at_home);
+        let not_here = not_here_reason(&place, at_home).map(words);
         let stock = if not_here.is_none() { data.get::<Mutex<HashMap<String, u32>>>("home_stock") } else { None };
         HomeStore { stock, not_here }
     }
@@ -130,14 +130,30 @@ impl<'a> HomeStore<'a> {
 }
 
 /// Why the home's storage (and its tanks) do not count for a craft made
-/// where the player is, in words the player reads; None when they do.
+/// where the player is, as a word key (data/i18n/en.json
+/// `crafting.storage_not_here_*`, shown through `words`); None when they do.
 /// `at_home` is false for a guest, whose home is not on this ship.
 pub fn not_here_reason(place: &StationsWhere, at_home: bool) -> Option<&'static str> {
     match place {
-        StationsWhere::Site(_) => Some("on a planet you craft from what you carry: your home's storage is in orbit"),
-        StationsWhere::Nowhere => Some("away from your home you craft from what you carry"),
-        StationsWhere::Home if !at_home => Some("your home is not on this ship, so its storage does not count"),
+        StationsWhere::Site(_) => Some("crafting.storage_not_here_planet"),
+        StationsWhere::Nowhere => Some("crafting.storage_not_here_away"),
+        StationsWhere::Home if !at_home => Some("crafting.storage_not_here_guest"),
         StationsWhere::Home => None,
+    }
+}
+
+/// The words for a word key, from the one word source (2026-10-24: this file
+/// wrote its reasons in English). The crafting system also compiles into the
+/// server, which has no word lookup and never shows these, so there it is the
+/// key itself.
+pub fn words(key: &'static str) -> &'static str {
+    #[cfg(feature = "native")]
+    {
+        crate::gui::i18n::t(key)
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        key
     }
 }
 
