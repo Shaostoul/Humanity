@@ -12,10 +12,7 @@
 //! names. Each server's is kept under its address (`GuiState::chat_line_limits`), so a parked
 //! server's limit is still right when the Commons sends through it.
 
-use std::sync::Arc;
-
-use egui::text::{LayoutJob, TextFormat};
-use egui::{Color32, FontId, RichText, Vec2};
+use egui::{Color32, RichText, Vec2};
 
 use crate::gui::i18n::{t, tf};
 use crate::gui::theme::Theme;
@@ -70,42 +67,6 @@ pub(crate) fn limit_here(state: &GuiState) -> Option<usize> {
     Some(if admin { 10_000 } else { 2_000 })
 }
 
-/// Where the characters past `limit` begin, as a byte index into `text`, or None when it is within
-/// the limit. Counted in characters, as the relay counts them (`content.chars().count()`).
-pub(crate) fn over_from(text: &str, limit: usize) -> Option<usize> {
-    text.char_indices().nth(limit).map(|(i, _)| i)
-}
-
-/// The message box's words laid out with every character past `limit` in the danger colour on the
-/// danger background (theme tokens `danger` and `danger_bg`), the rest as the box draws them.
-pub(crate) fn layout_job(text: &str, limit: usize, font_id: FontId, color: Color32, theme: &Theme, wrap_width: f32) -> LayoutJob {
-    let mut job = LayoutJob::default();
-    let cut = over_from(text, limit).unwrap_or(text.len());
-    job.append(&text[..cut], 0.0, TextFormat::simple(font_id.clone(), color));
-    if cut < text.len() {
-        job.append(
-            &text[cut..],
-            0.0,
-            TextFormat { font_id, color: theme.danger(), background: theme.danger_bg(), ..Default::default() },
-        );
-    }
-    job.wrap.max_width = wrap_width;
-    job
-}
-
-/// A layouter for a message box that shows the characters past `limit` (`layout_job`), with the
-/// font and colour the box would use by itself. `one_line`: a single-line box (the in-world chat
-/// panel's), which never wraps, as egui's own single-line layout does not.
-pub(crate) fn layouter(theme: &Theme, limit: usize, one_line: bool) -> impl FnMut(&egui::Ui, &str, f32) -> Arc<egui::Galley> + '_ {
-    move |ui: &egui::Ui, text: &str, wrap_width: f32| {
-        let font_id = egui::FontSelection::default().resolve(ui.style());
-        let color = ui.visuals().override_text_color.unwrap_or_else(|| ui.visuals().widgets.inactive.text_color());
-        let mut job = layout_job(text, limit, font_id, color, theme, if one_line { f32::INFINITY } else { wrap_width });
-        job.break_on_newline = !one_line;
-        ui.fonts(|f| f.layout_job(job))
-    }
-}
-
 /// Now, in milliseconds since 1970: what a line's age is measured against.
 pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
@@ -113,19 +74,10 @@ pub(crate) fn now_ms() -> u64 {
 
 /// The counter beside the box, as the website shows it (`updateCharCounter`): only within 200
 /// characters of the limit, then "312 / 280", in the warning colour within 100 and the danger
-/// colour past it.
+/// colour past it (widgets/over_limit.rs `count`). The red characters themselves are that
+/// widget's `layouter`.
 pub(crate) fn counter(len: usize, limit: usize, theme: &Theme) -> Option<(String, Color32)> {
-    if len + 200 <= limit {
-        return None;
-    }
-    let color = if len > limit {
-        theme.danger()
-    } else if len + 100 > limit {
-        theme.warning()
-    } else {
-        theme.text_muted()
-    };
-    Some((format!("{len} / {limit}"), color))
+    (len + 200 > limit).then(|| crate::gui::widgets::over_limit::count(len, limit, 100, theme))
 }
 
 /// A server told me my limit (`my_limits`) or named it in a refusal: kept under its address.
@@ -222,50 +174,6 @@ mod tests {
         gs.chat_active_channel = "general".to_string();
         gs.profile_public_key = "me".to_string();
         gs
-    }
-
-    #[test]
-    fn the_characters_past_the_limit_are_counted_as_the_server_counts_them() {
-        // Characters, never bytes: an emoji is one character to the relay.
-        assert_eq!(over_from("ab\u{1F600}cd", 3), Some("ab\u{1F600}".len()));
-        assert_eq!(over_from("abc", 3), None, "exactly at the limit is within it");
-        assert_eq!(over_from("", 0), None);
-    }
-
-    #[test]
-    fn the_part_past_the_limit_is_drawn_in_red_on_dark_red_and_the_rest_as_usual() {
-        let theme = crate::gui::theme::load_theme();
-        let font = FontId::proportional(14.0);
-        let job = layout_job("hello world", 5, font, Color32::WHITE, &theme, 300.0);
-        assert_eq!(job.sections.len(), 2);
-        let (within, past) = (&job.sections[0], &job.sections[1]);
-        assert_eq!(&job.text[within.byte_range.clone()], "hello");
-        assert_eq!(within.format.color, Color32::WHITE);
-        assert_eq!(within.format.background, Color32::TRANSPARENT);
-        assert_eq!(&job.text[past.byte_range.clone()], " world");
-        assert_eq!(past.format.color, theme.danger());
-        assert_eq!(past.format.background, theme.danger_bg());
-        assert_eq!(job.wrap.max_width, 300.0);
-        // Within the limit: one plain section, nothing red.
-        let plain = layout_job("hi", 5, FontId::proportional(14.0), Color32::WHITE, &theme, 300.0);
-        assert_eq!(plain.sections.len(), 1);
-        assert_eq!(plain.sections[0].format.background, Color32::TRANSPARENT);
-    }
-
-    #[test]
-    fn the_in_world_box_stays_on_one_line_and_the_page_box_wraps() {
-        let theme = crate::gui::theme::load_theme();
-        let ctx = egui::Context::default();
-        let text = "a line long enough to wrap in a narrow box, and past the limit";
-        let mut rows = (0, 0);
-        let _ = ctx.run(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                rows.0 = layouter(&theme, 10, true)(ui, text, 60.0).rows.len();
-                rows.1 = layouter(&theme, 10, false)(ui, text, 60.0).rows.len();
-            });
-        });
-        assert_eq!(rows.0, 1, "the in-world panel's single-line box never wraps");
-        assert!(rows.1 > 1, "the page's box wraps at its width ({} rows)", rows.1);
     }
 
     #[test]

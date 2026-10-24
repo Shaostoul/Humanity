@@ -2101,5 +2101,8 @@ window.HOS_I18N_EN = {
     "slot_summary": "{{compiling}} compiling, {{waiting}} waiting their turn for memory",
     "slot_compiling": "compiling {{crate}} ({{kind}}) in {{place}}, up to {{gb}} GB, started {{ago}}",
     "slot_waiting": "waiting: {{crate}} ({{kind}}) in {{place}}, needs {{gb}} GB, since {{ago}}"
+  },
+  "profile": {
+    "bio_over_limit": "Your bio is {{n}} characters and the limit is {{limit}}. Shorten the part shown in red, then save again."
   }
 };

@@ -1,0 +1,7 @@
+/* Characters past a field's limit (shared/over-limit.js, 2026-10-24): the mirror behind the box
+   draws the words while they are too long, the part past the limit in the danger colour on the
+   danger background (theme tokens danger and danger_bg, the desktop's widgets/over_limit.rs);
+   the box's own words go transparent, its caret stays. */
+.over-limit-mirror { position: absolute; z-index: 0; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; color: var(--text-primary); pointer-events: none; border-style: solid; border-color: transparent; box-sizing: border-box; display: none; }
+.over-limit-mirror .over-limit-chars { color: var(--danger); background: var(--danger-bg); border-radius: 2px; }
+.over-limit-typing { color: transparent !important; caret-color: var(--text-primary); background: transparent !important; position: relative; z-index: 1; }

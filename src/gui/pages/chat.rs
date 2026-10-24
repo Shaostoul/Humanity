@@ -1778,7 +1778,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let box_want = composer_text_h(ui.ctx(), composer_cap);
                     // The characters past the server's limit on a line, in red on dark red
                     // (operator, 2026-10-24; chat/line_limit.rs). Only where a limit applies.
-                    let mut over_limit = line_limit::limit_here(state).map(|n| line_limit::layouter(theme, n, false));
+                    let mut over_limit = line_limit::limit_here(state).map(|n| widgets::over_limit::layouter(theme, n, false));
                     // Its own space in the row, exactly that tall: the row beside the buttons offers
                     // only a few lines on its own.
                     let composer = ui
@@ -2683,7 +2683,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                         // E2EE-DM / group / P2P-group identically).
                         ui.horizontal(|ui| {
                             // The characters past the line limit, red on dark red, as in the page's box.
-                            let mut over_limit = line_limit::limit_here(state).map(|n| line_limit::layouter(theme, n, true));
+                            let mut over_limit = line_limit::limit_here(state).map(|n| widgets::over_limit::layouter(theme, n, true));
                             let mut edit = egui::TextEdit::singleline(&mut state.chat_input)
                                 // Stable id (v0.972): same focus-loss
                                 // protection as the main composer.

@@ -6,6 +6,8 @@
 
 pub mod button;
 pub mod row;
+// Characters past a field's limit in red on dark red, and its count (2026-10-24).
+pub mod over_limit;
 pub mod icons;
 pub mod search_bar;
 pub mod help_modal;

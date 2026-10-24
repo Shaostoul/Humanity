@@ -141,7 +141,11 @@ In order:
      errors." On both apps' message boxes (and other limited fields), theme tokens for the colours;
      with the "not sent" state above, the refused-for-length case explains itself.
      DONE 2026-10-24 for both message boxes (theme token danger_bg; the relay's my_limits, re-sent
-     when a role changes). Still open: other limited fields (a profile's bio and the like);
+     when a role changes), and for the profile bio in both apps, a soft limit through the universal
+     widget (widgets/over_limit.rs, web shared/over-limit.js). The other limited fields (a Media
+     item's title and description, a category's name, a note on a takedown) still stop typing at
+     their limit with char_limit, which cuts a longer paste without a word: each can take the
+     widget when its form gets a save that can say why;
    - the app shows message times in UTC (19:48) and the website in local time (12:48): one rule
      for both. DONE 2026-10-24: both apps show this computer's time by default, with Settings >
      Time zone (Local or UTC) and the five timestamp formats on the website too; the offset is the

@@ -204,6 +204,14 @@ fn draw_private_notes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .hint_text("Write private notes here..."));
 }
 
+/// Why the network bio cannot be saved yet, or None: past the server's limit (counted in
+/// characters, as the server counts them) it is never cut and never sent (2026-10-24).
+pub(crate) fn bio_refusal(bio: &str) -> Option<String> {
+    let n = bio.trim().chars().count();
+    let max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
+    (n > max).then(|| crate::gui::i18n::tf("profile.bio_over_limit", &[("n", &n), ("limit", &max)]))
+}
+
 fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Network Profile").size(theme.font_size_title).color(theme.text_primary()));
     ui.add_space(theme.spacing_sm);
@@ -215,11 +223,19 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Bio:").color(theme.text_secondary()));
+        // A soft limit (2026-10-24): what is past the server's limit shows in red on dark red with
+        // its count, and Save says to shorten it, where char_limit cut a longer paste without a
+        // word (widgets/over_limit.rs; the website's Profile page does the same).
+        let bio_max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
+        let mut bio_layout = widgets::over_limit::layouter(theme, bio_max, false);
         ui.add(egui::TextEdit::multiline(&mut state.profile_network_bio)
-            .char_limit(crate::relay::core::profile_copy::BIO_MAX_CHARS)
+            .layouter(&mut bio_layout)
             .desired_width(ui.available_width().min(400.0))
             .desired_rows(3)
             .hint_text("Public bio..."));
+        let bio_len = state.profile_network_bio.trim().chars().count();
+        let (count, count_color) = widgets::over_limit::count(bio_len, bio_max, 40, theme);
+        ui.label(RichText::new(count).color(count_color).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_sm);
         field_row(ui, theme, "Avatar URL:", &mut state.profile_network_avatar);
@@ -262,6 +278,14 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.horizontal(|ui| {
             let can_save = state.server_connected && state.ws_client.is_some();
             let saved = can_save && widgets::Button::primary("Save to server").show(ui, theme);
+            // A bio past the limit is never cut and never sent: the page says why.
+            let saved = match (saved, bio_refusal(&state.profile_network_bio)) {
+                (true, Some(why)) => {
+                    state.profile_network_saved_note = why;
+                    false
+                }
+                (saved, _) => saved,
+            };
             if !can_save {
                 ui.label(
                     RichText::new("Connect to a server to save")
@@ -554,4 +578,19 @@ fn draw_streaming(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    /// A bio past the server's limit is refused with the reason, counted in characters (an emoji
+    /// is one), and one at the limit is saved (2026-10-24, the soft limit that replaced char_limit).
+    #[test]
+    fn a_bio_past_the_limit_is_refused_with_why_and_one_at_it_saves() {
+        let max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
+        let at_limit: String = "\u{1F600}".repeat(max);
+        assert_eq!(super::bio_refusal(&at_limit), None, "{max} emoji are {max} characters");
+        let why = super::bio_refusal(&format!("{at_limit}x")).expect("one past the limit is refused");
+        assert!(why.contains(&(max + 1).to_string()) && why.contains(&max.to_string()), "{why}");
+        assert_eq!(super::bio_refusal(&format!("  {at_limit}  ")), None, "the spaces round it are not counted");
+    }
 }

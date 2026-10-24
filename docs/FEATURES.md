@@ -143,6 +143,11 @@ Real-time text chat with channels, threads, and message history.
   time library). In UTC a time says so; the expanded pill names its offset ("(UTC-07:00)"). Desktop
   `src/gui/pages/chat/timestamps.rs` (also the Files page's dates); web `web/chat/view/timestampPill.js`
   `formatStamp`, `web/pages/settings.html` Chat > Messages.
+- **The profile bio's limit shows the same way (2026-10-24):** in both apps the bio is a soft limit:
+  what is past the server's 280 characters shows in red on dark red with its count, and Save says to
+  shorten it, where `char_limit` / `maxlength` (and the website's save, a second time) cut a
+  longer paste without a word. The universal widget: `src/gui/widgets/over_limit.rs`, web
+  `web/shared/over-limit.js` and `.css`.
 - **Characters past the limit in red on dark red (2026-10-24):** both message boxes colour every
   character past my line limit (theme tokens `danger` on `danger_bg`), with a "312 / 280"
   counter near it, in rooms only (a DM, a group and the scratch pad are not measured). The limit
