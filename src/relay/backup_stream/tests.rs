@@ -570,3 +570,17 @@ async fn another_humanityos_server_keeps_the_backups_and_lets_only_the_sender_in
     assert!(e.contains("no more room"), "{e}");
     drop(state);
 }
+
+/// A 413 IS NOT A FULL SERVER (2026-10-25): nginx's 1 MB default in front of both servers turned
+/// every piece away with 413, and the Backups panel said "no more room", which sent the operator to
+/// raise a space limit that was never the problem. 413 now names the piece size and the web server's
+/// limit; 507 alone means out of room. Seen red against the old wording, which sent 413 and 507 to
+/// one "no more room" line: "a 413 was called a full server".
+#[test]
+fn a_413_is_a_piece_too_big_and_only_a_507_is_a_full_server() {
+    let too_big = super::peer::refusal_words(413, "");
+    assert!(!too_big.contains("no more room"), "a 413 was called a full server: {too_big}");
+    assert!(too_big.contains("too big") && too_big.contains("client_max_body_size"), "{too_big}");
+    let full = super::peer::refusal_words(507, "Over the limit this server keeps for you.");
+    assert!(full.contains("no more room") && full.contains("Over the limit"), "{full}");
+}

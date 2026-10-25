@@ -31,6 +31,22 @@ pub fn fingerprint(public_key: &[u8]) -> String {
     hex::encode(&blake3::hash(public_key).as_bytes()[..16])
 }
 
+/// What a backup server's refusal means, in words for the Backups panel and the alert. 413 is one
+/// piece too big to pass (a web server in front with less than the 6 MB a piece needs, or the
+/// relay's own object limit), NOT a full server: it was worded as "no more room" until 2026-10-25,
+/// when nginx's 1 MB default on both servers' /api/ sent the operator to raise a space limit that
+/// was never the problem. 507 is the keeping server out of room (its disk, or the space given).
+pub fn refusal_words(status: u16, said: &str) -> String {
+    let with_said = |s: &str| if s.is_empty() { String::new() } else { format!(": {s}") };
+    match status {
+        403 => format!("the backup server does not keep backups for this server: ask its admin to add this server's key (HTTP 403{})", with_said(said)),
+        401 => "the backup server did not accept this server's signature (check both clocks)".to_string(),
+        413 => format!("the backup server turned away one piece as too big (HTTP 413{}): a piece is up to about 4 MB, so the web server in front of it must let /api/backup-host/ take 6 MB (client_max_body_size, docs/admin/continuous-backup.md step 2)", with_said(said)),
+        507 => format!("the backup server has no more room for this server's backups (HTTP 507{}): ask its admin for a bigger limit, or keep less history", with_said(said)),
+        _ => format!("the backup server refused (HTTP {status}{})", with_said(said)),
+    }
+}
+
 pub struct ServerDest {
     base: String,
     kp: DilithiumKeypair,
@@ -87,12 +103,7 @@ impl ServerDest {
         }
         let said = r.text().await.unwrap_or_default();
         let said: String = said.chars().take(200).collect();
-        Err(match status {
-            403 => format!("the backup server does not keep backups for this server: ask its admin to add this server's key (HTTP 403{})", if said.is_empty() { String::new() } else { format!(": {said}") }),
-            401 => "the backup server did not accept this server's signature (check both clocks)".to_string(),
-            413 | 507 => format!("the backup server has no more room for this server's backups (HTTP {status}): ask its admin for a bigger limit, or keep less history"),
-            _ => format!("the backup server refused (HTTP {status}{})", if said.is_empty() { String::new() } else { format!(": {said}") }),
-        })
+        Err(refusal_words(status, &said))
     }
 
     pub async fn put(&self, name: &str, bytes: Vec<u8>) -> Result<(), String> {
