@@ -122,7 +122,12 @@ complete snapshot exists: the only copy is never thrown away before its replacem
 
 ### Deployment steps (operator)
 
-Nothing here was done on the live servers; these are the steps, in order.
+These are the steps, in order. **Done on 2026-10-25:** steps 1 to 4 on both servers (the
+nginx block of step 2 applied by hand, a backup of each site file in `/root/nginx-humanity.bak-20261025`),
+and both streams seen arriving (united-humanity.us's copies in public.guide's `backup-host/`, and
+the other way). **Still to do:** the Restore drill on each server (step 5), the keys copied to the
+PC (step 6), the PC's monthly drill (step 7), and alerts (step 8: neither server has `node` or
+`data/alert-channels.secrets.json` yet, so "behind" alerts are only logged).
 
 1. **Release and deploy** the version carrying continuous backup to both servers: CI deploys
    united-humanity.us from `main`; public.guide updates itself through `humanity-relay-follow`
