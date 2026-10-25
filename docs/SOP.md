@@ -103,6 +103,10 @@ two; never let it fall far behind (it was 11 versions behind on 2026-10-23).
 
 **Crates:** apply compatible updates (`cargo update`) in the same quiet window, with the same
 checks; a major-version bump of a dependency is its own piece of work, planned like a feature.
+The post-quantum pair (ml-dsa, ml-kem) is pinned exactly and moves only as its own piece of work
+with the known-answer tests that prove every key, signature and sealed message unchanged in Rust
+and the website (Cargo.toml says which; done 2026-10-24, docs/reference/cryptography.md); argon2
+is held to the RFC 9106 vector (src/relay/core/kdf.rs). Last applied: 2026-10-24, 282 crates.
 sccache, `just`, node and the other tools follow the same rule: current, deliberately.
 
 ## After Every Push

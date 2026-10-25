@@ -111,6 +111,21 @@ pub fn derive_key_with_params(
 mod tests {
     use super::*;
 
+    /// RFC 9106 section 5.3, the Argon2id test vector (password 32 x 0x01, salt 16 x 0x02, secret
+    /// 8 x 0x03, associated data 12 x 0x04, t = 3, m = 32 KiB, p = 4, a 32-byte tag): the
+    /// algorithm itself, so moving the argon2 crate (0.6.0-rc.8 to 0.6.0 on 2026-10-24, and any
+    /// later move) cannot change it unseen. Passed on rc.8 before that move, then on 0.6.0.
+    #[test]
+    fn argon2id_matches_the_rfc_9106_vector() {
+        use argon2::{AssociatedData, ParamsBuilder};
+        let ad = AssociatedData::try_from(&[4u8; 12][..]).expect("12 bytes of associated data");
+        let params = ParamsBuilder::new().m_cost(32).t_cost(3).p_cost(4).data(ad).output_len(32).build().expect("the vector's parameters");
+        let argon = Argon2::new_with_secret(&[3u8; 8], Algorithm::Argon2id, Version::V0x13, params).expect("a secret");
+        let mut tag = [0u8; 32];
+        argon.hash_password_into(&[1u8; 32], &[2u8; 16], &mut tag).expect("hash");
+        assert_eq!(hex::encode(tag), "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659");
+    }
+
     #[test]
     fn deterministic_with_same_inputs() {
         let pw = b"correct horse battery staple";
