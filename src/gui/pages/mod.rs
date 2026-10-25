@@ -110,5 +110,7 @@ pub mod dev_tab;
 // Dev > Claude (2026-10-22): what the agents are doing, read-only, from this
 // computer's files (worktrees, journal, TIER 0, delivery, the guards, the boot lock).
 pub mod dev_agents;
+// Dev > Journal: the play journal in the app (2026-10-24, docs/design/play-journal.md rung 2).
+pub mod dev_journal;
 // v0.699.0: category_overview + settings_pages modules removed with the dead
 // two-tier-nav category-browse subsystem (5 Overview* + 12 Settings* pages).

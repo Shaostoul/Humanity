@@ -74,7 +74,7 @@ fn the_dev_tab_lists_the_developer_tools() {
     for gone in ["Platform", "Recovery", "Calculator", "Notes", "Calendar", "Browser"] {
         assert!(!side.iter().any(|(s, _)| *s == gone), "{gone} is not in the Dev tab's list: {side:?}");
     }
-    let tops: Vec<f32> = ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude"]
+    let tops: Vec<f32> = ["Bugs", "Testing", "Performance", "Planet Tuner", "Claude", "Journal"]
         .iter()
         .map(|name| side.iter().find(|(s, _)| s == name).unwrap_or_else(|| panic!("{name} is in the Dev tab's list: {side:?}")).1)
         .collect();

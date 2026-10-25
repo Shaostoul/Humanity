@@ -78,7 +78,10 @@ without him describing it.
    bridge's `dev_play_journal` / `dev_play_marks`. Tests: the cap drops the oldest half; a mark's
    number survives a restart; nothing on the never-in-it list can be written (the event type has
    no field for it); the bridge reads a fixture journal.
-2. **The Dev page's Journal panel** (and its web mirror only if the website gets a Dev page of its
+2. BUILT 2026-10-24: Dev > Journal (`src/gui/pages/dev_journal.rs`): each kind's count and newest
+   event, the marks newest first with Open picture, Mark this moment, Open the folder, Clear the
+   journal (asking first); the files read on a worker thread every two seconds while it is on
+   screen. The website's Dev Workbench lists Journal as the desktop app's. **The Dev page's Journal panel** (and its web mirror only if the website gets a Dev page of its
    own: the journal is the desktop app's).
 3. **`frame`, `net`, `world`, `page`**, each a call at the place that already knows the event.
 4. **Rigs write marks too**: a rig's verdict names the marks its vantages made, so a failed rig run

@@ -13,6 +13,8 @@
 //! - Claude (2026-10-22, the operator's integrations between HumanityOS and
 //!   Claude Code) joined them: what the agents are doing, read from this
 //!   computer's files (dev_agents/).
+//! - Journal (2026-10-24): the play journal, what the game recorded and the F8 marks
+//!   (dev_journal.rs, docs/design/play-journal.md).
 //!
 //! The web mirror is the Dev Workbench (web/pages/dev.html), which carries the
 //! same list, linking the ones the website has (its Claude tab shows what a
@@ -22,7 +24,7 @@ use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{bugs, dev, dev_agents, performance, planet_tuner, testing};
+use super::{bugs, dev, dev_agents, dev_journal, performance, planet_tuner, testing};
 
 /// The Dev tab's sections, in the side list's order: (id, label). The id is
 /// what `GuiState::active_dev_section` holds.
@@ -33,6 +35,7 @@ pub const SECTIONS: &[(&str, &str)] = &[
     ("dev", "Dev"),
     ("planet_tuner", "Planet Tuner"),
     ("claude", "Claude"),
+    ("journal", "Journal"),
 ];
 
 /// The section a fresh session opens on.
@@ -67,6 +70,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "planet_tuner" => planet_tuner::draw(ctx, theme, state),
         // What Claude is doing (2026-10-22): read-only, from this computer's files.
         "claude" => dev_agents::draw(ctx, theme, state),
+        // The play journal (2026-10-24): what the game recorded, and the F8 marks.
+        "journal" => dev_journal::draw(ctx, theme, state),
         _ => bugs::draw(ctx, theme, state),
     }
 }

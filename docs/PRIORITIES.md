@@ -105,7 +105,7 @@ In order:
    a mark. PLANNED 2026-10-24: docs/design/play-journal.md (kinds, never-in-it list, caps,
    F8 Mark this moment, the bridge tools, the Dev page panel, four rungs). Rung 1 BUILT the same
    day (log, panic and mark kinds, F8 and the IPC's "mark", dev_play_marks / dev_play_journal);
-   next: the Dev page's Journal panel, then the frame, net, world and page kinds.
+   rung 2 (Dev > Journal) BUILT the same day; next: the frame, net, world and page kinds.
 6. **How-to:** an independent review of the six how-tos, and a person's dated review of the four
    marked lethal before any shows as checked (all four real-life ones are lethal by the scale's own
    definition: the operator may want to look at that label); decisions 3 (dangerous work) and 4

@@ -4008,8 +4008,9 @@ a numbered mark with that frame's picture (`marks/<n>.png`, the last 30 kept). A
 reads it through the dev MCP, even after the game closed: `dev_play_marks` lists the marks,
 `dev_play_journal {since_mark: 12}` gives everything after one. Never in it: message words, keys,
 tokens, recovery phrases. `src/engine/play_journal.rs`, `data/dev/journal_kinds.json`,
-`scripts/mcp-server.js`. Next rungs: the Dev page's Journal panel, then the `frame`, `net`,
-`world` and `page` kinds.
+`scripts/mcp-server.js`. In the app: Dev > Journal (`src/gui/pages/dev_journal.rs`, rung 2): each
+kind's count and newest event, the marks with Open picture, Mark this moment, Open the folder and
+Clear the journal. Next rung: the `frame`, `net`, `world` and `page` kinds.
 
 ### Code map for AI sessions (2026-10-18)
 One generated line per source file (every `.rs` under `src/`, every `.js` under `web/`): what its
@@ -4161,7 +4162,7 @@ your own home has no save yet.
 
 ### Dev Tab (the developer tools, 2026-10-20)
 One top-menu tab, Dev, holding the developer tools in a side list: Bugs, Testing, Performance,
-Dev, Planet Tuner and (2026-10-22) Claude (all permanent: perpetual development). It replaced the Platform tab, which
+Dev, Planet Tuner, (2026-10-22) Claude and (2026-10-24) Journal, the play journal (all permanent: perpetual development). It replaced the Platform tab, which
 the operator called redundant on 2026-10-20: Platform's Calculator, Notes, Calendar and Browser
 are HumanityOS tools on the Apps page, its Recovery is in Settings > Account.
 - Native: `src/gui/pages/dev_tab.rs` (`SECTIONS`, `GuiPage::Dev`, page id "dev"); tests in
