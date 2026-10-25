@@ -4,9 +4,9 @@
     { "id": "log", "built": true, "about": "Every warning and error line the game logged (its level and module), the same words run.log holds." },
     { "id": "panic", "built": true, "about": "A panic's message and the version, written at once." },
     { "id": "mark", "built": true, "about": "Mark this moment (F8): its number, its picture (marks/<n>.png), the page and where the player stood." },
-    { "id": "frame", "built": false, "about": "A frame over its budget: total ms, the slowest pass and stage." },
-    { "id": "net", "built": false, "about": "Connect, disconnect, a refused sign-in, a refused line or call: the server and the kind of frame, never what it carried." },
-    { "id": "world", "built": false, "about": "World entered, storey or room changed, a teleport, a fall, death, a save written or loaded." },
-    { "id": "page", "built": false, "about": "A page opened or closed." }
+    { "id": "frame", "built": true, "about": "A hitch: a frame of at least 100 ms and three times the recent average, at most one every 2 s." },
+    { "id": "net", "built": true, "about": "Signed in, the connection lost, a chat line refused (why), a message, call or trade refused by the other person's choices (which kind): the server and the kind, never the words or who." },
+    { "id": "world", "built": true, "about": "World entered or left, aboard or not, the room changed, a fall (a landing at 8 m/s or more), death, a save written." },
+    { "id": "page", "built": true, "about": "A page opened or closed." }
   ]
 }

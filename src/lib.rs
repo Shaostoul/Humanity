@@ -16162,6 +16162,9 @@ mod native_app {
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
                             crate::engine::play_journal::take_mark(state, &surface_texture.texture);
+                            // The play journal's page, frame, world and net kinds: what changed
+                            // this frame (engine/play_journal.rs `note_frame`).
+                            crate::engine::play_journal::note_frame(state);
                             crate::engine::movie::capture(state, &surface_texture.texture);
                             poll_showcase_request(state);
 

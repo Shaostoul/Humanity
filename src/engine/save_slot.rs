@@ -302,6 +302,7 @@ pub fn write_active(state: &mut EngineState) -> Look {
         !state.gui_state.settings.fresh_world_each_launch,
         state.gui_state.own_home.as_ref(),
     );
+    crate::engine::play_journal::record("world", "Saved the game", serde_json::json!({ "server": state.gui_state.server_url }));
     look
 }
 

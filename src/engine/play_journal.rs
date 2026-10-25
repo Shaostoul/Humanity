@@ -237,6 +237,157 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     state.gui_state.toast(crate::gui::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
 }
 
+// ── Rung 3 (2026-10-24): the page, frame, world and net kinds the frame can see ──────────────
+
+/// A frame counts as a hitch when it took at least this long ...
+pub const HITCH_MIN_MS: f32 = 100.0;
+/// ... and at least this many times the recent average.
+pub const HITCH_TIMES_USUAL: f32 = 3.0;
+/// At most one `frame` event this often, so a slow stretch is one line, not hundreds.
+const HITCH_EVERY: std::time::Duration = std::time::Duration::from_secs(2);
+/// A landing at least this fast is a fall worth a line (about a 3 m drop).
+pub const FALL_MIN_M_S: f32 = 8.0;
+/// How often the room the player is in is looked up.
+const ROOM_EVERY: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// What the frame watcher saw last, to record only changes.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Seen {
+    pub page: String,
+    pub world_loaded: bool,
+    pub aboard: bool,
+    pub room: Option<String>,
+    pub dead: bool,
+    pub landings: u32,
+    pub connected: Option<String>,
+}
+
+/// This frame's readings, as the watcher compares them with `Seen`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Now {
+    pub page: String,
+    pub world_loaded: bool,
+    pub aboard: bool,
+    /// None when not looked up this frame.
+    pub room: Option<Option<String>>,
+    pub dead: bool,
+    pub landings: (u32, Option<f32>),
+    /// The server's address when signed in, else None.
+    pub connected: Option<String>,
+    /// This frame's time and the recent average, in ms.
+    pub frame_ms: Option<(f32, f32)>,
+    /// A hitch may be recorded now (the last was long enough ago).
+    pub hitch_allowed: bool,
+}
+
+/// The events one frame's readings make against what was seen before: (kind, words, fields).
+/// Pure, so each rule is tested without a running game.
+pub fn changes(seen: &mut Seen, now: &Now) -> Vec<(&'static str, String, serde_json::Value)> {
+    use serde_json::json;
+    let mut out = Vec::new();
+    if now.page != seen.page {
+        out.push(("page", format!("{} -> {}", seen.page, now.page), json!({ "from": seen.page, "to": now.page })));
+        seen.page = now.page.clone();
+    }
+    if let Some((ms, usual)) = now.frame_ms {
+        if now.hitch_allowed && ms >= HITCH_MIN_MS && ms >= HITCH_TIMES_USUAL * usual {
+            out.push(("frame", format!("A {ms:.0} ms frame (usually {usual:.0} ms)"), json!({ "ms": ms, "usual_ms": usual, "page": now.page })));
+        }
+    }
+    if now.world_loaded != seen.world_loaded {
+        let words = if now.world_loaded { "Entered the world" } else { "Left the world" };
+        out.push(("world", words.to_string(), json!({ "world_loaded": now.world_loaded })));
+        seen.world_loaded = now.world_loaded;
+    }
+    if now.aboard != seen.aboard {
+        let words = if now.aboard { "Went aboard the station" } else { "Left the station" };
+        out.push(("world", words.to_string(), json!({ "aboard": now.aboard })));
+        seen.aboard = now.aboard;
+    }
+    if let Some(room) = &now.room {
+        if *room != seen.room {
+            let words = match room {
+                Some(r) => format!("In {r}"),
+                None => "Out of every named room".to_string(),
+            };
+            out.push(("world", words, json!({ "room": room, "from": seen.room })));
+            seen.room = room.clone();
+        }
+    }
+    if now.dead != seen.dead {
+        let words = if now.dead { "Died" } else { "Back to life" };
+        out.push(("world", words.to_string(), json!({ "dead": now.dead })));
+        seen.dead = now.dead;
+    }
+    let (landings, last_m_s) = now.landings;
+    if landings > seen.landings {
+        if let Some(speed) = last_m_s.filter(|s| *s >= FALL_MIN_M_S) {
+            out.push(("world", format!("A fall: landed at {speed:.1} m/s"), json!({ "m_s": speed })));
+        }
+        seen.landings = landings;
+    }
+    if now.connected != seen.connected {
+        let words = match (&seen.connected, &now.connected) {
+            (_, Some(to)) => format!("Signed in to {to}"),
+            (Some(from), None) => format!("Lost the connection to {from}"),
+            (None, None) => String::new(),
+        };
+        out.push(("net", words, json!({ "server": now.connected.clone().or(seen.connected.clone()), "connected": now.connected.is_some() })));
+        seen.connected = now.connected.clone();
+    }
+    out
+}
+
+/// What the watcher holds between frames.
+struct Watch {
+    seen: Seen,
+    next_room: Option<std::time::Instant>,
+    next_hitch: Option<std::time::Instant>,
+}
+
+/// Once a frame (lib.rs's main loop): the page, a hitch, the world, the room, a death, a fall and
+/// the connection, recorded when they change. A frame with no change costs a few comparisons; the
+/// room is looked up four times a second.
+#[cfg(feature = "native")]
+pub(crate) fn note_frame(state: &crate::engine::state::EngineState) {
+    if DIR.get().is_none() {
+        return;
+    }
+    static WATCH: Mutex<Option<Watch>> = Mutex::new(None);
+    let Ok(mut guard) = WATCH.lock() else { return };
+    let w = guard.get_or_insert_with(|| Watch { seen: Seen::default(), next_room: None, next_hitch: None });
+    let gs = &state.gui_state;
+    let at = std::time::Instant::now();
+    let room = if w.next_room.map_or(true, |t| at >= t) {
+        w.next_room = Some(at + ROOM_EVERY);
+        let eye = state.camera.position;
+        Some(crate::gui::pages::hud::room_card_at(&gs.room_bounds, gs.ship_structure.as_ref(), &gs.keybinds, eye).map(|r| if r.display_name.is_empty() { r.id.clone() } else { r.display_name.clone() }))
+    } else {
+        None
+    };
+    let frame_ms = gs.frame_times.last().map(|&ms| {
+        let usual = if gs.frame_times.is_empty() { ms } else { gs.frame_times.iter().sum::<f32>() / gs.frame_times.len() as f32 };
+        (ms, usual)
+    });
+    let now = Now {
+        page: format!("{:?}", gs.active_page),
+        world_loaded: state.world_loaded,
+        aboard: state.aboard_station,
+        room,
+        dead: gs.death_pack.note.is_some(),
+        landings: state.controller.landings_taken(),
+        connected: gs.server_connected.then(|| gs.server_url.clone()),
+        frame_ms,
+        hitch_allowed: w.next_hitch.map_or(true, |t| at >= t),
+    };
+    for (kind, words, fields) in changes(&mut w.seen, &now) {
+        if kind == "frame" {
+            w.next_hitch = Some(at + HITCH_EVERY);
+        }
+        record(kind, &words, fields);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,6 +442,59 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
     }
 
+    fn kinds_of(events: &[(&'static str, String, serde_json::Value)]) -> Vec<(&'static str, String)> {
+        events.iter().map(|(k, w, _)| (*k, w.clone())).collect()
+    }
+
+    #[test]
+    fn only_what_changed_is_recorded_once() {
+        let mut seen = Seen::default();
+        let mut now = Now { page: "Chat".into(), world_loaded: true, connected: Some("https://public.guide".into()), ..Default::default() };
+        let first = kinds_of(&changes(&mut seen, &now));
+        assert_eq!(first, vec![
+            ("page", " -> Chat".to_string()),
+            ("world", "Entered the world".to_string()),
+            ("net", "Signed in to https://public.guide".to_string()),
+        ]);
+        assert!(changes(&mut seen, &now).is_empty(), "the same frame again changes nothing");
+        now.connected = None;
+        now.page = "None".into();
+        let second = kinds_of(&changes(&mut seen, &now));
+        assert_eq!(second, vec![("page", "Chat -> None".to_string()), ("net", "Lost the connection to https://public.guide".to_string())]);
+    }
+
+    #[test]
+    fn a_hitch_is_a_long_frame_against_the_usual_and_not_while_held_back() {
+        let mut seen = Seen::default();
+        let base = Now { page: "None".into(), ..Default::default() };
+        let _ = changes(&mut seen, &base);
+        let at = |ms: f32, usual: f32, allowed: bool| {
+            let mut s = seen.clone();
+            kinds_of(&changes(&mut s, &Now { frame_ms: Some((ms, usual)), hitch_allowed: allowed, ..base.clone() }))
+        };
+        assert_eq!(at(150.0, 16.0, true), vec![("frame", "A 150 ms frame (usually 16 ms)".to_string())]);
+        assert!(at(90.0, 16.0, true).is_empty(), "under 100 ms is no hitch");
+        assert!(at(150.0, 66.0, true).is_empty(), "a slow machine's usual frame is no hitch");
+        assert!(at(150.0, 16.0, false).is_empty(), "at most one every two seconds");
+    }
+
+    #[test]
+    fn rooms_deaths_and_falls_are_world_events() {
+        let mut seen = Seen::default();
+        let mut now = Now { page: "None".into(), ..Default::default() };
+        let _ = changes(&mut seen, &now);
+        now.room = Some(Some("Kitchen".into()));
+        assert_eq!(kinds_of(&changes(&mut seen, &now)), vec![("world", "In Kitchen".to_string())]);
+        now.room = None; // not looked up this frame: no change implied
+        assert!(changes(&mut seen, &now).is_empty());
+        now.landings = (1, Some(3.0));
+        assert!(changes(&mut seen, &now).is_empty(), "a step down is no fall");
+        now.landings = (2, Some(12.5));
+        assert_eq!(kinds_of(&changes(&mut seen, &now)), vec![("world", "A fall: landed at 12.5 m/s".to_string())]);
+        now.dead = true;
+        assert_eq!(kinds_of(&changes(&mut seen, &now)), vec![("world", "Died".to_string())]);
+    }
+
     #[test]
     fn an_event_line_carries_its_time_words_and_fields_and_long_words_are_cut() {
         let line = event_line(42, "hello", serde_json::json!({ "level": "WARN", "t": 7 }));
@@ -310,7 +514,7 @@ mod tests {
         )
         .unwrap();
         let listed: Vec<&str> = kinds["kinds"].as_array().unwrap().iter().filter_map(|k| k["id"].as_str()).collect();
-        for kind in ["log", "panic", "mark"] {
+        for kind in ["log", "panic", "mark", "page", "frame", "world", "net"] {
             assert!(listed.contains(&kind), "{kind} is in data/dev/journal_kinds.json");
         }
         let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/engine/play_journal.rs")).unwrap();

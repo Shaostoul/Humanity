@@ -61,6 +61,9 @@ fn on_reach_settings(gs: &mut GuiState, frame: &serde_json::Value) {
 /// so nothing arrives for one.
 fn on_reach_refused(gs: &mut GuiState, frame: &serde_json::Value) {
     let Some(to) = frame.get("to").and_then(|v| v.as_str()).filter(|t| !t.is_empty()) else { return };
+    // The play journal's net kind: what kind of reach was refused, never who (the never-in-it list).
+    let kind = frame.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+    crate::engine::play_journal::record("net", &format!("Refused by the other person's choices: {kind}"), serde_json::json!({ "kind": kind, "server": gs.server_url }));
     match frame.get("kind").and_then(|v| v.as_str()).and_then(ReachKind::from_wire) {
         // Not a notice of its own: our own control messages (a follow, a pass) are refused the
         // same way, and a notice for each would read as an error the person never made. The

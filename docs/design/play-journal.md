@@ -83,6 +83,15 @@ without him describing it.
    journal (asking first); the files read on a worker thread every two seconds while it is on
    screen. The website's Dev Workbench lists Journal as the desktop app's. **The Dev page's Journal panel** (and its web mirror only if the website gets a Dev page of its
    own: the journal is the desktop app's).
-3. **`frame`, `net`, `world`, `page`**, each a call at the place that already knows the event.
+3. BUILT 2026-10-24: **`frame`, `net`, `world`, `page`**. One call a frame (`note_frame`, from lib.rs
+   beside the mark) records what changed against what it saw last (`changes`, pure and tested): the
+   page; a hitch (a frame of at least 100 ms and three times the recent average, at most one every
+   2 s, so a slow machine's ordinary frames are not events); entering or leaving the world, going
+   aboard or not, the room the HUD names (looked up four times a second), death, a fall (a landing
+   at 8 m/s or more); signing in and losing the connection. Explicit calls where an event happens:
+   a save written (`save_slot::write_active`), a chat line refused and why
+   (`line_limit::on_refused`), a message, call or trade refused by the other person's choices, by
+   kind only (`reach::on_reach_refused`). Still to come: teleports (the explicit teleport paths)
+   and a hitch's slowest pass and stage.
 4. **Rigs write marks too**: a rig's verdict names the marks its vantages made, so a failed rig run
    points at the exact moment with its picture.

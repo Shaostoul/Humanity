@@ -4010,7 +4010,10 @@ reads it through the dev MCP, even after the game closed: `dev_play_marks` lists
 tokens, recovery phrases. `src/engine/play_journal.rs`, `data/dev/journal_kinds.json`,
 `scripts/mcp-server.js`. In the app: Dev > Journal (`src/gui/pages/dev_journal.rs`, rung 2): each
 kind's count and newest event, the marks with Open picture, Mark this moment, Open the folder and
-Clear the journal. Next rung: the `frame`, `net`, `world` and `page` kinds.
+Clear the journal. Rung 3 (the same day): `page` (each page change), `frame` (hitches: 100 ms and
+three times the recent average), `world` (entered, aboard, the room, death, falls, saves) and
+`net` (signed in, connection lost, a refused line and why, a refusal by someone's choices, never
+who), from one cheap call a frame plus calls where those events happen.
 
 ### Code map for AI sessions (2026-10-18)
 One generated line per source file (every `.rs` under `src/`, every `.js` under `web/`): what its
