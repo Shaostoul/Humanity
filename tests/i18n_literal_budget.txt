@@ -91,7 +91,7 @@
 39 src/gui/pages/server_settings/federation.rs
 14 src/gui/pages/server_settings/reports.rs
 3 src/gui/pages/server_settings/role_limits.rs
-431 src/gui/pages/settings.rs
+430 src/gui/pages/settings.rs
 8 src/gui/pages/settings/data_folder.rs
 62 src/gui/pages/settings/recovery.rs
 8 src/gui/pages/settings_time.rs
@@ -110,7 +110,7 @@
 8 src/gui/widgets/image_cache_view.rs
 1 src/gui/widgets/level_picker.rs
 5 src/gui/widgets/mod.rs
-38 src/gui/widgets/passphrase_modal.rs
+37 src/gui/widgets/passphrase_modal.rs
 1 src/gui/widgets/pie.rs
 3 src/gui/widgets/shelf.rs
 3 src/gui/widgets/sound_view.rs

@@ -24,7 +24,7 @@
 48 web/chat/chat-voice-rooms.js
 24 web/chat/chat-voice-streaming.js
 28 web/chat/chat-voice-webrtc.js
-18 web/chat/crypto.js
+12 web/chat/crypto.js
 269 web/chat/index.html
 10 web/chat/view/messageMenu.js
 8 web/chat/view/pillPopup.js

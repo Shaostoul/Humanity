@@ -109,7 +109,10 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
 
-        if widgets::secondary_button(ui, theme, "Skip (key unavailable)") {
+        // The words say what a skip costs: the key stays in memory only, and the saved settings
+        // never hold a key that is not encrypted (config.rs, from_gui_state), so a new identity
+        // skipped here is gone when the app closes unless its words were written down.
+        if widgets::secondary_button(ui, theme, crate::gui::i18n::t("passphrase.skip_not_kept")) {
             // User skips: key stays in memory but is not persisted encrypted
             state.passphrase_needed = false;
             state.passphrase_input.clear();
@@ -241,8 +244,9 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// already ran in the worker; this does the cheap post-steps: persist a legacy-
 /// vault re-encrypt, optionally stash the seed in the OS keychain, set the
 /// unlocked seed, derive the PQ identity, and save. Mirrors the old inline
-/// post-decrypt logic exactly — only WHERE the PBKDF2 runs changed.
-fn apply_unlock_outcome(
+/// post-decrypt logic exactly — only WHERE the PBKDF2 runs changed. Settings, Account's
+/// Reveal recovery phrase gate on a locked identity ends the same way (BUG-213).
+pub(crate) fn apply_unlock_outcome(
     state: &mut GuiState,
     outcome: Result<(Vec<u8>, Option<(String, String, u32)>), String>,
 ) {

@@ -19,6 +19,8 @@ mod calls;
 /// asking for help on a new device. `recovery_net` is the work it runs on threads.
 pub mod recovery;
 pub mod recovery_net;
+#[cfg(test)]
+mod identity_tests;
 
 // Full-PQ: the web "import ECDH key" flow is gone. DMs are pure Kyber768
 // derived from the BIP39 seed — identical on web and native with no manual
@@ -371,6 +373,67 @@ pub(crate) fn restore_from_phrase(state: &mut GuiState, phrase: &str) -> Result<
     Ok(())
 }
 
+/// The identity on this device, as Settings, Account sees it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IdentityOnDevice {
+    /// None here: Generate New Identity, or restore one.
+    None,
+    /// Here, encrypted with its passphrase, and not unlocked since the app opened (the app opens
+    /// locked unless the person chose Remember on this device). Never "None" (BUG-213).
+    Locked,
+    /// In memory: the recovery phrase can be shown, behind its gate.
+    Unlocked,
+}
+
+pub(crate) fn identity_on_device(state: &GuiState) -> IdentityOnDevice {
+    if state.private_key_bytes.is_some() {
+        IdentityOnDevice::Unlocked
+    } else if !state.encrypted_private_key.is_empty() {
+        IdentityOnDevice::Locked
+    } else {
+        IdentityOnDevice::None
+    }
+}
+
+/// Settings, Account for a locked identity: the same Reveal recovery phrase gate an unlocked one
+/// has, and the right passphrase also unlocks it, through the passphrase prompt's own last steps
+/// (`apply_unlock_outcome`), so it is typed once. The next frame draws the unlocked section, whose
+/// gate shares this one's state ("seed_phrase") and so is open: the words show (covered, as always)
+/// without asking again. While the protected setup is on, its PIN comes first, as it does for an
+/// unlocked identity, so the order is the same either way: PIN, then passphrase.
+fn draw_locked_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::gui::i18n::t;
+    ui.label(RichText::new(t("settings.identity_locked")).color(theme.text_muted()).size(theme.font_size_small));
+    ui.add_space(theme.spacing_xs);
+    if let Some(lock) = crate::gui::pages::safety_protected::phrase_lock(state) {
+        crate::gui::pages::safety_protected::draw_phrase_lock(ui, theme, state, &lock);
+        return;
+    }
+    let (enc, salt, iters) = (state.encrypted_private_key.clone(), state.key_salt.clone(), state.key_iterations);
+    // The gate's check is a plain Fn: the seed it decrypts comes out through a cell.
+    let opened = std::cell::RefCell::new(None);
+    let lock = state.section_locks.entry("seed_phrase".to_string()).or_default();
+    widgets::lockable_gate(ui, theme, lock, t("settings.reveal_phrase"), |pass| {
+        match crate::config::decrypt_private_key(&enc, &salt, pass, iters) {
+            Ok(seed) => {
+                // The documented 100k-to-600k vault migration, as the prompt's unlock does it.
+                let reenc = if iters < crate::config::PBKDF2_ITERATIONS_NEW {
+                    crate::config::encrypt_private_key(&seed, pass).ok()
+                } else {
+                    None
+                };
+                *opened.borrow_mut() = Some((seed, reenc));
+                true
+            }
+            Err(_) => false,
+        }
+    });
+    if let Some(outcome) = opened.into_inner() {
+        crate::gui::widgets::passphrase_modal::apply_unlock_outcome(state, Ok(outcome));
+        ui.ctx().request_repaint();
+    }
+}
+
 /// A faint accent per settings section (operator, 2026-08-12: "add a variety
 /// of ever so faint colored backgrounds to the sections to more easily
 /// differentiate what we're looking at").
@@ -460,6 +523,7 @@ mod erase_memory_note_tests {
 }
 
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::gui::i18n::t;
     let accent = section_accent(SettingsCategory::Account, theme);
 
     // ── Your data: export + erase (sovereignty, 2026-08-23) ──
@@ -671,7 +735,14 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.label(RichText::new("Account & Recovery Phrase").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
-        if state.private_key_bytes.is_none() {
+        // What is on this device decides what this section offers (BUG-213). An identity that is
+        // here but LOCKED (encrypted, its passphrase not typed since the app opened, which is how
+        // the app opens by default) used to be shown as "no identity" with Generate New Identity,
+        // whose passphrase prompt then encrypted the NEW key over the real one and saved it.
+        let on_device = identity_on_device(state);
+        if on_device == IdentityOnDevice::Locked {
+            draw_locked_identity(ui, theme, state);
+        } else if on_device == IdentityOnDevice::None {
             // No identity on this device — let the user CREATE one. This
             // is the primitive native was missing entirely (web had it):
             // without it a first-time native user can never get a seed.
@@ -715,7 +786,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 false
             } else if !enc.is_empty() && !salt.is_empty() {
                 let lock = state.section_locks.entry("seed_phrase".to_string()).or_default();
-                widgets::lockable_gate(ui, theme, lock, "Reveal recovery phrase", |pass| {
+                widgets::lockable_gate(ui, theme, lock, t("settings.reveal_phrase"), |pass| {
                     crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
                 })
             } else {
@@ -872,6 +943,10 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.label(RichText::new("Restore Your Account from Your Recovery Phrase").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Paste your 24-word recovery phrase to restore your account from the website or another device.").color(theme.text_muted()).size(theme.font_size_small));
+        if on_device != IdentityOnDevice::None {
+            // A restore puts the phrase's identity in place of this one, locked or not.
+            ui.label(RichText::new(t("settings.restore_replaces")).color(theme.warning()).size(theme.font_size_small));
+        }
         ui.add_space(theme.spacing_xs);
 
         if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_show_recover { "Cancel Recovery" } else { "Restore from Recovery Phrase" }) {
@@ -958,7 +1033,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 state.passphrase_status.clear();
             }
         } else if state.private_key_bytes.is_some() {
-            ui.label(RichText::new("Your private key is not encrypted. Set a passphrase to protect it.")
+            // In memory and never encrypted, so never saved (from_gui_state writes no plain key,
+            // and the keychain is read at launch only beside an encrypted one): say so plainly.
+            ui.label(RichText::new(crate::gui::i18n::t("settings.key_not_kept"))
                 .color(theme.warning()).size(theme.font_size_small));
             ui.add_space(theme.spacing_sm);
             if widgets::primary_button(ui, theme, "Set Passphrase") {

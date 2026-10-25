@@ -6771,3 +6771,66 @@ The planets in the evening sky, black dots before, are lit too.
   so N sat at hull -Z, west along the orbit, and the real north read E. It now measures from
   `station::compass_north_yaw` (Earth's axis laid on the deck); on the ground nothing changes;
   in free space it draws no letters. Test: `station::tests::aboard_the_compass_points_to_earths_north_not_along_the_orbit`.
+
+## BUG-213: Settings, Account offered Generate New Identity over a locked identity, destroying it (FIXED 2026-10-24, found 2026-10-24)
+
+**Found by:** the independent review of the How-to "Back up your recovery phrase" (2026-10-24),
+which checked each step against the code and found that its "no identity yet" problem described
+a state the app reaches by default.
+
+**Seen (in the code, not yet by a person):** the app opens with an encrypted identity LOCKED,
+without asking for the passphrase, unless Remember on this device was chosen (config.rs, "no
+modal on startup"). Settings, Account tested only whether the key was in memory
+(`private_key_bytes.is_none()`), so a locked identity was shown as "No identity on this device
+yet" with Generate New Identity. Pressing it made a new seed and opened Encrypt Your Private Key,
+whose Encrypt Key wrote the NEW key over `encrypted_private_key` and saved: the real identity was
+gone, and the person reading the how-to is the one who has not written its words down yet.
+
+**Cause:** two states, "no identity here" and "an identity here, locked", shared one branch.
+
+**Fix:**
+- `identity_on_device` (None, Locked, Unlocked), and a Locked branch, `draw_locked_identity`,
+  in settings.rs. It says the identity is on this device, locked, and shows the same Reveal
+  recovery phrase gate as the unlocked section. The right passphrase also unlocks the identity
+  through the passphrase prompt's own last steps (`apply_unlock_outcome`, now `pub(crate)`,
+  including the documented 100k-to-600k vault migration).
+- The two gates share their state (`seed_phrase`), so the next frame shows the words' cover
+  without asking again. While the protected setup is on, its PIN comes first, as for an unlocked
+  identity.
+- Generate New Identity now appears only when nothing is on the device. Restore from Recovery
+  Phrase says that it replaces the identity on the device whenever there is one.
+- Two related lines now say what they cost, both in the same change:
+  - The passphrase prompt's Skip is "Skip (not kept after the app closes)". It was "Skip (key
+    unavailable)".
+  - Key Encryption no longer says only "not encrypted". It says the identity is not kept on this
+    device until a passphrase is set: from_gui_state never writes a plain key, and the keychain is
+    read at launch only beside an encrypted one.
+
+**Tests** (src/gui/pages/settings/identity_tests.rs, drawn headless and read back, each seen red):
+- `a_locked_identity_is_never_shown_as_none`. Red with the Locked branch never taken: "a locked
+  identity is offered Generate New Identity".
+- `no_identity_is_still_offered_one`. Red with every identity not in memory taken as Locked:
+  "with no identity, Generate New Identity is offered".
+- `one_passphrase_unlocks_it_and_shows_the_cover`. The passphrase is typed and Unlock clicked as a
+  person does it; a wrong one first. Red with the locked gate keyed apart from the unlocked one:
+  "after the passphrase the words' cover is drawn".
+
+**The website's twin, found the same day by checking the other mirror:**
+- web/chat/crypto.js asks for the passphrase of an identity it holds only wrapped. That happens
+  whenever IndexedDB has no copy, and on a browser without Ed25519 in WebCrypto it is every visit.
+- A cancelled prompt or a wrong passphrase made and saved a new identity by itself, and the
+  protected one was never asked for again.
+- Now `unlockProtectedIdentity` asks until the identity opens. A wrong passphrase is told. A new
+  identity is made only when the person presses Cancel on a choice that says what it costs (OK,
+  the default, asks again). The protected copy is left where it was.
+- Tests: scripts/tests/identity-unlock-web.test.js loads the real crypto.js in a VM, with the
+  seed wrapped by its own deriveKeyFromPassphrase. Each test was seen red:
+  - against the one-prompt version: "a cancelled prompt made a new identity" and "a wrong
+    passphrase made a new identity";
+  - with the choice's answer ignored: "it keeps asking".
+
+**Still open (code notes from the same review, not fixed here):**
+- The Copy button beside the words works while they are covered, with no hold.
+- A forgotten vault passphrase is a dead end for Remember on this device and Quick PIN users.
+  Showing the words needs the passphrase, and so does Change Passphrase. The how-to now points
+  them to Recovery through trusted people, set up while the app is open.

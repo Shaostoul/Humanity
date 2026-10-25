@@ -49,7 +49,10 @@
     "line_not_sent_too_fast": "Not sent: sending too fast. Wait a moment and try again.",
     "line_not_sent_new_account": "Not sent: new accounts wait a little before posting.",
     "line_edit_again": "Edit and send again",
-    "line_edit_again_hint": "Puts your words back in the message box, so you can shorten them or wait a moment, then send them again."
+    "line_edit_again_hint": "Puts your words back in the message box, so you can shorten them or wait a moment, then send them again.",
+    "identity_locked_prompt": "Your identity in this browser is protected by a passphrase.\nType the passphrase to unlock it:",
+    "identity_not_unlocked": "It did not unlock:",
+    "identity_locked_choice": "Try the passphrase again?\n\nCancel makes a new identity in this browser instead: a different account. Your protected identity then comes back only with its recovery phrase."
   },
   "settings": {
     "language": "Language",
@@ -86,7 +89,11 @@
     "timestamp_format_hour_min_sec": "Time + seconds, 17:42:09",
     "timestamp_format_date_hour_min": "Date + time, 2026-05-29 17:42",
     "timestamp_format_date_hour_min_sec": "Date + time + seconds, 2026-05-29 17:42:09",
-    "timestamp_format_full": "Full + milliseconds, 2026-05-29 17:42:09.123"
+    "timestamp_format_full": "Full + milliseconds, 2026-05-29 17:42:09.123",
+    "identity_locked": "Your identity is on this device, locked: the app opens without unlocking it. Type its passphrase to unlock it and see your recovery phrase.",
+    "reveal_phrase": "Reveal recovery phrase",
+    "restore_replaces": "Restoring replaces the identity on this device: write down its recovery phrase first if you still need it.",
+    "key_not_kept": "This identity is not kept on this device yet: set a passphrase to keep it. Until you do, it is gone when the app closes, unless you wrote down its recovery phrase."
   },
   "laws": {
     "title": "Laws and rights",
@@ -2142,5 +2149,8 @@
     "cleared": "The journal is cleared.",
     "web_nav": "Journal (desktop app)",
     "web_nav_title": "In the desktop app's Dev tab: what the game recorded while it ran, and the F8 marks"
+  },
+  "passphrase": {
+    "skip_not_kept": "Skip (not kept after the app closes)"
   }
 }

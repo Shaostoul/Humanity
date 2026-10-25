@@ -108,6 +108,32 @@ async function restoreKeyFromLocalStorage() {
   } catch (e) { console.warn('localStorage key restore failed:', e); return null; }
 }
 
+/**
+ * A passphrase-protected identity in this browser, asked for until it opens, or until the person
+ * chooses, after being told what it costs, to make a new one instead (the web twin of BUG-213,
+ * 2026-10-24). A cancelled prompt or a wrong passphrase used to make and save a new identity by
+ * itself, after which the protected one was never asked for again: on a browser without Ed25519
+ * that was any visit. `open(passphrase)` returns the identity (or seed), or throws.
+ * @returns {Promise<any|null>} what `open` returned, or null when the person chose a new identity.
+ */
+async function unlockProtectedIdentity(open) {
+  const words = (key) => (window.i18n ? window.i18n.t(key) : key);
+  for (;;) {
+    const pp = window.prompt(words('chat.identity_locked_prompt'));
+    if (pp) {
+      try {
+        const got = await open(pp);
+        if (got) return got;
+      } catch (e) {
+        window.alert(words('chat.identity_not_unlocked') + '\n' + e.message);
+        continue;
+      }
+    }
+    // OK, the default, asks again; only Cancel, after these words, makes a new identity.
+    if (!window.confirm(words('chat.identity_locked_choice'))) return null;
+  }
+}
+
 async function getOrCreateIdentity() {
   const hasEd25519 = await supportsEd25519();
   if (!hasEd25519) {
@@ -128,20 +154,13 @@ async function getOrCreateIdentity() {
     if (restored) return restored;
     // No plaintext backup, check for passphrase-wrapped key
     if (isKeyWrapped()) {
-      const pp = window.prompt('Your identity is passphrase-protected.\nEnter your passphrase to unlock it:');
-      if (pp) {
-        try {
-          const wrapped = await loadWrappedKey(pp);
-          if (wrapped) {
-            const db2 = await openKeyDB();
-            await storeKeypair(db2, wrapped.publicKeyHex, wrapped);
-            await saveKeyBackupToLocalStorage(wrapped.publicKeyHex, wrapped.privateKey);
-            console.log('Unlocked identity from wrapped key:', wrapped.publicKeyHex.substring(0, 16) + '…');
-            return wrapped;
-          }
-        } catch (e) {
-          alert('Could not unlock identity: ' + e.message + '\nA new identity will be generated.');
-        }
+      const wrapped = await unlockProtectedIdentity((pp) => loadWrappedKey(pp));
+      if (wrapped) {
+        const db2 = await openKeyDB();
+        await storeKeypair(db2, wrapped.publicKeyHex, wrapped);
+        await saveKeyBackupToLocalStorage(wrapped.publicKeyHex, wrapped.privateKey);
+        console.log('Unlocked identity from wrapped key:', wrapped.publicKeyHex.substring(0, 16) + '…');
+        return wrapped;
       }
     }
     // Generate new identity
@@ -278,10 +297,7 @@ function loadSeedBackup() {
 async function seedOnlyFromStorage() {
   let seed = loadSeedBackup();
   if (!seed && isKeyWrapped()) {
-    const pp = window.prompt('Your identity is passphrase-protected.\nEnter your passphrase to unlock it:');
-    if (pp) {
-      try { seed = await loadWrappedSeed(pp); } catch (e) { alert('Could not unlock identity: ' + e.message + '\nA new identity will be generated.'); }
-    }
+    seed = await unlockProtectedIdentity((pp) => loadWrappedSeed(pp));
   }
   const isNew = !seed;
   if (!seed) {

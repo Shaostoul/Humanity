@@ -912,7 +912,8 @@ fn the_phrase_lock_and_the_section_say_only_the_presets_words() {
     assert!(!lock.line.is_empty() && labels.phrase_needs_pin.starts_with(&lock.line), "and the preset's own words for its line: {:?}", lock.line);
     assert_eq!(labels.show_phrase, "Show the recovery phrase");
     let settings_src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gui/pages/settings.rs")).unwrap();
-    assert_eq!(settings_src.matches("safety_protected::phrase_lock(state)").count(), 2, "the phrase and the QR each ask it");
+    // The phrase asks it twice (an unlocked identity, and a locked one since BUG-213), the QR once.
+    assert_eq!(settings_src.matches("safety_protected::phrase_lock(state)").count(), 3, "the phrase, locked and unlocked, and the QR each ask it");
     assert!(!settings_src.contains("\"Show device-link QR\")"), "no locked button typed into Settings");
     perform(&mut gs, ProtectedAction::ShowRecoveryPhrase);
     enter(&mut gs, "7391");
