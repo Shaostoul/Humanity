@@ -10,7 +10,7 @@
         {
           "id": "open-chat",
           "title": "Say hello",
-          "description": "Open the chat, pick a display name, and introduce yourself in #welcome. Your cryptographic identity is created on your device automatically. No signup, no email, no password.",
+          "description": "Open the chat, pick a display name, and introduce yourself in #general. Your cryptographic identity is created on your device automatically. No sign-up, no email, no password stored on any server.",
           "link": "/chat"
         },
         {

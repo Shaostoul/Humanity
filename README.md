@@ -109,10 +109,10 @@ Farming, cooking, crafting, combat, quests, skills and XP, a player market with 
 ### 👋 Just try it
 1. Visit **[united-humanity.us/chat](https://united-humanity.us/chat)**
 2. Pick a display name
-3. Say hi in `#welcome`
+3. Say hi in `#general`
 4. Take the **[5-minute tour](https://united-humanity.us/onboarding)**
 
-No signup. No email. No credit card.
+No sign-up. No email. No credit card.
 
 </td>
 <td valign="top" width="33%">
@@ -129,9 +129,9 @@ Works **fully offline**. Native 3D world bundled.
 <td valign="top" width="33%">
 
 ### 🏠 Run your own server
-1. Download `HumanityOS-linux-x64` from [Releases](https://github.com/Shaostoul/Humanity/releases/latest)
-2. `chmod +x HumanityOS-linux-x64`
-3. `./HumanityOS-linux-x64 --headless`
+1. Download `HumanityOS-relay-linux-x64` (the server build) from [Releases](https://github.com/Shaostoul/Humanity/releases/latest)
+2. `chmod +x HumanityOS-relay-linux-x64`
+3. `./HumanityOS-relay-linux-x64 --headless`
 4. nginx + systemd in front
 
 No compiler, no Docker. Under 10 minutes from download to live. Building from source instead adds roughly 7 minutes of compile time. **[Full guide →](docs/admin/SELF-HOSTING.md)**

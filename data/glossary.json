@@ -1310,7 +1310,7 @@
     "channel": {
       "term": "Channel",
       "category": "platform",
-      "definition": "A named room in chat where a group of people talk, such as #welcome. Channels belong to one server, and an admin can make one read-only or private."
+      "definition": "A named room in chat where a group of people talk, such as #general. Channels belong to one server, and an admin can make one read-only or private."
     },
     "guild": {
       "term": "Guild",
