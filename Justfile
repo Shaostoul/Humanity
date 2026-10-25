@@ -460,7 +460,6 @@ validate-data:
 # Static gate: both feature builds + lib tests + the relay test build + every lint in `just lints`. Boot half: verify-runtime.
 verify:
     cargo check --features native
-    cargo check --features relay --no-default-features
     # A time limit (2026-10-03): one library test hung during a combined
     # verify overnight (the run normally takes about 3 minutes once built) and
     # held the night's release for hours. 40 minutes covers a full rebuild;
@@ -498,9 +497,14 @@ verify:
 # full run up into `verify` and delete this paragraph.
 #
 # Build the relay test target (~53s): prove the server build's tests still exist.
+# One check for the relay feature set (2026-10-24, scripts/build-ab/relay-gate.js): the library,
+# the binary and the test modules together. It caught both injected failures the old pair caught
+# (a relay test module reaching for native-only code; a relay-only error in the binary) and costs
+# 21 s against the pair's 50 s after a touch (82 s against 372 s warm). It replaced `cargo check
+# --features relay --no-default-features` followed by `cargo test ... --lib --no-run` in verify.
 verify-relay-compiles:
-    @echo "-- the relay test target must build (CI deploys this feature set) --"
-    cargo test --features relay --no-default-features --lib --no-run
+    @echo "-- the relay feature set must build, its tests included (CI deploys it) --"
+    cargo check --features relay --no-default-features --lib --bins --tests
 
 # Worth doing after any change under src/relay/, and before a release, since
 # this is the binary the VPS runs.

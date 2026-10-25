@@ -117,6 +117,11 @@ overrides it for one command.
 - **BUG-174 after the debug-info change:** link.exe linked the test program WITH its debug file
   (a 446 MB PDB) without LNK1318. The /DEBUG:NONE workaround in scripts/lib-tests.js stays (it is
   harmless and faster), but the limit is no longer reached.
+- **The relay gate (adopted, relay-gate.js):** one `cargo check --features relay --no-default-features
+  --lib --bins --tests` catches both failures the old pair caught (a relay test module reaching for
+  native-only code, E0433; a relay-only error in the binary, E0308) and costs 21 s against the pair's
+  50 s after a touch, 82 s against 372 s warm. `just verify` runs it once as
+  `just verify-relay-compiles` in place of the pair.
 - **Where one cold compile of our crate goes (time-passes, 241 s):** type checking 46 s and borrow
   checking 50 s (single-threaded inside one crate), code generation 105 s (37 s to LLVM IR, 54 s
   of LLVM passes, already spread across the CPUs), linking 5 s. So about 40% of every compile is

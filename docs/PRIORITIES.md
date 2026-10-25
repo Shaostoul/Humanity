@@ -83,10 +83,11 @@ In order:
    to the RFC 9106 vector). Its boot check ran in low impact beside the operator's game; the
    full-graphics boot followed once his game was closed (2026-10-24, 3a746c952's release build:
    3/3, no panic, 3D trees, sun shadows and ground cover drawn at 20 to 28 fps).
-2. **The build-speed measurements** the slot made possible, on a quiet machine: debug info in
-   dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
-   whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate
-   (`relay-gate.js`); then the one Cargo.toml commit (profiles, the image crate without AVIF).
+2. **The build-speed measurements** the slot made possible, on a quiet machine: DONE 2026-10-24
+   (docs/ai/builds.md "Measured 2026-10-24"): lean debug info adopted with the image crate
+   without AVIF, rust-lld rejected (2%), BUG-174 no longer reached, about 40% of a compile is
+   single-threaded analysis (the crate split is the operator's call), and the relay gate: one
+   check in place of the pair, adopted in `just verify`.
 3. **Bugs the accessibility pass found:** FIXED 2026-10-24: web Notes now seals at 600,000 PBKDF2
    rounds (54d40555a), the web calculator works in degrees like the app (36d821742), the web
    wallet calls the functions wallet.js really has (c26be6d23), the desktop Calendar keeps an
