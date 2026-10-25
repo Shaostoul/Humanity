@@ -27,11 +27,11 @@ Add the desktop app and the 3D world runs fully offline with local saves. The co
 
 ### 1. Your identity is yours, forever
 
-When you sign up, your phone or computer creates a **post-quantum cryptographic key** - math so strong it will still be secure when quantum computers arrive. No username, no password. Your 24-word backup phrase restores your identity on any device, and with it everything the server holds. Your private message history is deliberately **not** on the server: it lives encrypted on your own device, and undelivered mail expires after 30 days. That is exactly what makes the relay unable to read or hand over your conversations, and it also means your device holds the only copy of that history. Forgot your phrase too? Guardian-based recovery (Shamir secret sharing - no single friend can do it alone) is being built: the server side is live, the in-app flow is in development.
+The first time you open HumanityOS, your phone or computer creates a **post-quantum cryptographic key** - math so strong it will still be secure when quantum computers arrive. No sign-up, and no password stored on any server. Your 24-word recovery phrase restores your identity on any device, and with it everything the server holds. Your private message history is deliberately **not** on the server: it lives encrypted on your own device, and undelivered mail expires after 30 days. That is exactly what makes the relay unable to read or hand over your conversations, and it also means your device holds the only copy of that history. Lost your device and your phrase too? A few friends you chose earlier can each send back a piece of it, after checking that it is really you; no single piece is any use alone, and the server cannot read them (Settings > Account in the app, and /recovery on the website).
 
 ### 2. Nobody can deplatform you
 
-There's no lock-in to a central server. Anyone can run a copy. **Your identity works on any server you join**, your credentials follow you, your messages and contacts come with you. If one server goes down, you keep going. Server-to-server federation is built and fail-closed, ready to switch on as more servers appear - a network with no center can't be shut down from one.
+There's no lock-in to a central server. Anyone can run a copy. **Your identity works on any server you join**, your credentials follow you, your messages and contacts come with you. If one server goes down, you keep going. Server-to-server federation is live between united-humanity.us and public.guide, and fail-closed - a network with no center can't be shut down from one.
 
 ### 3. Public domain - really
 
@@ -80,7 +80,7 @@ The code, the docs and the commits we wrote are in the public domain ([CC0 1.0](
 - Vouching (API; UI coming)
 - Local + civilization voting
 - AI-as-citizen rules
-- Server federation (built, fail-closed; activates as peers join)
+- Server federation (live between two servers, fail-closed)
 - Anti-Sybil math built in
 
 </td>
@@ -93,7 +93,6 @@ Farming, cooking, crafting, combat, quests, skills and XP, a player market with 
 ### What's still cooking
 - Native mobile apps (web works on phones today)
 - Multiplayer polish: shared-world co-presence is in live two-player testing
-- Social key recovery client flow (server-side guardian substrate is live)
 - One-click vouching and credential-issuing UI (the signed-object plumbing is live)
 - Mesh radio support for off-grid use
 - Real Solana transaction signing in the desktop app
@@ -214,7 +213,7 @@ Humanity/
 │   └── terrain/             ← Icosphere planets, voxel asteroids, ship interiors
 ├── web/                     ← Plain JS/HTML/CSS site (served by nginx)
 │   ├── chat/                ← Chat client modules
-│   ├── pages/               ← Standalone pages (43 of them)
+│   ├── pages/               ← Standalone pages (listed in docs/PAGES.md)
 │   └── shared/              ← shell.js, theme.css, pq-identity.js bridge
 ├── data/                    ← Hot-reloadable game + identity + coordination data
 │   ├── chemistry/           ← 483 elements, compounds, alloys, gases, toxins
@@ -239,9 +238,10 @@ Humanity/
 
 ```bash
 cargo test --features relay --no-default-features --lib
-# 700+ tests across storage, crypto, signing, federation, and game logic
+# the server's tests: storage, crypto, signing, federation, and game logic
 cargo test --features native --lib
-# 890+ tests for the full desktop app (GUI, systems, renderer helpers)
+# about 5,200 tests for the full desktop app (5,208 on 2026-10-25); on Windows
+# run `just test-lib` instead, which links the tests in a way Windows accepts
 ```
 
 </details>
