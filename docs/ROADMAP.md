@@ -233,8 +233,9 @@ of your identity, and your identity is portable across all of them.
   your recovery phrase stopped before it is sent; and a protected setup, a PIN lock a parent can
   put on a device's safety settings. Never described as making anyone safe, and it checks no
   one's age (dated findings in `docs/reference/findings/`).
-- `[next]` Safety follow-ups: a report about a group reaching the group's creator, and an
-  admin tool to erase another person's data on a server.
+- `[done]` Safety follow-ups (v0.1475.0): a report about a group reaches the group's creator,
+  whose app checks it against its own copy of the group and can remove the person; and a server's
+  admins can erase everything it stores about a member (v0.1474.0).
 - `[planned]` Camera-safe sign-in: unlocking without typing a PIN or passphrase where a
   camera or a stream could see it (options in PRIORITIES, waiting on the operator's pick).
 - `[done]` Peer-to-peer groups: signed objects, end-to-end encryption, and a group
@@ -448,11 +449,15 @@ This layer is not optional.
   together" instantly clear to anyone.
 - `[building]` Three-audience onboarding: clear, separate getting-started guides for
   standard users, server admins, and AI agents (this refactor).
-- `[next]` A tooltip on every interactive element, in plain language.
-- `[planned]` A "first 5 minutes" guided tour for brand-new users.
+- `[building]` A tooltip on every interactive element, in plain language: the controls of 22
+  pages have one so far (v0.1544.0), and a check fails when a page gains a control without one.
+- `[done]` A "first 5 minutes" guided tour for brand-new users (v0.1544.0), in the desktop app
+  and on the website: the recovery phrase written on paper, a first message, the first steps in
+  the world, then where help lives. It can be skipped or picked up again later.
 - `[planned]` Localization expansion: Arabic, Hindi, Portuguese, Russian, German,
   Swahili, and more.
-- `[planned]` A native glossary widget to match the web.
+- `[done]` A native glossary widget to match the web (v0.1544.0): a marked word is underlined,
+  and resting the pointer on it shows the same definition card the website shows.
 - `[planned]` A full WCAG 2.1 AA accessibility audit with fixes.
 - `[future]` Schema-driven in-app "Make-a-Thing" editor: a form generated from each
   data schema so a teacher anywhere can add local crops, recipes, and lessons with no

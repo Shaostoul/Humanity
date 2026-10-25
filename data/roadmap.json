@@ -230,9 +230,9 @@
           "text": "Safety tools, on both clients (v0.1465 to v0.1473, design docs/design/blocking-and-safe-mode.md): safe by default, with \"who can reach me\" for messages, calls and trades and a Message, Call and Trade tick per friend; Block (they are not told); reports the admins can check against the sender's own signature; help outside the server for a child or someone in danger; warnings on messages, checked on your device only; your recovery phrase stopped before it is sent; and a protected setup, a PIN lock a parent can put on a device's safety settings. Never described as making anyone safe, and it checks no one's age (dated findings in docs/reference/findings/)."
         },
         {
-          "status": "next",
-          "version": null,
-          "text": "Safety follow-ups: a report about a group reaching the group's creator, and an admin tool to erase another person's data on a server."
+          "status": "done",
+          "version": "v0.1475.0",
+          "text": "Safety follow-ups (v0.1475.0): a report about a group reaches the group's creator, whose app checks it against its own copy of the group and can remove the person; and a server's admins can erase everything it stores about a member."
         },
         {
           "status": "planned",
@@ -300,7 +300,7 @@
           "text": "Mobile clients for Android and iOS."
         }
       ],
-      "done": 6,
+      "done": 7,
       "total": 17
     },
     {
@@ -534,14 +534,14 @@
           "text": "Three-audience onboarding: clear, separate getting-started guides for standard users, server admins, and AI agents (this refactor)."
         },
         {
-          "status": "next",
-          "version": null,
-          "text": "A tooltip on every interactive element, in plain language."
+          "status": "building",
+          "version": "v0.1544.0",
+          "text": "A tooltip on every interactive element, in plain language: the controls of 22 pages have one so far (v0.1544.0), and a check fails when a page gains a control without one."
         },
         {
-          "status": "planned",
-          "version": null,
-          "text": "A \"first 5 minutes\" guided tour for brand-new users."
+          "status": "done",
+          "version": "v0.1544.0",
+          "text": "A \"first 5 minutes\" guided tour for brand-new users (v0.1544.0), in the desktop app and on the website: the recovery phrase written on paper, a first message, the first steps in the world, then where help lives. It can be skipped or picked up again later."
         },
         {
           "status": "planned",
@@ -549,9 +549,9 @@
           "text": "Localization expansion: Arabic, Hindi, Portuguese, Russian, German, Swahili, and more."
         },
         {
-          "status": "planned",
-          "version": null,
-          "text": "A native glossary widget to match the web."
+          "status": "done",
+          "version": "v0.1544.0",
+          "text": "A native glossary widget to match the web (v0.1544.0): a marked word is underlined, and resting the pointer on it shows the same definition card the website shows."
         },
         {
           "status": "planned",
@@ -569,7 +569,7 @@
           "text": "Offline Survival Codex: the chemistry / biome / water-and-nutrient corpus bundled, printable, and with built-in calculators that work with no internet."
         }
       ],
-      "done": 4,
+      "done": 6,
       "total": 12
     },
     {
@@ -999,7 +999,7 @@
     }
   ],
   "summary": {
-    "done": 52,
+    "done": 55,
     "total": 115
   }
 }
