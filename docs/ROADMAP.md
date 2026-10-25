@@ -511,8 +511,9 @@ Every operator gets the same sovereignty tools, not just the original.
   copied within seconds (about a 1-minute recovery point), sealed with the server's backup key,
   to a folder, an S3-compatible bucket or another HumanityOS server; restore to any moment in
   the history kept; a restore drill in the app and a monthly one from the owner's PC. Built
-  into the relay (WAL shipping in Rust) instead of Litestream. Live once released and turned
-  on: united-humanity.us and public.guide keeping each other's copies.
+  into the relay (WAL shipping in Rust) instead of Litestream. Released in v0.1544.0 and
+  not yet turned on (checked 2026-10-25: united-humanity.us still runs only its six-hourly
+  sealed snapshots); next, united-humanity.us and public.guide keeping each other's copies.
 - `[planned]` GitHub branch + tag protection and required signed commits on `main`
   (deploy auto-pushes to the live relay today with no approval gate).
 - `[future]` Between planets (`docs/design/interplanetary.md`, 2026-10-11): designing for

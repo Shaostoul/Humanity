@@ -629,7 +629,7 @@
         {
           "status": "building",
           "version": null,
-          "text": "Continuous backup (2026-10-22, docs/admin/continuous-backup.md): every change copied within seconds (about a 1-minute recovery point), sealed with the server's backup key, to a folder, an S3-compatible bucket or another HumanityOS server; restore to any moment in the history kept; a restore drill in the app and a monthly one from the owner's PC. Built into the relay (WAL shipping in Rust) instead of Litestream. Live once released and turned on: united-humanity.us and public.guide keeping each other's copies."
+          "text": "Continuous backup (2026-10-22, docs/admin/continuous-backup.md): every change copied within seconds (about a 1-minute recovery point), sealed with the server's backup key, to a folder, an S3-compatible bucket or another HumanityOS server; restore to any moment in the history kept; a restore drill in the app and a monthly one from the owner's PC. Built into the relay (WAL shipping in Rust) instead of Litestream. Released in v0.1544.0 and not yet turned on (checked 2026-10-25: united-humanity.us still runs only its six-hourly sealed snapshots); next, united-humanity.us and public.guide keeping each other's copies."
         },
         {
           "status": "planned",
