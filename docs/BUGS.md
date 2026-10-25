@@ -6830,7 +6830,33 @@ gone, and the person reading the how-to is the one who has not written its words
   - with the choice's answer ignored: "it keeps asking".
 
 **Still open (code notes from the same review, not fixed here):**
-- The Copy button beside the words works while they are covered, with no hold.
+- The Copy button beside the words worked while they were covered: fixed the same day as BUG-214.
 - A forgotten vault passphrase is a dead end for Remember on this device and Quick PIN users.
   Showing the words needs the passphrase, and so does Change Passphrase. The how-to now points
   them to Recovery through trusted people, set up while the app is open.
+
+## BUG-214: the recovery phrase's Copy copied the words while they were covered (FIXED 2026-10-24, found 2026-10-24)
+
+**Found by:** the same independent review as BUG-213, as a code note.
+
+**Seen (in the code):** the phrase cover shows the words only after a 3-second hold, so that a
+stray click never shows them (operator, 2026-10-16). But the Copy button beside them was drawn
+and worked while they were covered, so one stray click put the whole phrase on the clipboard.
+This was so in Settings, Account on the desktop, and in three places on the website: the
+Settings phrase window's two Copy buttons, and the chat intro's Copy.
+
+**Fix:**
+- Desktop: `phrase_cover::words` returns whether the words are shown, and Settings draws Copy only
+  then.
+- Website: `HosPhraseCover.words(host, phrase, { onChange })` calls `onChange(shown)` each time the
+  cover is drawn. chat-profile.js and chat-onboarding.js hide their Copy buttons while the words
+  are covered, and a click on a hidden one copies nothing.
+
+**Tests** (each seen red):
+- `settings::identity_tests::the_words_copy_is_there_only_while_they_are_shown`. Held for the
+  cover's 3 seconds, one more Copy appears. Red against the box before the fix: "covered, the
+  phrase box draws no Copy; shown, it does".
+- phrase-cover-web.test.js, "a Copy beside the words follows the cover". Red with render() not
+  calling it.
+- phrase-cover-web.test.js, "the intro's Copy is there only while the words are shown". Red
+  against the intro before the fix: "covered, Copy is not there".

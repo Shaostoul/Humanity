@@ -147,3 +147,29 @@ fn one_passphrase_unlocks_it_and_shows_the_cover() {
     assert!(after.contains(crate::gui::widgets::phrase_cover::SHOW), "after the passphrase the words' cover is drawn:\n{after}");
     assert!(!after.contains(t("settings.identity_locked")), "it no longer says locked:\n{after}");
 }
+
+/// THE WORDS' COPY IS THERE ONLY WHILE THEY ARE SHOWN (BUG-214): covered, the recovery phrase box
+/// draws no Copy, so a stray click cannot put the words on the clipboard; held for its 3 seconds,
+/// the words show and Copy with them (one more Copy than before: the public key keeps its own).
+///
+/// Seen red 2026-10-24 against the box before the fix: "covered, the phrase box draws no Copy".
+#[test]
+fn the_words_copy_is_there_only_while_they_are_shown() {
+    crate::config::keep_saves_off_disk();
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = GuiState::default();
+    // A just-made identity: in memory, no passphrase yet, so the box is drawn with no gate.
+    state.private_key_bytes = Some(vec![7u8; 32]);
+    let copies = |t: &[(String, egui::Rect)]| t.iter().filter(|(s, _)| s == "Copy").count();
+    let covered = account(&ctx, &theme, &mut state, Vec::new());
+    assert!(all_text(&covered).contains(crate::gui::widgets::phrase_cover::SHOW), "the words are covered");
+    // Held for the cover's 3 seconds and a little more, at egui's 1/60 s a pass.
+    let at = covered.iter().find(|(s, _)| s == crate::gui::widgets::phrase_cover::SHOW).map(|(_, r)| r.center()).expect("the show button");
+    let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+    let mut frames = vec![vec![egui::Event::PointerMoved(at), button(true)]];
+    frames.extend((0..((crate::gui::widgets::phrase_cover::HOLD_SECONDS + 0.3) * 60.0).ceil() as usize).map(|_| Vec::new()));
+    frames.push(vec![button(false)]);
+    let shown = account(&ctx, &theme, &mut state, frames);
+    assert!(all_text(&shown).contains(crate::gui::widgets::phrase_cover::HIDE), "held, the words are shown:\n{}", all_text(&shown));
+    assert_eq!(copies(&shown), copies(&covered) + 1, "covered, the phrase box draws no Copy; shown, it does");
+}

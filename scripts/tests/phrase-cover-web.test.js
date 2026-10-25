@@ -149,3 +149,49 @@ test("without the hold helper the words cannot be shown at all", () => {
     globalThis.holdToConfirm = kept;
   }
 });
+
+/** A COPY BESIDE THE WORDS FOLLOWS THE COVER (BUG-214, 2026-10-24): `onChange` hears covered at
+ *  first, shown after the hold, and covered again on blur and on Hide, so a Copy button can be
+ *  there only while the words are. Seen red with render() not calling it: "it hears they are
+ *  covered at first". */
+test("a Copy beside the words follows the cover", () => {
+  const page = fakePage();
+  const host = page.doc.body.appendChild(page.doc.createElement("div"));
+  const heard = [];
+  cover.words(host, PHRASE, { onChange: (shown) => heard.push(shown) });
+  assert.deepEqual(heard, [false], "it hears they are covered at first");
+  holdToShow(host, cover.WORDS.show);
+  assert.equal(heard.at(-1), true, "shown after the hold");
+  page.fire("window", "blur");
+  assert.equal(heard.at(-1), false, "covered again when the window loses focus");
+  holdToShow(host, cover.WORDS.show);
+  button(host, cover.WORDS.hide).click();
+  assert.equal(heard.at(-1), false, "and on Hide the words");
+});
+
+/** THE INTRO'S COPY COPIES NOTHING COVERED (BUG-214): the Copy button is not there while the words
+ *  are covered and a click on it copies nothing; once they are shown it is there and copies them.
+ *  Seen red against the intro before the fix: "covered, Copy is not there". */
+test("the intro's Copy is there only while the words are shown", async () => {
+  const copied = [];
+  const ctx = { window: {}, console, navigator: { clipboard: { writeText: async (t) => { copied.push(t); } } } };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(repo, "web/chat/chat-onboarding.js"), "utf8"), ctx);
+  const page = fakePage();
+  const host = page.doc.body.appendChild(page.doc.createElement("div"));
+  const copyBtn = page.doc.createElement("button");
+  const copyMsg = page.doc.createElement("span");
+  ctx.window.HosPhraseCover = cover;
+  const parts = { "#ob-phrase-cover": host, "#ob-copy-btn": copyBtn, "#ob-copy-msg": copyMsg };
+  ctx.wireStep1({ querySelector: (sel) => parts[sel] || null }, PHRASE);
+  assert.equal(copyBtn.style.display, "none", "covered, Copy is not there");
+  copyBtn.click();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(copied, [], "and a click on it copies nothing");
+  holdToShow(host, cover.WORDS.show);
+  assert.equal(copyBtn.style.display, "", "shown, Copy is there");
+  copyBtn.click();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(copied, [PHRASE], "and copies the words");
+});

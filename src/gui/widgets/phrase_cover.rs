@@ -67,8 +67,10 @@ fn keep(ui: &Ui, id: egui::Id, up: bool) {
 }
 
 /// The 24 words of `phrase`, numbered in four columns, covered until the person presses Show the
-/// words (see the module). `id_salt` names this place, so each place covers on its own.
-pub fn words(ui: &mut Ui, theme: &Theme, id_salt: &str, phrase: &str) {
+/// words (see the module). `id_salt` names this place, so each place covers on its own. True
+/// while they are shown: a Copy button beside them is drawn only then (BUG-214), so a stray click
+/// on covered words cannot put them on the clipboard.
+pub fn words(ui: &mut Ui, theme: &Theme, id_salt: &str, phrase: &str) -> bool {
     let id = egui::Id::new(id_salt).with("phrase_cover");
     let mut up = lifted(ui, id);
     egui::Grid::new(egui::Id::new(id_salt).with("phrase_cover_grid"))
@@ -97,6 +99,7 @@ pub fn words(ui: &mut Ui, theme: &Theme, id_salt: &str, phrase: &str) {
         }
     }
     keep(ui, id, up);
+    up
 }
 
 /// A code that carries the account (the device-link QR), drawn by `draw`, covered until the person

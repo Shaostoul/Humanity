@@ -824,10 +824,14 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         // along. See docs/design/typography.md.
                         // Covered until the person shows them, every time this opens
                         // (widgets/phrase_cover.rs, 2026-10-16: livestreams, public places).
-                        widgets::phrase_cover::words(ui, theme, "settings_phrase", &phrase);
-                        ui.add_space(theme.spacing_xs);
-                        if widgets::secondary_button(ui, theme, "Copy") {
-                            ui.ctx().copy_text(phrase.clone());
+                        let shown = widgets::phrase_cover::words(ui, theme, "settings_phrase", &phrase);
+                        // Copy only while the words are shown (BUG-214): covered, a stray click
+                        // would put them on the clipboard, which the cover's hold prevents.
+                        if shown {
+                            ui.add_space(theme.spacing_xs);
+                            if widgets::secondary_button(ui, theme, "Copy") {
+                                ui.ctx().copy_text(phrase.clone());
+                            }
                         }
                     });
             }
