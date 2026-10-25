@@ -185,8 +185,10 @@ server operator cannot read your private messages.
   AES-256-GCM. The relay stores only ciphertext.
 - `[done]` Encrypted vault (PBKDF2 600k both clients) with three auto-unlock modes.
 - `[done]` BIP39 24-word recovery, so losing a device never locks you out forever.
-- `[building]` Social key recovery: the recovery page and the relay storage exist, the
-  client-side seed splitting does not, so it cannot be relied on yet.
+- `[done]` Recovery through trusted people (v0.1541.0): a few friends you chose earlier each
+  keep one locked piece of your recovery phrase and send it back after checking by phone or in
+  person that it is really you. No one piece is any use alone, and the server cannot read them or
+  learn who your trusted people are. In Settings > Account and at /recovery on the website.
 - `[done]` Proof-of-possession at connect: a signed challenge-response before the
   relay binds your identity (closes identity spoofing).
 - `[done]` Release signing: a hybrid Ed25519 + Dilithium3 signature on every release
@@ -244,8 +246,10 @@ of your identity, and your identity is portable across all of them.
   your own account takes your profile off them (BUG-191, fixed 2026-10-12) (v0.1490.0).
 - `[building]` Web-to-native parity: rebuilding the web chat view to mirror the native
   app one-to-one (Track W).
-- `[next]` Federation activation: an admin UI to add and trust peer servers, a second
-  operator-run relay, end-to-end federation testing, then vetted third-party peers.
+- `[building]` Federation activation: the admin panel to add, trust, pause and remove peer
+  servers is built (desktop and website), and a second operator-run relay, public.guide,
+  federates with united-humanity.us both ways (checked by hand on 2026-10-24). Next: vetted
+  third-party peers.
 - `[planned]` Peer-to-peer groups Phases 3 to 5: relay-independent transport (a group
   survives even if its home relay dies) and serverless discovery.
 - `[planned]` Everyone on Earth (`docs/design/eight-billion.md`, 2026-10-11): every feature

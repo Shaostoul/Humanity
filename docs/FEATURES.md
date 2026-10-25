@@ -78,8 +78,9 @@ awaited; a consecutive-failure circuit breaker bounds the per-proposal join agai
 hung server; vote-success wording is honest about the server keeping the FIRST vote per
 identity (INSERT OR IGNORE, votes are final); session vote-tracking resets on identity
 switch. 7 regression tests, including a full round-trip through the real relay storage and
-a wire-struct deserialization lock. Web's vote button remains a stub (real web voting
-needs canonical-CBOR signing in JS + a cross-language KAT -- tracked as its own item).
+a wire-struct deserialization lock. Web voting became real on 2026-07-01 (d70cf340c:
+Dilithium3-signed vote_v1 from the browser, locked byte for byte to the relay by `just vote-kat`),
+and proposing from the web on 2026-09-06 (6966e3bf0).
 - Native: `src/gui/pages/governance.rs` (fetch/build/post/draw + tests), `src/gui/mod.rs` (`governance_*` GuiState fields; `apply_pq_identity` clears per-identity vote tracking)
 - Snapshot: `src/gui/ui_snapshots.rs::snapshot_governance` (state-injected feed render)
 

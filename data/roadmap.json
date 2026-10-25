@@ -167,9 +167,9 @@
           "text": "BIP39 24-word recovery, so losing a device never locks you out forever."
         },
         {
-          "status": "building",
-          "version": null,
-          "text": "Social key recovery: the recovery page and the relay storage exist, the client-side seed splitting does not, so it cannot be relied on yet."
+          "status": "done",
+          "version": "v0.1541.0",
+          "text": "Recovery through trusted people (v0.1541.0): a few friends you chose earlier each keep one locked piece of your recovery phrase and send it back after checking by phone or in person that it is really you. No one piece is any use alone, and the server cannot read them or learn who your trusted people are. In Settings > Account and at /recovery on the website."
         },
         {
           "status": "done",
@@ -207,7 +207,7 @@
           "text": "STARK selective disclosure: prove a fact about yourself without revealing the underlying data."
         }
       ],
-      "done": 7,
+      "done": 8,
       "total": 12
     },
     {
@@ -255,9 +255,9 @@
           "text": "Web-to-native parity: rebuilding the web chat view to mirror the native app one-to-one (Track W)."
         },
         {
-          "status": "next",
+          "status": "building",
           "version": null,
-          "text": "Federation activation: an admin UI to add and trust peer servers, a second operator-run relay, end-to-end federation testing, then vetted third-party peers."
+          "text": "Federation activation: the admin panel to add, trust, pause and remove peer servers is built (desktop and website), and a second operator-run relay, public.guide, federates with united-humanity.us both ways (checked by hand on 2026-10-24). Next: vetted third-party peers."
         },
         {
           "status": "planned",
@@ -999,7 +999,7 @@
     }
   ],
   "summary": {
-    "done": 51,
+    "done": 52,
     "total": 115
   }
 }
