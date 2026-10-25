@@ -2104,5 +2104,9 @@ window.HOS_I18N_EN = {
   },
   "profile": {
     "bio_over_limit": "Your bio is {{n}} characters and the limit is {{limit}}. Shorten the part shown in red, then save again."
+  },
+  "dev": {
+    "journal_marked": "Marked #{{n}}. A Claude session can read what happened around it (the play journal).",
+    "journal_not_running": "The play journal is not running, so nothing was marked."
   }
 };

@@ -363,6 +363,8 @@ mod native_app {
                 let _ = std::io::Write::flush(&mut *f);
             }
             let _ = std::io::Write::write_all(&mut std::io::stderr(), buf);
+            // Warnings and errors also go to the play journal's `log` kind (engine/play_journal.rs).
+            crate::engine::play_journal::note_log_bytes(buf);
             Ok(buf.len())
         }
         fn flush(&mut self) -> std::io::Result<()> {
@@ -435,8 +437,11 @@ mod native_app {
                 let _ = std::io::Write::flush(&mut cf);
             }
             eprintln!("{body}");
+            crate::engine::play_journal::note_panic(&info.to_string()); // written at once
             default_hook(info);
         }));
+        // The play journal beside the logs folder (docs/design/play-journal.md).
+        crate::engine::play_journal::start(&dir);
         log::info!("===== HumanityOS v{} starting =====", env!("CARGO_PKG_VERSION"));
         log::info!("log file:  {}", run_path.display());
         log::info!("crash log: {}", crash_path.display());
@@ -2465,6 +2470,13 @@ mod native_app {
                         // stood and looked, instead of staring into the dirt.
                         if key == KeyCode::F6 && pressed {
                             state.bookmark_save_requested = true;
+                            return;
+                        }
+                        // F8 (2026-10-24): Mark this moment for the play journal, on any page: a
+                        // numbered mark with this frame's picture, taken at the end of the frame
+                        // (engine/play_journal.rs `take_mark`, docs/design/play-journal.md).
+                        if key == KeyCode::F8 && pressed {
+                            state.gui_state.play_mark_request = true;
                             return;
                         }
                         // F9 (v0.1109, operator request): toggle DEV FLIGHT
@@ -16149,6 +16161,7 @@ mod native_app {
                                 );
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
+                            crate::engine::play_journal::take_mark(state, &surface_texture.texture);
                             crate::engine::movie::capture(state, &surface_texture.texture);
                             poll_showcase_request(state);
 

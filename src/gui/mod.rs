@@ -1844,6 +1844,9 @@ pub struct GuiState {
     /// resolution (GUI-free, wallpaper-clean), clamped to the device's max texture
     /// dimension. Same engine path as dropping debug/screenshot_request.json.
     pub screenshot_capture_request: Option<(u32, u32)>,
+    /// F8 or the Dev page asked for a play-journal mark; taken at the end of the frame
+    /// (engine/play_journal.rs `take_mark`, 2026-10-24).
+    pub play_mark_request: bool,
     /// One-line outcome of the last capture ("Saved debug/screenshot_3.png (3840x2160)"
     /// or the error), shown under the Testing page's capture buttons.
     pub screenshot_last_result: Option<String>,
@@ -3775,6 +3778,7 @@ impl Default for GuiState {
             galaxy_glow_dl: None,
             galaxy_glow_installed: None,
             screenshot_capture_request: None,
+            play_mark_request: false,
             screenshot_last_result: None,
             // Defaults mirror the 4K quick button so the custom row starts sane.
             screenshot_custom_width: "3840".to_string(),

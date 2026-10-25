@@ -1,0 +1,12 @@
+{
+  "_about": "The play journal's kinds (docs/design/play-journal.md): each kind is one file, journal/<id>.jsonl, beside the logs folder. src/engine/play_journal.rs records them; scripts/mcp-server.js (dev_play_journal) and the Dev page read these words. A new kind is a row here and a record() call at the place that knows the event. Never in any kind: the words of a message, a key, a token, a recovery phrase, a file's contents.",
+  "kinds": [
+    { "id": "log", "built": true, "about": "Every warning and error line the game logged (its level and module), the same words run.log holds." },
+    { "id": "panic", "built": true, "about": "A panic's message and the version, written at once." },
+    { "id": "mark", "built": true, "about": "Mark this moment (F8): its number, its picture (marks/<n>.png), the page and where the player stood." },
+    { "id": "frame", "built": false, "about": "A frame over its budget: total ms, the slowest pass and stage." },
+    { "id": "net", "built": false, "about": "Connect, disconnect, a refused sign-in, a refused line or call: the server and the kind of frame, never what it carried." },
+    { "id": "world", "built": false, "about": "World entered, storey or room changed, a teleport, a fall, death, a save written or loaded." },
+    { "id": "page", "built": false, "about": "A page opened or closed." }
+  ]
+}

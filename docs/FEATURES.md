@@ -4000,6 +4000,17 @@ restart.
 
 ## Developer Tooling
 
+### The play journal and F8, Mark this moment (2026-10-24, rung 1 of docs/design/play-journal.md)
+While the game runs it keeps what happened, by kind, in small capped files in a `journal` folder
+beside its logs (the operator's install: %APPDATA%/HumanityOS/journal): `log` (every warning and
+error line), `panic`, and `mark`. F8 on any page (or the dev IPC's `{"action": "mark"}`) writes
+a numbered mark with that frame's picture (`marks/<n>.png`, the last 30 kept). A Claude session
+reads it through the dev MCP, even after the game closed: `dev_play_marks` lists the marks,
+`dev_play_journal {since_mark: 12}` gives everything after one. Never in it: message words, keys,
+tokens, recovery phrases. `src/engine/play_journal.rs`, `data/dev/journal_kinds.json`,
+`scripts/mcp-server.js`. Next rungs: the Dev page's Journal panel, then the `frame`, `net`,
+`world` and `page` kinds.
+
 ### Code map for AI sessions (2026-10-18)
 One generated line per source file (every `.rs` under `src/`, every `.js` under `web/`): what its
 header comment says it is, and its main public items, with a one-line-per-folder index first. A

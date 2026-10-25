@@ -110,6 +110,9 @@ pub mod home_probe;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;
+/// The play journal (2026-10-24): what happened while the game ran, by kind, in small capped files
+/// beside the logs, and F8, Mark this moment. docs/design/play-journal.md.
+pub mod play_journal;
 /// Leaving the app: the save every way out runs first (first-hour audit 2026-10-04, Blocker 5).
 pub mod quit;
 /// The character's own home (2026-10-04): the build editor's edits outside the Dev mode are kept

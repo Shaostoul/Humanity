@@ -488,6 +488,68 @@ function priorities(args) {
   return P.textResult(lines.join("\n"));
 }
 
+// ── The play journal (docs/design/play-journal.md) ─────────────────────────────────────────────
+// What the game recorded by kind while it ran, in a `journal` folder beside its logs: the
+// operator's install keeps it in %APPDATA%/HumanityOS/journal, a rig's sandbox in
+// <sandbox>/journal. Read from the files, so a closed game's journal reads too.
+
+/** The journal folder: `folder` when given, else the operator's install's. */
+function playJournalDir(folder) {
+  if (folder) return path.resolve(String(folder));
+  const base = process.env.APPDATA || path.join(require("os").homedir(), ".local", "share");
+  return path.join(base, "HumanityOS", "journal");
+}
+
+/** One kind's events, oldest first; a line that does not parse is left out. */
+function readKind(dir, kind) {
+  let text = "";
+  try { text = fs.readFileSync(path.join(dir, kind + ".jsonl"), "utf8"); } catch (_) { return []; }
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try { out.push(JSON.parse(line)); } catch (_) { /* a half-written line */ }
+  }
+  return out;
+}
+
+/** The kinds that have a file in the folder. */
+function kindsIn(dir) {
+  try { return fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl")).map((n) => n.slice(0, -6)).sort(); } catch (_) { return []; }
+}
+
+const isoOf = (t) => (Number.isFinite(t) ? new Date(t).toISOString() : "?");
+const placeOf = (m) => (m && m.storey && (m.storey.room || m.storey.name)) || "";
+
+function playMarks(args) {
+  const dir = playJournalDir(args.folder);
+  const marks = readKind(dir, "mark");
+  if (!marks.length) return P.textResult(`No marks in ${dir} yet. In the game, F8 marks a moment.`, { dir, marks: [] });
+  const lines = marks.map((m) => `#${m.n} ${isoOf(m.t)} ${m.page || ""} ${placeOf(m)} ${m.picture || "(no picture)"}`.replace(/\s+/g, " ").trim());
+  return P.textResult(`${marks.length} marks in ${dir}:\n${lines.join("\n")}`, { dir, marks });
+}
+
+function playJournal(args) {
+  const dir = playJournalDir(args.folder);
+  const kinds = args.kind ? [String(args.kind)] : kindsIn(dir);
+  let mark = null;
+  if (args.since_mark != null) {
+    mark = readKind(dir, "mark").find((m) => m.n === Number(args.since_mark)) || null;
+    if (!mark) return P.textResult(`There is no mark #${args.since_mark} in ${dir} (dev_play_marks lists them).`, { dir, events: [] });
+  }
+  const since = mark ? mark.t : 0;
+  let events = [];
+  for (const kind of kinds) events.push(...readKind(dir, kind).filter((e) => Number(e.t) >= since).map((e) => ({ kind, ...e })));
+  events.sort((a, b) => a.t - b.t);
+  const n = Math.min(Math.max(Number(args.last) || 200, 1), 2000);
+  const dropped = Math.max(0, events.length - n);
+  events = events.slice(-n);
+  const head = `${events.length} event(s) of ${args.kind ? JSON.stringify(args.kind) : "every kind"} in ${dir}` +
+    (mark ? ` since mark #${mark.n} (${isoOf(mark.t)}${mark.picture ? ", picture " + mark.picture : ""})` : "") +
+    (dropped ? `; the ${dropped} older left out (last)` : "") + ":";
+  const lines = events.map((e) => `${isoOf(e.t)} ${e.kind}${e.level ? " " + e.level : ""}: ${e.what || ""}${e.picture ? " [" + e.picture + "]" : ""}`);
+  return P.textResult([head, ...lines].join("\n"), { dir, since_mark: mark, events });
+}
+
 function vantages(args) {
   const all = readVantages();
   const f = String(args.filter || "").toLowerCase();
@@ -540,6 +602,12 @@ const OWN = [
   [{ name: "dev_journal", title: "Read the journal", annotations: RO,
      description: "The orchestrator journal (data/coordination/orchestrator_state.json): the current focus and the last few decisions with why they were made.",
      inputSchema: obj({ entries: { type: "integer", minimum: 1, maximum: 40, description: "How many decisions, default 5." } }) }, journal],
+  [{ name: "dev_play_journal", title: "Read the play journal", annotations: RO,
+     description: "What the game recorded while it ran (the play journal, docs/design/play-journal.md): events of one kind (log: warnings and errors; panic; mark; later frame, net, world, page; data/dev/journal_kinds.json) or every kind, after mark N (since_mark, from the F8 key) or the last N, oldest first, with the mark's picture. Reads the files, so a closed game's journal too. folder: a rig sandbox's journal folder, default the operator's install (%APPDATA%/HumanityOS/journal).",
+     inputSchema: obj({ kind: { type: "string", description: "One kind, e.g. log; every kind when left out." }, since_mark: { type: "integer", minimum: 1, description: "Only what happened from mark N on." }, last: { type: "integer", minimum: 1, maximum: 2000, description: "At most this many, the newest; default 200." }, folder: { type: "string", description: "Another journal folder (a rig's sandbox)." } }) }, playJournal],
+  [{ name: "dev_play_marks", title: "List the play journal's marks", annotations: RO,
+     description: "The marks made with F8 (Mark this moment) in the game: number, time, page, room and the picture's path, for dev_play_journal's since_mark.",
+     inputSchema: obj({ folder: { type: "string", description: "Another journal folder (a rig's sandbox)." } }) }, playMarks],
   [{ name: "dev_priorities", title: "Read the top of PRIORITIES", annotations: RO,
      description: "The top of TIER 0 in docs/PRIORITIES.md: what gets worked on next.",
      inputSchema: obj({ lines: { type: "integer", minimum: 10, maximum: 400, description: "Default 80." } }) }, priorities],
@@ -622,4 +690,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { bootCommand, listRigs, makeHost, findEndpoint, endpointCandidates, RIG, DEFAULT_VANTAGE };
+module.exports = { bootCommand, listRigs, makeHost, findEndpoint, endpointCandidates, RIG, DEFAULT_VANTAGE, playJournal, playMarks, playJournalDir };

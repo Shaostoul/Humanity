@@ -103,7 +103,9 @@ In order:
 5. **The in-game event journal** for play sessions, on top of the dev MCP (`docs/ai/mcp.md`): events
    by kind to small capped files, a mark key with a screenshot, an MCP tool reading one kind since
    a mark. PLANNED 2026-10-24: docs/design/play-journal.md (kinds, never-in-it list, caps,
-   F8 Mark this moment, the bridge tools, the Dev page panel, four rungs).
+   F8 Mark this moment, the bridge tools, the Dev page panel, four rungs). Rung 1 BUILT the same
+   day (log, panic and mark kinds, F8 and the IPC's "mark", dev_play_marks / dev_play_journal);
+   next: the Dev page's Journal panel, then the frame, net, world and page kinds.
 6. **How-to:** an independent review of the six how-tos, and a person's dated review of the four
    marked lethal before any shows as checked (all four real-life ones are lethal by the scale's own
    definition: the operator may want to look at that label); decisions 3 (dangerous work) and 4
@@ -115,6 +117,9 @@ In order:
      the BUG-201 pattern. FIXED 2026-10-24: nonblocking sockets and a short idle sleep, as the
      file link;
    - `relay-follow.test.js` is flaky under load;
+   - `choice-web.test.js` ("10o O1: a device counts only its own mailbox pages") failed once in a full
+     `just rig-tests` run on 2026-10-24 and passed 3 of 3 alone and in the next full run: flaky under
+     load too;
    - Maps' CPU tile bake is over its 2 ms budget in the frames that bake;
    - low impact does not lower CPU per frame (the wall screens' UI 10 to 13 ms, terrain streaming);
    - construction-system pieces are unknown to `ship::standing`;

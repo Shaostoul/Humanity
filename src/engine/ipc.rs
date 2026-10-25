@@ -2951,6 +2951,7 @@ pub(crate) struct UiIpc {
 /// ```json
 /// {"action": "f10", "flag": "show_cloud_dev_panel"}
 /// {"action": "escape"}
+/// {"action": "mark"}   (the play journal's Mark this moment, as F8: engine/play_journal.rs)
 /// {"action": "state", "flag": "cloud_dev_dither_off"}
 /// {"action": "pointer_move", "pos": [200, 300]}
 /// {"action": "click", "pos": [200, 300], "flag": "cloud_dev_dither_off"}
@@ -3079,6 +3080,11 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
             closed = Some(crate::engine::input::escape_closes_cloud_dev(&mut state.gui_state));
             UiIpcStage::Complete
         }
+        // F8's mark, for a rig or a session (2026-10-24): taken at the end of this frame.
+        "mark" => {
+            state.gui_state.play_mark_request = true;
+            UiIpcStage::Complete
+        }
         // Answered from this frame's shapes by `ui_request_scan_shapes`.
         "state" | "find" => UiIpcStage::Complete,
         "pointer_move" | "click" => {
@@ -3097,7 +3103,7 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
             }
         }
         other => {
-            fail(format!("unknown action {other:?} (f10|escape|state|pointer_move|click|find)"));
+            fail(format!("unknown action {other:?} (f10|escape|mark|state|pointer_move|click|find)"));
             return;
         }
     };

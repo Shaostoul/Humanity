@@ -86,6 +86,7 @@ state, and closes the game.
 | `dev_lib_test` | Lib tests by filter, through `scripts/lib-tests.js` (the Windows link that works) |
 | `dev_lints` | `just lints` |
 | `dev_journal`, `dev_priorities` | The journal's focus and last decisions; the top of TIER 0 |
+| `dev_play_marks`, `dev_play_journal` | The PLAY journal (docs/design/play-journal.md): the marks the operator made with F8 (number, time, page, room, picture), and what the game recorded by kind (`log`, `panic`, `mark`, later more) since a mark or the last N. Read from the files, so a closed game's journal too; `folder` for a rig's sandbox |
 
 ### Adding a game tool
 
