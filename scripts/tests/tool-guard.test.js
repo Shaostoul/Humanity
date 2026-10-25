@@ -54,6 +54,12 @@ const cases = [
   ['a real sweep after a heredoc is still refused', bash("cat > m.txt <<'EOF'\ntext\nEOF\ngit add -A"), true],
   ['the word PowerShell in a heredoc, bash > to temp', bash("cat > \"$TEMP/j.js\" <<'EOF'\nPowerShell 5.1 notes\nEOF"), false],
   ['bash > to a repo file is bash, not PowerShell', bash('echo hi > docs/x.md'), false],
+  // A separator inside quotes is part of the argument (2026-10-25: a grep for the banned commands was refused).
+  ['a quoted grep pattern naming git add -A', bash('grep -n -i "cargo fmt\\|git add -A\\|git add \\.\\|seed phrase" CONTRIBUTING.md'), false],
+  ['a quoted pattern naming cargo fmt with a pipe', bash("grep -n 'x|cargo fmt' a.md"), false],
+  ['a real sweep after a quoted pipe is still refused', bash('grep "a|b" x.txt && git add -A'), true],
+  ['a real sweep after an unquoted pipe is still refused', bash('echo x | git add -A'), true],
+  ['a real sweep after a semicolon in single quotes is still refused', bash("echo 'a;b'; git add ."), true],
   ['powershell call with a bash redirect of its output', bash("powershell -NoProfile -Command 'Get-Date' > out.txt"), false],
 ];
 let failed = 0;

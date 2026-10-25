@@ -27,8 +27,49 @@
 
 const path = require('path');
 
-/** The shell separators that end one simple command. */
-const SPLIT = /\|\||&&|;|\||\n/;
+/**
+ * The simple commands of a command line: cut at `||`, `&&`, `;`, `|` and newlines, but only outside
+ * quotes and backslash escapes, so a quoted argument stays one argument. (A plain split cut the
+ * grep pattern "fmt\|git add -A\|seed" apart and refused the search as a sweep, 2026-10-25.)
+ */
+function segments(command) {
+  const out = [];
+  let cur = '';
+  let quote = null;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (quote) {
+      cur += c;
+      if (c === '\\' && quote === '"' && i + 1 < command.length) cur += command[++i];
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '\\' && i + 1 < command.length) {
+      cur += c + command[++i];
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      cur += c;
+      continue;
+    }
+    const pair = command.slice(i, i + 2);
+    if (pair === '||' || pair === '&&') {
+      out.push(cur);
+      cur = '';
+      i++;
+      continue;
+    }
+    if (c === '|' || c === ';' || c === '\n') {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  out.push(cur);
+  return out;
+}
 
 /** True when `dir` is inside an agent worktree (one agent's alone) rather than the shared checkout. */
 function inWorktree(dir) {
@@ -68,7 +109,7 @@ const WHOLE_TREE = new Set(['.', ':/', ':', '*', './', ':/*']);
 
 function checkGit(command, cwd) {
   const problems = [];
-  for (const segment of command.split(SPLIT)) {
+  for (const segment of segments(command)) {
     const dir = gitDir(segment, command, cwd);
     if (inWorktree(dir)) continue;
 
@@ -115,7 +156,7 @@ function checkGit(command, cwd) {
 }
 
 function checkFmt(command) {
-  for (const segment of command.split(SPLIT)) {
+  for (const segment of segments(command)) {
     const t = tokens(segment);
     const i = t.findIndex((x) => /(^|[\\/])cargo(\.exe)?$/i.test(x));
     if (i >= 0 && t.slice(i + 1).some((x) => x === 'fmt')) {
