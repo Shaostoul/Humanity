@@ -8,7 +8,7 @@
 295 page chat
 35 page dev
 9 page devlog
-22 page download
+19 page download
 12 page files
 5 page hi
 38 page home

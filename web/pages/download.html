@@ -252,6 +252,19 @@
         <span class="mod-status installed">✓ Installed</span>
       </div>
 
+      <div class="module-card">
+        <span class="mod-badge integration">Integration</span>
+        <div class="mod-header">
+          <span class="mod-icon"><img src="/assets/icons/platforms/steam.svg" alt="Steam" width="28" height="28" style="filter:brightness(0.8);"></span>
+          <div>
+            <div class="mod-title">Apps</div>
+            <div class="mod-size">Included</div>
+          </div>
+        </div>
+        <div class="mod-desc">Your games from Steam, the Epic Games Store and GOG in one library, with Steam's covers, playtime and achievements read from your own computer, plus free tools you can install from inside the app. Play starts each game through its store's app, and nothing signs in to a store.</div>
+        <span class="mod-status installed">✓ Installed</span>
+      </div>
+
       <!-- Game modules -->
       <div class="module-card">
         <span class="mod-badge game">Game</span>
@@ -288,33 +301,7 @@
         <button class="mod-status planned" disabled>Idea</button>
       </div>
 
-      <!-- Integration modules -->
-      <div class="module-card">
-        <span class="mod-badge integration">Integration</span>
-        <div class="mod-header">
-          <span class="mod-icon"><img src="/assets/icons/platforms/steam.svg" alt="Steam" width="28" height="28" style="filter:brightness(0.8);"></span>
-          <div>
-            <div class="mod-title">Steam Library</div>
-            <div class="mod-size">~5 MB</div>
-          </div>
-        </div>
-        <div class="mod-desc">Browse and launch your Steam games from within HumanityOS. Syncs library, playtime, and achievements.</div>
-        <button class="mod-status planned" disabled>Idea</button>
-      </div>
-
-      <div class="module-card">
-        <span class="mod-badge integration">Integration</span>
-        <div class="mod-header">
-          <span class="mod-icon"><img src="/assets/icons/platforms/epic.svg" alt="Epic Games" width="28" height="28" style="filter:brightness(0.8);"></span>
-          <div>
-            <div class="mod-title">Epic Games</div>
-            <div class="mod-size">~5 MB</div>
-          </div>
-        </div>
-        <div class="mod-desc">Access your Epic Games library. Launch games, track playtime, see friends.</div>
-        <button class="mod-status planned" disabled>Idea</button>
-      </div>
-
+      <!-- Integration modules (Steam, Epic and GOG shipped as the Apps page, v0.1517.0 to v0.1523.0: listed above) -->
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
@@ -344,19 +331,6 @@
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon"><img src="/assets/icons/platforms/gog.svg" alt="GOG" width="28" height="28" style="filter:brightness(0.8);"></span>
-          <div>
-            <div class="mod-title">GOG Galaxy</div>
-            <div class="mod-size">~5 MB</div>
-          </div>
-        </div>
-        <div class="mod-desc">DRM-free game library from GOG. Browse, launch, and track your collection.</div>
-        <button class="mod-status planned" disabled>Idea</button>
-      </div>
-
-      <div class="module-card">
-        <span class="mod-badge integration">Integration</span>
-        <div class="mod-header">
           <span class="mod-icon ico"><svg viewBox="0 0 48 48"><path d="M6,18 H16 Q16,12 20,12 Q24,12 24,18 H36 V28 Q30,28 30,32 Q30,36 36,36 V44 H6 Z" fill="none"/><path d="M36,18 V8 H18 Q18,12 14,12 Q12,12 12,8" fill="none"/></svg></span>
           <div>
             <div class="mod-title">Community Modules</div>
@@ -380,7 +354,7 @@
         <div class="icon ico"><svg viewBox="0 0 48 48" fill="currentColor" stroke="none"><path d="M6,10 L22,7.5 V23 H6 Z M25,7 L42,4.5 V23 H25 Z M6,25.5 H22 V40.5 L6,38 Z M25,25.5 H42 V43.5 L25,41 Z"/></svg></div>
         <div class="name">Windows</div>
         <div class="arch">x64 · HumanityOS-windows-x64.zip</div>
-        <div class="detail">Windows 10 or newer. This zip is the full game, about 380 MB. Right-click the zip, choose Extract All, then open the HumanityOS folder inside and double-click HumanityOS-windows-x64.exe. Do not run it from inside the zip without extracting it first: it would start without the game's files. Keep the program in that folder: it reads the game's models and textures from beside it. If Windows shows a blue warning, that is normal (see below). The release page also lists a bare HumanityOS-windows-x64.exe (about 75 MB): that is only the program, without the game's files, for updating a copy you already have.</div>
+        <div class="detail">Windows 10 or newer. This zip is the full game, about 380 MB. Right-click the zip, choose Extract All, then open the HumanityOS folder inside and double-click HumanityOS-windows-x64.exe. Do not run it from inside the zip without extracting it first: it would start without the game's files. Keep the program in that folder: it reads the game's models and textures from beside it. If Windows shows a blue warning, that is normal (see below). The release page also lists a bare HumanityOS-windows-x64.exe (about 95 MB): that is only the program, without the game's files, for updating a copy you already have.</div>
         <a href="https://github.com/Shaostoul/Humanity/releases/tag/v0.1547.0" class="card-btn" target="_blank">Download</a>
       </div>
       <div class="platform-card" id="card-macos-arm">
@@ -479,8 +453,8 @@
       <h3>Which build for weak hardware?</h3>
       <p>It is all one program, but it ships two ways so a small server is never forced to carry what it will not use:</p>
       <ul>
-        <li><strong>The full app</strong> (about 380&nbsp;MB on every platform: a zip that carries the program together with the game's models, textures and data). The desktop program you download above. It <em>is</em> the server too: run it with <code>--headless</code> and it hosts without a window. Best on any machine you also sit in front of. Windows releases also list a bare <code>HumanityOS-windows-x64.exe</code> (about 75&nbsp;MB); it has none of the game's files and only updates an install you already have.</li>
-        <li><strong>The headless server</strong> (about 28&nbsp;MB, <code>HumanityOS-relay-linux-x64</code> on each <a href="https://github.com/Shaostoul/Humanity/releases" target="_blank">release</a>). No graphics or audio libraries needed, so it runs on a bare Linux box, a Raspberry&nbsp;Pi, or the cheapest VPS. This is what you want for a dedicated, always-on node.</li>
+        <li><strong>The full app</strong> (about 380&nbsp;MB on every platform: a zip that carries the program together with the game's models, textures and data). The desktop program you download above. It <em>is</em> the server too: run it with <code>--headless</code> and it hosts without a window. Best on any machine you also sit in front of. Windows releases also list a bare <code>HumanityOS-windows-x64.exe</code> (about 95&nbsp;MB); it has none of the game's files and only updates an install you already have.</li>
+        <li><strong>The headless server</strong> (about 36&nbsp;MB, <code>HumanityOS-relay-linux-x64</code> on each <a href="https://github.com/Shaostoul/Humanity/releases" target="_blank">release</a>). No graphics or audio libraries needed, so it runs on a bare Linux box, a Raspberry&nbsp;Pi, or the cheapest VPS. This is what you want for a dedicated, always-on node.</li>
       </ul>
       <p>Either way, <strong>running</strong> the server costs about 50&nbsp;MB of memory and half a percent of one core. <strong>Building</strong> from source is the only heavy part (it needs a couple of GB of memory and a few minutes), which is exactly why the headless server is offered prebuilt: a 1&nbsp;GB box can run a node even though it could never compile one. Our setup script fetches the prebuilt binary automatically.</p>
     </div>
