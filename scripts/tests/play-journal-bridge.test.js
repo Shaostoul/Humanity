@@ -75,6 +75,28 @@ test('the default folder is the operator install, beside its logs', () => {
   }
 });
 
+// Rung 4 (2026-10-24): the rigs mark each vantage and, when one fails, read what the game recorded
+// since its mark, through the same reader (scripts/lib/play-journal.js).
+test('a vantage finds its own mark and the events after it, of the kinds asked', () => {
+  const PJ = require('../lib/play-journal.js');
+  const dir = journal();
+  fs.appendFileSync(path.join(dir, 'mark.jsonl'), JSON.stringify({ t: 4500, what: 'Mark 3: fuji-forest-ground', n: 3, label: 'fuji-forest-ground', picture: null }) + '\n');
+  const mark = PJ.markFor(dir, 'fuji-forest-ground', 4000);
+  assert.strictEqual(mark && mark.n, 3, 'the mark named for the vantage');
+  assert.strictEqual(PJ.markFor(dir, 'fuji-forest-ground', 4600), null, 'not one from before the vantage started');
+  assert.strictEqual(PJ.markFor(dir, 'ocean-storm-low', 0), null, 'another vantage has none');
+  const after = PJ.eventsBetween(dir, mark.t, Infinity, ['log', 'panic']);
+  assert.deepStrictEqual(after.map((e) => e.what), ['after the second mark'], 'only events from the mark on, of those kinds');
+  assert.match(PJ.eventLine(after[0]), /^1970-01-01T00:00:05\.000Z log WARN: after the second mark$/);
+});
+
+test('the sweep marks each vantage and attaches the journal to a failed one', () => {
+  const sweep = fs.readFileSync(path.join(__dirname, '..', 'probe-sweep.js'), 'utf8');
+  assert.match(sweep, /req\("ui_request\.json", \{ action: "mark", label: v\.id, picture: false \}\)/);
+  assert.match(sweep, /const mark = PJ\.markFor\(journalDir, v\.id, markSentAt - 5000\);/);
+  assert.match(sweep, /if \(!rec\.ok\) \{\s*\n\s*const events = PJ\.eventsBetween\(journalDir, mark\.t, Infinity, \["log", "panic", "frame", "world", "net"\]\)/);
+});
+
 test('both tools are in the bridge tool list', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'mcp-server.js'), 'utf8');
   assert.match(src, /name: "dev_play_journal"[\s\S]{0,1500}\}, playJournal\]/);

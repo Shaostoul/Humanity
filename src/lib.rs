@@ -2476,7 +2476,7 @@ mod native_app {
                         // numbered mark with this frame's picture, taken at the end of the frame
                         // (engine/play_journal.rs `take_mark`, docs/design/play-journal.md).
                         if key == KeyCode::F8 && pressed {
-                            state.gui_state.play_mark_request = true;
+                            state.gui_state.play_mark_request = Some(crate::engine::play_journal::MarkAsk::by_hand());
                             return;
                         }
                         // F9 (v0.1109, operator request): toggle DEV FLIGHT

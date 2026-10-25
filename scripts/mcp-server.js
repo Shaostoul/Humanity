@@ -493,29 +493,10 @@ function priorities(args) {
 // operator's install keeps it in %APPDATA%/HumanityOS/journal, a rig's sandbox in
 // <sandbox>/journal. Read from the files, so a closed game's journal reads too.
 
-/** The journal folder: `folder` when given, else the operator's install's. */
-function playJournalDir(folder) {
-  if (folder) return path.resolve(String(folder));
-  const base = process.env.APPDATA || path.join(require("os").homedir(), ".local", "share");
-  return path.join(base, "HumanityOS", "journal");
-}
-
-/** One kind's events, oldest first; a line that does not parse is left out. */
-function readKind(dir, kind) {
-  let text = "";
-  try { text = fs.readFileSync(path.join(dir, kind + ".jsonl"), "utf8"); } catch (_) { return []; }
-  const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch (_) { /* a half-written line */ }
-  }
-  return out;
-}
-
-/** The kinds that have a file in the folder. */
-function kindsIn(dir) {
-  try { return fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl")).map((n) => n.slice(0, -6)).sort(); } catch (_) { return []; }
-}
+const PJ = require("./lib/play-journal.js");
+const playJournalDir = PJ.journalDir;
+const readKind = PJ.readKind;
+const kindsIn = PJ.kindsIn;
 
 const isoOf = (t) => (Number.isFinite(t) ? new Date(t).toISOString() : "?");
 const placeOf = (m) => (m && m.storey && (m.storey.room || m.storey.name)) || "";

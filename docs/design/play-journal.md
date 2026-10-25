@@ -95,5 +95,11 @@ without him describing it.
    world", "In Entry", "Went aboard the station", "Left the station", "Out of every named room" and
    the page change, as the rig moved between vantages. Still to come: teleports (the explicit
    teleport paths) and a hitch's slowest pass and stage.
-4. **Rigs write marks too**: a rig's verdict names the marks its vantages made, so a failed rig run
+4. BUILT 2026-10-24: each vantage of probe-sweep (and so verify-runtime and every rig built on it)
+   sends `{"action": "mark", "label": "<vantage>", "picture": false}` first: a mark named for it,
+   without a picture (the vantage takes its own) or a note on screen (which would stand in the
+   judged picture). The manifest records each vantage's `journal_mark`; a failed vantage also gets
+   `journal`, the warnings, panics, hitches, world and net events since its mark, printed in the
+   sweep's log. Mark numbers count picture-less marks too (`mark.jsonl`), so they never repeat.
+   One reader for the bridge and the rigs: `scripts/lib/play-journal.js`. **Rigs write marks too**: a rig's verdict names the marks its vantages made, so a failed rig run
    points at the exact moment with its picture.

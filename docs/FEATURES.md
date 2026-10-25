@@ -4013,7 +4013,9 @@ kind's count and newest event, the marks with Open picture, Mark this moment, Op
 Clear the journal. Rung 3 (the same day): `page` (each page change), `frame` (hitches: 100 ms and
 three times the recent average), `world` (entered, aboard, the room, death, falls, saves) and
 `net` (signed in, connection lost, a refused line and why, a refusal by someone's choices, never
-who), from one cheap call a frame plus calls where those events happen.
+who), from one cheap call a frame plus calls where those events happen. Rung 4: every rig vantage
+marks itself (labelled, no picture), and a failed vantage's manifest entry and log carry what the
+game recorded since its mark (`scripts/probe-sweep.js`, `scripts/lib/play-journal.js`).
 
 ### Code map for AI sessions (2026-10-18)
 One generated line per source file (every `.rs` under `src/`, every `.js` under `web/`): what its

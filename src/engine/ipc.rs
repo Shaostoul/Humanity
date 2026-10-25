@@ -2951,7 +2951,8 @@ pub(crate) struct UiIpc {
 /// ```json
 /// {"action": "f10", "flag": "show_cloud_dev_panel"}
 /// {"action": "escape"}
-/// {"action": "mark"}   (the play journal's Mark this moment, as F8: engine/play_journal.rs)
+/// {"action": "mark"}   (the play journal's Mark this moment, as F8: engine/play_journal.rs;
+///                      optional "label" and "picture": false, as the rigs send it)
 /// {"action": "state", "flag": "cloud_dev_dither_off"}
 /// {"action": "pointer_move", "pos": [200, 300]}
 /// {"action": "click", "pos": [200, 300], "flag": "cloud_dev_dither_off"}
@@ -3081,8 +3082,13 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
             UiIpcStage::Complete
         }
         // F8's mark, for a rig or a session (2026-10-24): taken at the end of this frame.
+        // Optional "label" (a rig's vantage id) and "picture" (default true); a rig sends
+        // {"action": "mark", "label": "<vantage>", "picture": false} (rung 4).
         "mark" => {
-            state.gui_state.play_mark_request = true;
+            state.gui_state.play_mark_request = Some(crate::engine::play_journal::MarkAsk {
+                label: v.get("label").and_then(|l| l.as_str()).unwrap_or("").chars().take(80).collect(),
+                picture: v.get("picture").and_then(|p| p.as_bool()).unwrap_or(true),
+            });
             UiIpcStage::Complete
         }
         // Answered from this frame's shapes by `ui_request_scan_shapes`.

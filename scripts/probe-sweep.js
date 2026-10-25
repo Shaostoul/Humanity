@@ -123,6 +123,9 @@ const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // coordinates (BUG-132)? Before this check a station vantage was "ok"
 // whatever it captured, including empty space.
 const SP = require("./lib/station-park-check.js");
+// The play journal (docs/design/play-journal.md, rung 4): each vantage's mark, and what the game
+// recorded since it when the vantage fails.
+const PJ = require("./lib/play-journal.js");
 // The sticky showcase pins released before every vantage (shared with probe-hot-ab.js).
 const { STICKY_PIN_RESETS, DIAG_RESETS, holdsStickyPin } = require("./lib/showcase-pins.js");
 // The freshness gate and the boot-copy check (BUG-133), through their one
@@ -1021,6 +1024,13 @@ async function main() {
       // Station park misses (park, re-park, capture time). Any one fails the
       // vantage, after its picture is saved.
       const stationMisses = [];
+      // The play journal (rung 4): a mark named for this vantage, so a failure points at its
+      // moment and at what the game recorded since. No picture (the vantage takes its own) and no
+      // note on screen. A game without the "mark" action answers with an error, which is ignored.
+      const markSentAt = Date.now();
+      clearDone("ui_request_done.json");
+      req("ui_request.json", { action: "mark", label: v.id, picture: false });
+      await waitFile("ui_request_done.json", 8000);
       try {
         if (v.showcase) {
           req("showcase_request.json", Object.assign({}, DIAG_RESETS, STICKY_PIN_RESETS, v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
@@ -1388,6 +1398,20 @@ async function main() {
       } catch (e) {
         rec.error = String(e.message || e);
         log(`  FAILED: ${rec.error}`);
+      }
+      // The journal: this vantage's mark always, and when it failed, what the game recorded since
+      // (warnings and errors, panics, hitches, the world, the connection), into the manifest and the
+      // log, so the failure arrives with its context (dev_play_journal reads the same folder).
+      const journalDir = path.join(RIG, "journal");
+      const mark = PJ.markFor(journalDir, v.id, markSentAt - 5000);
+      if (mark) {
+        rec.journal_mark = mark.n;
+        if (!rec.ok) {
+          const events = PJ.eventsBetween(journalDir, mark.t, Infinity, ["log", "panic", "frame", "world", "net"]).slice(-40);
+          rec.journal = events.map(PJ.eventLine);
+          log(`  journal since mark ${mark.n} (${journalDir}): ${events.length} event(s)`);
+          for (const line of rec.journal.slice(-12)) log(`    ${line}`);
+        }
       }
       results.push(rec);
     }

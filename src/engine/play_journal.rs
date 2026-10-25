@@ -168,9 +168,37 @@ pub fn note_panic(message: &str) {
     flush();
 }
 
-/// The number the next mark gets: one past the highest picture in `marks/`, so it keeps counting
-/// up across restarts.
+/// A mark asked for: by hand (F8, the Dev page: a picture and a note on screen), or by a rig (its
+/// vantage's name as the label, no picture, since the rig takes its own, and no note, which would
+/// stand in the picture the rig judges). Rung 4, 2026-10-24.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MarkAsk {
+    /// Words naming the moment (a rig's vantage id); empty by hand.
+    pub label: String,
+    /// Save this frame as the mark's picture.
+    pub picture: bool,
+}
+
+impl MarkAsk {
+    /// F8 or the Dev page's button.
+    pub fn by_hand() -> Self {
+        MarkAsk { label: String::new(), picture: true }
+    }
+}
+
+/// The number the next mark gets: one past the highest so far, by its picture in `marks/` or its
+/// line in `mark.jsonl` (a rig's marks have no picture), so it keeps counting up across restarts
+/// and never repeats.
 pub fn next_mark_number(dir: &Path) -> u64 {
+    let in_lines = std::fs::read_to_string(dir.join("mark.jsonl"))
+        .map(|text| {
+            text.lines()
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .filter_map(|v| v.get("n").and_then(|n| n.as_u64()))
+                .max()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
     let highest = std::fs::read_dir(dir.join("marks"))
         .map(|entries| {
             entries
@@ -180,7 +208,7 @@ pub fn next_mark_number(dir: &Path) -> u64 {
                 .unwrap_or(0)
         })
         .unwrap_or(0);
-    highest + 1
+    highest.max(in_lines) + 1
 }
 
 /// Keep the newest `keep` marks' pictures, deleting older ones.
@@ -200,14 +228,15 @@ pub fn prune_marks(dir: &Path, keep: usize) {
     }
 }
 
-/// F8 or the Dev page asked for a mark (`GuiState::play_mark_request`): number it, save this frame
-/// as its picture, record it with where the player is, and say so on screen. Called at the end
-/// of the frame, beside the other captures (lib.rs).
+/// A mark was asked for (`GuiState::play_mark_request`: F8, the Dev page, or a rig through the
+/// dev IPC): number it, save this frame as its picture when asked, record it with its label and
+/// where the player is, and, for a mark by hand, say so on screen. Called at the end of the frame,
+/// beside the other captures (lib.rs).
 #[cfg(feature = "native")]
 pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_texture: &wgpu::Texture) {
-    if !std::mem::take(&mut state.gui_state.play_mark_request) {
+    let Some(ask) = state.gui_state.play_mark_request.take() else {
         return;
-    }
+    };
     let now = state.egui_ctx.input(|i| i.time);
     let Some(dir) = dir() else {
         state.gui_state.toast(crate::gui::i18n::t("dev.journal_not_running"), crate::gui::ToastKind::Error, now);
@@ -215,18 +244,24 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     };
     let n = next_mark_number(dir);
     let png = dir.join("marks").join(format!("{n}.png"));
-    let picture = match state.renderer.capture_current_frame(frame_texture, &png) {
-        Ok(()) => serde_json::json!(png.display().to_string()),
-        Err(e) => {
-            log::warn!("play journal: mark {n}'s picture was not saved: {e}");
-            serde_json::Value::Null
+    let picture = if !ask.picture {
+        serde_json::Value::Null
+    } else {
+        match state.renderer.capture_current_frame(frame_texture, &png) {
+            Ok(()) => serde_json::json!(png.display().to_string()),
+            Err(e) => {
+                log::warn!("play journal: mark {n}'s picture was not saved: {e}");
+                serde_json::Value::Null
+            }
         }
     };
+    let words = if ask.label.is_empty() { format!("Mark {n}") } else { format!("Mark {n}: {}", ask.label) };
     record(
         "mark",
-        &format!("Mark {n}"),
+        &words,
         serde_json::json!({
             "n": n,
+            "label": ask.label,
             "picture": picture,
             "page": format!("{:?}", state.gui_state.active_page),
             "storey": crate::engine::storey_probe::frame_json(state),
@@ -234,7 +269,10 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     );
     flush();
     prune_marks(dir, MARKS_KEPT);
-    state.gui_state.toast(crate::gui::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
+    // Only a mark by hand says so: a rig's note would stand in the picture it judges.
+    if ask.picture && ask.label.is_empty() {
+        state.gui_state.toast(crate::gui::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
+    }
 }
 
 // ── Rung 3 (2026-10-24): the page, frame, world and net kinds the frame can see ──────────────
@@ -439,6 +477,9 @@ mod tests {
         left.sort();
         assert_eq!(left, vec!["4.png".to_string(), "5.png".to_string()], "the newest two kept");
         assert_eq!(next_mark_number(&d), 6, "numbers are never reused");
+        // A rig's mark has no picture, only its line: it counts too.
+        std::fs::write(d.join("mark.jsonl"), "{\"t\":1,\"what\":\"Mark 9: home-overview-noon\",\"n\":9,\"picture\":null}\n").unwrap();
+        assert_eq!(next_mark_number(&d), 10, "one past the highest line too");
         let _ = std::fs::remove_dir_all(&d);
     }
 

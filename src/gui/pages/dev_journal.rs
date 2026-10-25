@@ -178,7 +178,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
         });
     match act {
-        Some(Act::Mark) => state.play_mark_request = true,
+        Some(Act::Mark) => state.play_mark_request = Some(crate::engine::play_journal::MarkAsk::by_hand()),
         Some(Act::OpenFolder) => {
             if let Some(d) = dir.as_deref() {
                 open_with_system(d);
