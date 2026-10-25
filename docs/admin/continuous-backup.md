@@ -127,12 +127,19 @@ Nothing here was done on the live servers; these are the steps, in order.
 1. **Release and deploy** the version carrying continuous backup to both servers: CI deploys
    united-humanity.us from `main`; public.guide updates itself through `humanity-relay-follow`
    once the release is published. Confirm both with `curl -s https://<server>/health`.
-2. **Nothing to change in nginx or systemd** on a standard install: the endpoints are under `/api/`,
-   which nginx already proxies with a 6 MB body limit (objects are at most about 4 MB), and
-   everything the relay writes for this is under `/opt/Humanity/data/` (`backup-stream/`,
-   `backup-host/`, `backup-destination.secrets.json`, `backup-host.json`), already in the unit's
-   `ReadWritePaths`. On public.guide, check its nginx site has `location /api/` proxied and
-   `client_max_body_size` of at least 6m (`grep -n client_max_body_size /etc/nginx/sites-enabled/*`).
+2. **Let the backup path take 6 MB in nginx, on BOTH servers.** A piece is at most about 4 MB, but
+   the main hostnames' `location /api/` sets no `client_max_body_size`, so nginx's 1 MB default
+   applies and refuses every piece with 413. Checked 2026-10-25: a 2 MB POST to
+   `https://united-humanity.us/api/backup-host/...` and to `https://public.guide/api/...` both
+   came back 413 (the 6 MB at the top of the site file belongs to the `chat.` hostname only). Add the
+   `location /api/backup-host/` block from `scripts/nginx/humanity.conf` right after the main
+   `location /api/` block, which keeps the rest of `/api/` at 1 MB. The site file is a symlink on
+   public.guide (`/etc/nginx/sites-available/humanity`): edit `readlink -f` of it, never the
+   link with `sed -i`. Back it up, `nginx -t`, `systemctl reload nginx`, then a 2 MB POST to
+   `/api/backup-host/x` must come back from the relay (401 or 404), not 413.
+   Nothing to change in systemd: everything the relay writes for this is under
+   `/opt/Humanity/data/` (`backup-stream/`, `backup-host/`, `backup-destination.secrets.json`,
+   `backup-host.json`), already in the unit's `ReadWritePaths`.
 3. **Exchange sending keys.** In the desktop app connected to united-humanity.us as admin: Server
    Settings > ADMIN > Backups > Keep other servers' backups here > Copy (the backup sending key).
    Connected to public.guide as admin: same place, paste it into "Its backup sending key", name it
