@@ -80,8 +80,9 @@ In order:
    signature 3.0.0, sha3 0.12; one wrapper change (SigningKey::from_seed, its Signer), every
    known-answer test unchanged in Rust and JS, the relay battery green; pinned exactly at the new
    versions. The other compatible updates: DONE 2026-10-24 (6be87acc3, 282 crates; argon2 held
-   to the RFC 9106 vector). Its boot check ran in low impact beside the operator's game, so the
-   next release's runtime check at full graphics covers the passes low impact turns off.
+   to the RFC 9106 vector). Its boot check ran in low impact beside the operator's game; the
+   full-graphics boot followed once his game was closed (2026-10-24, 3a746c952's release build:
+   3/3, no panic, 3D trees, sun shadows and ground cover drawn at 20 to 28 fps).
 2. **The build-speed measurements** the slot made possible, on a quiet machine: debug info in
    dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
    whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate

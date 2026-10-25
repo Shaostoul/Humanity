@@ -91,7 +91,9 @@ without him describing it.
    at 8 m/s or more); signing in and losing the connection. Explicit calls where an event happens:
    a save written (`save_slot::write_active`), a chat line refused and why
    (`line_limit::on_refused`), a message, call or trade refused by the other person's choices, by
-   kind only (`reach::on_reach_refused`). Still to come: teleports (the explicit teleport paths)
-   and a hitch's slowest pass and stage.
+   kind only (`reach::on_reach_refused`). Seen live the same day in a rig boot: "Entered the
+   world", "In Entry", "Went aboard the station", "Left the station", "Out of every named room" and
+   the page change, as the rig moved between vantages. Still to come: teleports (the explicit
+   teleport paths) and a hitch's slowest pass and stage.
 4. **Rigs write marks too**: a rig's verdict names the marks its vantages made, so a failed rig run
    points at the exact moment with its picture.
