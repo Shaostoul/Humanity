@@ -2746,11 +2746,12 @@ function formatTime(ts) {
   return time;
 }
 
-// Compact HH:MM for the message timestamp pill (native parity). The date
-// lives in the date-separator between days, so per-message time is just
-// hour:minute. 24h to match the native app's pill.
+// The time on the message timestamp pill (native parity): the format and zone the settings say
+// (view/timestampPill.js formatStamp; 24-hour, 17:42 by default), written tight as native's pill
+// writes it (widgets/row.rs drops " UTC"); the expanded pill gives the full time with its zone.
 function formatTimePill(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const s = timestampSettings();
+  return formatStamp(ts, s.format, s.zone).replace(/ UTC$/, '');
 }
 
 // Decide whether a new message should visually GROUP with the one above it:

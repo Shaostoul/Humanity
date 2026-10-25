@@ -14,8 +14,9 @@
  * The desktop app does the same (src/gui/widgets/phrase_cover.rs), in the
  * same words.
  *
- * HosPhraseCover.words(host, phrase) and HosPhraseCover.code(host, draw) fill
- * `host` and return { hide(), isShown() }.
+ * HosPhraseCover.words(host, phrase, opts) and HosPhraseCover.code(host, draw)
+ * fill `host` and return { hide(), isShown() }; opts.onChange(shown) follows
+ * the words' cover, for a Copy button that must not copy covered words.
  */
 (function (root) {
   'use strict';
@@ -88,6 +89,8 @@
       }
       if (up) host.append(button, line);
       else host.append(line, button);
+      // Whatever beside the cover acts on what it covers (a Copy button) follows it.
+      if (o.onChange) o.onChange(up);
     }
 
     function hide() {
@@ -113,8 +116,11 @@
     return { hide, isShown: () => up };
   }
 
-  /** The 24 words of `phrase`, numbered in four columns, covered until Show the words. */
-  function words(host, phrase) {
+  /** The 24 words of `phrase`, numbered in four columns, covered until Show the words.
+   *  `opts.onChange(shown)` is called each time the cover is drawn, covered or shown, the first
+   *  time included: a Copy button beside the words is there only while they are shown (BUG-214),
+   *  as on the desktop. */
+  function words(host, phrase, opts) {
     const list = String(phrase || '').trim().split(/\s+/).filter(Boolean);
     const doc = host.ownerDocument;
     const grid = (shown) => (body) => {
@@ -134,7 +140,7 @@
         body.appendChild(cell);
       });
     };
-    return cover(host, { covered: grid(false), shown: grid(true), warning: WORDS.warning, showLabel: WORDS.show, hideLabel: WORDS.hide });
+    return cover(host, { covered: grid(false), shown: grid(true), warning: WORDS.warning, showLabel: WORDS.show, hideLabel: WORDS.hide, onChange: opts && opts.onChange });
   }
 
   /** A code that carries the account (the device-link QR and its text), drawn into `body` by

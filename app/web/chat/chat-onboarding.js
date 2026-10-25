@@ -247,13 +247,20 @@ function step1(mnemonic, phraseLocked) {
 
 function wireStep1(overlay, mnemonic) {
   // The words, covered until shown (each time this step is drawn, so Back then Next covers them).
+  // Copy is there only while the words are shown (BUG-214): a stray click on covered words must
+  // not put them on the clipboard, which the cover's hold exists to prevent.
   const coverHost = overlay.querySelector('#ob-phrase-cover');
-  if (coverHost && mnemonic && window.HosPhraseCover) window.HosPhraseCover.words(coverHost, mnemonic);
-  // Paper copy
   const copyBtn = overlay.querySelector('#ob-copy-btn');
   const copyMsg = overlay.querySelector('#ob-copy-msg');
+  const showCopy = (shown) => { if (copyBtn) copyBtn.style.display = shown ? '' : 'none'; };
+  showCopy(false);
+  const phraseCover = coverHost && mnemonic && window.HosPhraseCover
+    ? window.HosPhraseCover.words(coverHost, mnemonic, { onChange: showCopy })
+    : null;
+  // Paper copy
   if (copyBtn && mnemonic) {
     copyBtn.addEventListener('click', () => {
+      if (!(phraseCover && phraseCover.isShown())) return;
       navigator.clipboard.writeText(mnemonic).then(() => {
         copyMsg.textContent = '✓ Copied, write them down, then clear your clipboard.';
         copyBtn.textContent = 'Copied!';

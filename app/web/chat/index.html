@@ -40,7 +40,8 @@
   <link rel="stylesheet" href="/shared/upload-window.css?v=1">
   <link rel="stylesheet" href="/chat/modals.css?v=5">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
-  <link rel="stylesheet" href="/chat/inputs.css?v=6">
+  <link rel="stylesheet" href="/chat/inputs.css?v=7">
+  <link rel="stylesheet" href="/shared/over-limit.css?v=1">
   <!-- Vendored same-origin (twemoji 17.0.3, MIT). Was cdn.jsdelivr.net/@latest
        with no SRI: a CDN/account compromise could have injected arbitrary JS
        into the chat with full access to the localStorage seed. Serving it
@@ -800,11 +801,11 @@
   <script src="/chat/chat-key-cards.js?v=1"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
-  <script src="/chat/view/timestampPill.js?v=2"></script>
+  <script src="/chat/view/timestampPill.js?v=3"></script>
   <script src="/chat/view/messageRow.js?v=2"></script>
   <!-- The expanded timestamp pill (native pill_expand) and a message's right-click menu (native's
        row context menu), Track W step 3, 2026-10-22. Hooked by app.js addChatMessage. -->
-  <script src="/chat/view/pillPopup.js?v=1"></script>
+  <script src="/chat/view/pillPopup.js?v=2"></script>
   <script src="/chat/view/messageMenu.js?v=1"></script>
   <!-- chat-files-card.js: a Media item posted in chat as a card under the words (2026-10-17), its
        Open bringing up the item's own page in the upload window's frame. Before app.js and
@@ -815,7 +816,8 @@
   <script src="/chat/chat-dms.js?v=22"></script>
   <script src="/chat/chat-social.js?v=22"></script>
   <script src="/chat/chat-groups-p2p.js?v=19"></script>
-  <script src="/chat/chat-ui.js?v=20"></script>
+  <script src="/shared/over-limit.js?v=1"></script>
+  <script src="/chat/chat-ui.js?v=21"></script>
   <script src="/chat/chat-voice-rooms.js?v=9"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>

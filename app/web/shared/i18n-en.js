@@ -53,7 +53,10 @@ window.HOS_I18N_EN = {
     "line_not_sent_too_fast": "Not sent: sending too fast. Wait a moment and try again.",
     "line_not_sent_new_account": "Not sent: new accounts wait a little before posting.",
     "line_edit_again": "Edit and send again",
-    "line_edit_again_hint": "Puts your words back in the message box, so you can shorten them or wait a moment, then send them again."
+    "line_edit_again_hint": "Puts your words back in the message box, so you can shorten them or wait a moment, then send them again.",
+    "identity_locked_prompt": "Your identity in this browser is protected by a passphrase.\nType the passphrase to unlock it:",
+    "identity_not_unlocked": "It did not unlock:",
+    "identity_locked_choice": "Try the passphrase again?\n\nCancel makes a new identity in this browser instead: a different account. Your protected identity then comes back only with its recovery phrase."
   },
   "settings": {
     "language": "Language",
@@ -81,7 +84,20 @@ window.HOS_I18N_EN = {
     "timestamp_format_hint": "How the time next to each chat message is written. The change shows at once, on messages already there too.",
     "hints_full_hint": "Show every setting's description under it, and a hint when you rest the pointer on any button or box.",
     "hints_hover_hint": "Tuck the descriptions behind a small (?) you point at. Hints still show when you rest the pointer on a control.",
-    "hints_off_hint": "Hide the descriptions and the hints, for when you already know your way around."
+    "hints_off_hint": "Hide the descriptions and the hints, for when you already know your way around.",
+    "timestamp_zone": "Time zone",
+    "timestamp_zone_hint": "Whether the times beside messages and files are this computer's own time, or UTC: the one time used everywhere in the world, handy when people in different places compare times. The change shows at once.",
+    "timestamp_zone_local": "This computer's time",
+    "timestamp_zone_utc": "UTC",
+    "timestamp_format_hour_min": "Time, 17:42",
+    "timestamp_format_hour_min_sec": "Time + seconds, 17:42:09",
+    "timestamp_format_date_hour_min": "Date + time, 2026-05-29 17:42",
+    "timestamp_format_date_hour_min_sec": "Date + time + seconds, 2026-05-29 17:42:09",
+    "timestamp_format_full": "Full + milliseconds, 2026-05-29 17:42:09.123",
+    "identity_locked": "Your identity is on this device, locked: the app opens without unlocking it. Type its passphrase to unlock it and see your recovery phrase.",
+    "reveal_phrase": "Reveal recovery phrase",
+    "restore_replaces": "Restoring replaces the identity on this device: write down its recovery phrase first if you still need it.",
+    "key_not_kept": "This identity is not kept on this device yet: set a passphrase to keep it. Until you do, it is gone when the app closes, unless you wrote down its recovery phrase."
   },
   "laws": {
     "title": "Laws and rights",
@@ -1378,7 +1394,10 @@ window.HOS_I18N_EN = {
     "send_token_label": "Coin to send",
     "swap_from_label": "Coin you pay with",
     "swap_to_label": "Coin you get",
-    "validator_sort_label": "Order of the validators"
+    "validator_sort_label": "Order of the validators",
+    "network_mainnet": "Mainnet",
+    "network_devnet": "Devnet",
+    "network_testnet": "Testnet"
   },
   "notes": {
     "title": "Notes",
@@ -1731,7 +1750,10 @@ window.HOS_I18N_EN = {
     "needs_station_site": "Needs a {{station}}, and the home's machines are in orbit",
     "needs_station_nowhere": "Needs a {{station}}: go aboard your home, or to a site you built",
     "needs_station_home_build": "Needs a {{station}} in your home, or build a {{name}}",
-    "needs_station_home": "Needs a {{station}} placed in your home"
+    "needs_station_home": "Needs a {{station}} placed in your home",
+    "storage_not_here_planet": "on a planet you craft from what you carry: your home's storage is in orbit",
+    "storage_not_here_away": "away from your home you craft from what you carry",
+    "storage_not_here_guest": "your home is not on this ship, so its storage does not count"
   },
   "donate": {
     "title": "Donate",
@@ -2086,5 +2108,53 @@ window.HOS_I18N_EN = {
     "slot_summary": "{{compiling}} compiling, {{waiting}} waiting their turn for memory",
     "slot_compiling": "compiling {{crate}} ({{kind}}) in {{place}}, up to {{gb}} GB, started {{ago}}",
     "slot_waiting": "waiting: {{crate}} ({{kind}}) in {{place}}, needs {{gb}} GB, since {{ago}}"
+  },
+  "profile": {
+    "bio_over_limit": "Your bio is {{n}} characters and the limit is {{limit}}. Shorten the part shown in red, then save again."
+  },
+  "dev": {
+    "journal_marked": "Marked #{{n}}. A Claude session can read what happened around it (the play journal).",
+    "journal_not_running": "The play journal is not running, so nothing was marked."
+  },
+  "dev_journal": {
+    "title": "Play journal",
+    "about": "What the game recorded while it ran, by kind, kept beside its logs on this computer. Press F8 on any page to mark a moment: a numbered mark with a picture of that moment. A Claude session reads it through the dev tools (dev_play_marks, dev_play_journal), even after the game has closed.",
+    "never_in": "Never in it: the words of a message, a key, a password, a recovery phrase or a file's contents. It is never sent anywhere.",
+    "folder": "Folder: {{path}}",
+    "not_running": "The journal is not running in this copy of the app, so there is nothing to show.",
+    "open_folder": "Open the folder",
+    "open_folder_hint": "Shows the journal's folder in your file manager.",
+    "mark_now": "Mark this moment",
+    "mark_now_hint": "The same as F8: a numbered mark with a picture of this frame. This page will be in the picture.",
+    "kinds": "Kinds",
+    "kind_count": "{{n}} kept",
+    "kind_empty": "Nothing yet",
+    "kind_not_built": "Not recorded yet (a later rung)",
+    "kind_log": "Warnings and errors the game logged",
+    "kind_panic": "Crashes (panics), written at once",
+    "kind_mark": "Your marks (F8)",
+    "kind_frame": "Frames over their time budget",
+    "kind_net": "Connections, refusals and failed sends, never what they carried",
+    "kind_world": "World entered, rooms and storeys, teleports, falls, saves",
+    "kind_page": "Pages opened and closed",
+    "marks": "Marks",
+    "no_marks": "No marks yet. Press F8 in the game to mark a moment.",
+    "mark_row": "#{{n}}  {{when}}  {{where}}",
+    "open_picture": "Open picture",
+    "open_picture_hint": "Opens the mark's picture with your computer's picture viewer.",
+    "no_picture": "(no picture)",
+    "clear": "Clear the journal",
+    "clear_hint": "Deletes every kind's file and every mark's picture. Asks first.",
+    "clear_confirm": "Delete the whole journal, its marks and their pictures?",
+    "clear_yes": "Yes, clear it",
+    "clear_yes_hint": "Deletes the journal now. It starts again with the next thing that happens.",
+    "clear_no": "Keep it",
+    "clear_no_hint": "Leaves the journal as it is.",
+    "cleared": "The journal is cleared.",
+    "web_nav": "Journal (desktop app)",
+    "web_nav_title": "In the desktop app's Dev tab: what the game recorded while it ran, and the F8 marks"
+  },
+  "passphrase": {
+    "skip_not_kept": "Skip (not kept after the app closes)"
   }
 };

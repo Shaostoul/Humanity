@@ -954,12 +954,21 @@ async function openSeedPhraseModal() {
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  // The words, covered until Show the words (/shared/phrase-cover.js, 2026-10-16).
-  if (window.HosPhraseCover) window.HosPhraseCover.words(overlay.querySelector('#sp-phrase-cover'), words.join(' '));
+  // The words, covered until Show the words (/shared/phrase-cover.js, 2026-10-16). The two Copy
+  // buttons are there only while the words are shown (BUG-214): a stray click on covered words
+  // must not put them on the clipboard, which the cover's hold exists to prevent.
+  const copyBtns = ['#sp-copy-btn', '#sp-pm-btn'].map((sel) => overlay.querySelector(sel)).filter(Boolean);
+  const showCopy = (shown) => copyBtns.forEach((b) => { b.style.display = shown ? '' : 'none'; });
+  showCopy(false);
+  const phraseCover = window.HosPhraseCover
+    ? window.HosPhraseCover.words(overlay.querySelector('#sp-phrase-cover'), words.join(' '), { onChange: showCopy })
+    : null;
+  const wordsShown = () => !!(phraseCover && phraseCover.isShown());
 
   // Wire copy buttons and encrypted download
   const _mn = mnemonic;
   overlay.querySelector('#sp-copy-btn').addEventListener('click', () => {
+    if (!wordsShown()) return;
     navigator.clipboard.writeText(_mn).then(() => {
       overlay.querySelector('#sp-copy-msg').textContent = '✓ Copied';
       overlay.querySelector('#sp-copy-btn').textContent = 'Copied!';
@@ -967,6 +976,7 @@ async function openSeedPhraseModal() {
   });
 
   overlay.querySelector('#sp-pm-btn').addEventListener('click', () => {
+    if (!wordsShown()) return;
     navigator.clipboard.writeText(_mn).then(() => {
       overlay.querySelector('#sp-pm-msg').textContent = '✓ Copied, paste into a Secure Note';
       overlay.querySelector('#sp-pm-btn').textContent = 'Copied!';

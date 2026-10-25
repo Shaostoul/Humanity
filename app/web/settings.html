@@ -1175,6 +1175,31 @@
             <option value="never">Never</option>
           </select>
         </div>
+        <!-- How the time beside a message is written and in which zone, as the desktop app's
+             Settings > Timestamp format and Time zone (2026-10-24); values are its config strings. -->
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong id="lbl-timestamp-format" data-i18n="settings.timestamp_format">Timestamp format</strong>
+            <span data-i18n="settings.timestamp_format_hint">How the time next to each chat message is written. The change shows at once, on messages already there too.</span>
+          </div>
+          <select class="setting-select" id="pref-timestamp_format" aria-labelledby="lbl-timestamp-format" onchange="savePref()">
+            <option value="hour_min" data-i18n="settings.timestamp_format_hour_min">Time, 17:42</option>
+            <option value="hour_min_sec" data-i18n="settings.timestamp_format_hour_min_sec">Time + seconds, 17:42:09</option>
+            <option value="date_hour_min" data-i18n="settings.timestamp_format_date_hour_min">Date + time, 2026-05-29 17:42</option>
+            <option value="date_hour_min_sec" data-i18n="settings.timestamp_format_date_hour_min_sec">Date + time + seconds, 2026-05-29 17:42:09</option>
+            <option value="full" data-i18n="settings.timestamp_format_full">Full + milliseconds, 2026-05-29 17:42:09.123</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong id="lbl-timestamp-zone" data-i18n="settings.timestamp_zone">Time zone</strong>
+            <span data-i18n="settings.timestamp_zone_hint">Whether the times beside messages and files are this computer's own time, or UTC: the one time used everywhere in the world, handy when people in different places compare times. The change shows at once.</span>
+          </div>
+          <select class="setting-select" id="pref-timestamp_zone" aria-labelledby="lbl-timestamp-zone" onchange="savePref()">
+            <option value="local" data-i18n="settings.timestamp_zone_local">This computer's time</option>
+            <option value="utc" data-i18n="settings.timestamp_zone_utc">UTC</option>
+          </select>
+        </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Message Grouping</strong>

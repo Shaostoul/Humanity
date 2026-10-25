@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Profile, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
+  <link rel="stylesheet" href="/shared/over-limit.css?v=1">
   <style>
     /* Colours this page uses that have no theme token. The dark values are
        exactly the page's look before the light theme worked (2026-10-19);
@@ -439,6 +440,11 @@
   <script src="/shared/eli5.js"></script>
   <!-- Which profile fields a save changed, for Chat to send on top of the server's copy (BUG-195). -->
   <script src="/shared/profile-changes.js?v=2"></script>
+  <!-- The word source, before this page's script (it words a refused save), and the shared
+       over-limit mirror for the bio (2026-10-24). -->
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
+  <script src="/shared/over-limit.js?v=1"></script>
   <div class="eli5-block">
     <div class="eli5-simple">This is you! Set your name, picture, bio, and show off your skills.</div>
     <div class="eli5-expert">Dilithium3 (ML-DSA-65) identity, derived from your 24-word recovery phrase, with profile data synced over WebSocket. Skills tab has 9 domains with 49 skills tracked by XP/level (10 pips per level, 50 max). Endorsements from other users. Profile data broadcasts to connected peers on save.</div>
@@ -735,7 +741,7 @@
             </div>
             <div class="field-group personal-field" style="grid-column: 1/-1;">
               <label for="f-bio">Bio</label>
-              <textarea id="f-bio" rows="4" maxlength="280" placeholder="Tell people about yourself..." aria-describedby="bio-count"></textarea>
+              <textarea id="f-bio" rows="4" placeholder="Tell people about yourself..." aria-describedby="bio-count"></textarea>
               <div class="bio-count" id="bio-count">0 / 280</div>
             </div>
             <div class="field-group personal-field">
@@ -1207,14 +1213,20 @@
       renderPrivacyLock(field);
     }
 
-    // ── Bio character counter ──
+    // ── Bio character counter, and the characters past the limit in red ──
+    // A soft limit (2026-10-24): the bio no longer stops at 280 (maxlength cut a longer paste
+    // without a word, and the save cut it again); what is past it shows in red on dark red
+    // (shared/over-limit.js), counted in characters as the server counts, and Save says to
+    // shorten it. The desktop app's Profile page does the same.
+    var BIO_MAX = 280;
     function updateBioCount() {
       var bio = document.getElementById('f-bio');
       var counter = document.getElementById('bio-count');
       if (!bio || !counter) return;
-      var len = bio.value.length;
-      counter.textContent = len + ' / 280';
-      counter.className = 'bio-count' + (len > 280 ? ' over' : len > 240 ? ' warn' : '');
+      var len = Array.from(bio.value).length;
+      counter.textContent = len + ' / ' + BIO_MAX;
+      counter.className = 'bio-count' + (len > BIO_MAX ? ' over' : len > BIO_MAX - 40 ? ' warn' : '');
+      if (window.hosOverLimit) window.hosOverLimit(bio, BIO_MAX);
     }
 
     /**
@@ -1256,8 +1268,19 @@
       var dir = document.getElementById('f-directory-listed');
       if (dir && !dir.checked) privacy.directory = 'unlisted';
 
+      // Never cut: a bio past the limit is not saved, and the page says why (its excess is red).
+      var bioChars = Array.from(val('bio')).length;
+      if (bioChars > BIO_MAX) {
+        var refused = document.getElementById('sync-status');
+        refused.textContent = i18n.t('profile.bio_over_limit', { n: bioChars, limit: BIO_MAX });
+        refused.style.color = 'var(--danger)';
+        var bioBox = document.getElementById('f-bio');
+        if (bioBox) bioBox.focus();
+        return;
+      }
+
       var profile = {
-        bio: val('bio').substring(0, 280),
+        bio: val('bio'),
         socials: socials,
         avatar_url: val('avatar-url').substring(0, 512),
         banner_url: val('banner-url').substring(0, 512),

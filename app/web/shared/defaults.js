@@ -27,6 +27,11 @@
     // Audio/chat
     soundEnabled: true,
     timestampMode: 'relative',
+    // How the time beside a message is written, and in which zone (2026-10-24): the desktop
+    // app's Settings > Timestamp format and Time zone (src/gui/pages/chat/timestamps.rs), whose
+    // config strings these are. Read by chat/view/timestampPill.js.
+    timestamp_format: 'hour_min',
+    timestamp_zone: 'local',
     // Layout
     compact: false,
     'font-size': 'medium',
