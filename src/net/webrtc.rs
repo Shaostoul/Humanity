@@ -994,7 +994,7 @@ impl WebrtcManager {
             // Bind the shared UDP socket on an ephemeral port, all interfaces.
             // This socket's address is our host ICE candidate. 0.0.0.0:0 lets
             // the OS pick the port; we read it back for the candidate.
-            let udp = match UdpSocket::bind(bind) {
+            let udp = match UdpSocket::bind(bind).and_then(|s| s.set_nonblocking(true).map(|()| s)) {
                 Ok(s) => s,
                 Err(e) => {
                     log::error!("WebRTC: failed to bind UDP socket: {e}");
@@ -1075,6 +1075,8 @@ impl WebrtcManager {
 
         // Reusable receive buffer. WebRTC datagrams are well under 2 KB.
         let mut buf = vec![0u8; 2000];
+        // When a command or a datagram last arrived: how long the loop may rest (step C).
+        let mut last_moved = Instant::now();
 
         loop {
             // ── A. Apply AT MOST ONE GUI command per iteration.
@@ -1105,6 +1107,7 @@ impl WebrtcManager {
                 Ok(cmd) => {
                     self.handle_command(cmd);
                     handled_cmd = true;
+                    last_moved = Instant::now();
                 }
                 Err(TryRecvError::Empty) => { /* nothing queued — fall through */ }
                 Err(TryRecvError::Disconnected) => {
@@ -1169,28 +1172,29 @@ impl WebrtcManager {
                 crate::debug::push_debug(format!("WebRTC peer closed: {}", short(&key)));
             }
 
-            // ── C. Wait for ONE of: the soonest timeout, or an incoming packet.
-            //    Clamp to MAX_POLL_INTERVAL so the command queue stays snappy,
-            //    and to >= 1ms because set_read_timeout(0) is illegal. If we
-            //    just handled a command, use a minimal wait so the next
-            //    iteration promptly drains the rest of the burst.
+            // ── C. How long this turn rests when no datagram is waiting: nothing right after a
+            //    command (the next turn drains the rest of a burst), else a millisecond after
+            //    something moved, longer as the quiet goes on, at most 20 ms, never past the
+            //    soonest deadline (`file_link::idle_sleep`). The socket is NONBLOCKING and the
+            //    loop sleeps, never a receive with a timeout: on Windows a receive that times out
+            //    is cancelled, Microsoft documents the socket's state as indeterminate after it,
+            //    and on a loaded machine the datagrams arriving around those cancellations were
+            //    lost (BUG-201, measured on the file link, which waited this same way; this loop
+            //    carries call audio and its data channel). With audio every 20 ms the rests stay
+            //    a millisecond or two, so nothing waits longer than the timed receive did.
             let now = Instant::now();
-            let wait = if handled_cmd {
-                Duration::from_millis(1)
-            } else if soonest > now {
-                (soonest - now).min(MAX_POLL_INTERVAL).max(Duration::from_millis(1))
+            let rest = if handled_cmd {
+                Duration::ZERO
             } else {
-                Duration::from_millis(1)
+                crate::net::file_link::idle_sleep(now.saturating_duration_since(last_moved), Some(soonest.saturating_duration_since(now)))
             };
-            if let Err(e) = self.udp.set_read_timeout(Some(wait)) {
-                log::warn!("WebRTC: set_read_timeout failed: {e}");
-            }
 
             // ── D. Feed exactly ONE Input: a Receive on a packet, else a
             //    Timeout to every peer to advance their clocks.
             buf.resize(2000, 0);
             match self.udp.recv_from(&mut buf) {
                 Ok((n, source)) => {
+                    last_moved = Instant::now();
                     let slice = &buf[..n];
 
                     // ── D0. inc-3a: STUN-response demux, BEFORE the per-peer
@@ -1340,9 +1344,12 @@ impl WebrtcManager {
                         log::trace!("WebRTC: no peer accepts datagram from {recv_source}");
                     }
                 }
-                Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
-                    // Read timed out — advance every peer's clock. WouldBlock is
-                    // the unix timeout error, TimedOut is the windows one.
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    // Nothing waiting: rest (step C), then advance every peer's clock, as the
+                    // timed receive's timeout did.
+                    if !rest.is_zero() {
+                        thread::sleep(rest);
+                    }
                     let now = Instant::now();
                     for p in self.peers.values_mut() {
                         if let Err(e) = p.rtc.handle_input(Input::Timeout(now)) {
@@ -2821,7 +2828,8 @@ impl WebrtcManager {
     /// with it (by now only a Dev tools test connection could be one).
     fn rebind_socket(&mut self) {
         let bind = SocketAddr::new(self.local_addr.ip(), 0);
-        let udp = match UdpSocket::bind(bind) {
+        // Nonblocking for good, as at the first bind (`run`'s step C says why).
+        let udp = match UdpSocket::bind(bind).and_then(|s| s.set_nonblocking(true).map(|()| s)) {
             Ok(s) => s,
             Err(e) => {
                 log::warn!("WebRTC: could not open a fresh socket for the next call: {e}");
@@ -5713,5 +5721,30 @@ mod relay_only_rig_tests {
         for t in &traps {
             assert!(t.received().is_empty(), "nothing went straight to {}", t.addr);
         }
+    }
+}
+
+/// The call manager receives without a timeout (BUG-201's lesson, 2026-10-24): on Windows a
+/// receive that times out is cancelled and, on a loaded machine, the datagrams arriving around it
+/// were lost (measured on the file link, `net/file_link.rs`, which waited the same way). Like that
+/// test, this reads the source: a timed receive put back into the loop, or a socket left blocking,
+/// fails it. Seen red against the loop before this change (its `set_read_timeout(Some(wait))`).
+#[cfg(test)]
+mod receive_loop_tests {
+    #[test]
+    fn the_call_loop_sleeps_and_never_receives_with_a_timeout() {
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/net/webrtc.rs")).unwrap();
+        let code = |text: &str| text.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+        let start = source.find("    fn run(mut self) {").expect("the call manager's loop");
+        let end = start + source[start..].find("    fn poll_peer(").expect("the loop ends before poll_peer");
+        let run = code(&source[start..end]);
+        assert!(!run.contains("set_read_timeout"), "the loop never receives with a timeout");
+        assert!(!run.contains("ErrorKind::TimedOut"), "nothing to time out");
+        assert!(run.contains("thread::sleep(rest)"), "it rests when nothing is waiting");
+        assert!(run.contains("crate::net::file_link::idle_sleep("), "for as long as the file link would");
+        // Everything before this test (whose own words name what it looks for).
+        let all = code(&source[..source.find("/// The call manager receives without a timeout").expect("this test")]);
+        assert_eq!(all.matches("UdpSocket::bind(bind).and_then(|s| s.set_nonblocking(true)").count(), 2, "both of its sockets are nonblocking");
+        assert!(!all.contains("set_nonblocking(false)"), "for good");
     }
 }

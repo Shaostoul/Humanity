@@ -6273,6 +6273,13 @@ table (desktop), the step table and "... the tighter word wins" (web), each seen
   receive with a timeout each turn, so on a loaded Windows machine it can lose datagrams too
   (audio, and its data channel's messages). Not changed here: it was not under test, and its
   loop feeds one input per turn by design; the same fix (nonblocking, a short sleep) applies.
+  **FIXED 2026-10-24:** both of its sockets are nonblocking for good, and a turn with nothing
+  waiting rests for `file_link::idle_sleep` (nothing right after a command, a millisecond after a
+  datagram, at most 20 ms, never past the soonest deadline), then advances the peers' clocks as the
+  timeout did; still one input per turn. `the_call_loop_sleeps_and_never_receives_with_a_timeout`
+  reads the loop's source (seen red against the timed receive); the loopback call tests, which
+  run the real loop on real sockets (two apps in one voice room through the forwarder, Opus over
+  ICE), pass.
   The rule-9 idea (the sender asking again) stays worth having for a real lost `done`, such as a
   connection that drops between the receiver's check and its `done`.
 

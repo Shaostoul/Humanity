@@ -79,7 +79,9 @@ In order:
    DONE 2026-10-24 for the family: ml-dsa 0.1.1 and ml-kem 0.3.3 (stable), with pkcs8 0.11.0,
    signature 3.0.0, sha3 0.12; one wrapper change (SigningKey::from_seed, its Signer), every
    known-answer test unchanged in Rust and JS, the relay battery green; pinned exactly at the new
-   versions. LEFT: the other compatible updates (about 300), with a boot check.
+   versions. The other compatible updates: DONE 2026-10-24 (6be87acc3, 282 crates; argon2 held
+   to the RFC 9106 vector). Its boot check ran in low impact beside the operator's game, so the
+   next release's runtime check at full graphics covers the passes low impact turns off.
 2. **The build-speed measurements** the slot made possible, on a quiet machine: debug info in
    dev/test (`node scripts/build-ab/ab-debug.js a` then `b`), rust-lld (`linker-ab.js b`, also
    whether it lifts BUG-174), where compile time goes (`time-passes.js b`), the relay gate
@@ -100,7 +102,8 @@ In order:
    (estimated 4 to 9 ms every world frame).
 5. **The in-game event journal** for play sessions, on top of the dev MCP (`docs/ai/mcp.md`): events
    by kind to small capped files, a mark key with a screenshot, an MCP tool reading one kind since
-   a mark.
+   a mark. PLANNED 2026-10-24: docs/design/play-journal.md (kinds, never-in-it list, caps,
+   F8 Mark this moment, the bridge tools, the Dev page panel, four rungs).
 6. **How-to:** an independent review of the six how-tos, and a person's dated review of the four
    marked lethal before any shows as checked (all four real-life ones are lethal by the scale's own
    definition: the operator may want to look at that label); decisions 3 (dangerous work) and 4
@@ -109,7 +112,8 @@ In order:
    report, the home-day cases on the life-support harness, then the aggregate tier.
 8. **Smaller leftovers from the wave:**
    - the voice call manager in `net/webrtc.rs` (~1185) still receives with a timeout each turn,
-     the BUG-201 pattern;
+     the BUG-201 pattern. FIXED 2026-10-24: nonblocking sockets and a short idle sleep, as the
+     file link;
    - `relay-follow.test.js` is flaky under load;
    - Maps' CPU tile bake is over its 2 ms budget in the frames that bake;
    - low impact does not lower CPU per frame (the wall screens' UI 10 to 13 ms, terrain streaming);
