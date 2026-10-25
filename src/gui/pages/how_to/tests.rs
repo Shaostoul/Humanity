@@ -132,7 +132,7 @@ fn a_run_in_progress_shows_where_it_is() {
     assert!(has(&shapes, "Doing now"), "the rail lists the open run");
     assert!(has(&shapes, "Step 2 of"), "where the run is");
     assert!(has(&shapes, "No: see what to do"), "the check's answer");
-    assert!(has(&shapes, "The arrow on the filter points away from the furnace."), "its problem");
+    assert!(has(&shapes, "The arrow on the filter points away from the furnace (or, inside the furnace, away from the blower)."), "its problem");
 }
 
 /// The page's choices survive a restart: Short or Full, How this page works, the split.

@@ -2,7 +2,7 @@
   "id": "back_up_recovery_phrase",
   "title": "Back up your recovery phrase",
   "summary": "Write down the 24 words that bring your HumanityOS account back on any device, and keep them where only you can find them.",
-  "for": "Anyone with an account in the HumanityOS desktop app. Do it once, the day you make your account, and again if you ever lose the paper.",
+  "for": "Anyone with an account in the HumanityOS desktop app. Do it right after you make your account, before you close the app, and again if you ever lose the paper.",
   "audience": "everyone",
   "category": "humanityos_account",
   "tags": ["real", "project", "beginner", "guide"],
@@ -37,10 +37,10 @@
       "kind": "do",
       "text": "Under Account & Recovery Phrase, beside Reveal recovery phrase, type your passphrase and press Unlock.",
       "detail": [
-        "If you made this identity a moment ago and have not set a passphrase yet, the words are already there, still covered.",
-        "If the protected setup is on (Settings, Safety), the app asks for its PIN first."
+        "If you made this identity a moment ago and have not set a passphrase yet, the words are already there, still covered. Until you set a passphrase, a new identity is kept only while the app is open: write the words down before you close it.",
+        "If the protected setup is on (Settings, Safety), press Show the recovery phrase and enter its PIN; then the passphrase is asked as above."
       ],
-      "cites": ["settings"]
+      "cites": ["settings", "modal", "config", "protected"]
     },
     {
       "id": "show",
@@ -76,10 +76,13 @@
       "text": "Keep the paper somewhere safe and private where you will find it again.",
       "safety": {
         "level": "caution",
-        "short": "Anyone who has these words can use your account: never share them or send them to anyone.",
-        "full": ["The recovery phrase backs up your account and your wallet. When the app makes a new identity it says so plainly: these words are the only way to recover the account."]
+        "short": "Anyone who has these words can use your account. Nobody from HumanityOS or any server will ever ask for them. Type them only into this app, to restore your account (Restore from Recovery Phrase, or Restore an existing account from its recovery phrase when the app first opens) or to reset the protected setup's PIN (Forgot the PIN?), and never send them.",
+        "full": [
+          "The recovery phrase backs up your account and your wallet. When the app makes a new identity it says so plainly: these words are the only way to recover the account.",
+          "Do not photograph them, or keep them in email, a notes app or cloud storage (our reading: photos and notes are easily copied to a cloud account without your noticing, and email and cloud storage are kept on other people's computers)."
+        ]
       },
-      "cites": ["settings"]
+      "cites": ["settings", "first_run", "protected", "warnings", "guard"]
     },
     {
       "id": "second_way",
@@ -99,7 +102,14 @@
       "id": "no_identity",
       "sign": "There is no Reveal recovery phrase, only Generate New Identity.",
       "why": "This device has no identity yet.",
-      "fix": "Generate one, or restore yours from its recovery phrase, first. A new identity's words are shown covered, ready to write down.",
+      "fix": "If you have used HumanityOS before, restore yours with Restore from Recovery Phrase, below it, rather than generating one: a new identity is a different account. Otherwise generate one; its words are shown covered, ready to write down.",
+      "cites": ["settings"]
+    },
+    {
+      "id": "locked",
+      "sign": "It says your identity is on this device, locked.",
+      "why": "The app opens with your identity locked unless you chose Remember on this device.",
+      "fix": "That is how it opens: type your passphrase beside Reveal recovery phrase and press Unlock, as in the unlock step. It unlocks your identity and shows the words, covered.",
       "cites": ["settings"]
     },
     {
@@ -108,6 +118,27 @@
       "why": "The passphrase is the one that locks this identity on this device.",
       "fix": "Type it again: press Show beside the box to see what you typed.",
       "cites": ["gate"]
+    },
+    {
+      "id": "forgot_passphrase",
+      "sign": "You do not remember the passphrase.",
+      "why": "The app may open without it (Remember on this device, or a Quick PIN), but showing the words always asks for it.",
+      "fix": "The words cannot be shown without it. While the app is open, set up Recovery through trusted people (Settings, Account), so a lost device is not the end of the account.",
+      "cites": ["settings", "modal", "recovery"]
+    },
+    {
+      "id": "words_seen",
+      "sign": "Someone may have seen the words, or a copy of them left the paper.",
+      "why": "Whoever has the words can use your account, from any device.",
+      "fix": "Under Replace Identity in Settings, Account, press Generate New Identity (replace current), then Yes, generate a new identity. When it asks for a passphrase, set one and press Encrypt Key: until you do, the new identity is kept only while the app is open. Then back up the new words. The old words still open the old identity, so whoever has them can still act as it: let the people you know find you under the new one. They also open the old wallet: if it holds anything, move it to the new identity's wallet straight away (our reading).",
+      "cites": ["settings"]
+    },
+    {
+      "id": "copied",
+      "sign": "You pressed Copy beside the words.",
+      "why": "The words are now on the computer's clipboard, where other programs can read them (our reading).",
+      "fix": "Copy something else to replace them. If clipboard history is on (Windows key + V on Windows), delete the entry there too. If you pasted them anywhere, or your clipboard is shared with your other devices, treat it as Someone may have seen the words (our reading).",
+      "cites": ["settings"]
     }
   ],
   "repeat": null,
@@ -118,9 +149,9 @@
       "in_project": "src/gui/pages/settings.rs",
       "title": "Settings, Account: Account & Recovery Phrase",
       "dated": "undated",
-      "read": "2026-10-23",
+      "read": "2026-10-24",
       "quote": "Anyone who has it can use your account, so never share it.",
-      "note": "The desktop app's own code, as it stood on 2026-10-23 (commit 1638661e8): the section's words, the passphrase gate titled Reveal recovery phrase, the protected setup's PIN, the 24 words and Generate New Identity. The website's Settings words differ, so this how-to is for the desktop app."
+      "note": "The desktop app's own code, as it stood on 2026-10-23 (commit 1638661e8): the section's words, the passphrase gate titled Reveal recovery phrase, the protected setup's PIN, the 24 words and Generate New Identity. Re-read 2026-10-24 with BUG-213's fix: an identity that is on the device but locked shows the same Reveal recovery phrase gate, which also unlocks it, and never Generate New Identity; Restore says it replaces the identity on the device; Replace Identity asks Yes, generate a new identity, then for a passphrase. The website's Settings words differ, so this how-to is for the desktop app."
     },
     {
       "key": "phrase_cover",
@@ -145,10 +176,63 @@
       "title": "Settings, Account: Recovery through trusted people",
       "dated": "undated",
       "read": "2026-10-23",
-      "note": "Friends each keep one piece of the recovery phrase, locked; the recovery phrase stays the main way back in. As the code stood on 2026-10-23."
+      "note": "Friends each keep one piece of the recovery phrase, locked; the recovery phrase stays the main way back in. Setting it up uses the identity unlocked in the app, without asking for the passphrase again. As the code stood on 2026-10-23; re-read 2026-10-24."
+    },
+    {
+      "key": "modal",
+      "in_project": "src/gui/widgets/passphrase_modal.rs",
+      "title": "The passphrase prompt: Encrypt Your Private Key, Unlock Private Key",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "note": "After Generate New Identity the prompt asks for a passphrase to encrypt the new key; skipping it leaves the key in memory only. The app opens with the identity locked, without asking, unless Remember on this device was chosen; the unlock prompt opens from Unlock Key (Settings, Security) or the chat's Unlock with Passphrase, can be skipped (limited mode), and can remember the key in the OS keychain. As the code stood on 2026-10-24."
+    },
+    {
+      "key": "config",
+      "in_project": "src/config.rs",
+      "title": "AppConfig::from_gui_state: what the app saves",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "Never write plaintext key back; use encrypted fields from state",
+      "note": "The saved settings hold the key only encrypted with the passphrase, so a key that was never encrypted is not saved. As the code stood on 2026-10-24."
+    },
+    {
+      "key": "protected",
+      "in_project": "data/gui/safety_presets.json",
+      "title": "The protected setup's words",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "Show the recovery phrase",
+      "note": "Forgot the PIN? resets the PIN with the recovery phrase. While the protected setup is on, showing the recovery phrase needs the PIN; the desktop's button asks for it (src/gui/pages/safety_protected.rs), and the passphrase gate follows. As the data stood on 2026-10-24."
+    },
+    {
+      "key": "first_run",
+      "in_project": "src/gui/pages/main_menu.rs",
+      "title": "The first-run screen",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "Restore an existing account from its recovery phrase",
+      "note": "The first-run screen's way back in with the recovery phrase. As the code stood on 2026-10-24."
+    },
+    {
+      "key": "warnings",
+      "in_project": "data/safety/warnings.json",
+      "title": "Safety warnings: Asking for your recovery phrase or keys",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "Nobody from HumanityOS or any server will ever ask for your recovery phrase. Never type it into a message.",
+      "note": "The warning the chat shows when a message asks for the recovery phrase. As the data stood on 2026-10-24."
+    },
+    {
+      "key": "guard",
+      "in_project": "src/net/warnings.rs",
+      "title": "The recovery phrase guard on sending",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "Nobody legitimate will ever ask for it.",
+      "note": "What the chat says when it stops a message holding the recovery phrase; there is no send anyway. As the code stood on 2026-10-24."
     }
   ],
-  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "review": { "status": "verified", "hash": "58119927efe980bb3ca42171c62e53b60d4ffb6263bded19a253c5454a53246a", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

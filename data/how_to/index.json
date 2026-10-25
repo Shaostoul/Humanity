@@ -22,15 +22,15 @@
       "difficulty": 1,
       "hazard": "caution",
       "review": {
-        "status": "sourced",
-        "checked": null,
+        "status": "verified",
+        "checked": "2026-10-24",
         "person": null
       },
       "written_by": "ai",
       "makes": null,
       "steps": 9,
-      "hash": "b86b38be4c2c53ef0a6bdaf1643842bf786a1b425318a7ba0749e7fe3ce66184",
-      "search": "back up your recovery phrase write down the 24 words that bring humanityos account on any device and keep them where only you can find anyone with an in desktop app do it once day make again if ever lose paper private moment nobody watching nothing streaming recording or sharing screen open settings under beside reveal type passphrase press unlock hold to show until they appear all order number of each read word against match same hide then lock is there somewhere safe will want second way also has through trusted people no generate new identity one restore yours from its first identity's are shown covered ready says wrong box see what typed notebook pencil"
+      "hash": "58119927efe980bb3ca42171c62e53b60d4ffb6263bded19a253c5454a53246a",
+      "search": "back up your recovery phrase write down the 24 words that bring humanityos account on any device and keep them where only you can find anyone with an in desktop app do it right after make before close again if ever lose paper private moment nobody watching nothing streaming recording or sharing screen open settings under beside reveal type passphrase press unlock hold to show until they appear all order number of each read word against match same hide then lock is there somewhere safe will want second way also has through trusted people no generate new identity have used restore yours from below rather than generating one different otherwise its are shown covered ready says this locked how opens as step unlocks shows wrong box see what typed not remember cannot be without while set so lost end someone may seen copy left replace current yes when asks for encrypt key kept old still whoever act let know wallet holds anything move identity's straight away our reading pressed something else clipboard history windows delete entry too pasted anywhere shared other devices treat notebook pencil"
     },
     {
       "id": "boil_water_safe",
@@ -52,14 +52,14 @@
       "hazard": "lethal",
       "review": {
         "status": "sourced",
-        "checked": null,
+        "checked": "2026-10-24",
         "person": null
       },
       "written_by": "ai",
       "makes": null,
       "steps": 9,
-      "hash": "2ec67995f4e96b91ccf10d2f609a0b71f1b8d71c1ad9b93389e59f88e6d1a964",
-      "search": "boil water to make it safe drink kill the germs in you are not sure of by boiling then keep clean anyone whose may be unsafe notice broken supply or from source do trust if your health department has told how treat what they say is clear cloudy pour through cloth paper towel coffee filter let settle and off high above sea level heat pot until comes rolling at for minute minutes turn cool itself into sanitised containers cover them tightly boiled tastes flat one container another stand few hours add pinch salt each litre cooking stove jerrycan empty want"
+      "hash": "e70c925e4ccc043cbf4dd79453370ff030095a047b5a9a76167d197204693b73",
+      "search": "boil water to make it safe drink kill the germs in you are not sure of by boiling then keep clean anyone whose may be unsafe notice broken supply or from source do trust if your health department has told how treat what they say is clear cloudy pour through cloth paper towel coffee filter let settle and off high above sea level heat pot until comes rolling at for minute minutes turn cool itself into sanitised containers cover them tightly boiled tastes flat one container another stand few hours add pinch salt each litre never baby's formula oral rehydration solution our reading both mixed an exact amount cooking stove jerrycan empty want"
     },
     {
       "id": "change_furnace_filter",
@@ -81,14 +81,14 @@
       "hazard": "lethal",
       "review": {
         "status": "sourced",
-        "checked": null,
+        "checked": "2026-10-24",
         "person": null
       },
       "written_by": "ai",
       "makes": null,
       "steps": 10,
-      "hash": "9f4f848f7d630b50e98fab19affab5c8d448ea68194306bc564adca2b85fffdf",
-      "search": "change furnace filter put clean in forced air the right way round so it runs as should anyone with no experience needed furnace's own manual says where its is turn off electrical supply open door or cover and slide old out write down size of one you throw away washable take new same wash by spraying tap water through from side comes rinse let dry into slot arrow on frame pointing toward look again does point close back points will not compare filter's do run torn replace rather than washing screwdriver flat"
+      "hash": "7a3aa089541bc5949a13f79c70643222af7faeb0677a276863e1d0a288e028af",
+      "search": "change furnace filter put clean in forced air the right way round so it runs as should anyone with no experience needed furnace's own manual says where its is turn off electrical supply open door or cover and slide old out write down size of one you throw away washable take new same wash by spraying tap water through from side comes rinse let dry into slot arrow on frame pointing flows toward if sits inside blower fan look again does point close back points will not compare filter's do run torn replace rather than washing screwdriver flat"
     },
     {
       "id": "mix_ors_packet",
@@ -111,16 +111,16 @@
       "hazard": "lethal",
       "review": {
         "status": "sourced",
-        "checked": null,
+        "checked": "2026-10-24",
         "person": null
       },
       "written_by": "ai",
       "makes": {
         "recipe": "mix_ors"
       },
-      "steps": 9,
-      "hash": "d37a10fa35d17564544ec65b74bf218691a91613cbefbf7865bf02fd77e723aa",
-      "search": "mix oral rehydration solution from packet make of salts into the drink that replaces water and lost to diarrhoea give it anyone caring for child or an adult with who has ors wash your hands soap clean read how much does say measure exactly drinking jug empty whole stir until powder dissolved by spoon baby ask health worker about zinc tablets keep giving stops feeding them breast milk included throw away any left 24 hours after you mixed fresh if is still needed are not sure went in measuring our reading cup sachet purified"
+      "steps": 10,
+      "hash": "6e8b05d66e565ae19f47a87af14ab580edf7074b86a89ba0c1f136ab1a64373b",
+      "search": "mix oral rehydration solution from packet make of salts into the drink that replaces water and lost to diarrhoea give it anyone caring for child or an adult with who has ors wash your hands soap clean read how much does say measure exactly drinking jug empty whole stir until powder dissolved write down time you mixed keeps 24 hours then by spoon baby ask health worker about zinc tablets keep giving stops feeding them breast milk included throw away any left after wrote fresh if is still needed are not sure went in measuring our reading they vomit wait 10 minutes start again more slowly spoonful every vomiting see cup sachet purified"
     },
     {
       "id": "restore_save_snapshot",
@@ -143,15 +143,15 @@
       "difficulty": 1,
       "hazard": "none",
       "review": {
-        "status": "sourced",
-        "checked": null,
+        "status": "verified",
+        "checked": "2026-10-24",
         "person": null
       },
       "written_by": "ai",
       "makes": null,
       "steps": 7,
-      "hash": "9ed1e29351d59303c3796834eea642b4fd12e6031f2cc183ddfb3816e5e680ec",
-      "search": "restore save snapshot put your game home back the way it was at an earlier and keep you replace in case change mind anyone playing humanityos desktop app whose went wrong bad trade something lost spoiled by bug open settings data find snapshots under want to one is using called copy from time its date how long ago size press beside says current kept as first this if not cancel yes does line list begin with restored waiting enter world loads then no yet there nothing for next play until saves or now of last saved begins changed before read reason report make sense again picking can be undone only character loaded turn off"
+      "hash": "618926c29c602b8e225ca6b90338e6836e5711a8b256be1ad21da7759a385b7c",
+      "search": "restore save snapshot put your game home back the way it was at an earlier and keep you replace in case change mind anyone playing humanityos desktop app whose went wrong bad trade something lost spoiled by bug open settings data find snapshots under want to one is using called with its slot name after copy from time date how long ago size press beside says current kept as first this if not cancel yes does line list begin restored waiting enter world loads then no yet there nothing for next play until saves or now of last saved begins changed before read reason report make sense again picking can be undone only character loaded turn off"
     },
     {
       "id": "test_jar_seals",
@@ -173,14 +173,14 @@
       "hazard": "lethal",
       "review": {
         "status": "sourced",
-        "checked": null,
+        "checked": "2026-10-24",
         "person": null
       },
       "written_by": "ai",
       "makes": null,
       "steps": 13,
-      "hash": "cc402fc205003b11ccf17f0e403e5d2243efcd44957d7b4f1dcf91766774445c",
-      "search": "test the seals on home canned jars find out which of you have sealed what to do with any that did not and how store rest anyone who has just two piece lids by tested recipe day after canning leave cool at room temperature for 12 24 hours take screw bands off press middle each lid finger then let go does every stay down tap bottom teaspoon give clear ringing sound hold jar eye level look across its is curved slightly in fail will seal check jar's rim tiny nicks change if it one put new prepared process again same time refrigerator eat within several days inches about cm space top freeze wash their remove food rinse dry them label date clean dark place springs up when aside choose keep or gives dull tapped treat as our reading from outside cannot tell apart flat bulges come unsealed while was stored taste spoiled may botulinum toxin usda warns can be fatal through skin well mouth wear rubber heavy plastic gloves touch still goes closed garbage bag trash open leaking boiled 30 minutes fully covered water before usda's full steps cleaning included are written bulging swollen looks damaged cracked streaks dried shows rising bubbles an unnatural colour spurts liquid foam opened smells wrong cotton like mould under doubt throw handle get rid came storage above spoon"
+      "hash": "80ebed652e55dc350af8c6e7dc2ea448d1c0e1f99af90cb4e33a65a23d32d489",
+      "search": "test the seals on home canned jars find out which of you have sealed what to do with any that did not and how store rest anyone who has just two piece lids by tested recipe day after canning leave cool at room temperature for 12 24 hours take screw bands off press middle each lid finger then let go does every stay down tap bottom teaspoon give clear ringing sound hold jar eye level look across its is curved slightly in fail will seal check jar's rim tiny nicks change if it one put new prepared process again same time refrigerator eat within several days inches about cm space top freeze wash their remove food rinse dry them label date clean dark place springs up when aside choose still coming canner keep or this stored problem see come unsealed while was gives dull tapped treat as our reading from outside cannot tell apart flat bulges also sign spoilage cdc anything else looks smells wrong spoiled taste may botulinum toxin usda warns can be fatal through skin well mouth wear rubber heavy plastic gloves touch goes closed garbage bag trash open leaking made safe throw away first lay sides pot quarts litres more your gloved hands add water gently without splashing until least inch above bring boil 30 minutes wet surface tool openers too clothing touched fresh mix part unscented household bleach parts wipe paper towels apply everything breathe bulging swollen damaged cracked streaks dried shows rising bubbles an unnatural colour spurts liquid foam opened cotton like mould under doubt handle get rid came storage spoon"
     }
   ],
   "names": {

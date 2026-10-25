@@ -31,22 +31,28 @@
       "cites": ["medline"]
     },
     {
-      "when": "They have a fever over 102 F (38.9 C), or they are not getting better, or are getting worse, despite the drink.",
+      "when": "They have a fever over 102 F (38.9 C), or they are getting worse despite the drink, or an adult is not getting better despite it (for a child, WHO's line below).",
       "do": "Call 911 or your local emergency number.",
       "who": "Emergency services",
       "cites": ["medline"]
     },
     {
-      "when": "They show signs of severe dehydration: no urine or very dark urine, sunken eyes, listlessness, a racing heart or fast breathing, dizziness or confusion.",
+      "when": "They show signs of severe dehydration: no urine or very dark urine, sunken eyes, listlessness, a racing heart or fast breathing, dizziness or confusion; or they cannot drink or drink poorly; or a pinch of skin on the belly goes back very slowly (more than 2 seconds).",
       "do": "Get medical help now. Severe dehydration is treated with fluids given into a vein.",
       "who": "A doctor, a clinic or the emergency room",
-      "cites": ["medline", "who_fact"]
+      "cites": ["medline", "who_fact", "who_tx"]
     },
     {
       "when": "There is blood in the stool, the diarrhoea has gone on for 14 days or more, or there are any signs of dehydration.",
       "do": "See a health professional. The amounts on this page are WHO's for diarrhoea of less than 14 days with no blood in the stool.",
       "who": "A doctor, a nurse or a clinic",
       "cites": ["who_fact", "unicef"]
+    },
+    {
+      "when": "A child starts passing many watery stools, vomits again and again, becomes very thirsty, eats or drinks poorly, gets any fever, has blood in the stool, or is not better in three days.",
+      "do": "Take the child to a health worker.",
+      "who": "A health worker, a clinic or a doctor",
+      "cites": ["who_tx"]
     }
   ],
   "steps": [
@@ -88,8 +94,9 @@
       "kind": "do",
       "text": "Empty the whole packet into the water.",
       "why": ["The packet holds the right amount of salts and sugar for that much water, and only for that much."],
+      "detail": ["Add nothing else: no sugar, juice, soda or flavouring. WHO warns that sugary drinks can make diarrhoea worse and put too much sodium in the blood (and anything added changes the drink, our reading)."],
       "uses": ["ors_sachet_0"],
-      "cites": ["who_ors"]
+      "cites": ["who_ors", "who_tx"]
     },
     {
       "id": "stir",
@@ -99,15 +106,28 @@
       "cites": ["who_ors"]
     },
     {
+      "id": "keeps_24h",
+      "kind": "measure",
+      "text": "Write down the time you mixed it: the drink keeps 24 hours from then.",
+      "record": { "type": "text", "label": "Mixed at" },
+      "safety": {
+        "level": "serious",
+        "short": "Never give it more than 24 hours after it was mixed.",
+        "full": ["WHO's packet label carries this as a warning: discard the remaining solution after 24 hours."]
+      },
+      "cites": ["who_ors"]
+    },
+    {
       "id": "give",
       "kind": "do",
       "text": "Give it to drink, or by spoon for a baby.",
       "detail": [
         "How much, by WHO's guidance as UNICEF sets it out, after each loose stool: 50 to 100 ml for a child under 2, 100 to 200 ml for a child from 2 to 10, and as much as they want above 10.",
-        "WHO's label for a one-litre packet: a baby takes the litre over 24 hours, a child over 8 to 24 hours according to age, and an adult drinks it freely, as needed."
+        "WHO's label for a one-litre packet: a baby takes the litre over 24 hours, a child over 8 to 24 hours according to age, and an adult drinks it freely, as needed.",
+        "A child under 2: a teaspoon every 1 to 2 minutes. Older children and adults: frequent sips from a cup. Never from a feeding bottle."
       ],
       "uses": ["cup_0", "spoon_0"],
-      "cites": ["who_ors", "unicef"]
+      "cites": ["who_ors", "unicef", "who_tx"]
     },
     {
       "id": "zinc",
@@ -125,9 +145,8 @@
     },
     {
       "id": "throw_away",
-      "kind": "wait",
-      "text": "Throw away any drink left 24 hours after you mixed it, and mix a fresh packet if it is still needed.",
-      "wait": { "min_s": 86400 },
+      "kind": "do",
+      "text": "Throw away any drink left 24 hours after the time you wrote down, and mix a fresh packet if it is still needed.",
       "safety": {
         "level": "serious",
         "short": "Never give it more than 24 hours after it was mixed.",
@@ -147,6 +166,13 @@
       "why": "The right amount is the only thing that makes the drink right.",
       "fix": "Throw it away and mix a fresh packet, measuring the water exactly (our reading).",
       "cites": ["who_ors"]
+    },
+    {
+      "id": "vomits",
+      "sign": "They vomit.",
+      "why": "Vomiting often comes in the first hour or two, especially when the drink is taken too fast; most of it is still taken in.",
+      "fix": "Wait 5 to 10 minutes, then start again more slowly, a spoonful every 2 to 3 minutes. If they keep vomiting, see a health worker.",
+      "cites": ["who_tx"]
     }
   ],
   "repeat": null,
@@ -201,9 +227,19 @@
       "read": "2026-10-23",
       "quote": "Before and after caring for someone at home who is sick with vomiting or diarrhea",
       "note": "One of its key times to wash hands. Its steps: wet, lather (backs, between the fingers, under the nails), scrub for at least 20 seconds, rinse under clean running water, dry with a clean towel or an air dryer. Read through a page reader."
+    },
+    {
+      "key": "who_tx",
+      "source": "who",
+      "title": "The treatment of diarrhoea: a manual for physicians and other senior health workers (WHO/FCH/CAH/05.1)",
+      "where": "https://iris.who.int/server/api/core/bitstreams/df59ceab-2498-4a64-bd93-ad7566addb4e/content",
+      "dated": "2005",
+      "read": "2026-10-24",
+      "quote": "Feeding bottles should not be used.",
+      "note": "Section 4.3.2: a child under 2 is offered a teaspoonful every 1-2 minutes, older children and adults frequent sips from a cup; if the child vomits, wait 5-10 minutes, then give it again more slowly, a spoonful every 2-3 minutes. Section 4.2.4 (Plan A, rule 4): take the child to a health worker if they start to pass many watery stools, have repeated vomiting, become very thirsty, eat or drink poorly, develop a fever, have blood in the stool, or do not get better in three days. Section 4.2.1: drinks sweetened with sugar can cause osmotic diarrhoea and hypernatraemia (commercial carbonated drinks, commercial fruit juices, sweetened tea). Section 3.2: unable to drink, and a skin pinch over the abdomen that goes back very slowly (more than 2 seconds), are signs of severe dehydration. Added by the independent review, 2026-10-24; read as a downloaded PDF with its text extracted locally."
     }
   ],
-  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "review": { "status": "sourced", "hash": "6e8b05d66e565ae19f47a87af14ab580edf7074b86a89ba0c1f136ab1a64373b", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

@@ -23,8 +23,8 @@
     {
       "id": "find_save",
       "kind": "do",
-      "text": "Find Save snapshots, and under it the save you want to put back. The one the game is using is called Your home.",
-      "detail": ["Before the game saves over your home it keeps a copy of the save it replaces: the newest 10 copies, at most one every 15 minutes. The game saves every 2 minutes while you play, and when you quit."],
+      "text": "Find Save snapshots, and under it the save you want to put back. The one the game is using is called Your home, with its slot name after it.",
+      "detail": ["Before the game saves over your home it keeps a copy of the save it replaces: the newest 10 copies, at most one every 15 minutes. The game saves every 2 minutes while you play, and when you quit.", "Restore soon after something goes wrong: as you keep playing, older copies are replaced. The ten, at least 15 minutes apart, reach back about two and a quarter hours of play, and less if you pressed Snapshot now or restored, since each of those keeps a copy too."],
       "cites": ["settings", "persistence"]
     },
     {
@@ -121,7 +121,7 @@
       "note": "Its lines begin Restored (on disk, or with the home being loaded back into the game); with Start every session from the default home on, only the character is loaded now. As the code stood on 2026-10-23."
     }
   ],
-  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "review": { "status": "verified", "hash": "618926c29c602b8e225ca6b90338e6836e5711a8b256be1ad21da7759a385b7c", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

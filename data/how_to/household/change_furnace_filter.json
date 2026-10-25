@@ -22,9 +22,15 @@
   "stop_and_call": [
     {
       "when": "You smell gas.",
-      "do": "Leave the building now, leaving doors and windows open behind you. Do not switch lights on or off, do not make a spark, and do not use a phone while you are inside. From a safe distance, away from the smell, call 911 and your gas company.",
+      "do": "Leave the building now, leaving doors and windows open behind you. Do not switch lights on or off, do not make a spark, and do not use a phone while you are inside. From a safe distance, away from the smell, call 911 and your gas company. Do not go back in until the gas company or emergency services tell you it is safe.",
       "who": "Emergency services (911 in the United States) and your gas company",
       "cites": ["pa_puc"]
+    },
+    {
+      "when": "A carbon monoxide alarm sounds, or people in the home feel unwell with a headache, dizziness, weakness, nausea, vomiting, sleepiness or confusion and you suspect carbon monoxide (at first it can feel like the flu, but without a fever).",
+      "do": "Get everyone outside to fresh air now, without looking for where it is coming from, then call 911 and count heads. Do not go back in until the emergency responders say you may, and do not run the furnace again until a trained service person has checked it.",
+      "who": "Emergency services (911 in the United States)",
+      "cites": ["cpsc_co", "cpsc_co_qa"]
     }
   ],
   "steps": [
@@ -81,19 +87,24 @@
       "text": "Wash the filter by spraying tap water through it from the side the air comes out of, rinse it, and let it dry.",
       "if": { "filter_kind": "washable" },
       "detail": ["Spraying against the way the air flows pushes the dust back out the way it came in (our reading). Do not oil or coat it: the maker's instructions say that is neither recommended nor needed."],
+      "safety": {
+        "level": "lethal",
+        "short": "Leave the furnace off until the filter is dry and back in.",
+        "full": ["The maker's instructions warn never to run the furnace without a filter: it could cause a fire, an injury or a death."]
+      },
       "cites": ["carrier"]
     },
     {
       "id": "put_in",
       "kind": "do",
-      "text": "Slide the filter into its slot with the arrow on its frame pointing toward the furnace.",
+      "text": "Slide the filter into its slot with the arrow on its frame pointing the way the air flows: toward the furnace, or, if the filter sits inside the furnace, toward the blower (the fan).",
       "why": ["The arrow shows the way air should flow through the filter: from the room, through the filter, into the furnace."],
       "cites": ["carrier", "basc"]
     },
     {
       "id": "arrow",
       "kind": "check",
-      "text": "Look again: does the arrow on the filter point toward the furnace?",
+      "text": "Look again: does the arrow on the filter point toward the furnace (or, inside the furnace, toward the blower)?",
       "no": "arrow_backwards",
       "cites": ["carrier", "basc"]
     },
@@ -112,18 +123,19 @@
       "id": "power_on",
       "kind": "do",
       "text": "Turn the furnace's electrical supply back on.",
+      "detail": ["Do not leave the old filter, its wrapping, cleaning things or anything that burns on, near or touching the furnace. The maker's instructions say never to store such things there: it could cause a fire, an injury or a death."],
       "cites": ["carrier"]
     }
   ],
   "worked_if": [
     "The filter door is closed and the furnace runs as it did before.",
-    "The arrow on the filter points toward the furnace."
+    "The arrow on the filter points toward the furnace (or, inside the furnace, toward the blower)."
   ],
   "problems": [
     {
       "id": "arrow_backwards",
-      "sign": "The arrow on the filter points away from the furnace.",
-      "why": "The filter is in backwards: the arrow should point the way the air flows, toward the furnace.",
+      "sign": "The arrow on the filter points away from the furnace (or, inside the furnace, away from the blower).",
+      "why": "The filter is in backwards: the arrow should point the way the air flows, toward the furnace and its blower.",
       "fix": "Take the filter out, turn it round and slide it back in.",
       "cites": ["carrier", "basc"]
     },
@@ -173,7 +185,7 @@
       "dated": "2001",
       "read": "2026-10-23",
       "quote": "If the filter has an airflow direction arrow, the arrow must point toward the blower.",
-      "note": "One maker's manual for one family of gas furnaces, read as a downloaded PDF with its text extracted locally; dated by its copyright line. Its warnings: turn off gas and electrical supplies before any maintenance or service; wear safety glasses and work gloves; sharp metal edges can cause injury. Its owner steps: turn off the electrical supply before removing the filter cabinet door or the blower access door; filters in the return-air duct, a media cabinet or the blower compartment; permanent, washable filters cleaned by spraying tap water through them from the opposite direction of airflow, rinsed and let dry, oiling or coating not recommended or required; a disposable media filter replaced only with one of the same part number and size; replace if torn; and the warning, 'Never operate unit without a filter or with filter access door removed. A failure to follow this warning could result in fire, personal injury, or death.' Other furnaces follow their own manuals."
+      "note": "One maker's manual for one family of gas furnaces, read as a downloaded PDF with its text extracted locally; dated by its copyright line. Its warnings: turn off gas and electrical supplies before any maintenance or service; wear safety glasses and work gloves; sharp metal edges can cause injury. Its owner steps: turn off the electrical supply before removing the filter cabinet door or the blower access door; filters in the return-air duct, a media cabinet or the blower compartment; permanent, washable filters cleaned by spraying tap water through them from the opposite direction of airflow, rinsed and let dry, oiling or coating not recommended or required; a disposable media filter replaced only with one of the same part number and size; replace if torn; and the warning, 'Never operate unit without a filter or with filter access door removed. A failure to follow this warning could result in fire, personal injury, or death.'; and 'Never store anything on, near, or in contact with furnace', naming cleaning tools, cleaning compounds, volatile fluids, painting compounds and paper products, with the same warning of fire, personal injury or death. Other furnaces follow their own manuals."
     },
     {
       "key": "basc",
@@ -194,9 +206,29 @@
       "read": "2026-10-23",
       "quote": "Call 9-1-1 and your natural gas utility (if you know the number) from a safe distance, away from the odor.",
       "note": "Also: if indoors, leave immediately; do not turn lights on or off; do not make calls from a landline or a cell phone while at home; do not cause a spark; wait for the gas company or emergency services to say it is safe to return. A Pennsylvania agency's page; 911 is the emergency number in the United States."
+    },
+    {
+      "key": "cpsc_co",
+      "source": "cpsc",
+      "title": "Carbon Monoxide Information Center",
+      "where": "https://www.cpsc.gov/Safety-Education/Safety-Education-Centers/Carbon-Monoxide-Information-Center",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "If you suspect CO poisoning, get outside to fresh air immediately, and then call 911.",
+      "note": "Also: the symptoms of CO poisoning, headache, dizziness, weakness, nausea, vomiting, sleepiness and confusion. Added by the independent review, 2026-10-24. Read through a page reader."
+    },
+    {
+      "key": "cpsc_co_qa",
+      "source": "cpsc",
+      "title": "Carbon Monoxide Questions and Answers",
+      "where": "https://www.cpsc.gov/Safety-Education/Safety-Education-Centers/Carbon-Monoxide-Information-Center/Carbon-Monoxide-Questions-and-Answers",
+      "dated": "undated",
+      "read": "2026-10-24",
+      "quote": "DO NOT reenter the premises until the emergency services responders have given you permission.",
+      "note": "Also, when the alarm sounds: never ignore it; do not try to find the source of the CO; immediately move outside to fresh air; call emergency services, the fire department or 911; then do a head count; do not operate the appliance until trained personnel have serviced it. Its symptoms: at low to moderate levels similar to the flu, but without the fever (headache, fatigue, shortness of breath, nausea and dizziness); mental confusion, vomiting, loss of muscular coordination, loss of consciousness and death at high levels. Added by the independent review, 2026-10-24. Read through a page reader."
     }
   ],
-  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "review": { "status": "sourced", "hash": "7a3aa089541bc5949a13f79c70643222af7faeb0677a276863e1d0a288e028af", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

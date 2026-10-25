@@ -19,7 +19,7 @@
     { "item": "water_jerrycan_empty_0", "note": "Clean, sanitised containers with tight covers, to keep the boiled water in." }
   ],
   "materials": [
-    { "proposed_item": "The water you want to make safe", "note": "As much as the pot holds." }
+    { "proposed_item": "The water you want to make safe", "note": "No more than about two-thirds of the pot, so it can boil hard without boiling over (our reading)." }
   ],
   "stop_and_call": [
     {
@@ -27,6 +27,12 @@
       "do": "Do not drink it, boiled or not: boiling does not make it safe. Use bottled water or water from another source, and ask your health department.",
       "who": "role:local-health-jurisdiction",
       "cites": ["cdc"]
+    },
+    {
+      "when": "You have been told not to drink the water (a do-not-drink notice) or not to use it at all (a do-not-use notice).",
+      "do": "Do not use it for drinking, cooking, brushing teeth, baby formula or ice, boiled or not: boiling does not make water with chemicals or toxins safe. Use bottled water. Under a do-not-use notice, do not use tap water for anything, washing included. Follow the notice.",
+      "who": "role:local-health-jurisdiction",
+      "cites": ["cdc_advisories"]
     }
   ],
   "steps": [
@@ -35,7 +41,8 @@
       "kind": "do",
       "text": "If your health department has told you how to boil or treat your water, do what they say.",
       "why": ["The CDC's own advice is to follow your health department's recommendations for boiling or treating your water."],
-      "cites": ["cdc"]
+      "detail": ["While any notice about your water is on, do not drink or use water or ice from anything connected to your water line, such as the water and ice dispensers of a fridge or freezer."],
+      "cites": ["cdc", "cdc_advisories"]
     },
     {
       "id": "cloudy",
@@ -118,7 +125,7 @@
     {
       "id": "flat_taste",
       "sign": "The boiled water tastes flat.",
-      "fix": "Pour it from one clean container to another and let it stand for a few hours, or add a pinch of salt to each litre.",
+      "fix": "Pour it from one clean container to another and let it stand for a few hours, or add a pinch of salt to each litre. Never add salt to water for a baby's formula or for oral rehydration solution (our reading: both are mixed to an exact amount of salt).",
       "cites": ["cdc"]
     }
   ],
@@ -134,6 +141,16 @@
       "read": "2026-10-23",
       "quote": "Bring clear water to a rolling boil for 1 minute (at elevations above 6,500 feet, boil for 3 minutes).",
       "note": "Also: filter cloudy water through a clean cloth, paper towel or coffee filter, or let it settle and draw off the clear water; let the boiled water cool; store it in clean, sanitized containers with tight covers; improve the flat taste by pouring it between containers and letting it stand a few hours, or a pinch of salt per quart or liter; 'You cannot make water containing fuel, toxic chemicals, or radioactive materials safe by boiling or disinfecting it.'; follow your health department's recommendations. The page gives no reason for its altitude rule; the reason in the how-to is the USDA guide's (source usda)."
+    },
+    {
+      "key": "cdc_advisories",
+      "source": "cdc",
+      "title": "Drinking Water Advisories: An Overview",
+      "where": "https://www.cdc.gov/water-emergency/about/drinking-water-advisories-an-overview.html",
+      "dated": "2024-03-04",
+      "read": "2026-10-24",
+      "quote": "Boiling water containing harmful chemicals or toxins will not make the water safe to use.",
+      "note": "Also: a do not drink water advisory is typically issued when tap water is, or could be, contaminated with harmful chemicals or toxins; during a do not use water advisory, use commercially bottled water and do not drink or use tap water for any purpose; a do not drink advisory uses bottled water for drinking and cooking, brushing teeth, washing fruits and vegetables, preparing food, mixing baby formula, making ice and giving water to pets; during any type of drinking water advisory, do not drink or use water from appliances connected to the water line, including the water and ice dispensers in a refrigerator or freezer. Added by the independent review, 2026-10-24. Read through a page reader."
     },
     {
       "key": "epa",
@@ -166,7 +183,7 @@
       "note": "Also: keep children out of the kitchen while preparing meals, or in a safe supervised area; turn pot handles inward and out of a child's reach and use the rear burners when possible; keep hot liquids away from counter and table edges. Read through a page reader; the page says revised December 2025."
     }
   ],
-  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "review": { "status": "sourced", "hash": "e70c925e4ccc043cbf4dd79453370ff030095a047b5a9a76167d197204693b73", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

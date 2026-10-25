@@ -891,9 +891,29 @@ is true:
   and skin-contact warning and its disposal steps for a spoiled jar, WHO's "blood in stool" and
   "persistent diarrhoea" limits and the zinc course, two of the gas utility's rules, the furnace
   maker's safety glasses and gloves, 102 F printed as 38.8 C (it is 38.9 C), and five places where
-  the author's own reasoning was not marked as such. All were fixed. It is not the independent
-  review the review field means: every how-to is still `sourced`, "Sourced, not yet checked", until
-  that review, and the four lethal ones until a person has read them and dated it.
+  the author's own reasoning was not marked as such. All were fixed. It was not the independent
+  review the review field means.
+- **The independent review, 2026-10-24, and a second pass on its fixes.**
+  - **First pass:** a reviewer refuted each file against its sources and the code and found 26
+    problems. Among them: WHO's signs for taking a child to a health worker and how to give the
+    drink; a do-not-drink notice, which boiling does not answer; the USDA's full detoxification
+    and clean-up for a spoiled jar; a carbon monoxide stop line; and the furnace maker's
+    toward-the-blower arrow. It also found that Settings showed a locked identity as "no
+    identity" and offered Generate New Identity over it (BUG-213, fixed in code the same day).
+  - **Second pass:** all were merged, and a separate critic then refuted the merged words. It
+    found 17 more. Among them: the do-not-drink line written for drinking only; the fridge's water
+    and ice under any notice; foods made with home-canned tomatoes; a furnace that may be the CO
+    source run again; and a leaked phrase's wallet. All were merged too.
+  - **Review state after both:** each file's review is bound to its words (`review.hash`, checked
+    2026-10-24, by "two refutation passes (AI)"). The two HumanityOS how-tos are `verified`. The
+    four lethal ones stay `sourced`, "Sourced, not yet checked", until a person has read them and
+    dated it.
+  - **Lesson for writers and reviewers: a step's `kind` is behaviour, not wording.** The runner's
+    current step is the first one not ticked, and a `wait` is never ticked by itself. So a
+    `wait` anywhere but last holds the arrow and "Step n of m" on its timer, and the steps after
+    it never become current. A countdown measured from an earlier moment is a `measure` step that
+    writes the time down ("Mixed at", in the rehydration how-to), not a timer. A fix review checks
+    what the runner does with each step, not only what the sources say.
 - **The service worker** fetches `/data/how_to/` from the network first (a safety fix must reach a
   person on their next visit), falling back to the copy it last fetched offline.
 

@@ -22,8 +22,8 @@
   ],
   "stop_and_call": [
     {
-      "when": "Someone ate home-canned food and has trouble swallowing, double or blurry vision, drooping eyelids, trouble moving the eyes, slurred speech, muscle weakness or trouble breathing.",
-      "do": "See a doctor or go to the emergency room immediately.",
+      "when": "Someone ate home-canned food and has trouble swallowing, double or blurry vision, drooping eyelids, trouble moving the eyes, slurred speech, muscle weakness or trouble breathing. It may also bring vomiting, nausea, stomach pain or diarrhea.",
+      "do": "See a doctor or go to the emergency room immediately. Do not wait.",
       "who": "A doctor, or the emergency room",
       "cites": ["cdc_symptoms"]
     }
@@ -97,7 +97,7 @@
       "uses": ["canning_lid_0"],
       "safety": {
         "level": "serious",
-        "short": "Process it again within 24 hours, for the recipe's full time.",
+        "short": "Only if it is still within 24 hours of coming out of the canner, for the recipe's full time. Otherwise refrigerate or freeze it.",
         "full": ["The USDA's choice to process a jar again is for within 24 hours, using the same processing time as the first time. The guide does not say when the 24 hours start: counting from when the jar came out of the canner is the safe side, and after a 12 to 24 hour cool that can leave little or no time, so the refrigerator or the freezer may be the choice that is left (our reading)."]
       },
       "cites": ["usda"]
@@ -139,7 +139,7 @@
       "safety": {
         "level": "lethal",
         "short": "Never taste food from a jar whose lid came unsealed, or that shows signs of spoilage.",
-        "full": ["Check each jar again when you take it to use (the problems below say what to look for). If in doubt, throw it out: never taste food to see if it is safe."]
+        "full": ["Check each jar again when you take it to use (the problems below say what to look for). If in doubt, throw it out: never taste food to see if it is safe.", "Boil home-canned tomatoes, foods made with them (sauce or salsa, for example), and every low-acid home-canned food (vegetables, meat, fish and others) in a saucepan before eating them: 10 minutes below 1,000 feet (300 m), and 1 minute more for each 1,000 feet higher."]
       },
       "cites": ["usda", "cdc_canned"]
     }
@@ -151,30 +151,30 @@
   "problems": [
     {
       "id": "springs_up",
-      "sign": "A lid springs up when you press it and let go.",
+      "sign": "On the day you test the seals, a lid springs up when you press it and let go.",
       "why": "The lid did not seal.",
-      "fix": "Put that jar aside and choose what to do with it: process it again within 24 hours, keep it in the refrigerator and eat it within several days, or freeze it.",
-      "cites": ["usda"]
+      "fix": "Put that jar aside and choose what to do with it: process it again if it is still within 24 hours of coming out of the canner, keep it in the refrigerator and eat it within several days, or freeze it. If this is a jar you have stored, it is not this problem: see A jar's lid has come unsealed while it was stored.",
+      "cites": ["usda", "cdc_canned"]
     },
     {
       "id": "dull_sound",
-      "sign": "A lid gives a dull sound when tapped.",
+      "sign": "On the day you test the seals, a lid gives a dull sound when tapped.",
       "why": "The lid is not sealed, or food is touching its underside.",
-      "fix": "Treat it as a jar that did not seal (our reading: from outside you cannot tell the two apart).",
+      "fix": "Treat it as a jar that did not seal (our reading: from outside you cannot tell the two apart). If this is a jar you have stored, it is not this problem: see A jar's lid has come unsealed while it was stored.",
       "cites": ["usda"]
     },
     {
       "id": "flat_or_bulging",
-      "sign": "A lid is flat, or bulges up in the middle.",
+      "sign": "On the day you test the seals, a lid is flat, or bulges up in the middle.",
       "why": "It may not be sealed.",
-      "fix": "Treat it as a jar that did not seal.",
-      "cites": ["usda"]
+      "fix": "Treat it as a jar that did not seal. A lid that bulges is also a sign of spoilage (CDC): if anything else about the jar looks or smells wrong, treat it as spoiled (our reading). If this is a jar you have stored, it is not this problem: see A jar's lid has come unsealed while it was stored.",
+      "cites": ["usda", "cdc_canned"]
     },
     {
       "id": "unsealed_in_storage",
       "sign": "A jar's lid has come unsealed while it was stored.",
       "why": "Spoilage bacteria and yeast make gas that swells lids and breaks seals.",
-      "fix": "Do not taste it. Treat it as spoiled food that may hold botulinum toxin, which the USDA warns can be fatal through the skin as well as by mouth: wear rubber or heavy plastic gloves to touch it. A jar still sealed goes, closed, in a heavy garbage bag in the trash; one that is open, unsealed or leaking is boiled for 30 minutes, fully covered with water, before it goes. The USDA's full steps, cleaning up included, are a how-to still to be written.",
+      "fix": "Do not taste it. Treat it as spoiled food that may hold botulinum toxin, which the USDA warns can be fatal through the skin as well as by mouth: wear rubber or heavy plastic gloves to touch it. A jar still sealed goes, closed, in a heavy garbage bag in the trash. One that is open, unsealed or leaking is made safe to throw away first: lay the jar and its lid on their sides in a pot of 8 quarts (about 8 litres) or more, wash your gloved hands, and add water gently, without splashing, until it is at least 1 inch (2.5 cm) above the jar. Put a lid on the pot, bring it to the boil and boil it 30 minutes. Let it cool, then put the jar, its lid and the food in the trash. Then wet every surface, tool (can openers too) and piece of clothing the food may have touched with a fresh mix of 1 part unscented household bleach (5 to 6%) to 5 parts water, and leave it 30 minutes. Wipe it up with paper towels and put them in a plastic bag in the trash, apply the bleach again for 30 minutes and rinse, then wash everything well and throw the gloves away. Do not breathe the bleach or let it touch your skin.",
       "stop": true,
       "cites": ["usda"]
     },
@@ -208,7 +208,7 @@
       "dated": "2024-04-25",
       "read": "2026-10-23",
       "quote": "If in doubt, throw it out!",
-      "note": "The four signs that canned food may be contaminated: leaking, bulging or swollen; damaged, cracked or abnormal; spurts liquid or foam when opened; discolored, moldy or smells bad. And: 'Never taste food to see if it's safe.' Read through a page reader."
+      "note": "The four signs that canned food may be contaminated: leaking, bulging or swollen; damaged, cracked or abnormal; spurts liquid or foam when opened; discolored, moldy or smells bad. And: 'Never taste food to see if it's safe.' Also, under Boil home-canned foods before eating: boil home-canned tomatoes, foods containing home-canned tomatoes, all low-acid home-canned foods and all home-fermented Alaska Native foods in a saucepan before eating them, 10 minutes at altitudes below 1,000 feet, adding 1 minute for each additional 1,000 feet of elevation (re-read 2026-10-24 through an archived copy, as cdc.gov refused the page reader). Read through a page reader."
     },
     {
       "key": "cdc_symptoms",
@@ -221,7 +221,7 @@
       "note": "Its list: difficulty swallowing, muscle weakness, double vision, drooping eyelids, blurry vision, slurred speech, difficulty breathing, difficulty moving the eyes; foodborne botulism may also bring vomiting, nausea, stomach pain and diarrhea. Read through a page reader."
     }
   ],
-  "review": { "status": "sourced", "hash": null, "checked": null, "by": null, "person": null },
+  "review": { "status": "sourced", "hash": "80ebed652e55dc350af8c6e7dc2ea448d1c0e1f99af90cb4e33a65a23d32d489", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

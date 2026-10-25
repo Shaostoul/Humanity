@@ -590,7 +590,8 @@ pub fn save_world(path: &Path, save: &WorldSave) -> Result<(), String> {
 /// How many snapshots of each save slot are kept.
 ///
 /// Ten automatic snapshots, spaced at least `SNAPSHOT_SPACING_SECS` apart,
-/// reach back at least two and a half hours of play, and usually across
+/// reach back at least two and a quarter hours of play (nine gaps of 15
+/// minutes; this said two and a half until 2026-10-24), and usually across
 /// several sessions, because a snapshot is only taken when a save is about to
 /// be overwritten (time with the game closed costs none). A forced snapshot
 /// (a "Snapshot now" click, or the copy a restore keeps) can come sooner, but

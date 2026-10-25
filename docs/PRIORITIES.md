@@ -110,7 +110,8 @@ In order:
    rung 2 (Dev > Journal) and rung 3 (the frame, net, world and page kinds) BUILT the same day;
    and rung 4 (each rig vantage marks itself; a failed one carries the journal since its mark) the
    same evening; left: teleports and a hitch's slowest pass in the kinds.
-6. **How-to:** an independent review of the six how-tos, and a person's dated review of the four
+6. **How-to:** the independent review and a second refutation pass DONE 2026-10-24 (43 fixes, the
+   two HumanityOS how-tos verified, BUG-213 fixed in code); left: a person's dated review of the four
    marked lethal before any shows as checked (all four real-life ones are lethal by the scale's own
    definition: the operator may want to look at that label); decisions 3 (dangerous work) and 4
    (publishing) are the operator's; then increment 2 (`docs/design/how-to.md`).
