@@ -148,7 +148,7 @@
         } else if (m.type === 'account_erased') {
           refuse(sock, m.partial === true
             ? 'the erase of your account on this server did not finish, so open Chat, press Enter and use Erase account again.'
-            : 'your account on this server was erased, so open Chat and press Enter there to sign up again.');
+            : 'your account on this server was erased, so open Chat and press Enter there to join it again.');
         } else if (m.type === 'name_taken' || m.type === 'system') {
           const text = String(m.message || '');
           if (m.type === 'system' && text.startsWith(THROTTLE_PREFIX)) return;

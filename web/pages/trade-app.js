@@ -187,7 +187,7 @@ async function ensureTradeWs() {
         // back is the person's choice, made on the Chat page.
         refuseTradeWs(ws, m.partial === true
           ? 'the erase of your account on this server did not finish, so open Chat, press Enter and use Erase account again.'
-          : 'your account on this server was erased, so open Chat and press Enter there to sign up again.');
+          : 'your account on this server was erased, so open Chat and press Enter there to join it again.');
       } else if (m.type === 'name_taken' || m.type === 'system') {
         const text = String(m.message || '');
         // The per-connection throttle: the relay closes the socket, and the close handler backs off.

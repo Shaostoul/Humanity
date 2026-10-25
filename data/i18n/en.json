@@ -523,7 +523,7 @@
     "signin_failed": "Could not sign in to the server from this page. Check the connection and try again.",
     "refused_sign_check": "this page could not sign the server's sign-in check with your identity.",
     "refused_erase_unfinished": "the erase of your account on this server did not finish, so open Chat, press Enter and use Erase account again.",
-    "refused_erased": "your account on this server was erased, so open Chat and press Enter there to sign up again.",
+    "refused_erased": "your account on this server was erased, so open Chat and press Enter there to join it again.",
     "task_desc_placeholder": "Context, acceptance criteria, links...",
     "color_swatch_label": "Color {{n}}"
   },
