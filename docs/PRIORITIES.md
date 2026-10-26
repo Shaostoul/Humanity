@@ -27,7 +27,7 @@
 > means **TIER 0** below: that section was renamed on 2026-09-20 when the dated
 > status blocks were retired.
 >
-> Current at **v0.1388.0, 2026-09-27**. Retired blocks live in
+> Current at **v0.1547.0, 2026-10-25** (the TIER 0 NOW list; the dated blocks below it keep their own dates). Retired blocks live in
 > `docs/history/priorities-archive-2026-09-20-to-27.md`,
 > `docs/history/priorities-archive-2026-08-to-09.md` and
 > `docs/history/priorities-archive-2026-05-to-08.md`.
