@@ -208,7 +208,9 @@ since the last one. Continuous backup copies every change within seconds,
 sealed with the server's backup key, to a place you choose: another disk or a
 mounted share, an S3-compatible bucket (any provider, or your own Garage or
 MinIO), or another HumanityOS server you trust (each keeps the other's
-ciphertext, with a size limit you set). Turn it on in Server Settings > ADMIN >
+ciphertext, with a size limit you set; a server that keeps another's copies behind
+nginx needs `client_max_body_size 6m` on `location /api/backup-host/`, as
+`scripts/nginx/humanity.conf` has it, or every piece is refused with 413). Turn it on in Server Settings > ADMIN >
 Backups > Change where the copies go; the same panel shows how far behind it
 is, what can be restored, and runs a **Restore drill** (a restore into a
 scratch file, compared with the live database, which it only reads). A lost
