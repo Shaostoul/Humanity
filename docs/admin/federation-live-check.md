@@ -22,7 +22,7 @@ nothing here lands in a room people read. Allow about 20 minutes.
    panel's own request (the browser's developer tools, Network tab, the
    `/api/admin/federation` request).
 3. **A test account** for the ban step, which has to be the SAME key on both servers: in a private
-   browser window, sign up on united-humanity.us as `fedtest`, write down its recovery phrase,
+   browser window, join united-humanity.us's chat as `fedtest`, write down its recovery phrase,
    then open public.guide in the same private window and choose "Restore from recovery phrase".
 
 ## The check

@@ -61,7 +61,7 @@ Live site: [united-humanity.us](https://united-humanity.us)
 
 1. **Open it.** Visit [united-humanity.us](https://united-humanity.us) in a browser, or
    download the desktop app from the site.
-2. **Create your identity.** It happens automatically the first time. There is no signup
+2. **Create your identity.** It happens automatically the first time. There is no sign-up
    form, no email, no password. Behind the scenes your device makes a private key that
    is your account.
 3. **Back up your 24 words.** You will be shown a 24-word recovery phrase. Write it down
