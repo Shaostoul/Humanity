@@ -185,8 +185,10 @@ server operator cannot read your private messages.
   AES-256-GCM. The relay stores only ciphertext.
 - `[done]` Encrypted vault (PBKDF2 600k both clients) with three auto-unlock modes.
 - `[done]` BIP39 24-word recovery, so losing a device never locks you out forever.
-- `[building]` Social key recovery: the recovery page and the relay storage exist, the
-  client-side seed splitting does not, so it cannot be relied on yet.
+- `[done]` Recovery through trusted people (v0.1541.0): a few friends you chose earlier each
+  keep one locked piece of your recovery phrase and send it back after checking by phone or in
+  person that it is really you. No one piece is any use alone, and the server cannot read them or
+  learn who your trusted people are. In Settings > Account and at /recovery on the website.
 - `[done]` Proof-of-possession at connect: a signed challenge-response before the
   relay binds your identity (closes identity spoofing).
 - `[done]` Release signing: a hybrid Ed25519 + Dilithium3 signature on every release
@@ -220,7 +222,9 @@ of your identity, and your identity is portable across all of them.
 - `[done]` Voice and video calling on the web (WebRTC with screen share). Since v0.1470 calls and
   voice rooms go through the server's own call forwarder, so nobody in a call sees another
   person's network address, and Google is no longer asked for anything (calls work once the
-  server's call port is opened).
+  server's call port is opened). Since 2026-10-22 each person chooses how their own calls
+  connect, on both apps: Private (the default), Direct (device to device where possible, the
+  people in the call see your address), or Direct also asking a public address service you pick.
 - `[done]` Safety tools, on both clients (v0.1465 to v0.1473, design
   `docs/design/blocking-and-safe-mode.md`): safe by default, with "who can reach me" for
   messages, calls and trades and a Message, Call and Trade tick per friend; Block (they are not
@@ -229,8 +233,9 @@ of your identity, and your identity is portable across all of them.
   your recovery phrase stopped before it is sent; and a protected setup, a PIN lock a parent can
   put on a device's safety settings. Never described as making anyone safe, and it checks no
   one's age (dated findings in `docs/reference/findings/`).
-- `[next]` Safety follow-ups: a report about a group reaching the group's creator, and an
-  admin tool to erase another person's data on a server.
+- `[done]` Safety follow-ups (v0.1475.0): a report about a group reaches the group's creator,
+  whose app checks it against its own copy of the group and can remove the person; and a server's
+  admins can erase everything it stores about a member (v0.1474.0).
 - `[planned]` Camera-safe sign-in: unlocking without typing a PIN or passphrase where a
   camera or a stream could see it (options in PRIORITIES, waiting on the operator's pick).
 - `[done]` Peer-to-peer groups: signed objects, end-to-end encryption, and a group
@@ -242,8 +247,10 @@ of your identity, and your identity is portable across all of them.
   your own account takes your profile off them (BUG-191, fixed 2026-10-12) (v0.1490.0).
 - `[building]` Web-to-native parity: rebuilding the web chat view to mirror the native
   app one-to-one (Track W).
-- `[next]` Federation activation: an admin UI to add and trust peer servers, a second
-  operator-run relay, end-to-end federation testing, then vetted third-party peers.
+- `[building]` Federation activation: the admin panel to add, trust, pause and remove peer
+  servers is built (desktop and website), and a second operator-run relay, public.guide,
+  federates with united-humanity.us both ways (checked by hand on 2026-10-24). Next: vetted
+  third-party peers.
 - `[planned]` Peer-to-peer groups Phases 3 to 5: relay-independent transport (a group
   survives even if its home relay dies) and serverless discovery.
 - `[planned]` Everyone on Earth (`docs/design/eight-billion.md`, 2026-10-11): every feature
@@ -442,11 +449,15 @@ This layer is not optional.
   together" instantly clear to anyone.
 - `[building]` Three-audience onboarding: clear, separate getting-started guides for
   standard users, server admins, and AI agents (this refactor).
-- `[next]` A tooltip on every interactive element, in plain language.
-- `[planned]` A "first 5 minutes" guided tour for brand-new users.
+- `[building]` A tooltip on every interactive element, in plain language: the controls of 22
+  pages have one so far (v0.1544.0), and a check fails when a page gains a control without one.
+- `[done]` A "first 5 minutes" guided tour for brand-new users (v0.1544.0), in the desktop app
+  and on the website: the recovery phrase written on paper, a first message, the first steps in
+  the world, then where help lives. It can be skipped or picked up again later.
 - `[planned]` Localization expansion: Arabic, Hindi, Portuguese, Russian, German,
   Swahili, and more.
-- `[planned]` A native glossary widget to match the web.
+- `[done]` A native glossary widget to match the web (v0.1544.0): a marked word is underlined,
+  and resting the pointer on it shows the same definition card the website shows.
 - `[planned]` A full WCAG 2.1 AA accessibility audit with fixes.
 - `[future]` Schema-driven in-app "Make-a-Thing" editor: a form generated from each
   data schema so a teacher anywhere can add local crops, recipes, and lessons with no
@@ -496,12 +507,12 @@ Every operator gets the same sovereignty tools, not just the original.
   contributed. The server is a mailbox, not an archive; many servers, not one big one.
 - `[planned]` Device mesh: a "My Devices" dashboard, backup designation, restore flow,
   and direct LAN sync, so your own devices back each other up.
-- `[building]` Continuous backup (2026-10-22, `docs/admin/continuous-backup.md`): every change
+- `[done]` Continuous backup (v0.1544.0, built 2026-10-22, `docs/admin/continuous-backup.md`): every change
   copied within seconds (about a 1-minute recovery point), sealed with the server's backup key,
   to a folder, an S3-compatible bucket or another HumanityOS server; restore to any moment in
   the history kept; a restore drill in the app and a monthly one from the owner's PC. Built
-  into the relay (WAL shipping in Rust) instead of Litestream. Live once released and turned
-  on: united-humanity.us and public.guide keeping each other's copies.
+  into the relay (WAL shipping in Rust) instead of Litestream. Turned on 2026-10-25:
+  united-humanity.us and public.guide keep each other's copies, and both copies were seen arriving.
 - `[planned]` GitHub branch + tag protection and required signed commits on `main`
   (deploy auto-pushes to the live relay today with no approval gate).
 - `[future]` Between planets (`docs/design/interplanetary.md`, 2026-10-11): designing for
