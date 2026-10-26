@@ -85,7 +85,11 @@ the start-up recovery fixes.
   disk unmounted): nothing to do on this server; changes wait in `data/backup-stream/pending/`
   and are sent, in order, when it is back (retries back off to every 5 minutes). Watch that
   folder's size on a long outage.
-- **"no more room"**: the keeping server's limit for this server is full: raise it there (Keep
+- **"turned away one piece as too big" (HTTP 413)**: the web server in front of the keeping
+  server lets less than one piece through (a piece is up to about 4 MB). Give its
+  `location /api/backup-host/` a `client_max_body_size` of 6m (docs/admin/continuous-backup.md,
+  step 2). Seen 2026-10-25, when nginx's 1 MB default on both servers' `/api/` refused every piece.
+- **"no more room"** (HTTP 507): the keeping server's limit for this server is full: raise it there (Keep
   other servers' backups here), or shorten the history kept here.
 - **"refused"**: the destination holds another server's backups, or ones made with another
   backup key (the key was replaced?). Choose another folder or prefix; never delete the other

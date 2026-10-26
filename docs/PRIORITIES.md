@@ -175,8 +175,8 @@ In order:
      build order 6), so that room stays under its own server and is never sent through.
 9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).
 
-**For the operator, when it suits him:** pair the two servers' continuous backups in each Backups
-panel (docs/admin/continuous-backup.md); run the federation live check after this release reaches
+**For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
+both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches
 both servers (docs/admin/federation-live-check.md: until both run it, chat between them is
 refused, because the signed chat words changed); open UDP 3478 for Direct calls
 (docs/admin/call-forwarder.md); `just install-share-guard` once.
@@ -1976,13 +1976,14 @@ agreement), so ad-blocking defaults do not apply there.
 11. **Real-life-first boot and the real/fake multi-save model** (revised
     2026-06-30; the operator rejected the "game/simulator toggle" framing as too
     confusing). Multiple saves, each house or character flagged real or fake.
-12. **Continuous backup: BUILT 2026-10-22, waiting on release and the operator's
-    setup.** WAL shipping inside the relay (`src/relay/backup_stream/`,
+12. **Continuous backup: BUILT 2026-10-22, released v0.1544.0, TURNED ON 2026-10-25**
+    (both ways between united-humanity.us and public.guide; the nginx block for
+    /api/backup-host/ applied to both; restore drills passed; keys on the PC). WAL shipping inside the relay (`src/relay/backup_stream/`,
     `docs/admin/continuous-backup.md`) to a folder, an S3-compatible bucket or another
     HumanityOS server, sealed with the backup key, RPO about a minute, point-in-time
     restore, in-app Restore drill, PC monthly drill (`scripts/backup-drill-pc.ps1`).
-    Next: the operator's deployment steps in that doc (united-humanity.us and
-    public.guide keeping each other's copies), then an in-app restore-on-restart.
+    Next: the PC's monthly drill and alerts (each server needs node and
+    data/alert-channels.secrets.json), then an in-app restore-on-restart.
 13. **PARKED (operator, 2026-10-22, with streaming). Mobile clients.** Android needs a JNI bridge for the keyring plus an
     AndroidKeyStore backend; iOS mostly needs a build target.
 
