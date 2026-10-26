@@ -3845,6 +3845,17 @@
       "use": "facts",
       "bundle": false,
       "note": "Restate. Supply Division, Oral Rehydration Salts and Zinc: Market and Supply Update, September 2022 (https://www.unicef.org/supply/media/24906/file, downloaded and its text extracted locally, read 2026-10-23 for the How-to Mix oral rehydration solution from a packet): the WHO protocol after each loose motion, 50 to 100 ml for a child under 2, 100 to 200 ml from 2 to 10, freely above 10; sachets made for 1 litre (20.5 g) and, since UNICEF worked with makers, for half a litre (10.2 g)."
+    },
+    {
+      "id": "opensourceecology",
+      "name": "Open Source Ecology",
+      "publisher": "Open Source Ecology",
+      "url": "https://www.opensourceecology.org/",
+      "kind": "authority",
+      "licence": "cc-by-sa",
+      "use": "facts",
+      "bundle": false,
+      "note": "Restate. The Global Village Construction Set (50 machines) and OSE's housing work, documented on wiki.opensourceecology.org: specifications, bills of materials, manufacturing instructions and manuals per machine. Website, wiki and design files CC BY-SA 4.0, hardware files CERN OHL-S-2.0, software AGPL (the OSE License page, edited 8 July 2026); the CEB Press page gives its own as CC-BY-SA 4.0 and GPLv3. Share-alike throughout, so cite numbers restated in our own words and link out for build instructions; never copy its text, tables, drawings or CAD. Maturity varies by machine: read each page's date and stage. Read 2026-10-25: docs/reference/findings/2026-10-25-open-source-ecology.md."
     }
   ]
 }
