@@ -89,7 +89,7 @@ purely additive (existing chat untouched). See
 | **Multi-layer trust score** | ✅ | v0.102.0 | 0..1 normalized total + 6 sub-scores (vcs, vouching_graph, activity_diversity, age, economic_stake, reputation). 5-min cache. Inputs always exposed (Accord transparency). Tunable weights at `data/identity/trust_weights.ron`. `src/relay/storage/trust_score.rs`. `GET /api/v2/trust/{did}`. |
 | **Governance** | ✅ | v0.103.0 | 9 proposal types in `data/governance/proposal_types.ron` (5 local, 4 civilization scope). Vote weight = trust score capped at 0.95 (Accord power-asymmetry mitigation). One vote per voter per proposal. AI agents excluded from voting. Deterministic tally. `src/relay/storage/governance.rs`. `GET /api/v2/proposals`. |
 | **AI-as-citizen** | ✅ | v0.104.0 | Mandatory `subject_class_v1` (`human`/`ai_agent`/`institution`) and `controlled_by_v1` operator binding. AI silently excluded from governance voting per Accord. Same trust curve as humans (no flag discount). `src/relay/storage/ai_status.rs`. `GET /api/v2/ai-status/{did}`. |
-| **Social key recovery** | ✅ | v0.105.0 + v0.109.0 | Shamir share storage (PR 1) + recovery_request_v1 / recovery_approval_v1 with guardian-auth flow (PR 2). Server stores opaque ciphertext only; reassembly is client-side. Auto-flips request status to "ready" when threshold met. `src/relay/storage/recovery.rs`. `GET /api/v2/recovery/setup/{holder_did}`. |
+| **Social key recovery** | ✅ | v0.105.0 + v0.109.0 | Shamir share storage (PR 1) + recovery_request_v1 / recovery_approval_v1 with guardian-auth flow (PR 2). Server stores opaque ciphertext only; reassembly is client-side. Auto-flips request status to "ready" when threshold met. `src/relay/storage/recovery.rs`. `GET /api/v2/recovery/setup/{holder_did}`. The client flow shipped in v0.1541.0: recovery through trusted people in Settings > Account and at /recovery (`src/gui/pages/settings/recovery.rs`). |
 | **Federation v2** | ✅ | v0.107.0 + v0.108.0 | `SignedObjectGossip` RelayMessage federates ANY post-quantum object across servers (PR 1). Per-observer per-issuer continuous trust + dispute_v1 auto-discount + multi-hop gossip with cycle-breaking via dedup (PR 2). `src/relay/handlers/federation.rs`, `src/relay/storage/issuer_trust.rs`. |
 | **Schema registry** | ✅ | v0.98.0+ | `data/identity/schemas.ron`, hot-reloadable, infinite-of-X compliant. 4 active substrate schemas, 22 reserved per-phase schemas. |
 | **Documentation pages** | ✅ | v0.106.0 | `/`, `/onboarding`, `/download` web pages + native `main_menu.rs`/`onboarding.rs` updated to describe new architecture (PQ + DIDs + VCs + trust + governance + AI + recovery). |
@@ -556,8 +556,8 @@ PRIORITIES.md, trust PRIORITIES.md.
   travel, and the gameplay Settings section all came from it).
 - **Queued:** corridor mouth door panels, NPC walk-up interaction, the big
   star-catalog ladder (binary format, ATHYG 2.5M, Gaia glow bake),
-  Dev/Creative/Normal mode system, federation activation (built, fail-closed,
-  dormant until peer servers exist), mobile clients, P2P groups phases 3-5.
+  Dev/Creative/Normal mode system, federation activation (built, fail-closed;
+  live between united-humanity.us and public.guide since October 2026), mobile clients, P2P groups phases 3-5.
 - **Standing mandates:** ELI5 accessibility (tooltips, onboarding,
   localization, WCAG audit) and the long horizon (LoRa mesh, STARK selective
   disclosure, deeper simulation, AI-agent governance enforcement).
