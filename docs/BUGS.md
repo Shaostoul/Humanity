@@ -6861,7 +6861,7 @@ Settings phrase window's two Copy buttons, and the chat intro's Copy.
 - phrase-cover-web.test.js, "the intro's Copy is there only while the words are shown". Red
   against the intro before the fix: "covered, Copy is not there".
 
-## BUG-215: the half-hourly hot backup emptied the log under continuous backup, and the relay answered every read with "disk I/O error" (found 2026-10-26)
+## BUG-215: the half-hourly hot backup emptied the log under continuous backup, and the relay answered every read with "disk I/O error" (FIXED 2026-10-27, found 2026-10-26)
 
 **Seen:** the operator could not see #general or #announcements on united-humanity.us from
 public.guide. `/health` said `total_messages: 0` (2,595 the evening before), and the relay log had
@@ -6880,6 +6880,11 @@ their shared-memory file and every read failed until restart.
 **Fix:** the script opens the source read-only, `sqlite3 "file:$DB_PATH?mode=ro" ".backup ..."`.
 A read-only connection cannot checkpoint, so it never truncates or deletes the log. The deploy
 workflow installs the script and restarts the relay on the push.
+
+**Confirmed 2026-10-27:** after the deploy (c8484dd46) the relay came back at 00:14:10 UTC with
+federation linked again and continuous backup resuming its generation; the first hot backup under
+the read-only script, at 00:34:33 UTC, made its copy (13.4 MB) and left relay.db-wal and
+relay.db-shm in place, with no "emptied by something other" and no "disk I/O error" since.
 
 **Still to check:** why the relay held no connection at those moments (a pool that closes idle
 connections would leave the backup as the last one), and whether continuous backup should
