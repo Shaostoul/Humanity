@@ -6860,3 +6860,28 @@ Settings phrase window's two Copy buttons, and the chat intro's Copy.
   calling it.
 - phrase-cover-web.test.js, "the intro's Copy is there only while the words are shown". Red
   against the intro before the fix: "covered, Copy is not there".
+
+## BUG-215: the half-hourly hot backup emptied the log under continuous backup, and the relay answered every read with "disk I/O error" (found 2026-10-26)
+
+**Seen:** the operator could not see #general or #announcements on united-humanity.us from
+public.guide. `/health` said `total_messages: 0` (2,595 the evening before), and the relay log had
+52 "disk I/O error" lines from 11:54 UTC on 2026-10-26 (messages, profiles, reactions, name
+checks, the relay's own 6-hourly VACUUM INTO). The database file itself was whole: read with the
+sqlite3 tool it held 2,600 messages. `relay.db-shm` was missing and `relay.db-wal` was 0 bytes.
+
+**Cause:** `humanity-backup-db` (every 30 minutes, `scripts/humanity-backup-db.sh`) ran
+`sqlite3 "$DB_PATH" ".backup ..."`, a READ-WRITE connection. A sqlite3 that closes while it is the
+last connection checkpoints the write-ahead log and deletes the -wal and -shm files. That was
+harmless until continuous backup (turned on 2026-10-25) took over checkpointing and reads the log
+directly: the relay logged "the log was emptied by something other than the backup" at 00:21,
+01:22, 03:24 and 05:55 UTC, each a run of the timer, and after the last one its connections lost
+their shared-memory file and every read failed until restart.
+
+**Fix:** the script opens the source read-only, `sqlite3 "file:$DB_PATH?mode=ro" ".backup ..."`.
+A read-only connection cannot checkpoint, so it never truncates or deletes the log. The deploy
+workflow installs the script and restarts the relay on the push.
+
+**Still to check:** why the relay held no connection at those moments (a pool that closes idle
+connections would leave the backup as the last one), and whether continuous backup should
+detect a missing -shm and reopen instead of failing every read. Neither the backup stream's tests
+nor the hot backup's ran the two side by side.

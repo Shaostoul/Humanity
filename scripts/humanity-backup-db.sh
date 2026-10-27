@@ -73,7 +73,17 @@ mkdir -p "$BACKUP_DIR"
 # .backup is the SQLite online-backup primitive. It opens a separate
 # read connection, walks DB pages, and writes a coherent snapshot
 # even while the source is being written. Crash-safe.
-sqlite3 "$DB_PATH" ".backup '$OUT'"
+#
+# The source is opened READ-ONLY (mode=ro). A read-write sqlite3 that closes
+# while it believes it is the last connection checkpoints the write-ahead log
+# and deletes relay.db-wal and relay.db-shm. Harmless to a relay that
+# checkpoints by itself; but continuous backup (src/relay/backup_stream/) turns
+# SQLite's checkpointing off and reads the log directly, and on 2026-10-26 this
+# script emptied the log under it four times (00:21, 01:22, 03:24, 05:55 UTC),
+# the shared-memory file went missing, and the relay answered every read with
+# "disk I/O error" until restarted (BUG-215). A read-only connection cannot
+# checkpoint or delete them.
+sqlite3 "file:$DB_PATH?mode=ro" ".backup '$OUT'"
 
 # ── Encryption at rest (privacy hardening, 2026-08-23) ──
 # Backups travel: this directory is rsynced and pulled to the operator's
