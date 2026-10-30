@@ -545,6 +545,16 @@ mod tests {
     /// count the tick twice (see `ecs_tick_is_not_counted_twice_on_the_cpu_pie`).
     const ECS_FAMILY_PREFIX: &str = "cpu.system.";
 
+    /// The frame's spans (`frame_costs::span`, docs/design/sim-frame-cost.md increment 0): the
+    /// RedrawRequested handler cut into stretches that do not overlap, which CONTAIN the stages
+    /// (`cpu.systems` inside `cpu.span.ecs`, ...). Not rows: the pie would count everything twice.
+    /// Read from the JSON drop and the MCP frame-cost tool to find where untimed time goes.
+    const SPAN_FAMILY_PREFIX: &str = "cpu.span.";
+
+    /// FarmingSystem's passes (`cpu.farm.setup`, `.crops`, `.air`, ...): children of
+    /// `cpu.system.farming`, which already counts their sum. Not rows, for the same reason.
+    const FARM_FAMILY_PREFIX: &str = "cpu.farm.";
+
     /// Every `.rs` file under `src/`, recursively.
     fn rust_sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
@@ -691,7 +701,9 @@ mod tests {
             }
             let ok = registered.contains(id.as_str())
                 || REMAINDER_IDS.iter().any(|(r, _)| r == id)
-                || id.starts_with(ECS_FAMILY_PREFIX);
+                || id.starts_with(ECS_FAMILY_PREFIX)
+                || id.starts_with(SPAN_FAMILY_PREFIX)
+                || id.starts_with(FARM_FAMILY_PREFIX);
             if !ok {
                 orphans.push(id.clone());
             }

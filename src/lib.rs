@@ -2109,6 +2109,7 @@ mod native_app {
                 frame_lock_body: None,
                 probe_hold: None,
                 station_park: None,
+                draw_bufs: Default::default(),
                 probe_descend_mps: 0.0,
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
@@ -3340,6 +3341,7 @@ mod native_app {
                             }
                         }
                     }
+                    crate::renderer::frame_costs::span_begin("cpu.span.station"); // the frame's spans: frame_costs::span
                     let now = Instant::now();
                     // raw_dt is the TRUE frame delta, for the perf counters ONLY.
                     // The clamped dt below protects the SIMULATION from spiral-of-
@@ -3594,12 +3596,14 @@ mod native_app {
                     // (BUG-132): its camera_done is a reading, not an echo.
                     crate::engine::ipc::advance_station_park(state);
 
+                    crate::renderer::frame_costs::span("cpu.span.hot_reload");
                     // Hot-reload: poll the watcher and apply every data-file
                     // regeneration gate (planets, plants, hull, game.csv).
                     // The gates live in hot_reload::poll_and_apply - add new
                     // ones THERE, not here (monolith ratchet, v0.1119).
                     crate::hot_reload::poll_and_apply(state);
 
+                    crate::renderer::frame_costs::span("cpu.span.move_setup");
                     // Apply the player's active status-effect SPEED modifiers to movement
                     // (well_nourished speeds you up; thirsty/flu slow you down). Look is
                     // unaffected. Collect the effect ids first (owned → releases the world
@@ -3671,6 +3675,7 @@ mod native_app {
                     state.controller.fly_speed_mult =
                         state.gui_state.dev_fly_speed_mult.clamp(1.0, 1.0e9);
 
+                    crate::renderer::frame_costs::span("cpu.span.walk_aboard");
                     // ELEVATOR tick (v0.590; ship homes increment 7, engine/footing.rs
                     // `elevator_tick`): each car runs toward the stop it is heading for; its stops
                     // are the storey floors its shaft spans. A rider sends it up a stop with Space
@@ -3796,6 +3801,7 @@ mod native_app {
                         state.controller.update_camera(&mut state.camera, dt);
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.particles");
                     // PROBE HOLD (environment program increment 2): a
                     // scripted camera park re-asserts its pose every frame
                     // so gravity/buoyancy cannot drag the probe off its
@@ -4193,6 +4199,7 @@ mod native_app {
                         state.particle_system.tick(dt);
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.house_power");
                     // ── House lighting on the power meter (v0.967, homestead
                     // increment 5): every switched-on placed light draws its
                     // light_types.ron wattage through ONE aggregate
@@ -4358,6 +4365,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.planet_walk");
                     // Planet frame-lock (v0.819): while locked onto a body (dev
                     // travel / camera_request), ride its rotating + orbiting
                     // frame so the surface holds STILL for the viewer instead of
@@ -5293,6 +5301,7 @@ mod native_app {
                         state.renderer.fill_scale = 1.0;
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.collide_drive");
                     // Wall collision (v0.556): the player IS the camera, so push it out of the home's
                     // walls / closed doors in first person -- no more walking through walls. Doors that
                     // are open + unlocked are gaps; closed or locked doors block; windows are part of
@@ -5490,6 +5499,7 @@ mod native_app {
 
 
 
+                    crate::renderer::frame_costs::span("cpu.span.look_env");
                     // Camera stays in local ship coords (no floating origin reset)
                     // Floating origin is only used for rendering distant bodies
 
@@ -5786,6 +5796,7 @@ mod native_app {
                             None => String::new(),
                         };
                     }
+                    crate::renderer::frame_costs::span("cpu.span.bridges");
                     // Built beds and chests: prompt + chests in the places tree (2026-09-27).
                     crate::engine::built_uses::frame(state);
                     // The quests' glue: views that came on screen, the own front door (2026-10-04).
@@ -6700,6 +6711,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.ecs");
                     // Home-storage stock (v0.737 machines; hand crafts since
                     // BUG-147): mirror the organize-layer placed items into a
                     // shared id -> qty map the systems count and consume from
@@ -6763,6 +6775,7 @@ mod native_app {
                             .push((msg, crate::gui::ToastKind::Info));
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.copresence");
                     // ── Multiplayer co-presence (v0.472) ──────────────────────────────────────
                     // While actually in the 3D world AND connected to a relay, join the shared game
                     // world once (over the existing authenticated chat socket), stream our position,
@@ -6919,6 +6932,7 @@ mod native_app {
                         crate::engine::shared_build::tick(state, clock_dt); // pieces the server keeps: sent, or given back out of the shared world (increment 5)
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.save_editor");
                     // A paid machine removed by any path since the last frame gives its item
                     // back (engine/own_home.rs), before the save below and before the editor's
                     // history tick, so neither ever sees a payment for a machine that is gone.
@@ -7431,17 +7445,18 @@ mod native_app {
                     reconcile_cursor(state);
 
                     // Build render objects from homestead meshes
-                    let mut all_objects: Vec<RenderObject> = Vec::new();
+                    crate::renderer::frame_costs::span("cpu.span.lists_home");
+                    let mut all_objects: Vec<RenderObject> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.opaque); // last frame's memory (DrawBufs, S3)
                     // Transparent surfaces (glass windows): rendered in a SEPARATE alpha-blend
                     // pass AFTER the opaque scene so you can see through them. (v0.456)
-                    let mut transparent_objects: Vec<RenderObject> = Vec::new();
+                    let mut transparent_objects: Vec<RenderObject> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.transparent); // last frame's memory (DrawBufs, S3)
                     // Editor GIZMOS (corner orbs, the avatar, its pyramid): rendered LAST with depth
                     // test off, so they show THROUGH walls + floors in build mode. (v0.560)
-                    let mut overlay_objects: Vec<RenderObject> = Vec::new();
+                    let mut overlay_objects: Vec<RenderObject> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.overlay); // last frame's memory (DrawBufs, S3)
                     // Celestial bodies (planet + Sun + solar bodies): rendered in a SEPARATE
                     // pass with a huge far plane (v0.450), since they sit at astronomical
                     // distances the ~500 m gameplay far would clip.
-                    let mut celestial_objects: Vec<RenderObject> = Vec::new();
+                    let mut celestial_objects: Vec<RenderObject> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.celestial); // last frame's memory (DrawBufs, S3)
                     // Per-frame defaults for the two near-tree promises the
                     // draw loops read (P3 review, 2026-09-18): the card-hide
                     // radius and the shadow-only index range (V1) used to be
@@ -7469,12 +7484,12 @@ mod native_app {
                     // Transparent celestial shells (planet atmospheres, v0.763): alpha-blended
                     // after the opaque bodies inside the SAME celestial pass, so they share
                     // its far plane and depth-test against the planets.
-                    let mut celestial_transparent: Vec<RenderObject> = Vec::new();
+                    let mut celestial_transparent: Vec<RenderObject> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.celestial_transparent); // last frame's memory (DrawBufs, S3)
                     // World-space orbit lines, built this frame, drawn
                     // after the scene so they depth-occlude behind planets.
-                    let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
+                    let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.orbit_lines); // last frame's memory (DrawBufs, S3)
                     // Build-mode door auto-open RINGS as constant-width line circles (v0.565).
-                    let mut ring_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
+                    let mut ring_lines: Vec<crate::renderer::line::LineVertex> = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.ring_lines); // last frame's memory (DrawBufs, S3)
 
                     // Alignment-snap guide lines (v0.613): while dragging an object, draw a faint amber
                     // line along the snapped X and/or Z axis (spanning the box) so you see what you are
@@ -8255,6 +8270,7 @@ mod native_app {
                     }
 
                     // Placed-LIGHT gizmos (v0.572): a DIAMOND centre-marker + an RGB range "sphere"
+                    crate::renderer::frame_costs::span("cpu.span.lists_fixtures");
                     // ── PHYSICAL LIGHT FIXTURES (v0.780) ── every placed light gets visible
                     // geometry in the world, play mode AND build mode (operator: "none of the
                     // lights have physical bulbs, they're all just empty points"). Cached UNIT
@@ -9178,6 +9194,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.lists_people");
                     // ── Remote players (multiplayer co-presence, v0.472) ──
                     // Draw a simple humanoid marker (body + head, a distinct teal) at each remote
                     // player's interpolated position. The sent position is their eye; the figure
@@ -9379,6 +9396,7 @@ mod native_app {
                         state.targeted_planet = closest_hit.map(|(_, name)| name);
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.lists_sky");
                     // ── The real solar system around the home ──
                     // (map sync increment B; procedural surfaces v0.763.)
                     // The player spawns inside their homestead at GEO
@@ -11849,6 +11867,7 @@ mod native_app {
 
                     // Update FPS counter -- from raw_dt, NOT the sim-clamped dt,
                     // or everything slower than 10 fps reads exactly 10 fps (P2).
+                    crate::renderer::frame_costs::span("cpu.span.hud_voice");
                     state.gui_state.fps = if raw_dt > 0.0 { 1.0 / raw_dt } else { 0.0 };
                     // Frame-time ring buffer for the F2 performance overlay sparkline.
                     {
@@ -11996,6 +12015,7 @@ mod native_app {
                         state.gui_state.update_toast_visible = true;
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settles");
                     // ── Bridge ECS/DataStore state into GuiState for GUI pages ──
 
                     // Bridge player health and inventory from ECS
@@ -12573,6 +12593,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.mirror_player");
                     // ── Death & recovery (v0.745, loop-map rung 1) ──
                     // A death the systems record is surfaced right after their tick, with
                     // what it cost in the Death mode chosen (engine/death_pack.rs after_tick).
@@ -13037,6 +13058,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.lists_world");
                     // ── Deployed vehicles (economy Phase 2 Stage 1, v0.677) ──
                     // Every Vehicle entity gets a primitive placeholder body composed
                     // from ONE cached unit box + ONE cached wheel cylinder, scaled per
@@ -13465,6 +13487,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.env_publish");
                     // FFT-ocean upkeep (v0.1029, water-fft.md increment 1):
                     // build the spectrum on first use, realize this frame's
                     // height field, and hand the SAME array to the GPU
@@ -13624,6 +13647,7 @@ mod native_app {
                         None => state.renderer.ocean_event_rows = [[0.0; 4]; 14],
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.cards");
                     // Bridge the live home power readout (ElectricalSystem writes it via
                     // Mutex). Drives the HUD power line that swings with day/night.
                     if let Some(ps) = state
@@ -14196,6 +14220,7 @@ mod native_app {
                         crate::engine::mess_hall::frame(state);
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.dev_ipc");
                     // Dev autopilot (v0.793): zero-click world entry for scripted
                     // co-presence tests. Runs immediately BEFORE the auto-connect
                     // block so a dropped request is honored the same frame.
@@ -14340,6 +14365,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.network");
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must
                     // NOT auto-connect with an encrypted/locked seed. A locked
@@ -14631,6 +14657,7 @@ mod native_app {
                     // Reports about groups (10j): lookups, checks and removals run off the frame.
                     crate::engine::group_report::pump(&mut state.gui_state);
 
+                    crate::renderer::frame_costs::span("cpu.span.load");
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;
 
@@ -14673,6 +14700,7 @@ mod native_app {
                         crate::config::AppConfig::from_gui_state(&state.gui_state).save();
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.screens");
                     // Decide whether to render 3D scene or just a cleared surface
                     let page_active = state.gui_state.active_page != GuiPage::None;
 
@@ -14719,6 +14747,7 @@ mod native_app {
                     state.renderer.apply_pending_surface_config();
 
                     crate::engine::map_view::frame(state, &celestial_objects, &celestial_transparent, &orbit_lines, &all_objects, &transparent_objects, &overlay_objects, &ring_lines); // Maps world layer (engine/map_view.rs)
+                    crate::renderer::frame_costs::span("cpu.span.world_passes");
                     let scene_result = if page_active {
                         // UI-only frame: skip 3D render, clear to dark background
                         state.renderer.acquire_surface_cleared(wgpu::Color {
@@ -15261,6 +15290,9 @@ mod native_app {
                             Err(e) => Err(e),
                         }
                     };
+                    if page_active {
+                        crate::renderer::frame_costs::span_stop_recording(); // past the acquire on a frame a page covers (frame_total's rule)
+                    }
                     match scene_result {
                         Ok((surface_texture, view)) => {
                             // Drain global debug log into GuiState each frame
@@ -15273,6 +15305,7 @@ mod native_app {
                                 }
                             }
 
+                            crate::renderer::frame_costs::span("cpu.span.ui_run");
                             // The Garden data, built only on a frame that draws the Inventory page
                             // (engine/garden_mirror.rs); an in-world screen showing it asked already.
                             if state.gui_state.active_page == GuiPage::Inventory {
@@ -15755,6 +15788,7 @@ mod native_app {
                             }
 
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
+                            crate::renderer::frame_costs::span("cpu.span.audio");
                             if let Some(audio) = state.audio.as_mut() {
                                 // The Media page's video (and its window over the chat) and a video posted
                                 // in chat play their sound here.
@@ -15912,6 +15946,7 @@ mod native_app {
                             }
 
                             // Handle egui platform output (cursor changes, clipboard, etc.)
+                            crate::renderer::frame_costs::span("cpu.span.ui_paint");
                             state.egui_state.handle_platform_output(&state.window, full_output.platform_output);
 
                             // Main-UI dev IPC "find" (2026-09-18): answer a pending
@@ -16023,6 +16058,7 @@ mod native_app {
 
                             // This frame's draw lists, borrowed for the (rare) hi-res
                             // capture path -- zero cost when no capture is pending. (v0.810)
+                            crate::renderer::frame_costs::span("cpu.span.tail");
                             let scene_lists = SceneDrawLists {
                                 celestial: &celestial_objects,
                                 celestial_transparent: &celestial_transparent,
@@ -16089,6 +16125,7 @@ mod native_app {
                             // same thing OBS's window capture would grab.
                             pump_live_broadcast(state, &surface_texture.texture);
 
+                            crate::renderer::frame_costs::span_end();
                             // `cpu.frame_total` closes HERE: handler entry to the
                             // last submit, which is the broadcast copy above when
                             // a stream is live (the 2026-09-18 review found the
@@ -16111,6 +16148,16 @@ mod native_app {
                             // on the CPU. World frames only (see frame_total).
                             let present_t0 = Instant::now();
                             surface_texture.present();
+                            // The draw lists' memory, kept for the next frame (DrawBufs, S3).
+                            state.draw_bufs = crate::engine::state::DrawBufs {
+                                opaque: all_objects,
+                                transparent: transparent_objects,
+                                overlay: overlay_objects,
+                                celestial: celestial_objects,
+                                celestial_transparent,
+                                orbit_lines,
+                                ring_lines,
+                            };
                             if !page_active {
                                 crate::renderer::frame_costs::record_cpu(
                                     "cpu.present_wait",

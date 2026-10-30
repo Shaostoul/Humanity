@@ -930,6 +930,8 @@ pub(crate) struct EngineState {
     /// advance_station_park` reads where the camera actually is and writes
     /// that. A new camera request drops a pending one.
     pub(crate) station_park: Option<crate::engine::ipc::StationPark>,
+    /// The frame's draw lists' memory, kept between frames (`DrawBufs`).
+    pub(crate) draw_bufs: DrawBufs,
     /// Rig descent rate (m/s) applied to the probe hold's pinned position
     /// each frame, straight down the local radial (v0.1245). Reproduces
     /// SUSTAINED flight on a parked rig - the state that paints the map's
@@ -1202,6 +1204,33 @@ pub(crate) struct ConstructionHistory {
     pub(crate) prev_held: bool,
     /// Whether the editor was open last frame (to reset history on open).
     pub(crate) prev_active: bool,
+}
+
+/// The memory of the frame's seven draw lists, kept between frames (S3 of
+/// docs/design/sim-frame-cost.md, 2026-10-30). Each list was a new `Vec` every
+/// frame, grown again by doubling (a dozen reallocations and copies for a list
+/// of thousands) and freed at the end. lib.rs now takes each one from here,
+/// empty but with last frame's capacity (`DrawBufs::take`), and hands all seven
+/// back right after the present. A frame that ends early drops
+/// them, and the next frame simply grows them again.
+#[derive(Default)]
+pub(crate) struct DrawBufs {
+    pub(crate) opaque: Vec<crate::renderer::RenderObject>,
+    pub(crate) transparent: Vec<crate::renderer::RenderObject>,
+    pub(crate) overlay: Vec<crate::renderer::RenderObject>,
+    pub(crate) celestial: Vec<crate::renderer::RenderObject>,
+    pub(crate) celestial_transparent: Vec<crate::renderer::RenderObject>,
+    pub(crate) orbit_lines: Vec<crate::renderer::line::LineVertex>,
+    pub(crate) ring_lines: Vec<crate::renderer::line::LineVertex>,
+}
+
+impl DrawBufs {
+    /// One list, emptied, keeping its capacity.
+    pub(crate) fn take<T>(v: &mut Vec<T>) -> Vec<T> {
+        let mut v = std::mem::take(v);
+        v.clear();
+        v
+    }
 }
 
 /// Borrowed views of THIS frame's already-built scene draw lists (v0.810).

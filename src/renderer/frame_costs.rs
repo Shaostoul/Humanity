@@ -607,6 +607,68 @@ pub fn stage(id: &'static str) -> StageTimer {
     StageTimer::new(id)
 }
 
+// ── Spans: the frame tiled into stretches that do not overlap ──
+//
+// docs/design/sim-frame-cost.md, increment 0 (2026-10-30). About half of the
+// CPU frame had no timer, so nobody could say where it went: the Garden data's
+// cost was estimated at 4-9 ms and measured at 16-20. A span is one stretch of
+// the RedrawRequested handler between two `span` calls placed at its top-level
+// boundaries, so the spans add up to the frame by construction:
+// `cpu.frame_total` ~= `cpu.fps_cap_sleep` + the sum of `cpu.span.*`. They
+// are a family of their own, measured beside the stages (which they contain,
+// `cpu.systems` inside `cpu.span.ecs` and so on), and never a pie row: the
+// Performance page would count everything twice. One marker per boundary
+// rather than a timer per stretch, so a stretch cannot be left untimed by a
+// missing close and a new one is one line.
+
+thread_local! {
+    /// The open span and when it opened, and whether spans are recorded.
+    static SPAN: std::cell::Cell<(Option<(&'static str, Instant)>, bool)> =
+        const { std::cell::Cell::new((None, true)) };
+}
+
+/// Open the frame's first span: forget anything left open (a frame that
+/// returned early), and record again (see `span_stop_recording`).
+pub fn span_begin(id: &'static str) {
+    SPAN.with(|s| s.set((Some((id, Instant::now())), true)));
+}
+
+/// Close the open span, recording it, and open `id`.
+pub fn span(id: &'static str) {
+    let now = Instant::now();
+    SPAN.with(|s| {
+        let (open, recording) = s.get();
+        if let (Some((prev, t0)), true) = (open, recording) {
+            record_cpu(prev, now.duration_since(t0));
+        }
+        s.set((Some((id, now)), recording));
+    });
+}
+
+/// Close the open span, recording it, and open none.
+pub fn span_end() {
+    let now = Instant::now();
+    SPAN.with(|s| {
+        let (open, recording) = s.get();
+        if let (Some((prev, t0)), true) = (open, recording) {
+            record_cpu(prev, now.duration_since(t0));
+        }
+        s.set((None, recording));
+    });
+}
+
+/// From now until the next `span_begin`, record no span. For a frame that
+/// does not draw the world (a page covers it): its accumulation is thrown
+/// away at the surface acquire (`discard_frame`), and a span recorded AFTER
+/// that would leak into the next world frame, the same rule `cpu.frame_total`
+/// follows.
+pub fn span_stop_recording() {
+    SPAN.with(|s| {
+        let (open, _) = s.get();
+        s.set((open, false));
+    });
+}
+
 /// Read the process working set (and committed bytes) into the RAM column.
 /// Uses the `memory-stats` crate already in the tree (Windows
 /// `GetProcessMemoryInfo`, Linux `/proc`, macOS task_info) rather than adding
@@ -1236,6 +1298,38 @@ mod tests {
         let v = snapshot().value("cpu.test_stage");
         // First publish is EMA from 0 toward 1.0 ms.
         assert!(v > 0.0 && v <= 1.0, "expected a smoothed value in (0, 1] ms, got {v}");
+        reset_for_test();
+    }
+
+    /// Spans tile the frame: each marker closes the stretch before it, the
+    /// stretches add up to the whole, and after `span_stop_recording` (a frame
+    /// a page covers, past its acquire) nothing is recorded until the next
+    /// frame's `span_begin`. Proven able to fail: with `span` recording
+    /// regardless of the switch, the `cpu.span.test_c` assertion fires.
+    #[test]
+    fn spans_tile_the_frame_and_stop_when_told() {
+        let _g = serial();
+        reset_for_test();
+        begin_frame();
+        let t0 = Instant::now();
+        span_begin("cpu.span.test_a");
+        std::thread::sleep(Duration::from_millis(3));
+        span("cpu.span.test_b");
+        std::thread::sleep(Duration::from_millis(2));
+        span_end();
+        let whole = t0.elapsed().as_secs_f64() * 1000.0;
+        // A stretch opened and closed while not recording leaves nothing.
+        span_begin("cpu.span.test_c");
+        span_stop_recording();
+        std::thread::sleep(Duration::from_millis(1));
+        span_end();
+        let acc = |id: &str| {
+            store().lock().unwrap().cpu_accum.iter().find(|e| e.id == id).map(|e| e.value)
+        };
+        let (a, b) = (acc("cpu.span.test_a").unwrap(), acc("cpu.span.test_b").unwrap());
+        assert!(a >= 3.0 && b >= 2.0, "each stretch holds its own time: a {a} ms, b {b} ms");
+        assert!(a + b <= whole + 0.01, "the stretches never add up to more than the whole: {a} + {b} > {whole}");
+        assert!(acc("cpu.span.test_c").is_none(), "a span closed while not recording was recorded");
         reset_for_test();
     }
 

@@ -236,6 +236,25 @@ display-bound and the GPU pie says which pass. Before 2026-09-18 neither
 number existed, and 13 to 20 ms per frame at light vantages were
 unaccounted with no way to tell the two cases apart.
 
+**Leave `cpu.span.*` and `cpu.farm.*` out of that sum: they are not
+stages.** Since 2026-10-30 (`docs/design/sim-frame-cost.md`, increment 0)
+the handler is also cut into SPANS, stretches that do not overlap and
+contain the stages: `frame_costs::span("cpu.span.x")` at each top-level
+boundary of `RedrawRequested` closes the stretch before it, so
+
+```
+cpu.frame_total  ~=  cpu.fps_cap_sleep  +  the sum of cpu.span.*
+```
+
+and the untimed work is found by span, not guessed: a span much bigger than
+the stages inside it is where the next timer goes. A frame a page covers
+records no span after its acquire (`span_stop_recording`, the
+`frame_total` rule). Likewise `cpu.farm.*` cut `cpu.system.farming` into
+its passes (setup, commands, pollination, picking, harvest, crop_setup,
+pest_tally, weeds, crops, air, apply). Neither family is a Performance-page
+row: they are read from the JSON drop (`HUMANITY_FRAME_COSTS=1`) or the
+MCP `game_frame_costs` tool.
+
 The `gpu.*` sum against `frame_ms` works the same way on the GPU side: the
 difference is the GPU's idle time plus passes nobody has scoped. As of
 2026-09-18 every pass the frame submits has a scope except the live
