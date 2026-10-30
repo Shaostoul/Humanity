@@ -96,7 +96,7 @@ section 2).
 
 ## Deploy pipeline
 
-Push to `main` → GitHub Actions → SSH to VPS → `cargo build --features relay --no-default-features` → rsync + copy → restart relay
+Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`, since 2026-10-30): **plan** reads from the VPS the commit the running relay was built from (`target/release/HumanityOS.source`) and the commit at its last restart (`HumanityOS.started`); **build** (only when `src/`, `Cargo.*`, `build.rs`, `rust-toolchain.toml` or `.cargo` changed) compiles `--features relay --no-default-features` on GitHub's Ubuntu 22.04 and checks it needs no newer glibc than the VPS's Debian 12 (2.36); **deploy** updates the checkout, timers and web root, swaps the new program in with one rename, and restarts the relay only when its program or `data/` changed, then waits for `/health` to answer ok. A docs or web-page push no longer restarts the relay. The VPS no longer compiles at all (it took 10 to 11 minutes on its two cores, beside the live relay).
 
 The VPS runs the same unified binary in headless mode: `HumanityOS --headless`
 

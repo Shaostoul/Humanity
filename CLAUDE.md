@@ -314,8 +314,8 @@ One Rust crate (`src/`) compiles into `HumanityOS.exe`: one `Cargo.toml` at the 
 workspace, no sub-crates. v0.90.0 merged `server/` into `src/relay/` and `native/` into `src/`, and
 removed `crates/`. **An agent that reports edits under `native/src/`, `server/src/` or `crates/` was
 working in a stale worktree: never trust that report; redo the work against `src/`.** Feature
-flags: `native` (the full desktop app, the default), `relay` (the headless server; the VPS builds
-`--features relay --no-default-features`, no GPU deps) and `wasm`. `HumanityOS --headless` is the
+flags: `native` (the full desktop app, the default), `relay` (the headless server, built
+`--features relay --no-default-features`, no GPU deps; the deploy builds it on GitHub, not the VPS) and `wasm`. `HumanityOS --headless` is the
 server-only mode the VPS runs. The web frontend (`web/`) is plain HTML/JS served by nginx.
 
 **Where code lives: the Folders section of `docs/ai/code-map.md`**, then its line per file

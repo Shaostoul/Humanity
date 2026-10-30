@@ -5,34 +5,164 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Serialize deploys: the job git-resets, builds, and restarts the relay on ONE
-# box, so two concurrent runs fight over the checkout and the build. QUEUE
-# (cancel-in-progress:false) rather than cancel - a build cancelled mid-way can
-# leave the box half-updated, and a queued deploy just waits for the box to be
-# free. Added 2026-08-12 after two rapid pushes ran two deploys on the box at
-# once (no guard existed; the site stayed up only because the relay restarts
-# solely on a successful build).
+# Serialize deploys: the job git-resets and restarts the relay on ONE box, so two concurrent runs
+# fight over the checkout. QUEUE (cancel-in-progress:false) rather than cancel - a deploy cancelled
+# mid-way can leave the box half-updated, and a queued deploy just waits for the box to be free.
+# Added 2026-08-12 after two rapid pushes ran two deploys on the box at once (no guard existed;
+# the site stayed up only because the relay restarts solely on a successful build).
 concurrency:
   group: deploy-vps
   cancel-in-progress: false
 
+# THE RELAY IS BUILT HERE, ON GITHUB, NOT ON THE VPS (operator, 2026-10-30). Until then the VPS
+# compiled it at every push: 10 to 11 minutes on its two cores and 6 GB, beside the live relay
+# (rustc held 1.5 GB of it). Now a GitHub runner builds it and the VPS only swaps the finished
+# program in. And the VPS restarts the relay only when something the relay runs changed: until
+# then every push, docs and web pages included, restarted it and dropped everyone's chat.
+#
+#   plan    reads, from the VPS, the commit the running program was built from and the commit at
+#           its last restart, and compares them with this push: Rust changed -> build and restart;
+#           only data/ changed -> restart (the relay reads some data only at start); else neither.
+#   build   (only when Rust changed) compiles on Ubuntu 22.04, whose glibc (2.35) is older than the
+#           VPS's Debian 12 (2.36): ubuntu-latest's newer glibc gives a program Debian 12 refuses
+#           to start (the release relay built there needs GLIBC_2.39). It checks that, too.
+#   deploy  updates the checkout, the timers and the web root as before, swaps the new program in
+#           with one rename, and restarts only if the plan says so, then waits for /health.
+
 jobs:
+  plan:
+    name: What this push needs
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      restart: ${{ steps.plan.outputs.restart }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare this push with what the VPS runs
+        id: plan
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps
+          chmod 600 ~/.ssh/vps
+          SSH="ssh -i $HOME/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 root@$VPS_HOST"
+          # Empty on the first run, or after the build cache was cleared: then build and restart.
+          built_from=$($SSH 'cat /opt/Humanity/target/release/HumanityOS.source 2>/dev/null' || true)
+          started_at=$($SSH 'cat /opt/Humanity/target/release/HumanityOS.started 2>/dev/null' || true)
+          echo "The running program was built from: ${built_from:-unknown}; last restart at: ${started_at:-unknown}"
+          known() { [ -n "$1" ] && git cat-file -e "$1^{commit}" 2>/dev/null; }
+          build=true
+          if known "$built_from" && git diff --quiet "$built_from" "$GITHUB_SHA" -- src Cargo.toml Cargo.lock build.rs rust-toolchain.toml .cargo; then
+            build=false
+          fi
+          restart=$build
+          if [ "$restart" = false ]; then
+            if ! known "$started_at" || ! git diff --quiet "$started_at" "$GITHUB_SHA" -- data; then
+              restart=true
+            fi
+          fi
+          echo "build=$build restart=$restart"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "restart=$restart" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build the relay (on GitHub, not the VPS)
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (the version rust-toolchain.toml pins)
+        run: |
+          rustup toolchain install
+          rustc -V
+
+      - name: Cache cargo registry and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: deploy-relay-2204-${{ hashFiles('Cargo.lock') }}
+          restore-keys: deploy-relay-2204-
+
+      # The feature set the VPS runs: --no-default-features drops the GPU and windowing stack.
+      - name: Build the relay
+        run: cargo build --release --features relay --no-default-features
+
+      - name: Check it runs on the VPS's glibc (Debian 12, 2.36)
+        run: |
+          need=$(objdump -T target/release/HumanityOS | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -V | tail -1)
+          echo "The relay needs glibc $need"
+          if [ "$(printf '%s\n2.36\n' "$need" | sort -V | tail -1)" != "2.36" ]; then
+            echo "::error::the relay needs glibc $need, newer than the VPS's 2.36"
+            exit 1
+          fi
+
+      - name: Stage
+        run: |
+          mkdir -p dist
+          cp target/release/HumanityOS dist/HumanityOS
+          sha256sum dist/HumanityOS | cut -d' ' -f1 > dist/HumanityOS.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relay-for-vps
+          path: dist/
+          retention-days: 3
+
   deploy:
     name: Deploy
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 75
-
+    timeout-minutes: 20
     steps:
-      - name: Deploy & build on VPS
+      - name: Fetch the built relay
+        if: needs.plan.outputs.build == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: relay-for-vps
+          path: dist
+
+      - name: Copy it to the VPS
+        if: needs.plan.outputs.build == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps
+          chmod 600 ~/.ssh/vps
+          scp -i ~/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            dist/HumanityOS root@"$VPS_HOST":/opt/Humanity/target/release/HumanityOS.incoming
+          scp -i ~/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            dist/HumanityOS.sha256 root@"$VPS_HOST":/opt/Humanity/target/release/HumanityOS.incoming.sha256
+
+      - name: Update the VPS
         uses: appleboy/ssh-action@v1
+        env:
+          BUILD: ${{ needs.plan.outputs.build }}
+          RESTART: ${{ needs.plan.outputs.restart }}
+          SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 70m
+          command_timeout: 20m
+          envs: BUILD,RESTART,SHA
           script: |
             set -e
-            export PATH="$HOME/.cargo/bin:$PATH"
             cd /opt/Humanity
 
             # Pull latest code — reset first so local edits never block CI
@@ -41,20 +171,13 @@ jobs:
             git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/
 
             # ── Disk-pressure guard (incident 2026-05-17) ──
-            # Root cause of the prod outage: this on-VPS build cache
-            # (target/, kept across deploys for speed) grew unpruned to
-            # 27 GB and filled the disk → relay crash-looped silently.
-            # Pre-build reclaim: if the cache would risk filling the
-            # disk, clear it now. It is regenerable, NOT data — a clean
-            # rebuild follows immediately below. `|| true` everywhere so
-            # the guard can never block a deploy.
+            # The VPS's old build cache (target/) grew unpruned to 27 GB and filled the disk; the
+            # VPS no longer builds, but the guard stays for the cache it still holds. It keeps
+            # target/release/HumanityOS, the file the running relay was started from (BUG-169).
             DISK_PCT=$(df --output=pcent / | tail -1 | tr -dc '0-9' || echo 0)
-            echo "Root disk at ${DISK_PCT}% before build"
+            echo "Root disk at ${DISK_PCT}%"
             if [ "${DISK_PCT:-0}" -ge 80 ]; then
-              echo "Disk >= 80% -- clearing regenerable target/ before build"
-              # Keeps target/release/HumanityOS, the file the running
-              # relay was started from, so a build that then fails still
-              # leaves a relay that can restart (BUG-169).
+              echo "Disk >= 80% -- clearing regenerable target/"
               bash scripts/clear-build-cache.sh /opt/Humanity || true
             fi
             # Install/refresh the standalone disk-guard timer FROM THE
@@ -111,12 +234,24 @@ jobs:
               echo "WARNING: humanity-relay-services failed visudo -cf -- NOT installed"
             fi
 
-            # Build unified binary with relay feature (headless, no GPU deps)
-            cargo build --release --features relay --no-default-features
-
-            # Back up current binary
-            cp target/release/HumanityOS \
-               backups/HumanityOS-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+            # The program built on GitHub (the build job): check it arrived whole, keep the one it
+            # replaces, then swap it in with one rename. The running relay keeps its old file open
+            # until it restarts, so nothing changes under it.
+            if [ "$BUILD" = "true" ]; then
+              BIN=target/release/HumanityOS
+              want=$(cat "$BIN.incoming.sha256")
+              got=$(sha256sum "$BIN.incoming" | cut -d' ' -f1)
+              if [ "$want" != "$got" ]; then
+                echo "The program from GitHub arrived damaged (sha256 $got, expected $want): not installed"
+                exit 1
+              fi
+              chmod 755 "$BIN.incoming"
+              cp "$BIN" backups/HumanityOS-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+              mv -f "$BIN.incoming" "$BIN"
+              rm -f "$BIN.incoming.sha256"
+              echo "$SHA" > "$BIN.source"
+              echo "Installed the relay built on GitHub from $SHA"
+            fi
 
             # Web root layout: ONE definition, shared with provision-vps.sh
             # (scripts/sync-web-root.sh). An inline copy of this logic served
@@ -124,10 +259,26 @@ jobs:
             # see that script's header.
             bash /opt/Humanity/scripts/sync-web-root.sh /opt/Humanity /var/www/humanity
 
-            # Graceful restart
-            systemctl restart humanity-relay
-            sleep 3
-            systemctl is-active humanity-relay
+            # Restart only when the plan says the relay's program or its data changed, then wait for
+            # /health to answer (HTTP 200, "status":"ok"; a degraded relay answers 503).
+            if [ "$RESTART" = "true" ]; then
+              systemctl restart humanity-relay
+              for i in $(seq 1 30); do
+                if curl -fsS -m 5 http://localhost:3210/health 2>/dev/null | grep -q '"status":"ok"'; then
+                  echo "The relay is up and healthy after ${i}s"
+                  break
+                fi
+                if [ "$i" = 30 ]; then
+                  echo "The relay did not answer /health with ok within 30 s"
+                  systemctl status humanity-relay --no-pager | tail -20 || true
+                  exit 1
+                fi
+                sleep 1
+              done
+              echo "$SHA" > target/release/HumanityOS.started
+            else
+              echo "No restart: nothing the relay runs changed (docs, web pages or scripts only)"
+            fi
 
       # No post to #announcements from here (operator, 2026-10-09). This ran on EVERY push to
       # main, docs pushes and re-runs included, so the channel filled with "Deployed <sha>"

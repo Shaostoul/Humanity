@@ -41,7 +41,10 @@ and windowing stack. The platform binaries named `HumanityOS-linux-x64`,
 `-windows-x64.exe` and `-macos-*` are the desktop app: they link winit, wgpu,
 egui and cpal, so on a minimal VPS without libasound and libudev they fail in the
 dynamic linker before printing anything useful. Passing `--headless` to the
-desktop build does not change what it linked against.
+desktop build does not change what it linked against. The relay binary runs on any x86-64
+Linux with glibc 2.35 or newer (Ubuntu 22.04 and later, Debian 12 and later): it is built on
+Ubuntu 22.04 and the release refuses one that needs more (it needed 2.39 until 2026-10-30, when
+it was built on a newer Ubuntu).
 
 ```bash
 # Linux (x64) server: the relay build, with its checksum
