@@ -39,6 +39,8 @@ mod unit_tests;
 pub mod weeds;
 #[cfg(test)]
 mod weed_tests;
+#[cfg(test)]
+mod golden_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
