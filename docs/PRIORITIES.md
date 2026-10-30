@@ -177,8 +177,8 @@ In order:
 10. **The crate split: DECIDED 2026-10-30 (operator: "The split makes sense")**
     (`docs/design/crate-split.md`; the plan's one source is `scripts/crate-layers.json`;
     `node scripts/crate-graph.js --crates | --edges`). Ten crates named `humanity-<module>` (core,
-    protocol, ship, terrain, systems, relay, net, renderer, gui, engine: the layering and names are the
-    recommendation, his to change). An average edit would re-check about half the code, an engine
+    protocol, ship, terrain, systems, relay, net, renderer, gui, engine: the ten and the names decided by
+    him the same day, "going the full 10" and "Let's go with humanity"). An average edit would re-check about half the code, an engine
     edit about 15% (estimates). Next: rung 0, re-homing the 155 wrong-way references inside the one
     crate, then the layer lint reading the same JSON.
 

@@ -3,9 +3,10 @@
 Status: **the split is decided (operator, 2026-10-30): "The split makes sense. Saves us compute.
 Saves electricity. Makes development a little bit faster."** It reverses the 2026-06-30 one-crate
 decision (CLAUDE.md, Architecture: "one `Cargo.toml` at the repo root, no workspace, no
-sub-crates"), which changes when rung 1 lands, not before. **The layering below (ten crates) and
-the names are the recommendation given the same day in answer to the operator's questions; they are
-his to change.** Nothing has moved yet.
+sub-crates"), which changes when rung 1 lands, not before. **The ten crates and the names are his
+decisions too, the same day:** "I like the idea of going the full 10. It sounds like it'd be the
+most beneficial over a long period of time. Feels kind of small now but, huge a year from now."
+and, of the names, "Let's go with humanity." Nothing has moved yet.
 
 The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
 which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
