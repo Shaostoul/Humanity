@@ -2224,6 +2224,8 @@
     },
     {
       "name": "Project History",
+      "records": true,
+      "_records_note": "Session histories and decision logs are RECORDS: what was written on the day, kept as written (CLAUDE.md, account words: records stay as written). scripts/check-library-dashes.js leaves their punctuation alone.",
       "docs": [
         {
           "title": "Session history, 20 October 2026 (overnight)",

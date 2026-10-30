@@ -160,6 +160,10 @@ for (const cat of categories) {
     // manifest so scripts/check-library-dashes.js knows its punctuation is not
     // ours to normalise: the Constitution's dashes are the 1787 parchment's.
     if (d.verbatim) doc.verbatim = true;
+    // A record (a session history, a decision log): kept as it was written, so its
+    // punctuation is not normalised either (CLAUDE.md: records stay as written). Set
+    // per category in the catalogue (`"records": true`) or per document.
+    if (cat.records || d.record) doc.record = true;
     entry.docs.push(doc);
     copied++;
   }

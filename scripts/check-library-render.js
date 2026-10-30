@@ -109,6 +109,12 @@ construct('a snake_case identifier in prose is left alone',
   'The record id is poison_hemlock and the locale is silverdale_wa.\n',
   ['poison_hemlock', 'silverdale_wa'], ['<em>']);
 
+// A double-underscore name in prose is strong emphasis by the CommonMark rules; the check below
+// reports it whole and asks for backticks, which keep it as written.
+construct('a double-underscore name in backticks survives',
+  'The pseudo-room is `__game__` and the flag `window.__TAURI__`.\n',
+  ['__game__', 'window.__TAURI__'], ['<strong>']);
+
 construct('underscores still emphasise at a word boundary',
   'This word is _emphasised_ here.\n', ['<em>emphasised</em>']);
 
@@ -159,14 +165,19 @@ for (const f of fs.readdirSync(DIR).filter(f => f.endsWith('.md'))) {
     if (/^\s*(```|~~~)/.test(line)) { fence = !fence; continue; }
     if (fence || /^    /.test(line)) continue;
     const bare = line.replace(/`[^`]*`/g, '');
-    for (const id of bare.match(/[A-Za-z0-9]+_[A-Za-z0-9_]+/g) || []) {
+    // The whole name, leading and trailing underscores included: a double-underscore name such
+    // as __game__ in prose is CommonMark bold (it renders as a bold "game"), which the old
+    // pattern reported as "game__" (2026-10-30). Either way the cure is the same: backticks.
+    for (const id of bare.match(/_*[A-Za-z0-9]+(?:_+[A-Za-z0-9]+)*_*/g) || []) {
+      if (!id.includes("_")) continue;
       if (!md.render(line).includes(id)) mangled.push(id);
     }
   }
   if (mangled.length) {
     problems.push(f + ': ' + mangled.length + ' snake_case identifier(s) do not ' +
       'survive rendering, e.g. ' + mangled.slice(0, 3).join(', ') +
-      '. An underscore inside a word must not open emphasis.');
+      '. An underscore inside a word must not open emphasis; a name with double underscores at ' +
+      'its ends (__game__) is bold in Markdown, so put it in backticks.');
   }
 }
 
