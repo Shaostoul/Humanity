@@ -806,6 +806,13 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
 
     // Disjoint borrows of EngineState: the surfaces, the renderer's device
     // and queue, the theme and the shared GuiState.
+    // A screen framed this tick that shows the Inventory page needs the Garden data, which is
+    // built only on a frame that draws that page (engine/garden_mirror.rs).
+    if chosen.iter().any(|&si| {
+        state.screens.surfaces.get(si).is_some_and(|s| matches!(s.core.source, crate::gui::screen_surface::ScreenSource::Page(crate::gui::GuiPage::Inventory)))
+    }) {
+        crate::engine::garden_mirror::build_for_this_frame(state);
+    }
     let EngineState { screens, renderer, theme, gui_state, .. } = state;
     let Screens { surfaces, quads, .. } = screens;
     // A page on a wall screen is not one the player opened (2026-10-04): the

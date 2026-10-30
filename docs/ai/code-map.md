@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-887 Rust files (575,799 lines) under `src/`; 107 JavaScript files (67,773 lines) under `web/`.
+1038 Rust files (640,178 lines) under `src/`; 125 JavaScript files (76,029 lines) under `web/`.
 
 ## Folders
 
@@ -14,54 +14,61 @@
 - `src/assets/` (4 files): Asset manager, loads and caches game data with hot-reload support.
 - `src/audio/` (3 files): Audio manager powered by kira.
 - `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
-- `src/engine/` (86 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
+- `src/engine/` (105 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
+- `src/engine/mcp/` (6 files): The dev MCP endpoint (2026-10-22): the running game serves the Model Context Protocol on 127.0.0.1, so an AI session drives and inspects...
 - `src/engine/screens/` (4 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
 - `src/games/` (16 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
-- `src/gui/` (19 files): egui GUI system for the native desktop client.
+- `src/gui/` (23 files): egui GUI system for the native desktop client.
 - `src/gui/model_view/` (5 files): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker,...
-- `src/gui/pages/` (74 files): GUI pages composing widgets into full screens.
+- `src/gui/pages/` (76 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/apps/` (12 files): Apps (2026-10-19): the Games library and the Tools page made one page (the operator: "What do you think about changing the name of ...
-- `src/gui/pages/chat/` (27 files): 3-panel chat page matching the website layout.
-- `src/gui/pages/construction/` (1 files): Construction editor (v0.455+).
+- `src/gui/pages/chat/` (31 files): 3-panel chat page matching the website layout.
+- `src/gui/pages/construction/` (2 files): Construction editor (v0.455+).
+- `src/gui/pages/dev_agents/` (4 files): Dev > Claude: what Claude is doing (operator, 2026-10-22, the integrations between HumanityOS and Claude Code).
 - `src/gui/pages/files/` (50 files): The Files page (called the Media page until 2026-10-19; increment 2 of docs/design/files-showcase.md, 2026-10-11): the pictures, videos,...
-- `src/gui/pages/server_settings/` (3 files): Server and group settings page.
-- `src/gui/pages/settings/` (1 files): Settings panel with sidebar navigation and category content panels.
-- `src/gui/state_types/` (1 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
-- `src/gui/widgets/` (38 files): Reusable egui widgets styled by the HumanityOS theme.
+- `src/gui/pages/how_to/` (6 files): The How-to page (docs/design/how-to.md, increment 1, 2026-10-23): step-by-step procedures for real life and for this app, from data/how_t...
+- `src/gui/pages/maps/` (27 files): The Maps page: one page, four views (Planet, Solar System, Galaxy, Night Sky), drawn by `draw` from `GuiState::maps` (`gui/state_types/ma...
+- `src/gui/pages/server_settings/` (8 files): Server and group settings page.
+- `src/gui/pages/settings/` (6 files): Settings panel with sidebar navigation and category content panels.
+- `src/gui/state_types/` (3 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
+- `src/gui/widgets/` (42 files): Reusable egui widgets styled by the HumanityOS theme.
 - `src/hot_reload/` (2 files): Hot-reload coordinator, watches data files and invalidates caches.
+- `src/how_to/` (9 files): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
 - `src/input/` (2 files): Input types shared across the engine.
 - `src/media/` (8 files): Purpose-built media player core (in-world screens ladder, rung 5).
 - `src/mods/` (1 files): Mod support framework for HumanityOS
-- `src/net/` (49 files): Multiplayer networking: WebSocket client and ECS state synchronization.
+- `src/net/` (52 files): Multiplayer networking: WebSocket client and ECS state synchronization.
 - `src/physics/` (1 files): Physics, Rapier3d world setup and stepping.
-- `src/relay/` (57 files): Humanity Network relay server.
-- `src/relay/core/` (21 files): Core types for the Humanity Network: - Canonical CBOR encoding/decoding - BLAKE3 hashing (object_id, block_id) - Post-quantum signing (ML...
-- `src/relay/handlers/` (39 files): Handler submodules for the relay server.
-- `src/relay/storage/` (70 files): SQLite persistence for relay message history and peers.
+- `src/relay/` (62 files): Humanity Network relay server.
+- `src/relay/admin/` (5 files): The admin action registry, and the two endpoints an app or an AI uses it through (2026-10-22; docs/design/in-app-ops.md, "North star: the...
+- `src/relay/backup_stream/` (12 files): Continuous backup of the relay's database (2026-10-22, PRIORITIES Tier 2 item 12).
+- `src/relay/core/` (25 files): Core types for the Humanity Network: - Canonical CBOR encoding/decoding - BLAKE3 hashing (object_id, block_id) - Post-quantum signing (ML...
+- `src/relay/handlers/` (46 files): Handler submodules for the relay server.
+- `src/relay/storage/` (75 files): SQLite persistence for relay message history and peers.
 - `src/relay/transport/` (2 files): Transport layer (Phase 7b, LoRa mesh stub).
-- `src/renderer/` (61 files): Renderer, the `Renderer` struct, its construction, and its registries.
+- `src/renderer/` (64 files): Renderer, the `Renderer` struct, its construction, and its registries.
 - `src/renderer/shader_loader/` (1 files): WGSL shader loading with optional hot-reload (native only).
-- `src/ship/` (23 files): Ship interior system, layout parsing and room mesh generation.
+- `src/ship/` (29 files): Ship interior system, layout parsing and room mesh generation.
 - `src/software/` (7 files): The readers of the Apps page's "Other programs" (2026-10-19; the operator: "What if we make the tools page like the games page?
 - `src/station/` (3 files): Crewed stations: the player's homestead as a real orbiting, pointed object.
 - `src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
-- `src/systems/` (62 files): HumanityOS Game Systems
+- `src/systems/` (64 files): HumanityOS Game Systems
 - `src/systems/ai/` (3 files): AI system, behavior state machine for NPCs and creatures.
 - `src/systems/combat/` (3 files): Combat system, damage processing, hit detection, death, status effects.
 - `src/systems/construction/` (10 files): Construction system: blueprint placement, building progress, snap grid.
 - `src/systems/crafting/` (9 files): Crafting system, recipe validation, crafting queue, and output production.
 - `src/systems/economy/` (3 files): Economy system, credits, trading, age-based starting balance.
-- `src/systems/farming/` (25 files): Farming system -- crop growth simulation driven by time, water, and plant data.
+- `src/systems/farming/` (26 files): Farming system -- crop growth simulation driven by time, water, and plant data.
 - `src/systems/inventory/` (4 files): Inventory system, slot-based item storage with stack limits.
 - `src/systems/quests/` (3 files): Quest system, data-driven quest progression loaded from RON files.
 - `src/systems/skills/` (1 files): Skill progression: learn-by-doing with XP curves and level unlocks.
 - `src/systems/vehicles/` (3 files): Vehicle & mech system, entering/exiting vehicles, mech torso twist, jump jets, heat management, and vehicle movement control.
 - `src/terrain/` (26 files): Terrain systems: icosphere planets and voxel asteroids.
 - `src/web_reader/` (5 files): The readable web: fetch a real page over HTTPS and turn it into a document HumanityOS can draw itself, with no browser engine and no Java...
-- `web/chat/` (28 files)
-- `web/chat/view/` (2 files)
-- `web/pages/` (32 files)
-- `web/shared/` (45 files)
+- `web/chat/` (29 files)
+- `web/chat/view/` (4 files)
+- `web/pages/` (37 files)
+- `web/shared/` (55 files)
 
 ## Files
 
@@ -69,23 +76,23 @@
 
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
 - `boot_timing.rs` (169): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
-- `config.rs` (2886): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
+- `config.rs` (3092): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, VoiceFilterMode, VoiceTransmitMode, SavedServer, AppConfig (+19 more).
 - `cosmetics.rs` (101): Cosmetic outfit catalog (v0.442): craftable/tradeable clothing items that tint the avatar's body slots. Main items: Cosmetic, OutfitColors, load_cosmetics, resolve_outfit_colors.
-- `cosmos.rs` (744): Canonical Sol-system model (v0.262.8, extracted from `gui/pages/cosmos.rs` so it is the SINGLE source of truth). Main items: SolBody, sol_bodies, find_body, kepler_solve, body_position_relative_au, body_world_position_3d_au, sample_orbit_points, KM_PER_AU (+1 more).
+- `cosmos.rs` (1642): Canonical Sol-system model (v0.262.8, extracted from the Maps page, then `gui/pages/cosmos.rs`, now `gui/pages/maps/`, so it is the SINGLE source of truth). Main items: SolBody, RotationElements, RotationTerm, rotation_angles_deg, iau_orientation, body_orientation, grey_at_albedo, sol_bodies (+16 more).
 - `credits.rs` (146): Third-party attributions, loaded from `data/credits.ron`. Main items: CreditSource, Credits, OSM_NOTICE.
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
-- `dev_travel.rs` (438): Dev travel math (v0.791.x, Platform > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
-- `embedded_data.rs` (869): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+132 more).
-- `lib.rs` (16466): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
+- `dev_travel.rs` (522): Dev travel math (v0.791.x, Dev > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
+- `embedded_data.rs` (902): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+138 more).
+- `lib.rs` (16560): HumanityOS Game Engine Main items: data_dir, drone_dock_visible, run, DATA_DIR.
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
-- `machines.rs` (5369): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+33 more).
-- `main.rs` (225): HumanityOS, One binary to rule them all.
-- `persistence.rs` (1707): World persistence, save/load game state to JSON files. Main items: WorldSave, SavedHome, BodySave, ShipPlace, ShipMeals, SaveSlot, VehicleSave, ConstructionSave (+27 more).
+- `machines.rs` (5721): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+41 more).
+- `main.rs` (241): HumanityOS, One binary to rule them all.
+- `persistence.rs` (1711): World persistence, save/load game state to JSON files. Main items: WorldSave, SavedHome, BodySave, ShipPlace, ShipMeals, SaveSlot, VehicleSave, ConstructionSave (+28 more).
 - `platform.rs` (81): Platform abstraction for native vs WASM. Main items: log_info, current_time_secs, current_time_secs, load_asset_bytes_sync, load_asset_bytes_async.
 - `player_look.rs` (90): How another player looks, in a shared world (2026-09-29, Tier D). Main items: PlayerLook, HEIGHT_MIN, HEIGHT_MAX.
 - `reactions.rs` (121): Reaction emoji palette registry: the data-driven source of truth for which emoji can be used as message reactions, loaded from `data/reactions.json` (compile-time embedded, mirroring the `lock_type... Main items: normalize, top, all, is_allowed.
 - `release_update.rs` (710): Signed-release verification + signing (the supply-chain root of trust). Main items: SigningPubkeys, ManifestArtifact, ReleaseManifest, ManifestSignature, VerifyOutcome, embedded_pubkeys, sha256_hex, verify_manifest_bytes (+11 more).
-- `save_load.rs` (3640): Offline save/load lifecycle (v0.381) -- homes increment 3. Main items: HomeFrame, LoadedHomeBox, ActiveHome, SnapshotNow, Resumed, frame_for_save, record_home_frame, active_home (+37 more).
+- `save_load.rs` (3644): Offline save/load lifecycle (v0.381) -- homes increment 3. Main items: HomeFrame, LoadedHomeBox, ActiveHome, SnapshotNow, Resumed, frame_for_save, record_home_frame, active_home (+37 more).
 - `scenic_views.rs` (116): Scenic views (v0.825): curated named viewpoints on planet surfaces, the data foundation for the camera-hub arc (task #77). Main items: ScenicView, ScenicViews.
 - `showroom.rs` (56): Character-select showroom data (v0.441): the backdrops you can preview your avatar against. Main items: Backdrop, load_backdrops.
 - `storage.rs` (532): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files. Main items: StorageMode, exe_dir, os_root, mode, choose_installed, choose_portable, portable_config_path, portable_saves_dir (+6 more).
@@ -115,7 +122,7 @@
 
 ## src/ecs/
 
-- `components.rs` (1729): Core ECS components shared across all game systems. Main items: Transform, Velocity, PhysicsBody, Renderable, Name, Health, Vitals, EnvironmentContext (+83 more).
+- `components.rs` (1742): Core ECS components shared across all game systems. Main items: Transform, Velocity, PhysicsBody, Renderable, Name, Health, Vitals, EnvironmentContext (+84 more).
 - `cosmos.rs` (498): Cosmos position model, Phase 2 of the cosmos architecture (v0.202.0). Main items: VesselId, PocketId, ContainerRef, PositionInUniverse, VesselMeta, VesselRegistry, SystemPositions, world_position_ly (+4 more).
 - `mod.rs` (19): ECS, thin wrapper around hecs::World with system scheduling. Main items: GameWorld.
 - `systems.rs` (183): System runner, executes registered systems each frame. Main items: System, SystemRunner.
@@ -123,73 +130,95 @@
 ## src/engine/
 
 - `account_erase.rs` (131): An erased account, the engine's side (BUG-135): what the app does when a server confirms it erased our account (the relay's `account_erased`, sent after the erase's receipt). Main items: on_active_server, on_parked_server, erase_refusal, ERASED_BY_ADMIN_HUD.
-- `bg_connections.rs` (892): Background relay connections pump (multi-connection stage 3). Main items: pump_background_connections, link_frame, redial_due, erased_link, bg_begin_fetch, bg_dm_new, bg_dm_batch.
+- `bg_connections.rs` (904): Background relay connections pump (multi-connection stage 3). Main items: pump_background_connections, link_frame, redial_due, erased_link, bg_begin_fetch, bg_dm_new, bg_dm_batch.
 - `block.rs` (785): Block (step C of docs/design/blocking-and-safe-mode.md, section 10d, 2026-10-09): the native client's half that touches the app state and the socket. Main items: ensure_block_list, is_blocked, hides_player, screens_dm, screens_dm_parked, own_echo_for_blocked, screens_out, hides_message (+12 more).
 - `body_probe.rs` (251): What the dev IPC reports of the player's body (2026-10-20): health, the wounds on it, and the landings the walk handed to it. Main items: health, wounds, vitals_json, falls_core, planet_climb_m_s, planet_walk, falls_json, parse_illness_mode.
-- `build_place.rs` (1444): Placing a built piece in the world (2026-09-27): the ghost, the keys, the hint. Main items: PlaceKey, Press, key_action, key, press_build, press_build_on, place_at, cast_spot (+17 more).
-- `built_uses.rs` (371): Built beds and chests in use (2026-09-27): the crosshair prompt, the E press, and the built chests kept in the Inventory page's places tree. Main items: frame, publish_stations, station_types_here, machine_use, use_machine, use_machine_label, activate.
-- `call_relay.rs` (250): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): the desktop app's glue between its state, the chat socket and the WebRTC manager. Main items: wanted_scope, pump, on_frame, on_event, missed_call_line, on_ring.
+- `build_place.rs` (1499): Placing a built piece in the world (2026-09-27): the ghost, the keys, the hint. Main items: PlaceKey, Press, key_action, key, press_build, press_build_on, place_at, cast_spot (+18 more).
+- `built_uses.rs` (470): Built beds and chests in use (2026-09-27): the crosshair prompt, the E press, and the built chests kept in the Inventory page's places tree. Main items: frame, publish_stations, station_types_here, reach_blockers, shut_door_segments, refresh_shut_doors, machine_use, use_machine (+2 more).
+- `call_relay.rs` (289): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): the desktop app's glue between its state, the chat socket and the WebRTC manager. Main items: wanted_scope, pump, effective_call_connection, on_frame, on_event, missed_call_line, on_ring.
 - `carry_load.rs` (147): The player's carried load, applied once a frame (BUG-136, 2026-10-04). Main items: walk_gravity, player_carry_input, steer, apply.
 - `choice.rs` (159): The choice for each friend syncs as its own note (section 10n of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state and the socket. Main items: make, flush, screens_dm, screens_dm_parked, apply_in.
 - `color.rs` (37): HSV-to-RGB conversion for the build editor's rainbow colours: the selected connection's flow markers (`hsv_to_rgb`) and the grabbed gizmo's colour cycle (`hsv_rgb`). Main items: hsv_to_rgb, hsv_rgb.
 - `death_pack.rs` (424): The engine's half of the Death setting (2026-10-04; the rules and the arithmetic are `systems::death_pack`, the design docs/design/death-and-your-pack.md). Main items: PackEngine, BodyAt, after_tick, dev_die, pack_notice, aboard_landing, room_words, faces (+7 more).
-- `dm.rs` (988): Native DM glue for the sealed-sender v2 protocol (2026-08-23). Main items: open_verify_dm, ensure_dm_store, dm_preview_text, dm_display_name, rebuild_dm_sidebar, reload_dm_channel, keep_scratch_note, load_scratchpad (+25 more).
+- `dm.rs` (990): Native DM glue for the sealed-sender v2 protocol (2026-08-23). Main items: open_verify_dm, ensure_dm_store, dm_preview_text, dm_display_name, rebuild_dm_sidebar, reload_dm_channel, keep_scratch_note, load_scratchpad (+25 more).
 - `drone.rs` (50): The mining drone's engine half (first-hour audit S5, 2026-10-12): the Settings > Gameplay > Mining drone mode into the DataStore, the Mining panel's Repair and Cancel into the drone system, and wha... Main items: bridge, bridge_gui.
-- `editor.rs` (2204): The construction (build) editor's viewport logic: picking, placing, dragging and duplicating rooms, walls, machines, lights and structures under the cursor, plus undo, redo and autosave. Main items: light_ring_under_cursor, unique_corners, editor_snapshot, editor_restore, arms_autosave, construction_history_tick, history_start_from, history_checkpoint (+47 more).
+- `editor_storeys.rs` (1016): STOREYS in the B editor (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md, "Editor (C2)"), the engine half. Main items: EditStorey, StoreyPlan, StoreyFloorHit, CutAway, Cuts, edit_storey, storey_name, slab_name (+51 more).
+- `editor.rs` (2233): The construction (build) editor's viewport logic: picking, placing, dragging and duplicating rooms, walls, machines, lights and structures under the cursor, plus undo, redo and autosave. Main items: light_ring_under_cursor, editor_snapshot, editor_restore, arms_autosave, construction_history_tick, history_start_from, history_checkpoint, history_undo (+46 more).
 - `file_transfer.rs` (1271): Device-to-device big files, the app's half (docs/design/files-showcase.md, "Device-to-device big files, exact" and "...: the shapes, exact", parts 3, 4 and 6; the operator's answer 10 of 2026-10-11... Main items: Phase, Pair, Live, Preparing, Prepared, Transfers, offered_dir, cannot_offer (+29 more).
 - `fleet.rs` (500): The fleet ledger's engine half (2026-10-04): the server's answers into the Inventory page's fleet panel, a give's items out of the backpack, a meal eaten, and the home's reactor power reported whil... Main items: settled_id, home_id, on_game_message, on_meal, feed, meal_sentence, on_give_result, on_gives (+12 more).
-- `footing.rs` (510): Where the floor is under a body aboard: the room it stands in, raised to the highest stair tread, ramp, deck, platform or elevator car it can step onto (v0.584, v0.589, v0.590). Main items: ElevatorCars, floor_under, floor_along, STEP_UP_M, ELEVATOR_TRAVEL_M.
-- `frame_lock.rs` (859): The camera's frame lock to a planet: its altitude bands (surface walking below 10 km, co-rotation to 100 km, inertial flight by 1,000 km) and the sun, cloud and god-ray numbers that follow from it. Main items: ground_radius_m, current_planet_spin, sun_azimuth, ground_anchor, ocean_anchor256, cloud_ground_params, godray_scale, sun_occlusion_factor (+13 more).
+- `footing.rs` (2032): Where the floor is under a body aboard: the room it stands in, raised to the highest stair tread, ramp, deck, platform, floor slab, built piece or elevator car it can step onto (v0.584, v0.589, v0.... Main items: LiftKey, ElevatorCars, Footing, Lift, car_of, lifts, elevator_tick, pause_elevators (+14 more).
+- `frame_lock.rs` (916): The camera's frame lock to a planet: its altitude bands (surface walking below 10 km, co-rotation to 100 km, inertial flight by 1,000 km) and the sun, cloud and god-ray numbers that follow from it. Main items: ground_radius_m, current_planet_spin, sun_azimuth, ground_anchor, ocean_anchor256, cloud_ground_params, godray_scale, above_air (+14 more).
 - `frame_near_trees.rs` (669): NEAR-FIELD TREES: deciding which real 3D trees stand around the player this frame, and where the far cards must stop so the two never overlap or leave a gap (extracted from lib.rs, v0.1320). Main items: NearTreeState, NearTreeView, draw_near_trees.
-- `frame_shells.rs` (1299): A planet's SHELLS: the cloud deck and the atmosphere dome, built once per frame for any body large enough on screen to be worth them, and pushed into the transparent celestial list in the order the... Main items: ShellState, ShellView, push_planet_shells.
+- `frame_shells.rs` (1297): A planet's SHELLS: the cloud deck and the atmosphere dome, built once per frame for any body large enough on screen to be worth them, and pushed into the transparent celestial list in the order the... Main items: ShellState, ShellView, push_planet_shells.
 - `frame_water.rs` (717): The planet's WATER SHELLS: the two quadtree layers that make a sea, built and pushed once per frame for whatever body the camera is standing on (extracted verbatim from lib.rs, v0.1320). Main items: WaterShellState, WaterView, push_water_shells.
 - `frame_ws_poll_offers.rs` (157): Child of frame_ws_poll.rs (#[path]): who this device answers a direct-connection offer from, and which voice-room offers it takes. Main items: dc_offer_reason.
-- `frame_ws_poll.rs` (1700): The relay WebSocket MESSAGE PUMP: one frame's worth of "read everything the relay sent us and act on it", plus the teardown that arms the reconnect timer when the socket has died (extracted verbati... Main items: poll_relay_messages.
+- `frame_ws_poll.rs` (1709): The relay WebSocket MESSAGE PUMP: one frame's worth of "read everything the relay sent us and act on it", plus the teardown that arms the reconnect timer when the socket has died (extracted verbati... Main items: poll_relay_messages.
 - `friend_code.rs` (114): Friend codes on the desktop app: making one, and what the server answers (the 2026-10-10 batch review of docs/design/blocking-and-safe-mode.md 10h). Main items: request_code, code_line, on_frame.
 - `fungus_mesh.rs` (1466): How a mushroom crop is drawn (2026-09-27). Main items: Growth, Drawn, build_plot, unit_footprint.
+- `garden_mirror.rs` (161): The Garden data the Inventory page shows: every crop with its card (N-P-K, light, pH, pollination, picking, the air, weeds, the outlook), the pests and row covers per area, weeds, pollination and t... Main items: build_for_this_frame.
 - `geom.rs` (290): Pure geometry for the build editor's gizmos: snapping a dragged corner or object, the light rotation rings' size and pick tolerance, the light range wireframe, and ray tests against a ring and a box. Main items: snap_node_position, snap_to_alignment, light_ring_radius, light_ring_pick_tolerance, range_sphere_edges, ray_ring_closest, ray_aabb_hit, LIGHT_RING_ANGULAR_RADIUS.
-- `group_report.rs` (409): A report about a group reaches the group's creator (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state, the socket and the server. Main items: Outgoing, target_for, start_finding, creator_found, creator_put, prepare, note_sent, refused (+10 more).
-- `home_meshes.rs` (2565): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: GardenDraw, PlantPass, apply_homestead_meshes, rebuild_hull, rebuild_homestead, auto_room_lights, open_plots_changed, machine_mesh (+15 more).
-- `home_plot.rs` (3398): Your home on the shared ship (increment 1b of docs/design/ship-homes-and-logistics.md). Main items: PlotBox, WelcomeHome, WelcomeContext, OtherKind, JoinGate, JoinStep, ServerFollow, HomeBoxChange (+69 more).
-- `home_spawn.rs` (924): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
+- `group_report.rs` (411): A report about a group reaches the group's creator (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state, the socket and the server. Main items: Outgoing, target_for, start_finding, creator_found, creator_put, prepare, note_sent, refused (+10 more).
+- `home_meshes.rs` (3236): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: Slot, HomeDraw, GizmoRoom, GardenDraw, PlantPass, ConduitRun, RunSite, machine_body_slots (+42 more).
+- `home_plot.rs` (3987): Your home on the shared ship (increment 1b of docs/design/ship-homes-and-logistics.md). Main items: PlotBox, WelcomeHome, WelcomeContext, OtherKind, JoinGate, JoinStep, ServerFollow, HomeBoxChange (+74 more).
+- `home_probe.rs` (97): The home's air, water and power as the HUD reads them, for the dev IPC's recorder (the `home_systems` block of `debug/remote_players_done.json`, engine/ipc.rs) and the dev MCP's `game_home_state` t... Main items: json.
+- `home_spawn.rs` (930): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
 - `household.rs` (1178): Household permits travel between devices (ship homes increment 5b, lane 1A, 2026-10-12; docs/design/ship-homes-increment-5b-plan.md sections 3.1 to 3.4 and 3.6, with the orchestrator's amendments i... Main items: Dropped, Arrived, Standing, FriendRow, HeldRow, PlotPermit, length_days, days_left (+39 more).
-- `input.rs` (386): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, apply_game_action, cloud_dev_flag.
+- `input.rs` (387): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, apply_game_action, cloud_dev_flag.
 - `ipc_parse.rs` (370): Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested alone: screenshot request and done file, screen status, notification prefs, planet tooltip. Main items: ScreenshotSize, NotifPrefsPayload, parse_screenshot_request, screenshot_output_path, screenshot_done_json, merge_provider_status, planet_tooltip_info, parse_notification_prefs (+1 more).
-- `ipc.rs` (5084): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value, drop_link_hold (+52 more).
+- `ipc.rs` (5784): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value, drop_link_hold (+60 more).
+- `key_cards.rs` (352): Key cards in the desktop app (2026-10-22, docs/design/key-cards.md): signing our own card, asking servers for other people's, checking every one, pinning, and the change notice. Main items: KeyCardsState, sign_own_card, on_identity, ensure_pins, want, want_people, note_listed, on_signed_in (+8 more).
 - `keybind_capture.rs` (166): Keybind CAPTURE step (Settings > Controls, 2026-08-12), extracted from lib.rs's raw winit keyboard arm per the monolith ratchet. Main items: handle_keybind_capture.
-- `launch_focus.rs` (352): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, show_window_behind, show_window_behind.
+- `launch_focus.rs` (361): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, show_window_behind, show_window_behind.
+- `low_impact.rs` (456): LOW IMPACT: the game a verification rig boots while the operator is using his PC (2026-10-22). Main items: Spec, parse, spec, on, window, holds_pin, preset_values, overlay_for (+12 more).
 - `mailbox.rs` (119): The sealed-sender mailbox of the server we are on, page by page and live (10n N7 and 10o O1 of docs/design/blocking-and-safe-mode.md, 2026-10-10): the `dm_fetch` that goes out once per connection,... Main items: begin_fetch, on_batch, on_new.
-- `mess_hall.rs` (206): THE MESS HALL SERVES (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): E at the mess hall's serving counter opens its card, which offers a free crew meal and drinki... Main items: Counter, Meal, card_offers_meal, nearest_counter_m, take_meal, fill_bottles, take_meal_at, fill_bottles_at (+3 more).
-- `mod.rs` (178): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
-- `move_check.rs` (644): The game's half of the relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; the relay's half is src/relay/handlers/move_check.rs). Main items: Correction, ScriptedWalk, WalkPose, ClientMoves, declare, teleport_rearm, teleporter_tick, stamp_fields (+12 more).
-- `movie.rs` (823): MOVIE MODE: record the live view to a video file, frame-exact (2026-09-30, the clip maker, `scripts/make-clips.js`). Main items: Key, RecordSpec, Recorder, Incoming, ease, pose_at, descend_mps, ffmpeg_args (+12 more).
+- `map_cut.rs` (69): THE CUTAWAY for the Maps page (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): picking a level on the map cuts everything above it away, hull, roof, ceilings and upper storeys, so the... Main items: map_level, map_cuts, map_level_meshes, inside_lists.
+- `map_feed.rs` (189): The engine tells the Maps page where you are (Maps increment 1, docs/design/maps-zoom-to-anything.md, "The engine says where you are"). Main items: FeedInputs, build, publish, frame_update.
+- `map_rig_ship.rs` (110): The Maps page's ship verbs and the ship block of the rig's report (Maps increment 3, "into the ship, deck by deck"): permanent dev tooling the probe rig's ship vantages drive the page with, beside... Main items: parse, apply, report.
+- `map_rig.rs` (243): The Maps page's dev verbs and the rig's report (Maps increments 1 and 2): permanent dev tooling the probe rig's map vantages drive the page with, moved out of `engine/map_view.rs` in increment 2 wh... Main items: showcase, parse_map_verb, write_report_if_due, report_json, apply_verb.
+- `map_tiles.rs` (433): PLAN TILES (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7, "Plan tiles for multi-kilometre ships"): the Maps page's straight-down plan of a level is drawn from tiles rendered once from... Main items: TileKey, PlanItem, MapTilesGpu, zoom_for, keys_covering, rects_touch, plan_items, dirty_rects (+9 more).
+- `map_view.rs` (304): The Maps page's WORLD layer (Maps increment 1, docs/design/maps-zoom-to-anything.md 5.2 and 5.6): the real world rendered from the map's camera, so the ship on the map is the real ship, every mesh... Main items: Target, MapViewGpu, render_camera, frame.
+- `mess_hall.rs` (213): THE MESS HALL SERVES (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): E at the mess hall's serving counter opens its card, which offers a free crew meal and drinki... Main items: Counter, Meal, card_offers_meal, nearest_counter_m, take_meal, fill_bottles, take_meal_at, fill_bottles_at (+3 more).
+- `mod.rs` (212): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
+- `move_check.rs` (725): The game's half of the relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; the relay's half is src/relay/handlers/move_check.rs). Main items: Correction, ScriptedWalk, WalkPose, ClientMoves, declare, teleport_rearm, teleporter_tick, teleport_landing (+13 more).
+- `movie.rs` (863): MOVIE MODE: record the live view to a video file, frame-exact (2026-09-30, the clip maker, `scripts/make-clips.js`). Main items: Key, RecordSpec, Recorder, Incoming, ease, pose_at, descend_mps, ffmpeg_args (+12 more).
 - `near_tree_models.rs` (454): Near-tree MODEL CACHE: the one-time build/parse of every tree mesh the near field can draw, plus the sprite-atlas bake that gives the far cards the same trees (extracted from lib.rs, v0.1108). Main items: ensure_near_tree_models.
-- `net_route.rs` (1661): Multiplayer glue between the relay socket and the world: routing `__game__:` messages, the figures and nameplates of other players and crew, and our own position updates. Main items: FigurePart, FigurePiece, PlanetDefBake, route_game_message, view_change_messages, snapshot_entry_messages, host_clock_from, position_update_from (+19 more).
+- `net_route.rs` (1665): Multiplayer glue between the relay socket and the world: routing `__game__:` messages, the figures and nameplates of other players and crew, and our own position updates. Main items: FigurePart, FigurePiece, PlanetDefBake, route_game_message, view_change_messages, snapshot_entry_messages, host_clock_from, position_update_from (+19 more).
 - `own_home.rs` (638): The character's OWN home (2026-10-04): what the build editor changes outside the Dev mode is kept in the character's save, never in the shared data files. Main items: Kept, GaveBack, authors_data_files, in_effect, design_in_effect, capture, overlay_machines, keep_editor_edits (+11 more).
 - `pipe_markers.rs` (188): The pipes' marker bands in the 3D home (2026-10-04). Main items: PipeMarkerState, BandBatch, wanted_mode, rebuild_if_mode_changed.
-- `planet_build.rs` (1086): Building where you stand, on the ship or on a planet (2026-09-27, the real fix for BUG-102). Main items: BodyFrame, PlayerView, Ground, CannotBuild, Ghost, PlayerFrame, note_body, body_render_rot (+12 more).
+- `planet_build.rs` (1258): Building where you stand, on the ship or on a planet (2026-09-27, the real fix for BUG-102). Main items: BodyFrame, PlayerView, Ground, CannotBuild, Ghost, PlayerFrame, note_body, body_render_rot (+17 more).
 - `plant_layout.rs` (637): Where a grow machine's plants stand (2026-09-26). Main items: PlotRect, PlotPlants, plot_rects, plot_plants, plot_draw_cap, bake_copy, shelf_rack_geometry, tent_geometry (+2 more).
 - `plant_pass.rs` (741): The garden's plant geometry, built off the main thread (2026-09-27). Main items: Helix, GroupLayout, CropDraw, GroupJob, BuiltGroup, WorkerMsg, Job, spawn (+2 more).
+- `play_journal.rs` (568): The play journal (docs/design/play-journal.md, rung 1): what happened while the game ran, by kind, in small capped files a Claude session reads through the dev MCP (`dev_play_journal`, `dev_play_ma... Main items: MarkAsk, Seen, Now, dir_for, start, dir, record, event_line (+15 more).
 - `protected.rs` (572): The protected setup (step G of docs/design/blocking-and-safe-mode.md, section 10h, 2026-10-10): the native client's half that touches the app state and the socket. Main items: now_secs, ensure_preset, is_on, allows, allows_typed, forget, pass_allowed, try_pin (+21 more).
 - `put_answer.rs` (130): The server's answers to the `dm_put`s that change friendship state (section 10l of docs/design/blocking-and-safe-mode.md, "A pass counts as given only once the server took it", 2026-10-10): `dm_put... Main items: on_frame, expire, REQUEST_NOT_CONFIRMED.
 - `quest_hooks.rs` (100): The quests' per-frame glue (2026-10-04, the opening): what the quest system cannot see from the ECS, handed to it once a frame. Main items: frame, views_that_came_on_screen, off_the_record.
 - `quit.rs` (80): Leaving the app: what is written before it closes (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Blocker 5). Main items: save_before_exit.
-- `reach.rs` (766): "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, section 10c), the native client's half that touches the socket and the app state: the relay's `reach_settings` (the only source... Main items: Arrival, on_frame, ask, current, shares_group, file_if_refused, file_if_refused_in, contact_request_in (+13 more).
+- `reach.rs` (771): "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, section 10c), the native client's half that touches the socket and the app state: the relay's `reach_settings` (the only source... Main items: Arrival, on_frame, ask, current, shares_group, file_if_refused, file_if_refused_in, contact_request_in (+13 more).
 - `region_meshes.rs` (507): OSM region 3D residency (maps ladder rung 3 increment 2, v0.1148): stands the fetched roads and buildings up in the world at their real geodetic coordinates on the chunked-LOD Earth. Main items: ActiveRegion, ElevGrid, RegionMeshState, tick.
 - `registries.rs` (450): The game's small data registries (items, recipes, plants, status effects, skills, quests, containers), loaded into the DataStore at startup, before any world loads. Main items: load_data_registries.
 - `report.rs` (452): Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, section 10e, 2026-10-09): the native client's half that touches the app state and the socket. Main items: ensure_reasons, ensure_outside_help, open_for_message, open_for_dm, open_for_media, open_for_person, draft_of, prepare_send (+5 more).
 - `rig_walk.rs` (168): The rig's held movement keys: arriving somewhere the way a player does (BUG-156, 2026-10-05). Main items: parse_keys, hold, tick, MAX_HOLD_S.
-- `room_gi.rs` (264): Room GI glue (rung 1, 2026-09-27, docs/design/room-gi.md). Main items: rooms_changed, before_scene, room_boxes, DEFAULT_REFL, MAX_REFL, SNAP_REACH_M.
-- `save_slot.rs` (1019): Which save is live, and the home it builds (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md sections 3.6 and 3.7). Main items: Look, Boot, TakenUp, Choice, AfterChoice, wanted, slot_for, server_slot (+43 more).
-- `screens.rs` (1047): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a flat display placed in the 3D world. Main items: QuadGeom, ScreenQuad, ScreenIpc, IpcStage, Screens, quad_from_placement, ray_hit_uv, screen_quad_mesh (+14 more).
+- `room_gi.rs` (803): Room GI glue (rung 1, 2026-09-27, docs/design/room-gi.md). Main items: rooms_changed, occluder_slabs, before_scene, room_boxes, GLASS_SLAB_MATERIAL, DEFAULT_REFL, MAX_REFL, SNAP_REACH_M.
+- `save_slot.rs` (1020): Which save is live, and the home it builds (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md sections 3.6 and 3.7). Main items: Look, Boot, TakenUp, Choice, AfterChoice, wanted, slot_for, server_slot (+43 more).
+- `screens.rs` (1054): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a flat display placed in the 3D world. Main items: QuadGeom, ScreenQuad, ScreenIpc, IpcStage, Screens, quad_from_placement, ray_hit_uv, screen_quad_mesh (+14 more).
 - `shared_build.rs` (1365): The pieces the server keeps, the game's side (ship homes increment 5, "building only on your own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md sections 3.4 and 3.5). Main items: Gate, GateInput, Unbuild, SharedBuild, Ctx, ScreenView, kept_words, gate (+22 more).
-- `state.rs` (1197): `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world, GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types. Main items: GrowSpot, ConstructionGrab, GizmoRole, HoverGizmo, ObjectGrab, ConstructionGizmoGrab, EngineState, EditorSnapshot (+2 more).
+- `state.rs` (1222): `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world, GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types. Main items: GrowSpot, ConstructionGrab, GizmoRole, HoverGizmo, ObjectGrab, ConstructionGizmoGrab, EngineState, EditorSnapshot (+2 more).
 - `stock_piles.rs` (705): Visible storage (2026-09-26; the gameplay arc's step 4). Main items: kind_for_class, stored_volumes, unit_counts, assign_kinds, pile_positions, rack_slots, in_storage_room, receive_machine_outputs (+14 more).
-- `survival_env.rs` (1010): The survival environment context, published once a frame (moved out of lib.rs 2026-09-27, when it grew the body heat inputs). Main items: ExposedAir, Whereabouts, upwind_from, outside_context, warmed_by_fires, publish, whereabouts, refresh_ship_spaces (+2 more).
+- `storey_probe.rs` (222): What the dev IPC reports of the walk between storeys (ship homes increment 7, 2026-10-21). Main items: room_json, lifts_json, cars_now, frame_json, done_json, parse_face.
+- `survival_env.rs` (1015): The survival environment context, published once a frame (moved out of lib.rs 2026-09-27, when it grew the body heat inputs). Main items: ExposedAir, Whereabouts, upwind_from, outside_context, warmed_by_fires, publish, whereabouts, refresh_ship_spaces (+2 more).
 - `tree_ground.rs` (241): THE GROUND UNDER THE NEAR TREES, read out for the rig (BUG-156, 2026-10-05). Main items: report, write_report, REPORT_PATH, FLOAT_TOLERANCE_M.
 - `warnings.rs` (329): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's half that touches the app state. Main items: ensure_loaded, sender_of, checked_sender, shown_under, dismiss_key, message_key, links_held, holds_own_phrase (+1 more).
-- `world_load.rs` (1436): Entering the 3D world: `load_world` builds the player's home on its plot with what its start carries, and the star sky, planets, sun and home station. Main items: place_avatar, build_star_sky, load_world, spawn_herd, spawn_wilds, place_decorations, build_hologram, clear_hologram (+3 more).
-- tests: `choice_tests.rs`, `death_pack_tests.rs`, `dm_pace_tests.rs`, `file_transfer_tests.rs`, `fleet_tests.rs`, `friend_code_tests.rs`, `group_report_tests.rs`, `home_meshes_tests.rs`, `household_tests.rs`, `mess_hall_tests.rs`, `parity_tests.rs`, `planet_floor_tests.rs`, `protected_tests.rs`, `put_answer_devices_tests.rs`, `put_answer_tests.rs`, `save_slot_home_tests.rs`, `save_slot_tests.rs`, `shared_build_tests.rs`, `world_load_tests.rs`
+- `world_load.rs` (1428): Entering the 3D world: `load_world` builds the player's home on its plot with what its start carries, and the star sky, planets, sun and home station. Main items: place_avatar, build_star_sky, load_world, spawn_herd, spawn_wilds, place_decorations, build_hologram, clear_hologram (+3 more).
+- tests: `choice_tests.rs`, `death_pack_tests.rs`, `dm_pace_tests.rs`, `editor_storeys_tests.rs`, `file_transfer_tests.rs`, `fleet_tests.rs`, `friend_code_tests.rs`, `group_report_tests.rs`, `home_meshes_tests.rs`, `household_tests.rs`, `key_cards_tests.rs`, `map_feed_tests.rs`, `map_rig_tests.rs`, `map_tiles_tests.rs`, `map_view_tests.rs`, `mess_hall_tests.rs`, `parity_tests.rs`, `planet_floor_tests.rs`, `protected_tests.rs`, `put_answer_devices_tests.rs`, `put_answer_tests.rs`, `save_slot_home_tests.rs`, `save_slot_tests.rs`, `shared_build_tests.rs`, `world_load_tests.rs`
+
+## src/engine/mcp/
+
+- `http.rs` (296): The dev MCP endpoint's HTTP side: the Streamable HTTP transport's POST, on 127.0.0.1 only. Main items: Request, Response, ReadWrite, bind_loopback, admit, respond, read_request, encode_response (+2 more).
+- `link.rs` (117): The dev MCP endpoint's link to the running game: the seam between the tools (tools.rs) and the dev IPC (engine/ipc.rs). Main items: GameLink, LiveLink.
+- `mod.rs` (270): The dev MCP endpoint (2026-10-22): the running game serves the Model Context Protocol on 127.0.0.1, so an AI session drives and inspects it as tools instead of dropping files into `debug/` and poll... Main items: Start, switch_on, server_is_local, decide, take_injected, inject, taken_frame, withdraw (+5 more).
+- `protocol.rs` (259): The Model Context Protocol subset the dev endpoint speaks: JSON-RPC 2.0 with `tools/list` and `tools/call`, in both eras the specification has had (read 2026-10-22 from modelcontextprotocol.io and... Main items: ToolHost, Headers, Reply, supported_versions, negotiate_legacy, decode_header_value, handle, text_result (+11 more).
+- `tools.rs` (687): The game tools the dev MCP endpoint serves, each a thin call into the dev IPC through a `GameLink` (link.rs): the same request a rig drops as a file, answered by the same handler, read back from th... Main items: Handler, GameTools, InlineImage, definitions, handled, inline_jpeg, player_summary, tail_lines (+5 more).
+- tests: `tests.rs`
 
 ## src/engine/screens/
 
@@ -220,22 +249,25 @@
 ## src/gui/
 
 - `connections.rs` (1481): The ACTIVE relay connection's life on the GUI side: parking it while another server is active, bringing a parked one back, closing it on purpose, and what an erased account does to it. Main items: EraseOutcome, Switched, connect_target, erased_entry, changed_under_edits, page_draft, draft_after_settings_arrive, should_ask_server_settings (+5 more).
-- `dispatch.rs` (254): THE ONE page dispatch table (in-world screens, rung 1). Main items: draw_tool_page, page_id, page_from_id, ALL_PAGES, ENGINE_BOUND_PAGES.
+- `dispatch.rs` (256): THE ONE page dispatch table (in-world screens, rung 1). Main items: draw_tool_page, page_id, page_from_id, ALL_PAGES, ENGINE_BOUND_PAGES.
 - `drop_files.rs` (264): Files dragged from the computer's file manager onto the window (operator, 2026-10-17: "Can we add drag and drop functionality like dragging a file on windows 10 file explorer into the humanityOS wi... Main items: Level, begin_frame, register, refuse, take_for_picker, hovering, words_now, finish (+5 more).
+- `first_minutes.rs` (307): The first five minutes (the ELI5 mandate, docs/PRIORITIES.md TIER 3, 2026-10-22): a short guided tour for a new person, on the desktop app and the website alike, in plain words. Main items: FirstMinutes, Step, Place, steps, step_done, draw.
 - `first_steps.rs` (172): A new player's first steps in the world (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Friction 1: nothing teaches the game). Main items: controls_hint.
 - `fonts.rs` (334): Font fallback chains for the native app. Main items: install_font_fallbacks.
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
-- `laws.rs` (319): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
+- `i18n.rs` (440): Every word a person reads in the app, by key, from `data/i18n/<language>.json` (the ELI5 mandate, docs/PRIORITIES.md TIER 3). Main items: Segment, plain, segments, t, t_dyn, t_marked, t_marked_dyn, has (+7 more).
+- `laws.rs` (321): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
 - `loaders.rs` (1609): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+54 more).
-- `mod.rs` (4737): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+8 more).
+- `mod.rs` (4721): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+8 more).
 - `ops_registry.rs` (156): Server-owner action registry loader: `data/admin/ops_registry.json`, the data-driven map of EVERY admin/owner/moderator action and where it lives (this app, a /chat-command, a config file, or the V... Main items: OpsAction, OpsPlanned, OpsVpsOnly, OpsRegistry, surface_label, ops_registry, SURFACE_ORDER.
 - `organize.rs` (246): The organize layer's small pure helpers (2026-09-25), kept out of loaders.rs (which is at its file-size budget): putting items back into storage when a backpack cannot take them, and the Garden pan... Main items: place_path, built_store_place, sync_built_stores, machine_crop_groups, return_to_storage.
+- `personal_store.rs` (173): The desktop Notes and Calendar kept between sessions (2026-10-24). Main items: ensure_loaded, save_if_changed.
 - `screen_surface.rs` (1814): A native egui page rendered into its own texture, so a flat SCREEN placed in the 3D world can show it (in-world screens, rung 1; the design doc is docs/design/in-world-screens.md). Main items: ScreenTextures, ScreenSource, ScreenWorld, ScreenProvider, WorldRenderState, WorldRender, LoadState, FoundText (+5 more).
-- `state_types.rs` (1841): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+51 more).
-- `theme.rs` (915): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
+- `state_types.rs` (1849): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+50 more).
+- `theme.rs` (1025): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (4100): Headless UI snapshots (v0.495). Main items: render_page_png.
-- tests: `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`
+- `ui_snapshots.rs` (4386): Headless UI snapshots (v0.495). Main items: render_page_png.
+- tests: `a11y_tests.rs`, `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`
 
 ## src/gui/model_view/
 
@@ -249,73 +281,73 @@
 
 - `apps.rs` (512): Apps (2026-10-19): the Games library and the Tools page made one page (the operator: "What do you think about changing the name of ... Main items: Section, SortBy, View, Picked, AppsState, Act, select, keep_view (+12 more).
 - `browser.rs` (317): Browser: the websites database as site cards, and the readable web view. Main items: draw.
-- `bugs.rs` (500): Bug Reporter page - file a bug against the connected relay and read what everyone else has already filed. Main items: BugReport, BugReporterState, draw.
-- `calculator.rs` (344): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input. Main items: draw.
-- `calendar.rs` (380): Calendar page, month view with 7-column grid, event dots, day selection, event list in right panel, and add-event form with time/color/description. Main items: draw.
+- `bugs.rs` (497): Bug Reporter page - file a bug against the connected relay and read what everyone else has already filed. Main items: BugReport, BugReporterState, draw.
+- `calculator.rs` (384): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input. Main items: draw.
+- `calendar.rs` (398): Calendar page, month view with 7-column grid, event dots, day selection, event list in right panel, and add-event form with time/color/description. Main items: draw.
 - `chat_text.rs` (464): A chat message's text, parsed (moved out of chat.rs on 2026-09-27 to keep that file inside its line budget, tests/file_size_ratchet.rs): the one fence scanner, the code blocks the Chat page draws a... Main items: CodeBlock, extract_code_blocks, one_line_formatted, draw_code_blocks, bulletize_list_lines.
-- `chat.rs` (4749): 3-panel chat page matching the website layout. Main items: CommonsRoom, TimestampFormat, draw, hold_to_confirm_button, channel_display_label, dm_recency_order, draw_ingame_chat, composer_text_h (+30 more).
-- `civilization.rs` (239): Civilization dashboard - the community's REAL numbers from the connected relay (GET /api/civilization, v0.757 closure ladder rung 10). Main items: poll_stats, draw_live_body, draw_stat_card.
+- `chat.rs` (4445): 3-panel chat page matching the website layout. Main items: draw, hold_to_confirm_button, channel_display_label, dm_recency_order, draw_ingame_chat, composer_text_h, composer_extra_cap, composer_extra_of (+20 more).
+- `civilization.rs` (245): Civilization dashboard - the community's REAL numbers from the connected relay (GET /api/civilization, v0.757 closure ladder rung 10). Main items: poll_stats, draw_live_body, draw_stat_card.
 - `cloud_dev.rs` (1024): F10 cloud dev panel (v0.1254.4, operator request). Main items: DevTest, dev_tests, test_mark, draw.
-- `construction.rs` (4023): Construction editor (v0.455+). Main items: draw, sync_ship_machine_lock, exec_construction_command.
-- `cosmos.rs` (3881): Cosmos page (v0.203.0, Phase 3 of the cosmos architecture). Main items: Cosmos3DCamera, CosmosView, UpcomingSkyEvent, draw, set_clock_for_snapshot.
-- `crafting.rs` (910): Crafting page, full crafting interface with sidebar categories, recipe list, detail panel, and craft queue with progress bars. Main items: pretty_id, draw.
-- `dev.rs` (574): Dev page (v0.777) - operator-facing developer tools, under Platform > Dev. Main items: draw, draw_creature_editor.
+- `construction.rs` (4121): Construction editor (v0.455+). Main items: draw, sync_ship_machine_lock, exec_construction_command.
+- `crafting.rs` (968): Crafting page, full crafting interface with sidebar categories, recipe list, detail panel, and craft queue with progress bars. Main items: pretty_id, draw.
+- `dev_journal.rs` (303): Dev > Journal (2026-10-24, rung 2 of docs/design/play-journal.md): the play journal in the app, so reading what the game recorded never needs a terminal or the dev MCP (the GUI-first rule). Main items: KindRow, MarkRow, Snapshot, Act, listed_kinds, read_snapshot, clear, draw (+1 more).
+- `dev_tab.rs` (82): Dev, the developer tools tab (2026-10-20): Bugs, Testing, Performance, Dev, Planet Tuner and Claude in one side list, each section drawn by its own page. Main items: draw, SECTIONS, FIRST_SECTION.
+- `dev.rs` (574): Dev page (v0.777) - operator-facing developer tools, the Dev tab's Dev section. Main items: draw, draw_creature_editor.
 - `diagnostics.rs` (200): Diagnostics dev-HUD overlays (v0.482). Main items: draw.
-- `donate.rs` (683): Donations page: the hero, then the ways to give (data/donate/routes.json: the maintainer on Patreon, not tax-deductible, then the nonprofit Sponsor-a-Can, tax-deductible), then more direct links wi... Main items: draw.
-- `escape_menu.rs` (664): RGB-colored header nav bar for all tool pages. Main items: draw_nav_bar, hsv_to_rgb, channeling_color.
+- `donate.rs` (681): Donations page: the hero, then the ways to give (data/donate/routes.json: the maintainer on Patreon, not tax-deductible, then the nonprofit Sponsor-a-Can, tax-deductible), then more direct links wi... Main items: draw.
+- `escape_menu.rs` (668): RGB-colored header nav bar for all tool pages. Main items: draw_nav_bar, hsv_to_rgb, channeling_color.
 - `files.rs` (1143): The Files page (called the Media page until 2026-10-19; increment 2 of docs/design/files-showcase.md, 2026-10-11): the pictures, videos, 3D models, sounds and files people on this server chose to s... Main items: Job, FilesAdmin, Place, FilesState, sync_sound, server_here, base_of, host_here (+39 more).
-- `fleet_ledger.rs` (712): THE FLEET LEDGER in the game (2026-10-04): Inventory > The fleet, and Server Settings > ADMIN > Fleet supply. Main items: FleetStore, FleetKindLine, FleetLine, FleetLedger, FleetGive, FleetTotals, FleetView, CounterAsk (+21 more).
+- `fleet_ledger.rs` (738): THE FLEET LEDGER in the game (2026-10-04): Inventory > The fleet, and Server Settings > ADMIN > Fleet supply. Main items: FleetStore, FleetKindLine, FleetLine, FleetLedger, FleetGive, FleetTotals, FleetView, CounterAsk (+21 more).
 - `game_admin.rs` (371): Game Admin page (v0.474) -- game-world moderation, kept STRUCTURALLY SEPARATE from chat moderation. Main items: draw_section, format_ban_date.
-- `governance.rs` (931): Governance page: LIVE proposals + weighted tallies + Dilithium-signed voting and proposal creation (v0.660). Main items: ProposalView, TallyView, draw.
-- `guilds.rs` (583): Guilds page - live guild browser against the connected relay's REST guild API (v0.757, closure ladder rung 10). Main items: draw.
+- `governance.rs` (978): Governance page: LIVE proposals + weighted tallies + Dilithium-signed voting and proposal creation (v0.660). Main items: ProposalView, TallyView, draw.
+- `guilds.rs` (582): Guilds page - live guild browser against the connected relay's REST guild API (v0.757, closure ladder rung 10). Main items: draw.
 - `herd.rs` (40): Home > Animals (2026-10-12, first-hour audit S6): every farm animal the home keeps, how it is (fed, watered, hungry, sick) and what it needs a day, in plain words. Main items: draw_card.
-- `homes.rs` (1282): Home, your offline homestead (v0.379). Main items: CannotCloseEntry, CannotCloseData, OutlineRequirement, OutlineLoop, HomeOutline, load_cannot_close, load_home_outline, draw (+1 more).
+- `homes.rs` (1298): Home, your offline homestead (v0.379). Main items: CannotCloseEntry, CannotCloseData, OutlineRequirement, OutlineLoop, HomeOutline, load_cannot_close, load_home_outline, draw (+1 more).
 - `host_node.rs` (1621): Host a node: run a HumanityOS relay on THIS machine, from inside the app. Main items: NodeStatus, note_owner_key, autostart_if_configured, autostart_on_first_click, running_local_url, running_local_name, draw_section, force_running_for_snapshot (+2 more).
 - `household.rs` (560): Home > Household (ship homes increment 5b, lane 2B, 2026-10-12; docs/design/ship-homes-increment-5b-plan.md section 3.9, with the amendments in its section 8, which win where they differ): the card... Main items: days_words, give_question, take_back_question, draw_card, draw_card_from, draw_card_uncapped, INTRO, LOCKED (+11 more).
-- `hud.rs` (2699): In-game HUD: health bar, hotbar, crosshair, compass, FPS, weather, day/night. Main items: MarkerPlacement, VitalRow, death_screen_lines, draw_death_screen, draw, crosshair_visible, wind_from, hud_weather_text (+15 more).
+- `how_to.rs` (374): The How-to page (docs/design/how-to.md, increment 1, 2026-10-23): step-by-step procedures for real life and for this app, from data/how_to/ (crate::how_to is the model, the checker and the runs; th... Main items: Sort, HowToState, app_pages, section_id, go, draw, chosen_view, hazard_word (+8 more).
+- `hud.rs` (3110): In-game HUD: health bar, hotbar, crosshair, compass, FPS, weather, day/night. Main items: MarkerPlacement, VitalRow, death_screen_lines, draw_death_screen, draw, room_at, room_card_at, lift_card (+20 more).
 - `humanity.rs` (557): Humanity, the collective / mission tab (page carve, v0.360; Mission Dashboard built out v0.362; copy revised v0.363). Main items: draw.
 - `identity.rs` (197): Identity hub page: DID, Verifiable Credentials, trust score, AI status. Main items: draw.
 - `inventory.rs` (3231): Inventory grid with item slots, equipment section, weight tracking, item detail panel, and quick actions. Main items: test_open_garden_edit, test_close_garden_edit, test_open_mining_edit, test_close_mining_edit, test_select_placed, test_clear_placed, test_header_was_clicked, test_recorded_header_rect (+5 more).
 - `keymap.rs` (323): Keymap reference overlay (v0.465). Main items: KeyBind, KeymapContext, load_keymaps, current_context, draw, draw_help_toggle, HELP_TOGGLE_SIZE.
-- `laws.rs` (264): Laws page (v0.496): the rules that apply where you live, nested from Humanity down to your town. Main items: draw.
+- `laws.rs` (280): Laws page (v0.496): the rules that apply where you live, nested from Humanity down to your town. Main items: draw.
 - `library.rs` (1404): Library: the in-app home for everything you READ. Main items: show_doc, shown_doc, show_curriculum, draw.
-- `main_menu.rs` (1135): Main menu / onboarding screen. Main items: set_version_for_snapshot, draw, skip_setup, skip_server_step, finish_onboarding, FIRST_RUN_DONE.
-- `market_directory.rs` (1156): Market directory: the signed provider/offering catalog (v0.1141). Main items: DirProvider, DirOffering, seed_for_snapshot, draw.
-- `market_publish.rs` (1004): In-app Market publishing (v0.1143): create or update your shop (provider_v1) and publish offerings (offering_v1) without touching a terminal. Main items: is_open, open, take_published, sign_and_submit, draw.
-- `market.rs` (757): Marketplace, browse, search, and create listings. Main items: category_color, draw.
-- `mod.rs` (102): GUI pages composing widgets into full screens.
-- `notes.rs` (301): Notes page, full notes app with sidebar list, text editor, toolbar with bold/italic markers, word count, auto-save indicator, delete with confirmation. Main items: draw.
-- `onboarding.rs` (232): Learn-by-doing quest chains (the surviving core of the old onboarding page). Main items: QuestStep, QuestChain, load_quest_chains, draw_quests.
+- `main_menu.rs` (1163): Main menu / onboarding screen. Main items: set_version_for_snapshot, draw, skip_setup, skip_server_step, finish_onboarding, FIRST_RUN_DONE.
+- `market_directory.rs` (1191): Market directory: the signed provider/offering catalog (v0.1141). Main items: DirProvider, DirOffering, seed_for_snapshot, draw.
+- `market_publish.rs` (1077): In-app Market publishing (v0.1143): create or update your shop (provider_v1) and publish offerings (offering_v1) without touching a terminal. Main items: is_open, open, take_published, sign_and_submit, draw.
+- `market.rs` (806): Marketplace, browse, search, and create listings. Main items: category_color, draw.
+- `mod.rs` (117): GUI pages composing widgets into full screens.
+- `notes.rs` (331): Notes page, full notes app with sidebar list, text editor, toolbar with bold/italic markers, word count, auto-save indicator, delete with confirmation. Main items: draw.
+- `onboarding.rs` (233): Learn-by-doing quest chains (the surviving core of the old onboarding page). Main items: QuestStep, QuestChain, load_quest_chains, draw_quests.
 - `own_profile.rs` (396): This person's own profile on each server they use (2026-10-11, BUG-193, BUG-194, BUG-196). Main items: OwnProfile, current_server, names_socket, own_copy, keep_copy, take_own_copy, take_own_copy_at, sign_frame (+11 more).
-- `performance.rs` (922): Performance page (resource budgets increment 1 - MEASURE). Main items: BudgetSystem, systems, token_color, row_value, row_measurable, untimed_note, build_spec, draw (+4 more).
+- `performance.rs` (928): Performance page (resource budgets increment 1 - MEASURE). Main items: BudgetSystem, systems, token_color, row_value, row_measurable, untimed_note, build_spec, draw (+4 more).
 - `placeholder.rs` (37): Placeholder page for features not yet built in egui. Main items: draw.
 - `planet_tuner.rs` (680): Planet Tuner: live per-planet physics editing (artificial-planet ladder item 3, docs/design/artificial-planet.md). Main items: PlanetTunerReadout, PlanetTunerState, fmt_curve, draw.
-- `platform.rs` (72): Platform, the software-itself tab (page carve, v0.360; trimmed v0.361). Main items: draw.
 - `privacy.rs` (298): Privacy tiers (operator direction, 2026-08-23): every user chooses exactly how private to be, ONCE, up front, and the default is maximum privacy. Main items: PrivacyTier, load_tiers, apply_tier, draw_privacy_tier_modal, draw_privacy_content, send_presence_flag.
-- `profile.rs` (558): Profile section content: the editors for your character / identity. Main items: draw, draw_section_content, section_id, section_from_id.
-- `quests.rs` (165): Quests: the SIM quest surface, gameplay only. Main items: draw.
+- `profile.rs` (597): Profile section content: the editors for your character / identity. Main items: draw, draw_section_content, section_id, section_from_id, bio_refusal.
+- `quests.rs` (169): Quests: the SIM quest surface, gameplay only. Main items: draw.
 - `real.rs` (147): Profile, your character / identity tab (renamed from "Real" v0.378; page carve v0.358). Main items: draw.
-- `recovery.rs` (107): Social key recovery page: guardian setup, share storage, active requests. Main items: draw.
 - `relay_control.rs` (782): Relay Control Center (v0.846) - one main-menu entry to manage every relay the operator owns from one PC. Main items: draw.
 - `safety_group_reports.rs` (168): Settings > Safety > Reports about your groups (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10), and the count on a group in the chat's group list that leads here. Main items: draw_section, group_count.
 - `safety_protected.rs` (341): Settings > Safety > Protected setup (step G of docs/design/blocking-and-safe-mode.md, section 10h, 2026-10-10), and the small PIN prompt every locked action opens. Main items: PhraseLock, draw_status_line, accept_label, phrase_lock, draw_phrase_lock, draw_protected_section, draw_pin_prompt.
 - `safety.rs` (392): Settings > Safety (step B of docs/design/blocking-and-safe-mode.md, section 10c, 2026-10-09): "Who can reach me", one row per kind of contact the server checks (Messages, Calls, Trades) with the fi... Main items: draw_safety_content, draw_warnings_switch, chosen_rows, draw_requests_list, draw_blocked_people.
-- `server_settings.rs` (3507): Server and group settings page. Main items: draw, draw_changed_underneath_note, send_server_settings_update, settings_update_frame, int_input.
+- `server_settings.rs` (3221): Server and group settings page. Main items: draw, draw_changed_underneath_note, send_server_settings_update, settings_update_frame, int_input, send_slash.
 - `server_strip.rs` (428): The server strip (Media round 5, docs/design/media-round-5-plan.md 3.11, lane 1E, 2026-10-12): a bar fixed under the top menu on the four pages whose content belongs to one server (Media, Watch, Ch... Main items: shown_on, host_of, strip_label, server_name, uploads_on_their_way, uploads_question, draw, STRIP_ID (+12 more).
 - `settings_time.rs` (126): Settings > Gameplay > Time: the one game clock's three settings (2026-09-27, decision-briefs.md Brief 6, `systems::time`). Main items: day_in_real_time, draw.
-- `settings.rs` (5467): Settings panel with sidebar navigation and category content panels. Main items: GraphicsPreset, draw, erase_memory_note, draw_account_content, draw_appearance_content, draw_animations_content, draw_widgets_content, draw_notifications_content (+22 more).
+- `settings.rs` (5778): Settings panel with sidebar navigation and category content panels. Main items: IdentityOnDevice, GraphicsPreset, draw, build_link_qr_texture, restore_from_phrase, identity_on_device, erase_memory_note, draw_account_content (+27 more).
 - `showroom.rs` (1129): Character showroom panel (v0.441/442). Main items: draw.
 - `studio.rs` (1374): Broadcasting Studio page, simplified OBS-like streaming control UI. Main items: draw.
-- `tasks.rs` (680): Tasks: the not-game surface. Main items: draw.
+- `tasks.rs` (695): Tasks: the not-game surface. Main items: draw.
 - `testing.rs` (377): Testing / QA, data-driven checklist of features the developer (Claude) wants the operator to verify. Main items: draw.
 - `trade.rs` (1614): P2P Trading page - live escrow trades against the connected relay (v0.756, closure ladder rung 5). Main items: Moved, promised_to_trades, tick, settle_completed, route_trade_frame, draw.
 - `vendor.rs` (182): Vendor modal (v0.747, closure ladder rung 3): the trading post's buy/sell window. Main items: draw_vendor_modal.
-- `wallet.rs` (329): Wallet page, SOL balance, address with copy, network selector, send form with MAX button, transaction history, token list. Main items: draw.
+- `wallet.rs` (335): Wallet page, SOL balance, address with copy, network selector, send form with MAX button, transaction history, token list. Main items: draw.
 - `watch.rs` (256): Watch page (v0.857), the in-app stream viewer. Main items: draw, start_watching, poll_directory.
-- `weather_panel.rs` (622): Live weather panel (v0.1050, F11). Main items: WeatherPreset, test_stop_rect, sea_description, fmt_day_length, draw, PRESETS.
+- `weather_panel.rs` (625): Live weather panel (v0.1050, F11). Main items: WeatherPreset, test_stop_rect, sea_description, fmt_day_length, draw, PRESETS.
 - `where_you_live.rs` (477): "Choose where you live" (ship homes increment 6, lane 1E, 2026-10-12; docs/design/ship-homes-increment-6-plan.md section 3.9): the one widget that says where you live and lets you choose, drawn in... Main items: Choice, starts, a_or_an, row_name, shared_line, engagement_line, live_in_line, held_line (+25 more).
 - `world_clock_admin.rs` (386): Server Settings > ADMIN > Shared world clock (2026-10-04). Main items: draw, explainer, real_duration, crop_growth_days.
-- tests: `fleet_ledger_tests.rs`, `household_tests.rs`, `own_profile_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `where_you_live_tests.rs`
+- tests: `dev_journal_tests.rs`, `dev_tab_tests.rs`, `fleet_ledger_tests.rs`, `household_tests.rs`, `own_profile_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `where_you_live_tests.rs`
 
 ## src/gui/pages/apps/
 
@@ -336,8 +368,11 @@
 - `attach_step.rs` (467): The attach step: before a picked file leaves the device, what is hidden in it is shown, with one switch (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", parts... Main items: Looking, Verdict, Step, Direct, Picked, FilesFlow, verdict, remove_at_start (+9 more).
 - `attach_view.rs` (499): Showing a file sent into a private conversation (10k of docs/design/blocking-and-safe-mode.md, 2026-10-10): a `[[hum:file:v1]]` marker in a direct message or a P2P group message, shown the same way... Main items: Show, Plan, max_ciphertext, file_in, is_inline, shows_in_place, cache_key, plan (+8 more).
 - `blocking.rs` (70): The chat page's Block buttons (step C of docs/design/blocking-and-safe-mode.md, section 10d, 2026-10-09): in the DM conversation header, on a person's profile (the member list's menu opens it), and... Main items: BLOCK_TIP, UNBLOCK_TIP.
-- `call_relay_bar.rs` (57): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): what the call UI says when a call or voice room cannot go through the server.
-- `left_panel.rs` (1988): The chat page's LEFT RAIL: the column of collapsible sections that decides what the centre panel is showing.
+- `call_relay_bar.rs` (63): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): what the call UI says when a call or voice room cannot go through the server.
+- `commons.rs` (456): The Commons: rooms bridged across two or more of my servers, shown once (docs/design/ federation-ux.md, "The Commons"). Main items: CommonsRoom, CommonsCarriers, FederationLinks, commons_room_of, open_commons_room, commons_carriers, commons_route, commons_room_read_only (+3 more).
+- `key_change.rs` (44): The chat page's half of key cards (2026-10-22, docs/design/key-cards.md): when the person a conversation is with signed a new encryption key, the notice saying so, with Accept, at the top of the co...
+- `left_panel.rs` (1985): The chat page's LEFT RAIL: the column of collapsible sections that decides what the centre panel is showing.
+- `line_limit.rs` (227): A chat line's length against the server's limit, and whether a line I sent was posted (2026-10-24): the desktop half of the website's `showOverLimit` (web/chat/chat-ui.js) and `markLineSending` / `... Main items: LineSend, measured, limit_here, now_ms, counter, on_my_limits, on_refused, confirm (+3 more).
 - `modals.rs` (1487): The chat page's OVERLAYS: everything drawn ON TOP of the three panels. Main items: draw_user_modal, create_p2p_group, draw_incoming_call_modal, draw_call_bar.
 - `p2p_groups.rs` (777): P2P GROUPS: everything the chat page does to a group that is not drawing it. Main items: refresh_p2p_groups, spawn_group_load, spawn_groups_list_refresh, drain_p2p_loaders, invite_to_group, join_group_with_ticket, leave_p2p_group, ensure_group_mesh (+2 more).
 - `protected.rs` (112): The chat page's half of the protected setup (step G of docs/design/blocking-and-safe-mode.md, section 10h, 2026-10-10): the always-visible line in the left rail, the line where public rooms are lef...
@@ -346,6 +381,7 @@
 - `reply.rs` (91): Quote / reply in the chat (the 2026-10-10 batch review of docs/design/blocking-and-safe-mode.md): what a reply carries, and where it may go. Main items: cut, preview_of, context_for, made_in, wire_reply, drop_if_elsewhere, PREVIEW_CHARS, QUOTE_CHARS.
 - `report_dialog.rs` (375): The Report dialog (step D of docs/design/blocking-and-safe-mode.md, section 10e, 2026-10-09) and the buttons that open it: Report in a message's menu (chat.rs, beside Block), in the DM conversation... Main items: draw_report_dialog, MEDIA_EVIDENCE_LINE, REPORT_TIP.
 - `right_panel.rs` (478): The chat page's PEOPLE surfaces: the right rail and the live strip.
+- `timestamps.rs` (332): The app's timestamps: the display format and time zone (Settings), the formatter every page's times go through, and the always-full one the message pill's hover shows. Main items: TimestampFormat, TimestampZone, format_full_timestamp, chrono_now_str, set_timestamp_format, timestamp_format, set_timestamp_zone, timestamp_zone (+3 more).
 - `transfer_rows.rs` (249): Device-to-device big files in the conversation (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 6): one row per transfer with the other person, at the top of th...
 - `voice_room.rs` (54): Joining and leaving a channel's voice room, the one place both happen: the voice icon on a channel row (chat/left_panel.rs), and the protected setup (step G of docs/design/blocking-and-safe-mode.md... Main items: set_voice_room.
 - `warnings.rs` (197): What step F draws under a received message (docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): each matching warning with its title, its explanation, what to do and a "Got it...
@@ -353,7 +389,15 @@
 
 ## src/gui/pages/construction/
 
-- `ship_tools.rs` (853): The SHIP-level tools at the top of the Construction page's left panel: the zone selector, the corridors, and the plots and districts.
+- `ship_tools.rs` (858): The SHIP-level tools at the top of the Construction page's left panel: the zone selector, the corridors, and the plots and districts.
+- `storeys.rs` (372): STOREYS in the B editor (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md, "Editor (C2)"): the storey selector in the left panel, the floor-slab tools beside it, and the detail pa... Main items: StoreyEditor, SlabDraw.
+
+## src/gui/pages/dev_agents/
+
+- `delivery.rs` (329): Is the taskbar exe the work in this checkout? Main items: Manifest, Stamp, ExeInfo, Problem, Delivery, stamp_begin, stamp_end, read_inputs (+10 more).
+- `mod.rs` (753): Dev > Claude: what Claude is doing (operator, 2026-10-22, the integrations between HumanityOS and Claude Code). Main items: Report, tr, trf, ago, pin, draw, draw_report, delivery_text (+6 more).
+- `read.rs` (777): The readers behind Dev > Claude (2026-10-22): each one turns one file, or one answer from git, into what the panel shows. Main items: Reading, Worktree, Note, Decision, Release, ShareGuard, DiskGuard, BootLock (+41 more).
+- tests: `tests.rs`
 
 ## src/gui/pages/files/
 
@@ -390,46 +434,95 @@
 - `your_folders.rs` (437): The Files page's "Your folders" tab (2026-10-18; the operator, docs/PRIORITIES.md "Next for Media": "point HumanityOS at folders (his E: 'Media' drive), browse them like a file explorer, pick files... Main items: Browse, mark_words, chosen_words, add_folder, remove_folder, why_not_put, put_on_files_page, draw_dialogs (+21 more).
 - tests: `admin_tests.rs`, `api_tests.rs`, `chat_card_tests.rs`, `in_messages_tests.rs`, `item_tests.rs`, `open_sound_tests.rs`, `open_tests.rs`, `page_tests.rs`, `panes_tests.rs`, `relay_round3_tests.rs`, `relay_round5_tests.rs`, `resumable_clean_tests.rs`, `resumable_tests.rs`, `round4_tests.rs`, `round5_list_tests.rs`, `shared_upload_step_tests.rs`, `takedown_tests.rs`, `uploads_tests.rs`, `your_folders_tests.rs`
 
+## src/gui/pages/how_to/
+
+- `list.rs` (141): The How-to page's list: the how-tos in the chosen branch, or the search's matches across all of them, each with its title, its line, its time, its difficulty in words, its hazard as a word and an i... Main items: Entry, entries, draw.
+- `rail.rs` (204): The How-to page's rail: the search box (it reads the signs of problems too, because people arrive with a symptom), Doing now (this person's unfinished runs, each with its next step or its timer), a... Main items: icon_painter, draw.
+- `steps.rs` (230): The steps of a how-to, as a checklist: each step numbered, the current one marked by a painted arrow and its number (never by colour alone), its safety note at the step in both views, and the contr... Main items: After, draw, safety_note.
+- `view.rs` (335): The how-to pane, in the order that is its safety design (docs/design/how-to.md, "Layout"): the title, its line and who it is for, then time, difficulty, hazard, review state and who wrote it; the S... Main items: draw.
+- `words.rs` (61): The How-to page's own words, from data/how_to/words.json: the one file both apps read, and the one a translation copies (English only for now). Main items: parse, w, wf, minutes, clock.
+- tests: `tests.rs`
+
+## src/gui/pages/maps/
+
+- `belts.rs` (318): The asteroid BELTS on the Maps page (Maps increment 2, docs/design/maps-zoom-to-anything.md 5.10): "The belts are point clouds sampled from the real orbit distribution, propagated only when the clo... Main items: BeltClass, BeltSet, BeltCache, belt_set, add_dust, dust_mesh, REPROPAGATE_S.
+- `bodies.rs` (346): How the Maps page draws a BODY (Maps increment 2, docs/design/maps-zoom-to-anything.md 5.3): "true scale and true distance ... Main items: icon_floor_px, icon_alpha, smoothstep, lin, srgb, icon_lit_linear, faded, map_color32 (+9 more).
+- `body_list.rs` (354): The Maps page's System view side panels: the body list on the left (Stations, then the Sun's family by region, moons under their planets) and the selected body's details on the right.
+- `camera.rs` (527): The Maps page's camera (Maps increment 1, docs/design/maps-zoom-to-anything.md section 5.1): an ANCHOR (you, a body, or a fixed point) and the camera's offset from it, a zoom from 10 m to 1e14 m, a... Main items: MapAnchor, MapFrame, FlyTo, MapCamera, MapPose, FlyPath, MapProjector, ship_frame_weight (+16 more).
+- `controls.rs` (121): The Maps camera's controls (Maps increment 1): the mouse and the Home key, the follow row over the canvas (Back to me, Stop following, Open where I left it), and the per-frame advance of a flight a...
+- `diagram.rs` (115): The Maps page's DIAGRAM mode (Maps increment 2, decision 5 of docs/design/maps-zoom-to-anything.md, accepted 2026-10-20): the simplified mode of the dual-mode rule, the textbook orrery. Main items: radial_au, helio_au, display_radius_m, near_offset.
+- `galaxy_view.rs` (381): The Maps page's Galaxy view: the real HYG catalog (`data/stars-map.bin`) drawn top-down around Sol at light-year scale, with the curated nearby list as the fallback when the catalog file is missing.
+- `labels.rs` (155): Names on the Solar System view (Maps increment 2, docs/design/maps-zoom-to-anything.md 5.5): every body's name goes through the map label placer (`widgets/label_placer.rs`, already used by the Gala... Main items: LabelOffer, priority, offered, place_and_paint, paint_with_halo.
+- `mod.rs` (345): The Maps page: one page, four views (Planet, Solar System, Galaxy, Night Sky), drawn by `draw` from `GuiState::maps` (`gui/state_types/maps.rs`). Main items: MapView, draw.
+- `night_sky.rs` (255): The Maps page's Night Sky view: the celestial sphere from Earth on an RA/Dec grid, the bright-star catalog and the constellation figures (their myths, seasons and key stars on hover).
+- `orbits.rs` (279): The Maps page's ORBIT LINES (Maps increment 2, docs/design/maps-zoom-to-anything.md 5.4), the "bunch of lines" of the operator's 2026-10-20 note made into something that reads as motion: Main items: OrbitSample, sample_adaptive, trail_alpha, size_fade, scale_fade, add_polyline, TRAIL_FLOOR.
+- `overlays.rs` (459): The Maps page's overlays as DATA (Maps increment 2, docs/design/maps-zoom-to-anything.md 5.4): the layer switches (`data/maps/layers.ron`), the named reference orbits (`data/maps/reference_orbits.r... Main items: Band, MapLayer, ReferenceOrbit, LagrangePair, LagrangeFile, OverlayLabel, layers, layer_default (+3 more).
+- `planet_view.rs` (419): The Maps page's Planet view: a real Earth region from OpenStreetMap (`data/maps/regions/*.bin`), roads and buildings drawn GPS-map style.
+- `scene.rs` (141): The Maps page's SCENE: where everything is for one draw (Maps increment 1, moved out of `camera.rs` in increment 2 when the Diagram joined it). Main items: MapScene.
+- `ship_view.rs` (406): The Maps page's SHIP VIEW (Maps increment 3, "into the ship, deck by deck", docs/design/maps-zoom-to-anything.md 5.7). Main items: picker_shown, shown_level, plan_shown, pick_level, set_plan, back_to_me, rooms_on_level, room_is_named (+4 more).
+- `sky_events.rs` (464): Sky events for the Maps page: the conjunctions and solar eclipses in the sky from Earth right now, the forward scan for the next ones (cached in `GuiState::maps`, never run every frame), and the po... Main items: UpcomingSkyEvent.
+- `stations.rs` (118): The body list's Stations rows (Maps increment 1): every station in `data/stations/*.ron`, by its own name, with its altitude computed from its orbit the way the engine places it. Main items: StationRow, parent_constants, station_row, station_rows, row_detail.
+- `system_view.rs` (775): The Maps page's Solar System view: the Sun's family in 3D through the map's camera (`camera.rs`: an anchor, an f64 offset, 10 m to 1e14 m), over the WORLD layer the engine renders for it (`you_laye...
+- `time_bar.rs` (246): The Maps page's clock: the date shown, Now, the day and month skips, play and pause, the speed presets, and the days-from-today scrubber. Main items: set_clock_for_snapshot, current_real_time_seconds_since_j2000.
+- `world_layer.rs` (136): The Maps page's WORLD LAYER, the page side (Maps increment 1; moved out of `you_layer.rs` in increment 2, which taught it the star sky): whether the engine renders the real world under the page's s... Main items: WorldLayerWant, WorldDrawn, world_layer_want, near_the_ship, draw_world_backdrop.
+- `you_layer.rs` (267): You and your ship on the Maps page (Maps increment 1, docs/design/maps-zoom-to-anything.md): the WORLD layer the engine renders from the map's camera (the ship from its own meshes, Earth behind it)... Main items: orbit_ring, ship_label, ICON_FLOOR_PX.
+- tests: `belts_tests.rs`, `camera_tests.rs`, `ship_view_tests.rs`, `sky_events_tests.rs`, `tests.rs`, `world_layer_tests.rs`
+
 ## src/gui/pages/server_settings/
 
+- `admin_api.rs` (205): The desktop app's half of the server's action registry (2026-10-22; src/relay/admin/, docs/design/in-app-ops.md): fetch the list (`GET /api/admin/actions`), run an action (`POST /api/admin/actions/... Main items: server_base, fetch_registry, run_action, drain, time_ago, span_words.
 - `admin_erase.rs` (276): Server Settings > Members: "Erase their data" (section 10i of docs/design/blocking-and-safe-mode.md, 2026-10-10): the action on a member's row, its confirm, and the server's receipt. Main items: draw_row_action, draw_confirm, draw_receipt.
+- `alerts.rs` (217): Server Settings > ADMIN > Alert channels (2026-10-22; docs/design/in-app-ops.md, "Alert channels"): where this server sends a warning when something goes wrong. Main items: masked_words, add_inputs, update_inputs, draw.
+- `all_actions.rs` (278): Server Settings > ADMIN > Every admin action, and the admin log (2026-10-22; docs/design/in-app-ops.md, the north star). Main items: inputs_from_form, draw.
+- `continuous_backup.rs` (564): Continuous backup in Server Settings > ADMIN > Backups (2026-10-22). Main items: draw.
+- `federation.rs` (367): Server Settings > ADMIN > Federation (rebuilt 2026-10-22 on the server's action registry, `federation.*`, src/relay/admin/federation.rs; first built v0.722 on chat commands): the peer servers this... Main items: peer_state_words, link_words, draw.
 - `reports.rs` (331): Server Settings > Moderator > Reports (step D of docs/design/blocking-and-safe-mode.md, section 10e, 2026-10-09): the reports members sent this server, for its admins and moderators, in two lists (... Main items: draw, media_words, OPEN_ITEM.
 - `role_limits.rs` (220): Server Settings > Roles: each role's upload limits, in a table under the roles table, beside the per-file upload limit (docs/design/files-showcase.md, follow-ups B1 to B5, and the operator's answer... Main items: ranges, draw, prefill, upsert_frame, PRIVATE_LINE, FORWARDED_LINE, COLUMNS.
 
 ## src/gui/pages/settings/
 
+- `calls.rs` (76): Settings > Privacy, "Calls and voice rooms" (docs/design/blocking-and-safe-mode.md 10p, 2026-10-22): how this person's calls connect, and who can see their network address. Main items: draw_calls.
 - `data_folder.rs` (222): Settings > Data > "Data folder" (BUG-163 part 2, 2026-10-12; docs/design/data-folder-updates.md section 6).
+- `recovery_net.rs` (478): The work behind Settings > Account > "Recovery through trusted people" (2026-10-21): every call to the server and every lock and unlock, run on a thread by the section (`recovery.rs`), never on the... Main items: Friend, MySetup, Asking, CodeLookup, Found, LiveAsk, Poll, load_my_setup (+13 more).
+- `recovery.rs` (707): Settings > Account > Recovery through trusted people (2026-10-21: finished; the section that said "not finished yet" since 2026-10-20). Main items: Job, RecoveryState, friends, suggested_needed, draw, TITLE.
+- tests: `identity_tests.rs`, `recovery_tests.rs`
 
 ## src/gui/state_types/
 
+- `admin_console.rs` (107): The admin console's state (`GuiState::admin_console`, 2026-10-22): Server Settings > ADMIN's Alert channels, Federation and Every admin action panels, and the admin log, all drawn from what the con... Main items: AdminReply, AlertDraft, AdminConsoleState.
 - `garden.rs` (150): The Garden panel's value types: a growing crop for its card, the pests and diseases in each grow area and the air it grows in, and the garden settings and requests carried between the panel and the... Main items: GuiAreaPests, GardenPests, GuiCrop.
+- `maps.rs` (432): The Maps page's state: which view is open, the pan and zoom of the 2D views, the Solar System view's camera and selection, the page's own clock, the overlay switches, and the cached forward scan of... Main items: MapSelf, MapWorldLayer, MapVerb, LevelVerb, MapSymbology, MapsState, MapTiles, MapShipDrawn.
 
 ## src/gui/widgets/
 
 - `alert.rs` (104): Alert/notification banner widget, themed inline messages for info, success, warning, and error states. Main items: AlertKind, alert, alert_with_title.
 - `body_pill.rs` (505): Universal "world object label" widget, a single widget that morphs through three visual states tied to the same anchor: Main items: BodyPill, PlacedPill, PillsLayout, BodyCardData, BodyCardResponse, compute_pill_layout, paint_pill_backgrounds, paint_pill_overlays (+1 more).
-- `button.rs` (444): Universal button widget, single source of truth for every button in the app. Main items: ButtonVariant, ButtonSize, Button, btn_primary, btn_secondary, btn_danger, btn_icon, compact_button (+1 more).
+- `button.rs` (475): Universal button widget, single source of truth for every button in the app. Main items: ButtonVariant, ButtonSize, Button, btn_primary, btn_secondary, btn_danger, btn_icon, compact_button (+1 more).
 - `cover_tile.rs` (183): A cover slot and the small pieces of a library shelf (2026-10-19, first used by the Games page; the Apps page's since, pages/apps.rs): Main items: fill_uv, paint_cover, paint_cover_without_letter, thin_bar, fixed_cell, choice_pills.
 - `dialog.rs` (299): Themed dialog (Window) wrapper, replaces the dozens of bare `egui::Window::new(...)` calls scattered across pages with a consistent frame, padding, title styling, and close behaviour. Main items: dialog, dialog_scrolling, dialog_anchored.
 - `file_badge.rs` (183): A file's type, always shown beside its name (2026-10-17): a drawing, a word and a colour, so that someone who reads little or nothing still knows what kind of file they are looking at (the operator... Main items: level_color, hover_words, show, measure, paint, folder, paint_icon.
 - `file_browser.rs` (950): Universal in-app file browser widget (v0.708). Main items: FsEntry, FilePickerState, FilePickerResult, list_dir, name_matches_ext, human_size, quick_roots, folder_offer (+9 more).
 - `file_caution.rs` (42): The word of caution under a file someone was sent (2026-10-17): what kind of thing it is when that deserves care (a program, a script, an archive, a document that can carry macros, a shortcut, a we... Main items: show, show_in_folder.
 - `file_picker_memory.rs` (263): What the in-app file picker remembers on this computer (2026-10-16): the person's favorite folders, shown as their own row in every picker, and the folder a file was last picked from, where the nex... Main items: PickerMemory, PickerView, same_folder, favorite_labels, load, save, with, MAX_FAVORITES (+1 more).
-- `file_views.rs` (378): The file picker's ways to show a folder (operator, 2026-10-17: "different view modes kinda like windows file explorer but, better. Main items: Act, Notes, SortBy, Look, type_of, toolbar, list, sorted (+6 more).
+- `file_views.rs` (377): The file picker's ways to show a folder (operator, 2026-10-17: "different view modes kinda like windows file explorer but, better. Main items: Act, Notes, SortBy, Look, type_of, toolbar, list, sorted (+6 more).
 - `form_row.rs` (88): Form row widget, label + control pair with consistent label-column width and theme-driven spacing. Main items: form_row, form_row_wide, form_row_with_help.
+- `glossary_text.rs` (186): Words with glossary terms in them (the ELI5 mandate, "the glossary on every page", 2026-10-22): the desktop twin of the website's `[data-term]` overlay (`web/shared/glossary.js`). Main items: glossary_text, glossary_note, glossary_words, definition_card.
 - `help_modal.rs` (319): Universal help modal. Main items: HelpTopic, HelpRegistry, load_help_registry, strip_html, help_button, draw.
+- `hint.rs` (253): A plain-language hint on every control (the ELI5 mandate, docs/PRIORITIES.md TIER 3, 2026-10-22): what this button, box or slider does, in words a person new to computers understands, shown when th... Main items: Hint, set_mode, mode, shown, show_words, show_on_focus, with_name, pending_name (+4 more).
 - `how_it_works.rs` (90): "How this page works" (2026-10-20): a page's explanations folded behind one small toggle, so a page shows its things first and its reasons one click away. Main items: toggle, panel, part_heading, line, LABEL, TIP.
-- `icons.rs` (1036): Painter-drawn icons for egui. Main items: paint_moon, paint_cog, paint_bolt, paint_droplet, paint_flame, paint_leaf, paint_mic, paint_triangle_right (+43 more).
+- `icons.rs` (1087): Painter-drawn icons for egui. Main items: paint_moon, paint_cog, paint_bolt, paint_droplet, paint_flame, paint_leaf, paint_mic, paint_triangle_right (+46 more).
 - `image_cache_view.rs` (246): Full-screen image viewer for chat attachments. Main items: draw.
 - `image_cache.rs` (921): Chat image cache and fetcher. Main items: ImageStatus, ImageCache, ImageRoute, download_bytes, download_bytes_with, download_to, hide_token, extract_image_urls (+8 more).
 - `label_placer.rs` (237): Map label placement: the greedy collision pass cartography uses for point and line features, so the Maps views never print one name on top of another (2026-09-27 snapshot review: star names stacked... Main items: LabelPlacer, point_candidates, along_polyline, polyline_length, LABEL_GAP.
+- `level_picker.rs` (152): THE LEVEL PICKER (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): a column of buttons, one per level of a place with more than one, listed TOP TO BOTTOM as a building's directory and a... Main items: PickerLevel, PickerRow, PickerClick, picker_rows, rect_for, show, PICKER_WIDTH.
 - `markdown.rs` (904): Minimal markdown reader shared by the in-app doc surfaces: the Humanity Accord viewer modal (`pages/humanity.rs`) and the Library doc pane (`pages/library.rs`). Main items: Heading, heading_slug, headings, render_markdown, render_markdown_linked, render_markdown_linked_scrolled, render_markdown_defining, strip_html_comments (+3 more).
-- `mod.rs` (1986): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_with_header (+46 more).
+- `mod.rs` (2072): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_with_header (+47 more).
 - `msg_format.rs` (325): Inline chat-message formatting: minimal markdown + URL detection (v0.702). Main items: SpanKind, FormatSpan, parse.
+- `over_limit.rs` (125): Characters past a field's limit, shown as they are typed: the part within the limit as the box draws it, the rest in the danger colour on the danger background (theme tokens `danger` and `danger_bg... Main items: over_from, layout_job, layouter, count.
 - `panes.rs` (240): Panes beside each other or one above another, each a card, with a handle between each two that a drag moves (2026-10-19). Main items: Arrange, Moved, arrange_for, checked, lengths, drag, show.
 - `part_file.rs` (208): Files written a piece at a time (a download, a private file's Save, Play here's copy) go to a hidden PART file first and get their real name only when they are complete (round 3 of docs/design/file... Main items: Part, is_part_name, claim_and_move, sweep_own, sweep_own_in, is_listed, sweep_stale, sweep_downloads_once (+3 more).
-- `passphrase_modal.rs` (733): Passphrase entry modal overlay. Main items: draw.
-- `phrase_cover.rs` (131): The recovery phrase, and the device-link code that carries the same key, covered until the person shows them (operator, 2026-10-16: "livestreamers may accidentally reveal their seed phrase while sh... Main items: words, code, WARNING, SHOW, HOLDING, HOLD_SECONDS, HOLD_TIP, HIDE (+6 more).
+- `passphrase_modal.rs` (737): Passphrase entry modal overlay. Main items: draw, apply_unlock_outcome.
+- `phrase_cover.rs` (134): The recovery phrase, and the device-link code that carries the same key, covered until the person shows them (operator, 2026-10-16: "livestreamers may accidentally reveal their seed phrase while sh... Main items: words, code, WARNING, SHOW, HOLDING, HOLD_SECONDS, HOLD_TIP, HIDE (+6 more).
 - `pie.rs` (451): Pie chart - a universal widget (resource budgets increment 1). Main items: PieSlice, PieSpec, fractions, pie, pie_grid, slice_at, fmt_bytes, fmt_ms.
 - `row.rs` (571): Universal message/item row widget. Main items: MessageRowResponse, DeferredAvatar, message_row, append_formatted, paint_avatar, rgb_from_time, INTERPUNCT.
 - `search_bar.rs` (96): Universal search bar with optional filter chips. Main items: FilterChip, search_bar.
@@ -448,9 +541,21 @@
 - `data_store.rs` (42): In-memory data store, type-erased cache for game data loaded from files. Main items: DataStore.
 - `mod.rs` (125): Hot-reload coordinator, watches data files and invalidates caches. Main items: HotReloadCoordinator, poll_and_apply.
 
+## src/how_to/
+
+- `canonical.rs` (82): A how-to's hash: BLAKE3 of its canonical CBOR without its `review` block, the same encoding and hash the signed objects use (src/relay/core/encoding.rs, docs/design/how-to.md "Sources and review"). Main items: canonical_bytes, hash.
+- `check.rs` (782): The how-to checker: what a how-to file must be before it is shown (docs/design/how-to.md; the gates are listed in schemas/how_to.toml). Main items: Severity, Code, Finding, Context, check_file, refusals, is_date, MAX_BYTES (+2 more).
+- `library.rs` (393): Loading the how-tos from a data folder: the category tree, the planned list, and every `data/how_to/<top category>/<id>.json`, each checked (check.rs) before it is shown. Main items: Loaded, Refused, Library, Locale, Pages, how_to_files, tops_of, context_from.
+- `mod.rs` (31): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
+- `model.rs` (610): The how-to data model: one procedure as data (docs/design/how-to.md, "The model"; every field is described in schemas/how_to.toml, which scripts/build-how-to.js reads as the shape check). Main items: HowTo, Audience, Reality, App, Time, Hazard, Level, Need (+29 more).
+- `runs.rs` (240): Runs: one time a person does a how-to (docs/design/how-to.md, "A run"; fields in schemas/how_to.toml [run_fields]). Main items: Outcome, StepState, WaitState, Run, RunStore, default_dir.
+- `time.rs` (54): UTC times for runs, as text a person can read in the file: YYYY-MM-DDTHH:MM:SSZ. Main items: iso, compact, day, ms_from_iso.
+- `view.rs` (101): What the page shows of a how-to and a run, as plain rules the native page and the tests share. Main items: View, visible_steps, shown, current_step, position, progress, removed_steps, matches (+2 more).
+- tests: `tests.rs`
+
 ## src/input/
 
-- `bindings.rs` (595): Rebindable game keybinds (Settings > Controls, 2026-08-12). Main items: GameAction, ActionInfo, KeybindOverride, BindOutcome, Keybinds, reserved_reason, pretty_key_name, ACTIONS (+3 more).
+- `bindings.rs` (596): Rebindable game keybinds (Settings > Controls, 2026-08-12). Main items: GameAction, ActionInfo, KeybindOverride, BindOutcome, Keybinds, reserved_reason, pretty_key_name, ACTIONS (+3 more).
 - `mod.rs` (38): Input types shared across the engine. Main items: InputState, InputManager.
 
 ## src/media/
@@ -470,16 +575,17 @@
 ## src/net/
 
 - `admin_erase.rs` (316): An admin erases another person's data (section 10i of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's rules, with no socket and no GUI so each one is unit tested. Main items: EraseConfirm, EraseReceipt, AdminEraseUi, confirm_words, may_offer, name_matches, erase_frame, members_matching (+6 more).
-- `api_v2.rs` (1158): Native client → relay v2 signed-object submission + connection-ticket helpers. Main items: VerifiedSubmission, GroupMessage, GroupLoad, P2pGroupInfo, author_fingerprint_hex, submit_signed_object, encode_invite_ticket, decode_invite_ticket (+25 more).
+- `api_v2.rs` (1171): Native client → relay v2 signed-object submission + connection-ticket helpers. Main items: VerifiedSubmission, GroupMessage, GroupLoad, P2pGroupInfo, author_fingerprint_hex, submit_signed_object, encode_invite_ticket, decode_invite_ticket (+26 more).
 - `block_list.rs` (355): The block list (step C of docs/design/blocking-and-safe-mode.md, section 10d, 2026-10-09): the identity keys this person has blocked, each with the date, and the notes to oneself that carry a block... Main items: PendingNote, BlockNote, BlockList.
-- `call_relay.rs` (563): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): the desktop app's half of asking for call credentials and reading them. Main items: CallScope, CallCredentials, Reply, RelayStatus, Step, CallRelayUi, parse_reply, udp_turn_server (+4 more).
+- `call_connection.rs` (266): How this person's calls and voice rooms connect (docs/design/blocking-and-safe-mode.md 10p, the operator's question of 2026-10-22: "what if someone is okay using google servers?"). Main items: CallConnection, ModeWords, PublicStun, Words, effective, words, stun_host_port, public_stun_hosts (+1 more).
+- `call_relay.rs` (615): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): the desktop app's half of asking for call credentials and reading them. Main items: CallScope, CallCredentials, Reply, RelayStatus, Step, CallRelayUi, parse_reply, udp_turn_server (+4 more).
 - `choice.rs` (99): The choice for each friend, as a note to oneself (section 10n of docs/design/blocking-and-safe-mode.md, 2026-10-10): the words of the note, with no socket and no GUI, so each rule has a unit test. Main items: ChoiceNote.
 - `client.rs` (152): WebSocket network client for multiplayer. Main items: ConnectionState, NetClient.
 - `dm_file_stream.rs` (154): A private file's Save, decrypted from disk to disk a megabyte at a time (2026-10-11). Main items: decrypt_file, NOT_THIS_KEY.
 - `dm_pq.rs` (679): Post-quantum DM envelope, pure ML-KEM-768 → BLAKE3-KDF → AES-256-GCM. Main items: DmPqKeypair, SealedDm, DmInner, DmAttachment, seal, open, encrypt_attachment, encrypt_attachment_in_place (+20 more).
 - `dm_store.rs` (1426): Local DM history store, the client-side half of sealed-sender DMs (2026-08-23). Main items: StoredDm, Choice, PendingChoice, PendingUnfollow, ScratchNote, NoteReply, SentPass, DmConversationSummary (+4 more).
 - `file_clean.rs` (236): Cleaning a file on the sender's own device, before it leaves (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", parts 1 and 2; the operator's answers 4 and 5 of... Main items: Look, Cleaned, clean_bytes, look_bytes, look_file, cleaned_dir, clean_copy, sweep_cleaned (+1 more).
-- `file_link.rs` (1362): Device-to-device big files, the connection (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 4): ONE WebRTC connection per pair of people at a time, on its own t... Main items: Relay, Side, Transfer, Setup, Cmd, LinkEvent, FileLink, label (+16 more).
+- `file_link.rs` (1383): Device-to-device big files, the connection (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 4): ONE WebRTC connection per pair of people at a time, on its own t... Main items: Relay, Side, Transfer, Setup, Cmd, LinkEvent, FileLink, idle_sleep (+18 more).
 - `file_offer.rs` (599): Device-to-device big files, the words (docs/design/files-showcase.md, "Device-to-device big files, exact" and "Device-to-device big files: the shapes, exact", parts 1, 3 and 6; the operator's answe... Main items: FilePass, Offer, OfferAnswer, OfferCancel, Note, PassError, FileHashes, Question (+32 more).
 - `file_risk.rs` (406): What a file is, said before someone opens one they were sent (2026-10-17, from a suggestion in the project's Discord: "something that says 'hey, this is an executable/script/zip/whatever, make sure... Main items: Level, Shape, FileType, Caution, plain_name, file_type, icon, assess (+3 more).
 - `file_transfer.rs` (888): Device-to-device big files, what is said on the data channel (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 5). Main items: Out, End, Event, Step, FileAt, Receiving, Sending, get_message (+15 more).
@@ -490,11 +596,12 @@
 - `household.rs` (808): Household permits on the desktop (ship homes increment 5b, 2026-10-12; docs/design/ship-homes-increment-5b-plan.md, with the orchestrator's amendments in its section 8): the permit note, what is ke... Main items: Arrival, HeldPermit, GivenPermit, GivenState, Kept, PermitKey, Verdict, Judged (+20 more).
 - `identity.rs` (362): BIP39 recovery phrase identity recovery. Main items: PqIdentity, seed_from_phrase, derive_keypair_from_mnemonic, derive_pq_identity, pq_sign_chat, pq_object_keypair, pq_sign_raw, generate_new_seed (+7 more).
 - `kept_files.rs` (261): Keeping a copy of the private files a person opened (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 4; the operator's answer 9 of 2026-10-11). Main items: KeptFiles, kept_dir, used, clear, evict.
+- `key_pins.rs` (277): The key cards this app has checked and pinned (2026-10-22, docs/design/key-cards.md). Main items: Pin, KeyPins.
 - `live_viewer.rs` (260): Live video VIEWER (v0.857), the receive side of the streaming pipeline. Main items: DecodedFrame, EndReason, ViewerShared, LiveViewer.
 - `live_weather.rs` (558): Live Earth weather (v0.874): real global cloud cover in the game sky. Main items: cache_path, feather_validity, spawn, WEATHER_W, WEATHER_H.
 - `live.rs` (604): Live video publisher (v0.853.0), the thing that makes Studio's "Go Live" real. Main items: RawFrame, LiveConfig, LiveStats, LivePublisher.
 - `mailbox_fetch.rs` (186): One connection's own mailbox fetch (section 10o O1 of docs/design/blocking-and-safe-mode.md, 2026-10-10), without a socket. Main items: MailboxFetch, Page.
-- `mod.rs` (187): Multiplayer networking: WebSocket client and ECS state synchronization.
+- `mod.rs` (198): Multiplayer networking: WebSocket client and ECS state synchronization.
 - `outside_help.rs` (295): Help outside this server, in the report dialog (step D follow-up of docs/design/blocking-and-safe-mode.md, section 10e-ii, 2026-10-10): the native client's rules, with no socket and no GUI so each... Main items: Link, AlsoLine, Country, Fallback, OutsideHelp, ChildLine, HelpView, shows_for (+12 more).
 - `protected_store.rs` (183): Where the protected setup (step G of docs/design/blocking-and-safe-mode.md, 10h) is kept on this device: a file of its own, `protected_setup.json`, beside config.json. Main items: path_beside, load, save, FILE_NAME.
 - `protected.rs` (773): The protected setup (step G of docs/design/blocking-and-safe-mode.md, section 10h, 2026-10-10): the native client's rules, with no socket and no GUI so each one is unit tested. Main items: PresetReach, Labels, Preset, PinVerifier, PinTry, ProtectedSetup, ProtectedAction, ReviewItem (+20 more).
@@ -506,9 +613,9 @@
 - `sync.rs` (2334): ECS synchronization system: applies network state to the local world. Main items: RemotePlayer, RemoteNpc, MotionPhase, SnapshotBuffer, VelocityMeter, OutgoingPosition, PositionSender, NetSyncSystem (+6 more).
 - `voice.rs` (945): Native voice audio (v0.485). Main items: Encoder, Decoder, set_input_params, is_transmitting, mic_test_running, mic_level, mic_status, list_input_devices (+11 more).
 - `warnings.rs` (379): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's rules, with no socket and no GUI so each one is unit... Main items: Warning, Sender, Warnings, WarningsUi, link_line, parse_warnings, load_warnings, normalize (+6 more).
-- `webrtc.rs` (5387): Native WebRTC DataChannel P2P transport (increment 1). Main items: OfferReason, OfferFacts, WebrtcEvent, WebrtcHandle, WebrtcManager, direct_offer_reason, holds_friendship, answer_while_hiding_address (+3 more).
-- `ws_client.rs` (429): WebSocket client for the HumanityOS chat relay server. Main items: WsClient, identify_frame, RECONNECT_DELAY_INITIAL_SECS.
-- tests: `dm_pq_marker_tests.rs`, `file_clean_tests.rs`, `file_link_tests.rs`, `file_offer_tests.rs`, `file_transfer_tests.rs`, `files_policy_tests.rs`, `group_report_tests.rs`, `kept_files_tests.rs`, `outside_help_tests.rs`, `protected_tests.rs`
+- `webrtc.rs` (5751): Native WebRTC DataChannel P2P transport (increment 1). Main items: OfferReason, OfferFacts, WebrtcEvent, WebrtcHandle, WebrtcManager, direct_offer_reason, holds_friendship, answer_while_hiding_address (+3 more).
+- `ws_client.rs` (433): WebSocket client for the HumanityOS chat relay server. Main items: WsClient, identify_frame, RECONNECT_DELAY_INITIAL_SECS.
+- tests: `dm_pq_marker_tests.rs`, `file_clean_tests.rs`, `file_link_tests.rs`, `file_offer_tests.rs`, `file_transfer_tests.rs`, `files_policy_tests.rs`, `group_report_tests.rs`, `kept_files_tests.rs`, `outside_help_tests.rs`, `protected_tests.rs`, `webrtc_call_mode_tests.rs`
 
 ## src/physics/
 
@@ -524,15 +631,17 @@
 - `api_v2_did.rs` (92): HTTP API v2: DID resolution. Main items: DidResolutionResponse, resolve_did.
 - `api_v2_governance.rs` (354): HTTP API v2: governance proposals + votes (Phase 5 PR 1). Main items: ListProposalsQuery, ProposalTypeDef, ProposalTypeRegistry, list_proposals, get_proposal, proposal_chain, tally_verdict, tally_proposal.
 - `api_v2_liveness.rs` (79): HTTP API v2: WebRTC session attestation + liveness signaling (Phase 6c). Main items: AttestedSessionPayload, get_liveness_schema.
-- `api_v2_objects.rs` (664): HTTP API v2: signed objects substrate (Phase 0). Main items: SignedObjectSubmission, SignedObjectResponse, ObjectAcceptResponse, ListObjectsQuery, CountObjectsQuery, MyGroupsQuery, P2pGroupView, post_object (+8 more).
-- `api_v2_recovery.rs` (109): HTTP API v2: social key recovery (Phase 4 PR 1). Main items: get_recovery_setup, get_shares_held_by, get_recovery_request.
+- `api_v2_objects.rs` (668): HTTP API v2: signed objects substrate (Phase 0). Main items: SignedObjectSubmission, SignedObjectResponse, ObjectAcceptResponse, ListObjectsQuery, CountObjectsQuery, MyGroupsQuery, P2pGroupView, post_object (+8 more).
+- `api_v2_recovery.rs` (205): HTTP API v2: Recovery through trusted people (2026-10-21). Main items: SignedBody, AskBody, AnswerBody, CloseBody, get_recovery_setup, withdraw, open_ask, get_ask (+5 more).
 - `api_v2_solana.rs` (45): HTTP API v2: Solana balance proxy (Phase 6a, read-only). Main items: get_solana_balance.
 - `api_v2_trust.rs` (43): HTTP API v2: trust score (Phase 2 PR 1). Main items: TrustQuery, get_trust_score.
 - `api_v2_zk.rs` (271): HTTP API v2: zero-knowledge selective-disclosure presentations (Phase 6b). Main items: StarkPresentationPayload, VerifyRequest, VerifyResponse, get_zk_schema, verify_presentation.
-- `api.rs` (3863): HTTP API for bot integration. Main items: SendRequest, MessagesQuery, MessagesResponse, StatsResponse, UploadQuery, SharedUploadsQuery, DeleteUploadBody, GitHubPushEvent (+125 more).
+- `api.rs` (3759): HTTP API for bot integration. Main items: SendRequest, MessagesQuery, MessagesResponse, StatsResponse, UploadQuery, SharedUploadsQuery, DeleteUploadBody, GitHubPushEvent (+125 more).
+- `bug_taxonomy.rs` (73): The bug reporter's severities and categories, read from `data/bugs/taxonomy.json` (built in), the one list the desktop Bugs page, the website's Bugs page and this relay share (2026-10-24). Main items: severity, category.
 - `call_credentials.rs` (496): Credentials for the call forwarder (call_forwarder.rs), given out over the signed-in socket only (docs/design/blocking-and-safe-mode.md 10f; files: docs/design/files-showcase.md, "Device-to-device... Main items: CallKeys, Meter, CallService, CallCredentials, parse_username, username_meter, refused_reply, handle (+7 more).
 - `call_forwarder.rs` (873): Our own STUN responder and the room-scoped call forwarder, on one UDP port (docs/design/blocking-and-safe-mode.md 7.3, 7.4 and 10f). Main items: Out, Forwarder, Settings, relayed_ip_for, start, serve, REALM, DEFAULT_PORT (+18 more).
-- `features.rs` (5540): The server capability manifest: which features this relay actually offers. Main items: Feature, Features, route_feature, ws_message_feature, gate_notice, WS_ALWAYS_ON.
+- `client_addr.rs` (283): Who a request comes from: the one place the relay decides a client's address (2026-10-22). Main items: TrustedProxies, plain, client_ip, bucket, rewrite, TRUSTED_PROXIES_ENV, REAL_IP, FORWARDED_FOR (+1 more).
+- `features.rs` (5593): The server capability manifest: which features this relay actually offers. Main items: Feature, Features, route_feature, ws_message_feature, gate_notice, WS_ALWAYS_ON.
 - `files_counts.rs` (411): Views and downloads on the Files page, counted once a person a UTC day (Media round 5, 2026-10-12; docs/design/media-round-5-plan.md 3.5, decisions 4 and 5). Main items: Count, Who, Marks, ViewedBody, address_of, shown_to_everyone, download, download_from (+9 more).
 - `files_edit.rs` (347): Editing a Media item where it is, and its other files (Media round 5, 2026-10-12; docs/design/media-round-5-plan.md 3.4, with the orchestrator's decisions in its section 9). Main items: EditFields, EditBody, FileAddBody, FileRemoveBody, FileRenameBody, FileCoverBody, edit_purpose, edit_request (+20 more).
 - `files_licences.rs` (395): The licences an item on the Files page can carry, and the words beside them (Media round 5, 2026-10-12; docs/design/media-round-5-plan.md 3.7 and 10): data/files/licences.json, read the way the lab... Main items: Licence, GameOffer, Hosting, LicencesFile, parse_licences, load_licences, licences_path, licences (+3 more).
@@ -542,16 +651,40 @@
 - `files_wire.rs` (80): The Files page's wire, round 5 (2026-10-12; docs/design/media-round-5-plan.md 3.2 to 3.4): one item's files as the wire carries them, the list's sort and cursor, the licences an answer carries, and... Main items: file_url, sort_and_cursor, publish_purpose, feature_purpose, BAD_CURSOR.
 - `files.rs` (1569): The Files page's routes (2026-10-11; docs/design/files-showcase.md, "Increment 1, exact"). Main items: FilesLabel, NewUpload, Allowance, Reserved, ListParams, PublishBody, ItemBody, RemoveBody (+80 more).
 - `governance_revotes.rs` (961): Scheduled re-votes: the part that OPENS a re-vote when its review date arrives. Main items: RevoteSweep, question_entries, question_bytes, question_digest, is_auto_opened, auto_opened_note, build_scheduled_revote, open_due_revotes (+9 more).
+- `ip_limit.rs` (354): Per-address limits on every HTTP route (2026-10-22, Tier 1 security residual 1). Main items: Class, Allowance, Verdict, IpLimits, edge, too_many, OVERFLOW, DEFAULT_CAP.
 - `live.rs` (817): Live video fanout (v0.853.0). Main items: LiveStream, LiveRegistry, pub_handler, sub_handler, list_handler.
-- `mod.rs` (1599): Humanity Network relay server. Main items: allowed_origins, hidden_upload_path, epoch_days_to_ymd, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay (+5 more).
-- `relay.rs` (6379): Core relay logic: connection management and message routing. Main items: Peer, WebhookConfig, RelayState, ChannelInfo, CategoryInfo, LinkPreview, ReplyRef, DeviceInfo (+31 more).
+- `mod.rs` (1706): Humanity Network relay server. Main items: allowed_origins, hidden_upload_path, epoch_days_to_ymd, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay (+5 more).
+- `relay.rs` (6363): Core relay logic: connection management and message routing. Main items: Peer, WebhookConfig, RelayState, ChannelInfo, CategoryInfo, LinkPreview, ReplyRef, DeviceInfo (+31 more).
 - `resumable.rs` (804): Resumable uploads, the relay half (2026-10-11; docs/design/files-showcase.md, "Resumable uploads, exact"). Main items: Refused, SessionQuery, StartBody, session_token, start_core, start, status_core, status (+9 more).
 - `services.rs` (275): Server→Services privilege bridge (v0.262.16). Main items: ServiceAction, DaemonStatus, ServiceInfo, snapshot, resolve, control, status, ALLOWLIST.
 - `stun_wire.rs` (469): STUN and TURN messages on the wire (RFC 5389, RFC 5766), for the relay's own address lookup (STUN) and its call forwarder (call_forwarder.rs, docs/design/blocking-and-safe-mode.md 10f). Main items: Class, Attr, Message, MessageBuilder, message_type, split_type, canonical, encode_xor_address (+33 more).
 - `turn.rs` (69): `GET /api/turn-credentials`: the address-lookup servers a client may ask, with no sign-in. Main items: turn_credentials.
 - `upload_limits.rs` (218): Upload limits and streaming (2026-10-10), out of api.rs: the per-role limit, the route's body limit, the up-front refusal on a declared size, and streaming a file to a part file that is refused the... Main items: UploadBody, PartFile, role_upload_limit, move_file, declared_too_large, stream_to_part, picture_type, picture_too_large (+8 more).
 - `upload_rules.rs` (726): The rules every upload is held to, in one place (2026-10-11). Main items: FileKind, FileLimit, OverAllowance, token_key, uploader_role, check_type, sharing_check, file_type (+24 more).
-- tests: `api_upload_tests.rs`, `call_credentials_tests.rs`, `call_forwarder_net_tests.rs`, `call_forwarder_tests.rs`, `files_counts_tests.rs`, `files_edit_tests.rs`, `files_follow_ups_tests.rs`, `files_page_tests.rs`, `files_round3_tests.rs`, `files_round4_tests.rs`, `files_round5_tests.rs`, `files_takedown_tests.rs`, `files_tests.rs`, `relay_wire_tests.rs`, `resumable_follow_ups_tests.rs`, `resumable_round3_tests.rs`, `resumable_round4_tests.rs`, `resumable_round5_tests.rs`, `resumable_tests.rs`, `stun_wire_tests.rs`, `upload_round3_tests.rs`, `upload_rules_tests.rs`
+- tests: `api_upload_tests.rs`, `api_v2_recovery_tests.rs`, `call_credentials_tests.rs`, `call_forwarder_net_tests.rs`, `call_forwarder_tests.rs`, `files_counts_tests.rs`, `files_edit_tests.rs`, `files_follow_ups_tests.rs`, `files_page_tests.rs`, `files_round3_tests.rs`, `files_round4_tests.rs`, `files_round5_tests.rs`, `files_takedown_tests.rs`, `files_tests.rs`, `ip_limit_tests.rs`, `relay_wire_tests.rs`, `resumable_follow_ups_tests.rs`, `resumable_round3_tests.rs`, `resumable_round4_tests.rs`, `resumable_round5_tests.rs`, `resumable_tests.rs`, `stun_wire_tests.rs`, `upload_round3_tests.rs`, `upload_rules_tests.rs`
+
+## src/relay/admin/
+
+- `alerts.rs` (425): Alert channels, the first panel that WRITES (2026-10-22; docs/design/in-app-ops.md, "Alert channels", the debt the doc called the freshest). Main items: config_path, address_field, kind_of, is_enabled, named, mask, masked, read_channels (+13 more).
+- `federation.rs` (339): The Federation panel's actions (2026-10-22; docs/design/in-app-ops.md, "Federation peers", and docs/design/federation-activation.md Phase 1). Main items: view, list, add, add_key, trust, pause, resume, recheck (+4 more).
+- `members.rs` (51): The member moderation actions (kick, mute, unmute, ban, unban, mod, unmod) through the action registry (2026-10-22). Main items: is_refusal, moderate.
+- `mod.rs` (634): The admin action registry, and the two endpoints an app or an AI uses it through (2026-10-22; docs/design/in-app-ops.md, "North star: the admin action registry"). Main items: Registry, Reserved, Category, ActionDef, InputDef, Caller, Inputs, Ran (+22 more).
+- tests: `tests.rs`
+
+## src/relay/backup_stream/
+
+- `api.rs` (208): `POST /api/admin/backups`: the one endpoint behind the Backups panel on both apps (native Server Settings > ADMIN > Backups, and the web admin page), so the two cannot drift. Main items: Req, purpose, status_json, post_admin_backups.
+- `capture.rs` (545): The capturer: follows the live database's write-ahead log and turns each new run of committed frames into sealed segment files in a local staging folder, from which the uploader (mod.rs) sends them... Main items: State, Captured, Capturer, SnapJob, SnapInfo, now_ms, stage_snapshot_file, file_digest (+2 more).
+- `dest.rs` (484): Where the continuous backup sends its copies: a folder (another disk, a mounted share), an S3-compatible bucket (any provider or a self-hosted one such as Garage or MinIO), or another HumanityOS se... Main items: DestinationConfig, Destination, FolderDest, check_name, sync_dir.
+- `host.rs` (296): Keeping other servers' backups (2026-10-22): the receiving side of `peer.rs`. Main items: Sender, HostConfig, config_path, store_dir, load, save, allow, remove (+9 more).
+- `mod.rs` (1253): Continuous backup of the relay's database (2026-10-22, PRIORITIES Tier 2 item 12). Main items: StreamConfig, DrillStatus, Status, Ctl, Shared, Slot, HasStorage, TickOut (+26 more).
+- `names.rs` (514): The names of what the continuous backup keeps at a destination, and the two decisions made from a listing of them alone: what a restore uses, and what retention may delete. Main items: Listed, Name, Snap, Seg, Catalog, GenCat, Target, Plan (+9 more).
+- `peer.rs` (149): Another HumanityOS server as a backup destination (2026-10-22): the sending side. Main items: ServerDest, preimage, fingerprint, refusal_words, H_FROM, H_TIME, H_SIG.
+- `restore.rs` (509): Rebuilding a database from the continuous backup (2026-10-22), for three callers: the restore drill (into a scratch file, compared with the live database), the disaster restore (`HumanityOS --resto... Main items: Report, restore, apply, integrity, remove_db_files, logical_digest, cli_main, cli_drill (+2 more).
+- `s3.rs` (349): An S3-compatible bucket as a backup destination (2026-10-22): four requests (PUT, GET, DELETE, ListObjectsV2) signed with AWS Signature Version 4, which every S3-compatible server speaks (AWS, Clou... Main items: S3Dest, parse_list, authorization.
+- `seal.rs` (420): Sealing what the continuous backup sends (2026-10-22): compressed, then encrypted with a key derived from the relay's existing backup key (`data/backup.key`), so every copy that leaves the machine... Main items: Kind, W, R, LogPoint, Segment, Manifest, object_key, key_fingerprint (+5 more).
+- `wal.rs` (308): Reading SQLite's write-ahead log straight from its file (continuous backup, 2026-10-22). Main items: WalHeader, Frame, ReadOut, checksum, parse_header, read_header, read_committed, WAL_HEADER_LEN (+1 more).
+- tests: `tests.rs`
 
 ## src/relay/core/
 
@@ -561,59 +694,66 @@
 - `error.rs` (41): Error types for humanity-core. Main items: Error, Result.
 - `hash.rs` (89): BLAKE3 hashing for object and block identifiers. Main items: Hash, block_id, HASH_LEN.
 - `identity.rs` (73): Identity key management. Main items: Keypair.
-- `kdf.rs` (165): Argon2id-based key derivation function. Main items: KdfParams, derive_key, derive_key_with_params, SALT_LEN, DERIVED_KEY_LEN.
+- `kdf.rs` (180): Argon2id-based key derivation function. Main items: KdfParams, derive_key, derive_key_with_params, SALT_LEN, DERIVED_KEY_LEN.
+- `key_card.rs` (296): Key cards (2026-10-22, docs/design/key-cards.md): a small object, signed by a person's own Dilithium3 (ML-DSA-65) identity key, that says which Kyber768 (ML-KEM-768) key to seal things to for them. Main items: KeyCard, Keep, Seen, Refusal, card_text, sign_card, sign_card_with, is_key_text (+17 more).
 - `market_payloads.rs` (947): Payload validators for the Market's signed-object kinds (v0.1140): `provider_v1` (schemas/provider.toml) and `offering_v1` (schemas/offering.toml). Main items: shared_categories, validate_provider_v1, validate_offering_v1, PROVIDER_KINDS, CONTACT_CHANNELS, LOCATION_MODES, PRICE_MODES, PRICE_UNITS (+7 more).
 - `merkle_disclosure.rs` (244): Merkle-tree selective disclosure (Phase 6b PR 2). Main items: PathStep, leaf_hash, build_root, build_path, verify_path, HASH_LEN.
-- `mod.rs` (47): Core types for the Humanity Network: - Canonical CBOR encoding/decoding - BLAKE3 hashing (object_id, block_id) - Post-quantum signing (ML-DSA-65 / Dilithium3) and KEM (ML-KEM-768 / Kyber768) - Argo...
+- `mod.rs` (55): Core types for the Humanity Network: - Canonical CBOR encoding/decoding - BLAKE3 hashing (object_id, block_id) - Post-quantum signing (ML-DSA-65 / Dilithium3) and KEM (ML-KEM-768 / Kyber768) - Argo...
 - `moderation.rs` (472): Signed moderation objects: `mod_action_v1` and `space_policy_v1`. Main items: ModError, ModAction, SpacePolicy, mod_action_payload, build_mod_action_v1, space_policy_payload, build_space_policy_v1, payload_bytes (+2 more).
 - `object.rs` (453): The Humanity Network object model (post-quantum). Main items: Object, ObjectBuilder, PROTOCOL_VERSION, PAYLOAD_ENCODING_PLAINTEXT, PAYLOAD_ENCODING_ENCRYPTED.
-- `pq_crypto.rs` (1721): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
+- `pq_crypto.rs` (1724): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
 - `profile_copy.rs` (321): The copy of a person's profile that other servers keep (BUG-191, 2026-10-12, docs/design/bug-191-profile-copies-plan.md sections 3.1 to 3.4): what it may hold, the words its owner's app signs, the... Main items: PublicCopy, unlisted, kept_for_friends, withdrawal, is_withdrawal, public_copy, copy_text, sign_copy (+20 more).
+- `recovery.rs` (673): Recovery through trusted people: the protocol the relay and both apps share (2026-10-21). Main items: SharePayload, TrustedPerson, NoteToSelf, ServedPiece, OpenedPiece, OneTimeAsk, piece_aad, note_aad (+49 more).
 - `signing.rs` (79): Ed25519 signing and verification. Main items: sign, verify.
 - `solana_rpc.rs` (181): Solana JSON-RPC client (Phase 6a, read-only balance lookup). Main items: SolanaRpcClient, MAINNET_BETA_URL, DEVNET_URL, LAMPORTS_PER_SOL.
 - `strip_heif_metadata.rs` (1846): HEIF and AVIF still picture metadata removal, in place (privacy hardening, 2026-10-11). Main items: HeifKind, HeifStrip, is_heif_still, strip_heif_metadata_in_place, strip_heif_metadata_in_buffer, HEIF_BRANDS.
 - `strip_metadata.rs` (290): Lossless image-metadata stripping (privacy hardening, 2026-08-23). Main items: strip_image_metadata.
 - `strip_video_metadata.rs` (1326): Video metadata removal, in place (privacy hardening, 2026-10-11). Main items: VideoKind, NeutralisedBox, VideoStrip, is_mp4_family, strip_video_metadata_in_place, strip_video_metadata_in_buffer, XMP_UUID.
-- tests: `describe_metadata_tests.rs`, `profile_copy_tests.rs`
+- tests: `describe_metadata_tests.rs`, `key_card_tests.rs`, `profile_copy_tests.rs`, `recovery_tests.rs`
 
 ## src/relay/handlers/
 
-- `account_erase.rs` (273): Erasing an account at the relay: the steps every erase takes, and an admin erasing another person's data (2026-10-10, docs/design/blocking-and-safe-mode.md 10i, which is the specification: the mess... Main items: ErasedBy, Refused, carry_out, erased_counts, is_partial, admin_erase_check, handle_admin_erase.
+- `account_erase.rs` (276): Erasing an account at the relay: the steps every erase takes, and an admin erasing another person's data (2026-10-10, docs/design/blocking-and-safe-mode.md 10i, which is the specification: the mess... Main items: ErasedBy, Refused, carry_out, erased_counts, is_partial, admin_erase_check, handle_admin_erase.
 - `announce.rs` (101): Server-side announcements (v0.119.0). Main items: announce, announce_to, announce_async, DEFAULT_ANNOUNCEMENT_CHANNEL.
-- `broadcast.rs` (582): Broadcast and state-update helper functions extracted from relay.rs. Main items: broadcast_channel_list, build_task_list, build_channel_list, verify_ed25519_signature, verify_dilithium_signature, verify_dilithium_b64, is_timestamp_fresh, broadcast_peer_list (+7 more).
+- `broadcast.rs` (611): Broadcast and state-update helper functions extracted from relay.rs. Main items: broadcast_channel_list, line_limit_message, send_line_limit, send_line_limits_for_role, build_task_list, build_channel_list, verify_ed25519_signature, verify_dilithium_signature (+10 more).
+- `chat_gate.rs` (89): The checks a channel chat line meets before it is posted, after the mute and shared-room ban checks: a new account's wait, the role's own length limit, the send limiter (chat_rate.rs) and the serve... Main items: refused.
 - `chat_rate.rs` (92): Channel chat's send limiter: Fibonacci backoff per sender, with a slow mode for accounts under `NEW_ACCOUNT_WINDOW_SECS` old. Main items: RateLimitState, allow.
 - `dm_answer.rs` (106): The answer to a `dm_put` (spec 10l, docs/design/blocking-and-safe-mode.md, 2026-10-10). Main items: DmPutRefusal, valid_put_ref, lenient_put_ref, answered_ref, answer_dm_put, refuse_gated_dm_put.
 - `dm_rate.rs` (208): The private-message send limiter (2026-10-10). Main items: Bucket, DmRateLimits, account_age, allow, DM_BURST.
-- `federation.rs` (1561): Server-to-server federation functions extracted from relay.rs. Main items: Rechecked, sign_with_server_key, should_accept_profile_gossip, forward_to_federation, key_in_log, registry_lists, until_removed, start_federation_connections (+16 more).
-- `fleet_ledger.rs` (652): THE FLEET LEDGER: what each player used from the fleet and what they gave it, in the red or in the black (the operator's decision of 2026-10-04 on question 12 of docs/design/ship-homes-and-logistic... Main items: Direction, Price, KindDef, LedgerFile, Good, LedgerData, take_meal_and_record, give (+15 more).
+- `federation_flow.rs` (414): How fast each linked server may send, and what happens when it sends faster (2026-10-22, docs/design/federation-activation.md Phase 2). Main items: Kind, KindLimit, FlowLimits, Admit, PeerFlow.
+- `federation_log.rs` (795): Federation's numbered log: what a server sends its links, how a link catches up, and what a linked server's edits, deletes and bans do here (2026-10-22, docs/design/federation-activation.md Phases... Main items: Sending, FedState, publish, link_up, link_down, written, read_wait, tick (+15 more).
+- `federation.rs` (1524): Server-to-server federation functions extracted from relay.rs. Main items: Rechecked, sign_with_server_key, should_accept_profile_gossip, chat_words, forward_to_federation, key_in_log, registry_lists, until_removed (+18 more).
+- `fleet_ledger.rs` (653): THE FLEET LEDGER: what each player used from the fleet and what they gave it, in the red or in the black (the operator's decision of 2026-10-04 on question 12 of docs/design/ship-homes-and-logistic... Main items: Direction, Price, KindDef, LedgerFile, Good, LedgerData, take_meal_and_record, give (+15 more).
 - `friend_passes.rs` (89): Friendship passes at the relay (v2, 2026-10-09, docs/design/blocking-and-safe-mode.md 10b). Main items: friend_pass, test_pass, handle_cert_revoke.
 - `game_interest.rs` (485): Who is in view of whom, and so who is sent what (increment 4 of docs/design/ship-homes-and-logistics.md, section 5.10: "Deliver game events by zone, or to the people involved, not to every socket"). Main items: Interest, ViewChange, components_seen_by_others, send_to, send_each, PLAYER_FIELDS_SEEN_BY_OTHERS.
 - `game_state.rs` (2436): Server-side game world authority. Main items: EntitySnapshot, GameEntity, ShipLayout, DeckLayout, ShipRoom, DoorDef, CrewDef, ChoreDef (+17 more).
 - `home_plots.rs` (626): Homes on the ship, the relay's side of the plot rules that are not the claim itself (increment 1b of docs/design/ship-homes-and-logistics.md; the claim and the spawn are game_state.rs `assign_home`... Main items: ErasedFromWorld, HomeAsk, refused_join, leave_world_for_erase, give_up_plot_if_asked, handle_game_admin, handle_game_release_plot, handle_home (+2 more).
-- `live_conns.rs` (552): One person, several sockets (2026-10-02, BUG-112). Main items: LiveConns, SeatsLeft, note_signed_in, release_closed, forget_upload_token, peer_list_for, take_game_seat, release_game_seat (+6 more).
-- `mod.rs` (36): Handler submodules for the relay server.
-- `move_check.rs` (763): The relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, section 5.10: "Replace the 100 m rule with a speed check ... Main items: MoveState, Verdict, MoveContext, JoinKind, relay_now_s, correction_sentence, own_plot_of, vehicle_speeds.
-- `msg_handlers.rs` (4285): Message handler functions extracted from handle_connection's match arms. Main items: handle_sync_save, handle_sync_load, handle_skill_update, handle_skill_verify_request, handle_skill_verify_response, handle_skill_endorsements_request, handle_raw_task_update, handle_raw_task_comment (+62 more).
+- `key_cards.rs` (215): Key cards on the relay (2026-10-22, docs/design/key-cards.md; the card itself is core/key_card.rs, what is kept storage/key_cards.rs). Main items: SharedCards, checks_out, keep_from_sign_in, keep_from_link, gossip_text, gossip_card, queue_own_cards, cards_for (+3 more).
+- `live_conns.rs` (551): One person, several sockets (2026-10-02, BUG-112). Main items: LiveConns, SeatsLeft, note_signed_in, release_closed, forget_upload_token, peer_list_for, take_game_seat, release_game_seat (+6 more).
+- `mod.rs` (47): Handler submodules for the relay server.
+- `move_check.rs` (935): The relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, section 5.10: "Replace the 100 m rule with a speed check ... Main items: MoveState, Verdict, MoveContext, JoinKind, relay_now_s, on_a_floor_of, correction_sentence, own_plot_of (+1 more).
+- `msg_handlers.rs` (4310): Message handler functions extracted from handle_connection's match arms. Main items: handle_sync_save, handle_sync_load, handle_skill_update, handle_skill_verify_request, handle_skill_verify_response, handle_skill_endorsements_request, handle_raw_task_update, handle_raw_task_comment (+62 more).
 - `profile.rs` (621): The profile handlers: a person's save (`profile_update`), a request for a profile (`profile_request`), and the copy of their profile that other servers keep, which their own app signs (`profile_sig... Main items: CopyAsk, Withdrawal, handle_profile_update, handle_profile_request, ask_for_copy, handle_profile_sign, withdraw_on_erase, ASK_LIFETIME (+1 more).
 - `reach.rs` (670): "Who can reach me" at the relay (step B, 2026-10-09, docs/design/blocking-and-safe-mode.md 10c, which is the specification: the message names and shapes below are what both clients build against). Main items: Kind, Audience, ReachSettings, ReachState, Admitted, Cost, DmAsk, audience (+16 more).
 - `reports.rs` (846): Reports the admins can check, at the relay (step D, 2026-10-09, docs/design/blocking-and-safe-mode.md 10e, which is the specification: the message names and shapes below are what both clients build... Main items: ReportReason, ReportReasons, raw_member, without_files_or_links, handle_report, item_json, handle_list, handle_decide (+11 more).
 - `server_settings_update.rs` (284): Server settings, the admin update (v0.200.0): `server_settings_update` from Server Settings > ADMIN. Main items: set_world_clock, handle.
 - `shared_build.rs` (1126): Building in the shared world, the relay's side (ship homes increment 5, "building only on your own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md sections 3.2 and 3.3). Main items: PieceBook, Asker, BuildAsk, Accepted, Refused, load_pieces, ranks_of, may_build (+19 more).
-- `ship_stores.rs` (871): THE SHIP'S FOOD STORES (increment 3 of docs/design/ship-homes-and-logistics.md). Main items: StoreDef, Provisions, Draw, FleetSupply, distance, handle_take_meal, take_meal, meals_every (+2 more).
-- `ship_world.rs` (1196): THE RELAY'S WORLD IS THE SHIP (increment 3 of docs/design/ship-homes-and-logistics.md). Main items: compass, shared_rooms, room_contains, plot_at, room_point, STANDING_Y_M, HOME_STEP.
+- `ship_stores.rs` (911): THE SHIP'S FOOD STORES (increment 3 of docs/design/ship-homes-and-logistics.md). Main items: StoreDef, Provisions, Draw, FleetSupply, distance, store_out_of_reach, handle_take_meal, take_meal (+2 more).
+- `ship_world.rs` (1218): THE RELAY'S WORLD IS THE SHIP (increment 3 of docs/design/ship-homes-and-logistics.md). Main items: compass, shared_rooms, room_contains, plot_at, room_point, STANDING_Y_M, HOME_STEP.
 - `sign_ups.rs` (559): Who becomes a new account here: the identify-time decisions about signing someone up. Main items: new_identity_capped, join_as_member, erased_at_identify, log_name_for, erased_here_frame, tell_erased_and_close, remember_erase, refused_erased_join (+2 more).
 - `stream.rs` (438): LIVESTREAMING: going live, the WebRTC handshake that carries the picture, the viewer roster, the stream's own chat, and pointing viewers at an external platform instead. Main items: handle_stream_start, handle_stream_stop, handle_stream_offer, handle_stream_answer, handle_stream_ice, handle_stream_viewer_join, handle_stream_viewer_leave, handle_stream_chat (+2 more).
 - `utils.rs` (173): Pure utility helpers extracted from relay.rs to reduce file size. Main items: is_room, is_private_ip, fetch_link_preview, extract_meta, extract_meta_name, extract_tag, html_decode, shortKey_rust.
-- tests: `chat_rate_tests.rs`, `dm_answer_tests.rs`, `dm_rate_tests.rs`, `fleet_ledger_tests.rs`, `msg_handlers_mod_action_tests.rs`, `msg_handlers_pass_tests.rs`, `msg_handlers_reach_tests.rs`, `profile_tests.rs`, `reach_file_pass_tests.rs`, `reach_group_report_tests.rs`, `reach_tests.rs`, `reports_tests.rs`, `shared_build_tests.rs`
+- tests: `chat_rate_tests.rs`, `dm_answer_tests.rs`, `dm_rate_tests.rs`, `federation_log_tests.rs`, `federation_phase3_tests.rs`, `fleet_ledger_tests.rs`, `key_cards_tests.rs`, `msg_handlers_mod_action_tests.rs`, `msg_handlers_pass_tests.rs`, `msg_handlers_reach_tests.rs`, `profile_tests.rs`, `reach_file_pass_tests.rs`, `reach_group_report_tests.rs`, `reach_tests.rs`, `reports_tests.rs`, `shared_build_tests.rs`
 
 ## src/relay/storage/
 
-- `account.rs` (953): Account data export + erasure (data sovereignty, 2026-08-23).
+- `account.rs` (982): Account data export + erasure (data sovereignty, 2026-08-23).
+- `admin_log.rs` (185): The admin log (2026-10-22, docs/design/in-app-ops.md): every change an admin makes through the action registry (src/relay/admin/), so the admins of a server can see who changed what and when, from... Main items: AdminLogRow, admin_log_fingerprint, kept_summary, ADMIN_LOG_KEEP, ADMIN_LOG_SUMMARY_MAX.
 - `agent_sessions.rs` (250): Agent coordination state tracking (v0.116.0). Main items: AgentSessionRow, CLAIM_TIMEOUT_SECS.
 - `ai_status.rs` (303): AI-as-citizen status tracking (Phase 8 PR 1). Main items: SubjectClass, AiStatus.
 - `assets.rs` (101): Server storage for the Asset Library (`assets`): create an asset record, list records with category, type, owner and text filters, and delete one (its owner, or an admin).
 - `backup_crypto.rs` (396): Backup encryption at rest (privacy hardening, 2026-08-23). Main items: KeyFile, load_or_create_key, load_or_create_named_key, load_named_key, encrypt_file, decrypt_file, is_encrypted_backup, key_dir_for_db.
-- `backups.rs` (685): Backup surface for the in-app Backups panel (v0.938, in-app-ops gap #2): list what exists in `backups/` and take a new backup on demand. Main items: BackupEntry, PruneOutcome, BackupDone, is_backup_file, prune_manual_backups, list_backups, list_backups_in, first_snapshot_wait (+3 more).
+- `backups.rs` (698): Backup surface for the in-app Backups panel (v0.938, in-app-ops gap #2): list what exists in `backups/` and take a new backup on demand. Main items: BackupEntry, PruneOutcome, BackupDone, is_backup_file, prune_manual_backups, list_backups, list_backups_in, first_snapshot_wait (+3 more).
 - `board.rs` (275): Server storage for the project board's tasks (`project_tasks`) and their comments: create, update, move between status columns, delete, and list tasks for every project or one.
 - `bugs.rs` (207): Bug report storage: CRUD for community bug reports with voting. Main items: BugReport.
 - `channels.rs` (1302): Server storage for chat channels and what grew beside them: channels, their messages and reply threads, registered names and device keys, roles, bans, mutes, wipes, expiry, counts. Main items: BannedUser, MutedUser.
@@ -621,10 +761,12 @@
 - `credentials.rs` (524): Verifiable Credentials index (Phase 1 PR 2). Main items: CredentialIndex, extract_subject_did.
 - `data_files.rs` (216): File system operations for the data/ directory. Main items: FileEntry, validate_path, is_text_extension, list_directory, read_file, write_file.
 - `dids.rs` (401): DID resolution layer. Main items: DidSource, DidResolution.
-- `dms.rs` (313): DM mailbox, sealed-sender store-and-forward (v2, 2026-08-23). Main items: DmMailRow, unix_day_now.
+- `dms.rs` (282): DM mailbox, sealed-sender store-and-forward (v2, 2026-08-23). Main items: DmMailRow, unix_day_now.
 - `docs_accord.rs` (262): Humanity Accord document browser: a FIXED ALLOWLIST of the 17 governance markdown files under `docs/accord/`. Main items: AccordDoc, find_by_slug, read_doc, ACCORD_DOCS.
 - `erased_accounts.rs` (662): Accounts erased here, remembered for a limited time (BUG-135, 2026-10-04). Main items: LinkRedeemed, fingerprint, load_secret, erase_memory_sentence, KEY_FILE, DEFAULT_TTL_DAYS.
-- `expiry.rs` (162): The expiry pass: everything this relay keeps only for a set time, deleted once that time is up.
+- `expiry.rs` (170): The expiry pass: everything this relay keeps only for a set time, deleted once that time is up.
+- `federation_log.rs` (372): Federation's stored half (2026-10-22, docs/design/federation-activation.md Phases 2 and 3): the outbox this server sends its links from, where it is in each linked server's outbox, the bans linked... Main items: OutboxRow, FederatedBan, OUTBOX_ROWS_KEPT, OUTBOX_DAYS_KEPT.
+- `federation_pause.rs` (117): Paused federation peers (2026-10-22, the Federation panel of docs/design/in-app-ops.md).
 - `files_extra.rs` (88): The Files page's storage, the increment 2 follow-ups (2026-10-11; docs/design/files-showcase.md, "Increment 2 follow-ups, exact" and "The operator's answers (2026-10-11)"). Main items: MyWaitingUpload.
 - `files_items.rs` (635): The Files page's storage, round 5 (2026-10-12; docs/design/media-round-5-plan.md 3.1, with the orchestrator's decisions in its section 9). Main items: Featured, Sort, ItemFile, Signed, LicenceChoice, Edit, Attached, cursor_text (+8 more).
 - `files.rs` (1356): The Files page's storage (2026-10-11; docs/design/files-showcase.md, "Increment 1, exact"). Main items: Folders, OwnedFolders, Spot, Refusal, FilesError, FilesItem, FilesCategory, CategoryEdit (+39 more).
@@ -633,15 +775,16 @@
 - `game_bans.rs` (224): Game-world bans (v0.474), deliberately SEPARATE from chat bans. Main items: GameBan.
 - `game_persistence.rs` (401): Durable persistence for the server-authoritative game world. Main items: GameWorldSnapshot, PlayerProgress.
 - `governance.rs` (1222): Governance: proposals + votes (Phase 5 PR 1). Main items: ProposalIndex, ProposalTally, MAX_VOTE_WEIGHT.
-- `groups_p2p.rs` (1446): P2P groups, sovereign data model (Phase 1 of `docs/design/p2p-groups.md`). Main items: P2pGroupMember.
+- `groups_p2p.rs` (1445): P2P groups, sovereign data model (Phase 1 of `docs/design/p2p-groups.md`). Main items: P2pGroupMember.
 - `guilds.rs` (371): Server storage for guilds: create, update and delete a guild (its owner only), join and leave, members and their roles, invite codes, and listing or searching guilds. Main items: GuildRecord, GuildMemberRecord, GuildInviteRecord.
 - `issuer_trust.rs` (346): Per-observer per-issuer trust scoring (Phase 3 PR 2). Main items: IssuerTrustRow, NEUTRAL_TRUST, MAX_DELTA.
+- `key_cards.rs` (153): Key cards kept on this server (2026-10-22, docs/design/key-cards.md, `core::key_card`): one row per person, the card their own app signed. Main items: CATCH_UP_CARDS_MAX.
 - `key_rotation.rs` (56): Storage methods for the inert `key_rotations` table, which nothing calls any more: the key-rotation route and its handler were deleted in Inc5b (v0.265.0).
 - `marketplace.rs` (442): Server storage for the marketplace's classified listings: create, update, delete, list and full-text search them (FTS5, with a LIKE fallback), and up to 5 images per listing.
 - `members.rs` (492): Server storage for the member directory (`server_members`): joining and leaving, the paged and searchable member list, presence hiding and last seen, and the name a key goes by now. Main items: MemberRecord.
 - `messages.rs` (486): Server storage for chat messages and name registration: storing and loading messages, federated messages, the FTS5 rebuild, peers' last seen, names, and device link codes.
-- `misc.rs` (690): Server storage for small things with no file of their own: invite codes, server key-value state, user data sync, federated servers, channel flags, voice channels, categories.
-- `mod.rs` (3143): SQLite persistence for relay message history and peers. Main items: PinnedMessageRecord, ReactionRecord, TaskRecord, TaskCommentRecord, LinkPreviewRecord, VoiceChannelRecord, MarketplaceListing, ListingImage (+4 more).
+- `misc.rs` (695): Server storage for small things with no file of their own: invite codes, server key-value state, user data sync, federated servers, channel flags, voice channels, categories.
+- `mod.rs` (3255): SQLite persistence for relay message history and peers. Main items: PinnedMessageRecord, ReactionRecord, TaskRecord, TaskCommentRecord, LinkPreviewRecord, VoiceChannelRecord, MarketplaceListing, ListingImage (+4 more).
 - `moderation.rs` (956): Rung 2 of `docs/design/signed_moderation_logs.md`: the relay verifies a signed moderation action against the space's declared authority and applies it. Main items: ModAuthority, ModOutcome.
 - `notification_prefs.rs` (66): Server storage for a person's notification preferences (`notification_prefs`): direct messages, mentions and tasks on or off, and the do-not-disturb hours, by public key. Main items: NotifPrefs.
 - `pins.rs` (384): Server storage for pinned messages (pin, unpin by position, list a channel's pins) and neighbours: message search, delete by row id, user status text, a channel's last message.
@@ -653,13 +796,13 @@
 - `push.rs` (67): Push notification subscription storage.
 - `reach.rs` (160): "Who can reach me" (2026-10-09, docs/design/blocking-and-safe-mode.md 10c): the audience each person chose for each kind of contact, `reach_settings (public_key, kind, audience)`.
 - `reactions.rs` (109): Server storage for message reactions: toggle one emoji reaction on or off, and load a channel's recent reactions.
-- `recovery.rs` (511): Social key recovery, server-side storage of opaque Shamir shares (Phase 4 PR 1). Main items: RecoveryShareIndex, RecoverySetup, RecoveryRequestRecord, RecoveryApprovalRecord.
+- `recovery.rs` (500): Recovery through trusted people, the server's part (2026-10-21; the protocol is relay/core/recovery.rs, the design docs/design/recovery-through-trusted-people.md). Main items: RecoveryRefusal, ServedPieceRow, StandingSetup, SendingSetup, RecoverySetupView, AnswerRow, AskView, OpenAsk (+4 more).
 - `reports.rs` (247): Reports the admins can check (2026-10-09, docs/design/blocking-and-safe-mode.md 10e): `reports_v2`, one row per report, written by handlers/reports.rs once it has checked the report, and read by th... Main items: ReportRow, NewReport, REPORT_KEEP_DAYS_AFTER_DECISION.
 - `reputation.rs` (178): Server storage for reputation: events that add or take points (`points_for_event`), each person's score and level (one level per 50 points), their history, and the leaderboard. Main items: ReputationRecord, ReputationEventRecord, points_for_event.
 - `reviews.rs` (185): Server storage for marketplace listing reviews: one per listing per person, never on one's own, removable by the reviewer or an admin, and each seller's average rating. Main items: ReviewRecord.
 - `roles.rs` (968): Data-driven roles (v0.239, Phase R1). Main items: RoleDef, MEDIA_FILE_MB_MAX, PRIVATE_FILE_MB_MAX, UPLOAD_MB_PER_DAY_MAX, UPLOADS_PER_HOUR_MAX, PRIVATE_HELD_MB_MAX, FORWARDED_MB_PER_DAY_MAX, LIMIT_NOT_SENT.
 - `server_settings.rs` (938): Server settings singleton (v0.200.0). Main items: ServerSettings, media_visibility_of, default_world_time_scale, fleet_supply_mode_of, clamp_world_time_scale, MEDIA_MEMBERS_NOTE, MEDIA_MB_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE (+2 more).
-- `signed_objects.rs` (675): Signed object substrate (Phase 0). Main items: SignedObjectRecord, author_fingerprint, compute_object_id, MAX_SIGNED_OBJECT_PAYLOAD.
+- `signed_objects.rs` (690): Signed object substrate (Phase 0). Main items: SignedObjectRecord, author_fingerprint, compute_object_id, MAX_SIGNED_OBJECT_PAYLOAD.
 - `signed_profiles.rs` (313): The copies of people's profiles that other servers keep (`signed_profiles`): each one the profile as anyone may see it (`core::profile_copy::PublicCopy`), signed by its owner's own app. Main items: SignedProfileRecord, CATCH_UP_COPIES_MAX.
 - `skill_dna.rs` (102): Server storage for Skill DNA (`user_skills`): each person's reality and fantasy XP and level per skill, finding people by skill and level, and endorsements (`skill_verifications`) with their counts.
 - `social.rs` (22): Social storage, deliberately (almost) empty since 2026-08-24.
@@ -673,11 +816,11 @@
 - `uploads.rs` (312): Server storage for uploaded files (`user_uploads`): each upload on its shelf (chat media, Shared Files, Media), the per-person cap that prunes old chat media, and the shared files. Main items: SharedUpload.
 - `vault_sync.rs` (43): Server storage for the encrypted vault backup (`vault_blobs`): store, fetch and delete one opaque blob per public key, behind `/api/vault/sync`.
 - `world_pieces.rs` (340): The building pieces the server keeps in its shared world (ship homes increment 5, "building only on your own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md section 3.3). Main items: NewPiece, StoredPiece.
-- tests: `files_items_tests.rs`, `files_tests.rs`, `groups_p2p_safety_tests.rs`, `reports_tests.rs`, `takedowns_tests.rs`
+- tests: `files_items_tests.rs`, `files_tests.rs`, `groups_p2p_safety_tests.rs`, `recovery_tests.rs`, `reports_tests.rs`, `takedowns_tests.rs`
 
 ## src/relay/transport/
 
-- `lora.rs` (281): LoRa transport (Phase 7b, feature-gated `mesh`). Main items: LoraConfig, LoraTransport.
+- `lora.rs` (280): LoRa transport (Phase 7b, feature-gated `mesh`). Main items: LoraConfig, LoraTransport.
 - `mod.rs` (15): Transport layer (Phase 7b, LoRa mesh stub).
 
 ## src/renderer/
@@ -686,61 +829,64 @@
 - `atmosphere.rs` (629): Analytic atmosphere scattering: the Rust mirror of the WGSL math. Main items: atmo_exposure, near_haze_scale, shell_packing, erfcx, chapman, od_to_space, rayleigh_phase, hg_phase (+13 more).
 - `billboard_bake.rs` (4895): Automated billboard sprite baker (v0.959, operator call 2026-07-25: "bake our own... Main items: BakeMode, BakePart, BakeCpuModel, ClusterSpriteImage, BakeReport, CpuSprite, proc_key, crown_depth_extinction (+17 more).
 - `bloom.rs` (397): Bloom post-process effect. Main items: BloomPass.
-- `camera.rs` (1956): Three-mode camera system: FirstPerson, ThirdPerson, Orbit. Main items: FloorAt, CameraUniforms, CameraMode, Projection, Camera, CameraController, celestial_projection, celestial_projection_f64 (+10 more).
+- `bounced_light_detail.rs` (563): BOUNCED LIGHT DETAIL (2026-10-20): Settings > Graphics > Light and sky. Main items: DetailLevel, AdapterMemory, probe_memory_bytes, memory_words, mb_words, atlas_max_probes, parse_detail_levels, detail_levels (+12 more).
+- `camera.rs` (2078): Three-mode camera system: FirstPerson, ThirdPerson, Orbit. Main items: Underfoot, FloorAt, CameraUniforms, CameraMode, Projection, Camera, CameraController, celestial_projection (+12 more).
 - `capture.rs` (300): Frame + texture CAPTURE: getting pixels back off the GPU and onto disk.
 - `celestial_order.rs` (159): The compositing order of the celestial TRANSPARENT list (2026-09-18). Main items: is_planet_layer, celestial_transparent_key, key_for, list_key.
-- `celestial.rs` (1927): The CELESTIAL pass: the far world at planet scale.
+- `celestial.rs` (1950): The CELESTIAL pass: the far world at planet scale.
 - `cloud_composite.rs` (303): Fullscreen depth-aware cloud composite (Wave D slice 1b, increment 12). Main items: CloudCompositeFrame, CloudCompositePass.
 - `cloud_noise.rs` (1630): Precomputed tiling 3D noise for the volumetric cloud system (clouds increment 3, the "photo-real puffy clouds" upgrade). Main items: worley3, perlin3, perlin_fbm3, remap, ridged3, filament_fbm3, shape_voxel, detail_voxel (+13 more).
 - `cloud_primitives.rs` (540): Cloud BODIES as constructed primitives (clouds v2). Main items: CloudArchetype, CloudArchetypes, CloudLobe, CloudInstance, build_cloud.
 - `cloud_reference.rs` (2036): The converged CPU reference march - the LIGHTING ARBITER (environment program increment 8, G4). Main items: RefVolume, CloudRefCtx, weather_pinned_field, phase_anchor.
 - `cloud_resolve.rs` (300): Cloud temporal RESOLVE pass (12e, the march/resolve split). Main items: CloudResolveFrame, CloudResolveMotion, CloudResolvePass.
-- `cloud_temporal.rs` (2963): Temporal cloud accumulation (clouds phase 4). Main items: CloudTemporal, CloudScreen, CloudLightFrame, CloudLightPlan, CloudLightState, CloudLightCache, CloudProfileFrame, CloudProfileLevel (+84 more).
+- `cloud_temporal.rs` (2962): Temporal cloud accumulation (clouds phase 4). Main items: CloudTemporal, CloudScreen, CloudLightFrame, CloudLightPlan, CloudLightState, CloudLightCache, CloudProfileFrame, CloudProfileLevel (+84 more).
 - `clouds.rs` (2322): Procedural cloud layer: the Rust mirror of the WGSL math (increment 1). Main items: CloudRegime, cloud_seed, quality_param, advance_cloud_advect, cloud_rot_y, cloud_rot_x, hash13, cloud_noise (+84 more).
 - `deferred_build.rs` (211): A thing the renderer builds on a background thread and installs when it is ready (startup speed, 2026-10-18). Main items: Deferred, Polled.
 - `emission_pass.rs` (427): Light that lives ABOVE the cloud deck, and the fullscreen pass that adds it. Main items: EmissionPassUniforms, EmissionFrame, EmissionState, emitting_layer_fractions, camera_below_floor, is_emission_marker, aurora_marker, aurora_material (+1 more).
 - `env_regions.rs` (601): Environment regions: positioned, sized environmental effects the whole renderer and simulation can agree on. Main items: EnvRegion, RegionKind, RegionKinds, pack_all, influence_of_kind, storage_buffer, push_weather_region, push_auroral_ovals (+3 more).
 - `floating_origin.rs` (37): Floating origin system for large-scale rendering. Main items: FloatingOrigin.
-- `frame_costs.rs` (1621): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, StageTimer, SceneView, GpuTimers, gpu_id_has_cpu_twin, watch (+24 more).
+- `frame_costs.rs` (1708): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, StageTimer, SceneView, GpuTimers, gpu_id_has_cpu_twin, watch (+29 more).
 - `godrays.rs` (363): Crepuscular god rays (v0.895): one additive full-screen pass that marches the DEPTH buffer toward the sun's screen position, so terrain silhouettes (still in depth right after the celestial pass) c... Main items: GodrayPass, segment_sphere_visibility.
 - `ground_textures.rs` (1990): Ground PBR texture array: the close-range surface materials the planet terrain blends between underfoot. Main items: GroundTextures, GroundMaterialDef, GroundMaterialTable, BakedGround, material_table, bake_all, load, upload (+1 more).
-- `hologram.rs` (789): Solar system hologram, miniature display for room-scale rendering. Main items: BodyType, CelestialBodyDef, SolarSystemData, HologramBody, SolarSystemHologram, load_solar_system, generate_hologram_from_data, generate_hologram_from_cosmos (+8 more).
-- `key_lights.rs` (164): The engine's KEY lights, as testable math (extracted from `lib.rs`'s frame loop in v0.1104 alongside the indirect-light work; it is the same subject and it was the only untested part of it). Main items: FillLight, moon_fill, MOON_RGB, NIGHT_FLOOR_I, MOON_FULL_I.
+- `hologram.rs` (794): Solar system hologram, miniature display for room-scale rendering. Main items: BodyType, CelestialBodyDef, SolarSystemData, HologramBody, SolarSystemHologram, load_solar_system, generate_hologram_from_data, generate_hologram_from_cosmos (+8 more).
+- `key_lights.rs` (849): The engine's KEY lights, as testable math (extracted from `lib.rs`'s frame loop in v0.1104 alongside the indirect-light work; it is the same subject and it was the only untested part of it). Main items: FillLight, BodyDraw, CameraAir, DiscCandidate, moon_fill, camera_day_factor, sky_body_sun, sky_body_params (+15 more).
 - `lattice_noise.rs` (699): CPU twin of the megashader's shared 2D lattice value noise (`lattice_hash` / `value_noise` in `assets/shaders/pbr/10-lighting-patterns.wgsl`), plus the old float `hash21` that the per-pixel jitters... Main items: lattice_hash, value_noise_corners, value_noise, hash21, LATTICE_HASH_KX, LATTICE_HASH_KY, LATTICE_HASH_M1, LATTICE_HASH_M2.
 - `light_tiles.rs` (169): Screen-tile light binning (light clustering L1, v0.951): CPU-side Forward+ first rung. Main items: BinLight, bin_lights, TILE_COLS, TILE_ROWS, TILE_COUNT, TILE_CAP.
-- `light.rs` (499): Light TYPES registry (v0.571): the data-driven catalog of placeable lights, loaded from `data/lighting/light_types.ron`. Main items: LightKind, LightType, RoomLight, light_types, light_type, sample_strip_path, strip_emission_segments, gpu_packed (+4 more).
+- `light.rs` (518): Light TYPES registry (v0.571): the data-driven catalog of placeable lights, loaded from `data/lighting/light_types.ron`. Main items: LightKind, LightType, RoomLight, light_types, light_type, sample_strip_path, strip_emission_segments, gpu_packed (+5 more).
 - `line.rs` (252): World-space thin-line renderer (v0.262.20). Main items: LineVertex, push_circle, push_circle_3d, push_polyline, build_line_pipeline.
 - `material_bind_groups.rs` (233): GROUP 3 BIND GROUPS: the entry lists that hand the shader its albedo and the engine-global texture set, and the ONE place a binding may be added.
 - `materials.rs` (409): Material registry: everything that creates, textures or rewrites the `Material` slots the render passes bind at group 2 (uniforms) and group 3 (albedo + the engine-global texture set). Main items: MATERIAL_TYPE_SCREEN.
 - `mesh.rs` (1124): Mesh primitives, vertex/index buffers for renderable geometry. Main items: Vertex, GrassInstance, Mesh, triangles_facing_against_their_normals, INSTANCE_STRIDE.
-- `mod.rs` (2723): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_W (+2 more).
+- `mod.rs` (2794): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_W (+2 more).
 - `multi_scale.rs` (30): Multi-scale rendering, AU, planet, habitat scale transitions. Main items: ScaleLevel, MultiScaleManager.
 - `overlay_draw.rs` (391): POST-PASSES: thin lines and particle billboards drawn ON TOP of a frame that has already been rendered.
 - `particles_gpu.rs` (393): GPU particle simulation (v0.1068). Main items: SimParams, GpuParticles.
 - `particles.rs` (767): GPU particle system with data-driven emitter definitions. Main items: EmitterDef, Emitter, ParticleVertexData, ParticleSystem, build_particle_pipelines.
 - `patch_arena.rs` (437): Terrain patch mega-buffer arena (draw-batching increment 1, v0.1001). Main items: PatchSlot, RangeAlloc, PatchInstance, IndirectArgs, PatchArena, MAX_PATCH_DRAWS.
-- `pipeline.rs` (3529): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, CloudPsos, CloudsReady, ShaderClass, PsoRow (+15 more).
+- `pipeline.rs` (3682): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, CloudPsos, CloudsReady, ShaderClass, PsoRow (+17 more).
 - `plant_mesh.rs` (1237): Procedural plant mesh generation (v0.862, 2026-07-16). Main items: PlantVisualDef, PlantVisualRegistry, FungusVisualDef, FungusSubstrate, BagCut, FungusFruit, FruitHabit, Organ (+7 more).
-- `room_probes_gpu.rs` (645): ROOM GI, RUNG 1, the GPU half (docs/design/room-gi.md; the what and the why are in `room_probes.rs`, whose CPU twin this mirrors). Main items: RoomGi, MAX_UPDATES_PER_FRAME, UPDATE_REACH_M, UPDATE_SHADER.
-- `room_probes.rs` (1275): ROOM GI, RUNG 1: per-room irradiance probes (docs/design/room-gi.md). Main items: RoomBox, AtlasLayout, Sun, GiHeaderGpu, GiRoomGpu, GiParamsGpu, DirectSource, TwinRoom (+50 more).
-- `scene_draw.rs` (619): The SCENE passes: the draw loops that put the near world (the ship, the home, props, vegetation, water, holograms) on a target, plus the two screen-space passes that finish that image.
+- `room_probes_gpu.rs` (1428): ROOM GI, RUNG 1, the GPU half (docs/design/room-gi.md; the what and the why are in `room_probes.rs`, whose CPU twin this mirrors). Main items: RoomGi, PassWork, scratch_slots, MAX_UPDATES_PER_FRAME, MAX_SLAB_RUN_ROWS, UPDATE_REACH_M, UPDATE_SHADER.
+- `room_probes.rs` (3312): ROOM GI, RUNG 1: per-room irradiance probes (docs/design/room-gi.md). Main items: ProbeBudget, RoomBox, Lattice, AtlasLayout, Sun, OccluderSlab, Resident, TileMove (+96 more).
+- `scene_draw.rs` (620): The SCENE passes: the draw loops that put the near world (the ship, the home, props, vegetation, water, holograms) on a target, plus the two screen-space passes that finish that image.
 - `scene_format_ab.rs` (87): THE SCENE FORMAT A/B SWITCH (HDR scene target, increment 3, 2026-09-27; docs/design/hdr-scene-target.md).
-- `scene_target.rs` (450): THE SCENE TARGET and THE PRESENT PASS (HDR scene target; the plan of record is docs/design/hdr-scene-target.md). Main items: SceneTarget, PresentPass, scene_format_for, dither_levels.
-- `shader_loader.rs` (809): WGSL shader loading with optional hot-reload (native only). Main items: ShaderLoader, required_entry_points, assembled_pbr_source, batched_variant_of, assembled_pbr_batch_source, boot_pbr_source, boot_pbr_source, boot_pbr_batch_source (+6 more).
+- `scene_target.rs` (533): THE SCENE TARGET and THE PRESENT PASS (HDR scene target; the plan of record is docs/design/hdr-scene-target.md). Main items: SceneTarget, PresentPass, scene_format_for, dither_levels.
+- `shader_loader.rs` (831): WGSL shader loading with optional hot-reload (native only). Main items: ShaderLoader, required_entry_points, assembled_pbr_source, batched_variant_of, assembled_pbr_batch_source, boot_pbr_source, boot_pbr_source, boot_pbr_batch_source (+6 more).
 - `shadow_cutout.rs` (102): WHICH MATERIALS CAN DISCARD IN THE SUN SHADOW PASS (v0.1108).
 - `sky_ambient.rs` (329): CPU twin of the megashader's INDIRECT-LIGHT terms (v0.1104). Main items: sunlit_white_reference, ambient_lut_scale, hemispheric, ambient_term, shadow_texel_m, AMBIENT_FLOOR, SKY_ZENITH_W, SKY_GROUND_BOUNCE (+4 more).
-- `sky_frame.rs` (400): Where the stars are, and how much of them a person can see (2026-10-04). Main items: SkyFades, TwilightRamps, sun_right_ascension, equatorial_to_world, twilight_fades, fades_with, DRAWN_SKY, NAKED_EYE.
+- `sky_frame.rs` (406): Where the stars are, and how much of them a person can see (2026-10-04). Main items: SkyFades, TwilightRamps, sun_right_ascension, equatorial_to_world, twilight_fades, fades_with, DRAWN_SKY, NAKED_EYE.
 - `sky_view.rs` (199): Sky-view LUT pass (sky arc stage 3b-2, v0.947): the 200x100 offscreen target holding the full distant-sky radiance for the CURRENT camera altitude + sun elevation, re-rendered each frame the camera... Main items: SkyViewUniform, SkyViewPass, SKY_VIEW_W, SKY_VIEW_H.
 - `ssao.rs` (214): Screen-space ambient occlusion (v0.901; estimator rebuilt v0.1100): depth-only INPUT, normal-aware contact shading in the celestial slot, runs right after the god-ray pass while depth still holds t... Main items: SsaoPass.
 - `stars.rs` (3517): Star skybox renderer, draws the real star catalog as colored points. Main items: StarRenderer, StarCatalogTier, StarCatalog, dir_to_equirect_uv, equirect_uv_to_dir, ci_to_rgb, GALAXY_GLOW_ULTRA_FILE, GALAXY_GLOW_ULTRA_URL (+1 more).
 - `stream_capture.rs` (330): Non-blocking swapchain readback for live streaming (v0.853.0). Main items: StreamCapture.
 - `sun_cascades.rs` (24): Near sun cascades: the home and the planet build sites as sun casters. Main items: SunCascades.
+- `sun_disc.rs` (634): THE SUN AS A BODY (2026-10-21): its disc at its true size, its photosphere, its brightness, and the glare a camera sees round it. Main items: aperture_from_setting_mm, angular_radius, disc_angular_radius, mesh_angular_radius, camera_pads, disc_energy_scale, limb_darkening, disc_mean_over_centre (+23 more).
+- `sun_glare.rs` (487): THE SUN'S GLARE, ON THE GPU (2026-10-21): how much of the disc each view can see, and the numbers the present pass adds the glare with. Main items: GlareParams, SunFrame, VisDisc, SunVisPass, glare_for_view.
 - `surface.rs` (237): Surface + render-target LIFECYCLE: everything that creates, reconfigures, acquires or resizes the things a frame is drawn INTO. Main items: vsync_present_mode, pending_mode_change.
 - `tree_allometry.rs` (538): HOW THICK IS WOOD: the generator's radius and taper model (v0.1103). Main items: stem_butt_slenderness_band, stem_base_radius, generations_for, limb_tip_radius, limb_base_radius_at, fork_child_radius, lateral_branch_radius, TRUNK_FLARE_PEAK (+4 more).
 - `tree_cards.rs` (451): FOLIAGE CARD ARRANGEMENT: how the cards of one tuft sit around a twig.
 - `tree_mesh.rs` (6366): Procedural planet-surface trees (v0.1066). Main items: TreeDef, ClusterLayerDef, ClusterDef, TreeRegistry, CardFootprint, TreeParts, BarkRun, BarkSeg (+26 more).
 - `tree_species.rs` (744): The SPECIES ARCHITECTURE: how each `form` lays out a crown (v0.1102).
-- `view_depth.rs` (125): The OFF-SCREEN VIEW depth buffer: which depth texture is current, the window's or a view's.
+- `view_depth.rs` (136): The OFF-SCREEN VIEW depth buffer: which depth texture is current, the window's or a view's.
 - `water.rs` (1042): Planet ocean waves + land close-range detail: the Rust mirror of the WGSL math (v0.816). Main items: WaveOctave, water_footprint, detail_octave_fade, wave_presence, detail_octave_fade_aa, wave_warp, wave_octave, water_wave_gradient (+26 more).
 - tests: `scene_target_tests.rs`
 
@@ -751,28 +897,32 @@
 ## src/ship/
 
 - `assembly.rs` (574): Turning a drawn line into a real wall. Main items: Section, SectionTuple, MemberSpec, SequenceStep, FastenerSpec, SheathingSpec, Assembly, Opening (+7 more).
-- `build_frames.rs` (381): BUILD FRAMES (increment 5 of docs/design/ship-homes-and-logistics.md, "building only on your own plot", 2026-10-05): the places a piece built in the shared world is kept in, and the one rule for wh... Main items: FrameKind, BuildFrame, BuildFrames, parse_frame_id, plot_frame_id, zone_frame_id, PLOT_PREFIX, ZONE_PREFIX (+4 more).
-- `conduits.rs` (260): Procedural CONDUIT ROUTING (v0.535): the realistic routed pipes/cords the operator asked for -- "the straight lines that pass through everything for the pipes is wrong. Main items: ConduitKind, ConduitFitting, FittingKind, ConduitRoute, route_conduit.
-- `door_panels.rs` (580): Door/window PANEL PLACEMENT (v0.537): the static, world-space geometry of the panel that fills each opening cut into a wall. Main items: ResolvedLock, PanelPlacement, ship_panel_placements, neighbour_panel_placements, door_actor_distance, corridor_panel_placements, panel_placements, PANEL_THICKNESS (+2 more).
-- `door_points.rs` (292): DOOR POINTS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"): the ship's places and every corridor's door points, computed by the Rust corridor geometry, so a rig tha... Main items: RoutePlace, RouteDoor, DoorPoints, door_points, STEP_IN_M.
+- `build_frames.rs` (420): BUILD FRAMES (increment 5 of docs/design/ship-homes-and-logistics.md, "building only on your own plot", 2026-10-05): the places a piece built in the shared world is kept in, and the one rule for wh... Main items: FrameKind, BuildFrame, BuildFrames, box_holds, parse_frame_id, plot_frame_id, zone_frame_id, PLOT_PREFIX (+5 more).
+- `conduits.rs` (336): Procedural CONDUIT ROUTING (v0.535): the realistic routed pipes/cords the operator asked for -- "the straight lines that pass through everything for the pipes is wrong. Main items: ConduitKind, ConduitFitting, FittingKind, ConduitRoute, route_conduit, add_slab_passthroughs.
+- `door_panels.rs` (640): Door/window PANEL PLACEMENT (v0.537): the static, world-space geometry of the panel that fills each opening cut into a wall. Main items: ResolvedLock, PanelPlacement, ship_panel_placements, neighbour_panel_placements, door_actor_distance, corridor_panel_placements, panel_placements, PANEL_THICKNESS (+2 more).
+- `door_points.rs` (396): DOOR POINTS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"): the ship's places and every corridor's door points, computed by the Rust corridor geometry, so a rig tha... Main items: RoutePlace, RouteDoor, StoreyWalls, DoorPoints, door_points, STEP_IN_M.
 - `fibonacci.rs` (2110): Room layout generator. Main items: LayoutStyle, WallKind, WallSet, OpeningKind, Opening, RoomConfig, HomesteadLayout, TrimProfiles (+16 more).
-- `home_structure.rs` (2811): The home as a FIXED outer box + freely-designed INTERIOR WALLS (v0.532, the node/wall redesign). Main items: OpeningKind, ShellCut, Opening, LockInstance, InteriorWall, SurfaceLayer, HomeStructure, RailNode (+13 more).
-- `hull.rs` (1133): Hull wrap generation (increment D of docs/design/ship-superstructure.md): a generated exterior shell around the ship's zone cluster so the outside finally reads as a VESSEL instead of floating boxes. Main items: HullStation, HullGreeble, HullProfile, HullAxis, HullFrame, PlanRect, ResolvedStation, HullGeom (+6 more).
+- `home_structure.rs` (3915): The home as a FIXED outer box + freely-designed INTERIOR WALLS (v0.532, the node/wall redesign). Main items: OpeningKind, ShellCut, Opening, LockInstance, InteriorWall, SurfaceLayer, FloorSlab, SlabMaterial (+27 more).
+- `hull.rs` (1142): Hull wrap generation (increment D of docs/design/ship-superstructure.md): a generated exterior shell around the ship's zone cluster so the outside finally reads as a VESSEL instead of floating boxes. Main items: HullStation, HullGreeble, HullProfile, HullAxis, HullFrame, PlanRect, ResolvedStation, HullGeom (+6 more).
 - `layout.rs` (186): Ship layout, data-driven definitions loaded from RON files. Main items: Direction, RoomType, ShipClass, DoorDef, RoomDef, DeckDef, ShipDef, ShipLayout.
+- `levels.rs` (191): The LEVELS of a ship (Maps increment 3, "into the ship, deck by deck", docs/design/maps-zoom-to-anything.md section 5.7): the floors a person can be on aboard, from the bodies standing in it, so th... Main items: ShipLevel, LevelCut, level_name, standing_bodies, ship_levels, levels_of, level_at, by_ordinal (+3 more).
 - `lock_types.rs` (120): Lock TYPES registry (v0.570): the data-driven catalog of locks a door (or wall) can carry, loaded from `data/blueprints/lock_types.ron`. Main items: LockType, LockInteraction, DefeatMethod, LockState, lock_types, lock_type.
-- `mod.rs` (41): Ship interior system, layout parsing and room mesh generation.
-- `moves.rs` (332): Moving aboard the shared ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale", and its section 5.10): how fast the relay lets a person go, how a game says a... Main items: SharedWorldRules, MovingRules, DeliveryRules, MoveDecl, floor_distance, FAR_FROM_HELD_M.
-- `neighbours.rs` (734): NEIGHBOURS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"). Main items: Neighbour, NeighbourView, views_made, neighbour_view.
+- `mod.rs` (53): Ship interior system, layout parsing and room mesh generation.
+- `moves.rs` (447): Moving aboard the shared ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale", and its section 5.10): how fast the relay lets a person go, how a game says a... Main items: SharedWorldRules, MovingRules, DeliveryRules, MoveDecl, floor_distance, feet_y, on_my_storey, in_reach (+7 more).
+- `neighbours.rs` (766): NEIGHBOURS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"). Main items: Neighbour, NeighbourView, views_made, neighbour_view, neighbour_view_at.
 - `pipe_marking.rs` (917): Pipe MARKING (2026-10-04): the coloured bands that say what flows inside a pipe, the way real piping is marked, generated from what the line actually carries. Main items: MarkingMode, PlacementRules, SchemeColour, ContentMarking, MarkingScheme, MarkingSchemes, MarkerReason, MarkerSite (+7 more).
 - `pipe_materials.rs` (269): What a pipe, hose or cable is MADE OF, as data (2026-10-04). Main items: PipeMaterial, BodyLook, KindMaterial, PipeMaterials, pipe_materials, srgb_to_linear.
-- `room_types.rs` (317): Room-type registry: the single source of truth for what a room is FOR. Main items: RoomTypeDef, RoomActionDef, RoomTypeRegistry, RoomFunction.
+- `room_types.rs` (366): Room-type registry: the single source of truth for what a room is FOR. Main items: RoomTypeDef, RoomActionDef, RoomTypeRegistry, RoomFunction.
 - `rooms.rs` (205): Room mesh generation, procedural box rooms with door openings. Main items: generate_room_mesh.
-- `ship_space.rs` (345): Where a point is in the ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): aboard or not, and whose air it breathes. Main items: Aabb, AirSpaces, AirAt, tube_box, in_box, aboard_at, home_air_volume_m3, air_top (+3 more).
-- `ship_structure.rs` (4018): ShipStructure: MANY enclosed zones on one ship (increment A of docs/design/ship-superstructure.md, v0.754). Main items: ShipCorridor, CorridorAxis, CorridorGeom, CorridorMouth, ShipZone, PlotDoor, Plot, HomeDesign (+21 more).
+- `ship_space.rs` (473): Where a point is in the ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): aboard or not, and whose air it breathes. Main items: Aabb, AirSpaces, AirAt, tube_box, in_box, aboard_at, home_air_volume_m3, air_top (+3 more).
+- `ship_structure.rs` (4221): ShipStructure: MANY enclosed zones on one ship (increment A of docs/design/ship-superstructure.md, v0.754). Main items: ShipCorridor, CorridorAxis, CorridorGeom, CorridorMouth, ShipZone, PlotDoor, Plot, HomeDesign (+21 more).
+- `sight.rs` (937): WHAT THE EYE CAN SEE ABOARD, IN THREE DIMENSIONS (ship homes increment 7 review). Main items: SlabBox, PieceTop, PieceSolid, SightBlockers, ReachBlockers, Foot, solid_pieces, ship_solid_pieces (+7 more).
+- `standing.rs` (897): WHERE A PERSON CAN STAND on a storey of a home (ship homes increment 7, the review of the homestead's upper floor, 2026-10-21). Main items: NoStanding, KeepOut, top_at, stands_at, solid_keep_outs, standing_on, standing_on_clear_of, nearest_standing (+2 more).
 - `starts.rs` (644): The STARTS: the kinds of home a new player can start in, as data (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md section 3.1). Main items: Engagement, EngagementDefaults, Household, HomeContent, Start, Starts, HeldHome, StartOffer (+9 more).
-- `structure.rs` (846): Structural building pieces (v0.583): the data-driven registry for every NON-machine, NON-wall buildable element -- stairs, ramps, ladders, elevators, teleporters, train platforms, roads, ... Main items: StructureKind, MeshShape, StructureType, ZoneType, ZoneFiller, ExtrusionProfile, RoadType, structure_types (+20 more).
-- `transit.rs` (258): Transit links (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): the jumps aboard that are not walking. Main items: TransitLink.
-- `wall_collision.rs` (685): First-person wall + door collision for the home_structure (v0.556). Main items: WallSegment, wall_segments, wall_segments_with_shell_cuts, sight_segments_with_shell_cuts, ship_wall_segments, ship_sight_segments, everyones_walls, corridor_side_walls (+3 more).
+- `structure.rs` (1190): Structural building pieces (v0.583): the data-driven registry for every NON-machine, NON-wall buildable element -- stairs, ramps, ladders, elevators, teleporters, train platforms, roads, ... Main items: StructureKind, MeshShape, GuardSpec, HandrailSpec, StructureType, ZoneType, ZoneFiller, ExtrusionProfile (+28 more).
+- `transit.rs` (264): Transit links (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): the jumps aboard that are not walking. Main items: TransitLink.
+- `wall_collision.rs` (2056): First-person wall + door collision for the home_structure (v0.556). Main items: SegmentKind, WallSegment, door_panel_segment, wall_segments, wall_segments_with_shell_cuts, sight_segments_with_shell_cuts, ship_wall_segments, ship_sight_segments (+10 more).
+- tests: `home_structure_mesh_tests.rs`, `homestead_layout_tests.rs`, `levels_tests.rs`
 
 ## src/software/
 
@@ -786,7 +936,7 @@
 
 ## src/station/
 
-- `mod.rs` (147): Crewed stations: the player's homestead as a real orbiting, pointed object. Main items: hull_frame_rot, render_to_world_rot, to_hull, load_all, home, default_home.
+- `mod.rs` (215): Crewed stations: the player's homestead as a real orbiting, pointed object. Main items: hull_frame_rot, render_to_world_rot, to_hull, compass_north_yaw, load_all, home, default_home.
 - `orbit.rs` (524): Orbital state for crewed stations: where the homestead IS, and which way it is POINTING, as a pure function of the game clock. Main items: PeriodSpec, OrbitDef, AttitudeMode, StationDef, sim_seconds, semi_major_axis_m, axis_from_period, period_from_axis (+6 more).
 - `station_keeping.rs` (398): Station-keeping: what it costs to stay where you parked, and what happens when you stop paying. Main items: BallisticCoefficient, atmospheric_density, decay_rate_m_per_s, time_to_reentry_s, collinear_efold_time, triangular_points_stable, drag_makeup_dv_per_year, MU_EARTH (+2 more).
 
@@ -805,12 +955,13 @@
 - `body_environment.rs` (682): Per-body environment: which world the player is on, and what its air, water, and temperature are like at the player's position. Main items: BodyEnvironment, earth_season_c, body_baseline_temp_c, surface_temperature_c, diurnal_swing_c, positional_temp_offset_c, environment_for_frame_lock, sanitize_condition (+9 more).
 - `body_heat.rs` (838): Body heat (2026-09-27): how warm a person stays, from the heat they make and the heat the weather, their clothes and their shelter take away. Main items: Mode, Exposure, BodyHeat, Tracked, HeatOutcome, harm_per_s, activity_met, clear_sky_beam_w_m2 (+28 more).
 - `creative_arts.rs` (86): Creative arts system, drives `CreativeWork` entities (paintings, songs, sculptures, performances) toward completion at a `progress_per_day` rate. Main items: CreativeArtsData, CreativeArtsSystem.
+- `day_energy.rs` (266): What each home machine drew over its last game day (2026-10-22, the operator's question of 2026-10-21: "Do rooms not automatically calculate their volumes on the fly?"). Main items: HourEnergy, MachineDay, DayFigure, DayEnergy, register, record_world, snapshot, revision (+5 more).
 - `death_pack.rs` (598): What dying costs: the Death setting's two modes (operator decision, 2026-10-04; docs/design/death-and-your-pack.md). Main items: DeathMode, DeathRules, ShoreSearch, PackLook, PackPlace, Landing, LeftPack, PackSpot (+22 more).
 - `disasters.rs` (456): Disaster system -- natural and artificial catastrophic events. Main items: DisasterType, DamageType, ActiveDisaster, DisasterSystem.
 - `docking.rs` (123): Docking system, runs the airlock state machine. Main items: DockingData, DockingSystem.
-- `door_anim.rs` (216): Door + window OPENING ANIMATION (v0.535). Main items: PanelMotion, panel_motion, is_operable, auto_open_target, ease_open, AUTO_CLOSE_HYSTERESIS.
+- `door_anim.rs` (284): Door + window OPENING ANIMATION (v0.535). Main items: PanelMotion, panel_motion, is_operable, feet_reach_door, auto_open_target, ease_open, AUTO_CLOSE_HYSTERESIS, DOOR_STOREY_TOLERANCE_M.
 - `ecology.rs` (261): Ecology system, simple ecosystem simulation with disease, population tracking, and seasons. Main items: Disease, Species, EcologySystem.
-- `electrical.rs` (949): Electrical system, power generation, distribution, and consumption. Main items: PowerStatus, ShipFeedReading, ElectricalData, ElectricalSystem, integrate_battery.
+- `electrical.rs` (959): Electrical system, power generation, distribution, and consumption. Main items: PowerStatus, ShipFeedReading, ElectricalData, ElectricalSystem, integrate_battery.
 - `encumbrance.rs` (431): CARRYING WEIGHT (BUG-136, 2026-10-04): how much the player can carry where they stand, and what carrying more than that does to them. Main items: CarryMode, CarryInput, CarryState, limit_here_kg, overload_ratio, walk_speed_factor, mass_jump_scale, evaluate (+6 more).
 - `env_layer1.rs` (436): Environment LAYER 1: each world's analytic climate, the continuous base field under all weather (docs/design/environment-fields.md, "The layering" and "Layer 1 as built"). Main items: ClimateRow, ClimateTable, AirAt, sine_series_basis, land_fraction_around, east_north, wind_body, DATA_FILE (+6 more).
 - `falls.rs` (256): Falls: how hard a body lands, and what that does to it (2026-10-20). Main items: ForgivingFalls, HarmPoint, FallStep, Falls, FallWatch, drop_height_m, landing_speed, player_landed (+1 more).
@@ -830,11 +981,11 @@
 - `machine_levels.rs` (431): What the home's machines HOLD, kept across a restart and across world entry (2026-09-27): each battery bank's charge, each water tank's litres, and the contents of each machine's vessel (a genset's... Main items: MachineLevels, HeldMachineLevels, levels, apply, restore, land_held, reset_all, take_all (+1 more).
 - `manufacturing.rs` (97): Manufacturing system, drives `ProductionFacility` entities through their recipes. Main items: ManufacturingData, ManufacturingSystem.
 - `mining.rs` (1835): Mining system, autonomous drones that fly to asteroids, extract ore over time, return home, and drop the raw material into the player's inventory. Main items: Mode, DroneSpec, DroneUnit, DroneRequest, ServicePart, DroneReadout, DroneCharger, DroneSystem (+20 more).
-- `mod.rs` (115): HumanityOS Game Systems Main items: push_sfx_event.
+- `mod.rs` (118): HumanityOS Game Systems Main items: push_sfx_event.
 - `oceanography.rs` (86): Oceanography system, regenerates marine resource populations toward their carrying capacity. Main items: OceanographyData, OceanographySystem.
 - `offline.rs` (78): Offline behaviors system, fires `AutonomousTask` actions on a periodic schedule. Main items: OfflineData, OfflineSystem.
 - `player.rs` (141): Player controller, translates input into physics-driven movement. Main items: PlayerControllerSystem.
-- `plumbing.rs` (403): Plumbing system -- water production, storage, and demand, PER PLUMBING ISLAND (v0.608). Main items: WaterStatus, PlumbingSystem.
+- `plumbing.rs` (580): Plumbing system -- water production, storage, and demand, PER PLUMBING ISLAND (v0.608). Main items: WaterStatus, PlumbingSystem.
 - `precipitation.rs` (347): What falls from the sky, and in which phase (2026-09-27). Main items: Falling, snow_share, falling, SEA_LEVEL_KPA.
 - `self_sufficiency.rs` (387): Self-sufficiency data layer (v0.663) -- the per-crop nutrition bridge + the editable component-output / location tables that turn the homestead design from prose into a computable score. Main items: CropNutritionEntry, CropNutrition, ComponentOutput, ComponentOutputs, Location, food_supply_kcal_per_day, crop_is_tabulated, household_energy_balance.
 - `ship_meals.rs` (235): THE MESS HALL'S COUNTER ON THIS COMPUTER (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): a free crew meal, one a meal time, and drinking water, when no server is... Main items: MealRules, Served, Filled, serve, not_yet_sentence, litres_text, fill_vessels, STORES_FILE (+1 more).
@@ -849,7 +1000,7 @@
 - `weather_events.rs` (322): Extreme-weather EVENT registry (v0.1034, weather-water roadmap section 5): tornadoes, blizzards, meteor showers - and whatever a modder invents - as DATA entries in `data/weather/events.ron`, per t... Main items: Range, WindProfile, CloudOverride, Hazard, WeatherEvent, WeatherEventRegistry, eligible, place_event_core (+2 more).
 - `weather.rs` (1317): Weather system: dynamic weather simulation driven by season, randomness, and (increment 4) the frame-locked body's environment. Main items: WeatherCondition, Weather, WeatherControl, ManualWeather, WeatherSystem, AtPlayerInputs, AtPlayer, ocean_fft_wind_target (+2 more).
 - `wounds.rs` (745): Wounds, and how a body heals (first-hour audit S8, 2026-10-12). Main items: Shares, Healing, GoesBad, Wound, BurnStep, Burns, Care, Wounds (+10 more).
-- tests: `animal_care_tests.rs`, `body_heat_tests.rs`, `env_layer1_tests.rs`, `food_frame_rate_tests.rs`, `food_spoilage_tests.rs`, `illness_tests.rs`, `mining_costs_tests.rs`, `ship_meals_tests.rs`, `ship_power_tests.rs`, `wounds_tests.rs`
+- tests: `animal_care_tests.rs`, `body_heat_tests.rs`, `day_energy_tests.rs`, `env_layer1_tests.rs`, `food_frame_rate_tests.rs`, `food_spoilage_tests.rs`, `illness_tests.rs`, `mining_costs_tests.rs`, `ship_meals_tests.rs`, `ship_power_tests.rs`, `wounds_tests.rs`
 
 ## src/systems/ai/
 
@@ -874,12 +1025,12 @@
 - `site.rs` (248): Built pieces on a planet's surface: the BUILD SITE (2026-09-27, BUG-102). Main items: PlanetSite, tangent_basis, in_frame, site_for, nearest_site, SITE_JOIN_M.
 - `solver.rs` (361): Structural solver de-risk spike (v0.471). Main items: FramingNode, FramingMember, MemberState, StructuralVerdict, SolveResult, member_capacity, solve.
 - `structural.rs` (41): Load-bearing analysis, validates structural integrity of builds. Main items: StructuralResult, StructuralAnalyzer.
-- `uses.rs` (917): What a finished structure does when the player uses it (2026-09-27). Main items: StructureUse, ShelterCheck, use_of, display_name, ray_hits_box, looked_at, first_in_view, ray_crosses_walls (+11 more).
+- `uses.rs` (952): What a finished structure does when the player uses it (2026-09-27). Main items: StructureUse, ShelterCheck, use_of, display_name, ray_hits_box, looked_at, first_in_view, assign_uids (+10 more).
 
 ## src/systems/crafting/
 
-- `away.rs` (625): Automated machines through the time the player was away (offline progression, 2026-09-27; docs/design/offline-progression.md). Main items: AwayWork, AwayReport, day_power_balance, heater_draws, meter_away_reactor, hand_over, take, machines_present (+3 more).
-- `home_store.rs` (169): A hand craft draws on the home's storage too (BUG-147, 2026-10-04). Main items: Draw, HomeStore, register, not_here_reason, send_to_storage, HOME_STORAGE_HERE, HAND_MADE_TO_STORAGE.
+- `away.rs` (597): Automated machines through the time the player was away (offline progression, 2026-09-27; docs/design/offline-progression.md). Main items: AwayWork, AwayReport, day_power_balance, meter_away_reactor, hand_over, take, machines_present, join_list (+2 more).
+- `home_store.rs` (195): A hand craft draws on the home's storage too (BUG-147, 2026-10-04). Main items: Draw, HomeStore, register, not_here_reason, words, send_to_storage, HOME_STORAGE_HERE, HAND_MADE_TO_STORAGE.
 - `mod.rs` (3337): Crafting system, recipe validation, crafting queue, and output production. Main items: Recipe, RecipeRegistry, CraftSave, ActiveCraft, CraftRequest, CraftingSystem, register.
 - `quality.rs` (202): Quality grades for crafted goods (2026-09-26; crafting depth, the last item of the gameplay arc's step 5, docs/design/gameplay-gaps-2026-09-25.md). Main items: QualityLevel, QualityLevels, skill_factor, score, load, BEGINNER_FACTOR.
 - `tools.rs` (198): Hand tools a craft needs (2026-09-26; crafting depth, rung 1 of the gameplay arc, docs/design/gameplay-gaps-2026-09-25.md). Main items: ToolRule, ToolRules, load.
@@ -897,9 +1048,9 @@
 - `automation.rs` (15): Off-screen farming autonomy, simulates crop growth while player is away. Main items: FarmAutomation.
 - `crops.rs` (18): Crop types, definitions loaded from `data/plants.csv`. Main items: CropDef.
 - `heat.rs` (468): Space heaters and the air they warm (2026-10-05, BUG-155). Main items: HeaterKind, Heater, StoveOxygen, AirHeat, Warmth, heaters, stoke, burn (+8 more).
-- `humidity.rs` (1986): Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in). Main items: HumidityData, FungusBreath, GrowRoom, AirMap, AirStep, AirOut, GuiView, step_vapour (+14 more).
+- `humidity.rs` (2025): Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in). Main items: HumidityData, FungusBreath, GrowRoom, AirMap, AirStep, AirOut, GuiView, step_vapour (+16 more).
 - `lighting.rs` (511): Grow lights light the plots near them (2026-09-26, gardening depth). Main items: LightingData, GrowPlot, LightNow, powered_lights, light_cover, light_at, light_now, area_needs (+3 more).
-- `mod.rs` (4174): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, is_field_area, light_growth_rate, stage_from_progress, season_health, crop_season_need (+5 more).
+- `mod.rs` (4176): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, is_field_area, light_growth_rate, stage_from_progress, season_health, crop_season_need (+5 more).
 - `outlook.rs` (281): A crop's wait and its water, in plain words (2026-10-12, first-hour audit F11). Main items: WaterSupply, CropOutlook, OutlookView, ripe_in_game_s, duration_words, wait_words, outlook, clock.
 - `pests.rs` (1603): Garden pests and integrated pest management (2026-09-26, gardening depth). Main items: ControlKind, Condition, PestDef, ControlDef, PestData, CropConditions, ControlOutcome, CoverRow (+18 more).
 - `picking.rs` (676): Crops picked over a season, not harvested once (2026-09-26, gardening depth). Main items: Harvest, CropHarvest, HarvestWindows, Plan, Taken, Leaving, Picking, PickRow (+22 more).
@@ -909,7 +1060,7 @@
 - `sowing.rs` (368): Sowing a seed from the backpack (2026-10-12, first-hour audit F11). Main items: Place, Spot, Refusal, seed_takes, places, choose, refusal_words, planted_words (+2 more).
 - `units.rs` (104): How many plants a grow unit holds, and so what it harvests (2026-09-26). Main items: plants_in_plot, plot_area, crop_plants, harvest_item_kg, plot_harvest_kg, PLOT_AREA_KEY.
 - `weeds.rs` (821): Weeds in the garden's soil (2026-09-26, gardening depth). Main items: Window, CropWeeds, WeedControlKind, WeedControl, WeedData, Weeds, WeedAreaRow, GuiView (+13 more).
-- tests: `heat_tests.rs`, `humidity_tests.rs`, `life_support_tests.rs`, `nutrient_tests.rs`, `pest_tests.rs`, `picking_tests.rs`, `soil_ph_tests.rs`, `sowing_tests.rs`, `unit_tests.rs`, `weed_tests.rs`
+- tests: `golden_tests.rs`, `heat_tests.rs`, `humidity_tests.rs`, `life_support_tests.rs`, `nutrient_tests.rs`, `pest_tests.rs`, `picking_tests.rs`, `soil_ph_tests.rs`, `sowing_tests.rs`, `unit_tests.rs`, `weed_tests.rs`
 
 ## src/systems/inventory/
 
@@ -920,7 +1071,7 @@
 
 ## src/systems/quests/
 
-- `mod.rs` (1740): Quest system, data-driven quest progression loaded from RON files. Main items: QuestDef, QuestRegistry, DestinationDef, DestinationAnchor, Aboard, DestinationList, ShipVolume, ShipPlaces (+23 more).
+- `mod.rs` (1861): Quest system, data-driven quest progression loaded from RON files. Main items: QuestDef, QuestRegistry, DestinationDef, DestinationAnchor, Aboard, DestinationList, ShipVolume, ShipPlaces (+23 more).
 - `objectives.rs` (68): Quest objective types, what the player needs to accomplish for each step. Main items: QuestStep, QuestObjective.
 - tests: `opening_tests.rs`
 
@@ -973,50 +1124,56 @@
 
 ## web/chat/
 
-- `app.js` (3113): Parse static emoji on page load, skip hub-nav so emoji match other pages Main items: getStripeClass, resetMsgStripe, showErasedNote, signUpAgainChoice, endCallBeforeLeaving, isScratchPad, scratchPadOpen, scratchPadReady (+91 more).
+- `app.js` (3256): Parse static emoji on page load, skip hub-nav so emoji match other pages Main items: getStripeClass, resetMsgStripe, showErasedNote, signUpAgainChoice, endCallBeforeLeaving, isScratchPad, scratchPadOpen, scratchPadReady (+96 more).
 - `bip39-english.js` (189): BIP39 English wordlist -- the canonical 2048-word list, byte-identical to the
-- `chat-dm-store.js` (1071): ── chat-dm-store.js ──────────────────────────────────────────────────────
-- `chat-dms.js` (826): ── chat-dms.js ─────────────────────────────────────────────────────────── Main items: upsertDmConversation, openDmFromLink, openDmConversation, renderDmHeader, toggleBlockActiveDm, renderDmConversationFromStore, loadDmListFromStore, purgeServerMailbox (+25 more).
+- `chat-dm-store.js` (1142): ── chat-dm-store.js ──────────────────────────────────────────────────────
+- `chat-dms.js` (831): ── chat-dms.js ─────────────────────────────────────────────────────────── Main items: upsertDmConversation, openDmFromLink, openDmConversation, renderDmHeader, toggleBlockActiveDm, renderDmConversationFromStore, loadDmListFromStore, purgeServerMailbox (+25 more).
 - `chat-file-transfer.js` (1762): ── chat-file-transfer.js ───────────────────────────────────────────────── Main items: ftApi, ftWords, ftLower, ftSameKey, ftNowSecs, ftStore, ftName, ftSafeName (+84 more).
 - `chat-files-card.js` (784): ── chat-files-card.js ──────────────────────────────────────────────────── Main items: atBottom, splitTail, addressId, links, onThisSite, itemLinks, withoutLinks, oneDecimal (+25 more).
 - `chat-fleet.js` (171): Your fleet ledger (2026-10-04): the web's read-only mirror of the game's Inventory > The fleet Main items: credits, standingSentence, amountText, whenText, el, buildOverlay, setStatus, requestLedger (+3 more).
 - `chat-game-admin.js` (430): Game Admin overlay (web mirror of the native Game Admin page, v0.477.x). Main items: gameAdminAmAdmin, buildOverlay, fleetModeName, creditsText, buildFleetControls, renderGameAdminFleet, submitFleet, clampClock (+17 more).
-- `chat-groups-p2p.js` (1213): chat-groups-p2p.js, P2P groups create / invite / join (Phase 1). Main items: mods, hexToBytes, pqReady, authorPub, signer, notReady, postObject, myFingerprint (+42 more).
+- `chat-groups-p2p.js` (1217): chat-groups-p2p.js, P2P groups create / invite / join (Phase 1). Main items: mods, hexToBytes, pqReady, authorPub, signer, notReady, postObject, myFingerprint (+42 more).
 - `chat-home.js` (297): Where you live (ship homes increment 6, lane 1F, 2026-10-12): the website's mirror of the game's Main items: aOrAn, freeText, text, readAnswer, merged, heldName, startName, el (+10 more).
+- `chat-key-cards.js` (269): ── chat-key-cards.js ─────────────────────────────────────────────────────
 - `chat-live.js` (81): chat-live.js: the web mirror of the native Chat live strip (v0.1151). Main items: container, render, poll.
-- `chat-messages.js` (1327): ── chat-messages.js ────────────────────────────────────────────────────── Main items: showReactionPicker, privateViewOpen, sendReaction, fromBlockedKey, applyReaction, renderReactions, applyReactionSync, loadReactionsForChannel (+52 more).
-- `chat-onboarding.js` (464): ── First-Time Onboarding Wizard ── Main items: showOnboardingWizard, render, finish, buildStep, step0, step1, wireStep1, step2 (+4 more).
-- `chat-p2p.js` (858): ── P2P: inject overlay modal CSS (no style.css dependency) ── Main items: exportContactCard, showContactCardExportModal, renderQrCode, showContactCardImportModal, importContactCardFromModal, importContactCard, verifyContactCardSignature, sameKeyHex (+17 more).
-- `chat-privacy.js` (1383): ── chat-privacy.js ─────────────────────────────────────────────────────── Main items: loadPrivacyTiers, applyPrivacyTier, reassertPrivacyTier, privacyExplanationText, maybeShowPrivacyTierModal, exportMyAccountData, eraseMemorySentence, eraseMemoryDays (+53 more).
-- `chat-profile.js` (1681): ── Profile System ── Main items: saveProfileLocal, loadProfileLocal, openEditProfileModal, hasProfileData, buildProfileUpdate, filesAcceptUnsent, setFilesAcceptUnsent, profileStorage (+48 more).
+- `chat-messages.js` (1324): ── chat-messages.js ────────────────────────────────────────────────────── Main items: privateViewOpen, sendReaction, fromBlockedKey, applyReaction, renderReactions, applyReactionSync, loadReactionsForChannel, startEditMode (+52 more).
+- `chat-onboarding.js` (471): ── First-Time Onboarding Wizard ── Main items: showOnboardingWizard, render, finish, buildStep, step0, step1, wireStep1, step2 (+4 more).
+- `chat-p2p.js` (866): ── P2P: inject overlay modal CSS (no style.css dependency) ── Main items: exportContactCard, showContactCardExportModal, renderQrCode, showContactCardImportModal, importContactCardFromModal, importContactCard, verifyContactCardSignature, sameKeyHex (+17 more).
+- `chat-privacy.js` (1475): ── chat-privacy.js ─────────────────────────────────────────────────────── Main items: loadPrivacyTiers, applyPrivacyTier, reassertPrivacyTier, privacyExplanationText, maybeShowPrivacyTierModal, exportMyAccountData, eraseMemorySentence, eraseMemoryDays (+55 more).
+- `chat-profile.js` (1691): ── Profile System ── Main items: saveProfileLocal, loadProfileLocal, openEditProfileModal, hasProfileData, buildProfileUpdate, filesAcceptUnsent, setFilesAcceptUnsent, profileStorage (+48 more).
 - `chat-protected.js` (901): ── chat-protected.js ───────────────────────────────────────────────────── Main items: protectedNow, loadProtectedPreset, pLabel, pEsc, pSay, pStore, pSocketOpen, protectedRedrawAll (+39 more).
 - `chat-reports.js` (1166): ── chat-reports.js ─────────────────────────────────────────────────────── Main items: repEsc, repSay, repName, repSameKey, repWhen, repTextLabel, repSocketOpen, loadReportReasons (+50 more).
-- `chat-social.js` (1119): ── chat-social.js ──────────────────────────────────────────────────────── Main items: isFriend, sendFriendCodeRequest, redeemFriendCode, isFollowing, resolveNameToKey, updateFriendIndicators, addFollowContextMenu, renderGroupList (+31 more).
-- `chat-ui.js` (2721): ── chat-ui.js ──────────────────────────────────────────────────────────── Main items: toggleChannelVoice, startTitleFlash, stopTitleFlash, isMentioned, playNotificationChime, toggleSoundMenu, closeSoundMenuOutside, toggleIdentityMenu (+73 more).
-- `chat-voice-calls.js` (490): ── chat-voice-calls.js ─────────────────────────────────────────────────── Main items: callCredentialsFor, callCannotConnect, startCall, acceptIncomingCall, rejectIncomingCall, hangupCall, cleanupCall, resetCallState (+15 more).
+- `chat-social.js` (1113): ── chat-social.js ──────────────────────────────────────────────────────── Main items: isFriend, sendFriendCodeRequest, redeemFriendCode, isFollowing, resolveNameToKey, updateFriendIndicators, addFollowContextMenu, renderGroupList (+30 more).
+- `chat-ui.js` (2745): ── chat-ui.js ──────────────────────────────────────────────────────────── Main items: toggleChannelVoice, startTitleFlash, stopTitleFlash, isMentioned, playNotificationChime, toggleSoundMenu, closeSoundMenuOutside, toggleIdentityMenu (+77 more).
+- `chat-voice-calls.js` (506): ── chat-voice-calls.js ─────────────────────────────────────────────────── Main items: callCredentialsFor, callCannotConnect, startCall, acceptIncomingCall, rejectIncomingCall, hangupCall, cleanupCall, resetCallState (+15 more).
 - `chat-voice-modal.js` (340): Per-user voice control modal (v0.484). Opened by clicking a person in a voice Main items: peerPrefKey, loadPeerPrefs, savePeerPrefs, applyPeerGain, ensureSquelchPoll, myRole, withTarget, row (+4 more).
-- `chat-voice-rooms.js` (1275): ── chat-voice-rooms.js ─────────────────────────────────────────────────── Main items: callScopeKey, requestCallCredentials, callCredentialsFromReply, onCallCredentials, relayOnlyRtcConfig, sayCallsNeedServer, roomCallCredentials, roomCannotConnect (+30 more).
+- `chat-voice-rooms.js` (1349): ── chat-voice-rooms.js ─────────────────────────────────────────────────── Main items: callScopeKey, requestCallCredentials, callCredentialsFromReply, onCallCredentials, relayOnlyRtcConfig, callConnectionMode, callRtcConfig, sayCallsDirectOnly (+33 more).
 - `chat-voice-streaming.js` (347): ── chat-voice-streaming.js ─────────────────────────────────────────────── Main items: toggleAutoWatchStreams, renderStreamSidebar, startStudioMetrics, stopStudioMetrics, collectStudioMetrics.
 - `chat-voice-webrtc.js` (839): ── chat-voice-webrtc.js ────────────────────────────────────────────────── Main items: toggleVideo, startDmVideo, stopDmVideo, toggleScreenShare, startDmScreenShare, stopDmScreenShare, startVrVideo, stopVrVideo (+22 more).
 - `chat-warnings.js` (348): ── chat-warnings.js ────────────────────────────────────────────────────── Main items: loadMessageWarnings, warnStore, warnSameKey, warningSenderIsFriend, messageWarningsOn, setMessageWarningsOn, applyWarningsSwitchToView, dmLinksHeld (+8 more).
-- `crypto.js` (1545): Humanity Network, Client-side Ed25519 cryptography (inlined). Main items: openKeyDB, storeKeypair, loadKeypair, bufToHex, hexToBuf, supportsEd25519, generateKeypair, requestPersistentStorage (+61 more).
+- `crypto.js` (1576): Humanity Network, Client-side Ed25519 cryptography (inlined). Main items: openKeyDB, storeKeypair, loadKeypair, bufToHex, hexToBuf, supportsEd25519, generateKeypair, requestPersistentStorage (+62 more).
 - `pq.js` (240): pq.js, post-quantum (Dilithium3 / ML-DSA-65) identity for the chat Main items: _pqLoad, pqDeriveIdentity, pqSignMessage, pqVerifyMessage, pqDeriveKyber, _dmAesKey, pqDmSeal, pqDmOpen (+1 more).
 
 ## web/chat/view/
 
-- `messageRow.js` (41): view/messageRow.js, clean view module for one chat message row. Main items: messageRowHTML.
-- `timestampPill.js` (20): view/timestampPill.js, clean view module for the message timestamp pill. Main items: timestampPillHTML.
+- `messageMenu.js` (197): view/messageMenu.js, a message's right-click menu (Track W step 3, 2026-10-22). Main items: messageMenuItems, leaveToBrowser, menuEl, entries, close, run, showMessageMenu, wireMessageMenu.
+- `messageRow.js` (42): view/messageRow.js, clean view module for one chat message row. Main items: messageRowHTML.
+- `pillPopup.js` (393): view/pillPopup.js, the expanded timestamp pill (Track W step 3, 2026-10-22). Main items: pad, fullTimestamp, pillPopupItems, pillPopupPlace, pillTimestampPlace, make, button, rowButtons (+13 more).
+- `timestampPill.js` (105): view/timestampPill.js, clean view module for the message timestamp pill. Main items: timestampPillHTML, timestampSettings, stampParts, stampPad, formatStamp, formatFullStamp, reactionBadgesHTML.
 
 ## web/pages/
 
 - `accord-app.js` (134): HumanityOS Humanity Accord document browser. Main items: escapeHtml, slugFor, loadNav, renderNav, openDoc.
-- `admin-app.js` (487): HumanityOS Admin Dashboard Main items: getSignedAuth, formatBytes, formatUptime, formatNumber, roleBadge, escapeHtml, fetchStats, showAuthGate (+12 more).
-- `apps-app.js` (1021): Apps page (web): the web mirror of the desktop app's Apps page (src/gui/pages/apps.rs, its Main items: entriesOf, toolsOf, inPart, hostOf, platformWords, entryFact, mainLink, categoriesOf (+16 more).
-- `bugs-app.js` (246): HumanityOS Bug Reporter, Client logic Main items: getBrowserInfo, getVersion, getPublicKey, getDisplayName, showStatus, loadBugs, renderBugs, signVote (+2 more).
-- `calculator-app.js` (420): ══════════════════════════════════════════════ Main items: setMode, getExprEl, getResultEl, updateDisplay, inputNum, inputOp, inputFn, backspace (+20 more).
-- `civilization-app.js` (133): Civilization page logic, fetches /api/civilization stats and renders dashboards Main items: animateCounter, renderReal, civCard, fetchCivData, updateTimestamp.
+- `admin-app.js` (290): HumanityOS Admin Dashboard Main items: getSignedAuth, formatBytes, formatUptime, formatNumber, roleBadge, escapeHtml, fetchStats, showAuthGate (+6 more).
+- `admin-console.js` (489): The admin page's console on the server's action registry (2026-10-22; Main items: el, btn, status, run, renderAlerts, wireAlertsAdd, loadAlerts, renderFederation (+9 more).
+- `apps-app.js` (1022): Apps page (web): the web mirror of the desktop app's Apps page (src/gui/pages/apps.rs, its Main items: entriesOf, toolsOf, inPart, hostOf, platformWords, entryFact, mainLink, categoriesOf (+16 more).
+- `backups-admin.js` (366): ── backups-admin.js ────────────────────────────────────────────────────── Main items: hex, sha256Hex, purpose, destinationFromForm, settingsParams, utc, ago, lagWords (+15 more).
+- `bugs-app.js` (291): HumanityOS Bug Reporter, Client logic Main items: wordsFor, fillMenus, getBrowserInfo, getVersion, getPublicKey, getDisplayName, showStatus, loadBugs (+4 more).
+- `calculator-app.js` (433): ══════════════════════════════════════════════ Main items: setMode, getExprEl, getResultEl, updateDisplay, inputNum, inputOp, inputFn, backspace (+23 more).
+- `civilization-app.js` (139): Civilization page logic, fetches /api/civilization stats and renders dashboards Main items: animateCounter, renderReal, escText, civCard, fetchCivData, updateTimestamp.
+- `dev-claude.js` (258): The website's Dev > Claude (2026-10-22): the web twin of the desktop app's Dev > Claude Main items: oneLine, journalTail, tier0Headings, ago, fill, T, getJson, getText (+7 more).
 - `devlog-app.js` (90): Devlog page: renders the GitHub Releases feed as the public devlog. Main items: esc, md, fmtDate, render, load.
-- `donate-app.js` (310): Donate page logic. Mirrors the desktop app's Donate page Main items: networkAbbrev, networkColor, fmtUSD, copyAddress, renderQR, escHtml, iconHtml, loadList (+7 more).
+- `donate-app.js` (319): Donate page logic. Mirrors the desktop app's Donate page Main items: networkAbbrev, networkColor, fmtUSD, copyAddress, renderQR, escHtml, iconHtml, loadList (+7 more).
 - `files-add.js` (958): ── files-add.js ────────────────────────────────────────────────────────── Main items: postFavoriteKey, postFavorites, togglePostFavorite, postChoices, postText, createAddForm.
 - `files-admin.js` (524): ── files-admin.js ──────────────────────────────────────────────────────── Main items: hex, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, otherNotice (+1 more).
 - `files-app.js` (2450): ── files-app.js ────────────────────────────────────────────────────────── Main items: num, parseKinds, kindWords, removeWords, removedWords, ownFilePath, fileRoute, storedName (+20 more).
@@ -1030,26 +1187,30 @@
 - `files-space.js` (110): ── files-space.js ──────────────────────────────────────────────────────── Main items: oneDecimal, sizeWords, shareLeftWords, shareStop, limitStop, togetherStop, moreWords, budgetStop (+3 more).
 - `files-takedown.js` (436): ── files-takedown.js ───────────────────────────────────────────────────── Main items: makeH, jsonPost, refusalWords, answerOf, dayOf, itemNumberFrom, takedownBody, formProblem (+7 more).
 - `files-upload.js` (664): ── files-upload.js ─────────────────────────────────────────────────────── Main items: hex, readSlice, defaultDigest, fingerprint, readRemembered, writeRemembered, rememberUpload, touchUpload (+8 more).
+- `how-to-app.js` (722): How-to page (web): the web mirror of the desktop app's How-to page (src/gui/pages/how_to.rs and Main items: createHowToPage, W, WF, getKept, keep, readLayout, saveRun, openRun (+31 more).
 - `library-app.js` (1151): Library page: the web mirror of the native Library (src/gui/pages/library.rs). Main items: setSuggestedOrder, currentCat, catIsOpen, secIsOpen, esc, md, contentEl, slugOf (+40 more).
 - `library-order.js` (97): Library shelf order: the web twin of rail_order() in src/gui/pages/library.rs. Main items: titleSortKey, cmp, orderByTitle, railOrder.
-- `market-app.js` (1245): The web Market page's script (pages/market.html): the signed Directory, the classified listings with reviews and ratings, and My Listings. Main items: categoryColor, fillCategorySelect, loadMarketCategories, escHtml, renderStars, renderStarSelector, setReviewRating, previewStars (+56 more).
-- `notes-app.js` (594): ══════════════════════════════════════════════ Main items: switchTab, aesEncrypt, aesDecrypt, loadNotes, saveNotes, uid, getNote, renderList (+29 more).
+- `market-app.js` (1264): The web Market page's script (pages/market.html): the signed Directory, the classified listings with reviews and ratings, and My Listings. Main items: categoryColor, fillCategorySelect, loadMarketCategories, escHtml, renderStars, renderStarSelector, setReviewRating, previewStars (+56 more).
+- `notes-app.js` (615): ══════════════════════════════════════════════ Main items: switchTab, aesEncrypt, aesDecrypt, loadNotes, saveNotes, uid, getNote, renderList (+30 more).
+- `recovery-app.js` (517): recovery-app.js: the website's Recovery through trusted people page (/recovery), the mirror of Main items: noble, esc, say, day, names, getJson, postJson, errorOf (+23 more).
 - `roadmap-app.js` (184): Roadmap page. Renders data/roadmap.json, which is generated from docs/ROADMAP.md Main items: load, buildFilterBar, render, passesFilter, statusBadge, setText, esc, chevron.
 - `settings-app.js` (2225): The web Settings page's script (pages/settings.html): preferences, theme, accessibility, keybinds, devices, notifications, wallet, Vault and backup. Main items: loadPrefs, saveEli5Pref, savePref, applyPrefs, showSection, applyA11yPrefs, reflectA11yPrefs, applyLanguagePref (+103 more).
 - `shared-files-upload.js` (385): ── shared-files-upload.js ──────────────────────────────────────────────── Main items: mbOf, overLimitWords, tooLargeWords, uploadingWords, uploadedWords, failedWords, refusalWords, createSharedFilesUpload (+1 more).
-- `tasks-app.js` (1403): ── Fibonacci scope definitions ── Main items: defaultScope, init, buildScopeTabs, buildScopeSelect, setScope, loadTasks, getTaskScope, getNonScopeLabels (+66 more).
+- `tasks-app.js` (1488): ── Words ── Main items: defaultScope, init, buildScopeTabs, buildScopeSelect, setScope, loadTasks, getTaskScope, getNonScopeLabels (+70 more).
 - `trade-app.js` (817): trade-app.js, Peer-to-peer trading UI Main items: escHtml, tradeIdentifyPreimage, tradeBytesToB64, tradeIdentifyResponse, loadTradeIdentity, tradeSignedIn, tradeSend, tradeSay (+34 more).
-- `wallet-app.js` (1007): Wallet Dashboard, page logic for wallet.html Main items: init, generateQR, getSOLPrice, loadBalances, renderBalances, loadTransactions, renderTransactionList, fetchSwapQuote (+19 more).
+- `wallet-app.js` (1017): Wallet Dashboard, page logic for wallet.html Main items: init, generateQR, getSOLPrice, loadBalances, renderBalances, loadTransactions, renderTransactionList, fetchSwapQuote (+19 more).
 - `wallet-guide-app.js` (104): Wallet Guide, renders step-by-step wallet education sections. Main items: esc, render, boot.
 
 ## web/shared/
 
 - `accessibility.js` (187): HumanityOS Accessibility (a11y) Module Main items: getBool, getFloat, getString, ensureFilters.
+- `admin-actions.js` (185): ── admin-actions.js ────────────────────────────────────────────────────── Main items: adminRunPurpose, adminChatText, adminNeedsConfirm, adminConfirmOk, adminInputsFromForm, adminMaskedWords, adminTimeAgo, adminSpan (+4 more).
 - `admin-erase.js` (156): ── admin-erase.js ──────────────────────────────────────────────────────── Main items: adminEraseRoleNorm, adminEraseIsAdminRole, adminEraseOffered, adminEraseConfirmText, adminEraseNameMatches, adminEraseFrame, adminEraseReceiptRows, adminErasePartial (+2 more).
 - `blake3.js` (261): ── blake3.js ───────────────────────────────────────────────────────────── Main items: compress, loadBlock, Hasher, create, hash, toHex.
 - `block.js` (92): ── block.js ────────────────────────────────────────────────────────────── Main items: blockKeyNorm, blockNoteText, isBlockNoteText, blockNoteParse, blockNoteFromSelf.
+- `call-connection.js` (147): ── call-connection.js ──────────────────────────────────────────────────── Main items: modeOf, readMode, writeMode, readPublic, writePublic, effective, showsMyAddress, asksPublicStun (+7 more).
 - `canonical-cbor.js` (264): canonical-cbor.js, byte-exact canonical CBOR encoder (no dependencies). Main items: _concat, _head, cborUint, _headBig, cborText, cborBytes, cborArray, _concat0 (+5 more).
-- `defaults.js` (93): shared/defaults.js, Single source of truth for all settings defaults.
+- `defaults.js` (101): shared/defaults.js, Single source of truth for all settings defaults.
 - `drop-overlay.js` (234): ── drop-overlay.js ─────────────────────────────────────────────────────── Main items: sendIn, uploadAndPostIn, addTo, carriesFiles, filesOf, attach.
 - `eli5.js` (68): ELI5 + Expert dual-depth explanation system Main items: initBlocks.
 - `events.js` (55): HOS Event Bus, replaces monkey-patching pattern
@@ -1057,34 +1218,42 @@
 - `file-transfer.js` (1005): ── file-transfer.js ────────────────────────────────────────────────────── Main items: idOk, hex64Ok, newId, toHex, piecesFor, pieceLength, filePassFieldOk, filePassPreimage (+26 more).
 - `files-in-messages.js` (281): ── files-in-messages.js ────────────────────────────────────────────────── Main items: settingsFrom, readSettings, settingsChosen, writeSettings, acceptLooser, acceptsFrom, picturesWithoutAsking, askWords (+10 more).
 - `friend-pass.js` (172): ── friend-pass.js ──────────────────────────────────────────────────────── Main items: friendPassMay, friendPassSerialOk, friendPassPreimage, friendPassFieldOk, friendPassParse, friendPassJson, isChoiceNoteText, choiceNoteText (+3 more).
-- `glossary.js` (311): HumanityOS Glossary, Inline term definitions Main items: loadGlossary, define, getEntry, positionTooltip, show, hide, scanPage.
+- `glossary.js` (357): HumanityOS Glossary, Inline term definitions Main items: loadGlossary, define, getEntry, positionTooltip, show, words, hide, scanPage.
 - `group-report.js` (345): ── group-report.js ─────────────────────────────────────────────────────── Main items: groupReportFoundBadge, groupReportArrivedLine, groupReportCountTitle, groupReportRemoveConfirm, utf8Length, hasFile, keyNorm, idNorm (+13 more).
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
-- `i18n.js` (122): HumanityOS Internationalization (i18n) Module Main items: resolve, fetchLang.
-- `icons.js` (160): HumanityOS Shared Icon System
+- `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
+- `i18n-en.js` (2161): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
+- `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).
+- `key-card.js` (216): ── key-card.js ─────────────────────────────────────────────────────────── Main items: cardText, canonicalB64, isKeyText, hexBytes, shapeOk, parseCard, verifyCard, cardFor (+7 more).
 - `label-placer.js` (87): Map label placement: the web twin of src/gui/widgets/label_placer.rs. Main items: intersects, LabelPlacer, pointCandidates.
 - `laws-logic.js` (156): HumanityOS Laws logic (pure functions, no DOM). Main items: pathToRoot, findJurisdiction, applicableRules, jurisdictionName, locationBreadcrumb, isBase, matchesFilters, filterRules (+1 more).
-- `markdown.js` (354): HumanityOS shared markdown renderer. Main items: escapeHtml, inlineMarkdown, stripInline, headingSlug, dedupeSlug, headings, isSeparatorRow, tableCells (+2 more).
+- `level-picker.js` (55): The LEVEL PICKER for the web (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): Main items: pickerRows, renderPicker.
+- `markdown.js` (367): HumanityOS shared markdown renderer. Main items: escapeHtml, inlineMarkdown, stripInline, headingSlug, dedupeSlug, headings, isSeparatorRow, tableCells (+2 more).
 - `model-view.js` (1670): ── model-view.js ────────────────────────────────────────────────────────── Main items: fill, thousands, oneDecimal, sizeWords, isModelFile, modelError, asBytes, numbers (+35 more).
-- `onboarding-tour.js` (361): HumanityOS Onboarding Tour, guided first-time user walkthrough. Main items: injectStyles, createElements, positionPopover, renderStep, nextStep, prevStep, endTour, onKeyDown (+2 more).
-- `phrase-cover.js` (158): ── phrase-cover.js ───────────────────────────────────────────────────────── Main items: cover, words, code.
-- `pq-identity.js` (369): HumanityOS, PQ Identity Bridge (Phase 0–8 client integration) Main items: getJson, postJson, resolveDid, listCredentials, getCredential, getTrustScore, listProposals, getProposal (+21 more).
+- `onboarding-tour.js` (229): The first five minutes, on the website (the ELI5 mandate, 2026-10-22): the Main items: T, read, write, injectStyles, button, close, pointAt, onPage (+4 more).
+- `over-limit.js` (69): Characters past a field's limit, shown as they are typed: the part within the limit as usual, Main items: mirrorOf, hosOverLimit.
+- `phrase-cover.js` (164): ── phrase-cover.js ───────────────────────────────────────────────────────── Main items: cover, words, code.
+- `pq-identity.js` (366): HumanityOS, PQ Identity Bridge (Phase 0–8 client integration) Main items: getJson, postJson, resolveDid, listCredentials, getCredential, getTrustScore, listProposals, getProposal (+20 more).
 - `pq-object.js` (716): pq-object.js, build + sign Humanity Network signed objects in the browser. Main items: _b64, _b64d, _hex, buildSignedObject, verifyObjectSubmission, modActionV1Payload, buildModActionV1, spacePolicyV1Payload (+27 more).
-- `pq-relay-auth.js` (267): pq-relay-auth.js, shared helper for Dilithium-signed relay REST auth Main items: _extractSeedFromPkcs8, _bufToHex, _loadSeed, _nextTimestamp, getPqSignedAuth, getPqIdentity, getPqDmStoreKey, _phraseWords (+1 more).
+- `pq-relay-auth.js` (283): pq-relay-auth.js, shared helper for Dilithium-signed relay REST auth Main items: _extractSeedFromPkcs8, _bufToHex, _loadSeed, _nextTimestamp, getPqSignedAuth, getPqIdentity, getPqDmStoreKey, _phraseWords (+2 more).
 - `profile-changes.js` (131): Profile changes made in this browser and not yet on the server (2026-10-11, BUG-195 and its Main items: sameSocials, changedFields, read, write, add, tidyBio, valueOf, sameValue (+2 more).
 - `profile-copy.js` (231): ── profile-copy.js ─────────────────────────────────────────────────────── Main items: mapOf, unlisted, keptForFriends, withdrawal, isWithdrawal, publicCopy, copyText, nextCopyTime (+7 more).
 - `protected.js` (672): ── protected.js ────────────────────────────────────────────────────────── Main items: protectedPresetFrom, protectedLabel, protectedRulesFrom, protectedReachFrame, protectedPresetStrings, protectedAvoidHits, protectedPinOk, bytesToB64 (+40 more).
 - `qrcode.js` (2298): --------------------------------------------------------------------- Main items: qrPolynomial.
 - `reach.js` (301): ── reach.js ────────────────────────────────────────────────────────────── Main items: reachExplain, reachSettingsFrom, reachSetFrame, reachAllows, reachTicksFromMay, reachMayFromTicks, reachGrantsBeyond, reachListWords (+4 more).
+- `recovery.js` (419): recovery.js: Recovery through trusted people, the website's twin of src/relay/core/recovery.rs Main items: concat, hex, unhex, b64, unb64, randomBytes, shapeOk, split (+33 more).
 - `relay-session.js` (252): ── relay-session.js ────────────────────────────────────────────────────── Main items: identifyPreimage, bytesToB64, createRelaySession.
 - `report.js` (507): ── report.js ───────────────────────────────────────────────────────────── Main items: reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportFilesFoundBadge, reportFilesHref, reportKeyNorm, reportPreimage, reportEvidenceJson (+21 more).
 - `server-strip.js` (413): ── server-strip.js ─────────────────────────────────────────────────────── Main items: stripLabel, linkedOrigin, samePagePath, switchLinks, protectedHidesServers, mountServerStrip.
 - `settings.js` (551): Humanity Settings Panel Main items: load, save, hexToRgb, darken, applySettings, isOnChat, injectGearButton, togglePanel (+5 more).
-- `shell.js` (2142): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, mobileLink, onMobileDrawerKey, closeMobileDrawer (+7 more).
+- `shell.js` (2296): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, mobileLink, onMobileDrawerKey, closeMobileDrawer (+8 more).
+- `ship-plan.js` (158): The ship's PLAN for the web Maps page (Maps increment 3, "into the ship, deck by deck", Main items: storeyIndex, wallInStorey, levelAt, resolve, wallsAt, roomsOn, roomIsNamed, bounds (+2 more).
+- `sol-orbits.js` (235): The Sun's family for the web Maps page (Maps increment 2, "a solar system Main items: secondsSinceJ2000, kepler, perifocal, precessionDegPerSec, bodyOrbit, eccentricAnomalyAt, orbitPoint, positionAU (+8 more).
 - `strip-metadata.js` (1129): ── strip-metadata.js ───────────────────────────────────────────────────── Main items: asBytes, be16, be32, le32, is4, name4, startsWithAscii, sameBytes (+51 more).
-- `sw.js` (156): Bump version whenever cached assets change.
+- `sw.js` (159): Bump version whenever cached assets change.
 - `upload-clean.js` (425): ── upload-clean.js ─────────────────────────────────────────────────────── Main items: removeDetailsChosen, rememberRemoveDetails, protectedSetupOn, readRange, be32, name4, asciiBytes, standIn (+5 more).
 - `upload-window.js` (453): ── upload-window.js ────────────────────────────────────────────────────── Main items: signable, tokenShaped, isWindowAddress, isItemWindowAddress, itemPage, originOf, createHost, connectFrame.
 - `wallet.js` (1026): HumanityOS, Solana Wallet Module Main items: base58Encode, base58Decode, hexToBytes, bytesToHex, publicKeyToSolanaAddress, solanaRPC, getCached, setCache (+29 more).

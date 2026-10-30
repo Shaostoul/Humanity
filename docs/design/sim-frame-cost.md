@@ -75,7 +75,15 @@ audio 15818-15973, ui_paint 15975-16083, tail 16085-16148.
 
 ## Suspects in the untimed time, ranked
 
-- **S1. The Garden mirror (lib.rs:12797-12945), est. 4-9 ms every world frame.** ~15 String
+- **S1. DONE 2026-10-30 (engine/garden_mirror.rs). Measured 16-20 ms a frame, not 4-9,** with the
+  showcase's 1,981 crops: `cpu.page_data.garden` with the camera parked on the Inventory wall screen
+  (`{"station":"home","screen":"wall_screen_1","distance_m":2.2}`), on a busy machine (FarmingSystem
+  read 5-9 ms in the same samples against 3.5 ms quiet, so perhaps half that when quiet). Every world
+  frame paid it before; now only a frame that draws the Inventory page does, and with no such page
+  the timer never appears. A page open on the main screen hides the world and its frames are not
+  measured (`frame_costs::discard_frame`), so measure it through the wall screen. In the same
+  samples the wall screen's own page draw, `cpu.screen_ui`, was 10-14 ms: S1b below is the next cut.
+  The original reading follows. **The Garden mirror (lib.rs:12797-12945), est. 4-9 ms every world frame.** ~15 String
   allocations, 6-8 formats and ~20 lookups per crop (uncached `crop_season_need` through
   `harvest_item_for`, `air_view.crop_row` formats, `outlook()`), plus five view constructors that
   each re-walk every crop. Its only consumer is the Inventory page (inventory.rs:2154-2600). Fix,

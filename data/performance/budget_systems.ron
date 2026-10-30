@@ -374,6 +374,21 @@
         color: "accent",
         note: "Farming, weather, creatures, vitals - the whole ECS tick. Each system is measured on its own too (cpu.system.farming, cpu.system.weather, cpu.system.ai, ...); the breakdown appears when slices become drillable.",
     ),
+    (
+        id: "cpu_page_data",
+        display: "Data for the open pages",
+        category: "cpu",
+        // What a page shows, gathered from the game world only on a frame that draws that page
+        // (2026-10-30, docs/design/sim-frame-cost.md S1): the Garden on the Inventory page first
+        // (engine/garden_mirror.rs). Zero on a frame that draws no such page. A page open on the
+        // main screen hides the world, and those frames are not measured (frame_costs::discard_frame),
+        // so this row shows the cost when a wall screen in view draws the page.
+        sources: ["cpu.page_data.garden"],
+        locked: false,
+        base_frac: 0.02,
+        color: "accent",
+        note: "Gathering what an open page shows from the game world: the Garden on the Inventory page. Paid only on a frame that draws that page; measured when a wall screen in view shows it (a page open on the main screen pauses these measurements).",
+    ),
 
     // ── VRAM pie: tracked graphics-memory allocations ──
     (

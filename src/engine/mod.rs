@@ -203,6 +203,8 @@ pub mod registries;
 /// In-world screens: native pages on flat displays placed in the 3D world
 /// (quads, look-ray hit tests, input routing, per-frame surface drawing).
 pub mod screens;
+// The Garden data the Inventory page shows, built only on a frame that draws it (2026-10-30).
+pub mod garden_mirror;
 pub mod state;
 /// Visible storage: crates in the storage zones and tank level bars.
 pub mod stock_piles;
