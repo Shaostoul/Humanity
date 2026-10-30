@@ -389,8 +389,15 @@ fn met(cond: &Condition, c: &CropConditions) -> bool {
 /// that spreads only in its conditions) for every favouring condition the
 /// crop is not in.
 pub fn favour(pest: &PestDef, plant: &str, c: &CropConditions, unfavoured: f64) -> f64 {
+    favour_hosted(pest, pest.hosts_plant(plant), c, unfavoured)
+}
+
+/// `favour` with the host question already answered (`hosted` = this pest eats the plant), for a
+/// pass over every crop that answered it once per plant for the tick (FarmingSystem's pest tally,
+/// F1 of docs/design/sim-frame-cost.md) instead of once per crop and pest.
+pub fn favour_hosted(pest: &PestDef, hosted: bool, c: &CropConditions, unfavoured: f64) -> f64 {
     let lives_here = if c.outdoors { pest.outdoors } else { pest.indoors };
-    if !lives_here || !pest.hosts_plant(plant) {
+    if !lives_here || !hosted {
         return 0.0;
     }
     let unfavoured = pest.unfavoured_rate.unwrap_or(unfavoured).clamp(0.0, 1.0);

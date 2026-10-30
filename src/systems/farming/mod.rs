@@ -958,6 +958,9 @@ impl System for FarmingSystem {
         // jumps to follow a shared world's host (time::REBASE_SLOT, 2026-09-29)
         // every planted_at moves by the same amount and no crop ripens or
         // resets because the date changed.
+        // Where the tick's time goes, pass by pass (cpu.farm.*, children of cpu.system.farming,
+        // never summed with it): each assignment closes the pass before it (2026-10-30).
+        let mut _farm_t = crate::renderer::frame_costs::stage("cpu.farm.setup");
         let total = crate::systems::time::rebase_total(data);
         let shift = total - self.clock_rebase_seen.unwrap_or(total);
         if shift != 0.0 {
@@ -1209,6 +1212,7 @@ impl System for FarmingSystem {
             per_plant.scaled(f64::from(plants))
         };
 
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.commands");
         // ── GUI / dev gardening commands (the inventory page writes these via the
         //    main-loop bridge): plant a seed, water a crop, dev-grow all, harvest. ──
         // PLANT: a seed from the backpack goes into the nearest free place of
@@ -1628,6 +1632,7 @@ impl System for FarmingSystem {
             };
             soil_ph::handle_request(world, data, ph_data, &mut self.ph_rt, &area, &amendment, creative, &mut need_n);
         }
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.pollination");
         // POLLINATION (2026-09-26, pollination.rs): the Hand-pollinate request,
         // each indoor flowering crop's record on the garden clock, the notices.
         self.pollination.tick(world, data, game_dt / SECONDS_PER_DAY);
@@ -1653,6 +1658,7 @@ impl System for FarmingSystem {
             }
         }
 
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.picking");
         // PICKING (2026-09-26, picking.rs): the Clear request, each ripe
         // picked plant's window on the garden clock, and (Realistic mode) the
         // plants whose window ended. Each leaves its unit as a harvest does.
@@ -1670,6 +1676,7 @@ impl System for FarmingSystem {
             vacate_unit(world, e, plants_here, plant_registry, item_registry, demand_scale, legume_harvest_share);
         }
 
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.harvest");
         // HARVEST: a fully-grown crop -> produce items into the player + despawn it.
         // Volume-gate surplus that doesn't fit the pack routes into a compatible
         // home vessel (the grain silo) instead of vanishing — collected here,
@@ -1917,7 +1924,26 @@ impl System for FarmingSystem {
         }
 
         // Collect entities to update (avoid borrow conflict with world)
-        let mut updates: Vec<(hecs::Entity, CropInstance, CropSoil)> = Vec::new();
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.crop_setup");
+        // A crop with no soil record yet (newly sown, spawned or loaded) gets the one the loop
+        // makes for it, inserted after the loop; every other crop and record is changed in place
+        // (F2 of docs/design/sim-frame-cost.md: until 2026-10-30 every crop was cloned, Strings
+        // and all, and written back in a second pass).
+        let mut new_soil: Vec<(hecs::Entity, CropSoil)> = Vec::new();
+        // Each plant's definition, stage list and which pests eat it, worked out once this tick
+        // (F1 of docs/design/sim-frame-cost.md): the passes below looked the same plant up six or
+        // seven times per crop, built its stage list anew for every crop, and asked every pest
+        // whether it eats the plant for every crop (about 20,000 set lookups a tick with the
+        // showcase's 1,981 crops, for 189 plants). Rebuilt every tick, so it is never stale (no
+        // caches during development). The host list is indexed like pests.ron's pests.
+        let plant_tick: HashMap<&str, (&PlantDef, Vec<&str>, Vec<bool>)> = plant_registry
+            .map(|reg| {
+                reg.plants
+                    .iter()
+                    .map(|(id, d)| (id.as_str(), (d, d.stages(), pest_data.pests.iter().map(|p| p.hosts_plant(id)).collect())))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // The automatic feeder's fertilizers (2026-09-26): every one listed in
         // data/garden/nutrients.ron, in order (stored urine for nitrogen, then
@@ -1970,6 +1996,7 @@ impl System for FarmingSystem {
         }
         let mut ph_out: HashMap<String, soil_ph::OutOfWindow> = HashMap::new();
 
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.pest_tally");
         // PESTS: step every grow area's pressure on the garden clock
         // (2026-09-26, pests.rs). First a tally of each area's living crops
         // (mature ones too: a ripe plant still feeds a pest until it is
@@ -2012,8 +2039,12 @@ impl System for FarmingSystem {
                 }
                 let entry = tally.get_mut(area).expect("inserted above");
                 entry.0 += 1;
+                // Which pests eat it: the tick's table, or asked here for a plant the registry
+                // does not list.
+                let hosts = plant_tick.get(c.crop_def_id.as_str()).map(|p| &p.2);
                 for (i, pest) in pest_data.pests.iter().enumerate() {
-                    entry.1[i] += pests::favour(pest, &c.crop_def_id, &cond, pest_data.unfavoured_rate);
+                    let hosted = hosts.map_or_else(|| pest.hosts_plant(&c.crop_def_id), |h| h[i]);
+                    entry.1[i] += pests::favour_hosted(pest, hosted, &cond, pest_data.unfavoured_rate);
                 }
             }
             let mut areas: Vec<String> = tally.keys().chain(area_pests.keys()).cloned().collect();
@@ -2043,6 +2074,7 @@ impl System for FarmingSystem {
                 }
             }
         }
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.weeds");
         // WEEDS (weeds.rs): every soil area's cover and seed bank, taken out and
         // stepped on the garden clock like the pests, and put back after the loop.
         let weed_days = game_dt / SECONDS_PER_DAY;
@@ -2052,21 +2084,20 @@ impl System for FarmingSystem {
         // (2026-09-26): it drinks, breathes out its water, takes stress and can
         // die, so an unwatered tomato stops bearing. A picked plant still
         // standing is a bearing one: it leaves its plot at its last share.
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.crops");
         let windows = data
             .get::<picking::HarvestWindows>(picking::DATA_KEY)
             .unwrap_or_else(|| picking::HarvestWindows::shipped());
-        for (entity, (crop, crop_soil)) in world.query_mut::<(&CropInstance, Option<&CropSoil>)>() {
+        for (entity, (crop, soil_slot)) in world.query_mut::<(&mut CropInstance, Option<&mut CropSoil>)>() {
             // Skip dead crops
             if crop.growth_stage == STAGE_DEAD {
                 continue;
             }
 
-            // Resolve this plant's stage list
-            let plant_stages: Vec<&str> = plant_registry
-                .as_ref()
-                .and_then(|reg| reg.get(&crop.crop_def_id))
-                .map(|def| def.stages())
-                .unwrap_or_else(|| default_stages.clone());
+            // This plant's definition and stage list, from the tick's table.
+            let plant = plant_tick.get(crop.crop_def_id.as_str());
+            let def: Option<&PlantDef> = plant.map(|p| p.0);
+            let plant_stages: &[&str] = plant.map_or(&default_stages[..], |p| &p.1[..]);
 
             // Skip crops already at their final stage (they sit until
             // harvested), except a plant still bearing through its picking
@@ -2077,8 +2108,6 @@ impl System for FarmingSystem {
                 }
             }
 
-            let mut crop = crop.clone();
-
             // NUTRIENTS (2026-09-26, soil.rs). The crop's unit: what it had,
             // or fresh soil if it never ticked (newly sown in an unremembered
             // unit, spawned by the showcase, or loaded from a save, which does
@@ -2086,15 +2115,13 @@ impl System for FarmingSystem {
             // are all for the plants the unit holds (units.rs).
             let plants_here = unit_plants(&crop);
             let need = need_for(&crop.crop_def_id, plants_here);
-            let mut crop_soil = crop_soil.cloned().unwrap_or_else(|| CropSoil {
+            let mut crop_soil = soil_slot.as_deref().cloned().unwrap_or_else(|| CropSoil {
                 store: soil::fresh_store(need),
                 uptake: 0.0,
             });
             // The unit's garden clock: this crop's days to ripening, and how
             // far it has come (for urine's withholding period below).
-            let growth_days = plant_registry
-                .and_then(|reg| reg.get(&crop.crop_def_id))
-                .map_or(0.0, |d| f64::from(d.growth_days));
+            let growth_days = def.map_or(0.0, |d| f64::from(d.growth_days));
             // The feeder, where this area's "nutrient" slider is set: top the
             // unit up to the slider's target, one fertilizer at a time in the
             // listed order, each for the nutrients it is dosed by, from that
@@ -2150,7 +2177,6 @@ impl System for FarmingSystem {
                             soil::bank_organic(pool, dose_def.organic_n * given);
                             // Its ammonium acidifies the unit as it nitrifies.
                             if ph_on {
-                                let def = plant_registry.and_then(|r| r.get(&crop.crop_def_id));
                                 soil_ph::add_n(&mut ph_units, ph_data, tid, slot, &dose_def.item, per_item.n * given, def, need.n, soil_ph::plot_area(data, tid));
                             }
                         }
@@ -2208,9 +2234,7 @@ impl System for FarmingSystem {
                 // (life_support.ron, WHAT A CROP KEEPS).
                 if target > 0.0 {
                     let kept = life.map_or(0.0, |l| l.exchange_for(&crop.crop_def_id).kept_l_per_l) as f32;
-                    irrigation_l_per_day += plant_registry
-                        .as_ref()
-                        .and_then(|r| r.get(&crop.crop_def_id))
+                    irrigation_l_per_day += def
                         .map_or(0.0, |d| d.water_per_day)
                         * plants_here as f32
                         * (1.0 + kept);
@@ -2237,11 +2261,13 @@ impl System for FarmingSystem {
             };
             // Soil pH (soil_ph.rs): outside its window a crop's nutrients are
             // less available, capped the same way; said once per area below.
-            let def = plant_registry.and_then(|r| r.get(&crop.crop_def_id));
             let area = crop.tower_id.as_deref().unwrap_or("");
             let (ph_ceiling, off) = soil_ph::check_crop(&ph_units, ph_data, ph_on, area, crop.tower_slot, def);
             if let Some(o) = off {
-                ph_out.entry(area.to_string()).or_insert(o);
+                // The area's String only when it is new to the map (F1: no allocation per crop).
+                if !ph_out.contains_key(area) {
+                    ph_out.insert(area.to_string(), o);
+                }
             }
             // Weeds (weeds.rs): the cover caps it, hardest in its critical period;
             // a sawdust or bark mulch over its unit takes nitrogen as it rots.
@@ -2265,7 +2291,13 @@ impl System for FarmingSystem {
             };
             if crop.water_level >= WATER_STRESS_THRESHOLD {
                 let litres = def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
-                *breathed.entry(area.to_string()).or_insert(0.0) += litres;
+                // An area's String is made only the first time it enters a map (F1).
+                match breathed.get_mut(area) {
+                    Some(v) => *v += litres,
+                    None => {
+                        breathed.insert(area.to_string(), 0.0 + litres);
+                    }
+                }
                 // Ship life support (2026-09-26): through the same pores a
                 // green crop takes in carbon dioxide and gives out oxygen, in
                 // proportion to the water it breathes out (NASA's measured
@@ -2279,15 +2311,24 @@ impl System for FarmingSystem {
                         let lit = light_growth_rate(true, is_field_area(area), sun_up, cover);
                         let health = f64::from((crop.health / 100.0).max(0.1));
                         let x = l.exchange_for(&crop.crop_def_id);
-                        let e = air_step.photo.entry(area.to_string()).or_insert((0.0, 0.0));
-                        e.0 += litres * x.co2_g_per_l * lit * health;
-                        e.1 += litres * x.o2_g_per_l * lit * health;
+                        if !air_step.photo.contains_key(area) {
+                            air_step.photo.insert(area.to_string(), (0.0, 0.0));
+                        }
+                        if let Some(e) = air_step.photo.get_mut(area) {
+                            e.0 += litres * x.co2_g_per_l * lit * health;
+                            e.1 += litres * x.o2_g_per_l * lit * health;
+                        }
                     } else {
                         // Its blocks (or square feet of bed) breathe, each at
                         // its species' rate (2026-09-27, humidity.ron THE
                         // FUNGI'S BREATH): only what is planted.
-                        *air_step.fungi.entry(area.to_string()).or_insert(0.0) +=
-                            air_data.fungus_co2_g_h(&crop.crop_def_id) * f64::from(plants_here);
+                        let g = air_data.fungus_co2_g_h(&crop.crop_def_id) * f64::from(plants_here);
+                        match air_step.fungi.get_mut(area) {
+                            Some(v) => *v += g,
+                            None => {
+                                air_step.fungi.insert(area.to_string(), 0.0 + g);
+                            }
+                        }
                     }
                 }
             }
@@ -2337,7 +2378,10 @@ impl System for FarmingSystem {
             // If health hits zero, crop dies
             if crop.health <= 0.0 {
                 crop.growth_stage = STAGE_DEAD.to_string();
-                updates.push((entity, crop, crop_soil));
+                match soil_slot {
+                    Some(s) => *s = crop_soil,
+                    None => new_soil.push((entity, crop_soil)),
+                }
                 continue;
             }
 
@@ -2352,16 +2396,14 @@ impl System for FarmingSystem {
             // above are untouched: the dark pauses a crop, it does not harm
             // it.
             let outdoors = crop.tower_id.as_deref().map_or(false, is_field_area);
-            let needs_light = plant_registry
-                .and_then(|reg| reg.get(&crop.crop_def_id))
-                .map_or(true, |d| d.needs_light);
+            let needs_light = def.map_or(true, |d| d.needs_light);
             let cover = crop.tower_id.as_deref().and_then(|t| lamp_cover.get(t)).copied().unwrap_or(0.0);
             let light_rate = light_growth_rate(needs_light, outdoors, sun_up, cover);
             crop.planted_at = (crop.planted_at + game_dt * (1.0 - light_rate)).min(elapsed_seconds);
 
             // Calculate growth progress based on elapsed time since planting
-            if let Some(registry) = plant_registry {
-                if let Some(plant_def) = registry.get(&crop.crop_def_id) {
+            if plant_registry.is_some() {
+                if let Some(plant_def) = def {
                     // Total growth time in game seconds
                     let growth_seconds = plant_def.growth_days as f64 * SECONDS_PER_DAY;
 
@@ -2469,7 +2511,10 @@ impl System for FarmingSystem {
                 }
             }
 
-            updates.push((entity, crop, crop_soil));
+            match soil_slot {
+                Some(s) => *s = crop_soil,
+                None => new_soil.push((entity, crop_soil)),
+            }
         }
         drop(home_stock);
         // The grow rooms' air takes in what the crops breathed out and loses
@@ -2479,6 +2524,7 @@ impl System for FarmingSystem {
         // With ship life support (2026-09-26) the step also runs each room's
         // carbon dioxide, the air handlers and scrubbers, and the home's own
         // air, whose state is taken out of the soil memory the same way.
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.air");
         let air_hours = game_dt / crate::systems::time::SECONDS_PER_HOUR;
         air_step.water_ok = water_available && irrigation_on;
         air_step.hours = air_hours;
@@ -2602,22 +2648,11 @@ impl System for FarmingSystem {
             }
         }
 
-        // Apply updates back to the world. A crop ticking for the first time
-        // gets its soil component here.
-        for (entity, crop, crop_soil) in updates {
-            if let Ok(mut existing) = world.get::<&mut CropInstance>(entity) {
-                *existing = crop;
-            }
-            let had_soil = match world.get::<&mut CropSoil>(entity) {
-                Ok(mut s) => {
-                    *s = crop_soil.clone();
-                    true
-                }
-                Err(_) => false,
-            };
-            if !had_soil {
-                let _ = world.insert_one(entity, crop_soil);
-            }
+        // A crop ticking for the first time gets its soil component here; everything else was
+        // changed in place by the loop (F2).
+        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.apply");
+        for (entity, crop_soil) in new_soil {
+            let _ = world.insert_one(entity, crop_soil);
         }
 
         self._initialized = true;
