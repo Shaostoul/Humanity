@@ -522,6 +522,115 @@ thread_local! {
     /// thread, and each test thread gets its own (so tests cannot see each other's waits).
     static REQUEST_WAITS: std::cell::RefCell<std::collections::HashMap<std::path::PathBuf, RequestWait>> =
         std::cell::RefCell::new(std::collections::HashMap::new());
+    /// The `debug/` folder's watcher, made on the first request read (`RequestWatch`). Outer
+    /// None until then; inner None if it could not be made, which keeps the old way.
+    static REQUEST_WATCH: std::cell::RefCell<Option<Option<RequestWatch>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The folder every dev request file is dropped in, relative to the game's working directory.
+const REQUEST_DIR: &str = "debug";
+
+/// How often the request folder is listed in full anyway, so a request whose event Windows
+/// dropped (its change buffer can overflow) is found within this long instead of never.
+const REQUEST_RESCAN: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Which request files have appeared, from a watcher on the request folder (S6 of
+/// docs/design/sim-frame-cost.md, 2026-10-30).
+///
+/// Until then every request reader asked the file system whether its file existed, every frame:
+/// eleven kinds of request, about 60 microseconds each on Windows (measured: 0.65-0.7 ms a frame
+/// for the eleven), almost always to hear "no", for every player, in every frame. Now the
+/// folder's watcher names the files created or changed in it, and a reader whose file was not
+/// named (and is not waiting out an empty file's grace) asks nothing. The folder is listed once
+/// when the watcher starts, so a file dropped before the game was up is found, and again once a
+/// second as a safety net. A watcher that cannot be made keeps the old per-frame check.
+pub(crate) struct RequestWatch {
+    _watcher: notify::RecommendedWatcher,
+    events: std::sync::mpsc::Receiver<std::ffi::OsString>,
+    /// File names announced and not yet looked at.
+    announced: std::collections::HashSet<std::ffi::OsString>,
+    dir: std::path::PathBuf,
+    listed_at: std::time::Instant,
+}
+
+impl RequestWatch {
+    /// Watch `dir` (made if missing), and list what is in it already.
+    pub(crate) fn new(dir: &std::path::Path) -> Result<Self, String> {
+        use notify::Watcher;
+        let _ = std::fs::create_dir_all(dir);
+        let (tx, events) = std::sync::mpsc::channel();
+        let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                if matches!(event.kind, notify::EventKind::Create(_) | notify::EventKind::Modify(_)) {
+                    for p in event.paths {
+                        if let Some(name) = p.file_name() {
+                            let _ = tx.send(name.to_os_string());
+                        }
+                    }
+                }
+            }
+        })
+        .map_err(|e| format!("cannot make a watcher: {e}"))?;
+        watcher
+            .watch(dir, notify::RecursiveMode::NonRecursive)
+            .map_err(|e| format!("cannot watch {}: {e}", dir.display()))?;
+        let mut w = Self {
+            _watcher: watcher,
+            events,
+            announced: std::collections::HashSet::new(),
+            dir: dir.to_path_buf(),
+            listed_at: std::time::Instant::now(),
+        };
+        w.list();
+        Ok(w)
+    }
+
+    /// Count every file in the folder as announced, and only those: the names of files gone since
+    /// (and of the screenshots and answers the game writes there itself, which no reader asks
+    /// about) are forgotten, so the set never grows past what is in the folder. A request file
+    /// still waiting is in the folder, so it is listed again.
+    fn list(&mut self) {
+        self.listed_at = std::time::Instant::now();
+        self.announced.clear();
+        if let Ok(entries) = std::fs::read_dir(&self.dir) {
+            for e in entries.flatten() {
+                self.announced.insert(e.file_name());
+            }
+        }
+    }
+
+    /// Was `name` announced since it was last looked at (the events so far, and the safety
+    /// listing when it is due)? Taking the answer forgets the announcement.
+    pub(crate) fn take_announced(&mut self, name: &std::ffi::OsStr, now: std::time::Instant) -> bool {
+        while let Ok(n) = self.events.try_recv() {
+            self.announced.insert(n);
+        }
+        if now.saturating_duration_since(self.listed_at) >= REQUEST_RESCAN {
+            self.list();
+        }
+        self.announced.remove(name)
+    }
+}
+
+/// Could the request file at `path` be there? False only when the request folder's watcher is
+/// running, the file is in that folder, and it has not been announced: the reader then skips the
+/// file system entirely. A path anywhere else (the tests' own folders) is always checked.
+fn request_may_exist(path: &std::path::Path, now: std::time::Instant) -> bool {
+    if !path.is_relative() || path.parent() != Some(std::path::Path::new(REQUEST_DIR)) {
+        return true;
+    }
+    let Some(name) = path.file_name() else { return true };
+    REQUEST_WATCH.with(|w| {
+        let mut w = w.borrow_mut();
+        let watch = w.get_or_insert_with(|| match RequestWatch::new(std::path::Path::new(REQUEST_DIR)) {
+            Ok(watch) => Some(watch),
+            Err(e) => {
+                log::warn!("Dev requests: {e}; every request file is checked every frame instead");
+                None
+            }
+        });
+        watch.as_mut().map_or(true, |watch| watch.take_announced(name, now))
+    })
 }
 
 /// Take a dropped dev request file's text, consuming the file: the ONE way every request reader
@@ -551,6 +660,10 @@ pub(crate) fn take_request_text_at(path: &std::path::Path, now: std::time::Insta
     }
     REQUEST_WAITS.with(|waits| {
         let mut waits = waits.borrow_mut();
+        // Not announced by the folder's watcher and not waited on: nothing to ask (RequestWatch).
+        if !waits.contains_key(path) && !request_may_exist(path, now) {
+            return None;
+        }
         if !path.exists() {
             // Gone (taken, or cleared by whoever wrote it): forget any wait, so the next empty
             // drop gets a whole grace of its own.
@@ -4727,6 +4840,43 @@ mod request_take_tests {
 
     fn ms(n: u64) -> Duration {
         Duration::from_millis(n)
+    }
+
+    /// THE REQUEST FOLDER'S WATCHER ANNOUNCES EVERY FILE, BEFORE AND AFTER IT STARTS (S6,
+    /// 2026-10-30). A file already in the folder is announced by the first listing; a file
+    /// written afterwards by its event; taking an announcement forgets it, so an unannounced name
+    /// costs nothing; and the once-a-second listing finds a file even with its event lost.
+    /// Proven able to fail: with `RequestWatch::new` not listing the folder, the "before" file is
+    /// never announced and the first assertion fires.
+    #[test]
+    fn the_request_watcher_announces_files_dropped_before_and_after_it_starts() {
+        let d = scratch("watch");
+        let dir = d.join("debug");
+        std::fs::write(dir.join("before_request.json"), "{}").unwrap();
+        let mut w = RequestWatch::new(&dir).expect("the watcher starts");
+        let t0 = Instant::now();
+        assert!(w.take_announced(std::ffi::OsStr::new("before_request.json"), t0), "a file already there is announced");
+        assert!(!w.take_announced(std::ffi::OsStr::new("before_request.json"), t0), "and taking it forgets it");
+        assert!(!w.take_announced(std::ffi::OsStr::new("never_request.json"), t0), "a name never written is not");
+        std::fs::write(dir.join("after_request.json"), "{}").unwrap();
+        // The event comes from the watcher's thread: wait for it (no listing is due before 1 s).
+        let mut seen = false;
+        for _ in 0..80 {
+            if w.take_announced(std::ffi::OsStr::new("after_request.json"), t0) {
+                seen = true;
+                break;
+            }
+            std::thread::sleep(ms(10));
+        }
+        assert!(seen, "a file written after the watcher started is announced by its event");
+        // A file still in the folder whose announcement was taken (as if its event had been
+        // lost) is found again by the next listing, once REQUEST_RESCAN has passed. The "before"
+        // file, which no event mentions (a write's create and modify events could re-announce
+        // the "after" file at any moment, so it cannot show this).
+        assert!(
+            w.take_announced(std::ffi::OsStr::new("before_request.json"), t0 + REQUEST_RESCAN + ms(1)),
+            "the safety listing finds a file still in the folder"
+        );
     }
 
     /// AN EMPTY REQUEST IS NOT TAKEN, OR DELETED, INSIDE ITS GRACE. Whitespace counts as empty

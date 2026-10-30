@@ -5,6 +5,50 @@ built). Line numbers are at lib.rs 16,614 lines and will drift: grep before rely
 item is a timer or a result-identical change except F4. Companion to
 `docs/design/headless-sim-runner.md` (its increments 0 and 7).
 
+**2026-10-30: built and MEASURED (the section below this one; the proposal follows it as it was).**
+S1, increment 0, F1, F2, S3 and S6 are done; S5 is not worth doing.
+
+## Measured, 2026-10-30
+
+The frame at `home-overview-noon` with the showcase's 1,981 crops, five samples averaged, on a busy
+machine (the farm system read 3.5 ms quiet earlier the same day, 7.3 ms here: compare passes with
+each other, not with the 2026-10-22 numbers).
+
+- **Increment 0 works:** the spans add up to 29.16 ms against `cpu.frame_total` 29.08 (no cap
+  sleep), so the whole handler is tiled; the farm passes add up to `cpu.system.farming` exactly.
+- **The spans, largest first:** world_passes 12.98 (the render passes, mostly timed already),
+  ecs 7.95 (farming 7.28 of it), lists_sky 1.86, settles 1.55, mirror_player 1.52, ui_paint 0.64,
+  dev_ipc 0.55, lists_world 0.41, lists_home 0.35, hot_reload 0.33, cards 0.25, the other 21 under
+  0.2 each. **Next places to look:** lists_sky, settles and mirror_player (about 5 ms between them,
+  with no stage inside).
+- **The farm passes:** crops 3.98, pest_tally 2.00, apply 0.59, setup 0.21, pollination 0.18,
+  picking 0.15, air 0.15, the rest about 0.
+- **S1** (the Garden data, done first): 16-20 ms a frame, see S1 below.
+- **S6 was underestimated:** one `Path::exists` on a missing file is about 60 microseconds on the
+  operator's PC (Windows and its antivirus filter), so the eleven request checks cost 0.65-0.7 ms
+  a frame (timed with node on the rig folder), matching the dev_ipc span. Done: one watcher on
+  `debug/` (`engine/ipc.rs` `RequestWatch`).
+- **S5 is not worth doing:** abilities are read by the HUD's hotbar every frame (not a page-only
+  mirror), the home stock feeds the ECS tick itself, machine card stats are already gated on a
+  card being shown, and skills and the herd scale with a few dozen skills and a handful of animals.
+- **S3** was estimated at 1-3 ms, but every home and world list together builds in 0.76 ms
+  (lists_home plus lists_world), so its share is a fraction of that; done anyway because it is
+  cheap (`engine/state.rs` `DrawBufs`).
+- **F1 and F2:** done (one plant table per tick with each plant's definition, stage list and the
+  pests that eat it; each crop changed in place, only new soil records inserted after the loop).
+  The farming golden state is bit-identical, and the test was seen red with the soil write-back
+  removed.
+
+**After S1, F1, F2, S3 and S6, on a quiet machine** (the same vantage and crops; `cpu.scene`, which
+none of this touched, read 3.33 ms against 3.09 in the quiet run of the old build that afternoon,
+so the two are comparable): **`cpu.frame_total` 22.4 ms before, 12.9 ms after.** FarmingSystem 3.5
+-> 2.4 ms (crops 1.18, pest_tally 0.80, the apply pass gone); dev_ipc 0.15 ms (the rest of it is
+the other per-frame polls); the Garden data is no longer built on world frames. The CPU now waits
+on the GPU and the 30 fps background cap (`cpu.present_wait` about 20 ms). F1 and F2 gave about a
+third of FarmingSystem, not the two-thirds estimated; the rest of its time is in the crop loop's
+per-area lookups (the doc's per-area and per-(area, plant) tables, not built) and the pest tally's
+per-crop conditions.
+
 ## What the data on disk says
 
 - `.probe-rig/debug/frame_costs.json` (v0.1539.0): `cpu.frame_total` 34.64 ms, `frame_ms` 36.30.
