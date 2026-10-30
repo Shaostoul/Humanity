@@ -174,10 +174,13 @@ In order:
      now merges a room only across servers whose federation lists link them (federation-ux.md,
      build order 6), so that room stays under its own server and is never sent through.
 9. **#claude channel and Claude Code in the Dev tab** (later, as queued 2026-10-22).
-10. **The crate split: PLANNED 2026-10-30, the operator's decision** (`docs/design/crate-split.md`,
-    `node scripts/crate-graph.js [--edges]`). Five crates (core, sim, relay, render, the app); 31 of 50
-    modules form one cycle today, held together by only 102 upward references. Rung 0, re-homing
-    those inside the one crate and a layer lint, is worth doing whether or not the split goes ahead.
+10. **The crate split: DECIDED 2026-10-30 (operator: "The split makes sense")**
+    (`docs/design/crate-split.md`; the plan's one source is `scripts/crate-layers.json`;
+    `node scripts/crate-graph.js --crates | --edges`). Ten crates named `humanity-<module>` (core,
+    protocol, ship, terrain, systems, relay, net, renderer, gui, engine: the layering and names are the
+    recommendation, his to change). An average edit would re-check about half the code, an engine
+    edit about 15% (estimates). Next: rung 0, re-homing the 155 wrong-way references inside the one
+    crate, then the layer lint reading the same JSON.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

@@ -1,23 +1,36 @@
 #!/usr/bin/env node
-// The crate's module graph and the upward references under the proposed crate layering
-// (docs/design/crate-split.md). Read-only. Run: node scripts/crate-graph.js [--edges]
-//   default  every top-level module: lines, feature gate, what it reaches, the cycles, the leaves
-//   --edges  each reference that points UP the layering, by edge, with the items it names
-// Written 2026-10-30 to plan the split from data rather than from a guess.
-if (process.argv.includes("--edges")) {
+// The crate's module graph and the references that point the wrong way under the planned crate
+// split (docs/design/crate-split.md). Read-only. Run: node scripts/crate-graph.js [--edges] [--crates]
+//   default   every top-level module: lines, feature gate, what it reaches, the cycles, the leaves
+//   --edges   each reference a crate may not make under scripts/crate-layers.json (the plan's one
+//             source), by edge, with the items it names: the rung-0 work list
+//   --crates  each planned crate's lines, and what it may use
+// Written 2026-10-30 to plan the split from data rather than from a guess; --edges read a
+// hard-coded five-layer list until the plan grew to ten crates the same day.
+if (process.argv.includes("--edges") || process.argv.includes("--crates")) {
   const fs = require('fs');
   const path = require('path');
   const ROOT = 'C:/Humanity/src';
-  const layer = {};
-  const L = [
-    'input audio utilities physics debug platform turning reactions lod_registry boot_timing credits scenic_views showroom mods player_look cosmetics test_temp test_log test_clock auto_unlock',
-    'embedded_data ecs hot_reload storage cosmos dev_travel',
-    'systems machines ship persistence station surface_walk surface_move',
-    'relay how_to release_update renderer terrain assets',
-    'engine gui net config save_load media games software web_reader updater wasm_entry',
-  ];
-  L.forEach((s, i) => s.split(/\s+/).forEach((m) => (layer[m] = i)));
-  const SAME3 = new Set(['relay', 'how_to', 'release_update']); // the server group; renderer/terrain/assets the other
+  const PLAN = JSON.parse(fs.readFileSync(path.join(__dirname, 'crate-layers.json'), 'utf8'));
+  // path -> crate, and each crate's transitive set of crates it may use.
+  const owner = new Map();
+  for (const c of PLAN.crates) for (const p of c.paths) owner.set(p.replace(/\.rs$/, ''), c.name);
+  const direct = new Map(PLAN.crates.map((c) => [c.name, c.uses]));
+  const may = new Map();
+  const reach = (n, seen = new Set()) => {
+    for (const u of direct.get(n) || []) if (!seen.has(u)) { seen.add(u); reach(u, seen); }
+    return seen;
+  };
+  for (const c of PLAN.crates) may.set(c.name, reach(c.name));
+  // The crate that owns a module path ("engine/protected/x"): its most specific listed prefix.
+  const crateOf = (mod) => {
+    const parts = mod.split('/');
+    for (let k = parts.length; k > 0; k--) {
+      const hit = owner.get(parts.slice(0, k).join('/'));
+      if (hit) return hit;
+    }
+    return null;
+  };
   function walk(dir, out) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
@@ -27,39 +40,66 @@ if (process.argv.includes("--edges")) {
   }
   const files = [];
   walk(ROOT, files);
-  const edges = new Map(); // "from->to" -> Map(item -> count)
+  const lines = new Map();
+  const edges = new Map(); // "from -> to" -> Map("module: item" -> count)
+  let unowned = new Set();
   for (const f of files) {
     const rel = path.relative(ROOT, f).replace(/\\/g, '/');
-    if (rel === 'lib.rs' || rel === 'main.rs' || rel === 'build.rs') continue;
+    if (rel === 'build.rs') continue;
+    // The file's module path: a/b.rs -> a/b, a/b/mod.rs -> a/b.
+    const mod = rel.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '');
+    const from = crateOf(mod);
+    if (!from) { unowned.add(mod.split('/')[0]); continue; }
+    const raw = fs.readFileSync(f, 'utf8');
+    lines.set(from, (lines.get(from) || 0) + raw.split('\n').length);
     if (/_tests?\.rs$|\/tests?\//.test(rel)) continue;
-    const from = rel.split('/')[0].replace(/\.rs$/, '');
-    if (!(from in layer)) continue;
-    const src = fs.readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '');
-    const refs = [...src.matchAll(/crate::([a-z_0-9]+)((?:::[A-Za-z_0-9]+)*)/g)].map((r) => [r[1], r[1] + r[2]]);
+    // Non-test code only: comments out, and everything from the first inline test module on.
+    let src = raw.replace(/\/\/.*$/gm, '');
+    const ti = src.search(/#\[cfg\(test\)\]\s*mod\s/);
+    if (ti >= 0) src = src.slice(0, ti);
+    // `super::` resolves against this file's module: a/b/c.rs's super is a/b (mod.rs's is a's).
+    const selfPath = mod.split('/');
+    const parentOf = (n) => selfPath.slice(0, Math.max(0, selfPath.length - n));
+    const refs = [];
+    for (const r of src.matchAll(/crate::([a-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) refs.push(r[1].split('::'));
     for (const g of src.matchAll(/use\s+crate::\{([^}]*)\}/g)) {
       for (const part of g[1].split(',')) {
         const p = part.trim().replace(/\s+as\s+\w+$/, '');
-        if (p) refs.push([p.split('::')[0], p]);
+        if (p) refs.push(p.split('::'));
       }
     }
-    for (const [to, item] of refs) {
-      if (!(to in layer) || to === from) continue;
-      const up = layer[to] > layer[from] || (layer[to] === 3 && layer[from] === 3 && SAME3.has(to) !== SAME3.has(from));
-      if (!up) continue;
+    for (const r of src.matchAll(/((?:super::)+)([A-Za-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) {
+      const ups = r[1].length / 'super::'.length;
+      refs.push([...parentOf(ups), ...r[2].split('::')]);
+    }
+    for (const segs of refs) {
+      const lower = [];
+      for (const s of segs) { if (!/^[a-z_0-9]+$/.test(s)) break; lower.push(s); }
+      const to = crateOf(lower.join('/'));
+      if (!to || to === from || may.get(from).has(to)) continue;
       const k = `${from} -> ${to}`;
       const m = edges.get(k) || new Map();
+      const item = `${selfPath[0]}: ${segs.join('::')}`;
       m.set(item, (m.get(item) || 0) + 1);
       edges.set(k, m);
     }
   }
-  const rows = [...edges.entries()].map(([k, m]) => [k, [...m.values()].reduce((a, b) => a + b, 0), m]).sort((a, b) => b[1] - a[1]);
-  let total = 0;
-  for (const [k, n, m] of rows) {
-    total += n;
-    const items = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([i, c]) => `${i}(${c})`).join(' ');
-    console.log(`${String(n).padStart(4)}  ${k.padEnd(30)} ${items}`);
+  if (process.argv.includes("--crates")) {
+    for (const c of PLAN.crates) {
+      console.log(`${String(lines.get(c.name) || 0).padStart(7)}  ${c.name.padEnd(20)} uses ${c.uses.map((u) => u.replace('humanity-', '')).join(', ') || '(nothing)'}`);
+    }
   }
-  console.log(`\n${rows.length} upward edges, ${total} references in non-test code`);
+  if (process.argv.includes("--edges")) {
+    const rows = [...edges.entries()].map(([k, m]) => [k, [...m.values()].reduce((a, b) => a + b, 0), m]).sort((a, b) => b[1] - a[1]);
+    let total = 0;
+    for (const [k, n, m] of rows) {
+      total += n;
+      const items = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([i, c]) => `${i}(${c})`).join('  ');
+      console.log(`${String(n).padStart(4)}  ${k.padEnd(40)} ${items}`);
+    }
+    console.log(`\n${rows.length} wrong-way edges, ${total} references in non-test code (plan: scripts/crate-layers.json)`);
+  }
+  if (unowned.size) console.log(`\nNOT IN THE PLAN (add them to scripts/crate-layers.json): ${[...unowned].join(', ')}`);
 } else {
   const fs = require('fs');
   const path = require('path');

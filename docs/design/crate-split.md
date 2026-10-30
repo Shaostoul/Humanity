@@ -1,116 +1,162 @@
 # Splitting the crate: what goes where, and in what order
 
-Status: **proposal, 2026-10-30, for the operator's decision.** Nothing is moved yet. It would
-reverse the 2026-06-30 one-crate decision (CLAUDE.md, Architecture: "one `Cargo.toml` at the repo
-root, no workspace, no sub-crates"), so the operator decides whether, and the layering below is
-the part to agree first. Every number here comes from `node scripts/crate-graph.js` (and
-`--edges`) on 2026-10-30, or from `docs/ai/builds.md` ("Measured 2026-10-24"); re-run the script
-before acting, because the code moves daily.
+Status: **the split is decided (operator, 2026-10-30): "The split makes sense. Saves us compute.
+Saves electricity. Makes development a little bit faster."** It reverses the 2026-06-30 one-crate
+decision (CLAUDE.md, Architecture: "one `Cargo.toml` at the repo root, no workspace, no
+sub-crates"), which changes when rung 1 lands, not before. **The layering below (ten crates) and
+the names are the recommendation given the same day in answer to the operator's questions; they are
+his to change.** Nothing has moved yet.
+
+The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
+which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
+`--edges` lists every reference that points the wrong way under the plan (the rung-0 work list).
+Every number here comes from those, from `git log` over the 30 days to 2026-10-30, or from
+`docs/ai/builds.md` ("Measured 2026-10-24"). Re-run before acting: the code moves daily.
 
 ## Why
 
 - **One compile of our crate, cold: 241 s** on the operator's PC. Type checking 46 s and borrow
   checking 50 s run on ONE core inside one crate (about 40% of every compile); code generation
   105 s is already spread across the cores; linking 5 s (`docs/ai/builds.md`).
-- **A one-line edit re-checks all of it: 56 s.** The crate is 639,084 lines of Rust in 1,037 files
-  (the biggest single file is `src/lib.rs`, 16,672 lines), and an edit anywhere re-checks
+- **A one-line edit re-checks all of it: 56 s.** The crate is about 640,000 lines of Rust in 1,037
+  files (the biggest single file is `src/lib.rs`, 16,672 lines), and an edit anywhere re-checks
   everything.
-- **The server build** (the relay, `--features relay`) compiles the same crate: 10 to 11 minutes on
-  the VPS's two cores, about 9.5 minutes on a GitHub runner. Since 2026-10-30 it runs on GitHub
-  (`.github/workflows/deploy.yml`), but its length is the crate's.
+- **The server build** (the relay, `--features relay`) compiles the same crate: about 9.5 minutes
+  on a GitHub runner (`.github/workflows/deploy.yml` since 2026-10-30), and its length is the
+  crate's.
 
-Separate crates let Cargo re-check only the crate an edit touches and the ones above it, and check
-crates that do not depend on each other at the same time, on different cores.
+## How a split pays, and when it does not
 
-## What the code looks like today
+Two facts decide every boundary:
 
-- **50 top-level modules** (declared in `src/lib.rs`). **31 of them, 618,218 of 622,612 lines, form
-  one cycle**: each reaches the others directly or round a loop (the shared simulation `systems`
-  reaches `gui`, `engine` and `save_load`; `ship` reaches `engine`, `gui` and `renderer`; `terrain`
-  and `renderer` reach each other; `ecs` reaches `systems` and `renderer`). Cargo forbids cycles
-  between crates, so the split cannot follow today's module lines as they stand.
-- **But the cycle is held together by very little.** Under the layering below, only **102
-  references in 30 edges** of non-test code point the wrong way (upward). The large raw counts
-  (`systems -> gui` 15 and the like) are mostly tests and comments.
+1. **An edit re-checks the crate it is in and every crate that uses that crate.** So code that is
+   big and rarely edited belongs at the bottom, where every edit above it skips it, and the code
+   edited most belongs at the top, where an edit re-checks the least.
+2. **Crates that do not use each other compile at the same time, on different cores.** Crates
+   stacked in a chain do not.
 
-## The layering (each crate may use only its own layer and the ones below)
+And the reasons not to split:
 
-| Crate | Layer | Modules | Lines |
-|---|---|---|---|
-| `hos-core` | 1 | the small leaves (input, audio, utilities, physics, debug, platform, turning, reactions, lod_registry, boot_timing, credits, scenic_views, showroom, mods, player_look, cosmetics, auto_unlock) and the core data (embedded_data, ecs, hot_reload, storage, cosmos, dev_travel) | ~11,000 |
-| `hos-sim` | 2 | systems, machines, ship, persistence, station, surface_walk, surface_move | ~111,000 |
-| `hos-relay` | 3 | relay, how_to, release_update (the server) | ~123,000 |
-| `hos-render` | 3 | renderer, terrain, assets (beside the server, not above it) | ~93,000 |
-| `humanity` (the app and the binary) | 4 | engine, gui, net, config, save_load, media, games, software, web_reader, updater, wasm_entry, and `lib.rs` | ~301,000 |
+- **Each boundary is work once:** every reference that crosses it the wrong way has to move first
+  (the list below).
+- **And a little friction after:** an item used across the line must be `pub`; a change that spans
+  two crates edits both.
+- **A small piece split off one end of a chain saves almost nothing**, because the chain still
+  re-checks above it and nothing gains a core.
+- **Speed across crates:** a small function in one crate is only inlined into another with
+  `#[inline]` or link-time optimisation; release builds may want `lto = "thin"`, measured with
+  `just perf-sweep` before and after.
 
-The feature flags become crate choices: the server build is `hos-relay` and what it needs (core,
-sim), with no GPU crate in it at all, instead of `--no-default-features` on one crate.
+## The ten crates
 
-## The 102 references to re-home first (the full list: `node scripts/crate-graph.js --edges`)
+| Crate | What is in it | Lines | Commits in 30 days | An edit re-checks | May use |
+|---|---|---|---|---|---|
+| `humanity-core` | the small leaves, the ECS, data loading, hot reload, storage, cosmos | 11,374 | 50 | 100% | nothing |
+| `humanity-protocol` | `relay/core`: keys, signatures, sealed messages, signed objects, encodings | 12,621 | 21 | 66% | core |
+| `humanity-ship` | `ship`, `machines`, `station`: the home's structure, its machines, the orbit | 31,980 | 81 | 77% | core |
+| `humanity-terrain` | `terrain`: planets, heights, oceans, chunk meshes as plain data | 23,731 | 2 | 86% | core |
+| `humanity-systems` | `systems`, `persistence`, `surface_walk`, `surface_move`: the simulation | 78,798 | 108 | 72% | core, ship, terrain |
+| `humanity-relay` | `relay`, `how_to`, `release_update`: the server | 110,645 | 142 | 60% | core, protocol, ship, systems |
+| `humanity-net` | `net`: the app's side of the network | 30,691 | 58 | 47% | core, protocol |
+| `humanity-renderer` | `renderer`, `assets`: uploading and drawing | 68,820 | 37 | 53% | core, terrain |
+| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes) | 177,268 | 255 | 42% | all of the above |
+| `humanity-engine` | `engine` (THE FRAME), `lib.rs`, `save_load`, `updater`, the binary | 94,250 | 242 | 15% | everything |
+
+"An edit re-checks" is the crate plus every crate that may use it, as a share of all the lines.
+Weighted by how often each is edited, **an average edit would re-check about half the code instead
+of all of it, and an engine edit (242 commits) about 15%: on the 56 s measured today, roughly 27 s
+on average and 8 s for an engine edit. Estimates, to be measured at each rung** (incremental
+compilation inside the crates above an edit may make them faster still). Work on the server alone
+can check `humanity-relay` by itself (`cargo check -p humanity-relay`, about a quarter of the code);
+the server build on GitHub compiles core, protocol, ship, terrain, systems and relay, with no GPU
+or GUI code in it at all. In a cold build, ship, terrain, protocol and net compile side by side,
+then systems beside the renderer.
+
+## The questions the operator asked (2026-10-30), and the answers
+
+- **Split the simulation into systems, machines and ship?** ship is 24k lines, machines 6k,
+  systems 61k; only about 10 references hold them in a loop. Split into a chain they save little on
+  their own (a systems edit skips 30k lines), so **ship, machines and the station become one
+  crate, `humanity-ship`, beneath `humanity-systems`**: cheap, and it is a real line (what the
+  simulation runs on, against the simulation). **The domains inside systems** (farming 15k lines,
+  construction 6.6k, crafting 4.5k, food 2.8k, ...) could later become crates side by side, which
+  is where the simulation's real gain is, but they reach into each other (food uses 13 other
+  domains); **not now**: revisit with the rung-2 measurements.
+- **Split terrain from the renderer?** **Yes, as its own crate under both the renderer and
+  systems.** For: 23k lines edited twice in 30 days compile once and stay cached, so every edit
+  above it skips them; and the line between "the planet's shape and heights" and "drawing it" becomes
+  real. Against: 17 references from terrain into the renderer move first (the vertex type, the
+  patch slot, the tree card footprint, the projection math), and `planet_chunks.rs` (4,621 lines)
+  mixes height math with mesh building and splits in two. (The first draft of this plan cut terrain
+  in half between the simulation and the renderer; one crate under both is simpler.)
+- **engine, gui, net?** **Yes, all three.** net uses gui once, engine never, config three times: it
+  is nearly separate already, and its use of the server is almost all the protocol core
+  (`relay::core`, 50 references), which becomes `humanity-protocol` so net and the server compile
+  side by side. gui and engine are the most-edited code (255 and 242 commits): gui reached into
+  engine 196 times, but most of that was the chat-safety code that sits in engine's folder and
+  works on the GUI's state; it moves into the gui crate (measured: 205 wrong-way references with it
+  in net, 155 with it in gui). **gui pages as separate crates: not now:** every page uses
+  `GuiState` (`gui/mod.rs`, itself edited 92 times in the 30 days).
+- **The names** (below).
+
+## The names
+
+**`humanity-` and the module's current name**: `humanity-systems`, `humanity-renderer`,
+`humanity-gui`, and so on; the top crate keeps today's package name, `humanity-engine` (the log
+targets already read `humanity_engine::`). Why: one concept, one word (CLAUDE.md, the 2026-10-19
+naming rule): a crate called `sim` holding a module called `systems` is two names for one thing.
+It matches the existing package name and the `HUMANITY_` settings. The `hos-` of the first draft
+was short but cryptic. The longer name costs nothing in code: a file imports a crate once.
+The two new groupings are named for what they hold: `humanity-core`, `humanity-protocol`.
+
+The crates live in `crates/<name>/` (the Rust convention), with `src/` emptying into them crate by
+crate. CLAUDE.md's warning that an agent reporting edits under `crates/` was in a stale worktree
+(the v0.90 layout) is rewritten in the same rung.
+
+## The 155 references to re-home first (`node scripts/crate-graph.js --edges`)
 
 | Edge | Refs | What crosses | The cut |
 |---|---|---|---|
-| systems -> assets | 24 | `assets::loader::parse_csv`, `parse_ron` | Move the CSV/RON loaders down into `hos-core` (pure parsing). Also fixes embedded_data -> assets (3) and ship -> assets (1). |
-| ship -> renderer | 12 | `renderer::mesh::Vertex` (7), camera constants | Move the vertex type and the few constants down to core; the renderer uploads what ship builds. |
-| ship -> engine | 8 | `engine::footing` (Footing, STEP_UP_M, test_aboard), `engine::home_plot` | Move footing into `hos-sim`; it is how a body stands on a deck, not engine plumbing. |
-| surface_walk, surface_move, dev_travel, systems -> terrain | 19 | planet heightmap, PlanetDef, ocean mask, planet chunks' height and noise | Move the planet DATA modules (planet, planet_heightmap, planet_surface, ocean_mask, terrain_tiles, drawn_surface) into `hos-sim`, and split `planet_chunks.rs` (4,621 lines, 13 renderer references) into its height and noise math (sim) and its meshes (render). **The hardest single cut.** |
-| hot_reload -> engine | 6 | `EngineState`, `reload_planet_defs`, `rebuild_plant_meshes` and the like | Invert it: hot reload reports what changed; the engine reacts. |
-| machines, systems -> save_load | 5 | `active_home`, `apply_save_to_world`, `catch_up_world` | Move the active-home notion and the world catch-up into `hos-sim`. |
-| systems, ship -> gui | 4 | `gui::i18n::t`, `gui::RoomBounds` | Move the word lookup (`t`) and RoomBounds down; the server already reads the words without the GUI. |
-| surface_move -> renderer | 3 | `Camera::new`, `celestial_projection_f64` | Move the projection math down. |
-| the rest | 21 | one to two references each (ecs -> `frame_costs`, `MET_STANDING`; relay -> `net::dm_pq::build_signed_inner`; renderer -> `games::registry`, `net::live::RawFrame`; storage -> `HomeDesign`; frame_lock's `ground_radius_m`; `AppConfig::default` in terrain; how_to -> the app's page list; cosmetics and player_look -> ecs components) | Each moves to the lowest crate that uses it, or the caller takes it as an argument. |
-
-## What it would buy, by how the project is actually edited
-
-Commits touching `src/` in the 30 days to 2026-10-30, by the crate they would touch (a commit can
-touch more than one): **app 360, sim 157, server 151, core 48, render 39** (of 642).
-
-- **An app-only edit** (the most common) would re-check about 301,000 lines instead of 639,000.
-  If re-checking scales with lines, the 56 s becomes about 26 s. **Estimate, to be measured.**
-- **A server-only edit** would rebuild `hos-relay` on top of core and sim already built: the
-  relay's compile is about a fifth of the crate's.
-- **A simulation edit** rebuilds sim and everything above it: little gain (157 commits).
-- **A cold build** checks the server and render crates at the same time, on two cores, which
-  today run one after the other inside one crate.
-- **A catch for CI:** a fresh checkout gives every file a new timestamp, so Cargo rebuilds path
-  crates whatever the cache holds. The CI gain needs either `git restore-mtime` before building, or
-  Cargo's content-hash freshness, which is still unstable. Locally, the gain is immediate.
+| gui -> engine | 58 | page buttons that call the engine directly: save and load (`active_home`, `extract_world_save`, `apply_save_to_world`, save slots), the map feed and tiles, the editor's storey names, the play journal, household, choices, net routes | The page posts a request in `GuiState` and the engine carries it out (the pattern the dev IPC already uses), or a pure helper moves down (the storey names to ship) |
+| systems -> renderer | 20 | `assets::loader::parse_ron`, `parse_csv` (18); `Camera::new`, `celestial_projection_f64` | Move the CSV/RON loaders down into core (pure parsing; also fixes ship's and core's uses); the projection math to terrain |
+| terrain -> renderer | 17 | `patch_arena::PatchSlot`, `mesh::Vertex`, `tree_mesh::registry`, `CardFootprint`, the projection | Move the plain data types down (the vertex to core, the patch slot and card footprint to terrain); split `planet_chunks.rs` |
+| renderer -> systems | 12 | the surface look angles (`surface_walk`), `WeatherCondition` | Move the look math to terrain, the weather condition to core |
+| ship -> systems | 8 | `DayEnergy`, `GrownFood`, `DAY_HOURS` (machines) | Move the day-energy and grown-food types down to ship |
+| ship -> renderer | 8 | `mesh::Vertex` (7), `parse_ron` | The vertex to core (as above) |
+| core -> engine | 6 | hot reload calls the engine (`EngineState`, `reload_planet_defs`, ...) | Invert it: hot reload reports what changed; the engine reacts |
+| core -> renderer | 4 | `frame_costs`, the asset loader and watcher | Move `frame_costs` and the file watcher to core |
+| net -> gui | 4 | `config::pbkdf2_sha256` (the vault key derivation), a part-file widget | The key derivation to protocol (crypto belongs there); the helper down |
+| the rest | 18 | one or two each (`gui::i18n::t` and `RoomBounds` from ship and systems, `frame_lock::ground_radius_m`, `MET_STANDING`, `ShowcaseGarden`, `how_to`'s page list, `games::registry`, `net::live::RawFrame`, `epoch_days_to_ymd`, `WEATHER_MAP_W/H`, `active_home` in machines) | Each moves to the lowest crate that uses it, or the caller passes it in |
 
 ## Costs and risks
 
-- **A Cargo workspace** replaces the one `Cargo.toml` (`[workspace]` with five members). CLAUDE.md's
+- **A Cargo workspace** replaces the one `Cargo.toml` (`[workspace]` with ten members). CLAUDE.md's
   Architecture section, the build slot (`rustc-workspace-wrapper` already wraps every member), the
   lint and test recipes, CI's three workflows and the release scripts all change in step.
-- **Speed across crates:** a small function in one crate is only inlined into another with
-  `#[inline]` or link-time optimisation. Release builds may want `lto = "thin"`; measure the frame
-  cost with `just perf-sweep` before and after.
+- **Feature flags become crate choices:** the server build is `humanity-relay` and what it uses,
+  instead of `--no-default-features` on one crate.
 - **Visibility:** `pub(crate)` items used across a new boundary become `pub`; the move makes those
   uses visible, which is a review, not a risk.
-- **Tests** move with their code; a test that reaches across layers becomes an integration test of
-  the crate above.
-- **No runtime change** is intended anywhere. Each rung must keep the farming golden state
+- **Tests** move with their code; a test that reaches across layers becomes a test of the crate
+  above.
+- **A catch for CI:** a fresh checkout gives every file a new timestamp, so Cargo rebuilds path
+  crates whatever the cache holds. The CI gain needs `git restore-mtime` before building, or Cargo's
+  content-hash freshness (still unstable). Locally the gain is immediate.
+- **No runtime change** is intended anywhere. Each rung keeps the farming golden state
   (`src/systems/farming/golden_tests.rs`), the lib tests, the relay battery and a
   `just verify-runtime` boot exactly as they were.
 
 ## Order of work (each rung shippable alone, and measured)
 
-0. **Inside the one crate, re-home the 102 references** (the table above), a few edges per commit,
-   with no Cargo change. Then add a lint (`tests/layer_lint.rs`, the same reading as
-   `scripts/crate-graph.js --edges`) that fails on any new upward reference, so the cycle cannot grow
-   back while the rest is done. **This rung is worth doing even if the split never happens:** it
-   untangles the dependency structure.
-1. **The workspace and `hos-core`** (the smallest and lowest). Measure a cold build and a one-line
-   app edit against 241 s and 56 s.
-2. **`hos-sim`.** Measure.
-3. **`hos-relay` and `hos-render`.** Measure the server build on GitHub; the VPS deploy then
-   rebuilds only what changed.
-4. **What is left is `humanity`,** the app and the binary.
-
-## For the operator to decide
-
-1. **Whether to split at all** (it reverses 2026-06-30's one crate), knowing rung 0 is worth doing
-   either way.
-2. **The layering:** these five crates, and which side of the line each module sits on. The table is
-   a proposal; the module that most deserves a second look is `terrain`, split between sim and
-   render.
-3. **The names.** `hos-` is a placeholder prefix.
+0. **Inside the one crate, re-home the 155 references** (the table above), a few edges per commit,
+   with no Cargo change. Then a layer lint (`tests/layer_lint.rs`) that reads
+   `scripts/crate-layers.json` the way `crate-graph.js --edges` does and fails on any new
+   wrong-way reference, so the cycle cannot grow back while the rest is done. This rung is worth
+   doing even if a later rung stalls: it untangles the dependency structure.
+1. **The workspace, `humanity-core` and `humanity-protocol`** (the smallest and lowest). Measure a
+   cold build and a one-line edit against 241 s and 56 s.
+2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.
+3. **`humanity-relay`, `humanity-net` and `humanity-renderer`.** Measure the server build on
+   GitHub.
+4. **`humanity-gui`**, leaving **`humanity-engine`**, the app and the binary. Measure an engine
+   edit against the 8 s estimate.

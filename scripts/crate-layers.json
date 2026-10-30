@@ -1,0 +1,180 @@
+{
+  "_comment": "The planned crate split (docs/design/crate-split.md): which crate each part of src/ goes to, and which crates each may use. ONE source for the plan: scripts/crate-graph.js --edges reads it to list the references that point the wrong way, and the layer lint of rung 0 will read it to refuse new ones. A path is a top-level module (\"systems\") or a folder or file inside one (\"relay/core\", \"engine/protected\"); the most specific path wins. `uses` lists only the crates a crate may reach DIRECTLY; reaching one of theirs is fine too (it is transitive). Proposed 2026-10-30; the split itself was agreed that day, the layering and the names are the recommendation in the doc, still the operator's to change.",
+  "crates": [
+    {
+      "name": "humanity-core",
+      "why": "The basics every other crate uses: the ECS, the data loading, small leaves. Rarely edited, so every edit above it skips it.",
+      "paths": [
+        "input",
+        "audio",
+        "utilities",
+        "physics",
+        "debug",
+        "platform",
+        "turning",
+        "reactions",
+        "lod_registry",
+        "boot_timing",
+        "credits",
+        "scenic_views",
+        "showroom",
+        "mods",
+        "player_look",
+        "cosmetics",
+        "auto_unlock",
+        "embedded_data",
+        "ecs",
+        "hot_reload",
+        "storage",
+        "cosmos",
+        "dev_travel",
+        "test_temp",
+        "test_log",
+        "test_clock"
+      ],
+      "uses": []
+    },
+    {
+      "name": "humanity-protocol",
+      "why": "What the app and the server both speak: keys, signatures, sealed messages, signed objects, encodings. Small, security-critical, easy to review on its own; lets net and the relay compile side by side.",
+      "paths": [
+        "relay/core"
+      ],
+      "uses": [
+        "humanity-core"
+      ]
+    },
+    {
+      "name": "humanity-ship",
+      "why": "The home's structure, its machines and the station's orbit: what the simulation runs on.",
+      "paths": [
+        "ship",
+        "machines",
+        "station"
+      ],
+      "uses": [
+        "humanity-core"
+      ]
+    },
+    {
+      "name": "humanity-terrain",
+      "why": "Planets: shape, heights, oceans, the chunk meshes as plain data. 23k lines edited twice in 30 days, so it compiles once and stays cached.",
+      "paths": [
+        "terrain"
+      ],
+      "uses": [
+        "humanity-core"
+      ]
+    },
+    {
+      "name": "humanity-systems",
+      "why": "The simulation: farming, building, crafting, food, weather, creatures, walking on a planet.",
+      "paths": [
+        "systems",
+        "persistence",
+        "surface_walk",
+        "surface_move"
+      ],
+      "uses": [
+        "humanity-core",
+        "humanity-ship",
+        "humanity-terrain"
+      ]
+    },
+    {
+      "name": "humanity-relay",
+      "why": "The server. The VPS build is this crate and what it uses, with no GPU code in it.",
+      "paths": [
+        "relay",
+        "how_to",
+        "release_update"
+      ],
+      "uses": [
+        "humanity-core",
+        "humanity-protocol",
+        "humanity-ship",
+        "humanity-systems"
+      ]
+    },
+    {
+      "name": "humanity-net",
+      "why": "The app's side of the network. Its use of the server is almost all the protocol core, so with that in humanity-protocol it compiles beside the relay.",
+      "paths": [
+        "net"
+      ],
+      "uses": [
+        "humanity-core",
+        "humanity-protocol"
+      ]
+    },
+    {
+      "name": "humanity-renderer",
+      "why": "The GPU side: uploading and drawing what the other crates describe.",
+      "paths": [
+        "renderer",
+        "assets"
+      ],
+      "uses": [
+        "humanity-core",
+        "humanity-terrain"
+      ]
+    },
+    {
+      "name": "humanity-gui",
+      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes). With it in net instead, 205 references pointed the wrong way; here, 155.",
+      "paths": [
+        "gui",
+        "config",
+        "games",
+        "software",
+        "media",
+        "web_reader",
+        "engine/protected",
+        "engine/warnings",
+        "engine/dm",
+        "engine/block",
+        "engine/report",
+        "engine/reach",
+        "engine/key_cards",
+        "engine/group_report",
+        "engine/file_transfer",
+        "engine/friend_code"
+      ],
+      "uses": [
+        "humanity-core",
+        "humanity-protocol",
+        "humanity-ship",
+        "humanity-terrain",
+        "humanity-systems",
+        "humanity-relay",
+        "humanity-net",
+        "humanity-renderer"
+      ]
+    },
+    {
+      "name": "humanity-engine",
+      "why": "THE FRAME: the main loop (lib.rs), engine/, saving and loading, the updater, the binary, and the two save_load test files at the top of src/. The most edited code, so it sits on top where an edit re-checks the least.",
+      "paths": [
+        "engine",
+        "save_load",
+        "updater",
+        "wasm_entry",
+        "lib.rs",
+        "main.rs",
+        "save_load_body_tests",
+        "save_load_slot_tests"
+      ],
+      "uses": [
+        "humanity-core",
+        "humanity-protocol",
+        "humanity-ship",
+        "humanity-terrain",
+        "humanity-systems",
+        "humanity-relay",
+        "humanity-net",
+        "humanity-renderer",
+        "humanity-gui"
+      ]
+    }
+  ]
+}
