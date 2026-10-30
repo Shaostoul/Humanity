@@ -23,6 +23,10 @@ concurrency:
 #   plan    reads, from the VPS, the commit the running program was built from and the commit at
 #           its last restart, and compares them with this push: Rust changed -> build and restart;
 #           only data/ changed -> restart (the relay reads some data only at start); else neither.
+#           Three data/ folders never restart it: library/ (the web serves it; the relay never
+#           reads it), coordination/ (the agents' journal and registry, which the relay reads per
+#           request) and performance/ (the desktop's Performance page). Until 2026-10-30 every
+#           journal commit restarted the relay and dropped everyone's chat.
 #   build   (only when Rust changed) compiles on Ubuntu 22.04, whose glibc (2.35) is older than the
 #           VPS's Debian 12 (2.36): ubuntu-latest's newer glibc gives a program Debian 12 refuses
 #           to start (the release relay built there needs GLIBC_2.39). It checks that, too.
@@ -68,7 +72,7 @@ jobs:
           fi
           restart=$build
           if [ "$restart" = false ]; then
-            if ! known "$started_at" || ! git diff --quiet "$started_at" "$GITHUB_SHA" -- data; then
+            if ! known "$started_at" || ! git diff --quiet "$started_at" "$GITHUB_SHA" -- data ':(exclude)data/library' ':(exclude)data/coordination' ':(exclude)data/performance'; then
               restart=true
             fi
           fi
