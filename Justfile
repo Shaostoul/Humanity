@@ -35,7 +35,10 @@ bump kind="patch":
 # DEPLOY — getting code to production
 # ══════════════════════════════════════════════════════════════════════════════
 
-# THE ONE COMMAND: bump + regen theme + bundle web + commit + push + force-sync VPS
+# THE ONE COMMAND: bump + regen theme + bundle web + commit + push. The push deploys itself:
+# .github/workflows/deploy.yml builds the relay on GitHub, swaps it in and restarts only when
+# needed. Until 2026-10-30 this also ran `just sync`, which rebuilt the relay ON the VPS (10 to 11
+# minutes on its two cores) and restarted it, on top of the deploy the push had already started.
 ship msg="chore: update":
     @if git diff --cached --quiet; then just _nothing-staged; exit 1; fi
     @just bump
@@ -43,7 +46,7 @@ ship msg="chore: update":
     @just bundle-web
     @just _stage-generated
     @just _commit "{{msg}}"
-    @just sync
+    @echo "→ Pushed. GitHub deploys it to the VPS (just ci shows the run; just sync only if that deploy cannot run)."
     -@node scripts/check-delivery.js --warn
 
 # Internal: stage the files `ship` itself generates (version stamps, theme CSS,
@@ -200,12 +203,15 @@ pq-wipe CONFIRM="no":
     @if [ "{{CONFIRM}}" != "yes" ]; then echo "Refusing. Run: just pq-wipe yes  (irreversible-ish; backs up first)"; exit 2; fi
     ssh humanity-vps 'cd /opt/Humanity && git fetch origin main -q && git reset --hard -q origin/main && bash scripts/pq-wipe.sh --yes'
 
-# Force-sync VPS with current origin/main right now (full rebuild)
-# Use when: CI fails, server is out of sync, or you need it live immediately
+# THE FALLBACK DEPLOY: build and start origin/main ON the VPS, for when GitHub's deploy cannot run
+# (docs/INCIDENT-PLAYBOOK.md, "CI broken"). An ordinary push deploys itself and needs none of this.
+# Slow (10 to 11 minutes on the VPS's two cores, beside the live relay) and always restarts. It
+# writes the same two markers the GitHub deploy reads (HumanityOS.source and .started), so the
+# next deploy knows what is running. The web root is laid out by the one shared script.
 sync:
-    @echo "→ Syncing VPS (full rebuild)..."
+    @echo "→ Fallback deploy: building on the VPS (slow; an ordinary push deploys itself)..."
     ssh humanity-vps " \
-        set -e && \
+        set -e -o pipefail && \
         cd /opt/Humanity && \
         git fetch origin main && \
         git reset --hard origin/main && \
@@ -213,24 +219,16 @@ sync:
         ( DISK_PCT=\$(df --output=pcent / | tail -1 | tr -dc '0-9' || echo 0); if [ \"\${DISK_PCT:-0}\" -ge 80 ]; then echo \"disk \${DISK_PCT}%>=80 - clearing regenerable target/, keeping the relay binary\"; bash scripts/clear-build-cache.sh /opt/Humanity; fi; cp -f scripts/systemd/humanity-disk-guard.service /etc/systemd/system/humanity-disk-guard.service; cp -f scripts/systemd/humanity-disk-guard.timer /etc/systemd/system/humanity-disk-guard.timer; chmod +x scripts/humanity-disk-guard.sh; systemctl daemon-reload; systemctl enable --now humanity-disk-guard.timer; if visudo -cf scripts/sudoers.d/humanity-relay-services >/dev/null 2>&1; then install -m 0440 -o root -g root scripts/sudoers.d/humanity-relay-services /etc/sudoers.d/humanity-relay-services; fi; ) || true && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
         cargo build --release --features relay --no-default-features 2>&1 | tail -4 && \
-        rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
-        rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
-        rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
-        mkdir -p /var/www/humanity/pages /var/www/humanity/activities /var/www/humanity/data && \
-        for f in /opt/Humanity/web/pages/*.html; do \
-            [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
-        done && \
-        for f in /opt/Humanity/web/pages/*.js; do \
-            [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
-        done && \
-        ( ! [ -d /opt/Humanity/web/activities ] || rsync -a /opt/Humanity/web/activities/ /var/www/humanity/activities/ ) && \
-        rsync -a -m --include='*/' --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ && \
+        bash scripts/sync-web-root.sh /opt/Humanity /var/www/humanity && \
         systemctl restart humanity-relay && \
-        sleep 2 && systemctl is-active humanity-relay \
+        sleep 2 && systemctl is-active humanity-relay && \
+        git rev-parse HEAD > target/release/HumanityOS.source && \
+        git rev-parse HEAD > target/release/HumanityOS.started \
     "
-    @echo "✓ VPS synced and relay restarted."
+    @echo "✓ Fallback deploy done: built on the VPS and restarted."
 
-# Sync web assets only — skips Rust rebuild (fast, use for HTML/JS/CSS changes)
+# Web assets only, no relay build or restart: the fallback for the web half of a deploy (an
+# ordinary push lays out the web root itself). The layout is the one shared script's.
 sync-web:
     @echo "→ Syncing web assets only..."
     ssh humanity-vps " \
@@ -239,18 +237,7 @@ sync-web:
         git fetch origin main && \
         git reset --hard origin/main && \
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
-        rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
-        rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
-        rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
-        mkdir -p /var/www/humanity/pages /var/www/humanity/activities /var/www/humanity/data && \
-        for f in /opt/Humanity/web/pages/*.html; do \
-            [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
-        done && \
-        for f in /opt/Humanity/web/pages/*.js; do \
-            [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
-        done && \
-        ( ! [ -d /opt/Humanity/web/activities ] || rsync -a /opt/Humanity/web/activities/ /var/www/humanity/activities/ ) && \
-        rsync -a -m --include='*/' --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ \
+        bash scripts/sync-web-root.sh /opt/Humanity /var/www/humanity \
     "
     @echo "✓ Web assets synced (relay not restarted)."
 

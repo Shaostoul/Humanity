@@ -100,9 +100,9 @@ Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`, since 2026-10
 
 The VPS runs the same unified binary in headless mode: `HumanityOS --headless`
 
-When CI fails (server has local changes or build error):
+When the GitHub deploy cannot run (the server has local changes, the workflow is broken, GitHub is down), the fallback builds on the VPS itself, slowly, and always restarts; it writes the same two markers the deploy reads. `just ship` no longer runs it (since 2026-10-30: the push deploys):
 ```bash
-just sync    # fetches, git reset --hard, rebuilds, rsyncs, restarts
+just sync    # fetches, git reset --hard, builds ON the VPS, lays out the web root, restarts
 ```
 
 **VPS paths**:
@@ -119,7 +119,7 @@ just sync    # fetches, git reset --hard, rebuilds, rsyncs, restarts
 ## Recipes
 
 ```
-just sync             # force-sync VPS now               ← when CI breaks
+just sync             # fallback deploy, builds on the VPS ← only when the GitHub deploy cannot run
 just sync-web         # assets only, no rebuild (fast)   ← front-end changes
 just build-game       # bump version, compile, archive versioned exe
 just play             # build-game + launch

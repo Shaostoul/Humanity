@@ -147,7 +147,7 @@ gh run list --limit 5 --workflow=deploy-to-vps.yml
 ```
 - All green but VPS is on an older commit: VPS deploy SSH key was rotated / removed. Re-add via GitHub Secrets.
 - `failure`: read the run logs (`gh run view <id> --log`).
-- Workaround: `just sync` from a dev box force-pulls + rebuilds on VPS independently of CI.
+- Workaround: `just sync` from a dev box force-pulls and builds on the VPS independently of CI (slow, 10 to 11 minutes; it writes the markers the next GitHub deploy reads).
 
 ## Section 2: Past incidents (root-cause + lesson, append-only)
 

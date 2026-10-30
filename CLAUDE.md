@@ -169,7 +169,7 @@ in the shared checkout.)
 ```bash
 just lanes                                   # who is probably in which file (data/coordination/lanes.json, advisory)
 just mine src/gui/pages/library.rs docs/PAGES.md   # stage exactly your files
-just ship "what changed and why"             # commits ONLY what you staged, pushes, syncs
+just ship "what changed and why"             # commits ONLY what you staged and pushes (the push deploys)
 ```
 
 `just ship` refuses when nothing is staged; `just ship-all` sweeps, for when you are genuinely
@@ -346,7 +346,7 @@ rounds; Ed25519's only roles are the seed source and the Solana wallet. Moving a
 just brief            # ONE-SHOT ORIENT (top-level sessions run it first)
 just lanes            # who owns what (several sessions share this checkout)
 just mine <paths>     # stage ONLY your files
-just ship "message"   # commit what YOU staged + push + sync
+just ship "message"   # commit what YOU staged + push (the push deploys)
 just verify           # native + relay checks, lib tests, relay test build, the lints: before pushing Rust
 just lints            # the std-only lints on their own
 just test-lib [filter]  # the lib tests (a bare `cargo test --lib` fails on Windows: LNK1318 below)
