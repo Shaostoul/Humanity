@@ -1590,21 +1590,82 @@ async fn shutdown_signal(state: Arc<RelayState>) {
 
 async fn health(
     state: axum::extract::State<Arc<RelayState>>,
-) -> axum::Json<serde_json::Value> {
+) -> (StatusCode, axum::Json<serde_json::Value>) {
     let uptime = state.start_time.elapsed().as_secs();
-    let msg_count = state.db.message_count().unwrap_or(0);
     let peers = state.peers.read().await.len();
-    axum::Json(serde_json::json!({
-        "status": "ok",
-        "uptime_seconds": uptime,
-        "total_messages": msg_count,
-        "connected_peers": peers,
-        // Whether this relay keeps what it remembers about erased accounts across a restart
-        // (storage/erased_accounts.rs): "this_run_only" when its secret file is damaged or
-        // cannot be written, so every restart forgets every remembered erase. `just brief`
-        // reads it. Says nothing about any account.
-        "erase_memory": if state.db.erase_memory_kept() { "kept" } else { "this_run_only" },
-    }))
+    health_report(state.db.message_count(), uptime, peers, state.db.erase_memory_kept())
+}
+
+/// What `/health` answers. It reads the database, and when that read fails it says so: HTTP 503
+/// and `"status": "degraded"`. It used to answer `"status": "ok"` with `total_messages: 0`
+/// (`unwrap_or(0)`), so during BUG-215 (2026-10-26) the relay failed every read for about twelve
+/// hours while the off-box uptime check (`.github/workflows/uptime.yml`, which wants
+/// `"status":"ok"`) and the watchdog (`scripts/humanity-relay-watchdog.sh`, which wants HTTP 200
+/// and restarts the relay otherwise) both saw a healthy server. A restart is what cured it.
+///
+/// `connected_peers` is the people connected right now (WebSocket clients), not linked servers.
+/// `erase_memory` is whether this relay keeps what it remembers about erased accounts across a
+/// restart (storage/erased_accounts.rs): "this_run_only" when its secret file is damaged or cannot
+/// be written, so every restart forgets every remembered erase. `just brief` reads it. Says
+/// nothing about any account.
+fn health_report(
+    message_count: Result<i64, rusqlite::Error>,
+    uptime: u64,
+    peers: usize,
+    erase_memory_kept: bool,
+) -> (StatusCode, axum::Json<serde_json::Value>) {
+    let erase_memory = if erase_memory_kept { "kept" } else { "this_run_only" };
+    match message_count {
+        Ok(n) => (
+            StatusCode::OK,
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "uptime_seconds": uptime,
+                "total_messages": n,
+                "connected_peers": peers,
+                "erase_memory": erase_memory,
+            })),
+        ),
+        Err(e) => {
+            tracing::error!("health: the database could not be read: {e}");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                axum::Json(serde_json::json!({
+                    "status": "degraded",
+                    "database": "unreadable",
+                    "uptime_seconds": uptime,
+                    "total_messages": null,
+                    "connected_peers": peers,
+                    "erase_memory": erase_memory,
+                })),
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::*;
+
+    /// A RELAY THAT CANNOT READ ITS DATABASE IS NOT HEALTHY (BUG-215): with the messages table
+    /// gone, a real database's count fails, and /health answers 503 "degraded" with no count,
+    /// so the uptime check and the watchdog both see it. Seen red 2026-10-30 against the old
+    /// answer ("ok" and 0): "an unreadable database was reported healthy".
+    #[test]
+    fn an_unreadable_database_is_degraded_not_ok() {
+        let db = crate::relay::storage::Storage::open_temp("health_ok");
+        let (code, body) = health_report(db.message_count(), 5, 0, true);
+        assert_eq!(code, StatusCode::OK, "a readable database is healthy: {}", body.0);
+        assert_eq!(body.0["status"], "ok");
+
+        let broken = crate::relay::storage::Storage::open_temp("health_broken");
+        broken.with_conn(|c| c.execute("DROP TABLE messages", [])).expect("the table drops");
+        let (code, body) = health_report(broken.message_count(), 5, 0, true);
+        assert_ne!(body.0["status"], "ok", "an unreadable database was reported healthy: {}", body.0);
+        assert_eq!(code, StatusCode::SERVICE_UNAVAILABLE, "{}", body.0);
+        assert_eq!(body.0["status"], "degraded");
+        assert!(body.0["total_messages"].is_null(), "no made-up count: {}", body.0);
+    }
 }
 
 async fn ws_handler(

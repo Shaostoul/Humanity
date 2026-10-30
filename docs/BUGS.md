@@ -6886,6 +6886,13 @@ federation linked again and continuous backup resuming its generation; the first
 the read-only script, at 00:34:33 UTC, made its copy (13.4 MB) and left relay.db-wal and
 relay.db-shm in place, with no "emptied by something other" and no "disk I/O error" since.
 
+**Why it ran twelve hours unnoticed, fixed 2026-10-30:** `/health` answered `"status": "ok"` with
+`total_messages: 0` when the database could not be read (`message_count().unwrap_or(0)`), so the
+off-box uptime check (wants "status":"ok") and the watchdog (wants HTTP 200, restarts the relay
+otherwise) both saw a healthy server. It now answers 503 `"status": "degraded"` (`health_report`
+in src/relay/mod.rs, test `an_unreadable_database_is_degraded_not_ok`, red against the old
+answer), so the watchdog restarts the relay after two failed checks, about four minutes.
+
 **Still to check:** why the relay held no connection at those moments (a pool that closes idle
 connections would leave the backup as the last one), and whether continuous backup should
 detect a missing -shm and reopen instead of failing every read. Neither the backup stream's tests
