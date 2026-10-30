@@ -51,10 +51,15 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps
           chmod 600 ~/.ssh/vps
-          SSH="ssh -i $HOME/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 root@$VPS_HOST"
-          # Empty on the first run, or after the build cache was cleared: then build and restart.
-          built_from=$($SSH 'cat /opt/Humanity/target/release/HumanityOS.source 2>/dev/null' || true)
-          started_at=$($SSH 'cat /opt/Humanity/target/release/HumanityOS.started 2>/dev/null' || true)
+          # The secret carries a trailing newline or space: appleboy's action trims it, plain ssh
+          # refuses it ("hostname contains invalid characters", the first run on 2026-10-30).
+          HOST=$(printf '%s' "$VPS_HOST" | tr -d '[:space:]')
+          SSH="ssh -i $HOME/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 root@$HOST"
+          # A missing marker reads as empty (the first run, or after the build cache was cleared:
+          # then build and restart). A failed CONNECTION fails the plan: it must never quietly fall
+          # back to "unknown", which is how the first run hid that ssh could not reach the VPS.
+          built_from=$($SSH 'cat /opt/Humanity/target/release/HumanityOS.source 2>/dev/null || true')
+          started_at=$($SSH 'cat /opt/Humanity/target/release/HumanityOS.started 2>/dev/null || true')
           echo "The running program was built from: ${built_from:-unknown}; last restart at: ${started_at:-unknown}"
           known() { [ -n "$1" ] && git cat-file -e "$1^{commit}" 2>/dev/null; }
           build=true
@@ -144,10 +149,11 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps
           chmod 600 ~/.ssh/vps
+          HOST=$(printf '%s' "$VPS_HOST" | tr -d '[:space:]')
           scp -i ~/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
-            dist/HumanityOS root@"$VPS_HOST":/opt/Humanity/target/release/HumanityOS.incoming
+            dist/HumanityOS root@"$HOST":/opt/Humanity/target/release/HumanityOS.incoming
           scp -i ~/.ssh/vps -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
-            dist/HumanityOS.sha256 root@"$VPS_HOST":/opt/Humanity/target/release/HumanityOS.incoming.sha256
+            dist/HumanityOS.sha256 root@"$HOST":/opt/Humanity/target/release/HumanityOS.incoming.sha256
 
       - name: Update the VPS
         uses: appleboy/ssh-action@v1
