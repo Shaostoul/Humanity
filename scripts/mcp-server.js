@@ -100,6 +100,20 @@ function findEndpoint() {
 const isOurs = (e) => !!e && !!e.game_dir && path.resolve(e.game_dir).toLowerCase() === RIG.toLowerCase();
 
 let lastGameCall = Date.now();
+/** game_boot calls under way. A boot takes minutes, and its game writes its endpoint early in it. */
+let booting = 0;
+
+/**
+ * Is a game this bridge booted due to be closed for idleness (pure, tested)? Never while a boot is
+ * under way: the idle time counts from the last game tool call, and before 2026-10-30 a boot begun
+ * more than IDLE_MIN minutes after the last call had its game closed by this check about a minute
+ * into the boot, before game_boot had returned (the game went quiet mid-warm-up, its vantage park
+ * never answered, "camera: null").
+ */
+function idleCloseDue({ ours, idleMin, now, lastCall, booting }) {
+  if (!ours || !(idleMin > 0) || booting > 0) return false;
+  return now - lastCall >= idleMin * 60000;
+}
 /** The game this bridge process booted (game_boot), closed when the bridge exits. */
 let bootedPid = null;
 
@@ -252,7 +266,15 @@ async function gameBoot(args, ctx) {
   } catch {}
   const { cmd, args: argv, env } = bootCommand({ vantage, waitMin });
   log(`game_boot: ${cmd} ${argv.join(" ")}`);
-  const r = await run(cmd, argv, { env, timeoutMs: (waitMin + 15) * 60000, signal: ctx.signal, notify: ctx.notify, label: "game_boot" });
+  // The idle close leaves a booting game alone, and the idle time starts now (idleCloseDue).
+  lastGameCall = Date.now();
+  booting += 1;
+  let r;
+  try {
+    r = await run(cmd, argv, { env, timeoutMs: (waitMin + 15) * 60000, signal: ctx.signal, notify: ctx.notify, label: "game_boot" });
+  } finally {
+    booting -= 1;
+  }
   const e = findEndpoint();
   if (e && e.ok === true) {
     bootedPid = e.pid;
@@ -332,8 +354,7 @@ async function gameClose() {
 function startIdleClose() {
   const t = setInterval(async () => {
     const e = findEndpoint();
-    if (!isOurs(e) || !(IDLE_MIN > 0)) return;
-    if (Date.now() - lastGameCall < IDLE_MIN * 60000) return;
+    if (!idleCloseDue({ ours: isOurs(e), idleMin: IDLE_MIN, now: Date.now(), lastCall: lastGameCall, booting })) return;
     log(`closing the game (pid ${e.pid}): no game tool call for ${IDLE_MIN} min`);
     await closePid(e.pid);
   }, 60000);
@@ -671,4 +692,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { bootCommand, listRigs, makeHost, findEndpoint, endpointCandidates, RIG, DEFAULT_VANTAGE, playJournal, playMarks, playJournalDir };
+module.exports = { bootCommand, idleCloseDue, listRigs, makeHost, findEndpoint, endpointCandidates, RIG, DEFAULT_VANTAGE, playJournal, playMarks, playJournalDir };

@@ -231,6 +231,19 @@ test("game_boot runs probe-sweep, keeps the game open, and adds only the two swi
   for (const k of Object.keys(env)) assert.strictEqual(c.env[k], env[k]);
 });
 
+test("the idle close never closes a game while it boots, and counts from the last call", () => {
+  // 2026-10-30: a boot begun 50 min after the last game call had its game closed about a minute
+  // into the boot, so every game_boot failed with "camera: null".
+  const { idleCloseDue } = require("../mcp-server.js");
+  const min = 60000;
+  const base = { ours: true, idleMin: 20, now: 100 * min, lastCall: 50 * min, booting: 0 };
+  assert.strictEqual(idleCloseDue(base), true, "an idle game of ours is closed");
+  assert.strictEqual(idleCloseDue({ ...base, booting: 1 }), false, "a game mid-boot is left alone");
+  assert.strictEqual(idleCloseDue({ ...base, lastCall: 85 * min }), false, "used 15 min ago: kept");
+  assert.strictEqual(idleCloseDue({ ...base, ours: false }), false, "another bridge's game is not ours to close");
+  assert.strictEqual(idleCloseDue({ ...base, idleMin: 0 }), false, "0 turns the idle close off");
+});
+
 test("the dev tools read the tree: vantages, rigs, journal and priorities", async () => {
   const b = startBridge(path.join(tmp, "none.json"));
   try {
