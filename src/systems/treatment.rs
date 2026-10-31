@@ -89,7 +89,7 @@ impl Treatments {
 pub fn has_use(item_id: &str) -> bool {
     static ITEMS: std::sync::OnceLock<HashSet<String>> = std::sync::OnceLock::new();
     ITEMS
-        .get_or_init(|| Treatments::load(&crate::data_dir()).treatments.into_iter().map(|t| t.item).collect())
+        .get_or_init(|| Treatments::load(&crate::storage::data_dir()).treatments.into_iter().map(|t| t.item).collect())
         .contains(item_id)
 }
 
@@ -195,7 +195,7 @@ mod tests {
         let mut h = Health { current: 40.0, max: 100.0 };
         let mut fx = StatusEffects::default();
         fx.apply("bleeding", 30.0);
-        let wounds = crate::systems::wounds::Wounds::load(&crate::data_dir());
+        let wounds = crate::systems::wounds::Wounds::load(&crate::storage::data_dir());
         let out = apply(kit, &mut h, &mut fx, Some(&reg), &wounds);
         assert!(out.used && !fx.has("bleeding"));
         assert_eq!(h.current, 40.0 + kit.heals);

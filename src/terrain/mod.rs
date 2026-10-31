@@ -61,3 +61,8 @@ pub mod planet_surface;
 /// The celestial pass's projection (reverse-Z, 5 cm to 1e13 m) the patch selector's frustum is
 /// built from: `renderer::camera`'s until the crate split's rung 0.
 pub mod celestial_projection;
+
+// Tests of the crates below that reach terrain to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/terrain/crossing_tests.rs.
+#[cfg(test)]
+mod crossing_tests;

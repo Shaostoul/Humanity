@@ -1311,7 +1311,7 @@ fn crew_label_lines(name: &str, activity: &str, cam_dist: f32) -> Option<(String
 
 /// The most characters of the quest line the HUD shows under the quest's name;
 /// a longer line is cut with "..." (2026-10-04: every shipped quest step fits it
-/// with its counter, `systems::quests::opening_tests`).
+/// with its counter, `engine::crossing_tests::quests_opening`).
 pub(crate) const QUEST_LINE_CHARS: usize = 64;
 
 /// The quest line under the quest's name: the step as the player reads it and

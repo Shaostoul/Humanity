@@ -126,7 +126,7 @@ fn power_words(e: Engagement) -> &'static str {
 /// The starts file, read once per run: the widget is drawn every frame the page is open.
 pub fn starts() -> &'static Starts {
     static STARTS: std::sync::OnceLock<Starts> = std::sync::OnceLock::new();
-    STARTS.get_or_init(|| Starts::load(&crate::data_dir()))
+    STARTS.get_or_init(|| Starts::load(&crate::storage::data_dir()))
 }
 
 /// "a Cabin", "an Apartment": a name as written, with its article.

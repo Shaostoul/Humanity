@@ -26,16 +26,19 @@ fn data() -> PathBuf {
     repo().join("data")
 }
 
-/// The app's real pages and Settings sections, so go steps resolve as they do in the app.
+// The app's list of pages is the GUI's (`gui::pages::how_to::app_pages`), a crate above this one
+// (the crate split, 2026-10-31). Until then these tests asked the GUI for it under `native` and ran
+// without it in the server build. Now they run without it here, in every build, and the ones that
+// read it run again WITH it in the GUI's twins (gui/crossing_tests/how_to.rs), which hand it over
+// through `PAGES` on their own test thread.
+thread_local! {
+    pub(crate) static PAGES: std::cell::RefCell<Option<library::Pages>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The app's real pages and Settings sections, so go steps resolve as they do in the app (when a
+/// twin in the GUI has handed them over; see `PAGES`).
 fn pages() -> Option<library::Pages> {
-    #[cfg(feature = "native")]
-    {
-        Some(crate::gui::pages::how_to::app_pages())
-    }
-    #[cfg(not(feature = "native"))]
-    {
-        None
-    }
+    PAGES.with(|p| p.borrow().clone())
 }
 
 fn shipped() -> Library {
@@ -136,7 +139,7 @@ fn cases() -> Vec<Case> {
 /// THE SHIPPED HOW-TOS LOAD, AND PASS EVERY GATE. A refused shipped file is a build failure, not a
 /// file quietly missing from the page.
 #[test]
-fn the_shipped_how_tos_load_and_pass_every_gate() {
+pub(crate) fn the_shipped_how_tos_load_and_pass_every_gate() {
     let lib = shipped();
     assert!(lib.problems.is_empty(), "the tree and the plan read: {:?}", lib.problems);
     let refused: Vec<String> = lib.refused.iter().map(|r| format!("{}: {:?}", r.file, r.findings.iter().map(|f| format!("{} {}", f.code.id(), f.message)).collect::<Vec<_>>())).collect();
@@ -164,7 +167,7 @@ fn the_shipped_how_tos_load_and_pass_every_gate() {
 /// with its code, and every code the checker has must have a case: a gate with no red is a gate
 /// that may not be able to fail.
 #[test]
-fn every_gate_refuses_its_broken_fixture() {
+pub(crate) fn every_gate_refuses_its_broken_fixture() {
     let cx = fixture_context();
     // The page check needs the app's list of pages, which only the desktop build has (`pages()`);
     // the relay build checks everything else, so there `page_unknown` is not expected to fire.
@@ -191,7 +194,7 @@ fn every_gate_refuses_its_broken_fixture() {
 /// THE GATES DO NOT FIRE ON WHAT IS ALLOWED: the base itself and every `passes` edit leave no
 /// refusal, so a gate cannot pass its red test by refusing everything.
 #[test]
-fn the_base_fixture_and_the_allowed_edits_pass() {
+pub(crate) fn the_base_fixture_and_the_allowed_edits_pass() {
     let cx = fixture_context();
     let base = std::fs::read(repo().join("tests/fixtures/how_to/base.json")).unwrap();
     let (findings, parsed) = check::check_file("household/fixture_base.json", &base, &cx);
@@ -262,7 +265,7 @@ fn the_schema_lists_every_field_and_the_model_knows_them() {
 /// SHORT NEVER HIDES A SERIOUS OR LETHAL NOTE: on every shipped how-to, and on a file built to try
 /// (which the checker also refuses, gate short_hides_safety, so this is the second of two locks).
 #[test]
-fn short_never_hides_a_serious_or_lethal_note() {
+pub(crate) fn short_never_hides_a_serious_or_lethal_note() {
     let lib = shipped();
     let mut grave_seen = 0;
     for l in &lib.how_tos {
@@ -299,7 +302,7 @@ fn short_never_hides_a_serious_or_lethal_note() {
 /// A STALE REVIEW HASH FAILS, on a real how-to: checked, it passes; one word changed, it is refused
 /// at build time and shown as "Changed since it was checked" at run time.
 #[test]
-fn a_stale_review_hash_fails_on_a_broken_file() {
+pub(crate) fn a_stale_review_hash_fails_on_a_broken_file() {
     let path = data().join("how_to/household/change_furnace_filter.json");
     let mut doc = read_json(&path);
     let hash = super::canonical::hash(&doc).unwrap();
@@ -342,7 +345,7 @@ fn copy_tree(from: &Path, to: &Path) {
 /// id, so they follow their steps wherever they move; a step that went is listed as removed; and
 /// the run read back from disk is the run that was written.
 #[test]
-fn a_run_survives_its_steps_being_reordered_and_edited() {
+pub(crate) fn a_run_survives_its_steps_being_reordered_and_edited() {
     let lib = shipped();
     let l = lib.find("change_furnace_filter").unwrap();
     let h = &l.how_to;
@@ -377,7 +380,7 @@ fn a_run_survives_its_steps_being_reordered_and_edited() {
 /// A CHECK ANSWERED NO goes to its problem (the check is answered) or back to its step (that step
 /// and everything after it up to the check are done again).
 #[test]
-fn a_no_goes_to_its_problem_or_back_to_its_step() {
+pub(crate) fn a_no_goes_to_its_problem_or_back_to_its_step() {
     let lib = shipped();
     let furnace = &lib.find("change_furnace_filter").unwrap().how_to;
     let mut run = Run::start(furnace, "", 0);
@@ -407,7 +410,7 @@ fn a_no_goes_to_its_problem_or_back_to_its_step() {
 
 /// SEARCH FINDS A HOW-TO BY ITS SYMPTOM: people arrive with what they see, not a title.
 #[test]
-fn search_finds_a_how_to_by_the_sign_of_its_problem() {
+pub(crate) fn search_finds_a_how_to_by_the_sign_of_its_problem() {
     let lib = shipped();
     let seals = &lib.find("test_jar_seals").unwrap().how_to;
     assert!(view::matches(seals, "lid springs up"), "a problem's sign");
@@ -419,7 +422,7 @@ fn search_finds_a_how_to_by_the_sign_of_its_problem() {
 /// scripts/build-how-to.js writes into data/how_to/index.json from web/shared/how-to-logic.js. A
 /// review made on one side must bind on the other.
 #[test]
-fn the_two_hashes_agree_on_every_shipped_how_to() {
+pub(crate) fn the_two_hashes_agree_on_every_shipped_how_to() {
     let index = read_json(&data().join("how_to/index.json"));
     let lib = shipped();
     let listed = index["how_tos"].as_array().expect("index.json lists how_tos");

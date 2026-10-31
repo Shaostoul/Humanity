@@ -372,8 +372,12 @@ function cardBlock(f) {
   L.push(`- **May be used by** (the plan): ${f.mayBeUsedBy.length ? f.mayBeUsedBy.map(short).join(', ') : 'nothing; it is the top of the stack'}. **Used today by:** ${f.usedToday.size ? counts(f.usedToday) : 'nothing'}.`);
   const wrong = sum([...f.wrong.values()]);
   const wrongTests = sum([...f.wrongTests.values()]);
-  L.push(`- **Wrong-way references:** ${fmt(wrong)} in code${wrong ? ` (${counts(f.wrong)}: \`node scripts/check-crate-layers.js\` fails on them)` : ' (`node scripts/check-crate-layers.js` keeps it there)'}; ` +
-    `${fmt(wrongTests)} in test code${wrongTests ? `, to ${counts(f.wrongTests)}: each moves with its test before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted")` : ''}.`);
+  // Since 2026-10-31 the ratchet holds both by file: a reference left on purpose (a file another
+  // session was editing) has a budget in crate-layers.json, and any other fails.
+  L.push(`- **Wrong-way references:** ${fmt(wrong)} in code${wrong ? `, to ${counts(f.wrong)}` : ''}; ` +
+    `${fmt(wrongTests)} in test code${wrongTests ? `, to ${counts(f.wrongTests)}` : ''}. ` +
+    `${wrong || wrongTests ? 'Each is held to its file\'s budget in scripts/crate-layers.json and must go before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted"); ' : ''}` +
+    `\`node scripts/check-crate-layers.js\` fails on any ${wrong || wrongTests ? 'other' : 'that appears'}.`);
   const exact = !f.run.extra.length && !f.run.missed.length;
   const why = f.run.skips ? " (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter)" : '';
   L.push(`- **Its lib tests:** ${fmt(f.run.tests)} tests${f.run.empty ? '.' : `, and ${exact ? 'this runs exactly them, checked against every test\'s name' : 'this runs them'}${why}:`}`);

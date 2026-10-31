@@ -94,7 +94,7 @@ pub(super) fn parse_stars_map(bytes: &[u8]) -> Option<Vec<MapStar>> {
 /// corrupt (the galaxy view then falls back to the curated nearby list).
 fn map_stars() -> &'static [MapStar] {
     MAP_STARS.get_or_init(|| {
-        let dir = crate::DATA_DIR
+        let dir = crate::storage::DATA_DIR
             .get()
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"));

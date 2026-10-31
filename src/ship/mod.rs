@@ -56,3 +56,8 @@ pub mod structure;
 pub mod sight;
 pub mod wall_collision;
 pub mod room_types;
+
+// Tests of the crates below that reach the ship to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/ship/crossing_tests.rs.
+#[cfg(test)]
+mod crossing_tests;

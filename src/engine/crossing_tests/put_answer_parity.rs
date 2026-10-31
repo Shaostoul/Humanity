@@ -1,3 +1,21 @@
+
+use crate::engine::put_answer::tests::app;
+use crate::engine::put_answer::tests::frames;
+use crate::engine::put_answer::tests::identity;
+use crate::engine::put_answer::tests::notes_in;
+use crate::engine::put_answer::tests::open;
+use crate::engine::put_answer::tests::pass_in;
+use crate::engine::put_answer::tests::puts_to;
+use crate::engine::put_answer::tests::revoked;
+use crate::engine::put_answer::tests::sweep;
+use crate::engine::put_answer::tests::tidy;
+use crate::gui::GuiState;
+use crate::net::dm_store::DmStore;
+use crate::net::dm_store::SentPass;
+use crate::net::reach::FriendTicks;
+use crate::net::reach::ReachKind;
+use serde_json::{json, Value};
+use crate::engine::put_answer::tests::kyber;
 // Child of engine/put_answer_tests.rs (#[path]): section 10o of docs/design/blocking-and-safe-mode.md,
 // "The parity review of 10n" (2026-10-10), the desktop's half, with the app state and a recording
 // socket, no screen. Uses the parent's helpers (`app`, `frames`, `puts_to`, `notes_in`, `pass_in`,
@@ -6,7 +24,6 @@
 // half of O7 (the echo of my own contact request) is engine/choice_tests.rs
 // `my_own_contact_requests_echo_follows_the_echo_rule`.
 
-use super::*;
 use crate::engine::bg_connections::{bg_begin_fetch, bg_dm_batch, bg_dm_new};
 use crate::engine::mailbox::{begin_fetch, on_batch, on_new};
 use crate::net::choice::ChoiceNote;

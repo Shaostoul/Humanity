@@ -33,7 +33,7 @@ pub(crate) fn ensure_reasons(gs: &mut GuiState) {
     if !gs.reports.reasons.is_empty() {
         return;
     }
-    match report::load_reasons(&crate::data_dir()) {
+    match report::load_reasons(&crate::storage::data_dir()) {
         Ok(reasons) => {
             gs.reports.reasons = reasons;
             gs.reports.reasons_error = None;
@@ -52,7 +52,7 @@ pub(crate) fn ensure_outside_help(gs: &mut GuiState) {
     if gs.reports.outside_help.is_some() {
         return;
     }
-    match outside_help::load(&crate::data_dir()) {
+    match outside_help::load(&crate::storage::data_dir()) {
         Ok(help) => gs.reports.outside_help = Some(help),
         Err(e) => log::warn!("{e}"),
     }

@@ -353,6 +353,9 @@ fn repo() -> &'static Path {
 ///   rather than nibble. New watch entry `src/surface_walk.rs` at 1_150: it
 ///   went 450 -> 1_066 landing the drawn-ground stand, about 620 of that being
 ///   its gate suite, which is load-bearing and NOT the thing to extract.
+///   (2026-10-31, the crate split's backlog: 1_150 -> 474. That gate suite reads the engine's
+///   frame lock, so it moved whole to src/engine/crossing_tests/surface_walk_drawn_ground.rs, and
+///   the file is 461 lines; the budget is that plus about 3%.)
 /// - v0.1103 (lib.rs, no budget change): the gate FIRED at 18_333 (+33) and
 ///   was paid back honestly rather than raised. Two ~30-line INCIDENT
 ///   NARRATIVES had accreted in comments (the BUG-063 sapling-scan story and
@@ -441,7 +444,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/frame_shells.rs", 1_300),
     ("src/engine/frame_water.rs", 750),
     ("src/engine/frame_near_trees.rs", 700),
-    ("src/surface_walk.rs", 1_150),
+    ("src/surface_walk.rs", 474),
     ("src/gui/pages/chat.rs", 4_700),
     ("src/gui/pages/chat/left_panel.rs", 2_100),
     ("src/gui/pages/chat/modals.rs", 1_550),

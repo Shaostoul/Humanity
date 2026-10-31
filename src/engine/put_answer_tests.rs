@@ -14,18 +14,18 @@ use std::time::{Duration, Instant};
 
 const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 
-fn identity(n: u8) -> (Vec<u8>, String) {
+pub(crate) fn identity(n: u8) -> (Vec<u8>, String) {
     let seed = vec![n; 32];
     (seed.clone(), hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key()))
 }
 
-fn kyber(seed: &[u8]) -> String {
+pub(crate) fn kyber(seed: &[u8]) -> String {
     crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).unwrap().public_base64()
 }
 
 /// A signed-in app on a server of its own, with a socket that records what is sent, and every
 /// one of `friends` a mutual follow whose DM key is known.
-fn app(seed: &[u8], me: &str, tag: &str, friends: &[(Vec<u8>, String)]) -> (GuiState, Receiver<String>) {
+pub(crate) fn app(seed: &[u8], me: &str, tag: &str, friends: &[(Vec<u8>, String)]) -> (GuiState, Receiver<String>) {
     let mut gs = GuiState::default();
     gs.profile_public_key = me.to_string();
     gs.private_key_bytes = Some(seed.to_vec());
@@ -48,18 +48,18 @@ fn app(seed: &[u8], me: &str, tag: &str, friends: &[(Vec<u8>, String)]) -> (GuiS
     (gs, sent)
 }
 
-fn tidy(gs: &GuiState) {
+pub(crate) fn tidy(gs: &GuiState) {
     gs.dm_store.as_ref().unwrap().remove_file_for_test();
     gs.block_list.as_ref().unwrap().remove_file_for_test();
 }
 
 /// Everything sent since the last look.
-fn frames(sent: &Receiver<String>) -> Vec<Value> {
+pub(crate) fn frames(sent: &Receiver<String>) -> Vec<Value> {
     sent.try_iter().map(|f| serde_json::from_str(&f).expect("a JSON frame")).collect()
 }
 
 /// The `dm_put`s among `frames` addressed to `to`.
-fn puts_to(frames: &[Value], to: &str) -> Vec<Value> {
+pub(crate) fn puts_to(frames: &[Value], to: &str) -> Vec<Value> {
     frames.iter().filter(|v| v["type"] == "dm_put" && v["to"] == to).cloned().collect()
 }
 
@@ -70,7 +70,7 @@ fn self_copies(frames: &[Value], me: &str, seed: &[u8]) -> Vec<Value> {
 }
 
 /// The choice notes (10n) among `frames`, read: each one's friend, `may` and signed time.
-fn notes_in(frames: &[Value], me: &str, seed: &[u8]) -> Vec<(crate::net::choice::ChoiceNote, u64)> {
+pub(crate) fn notes_in(frames: &[Value], me: &str, seed: &[u8]) -> Vec<(crate::net::choice::ChoiceNote, u64)> {
     puts_to(frames, me)
         .iter()
         .map(|p| open(p, seed))
@@ -79,18 +79,18 @@ fn notes_in(frames: &[Value], me: &str, seed: &[u8]) -> Vec<(crate::net::choice:
 }
 
 /// The serials `frames` asked the relay to withdraw.
-fn revoked(frames: &[Value]) -> Vec<String> {
+pub(crate) fn revoked(frames: &[Value]) -> Vec<String> {
     frames.iter().filter(|v| v["type"] == "cert_revoke").map(|v| v["serial"].as_str().unwrap().to_string()).collect()
 }
 
 /// Open a `dm_put` with its recipient's seed: the verified inner payload.
-fn open(put: &Value, seed: &[u8]) -> crate::net::dm_pq::DmInner {
+pub(crate) fn open(put: &Value, seed: &[u8]) -> crate::net::dm_pq::DmInner {
     let kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).unwrap();
     crate::net::dm_pq::parse_verify_inner(&crate::net::dm_pq::open_v2(&kp, put["content"].as_str().unwrap()).unwrap()).unwrap()
 }
 
 /// The pass a `dm_put` carries (a friendship pass or a contact request's): its serial and `may`.
-fn pass_in(put: &Value, seed: &[u8]) -> SentPass {
+pub(crate) fn pass_in(put: &Value, seed: &[u8]) -> SentPass {
     let inner = open(put, seed);
     let cert = match inner.cert {
         Some(c) => c,
@@ -107,7 +107,7 @@ fn answer(gs: &mut GuiState, put: &Value, ok: bool, reason: &str) {
 }
 
 /// The next sweep (on a member list), with a fresh budget so the pace never decides the test.
-fn sweep(gs: &mut GuiState) {
+pub(crate) fn sweep(gs: &mut GuiState) {
     gs.pass_pacer = Default::default();
     crate::engine::dm::sweep_friend_passes(gs);
 }
@@ -387,7 +387,5 @@ mod devices;
 #[path = "choice_tests.rs"]
 mod choice;
 
-/// Section 10o (the parity review of 10n): a device's own mailbox pages (O1, here and on a parked
-/// server), and O3, O4, O5, O7. A child here so it shares this file's helpers.
-#[path = "parity_tests.rs"]
-mod parity;
+// Section 10o (the parity review of 10n), which uses this file's helpers and the engine's mailbox,
+// is the engine's since the crate split's backlog (2026-10-31): engine/crossing_tests/put_answer_parity.rs.

@@ -221,3 +221,8 @@ pub mod state;
 /// Visible storage: crates in the storage zones and tank level bars.
 pub mod stock_piles;
 pub mod world_load;
+
+// Tests of the crates below that reach the engine to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/engine/crossing_tests/mod.rs.
+#[cfg(test)]
+mod crossing_tests;

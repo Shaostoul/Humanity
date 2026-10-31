@@ -112,7 +112,7 @@ pub struct LagrangeFile {
 }
 
 fn load<T: for<'de> Deserialize<'de>>(rel: &str) -> Option<T> {
-    match crate::embedded_data::load_text_or_embedded(&crate::data_dir(), rel, |t| ron::from_str::<T>(t).map_err(|e| e.to_string())) {
+    match crate::embedded_data::load_text_or_embedded(&crate::storage::data_dir(), rel, |t| ron::from_str::<T>(t).map_err(|e| e.to_string())) {
         Ok(v) => Some(v),
         Err(e) => {
             log::warn!("Maps: {e}; that overlay is left out");

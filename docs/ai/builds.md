@@ -81,6 +81,18 @@ the checkout's path) into `target\lint-cache\`, runs four at a time, and runs EV
 one no longer hides the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after
 (2026-10-23). The list in the Justfile is still the authority.
 
+## Warnings are hidden on this machine (found 2026-10-31)
+
+The Windows user environment sets `RUSTFLAGS=-Awarnings` (User scope; nothing in the repo, the
+journal or the memory records who set it or why), so every cargo command in every checkout prints
+no rustc warnings, and a report that says "0 warnings" proves nothing. With it unset, main had
+1,064 warning lines natively and 262 for the relay on 2026-10-31 (the crate split backlog agent's
+count). CI does not set it. To see what a change adds: run the same `cargo check
+--message-format short` with `RUSTFLAGS` unset for main's tree and for yours, each in its own
+`CARGO_TARGET_DIR` in the scratchpad (a `RUSTFLAGS` change rebuilds everything, so never in a
+shared `target/`), keep the `src...: warning` lines without their line and column numbers, and
+compare the two lists by count. Delete the scratch targets after.
+
 ## Rigs wait for memory, not for "no builds"
 
 A rig used to wait for every cargo, rustc and link on the machine to leave, which in a shared

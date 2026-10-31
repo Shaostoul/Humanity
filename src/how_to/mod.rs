@@ -27,4 +27,4 @@ pub mod time;
 pub mod view;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

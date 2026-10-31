@@ -275,4 +275,4 @@ pub const ATTACH_OFF: &str = "Sending files is off in private conversations (Set
 
 #[cfg(test)]
 #[path = "files_policy_tests.rs"]
-mod tests;
+pub(crate) mod tests;

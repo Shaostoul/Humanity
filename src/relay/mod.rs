@@ -1690,3 +1690,8 @@ async fn ws_handler(
 async fn handle_socket(socket: WebSocket, state: Arc<RelayState>, client_ip: String) {
     relay::handle_connection(socket, state, client_ip).await;
 }
+
+// Tests of the crates below that reach the server to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/relay/crossing_tests/mod.rs.
+#[cfg(test)]
+mod crossing_tests;

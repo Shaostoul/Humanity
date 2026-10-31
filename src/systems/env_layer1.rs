@@ -432,4 +432,4 @@ pub fn wind_body(row: &ClimateRow, dir: DVec3, year_fraction: f64) -> DVec3 {
 
 #[cfg(test)]
 #[path = "env_layer1_tests.rs"]
-mod tests;
+pub(crate) mod tests;

@@ -20,6 +20,10 @@ pub mod machine_levels;
 // run the ElectricalSystem, stay here.
 #[cfg(test)]
 mod day_energy_tests;
+// Tests of the ship and terrain that reach the simulation, moved up from beside their code (the crate
+// split, 2026-10-31): src/systems/crossing_tests/mod.rs.
+#[cfg(test)]
+mod crossing_tests;
 pub mod combat;
 pub mod quests;
 pub mod crafting;

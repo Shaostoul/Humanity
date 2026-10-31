@@ -207,20 +207,23 @@ pub(crate) const CUT_EDGE_M: f32 = 0.3;
 
 /// THE CUT-AWAY FOR WHAT IS NOT IN THE BODY (ship homes increment 7 review): the home's machines,
 /// their screens, its door panels and its elevator cars are drawn from the whole ship, not from
-/// the cut body, so they follow the cut by where they stand. World metres: the cut zone's footprint
-/// and the cut's height, the top of the storey being edited.
+/// the cut body, so they follow the cut by where they stand. World metres (a zone's origin is its
+/// world position, `ShipZone::origin_vec`): the cut body's footprint and the cut's height, the top
+/// of the storey it is cut at. ONE box for every cut: the build editor's storey (`cut_away_of`)
+/// and each body the Maps page cuts at a level (ship/levels.rs `level_cuts`), which was a second
+/// type of the same three fields until the crate split's backlog (2026-10-31).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CutAway {
-    pub(crate) min: (f32, f32),
-    pub(crate) max: (f32, f32),
-    pub(crate) cut_y: f32,
+pub struct CutAway {
+    pub min: (f32, f32),
+    pub max: (f32, f32),
+    pub cut_y: f32,
 }
 
 impl CutAway {
     /// True when the cut-away takes out a thing standing at world point `at` (its foot: a machine's
     /// placement, a door panel's bottom, an elevator car's floor): in the cut zone's box and at or
     /// over the cut, the rule `cut_away_body` keeps the body's pieces and lights by.
-    pub(crate) fn hides(&self, at: Vec3) -> bool {
+    pub fn hides(&self, at: Vec3) -> bool {
         at.y >= self.cut_y - STOREY_EPS
             && at.x >= self.min.0 - CUT_EDGE_M
             && at.x <= self.max.0 + CUT_EDGE_M

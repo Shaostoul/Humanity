@@ -147,7 +147,7 @@ pub fn labels_path(data: &std::path::Path) -> std::path::PathBuf {
 /// "data" for the headless relay), at start (relay/mod.rs `run_relay`).
 pub fn labels() -> &'static [FilesLabel] {
     static LABELS: std::sync::OnceLock<Vec<FilesLabel>> = std::sync::OnceLock::new();
-    LABELS.get_or_init(|| load_labels(&labels_path(&crate::data_dir())))
+    LABELS.get_or_init(|| load_labels(&labels_path(&crate::storage::data_dir())))
 }
 
 /// The labels someone chose, checked against `known` and joined as they are stored: ids in the

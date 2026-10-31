@@ -126,4 +126,4 @@ fn not_taken(gs: &mut GuiState, put: PendingPut, reason: Option<&str>) {
 
 #[cfg(test)]
 #[path = "put_answer_tests.rs"]
-mod tests;
+pub(crate) mod tests;

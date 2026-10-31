@@ -231,4 +231,4 @@ fn vessel_name(reg: Option<&ItemRegistry>, empty: &str) -> String {
 
 #[cfg(test)]
 #[path = "ship_meals_tests.rs"]
-mod tests;
+pub(crate) mod tests;

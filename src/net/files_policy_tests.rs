@@ -42,18 +42,6 @@ fn the_words() {
     assert_eq!(sender_line("Ann", "Friends", false), None, "only the relay's exact words count");
 }
 
-/// The words the profile carries are the relay's own three, both ways. Seen red 2026-10-11 with
-/// Anyone written "everyone": the first assertion of the loop.
-#[test]
-fn the_profile_words_are_the_relays() {
-    for (word, from) in [("nobody", AcceptFrom::Nobody), ("friends", AcceptFrom::Friends), ("anyone", AcceptFrom::Anyone)] {
-        assert_eq!(from.word(), word);
-        assert_eq!(AcceptFrom::from_word(word), Some(from));
-        assert!(crate::relay::storage::profile::accepts_files_word(word).is_some(), "the relay knows {word}");
-    }
-    assert_eq!(AcceptFrom::default().word(), crate::relay::storage::profile::ACCEPTS_FILES_DEFAULT, "the same default as the relay");
-}
-
 /// The setting in the config: the defaults when it is not there (a config from before), and every
 /// field kept through a write and a read. Seen red 2026-10-11 with the choices written in capitals:
 /// the "accept_from":"nobody" assertion.

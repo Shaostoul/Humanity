@@ -16,12 +16,12 @@ the relay rather than on top of it.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `net/`
-- **Size:** 31,064 lines in 54 files, 3,840 of them in 12 test files.
+- **Size:** 30,639 lines in 55 files, 3,854 of them in 13 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 44.
-- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 45, protocol 29.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 328, engine 95.
-- **Wrong-way references:** 0 in code (`node scripts/check-crate-layers.js` keeps it there); 8 in test code, to relay 7, engine 1: each moves with its test before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted").
-- **Its lib tests:** 265 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 46, protocol 29.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 328, engine 96.
+- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
+- **Its lib tests:** 256 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib net:: --skip gui::pages::settings::recovery_net:: --skip terrain::planet::
@@ -33,8 +33,8 @@ just test-lib net:: --skip gui::pages::settings::recovery_net:: --skip terrain::
 |---|---:|---|
 | `net::file_risk::file_type` | 18 | gui 18 |
 | `net::warnings::GUARD_LINE` | 13 | gui 12, engine 1 |
+| `net::dm_store::DmStore` | 12 | gui 8, engine 4 |
 | `net::protected::ProtectedAction` | 12 | gui 12 |
-| `net::dm_store::DmStore` | 11 | gui 8, engine 3 |
 | `net::identity::pq_sign_chat` | 11 | gui 11 |
 | `net::dm_pq::DmInner` | 10 | gui 6, engine 4 |
 | `net::ws_client::WsClient` | 10 | engine 5, gui 5 |

@@ -317,4 +317,4 @@ mod pinned {
 
 #[cfg(test)]
 #[path = "profile_copy_tests.rs"]
-mod tests;
+pub(crate) mod tests;

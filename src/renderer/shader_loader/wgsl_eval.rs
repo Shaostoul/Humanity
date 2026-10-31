@@ -134,7 +134,10 @@ impl<'m> Evaluator<'m> {
     }
 
     /// A struct type's size in bytes as the module lays it out (None if the
-    /// type is not a struct).
+    /// type is not a struct). Its one reader is the environment model's shader twin, the GUI's test
+    /// since the crate split's backlog (gui/crossing_tests/env_layer1.rs), so the server build,
+    /// which has no GUI, does not compile it.
+    #[cfg(feature = "native")]
     pub fn struct_span(&self, ty: Handle<naga::Type>) -> Option<u32> {
         match &self.module.types[ty].inner {
             TypeInner::Struct { span, .. } => Some(*span),

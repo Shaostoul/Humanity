@@ -2792,3 +2792,8 @@ impl Renderer {
         (self.config.width, self.config.height)
     }
 }
+
+// Tests of the crates below that reach the renderer to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/renderer/crossing_tests.rs.
+#[cfg(test)]
+mod crossing_tests;

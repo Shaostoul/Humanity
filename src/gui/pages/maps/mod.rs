@@ -61,7 +61,7 @@ pub mod tile_grid;
 pub mod world_layer;
 pub mod you_layer;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use belts::BeltCache;
 pub use sky_events::UpcomingSkyEvent;
@@ -76,7 +76,7 @@ pub(crate) use time_bar::set_clock_for_snapshot;
 /// copy only, so a data edit changed nothing on this page until a rebuild, and
 /// the source stamp, BUG-133, could not see that the binary was behind.)
 fn catalog_text(rel: &str) -> String {
-    crate::embedded_data::read_data_or_embedded(&crate::data_dir(), rel).unwrap_or_default()
+    crate::embedded_data::read_data_or_embedded(&crate::storage::data_dir(), rel).unwrap_or_default()
 }
 
 // ─────────────────────── Spectral-class → color ─────────────────────────────

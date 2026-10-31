@@ -11,7 +11,7 @@ fn shipped() -> ShipStructure {
 }
 
 fn cuts_at(ship: &ShipStructure, level: &ShipLevel) -> Cuts {
-    Cuts(level_cuts(ship, level).into_iter().map(|c| crate::ship::storey_edits::CutAway { min: c.min, max: c.max, cut_y: c.cut_y }).collect())
+    Cuts(level_cuts(ship, level))
 }
 
 /// AN EDIT DROPS EXACTLY THE TILES IT TOUCHED (the design's proof for plan tiles). On the shipped

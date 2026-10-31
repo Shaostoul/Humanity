@@ -7,8 +7,12 @@ sub-crates"), which changes when rung 1 lands, not before. **The ten crates and 
 decisions too, the same day:** "I like the idea of going the full 10. It sounds like it'd be the
 most beneficial over a long period of time. Feels kind of small now but, huge a year from now."
 and, of the names, "Let's go with humanity." **Rung 0 is done (2026-10-31):** parts A and B took
-the wrong-way references in code from 157 to 0, and the ratchet holds every edge at zero; rung 1 is
-next (Order of work, below).
+the wrong-way references in code from 157 to 0, and the ratchet holds every edge at zero. **Its
+backlog is cleared the same day** (rung 0, "Not counted", below): the tests' 127 wrong-way
+references are 0 outside six farm test files another session was editing (15 there), and the
+ratchet now holds test code too, file by file; the data folder's path is the core's; `release_update`
+is the GUI's; main.rs and the crate root's own items are counted; one cut-away box. Rung 1 is next
+(Order of work, below), and the backlog lists what it needs first.
 
 The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
 which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
@@ -65,10 +69,10 @@ And the reasons not to split:
 | `humanity-ship` | `ship`, `machines`, `station`: the home's structure, its machines, the orbit | 31,980 | 81 | 77% | core |
 | `humanity-terrain` | `terrain`: planets, heights, oceans, chunk meshes as plain data | 23,731 | 2 | 86% | core |
 | `humanity-systems` | `systems`, `persistence`, `surface_walk`, `surface_move`: the simulation | 78,798 | 108 | 72% | core, ship, terrain |
-| `humanity-relay` | `relay`, `how_to`, `release_update`: the server | 110,645 | 142 | 60% | core, protocol, ship, systems |
+| `humanity-relay` | `relay`, `how_to`: the server | 110,645 | 142 | 60% | core, protocol, ship, systems |
 | `humanity-net` | `net`: the app's side of the network | 30,691 | 58 | 47% | core, protocol |
 | `humanity-renderer` | `renderer`, `assets`: uploading and drawing | 68,820 | 37 | 53% | core, terrain |
-| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, `updater` (since rung 0 part B), and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; since part B also the friend choices, the pass answers, household permits and low impact) | 177,268 | 255 | 42% | all of the above |
+| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, `updater` (since rung 0 part B), `release_update` (since its backlog), and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; since part B also the friend choices, the pass answers, household permits and low impact) | 177,268 | 255 | 42% | all of the above |
 | `humanity-engine` | `engine` (THE FRAME), `lib.rs`, `save_load`, the binary | 94,250 | 242 | 15% | everything |
 
 The lines, commits and shares are the 2026-10-30 reading. After rung 0 (2026-10-31,
@@ -232,26 +236,68 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      save (`persistence::live_save`: `ActiveHome`, the restore hold, "Snapshot now", the choices
      waiting for a fresh save, `slot_for`, an erased account's save set aside), from save_load.rs
      and engine/save_slot.rs.
-   **Not counted, and needed before each crate is cut (rung 1 and after):**
-   - **The tests** hold 125 wrong-way references of their own (2026-10-31, after part B; 139 after
-     part A): systems -> engine 27, gui -> engine 20, ship -> systems 19, systems -> gui 12, ship ->
-     engine 8, net -> relay 7, systems -> relay 7, ship -> renderer 5, systems -> renderer 5, and
-     smaller ones. A test moves up with the crate it reaches, or reaches through the crate under it.
-     The same day the reading gave a file named by a `#[path]` to the module that declares it (the
-     crate cards' work): the GUI's eight test files in `engine/`, such as `engine/household_tests.rs`,
-     had been counted as the engine's, so the tests hold 127 (gui -> engine 22), and 5,143 lines move
-     from the engine's count to the GUI's. Each card's "At a glance" carries its crate's own count.
-   - **`crate::data_dir()`** (lib.rs, the engine) is read by about 50 files under the engine (the
-     GUI 22, the simulation 20, the ship, the relay, net, media, the word source, cosmos, and the
-     engine-folder files the GUI owns, such as low impact); no path counts it, but it must move to
-     the core at rung 1.
-   - **The engine-folder files the plan gives the GUI** (the chat-safety files, `choice`,
-     `put_answer`, `household`, `low_impact`) move into `crates/humanity-gui/` when that crate is
-     cut (rung 4); their `crate::engine::` paths change then.
-   - **`pub(crate)`** items now used across a planned boundary (most of the moved items kept their
-     visibility) become `pub` as each crate is cut.
-   - A small cleanup the moves made visible: `ship::levels::LevelCut` and `ship::storey_edits::CutAway`
-     are the same box (min, max, cut height), and engine/map_cut.rs converts one to the other.
+   **Not counted, and needed before each crate is cut (rung 1 and after).** The backlog as rung 0
+   left it, and what became of each item (2026-10-31, the same day):
+   - **The tests' 127 wrong-way references: 0, outside the farm's test files.** (The count was 125
+     after part B, then 127 when the crate cards gave a `#[path]` file to the module declaring it:
+     the GUI's eight test files in `engine/` had been counted as the engine's.) Each test that made
+     one moved WHOLE to the lowest crate that may use everything it reaches, into one
+     `crossing_tests` folder or file per destination crate, declared once in that crate's root
+     module, a file per file the tests came from: src/engine/crossing_tests/ (19 files, two of them
+     whole files moved with git mv: `engine/parity_tests.rs`, `systems/quests/opening_tests.rs`),
+     src/gui/crossing_tests/ (13), src/systems/crossing_tests/ (7), src/relay/crossing_tests/ (2)
+     and one file each in net, renderer, terrain and the ship. Nothing in a test changed but its
+     paths; the how-to checker's nine page-reading tests run without the app's page list in the
+     relay's crate and again with it in the GUI's (`gui/crossing_tests/how_to.rs`), and the station
+     tests take their own 24-hour day instead of the simulation's constant. Left: **15 references in
+     six farm test files** (src/systems/farming/heat_tests.rs 6, life_support_tests.rs 3, mod.rs 3,
+     humidity_tests.rs 1, soil_ph_tests.rs 1, weed_tests.rs 1; all systems -> engine, the engine's
+     home spawn and save and load), which another session was editing: each moves to the engine
+     the same way. **The ratchet holds test code now**, file by file (crate-layers.json
+     "testBudgets", only those six files listed), and code file by file too; `node
+     scripts/crate-graph.js --tests` lists each reference with its line.
+   - **`crate::data_dir()` is the core's: `storage::data_dir()` and `storage::DATA_DIR`**, byte for
+     byte, every caller changed (52 files), except 11 files fenced for the farm and Garden session
+     (engine/home_meshes.rs, gui/pages/inventory.rs, nine under systems/farming/), for which lib.rs
+     keeps ONE line, `pub(crate) use crate::storage::data_dir;`. Delete it when they read the new
+     path. Its ten callers below the engine are counted now and held to one each (crate-layers.json
+     "budgets"), because **the counting reads the crate root's own items** (`rootItems`: a path to a
+     fn, static, const, type or re-export of lib.rs is a reference into the crate owning lib.rs).
+     Until then `crate::data_dir()`, `crate::DATA_DIR` and a test calling the engine's
+     `crate::drone_dock_visible` from the ship named no module and went uncounted.
+   - **main.rs is counted:** the binary's `humanity_engine::x` is read as the library's `crate::x`,
+     from the engine (crate-graph.js `cargoTargets`), so its uses of `release_update` and the relay's
+     restore are in the interface tables.
+   - **`release_update` is the GUI's, not the relay's:** native-only, never called by the server,
+     used by the updater and the binary.
+   - **One cut-away box:** `ship::levels::LevelCut` is gone; `level_cuts` returns
+     `ship::storey_edits::CutAway`, and engine/map_cut.rs no longer converts.
+   - **Still open: the engine-folder files the plan gives the GUI** (the chat-safety files,
+     `choice`, `put_answer`, `household`, `low_impact`) move into `crates/humanity-gui/` when that
+     crate is cut (rung 4); their `crate::engine::` paths change then.
+   - **Still open: `pub(crate)` items used across a planned boundary** become `pub` as each crate is
+     cut. The test moves added about 90 (mostly test helpers, a few private constants and
+     `storage::extract_embedded_to`).
+   **New, found clearing it, and needed for rung 1 itself:**
+   - **Test helpers across a boundary.** A cut crate's `#[cfg(test)]` items are not compiled into
+     another crate's test build. 412 test references reach another crate's test-only module: 305 of
+     them the core's own `test_temp`, `test_clock` and `test_log`, used by every crate's tests, so
+     the core needs a `test-support` feature (or a dev-only crate) before rung 1 can cut it; the
+     other 107 are module fixtures (the put_answer, trade, wounds, spoilage, reports, profile-copy
+     and household test helpers the moved tests share with the tests that stayed, the Maps camera's
+     `feed_at`, ...), which become a `fixtures` feature of their crate at its cut.
+     `node scripts/crate-graph.js --fixtures` lists them, by crate and module.
+   - **The repo root, found from a crate.** 565 `env!("CARGO_MANIFEST_DIR")` in 251 files (most of
+     them tests reading data/) mean the repo root today; in a workspace each member's is its own
+     folder. And 251 `include_str!`/`include_bytes!("../...")` paths are relative to the file, so
+     each breaks when its file moves into `crates/<name>/src/`. Rung 1 needs one way to name the repo
+     root before it moves the first file.
+   - **Eight tests left the relay battery** (3,194 then 3,186, measured from the battery's test
+     list): checking a lower crate against the renderer, whose modules the server build still
+     compiles today, is now the GUI's (surface_move's five wish-direction tests, env_layer1's shader
+     twin, the ship's lighting watts), and the drone dock test reads the engine's
+     `drone_dock_visible` (lib.rs). `just test-lib` still runs all eight; in the plan neither the
+     renderer nor the engine is under the relay, so none could stay.
 1. **The workspace, `humanity-core` and `humanity-protocol`** (the smallest and lowest). Measure a
    cold build and a one-line edit against 241 s and 56 s.
 2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.

@@ -72,7 +72,7 @@ impl ShipPowerData {
 
     /// The data directory's copy, or the shipped one.
     pub fn load() -> Self {
-        let path = crate::data_dir().join("ship_power.ron");
+        let path = crate::storage::data_dir().join("ship_power.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).

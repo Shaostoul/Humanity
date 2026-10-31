@@ -91,7 +91,7 @@ fn strings() -> &'static serde_json::Value {
     S.get_or_init(|| {
         let parse = |t: &str| serde_json::from_str::<serde_json::Value>(t.trim_start_matches('\u{feff}')).ok();
         let section = |v: serde_json::Value| v.get("dev_claude").cloned();
-        let disk = std::fs::read_to_string(crate::data_dir().join(STRINGS)).ok().and_then(|t| parse(&t)).and_then(section);
+        let disk = std::fs::read_to_string(crate::storage::data_dir().join(STRINGS)).ok().and_then(|t| parse(&t)).and_then(section);
         disk.unwrap_or_else(|| {
             crate::embedded_data::note_builtin_copy("i18n/en.json", "the data folder's copy has no dev_claude words");
             parse(crate::embedded_data::I18N_EN_JSON).and_then(section).unwrap_or(serde_json::Value::Null)
@@ -208,7 +208,7 @@ fn spawn(ctx: &egui::Context, busy: Arc<AtomicBool>, report: Arc<Mutex<Report>>,
 
 /// Where to look for the checkout: the data folder, the exe's folder, the working folder.
 fn starts() -> Vec<std::path::PathBuf> {
-    let mut out = vec![crate::data_dir()];
+    let mut out = vec![crate::storage::data_dir()];
     if let Ok(exe) = std::env::current_exe() {
         out.extend(exe.parent().map(|p| p.to_path_buf()));
     }

@@ -158,7 +158,7 @@ pub fn words(key: &'static str) -> &'static str {
     {
         static ENGLISH: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
         let english = ENGLISH.get_or_init(|| {
-            std::fs::read_to_string(crate::data_dir().join("i18n").join("en.json"))
+            std::fs::read_to_string(crate::storage::data_dir().join("i18n").join("en.json"))
                 .ok()
                 .and_then(|text| serde_json::from_str(&text).ok())
                 .unwrap_or(serde_json::Value::Null)

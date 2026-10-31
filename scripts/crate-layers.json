@@ -98,8 +98,7 @@
       "why": "The server. The VPS build is this crate and what it uses, with no GPU code in it.",
       "paths": [
         "relay",
-        "how_to",
-        "release_update"
+        "how_to"
       ],
       "uses": [
         "humanity-core",
@@ -133,7 +132,7 @@
     },
     {
       "name": "humanity-gui",
-      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the updater that Settings > Updates drives and GuiState holds), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
+      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the updater that Settings > Updates drives and GuiState holds, and its signed-release check, release_update, which the binary's signing commands use too: native-only and never the server's, so it is the GUI's since 2026-10-31, not the relay's), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
       "paths": [
         "gui",
         "config",
@@ -143,6 +142,7 @@
         "media",
         "web_reader",
         "updater",
+        "release_update",
         "engine/protected",
         "engine/warnings",
         "engine/dm",
@@ -195,5 +195,56 @@
       ]
     }
   ],
-  "budgets": {}
+  "budgets": {
+    "src/gui/pages/inventory.rs": {
+      "humanity-gui -> humanity-engine": 1
+    },
+    "src/systems/farming/humidity.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/lighting.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/pests.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/picking.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/pollination.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/soil_ph.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/soil.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/sowing.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/weeds.rs": {
+      "humanity-systems -> humanity-engine": 1
+    }
+  },
+  "testBudgets": {
+    "src/systems/farming/heat_tests.rs": {
+      "humanity-systems -> humanity-engine": 6
+    },
+    "src/systems/farming/humidity_tests.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/life_support_tests.rs": {
+      "humanity-systems -> humanity-engine": 3
+    },
+    "src/systems/farming/mod.rs": {
+      "humanity-systems -> humanity-engine": 3
+    },
+    "src/systems/farming/soil_ph_tests.rs": {
+      "humanity-systems -> humanity-engine": 1
+    },
+    "src/systems/farming/weed_tests.rs": {
+      "humanity-systems -> humanity-engine": 1
+    }
+  }
 }

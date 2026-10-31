@@ -13,8 +13,11 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const src = fs.readFileSync(path.join(root, "src/gui/ui_snapshots.rs"), "utf8");
-const lines = src.split(/\r?\n/);
+// The snapshots are in the GUI's harness, and since the crate split's backlog (2026-10-31) the ones
+// that set a page up through the engine (the Maps feed, the guest notice) are the engine's
+// (src/engine/crossing_tests/ui_snapshots.rs): `snapshot_` filters by name, so both are found.
+const SOURCES = ["src/gui/ui_snapshots.rs", "src/engine/crossing_tests/ui_snapshots.rs"];
+const lines = SOURCES.flatMap((f) => fs.readFileSync(path.join(root, f), "utf8").split(/\r?\n/));
 
 const names = new Set();
 for (let i = 0; i < lines.length; i++) {

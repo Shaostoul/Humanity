@@ -135,7 +135,7 @@ const FILE: &str = "safety/file_risks.json";
 fn data() -> &'static Data {
     static DATA: OnceLock<Data> = OnceLock::new();
     DATA.get_or_init(|| {
-        crate::embedded_data::load_data_or_embedded(&crate::data_dir(), FILE, |bytes| serde_json::from_slice::<Data>(bytes).map_err(|e| e.to_string())).unwrap_or_else(|e| {
+        crate::embedded_data::load_data_or_embedded(&crate::storage::data_dir(), FILE, |bytes| serde_json::from_slice::<Data>(bytes).map_err(|e| e.to_string())).unwrap_or_else(|e| {
             crate::embedded_data::note_builtin_copy(FILE, format_args!("neither copy could be read ({e}); no file gets a word of caution"));
             Data::default()
         })

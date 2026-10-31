@@ -182,7 +182,7 @@ fn poll_loading(state: &mut GuiState) {
     }
     if h.loading.is_none() {
         let (tx, rx) = std::sync::mpsc::channel();
-        let data_dir = crate::data_dir();
+        let data_dir = crate::storage::data_dir();
         let store = h.store.clone();
         let pages = app_pages();
         std::thread::Builder::new()

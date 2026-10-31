@@ -37,7 +37,7 @@ fn species() -> &'static Vec<SpeciesRow> {
     CACHE.get_or_init(|| {
         let mut rows: Vec<SpeciesRow> =
             match crate::embedded_data::load_data_or_embedded(
-                &crate::data_dir(),
+                &crate::storage::data_dir(),
                 "creatures.csv",
                 crate::systems::livestock::CreatureRegistry::from_csv,
             ) {

@@ -421,14 +421,14 @@ pub(crate) fn to_my_mailboxes(gs: &GuiState, text: &str) -> usize {
 /// Every native item of 10d's proof list that needs no socket. Each test was seen red once on
 /// purpose, recorded at the test.
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::net::dm_store::SentPass;
     use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
     const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 
-    fn identity(n: u8) -> (Vec<u8>, String) {
+    pub(crate) fn identity(n: u8) -> (Vec<u8>, String) {
         let seed = vec![n; 32];
         (seed.clone(), hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key()))
     }
@@ -439,7 +439,7 @@ mod tests {
 
     /// A signed-in app for `seed` / `me` on SERVER, with its own DM store and its own block list
     /// (unique files, the list in the temp directory).
-    fn app(me: &str, seed: &[u8], tag: &str) -> GuiState {
+    pub(crate) fn app(me: &str, seed: &[u8], tag: &str) -> GuiState {
         let mut gs = GuiState::default();
         gs.profile_public_key = me.to_string();
         gs.private_key_bytes = Some(seed.to_vec());
@@ -453,7 +453,7 @@ mod tests {
         gs
     }
 
-    fn tidy(gs: &GuiState) {
+    pub(crate) fn tidy(gs: &GuiState) {
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
         gs.block_list.as_ref().unwrap().remove_file_for_test();
     }
@@ -721,64 +721,4 @@ mod tests {
         tidy(&gs);
     }
 
-    /// IN THE GAME (section 4.5, "Game figure and name"): the relay's snapshot entry and join
-    /// carry each player's key, and someone we blocked has no name over them and no figure drawn
-    /// (both places read `hides_player`); anyone else, and a player whose key has not come yet,
-    /// is drawn. Seen red 2026-10-10 two ways: `hides_player` answering false, "no name over the
-    /// blocked player"; and the figure pass in lib.rs without its check, "the figure pass asks it".
-    /// 10m R9, the HUD's co-presence list too: seen red 2026-10-10 with `copresence_names`
-    /// ignoring `hidden`, "the blocked player is not in the HUD's list" (Cy listed); and with
-    /// lib.rs handing it `&|_| false`, the count assertion (left 2, right 3).
-    #[test]
-    fn a_blocked_players_figure_and_name_are_not_drawn() {
-        use crate::net::protocol::NetMessage;
-        let (seed, me) = identity(148);
-        let mut gs = app(&me, &seed, "block-game");
-        block(&mut gs, "cy");
-
-        let entry = serde_json::json!({ "entity_id": 7, "entity_type": "player", "position": [1.0, 1.7, 0.0], "rotation": [0.0, 0.0, 0.0, 1.0], "components": { "name": "Cy", "key": "cy" } });
-        let keys: Vec<Option<String>> = crate::engine::net_route::snapshot_entry_messages(&entry, None)
-            .into_iter()
-            .filter_map(|m| match m { NetMessage::PlayerJoined { key, .. } => Some(key), _ => None })
-            .collect();
-        assert_eq!(keys, vec![Some("cy".to_string())], "a snapshot entry's key reaches the player record");
-
-        let mut world = hecs::World::new();
-        for (id, name, key) in [(7u32, "Cy", Some("cy")), (8, "Dee", Some("dee")), (9, "Player 9", None)] {
-            let at = glam::Vec3::new(id as f32, 1.7, 0.0);
-            world.spawn((
-                crate::ecs::components::Transform { position: at, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
-                crate::net::sync::RemotePlayer {
-                    player_id: id,
-                    name: name.into(),
-                    look: None,
-                    key: key.map(str::to_string),
-                    last_position: at,
-                    target_position: at,
-                    last_rotation: glam::Quat::IDENTITY,
-                    target_rotation: glam::Quat::IDENTITY,
-                    velocity: glam::Vec3::ZERO,
-                    interpolation_t: 1.0,
-                    last_update_time: 0.0,
-                },
-            ));
-        }
-        let labels = crate::engine::net_route::nameplate_labels(&world, glam::Vec3::ZERO, &|p| hides_player(&gs, p));
-        let mut names: Vec<String> = labels.into_iter().map(|l| l.name).collect();
-        names.sort();
-        assert!(!names.contains(&"Cy".to_string()), "no name over the blocked player: {names:?}");
-        assert_eq!(names, vec!["Dee".to_string(), "Player 9".to_string()], "everyone else is named, a player with no key yet too");
-
-        // 10m R9: nor in the HUD's "N here: ..." list, which counts every other player.
-        let here = crate::engine::net_route::copresence_names(&world, &|p| hides_player(&gs, p));
-        assert_eq!(here, vec!["Dee".to_string(), "Player 9".to_string()], "the blocked player is not in the HUD's list");
-
-        let lib = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs")).unwrap();
-        assert_eq!(
-            lib.matches("crate::engine::block::hides_player(&state.gui_state").count(),
-            3,
-            "the figure pass asks it, and so do the nameplates and the HUD's co-presence list"
-        );
-        tidy(&gs);
-    }
 }

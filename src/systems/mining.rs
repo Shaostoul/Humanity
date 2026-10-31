@@ -242,7 +242,7 @@ impl DroneReadout {
 /// Register the drone's data, its state (a new drone), the panel's request and readout,
 /// and the mode (Simplified until the Settings value is published). lib.rs, at startup.
 pub fn register(data_store: &mut DataStore) {
-    let Some(spec) = DroneSpec::load(&crate::data_dir()) else { return };
+    let Some(spec) = DroneSpec::load(&crate::storage::data_dir()) else { return };
     data_store.insert(UNIT_KEY, Mutex::new(DroneUnit::new(&spec)));
     data_store.insert(SPEC_KEY, spec);
     data_store.insert(REQUEST_KEY, Mutex::new(Option::<DroneRequest>::None));
@@ -292,7 +292,7 @@ pub struct DroneCharger;
 /// from the data it describes, so the two cannot drift.
 pub fn mode_hint() -> String {
     static SHIPPED: std::sync::OnceLock<Option<DroneSpec>> = std::sync::OnceLock::new();
-    hint_text(SHIPPED.get_or_init(|| DroneSpec::load(&crate::data_dir())).as_ref())
+    hint_text(SHIPPED.get_or_init(|| DroneSpec::load(&crate::storage::data_dir())).as_ref())
 }
 
 /// The hint's words for `spec` (none: the drone flies free in both modes).

@@ -138,7 +138,7 @@ pub fn parse_ingest_rules(text: &str) -> IngestRules {
 pub fn ingest_rules() -> &'static IngestRules {
     static RULES: OnceLock<IngestRules> = OnceLock::new();
     RULES.get_or_init(|| {
-        let on_disk = crate::data_dir().join("media").join("ingest.json");
+        let on_disk = crate::storage::data_dir().join("media").join("ingest.json");
         let text = std::fs::read_to_string(&on_disk).unwrap_or_else(|e| {
             crate::embedded_data::note_builtin_copy(
                 "media/ingest.json",

@@ -14,16 +14,16 @@ the first two into `crates/<name>/`; these cards are documents, and they live he
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 | Card | Lines | May use | What it is for | Requests |
 |---|---:|---|---|---:|
-| [humanity-core](humanity-core.md) | 14,579 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
-| [humanity-protocol](humanity-protocol.md) | 12,645 | core | What the app and the server must agree on, byte for byte. | 0 |
-| [humanity-ship](humanity-ship.md) | 32,680 | core | The home and the ship as places a person stands in. | 0 |
-| [humanity-terrain](humanity-terrain.md) | 25,638 | core | Planets as shapes and numbers. | 0 |
-| [humanity-systems](humanity-systems.md) | 82,151 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
-| [humanity-relay](humanity-relay.md) | 110,833 | core, protocol, ship, systems | The server: the relay the VPS runs as `HumanityOS --headless`. | 0 |
-| [humanity-net](humanity-net.md) | 31,064 | core, protocol | The app's side of the network: the WebSocket client to a server (`ws_client`, `client`), the shared world's state as it arrives (`sync`, `protocol`), sealed direct messages and their history on this device (`dm_pq`, `dm_store`), P2P groups (`group_e2ee`), voice and calls (`voice`, `webrtc`, `call_relay`), device-to-device files (`file_link`, `file_offer`, `file_transfer`), the live stream and the live weather, and the recovery-phrase identity (`identity`). | 0 |
-| [humanity-renderer](humanity-renderer.md) | 65,877 | core, terrain | The GPU side: everything that uploads and draws. | 0 |
-| [humanity-gui](humanity-gui.md) | 190,121 | core, protocol, ship, terrain, systems, relay, net, renderer | Everything a person sees and touches in the desktop app's pages: every page and widget (`gui/`, with `GuiState`, the state every page reads, in `gui/mod.rs`), the settings that save them (`config`, which also holds the identity vault), notifications, and the pages' backends: the Games and Apps readers (`games`, `software`), the media player (`media`), the readable web (`web_reader`) and the updater that Settings > Updates drives. | 0 |
-| [humanity-engine](humanity-engine.md) | 86,090 | core, protocol, ship, terrain, systems, relay, net, renderer, gui | THE FRAME: the main loop, and everything that wires the other crates into one running app. | 0 |
+| [humanity-core](humanity-core.md) | 14,461 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
+| [humanity-protocol](humanity-protocol.md) | 12,512 | core | What the app and the server must agree on, byte for byte. | 0 |
+| [humanity-ship](humanity-ship.md) | 31,578 | core | The home and the ship as places a person stands in. | 0 |
+| [humanity-terrain](humanity-terrain.md) | 25,574 | core | Planets as shapes and numbers. | 0 |
+| [humanity-systems](humanity-systems.md) | 80,676 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
+| [humanity-relay](humanity-relay.md) | 110,460 | core, protocol, ship, systems | The server: the relay the VPS runs as `HumanityOS --headless`. | 0 |
+| [humanity-net](humanity-net.md) | 30,639 | core, protocol | The app's side of the network: the WebSocket client to a server (`ws_client`, `client`), the shared world's state as it arrives (`sync`, `protocol`), sealed direct messages and their history on this device (`dm_pq`, `dm_store`), P2P groups (`group_e2ee`), voice and calls (`voice`, `webrtc`, `call_relay`), device-to-device files (`file_link`, `file_offer`, `file_transfer`), the live stream and the live weather, and the recovery-phrase identity (`identity`). | 0 |
+| [humanity-renderer](humanity-renderer.md) | 65,875 | core, terrain | The GPU side: everything that uploads and draws. | 0 |
+| [humanity-gui](humanity-gui.md) | 192,210 | core, protocol, ship, terrain, systems, relay, net, renderer | Everything a person sees and touches in the desktop app's pages: every page and widget (`gui/`, with `GuiState`, the state every page reads, in `gui/mod.rs`), the settings that save them (`config`, which also holds the identity vault), notifications, and the pages' backends: the Games and Apps readers (`games`, `software`), the media player (`media`), the readable web (`web_reader`) and the updater that Settings > Updates drives, with the signed-release check it verifies every download by (`release_update`, which the binary's signing commands use too; the relay's until 2026-10-31, but native-only and never called by the server). | 0 |
+| [humanity-engine](humanity-engine.md) | 91,643 | core, protocol, ship, terrain, systems, relay, net, renderer, gui | THE FRAME: the main loop, and everything that wires the other crates into one running app. | 0 |
 <!-- end generated -->
 
 Crates are named short inside the cards: `core` is `humanity-core`, `gui` is `humanity-gui`.
@@ -63,7 +63,14 @@ compares the numbers, because every code edit moves them. When the plan gains a 
 check refuses until they are written. `node scripts/crate-cards.js --interface <crate>` lists a
 crate's whole interface, past the card's table.
 
-How the counting works (`scripts/crate-graph.js`): every `crate::` and `super::` path in non-test
-code, mapped to a crate by the plan's most specific path. A `use a::{x, y}` group counts once, as
-`a`; a call to a function at the crate root, such as `crate::data_dir()`, names no planned module
-and is not counted. A file named by a `#[path = "..."]` belongs to the module that declares it.
+How the counting works (`scripts/crate-graph.js`): every `crate::` and `super::` path, mapped to a
+crate by the plan's most specific path; in the binary's root (main.rs), every `humanity_engine::`
+path, read as the library's `crate::` from the engine. A `use crate::a::{x, y}` group counts once,
+as `a` (so a count understates the names); a `use crate::{a, b}` group counts each part. A
+path to one of the crate root's own items (a function, static or re-export of lib.rs, such as
+`crate::data_dir()`) is a reference into the crate that owns lib.rs. A file named by a
+`#[path = "..."]` belongs to the module that declares it. Test code is read the same way, apart
+(the test files, and the test-gated items of the others), and the ratchet
+(`node scripts/check-crate-layers.js`, in `just lints`) holds code and test code to the plan file
+by file: crate-layers.json's `budgets` and `testBudgets` list the only files allowed any wrong-way
+reference, with their counts. `node scripts/crate-graph.js --tests` lists the test code's, with lines.

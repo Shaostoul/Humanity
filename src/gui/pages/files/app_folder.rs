@@ -4,7 +4,7 @@
 //! became one Files page; the operator, 2026-10-19: "If we just start at the root HumanityOS folder
 //! for file browsing then we automatically have 'data' files and we even have mods at the top too."
 //!
-//! The folder is found the way the app finds its data (`crate::data_dir()`, `data` beside the app
+//! The folder is found the way the app finds its data (`crate::storage::data_dir()`, `data` beside the app
 //! unless set otherwise) and is the one above it when that one holds the app's `assets/` too; a
 //! copy installed to the person's own folder (`%APPDATA%\HumanityOS`, where their settings, saves
 //! and messages live) starts at its data folder instead ([`app_folder_for`]). In the three panes: on the left, under the
@@ -91,7 +91,7 @@ pub struct AppFolder {
 
 /// The app's own folder, as this run found its data ([`app_folder_for`]).
 pub fn root_folder() -> PathBuf {
-    let data = crate::data_dir();
+    let data = crate::storage::data_dir();
     let data = if data.is_absolute() { data } else { std::env::current_dir().unwrap_or_default().join(data) };
     app_folder_for(&data, &own_files_folders())
 }
@@ -132,7 +132,7 @@ pub fn app_folder_for(data: &Path, own: &[PathBuf]) -> PathBuf {
 
 /// The Library's own folder: `library` in the app's data folder, where the guides it reads are.
 pub fn library_folder() -> PathBuf {
-    let data = crate::data_dir();
+    let data = crate::storage::data_dir();
     let data = if data.is_absolute() { data } else { std::env::current_dir().unwrap_or_default().join(data) };
     data.join("library")
 }
@@ -478,7 +478,7 @@ mod tests {
     fn a_library_guide_is_found_and_opens_in_the_library() {
         crate::config::keep_saves_off_disk();
         let mut state = GuiState::default();
-        state.library = crate::gui::load_library(&crate::data_dir()).sections;
+        state.library = crate::gui::load_library(&crate::storage::data_dir()).sections;
         let dir = library_folder();
         let guide = guide_of(&dir.join(GUIDE_FILE), &dir, &state.library).expect("a guide the Library has");
         assert_eq!((guide.slug.as_str(), guide.title.as_str()), ("starting-seeds", "Starting Seeds"));
@@ -525,7 +525,7 @@ mod tests {
     fn on_the_library_folder() -> (egui::Context, Theme, GuiState) {
         let (ctx, theme) = super::super::tests::ctx_and_theme();
         let mut state = super::super::tests::page_state(super::super::tests::demo_answer(), true);
-        state.library = crate::gui::load_library(&crate::data_dir()).sections;
+        state.library = crate::gui::load_library(&crate::storage::data_dir()).sections;
         state.files.place = super::super::Place::AppFolder;
         state.files.app_folder.root = Some(library_folder());
         state.active_page = crate::gui::GuiPage::Files;
@@ -637,7 +637,7 @@ mod tests {
     #[test]
     fn the_folder_is_the_one_above_data_and_folders_come_first() {
         let root = root_folder();
-        assert!(root.join("data").is_dir() || crate::data_dir().is_absolute(), "the app's folder holds data/: {root:?}");
+        assert!(root.join("data").is_dir() || crate::storage::data_dir().is_absolute(), "the app's folder holds data/: {root:?}");
         let dir = crate::test_temp::dir("app_folder_order");
         std::fs::create_dir_all(dir.join("zeta")).unwrap();
         std::fs::write(dir.join("alpha.txt"), "a").unwrap();

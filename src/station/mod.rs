@@ -195,7 +195,7 @@ mod tests {
     fn aboard_the_compass_points_to_earths_north_not_along_the_orbit() {
         let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("stations").join("home.ron");
         let def: StationDef = ron::from_str(&std::fs::read_to_string(&p).expect("home.ron")).expect("home.ron parses");
-        let day = crate::systems::time::EARTH_DAY_S;
+        let day = 24.0 * 3600.0; // the default game day (the simulation's EARTH_DAY_S, which this crate sits under)
         for sun_az_deg in [0.0_f64, 90.0, 200.0] {
             let o = orbit::over_its_longitude(&def.orbit, sun_az_deg.to_radians());
             for hour in [0.0_f64, 6.0, 13.5] {

@@ -408,7 +408,7 @@ fn sol_json_catalog_version(json: &str) -> Result<i64, String> {
 /// it freely.
 pub fn sol_bodies() -> &'static [SolBody] {
     SOL_BODIES.get_or_init(|| {
-        let json = load_sol_json(&crate::data_dir());
+        let json = load_sol_json(&crate::storage::data_dir());
         let out = parse_sol_bodies(&json);
         log::info!("Cosmos: loaded {} Sol bodies (with parent-child links)", out.len());
         out
@@ -801,7 +801,7 @@ pub fn sample_orbit_points(body: &SolBody, n: usize, sim_time_seconds: f64) -> V
 
 #[cfg(test)]
 mod tests {
-    //! Path note: `sol_bodies()` goes through `crate::data_dir()`, which in
+    //! Path note: `sol_bodies()` goes through `crate::storage::data_dir()`, which in
     //! a test process finds no exe-adjacent data/ folder and falls back to
     //! plain "data" relative to the CURRENT WORKING DIRECTORY. So the tests
     //! below that call `sol_bodies()` / `find_body()` depend on the test

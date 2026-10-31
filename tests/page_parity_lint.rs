@@ -180,7 +180,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         data_file: "files/kinds.json",
         reads: &[
             ("src/gui/pages/files/kinds.rs", "pub const KINDS_FILE: &str = \"files/kinds.json\";"),
-            ("src/gui/pages/files/kinds.rs", "crate::data_dir().join(KINDS_FILE)"),
+            ("src/gui/pages/files/kinds.rs", "crate::storage::data_dir().join(KINDS_FILE)"),
             ("web/pages/files-app.js", "const KINDS_URL = '/data/files/kinds.json';"),
             ("web/pages/files-app.js", "const res = await env.fetch(KINDS_URL);"),
         ],
@@ -217,7 +217,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         web: &["web/pages/dev-claude.js"],
         data_file: "i18n/en.json",
         reads: &[
-            ("src/gui/pages/dev_agents/mod.rs", "std::fs::read_to_string(crate::data_dir().join(STRINGS))"),
+            ("src/gui/pages/dev_agents/mod.rs", "std::fs::read_to_string(crate::storage::data_dir().join(STRINGS))"),
             ("web/pages/dev-claude.js", "fetch('/data/i18n/en.json')"),
         ],
     },
@@ -266,7 +266,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         web: &["web/pages/how-to-app.js"],
         data_file: "how_to/words.json",
         reads: &[
-            ("src/gui/pages/how_to/words.rs", "crate::embedded_data::read_data_or_embedded(&crate::data_dir(), \"how_to/words.json\")"),
+            ("src/gui/pages/how_to/words.rs", "crate::embedded_data::read_data_or_embedded(&crate::storage::data_dir(), \"how_to/words.json\")"),
             ("web/pages/how-to-app.js", "getJson('/data/how_to/words.json'),"),
         ],
     },

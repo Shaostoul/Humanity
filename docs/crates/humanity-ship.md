@@ -15,16 +15,16 @@ shared ship's rules are the same on both sides.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `ship/`, `machines.rs` + `machines/`, `station/`
-- **Size:** 32,680 lines in 36 files, 1,387 of them in 3 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `ship/levels.rs` 190 of 200.
+- **Size:** 31,578 lines in 37 files, 1,431 of them in 4 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `ship/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 3.
-- **May use** (the plan): core. **Uses today** (references in non-test code): core 34.
-- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 322, gui 159, relay 38, systems 26.
-- **Wrong-way references:** 0 in code (`node scripts/check-crate-layers.js` keeps it there); 32 in test code, to systems 19, engine 8, renderer 5: each moves with its test before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted").
-- **Its lib tests:** 394 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **May use** (the plan): core. **Uses today** (references in non-test code): core 36.
+- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 321, gui 159, relay 38, systems 26.
+- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
+- **Its lib tests:** 370 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib ship:: machines:: station:: --skip engine::map_rig_ship:: --skip systems::grow_machines::
+just test-lib ship:: machines:: station:: --skip engine::crossing_tests::machines:: --skip engine::map_rig_ship:: --skip systems::crossing_tests::machines:: --skip systems::grow_machines::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
@@ -47,7 +47,7 @@ just test-lib ship:: machines:: station:: --skip engine::map_rig_ship:: --skip s
 | `ship::starts::Starts` | 8 | engine 4, relay 4 |
 | `ship::structure::zone_type` | 8 | gui 7, engine 1 |
 
-And 191 more items, 376 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
+And 190 more items, 375 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -103,9 +103,6 @@ And 191 more items, 376 references (`node scripts/crate-cards.js --interface hum
   `ship::standing`; in the ground storey's cut-away the greenhouse risers to g1 and g2 are cut at
   3.0 m, 0.24 m short of the ports drawn over them; a jump from the stair's seventh step can slip
   past a slab edge.
-- **One box, two names:** `levels::LevelCut` and `storey_edits::CutAway` are the same box (min, max,
-  cut height), and `engine/map_cut.rs` converts one to the other. Source:
-  [crate-split.md](../design/crate-split.md), rung 0, "Not counted".
 - **Rung 2 cuts ship and terrain, then systems;** its test code's wrong-way references (At a
   glance) move first. Source: [crate-split.md](../design/crate-split.md), "Order of work".
 

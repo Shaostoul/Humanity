@@ -118,7 +118,7 @@ pub fn install() -> &'static Glossary {
         // dir lacks glossary.json used to get a silently EMPTY Dictionary
         // page (operator 2026-07-28: "the glossary appears to have no
         // words in it"; the exe carried all 201 terms the whole time).
-        let path = crate::data_dir().join("glossary.json");
+        let path = crate::storage::data_dir().join("glossary.json");
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {

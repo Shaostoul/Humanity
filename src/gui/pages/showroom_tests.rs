@@ -6,7 +6,6 @@
 //! comment.
 
 use super::*;
-use crate::engine::save_slot;
 use crate::persistence::live_save;
 use crate::gui::screen_surface::find_text_in_shapes;
 use crate::persistence::SaveSlot;

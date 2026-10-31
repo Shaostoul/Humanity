@@ -68,7 +68,7 @@ mod connections;
 /// A new player's first steps: where onboarding starts them, and the controls hint on their
 /// first entry into the world (first-hour audit 2026-10-04). See `gui/first_steps.rs`.
 #[cfg(feature = "native")]
-mod first_steps;
+pub(crate) mod first_steps;
 pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_BY_ADMIN_NOTE, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE, OFFICIAL_SERVER};
 
 
@@ -91,7 +91,7 @@ mod quest_types;
 pub use quest_types::*;
 
 #[cfg(test)]
-mod ui_snapshots;
+pub(crate) mod ui_snapshots;
 
 /// Current engine version (read from Cargo.toml at compile time).
 #[cfg(feature = "native")]
@@ -4751,3 +4751,8 @@ impl Default for SettingsState {
 #[cfg(all(test, feature = "native"))]
 #[path = "click_sound_tests.rs"]
 mod ui_click_sound_tests;
+
+// Tests of the crates below that reach the GUI to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/gui/crossing_tests/mod.rs.
+#[cfg(test)]
+mod crossing_tests;

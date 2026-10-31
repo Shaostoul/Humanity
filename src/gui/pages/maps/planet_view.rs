@@ -29,7 +29,7 @@ static MAP_REGIONS: OnceLock<Vec<OsmRegion>> = OnceLock::new();
 /// installed; the view shows how to fetch one.
 fn map_regions() -> &'static [OsmRegion] {
     MAP_REGIONS.get_or_init(|| {
-        let dir = crate::DATA_DIR
+        let dir = crate::storage::DATA_DIR
             .get()
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"))

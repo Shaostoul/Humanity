@@ -187,9 +187,16 @@ In order:
     like something we gotta do"), so an agent dedicated to one crate reads one page instead of
     catching up on the repo: DONE 2026-10-31 (`docs/crates/`, the generated blocks refreshed by
     `just code-map` and `just brief`, the structure held by `crate-cards.js --check` in `just
-    lints`). Next: rung 1, the Cargo workspace with core and protocol split out (first the backlog
-    in crate-split.md: 127 wrong-way references in test code, `data_dir()` to the core,
-    `release_update.rs` planned for relay but native-only).
+    lints`). The backlog before rung 1 DONE 2026-10-31: test code reaching up the stack 127 -> 0
+    (120 tests moved whole into each destination crate's `crossing_tests`, none lost), the layer
+    lint counts test code too, with budgets per file; `data_dir()` in the core (`storage.rs`);
+    `release_update.rs` filed under the GUI; main.rs counted; one `CutAway` box. Left in the farm
+    files (fenced while the Garden views follow-up runs): 10 `crate::data_dir()` calls through one
+    lib.rs re-export, and 15 test references to the engine, each held to its file's budget. Next:
+    those, then rung 1, the Cargo workspace with core and protocol split out: first the core's test
+    helpers (`test_temp`, `test_clock`, `test_log`: 305 of 412 cross-crate test-helper uses) as
+    a test-support feature or dev crate, and one way to name the repo root (565
+    `env!("CARGO_MANIFEST_DIR")` and 251 relative `include_str!` paths break when files move).
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by

@@ -32,9 +32,16 @@ fn repo_root() -> PathBuf {
 /// A plain helper `fn snapshot_x` is deliberately NOT counted - cargo's filter
 /// matches tests, and counting a helper would make this permissive in exactly
 /// the direction it exists to prevent.
+///
+/// The snapshots are in the GUI's harness, and since the crate split's backlog (2026-10-31) the ones
+/// that set a page up through the engine (the Maps feed, the guest notice) are the engine's
+/// (src/engine/crossing_tests/ui_snapshots.rs); `snapshot_` filters by name, so both are found.
 fn snapshot_test_names() -> BTreeSet<String> {
-    let src = fs::read_to_string(repo_root().join("src/gui/ui_snapshots.rs"))
-        .expect("read src/gui/ui_snapshots.rs");
+    let mut src = String::new();
+    for f in ["src/gui/ui_snapshots.rs", "src/engine/crossing_tests/ui_snapshots.rs"] {
+        src.push_str(&fs::read_to_string(repo_root().join(f)).unwrap_or_else(|e| panic!("read {f}: {e}")));
+        src.push('\n');
+    }
     let lines: Vec<&str> = src.lines().collect();
     let mut out = BTreeSet::new();
     for (i, raw) in lines.iter().enumerate() {

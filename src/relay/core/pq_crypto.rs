@@ -924,7 +924,7 @@ fn hex_decode_str(s: &str) -> std::result::Result<Vec<u8>, ()> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -1152,7 +1152,7 @@ mod tests {
     }
 
     /// A person's identity key, hex, from the seed `[n; 32]`.
-    fn key_hex_of(n: u8) -> String {
+    pub(crate) fn key_hex_of(n: u8) -> String {
         hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[n; 32])).public_key())
     }
 
@@ -1704,20 +1704,4 @@ mod tests {
         assert!(!verify_dm_inner("\u{e9}\u{e9}", &reporter, ts, "you will regret this", &sig), "not ASCII, and no panic");
     }
 
-    /// THE RELAY REBUILDS THE DESKTOP APP'S DM WORDS BYTE FOR BYTE: a payload made by the native
-    /// builder itself (net::dm_pq `build_signed_inner`, padding and all) checks with the relay's
-    /// verifier. Native builds only: the relay build has no net::dm_pq.
-    /// Seen red 2026-10-09 with `DM_INNER_DOMAIN` set to "hum/dm/v1": "the desktop app's DM
-    /// checks at the relay" failed.
-    #[cfg(feature = "native")]
-    #[test]
-    fn the_relay_rebuilds_the_desktop_apps_dm_words_byte_for_byte() {
-        let seed = [0x61u8; 32];
-        let from = key_hex_of(0x61);
-        let to = key_hex_of(0x62);
-        let inner = crate::net::dm_pq::build_signed_inner(&seed, &from, &to, 1_760_000_000_123, "line one\nline two").unwrap();
-        let v: serde_json::Value = serde_json::from_str(&inner).unwrap();
-        let (ts, text, sig) = (v["ts"].as_u64().unwrap(), v["text"].as_str().unwrap(), v["sig"].as_str().unwrap());
-        assert!(verify_dm_inner(&from, &to, ts, text, sig), "the desktop app's DM checks at the relay");
-    }
 }

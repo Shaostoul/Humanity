@@ -648,7 +648,7 @@ pub fn illness_lines(ill: &Illnesses, effects: &StatusEffects, registry: Option<
 fn shipped() -> &'static (Wounds, Illnesses, Option<StatusEffectRegistry>) {
     static SHIPPED: std::sync::OnceLock<(Wounds, Illnesses, Option<StatusEffectRegistry>)> = std::sync::OnceLock::new();
     SHIPPED.get_or_init(|| {
-        let dir = crate::data_dir();
+        let dir = crate::storage::data_dir();
         let effects = crate::embedded_data::load_data_or_embedded(&dir, "status_effects.csv", StatusEffectRegistry::from_csv)
             .map_err(|e| log::warn!("{e}; the injury hint has no courses to name"))
             .ok();

@@ -200,3 +200,8 @@ pub mod live;
 /// play inside the native app, not only on the web.
 #[cfg(feature = "native")]
 pub mod live_viewer;
+
+// Tests of the crates below that reach the network side to do it, moved up from beside their code (the crate
+// split, 2026-10-31, docs/design/crate-split.md): src/net/crossing_tests.rs.
+#[cfg(test)]
+mod crossing_tests;

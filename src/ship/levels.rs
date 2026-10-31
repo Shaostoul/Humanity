@@ -22,7 +22,8 @@
 //! storey the level's floor is on, so a two-storey home on the ground level loses its upper floor
 //! and a one-storey zone (the Commons, 8 m to its glass roof) stays whole. `level_cuts` says which
 //! boxes are cut and at what height (what stands in them over that height is left out: machines,
-//! doors, plants, the engine's `CutAway`), and `level_meshes` draws the ship that way.
+//! doors, plants: ship/storey_edits.rs `CutAway`, the build editor's box too), and `level_meshes` draws
+//! the ship that way.
 //!
 //! Limits, said plainly: a body standing wholly ABOVE the level shown (none does on the shipped
 //! ship) is drawn whole, as a one-storey zone is; and the rooms are the ship's own detected rooms
@@ -34,6 +35,7 @@ use glam::Vec3;
 use crate::ship::fibonacci::HomesteadMeshes;
 use crate::ship::home_structure::{storey_index, HomeStructure, STOREY_EPS};
 use crate::ship::ship_structure::ShipStructure;
+use crate::ship::storey_edits::CutAway;
 
 /// One level of a ship: its stacking position and its band of height, ship metres.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -134,15 +136,6 @@ pub fn by_ordinal(levels: &[ShipLevel], ordinal: i32) -> Option<ShipLevel> {
     levels.iter().copied().find(|l| l.ordinal == ordinal)
 }
 
-/// One body's cut at a level: its footprint (ship metres, x and z) and the height from which
-/// what stands in it is cut away (the top of its storey on that level).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LevelCut {
-    pub min: (f32, f32),
-    pub max: (f32, f32),
-    pub cut_y: f32,
-}
-
 /// The storey of body `b` (its corner at `o`) that level `level` is on, when something of the
 /// body is above it (so `HomeStructure::cut_away` cuts it there), else None.
 fn storey_cut(o: Vec3, b: &HomeStructure, level: &ShipLevel) -> Option<usize> {
@@ -150,20 +143,21 @@ fn storey_cut(o: Vec3, b: &HomeStructure, level: &ShipLevel) -> Option<usize> {
     (k + 1 < b.storeys().len()).then_some(k)
 }
 
-/// Every body cut at `level` (see the module doc): one `LevelCut` per body with a storey above
-/// the level's. Empty when nothing in the ship is above it (its top level, or a ship of one
+/// Every body cut at `level` (see the module doc): one `CutAway` per body with a storey above
+/// the level's (its footprint, and the top of its storey on that level, from which what stands in it
+/// is cut away). Empty when nothing in the ship is above it (its top level, or a ship of one
 /// storey everywhere): the whole ship is the view.
-pub fn level_cuts(ship: &ShipStructure, level: &ShipLevel) -> Vec<LevelCut> {
+pub fn level_cuts(ship: &ShipStructure, level: &ShipLevel) -> Vec<CutAway> {
     cuts_of(&standing_bodies(ship), level)
 }
 
 /// `level_cuts` over a list of bodies (pure).
-pub fn cuts_of(bodies: &[(Vec3, &HomeStructure)], level: &ShipLevel) -> Vec<LevelCut> {
+pub fn cuts_of(bodies: &[(Vec3, &HomeStructure)], level: &ShipLevel) -> Vec<CutAway> {
     bodies
         .iter()
         .filter_map(|(o, b)| {
             let k = storey_cut(*o, b, level)?;
-            Some(LevelCut { min: (o.x, o.z), max: (o.x + b.width, o.z + b.depth), cut_y: o.y + b.storeys()[k].top })
+            Some(CutAway { min: (o.x, o.z), max: (o.x + b.width, o.z + b.depth), cut_y: o.y + b.storeys()[k].top })
         })
         .collect()
 }

@@ -1564,7 +1564,7 @@ whose game result can be made exactly as safe as life's, so the first slice teac
 | **E4** | `Use` objective: `use_<item>` from `treatment` and tool uses, `use_<provides>` from `built_uses` | `objectives.rs`, `treatment.rs`, `engine/built_uses.rs` | 2 |
 | **E5** | `Sleep` objective, `sleep_<h>` on waking | `objectives.rs`, `sleep.rs` | 2 |
 | **P8** | The Compost action reports `make_` events for what it makes | `lib.rs` compost bridge (or wherever it moves) | 2 |
-| **P10** | `starts` on `QuestDef` and the per-start test | `quests/mod.rs`, `opening_tests.rs` | 2 |
+| **P10** | `starts` on `QuestDef` and the per-start test | `quests/mod.rs`, `engine/crossing_tests/quests_opening.rs` | 2 |
 | **E6** | `Store` objective, the storage-zone event | `objectives.rs`, inventory moves | 3 |
 | **P6** | The sun-timed process: a recipe whose timer advances only while its spot gets direct sun (the weather's cloud and the sun model the solar panels already read) | `crafting`, weather | 4 |
 | **P7** | Long room-temperature processes: a crock's clock on game time, its room's temperature gating it | `crafting`, home air temperature | 4 |

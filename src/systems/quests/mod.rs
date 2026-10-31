@@ -7,9 +7,9 @@
 pub mod objectives;
 /// A quest's chain for the Quests page's chain window (2026-10-30).
 pub mod chain;
-/// The opening, played on the shipped data with the real systems (2026-10-04).
-#[cfg(all(test, feature = "native"))]
-mod opening_tests;
+// The opening, played on the shipped data with the real systems (2026-10-04), plays it through the
+// engine's start and the GUI's pages, so it is the engine's since the crate split's backlog
+// (2026-10-31): engine/crossing_tests/quests_opening.rs.
 
 use std::collections::HashMap;
 
@@ -605,11 +605,11 @@ pub fn view_event_key(view: &str) -> String {
 /// The prefixes of the eat and plant events: an `Eat` or `Plant` step that
 /// names no item counts every event with its prefix.
 const EAT_EVENT: &str = "eat_";
-const PLANT_EVENT: &str = "plant_";
+pub(crate) const PLANT_EVENT: &str = "plant_";
 
 /// How many events a count step has seen: of `prefix` + `id` when it names
 /// one, else of every event with that prefix (any food, any crop).
-fn counted(progress: &HashMap<String, u32>, prefix: &str, id: Option<&str>) -> u32 {
+pub(crate) fn counted(progress: &HashMap<String, u32>, prefix: &str, id: Option<&str>) -> u32 {
     match id {
         Some(id) => progress.get(&format!("{prefix}{id}")).copied().unwrap_or(0),
         None => progress.iter().filter(|(k, _)| k.starts_with(prefix)).map(|(_, n)| *n).sum(),
@@ -1753,7 +1753,7 @@ mod quest_tests {
     /// Mining section, and every shipped home places a trading post. (It was
     /// the first step; since 2026-10-04 it is the fifth of the opening's, and
     /// every step's fit in the HUD's line is held by
-    /// opening_tests::every_step_of_every_shipped_quest_fits_the_hud_line.)
+    /// engine::crossing_tests::quests_opening::every_step_of_every_shipped_quest_fits_the_hud_line.)
     ///
     /// Red, run on the shipped quest before this: "the first step names the
     /// Inventory page's Mining section: Acquire 3 iron ore (mine it with a

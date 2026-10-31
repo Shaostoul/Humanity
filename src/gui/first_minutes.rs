@@ -80,7 +80,7 @@ static STEPS: OnceLock<Vec<Step>> = OnceLock::new();
 pub fn steps() -> &'static [Step] {
     STEPS.get_or_init(|| {
         let parse = |s: &str| serde_json::from_str::<TourFile>(s).map(|f| f.steps);
-        let path = crate::data_dir().join("onboarding").join("tour.json");
+        let path = crate::storage::data_dir().join("onboarding").join("tour.json");
         let disk = match std::fs::read_to_string(&path) {
             Ok(text) => match parse(&text) {
                 Ok(steps) => Some(steps),

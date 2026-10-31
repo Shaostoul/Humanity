@@ -27,7 +27,6 @@ use crate::engine::state::EngineState;
 use crate::gui::{GuiPage, GuiState};
 use crate::renderer::RenderObject;
 use crate::ship::levels::{self, ShipLevel};
-use crate::ship::storey_edits::CutAway;
 
 /// The level the Maps page shows cut open, when the home should be drawn cut for it: the page
 /// open, a level shown (`ship_view::shown_level`: picked, or yours on the plan; aboard, near the
@@ -46,7 +45,7 @@ pub(crate) fn map_cuts(g: &GuiState) -> Cuts {
     let (Some(level), Some(ship)) = (map_level(g), g.ship_structure.as_ref()) else {
         return Cuts::default();
     };
-    Cuts(levels::level_cuts(ship, &level).into_iter().map(|c| CutAway { min: c.min, max: c.max, cut_y: c.cut_y }).collect())
+    Cuts(levels::level_cuts(ship, &level))
 }
 
 /// The home's shell for the Maps page's level (`levels::level_meshes`), None for the whole ship.

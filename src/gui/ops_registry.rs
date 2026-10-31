@@ -72,7 +72,7 @@ pub fn surface_label(surface: &str) -> &'static str {
 pub fn ops_registry() -> &'static OpsRegistry {
     static REG: std::sync::OnceLock<OpsRegistry> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        let disk = crate::data_dir().join("admin/ops_registry.json");
+        let disk = crate::storage::data_dir().join("admin/ops_registry.json");
         let text = std::fs::read_to_string(&disk).unwrap_or_else(|e| {
             crate::embedded_data::note_builtin_copy(
                 "admin/ops_registry.json",

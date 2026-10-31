@@ -122,6 +122,6 @@ pub(crate) fn on_new(gs: &mut GuiState, frame: &Value) -> Option<crate::notifica
 }
 
 // The two-device sequence of 10o O1 (another device's pages first, a live DM during a backlog), on
-// the server we are on and on a parked one, is src/engine/parity_tests.rs, a child of
-// engine/put_answer_tests.rs (whose recording-socket app it shares). The ref rules alone, without
+// the server we are on and on a parked one, is src/engine/crossing_tests/put_answer_parity.rs, which
+// shares engine/put_answer_tests.rs's recording-socket app. The ref rules alone, without
 // a socket: net/mailbox_fetch.rs.

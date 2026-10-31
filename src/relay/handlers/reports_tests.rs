@@ -264,8 +264,10 @@ fn each_refusal_says_why_and_keeps_nothing() {
 /// text, with a later version of the marker (`[[hum:file:` is the rule, as the web's
 /// `reportTextHasFile`), with it in a group message, or pasted into the note, is refused with
 /// the one sentence that points to the official lines, and nothing of it is kept: no row, no
-/// text. The same report without that message goes through. In the desktop build the marker
-/// net::dm_pq seals files under starts with the prefix this rule looks for.
+/// text. The same report without that message goes through. That the marker the desktop app seals
+/// files under (net::dm_pq) starts with the prefix this rule looks for is the GUI's test since the
+/// crate split's backlog (2026-10-31: gui/crossing_tests/reports.rs), because the app's network
+/// side is a crate beside this one.
 ///
 /// Seen red 2026-10-09 with the check taken out of `check_report`: "a direct message carrying a
 /// file", left `["report_received 1"]` (received and kept, the file's key in the database), right
@@ -273,8 +275,6 @@ fn each_refusal_says_why_and_keeps_nothing() {
 /// looking for `[[hum:file:v1]]` only: "a later version of the marker".
 #[test]
 fn a_message_carrying_a_file_is_never_included_in_a_report() {
-    #[cfg(feature = "native")]
-    assert!(crate::net::dm_pq::FILE_MARKER.starts_with(DM_FILE_MARKER_PREFIX), "the marker the desktop app seals files under");
     let st = fresh_state("file_marker");
     let (rae, tom) = (person(1), person(2));
     let file_text = "[[hum:file:v1]]eyJrZXkiOiJzZWNyZXQifQ==".to_string();

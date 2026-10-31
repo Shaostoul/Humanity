@@ -143,12 +143,12 @@ pub fn load_cannot_close(data_dir: &std::path::Path) -> CannotCloseData {
     }
 }
 
-/// Load-once cache. Same pattern as laws/glossary: `crate::data_dir()` is the
+/// Load-once cache. Same pattern as laws/glossary: `crate::storage::data_dir()` is the
 /// CWD-independent resolved data dir in the installed app, and falls back to
 /// "data" under tests/snapshots (which run from the repo root).
 fn cannot_close() -> &'static CannotCloseData {
     static CACHE: std::sync::OnceLock<CannotCloseData> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| load_cannot_close(&crate::data_dir()))
+    CACHE.get_or_init(|| load_cannot_close(&crate::storage::data_dir()))
 }
 
 /// One required component of the ideal closed-loop homestead (e.g. 4x
@@ -229,7 +229,7 @@ pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
 
 fn home_outline() -> &'static HomeOutline {
     static CACHE: std::sync::OnceLock<HomeOutline> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| load_home_outline(&crate::data_dir()))
+    CACHE.get_or_init(|| load_home_outline(&crate::storage::data_dir()))
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {

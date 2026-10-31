@@ -122,3 +122,139 @@ test('a declared test module is found where rustc finds it', () => {
     ['systems/day_energy_tests.rs']);
   assert.deepStrictEqual(declaredFiles('lib.rs', { name: 'test_clock', path: null }), ['test_clock.rs', 'test_clock/mod.rs']);
 });
+
+// Test code is held file by file (2026-10-31, the crate split's backlog before rung 1).
+const { flatByFile, flatBudgets, nestByFile } = require('../check-crate-layers.js');
+
+test('a test budget belongs to its file: another file on the same edge cannot spend it', () => {
+  const budgets = flatBudgets({ 'src/systems/farming/heat_tests.rs': { 'humanity-systems -> humanity-engine': 6 } });
+  const counts = flatByFile(new Map([
+    ['systems/farming/heat_tests.rs', new Map([['humanity-systems -> humanity-engine', 5]])],
+    ['systems/wounds_tests.rs', new Map([['humanity-systems -> humanity-engine', 1]])],
+  ]));
+  const r = judge(counts, budgets);
+  assert.deepStrictEqual(r.fresh, [{ edge: 'src/systems/wounds_tests.rs: humanity-systems -> humanity-engine', n: 1 }]);
+  assert.deepStrictEqual(r.under, [{ edge: 'src/systems/farming/heat_tests.rs: humanity-systems -> humanity-engine', n: 5, budget: 6 }]);
+  // And the file-by-file shape crate-layers.json keeps comes back from the flat one.
+  assert.deepStrictEqual(nestByFile(counts), {
+    'src/systems/farming/heat_tests.rs': { 'humanity-systems -> humanity-engine': 5 },
+    'src/systems/wounds_tests.rs': { 'humanity-systems -> humanity-engine': 1 },
+  });
+  assert.deepStrictEqual(flatBudgets(nestByFile(counts)), counts);
+});
+
+// main.rs reaches the library by its name (2026-10-31): its uses were missing from every count.
+const { cargoTargets, pathsIn, analyse } = require('../crate-graph.js');
+
+test('Cargo.toml names the library and the binaries\' roots', () => {
+  const toml = '[package]\r\nname = "humanity-engine"\r\nkeywords = ["a", "b"]\r\n\r\n[[bin]]\r\nname = "HumanityOS"\r\npath = "src/main.rs"\r\n\r\n[dependencies]\r\nname = "not-this"\r\n';
+  assert.deepStrictEqual(cargoTargets(toml), { lib: 'humanity_engine', bins: ['main.rs'] });
+  assert.deepStrictEqual(cargoTargets('[package]\nname = "a-b"\n[lib]\nname = "own"\n'), { lib: 'own', bins: ['main.rs'] });
+});
+
+test('a binary\'s library paths are read as the library\'s crate paths, its own crate:: is not', () => {
+  const src = 'fn main() { humanity_engine::release_update::sign(); use humanity_engine::{relay::run, run as go}; crate::own::x(); my_humanity_engine::y::z(); }';
+  const paths = pathsIn(src, { root: 'humanity_engine' }).map((p) => p.join('::'));
+  assert.deepStrictEqual(paths, ['release_update::sign', 'relay::run', 'run']);
+  // In the library the reading is the one it always was.
+  assert.deepStrictEqual(pathsIn('use crate::{a::b, c}; crate::d::e(); super::f();', { parentOf: () => ['p'] }).map((p) => p.join('::')),
+    ['d::e', 'a::b', 'c', 'p::f']);
+});
+
+test('the counting reads a binary through the library, and test code file by file (a tree on disk)', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crate-graph-'));
+  try {
+    const src = path.join(dir, 'src');
+    fs.mkdirSync(src);
+    fs.writeFileSync(path.join(src, 'lib.rs'), 'pub mod low;\npub mod top;\n');
+    fs.writeFileSync(path.join(src, 'low.rs'), 'pub fn x() {}\n#[cfg(test)]\nmod tests { #[test] fn t() { crate::top::go(); } }\n');
+    fs.writeFileSync(path.join(src, 'top.rs'), 'pub fn go() { crate::low::x(); }\n');
+    fs.writeFileSync(path.join(src, 'main.rs'), 'fn main() { humanity_engine::top::go(); humanity_engine::low::x(); }\n');
+    const plan = { crates: [
+      { name: 'low', paths: ['low', 'main.rs'], uses: [] },
+      { name: 'top', paths: ['top', 'lib.rs'], uses: ['low'] },
+    ] };
+    const a = analyse({ tests: true, src, plan, cargo: '[package]\nname = "humanity-engine"\n[[bin]]\npath = "src/main.rs"\n' });
+    // main.rs is filed under `low` here, so its use of `top` points the wrong way, and is counted.
+    assert.deepStrictEqual([...a.edges.get('low -> top')], [['main: top::go', 1]]);
+    assert.deepStrictEqual([...a.crossing.get('top -> low')], [['low::x', 1]]);
+    // The test in low.rs reaching up is held by its file.
+    assert.deepStrictEqual([...a.testByFile.get('low.rs')], [['low -> top', 1]]);
+    assert.deepStrictEqual(a.testList.map((r) => `${r.rel}:${r.line} ${r.item}`), ['low.rs:3 top::go']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The crate root's own items (2026-10-31): `crate::data_dir()` named no module, so it went uncounted
+// from ~57 files below the engine; a root item is the crate's that owns lib.rs.
+const { rootItems } = require('../crate-graph.js');
+
+test('a crate root\'s items are its fns, statics, consts, types and re-exports, never its modules', () => {
+  const lib = [
+    'pub mod low;',
+    'pub(crate) static DATA_DIR: std::sync::OnceLock<u8> = std::sync::OnceLock::new();',
+    'pub(crate) use crate::low::data_dir;',
+    'pub use crate::low::{a, b as bee, c::*};',
+    'const MAX: f32 = 3.0;',
+    'pub async fn run() {}',
+    'macro_rules! say { () => {} }',
+    'fn outer() {',
+    '    fn inner() {}',
+    '}',
+  ].join('\n');
+  assert.deepStrictEqual([...rootItems(lib)].sort(), ['DATA_DIR', 'MAX', 'a', 'bee', 'data_dir', 'outer', 'run', 'say']);
+});
+
+test('a path to a crate-root item, lower or upper case, is a reference into the crate owning lib.rs', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crate-graph-root-'));
+  try {
+    const src = path.join(dir, 'src');
+    fs.mkdirSync(src);
+    fs.writeFileSync(path.join(src, 'lib.rs'), 'pub mod low;\npub mod top;\npub(crate) static DATA_DIR: u8 = 0;\npub(crate) fn data_dir() -> u8 { DATA_DIR }\npub(crate) use crate::low::old as kept;\n');
+    fs.writeFileSync(path.join(src, 'low.rs'), 'pub fn old() {}\npub fn x() -> u8 { crate::data_dir() + crate::DATA_DIR }\npub fn y() { crate::kept(); }\n');
+    fs.writeFileSync(path.join(src, 'top.rs'), 'pub fn go() -> u8 { crate::data_dir() }\n');
+    const plan = { crates: [
+      { name: 'low', paths: ['low'], uses: [] },
+      { name: 'top', paths: ['top', 'lib.rs'], uses: ['low'] },
+    ] };
+    const a = analyse({ src, plan, cargo: '[package]\nname = "x"\n' });
+    assert.deepStrictEqual([...a.edges.get('low -> top')].sort(), [['low: DATA_DIR', 1], ['low: data_dir', 1], ['low: kept', 1]]);
+    assert.deepStrictEqual([...a.codeByFile.get('low.rs')], [['low -> top', 3]]);
+    assert.ok(!a.codeByFile.has('top.rs'), 'the crate that owns lib.rs reads its own root freely');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A cut crate's test items are not built into a dependent's tests (2026-10-31, rung 1's first need).
+const { fixtureCrossings } = require('../crate-graph.js');
+
+test('a test reaching another crate\'s test-only module is listed; its own crate\'s is not', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crate-graph-fx-'));
+  try {
+    const src = path.join(dir, 'src');
+    fs.mkdirSync(src);
+    fs.writeFileSync(path.join(src, 'lib.rs'), 'pub mod low;\npub mod top;\n#[cfg(test)]\npub(crate) mod test_temp;\n');
+    fs.writeFileSync(path.join(src, 'test_temp.rs'), 'pub(crate) fn dir() {}\n');
+    fs.writeFileSync(path.join(src, 'low.rs'), 'pub fn x() {}\n#[cfg(test)]\npub(crate) mod tests {\n    pub(crate) fn helper() {}\n    #[test] fn own() { helper(); crate::test_temp::dir(); }\n}\n');
+    fs.writeFileSync(path.join(src, 'top.rs'), 'pub fn go() {}\n#[cfg(test)]\nmod tests {\n    #[test] fn t() { crate::low::tests::helper(); crate::test_temp::dir(); crate::low::x(); }\n}\n');
+    const plan = { crates: [
+      { name: 'low', paths: ['low', 'test_temp'], uses: [] },
+      { name: 'top', paths: ['top', 'lib.rs'], uses: ['low'] },
+    ] };
+    const rows = fixtureCrossings(analyse({ tests: true, src, plan, cargo: '[package]\nname = "x"\n' }));
+    assert.deepStrictEqual(rows.map((r) => `${r.from} -> ${r.owner}: ${r.module} (${r.n})`).sort(), ['top -> low: low::tests (1)', 'top -> low: test_temp (1)']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

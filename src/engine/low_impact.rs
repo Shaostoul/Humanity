@@ -189,7 +189,7 @@ fn overlay_entry() -> Option<&'static (Map<String, Value>, bool)> {
     OVERLAY
         .get_or_init(|| {
             let spec = spec()?;
-            let path = crate::data_dir().join("gui").join("graphics_presets.json");
+            let path = crate::storage::data_dir().join("gui").join("graphics_presets.json");
             let preset = std::fs::read_to_string(&path).ok().and_then(|t| preset_values(&t));
             if preset.is_none() {
                 log::warn!(

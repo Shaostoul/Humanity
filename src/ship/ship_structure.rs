@@ -3618,35 +3618,6 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-mod lighting_watts_tests {
-    use super::*;
-
-    /// v0.967 (homestead increment 5): the shipped structure's switched-on
-    /// lights must sum to a sane, NONZERO wattage through the shipped
-    /// light-type table - the house lighting is real load on the power
-    /// meter, and a light-type rename that silently zeroes the bill fails
-    /// here instead of in the HUD.
-    #[test]
-    fn shipped_lights_draw_real_watts() {
-        // The ship the game runs (the ship file + the homestead on its default plot).
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let s = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
-        let watts = s.lighting_watts(|id| {
-            crate::renderer::light::light_type(id).map(|t| t.watts).unwrap_or(0.0)
-        });
-        assert!(
-            (100.0..2000.0).contains(&watts),
-            "shipped lighting should draw a realistic LED-household load, got {watts} W"
-        );
-        // Every shipped light type must carry a wattage (a new entry with
-        // watts omitted defaults to 0 = free power, which is a lie).
-        for t in crate::renderer::light::light_types() {
-            assert!(t.watts > 0.0, "light type {} has no wattage", t.id);
-        }
-    }
-}
-
 /// Increment 1b of docs/design/ship-homes-and-logistics.md: what a relay hands out (plots, their
 /// arrival points, the Commons for guests) and the ship fingerprint both sides compare.
 #[cfg(test)]
@@ -4183,38 +4154,4 @@ mod storey_fields_tests {
         assert_ne!(before.ship_hash(), ship.ship_hash(), "an older game's 3 m plots are another ship");
     }
 
-    /// AN OLDER GAME IS REFUSED AS ANOTHER SHIP (ship homes increment 7): growing the homestead
-    /// plots changed the ship's hash, and the game's welcome check (engine/home_plot.rs
-    /// `plan_welcome`) refuses any relay whose hash is not its own, in the one plain sentence,
-    /// without giving up a plot. Both ways round: a game built before the plots grew (its ship is
-    /// this one with 3 m homestead plots, whose hash is the Wave 0 pin, the hash of the ship file
-    /// before increment 7) meeting a relay running this file, and this game meeting an older relay.
-    /// The same ship is never refused as another.
-    ///
-    /// Proven green 2026-10-20 (the existing behaviour, held with the new hash): the refusal does
-    /// not depend on which way the hash moved.
-    #[cfg(feature = "native")]
-    #[test]
-    fn an_older_game_is_refused_as_another_ship() {
-        use crate::engine::home_plot::{plan_welcome, WelcomeContext, WelcomeHome};
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let now = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
-        let mut older = now.clone();
-        for p in older.plots.iter_mut().filter(|p| p.kind == "homestead") {
-            p.size.1 = 3.0;
-        }
-        assert_eq!(older.ship_hash(), "effbdfbec3360115", "the older game's ship is the ship file before increment 7");
-        let welcome = |hash: &str| serde_json::json!({ "type": "game_welcome", "player_id": 7, "world_snapshot": [], "home_plot": null, "ship": { "id": now.id, "hash": hash }, "rejoin": false });
-        let ctx = WelcomeContext { arrived_on: None, server: "http://127.0.0.1:3210", camera: Vec3::new(53.5, 1.7, 40.5), data_dir: None, other_kind: None };
-        for (what, game, relay) in [("an older game, this relay", &older, now.ship_hash()), ("this game, an older relay", &now, older.ship_hash())] {
-            match plan_welcome(Some(game), &welcome(&relay), &ctx) {
-                WelcomeHome::Refuse { sentence, give_up_plot } => {
-                    assert_eq!(sentence, OTHER_SHIP_SENTENCE, "{what}");
-                    assert!(!give_up_plot, "{what}: a plot that is not ours to give");
-                }
-                other => panic!("{what}: another ship must be refused: {other:?}"),
-            }
-        }
-        assert!(!matches!(plan_welcome(Some(&now), &welcome(&now.ship_hash()), &ctx), WelcomeHome::Refuse { .. }), "the same ship is not refused");
-    }
 }

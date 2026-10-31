@@ -23,26 +23,24 @@
 //! on the file-size ratchet.
 
 use super::*;
-use crate::surface_walk::{rest_radius, walk_ground_radius, DRAWN_CLEARANCE_M};
-use crate::ecs::components::EYE_HEIGHT_M;
 use crate::terrain::ocean_mask::OceanMask;
 use crate::terrain::osm_region::{
     latlon_to_dir_f64, parse_dem, parse_region, region_meters_to_latlon, M_PER_DEG_LAT,
     M_PER_DEG_LON_EQUATOR,
 };
 use crate::terrain::planet_chunks::{
-    build_patch_mesh, drawn_elevation_normalized, near_tree_instances_on_drawn, patch_corners,
+    build_patch_mesh, near_tree_instances_on_drawn, patch_corners,
     tree_flare_radius_m, DetailNoise, PatchId, PatchMesh,
 };
 use crate::terrain::planet_heightmap::PlanetHeightmap;
-use crate::terrain::water_carve::{self, PublishedForTest};
+use crate::terrain::water_carve::PublishedForTest;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// The shipped Earth grids, ocean mask and the real earth.ron (not the test
 /// fixture, whose surface relief is 3.5x the shipped one), with the loader's
 /// sea-level override: the planet the game draws.
-fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
+pub(crate) fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
     let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
     let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin")).expect("earth heightmap loads");
     let om = OceanMask::load(&base.join("earth_ocean_mask.bin")).expect("ocean mask loads");
@@ -56,7 +54,7 @@ fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
 /// `engine::region_meshes` does it when the region loads (lake levels from the
 /// lowest survey sample on each shore ring). Built once per test binary: a
 /// 1024x1024 rasterisation with two distance transforms is seconds in debug.
-fn silverdale_masks() -> Arc<Vec<RegionMask>> {
+pub(crate) fn silverdale_masks() -> Arc<Vec<RegionMask>> {
     static MASKS: OnceLock<Arc<Vec<RegionMask>>> = OnceLock::new();
     MASKS
         .get_or_init(|| {
@@ -95,7 +93,7 @@ const STAND_LAT: f64 = 47.645 + 200.0 / M_PER_DEG_LAT;
 const STAND_LON: f64 = -122.695;
 
 /// A direction `east_m`, `north_m` metres from the standing point.
-fn near_stand(east_m: f64, north_m: f64) -> DVec3 {
+pub(crate) fn near_stand(east_m: f64, north_m: f64) -> DVec3 {
     let m_per_lon = M_PER_DEG_LON_EQUATOR * STAND_LAT.to_radians().cos();
     latlon_to_dir_f64(STAND_LAT + north_m / M_PER_DEG_LAT, STAND_LON + east_m / m_per_lon)
 }
@@ -154,14 +152,14 @@ fn drawn_radius_along(pm: &PatchMesh, dir: DVec3) -> Option<f64> {
 }
 
 /// A cache of built patches, so a probe grid pays for each patch once.
-struct Meshes<'s, 'a> {
-    def: &'s PlanetDef,
-    src: &'s ElevationSource<'a>,
-    built: HashMap<PatchId, PatchMesh>,
+pub(crate) struct Meshes<'s, 'a> {
+    pub(crate) def: &'s PlanetDef,
+    pub(crate) src: &'s ElevationSource<'a>,
+    pub(crate) built: HashMap<PatchId, PatchMesh>,
 }
 
 impl Meshes<'_, '_> {
-    fn ground(&mut self, dir: DVec3, depth: u8) -> Option<f64> {
+    pub(crate) fn ground(&mut self, dir: DVec3, depth: u8) -> Option<f64> {
         let id = patch_containing(dir, depth);
         let (def, src) = (self.def, self.src);
         let pm = self.built.entry(id).or_insert_with(|| build_patch_mesh(def, src, None, &id));
@@ -171,7 +169,7 @@ impl Meshes<'_, '_> {
 
 /// A probe grid over the slope the vantage looks across: 25 m steps out to
 /// 150 m, which reaches from the shore taper up into the trees.
-fn probe_grid() -> Vec<DVec3> {
+pub(crate) fn probe_grid() -> Vec<DVec3> {
     let mut out = Vec::new();
     for i in -6..=6 {
         for j in -6..=6 {
@@ -272,58 +270,4 @@ fn trees_stand_on_the_drawn_ground_beside_the_silverdale_waterfront() {
     );
     assert_eq!(buried, 0, "{buried} of {n} trees are sunk past half their root flare");
     assert!(p95 < 0.30, "5% of trees sit more than {p95:.3} m off the drawn ground");
-}
-
-/// The player's feet, the third client of the same sampler: standing on the
-/// Silverdale slope, the eye rests one body height above the ground drawn
-/// under it (the walk clamp's own chain: walk_ground_radius, then
-/// rest_radius), not above the coarse grid the DEM replaced.
-#[test]
-fn the_player_stands_on_the_drawn_ground_in_silverdale() {
-    let (hm, om, def) = real_earth();
-    let dn = DetailNoise::new(def.terrain_seed);
-    let src = ElevationSource::Heightmap { hm: &hm, detail: &dn, tiles: None, ocean: Some(&om) };
-    let _published = PublishedForTest::publish(silverdale_masks());
-    let mut meshes = Meshes { def: &def, src: &src, built: HashMap::new() };
-    let want = EYE_HEIGHT_M + DRAWN_CLEARANCE_M;
-    let (mut worst, mut n) = (0.0f64, 0usize);
-    for depth in [17u8, 20] {
-        for dir in probe_grid().into_iter().step_by(4) {
-            let Some(mesh_r) = meshes.ground(dir, depth) else { continue };
-            // The field sample the engine feeds in as the fallback (it is not
-            // the reference while standing on drawn ground).
-            let e = drawn_elevation_normalized(&hm, &def, &dn, None, dir);
-            let field_r = def.radius * crate::terrain::planet_surface::displaced_radius_f64_true(&def, e as f64);
-            let (g, clearance) =
-                walk_ground_radius(field_r, Some(&def), Some(&hm), Some(&dn), None, Some(&om), depth, 0.0, dir);
-            let eye_above = rest_radius(g, EYE_HEIGHT_M, clearance) - mesh_r;
-            worst = worst.max((eye_above - want).abs());
-            n += 1;
-        }
-    }
-    println!("[region eye] Silverdale: {n} stands, worst |eye above drawn ground - {want}| {worst:.3} m");
-    assert!(n >= 40, "only {n} stands landed on a built patch");
-    assert!(
-        worst < 0.02,
-        "standing in Silverdale the eye is {worst:.2} m away from one body height above the drawn \
-         ground: the walk clamp stands the player on a surface the DEM replaced"
-    );
-    // The registry really is what moved it (a check that could not fail
-    // would be worth nothing): the same chain with the masks withdrawn
-    // stands somewhere else. The drawn ground is read BEFORE the withdrawal,
-    // since a patch built after it would be uncarved too.
-    let dir = near_stand(0.0, 0.0);
-    let mesh_r = Meshes { def: &def, src: &src, built: HashMap::new() }
-        .ground(dir, 20)
-        .expect("the standing point has a patch");
-    water_carve::clear_global();
-    let e = drawn_elevation_normalized(&hm, &def, &dn, None, dir);
-    let field_r = def.radius * crate::terrain::planet_surface::displaced_radius_f64_true(&def, e as f64);
-    let (g, _) = walk_ground_radius(field_r, Some(&def), Some(&hm), Some(&dn), None, Some(&om), 20, 0.0, dir);
-    assert!(
-        (g - mesh_r).abs() > 2.0,
-        "without the region the walk ground is only {:.2} m from the drawn ground at the standing \
-         point: this place no longer tests the region",
-        g - mesh_r
-    );
 }

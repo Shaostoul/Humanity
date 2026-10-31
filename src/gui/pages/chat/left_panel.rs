@@ -45,7 +45,7 @@ use crate::gui::{connect_target, OFFICIAL_SERVER};
 
 // `pub(super)` only because its caller (`draw`, the page frame) stayed in
 // `chat.rs`; it was private when the two lived in one file.
-pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let is_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
 
     // Show connect UI only when disconnected (no separate connection bar when connected)

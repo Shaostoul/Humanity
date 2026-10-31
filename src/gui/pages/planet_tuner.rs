@@ -190,7 +190,7 @@ fn apply_fields(text: &str, fields: &[(&str, String)]) -> Result<String, String>
 /// Read the body's RON file, apply the rewrites, write it back. One read,
 /// one validated write; any failure leaves the file untouched.
 fn write_fields(body_id: &str, fields: &[(&str, String)]) -> Result<usize, String> {
-    let path = crate::data_dir().join("planets").join(format!("{body_id}.ron"));
+    let path = crate::storage::data_dir().join("planets").join(format!("{body_id}.ron"));
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("read {}: {e}", path.display()))?;
     let out = apply_fields(&text, fields)?;

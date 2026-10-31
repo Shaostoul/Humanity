@@ -40,7 +40,7 @@ pub fn parse_kinds(text: &str) -> Result<Vec<Kind>, String> {
 pub fn kinds() -> &'static [Kind] {
     static KINDS: std::sync::OnceLock<Vec<Kind>> = std::sync::OnceLock::new();
     KINDS.get_or_init(|| {
-        let path = crate::data_dir().join(KINDS_FILE);
+        let path = crate::storage::data_dir().join(KINDS_FILE);
         match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| parse_kinds(&t)) {
             Ok(k) => k,
             Err(why) => {

@@ -135,7 +135,7 @@ fn refresh(ctx: &egui::Context, dir: &Path) -> Snapshot {
         let dir = dir.to_path_buf();
         let ctx = ctx.clone();
         std::thread::spawn(move || {
-            let json = std::fs::read_to_string(crate::data_dir().join("dev").join("journal_kinds.json")).unwrap_or_default();
+            let json = std::fs::read_to_string(crate::storage::data_dir().join("dev").join("journal_kinds.json")).unwrap_or_default();
             let snap = read_snapshot(&dir, &listed_kinds(&json));
             if let Ok(mut r) = reader().lock() {
                 r.snapshot = snap;

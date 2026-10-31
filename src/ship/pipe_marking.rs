@@ -376,7 +376,7 @@ pub fn settings_hint_text() -> &'static str {
 }
 
 fn load_marking() -> MarkingSchemes {
-    let path = crate::data_dir().join("piping").join("marking_schemes.ron");
+    let path = crate::storage::data_dir().join("piping").join("marking_schemes.ron");
     match std::fs::read_to_string(&path) {
         Ok(text) => match MarkingSchemes::parse(&text) {
             Ok(m) => return m,

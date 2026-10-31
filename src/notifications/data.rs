@@ -154,7 +154,7 @@ impl File {
 pub fn get() -> &'static File {
     static FILE: OnceLock<File> = OnceLock::new();
     FILE.get_or_init(|| {
-        crate::embedded_data::load_text_or_embedded(&crate::data_dir(), REL, File::parse).unwrap_or_else(|e| {
+        crate::embedded_data::load_text_or_embedded(&crate::storage::data_dir(), REL, File::parse).unwrap_or_else(|e| {
             log::warn!("{e}: no notifications this run");
             File::default()
         })

@@ -297,7 +297,7 @@ pub fn duration_words(s: f32) -> String {
 /// hint, which has no DataStore.
 fn shipped() -> &'static (Illnesses, Option<StatusEffectRegistry>) {
     static SHIPPED: std::sync::OnceLock<(Illnesses, Option<StatusEffectRegistry>)> = std::sync::OnceLock::new();
-    SHIPPED.get_or_init(|| hint_data(&crate::data_dir()))
+    SHIPPED.get_or_init(|| hint_data(&crate::storage::data_dir()))
 }
 
 /// The illnesses and the status effects as the game loads them, by the rule every registry

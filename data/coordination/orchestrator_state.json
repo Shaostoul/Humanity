@@ -780,6 +780,11 @@
       "date": "2026-10-31",
       "decision": "Garden views by area merged: each grow area's Garden rows and tile keys are kept until its change number (systems/farming/versions.rs), a data stamp (DataStore::stamp) or the clock's words move; wall screens build at most 1/8 of the crops a build. The critic's A-F fixed: settles open the home-storage window (BUG-219), the save writes WorldSave::farm_owed instead of settling, the golden test renamed for what it shows. \"Looked at\" = grow areas in the camera frustum, on 1 s turns.",
       "why": "The Inventory wall screen spent ~10 ms of its turn rebuilding every view for every crop (9.89 -> 0.83 ms after). Versions live in the DataStore, not a static, so parallel tests cannot mask a missed bump; every write site was swept and the equivalence tests compare kept rows with a build from scratch after each kind of change. A save that settled the farm paid a full advance on the autosave frame and lost its fertilizer draws; owing the time across the save removes both. Left: the turns' six passes over their marks (needs hecs unsafe get_unchecked), and the 31.5 ms first sight of the Garden page on a busy machine, to re-read quietly."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Crate split backlog before rung 1 merged: test code reaching up 127 -> 0 outside the fenced farm files (120 tests moved into per-crate crossing_tests, none lost); the layer lint counts test code with per-file budgets; data_dir() in storage.rs (the core) with a temporary lib.rs re-export for the 11 fenced farm callers; release_update.rs filed under humanity-gui; main.rs counted; LevelCut merged into CutAway.",
+      "why": "The brief said no re-export at the old path, but 11 callers sat in files another agent was editing; one re-export marked for deletion beats editing fenced files mid-work. Left for after the Garden views follow-up: those 11 calls and the 15 test references in 6 farm files. Rung 1 needs the core test helpers (test_temp/test_clock/test_log) in a test-support feature first, and one way to name the repo root before files move. Found: the user environment sets RUSTFLAGS=-Awarnings, so every \"0 warnings\" gate on this machine is vacuous (docs/ai/builds.md)."
     }
   ],
   "active_scopes_to_avoid": [

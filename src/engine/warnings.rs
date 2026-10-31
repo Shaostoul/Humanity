@@ -29,7 +29,7 @@ pub(crate) fn ensure_loaded(gs: &mut GuiState) {
     if gs.warnings.list.is_some() || gs.warnings.load_error.is_some() {
         return;
     }
-    match warnings::load_warnings(&crate::data_dir()) {
+    match warnings::load_warnings(&crate::storage::data_dir()) {
         Ok(list) => gs.warnings.list = Some(list),
         Err(e) => {
             log::warn!("{e}; message warnings are off for this run");

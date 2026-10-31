@@ -959,7 +959,7 @@ pub fn herd_rows(world: &hecs::World, data: &DataStore) -> Vec<HerdRow> {
 /// read from the data it describes, so the two cannot drift.
 pub fn mode_hint() -> String {
     static SHIPPED: std::sync::OnceLock<CareData> = std::sync::OnceLock::new();
-    hint_text(SHIPPED.get_or_init(|| CareData::load(&crate::data_dir())))
+    hint_text(SHIPPED.get_or_init(|| CareData::load(&crate::storage::data_dir())))
 }
 
 fn hint_text(cd: &CareData) -> String {

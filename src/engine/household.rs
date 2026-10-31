@@ -118,7 +118,7 @@ pub fn days_left(expiry: u64, now_s: u64) -> u64 {
 /// Save `store` after dropping permits that ended more than the kept days ago (plan 3.2: "on every
 /// save that touches permits"). The kept days are data (data/ship/household.ron).
 fn save_pruned(store: &mut DmStore) {
-    let kept = hh::load_lengths(&crate::data_dir()).ended_kept_days;
+    let kept = hh::load_lengths(&crate::storage::data_dir()).ended_kept_days;
     store.prune_permits(now_s(), kept);
     store.save();
 }

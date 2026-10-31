@@ -884,7 +884,7 @@ impl VideoProvider {
     /// `open_with` against the game's resolved data dir (the production path).
     pub fn ensure_open(&mut self, display_px: (u32, u32)) {
         if !self.open_attempted {
-            self.open_with(&crate::data_dir(), display_px);
+            self.open_with(&crate::storage::data_dir(), display_px);
         }
     }
 
@@ -1037,7 +1037,7 @@ impl VideoProvider {
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
             .filter(|d| d.is_dir())
             .or_else(|| home.map(|h| h.join("Videos")).filter(|d| d.is_dir()));
-        let media_dir = crate::data_dir().join("media");
+        let media_dir = crate::storage::data_dir().join("media");
         self.picker = Some(
             FilePickerState::new(&exts, 0)
                 .starting_in(start)

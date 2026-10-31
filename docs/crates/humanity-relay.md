@@ -15,17 +15,16 @@ deploy takes.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "relay"`: `relay/`, `how_to/`
-  - `feature = "native"`: `release_update.rs`
-- **Size:** 110,833 lines in 213 files, 18,085 of them in 50 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `relay/relay.rs` 6,366 of 6,380, `relay/api.rs` 3,758 of 3,930, `relay/handlers/profile.rs` 620 of 650, `relay/files.rs` 1,568 of 1,650, `relay/handlers/msg_handlers.rs` 4,315 of 4,660, `relay/api_market.rs` 697 of 800, `relay/handlers/stream.rs` 437 of 550.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `relay` 3, `mesh` 1, `native` 1.
-- **May use** (the plan): core, protocol, ship, systems; through those, also terrain. **Uses today** (references in non-test code): protocol 97, ship 38, core 27, systems 10.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 109, engine 7.
-- **Wrong-way references:** 0 in code (`node scripts/check-crate-layers.js` keeps it there); 2 in test code, to gui 1, net 1: each moves with its test before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted").
-- **Its lib tests:** 984 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Size:** 110,460 lines in 215 files, 18,297 of them in 53 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `relay/relay.rs` 6,377 of 6,380, `relay/api.rs` 3,758 of 3,930, `relay/handlers/profile.rs` 620 of 650, `relay/files.rs` 1,568 of 1,650, `relay/handlers/msg_handlers.rs` 4,318 of 4,660, `relay/api_market.rs` 697 of 800, `relay/handlers/stream.rs` 437 of 550.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `relay` 3, `mesh` 1.
+- **May use** (the plan): core, protocol, ship, systems; through those, also terrain. **Uses today** (references in non-test code): protocol 94, ship 38, core 28, systems 10.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 104, engine 11.
+- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
+- **Its lib tests:** 979 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib relay:: how_to:: release_update:: --skip engine::call_relay:: --skip gui::pages::how_to:: --skip net::call_relay:: --skip relay::core::
+just test-lib relay:: how_to:: --skip engine::call_relay:: --skip gui::crossing_tests::how_to:: --skip gui::pages::how_to:: --skip net::call_relay:: --skip relay::core::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
@@ -42,13 +41,13 @@ just test-lib relay:: how_to:: release_update:: --skip engine::call_relay:: --sk
 | `relay::admin::Registry` | 3 | gui 3 |
 | `how_to::model` | 2 | gui 2 |
 | `how_to::view` | 2 | gui 2 |
+| `relay::run_relay` | 2 | engine 1, gui 1 |
 | `relay::services::ServiceInfo` | 2 | engine 1, gui 1 |
 | `relay::storage::BannedUser` | 2 | engine 1, gui 1 |
 | `relay::storage::GameBan` | 2 | engine 1, gui 1 |
 | `relay::storage::MutedUser` | 2 | engine 1, gui 1 |
-| `relay::storage::backups::BackupEntry` | 2 | engine 1, gui 1 |
 
-And 44 more items, 47 references (`node scripts/crate-cards.js --interface humanity-relay` lists them all).
+And 44 more items, 46 references (`node scripts/crate-cards.js --interface humanity-relay` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -106,11 +105,6 @@ And 44 more items, 47 references (`node scripts/crate-cards.js --interface human
 
 ## Open work
 
-- **`release_update` is filed here but is not server code.** It compiles only with `native` (its
-  own `#![cfg(feature = "native")]`), and its only users are the GUI's updater and `main.rs`; the
-  relay never calls it. When this crate is cut it either needs a `native` feature of its own or
-  moves to the gui or engine crate. Found 2026-10-31 writing this card; the plan is
-  [crate-layers.json](../../scripts/crate-layers.json).
 - **The in-app ops console's remaining slices:** the relay-to-system bridge (fail2ban, relay
   restart, secrets; designed, not built: it installs a sudoers rule and a root helper on the live
   servers), the socket admin messages in the coverage lint, the Backups panel's actions through the

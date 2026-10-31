@@ -115,12 +115,8 @@ pub mod relay;
 
 pub mod hot_reload;
 
-/// The resolved data directory, set once at startup (from `find_data_dir`) so cached
-/// loaders (laws, glossary, garden, homes) read the SAME CWD-independent path the main
-/// app uses, instead of a bare relative "data" that only resolves when the process CWD
-/// happens to contain data/. Falls back to "data" if never set (tests/snapshots, which
-/// run from the repo root).
-pub(crate) static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+// The resolved data directory is the core's since the crate split's backlog (2026-10-31):
+// `storage::DATA_DIR` and `storage::data_dir()`, set below at startup.
 
 /// How far a photoscanned plant may be uniformly scaled to stand in for its
 /// species before the near-tree loader rejects it and grows the species
@@ -136,13 +132,12 @@ pub(crate) static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync:
 const MAX_MODEL_STRETCH: f32 = 3.0;
 
 
-/// The resolved data dir (or "data" if not yet set).
-pub(crate) fn data_dir() -> std::path::PathBuf {
-    DATA_DIR
-        .get()
-        .cloned()
-        .unwrap_or_else(|| std::path::PathBuf::from("data"))
-}
+// The old path, kept ONLY for the files another session is editing as this moved (the farm and the
+// Garden: engine/home_meshes.rs, gui/pages/inventory.rs and nine under systems/farming/); every
+// other caller names `crate::storage::data_dir()`. scripts/check-crate-layers.js holds each of
+// those files to its count of uses (crate-layers.json "budgets"), so no new caller can take it up;
+// delete this line when those files read the new path (docs/design/crate-split.md, backlog).
+pub(crate) use crate::storage::data_dir;
 
 pub mod systems;
 
@@ -1103,7 +1098,7 @@ mod native_app {
             let data_dir = find_data_dir();
             // Publish it for the cached loaders (laws/glossary/homes) so they resolve
             // the same CWD-independent path instead of a bare relative "data".
-            let _ = crate::DATA_DIR.set(data_dir.clone());
+            let _ = crate::storage::DATA_DIR.set(data_dir.clone());
 
             // Minimal camera/controller (needed by struct, but not used until world loads)
             let mut camera = Camera::new();

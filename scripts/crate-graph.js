@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // The crate's module graph and the references that point the wrong way under the planned crate
-// split (docs/design/crate-split.md). Read-only. Run: node scripts/crate-graph.js [--edges] [--crates]
+// split (docs/design/crate-split.md). Read-only. Run: node scripts/crate-graph.js [--edges] [--crates] [--tests] [--fixtures]
 //   default   every top-level module: lines, feature gate, what it reaches, the cycles, the leaves
 //   --edges   each reference a crate may not make under scripts/crate-layers.json (the plan's one
 //             source), by edge, with the items it names: the rung-0 work list
 //   --crates  each planned crate's lines, and what it may use
+//   --tests   each wrong-way reference in TEST code, file:line and the path it names, by edge (the
+//             list the ratchet's test budgets hold, scripts/check-crate-layers.js)
+//   --fixtures  test code reaching ANOTHER crate's test-only module (a `#[cfg(test)]` helper such as
+//             test_temp): allowed in one crate, but a cut crate's test items are not compiled into a
+//             dependent's tests, so each needs a test-support feature at the cut (rung 1's first)
 // Written 2026-10-30 to plan the split from data rather than from a guess; --edges read a
 // hard-coded five-layer list until the plan grew to ten crates the same day.
 //
@@ -185,6 +190,80 @@ function declaredFiles(rel, decl) {
   return [join(own, `${decl.name}.rs`), join(own, `${decl.name}/mod.rs`)];
 }
 
+/** The library's name and the binaries' root files, from Cargo.toml's text (2026-10-31, the crate
+ * split's backlog): `{ lib: "humanity_engine", bins: ["main.rs"] }`, the bins as paths under src/.
+ * A binary is a crate of its own that reaches the library as `<lib>::x`, which is the library's
+ * `crate::x`; until this was read, main.rs's uses (release_update, the relay's restore) were missing
+ * from every count and interface table. The library is named by `[lib] name`, else the package's
+ * name with `-` as `_`; the binaries are the `[[bin]]` paths, else `src/main.rs`. */
+function cargoTargets(toml) {
+  const sections = [];
+  let cur = { head: '', body: [] };
+  for (const line of toml.split(/\r?\n/)) {
+    const h = /^\s*(\[\[?[^\]]+\]\]?)\s*(?:#.*)?$/.exec(line);
+    if (h) { sections.push(cur); cur = { head: h[1].replace(/\s+/g, ''), body: [] }; } else cur.body.push(line);
+  }
+  sections.push(cur);
+  const key = (s, k) => {
+    for (const l of s ? s.body : []) { const m = new RegExp(`^\\s*${k}\\s*=\\s*"([^"]+)"`).exec(l); if (m) return m[1]; }
+    return null;
+  };
+  const lib = (key(sections.find((s) => s.head === '[lib]'), 'name') || key(sections.find((s) => s.head === '[package]'), 'name') || '').replace(/-/g, '_');
+  const bins = sections.filter((s) => s.head === '[[bin]]').map((s) => key(s, 'path')).filter(Boolean);
+  return { lib, bins: (bins.length ? bins : ['src/main.rs']).map((p) => p.replace(/\\/g, '/').replace(/^src\//, '')) };
+}
+
+/** The items a crate root declares itself (pure): every top-level fn, static, const, struct, enum,
+ * union, type, trait and macro_rules! in `code` (lib.rs as `nonTestCode` gives it), and every name a
+ * top-level `use` brings in (a re-export such as `pub(crate) use crate::storage::data_dir;`), but no
+ * module (a module's path is the plan's to place). A path naming one, `crate::data_dir()` or
+ * `crate::DATA_DIR`, names something in the crate that owns lib.rs (2026-10-31: until then the counting
+ * read no module there and skipped it, so ~57 files below the engine read `data_dir()` uncounted). */
+function rootItems(code) {
+  const out = new Set();
+  const item = /^(?:pub(?:\([^)]*\))?\s+)?(?:(?:async|const|unsafe|default)\s+|extern\s+"[^"]*"\s+)*(?:fn|static|const|struct|enum|union|type|trait)\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)/gm;
+  for (const m of code.matchAll(item)) out.add(m[1]);
+  for (const m of code.matchAll(/^macro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)/gm)) out.add(m[1]);
+  for (const m of code.matchAll(/^(?:pub(?:\([^)]*\))?\s+)?use\s+([^;]+);/gm)) {
+    const body = m[1].replace(/\s+/g, ' ').trim();
+    const g = /^(.*)::\{(.*)\}$/.exec(body);
+    for (const part of g ? g[2].split(',') : [body]) {
+      const t = part.trim();
+      if (!t || t === 'self' || t.endsWith('*')) continue;
+      const alias = /\s+as\s+([A-Za-z_][A-Za-z0-9_]*)$/.exec(t);
+      out.add(alias ? alias[1] : t.split('::').pop());
+    }
+  }
+  return out;
+}
+
+/** Every path a file's code names in its crate (pure; shared with the crate cards' readers): each
+ * `<root>::a::b` (`root` is `crate` in the library; in a binary, the library's name), each part of a
+ * `use <root>::{a, b::c}` group (counted once each, as `a` and `b::c`), and, with `parentOf`, each
+ * `super::x` resolved against the file's own module (`parentOf(n)`: its path n levels up). In a
+ * binary `crate::` names the binary's own items, not the library's, so only the library's name is read
+ * there, and never as the tail of a longer name. Returns `[[segment, ...], ...]` in the order found,
+ * each list carrying `.at`, the offset in `src` where its path starts (a group's parts, the group's). */
+function pathsIn(src, { root = 'crate', parentOf = null } = {}) {
+  const refs = [];
+  const lead = root === 'crate' ? '' : '(?<![A-Za-z0-9_:])';
+  const at = (segs, i) => Object.assign(segs, { at: i });
+  for (const r of src.matchAll(new RegExp(`${lead}${root}::([A-Za-z_0-9]+(?:::[A-Za-z_0-9]+)*)`, 'g'))) refs.push(at(r[1].split('::'), r.index));
+  for (const g of src.matchAll(new RegExp(`use\\s+${root}::\\{([^}]*)\\}`, 'g'))) {
+    for (const part of g[1].split(',')) {
+      const p = part.trim().replace(/\s+as\s+\w+$/, '');
+      if (p) refs.push(at(p.split('::'), g.index));
+    }
+  }
+  if (parentOf) {
+    for (const r of src.matchAll(/((?:super::)+)([A-Za-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) {
+      const ups = r[1].length / 'super::'.length;
+      refs.push(at([...parentOf(ups), ...r[2].split('::')], r.index));
+    }
+  }
+  return refs;
+}
+
 /** The plan's reading of src/: lines per crate, the wrong-way edges ("from -> to" -> Map("module: item" -> count)),
  * and the top-level modules no crate claims. Shared with scripts/check-crate-layers.js (the ratchet).
  * Also, for the crate cards (scripts/crate-cards.js, 2026-10-31): `crossing`, EVERY reference from one
@@ -195,13 +274,23 @@ function declaredFiles(rel, decl) {
  * the others) into `testEdges`, the wrong-way references rung 1 must move first
  * (docs/design/crate-split.md, rung 0's "Not counted"). There a `super::` counts only in a test file:
  * inside an inline `mod tests { }` it names the file's own module, which the file's path alone cannot
- * tell from its parent, and that module is the code under test, in the same crate. */
+ * tell from its parent, and that module is the code under test, in the same crate. With tests it also
+ * gives `testByFile`, the same references by the file they sit in (src/-relative -> Map(edge -> count)),
+ * which the ratchet holds file by file (scripts/check-crate-layers.js).
+ * A path that names one of the crate root's own items (`rootItems`: `crate::data_dir()`) is a reference
+ * into the crate that owns lib.rs. With or without tests, `codeByFile` is the code's references by file
+ * (the ratchet holds code file by file too).
+ * A binary's root (main.rs, from Cargo.toml: `cargoTargets`) is read through the library's name: its
+ * `humanity_engine::x` is the library's `crate::x`, a reference from the crate the plan files it in.
+ * `opts.src`, `opts.plan` and `opts.cargo` read another tree (scripts/tests/check-crate-layers.test.js
+ * builds one): the src/ folder, the plan as an object, Cargo.toml's text. */
 function analyse(opts = {}) {
   const withTests = !!opts.tests;
   const fs = require('fs');
   const path = require('path');
-  const ROOT = path.join(__dirname, '..', 'src');
-  const PLAN = JSON.parse(fs.readFileSync(path.join(__dirname, 'crate-layers.json'), 'utf8'));
+  const ROOT = opts.src || path.join(__dirname, '..', 'src');
+  const PLAN = opts.plan || JSON.parse(fs.readFileSync(path.join(__dirname, 'crate-layers.json'), 'utf8'));
+  const CARGO = cargoTargets(opts.cargo != null ? opts.cargo : fs.readFileSync(path.join(__dirname, '..', 'Cargo.toml'), 'utf8'));
   // path -> crate, and each crate's transitive set of crates it may use.
   const owner = new Map();
   for (const c of PLAN.crates) for (const p of c.paths) owner.set(p.replace(/\.rs$/, ''), c.name);
@@ -273,6 +362,13 @@ function analyse(opts = {}) {
   const edges = new Map(); // "from -> to" -> Map("module: item" -> count)
   const crossing = new Map(); // "from -> to" -> Map("path::as::written" -> count), allowed ones too
   const testEdges = new Map(); // as `edges`, in test code (only with { tests: true })
+  const testByFile = new Map(); // rel -> Map("from -> to" -> count), the test references by file
+  const testList = []; // each of them: { rel, edge, line, item }, for `--tests`
+  const codeByFile = new Map(); // as testByFile, for the code
+  // The crate root's own items (lib.rs), and the crate the plan gives lib.rs.
+  const libFile = parsed.find((f) => f.rel === 'lib.rs');
+  const roots = libFile ? rootItems(libFile.code) : new Set();
+  const rootCrate = crateOf('lib');
   const fileList = [];
   let unowned = new Set();
   for (const { rel, raw, code, all } of parsed) {
@@ -287,28 +383,18 @@ function analyse(opts = {}) {
     const selfPath = mod.split('/');
     const parentOf = (n) => selfPath.slice(0, Math.max(0, selfPath.length - n));
     // One reading of the code (never a test file's), and with { tests: true } one of the tests.
+    // A binary's root reaches the library by its name, and has no parent for a `super::`.
+    const bin = CARGO.bins.includes(rel);
+    const root = bin ? CARGO.lib : 'crate';
     const readings = [];
-    if (!test) readings.push({ src: code, supers: true, into: edges, cross: crossing });
-    if (withTests) readings.push({ src: test ? all : testOnlyCode(all, code), supers: test, into: testEdges, cross: null });
-    for (const { src, supers, into, cross } of readings) {
-      const refs = [];
-      for (const r of src.matchAll(/crate::([a-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) refs.push(r[1].split('::'));
-      for (const g of src.matchAll(/use\s+crate::\{([^}]*)\}/g)) {
-        for (const part of g[1].split(',')) {
-          const p = part.trim().replace(/\s+as\s+\w+$/, '');
-          if (p) refs.push(p.split('::'));
-        }
-      }
-      if (supers) {
-        for (const r of src.matchAll(/((?:super::)+)([A-Za-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) {
-          const ups = r[1].length / 'super::'.length;
-          refs.push([...parentOf(ups), ...r[2].split('::')]);
-        }
-      }
+    if (!test) readings.push({ src: code, supers: !bin, into: edges, cross: crossing, byFile: codeByFile, list: null });
+    if (withTests) readings.push({ src: test ? all : testOnlyCode(all, code), supers: test && !bin, into: testEdges, cross: null, byFile: testByFile, list: testList });
+    for (const { src, supers, into, cross, byFile, list } of readings) {
+      const refs = pathsIn(src, { root, parentOf: supers ? parentOf : null });
       for (const segs of refs) {
         const lower = [];
         for (const s of segs) { if (!/^[a-z_0-9]+$/.test(s)) break; lower.push(s); }
-        const to = crateOf(lower.join('/'));
+        const to = crateOf(lower.join('/')) || (roots.has(segs[0]) && !crateOf(segs[0]) ? rootCrate : null);
         if (!to || to === from) continue;
         const k = `${from} -> ${to}`;
         if (cross) {
@@ -322,10 +408,54 @@ function analyse(opts = {}) {
         const item = `${selfPath[0]}: ${segs.join('::')}`;
         m.set(item, (m.get(item) || 0) + 1);
         into.set(k, m);
+        if (byFile) {
+          const f = byFile.get(rel) || new Map();
+          f.set(k, (f.get(k) || 0) + 1);
+          byFile.set(rel, f);
+          if (list) list.push({ rel, edge: k, line: src.slice(0, segs.at).split('\n').length, item: segs.join('::') });
+        }
       }
     }
   }
-  return { PLAN, lines, edges, unowned, crossing, testEdges, files: fileList, crateOf, may, isTestFile };
+  return { PLAN, lines, edges, unowned, crossing, testEdges, testByFile, testList, codeByFile, files: fileList, crateOf, may, isTestFile };
+}
+
+/** Test code that reaches another crate's TEST-ONLY module (pure over `analyse({ tests: true })`):
+ * [{ from, owner, module, n, files }], most first. A test-only module is a test file's module or an
+ * inline `#[cfg(test)] mod x { }`. Within one crate this compiles; once that crate is cut its test
+ * items are not built into a dependent's tests, so each is a helper to put behind a test-support
+ * feature of the crate that owns it (2026-10-31: 412, 305 of them the core's test_temp, test_clock
+ * and test_log). */
+function fixtureCrossings(a) {
+  const testMods = new Map();
+  for (const f of a.files) {
+    if (f.test) testMods.set(f.mod, f.crate);
+    for (const m of f.all.matchAll(/#\[\s*cfg\s*\(\s*(?:test|all\s*\([^\]]*\btest\b[^\]]*\))\s*\)\s*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_0-9]+)\s*\{/g)) testMods.set(`${f.mod}/${m[1]}`, f.crate);
+  }
+  const by = new Map();
+  for (const f of a.files) {
+    const src = f.test ? f.all : testOnlyCode(f.all, f.code);
+    const self = f.mod.split('/');
+    const parentOf = (n) => self.slice(0, Math.max(0, self.length - n));
+    for (const segs of pathsIn(src, { parentOf: f.test ? parentOf : null })) {
+      const lower = [];
+      for (const x of segs) { if (!/^[a-z_0-9]+$/.test(x)) break; lower.push(x); }
+      for (let k = lower.length; k > 0; k--) {
+        const mod = lower.slice(0, k).join('/');
+        const owner = testMods.get(mod);
+        if (!owner) continue;
+        if (owner !== f.crate) {
+          const key = `${f.crate}|${owner}|${mod}`;
+          const e = by.get(key) || { from: f.crate, owner, module: mod.replace(/\//g, '::'), n: 0, files: new Set() };
+          e.n++;
+          e.files.add(f.rel);
+          by.set(key, e);
+        }
+        break;
+      }
+    }
+  }
+  return [...by.values()].sort((x, y) => y.n - x.n);
 }
 
 /** Every `#[path = "..."] mod name;` in a file's code (comments passed over; `all` is the file as
@@ -340,8 +470,9 @@ function pathDecls(raw, all) {
   return out;
 }
 
-if (require.main === module && (process.argv.includes("--edges") || process.argv.includes("--crates"))) {
-  const { PLAN, lines, edges, unowned } = analyse();
+if (require.main === module && ["--edges", "--crates", "--tests", "--fixtures"].some((f) => process.argv.includes(f))) {
+  const read = analyse({ tests: process.argv.includes("--tests") || process.argv.includes("--fixtures") });
+  const { PLAN, lines, edges, unowned, testList } = read;
   if (process.argv.includes("--crates")) {
     for (const c of PLAN.crates) {
       console.log(`${String(lines.get(c.name) || 0).padStart(7)}  ${c.name.padEnd(20)} uses ${c.uses.map((u) => u.replace('humanity-', '')).join(', ') || '(nothing)'}`);
@@ -356,6 +487,20 @@ if (require.main === module && (process.argv.includes("--edges") || process.argv
       console.log(`${String(n).padStart(4)}  ${k.padEnd(40)} ${items}`);
     }
     console.log(`\n${rows.length} wrong-way edges, ${total} references in non-test code (plan: scripts/crate-layers.json)`);
+  }
+  if (process.argv.includes("--tests")) {
+    const short = (e) => e.replace(/humanity-/g, '');
+    const rows = [...testList].sort((a, b) => a.edge.localeCompare(b.edge) || a.rel.localeCompare(b.rel) || a.line - b.line);
+    for (const r of rows) console.log(`${short(r.edge).padEnd(22)} src/${r.rel}:${r.line}  ${r.item}`);
+    const by = new Map();
+    for (const r of rows) by.set(short(r.edge), (by.get(short(r.edge)) || 0) + 1);
+    console.log(`\n${rows.length} wrong-way references in test code${by.size ? ': ' + [...by.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') : ''}`);
+  }
+  if (process.argv.includes("--fixtures")) {
+    const short = (c) => c.replace(/humanity-/g, '');
+    const rows = fixtureCrossings(read);
+    for (const r of rows) console.log(`${String(r.n).padStart(4)}  ${short(r.from)} tests -> ${short(r.owner)}'s ${r.module}  (${r.files.size} files: ${[...r.files].slice(0, 4).join(' ')}${r.files.size > 4 ? ' ...' : ''})`);
+    console.log(`\n${rows.reduce((t, r) => t + r.n, 0)} test references into another crate's test-only modules: each needs a test-support feature of the crate that owns it when that crate is cut`);
   }
   if (unowned.size) console.log(`\nNOT IN THE PLAN (add them to scripts/crate-layers.json): ${[...unowned].join(', ')}`);
 } else if (require.main === module) {
@@ -451,4 +596,4 @@ if (require.main === module && (process.argv.includes("--edges") || process.argv
 
 }
 
-module.exports = { analyse, blankLiterals, cfgIsTestOnly, nonTestCode, testOnlyCode, declaredFiles, declaredGates, innerGates, pathDecls };
+module.exports = { analyse, blankLiterals, cfgIsTestOnly, nonTestCode, testOnlyCode, declaredFiles, declaredGates, innerGates, pathDecls, cargoTargets, pathsIn, rootItems, fixtureCrossings };

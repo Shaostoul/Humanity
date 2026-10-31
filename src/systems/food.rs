@@ -139,7 +139,7 @@ impl ItemProfiles {
 pub fn consume_kinds() -> &'static HashMap<String, bool> {
     static KINDS: std::sync::OnceLock<HashMap<String, bool>> = std::sync::OnceLock::new();
     KINDS.get_or_init(|| {
-        let dir = crate::data_dir();
+        let dir = crate::storage::data_dir();
         let list = ItemProfiles::load(&dir);
         let data: Option<FoodData> =
             crate::embedded_data::load_data_or_embedded(&dir, "food_system.ron", crate::data_parse::parse_ron)
@@ -2801,7 +2801,7 @@ mod g_load_wiring_tests {
 /// walk the save and the GUI's storage pool, which the relay build does not have.
 #[cfg(all(test, feature = "native"))]
 #[path = "food_spoilage_tests.rs"]
-mod spoilage_tests;
+pub(crate) mod spoilage_tests;
 
 /// Being ill and the medical items' Use button (BUG-162, 2026-10-05): the stomach illness
 /// takes water over game hours and passes, drinking puts it back, and Use does what each
@@ -2821,4 +2821,4 @@ mod frame_rate_tests;
 /// Native only: one test walks the save.
 #[cfg(all(test, feature = "native"))]
 #[path = "wounds_tests.rs"]
-mod wounds_tests;
+pub(crate) mod wounds_tests;

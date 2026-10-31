@@ -17,20 +17,26 @@ edit re-checks the least.
   - `feature = "wasm"`: `wasm_entry.rs`
   - the crate root: `lib.rs`
   - the binary: `main.rs`
-  - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`
-- **Size:** 86,090 lines in 99 files, 6,512 of them in 17 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `lib.rs` 16,668 of 16,700, `engine/frame_shells.rs` 1,296 of 1,300, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/map_cut.rs` 69 of 75, `engine/frame_ws_poll.rs` 1,626 of 1,800, `engine/map_tiles.rs` 365 of 450.
+  - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
+- **Size:** 91,643 lines in 121 files, 11,315 of them in 39 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `lib.rs` 16,663 of 16,700, `engine/frame_shells.rs` 1,296 of 1,300, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,639 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 31, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 572, systems 568, gui 487, ship 322, renderer 310, terrain 131, net 95, relay 7.
-- **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
-- **Wrong-way references:** 0 in code (`node scripts/check-crate-layers.js` keeps it there); 0 in test code.
-- **Its lib tests:** 584 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 587, systems 554, gui 501, ship 321, renderer 310, terrain 133, net 96, relay 11.
+- **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** systems 9, gui 1.
+- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
+- **Its lib tests:** 664 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib engine:: save_load:: wasm_entry:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::
 ```
 
-**Interface:** no other crate references anything in it.
+**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
+
+| Item | References | From |
+|---|---:|---|
+| `data_dir` | 10 | systems 9, gui 1 |
+
+All 1 items shown.
 <!-- end generated -->
 
 ## Rules
@@ -98,12 +104,11 @@ just test-lib engine:: save_load:: wasm_entry:: --skip engine::block:: --skip en
   HERE, "Increment 7 follow-ups".
 - **BUG-217, open:** `frame_ws_poll.rs` replaces the desktop's task list with the server's, so a
   task made in the app is lost (the gui card has the fix's shape). Source: [BUGS.md](../BUGS.md).
-- **For the split:** `crate::data_dir()` moves from `lib.rs` to core at rung 1; `engine/map_cut.rs`
-  converts `LevelCut` to `CutAway`, the same box under two names; rung 4 leaves the engine on top
-  once gui is cut. Source: [crate-split.md](../design/crate-split.md), rung 0, "Not counted".
-- **The counting cannot see `main.rs`:** the binary reaches the library through
-  `humanity_engine::` paths, not `crate::`, so its uses (of `release_update`, for one) are missing
-  from every interface table. Found 2026-10-31 writing this card.
+- **For the split:** `lib.rs` keeps one line for the fenced files of 2026-10-31,
+  `pub(crate) use crate::storage::data_dir;` (the data folder's path is the core's,
+  `storage::data_dir()`): delete it once engine/home_meshes.rs, gui/pages/inventory.rs and the nine
+  farming files read the new path. Rung 4 leaves the engine on top once gui is cut. Source:
+  [crate-split.md](../design/crate-split.md), rung 0, "Not counted".
 
 ## Requests from other crates
 

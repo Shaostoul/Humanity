@@ -148,7 +148,7 @@ pub fn pipe_materials() -> &'static PipeMaterials {
 }
 
 fn load_pipe_materials() -> PipeMaterials {
-    let path = crate::data_dir().join("piping").join("pipe_materials.ron");
+    let path = crate::storage::data_dir().join("piping").join("pipe_materials.ron");
     match std::fs::read_to_string(&path) {
         Ok(text) => match PipeMaterials::parse(&text) {
             Ok(m) => return m,

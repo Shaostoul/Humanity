@@ -73,7 +73,7 @@ impl TradeGoodsRegistry {
         items: &crate::systems::inventory::ItemRegistry,
         recipes: &crate::systems::crafting::RecipeRegistry,
     ) -> Self {
-        let fluids = crate::systems::fluids::FluidTable::load(&crate::data_dir());
+        let fluids = crate::systems::fluids::FluidTable::load(&crate::storage::data_dir());
         self.with_parts_prices_and_tap(items, recipes, &parts::tap_water(&fluids))
     }
 

@@ -1430,7 +1430,7 @@ mod settings_draft_tests {
 
 /// BUG-160: with no server set (an empty address), nothing dials a server by itself. The
 /// restart cases are in config.rs (`server_address_tests`); the connect form's in
-/// pages/chat/left_panel.rs (its note) and pages/chat.rs (`connect_form_tests`, typing).
+/// pages/chat/left_panel.rs (its note) and engine/crossing_tests/chat_connect_form.rs (typing).
 #[cfg(all(test, feature = "native"))]
 mod no_server_tests {
     use crate::gui::GuiState;

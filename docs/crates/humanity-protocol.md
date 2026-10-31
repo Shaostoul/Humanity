@@ -15,12 +15,12 @@ side (net) and the server (relay) compile side by side.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "relay"`: `relay/core/`
-- **Size:** 12,645 lines in 25 files, 1,193 of them in 4 test files.
+- **Size:** 12,512 lines in 25 files, 1,076 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 97, gui 45, net 29.
-- **Wrong-way references:** 0 in code (`node scripts/check-crate-layers.js` keeps it there); 2 in test code, to net 1, relay 1: each moves with its test before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted").
-- **Its lib tests:** 162 tests, and this runs exactly them, checked against every test's name:
+- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 94, gui 48, net 29.
+- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
+- **Its lib tests:** 159 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib relay::core::
@@ -34,12 +34,12 @@ just test-lib relay::core::
 | `relay::core::object::Object` | 16 | relay 11, gui 4, net 1 |
 | `relay::core::pq_crypto` | 15 | relay 9, net 4, gui 2 |
 | `relay::core::encoding::from_canonical_bytes` | 13 | relay 12, gui 1 |
-| `relay::core::pq_crypto::DilithiumKeypair` | 9 | net 5, gui 2, relay 2 |
+| `relay::core::pq_crypto::DilithiumKeypair` | 9 | net 5, gui 4 |
 | `relay::core::encoding` | 6 | gui 2, net 2, relay 2 |
 | `relay::core::key_card` | 6 | gui 2, net 2, relay 2 |
 | `relay::core::pq_crypto::derive_dilithium_seed` | 6 | net 4, gui 2 |
 | `relay::core::object::ObjectBuilder` | 5 | gui 3, net 2 |
-| `relay::core::pq_crypto::verify_dilithium` | 5 | relay 4, net 1 |
+| `relay::core::pq_crypto::verify_dilithium` | 5 | relay 3, gui 1, net 1 |
 | `relay::core::profile_copy` | 5 | relay 4, gui 1 |
 | `relay::core::did` | 4 | relay 4 |
 | `relay::core::kdf::pbkdf2_sha256` | 4 | gui 2, net 2 |

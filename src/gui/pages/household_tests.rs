@@ -552,7 +552,7 @@ fn take_back_asks_first() {
 /// THE LENGTHS COME FROM THE DATA FILE (plan 3.2 and 3.9): with a data folder whose
 /// ship/household.ron offers 3 and 14 days, 14 picked first, the card offers exactly those two,
 /// and Give a permit asks about a permit running 14 days from now.
-/// Seen red 2026-10-12 with `draw_card_from` reading the lengths from `crate::data_dir()` instead of
+/// Seen red 2026-10-12 with `draw_card_from` reading the lengths from `crate::storage::data_dir()` instead of
 /// its own folder: "the card offers the data file's lengths: missing [\"3 days\", \"14 days\"]"
 /// failed.
 #[test]

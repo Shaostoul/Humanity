@@ -178,7 +178,7 @@ impl Lang {
 /// can never take away a word this exe knows), then any language that exists
 /// only on disk (a new translation dropped into `data/i18n/`).
 fn load() -> Vec<Lang> {
-    let dir = crate::data_dir().join("i18n");
+    let dir = crate::storage::data_dir().join("i18n");
     let mut langs: Vec<Lang> = Vec::new();
     for (code, json) in BUILT_IN {
         let mut lang = Lang::new(code);

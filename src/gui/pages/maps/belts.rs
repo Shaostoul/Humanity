@@ -144,7 +144,7 @@ fn parse(text: &str) -> Result<BeltSet, String> {
 /// (and said so in the log) when neither can be read.
 pub fn belt_set() -> &'static BeltSet {
     static B: OnceLock<BeltSet> = OnceLock::new();
-    B.get_or_init(|| match crate::embedded_data::load_text_or_embedded(&crate::data_dir(), "maps/belts.json", parse) {
+    B.get_or_init(|| match crate::embedded_data::load_text_or_embedded(&crate::storage::data_dir(), "maps/belts.json", parse) {
         Ok(set) => {
             log::info!("Maps: {} belt orbits ({})", set.len(), set.credit);
             set

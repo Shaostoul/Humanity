@@ -81,7 +81,7 @@ impl Default for TaskPageState {
             edit_status: TaskStatus::Todo,
             edit_priority: TaskPriority::Medium,
             show_suggestions: true,
-            chains: Rc::new(load_chains(&crate::data_dir())),
+            chains: Rc::new(load_chains(&crate::storage::data_dir())),
             open_step: HashMap::new(),
         }
     }

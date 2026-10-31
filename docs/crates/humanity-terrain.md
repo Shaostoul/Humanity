@@ -16,13 +16,13 @@ both it compiles once and stays built.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `terrain/`
-- **Size:** 25,638 lines in 29 files, 330 of them in 1 test files.
+- **Size:** 25,574 lines in 30 files, 446 of them in 2 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `terrain/planet_chunks.rs` 4,635 of 4,740, `terrain/grass.rs` 2,564 of 2,640, `terrain/grass_mesh.rs` 948 of 1,000, `terrain/drawn_surface.rs` 1,023 of 1,100, `terrain/water_patches.rs` 323 of 450, `terrain/grass_fields.rs` 238 of 350.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 16.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 4.
-- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 131, renderer 33, gui 25, systems 7.
-- **Wrong-way references:** 0 in code (`node scripts/check-crate-layers.js` keeps it there); 5 in test code, to systems 3, gui 1, renderer 1: each moves with its test before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted").
-- **Its lib tests:** 256 tests, and this runs exactly them, checked against every test's name:
+- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 133, renderer 33, gui 25, systems 7.
+- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
+- **Its lib tests:** 255 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib terrain::
@@ -48,7 +48,7 @@ just test-lib terrain::
 | `terrain::grass::GRASS_COVER_MAX` | 3 | gui 3 |
 | `terrain::grass::GRASS_FAR_M` | 3 | gui 3 |
 
-And 73 more items, 104 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
+And 74 more items, 106 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
 <!-- end generated -->
 
 ## Rules

@@ -643,7 +643,7 @@ pub fn drawn_leaf_containing(
 /// its own file, because this one is on the file-size ratchet.
 #[cfg(test)]
 #[path = "drawn_surface_region_tests.rs"]
-mod region_tests;
+pub(crate) mod region_tests;
 
 #[cfg(test)]
 mod tests {

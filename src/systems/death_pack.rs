@@ -138,7 +138,7 @@ impl Default for DeathRules {
     /// default exists only so `GuiState` can be built before the engine loads them; it reads
     /// the same file, so no number is written here.
     fn default() -> Self {
-        Self::load(&crate::data_dir())
+        Self::load(&crate::storage::data_dir())
     }
 }
 

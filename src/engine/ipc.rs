@@ -352,7 +352,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         diag("no machine anchors recorded yet");
         return;
     }
-    let Ok(text) = std::fs::read_to_string(crate::data_dir().join("world/showcase.ron"))
+    let Ok(text) = std::fs::read_to_string(crate::storage::data_dir().join("world/showcase.ron"))
     else {
         diag("data/world/showcase.ron missing");
         return;
@@ -376,7 +376,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         .and_then(|m| m.lock().ok())
         .map(|gt| gt.elapsed_seconds)
         .unwrap_or(0.0);
-    let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
+    let tower_cfgs = crate::gui::load_tower_configs(&crate::storage::data_dir());
     // A garden day: 24 hours of the one game clock (farming's day, 2026-09-27).
     const DAY: f64 = crate::systems::time::EARTH_DAY_S;
 

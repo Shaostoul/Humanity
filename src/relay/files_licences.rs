@@ -175,7 +175,7 @@ pub fn licences_path(data: &std::path::Path) -> std::path::PathBuf {
 /// "data" for the headless relay).
 pub fn licences() -> &'static LicencesFile {
     static LICENCES: std::sync::OnceLock<LicencesFile> = std::sync::OnceLock::new();
-    LICENCES.get_or_init(|| load_licences(&licences_path(&crate::data_dir())))
+    LICENCES.get_or_init(|| load_licences(&licences_path(&crate::storage::data_dir())))
 }
 
 /// What is said when a licence is chosen that this server does not offer.

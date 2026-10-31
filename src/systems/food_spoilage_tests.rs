@@ -27,7 +27,7 @@ fn data_dir() -> &'static Path {
 
 /// The DataStore as lib.rs wires it for the FoodSystem, with the needs held still (the Vitals
 /// drain slider at 0), the shipped container types, and the slot home storage's aging rides in.
-fn store() -> DataStore {
+pub(crate) fn store() -> DataStore {
     let mut data = DataStore::new();
     let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -53,7 +53,7 @@ fn store() -> DataStore {
     data
 }
 
-fn player(world: &mut hecs::World, inv: Inventory) -> hecs::Entity {
+pub(crate) fn player(world: &mut hecs::World, inv: Inventory) -> hecs::Entity {
     world.spawn((
         crate::ecs::components::Controllable,
         inv,
@@ -64,7 +64,7 @@ fn player(world: &mut hecs::World, inv: Inventory) -> hecs::Entity {
 }
 
 /// A home vessel of the shipped type `container_type`, holding `qty` of `item`.
-fn vessel(world: &mut hecs::World, container_type: &str, item: &str, qty: u32) -> hecs::Entity {
+pub(crate) fn vessel(world: &mut hecs::World, container_type: &str, item: &str, qty: u32) -> hecs::Entity {
     let mut c = Container::new(container_type, 400.0);
     c.current_content_item = Some(item.to_string());
     c.last_content = Some(item.to_string());
@@ -73,7 +73,7 @@ fn vessel(world: &mut hecs::World, container_type: &str, item: &str, qty: u32) -
     world.spawn((c,))
 }
 
-fn barn(key: &str, qty: u32) -> PlacedItem {
+pub(crate) fn barn(key: &str, qty: u32) -> PlacedItem {
     PlacedItem { key: key.into(), name: key.into(), qty, container: "1/1".into(), ..Default::default() }
 }
 
@@ -85,7 +85,7 @@ fn age_storage(pool: &mut [PlacedItem], data: &DataStore) {
     crate::systems::inventory::placed::age_food(pool, secs, |k| food.contains_key(k));
 }
 
-fn age_of(world: &hecs::World, p: hecs::Entity, item: &str) -> f64 {
+pub(crate) fn age_of(world: &hecs::World, p: hecs::Entity, item: &str) -> f64 {
     world.get::<&Inventory>(p).unwrap().slots.iter().flatten().find(|s| s.item_id == item).map(|s| s.age_s).unwrap()
 }
 
@@ -188,61 +188,6 @@ fn every_kept_zone_is_a_zone_the_food_data_has() {
     }
 }
 
-/// MOVING FOOD KEEPS ITS AGE (first-hour audit S6): out of the Barn into the backpack (the
-/// Inventory page's "Take to backpack", a transfer carrying the item's age), back into a
-/// vessel and out again (the machine card's Store and Take), and a fresh loaf joining old ones
-/// gives the stack their count-weighted average, so no age is made or lost. The spoilage clock
-/// used to live in a side table keyed by backpack slot, so any move started it again.
-///
-/// Seen red (see the module doc): "the Barn's bread arrives as old as it was / left: 0.0 /
-/// right: 5000.0".
-#[test]
-fn moving_food_keeps_its_age() {
-    let mut data = store();
-    data.insert("inventory_transfer_ops", Mutex::new(Vec::<TransferOp>::new()));
-    data.insert("inventory_transfer_returns", Mutex::new(Vec::<(String, u32)>::new()));
-    let mut inv_sys = crate::systems::inventory::InventorySystem::new();
-    let mut world = hecs::World::new();
-    let p = player(&mut world, Inventory::new(8));
-    let stored = PlacedItem { age_s: 5000.0, ..barn("bread_0", 3) };
-    // Take to backpack: the GUI's op carries the item's age.
-    data.get::<Mutex<Vec<TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().push(TransferOp {
-        item_id: stored.key.clone(),
-        qty: stored.qty,
-        add: true,
-        wear: stored.wear,
-        quality: stored.quality,
-        age_s: stored.age_s,
-    });
-    inv_sys.tick(&mut world, 0.0, &data);
-    assert_eq!(age_of(&world, p, "bread_0"), 5000.0, "the Barn's bread arrives as old as it was");
-
-    // A fresh loaf joins the three: the stack is the average, 3 x 5000 / 4.
-    world.get::<&mut Inventory>(p).unwrap().add_item("bread_0", 1, 99);
-    assert_eq!(age_of(&world, p, "bread_0"), 3750.0, "a fresh loaf takes a share of the old ones' age");
-
-    // Into the pantry and out again (the machine card's Store, then Take).
-    let pantry = vessel(&mut world, "pantry_cabinet_bin", "bread_0", 0);
-    {
-        let (left, age) = world.get::<&mut Inventory>(p).unwrap().remove_item_aged("bread_0", 4);
-        assert_eq!((left, age), (0, 3750.0), "the four that left were 3750 s old");
-        let reg = data.get::<ContainerRegistry>("container_registry").unwrap();
-        let mut c = world.get::<&mut Container>(pantry).unwrap();
-        reg.try_store(&mut c, "bread_0", "food", 0.0, 4);
-        c.arrived_aged(4, age);
-        assert_eq!(c.content_age_s, 3750.0, "the pantry holds them at their age");
-    }
-    let held = world.get::<&Container>(pantry).unwrap().content_age_s;
-    world.get::<&mut Inventory>(p).unwrap().add_item_volume_gated_aged("bread_0", 4, 99, 0.0, 0, held);
-    assert_eq!(age_of(&world, p, "bread_0"), 3750.0, "taken out at the age they had in the pantry");
-
-    // Back to storage when the backpack is full (`gui::return_to_storage`), at their age.
-    let mut pool = Vec::new();
-    let origin = PlacedItem { age_s: 3750.0, ..barn("bread_0", 2) };
-    crate::gui::return_to_storage(&mut pool, "bread_0", 2, Some(&origin), "Bread");
-    assert_eq!(pool[0].age_s, 3750.0, "what the backpack could not take goes back as old as it was");
-}
-
 /// SPOILED FOOD FROM STORAGE POISONS (first-hour audit S6): bread left in the Barn past its
 /// profile's time (data/food_system.ron, bread) is spoiled; taken to the backpack it stays
 /// spoiled, and eating it poisons and feeds a quarter, as spoiled food from the backpack
@@ -290,52 +235,4 @@ fn a_stack_saved_before_the_clock_loads_fresh() {
     c.as_object_mut().unwrap().remove("content_age_s");
     let c: Container = serde_json::from_value(c).unwrap();
     assert_eq!(c.content_age_s, 0.0);
-}
-
-/// FOOD KEEPS ITS AGE THROUGH A SAVE (first-hour audit S6): a stack in the backpack, an item
-/// in the Barn and a vessel's contents come back from the file as old as they were, so a
-/// restart is not a way to make food fresh again. The spoilage clock used to live only in
-/// the running FoodSystem.
-///
-/// Seen red (see the module doc): "the backpack's bread is as old as it was / left: 0.0 /
-/// right: 7200.0".
-#[test]
-fn food_keeps_its_age_through_a_save() {
-    use crate::ecs::components::MachineInstanceId;
-    let mut world = hecs::World::new();
-    let mut inv = Inventory::new(8);
-    inv.add_item_aged("bread_0", 2, 99, 0, 7200.0);
-    world.spawn((
-        crate::ecs::components::Controllable,
-        inv,
-        crate::systems::skills::PlayerSkills::new(),
-        crate::ecs::components::Name("Astra".to_string()),
-        crate::ecs::components::Appearance::default(),
-        crate::ecs::components::Outfit::default(),
-    ));
-    let mut pantry = Container::new("pantry_cabinet_bin", 700.0);
-    pantry.current_content_item = Some("bread_0".into());
-    pantry.current_qty = 4;
-    pantry.content_age_s = 900.0;
-    world.spawn((MachineInstanceId("pantry_1".into()), pantry));
-    let mut save = crate::save_load::extract_world_save(&world);
-    save.placed_items = Some(vec![PlacedItem { age_s: 40_000.0, ..barn("flour_0", 5) }]);
-    let save: crate::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
-
-    let mut fresh = hecs::World::new();
-    let p = fresh.spawn((
-        crate::ecs::components::Controllable,
-        Inventory::new(8),
-        crate::systems::skills::PlayerSkills::new(),
-        crate::ecs::components::Name("X".to_string()),
-        crate::ecs::components::Appearance::default(),
-        crate::ecs::components::Outfit::default(),
-    ));
-    let vessel = fresh.spawn((MachineInstanceId("pantry_1".into()), Container::new("pantry_cabinet_bin", 700.0)));
-    crate::save_load::apply_save_to_world(&mut fresh, &save);
-    let mut gui = crate::gui::GuiState::default();
-    crate::save_load::after_resume(&mut gui, &save, &crate::save_load::Resumed::default());
-    assert_eq!(age_of(&fresh, p, "bread_0"), 7200.0, "the backpack's bread is as old as it was");
-    assert_eq!(fresh.get::<&Container>(vessel).unwrap().content_age_s, 900.0, "the pantry's bread too");
-    assert_eq!(gui.placed_items[0].age_s, 40_000.0, "and the Barn's flour");
 }
