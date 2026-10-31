@@ -1400,7 +1400,7 @@
             temp_min_c: -1.0,
             temp_max_c: 8.0,
             spoilage_rate_multiplier: 0.25,
-            description: "Refrigerator range. Spoilage greatly slowed.",
+            description: "Fridge-cold. Spoilage greatly slowed. A real refrigerator should hold 4 C (40 F) or below (FDA).",
         ),
 
         (

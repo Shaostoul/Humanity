@@ -6897,3 +6897,28 @@ answer), so the watchdog restarts the relay after two failed checks, about four 
 connections would leave the backup as the last one), and whether continuous backup should
 detect a missing -shm and reopen instead of failing every read. Neither the backup stream's tests
 nor the hot backup's ran the two side by side.
+
+## BUG-216: game recipes taught unsafe food handling (PARTLY FIXED 2026-10-30, found 2026-10-30)
+
+**Found by** the quest-chain design (`docs/design/quest-chains.md`, section 3.5), reading the
+existing data against primary sources. HumanityOS teaches real skills through the game, so a recipe
+that shows an unsafe method teaches it.
+
+- **Canning low-acid food on a stove** (`cook_canned_food`: potatoes and carrots, station
+  `stove_0`). Low-acid food is only safe canned in a pressure canner (USDA, National Center for
+  Home Food Preservation); a boiling pot cannot reach the temperature that kills botulism spores.
+  FIXED in words: the recipe's description now says so. STILL OPEN: the recipe should need a
+  pressure canner, which the game does not have yet; it comes with the Food chain's Can branch
+  (quest-chains.md, section 4).
+- **Soup and stew made canned food** (`cook_soup`, `cook_stew` output `canned_food_0`) though
+  `soup_vegetable_0` and `stew_meat_0` exist. FIXED: they make soup and stew.
+- **Dried meat's note** said "165 F for wild game"; the sources support 160 F for meat and 165 F
+  for poultry. FIXED.
+- **The cold storage zone** was described as "Refrigerator range" while running to 8 C; FDA says a
+  refrigerator holds 4 C (40 F) or below. FIXED in words. Whether the zone itself should end at 4 C
+  (a spoilage change) goes with the Food chain's Keep It branch.
+- **`purify_water`** takes `water_bottle_0` and makes `water_purified_0`, and what the bottle holds
+  is never said to be unsafe; **`water_tester_0`** never says what it detects. OPEN: both are
+  replaced by the water-contents model of the Water chain's rung 1 (quest-chains.md, section 4.1).
+
+Every fact here still needs the teaching-data refutation pass before the chains that use it ship.
