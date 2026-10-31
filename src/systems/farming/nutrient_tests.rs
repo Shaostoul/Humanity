@@ -442,7 +442,12 @@ fn compost_banks_its_organic_nitrogen_and_it_comes_back_in_the_second_year() {
     let fed = world.spawn((crop("apple", "orchard_a", &first, 0.0), plenty.clone()));
     let unfed = world.spawn((crop("apple", "orchard_b", &first, 0.0), plenty));
 
+    // The bag goes on first, then both grow two years in one tick. (Until 2026-10-31 the press
+    // and the two years were one tick, and the bag was counted as on through the growth before
+    // it: a command now meets its crop as it is at the press, after the step it ends, so the
+    // compost has to be on before the years it is to feed. docs/design/farm-clock.md rung 2.)
     set_fertilize(&data, fed);
+    sys.tick(&mut world, 1.0, &data);
     set_elapsed(&data, 1460.0 * SECONDS_PER_DAY * 0.5);
     sys.tick(&mut world, 1.0, &data);
 

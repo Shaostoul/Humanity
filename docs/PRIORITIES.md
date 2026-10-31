@@ -192,8 +192,12 @@ In order:
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by
     `step_tests.rs` at a 60 s, 600 s and 3,600 s tick; what is still stepped is listed in the design
-    with its measured size); next, rung 2: the farm's own interval, time-sliced by area; rung 3:
-    events and closed-form crops; rung 4: lazy homes on the server.
+    with its measured size). Rung 2 DONE 2026-10-31 (`systems/farming/clock.rs`: each grow area on
+    its own turn of a configurable interval, Settings > Gameplay > Garden updates, every second by
+    default; readers bring their areas to now; 3.51 -> 0.24 ms a frame, worst 0.63 to 0.94 ms).
+    Next: the 0.1 ms / 0.5 ms budget (cheaper per-crop work, the turns' fixed 0.16 ms), "looked at"
+    narrowed from aboard the station to the areas in sight; rung 3: events and closed-form crops;
+    rung 4: lazy homes on the server.
 12. **Stutter: spread every spike across frames (operator, 2026-10-30: "We want to avoid
     stuttering.")** (`docs/design/sim-frame-cost.md`, Stutter). First the worst frame per span
     beside its average, then each periodic job (autosaves, mesh rebuilds, the shader poll, ...)

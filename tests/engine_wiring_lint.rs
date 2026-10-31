@@ -91,6 +91,12 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
 /// runtime runner — excluded from the "must be in src/lib.rs" check.
 const NET_PATH_SYSTEMS: &[&str] = &["NetSyncSystem"];
 
+/// Systems the runtime registers through a wrapper that ticks them: (the wrapper src/lib.rs
+/// registers, the system it ticks). A registered wrapper registers its system. The farm's shared
+/// handle (2026-10-31, docs/design/farm-clock.md rung 2): the runner ticks the one FarmingSystem
+/// through `SharedFarm`, so the readers outside the tick reach the same system.
+const WRAPPED_SYSTEMS: &[(&str, &str)] = &[("SharedFarm", "FarmingSystem")];
+
 /// Runtime data the engine MUST keep loading into the DataStore — these are the
 /// keys whose absence silently no-ops a registered system (the audit's core bug).
 /// Each must appear in src/lib.rs (the native runtime wiring).
@@ -173,6 +179,11 @@ fn registered_systems() -> BTreeSet<String> {
             .last()
         {
             set.insert(name.to_string());
+        }
+    }
+    for (wrapper, system) in WRAPPED_SYSTEMS {
+        if set.contains(*wrapper) {
+            set.insert(system.to_string());
         }
     }
     set

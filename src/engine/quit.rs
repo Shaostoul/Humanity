@@ -25,7 +25,7 @@ pub(crate) fn save_before_exit(state: &mut EngineState) {
     crate::engine::editor::autosave_ship_structure(state, true);
     crate::engine::own_home::refresh_own_home(&mut state.gui_state);
     crate::save_load::save_active_home(
-        &state.game_world.world,
+        &mut state.game_world.world,
         &state.gui_state.placed_items,
         &state.data_store,
         !state.gui_state.settings.fresh_world_each_launch,

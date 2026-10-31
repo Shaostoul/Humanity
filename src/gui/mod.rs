@@ -4358,6 +4358,10 @@ pub struct SettingsState {
     pub hours_per_day: u32,
     pub days_per_year: u32,
     pub pest_severity: f32, // garden pests: 0 off, 0.5 gentle, 1 realistic (farming::pests)
+    /// How often the garden is worked out, game seconds, 0 for every frame (2026-10-31,
+    /// docs/design/farm-clock.md rung 2; Settings > Gameplay > Garden updates;
+    /// farming::clock). Every second by default.
+    pub garden_update_s: f32,
     /// Offline progression (operator, 2026-09-21; docs/design/offline-
     /// progression.md): while the game is closed your character keeps living,
     /// so crops grow by the time you were away. Read once when a save is
@@ -4653,6 +4657,7 @@ impl Default for SettingsState {
             hours_per_day: crate::systems::time::DEFAULT_HOURS_PER_DAY,
             days_per_year: crate::systems::time::DEFAULT_DAYS_PER_YEAR,
             pest_severity: crate::systems::farming::pests::DEFAULT_PEST_SEVERITY,
+            garden_update_s: crate::systems::farming::clock::DEFAULT_INTERVAL_S as f32,
             offline_progression: true,
             // Progress is kept between launches by default (2026-10-04).
             fresh_world_each_launch: false,

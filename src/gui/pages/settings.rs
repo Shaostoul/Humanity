@@ -3978,6 +3978,8 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // Time (2026-09-27): the one game clock's three settings, in their
         // own module because this file is past its size.
         super::settings_time::draw(ui, theme, state, hint);
+        // Garden updates (2026-10-31, farm-clock.md rung 2): how often the farm advances.
+        super::settings_garden::draw(ui, theme, state, hint);
         // Fresh world each launch (operator, 2026-09-25): every session starts
         // from the default home, so what you see is what a new player gets. Off
         // by default since 2026-10-04 (progress is kept between launches).

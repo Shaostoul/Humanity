@@ -760,6 +760,11 @@
       "date": "2026-10-31",
       "decision": "Crate split rung 0 DONE (part B merged): wrong-way references 62 -> 0, the budgets in scripts/crate-layers.json empty, so check-crate-layers fails on any new one. Cuts: hot reload's gates to engine/hot_reload_gates.rs; engine/choice, put_answer, household (its world tail split to engine/household_world.rs), low_impact and the updater filed under the GUI crate; the play journal's store to src/play_journal.rs; plan tiles to gui/pages/maps/tile_grid.rs; elevators to ship/lifts.rs; storey edits to ship/storey_edits.rs; which save is live to persistence/live_save.rs. Two values passed in: host_node autostart(background) and Updater::relaunch_behind (filled at boot).",
       "why": "No cut deferred a call (no request queue was needed), so every save, restore, erase and Choose still happens at the same point in the frame: the safest form of an inversion. Next is the crate cards, then rung 1 (workspace; core + protocol), after the backlog: 125 wrong-way references in test code and crate::data_dir() read by about 50 files below the engine. A `use a::{x, y, z}` group counts as ONE reference, so size work with a per-file lister, not the count."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Farm clock rung 2 merged: each grow area advances on its own turn (16 turns per interval, systems/farming/clock.rs), the air on its own turn at least every game second; Settings > Gameplay > Garden updates (every frame / second (default) / minute / hour; 6 h and a day not offered, they broke rung 1 bounds). Readers (commands, save, load, Garden page data, plant meshes while aboard) bring their areas to now. FarmingSystem 3.51 -> 0.24 ms a frame. DECIDED at the merge, not asked: a garden in sight is computed as it is looked at, so aboard the station every setting behaves like every second.",
+      "why": "The operator's own words settle it: \"only calculate the value of the viewed objects along its timeline\". The interval saves work where nobody looks (off the station now; every home on an MMO server at rung 4). Next: narrow \"looked at\" from aboard_station to the areas in sight, and the budget (0.1 ms avg, 0.5 ms worst): per-crop work and the turns' fixed 0.16 ms (AirMap::new, pollination::Help::now)."
     }
   ],
   "active_scopes_to_avoid": [

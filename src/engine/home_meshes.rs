@@ -1093,6 +1093,13 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
 /// plant-pass frame" lines name the step whenever that happens.
 pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     use std::hash::{Hash, Hasher};
+    // The plants as they are now (2026-10-31, docs/design/farm-clock.md rung 2): the farm
+    // advances each grow area on its own turn, so while the home is near enough to be seen
+    // (aboard; on a planet or in space it is out of sight) its crops are kept within a second of
+    // now, and a stage or a wilt shows when it happens (`farming::settle`).
+    if state.aboard_station {
+        crate::systems::farming::settle(&mut state.game_world.world, &state.data_store, crate::systems::farming::clock::LOOK_FRESH_S);
+    }
     // Signature over everything that changes a plant's look.
     let mut h = std::collections::hash_map::DefaultHasher::new();
     for (_e, c) in state

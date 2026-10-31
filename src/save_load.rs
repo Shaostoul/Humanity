@@ -915,12 +915,18 @@ pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> W
 /// into a save that keeps progress as it is given, None for a character living in the default
 /// home. A save that keeps only the character leaves the save's own home as it was on disk.
 pub fn save_active_home(
-    world: &hecs::World,
+    world: &mut hecs::World,
     placed: &[crate::systems::inventory::placed::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
     keep_progress: bool,
     own_home: Option<&crate::persistence::SavedHome>,
 ) {
+    // The garden as it is NOW (2026-10-31, docs/design/farm-clock.md rung 2): the farm advances
+    // each grow area on its own turn, so before the crops, their soil and the rooms' air are
+    // written every area and the air are brought to this moment, the one the save's clock
+    // records. A crop saved a turn behind would lose that time on every load.
+    crate::systems::farming::settle(world, data, 0.0);
+    let world: &hecs::World = world;
     // A server's save always keeps its progress (ship homes increment 6): "Start every session
     // from the default home", which every caller passes as `keep_progress`, is about your own
     // home, and a server save written character-only would leave nothing of your home there.
@@ -1419,6 +1425,10 @@ pub fn resume_home(
     // player's own Soil pH switch, which reaches the DataStore only after
     // this runs (farming::soil_ph::hand_away_secs).
     crate::systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
+    // THE FARM'S CLOCK (2026-10-31, farming::clock): the crops are as the save left them, at the
+    // clock it restored, so every grow area starts its turns again from now (the save brought
+    // each to its moment, `save_active_home`), not from what it owed before the load.
+    crate::systems::farming::clock::hand_over_resume(data);
     // THE DRONE: its standing order is the player's own setting, so it comes
     // back whether or not the time away counts; then the trip in flight and
     // any the order sends finish in the time away, out of the asteroid's real

@@ -233,13 +233,16 @@ fn a_spent_plant_leaves_the_plot_empty() {
     let mut sys = FarmingSystem::new();
     let mut world = hecs::World::new();
     let who = player(&mut world);
-    let soil = CropSoil { store: Npk::new(1.0, 2.0, 3.0), uptake: 1.0 };
+    // Soil to spare (2026-10-31): the press now meets the plant after the window it waited
+    // through (docs/design/farm-clock.md rung 2), so a starved unit would have cut its health,
+    // and so the season, before the press.
+    let soil = CropSoil { store: Npk::new(10_000.0, 20_000.0, 30_000.0), uptake: 1.0 };
     let t = world.spawn((crop("tomato", Some("tomato_bed"), &ripe), soil, CropPicking { roll: Some(0.0), ..Default::default() }));
     tick(&mut sys, &mut world, &data, plan.window_days() + 5.0, Some(t));
     assert!(world.get::<&CropInstance>(t).is_err(), "Forgiving: the last share picked, the plot is empty");
     assert!(count(&world, who, "vegetable_tomato_0") >= 181, "the whole season came at once");
     let kept = world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.units.get("tomato_bed").and_then(|u| u.get(&0)).copied());
-    assert_eq!(kept.flatten(), Some(Npk::new(1.0, 2.0, 3.0)), "the unit remembers its soil");
+    assert_eq!(kept.flatten(), Some(Npk::new(10_000.0, 20_000.0, 30_000.0)), "the unit remembers its soil");
     // Realistic: nobody picks, the window ends, the plant is cleared.
     let mut data = store();
     set_realistic(&mut data, true);

@@ -157,8 +157,13 @@ struct Ended {
     rooms_tracked: usize,
 }
 
-fn run() -> Ended {
-    let data = store();
+/// The golden garden run TICKS ticks, with the farm's interval (rung 2, farm-clock.md) published
+/// as given, or none (every frame, the farm as it ran before rung 2).
+fn run_at(interval_s: Option<f64>) -> Ended {
+    let mut data = store();
+    if let Some(s) = interval_s {
+        data.insert(super::clock::INTERVAL_KEY, Mutex::new(s));
+    }
     let (mut world, sown) = world(&data);
     let mut sys = FarmingSystem::new();
     let dt = 1.0_f32;
@@ -193,8 +198,8 @@ fn run() -> Ended {
 /// F1 and F2 changes no result; docs/design/sim-frame-cost.md). See the module comment.
 #[test]
 fn the_garden_ends_in_the_same_state_every_run_and_in_the_recorded_one() {
-    let a = run();
-    let b = run();
+    let a = run_at(None);
+    let b = run_at(None);
     assert_eq!(a.state.len(), b.state.len(), "the same garden built twice ended in states of different size");
     if a.state != b.state {
         let at = a.state.bytes().zip(b.state.bytes()).position(|(x, y)| x != y).unwrap_or(0);
@@ -228,4 +233,20 @@ fn the_garden_ends_in_the_same_state_every_run_and_in_the_recorded_one() {
         line,
         "the garden ended in a different state from the recorded golden. A speed change must not do this; a change meant to alter the garden reruns with HUMANITY_WRITE_GOLDEN=1 and says why"
     );
+}
+
+/// THE GOLDEN STATE HOLDS AT THE SETTINGS DEFAULT (2026-10-31, docs/design/farm-clock.md rung 2):
+/// the same garden with the farm's interval at every second, the default a player has, ends in the
+/// recorded state too. Its ticks are 8 game hours each (speed 400), far past the interval, so every
+/// area and the air advance every tick through the same one run of the farm's body as with no
+/// interval at all; this pins that the farm's own clock changes nothing then.
+#[test]
+fn the_golden_state_holds_at_the_default_interval() {
+    let every_frame = run_at(None);
+    let default = run_at(Some(super::clock::DEFAULT_INTERVAL_S));
+    assert_eq!(default.state.len(), every_frame.state.len());
+    assert!(default.state == every_frame.state, "the default interval changed the golden garden's end");
+    let digest = blake3::hash(default.state.as_bytes()).to_hex().to_string();
+    let recorded = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN)).expect("the golden");
+    assert!(recorded.contains(&digest), "the default interval's digest {digest} is not the recorded one: {recorded}");
 }

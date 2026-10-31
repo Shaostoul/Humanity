@@ -284,7 +284,7 @@ pub fn write_active(state: &mut EngineState) -> Look {
     crate::engine::editor::autosave_ship_structure(state, true);
     crate::engine::own_home::refresh_own_home(&mut state.gui_state);
     crate::save_load::save_active_home(
-        &state.game_world.world,
+        &mut state.game_world.world,
         &state.gui_state.placed_items,
         &state.data_store,
         !state.gui_state.settings.fresh_world_each_launch,
@@ -701,7 +701,7 @@ pub fn set_ship_place(state: &mut EngineState, plot: Option<String>) {
     set_active_home(active);
     crate::engine::own_home::refresh_own_home(&mut state.gui_state);
     crate::save_load::save_active_home(
-        &state.game_world.world,
+        &mut state.game_world.world,
         &state.gui_state.placed_items,
         &state.data_store,
         !state.gui_state.settings.fresh_world_each_launch,

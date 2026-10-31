@@ -493,33 +493,58 @@ impl Pollination {
         Self::default()
     }
 
-    /// One farming tick of `days` garden days: the Garden panel's request
-    /// (Hand-pollinate, or Introduce colony), the hives' colonies, then every
-    /// indoor crop's record, then the notices.
-    pub fn tick(&mut self, world: &mut hecs::World, data: &DataStore, days: f64) {
+    /// The data in use (the DataStore's, else this system's own, read on first use).
+    fn ensure(&mut self, data: &DataStore) {
+        if self.data.is_none() && data.get::<PollinationData>(DATA_KEY).is_none() {
+            self.data = Some(PollinationData::load());
+        }
+    }
+
+    /// The Garden panel's request (Hand-pollinate, or Introduce colony): the
+    /// farming tick's commands run takes it (2026-10-31, farm-clock.md rung
+    /// 2: once what it touches is brought up to now). With the mode Off it
+    /// is taken and dropped.
+    pub fn requests(&mut self, world: &mut hecs::World, data: &DataStore) {
         let request = data
             .get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY)
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
         if !mode_on(data) {
-            self.told.clear();
             return;
         }
-        if self.data.is_none() && data.get::<PollinationData>(DATA_KEY).is_none() {
-            self.data = Some(PollinationData::load());
-        }
+        self.ensure(data);
         let Some(d) = data.get::<PollinationData>(DATA_KEY).or(self.data.as_ref()) else { return };
         match request {
             Some(Request::Hand(area)) => hand_pollinate(world, data, d, &area),
             Some(Request::Colony(hive)) => introduce_colony(world, data, d, &hive),
             None => {}
         }
-        age_colonies(world, data, d, days);
+    }
+
+    /// One farming step of `days` garden days for the areas `scope` advances
+    /// (every area, until 2026-10-31): the hives' colonies by `colony_days`
+    /// when the air steps (a hive serves several areas, so it ages on the
+    /// air's own turn, farm-clock.md rung 2), then each of those areas'
+    /// indoor crops' record, then their notices.
+    pub fn step(&mut self, world: &mut hecs::World, data: &DataStore, days: f64, colony_days: Option<f64>, scope: &super::clock::Scope) {
+        if !mode_on(data) {
+            self.told.clear();
+            return;
+        }
+        self.ensure(data);
+        let Some(d) = data.get::<PollinationData>(DATA_KEY).or(self.data.as_ref()) else { return };
+        if let Some(cd) = colony_days {
+            age_colonies(world, data, d, cd);
+        }
+        if !scope.advances() {
+            return;
+        }
         let help = Help::now(world, data, d);
         let covered = covered_fields(world, data);
-        let (waiting, flowering) = step_crops(world, d, &help, days, &covered);
+        let (waiting, flowering) = step_crops(world, d, &help, days, &covered, scope);
         // Told once per area while it flowers: a hand pollination wearing
-        // off is not news, the Garden panel's button says it.
-        self.told.retain(|a| flowering.contains(a));
+        // off is not news, the Garden panel's button says it. An area another
+        // turn holds keeps what it was told until its own.
+        self.told.retain(|a| !scope.area(a) || flowering.contains(a));
         for (area, plants) in &waiting {
             if self.told.insert(area.clone()) {
                 super::push_notice(data, flowering_notice(data, d, area, plants, covered.contains(area)));
@@ -580,18 +605,23 @@ fn open_field(area: &str, covered: &HashSet<String>) -> bool {
 
 /// Step every living indoor crop that needs help `days` garden days, giving
 /// a record to any that has none. Returns, by area, the plants flowering with
-/// nothing pollinating them, and every area with such a crop in flower.
+/// nothing pollinating them, and every area with such a crop in flower. Only
+/// the crops of the areas `scope` advances (2026-10-31, farm-clock.md rung 2).
 fn step_crops(
     world: &mut hecs::World,
     d: &PollinationData,
     help: &Help,
     days: f64,
     covered: &HashSet<String>,
+    scope: &super::clock::Scope,
 ) -> (BTreeMap<String, BTreeSet<String>>, HashSet<String>) {
     let mut waiting: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut in_flower: HashSet<String> = HashSet::new();
     let mut fresh: Vec<(hecs::Entity, CropPollination)> = Vec::new();
-    for (e, (crop, rec)) in world.query_mut::<(&CropInstance, Option<&mut CropPollination>)>() {
+    for (e, (crop, rec, mark)) in world.query_mut::<(&CropInstance, Option<&mut CropPollination>, Option<&super::clock::FarmArea>)>() {
+        if !scope.crop(mark) {
+            continue;
+        }
         let Some(def) = d.crop(&crop.crop_def_id) else { continue };
         let area = crop.tower_id.as_deref().unwrap_or("");
         // An open field needs no record; one that flowered under a cover
@@ -1150,9 +1180,11 @@ mod tests {
         *data.get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY).unwrap().lock().unwrap() = Some(Request::Hand(area.to_string()));
     }
 
-    /// The Pollination part of the tick alone, `days` garden days.
+    /// The Pollination part of the tick alone, `days` garden days: the request, then the whole
+    /// farm's step with the colonies aged the same (the tick's order with every area due).
     fn step(p: &mut Pollination, world: &mut hecs::World, data: &DataStore, days: f64) {
-        p.tick(world, data, days);
+        p.requests(world, data);
+        p.step(world, data, days, Some(days), &crate::systems::farming::clock::Scope::all(0.0, None));
     }
 
     /// The shipped file parses; every crop is a real plants.csv id; every

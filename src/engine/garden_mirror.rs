@@ -69,6 +69,10 @@ fn build_once(state: &mut EngineState, wall: bool) {
     if BUILT_AT_PASS.swap(pass, Ordering::Relaxed) == pass {
         return;
     }
+    // The farm advances each grow area on its own turn (2026-10-31, docs/design/farm-clock.md
+    // rung 2): what the page shows is brought within a second of now first, and while the page
+    // keeps being drawn the farm's turns keep it there (`farming::settle`).
+    crate::systems::farming::settle(&mut state.game_world.world, &state.data_store, crate::systems::farming::clock::LOOK_FRESH_S);
     build(state, wall);
 }
 

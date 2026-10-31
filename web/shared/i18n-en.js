@@ -101,7 +101,16 @@ window.HOS_I18N_EN = {
     "identity_locked": "Your identity is on this device, locked: the app opens without unlocking it. Type its passphrase to unlock it and see your recovery phrase.",
     "reveal_phrase": "Reveal recovery phrase",
     "restore_replaces": "Restoring replaces the identity on this device: write down its recovery phrase first if you still need it.",
-    "key_not_kept": "This identity is not kept on this device yet: set a passphrase to keep it. Until you do, it is gone when the app closes, unless you wrote down its recovery phrase."
+    "key_not_kept": "This identity is not kept on this device yet: set a passphrase to keep it. Until you do, it is gone when the app closes, unless you wrote down its recovery phrase.",
+    "garden_updates": {
+      "title": "Garden updates",
+      "hint": "How often the game works out how your plants grow while you are not on board. Less often is less work for your computer. On board, and on the Garden page, your plants are always worked out to within a second, and a harvest, a watering or a save always meets them as they are now, so nothing you see or do is ever behind. Every second is the default.",
+      "choice_hint": "Choose how often the game works out your garden while you are not on board.",
+      "every_frame": "Every frame",
+      "every_second": "Every second",
+      "every_minute": "Every minute",
+      "every_hour": "Every hour"
+    }
   },
   "laws": {
     "title": "Laws and rights",

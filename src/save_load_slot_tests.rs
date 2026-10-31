@@ -162,9 +162,9 @@ fn the_active_save_path_follows_the_slot() {
     });
     assert_eq!(active_home_path(), path, "every save of a server's save went to your own home's file");
 
-    let world = player_with(&[("water_purified_0", 2)]);
+    let mut world = player_with(&[("water_purified_0", 2)]);
     let data = crate::hot_reload::data_store::DataStore::new();
-    save_active_home(&world, &[], &data, false, None);
+    save_active_home(&mut world, &[], &data, false, None);
     let written = persistence::load_world(&path).expect("the server's save was written to its own file");
     assert_eq!((written.kind.as_str(), written.start.as_str(), written.household.as_str()), ("server", "cabin", "solo"));
     assert_eq!(written.server, "https://example.test");

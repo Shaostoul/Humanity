@@ -1405,7 +1405,15 @@ mod native_app {
                 std::sync::Mutex::new(Vec::<(String, String)>::new()),
             );
             system_runner.register(InteractionSystem::new());
-            system_runner.register(FarmingSystem::new());
+            // The farm on its own clock (2026-10-31, docs/design/farm-clock.md rung 2): the one
+            // FarmingSystem also sits in the DataStore, so what reads the garden outside the
+            // ECS tick (the Garden page's data, the plant meshes, the save) brings it up to now
+            // first (`farming::settle`); its interval channel starts at the default until the
+            // Settings value reaches it below, each frame.
+            crate::systems::farming::clock::register(&mut data_store);
+            let farm: crate::systems::farming::Shared = std::sync::Arc::new(std::sync::Mutex::new(FarmingSystem::new()));
+            data_store.insert(crate::systems::farming::SHARED_KEY, farm.clone());
+            system_runner.register(crate::systems::farming::SharedFarm(farm));
             system_runner.register(InventorySystem::new());
             // Enforces typed-container / content-class compatibility (wrong
             // material damages then breaks the vessel). Reads the
@@ -6607,6 +6615,8 @@ mod native_app {
                             *s = state.gui_state.settings.pest_severity.clamp(0.0, 1.0);
                         }
                     }
+                    // Garden updates (Settings > Gameplay, 2026-10-31, farming::clock): how often the farm advances.
+                    crate::systems::farming::clock::publish(&state.data_store, f64::from(state.gui_state.settings.garden_update_s));
                     crate::systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
                     crate::systems::farming::humidity::publish_room_bounds(&state.data_store, &state.gui_state.room_bounds); // grow rooms' air
                     let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
@@ -6983,7 +6993,7 @@ mod native_app {
                     if crate::save_load::periodic_save_due(120) {
                         crate::engine::own_home::refresh_own_home(&mut state.gui_state);
                         crate::save_load::save_active_home(
-                            &state.game_world.world,
+                            &mut state.game_world.world,
                             &state.gui_state.placed_items,
                             &state.data_store,
                             !state.gui_state.settings.fresh_world_each_launch,
@@ -7465,7 +7475,7 @@ mod native_app {
                         }
                         crate::engine::own_home::refresh_own_home(&mut state.gui_state);
                         crate::save_load::save_active_home(
-                            &state.game_world.world,
+                            &mut state.game_world.world,
                             &state.gui_state.placed_items,
                             &state.data_store,
                             !state.gui_state.settings.fresh_world_each_launch,

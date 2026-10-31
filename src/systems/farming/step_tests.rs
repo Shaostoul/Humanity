@@ -58,19 +58,19 @@ use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
 /// Where the clock starts: 05:20:34.5 on day 0, so the first hour-long step spans the sunrise.
-const START_S: f64 = 5.0 * 3600.0 + 1234.5;
+pub(super) const START_S: f64 = 5.0 * 3600.0 + 1234.5;
 /// The tick every run takes first, game seconds (see the module comment).
-const WARM_S: f64 = 1.0;
+pub(super) const WARM_S: f64 = 1.0;
 /// The reference tick, game seconds.
-const SHORT_S: f64 = 60.0;
+pub(super) const SHORT_S: f64 = 60.0;
 /// How long each run is: a day and a quarter, two sunrises, a sunset and the lamps' switch-off.
-const SPAN_S: f64 = 30.0 * 3600.0;
+pub(super) const SPAN_S: f64 = 30.0 * 3600.0;
 /// The longer ticks, as multiples of the reference one.
 const MULTIPLES: [u32; 2] = [10, 60];
 
 /// The golden garden on the real-time clock, made to cross every regime (see the module comment).
 /// `air`: with the golden garden's grow rooms and the home's air space, or with no air tracked.
-fn garden(air: bool) -> (DataStore, hecs::World) {
+pub(super) fn garden(air: bool) -> (DataStore, hecs::World) {
     let mut data = golden_store();
     {
         let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
@@ -117,7 +117,7 @@ fn garden(air: bool) -> (DataStore, hecs::World) {
 
 /// One crop's end state, the parts compared.
 #[derive(Debug, Clone)]
-struct Crop {
+pub(super) struct Crop {
     plant: String,
     area: String,
     stage: String,
@@ -132,7 +132,7 @@ struct Crop {
 
 /// Where one run ended: every crop in entity order, and the soil memory (pests, rooms, pH, weeds,
 /// organic N, the home's air) as canonical JSON.
-type Ended = (Vec<Crop>, serde_json::Value);
+pub(super) type Ended = (Vec<Crop>, serde_json::Value);
 
 /// The garden run SPAN_S game seconds at ticks of `step_s`, after the warm-up tick.
 fn run(step_s: f64, air: bool) -> Ended {
@@ -146,6 +146,12 @@ fn run(step_s: f64, air: bool) -> Ended {
         set_clock(START_S + WARM_S + k as f64 * step_s);
         sys.tick(&mut world, step_s as f32, &data);
     }
+    ended(&world)
+}
+
+/// Where a garden ended: every crop in entity order, and the soil memory as canonical JSON (also
+/// clock_tests.rs's, for the farm on its own clock).
+pub(super) fn ended(world: &hecs::World) -> Ended {
     let mut crops: Vec<(u64, Crop)> = world
         .query::<(&CropInstance, Option<&CropSoil>)>()
         .iter()
@@ -187,10 +193,10 @@ fn canonical(v: serde_json::Value) -> serde_json::Value {
 
 /// The largest difference seen in one quantity, and where.
 #[derive(Debug, Default, Clone)]
-struct Worst {
-    abs: f64,
-    rel: f64,
-    at: String,
+pub(super) struct Worst {
+    pub(super) abs: f64,
+    pub(super) rel: f64,
+    pub(super) at: String,
 }
 
 impl Worst {
@@ -240,7 +246,7 @@ fn json_diff(a: &serde_json::Value, b: &serde_json::Value, path: &str, group: &s
 }
 
 /// How two runs' ends differ: stage mismatches by name, and the worst difference per quantity.
-fn compare(base: &Ended, other: &Ended) -> (Vec<String>, BTreeMap<String, Worst>) {
+pub(super) fn compare(base: &Ended, other: &Ended) -> (Vec<String>, BTreeMap<String, Worst>) {
     let mut stages = Vec::new();
     let mut worst: BTreeMap<String, Worst> = BTreeMap::new();
     assert_eq!(base.0.len(), other.0.len(), "the same crops in both runs");
@@ -266,7 +272,7 @@ fn compare(base: &Ended, other: &Ended) -> (Vec<String>, BTreeMap<String, Worst>
 
 /// What a run did, so a pass is not a pass of an inert garden: crops that died, that changed
 /// stage, and living crops below 99 health.
-fn activity(r: &Ended, start: &[String]) -> (usize, usize, usize) {
+pub(super) fn activity(r: &Ended, start: &[String]) -> (usize, usize, usize) {
     let dead = r.0.iter().filter(|c| c.stage == crate::ecs::components::STAGE_DEAD).count();
     let moved = r.0.iter().zip(start).filter(|(c, s)| c.stage != **s && c.stage != crate::ecs::components::STAGE_DEAD).count();
     let below = r.0.iter().filter(|c| c.health < 99.0 && c.stage != crate::ecs::components::STAGE_DEAD).count();
@@ -348,7 +354,7 @@ fn the_garden_with_its_air_ends_within_the_air_couplings_bound() {
 /// rate) [354 s at 3,600 s, 54 s at 600 s], and the air itself, stepped in its own slices on the
 /// step's average breath, is first order too [the home's CO2 rel 3.7e-2 at 3,600 s, 3.1e-3 at
 /// 600 s]. Those bounds grow with the step.
-fn tolerance(key: &str, air: bool, step_s: f64) -> (f64, f64) {
+pub(super) fn tolerance(key: &str, air: bool, step_s: f64) -> (f64, f64) {
     let exact = match key {
         "crop.water" | "soil.uptake" => (1e-6, 0.0),
         "crop.health" => (1e-4, 0.0),

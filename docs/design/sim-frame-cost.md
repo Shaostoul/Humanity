@@ -226,6 +226,65 @@ a crop in an unoptimised build. The first frame of a page
 still lays everything out once. Not yet re-read in the game: `cpu.garden.page` on the main screen
 and on the Inventory wall screen's turn wants a quiet-machine rig run (this change booted no game).
 
+### FarmingSystem on its own clock, 2026-10-31 (docs/design/farm-clock.md rung 2)
+
+FarmingSystem averaged 3.6 ms of EVERY frame in Survey 1, its worst frames about 9 ms of its own
+CPU, though at real time a crop changes by nothing anyone could see in a second. Rung 2 advances
+each grow area once an interval (Settings > Gameplay > Garden updates, every second by default),
+in 8 turns spread over the interval, and the air on its own turn (`systems/farming/clock.rs`).
+
+**Headless, a test build (unoptimised: its milliseconds are many times the release game's, and a
+release build and a check of another tree were compiling beside it, so read the ratios):**
+`clock_tests.rs` `farm_cost_per_frame`, 2,000 crops of every plant in 90 areas (about the
+showcase's 1,981 in 91 groups), 30 frames a second of real-time play, ten seconds after one to
+settle. The code before the change (f06c0129e, same harness, a quieter moment): average 29.3 ms,
+median 27.7, worst 56 to 69 ms. After (the first build, 8 turns), in one run:
+
+| Garden updates | Average | Median | Worst |
+|---|---|---|---|
+| no interval published (every frame: the farm as before, bit for bit) | 59.1 ms | 57.0 ms | 104.7 ms |
+| every second (the default) | 3.14 ms (5.3%) | 0.073 ms | 34.0 ms (32%) |
+| every minute | 0.141 ms (0.24%) | 0.038 ms | 12.6 ms |
+
+A frame with no turn costs the clock's own bookkeeping (the median). A turn frame costs its share
+of the crops plus the body's setup and its passes over every crop to pick out the turn's (marks
+read one by one), which in an unoptimised build are a large share of the turn.
+
+**In the game** (release build, the showcase's 1,981 crops at `home-overview-noon`, the rig's
+clock released to real time with the showcase verb `time_scale 1`, 30 fps in the background; each
+row 12 readings of the rig's `debug/frame_costs.json` (the shape `game_frame_costs` returns) 5 s
+apart, the average being frame_costs' own
+running average and the worst the largest single frame of the last 5 to 10 s; no build running
+except where said):
+
+| Garden updates | FarmingSystem average | Worst frame |
+|---|---|---|
+| everything every frame (`HUMANITY_NO_REUSE=1`: the farm as before; a build shared the machine) | 3.51 ms (3.40 to 4.11) | 5.1 to 7.5 ms |
+| every second, 8 turns (the first build) | 0.19 ms (0.12 to 0.26) | 0.75 to 1.41 ms |
+| every second, 16 turns (shipped) | 0.24 ms (0.22 to 0.27) | 0.63 to 0.94 ms |
+
+At 16 turns, per frame: crops 0.08, pest_tally 0.055, setup 0.033, pollination 0.017,
+crop_setup 0.016, picking and weeds 0.009 each, the clock's own bookkeeping 0.006, the air 0.001
+to 0.007 ms. 8 turns had the lower average and the higher worst; the worst is what is felt, so 16
+shipped. On board the plant meshes keep the garden within a second whatever the setting, so this
+is also the cost at home of the longer choices; off the station every minute costs about a
+sixtieth of it.
+
+**The budget (0.1 ms average, 0.5 ms worst) is not met yet.** What stands in the way, measured:
+- **One whole advance of the showcase's crops is about 3.5 to 4 ms of CPU** (crop loop 1.95 ms,
+  pest tally 1.0 ms with everything every frame), and at every second the farm does one each
+  second however it is sliced: 0.12 to 0.14 ms a frame at 30 fps by itself, 0.06 to 0.07 at 60.
+  The per-crop cost is next: the per-area and per-(area, plant) tables of F1 (not built), and the
+  pest tally's per-crop conditions (each crop asks every pest under its own conditions).
+- **Each turn has a fixed cost of about 0.16 ms** whatever its share: the setup (the rooms' air
+  map, `AirMap::new`, matches every grow machine against every room box; the water, the light,
+  the nutrient data), the pollinators' reach (`pollination::Help::now`, every machine), and a pass
+  over every crop's mark in each of six passes. F3's "cache AirMap's structure until rooms or
+  plots change" and the same for the pollinators, kept for a round like `pest_hosts`, is the next
+  cut; with it a turn is about its share, under 0.5 ms.
+- What was cut on the way: the pest host lists rebuilt every turn (now kept for a round,
+  `FarmingSystem::pest_hosts`), the tally reading every skipped crop's record before its mark.
+
 ## Suspects in the untimed time, ranked
 
 - **S1. DONE 2026-10-30 (engine/garden_mirror.rs). Measured 16-20 ms a frame, not 4-9,** with the

@@ -392,9 +392,11 @@ impl Weeds {
 
     /// Take every soil area's weeds out of the world's `SoilMemory` for the
     /// crop loop (put them back with `SoilMemory::weeds = ...` after it), and
-    /// step them `days` garden days. A soil area with a living crop and no
-    /// weeds yet starts from its seed bank; an area that is no longer soil is
-    /// forgotten. Nothing steps with weeds switched off (`severity` 0).
+    /// step those of the areas `scope` advances `days` garden days (every
+    /// area, until 2026-10-31, farm-clock.md rung 2). A soil area with a
+    /// living crop and no weeds yet starts from its seed bank; an area that is
+    /// no longer soil is forgotten. Nothing steps with weeds switched off
+    /// (`severity` 0).
     pub fn step(
         &mut self,
         world: &mut hecs::World,
@@ -402,10 +404,11 @@ impl Weeds {
         soil: &SoilPhData,
         severity: f32,
         days: f64,
+        scope: &super::clock::Scope,
     ) -> HashMap<String, AreaWeeds> {
         let e = super::soil::soil_memory_entity(world);
         let mut map = world.get::<&mut SoilMemory>(e).map(|mut m| std::mem::take(&mut m.weeds)).unwrap_or_default();
-        if !(severity > 0.0) || !(days > 0.0) {
+        if !(severity > 0.0) || !(days > 0.0) || !scope.advances() {
             return map;
         }
         self.ensure();
@@ -414,8 +417,11 @@ impl Weeds {
         // Each area is looked at once a tick, and only a new one allocates.
         {
             let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-            let mut q = world.query::<&CropInstance>();
-            for (_, c) in q.iter() {
+            let mut q = world.query::<(&CropInstance, Option<&super::clock::FarmArea>)>();
+            for (_, (c, mark)) in q.iter() {
+                if !scope.crop(mark) {
+                    continue;
+                }
                 let a = c.tower_id.as_deref().unwrap_or("");
                 if c.growth_stage != STAGE_DEAD && seen.insert(a) && !map.contains_key(a) && soil.soil_for(a).is_some() {
                     map.insert(a.to_string(), data.new_area(super::is_field_area(a)));
@@ -425,6 +431,7 @@ impl Weeds {
         map.retain(|a, _| soil.soil_for(a).is_some());
         let mut appeared: Vec<String> = map
             .iter_mut()
+            .filter(|(a, _)| scope.area(a))
             .filter_map(|(a, st)| step_area(st, data, days).then(|| a.clone()))
             .collect();
         appeared.sort();

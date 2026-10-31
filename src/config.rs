@@ -651,6 +651,11 @@ pub struct AppConfig {
     /// Garden pests (2026-09-26): 0 off, 0.5 gentle, 1 the cited damage.
     #[serde(default = "default_pest_severity")]
     pub pest_severity: f32,
+    /// How often the garden is worked out (2026-10-31, docs/design/farm-clock.md rung 2,
+    /// farming::clock): game seconds between two advances of each grow area, 0 for every frame.
+    /// A config written before it reads as every second, the default.
+    #[serde(default = "default_garden_update_s")]
+    pub garden_update_s: f32,
     /// Soil pH in the garden (2026-09-26, farming::soil_ph): On models it,
     /// Off freezes it and hides it. On by default.
     #[serde(default = "default_true")]
@@ -1125,6 +1130,7 @@ fn default_time_speed() -> f32 { crate::systems::time::DEFAULT_TIME_SPEED }
 fn default_hours_per_day() -> u32 { crate::systems::time::DEFAULT_HOURS_PER_DAY }
 fn default_days_per_year() -> u32 { crate::systems::time::DEFAULT_DAYS_PER_YEAR }
 fn default_pest_severity() -> f32 { crate::systems::farming::pests::DEFAULT_PEST_SEVERITY }
+fn default_garden_update_s() -> f32 { crate::systems::farming::clock::DEFAULT_INTERVAL_S as f32 }
 // ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
 // The OUTER limit of each vegetation-LOD control, in ONE place, because the
 // same number has to be known by three files: the Settings number box (so it
@@ -1597,6 +1603,7 @@ impl AppConfig {
             hours_per_day: state.settings.hours_per_day,
             days_per_year: state.settings.days_per_year,
             pest_severity: state.settings.pest_severity,
+            garden_update_s: state.settings.garden_update_s,
             soil_ph: !state.garden_pests.soil_ph_off,
             pollination: !state.garden_pests.pollination_off,
             picking_realistic: state.garden_pests.picking_realistic,
@@ -1894,6 +1901,9 @@ impl AppConfig {
         state.settings.hours_per_day = crate::systems::time::clamp_hours_per_day(self.hours_per_day);
         state.settings.days_per_year = crate::systems::time::clamp_days_per_year(self.days_per_year);
         state.settings.pest_severity = self.pest_severity.clamp(0.0, 1.0);
+        // Clamped on the way in like the clock: a hand-edited config past an hour (the longest
+        // choice), or not a number, is taken as the nearest choice allows.
+        state.settings.garden_update_s = crate::systems::farming::clock::clamp_choice(f64::from(self.garden_update_s)) as f32;
         state.garden_pests.soil_ph_off = !self.soil_ph;
         state.garden_pests.pollination_off = !self.pollination;
         state.garden_pests.picking_realistic = self.picking_realistic;
@@ -2575,6 +2585,39 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.death_realistic, "Realistic death stays chosen after a restart");
+    }
+
+    /// The Garden updates choice (2026-10-31, farm-clock.md rung 2) starts at every second,
+    /// survives a save and a load, and a config written before it existed loads as every second.
+    #[test]
+    fn the_garden_updates_choice_survives_a_save_and_a_load_and_an_old_config_reads_every_second() {
+        // 2026-10-31, docs/design/farm-clock.md rung 2: Settings > Gameplay > Garden updates.
+        let mut state = crate::gui::GuiState::default();
+        assert_eq!(state.settings.garden_update_s, 1.0, "the garden starts at every second");
+        assert_eq!(AppConfig::default().garden_update_s, 1.0, "a fresh install too");
+        // A config written before the setting existed (every config before 2026-10-31): the
+        // field is missing, and it loads as every second.
+        let mut old = serde_json::to_value(AppConfig::default()).unwrap();
+        old.as_object_mut().unwrap().remove("garden_update_s");
+        let back: AppConfig = serde_json::from_value(old).expect("an old config without the field loads");
+        assert_eq!(back.garden_update_s, 1.0);
+        // A choice round-trips, through JSON and both GuiState legs.
+        state.settings.garden_update_s = 60.0;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"garden_update_s\":60.0"), "the choice is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.garden_update_s, 60.0, "every minute stays chosen after a restart");
+        // A hand-edited value past an hour (the longest offered) is held at an hour; one that is
+        // not a number, every frame.
+        let mut wild = AppConfig::default();
+        wild.garden_update_s = 1.0e9;
+        wild.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.garden_update_s, 3_600.0);
+        wild.garden_update_s = f32::NAN;
+        wild.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.garden_update_s, 0.0);
     }
 
     /// The Mining drone mode (first-hour audit S5, 2026-10-12, systems::mining) starts

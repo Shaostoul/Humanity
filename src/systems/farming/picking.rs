@@ -423,21 +423,26 @@ impl Picking {
         data.get::<HarvestWindows>(DATA_KEY).or(own.as_ref()).unwrap_or_else(|| HarvestWindows::shipped())
     }
 
-    /// One farming tick of `days` garden days: the Clear request, then every
-    /// ripe picked plant's clock (a first-seen one gets its record), then, in
-    /// Realistic mode, the one notice per area whose produce passed over.
-    /// Returns the crops that leave their unit now; the caller empties each
-    /// unit (farming/mod.rs `vacate_unit`).
-    pub fn step(&mut self, world: &mut hecs::World, data: &DataStore, days: f64) -> Vec<(hecs::Entity, Leaving)> {
-        let mut out = Vec::new();
-        let clear = data
-            .get::<std::sync::Mutex<Option<u64>>>(CLEAR_KEY)
+    /// The Clear request, a command: the farming tick's commands run takes it
+    /// (2026-10-31, farm-clock.md rung 2) and empties the crop's unit
+    /// (farming/mod.rs `vacate_unit`).
+    pub fn take_clear(&mut self, world: &hecs::World, data: &DataStore) -> Vec<(hecs::Entity, Leaving)> {
+        data.get::<std::sync::Mutex<Option<u64>>>(CLEAR_KEY)
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()))
             .and_then(hecs::Entity::from_bits)
-            .filter(|e| world.get::<&CropInstance>(*e).is_ok());
-        if let Some(e) = clear {
-            out.push((e, Leaving::Cleared));
-        }
+            .filter(|e| world.get::<&CropInstance>(*e).is_ok())
+            .map(|e| vec![(e, Leaving::Cleared)])
+            .unwrap_or_default()
+    }
+
+    /// One farming step of `days` garden days for the areas `scope` advances
+    /// (every area, until 2026-10-31): every ripe picked plant's clock there
+    /// (a first-seen one gets its record), then, in Realistic mode, the one
+    /// notice per area whose produce passed over. Returns the crops that
+    /// leave their unit now; the caller empties each unit (farming/mod.rs
+    /// `vacate_unit`).
+    pub fn step(&mut self, world: &mut hecs::World, data: &DataStore, days: f64, scope: &super::clock::Scope) -> Vec<(hecs::Entity, Leaving)> {
+        let mut out = Vec::new();
         let realistic = realistic(data);
         if !realistic {
             self.told_over.clear();
@@ -447,9 +452,12 @@ impl Picking {
         let windows = Self::windows(&self.data, data);
         let mut fresh: Vec<hecs::Entity> = Vec::new();
         let mut over_areas: Vec<String> = Vec::new();
-        for (e, (crop, rec)) in world.query_mut::<(&CropInstance, Option<&mut CropPicking>)>() {
+        for (e, (crop, rec, mark)) in world.query_mut::<(&CropInstance, Option<&mut CropPicking>, Option<&super::clock::FarmArea>)>() {
+            if !scope.crop(mark) {
+                continue;
+            }
             let Some(plan) = windows.plan(&crop.crop_def_id) else { continue };
-            if !ripe(crop, plants) || clear == Some(e) {
+            if !ripe(crop, plants) {
                 continue;
             }
             let Some(rec) = rec else {

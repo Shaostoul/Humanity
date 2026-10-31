@@ -518,9 +518,11 @@ impl PhRuntime {
     /// Say once per grow area when its soil has left a crop's window, and
     /// which amendment fixes it; an area leaves the told set when all its
     /// crops are back inside. `out_now` is this tick's first out-of-window
-    /// crop per area.
-    pub fn tell(&mut self, data: &DataStore, ph: &SoilPhData, out_now: &HashMap<String, OutOfWindow>) {
-        self.told.retain(|a| out_now.contains_key(a));
+    /// crop per area, for the areas `stepped` says this step looked at (every
+    /// area, until 2026-10-31: an area another turn of the farm's clock holds
+    /// keeps what it was told until its own, farm-clock.md rung 2).
+    pub fn tell(&mut self, data: &DataStore, ph: &SoilPhData, out_now: &HashMap<String, OutOfWindow>, stepped: &dyn Fn(&str) -> bool) {
+        self.told.retain(|a| !stepped(a) || out_now.contains_key(a));
         let mut areas: Vec<&String> = out_now.keys().filter(|a| !self.told.contains(*a)).collect();
         areas.sort();
         for area in areas {

@@ -2636,7 +2636,14 @@ lib.rs fills `GardenPests::outlook`). The Garden section lays out only the
 groups and rows of tiles on screen (2026-10-31): one wholly off screen takes
 its remembered size, kept under a key of everything that decides it and off
 with the Dev page's "Turn off all reuse" (`gui/widgets/offscreen.rs`, the
-reusable helper), so a bigger farm costs no more to look at.
+reusable helper), so a bigger farm costs no more to look at. The farm runs on
+its own clock (2026-10-31, `farming/clock.rs`, docs/design/farm-clock.md rung 2):
+each grow area advances once per interval by exactly the time it owes, on its
+own turn, the air on its own turn at least every game second; Settings >
+Gameplay > Garden updates (every frame, every second by default, every minute,
+every hour). Whatever reads a crop (a command, the save, the Garden page, the
+plant meshes while aboard) brings its area up to now first, and "Turn off all
+reuse" runs every area every frame.
 - Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden), `src/gui/widgets/offscreen.rs`
 - Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 
