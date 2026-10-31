@@ -2123,6 +2123,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 //    buttons sit in the body. Closes before the Mining divider. ──
                 widgets::rgb_section_divider(ui, theme);
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "garden"), "Garden", tree_force) {
+                // The section's own draw (cpu.garden.page, 2026-10-30): measured on a wall screen.
+                let _garden_draw = crate::renderer::frame_costs::stage("cpu.garden.page");
                 ui.horizontal_wrapped(|ui| {
                     // Dev: grant the starter seed set (one of each tower variety), so
                     // survival-mode planting is testable now. Creative ignores seeds.
@@ -2251,9 +2253,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if state.crops.iter().any(|c| c.tower_id.is_none()) {
                         groups.push((None, "Other crops".to_string()));
                     }
+                    // Every crop sorted into its group in ONE pass (2026-10-30, sim-frame-cost.md S1b): each
+                    // group used to walk every crop, 91 groups times 1,981 crops a frame in the showcase.
+                    let mut by_group: std::collections::HashMap<Option<&str>, Vec<&crate::gui::GuiCrop>> =
+                        std::collections::HashMap::new();
+                    for c in &state.crops {
+                        by_group.entry(c.tower_id.as_deref()).or_default().push(c);
+                    }
                     for (gi, (tid, title)) in groups.iter().enumerate() {
-                        let crops: Vec<&crate::gui::GuiCrop> =
-                            state.crops.iter().filter(|c| &c.tower_id == tid).collect();
+                        let crops: Vec<&crate::gui::GuiCrop> = by_group.get(&tid.as_deref()).cloned().unwrap_or_default();
                         let ready = crops.iter().filter(|c| c.mature).count();
                         // Bulk-harvest set (v0.739): entity bits of every crop in
                         // this group that is ready to pick (mature and not dead).
@@ -2390,11 +2398,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
                         let weeds_here = state.garden_pests.weeds.iter().find(|w| w.area == area_tag).cloned();
                         let cover_here = state.garden_pests.covers.iter().find(|c| c.area == area_tag).cloned();
-                        // Each crop's wait and water in words (farming::outlook, 2026-10-12).
-                        let outlook_here: std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook> = crops
-                            .iter()
-                            .filter_map(|c| state.garden_pests.outlook.get(&c.entity_bits).map(|o| (c.entity_bits, o.clone())))
-                            .collect();
+                        // Each crop's wait and water in words (farming::outlook, 2026-10-12), read from the
+                        // one map by entity (it was copied per group, every crop's outlook every frame).
+                        let outlook_here = &state.garden_pests.outlook;
                         widgets::expandable_row(
                             ui,
                             ("garden_grp", gi),
