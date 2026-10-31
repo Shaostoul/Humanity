@@ -728,3 +728,24 @@ fn the_areas_in_sight_are_the_machines_in_the_view() {
     let south = areas_in_sight(&spots, &look(Vec3::new(0.0, 1.7, 10.0)));
     assert_eq!(south, vec!["raised_bed_1".to_string()], "turned round, only the bed");
 }
+
+/// THE FARM IS SEEN WHOLE THROUGH A CAMERA SCREEN OR ON THE MAPS PAGE (2026-10-31, the critic's
+/// F2). The plant meshes keep only the areas in the player's own view within a second of now, but
+/// plants are also seen on a camera post's screen (the post looks wherever it stands) and on the
+/// Maps page (its world layer and a level's plan tiles draw them): with "Garden updates: every
+/// hour", a bed seen only on a security camera changed stage up to an hour late. While a camera
+/// screen's picture is live (rendered within the last second; it renders at most 10 times a second
+/// while framed) or the Maps page draws the world, the whole farm is looked at. Seen red 2026-10-31
+/// with the rule answering the player's own view only: "a camera picture rendered a fifth of a
+/// second ago is being watched".
+#[test]
+fn a_live_camera_screen_or_the_maps_page_sees_the_whole_farm() {
+    use std::time::{Duration, Instant};
+    let now = Instant::now();
+    let ago = |ms: u64| now.checked_sub(Duration::from_millis(ms));
+    assert!(!seen_whole(Vec::<Option<Instant>>::new(), now, false), "with no camera screen and no map, the player's own view only");
+    assert!(!seen_whole([None], now, false), "a camera screen never rendered shows nothing");
+    assert!(seen_whole([None, ago(200)], now, false), "a camera picture rendered a fifth of a second ago is being watched");
+    assert!(!seen_whole([ago(5_000)], now, false), "one last rendered five seconds ago is not (its screen is out of the frame)");
+    assert!(seen_whole([ago(5_000)], now, true), "the Maps page drawing the world");
+}

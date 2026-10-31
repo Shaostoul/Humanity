@@ -190,10 +190,10 @@ In order:
     lints`). The backlog before rung 1 DONE 2026-10-31: test code reaching up the stack 127 -> 0
     (120 tests moved whole into each destination crate's `crossing_tests`, none lost), the layer
     lint counts test code too, with budgets per file; `data_dir()` in the core (`storage.rs`);
-    `release_update.rs` filed under the GUI; main.rs counted; one `CutAway` box. Left in the farm
-    files (fenced while the Garden views follow-up runs): 10 `crate::data_dir()` calls through one
-    lib.rs re-export, and 15 test references to the engine, each held to its file's budget. Next:
-    those, then rung 1, the Cargo workspace with core and protocol split out: first the core's test
+    `release_update.rs` filed under the GUI; main.rs counted; one `CutAway` box. The farm files'
+    leftovers DONE the same day (the Garden follow-up: their `data_dir()` calls name the core, the
+    lib.rs re-export is gone, 17 farm tests moved whole to engine/crossing_tests): both budgets
+    empty, 0 wrong-way references in code and in test code. Next: rung 1, the Cargo workspace with core and protocol split out: first the core's test
     helpers (`test_temp`, `test_clock`, `test_log`: 305 of 412 cross-crate test-helper uses) as
     a test-support feature or dev crate, and one way to name the repo root (565
     `env!("CARGO_MANIFEST_DIR")` and 251 relative `include_str!` paths break when files move).
@@ -227,6 +227,9 @@ In order:
     (`systems/farming/versions.rs`, `engine/garden_mirror.rs`): facing the Inventory wall screen
     with 1,981 crops, the Garden data 9.89 -> 0.83 ms, the screens span's own CPU 11.56 -> 3.18 ms;
     the autosave's farm settle 10.4 -> 0.015 ms (sim-frame-cost.md, "The Garden views by area").
+    The critic's review of it found no stale row; its five findings fixed the same day (a crop's
+    reorder in the world no longer rebuilds its area, camera screens and the Maps page see the
+    whole farm, settles wait for a load's hand-over, every stamped data entry proven by a test).
     Next: a quiet re-run of the survey in the game (the first sight of the Garden page read 31.5 ms
     own CPU on a busy machine: if it stands, give the first build the wall budget), then the plant
     mesh rebuilds and the rest of the autosave.

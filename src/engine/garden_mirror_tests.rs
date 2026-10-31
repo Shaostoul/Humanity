@@ -186,10 +186,16 @@ fn a_build_with_nothing_changed_builds_nothing() {
 
 /// EVERY KIND OF CHANGE REACHES THE ROWS THE SAME BUILD (2026-10-31; the operator distrusts caches
 /// because a version that misses one write keeps a stale row). Each case changes one input, then a
-/// build that keeps rows is compared with a build from scratch, and the page must have changed.
+/// build that keeps rows is compared with a build from scratch, and the page must have changed:
+/// every case changes something the rows show (the critic's F5, 2026-10-31: seven cases changed
+/// nothing a row showed, where the comparison proves nothing). The one that cannot: the air's own
+/// turns (a second of air moves a room's humidity by far less than the whole percent a row shows;
+/// a grow room's air turns over in minutes to hours), so they follow a room made far damper,
+/// whose words the rows do show. Creative mode, so a mulch and a colony need no items.
 #[test]
 fn every_kind_of_change_reaches_the_rows_the_same_build() {
     let (mut data, mut world, mut sys) = garden(3600.0);
+    data.insert("creative_mode", Mutex::new(true));
     frame(&data, &mut world, &mut sys, 1.0);
     let mut page = Page::default();
     let mut before = page.kept(&world, &data);
@@ -211,28 +217,30 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     frame(&data, &mut world, &mut sys, 1.0);
     before = check(&mut page, &world, &data, &before, "a command (a hand watering)", true);
 
-    // (b) A command that names an area: a weed control, then a pest control (every area and the air).
-    let hoe = farming::weeds::WeedData::load().controls[0].id.clone();
-    *data.get::<Mutex<Option<(String, String)>>>(farming::weeds::REQUEST_KEY).unwrap().lock().unwrap() = Some(("bed_a".into(), hoe));
+    // (b) A command that names an area: a mulch laid (the weeds' line names it), then a pest
+    // control (every area and the air).
+    let mulch = farming::weeds::WeedData::load().controls[1].id.clone();
+    *data.get::<Mutex<Option<(String, String)>>>(farming::weeds::REQUEST_KEY).unwrap().lock().unwrap() = Some(("bed_a".into(), mulch));
     frame(&data, &mut world, &mut sys, 1.0);
-    before = check(&mut page, &world, &data, &before, "a command (a weed control)", false);
+    before = check(&mut page, &world, &data, &before, "a command (a mulch laid)", true);
     let cover = farming::pests::PestData::load().controls.iter().find(|c| c.is_cover()).map(|c| c.id.clone()).expect("a row cover in pests.ron");
     *data.get::<Mutex<Option<(String, String)>>>("pest_control_request").unwrap().lock().unwrap() = Some(("veg_field_1".into(), cover));
     frame(&data, &mut world, &mut sys, 1.0);
     before = check(&mut page, &world, &data, &before, "a command (a row cover laid)", true);
 
-    // (b) A colony introduced in the hive: the hive's line under the areas it reaches.
+    // (b) A colony introduced in the hive: its line under the areas it reaches, and a working hive
+    // for the crop cards of the greenhouse bed.
     *data.get::<Mutex<Option<farming::pollination::Request>>>(farming::pollination::REQUEST_KEY).unwrap().lock().unwrap() =
         Some(farming::pollination::Request::Colony("bumblebee_hive_1".into()));
     frame(&data, &mut world, &mut sys, 1.0);
-    before = check(&mut page, &world, &data, &before, "a colony introduced", false);
+    before = check(&mut page, &world, &data, &before, "a colony introduced", true);
 
     // (c) A reader's settle: ten minutes on with no turn of the hour's slots for most areas, then
     // the save's kind of ask, every area to now.
     for _ in 0..3 {
         frame(&data, &mut world, &mut sys, 200.0);
     }
-    check(&mut page, &world, &data, &before, "the clock run on", false);
+    before = check(&mut page, &world, &data, &before, "the clock run on", true);
     sys.settle(&mut world, &data, 0.0);
     before = check(&mut page, &world, &data, &before, "a reader's settle", true);
 
@@ -241,8 +249,10 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     crate::save_load::apply_save_to_world(&mut world, &save);
     farming::clock::hand_over_resume(&data, farming::clock::Owed::default());
     before = check(&mut page, &world, &data, &before, "a save applied (before the farm's next tick)", true);
-    frame(&data, &mut world, &mut sys, 1.0);
-    before = check(&mut page, &world, &data, &before, "the load handed over", false);
+    // The farm's next tick, 200 s on (a second moves nothing a row shows for a watered crop at full
+    // health, nor a minute's count).
+    frame(&data, &mut world, &mut sys, 200.0);
+    before = check(&mut page, &world, &data, &before, "the load handed over", true);
 
     // (e) The data files: plants.csv reloaded with a plant renamed.
     {
@@ -253,14 +263,14 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     }
     before = check(&mut page, &world, &data, &before, "plants.csv reloaded", true);
 
-    // (e) A machine edit: the grow plots published again with the greenhouse bed moved away from
-    // the hive (out of its reach).
+    // (e) A machine edit: the grow plots published again with the greenhouse bed moved into the
+    // other grow room, out of the hive's reach and into another room's air.
     {
         let mut plots = data.get::<Vec<farming::lighting::GrowPlot>>("grow_plots").unwrap().clone();
-        plots.iter_mut().find(|p| p.id == "bed_a").unwrap().pos = [9.5, 0.0, 9.5];
+        plots.iter_mut().find(|p| p.id == "bed_a").unwrap().pos = [22.0, 0.0, 3.0];
         data.insert("grow_plots", plots);
     }
-    before = check(&mut page, &world, &data, &before, "a machine edit (the grow plots)", false);
+    before = check(&mut page, &world, &data, &before, "a machine edit (the grow plots)", true);
 
     // (e) Each setting the views read.
     *data.get::<Mutex<bool>>(farming::pollination::MODE_KEY).unwrap().lock().unwrap() = false;
@@ -275,8 +285,19 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     before = check(&mut page, &world, &data, &before, "pests off", true);
     *data.get::<Mutex<f32>>("garden_pest_severity").unwrap().lock().unwrap() = 1.0;
     before = check(&mut page, &world, &data, &before, "pests realistic", true);
+    // Picking reads the ripe crops picked over a season: the dev grow ripens every crop first (a
+    // command), then the mode.
+    *data.get::<Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
+    frame(&data, &mut world, &mut sys, 1.0);
+    before = check(&mut page, &world, &data, &before, "a command (the dev grow)", true);
+    // The modes differ once a picked crop has been ripe past its first share (Forgiving keeps the
+    // shares not taken, Realistic only the one ripe now): two game days on, an hour a frame.
+    for _ in 0..48 {
+        frame(&data, &mut world, &mut sys, 3600.0);
+    }
+    before = check(&mut page, &world, &data, &before, "two game days on", true);
     *data.get::<Mutex<bool>>(farming::picking::MODE_KEY).unwrap().lock().unwrap() = true;
-    before = check(&mut page, &world, &data, &before, "picking realistic", false);
+    before = check(&mut page, &world, &data, &before, "picking realistic", true);
     data.get::<Mutex<HashMap<String, f32>>>("garden_irrigation").unwrap().lock().unwrap().insert("bed_a".into(), 0.1);
     before = check(&mut page, &world, &data, &before, "an area's irrigation target", true);
 
@@ -296,8 +317,17 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     set_clock(&data, clock_now(&data) - 86_400.0);
     before = check(&mut page, &world, &data, &before, "the clock set back", true);
 
-    // The air and the light: frames through the evening, the air on its own turn every second and
-    // the sun going down.
+    // The air: a grow room's air made far damper (as a humidifier stuck on would leave it), written
+    // into the soil memory with no farm run, so the rows' air words can only come from the room's
+    // own reading; then frames through the evening, the air on its own turn every second (moving
+    // by less than a shown percent: see above), and the sun going down.
+    {
+        let mut q = world.query::<&mut crate::ecs::components::SoilMemory>();
+        let (_, m) = q.iter().next().expect("the soil memory");
+        let room = m.rooms.get_mut("room-a").expect("the greenhouse's air is tracked");
+        room.vapour_g_m3 *= 1.6;
+    }
+    before = check(&mut page, &world, &data, &before, "a room's air far damper", true);
     for _ in 0..20 {
         frame(&data, &mut world, &mut sys, 0.5);
         before = check(&mut page, &world, &data, &before, "the air's own turn", false);
@@ -305,6 +335,100 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     set_clock(&data, 19.0 * 3600.0);
     frame(&data, &mut world, &mut sys, 1.0);
     check(&mut page, &world, &data, &before, "sunset", true);
+}
+
+/// EVERY STAMPED ENTRY REACHES THE ROWS WHEN IT IS PUBLISHED AGAIN (2026-10-31, the critic's F5:
+/// of the entries the rows key on by their DataStore stamp, only plants.csv was proven). Each is
+/// inserted again with a value the kept rows show differently, the way a hot reload or a machine
+/// edit inserts it; each time the page must change and equal a build from scratch, and every
+/// entry of `STAMPED` must have its case. Seen red 2026-10-31 with "garden_lighting" left out of
+/// `STAMPED`: "the lighting data published again: the kept rows differ from a build from scratch".
+#[test]
+fn every_stamped_entry_reaches_the_rows_when_published_again() {
+    use farming::{humidity, lighting, picking, pollination, soil, soil_ph, weeds};
+    let (mut data, mut world, mut sys) = garden(3600.0);
+    data.insert("creative_mode", Mutex::new(true));
+    // Ripe crops, so the picking data shows: the dev grow (a command).
+    frame(&data, &mut world, &mut sys, 1.0);
+    *data.get::<Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
+    frame(&data, &mut world, &mut sys, 1.0);
+    let mut page = Page::default();
+    let mut before = page.kept(&world, &data);
+    let mut proven: Vec<&str> = Vec::new();
+    let mut case = |data: &mut DataStore, key: &'static str, what: &str, change: &dyn Fn(&mut DataStore)| {
+        change(data);
+        before = check(&mut page, &world, data, &before, what, true);
+        proven.push(key);
+    };
+    case(&mut data, "plant_registry", "plants.csv published again", &|d| {
+        let mut reg = d.get::<farming::PlantRegistry>("plant_registry").unwrap().clone();
+        for p in reg.plants.values_mut() {
+            p.name = format!("{} (renamed)", p.name);
+        }
+        d.insert("plant_registry", reg);
+    });
+    case(&mut data, "garden_nutrients", "the nutrient data published again (the anchor's removal doubled; before it, no crop has a season need)", &|d| {
+        let mut nd = soil::NutrientData::parse(soil::NUTRIENTS_RON).unwrap();
+        nd.demand_anchor.n_g_per_kg *= 2.0;
+        nd.demand_anchor.p2o5_g_per_kg *= 2.0;
+        nd.demand_anchor.k2o_g_per_kg *= 2.0;
+        d.insert("garden_nutrients", nd);
+    });
+    case(&mut data, "item_registry", "items.csv published again (every mass doubled: a harvest twice the weight takes twice the nutrients)", &|d| {
+        let mut items = d.get::<crate::systems::inventory::ItemRegistry>("item_registry").unwrap().clone();
+        for item in items.items.values_mut() {
+            item.mass_kg *= 2.0;
+        }
+        d.insert("item_registry", items);
+    });
+    case(&mut data, farming::units::PLOT_AREA_KEY, "the plots' floor areas published again (a bed a quarter the size)", &|d| {
+        let mut areas = d.get::<HashMap<String, f32>>(farming::units::PLOT_AREA_KEY).unwrap().clone();
+        *areas.get_mut("bed_a").unwrap() *= 0.25;
+        d.insert(farming::units::PLOT_AREA_KEY, areas);
+    });
+    case(&mut data, "garden_lighting", "the lighting data published again", &|d| {
+        let mut ld = lighting::LightingData::parse(lighting::LIGHTING_RON).unwrap();
+        ld.target_dli_mol_m2_d *= 2.0;
+        d.insert("garden_lighting", ld);
+    });
+    case(&mut data, "garden_soil_ph", "the soil pH data published again (a harder cap outside a window)", &|d| {
+        let mut ph = soil_ph::SoilPhData::parse(soil_ph::SOIL_PH_RON).unwrap();
+        ph.loss_per_ph_unit = (ph.loss_per_ph_unit * 3.0).min(0.9);
+        d.insert("garden_soil_ph", ph);
+    });
+    case(&mut data, pollination::DATA_KEY, "the pollination data published again (tomatoes left out)", &|d| {
+        let text = pollination::POLLINATION_RON.replacen("id: \"tomato\"", "id: \"tomato_not_listed\"", 1);
+        d.insert(pollination::DATA_KEY, pollination::PollinationData::parse(&text).unwrap());
+    });
+    case(&mut data, picking::DATA_KEY, "the harvest windows published again (tomatoes left out)", &|d| {
+        let text = picking::HARVEST_WINDOWS_RON.replacen("plant: \"tomato\"", "plant: \"tomato_not_listed\"", 1);
+        d.insert(picking::DATA_KEY, picking::HarvestWindows::parse(&text).unwrap());
+    });
+    case(&mut data, humidity::DATA_KEY, "the humidity data published again (the rooms warmer)", &|d| {
+        let mut hd = humidity::HumidityData::parse(humidity::HUMIDITY_RON).unwrap();
+        hd.room_temp_c += 8.0;
+        d.insert(humidity::DATA_KEY, hd);
+    });
+    case(&mut data, weeds::DATA_KEY, "the weeds data published again (weeds noticed at once)", &|d| {
+        let mut wd = weeds::WeedData::parse(weeds::WEEDS_RON).unwrap();
+        wd.detect_at = 0.0;
+        d.insert(weeds::DATA_KEY, wd);
+    });
+    case(&mut data, "garden_pests", "the pests data published again (the row cover renamed)", &|d| {
+        let mut pd = farming::pests::PestData::parse(farming::pests::PESTS_RON).unwrap();
+        let cover = pd.controls.iter_mut().find(|c| c.is_cover()).unwrap();
+        cover.name = format!("{} (renamed)", cover.name);
+        d.insert("garden_pests", pd);
+    });
+    case(&mut data, "grow_plots", "the grow plots published again (a bed moved to the other room)", &|d| {
+        let mut plots = d.get::<Vec<lighting::GrowPlot>>("grow_plots").unwrap().clone();
+        plots.iter_mut().find(|p| p.id == "bed_b").unwrap().pos = [5.0, 0.0, 6.0];
+        d.insert("grow_plots", plots);
+    });
+    let mut stamped: Vec<&str> = super::STAMPED.to_vec();
+    stamped.sort_unstable();
+    proven.sort_unstable();
+    assert_eq!(proven, stamped, "every stamped entry has its case here");
 }
 
 /// EVERY AREA EQUALS A BUILD FROM SCRATCH AFTER A LONG RUN of turns and commands, at a second's
@@ -357,4 +481,33 @@ fn every_area_equals_a_build_from_scratch_after_a_long_run() {
             }
         }
     }
+}
+
+/// A CROP THAT ONLY MOVES IN THE WORLD'S ORDER BUILDS NOTHING (2026-10-31, the critic's F1). hecs
+/// keeps an archetype's entities in a dense array and takes one out by swap-remove, so adding or
+/// removing any component on a crop (a ripe crop's picking record, a pollination record, a first
+/// soil record, the sowing marker coming off, a harvest) moves it to the end of another archetype
+/// and moves the last crop of its old one into its place: the world's order of crops changes,
+/// across areas, while no crop and no row did. The page kept an area only while its crops stood in
+/// exactly the world's order, so each such change rebuilt two areas as never built, past a wall
+/// screen's budget: with the showcase's field of about 2,000 crops, one ripening rebuilt it whole.
+/// Here a component no row reads is added to one crop: no area is built, and the page is still the
+/// page from scratch. Seen red 2026-10-31 on the code before the fix (areas kept in the world's
+/// order).
+#[test]
+fn a_reorder_of_the_crops_alone_builds_nothing() {
+    struct Moved;
+    let (data, mut world, mut sys) = garden(3600.0);
+    frame(&data, &mut world, &mut sys, 1.0);
+    let mut page = Page::default();
+    page.kept(&world, &data);
+    page.kept(&world, &data);
+    assert_eq!(page.built(), 0, "nothing changed: nothing built");
+    let e = crop_in(&world, "bed_a");
+    world.insert_one(e, Moved).expect("the crop is there");
+    let kept = page.kept(&world, &data);
+    let which: Vec<String> = page.rows.areas.iter().filter(|a| a.built_at == page.rows.builds).map(|a| a.name.clone()).collect();
+    assert!(which.is_empty(), "a crop moved in the world's order, nothing else changed, but these areas were built again: {which:?}");
+    let fresh = scratch(&world, &data);
+    assert!(kept == fresh, "and the page is the page from scratch{}", first_difference(&kept, &fresh));
 }

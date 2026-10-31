@@ -387,7 +387,7 @@ fn garden_medium_editor(
 /// source stamp, BUG-133, could not see that the binary was behind.)
 fn items_csv() -> &'static str {
     static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    TEXT.get_or_init(|| crate::embedded_data::read_data_or_embedded(&crate::data_dir(), "items.csv").unwrap_or_default())
+    TEXT.get_or_init(|| crate::embedded_data::read_data_or_embedded(&crate::storage::data_dir(), "items.csv").unwrap_or_default())
 }
 
 /// Parse item data from items.csv to get details for a given item_id.

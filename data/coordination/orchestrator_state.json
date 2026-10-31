@@ -790,6 +790,11 @@
       "date": "2026-10-31",
       "decision": "Notifications rung 2 part 2 merged: tray icon (tray-icon 0.26, ksni on Linux) with Open / Mute everything / Quit, close-to-tray off by default (world saved and left, nothing drawn, sockets pumped 4x a second via engine/frame_net.rs), a click on a notice opens its conversation (Windows COM notice activator via CustomActivator, not humanityos://), the in-world banner and the taskbar flash. Script-launched instances get no tray unless HUMANITY_TRAY=1.",
       "why": "The protocol route would start a second exe per click and its registration names one exe path that every worktree and rig build would overwrite; the activator is served by the running app. No LocalServer32, so nothing launches from a stale notice (rung 5). Rigs get no icon so test runs never pile icons into the operator tray. The Linux and macOS code had no compile check on this machine: the desktop workflow (workflow_dispatch) is the check before the next release."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Garden views critic follow-up merged: F1 crops sorted per area so a hecs reorder rebuilds nothing; F2 a camera screen rendered within 1 s or the Maps page drawing plants settles the whole farm; F3 settles wait for a load hand-over; F4 versions.rs comment corrected; F5 every change case visible, every STAMPED key proven (14 -> 12). The crate split farm leftovers done: budgets and testBudgets empty, 0 wrong-way references anywhere, lib.rs data_dir re-export gone.",
+      "why": "F2 takes the whole farm while any camera feed is live rather than each camera frustum: less code than the cost it saves (a feed renders at most 10 Hz and only while framed). Two STAMPED keys came out because no kept row reads them (grow_instances only by commands, which touch every area). Lesson recorded in docs/ai/code-patterns.md: a hecs query order is not stable, and a change test must check the change is visible."
     }
   ],
   "active_scopes_to_avoid": [

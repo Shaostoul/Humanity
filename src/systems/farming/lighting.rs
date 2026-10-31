@@ -65,7 +65,7 @@ impl LightingData {
     }
 
     pub fn load() -> Self {
-        let path = crate::data_dir().join("garden").join("lighting.ron");
+        let path = crate::storage::data_dir().join("garden").join("lighting.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).

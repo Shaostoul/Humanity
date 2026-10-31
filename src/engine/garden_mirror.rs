@@ -81,11 +81,17 @@ static BUILT_AT_PASS: AtomicU64 = AtomicU64::new(u64::MAX);
 /// the areas built longest ago first; the rest keep theirs until a later build reaches them.
 pub(crate) const SLICES: usize = 8;
 
-/// The DataStore entries the rows are worked out from, kept while each one's change stamp
+/// The DataStore entries the kept rows are worked out from, kept while each one's change stamp
 /// (`DataStore::stamp`) holds: a hot reload of any, or a machine edit (which publishes the grow
-/// plots, their instances and their floor areas again), builds every area again. KEEP IN STEP with
-/// what the rows read: an entry read below and missing here keeps rows from before it changed.
-const STAMPED: [&str; 14] = [
+/// plots and their floor areas again), builds every area again. KEEP IN STEP with what the rows
+/// read: an entry read below and missing here keeps rows from before it changed; each one here is
+/// proven by `garden_mirror_tests.rs` `every_stamped_entry_reaches_the_rows_when_published_again`.
+/// Two the first list held are read by no kept row (the critic's F5, 2026-10-31): the life-support
+/// data feeds only the air's and the home's lines, which are made every build, and the grow
+/// machines' instances only the farm's own weeds step. The grow plots are read through what the
+/// rows key on every build too (the pollinators' reach, the rooms' air); they stay for a machine
+/// edit's whole rebuild.
+const STAMPED: [&str; 12] = [
     "plant_registry",
     "item_registry",
     "garden_nutrients",
@@ -97,17 +103,16 @@ const STAMPED: [&str; 14] = [
     farming::humidity::DATA_KEY,
     farming::weeds::DATA_KEY,
     "garden_pests",
-    crate::systems::life_support::DATA_KEY,
     "grow_plots",
-    "grow_instances",
 ];
 
 /// What is kept between builds (the main thread's, `ROWS`; a test keeps its own).
 #[derive(Default)]
 pub(crate) struct Rows {
-    /// The grow areas, in the order their rows stand in `GuiState::crops`: the areas with crops in
-    /// the order the world first holds one of their crops, then the emptied beds that still show a
-    /// weeds or row-cover line, by name.
+    /// The grow areas, in the order their rows stand in `GuiState::crops`: the areas with crops by
+    /// their tag (no tag first), each area's crops by entity id, then the emptied beds that still
+    /// show a weeds or row-cover line, by name. Not the world's own order, which moves whenever a
+    /// crop gains or loses a component (the critic's F1, `build`).
     areas: Vec<Area>,
     /// `areas` by name, for the lists the page shows sorted by area.
     sorted: Vec<usize>,
@@ -122,7 +127,7 @@ struct Area {
     tower: Option<String>,
     /// Its tag as the farm names it (`tower_id`, "" for none).
     name: String,
-    /// Its crops, in the world's order: its rows, in `range`, are theirs one for one.
+    /// Its crops, by entity id: its rows, in `range`, are theirs one for one.
     crops: Vec<hecs::Entity>,
     range: Range<usize>,
     /// The key its rows were built under; 0: not built (new, or its crops changed).
@@ -238,7 +243,7 @@ pub(crate) fn build(
     rows.builds += 1;
     let builds = rows.builds;
 
-    // ── Every crop's area, once over the crops: each area's crops in the world's order. ──
+    // ── Every crop's area, once over the crops (then put in one order, below). ──
     let mut walk: Vec<(Option<String>, Vec<hecs::Entity>)> = Vec::new();
     {
         let mut q = world.query::<&CropInstance>();
@@ -272,6 +277,19 @@ pub(crate) fn build(
             last = Some(i);
         }
     }
+    // One order for them whatever the world's (2026-10-31, the critic's F1): each area's crops by
+    // their entity, the areas by their tag. hecs keeps an archetype's entities in a dense array and
+    // takes one out by swap-remove, so adding or removing any component on a crop (a ripe crop's
+    // picking record, a pollination record, a first soil record, the sowing marker coming off, a
+    // harvest) moves it to the end of another archetype and moves the last crop of its old one into
+    // its place: the world's order changes, across areas, with nothing a row shows. Kept in that
+    // order, each such change rebuilt two areas whole, whatever a wall screen's budget; in this one
+    // an area's list moves only when a crop joins or leaves it, and the page shows an area's crops
+    // in the same order every frame (by entity id, the order they were made in).
+    for (_, crops) in walk.iter_mut() {
+        crops.sort_unstable_by_key(|e| e.to_bits().get());
+    }
+    walk.sort_by(|a, b| a.0.cmp(&b.0));
     // The soil memory: the emptied beds' weeds and row covers, and each area's pests.
     let mut memory_q = world.query::<&SoilMemory>();
     let memory: Option<(hecs::Entity, &SoilMemory)> = memory_q.iter().next();

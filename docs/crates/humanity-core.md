@@ -19,7 +19,7 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
 - **Size:** 14,461 lines in 50 files, 859 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 26, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 590, systems 426, gui 342, renderer 61, net 46, ship 36, relay 28, terrain 4.
+- **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 591, systems 435, gui 343, renderer 61, net 46, ship 36, relay 28, terrain 4.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 168 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -34,8 +34,8 @@ just test-lib input:: audio:: utilities:: physics:: debug:: platform:: turning::
 | `hot_reload::data_store::DataStore` | 110 | systems 70, engine 38, net 1, ship 1 |
 | `debug::push_debug` | 83 | gui 42, net 23, engine 18 |
 | `ecs::components` | 70 | systems 51, engine 18, ship 1 |
+| `storage::data_dir` | 65 | gui 33, systems 21, engine 6, relay 2, ship 2, net 1 |
 | `ecs::components::Transform` | 57 | engine 38, systems 15, gui 1, net 1, relay 1, ship 1 |
-| `storage::data_dir` | 54 | gui 32, systems 12, engine 5, relay 2, ship 2, net 1 |
 | `embedded_data::note_builtin_copy` | 53 | systems 14, relay 13, ship 9, gui 8, renderer 6, engine 1, net 1, terrain 1 |
 | `frame_costs::span` | 49 | engine 49 |
 | `ecs::components::Controllable` | 45 | systems 25, engine 19, gui 1 |

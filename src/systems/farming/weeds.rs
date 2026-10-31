@@ -206,7 +206,7 @@ impl WeedData {
     /// that is missing or does not parse. The shipped copy always parses: a
     /// test pins it.
     pub fn load() -> Self {
-        let path = crate::data_dir().join("garden").join("weeds.ron");
+        let path = crate::storage::data_dir().join("garden").join("weeds.ron");
         if let Ok(text) = std::fs::read_to_string(&path) {
             match Self::parse(&text) {
                 Ok(d) => return d,

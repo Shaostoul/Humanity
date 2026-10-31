@@ -132,12 +132,6 @@ pub mod hot_reload;
 const MAX_MODEL_STRETCH: f32 = 3.0;
 
 
-// The old path, kept ONLY for the files another session is editing as this moved (the farm and the
-// Garden: engine/home_meshes.rs, gui/pages/inventory.rs and nine under systems/farming/); every
-// other caller names `crate::storage::data_dir()`. scripts/check-crate-layers.js holds each of
-// those files to its count of uses (crate-layers.json "budgets"), so no new caller can take it up;
-// delete this line when those files read the new path (docs/design/crate-split.md, backlog).
-pub(crate) use crate::storage::data_dir;
 
 pub mod systems;
 

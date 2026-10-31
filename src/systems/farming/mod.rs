@@ -24,11 +24,11 @@ pub mod versions;
 #[cfg(test)]
 mod sowing_tests;
 #[cfg(test)]
-mod heat_tests;
+pub(crate) mod heat_tests;
 #[cfg(test)]
-mod humidity_tests;
+pub(crate) mod humidity_tests;
 #[cfg(test)]
-mod life_support_tests;
+pub(crate) mod life_support_tests;
 #[cfg(test)]
 mod nutrient_tests;
 #[cfg(test)]
@@ -36,12 +36,12 @@ mod picking_tests;
 #[cfg(test)]
 mod pest_tests;
 #[cfg(test)]
-mod soil_ph_tests;
+pub(crate) mod soil_ph_tests;
 #[cfg(test)]
 mod unit_tests;
 pub mod weeds;
 #[cfg(test)]
-mod weed_tests;
+pub(crate) mod weed_tests;
 #[cfg(test)]
 pub(crate) mod golden_tests;
 #[cfg(test)]
@@ -668,7 +668,7 @@ fn field_climate(def: &PlantDef, season: &str, temp_c: f32) -> f32 {
 /// Game seconds in a garden day: 24 hours of the one game clock
 /// (`time::EARTH_DAY_S`), the day plants.csv `growth_days` and every litre
 /// a day are counted in, whatever the calendar's day length.
-const SECONDS_PER_DAY: f64 = crate::systems::time::EARTH_DAY_S;
+pub(crate) const SECONDS_PER_DAY: f64 = crate::systems::time::EARTH_DAY_S;
 
 /// Determine growth stage from progress fraction (0.0 to 1.0+) using
 /// a data-driven stage list. The LAST stage (ripe, harvestable) is reached at
@@ -691,7 +691,7 @@ pub fn stage_from_progress<'a>(progress: f32, stages: &'a [&'a str]) -> &'a str 
 }
 
 /// Returns the index of a stage name in the stage list, or None if not found.
-fn stage_index(stage: &str, stages: &[&str]) -> Option<usize> {
+pub(crate) fn stage_index(stage: &str, stages: &[&str]) -> Option<usize> {
     stages.iter().position(|s| *s == stage)
 }
 
@@ -1100,7 +1100,8 @@ pub fn settle(world: &mut hecs::World, data: &DataStore, within_s: f64) {
 /// and asks this first so a settle with nothing to do costs no publish. False without the game's
 /// shared farm, or while it is busy.
 pub fn settle_needed(data: &DataStore, within_s: f64) -> bool {
-    data.get::<Shared>(SHARED_KEY).and_then(|s| s.try_lock().ok().map(|f| f.settle_needed(within_s))).unwrap_or(false)
+    !clock::resume_pending(data)
+        && data.get::<Shared>(SHARED_KEY).and_then(|s| s.try_lock().ok().map(|f| f.settle_needed(within_s))).unwrap_or(false)
 }
 
 /// `settle` for some areas only (`FarmingSystem::settle_areas`: the plant meshes' areas in sight).
@@ -1114,13 +1115,20 @@ pub fn settle_areas(world: &mut hecs::World, data: &DataStore, names: &[String],
 
 /// `settle_needed` for `settle_areas`.
 pub fn settle_areas_needed(data: &DataStore, names: &[String], within_s: f64) -> bool {
-    data.get::<Shared>(SHARED_KEY).and_then(|s| s.try_lock().ok().map(|f| f.settle_areas_needed(names, within_s))).unwrap_or(false)
+    !clock::resume_pending(data)
+        && data.get::<Shared>(SHARED_KEY).and_then(|s| s.try_lock().ok().map(|f| f.settle_areas_needed(names, within_s))).unwrap_or(false)
 }
 
 /// What every grow area and the air owe on the game's farm clock now, for a save
-/// (`clock::Owed`): None without the game's shared farm (a test's store, a headless tool).
+/// (`clock::Owed`): None without the game's shared farm (a test's store, a headless tool). With a
+/// load's hand-over not yet taken (`clock::resume_pending`), what the loaded world owes: the farm's
+/// clock is still the previous world's until its next tick (the critic's F3, 2026-10-31).
 pub fn owed(data: &DataStore) -> Option<clock::Owed> {
-    data.get::<Shared>(SHARED_KEY).and_then(|s| s.lock().ok().map(|f| f.clock.owed()))
+    let shared = data.get::<Shared>(SHARED_KEY)?;
+    if let Some(pending) = clock::pending_owed(data) {
+        return Some(pending);
+    }
+    shared.lock().ok().map(|f| f.clock.owed())
 }
 
 /// What the player's commands waiting for this tick touch (2026-10-31, farm-clock.md rung 2): each
@@ -1431,6 +1439,10 @@ impl FarmingSystem {
     /// (a machine with no crops) is passed over.
     pub fn settle_areas(&mut self, world: &mut hecs::World, data: &DataStore, names: &[String], within_s: f64) {
         let _cost = crate::frame_costs::stage("cpu.farm.settle");
+        // A load handed over and not yet taken: the clock is the previous world's (the critic's F3).
+        if clock::resume_pending(data) {
+            return;
+        }
         let slack = within_s / f64::from(clock::TURNS);
         let mut stale: Vec<u32> = Vec::new();
         for n in names {
@@ -1478,6 +1490,12 @@ impl FarmingSystem {
 
     pub fn settle(&mut self, world: &mut hecs::World, data: &DataStore, within_s: f64) {
         let _cost = crate::frame_costs::stage("cpu.farm.settle");
+        // A load handed over and not yet taken: the clock is the previous world's, and advancing the
+        // loaded world by its debts would give it time that belonged to no world, which the tick
+        // then owes it again (the critic's F3, 2026-10-31). The tick takes the hand-over first.
+        if clock::resume_pending(data) {
+            return;
+        }
         let kept = self.clock.look_frames > 0;
         if within_s > 0.0 {
             self.clock.look_frames = clock::LOOK_KEEP_FRAMES;
@@ -3393,7 +3411,7 @@ impl FarmingSystem {
 }
 
 #[cfg(test)]
-mod gardening_tests {
+pub(crate) mod gardening_tests {
     use super::*;
     use crate::ecs::components::{Controllable, CropInstance};
     use crate::ecs::systems::System;
@@ -3405,7 +3423,7 @@ mod gardening_tests {
     /// the clock's time scale, the one speed there is now (2026-09-27), so
     /// the tests keep their garden days a tick. At 1 it is 72 game seconds a
     /// real second.
-    pub(super) fn set_garden_speed(data: &DataStore, speed: f32) {
+    pub(crate) fn set_garden_speed(data: &DataStore, speed: f32) {
         data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
             .unwrap()
             .lock()
@@ -3415,7 +3433,7 @@ mod gardening_tests {
 
     /// DataStore with plant + item registries and the four gardening channels,
     /// mirroring the runtime wiring in lib.rs. Shared with nutrient_tests.
-    pub(super) fn make_store() -> DataStore {
+    pub(crate) fn make_store() -> DataStore {
         let mut data = DataStore::new();
         let plants = PlantRegistry::from_csv(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -4302,133 +4320,6 @@ mod gardening_tests {
         let fast = age_after(72.0);
         assert!((slow - 20.0).abs() < 1e-6, "ten noon seconds at 1x: {slow}");
         assert!((fast / slow - 72.0).abs() < 1e-6, "72x grows it 72 times as far: {fast} vs {slow}");
-    }
-
-    /// Offline progression end to end (2026-09-25): a garden saved, then loaded
-    /// after time away, must be further along when the toggle is on and exactly
-    /// where it was when it is off. Goes through the real catch-up and the real
-    /// FarmingSystem tick, so it proves the shifted planted_at actually turns
-    /// into growth, not just that a number moved. Native-gated because
-    /// save_load is (the relay build has no offline home).
-    #[cfg(feature = "native")]
-    #[test]
-    fn time_away_grows_the_garden_only_with_offline_progression_on() {
-        use crate::ecs::components::CropInstance;
-
-        let run = |offline_on: bool| -> usize {
-            let mut data = make_store();
-            let (growth_seconds, stages): (f64, Vec<&str>) = {
-                let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
-                let def = reg.get("tomato").unwrap();
-                (def.growth_days as f64 * SECONDS_PER_DAY, def.stages())
-            };
-            // Saved one minute after planting, at game second 1000.
-            let mut save = crate::persistence::WorldSave::new_offline("t", "homestead");
-            save.game_time = 1060.0;
-            save.timestamp = 1_000_000;
-            save.crops = vec![CropInstance {
-                crop_def_id: "tomato".to_string(),
-                growth_stage: stages[0].to_string(),
-                planted_at: 1000.0,
-                water_level: 1.0,
-                health: 100.0,
-                tower_id: None,
-                tower_slot: None,
-                health_seconds: 0.0,
-                growing_seconds: 0.0,
-            }];
-            let mut world = hecs::World::new();
-            crate::save_load::apply_save_to_world(&mut world, &save);
-            // Away for 60% of the tomato's whole real growth window.
-            let now = save.timestamp + (growth_seconds * 0.6) as u64;
-            let r = crate::save_load::catch_up_world(&mut world, &save, offline_on, 1.0, now);
-            assert!((r.clock - 1060.0).abs() < 1e-9, "the clock resumes where it was saved");
-            data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
-                .unwrap()
-                .lock()
-                .unwrap()
-                .set_elapsed(r.clock);
-            let mut sys = FarmingSystem::new();
-            sys.tick(&mut world, 1.0, &data);
-            let (_e, c) = world.query_mut::<&CropInstance>().into_iter().next().unwrap();
-            stage_index(&c.growth_stage, &stages).unwrap()
-        };
-
-        let off = run(false);
-        let on = run(true);
-        assert_eq!(off, 0, "toggle off: one minute of growth is still the first stage");
-        assert!(on > off, "toggle on: 60% of the window away must grow the crop (on {on}, off {off})");
-    }
-
-    /// A powered Wi-Fi router in the grow room leaves crop health exactly
-    /// where it would be without one (2026-09-27). The v0.620 radio-frequency
-    /// crop harm was removed on the operator's decision, "We'll assume no
-    /// wi-fi crop harm at this time", on the evidence in
-    /// docs/reference/findings/2026-09-27-wifi-and-plants.md (no source shows a
-    /// household router harming a garden at the distances plants sit from
-    /// one). The router is spawned from the shipped catalog through the same
-    /// path the game uses, with its power on, beside a well-watered crop, and
-    /// the crop's health is compared with the same crop in a room with no
-    /// router. Seen red with the old coupling restored (the RfEmitter spawn
-    /// plus the FarmingSystem's home-RF drain): after five seconds the crop by
-    /// the router fell to 78.0 while the one without it recovered to 82.5.
-    /// Native only: it spawns the router through `engine::home_spawn`, which
-    /// the relay build does not have.
-    #[cfg(feature = "native")]
-    #[test]
-    fn powered_wifi_router_leaves_crop_health_unchanged() {
-        use crate::ecs::components::{CropInstance, MachineInstanceId, PowerConsumer};
-        let well_watered = || CropInstance {
-            crop_def_id: "tomato".to_string(),
-            growth_stage: "sprout".to_string(),
-            planted_at: 0.0,
-            water_level: 1.0, // not water-stressed, so only the router differs
-            health: 80.0,
-            tower_id: None,
-            tower_slot: None,
-            health_seconds: 0.0,
-            growing_seconds: 0.0,
-        };
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
-        let home = crate::systems::grow_machines::load_home(&path).expect("home.ron parses");
-        let router = home.catalog.get("wifi_router").expect("home.ron catalogs the wifi_router");
-        let inst = crate::machines::MachineInstance {
-            id: "router_test".to_string(),
-            machine: "wifi_router".to_string(),
-            room: "room-greenhouse".to_string(),
-            offset: (0.0, 0.0, 0.0),
-            rotation: 0.0,
-            zone: "home".to_string(),
-            screen_source: None,
-        };
-        let data = make_store();
-        let empty = std::collections::HashMap::new();
-
-        // The grow room with the router, powered on.
-        let mut with_router = hecs::World::new();
-        let c = with_router.spawn((well_watered(),));
-        crate::engine::home_spawn::spawn_home_machine_entity(&mut with_router, &inst, router, &empty, &empty, None, None);
-        let powered: Vec<bool> = with_router
-            .query::<(&PowerConsumer, &MachineInstanceId)>()
-            .iter()
-            .map(|(_, (p, _))| p.enabled)
-            .collect();
-        assert_eq!(powered, vec![true], "the router spawns as a powered network device");
-
-        // The same grow room with no router.
-        let mut without = hecs::World::new();
-        let c2 = without.spawn((well_watered(),));
-
-        let mut sys = FarmingSystem::new();
-        let mut sys2 = FarmingSystem::new();
-        for _ in 0..5 {
-            sys.tick(&mut with_router, 1.0, &data);
-            sys2.tick(&mut without, 1.0, &data);
-        }
-        let near_router = with_router.get::<&CropInstance>(c).unwrap().health;
-        let no_router = without.get::<&CropInstance>(c2).unwrap().health;
-        assert_eq!(near_router, no_router, "a powered Wi-Fi router changes nothing about the crop's health");
-        assert!(no_router >= 80.0, "the well-watered crop holds or recovers, got {no_router}");
     }
 
     /// Yield follows the crop's season health (2026-09-26): forty potato

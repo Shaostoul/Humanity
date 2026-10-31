@@ -238,7 +238,7 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      and engine/save_slot.rs.
    **Not counted, and needed before each crate is cut (rung 1 and after).** The backlog as rung 0
    left it, and what became of each item (2026-10-31, the same day):
-   - **The tests' 127 wrong-way references: 0, outside the farm's test files.** (The count was 125
+   - **The tests' 127 wrong-way references: 0.** (The count was 125
      after part B, then 127 when the crate cards gave a `#[path]` file to the module declaring it:
      the GUI's eight test files in `engine/` had been counted as the engine's.) Each test that made
      one moved WHOLE to the lowest crate that may use everything it reaches, into one
@@ -246,22 +246,28 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      module, a file per file the tests came from: src/engine/crossing_tests/ (19 files, two of them
      whole files moved with git mv: `engine/parity_tests.rs`, `systems/quests/opening_tests.rs`),
      src/gui/crossing_tests/ (13), src/systems/crossing_tests/ (7), src/relay/crossing_tests/ (2)
+     (the engine's 25 files since the farm's six joined it, below)
      and one file each in net, renderer, terrain and the ship. Nothing in a test changed but its
      paths; the how-to checker's nine page-reading tests run without the app's page list in the
      relay's crate and again with it in the GUI's (`gui/crossing_tests/how_to.rs`), and the station
-     tests take their own 24-hour day instead of the simulation's constant. Left: **15 references in
-     six farm test files** (src/systems/farming/heat_tests.rs 6, life_support_tests.rs 3, mod.rs 3,
-     humidity_tests.rs 1, soil_ph_tests.rs 1, weed_tests.rs 1; all systems -> engine, the engine's
-     home spawn and save and load), which another session was editing: each moves to the engine
-     the same way. **The ratchet holds test code now**, file by file (crate-layers.json
-     "testBudgets", only those six files listed), and code file by file too; `node
+     tests take their own 24-hour day instead of the simulation's constant. **The farm's last 15**
+     (src/systems/farming/heat_tests.rs 6, life_support_tests.rs 3, mod.rs 3, humidity_tests.rs 1,
+     soil_ph_tests.rs 1, weed_tests.rs 1; all systems -> engine, the engine's home spawn and save and
+     load) moved the same way the same evening, once the farm's session finished with those files:
+     to src/engine/crossing_tests/farming_heat.rs (eight tests, with the stove and heat-pump helpers
+     only they use), farming_life_support.rs (the `shipped` module's four, with `shipped_home` and
+     the day it settles), farming_gardening.rs (two of mod.rs's `gardening_tests`),
+     farming_humidity.rs, farming_soil_ph.rs and farming_weeds.rs (one each); the helpers they share
+     with the tests that stayed are the origin files', `pub(crate)`. The same test names before and
+     after (`node scripts/lib-tests.js --list`). **The ratchet holds test code**, file by file
+     (crate-layers.json "testBudgets", empty now), and code file by file too; `node
      scripts/crate-graph.js --tests` lists each reference with its line.
    - **`crate::data_dir()` is the core's: `storage::data_dir()` and `storage::DATA_DIR`**, byte for
-     byte, every caller changed (52 files), except 11 files fenced for the farm and Garden session
-     (engine/home_meshes.rs, gui/pages/inventory.rs, nine under systems/farming/), for which lib.rs
-     keeps ONE line, `pub(crate) use crate::storage::data_dir;`. Delete it when they read the new
-     path. Its ten callers below the engine are counted now and held to one each (crate-layers.json
-     "budgets"), because **the counting reads the crate root's own items** (`rootItems`: a path to a
+     byte, every caller changed (52 files), and the 11 files fenced for the farm and Garden session
+     (engine/home_meshes.rs, gui/pages/inventory.rs, nine under systems/farming/) the same evening, so
+     lib.rs's temporary `pub(crate) use crate::storage::data_dir;` is gone and crate-layers.json's
+     "budgets" is empty. Its ten callers below the engine had been counted and held to one each
+     until then, because **the counting reads the crate root's own items** (`rootItems`: a path to a
      fn, static, const, type or re-export of lib.rs is a reference into the crate owning lib.rs).
      Until then `crate::data_dir()`, `crate::DATA_DIR` and a test calling the engine's
      `crate::drone_dock_visible` from the ship named no module and went uncounted.

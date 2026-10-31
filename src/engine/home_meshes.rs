@@ -1016,7 +1016,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
 pub(crate) fn publish_grow_plots(state: &mut EngineState) {
     use crate::systems::farming::lighting::GrowPlot;
     use std::collections::HashMap;
-    let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
+    let tower_cfgs = crate::gui::load_tower_configs(&crate::storage::data_dir());
     let mut plots: Vec<GrowPlot> = Vec::new();
     let mut instances: HashMap<String, Vec<(String, u32)>> = HashMap::new();
     let mut plot_area: HashMap<String, f32> = HashMap::new();
@@ -1101,17 +1101,41 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     // setting (until the same day every area was kept so whenever aboard, which made every
     // setting behave like every second there). Inside a home-storage window of its own
     // (stock_piles::settle_farm_areas, the seam review's A).
+    //
+    // Seen other than through the player's own eyes (the critic's F2, 2026-10-31): a camera post's
+    // screen shows the world wherever the post stands and looks, and the Maps page draws the
+    // ship's world or its plan from above, plants and all. While a camera screen's picture is live
+    // (`farm_seen_whole`) or the Maps page draws the world, the whole farm is looked at, as aboard
+    // was before the areas in sight: a camera renders later in the frame than this (frame_surfaces)
+    // and at most one a frame, and the plan shows every plant of a level at once, so one rule
+    // covers both without a second visibility test.
+    //
+    // The view is last frame's: this runs early in the frame (lib.rs, the hot-reload gates), before
+    // the frame's camera move. A crop coming into sight on this frame's turn is settled next frame;
+    // what this frame draws is the plant meshes already built either way, and a new mesh is built
+    // off the frame on a worker and lands frames later, so a settle a frame sooner would show no
+    // sooner.
     if state.aboard_station {
-        let frustum = crate::terrain::planet_chunks::FrustumPlanes::from_view_proj(&state.camera.view_projection_matrix().as_dmat4());
-        let in_sight = areas_in_sight(&state.grow_positions, &frustum);
-        crate::engine::stock_piles::settle_farm_areas(
-            &mut state.game_world.world,
-            &mut state.data_store,
-            &mut state.gui_state.placed_items,
-            &mut state.gui_state.home_stock,
-            &in_sight,
-            crate::systems::farming::clock::LOOK_FRESH_S,
-        );
+        if farm_seen_whole(state) {
+            crate::engine::stock_piles::settle_farm(
+                &mut state.game_world.world,
+                &mut state.data_store,
+                &mut state.gui_state.placed_items,
+                &mut state.gui_state.home_stock,
+                crate::systems::farming::clock::LOOK_FRESH_S,
+            );
+        } else {
+            let frustum = crate::terrain::planet_chunks::FrustumPlanes::from_view_proj(&state.camera.view_projection_matrix().as_dmat4());
+            let in_sight = areas_in_sight(&state.grow_positions, &frustum);
+            crate::engine::stock_piles::settle_farm_areas(
+                &mut state.game_world.world,
+                &mut state.data_store,
+                &mut state.gui_state.placed_items,
+                &mut state.gui_state.home_stock,
+                &in_sight,
+                crate::systems::farming::clock::LOOK_FRESH_S,
+            );
+        }
     }
     // Signature over everything that changes a plant's look.
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -1167,6 +1191,29 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     }
     state.garden_draw.plants = pass;
     hitch_probe_pass(frame_ms, ms as f32, busy, groups, verts);
+}
+
+/// How long after its last render a camera screen's picture counts as watched: a camera screen
+/// renders the world at most every `screens::camera::CAMERA_INTERVAL` (10 Hz), and only while it is
+/// framed (near and in front of the player, or under the pointer), so a picture rendered within a
+/// second is one being looked at.
+const CAMERA_FEED_LIVE: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Is the farm seen this frame other than through the player's own camera (2026-10-31, the
+/// critic's F2): a camera screen's picture live, or the Maps page drawing the ship's world (its
+/// world layer or a level's plan tiles, both of which draw the plants)?
+fn farm_seen_whole(state: &EngineState) -> bool {
+    use crate::gui::pages::maps::world_layer::{world_layer_want, WorldLayerWant};
+    let maps = state.gui_state.active_page == crate::gui::GuiPage::Maps
+        && matches!(world_layer_want(&state.gui_state.maps), WorldLayerWant::Draw | WorldLayerWant::Plan);
+    let renders = state.screens.surfaces.iter().filter_map(|s| s.world_render()).map(|r| r.last);
+    seen_whole(renders, std::time::Instant::now(), maps)
+}
+
+/// `farm_seen_whole`'s rule on its parts (pure, so it is tested): the Maps page drawing the world,
+/// or any camera screen whose last render is under `CAMERA_FEED_LIVE` old.
+pub(crate) fn seen_whole(camera_renders: impl IntoIterator<Item = Option<std::time::Instant>>, now: std::time::Instant, maps_drawn: bool) -> bool {
+    maps_drawn || camera_renders.into_iter().flatten().any(|t| now.saturating_duration_since(t) < CAMERA_FEED_LIVE)
 }
 
 /// How far a grow area's plants may reach beyond its machine's box (a tower's helix, a tall crop),
@@ -1789,7 +1836,7 @@ impl PlantPass {
     fn inputs(&mut self, forced: bool) -> &PlanInputs {
         // Timed from the stamps on: `inputs_ms` is the plan's file work.
         let t0 = std::time::Instant::now();
-        let dir = crate::data_dir();
+        let dir = crate::storage::data_dir();
         let stamps = [file_stamp(&dir.join("plants_visual.ron")), file_stamp(&dir.join("towers/aeroponic_configs.ron"))];
         if forced || self.inputs.as_ref().map_or(true, |i| i.stamps != stamps) {
             self.inputs = Some(read_plan_inputs(&dir, stamps));

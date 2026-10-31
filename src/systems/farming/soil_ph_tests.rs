@@ -19,13 +19,13 @@ use crate::systems::inventory::{Inventory, ItemRegistry};
 /// Game seconds in a garden day (farming's SECONDS_PER_DAY, 24 hours).
 const DAY_S: f32 = 86_400.0;
 
-fn shipped() -> SoilPhData {
+pub(crate) fn shipped() -> SoilPhData {
     SoilPhData::parse(soil_ph::SOIL_PH_RON).expect("the shipped soil_ph.ron parses")
 }
 
 /// A store with the channels pH uses, pests off (so only pH moves health),
 /// crops at 100x growth, soil pH `on` or off.
-fn store(on: bool) -> DataStore {
+pub(crate) fn store(on: bool) -> DataStore {
     let mut data = make_store();
     data.insert("garden_pest_severity", Mutex::new(0.0_f32));
     data.insert("player_notices", Mutex::new(Vec::<String>::new()));
@@ -44,7 +44,7 @@ fn set_speed(data: &DataStore, speed: f32) {
 
 /// A well-watered crop of `plant` in unit `slot` of `area`, at its first
 /// stage, planted at game second 0.
-fn crop(data: &DataStore, plant: &str, area: &str, slot: u32) -> CropInstance {
+pub(crate) fn crop(data: &DataStore, plant: &str, area: &str, slot: u32) -> CropInstance {
     let stage = data.get::<PlantRegistry>("plant_registry").unwrap().get(plant).unwrap().first_stage().to_string();
     CropInstance {
         crop_def_id: plant.to_string(),
@@ -76,16 +76,16 @@ fn run_days(sys: &mut FarmingSystem, world: &mut hecs::World, data: &DataStore, 
     run(sys, world, data, days, DAY_S);
 }
 
-fn memory(world: &hecs::World) -> SoilMemory {
+pub(crate) fn memory(world: &hecs::World) -> SoilMemory {
     world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.clone()).unwrap_or_default()
 }
 
-fn unit(world: &hecs::World, area: &str, slot: u32) -> Option<UnitPh> {
+pub(crate) fn unit(world: &hecs::World, area: &str, slot: u32) -> Option<UnitPh> {
     memory(world).ph.get(area).and_then(|m| m.get(&slot)).cloned()
 }
 
 /// Give unit `slot` of `area` a remembered pH (and pending pools).
-fn set_unit(world: &mut hecs::World, area: &str, slot: u32, ph: f64, pending: &[(&str, f64)]) {
+pub(crate) fn set_unit(world: &mut hecs::World, area: &str, slot: u32, ph: f64, pending: &[(&str, f64)]) {
     let e = soil::soil_memory_entity(world);
     let mut m = world.get::<&mut SoilMemory>(e).unwrap();
     m.ph.entry(area.to_string()).or_default().insert(
@@ -444,36 +444,6 @@ fn off_mode_has_no_effect() {
     assert_eq!(unit(&world, "bed_1", 0).unwrap(), UnitPh { ph: 5.0, pending: [("lime".to_string(), 1.0)].into() });
     assert_eq!(health_of(&world, acid), 100.0, "not capped");
     assert!(notices(&data).iter().all(|s| !s.contains("pH")), "nothing said about pH");
-}
-
-/// A unit's pH and what is still reacting come back after a save; a save
-/// from before pH existed loads with none, and its units read the bed's
-/// starting 6.5. Seen red by marking `SoilMemory::ph` `#[serde(skip)]` (the
-/// record came back empty).
-#[cfg(feature = "native")]
-#[test]
-fn ph_survives_a_save_and_old_saves_read_the_default() {
-    use crate::persistence::WorldSave;
-    use crate::save_load::{apply_save_to_world, extract_world_save};
-    let data = store(true);
-    let ph = shipped();
-    let mut world = hecs::World::new();
-    world.spawn((crop(&data, "lettuce", "bed_1", 3),));
-    set_unit(&mut world, "bed_1", 3, 5.7, &[("lime", 0.4), (NITRIFICATION, -0.05)]);
-    let before = unit(&world, "bed_1", 3).unwrap();
-    let text = serde_json::to_string(&extract_world_save(&world)).unwrap();
-    let back: WorldSave = serde_json::from_str(&text).unwrap();
-    let mut fresh = hecs::World::new();
-    apply_save_to_world(&mut fresh, &back);
-    assert_eq!(unit(&fresh, "bed_1", 3), Some(before), "the unit's pH round-trips");
-
-    let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
-    old["soil_memory"].as_object_mut().unwrap().remove("ph");
-    let back: WorldSave = serde_json::from_value(old).unwrap();
-    let mut fresh = hecs::World::new();
-    apply_save_to_world(&mut fresh, &back);
-    assert!(memory(&fresh).ph.is_empty(), "an old save has no pH");
-    assert_eq!(soil_ph::crop_ph(&memory(&fresh).ph, &ph, "bed_1", Some(3)), Some((6.5, false)));
 }
 
 /// The reactions are first-order and solved exactly, so a stretch of time

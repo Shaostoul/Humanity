@@ -67,6 +67,14 @@ trait System: Send + Sync {
 ```
 Systems registered with `SystemRunner`, ticked in order each frame.
 
+**A query's order is not stable** (2026-10-31, the Garden views): hecs keeps each archetype's
+entities in an array and removes by swapping the last one into the hole, so adding or removing ANY
+component on an entity moves it to another archetype and reorders others. A key, a comparison or a
+kept list built from a query's iteration order must sort first (by `Entity::to_bits()` or a tag),
+or a crop ripening reads as a change and rebuilds what it should keep (`engine/garden_mirror.rs`).
+And **a change-detection test must check that the change is visible** before it compares the kept
+result with one from scratch: where nothing shows, the two agree whatever the key misses.
+
 **Signed profile replication** (no home server):
 Profiles are signed objects. Any server caches them. Latest timestamp wins.
 ProfileGossip messages propagate profiles between federated servers.

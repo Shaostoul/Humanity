@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1143 Rust files (657,488 lines) under `src/`; 128 JavaScript files (77,975 lines) under `web/`.
+1149 Rust files (657,859 lines) under `src/`; 128 JavaScript files (77,975 lines) under `web/`.
 
 ## Folders
 
@@ -15,7 +15,7 @@
 - `src/audio/` (3 files): Audio manager powered by kira.
 - `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
 - `src/engine/` (111 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
-- `src/engine/crossing_tests/` (20 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE ENGINE (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed be...
+- `src/engine/crossing_tests/` (26 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE ENGINE (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed be...
 - `src/engine/mcp/` (6 files): The dev MCP endpoint (2026-10-22): the running game serves the Model Context Protocol on 127.0.0.1, so an AI session drives and inspects...
 - `src/engine/screens/` (4 files): In-world screens (rungs 1 and 2 of the screens ladder, docs/design/in-world-screens.md): the engine side of a native egui page shown on a...
 - `src/games/` (15 files): The Games library's readers (2026-10-18; the operator, docs/PRIORITIES.md 2026-10-13: "A Games library: list and launch every installed g...
@@ -99,7 +99,7 @@
 - `embedded_data.rs` (907): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+139 more).
 - `frame_costs.rs` (1177): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, StageTimer, gpu_id_has_cpu_twin, thread_times, worst, watch (+29 more).
 - `i18n.rs` (446): Every word a person reads in the app, by key, from `data/i18n/<language>.json` (the ELI5 mandate, docs/PRIORITIES.md TIER 3). Main items: Segment, plain, segments, t, t_dyn, t_marked, t_marked_dyn, has (+7 more).
-- `lib.rs` (16394): HumanityOS Game Engine Main items: drone_dock_visible, run.
+- `lib.rs` (16388): HumanityOS Game Engine Main items: drone_dock_visible, run.
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
 - `machines.rs` (5538): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+43 more).
 - `main.rs` (241): HumanityOS, One binary to rule them all.
@@ -176,10 +176,10 @@
 - `frame_ws_poll.rs` (1641): The relay WebSocket MESSAGE PUMP: one frame's worth of "read everything the relay sent us and act on it", plus the teardown that arms the reconnect timer when the socket has died (extracted verbati... Main items: poll_relay_messages.
 - `friend_code.rs` (114): Friend codes on the desktop app: making one, and what the server answers (the 2026-10-10 batch review of docs/design/blocking-and-safe-mode.md 10h). Main items: request_code, code_line, on_frame.
 - `fungus_mesh.rs` (1466): How a mushroom crop is drawn (2026-09-27). Main items: Growth, Drawn, build_plot, unit_footprint.
-- `garden_mirror.rs` (607): The Garden data the Inventory page shows: every crop with its card (N-P-K, light, pH, pollination, picking, the air, weeds, the outlook), the pests and row covers per area, weeds, pollination and t... Main items: Rows, build_for_this_frame, build_for_wall_screen, pick, build, SLICES.
+- `garden_mirror.rs` (625): The Garden data the Inventory page shows: every crop with its card (N-P-K, light, pH, pollination, picking, the air, weeds, the outlook), the pests and row covers per area, weeds, pollination and t... Main items: Rows, build_for_this_frame, build_for_wall_screen, pick, build, SLICES.
 - `geom.rs` (290): Pure geometry for the build editor's gizmos: snapping a dragged corner or object, the light rotation rings' size and pick tolerance, the light range wireframe, and ray tests against a ring and a box. Main items: snap_node_position, snap_to_alignment, light_ring_radius, light_ring_pick_tolerance, range_sphere_edges, ray_ring_closest, ray_aabb_hit, LIGHT_RING_ANGULAR_RADIUS.
 - `group_report.rs` (411): A report about a group reaches the group's creator (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state, the socket and the server. Main items: Outgoing, target_for, start_finding, creator_found, creator_put, prepare, note_sent, refused (+10 more).
-- `home_meshes.rs` (3289): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: Slot, HomeDraw, GizmoRoom, GardenDraw, PlantPass, ConduitRun, RunSite, machine_body_slots (+43 more).
+- `home_meshes.rs` (3336): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: Slot, HomeDraw, GizmoRoom, GardenDraw, PlantPass, ConduitRun, RunSite, machine_body_slots (+44 more).
 - `home_plot.rs` (3979): Your home on the shared ship (increment 1b of docs/design/ship-homes-and-logistics.md). Main items: PlotBox, WelcomeHome, WelcomeContext, OtherKind, JoinGate, JoinStep, ServerFollow, HomeBoxChange (+73 more).
 - `home_probe.rs` (97): The home's air, water and power as the HUD reads them, for the dev IPC's recorder (the `home_systems` block of `debug/remote_players_done.json`, engine/ipc.rs) and the dev MCP's `game_home_state` t... Main items: json.
 - `home_spawn.rs` (930): The home's machines as ECS entities: each machine's power and water roles and islands, the feed taps tying the home's power to the ship's bus, and the home's sealed air space. Main items: spawn_home_power_entities, respawn_home_power_entities, spawn_home_power_entities_for, own_home_air_m3, spawn_home_feed_taps, home_metabolic_kcal, spawn_home_air_space, spawn_home_machine_entity.
@@ -241,11 +241,17 @@
 
 - `block.rs` (67): From engine/block.rs's tests (the GUI's blocking): a blocked player has no figure, name or place in the HUD's list, read through the engine's routing of the relay's frames (`net_route`).
 - `chat_connect_form.rs` (205): From gui/pages/chat.rs (`connect_form_tests`, BUG-160): the connect form's Server field, through the engine's background connections (`bg_connections`).
+- `farming_gardening.rs` (135): From systems/farming/mod.rs (its `gardening_tests`): the garden's time away through a save applied and caught up (`save_load`), and a router spawned the way the engine spawns it (`engine::home_spaw...
+- `farming_heat.rs` (673): From systems/farming/heat_tests.rs: space heaters, stoves and a heat pump spawned the way the engine spawns them (`engine::home_spawn`), and the machines' day through a save and load (`save_load`).
+- `farming_humidity.rs` (113): From systems/farming/humidity_tests.rs: a room resized on the meter, its fans spawned the way the engine spawns them (`engine::home_spawn`).
+- `farming_life_support.rs` (418): From systems/farming/life_support_tests.rs (its `shipped` module): the shipped homes' air and water, the home built the way the engine builds it (`engine::home_spawn`: its machines, its air space a...
+- `farming_soil_ph.rs` (35): From systems/farming/soil_ph_tests.rs: a unit's pH through a save and load (`save_load`).
+- `farming_weeds.rs` (34): From systems/farming/weed_tests.rs: an area's weeds through a save and load (`save_load`).
 - `food_spoilage.rs` (57): From systems/food_spoilage_tests.rs: food keeps its age through a save, saved and loaded by the engine (`save_load`).
 - `machines.rs` (21): From machines.rs's tests: the drone dock shows while the drone is out, by the engine's `drone_dock_visible`.
 - `main_menu_first_session.rs` (221): From gui/pages/main_menu.rs (`first_session_tests`): the first session starts alone in the player's own home, through the engine's join gate (`home_plot`) and save slots (`save_slot`).
 - `maps.rs` (35): From gui/pages/maps/tests.rs: the Maps page names the ship and its real height, fed as the engine's frame feeds it (`map_feed::frame_update`).
-- `mod.rs` (36): TESTS OF THE CRATES BELOW, TOGETHER WITH THE ENGINE (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed before each crate is cut").
+- `mod.rs` (42): TESTS OF THE CRATES BELOW, TOGETHER WITH THE ENGINE (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed before each crate is cut").
 - `net_sync.rs` (106): From net/sync.rs's tests: a crew figure walks, turns and stops the way the engine poses it (`net_route::crew_figure_parts`).
 - `put_answer_parity.rs` (350): (no header comment)
 - `quests_opening.rs` (1328): THE OPENING (2026-10-04): a new player's first ten minutes, as the quest data in data/quests/getting_started.ron, played on the shipped data with the real systems.
@@ -1172,12 +1178,12 @@
 ## src/systems/farming/
 
 - `automation.rs` (15): Off-screen farming autonomy, simulates crop growth while player is away. Main items: FarmAutomation.
-- `clock.rs` (572): The farm on its own clock (2026-10-31, docs/design/farm-clock.md rung 2). Main items: Owed, FarmArea, AreaClock, Due, FarmClock, Scope, Held, clamp_interval (+17 more).
+- `clock.rs` (586): The farm on its own clock (2026-10-31, docs/design/farm-clock.md rung 2). Main items: Owed, FarmArea, AreaClock, Due, FarmClock, Scope, Held, clamp_interval (+19 more).
 - `crops.rs` (18): Crop types, definitions loaded from `data/plants.csv`. Main items: CropDef.
 - `heat.rs` (468): Space heaters and the air they warm (2026-10-05, BUG-155). Main items: HeaterKind, Heater, StoveOxygen, AirHeat, Warmth, heaters, stoke, burn (+8 more).
 - `humidity.rs` (2124): Greenhouse humidity (2026-09-26, gardening depth: the air the crops grow in). Main items: HumidityData, FungusBreath, GrowRoom, AirMap, AirLayout, AirStep, AirOut, GuiView (+17 more).
 - `lighting.rs` (526): Grow lights light the plots near them (2026-09-26, gardening depth). Main items: LightingData, GrowPlot, LightNow, powered_lights, light_cover, light_at, lamp_cover, light_now (+4 more).
-- `mod.rs` (4948): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, Shared, SharedFarm, is_field_area, light_growth_rate, stage_from_progress (+13 more).
+- `mod.rs` (4839): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, Shared, SharedFarm, is_field_area, light_growth_rate, stage_from_progress (+15 more).
 - `outlook.rs` (338): A crop's wait and its water, in plain words (2026-10-12, first-hour audit F11). Main items: WaterSupply, CropOutlook, OutlookView, ripe_in_game_s, duration_words, wait_words, outlook, words_hold_until (+1 more).
 - `pests.rs` (1706): Garden pests and integrated pest management (2026-09-26, gardening depth). Main items: ControlKind, Condition, PestDef, ControlDef, PestData, CropConditions, ControlOutcome, CoverRow (+21 more).
 - `picking.rs` (749): Crops picked over a season, not harvested once (2026-09-26, gardening depth). Main items: Harvest, CropHarvest, HarvestWindows, Plan, Taken, Leaving, Picking, PickRow (+23 more).
@@ -1187,7 +1193,7 @@
 - `sowing.rs` (368): Sowing a seed from the backpack (2026-10-12, first-hour audit F11). Main items: Place, Spot, Refusal, seed_takes, places, choose, refusal_words, planted_words (+2 more).
 - `step_path.rs` (664): A crop's path through one step, solved exactly (2026-10-30, docs/design/farm-clock.md rung 1). Main items: SownThisTick, Light, LightSpan, WaterPath, CropPathIn, CropPath, light_spans, sun_spans (+2 more).
 - `units.rs` (104): How many plants a grow unit holds, and so what it harvests (2026-09-26). Main items: plants_in_plot, plot_area, crop_plants, harvest_item_kg, plot_harvest_kg, PLOT_AREA_KEY.
-- `versions.rs` (154): What changed in the garden, for the readers that keep what they worked out from it (2026-10-31, docs/design/sim-frame-cost.md, "The Garden views by area"). Main items: Versions, register, with, read, touch_all, KEY.
+- `versions.rs` (159): What changed in the garden, for the readers that keep what they worked out from it (2026-10-31, docs/design/sim-frame-cost.md, "The Garden views by area"). Main items: Versions, register, with, read, touch_all, KEY.
 - `weeds.rs` (872): Weeds in the garden's soil (2026-09-26, gardening depth). Main items: Window, CropWeeds, WeedControlKind, WeedControl, WeedData, Weeds, WeedAreaRow, GuiView (+13 more).
 - tests: `clock_tests.rs`, `golden_tests.rs`, `heat_tests.rs`, `humidity_tests.rs`, `life_support_tests.rs`, `nutrient_tests.rs`, `pest_tests.rs`, `picking_tests.rs`, `soil_ph_tests.rs`, `sowing_tests.rs`, `step_tests.rs`, `unit_tests.rs`, `weed_tests.rs`
 

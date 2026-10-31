@@ -101,3 +101,39 @@ fn a_save_keeps_what_each_area_owes_and_a_load_owes_it_again() {
     let differ = apart(&step_tests::ended_by_place(&world), &step_tests::ended_by_place(&world2), 1e-12);
     assert!(differ.is_empty(), "the loaded garden's first frame is not the saved one brought to now: {differ:?}");
 }
+
+/// A SETTLE BETWEEN A LOAD AND THE FARM'S NEXT TICK ADVANCES NOTHING (2026-10-31, the critic's F3).
+/// A load in the running game (the save picker, a snapshot restore) applies the save to the world
+/// and hands its debts to the farm (`clock::hand_over_resume`), which takes them at its next tick;
+/// a reader asking in between (the plant meshes early in the frame, a wall screen's Garden data)
+/// found the PREVIOUS world's clock still in place and advanced every area whose name the loaded
+/// home shares (a restore of the same home shares all) by that clock's old debt, on the loaded
+/// world, and then the tick owed the saved debt again: time that belonged to no world. Now every
+/// settle, and what it says it would do, waits for the hand-over, and the save in between writes
+/// the loaded debts. Seen red 2026-10-31 on the code before the fix: "a settle with the
+/// hand-over still waiting would advance nothing".
+#[test]
+fn a_settle_between_a_load_and_the_farms_next_tick_advances_nothing() {
+    let (data, mut world, shared) = farm_home();
+    tick(&data, &mut world, &shared, 1.0);
+    for _ in 0..4 {
+        tick(&data, &mut world, &shared, 60.0);
+    }
+    let root = crate::test_temp::dir("farm_owed_resume");
+    let path = root.join("saves").join(persistence::OFFLINE_SAVE_FILE);
+    save_home_at(&path, &world, &[], &data, true, None);
+    let saved = persistence::load_world(&path).expect("the save reads back");
+    // Time goes on, then the save is loaded onto the running game: the same store, the same farm.
+    for _ in 0..3 {
+        tick(&data, &mut world, &shared, 60.0);
+    }
+    apply_save_to_world(&mut world, &saved);
+    resume_home(&mut world, &data, &saved, false, 1.0, None);
+    let loaded = step_tests::ended_by_place(&world);
+    assert!(!farming::settle_needed(&data, 0.0), "a settle with the hand-over still waiting would advance nothing");
+    farming::settle(&mut world, &data, 0.0);
+    farming::settle_areas(&mut world, &data, &["bed_a".to_string(), "bed_b".to_string()], 1.0);
+    let moved = same(&loaded, &step_tests::ended_by_place(&world));
+    assert!(moved.is_empty(), "a settle before the farm's next tick moved the loaded garden: {moved:?}");
+    assert_eq!(farming::owed(&data).as_ref(), Some(&saved.farm_owed), "a save before the tick writes the loaded debts");
+}

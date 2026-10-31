@@ -195,56 +195,6 @@
       ]
     }
   ],
-  "budgets": {
-    "src/gui/pages/inventory.rs": {
-      "humanity-gui -> humanity-engine": 1
-    },
-    "src/systems/farming/humidity.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/lighting.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/pests.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/picking.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/pollination.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/soil_ph.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/soil.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/sowing.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/weeds.rs": {
-      "humanity-systems -> humanity-engine": 1
-    }
-  },
-  "testBudgets": {
-    "src/systems/farming/heat_tests.rs": {
-      "humanity-systems -> humanity-engine": 6
-    },
-    "src/systems/farming/humidity_tests.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/life_support_tests.rs": {
-      "humanity-systems -> humanity-engine": 3
-    },
-    "src/systems/farming/mod.rs": {
-      "humanity-systems -> humanity-engine": 3
-    },
-    "src/systems/farming/soil_ph_tests.rs": {
-      "humanity-systems -> humanity-engine": 1
-    },
-    "src/systems/farming/weed_tests.rs": {
-      "humanity-systems -> humanity-engine": 1
-    }
-  }
+  "budgets": {},
+  "testBudgets": {}
 }

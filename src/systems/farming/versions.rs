@@ -21,9 +21,14 @@
 //!   at every frame, the Dev page's "Turn off all reuse", a burn); the commands run (a harvest, a
 //!   sowing, a pest control: a command may write any crop or area, so all of them); the clock's
 //!   rebase moving every crop's `planted_at` (`FarmingSystem::tick`); a save loaded and handed
-//!   over (`clock::hand_over_resume`, after `save_load::catch_up_world` aged its crops); a save
-//!   applied to the world and the home's air replaced at world entry (`touch_all`, called by
-//!   `save_load::apply_save_to_world` and `engine::world_load::replace_home_air`).
+//!   over (`clock::hand_over_resume`, after `save_load::catch_up_world` aged its crops, and again
+//!   in the tick that takes it). A save applied to the world (`save_load::apply_save_to_world`)
+//!   bumps nothing itself: it despawns the crops and the soil memory and spawns new ones, so every
+//!   area's list of crops and the soil memory's entity (in the reader's global key) change, and the
+//!   hand-over that follows bumps the epoch; the home's air replaced at world entry
+//!   (`engine::world_load::replace_home_air`) is read only by the air's lines, which the reader
+//!   builds every time. (The doc said until 2026-10-31 that both called `touch_all`; neither does:
+//!   the critic's F4.)
 //! - **The air** (`air`): every step of the rooms' and the home's air (a run with `air_s`), which
 //!   also ages the hives' colonies.
 //!

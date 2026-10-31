@@ -244,7 +244,10 @@ they read moved (`engine/garden_mirror.rs`; its module notes list every input):
   showcase) changes the area's list of crops, which the mirror compares itself; a new soil memory
   (a load) is in the global key by its entity.
 - **The data and the settings**: the DataStore's new per-key change stamp (`DataStore::stamp`: it
-  moves on every insert and remove) of the 14 entries the rows read (a hot reload; a machine edit,
+  moves on every insert and remove) of the 12 entries the kept rows read, each proven by a test
+  that publishes it again (`every_stamped_entry_reaches_the_rows_when_published_again`; the
+  life-support data and the grow machines' instances left the list, read by no kept row: the
+  critic's F5) (a hot reload; a machine edit,
   which publishes the grow plots again), and by value the pH, pollination, picking and pest
   severity settings, the clock's speed, the language, the tanks holding water and the irrigation
   running; per area, its irrigation target and the pollinators reaching it.
@@ -259,6 +262,10 @@ they read moved (`engine/garden_mirror.rs`; its module notes list every input):
   the hives' lines are made every build: a line per area or hive, never per crop.
 - **The page** reads each tile's layout key from its row (`GuiCrop::tile_key`, made with the row by
   `inventory::crop_tile_key`) instead of hashing the tile's words every frame.
+- **One order** (the critic's F1): each area's crops are kept by entity id and the areas by tag,
+  not in the world's order, which hecs changes whenever a crop gains or loses a component (a ripe
+  crop's picking record, a pollination record, the sowing marker coming off): kept in that order,
+  each ripening rebuilt two areas whole past a wall screen's budget (a whole field is one area). `a_reorder_of_the_crops_alone_builds_nothing`.
 - **The switch**: with the Dev page's "Turn off all reuse" every area is built every build, as
   before. A wall screen's build rebuilds at most an eighth of the crops, the oldest-built areas
   first (`garden_mirror::pick`); the main screen's page never shows a kept row whose key moved.

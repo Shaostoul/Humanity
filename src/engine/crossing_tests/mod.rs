@@ -16,6 +16,12 @@
 
 mod block;
 mod chat_connect_form;
+mod farming_gardening;
+mod farming_heat;
+mod farming_humidity;
+mod farming_life_support;
+mod farming_soil_ph;
+mod farming_weeds;
 mod food_spoilage;
 mod machines;
 mod main_menu_first_session;

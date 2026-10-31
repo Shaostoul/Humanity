@@ -170,6 +170,20 @@ pub fn hand_over_resume(data: &DataStore, owed: Owed) {
     }
 }
 
+/// Has a load handed its debts over that the farm has not taken yet (2026-10-31, the critic's
+/// F3)? Between `hand_over_resume` and the farm's next tick the farm's clock is still the previous
+/// world's, so nothing may advance the loaded world by it: every settle waits for the tick
+/// (`farming::settle`, `settle_areas` and their `_needed`), and a save in between writes the
+/// loaded debts (`farming::owed`, `pending_owed`).
+pub fn resume_pending(data: &DataStore) -> bool {
+    data.get::<Mutex<Option<Owed>>>(RESUME_KEY).and_then(|m| m.lock().ok().map(|v| v.is_some())).unwrap_or(false)
+}
+
+/// What a load handed over and the farm has not taken yet, left in the channel.
+pub fn pending_owed(data: &DataStore) -> Option<Owed> {
+    data.get::<Mutex<Option<Owed>>>(RESUME_KEY).and_then(|m| m.lock().ok().and_then(|v| v.clone()))
+}
+
 /// Take what a load handed over, leaving the channel empty (the farming tick). None: no load.
 pub fn take_resume(data: &DataStore) -> Option<Owed> {
     data.get::<Mutex<Option<Owed>>>(RESUME_KEY).and_then(|m| m.lock().ok().and_then(|mut v| v.take()))

@@ -284,7 +284,7 @@ pub(super) fn sow_from_backpack(
         super::push_notice(data, format!("Nothing planted: the garden has no growing data for {seed_id}."));
         return;
     };
-    let media = crate::systems::grow_machines::load_grow_media(&crate::data_dir());
+    let media = crate::systems::grow_machines::load_grow_media(&crate::storage::data_dir());
     let plots: &[GrowPlot] = data.get::<Vec<GrowPlot>>("grow_plots").map(Vec::as_slice).unwrap_or(&[]);
     let here = places(plots, data.get::<HashMap<String, Vec<(String, u32)>>>("grow_instances"), &media);
     let taken: HashSet<(String, u32)> = world
