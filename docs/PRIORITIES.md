@@ -230,9 +230,21 @@ In order:
     The critic's review of it found no stale row; its five findings fixed the same day (a crop's
     reorder in the world no longer rebuilds its area, camera screens and the Maps page see the
     whole farm, settles wait for a load's hand-over, every stamped data entry proven by a test).
-    Next: a quiet re-run of the survey in the game (the first sight of the Garden page read 31.5 ms
-    own CPU on a busy machine: if it stands, give the first build the wall budget), then the plant
-    mesh rebuilds and the rest of the autosave.
+    Survey 2 DONE 2026-10-31 on a quiet machine (sim-frame-cost.md, "Survey 2"): the worst frame
+    per 5 s window 23.6 ms median / 124.5 max before, 18.4 / 39.0 after. Three fixes: one builder
+    for machine bodies at world load and in the editor (the first rebuild after a load 99.6 ->
+    24.9 ms; furniture textured from world load, as every rebuild already drew it), fonts built
+    once per process and borrowed by every screen's egui context (each re-read and re-copied
+    15.7 MB), and a page screen's first sight spread over its first turns (Inventory 31.3 -> 14.0
+    ms, the walk past the screens 44.0 -> 25.2). New instruments: the slow-frame record
+    (`spikes` in the frame costs JSON), `cpu.screen_first.*`, `cpu.home_rebuild.*`, `cpu.save.*`.
+    Next, in order of size: the world passes' wait inside `cpu.scene` in every window (read
+    `spikes` at the operator's settings first; candidates the per-frame object-uniform staging and
+    no per-view culling, which the camera screen's 6.5-13.8 ms render shows too), a build edit's
+    ship meshes (9-10 ms) to a worker, the heavy pages' first layout (Library, Crafting) with the
+    Garden page's offscreen skipping, the autosave's disk flush to a writer thread (its own
+    review: every reader and writer of the save file waits on it), and the 82-120 ms first egui
+    paint at world entry moved under the loading screen.
 13. **Notifications (operator, 2026-10-30: "let's get it made.")** (`docs/design/notifications.md`,
     section 11). Rung 1 DONE 2026-10-30 (OS notices for DMs and mentions, the one decision in two
     twins, Settings > Notifications, mute server and room). Rung 2 part 1 DONE 2026-10-31: the

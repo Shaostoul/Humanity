@@ -4387,6 +4387,23 @@ never as an error. git runs with optional locks off, so the panel never holds an
   `scripts/tests/dev-claude-web.test.js`): GitHub's newest release and commit on main, TIER 0 from
   GitHub's copy, the journal the site serves; it names what only the desktop app can show
 
+### Dev > Performance: the slow-frame record and one-off part timers (2026-10-31)
+Beside each stage's average and its worst frame per 5 s window, the frame costs keep the last 32
+slow frames: any frame whose work (`cpu.frame_total`) ran more than 4 ms over its running average,
+with THAT frame's eight largest stages and spans (spans by their own CPU time where the platform
+counts it). The worst-frame windows name each id's largest frame, which may be two different
+frames for two ids; a spike is one frame, so its parts are what made it long. One-off jobs are
+timed in parts so a spike names its cause: a home rebuild (`cpu.home_rebuild.*`, also a log line
+"Homestead rebuilt: N rooms in X ms (...)"), a page screen's turns up to its first picture
+(`cpu.screen_first.*`, and a `[Screens]` log line), and the save (`cpu.save.read`, `.extract`,
+`.serialize`, `.disk`, `.write`). These are parts of stages already counted, never rows of their own.
+- Native: `src/frame_costs.rs` (`note_spike`, `spikes()`, `SPIKE_OVER_MS`, `SPIKES_KEPT`;
+  `spikes` in `snapshot_json`, read by the dev MCP's `game_frame_costs`), the timers in
+  `src/engine/home_meshes.rs` (`RebuildParts`), `src/gui/screen_surface.rs`
+  (`note_first_turn`), `src/persistence.rs` and `src/save_load.rs`; test
+  `a_slow_frame_is_kept_with_what_made_it_slow`; the survey that used them:
+  `docs/design/sim-frame-cost.md`, "Survey 2"
+
 ### Dev Page: Spawn Any Creature + Walk-Up Editor
 The Dev tab's Dev section (cheats-gated, like every dev affordance): searchable list of all 92
 creatures.csv species, Spawn drops one ~2 m ahead (passive species keep the anchored
