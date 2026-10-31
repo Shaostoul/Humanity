@@ -1069,6 +1069,9 @@ pub(crate) struct EngineState {
     /// foreground-vs-background FPS cap in the redraw loop. Starts true
     /// (a freshly created window is foregrounded unless HUMANITY_NO_FOCUS).
     pub(crate) window_focused: bool,
+    /// The notification-area (tray) icon and whether the window is hidden in it (notifications
+    /// rung 2 part 2, engine/tray.rs and engine/tray_window.rs).
+    pub(crate) tray: crate::engine::tray::TrayState,
     /// HUMANITY_NO_FOCUS instance that has not yet been clicked into
     /// (v0.1020): cursor management stays hands-off so a rig can never own
     /// the system cursor clip - but the FIRST genuine focus gain clears

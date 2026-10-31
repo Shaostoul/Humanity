@@ -16,7 +16,7 @@ both it compiles once and stays built.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `terrain/`
-- **Size:** 25,574 lines in 30 files, 446 of them in 2 test files.
+- **Size:** 25,575 lines in 30 files, 446 of them in 2 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `terrain/planet_chunks.rs` 4,635 of 4,740, `terrain/grass.rs` 2,564 of 2,640, `terrain/grass_mesh.rs` 948 of 1,000, `terrain/drawn_surface.rs` 1,023 of 1,100, `terrain/water_patches.rs` 323 of 450, `terrain/grass_fields.rs` 238 of 350.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 16.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 4.

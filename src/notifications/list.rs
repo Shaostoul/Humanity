@@ -46,6 +46,22 @@ pub struct Entry {
 }
 
 impl Entry {
+    /// The entry for the notice `c` that arrived at `now`, keeping `text` (the message, only when
+    /// the person's setting shows it).
+    pub fn of(c: &Candidate, text: Option<String>, now: i64) -> Entry {
+        Entry {
+            kind: c.kind.clone(),
+            server: c.server.clone(),
+            room: c.room.clone(),
+            conversation: c.conversation.clone(),
+            sender: c.sender.clone(),
+            room_name: c.room_name.clone(),
+            text,
+            at: now,
+            seen: false,
+        }
+    }
+
     /// The candidate the notice's words are built from (`decide::words`); the text is empty when
     /// it was not kept.
     pub fn candidate(&self) -> Candidate {
@@ -84,17 +100,7 @@ impl List {
             }
             return;
         }
-        self.entries.push_front(Entry {
-            kind: c.kind.clone(),
-            server: c.server.clone(),
-            room: c.room.clone(),
-            conversation: c.conversation.clone(),
-            sender: c.sender.clone(),
-            room_name: c.room_name.clone(),
-            text,
-            at: now,
-            seen: false,
-        });
+        self.entries.push_front(Entry::of(c, text, now));
         self.unseen += 1;
         while self.entries.len() > KEPT {
             if self.entries.pop_back().is_some_and(|old| !old.seen) {

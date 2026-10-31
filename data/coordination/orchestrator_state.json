@@ -785,6 +785,11 @@
       "date": "2026-10-31",
       "decision": "Crate split backlog before rung 1 merged: test code reaching up 127 -> 0 outside the fenced farm files (120 tests moved into per-crate crossing_tests, none lost); the layer lint counts test code with per-file budgets; data_dir() in storage.rs (the core) with a temporary lib.rs re-export for the 11 fenced farm callers; release_update.rs filed under humanity-gui; main.rs counted; LevelCut merged into CutAway.",
       "why": "The brief said no re-export at the old path, but 11 callers sat in files another agent was editing; one re-export marked for deletion beats editing fenced files mid-work. Left for after the Garden views follow-up: those 11 calls and the 15 test references in 6 farm files. Rung 1 needs the core test helpers (test_temp/test_clock/test_log) in a test-support feature first, and one way to name the repo root before files move. Found: the user environment sets RUSTFLAGS=-Awarnings, so every \"0 warnings\" gate on this machine is vacuous (docs/ai/builds.md)."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Notifications rung 2 part 2 merged: tray icon (tray-icon 0.26, ksni on Linux) with Open / Mute everything / Quit, close-to-tray off by default (world saved and left, nothing drawn, sockets pumped 4x a second via engine/frame_net.rs), a click on a notice opens its conversation (Windows COM notice activator via CustomActivator, not humanityos://), the in-world banner and the taskbar flash. Script-launched instances get no tray unless HUMANITY_TRAY=1.",
+      "why": "The protocol route would start a second exe per click and its registration names one exe path that every worktree and rig build would overwrite; the activator is served by the running app. No LocalServer32, so nothing launches from a stale notice (rung 5). Rigs get no icon so test runs never pile icons into the operator tray. The Linux and macOS code had no compile check on this machine: the desktop workflow (workflow_dispatch) is the check before the next release."
     }
   ],
   "active_scopes_to_avoid": [

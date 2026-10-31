@@ -218,7 +218,7 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | DM and @mention triggers | ✅ | Offline-only delivery to prevent duplicates |
 | Stale subscription cleanup | ✅ | Auto-removes expired/invalid subscriptions |
 | Notification preferences | ✅ | Per-user DM/mention/task/DND settings, server-side storage (v0.31.0); pushes honour them (2026-10-30) |
-| Desktop notifications | ✅ rung 1 | OS notices + sound for DMs and mentions, one rule on both apps, Mute server / room / everything, Settings > Notifications full set (2026-10-30, `docs/design/notifications.md`; tray icon, in-app list and more kinds are rungs 2-5) |
+| Desktop notifications | ✅ rungs 1-2 | OS notices + sound for DMs and mentions, one rule on both apps, Mute server / room / everything, Settings > Notifications full set (2026-10-30, `docs/design/notifications.md`); rung 2 (2026-10-31): the in-app list, more kinds, conversation mutes, room levels, quiet-hours exceptions, the tray icon with its Mute menu, closing into the tray, a click on a notice opening its conversation, the in-world banner and the taskbar flash. Task, call and game-event kinds are rung 3 |
 | Notification actions | ✅ | Reply and mark-read buttons on push notifications (v0.31.0) |
 
 ---

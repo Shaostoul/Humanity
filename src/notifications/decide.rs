@@ -17,6 +17,13 @@ use super::settings::{LocalSettings, Show};
 /// of lines is one notice, and a flood of mentions cannot make the computer a siren.
 pub const BURST_SECS: i64 = 5;
 
+/// The burst guard's key for `c`: its server and its conversation, so two servers' rooms of one
+/// name (each has a "general") keep their own five seconds (rung 2, part 2: rung 2's first part keyed
+/// by the conversation alone).
+pub fn burst_key(c: &Candidate) -> String {
+    format!("{}|{}", c.server, c.conversation)
+}
+
 /// Longest title and body a notice carries, in characters.
 pub const TITLE_CHARS: usize = 80;
 pub const BODY_CHARS: usize = 240;

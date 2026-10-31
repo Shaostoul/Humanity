@@ -510,6 +510,7 @@ pub(crate) fn frame_loop_source() -> String {
         "src/engine/frame_near_trees.rs",
         "src/engine/frame_water.rs",
         "src/engine/frame_shells.rs",
+        "src/engine/frame_net.rs",
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     FILES

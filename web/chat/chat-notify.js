@@ -705,6 +705,9 @@
     list: function () { return list.slice(); },
     unseen: function () { return unseen; },
     openPanel: openPanel,
-    closePanel: closePanel
+    closePanel: closePanel,
+    // Open a notice's conversation (an entry's {kind, conversation, room, sender}): the panel's
+    // rows and a click on the browser's own notice (chat-ui.js notifyNewMessage, rung 2 part 2).
+    openEntry: openEntry
   };
 })();

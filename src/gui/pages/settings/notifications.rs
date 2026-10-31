@@ -4,7 +4,8 @@
 //! Three cards:
 //! - **On this computer** (kept in `config.json` `notifications`): desktop notices, what a notice
 //!   shows (who it is from by default; the message only by choice), the sound and which one with
-//!   Play, and Show a test notification.
+//!   Play, Show a test notification, and (rung 2, part 2) the tray icon and whether closing the
+//!   window keeps HumanityOS running in it (engine/tray.rs, engine/tray_window.rs).
 //! - **What notifies you** (the person's own switches, kept on their server, `notification_prefs`):
 //!   direct messages, mentions, task updates, and quiet hours by the hour. A change goes to EVERY
 //!   server this device is signed in to ([`send_synced`]), so each one's Web Push agrees.
@@ -163,6 +164,23 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
             ui.label(RichText::new(t("notifications.test_shown")).size(theme.font_size_small).color(theme.text_secondary()));
         }
         widgets::setting_hint(ui, theme, hint, t("notifications.test_hint"));
+
+        // The notification area (rung 2, part 2): the tray icon, and closing into it.
+        let s = &mut state.settings.notifications;
+        dirty |= with_hint(ui, "notifications.tray_hint", |ui| widgets::toggle(ui, theme, t("notifications.tray"), &mut s.tray));
+        widgets::setting_hint(ui, theme, hint, t("notifications.tray_hint"));
+        // A desktop's own rule, said where a person meets it (CLAUDE.md, "Saying what we will not
+        // build"): GNOME shows no tray icons without its AppIndicator extension.
+        if cfg!(target_os = "linux") {
+            widgets::setting_hint(ui, theme, hint, t("notifications.tray_linux_note"));
+        }
+        ui.add_enabled_ui(s.tray, |ui| {
+            dirty |= with_hint(ui, "notifications.close_to_tray_hint", |ui| widgets::toggle(ui, theme, t("notifications.close_to_tray"), &mut s.close_to_tray));
+        });
+        widgets::setting_hint(ui, theme, hint, t("notifications.close_to_tray_hint"));
+        if !s.tray && s.close_to_tray {
+            ui.label(RichText::new(t("notifications.close_to_tray_needs_tray")).size(theme.font_size_small).color(theme.text_muted()));
+        }
         if dirty {
             state.settings_dirty = true;
         }

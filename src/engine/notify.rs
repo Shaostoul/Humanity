@@ -16,8 +16,10 @@
 //!   [`federated_line`].
 //!
 //! Whatever the rule lets through also goes in the in-app list (`notifications::list`, the
-//! header's bell). Nothing here runs per frame except [`pump`], two `Option::take`s for what
-//! Settings asked.
+//! header's bell), and (rung 2, part 2) it carries a token a click on the notice hands back
+//! (`notifications::clicks`, opened by engine/tray.rs), and brings the in-world banner and the
+//! taskbar's flash as `clicks::cues` says ([`act_on`]). Nothing here runs per frame except
+//! [`pump`]: two `Option::take`s for what Settings asked, and the bell's panel shut off the header.
 
 use crate::engine::state::EngineState;
 use crate::gui::GuiState;
@@ -169,9 +171,16 @@ pub(crate) fn on_screen(gs: &GuiState, c: &Candidate) -> bool {
         || c.room.as_deref().is_some_and(|r| crate::gui::pages::chat::commons_room_of(active) == Some(r))
 }
 
-/// Hand `c` to the rule, and do what it says.
+/// Hand `c` to the rule, and do what it says ([`act_on`]).
 pub(crate) fn deliver(state: &mut EngineState, c: Candidate) {
     let now = n::now_secs();
+    let out = outcome(state, &c, now);
+    act_on(state, c, out, now);
+}
+
+/// What THE rule says for `c` at `now`, with what only the engine knows (the window's focus, what
+/// is on screen, the burst guard's time).
+pub(crate) fn outcome(state: &EngineState, c: &Candidate, now: i64) -> n::Outcome {
     let file = n::data::get();
     let gs = &state.gui_state;
     let synced = n::Synced {
@@ -188,33 +197,75 @@ pub(crate) fn deliver(state: &mut EngineState, c: Candidate) {
         now,
         minute: n::quiet::local_minute(now),
         focused: state.window_focused,
-        on_screen: on_screen(gs, &c),
-        last_notice: gs.notify.last_notice.get(&c.conversation).copied(),
+        on_screen: on_screen(gs, c),
+        last_notice: last_notice(&gs.notify, c),
     };
-    let local = &gs.settings.notifications;
-    let out = n::decide(file, &c, &synced, local, &at);
+    let out = n::decide(file, c, &synced, &gs.settings.notifications, &at);
     log::debug!("notifications: a {} -> {}", c.kind, out.why.code());
+    out
+}
+
+/// Do what the rule said for `c`: the list, the burst guard, the sound, the operating system's
+/// notice (with the token a click on it hands back), and the cues that need no sound: the
+/// in-world banner and the taskbar's flash (rung 2, part 2, `notifications::clicks::cues`). The
+/// words of the notice and of the banner are `decide::words`, as the person's "What a notice
+/// shows" allows.
+pub(crate) fn act_on(state: &mut EngineState, c: Candidate, out: n::Outcome, now: i64) {
     if out.why != n::Why::Notify {
         return;
     }
+    let file = n::data::get();
+    let local = &state.gui_state.settings.notifications;
     let show = local.show;
     let sound_id = local.sound_id.clone();
+    let window = n::clicks::Window { focused: state.window_focused, hidden: state.tray.hidden, in_world: hud_showing(state) };
+    let cues = n::clicks::cues(window);
+    let (title, body) = n::decide::words(file, &c, show);
     let rt = &mut state.gui_state.notify;
     if out.list {
         rt.list.add(&c, show, now);
     }
-    let last = &mut rt.last_notice;
-    if last.len() >= LAST_NOTICE_KEPT {
-        last.retain(|_, t| now - *t < n::decide::BURST_SECS);
+    note_notice(rt, &c, now);
+    if cues.banner {
+        // The banner's second line only when the notice shows the message: its "open HumanityOS
+        // to read it" would be odd on HumanityOS's own screen.
+        let line = if show == n::Show::NameAndText { body.clone() } else { String::new() };
+        rt.banner = Some(n::clicks::Banner { title: title.clone(), body: line, at: std::time::Instant::now() });
     }
-    last.insert(c.conversation.clone(), now);
+    let launch = if out.toast { rt.targets.token(n::list::Entry::of(&c, None, now)) } else { String::new() };
     if out.sound {
         play(state, &sound_id);
     }
     if out.toast {
-        let (title, body) = n::decide::words(file, &c, show);
-        n::toast::show(n::toast::Toast { title, body, tag: n::toast::tag_for(&c.conversation), group: c.kind });
+        let tag = n::toast::tag_for(&n::decide::burst_key(&c));
+        n::toast::show(n::toast::Toast { title, body, tag, group: c.kind.clone(), launch });
     }
+    // The taskbar button's flash, until the window is in front: a person's launch only (a rig's
+    // window never flashes in the operator's taskbar), never while hidden (cues).
+    if cues.flash && crate::engine::tray::allowed() {
+        state.window.request_user_attention(Some(winit::window::UserAttentionType::Informational));
+    }
+}
+
+/// Is the person playing, with the HUD showing (where the banner is drawn, `pages/hud.rs`)?
+fn hud_showing(state: &EngineState) -> bool {
+    let g = &state.gui_state;
+    state.world_loaded && g.active_page == crate::gui::GuiPage::None && g.show_hud && !g.showroom_active && !g.construction_active
+}
+
+/// When `c`'s conversation on its server last notified, for the burst guard.
+fn last_notice(rt: &n::Runtime, c: &Candidate) -> Option<i64> {
+    rt.last_notice.get(&n::decide::burst_key(c)).copied()
+}
+
+/// `c` notified at `now`: the burst guard's time for its conversation on its server (old ones
+/// dropped past [`LAST_NOTICE_KEPT`]).
+fn note_notice(rt: &mut n::Runtime, c: &Candidate, now: i64) {
+    let last = &mut rt.last_notice;
+    if last.len() >= LAST_NOTICE_KEPT {
+        last.retain(|_, t| now - *t < n::decide::BURST_SECS);
+    }
+    last.insert(n::decide::burst_key(c), now);
 }
 
 /// Queue the sound `id` from the data file (its catalog entry, or the file's path for it).
@@ -228,13 +279,18 @@ fn play(state: &mut EngineState, id: &str) {
 /// operating system with made-up words (whatever the rule would say, so a person can see one),
 /// with the sound if sound is on; Play plays the chosen sound once.
 pub(crate) fn pump(state: &mut EngineState) {
+    // The panel shuts on a page without the header (rung 2 part 1's leftover).
+    crate::gui::notice_panel::keep_to_header(&mut state.gui_state);
     if std::mem::take(&mut state.gui_state.notify.test_requested) {
         let t = crate::i18n::t;
+        // A click on it shows the window (it leads to no conversation).
+        let launch = state.gui_state.notify.targets.window_token();
         n::toast::show(n::toast::Toast {
             title: t("notifications.test_title").to_string(),
             body: t("notifications.test_body").to_string(),
             tag: n::toast::tag_for("test"),
             group: "test".into(),
+            launch,
         });
         let s = &state.gui_state.settings.notifications;
         if s.sound {
@@ -279,6 +335,22 @@ mod tests {
         let room = Candidate { kind: "mention".into(), server: "https://b.example".into(), room: Some("general".into()), conversation: "general".into(), ..Default::default() };
         g.chat_active_channel = "commons:general".into();
         assert!(on_screen(&g, &room), "the Commons view shows a shared room from any server");
+    }
+
+    /// The burst guard holds a conversation's second notice back for five seconds on ITS server:
+    /// two servers' rooms of one name (each has a "general") are two conversations. Seen red
+    /// 2026-10-31 with the guard keyed by the conversation alone (part 1's leftover): a mention in
+    /// B's #general two seconds after one in A's #general found A's time.
+    #[test]
+    fn the_burst_guard_keeps_each_servers_rooms_apart() {
+        let mut rt = n::Runtime::default();
+        let a = Candidate { kind: "mention".into(), server: "https://a.example".into(), room: Some("general".into()), conversation: "general".into(), ..Default::default() };
+        let b = Candidate { server: "https://b.example".into(), ..a.clone() };
+        note_notice(&mut rt, &a, 100);
+        assert_eq!(last_notice(&rt, &a), Some(100));
+        assert_eq!(last_notice(&rt, &b), None, "B's #general is another room");
+        note_notice(&mut rt, &b, 102);
+        assert_eq!((last_notice(&rt, &a), last_notice(&rt, &b)), (Some(100), Some(102)));
     }
 
     fn kind_of(c: Option<Candidate>) -> String {

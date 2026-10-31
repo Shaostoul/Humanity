@@ -2525,6 +2525,18 @@
     "quiet_mentions_hint": "During quiet hours a mention of you, or a reply to something you wrote, still notifies you. Off unless you turn it on.",
     "mute_everything_web_hint": "Stops every notice in this browser, direct messages included, for a while. Unread dots still show.",
     "quiet_web_note": "A push to this browser while no chat tab is open still comes at any hour: your server does not know your clock yet.",
-    "muted_web_note": "Mutes and room levels are kept in this browser only."
+    "muted_web_note": "Mutes and room levels are kept in this browser only.",
+    "tray": "Show HumanityOS in the notification area",
+    "tray_hint": "Puts the HumanityOS icon beside the clock. Right-click it to open HumanityOS, mute everything for a while, or quit. A dot on it means notices you have not opened yet.",
+    "tray_linux_note": "Some Linux desktops show no icons beside the clock, such as GNOME without its AppIndicator extension. That is the desktop's own choice. There, keep the next switch off, so closing the window quits.",
+    "close_to_tray": "Closing the window keeps HumanityOS running in the tray",
+    "close_to_tray_hint": "When on, closing the window hides it beside the clock instead of quitting, so notices still arrive. Open it again from the icon, or quit from the icon's menu. Off unless you turn it on.",
+    "close_to_tray_needs_tray": "This needs the icon beside the clock: without it there would be no way back to the window, so closing quits.",
+    "tray_open": "Open HumanityOS",
+    "tray_quit": "Quit HumanityOS",
+    "tray_muted": "Muted {{until}}",
+    "tray_still_running_title": "HumanityOS is still running",
+    "tray_still_running_body": "It is beside the clock, so notices still arrive. Click its icon to open it, or right-click it to quit.",
+    "open_action": "Open"
   }
 }

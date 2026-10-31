@@ -92,6 +92,9 @@ pub mod offscreen;
 /// the header's way into the in-app list (`gui/notice_panel.rs`); web twin `.notice-bell`.
 /// See `widgets/notice_bell.rs`.
 pub mod notice_bell;
+/// The in-world notice banner (rung 2, part 2): a short banner at the top of the screen while
+/// playing, painted inside the HUD. See `widgets/notice_banner.rs`.
+pub mod notice_banner;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

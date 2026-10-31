@@ -150,6 +150,17 @@ pub mod near_tree_models;
 /// One frame's relay WebSocket message pump: every `type` the relay can send,
 /// plus the socket-died teardown (extracted from lib.rs, v0.1320).
 pub mod frame_ws_poll;
+/// The frame's whole network pump: dialling, reading, reconnecting, WebRTC, chat history and the
+/// saved servers' links (extracted from lib.rs 2026-10-31, so the hidden window's tick runs the
+/// same one, notifications rung 2 part 2).
+pub mod frame_net;
+/// The notification-area (tray) icon: its menu, its muted and unread looks, its clicks, and a
+/// click on an operating-system notice (notifications rung 2 part 2, docs/design/notifications.md
+/// "The tray").
+pub mod tray;
+/// Closing to the tray: the hidden window that draws nothing and reads its sockets a few times a
+/// second, showing it again, and the event loop's wake-up and outside-close hooks (rung 2 part 2).
+pub mod tray_window;
 /// The planet's two water shells (coarse backstop + displaced wave surface),
 /// built and pushed once per frame (extracted from lib.rs, v0.1320).
 pub mod frame_water;

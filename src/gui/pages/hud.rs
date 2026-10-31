@@ -460,6 +460,12 @@ pub fn draw(
                 );
             }
 
+            // ── A notice while playing (notifications rung 2, part 2): its banner, under the
+            // compass, for a few seconds (widgets/notice_banner.rs) ──
+            if let Some(b) = state.notify.banner.as_ref() {
+                crate::gui::widgets::notice_banner::paint(painter, theme, screen, b, b.opacity());
+            }
+
             // ── Machine labels (world-space, distance LOD + sightline occlusion) ──
             // dot within dot_dist -> +name within name_dist -> +card within card_dist.
             // A label hides when a wall stands between the camera and the machine

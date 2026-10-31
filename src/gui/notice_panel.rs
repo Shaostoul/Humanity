@@ -5,7 +5,8 @@
 //! - **Where:** an anchored spot just left of the help button (`pages/keymap.rs`
 //!   `draw_help_toggle`), so it never moves when the nav row wraps; the nav row reserves its width
 //!   (`pages/escape_menu.rs`). On every page that has the header; not in the first-person world
-//!   (the in-world banner is rung 2's second part) nor on the title screen.
+//!   (the in-world banner shows a notice there, widgets/notice_banner.rs) nor on the title screen;
+//!   leaving the header shuts the panel ([`keep_to_header`], every frame).
 //! - **What a row shows:** the kind, who and where, as a notice's title says it
 //!   (`notifications::decide::words` with the person's "What a notice shows"), and when; the
 //!   message itself only when that setting shows it (`notifications::list` keeps it only then).
@@ -202,5 +203,36 @@ pub(crate) fn open_entry(state: &mut GuiState, e: &Entry) {
     }
     if state.active_page != GuiPage::Chat {
         state.push_nav_to(GuiPage::Chat);
+    }
+}
+
+/// Every frame, whether the header is drawn or not (`engine/notify.rs` `pump`): the panel closes
+/// on a page without the header (the world view, the title screen), so it is not still open when
+/// the person comes back to a page (rung 2 part 1's leftover: the close ran only inside `draw`,
+/// which those pages never call).
+pub(crate) fn keep_to_header(state: &mut GuiState) {
+    if !shows(state) {
+        state.notify.panel_open = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The panel open when the person goes into the world is shut when they come back. Seen red
+    /// 2026-10-31 with `keep_to_header` doing nothing (the page check only inside `draw`): the
+    /// panel came back open over the page.
+    #[test]
+    fn the_panel_does_not_outlive_the_header() {
+        let mut g = GuiState::default();
+        g.active_page = GuiPage::Chat;
+        g.notify.panel_open = true;
+        keep_to_header(&mut g);
+        assert!(g.notify.panel_open, "a page with the header keeps it open");
+        g.active_page = GuiPage::None;
+        keep_to_header(&mut g);
+        g.active_page = GuiPage::Chat;
+        assert!(!g.notify.panel_open, "the world view shut it");
     }
 }

@@ -21,6 +21,18 @@ use crate::engine::state::EngineState;
 /// `save_load::save_active_home`). The edits first, so the save carries them, and a paid
 /// machine removed in the last frame gives its item back before either.
 pub(crate) fn save_before_exit(state: &mut EngineState) {
+    save_game(state);
+    // The Media page's "Play here" copies (members-only videos among them) do not outlive the run,
+    // and neither do the part files of downloads and private-file Saves the exit cut off (round 3
+    // of docs/design/files-showcase.md: nothing is left under a final name, or as a hidden part).
+    crate::gui::pages::files::open::forget_temp_files(&mut state.gui_state);
+}
+
+/// The game's half of [`save_before_exit`]: a paid machine removed in the last frame gives its item
+/// back, the build edits not yet written are, and the active home is saved. Also what closing the
+/// window into the tray runs before it hides (engine/tray_window.rs), which is not an exit, so the
+/// run's temporary files stay.
+pub(crate) fn save_game(state: &mut EngineState) {
     crate::engine::own_home::refund_removed_machines(state);
     crate::engine::editor::autosave_ship_structure(state, true);
     crate::engine::own_home::refresh_own_home(&mut state.gui_state);
@@ -31,10 +43,6 @@ pub(crate) fn save_before_exit(state: &mut EngineState) {
         !state.gui_state.settings.fresh_world_each_launch,
         state.gui_state.own_home.as_ref(),
     );
-    // The Media page's "Play here" copies (members-only videos among them) do not outlive the run,
-    // and neither do the part files of downloads and private-file Saves the exit cut off (round 3
-    // of docs/design/files-showcase.md: nothing is left under a final name, or as a hidden part).
-    crate::gui::pages::files::open::forget_temp_files(&mut state.gui_state);
 }
 
 #[cfg(test)]
@@ -69,9 +77,11 @@ mod tests {
                 unsaved.push(format!("src/lib.rs:{} (`{}`, after `{}`)", i + 1, line.trim(), lines[i.saturating_sub(1)].trim()));
             }
         }
-        // The close button, the quit request (the hub's Quit and the updater's restart) and
-        // the GPU's out of memory: fewer means the scan stopped matching, not that they went.
-        assert!(exits >= 3, "found only {exits} `event_loop.exit()` in src/lib.rs: the scan broke");
+        // The close button, the quit request (the hub's Quit and the updater's restart), the
+        // GPU's out of memory, and the tray's Quit while the window is hidden in the tray
+        // (notifications rung 2, part 2, `about_to_wait`): fewer means the scan stopped matching,
+        // not that they went.
+        assert!(exits >= 4, "found only {exits} `event_loop.exit()` in src/lib.rs: the scan broke");
         assert!(unsaved.is_empty(), "the game exits without saving at {}", unsaved.join(", "));
         // And the quit request is still answered in the frame loop at all.
         assert!(lib.contains("state.gui_state.quit_requested"), "nothing in the frame loop answers the hub's Quit any more");

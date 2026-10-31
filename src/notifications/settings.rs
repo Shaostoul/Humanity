@@ -61,6 +61,13 @@ pub struct LocalSettings {
     /// Each room the person set to something other than mentions (rung 2), by
     /// `<server>|<room id>` (the room mutes' key). Absent: mentions.
     pub room_levels: BTreeMap<String, Level>,
+    /// The icon in the notification area, beside the clock (rung 2, part 2; on by default). Its
+    /// right-click opens HumanityOS, mutes everything for a while, or quits.
+    pub tray: bool,
+    /// Closing the window hides it in the tray instead of quitting, so notices still arrive
+    /// (rung 2, part 2). Off by default: closing quits unless the person turns this on, and it
+    /// does nothing without the tray icon (there would be no way back to the window).
+    pub close_to_tray: bool,
 }
 
 impl Default for LocalSettings {
@@ -72,6 +79,8 @@ impl Default for LocalSettings {
             sound_id: "sfx.chat_message".into(),
             mutes: Mutes::default(),
             room_levels: BTreeMap::new(),
+            tray: true,
+            close_to_tray: false,
         }
     }
 }

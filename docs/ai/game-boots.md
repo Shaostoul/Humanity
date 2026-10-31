@@ -118,6 +118,21 @@ Windows, which activates the window and defeats `with_active(false)` a few lines
 after it was set. That was a real bug: every probe-rig boot stole focus despite
 asking not to.
 
+## No tray icon from a script's boot (2026-10-31)
+
+An instance a script started (`launch_focus::launch_in_background`) makes no
+notification-area icon, never flashes its taskbar button for a notice, and never
+answers a click on an operating-system notice (`src/engine/tray.rs` `allowed`):
+a force-closed process leaves its tray icon behind until the pointer passes over
+it, so agents' boots would pile icons into the operator's tray, and a rig must not
+take a click on the operator's own notice. A rig that tests the tray, the notice
+click or the flash sets `HUMANITY_TRAY=1` for its game, drives it through
+`debug/tray_request.json` (engine/tray.rs: `close`, `menu`, `icon`, `click`,
+`notice`, `state`; answered in `debug/tray_done.json`), and closes it GRACEFULLY
+so its icon goes with it. A close posted by another program (`taskkill` without
+`/F`) always quits, even with "closing keeps HumanityOS running in the tray" on,
+so the graceful close still saves (`src/engine/tray_window.rs`).
+
 ## A quick manual boot
 
 A quick boot after a release build, world entry, and where a boot failure is written:

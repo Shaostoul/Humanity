@@ -14,10 +14,14 @@
 //! - [`quiet`]: quiet hours (synced through the server's `notification_prefs`), by the device's clock.
 //! - [`toast`]: the operating system's notice, on its own worker thread (Windows, Linux, macOS).
 //! - [`list`]: the in-app list behind the header's bell (rung 2), in memory for the run only.
+//! - [`tray`]: the notification-area icon's look, tooltip and menu (rung 2, part 2), pure.
+//! - [`clicks`]: a click on a notice back to its conversation, and the banner and taskbar flash
+//!   beside a notice (rung 2, part 2).
 //!
 //! The engine hands a live message to it in `src/engine/notify.rs`; nothing here runs per frame
 //! except the bell reading the list's unseen count.
 
+pub mod clicks;
 pub mod data;
 pub mod decide;
 pub mod list;
@@ -25,6 +29,7 @@ pub mod mutes;
 pub mod quiet;
 pub mod settings;
 pub mod toast;
+pub mod tray;
 
 #[cfg(test)]
 mod tests;
@@ -38,7 +43,7 @@ pub use settings::{LocalSettings, Show};
 /// had a notice (the 5-second burst guard), the in-app list, and what Settings asked for this frame.
 #[derive(Debug, Default)]
 pub struct Runtime {
-    /// Conversation key -> unix seconds of its last notice.
+    /// `decide::burst_key` (server and conversation) -> unix seconds of its last notice.
     pub last_notice: std::collections::HashMap<String, i64>,
     /// Settings > Notifications > Show a test notification was pressed.
     pub test_requested: bool,
@@ -48,6 +53,10 @@ pub struct Runtime {
     pub list: list::List,
     /// The bell's panel is open.
     pub panel_open: bool,
+    /// The run's notices and the conversations a click on one opens (rung 2, part 2).
+    pub targets: clicks::Targets,
+    /// The in-world banner showing now, if any (rung 2, part 2).
+    pub banner: Option<clicks::Banner>,
 }
 
 /// Seconds since the Unix epoch, now.

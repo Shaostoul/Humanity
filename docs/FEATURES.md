@@ -982,6 +982,36 @@ off by default, synced on the person's server (`notification_prefs.quiet_friends
   the "Notification Sound" switch, both removed)
 - Server: `src/relay/storage/notification_prefs.rs`, the guarded ALTERs in `storage/mod.rs`
 
+### The tray icon and closing into it (rung 2 part 2, 2026-10-31)
+The HumanityOS icon in the notification area (Settings > Notifications, "Show HumanityOS in the
+notification area", on by default): a left click opens the window; its right-click menu has Open
+HumanityOS, Mute everything (the data file's lengths, Settings' own Mute everything; while muted,
+the "Muted until 14:00" line and Unmute) and Quit HumanityOS. Its picture gets a dot for notices
+not opened yet and a bell with a slash while muted; its tooltip says both. "Closing the window keeps
+HumanityOS running in the tray" (off by default) hides the window instead of quitting: the world
+left and saved first, no frame drawn while hidden, the sockets read four times a second, a notice
+the first time in a run. A close from another program (taskkill) always quits. No icon for an
+instance a script started (`HUMANITY_TRAY=1` asks for one).
+- Native: `src/engine/tray.rs` (the icon, its menu and clicks; `tray-icon` 0.26), `src/engine/tray_window.rs`
+  (hide, show, the hidden tick, the outside-close hook), `src/notifications/tray.rs` (the look,
+  tooltip, menu and picture, pure), `src/engine/frame_net.rs` (the network pump the hidden tick
+  shares with the frame); Settings in `src/gui/pages/settings/notifications.rs`
+- Dev: `debug/tray_request.json` / `tray_done.json` (close, a menu line, the icon, a notice's click,
+  a made-up notice)
+
+### A click on a notice opens its conversation; the in-world banner and the taskbar flash (rung 2 part 2, 2026-10-31)
+A click on the operating system's notice opens its conversation (and the window) through the
+in-app list's own path. Each notice carries a token naming nothing (this run's id and a number,
+`src/notifications/clicks.rs`). In the world with the window in front, a short banner under the
+compass shows the notice's own words; with the window behind, the taskbar button flashes.
+- Native: Windows through the notice activator, a COM class the running app serves
+  (`src/notifications/toast.rs` `win_activate`, `CustomActivator` in the per-user AppUserModelId
+  key); Linux through `notify-send --action`; macOS not yet (rung 5). The banner
+  `src/gui/widgets/notice_banner.rs` (drawn in `pages/hud.rs`); the cues `clicks::cues`; both from
+  `src/engine/notify.rs` `act_on`
+- Web: the browser notice's `onclick` focuses the tab and opens the DM or room
+  (`web/chat/chat-ui.js`, `chat-notify.js` `openEntry`)
+
 ### Notification Actions
 Reply and Mark Read buttons on push notifications.
 - Web: `web/shared/sw.js` (service worker)

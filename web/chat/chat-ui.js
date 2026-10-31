@@ -248,9 +248,12 @@ function notifyNewMessage(author, content, isDm, where) {
   if (d.sound) playNotificationChime();
   if (d.toast && canShow) {
     const n = new Notification(d.title, { body: d.body, icon: '/favicon.png', tag: d.tag });
+    // A click brings the tab forward and opens the conversation, the way the bell's list does
+    // (rung 2, part 2; the desktop's twin is a click on its operating-system notice).
     n.onclick = () => {
       window.focus();
       n.close();
+      HosChatNotify.openEntry({ kind: kind, conversation: conversation, room: room, sender: author });
     };
   }
 }

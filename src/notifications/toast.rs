@@ -8,13 +8,20 @@
 //! - Linux: the freedesktop notification service through `notify-send` (libnotify).
 //! - macOS: `osascript`'s `display notification`, the words passed as arguments.
 //!
+//! A click on a notice (rung 2, part 2) hands its token back to the app ([`take_clicks`]), which
+//! opens its conversation (`notifications::clicks`): on Windows through the notice activator, a COM
+//! class the running app serves (`CustomActivator` in the same per-user registration); on Linux
+//! through the notice's default action, when `notify-send` has `--action`. macOS's `osascript` has
+//! no click to hand back: rung 5's `UNUserNotificationCenter` brings one.
+//!
 //! Every notice goes to ONE worker thread through a bounded queue: the frame never waits for COM,
 //! D-Bus or a process start, and a burst beyond the queue is dropped rather than piling up. The
 //! builders of what each platform is handed ([`toast_xml`], [`linux_args`], [`mac_args`]) are pure
 //! and tested on every platform: a name cannot add a button, a link or a script line to a notice.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 /// The id Windows knows HumanityOS's notices by.
 pub const AUMID: &str = "UnitedHumanity.HumanityOS";
@@ -30,6 +37,9 @@ pub struct Toast {
     pub tag: String,
     /// The kind's id: notices of one kind group together.
     pub group: String,
+    /// What a click on it hands back (`clicks::Targets::token`): a token that names nothing. Empty:
+    /// a click does nothing of ours.
+    pub launch: String,
 }
 
 /// How many notices may wait for the worker before more are dropped.
@@ -72,6 +82,63 @@ fn worker() -> Option<&'static SyncSender<Toast>> {
     .as_ref()
 }
 
+// ── Clicks on a notice (rung 2, part 2) ─────────────────────────────────────────────────────────
+
+/// Clicks are taken only after the engine turned them on ([`enable_clicks`]): a person's launch,
+/// never an instance a script started (a rig), so a rig never answers a click on the person's own
+/// notice.
+static CLICKS_ON: AtomicBool = AtomicBool::new(false);
+/// A click is waiting: one atomic load per frame when none is.
+static CLICKED: AtomicBool = AtomicBool::new(false);
+/// The tokens of the notices clicked, oldest first, at most [`CLICKS_KEPT`].
+static CLICKS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Wakes the app's event loop, so a click reaches a window waiting hidden in the tray.
+static WAKER: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+const CLICKS_KEPT: usize = 16;
+
+/// Turn clicks on: from now on a click on one of this run's notices is handed to [`take_clicks`]
+/// and `wake` is called. On Windows this registers the notice activator (a COM class this process
+/// serves while it runs, `win_activate`) and names it in the per-user registration beside the
+/// AppUserModelID; on Linux notices carry a default action when `notify-send` has `--action`.
+pub fn enable_clicks(wake: Box<dyn Fn() + Send + Sync>) {
+    let _ = WAKER.set(wake);
+    CLICKS_ON.store(true, Ordering::SeqCst);
+    // The worker registers the activator when it starts: start it now, so a click on the very
+    // first notice is answered.
+    let _ = worker();
+}
+
+/// A notice whose token is `launch` was clicked (called from the platform's thread).
+pub(crate) fn clicked(launch: String) {
+    if !CLICKS_ON.load(Ordering::SeqCst) {
+        return;
+    }
+    log::info!("notifications: a notice was clicked");
+    if let Ok(mut q) = CLICKS.lock() {
+        if q.len() >= CLICKS_KEPT {
+            q.remove(0);
+        }
+        q.push(launch);
+    }
+    CLICKED.store(true, Ordering::SeqCst);
+    if let Some(wake) = WAKER.get() {
+        wake();
+    }
+}
+
+/// A click is waiting for [`take_clicks`].
+pub fn clicks_waiting() -> bool {
+    CLICKED.load(Ordering::SeqCst)
+}
+
+/// The clicks since the last call, oldest first. One atomic load when there are none.
+pub fn take_clicks() -> Vec<String> {
+    if !CLICKED.swap(false, Ordering::SeqCst) {
+        return Vec::new();
+    }
+    CLICKS.lock().map(|mut q| std::mem::take(&mut *q)).unwrap_or_default()
+}
+
 /// A short, stable tag for `conversation` (FNV-1a, 16 hex digits: Windows takes at most 16
 /// characters on its oldest supported builds). It names nothing.
 pub fn tag_for(conversation: &str) -> String {
@@ -107,8 +174,10 @@ pub fn toast_xml(t: &Toast) -> String {
     } else {
         format!("<text>{}</text>", xml_escape(&t.body))
     };
+    let launch = if t.launch.is_empty() { String::new() } else { format!(" launch=\"{}\"", xml_escape(&t.launch)) };
     format!(
-        "<toast><visual><binding template=\"ToastGeneric\"><text>{}</text>{}</binding></visual><audio silent=\"true\"/></toast>",
+        "<toast{}><visual><binding template=\"ToastGeneric\"><text>{}</text>{}</binding></visual><audio silent=\"true\"/></toast>",
+        launch,
         xml_escape(&t.title),
         body
     )
@@ -124,6 +193,23 @@ pub fn linux_args(t: &Toast) -> Vec<String> {
         t.title.clone(),
         xml_escape(&t.body),
     ]
+}
+
+/// What `notify-send` is given for a notice a click can open (rung 2, part 2): [`linux_args`] with
+/// the default action (named `default`, the one a click on the notice's body runs, labelled
+/// `open`) and `--wait`, so `notify-send` stays until the notice closes and prints `default` when
+/// it was clicked. Only with a `notify-send` that has `--action` (libnotify 0.8 and later).
+pub fn linux_args_with_click(t: &Toast, open: &str) -> Vec<String> {
+    let mut args = linux_args(t);
+    let at = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    args.insert(at, "--wait".to_string());
+    args.insert(at, format!("--action=default={}", open.replace(['\n', '\r'], " ")));
+    args
+}
+
+/// Did `notify-send`'s output say the notice was clicked? It prints the action's name.
+pub fn linux_clicked(stdout: &str) -> bool {
+    stdout.lines().any(|l| l.trim() == "default")
 }
 
 /// What `osascript` is given: a script that reads its words from its arguments (never pasted into
@@ -158,6 +244,12 @@ impl Backend {
         let hr = unsafe { windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED) };
         if hr.is_err() {
             log::warn!("notifications: COM did not start on the notice thread ({hr:?})");
+        }
+        // The notice activator (rung 2, part 2): served from this thread's multithreaded apartment
+        // for as long as the app runs, so Windows hands it a click on any of our notices, from the
+        // corner or from the notification centre. Only once clicks are on (a person's launch).
+        if CLICKS_ON.load(Ordering::SeqCst) {
+            win_activate::serve();
         }
         Backend { registered: false }
     }
@@ -221,9 +313,88 @@ mod win_register {
         if let Some(icon) = super::icon_file() {
             set_text(key, "IconUri", &icon.to_string_lossy());
         }
+        // Which COM class takes a click on our notices (rung 2, part 2): the one this running app
+        // serves (`win_activate`). The Windows App SDK writes the same value for unpackaged apps.
+        // No `LocalServer32` beside it: nothing names this exe's path, so a click on a notice
+        // after the app has quit starts nothing (rung 5, with Reply on a notice).
+        if super::CLICKS_ON.load(super::Ordering::SeqCst) {
+            set_text(key, "CustomActivator", &super::win_activate::clsid_text());
+        }
         // SAFETY: the handle came from a successful RegCreateKeyW and is closed once, here.
         unsafe {
             let _ = RegCloseKey(key);
+        }
+    }
+}
+
+/// The notice activator (rung 2, part 2): the COM class Windows calls when one of our notices is
+/// clicked, from the corner of the screen or from the notification centre, named by the
+/// registration's `CustomActivator`. Windows passes the notice's `launch` (its token); the class
+/// hands it to [`super::clicked`]. It is served from the notice thread, a multithreaded apartment,
+/// so Windows' call arrives on one of COM's own threads and never waits for the frame.
+///
+/// Why this and not a `humanityos://` address: a protocol starts a SECOND copy of the program for
+/// every click, which must then find the running one and hand the click over, and its registration
+/// names an exe path (every worktree's and rig's build would overwrite the person's). The
+/// activator reaches the copy that is running, which is the one that knows what the token means.
+#[cfg(windows)]
+mod win_activate {
+    use windows::core::{implement, IUnknown, Interface, Ref, BOOL, GUID, PCWSTR};
+    use windows::Win32::Foundation::CLASS_E_NOAGGREGATION;
+    use windows::Win32::System::Com::{CoRegisterClassObject, IClassFactory, IClassFactory_Impl, CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE};
+    use windows::Win32::UI::Notifications::{INotificationActivationCallback, INotificationActivationCallback_Impl, NOTIFICATION_USER_INPUT_DATA};
+
+    /// HumanityOS's notice activator. Made once for this app (2026-10-31); never reuse it elsewhere.
+    pub const CLSID: GUID = GUID::from_u128(0x2a2508e1_b36c_451d_bc01_2114f1c9a751);
+
+    /// The class id as the registry writes it, `{...}`.
+    pub fn clsid_text() -> String {
+        format!("{{{:?}}}", CLSID)
+    }
+
+    #[implement(INotificationActivationCallback)]
+    struct Activator;
+
+    impl INotificationActivationCallback_Impl for Activator_Impl {
+        fn Activate(&self, _app: &PCWSTR, invoked: &PCWSTR, _data: *const NOTIFICATION_USER_INPUT_DATA, _count: u32) -> windows::core::Result<()> {
+            // SAFETY: Windows passes a NUL-ended string (or null) that lives for the call.
+            let launch = if invoked.is_null() { String::new() } else { unsafe { invoked.to_string() }.unwrap_or_default() };
+            super::clicked(launch);
+            Ok(())
+        }
+    }
+
+    #[implement(IClassFactory)]
+    struct Factory;
+
+    impl IClassFactory_Impl for Factory_Impl {
+        fn CreateInstance(&self, outer: Ref<IUnknown>, iid: *const GUID, object: *mut *mut core::ffi::c_void) -> windows::core::Result<()> {
+            if object.is_null() {
+                return Err(windows::Win32::Foundation::E_POINTER.into());
+            }
+            // SAFETY: `object` is the caller's out pointer, checked above.
+            unsafe { *object = core::ptr::null_mut() };
+            if !outer.is_null() {
+                return Err(CLASS_E_NOAGGREGATION.into());
+            }
+            let activator: INotificationActivationCallback = Activator.into();
+            // SAFETY: `iid` and `object` come from COM's own call, as `query` expects.
+            unsafe { activator.query(iid, object).ok() }
+        }
+
+        fn LockServer(&self, _lock: BOOL) -> windows::core::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Serve the activator from this thread's apartment for the rest of the run.
+    pub fn serve() {
+        let factory: IClassFactory = Factory.into();
+        // SAFETY: COM is started on this thread (Backend::start); the class object is kept by COM
+        // for the rest of the process, so the cookie is never revoked.
+        match unsafe { CoRegisterClassObject(&CLSID, &factory, CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE) } {
+            Ok(_) => log::info!("notifications: a click on a notice opens its conversation (notice activator {})", clsid_text()),
+            Err(e) => log::warn!("notifications: clicks on notices will not open anything: the notice activator was refused ({e})"),
         }
     }
 }
@@ -243,15 +414,61 @@ fn icon_file() -> Option<std::path::PathBuf> {
 }
 
 #[cfg(target_os = "linux")]
-struct Backend;
+struct Backend {
+    /// This `notify-send` takes `--action` (libnotify 0.8 and later), so a notice can be clicked.
+    actions: bool,
+    /// Notices waiting on a click right now, each with its `notify-send` still running.
+    waiting: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+/// At most this many notices wait on a click at once (each holds one `notify-send` and one small
+/// thread until it closes); past it a notice is shown without one.
+#[cfg(target_os = "linux")]
+const LINUX_WAITING: usize = 3;
 
 #[cfg(target_os = "linux")]
 impl Backend {
     fn start() -> Backend {
-        Backend
+        let help = std::process::Command::new("notify-send")
+            .arg("--help")
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        let actions = help.contains("--action");
+        if CLICKS_ON.load(Ordering::SeqCst) && !actions {
+            log::info!("notifications: this notify-send has no --action, so a click on a notice opens nothing (libnotify 0.8 brings it)");
+        }
+        Backend { actions, waiting: Default::default() }
     }
 
     fn show(&mut self, t: &Toast) -> Result<(), String> {
+        use std::sync::atomic::Ordering as O;
+        if self.actions && CLICKS_ON.load(Ordering::SeqCst) && !t.launch.is_empty() && self.waiting.load(O::SeqCst) < LINUX_WAITING {
+            let child = std::process::Command::new("notify-send")
+                .args(linux_args_with_click(t, crate::i18n::t("notifications.open_action")))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .map_err(|e| format!("notify-send could not be started ({e}); install libnotify's notify-send"))?;
+            let waiting = self.waiting.clone();
+            waiting.fetch_add(1, O::SeqCst);
+            let launch = t.launch.clone();
+            let spawned = std::thread::Builder::new().name("hos-notify-wait".into()).spawn(move || {
+                if let Ok(out) = child.wait_with_output() {
+                    if linux_clicked(&String::from_utf8_lossy(&out.stdout)) {
+                        clicked(launch);
+                    }
+                }
+                waiting.fetch_sub(1, O::SeqCst);
+            });
+            if spawned.is_err() {
+                self.waiting.fetch_sub(1, O::SeqCst);
+            }
+            return Ok(());
+        }
         let status = std::process::Command::new("notify-send")
             .args(linux_args(t))
             .stdin(std::process::Stdio::null())

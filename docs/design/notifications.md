@@ -4,9 +4,11 @@ Written 2026-10-30, when the operator answered the open question of 2026-07-01 (
 notification system, which 'Mute server' needs") with: "let's get it made."
 
 This is the whole plan, built in rungs (CLAUDE.md, "Plan the whole feature, build it in rungs").
-Rung 1 is built, and rung 2's first part (2026-10-31: the in-app list, the new mutes, levels,
-kinds and exceptions); section 11 says what each part and later rung adds and what it needs.
-Read this before adding a kind of notification, a control, or a platform.
+Rung 1 is built, and both parts of rung 2 (2026-10-31: the in-app list, the new mutes, levels,
+kinds and exceptions; then the tray icon, closing into it, a click on a notice opening its
+conversation, the in-world banner and the taskbar flash); section 11 says what each part and later
+rung adds and what it needs. Read this before adding a kind of notification, a control, or a
+platform.
 
 ## 1. What there was before (checked 2026-10-30)
 
@@ -89,6 +91,34 @@ sound is a row.
      once CI checks the native build on Linux.
    - Each notice runs on one worker thread fed by a bounded queue: the frame never waits for COM,
      D-Bus or a process, and a burst past the queue is dropped, not queued forever.
+   - **A click on a notice opens its conversation (rung 2, part 2, built 2026-10-31)**, through the
+     in-app list's own path (`gui/notice_panel.rs` `open_entry`), and shows the window (from the
+     tray too). Each notice carries a token that names nothing, this run's random id and a number
+     (`notifications/clicks.rs`); the run keeps the last 64 numbers' conversations in memory. The
+     operating system keeps a notice's payload (Windows in `wpndatabase.db`), so the token holds
+     no key, address or name; a token from another run, or one past the kept 64, shows the window
+     only. The test notice and the tray's own notice show the window.
+     - Windows: **the notice activator**, a COM class the running app serves
+       (`INotificationActivationCallback`, CLSID `{2A2508E1-B36C-451D-BC01-2114F1C9A751}`, registered
+       with `CoRegisterClassObject` from the notice thread's multithreaded apartment), named by a
+       `CustomActivator` value in the same per-user AppUserModelId key rung 1 writes: what the
+       Windows App SDK writes for an unpackaged app. Windows calls it for a click in the corner
+       AND in the notification centre (the in-process `Activated` event an unpackaged app can use
+       instead fires only for the first). Why not `humanityos://` protocol activation: a protocol
+       starts a SECOND copy of the exe for every click, which must find the running one and hand
+       the click over, and its registration names an exe path that every worktree's and rig's
+       build would overwrite. No `LocalServer32` is written beside it, so nothing names the exe and
+       a click on a notice after the app has quit starts nothing (rung 5, with Reply on a notice).
+     - Linux: `notify-send --action=default=Open --wait` when this `notify-send` has `--action`
+       (libnotify 0.8, 2022, and later; read once from `--help`): it stays until the notice closes
+       and prints `default` when clicked. At most three notices wait on a click at once (each holds
+       one `notify-send` and one small thread); past that, and on an older libnotify, a notice
+       shows without one. Rung 5's D-Bus moves this to the `ActionInvoked` signal.
+     - macOS: `osascript` hands back no click. Rung 5's `UNUserNotificationCenter` brings one.
+     - The website: the browser notice's `onclick` focuses the tab and opens the DM or the room
+       (`chat-ui.js` `notifyNewMessage`, through `chat-notify.js` `openEntry`).
+     - Only a person's launch answers clicks: an instance a script started (a rig) never serves
+       the activator, so it never takes a click on the person's own notice (engine/tray.rs).
 2. **The sound**, played by the app's own mixer (`pending_sfx`, the sound catalog), so the choice
    of sound, the volume and quiet hours are ours. The OS notice is silent (`<audio silent>`) so
    the two never double.
@@ -127,9 +157,22 @@ sound is a row.
      server when that is another one this device keeps, then the DM, the room or the shared
      room's Commons view, on the Chat page; on the website, the DM or the room (a tab is one
      server).
-4. **In the world** (rung 2, part 2): a short banner at the top of the screen while playing full
-   screen, because a toast may sit behind a full-screen game; and the taskbar flash
-   (`winit::Window::request_user_attention`) as a cue that needs no sound.
+4. **In the world** (rung 2, part 2, built 2026-10-31): a short banner at the top of the screen
+   while playing, because a toast may sit behind a full-screen game and a window in front gets no
+   toast at all; and the taskbar flash (`winit::Window::request_user_attention`, Informational: the
+   button lights until the window is in front) as a cue that needs no sound.
+   - **Both go through THE rule:** only a notice it let through, and the cues follow from where
+     the window is (`notifications/clicks.rs` `cues`, pure): the banner with the window in front
+     and the HUD showing (the world, not a page, the showroom or the build editor); the flash
+     with the window behind; neither while the window is hidden in the tray (no taskbar button,
+     and the toast is the cue). The rule itself and its web twin are unchanged.
+   - **The banner** (`widgets/notice_banner.rs`) is painted in the HUD's non-interactive layer
+     under the compass, six seconds, fading over its last, in theme tokens. Its words are the
+     notice's (`decide::words`): the title always, the message only when "What a notice shows"
+     shows it (never its "Open HumanityOS to read it", which would be odd on HumanityOS's own
+     screen). A newer notice replaces it.
+   - **The flash** only for a person's launch: a rig's background window never lights the
+     operator's taskbar.
 5. **The website**: the browser's Notification API while a chat tab is open in the background, and
    Web Push from the server when no tab is open (`sw.js` shows it; Reply and Mark Read already
    exist there).
@@ -230,8 +273,8 @@ setup hides never notifies. Where each kind is raised (rung 2):
 | The in-app list: the bell, its count and the panel | (memory only) | | every page's header | the chat page's header | 2 part 1 (built) |
 | Per-kind sound | this device | | Settings | | 3 |
 | Game events, per event | this device | per event in data | Settings | | 3 |
-| Show HumanityOS in the notification area (the tray) | this device | on | Settings | n/a | 2 part 2 |
-| Closing the window keeps HumanityOS running in the tray | this device | off (closing quits) | Settings | n/a | 2 part 2 |
+| Show HumanityOS in the notification area (the tray) | this device | on | Settings | n/a | 2 part 2 (built) |
+| Closing the window keeps HumanityOS running in the tray | this device | off (closing quits) | Settings | n/a | 2 part 2 (built) |
 
 On the website the DM rows and room rows had no menu at all, so rung 2 gives each the server row's
 bell (shown on hover and focus, and always while muted, keyboard-reachable as a button with its
@@ -243,15 +286,33 @@ with the server row's muted bell at the end of its row.
 The operator, 2026-10-30: "Can we add the ability for HOS to run in the taskbar? Then we could add
 to the right click menu a button for mute that opens to the available options."
 
-- **The crate: `tray-icon`** (tauri-apps, MIT OR Apache-2.0; 0.26.1 checked 2026-10-30, needs
-  Rust 1.90; menus through its sibling `muda`). On Windows it uses `windows-sys` 0.60/0.61, both
-  already in `Cargo.lock`. On Linux it is built with its `ksni` feature (a StatusNotifierItem over
-  D-Bus, pure Rust), NOT its default `libappindicator`, which needs GTK 3 and the ayatana
-  libraries installed on the Linux release runner. On macOS it uses `objc2` and must be created on
-  the main thread after winit's loop has started (`resumed`). Beside winit: the tray's own window
-  procedure runs on the event-loop thread; its menu and click events arrive on `tray-icon`'s
-  channels, read with one `try_recv` per frame, and its event handler forwards to winit's
-  `EventLoopProxy` so a click wakes a loop that is waiting with the window hidden.
+**Built 2026-10-31** (`src/engine/tray.rs`, `src/engine/tray_window.rs`, the pure look and menu in
+`src/notifications/tray.rs`). What follows is what was built and why.
+
+- **The crate: `tray-icon`** (tauri-apps, MIT OR Apache-2.0; 0.26.1 checked again 2026-10-31,
+  `rust-version` 1.90, the tree builds with 1.99.1; menus through its sibling `muda` 0.21.2, same
+  licence), default features off and `ksni` on (`Cargo.toml`). On Windows it uses `windows-sys`
+  0.60/0.61, both already in `Cargo.lock`, so Windows builds only `tray-icon`, `muda` and
+  `keyboard-types` new. On Linux the `ksni` feature (a StatusNotifierItem over D-Bus, pure Rust:
+  `ksni` 0.3.7 and `zbus` 5) replaces its default `libappindicator`, which needs GTK 3 and the
+  ayatana libraries installed on the Linux release runner. On macOS it uses `objc2`, already here
+  through winit. `Cargo.lock` gained 37 packages (most of them `zbus` and its async stack, built on
+  Linux only), every one MIT, Apache-2.0 or either, and `ksni` under the Unlicense (public
+  domain). The icon is made in the first frame's socket pump, on the main thread after
+  winit's loop has started (macOS's rule). Beside winit: on Windows the tray's own window
+  procedure runs on the event-loop thread; its menu and click events go through handlers
+  (`MenuEvent::set_event_handler`, `TrayIconEvent::set_event_handler`) that queue them and wake
+  winit through its `EventLoopProxy` (`tray_window::wake`), so a click wakes a loop that is
+  waiting with the window hidden. The frame takes them with one atomic load when nothing
+  happened. The pointer passing over the icon is not queued. No `with_guid`: Windows binds an
+  icon's GUID to the exe's path unless the exe is signed, and the person's exe moves with every
+  version, which makes the icon fail to appear.
+- **Who gets an icon:** a person's launch (a double-click, `just play`). An instance a script
+  started (`launch_focus::launch_in_background`: a rig, a boot check) gets none, so agents' boots
+  never pile icons into the operator's tray (a force-closed process leaves its icon behind until
+  the pointer passes over it), and it never answers a click on the person's own notices. A rig
+  that tests the tray sets `HUMANITY_TRAY=1` and closes gracefully, so the icon goes with it.
+- **A left click on the icon** opens the window (a double-click too); the right click is the menu.
 - **The menu**, every word by key: Open HumanityOS; Mute everything, opening to the same choices as
   Mute server (For 1 hour, For 8 hours, Until I unmute; and Unmute, with "Muted until 14:00" as a
   line that cannot be clicked, while muted); Quit HumanityOS.
@@ -259,16 +320,47 @@ to the right click menu a button for mute that opens to the available options."
   from one server's Mute. It is the same state as Settings > Notifications > Mute everything, which
   rung 1 builds, so the tray adds a second place to reach it and nothing else.
 - **Closing the window: a choice in Settings, off by default, so closing still quits** unless the
-  person turns it on. When on, closing hides the window instead: the renderer stops drawing (no GPU
-  work while hidden), the sockets keep being read at a low rate so notices still arrive, and the
-  first time a notice says HumanityOS is still running in the tray. Closing while in the world
-  first leaves it the way the Escape menu's Leave does (saved), so a hidden window never simulates
-  or renders a world. Quit from the tray runs the same save as closing does today
-  (`engine/quit.rs`).
-- **The icon shows state where the platform allows it:** on Windows and Linux a second icon for
-  muted (a bell with a slash) and for unread (a dot), and the tooltip says "3 unread" or "Muted
-  until 14:00"; on macOS the menu-bar item can carry a short title beside its icon (the count).
-  Windows also allows an overlay badge on the taskbar button (`ITaskbarList3::SetOverlayIcon`).
+  person turns it on, and it does nothing without the icon showing (there would be no way back to
+  the window): `tray_window::keeps_running`. When on, closing hides the window instead:
+  - the world is left first, the way quitting leaves it: saved (`quit::save_game`, the game's
+    half of `save_before_exit`; the run's temporary files stay, it is not an exit), out of a
+    server's shared world (`game_leave`, so nobody sees a frozen figure; entering the world again
+    joins afresh), and the main menu in front. The game has no "Leave" of its own to reuse (the
+    Escape key toggles between the world and the last page), so this is it;
+  - no frame is drawn: `about_to_wait` stops asking for redraws and the RedrawRequested arm returns
+    at once, so the GPU does nothing and no world simulates;
+  - four times a second a tick runs the frame's own network pump (`engine/frame_net.rs`, moved out
+    of the frame loop for this: dialling, reading every message, reconnecting, WebRTC, chat
+    history, every saved server's link), takes the tray's and the notices' clicks, and plays a
+    notice's sound, so notices still arrive;
+  - the first time in each run, an operating-system notice says HumanityOS is still running beside
+    the clock (with desktop notices on): once per run, so a person who chose this months ago is
+    told where it went, and never at every close.
+  Quit from the tray runs the same save as closing does (`engine/quit.rs` `save_before_exit`, in
+  `about_to_wait` while hidden, and through the frame's quit request while shown).
+- **Closed by another program, it quits whatever the setting** (Windows): a WM_CLOSE POSTED to the
+  app (taskkill without `/F`, an installer) is told apart by winit's message hook
+  (`tray_window::note_message`), because a person's close button and Alt+F4 SEND theirs straight
+  to the window procedure. Agents close the operator's game that way so it saves (CLAUDE.md, "The
+  operator's machine"); hiding would have kept it running until it was forced, unsaved. While the
+  window is hidden, `taskkill` finds only winit's own message window to post to (it skips hidden
+  windows), so a close posted to ANY of the app's windows counts, and one posted to a window
+  other than the app's own is kept from its window procedure, which would destroy it: the second
+  rig run of 2026-10-31 found the hidden game outliving `taskkill` until it was forced 15 s later.
+- **The icon shows state:** a dot in the unread colour (`danger`, the bell's count) at its
+  top-right for notices not opened yet (the in-app list's unseen count), and the picture dimmed
+  and grey with a bell and a slash at its bottom-right while everything is muted, both drawn by
+  `notifications::tray::picture` (pure, tested) in theme tokens over the app icon at 32 pixels,
+  only when the look changes. The tooltip says the same in words: "HumanityOS", "Muted until
+  14:00", "Notices: 3 not opened yet" (the bell's own words), cut to Windows' 127 units. The same
+  picture goes to Linux's tray. Not built, recorded for later: on macOS a short title beside the
+  menu-bar icon (the count); and Windows' overlay badge on the taskbar button
+  (`ITaskbarList3::SetOverlayIcon`), which needs `HICON` from the windows crate's
+  `Win32_UI_WindowsAndMessaging`, its largest module and one the tree does not build yet, for what
+  the tray icon already shows.
+- **Linux desktops with no tray** (GNOME without its AppIndicator extension) show no icon, which is
+  the desktop's choice; Settings says so on Linux, and to keep closing-into-the-tray off there.
+  The StatusNotifierItem cannot tell whether anything shows it.
 - **Why rung 2 and not rung 1:** close-to-tray changes the window's close path in `lib.rs` (the
   merge funnel) and adds a hidden-window mode, and both can only be verified by booting the app,
   which rung 1 deliberately does not do; the crate is a new dependency tree on three platforms.
@@ -297,9 +389,15 @@ to the right click menu a button for mute that opens to the available options."
   name cannot add a button or a link) and for Linux's markup; control characters go; the title and
   body are cut to 80 and 240 characters. macOS gets the words as arguments.
 - **The notification centre holds little:** a Windows notice expires on restart and replaces the
-  previous one for the same conversation (its tag is a hash of the conversation, not the name).
+  previous one for the same conversation (its tag is a hash of the server and the conversation,
+  not the name), and its click token names nothing (section 3, item 1).
 - **What is written to the computer:** on Windows, the one per-user registration above, the first
-  time a notice is shown, and a copy of the app icon beside the person's data folder. Nothing else.
+  time a notice is shown (`HKCU\Software\Classes\AppUserModelId\UnitedHumanity.HumanityOS`:
+  `DisplayName`, `IconUri`, and since rung 2 part 2, for a person's launch, `CustomActivator`, the
+  notice activator's class id), and a copy of the app icon beside the person's data folder.
+  Nothing else: no protocol registration, no `LocalServer32`, no shortcut. The tray icon itself
+  writes nothing (Windows keeps its own record of icons it has seen, under its notification-area
+  settings, as it does for every program with one).
 
 ## 7. Where each setting lives, and why
 
@@ -355,7 +453,9 @@ to the right click menu a button for mute that opens to the available options."
   reader, "Notices: 3 not opened yet") and the taskbar flash (part 2) for people who cannot hear
   it.
 - Every control has its plain-language hint by key (`notifications.*_hint`) and is reachable by
-  keyboard; the mute lengths are menu items, not a slider.
+  keyboard; the mute lengths are menu items, not a slider. The tray's menu is the operating
+  system's own (keyboard and screen readers as every tray menu), its tooltip says its state in
+  words, and the taskbar flash (built) is the cue for a person who cannot hear the sound.
 - No flashing: the web title alternates every 2 seconds, well under three flashes a second.
 - The test notice lets a person check what they will get, without waiting for a message.
 
@@ -375,6 +475,13 @@ to the right click menu a button for mute that opens to the available options."
 - **Per notice:** one pure decision, one string build, one queue send, and one entry in the list
   (a fold is a scan of at most 100 entries). The toast itself costs the worker a COM call
   (Windows) or a process start (Linux, macOS), never the frame.
+- **The tray (rung 2, part 2), per frame:** two atomic loads (its events, the notices' clicks), one
+  look compare (the everything mute and the unseen count, a few integers), and the dev request
+  check every IPC handler makes. The picture, tooltip and menu are rebuilt only when the look or
+  the language changes (a 32-pixel picture, under a millisecond). The app icon is read once, when
+  the icon is made. In the world the banner adds one card's layout while it shows.
+- **Hidden in the tray:** no frame, no GPU work, no world; four ticks a second of the network pump
+  the frame already runs, and nothing else.
 - **Network: no new polling, no new routes.** One `get_notification_prefs` per sign-in (before:
   one when a popup first opened), one `update_notification_prefs` per change to each connected
   server. The relay adds one primary-key read of `notification_prefs` per push it would send.
@@ -433,11 +540,29 @@ separate increment.
   address, as the mutes name it (they carried the saved address as typed, so a server saved with
   a trailing slash never matched its own Mute server).
 
-*Part 2 (still to come; each needs the game booted):* the tray icon ("The tray", after section 5),
-with its Mute everything menu, the close-to-tray choice and the icon's muted and unread states;
-clicking an operating-system notice opens its conversation (Windows: a COM activator or
-`humanityos://` protocol activation; Linux: the default action; web: the browser notice's
-`onclick` switches to it); the in-world banner and the taskbar flash.
+*Part 2 (2026-10-31, built):*
+- The tray icon ("The tray", after section 5), with its Mute everything menu (Settings' own mute),
+  Open and Quit, the icon's muted and unread looks and its tooltip; none for a script's instance.
+- The close-to-tray choice (off by default): the world left and saved, no frame while hidden, the
+  sockets read four times a second through the frame's own network pump (moved out of `lib.rs`
+  into `engine/frame_net.rs` for it), the once-a-run notice, and a close from another program
+  always quitting.
+- A click on an operating-system notice opens its conversation: Windows through the notice
+  activator (a COM class, section 3 item 1, and why not `humanityos://`), Linux through
+  `notify-send`'s default action, the website through the browser notice's `onclick`.
+- The in-world banner and the taskbar flash, through the rule's answer and `clicks::cues`.
+- Two leftovers of part 1: the bell's panel left open on entering the world was still open on
+  return (the page check ran only while the header was drawn; `notice_panel::keep_to_header` runs
+  every frame now), and the burst guard's time was keyed by the conversation without its server
+  (two servers' "general" rooms shared one five seconds; `decide::burst_key`, which the Windows
+  notice's tag now hashes too).
+- For a rig, the dev IPC's `debug/tray_request.json` does what each click does (close, a menu
+  line, the icon, a click on a notice by its token, a made-up notice) and reports the tray and
+  the window in `debug/tray_done.json` (engine/tray.rs).
+
+*Still later, recorded:* Windows' taskbar overlay badge (section 5, "The tray"), macOS's menu-bar
+count, a click on a notice after the app has quit starting it (rung 5, with Reply), and Linux's
+click through D-Bus (rung 5).
 
 **Rung 3:** task, call and game-event kinds (the relay sends task events; the tasks switch finally
 does something; game events per event, from data, raised by the simulation's systems through the
@@ -471,7 +596,33 @@ notices grouped per conversation in the notification centre.
 - Snapshots: `just snapshot notification_settings` (now with the exceptions and a muted
   conversation and room level), `just snapshot chat_muted_server`, and since rung 2
   `just snapshot notification_bell` (the header's bell with a count) and
-  `just snapshot notification_panel` (its panel open).
+  `just snapshot notification_panel` (its panel open); since part 2 `just snapshot notice_banner`
+  (the in-world banner under the compass), and `notification_settings` shows the two tray switches.
 - A real notice cannot be snapshotted: Settings > Notifications > Show a test notification is how
   a person (and the operator) checks one, and a failure is logged to `run.log` with Windows'
   error code.
+- Rung 2, part 2: the tray's menu, tooltip and picture, a notice's click token and what it opens,
+  the cues, the launch attribute's escaping and Linux's action arguments
+  (`notifications/tests.rs`); `tray_window::keeps_running`; the burst guard across servers
+  (`engine/notify.rs`); the panel shut off the header (`gui/notice_panel.rs`); every way out of the
+  frame loop saving, the tray's Quit included (`engine/quit.rs`); the website's notice click
+  (`notify-list-web.test.js`, test 8). A real tray, a real click and a real flash cannot be
+  driven by a test: a rig boots the game with `HUMANITY_TRAY=1` and drives
+  `debug/tray_request.json`, reading `run.log`'s `tray:`, `window:` and `notifications:` lines;
+  a person checks them by hand (Settings > Notifications, then close the window, right-click
+  the icon beside the clock, click a notice).
+- What the rigs showed on 2026-10-31 (four boots of the release exe with `HUMANITY_TRAY=1`, run.log
+  and `tray_done.json` read): the icon made and the activator served; a made-up mention through
+  THE rule stopped at `not_loaded` (no server in the sandbox), and past it with `force` it made a
+  real toast, the dot and "Notices: 1 not opened yet"; the per-user registration gained
+  `CustomActivator`; another process calling the activator by its CLSID with that notice's token
+  (as Windows does on a click, with no `LocalServer32` registered) opened Chat on the
+  conversation; closing from the world saved it, put the main menu in front, hid the window (no
+  frame for 15 s, no CPU used in 5 s, the reconnect countdown still running), and showed the
+  "still running" notice once; Mute for 1 hour from the menu wrote `everything` in `config.json`
+  and turned the menu into "Muted until 11:09" and Unmute; the icon brought the window back
+  (frames again); Quit while hidden saved and shut down cleanly; `taskkill` without `/F`
+  (`game_close`) closed it gracefully both hidden and shown with closing-to-tray on. The two
+  findings (a background launch's window stayed on screen; `taskkill` did not reach a hidden
+  window) were fixed and re-run. A script's launch (the runtime gate) logs "tray: none for this
+  instance". The banner is `just snapshot notice_banner`.

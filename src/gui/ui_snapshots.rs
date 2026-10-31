@@ -1067,6 +1067,25 @@ fn snapshot_notification_panel() {
     });
 }
 
+/// The in-world notice banner (rung 2, part 2, widgets/notice_banner.rs): a mention while playing,
+/// under the compass, with the message because "What a notice shows" shows it here.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_notice_banner() {
+    render_page_png("notice_banner", 1280, 360, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::None;
+        state.notify.banner = Some(crate::notifications::clicks::Banner {
+            title: "Ben mentioned you in #general".into(),
+            body: "are you coming to the garden at noon?".into(),
+            at: std::time::Instant::now(),
+        });
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .show(ctx, |_ui| {});
+        crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
+    });
+}
+
 /// The chat with the active server muted until unmuted: the bell with a slash on its row.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]

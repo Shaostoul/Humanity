@@ -58,6 +58,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     crate::engine::file_transfer::pump(&mut state.gui_state); // device-to-device big files: offers, connections, dialling
     crate::engine::key_cards::pump(&mut state.gui_state); // key cards wanted: asked of the server, a batch at a time
     crate::engine::notify::pump(state); // Settings > Notifications' test notice and sound preview, when asked
+    crate::engine::tray::pump(state); // the tray icon (made or taken down as Settings says), its clicks and the notices' clicks
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {

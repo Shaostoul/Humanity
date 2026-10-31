@@ -235,9 +235,14 @@ In order:
     twins, Settings > Notifications, mute server and room). Rung 2 part 1 DONE 2026-10-31: the
     in-app list (the bell, the count, the panel) on both apps, mute a conversation, the per-room
     level, the reply, contact-request and Commons-mention kinds, the synced quiet-hours exceptions,
-    the website's Mute room and Muted list. Next: rung 2 part 2, which needs the game booted: the
-    tray icon with its Mute everything menu, close-to-tray, the icon's muted and unread states,
-    opening a conversation from an OS notice, the in-world banner, the taskbar flash.
+    the website's Mute room and Muted list. Rung 2 part 2 DONE 2026-10-31: the tray icon
+    (`tray-icon` 0.26) with Open, Mute everything and Quit, its dot and muted looks, closing into
+    the tray (off by default; the world left and saved, no frame while hidden, the sockets read
+    four times a second), a click on an OS notice opening its conversation (Windows' notice
+    activator, Linux's `notify-send --action`, the web's `onclick`), the in-world banner and the
+    taskbar flash, and part 1's two leftovers. Next: rung 3 (task, call and game-event kinds,
+    per-kind sound); still later, recorded in the design: Windows' taskbar overlay badge, macOS's
+    menu-bar count, a click on a notice after the app has quit.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

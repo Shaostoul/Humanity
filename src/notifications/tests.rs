@@ -112,6 +112,7 @@ fn every_shared_case_gets_the_same_answer() {
             sound_id: "sfx.chat_message".into(),
             mutes: mutes_of(&local["mutes"]),
             room_levels: levels_of(&local["levels"]),
+            ..Default::default()
         };
         let at = Moment {
             now: opt_i(&moment, "now").unwrap(),
@@ -262,6 +263,7 @@ fn a_toast_cannot_be_made_into_something_else() {
         body: "a & b < c 'd' \"e\"".into(),
         tag: tag_for("dm:k1"),
         group: "dm".into(),
+        launch: String::new(),
     };
     let xml = toast_xml(&t);
     assert!(!xml.contains("<actions>"), "{xml}");
@@ -369,4 +371,142 @@ fn local_settings_survive_config_json() {
     let back: LocalSettings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
     assert_eq!(back, s);
     assert_eq!(Show::from_id("whatever"), Show::Name, "an unknown choice is the safe default");
+    // Rung 2, part 2: the tray icon on, closing into it off, so closing still quits.
+    assert!(old.tray && !old.close_to_tray, "a config.json from before them: the icon shows, closing quits");
+}
+
+// ── Rung 2, part 2 (2026-10-31): the tray, a click on a notice, the banner and the flash ────────
+//
+// Red first, 2026-10-31, each by breaking the code and watching the named assertion fail:
+// the tray's menu offering the lengths while muted ("while muted: until when, then Unmute");
+// `action` taking the muted line for Unmute ("the muted line does nothing"); the picture without
+// its dot ("the dot is the unread colour"); `resolve` ignoring the run ("another run's token");
+// `cues` flashing while hidden ("no flash while hidden"); the launch attribute left unescaped
+// ("a token cannot add an attribute"); `linux_args_with_click` putting the action after `--`
+// ("the action is an option").
+
+use super::clicks::{cues, opacity_after, Click, Cues, Targets, Window};
+use super::tray::{action, cut_units, picture, Action, Look, MarkColours, MenuLine, ICON_PX};
+
+fn item_ids(lines: &[MenuLine]) -> Vec<(String, bool)> {
+    lines
+        .iter()
+        .filter_map(|l| match l {
+            MenuLine::Item { id, enabled, .. } => Some((id.clone(), *enabled)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn submenu(lines: &[MenuLine]) -> Vec<MenuLine> {
+    lines.iter().find_map(|l| if let MenuLine::Submenu { lines, .. } = l { Some(lines.clone()) } else { None }).expect("Mute everything")
+}
+
+/// The tray's menu: Open, Mute everything with the data file's lengths (Mute server's own), Quit;
+/// while muted, the muted line that cannot be clicked and Unmute instead of the lengths. Every id
+/// comes back as what it asks for, and the muted line asks for nothing.
+#[test]
+fn the_tray_menu_mutes_everything_and_says_until_when() {
+    let file = shipped();
+    let open = Look { muted: None, unread: 0 }.menu(&file);
+    assert_eq!(item_ids(&open), vec![("open".to_string(), true), ("quit".to_string(), true)]);
+    let lengths: Vec<String> = file.mute_for.iter().map(|m| format!("mute:{}", m.id)).collect();
+    let sub = item_ids(&submenu(&open));
+    assert_eq!(sub.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(), lengths, "the lengths Mute server offers");
+    let muted = item_ids(&submenu(&Look { muted: Some(0), unread: 0 }.menu(&file)));
+    assert_eq!(muted, vec![("muted".to_string(), false), ("unmute".to_string(), true)], "while muted: until when, then Unmute");
+    assert_eq!(action("open", &file), Some(Action::Open));
+    assert_eq!(action("quit", &file), Some(Action::Quit));
+    assert_eq!(action("unmute", &file), Some(Action::Unmute));
+    assert_eq!(action("mute:8h", &file), Some(Action::MuteFor(8 * 3600)));
+    assert_eq!(action("mute:until_unmuted", &file), Some(Action::MuteFor(0)));
+    assert_eq!(action("muted", &file), None, "the muted line does nothing");
+    assert_eq!(action("mute:forever", &file), None, "a length the file does not have");
+    // The tray's Mute is Settings' Mute everything itself.
+    let mut m = Mutes::default();
+    m.mute_everything(100, 3600);
+    assert_eq!(Look::of(&m, 2, 200), Look { muted: Some(3700), unread: 2 });
+    assert_eq!(Look::of(&m, 2, 3700).muted, None, "an ended mute is none");
+}
+
+/// The tooltip says the app's name, until when everything is muted, and how many notices wait, in
+/// at most what Windows shows.
+#[test]
+fn the_tray_tooltip_says_muted_and_waiting() {
+    assert_eq!(Look::default().tooltip(), "HumanityOS");
+    let t = Look { muted: Some(0), unread: 3 }.tooltip();
+    let lines: Vec<&str> = t.lines().collect();
+    assert_eq!(lines.len(), 3, "{t}");
+    assert!(lines[1].contains(crate::i18n::t("notifications.muted_until_unmuted")), "{t}");
+    assert!(lines[2].contains('3'), "{t}");
+    assert_eq!(cut_units(&"\u{1F600}".repeat(100), 127).chars().count(), 63, "never inside a character");
+}
+
+/// The picture: the dot in the unread colour at the top-right for notices waiting, the picture
+/// dimmed with a bell at the bottom-right while muted, and nothing changed otherwise.
+#[test]
+fn the_tray_picture_marks_waiting_and_muted() {
+    let n = ICON_PX as usize;
+    let base: Vec<u8> = [200u8, 120, 40, 255].repeat(n * n);
+    let c = MarkColours { dot: [255, 0, 0, 255], backing: [0, 0, 0, 255], bell: [255, 255, 255, 255] };
+    let px = |img: &[u8], x: usize, y: usize| [img[(y * n + x) * 4], img[(y * n + x) * 4 + 1], img[(y * n + x) * 4 + 2], img[(y * n + x) * 4 + 3]];
+    assert_eq!(picture(&base, ICON_PX, &Look::default(), &c), base, "nothing to say: the app's own picture");
+    let waiting = picture(&base, ICON_PX, &Look { muted: None, unread: 1 }, &c);
+    assert_eq!(px(&waiting, n * 3 / 4, n / 4), [255, 0, 0, 255], "the dot is the unread colour");
+    assert_eq!(px(&waiting, 2, n - 3), px(&base, 2, n - 3), "the rest is untouched");
+    let muted = picture(&base, ICON_PX, &Look { muted: Some(0), unread: 0 }, &c);
+    let corner = px(&muted, 2, 2);
+    assert!(corner[0] == corner[1] && corner[1] == corner[2] && corner[0] < 200, "dimmed and grey: {corner:?}");
+    let marked = (n / 2..n).flat_map(|y| (n / 2..n).map(move |x| (x, y))).filter(|&(x, y)| px(&muted, x, y) == [255, 255, 255, 255]).count();
+    assert!(marked > 10, "the bell is drawn in its corner ({marked} pixels)");
+}
+
+/// A click on a notice opens only what this run's token names: another run's token, one past the
+/// kept, the window's own and anything else open only the window.
+#[test]
+fn a_click_on_a_notice_opens_only_this_runs_conversation() {
+    let mut t = Targets::with_run("r1");
+    let e = |conv: &str| super::list::Entry::of(&Candidate { kind: "dm".into(), server: "https://a.example".into(), conversation: conv.into(), sender: "Ben".into(), ..Default::default() }, None, 5);
+    let first = t.token(e("dm:k1"));
+    assert!(first.starts_with("hos1.r1.") && !first.contains("k1"), "the token names nothing: {first}");
+    assert_eq!(t.resolve(&first), Click::Open(e("dm:k1")));
+    assert_eq!(t.last_token().as_deref(), Some(first.as_str()));
+    assert_eq!(t.resolve(&first.replace(".r1.", ".r9.")), Click::Window, "another run's token, though its number is kept here");
+    assert_eq!(Targets::with_run("r2").resolve(&first), Click::Window, "another run");
+    let window = t.window_token();
+    assert_eq!(t.resolve(&window), Click::Window);
+    for junk in ["", "hos1", "hos1.r1", "hos1.r1.x", "http://evil", "hos1.r1.99999"] {
+        assert_eq!(t.resolve(junk), Click::Window, "{junk:?}");
+    }
+    for i in 0..super::clicks::KEPT {
+        t.token(e(&format!("dm:{i}")));
+    }
+    assert_eq!(t.resolve(&first), Click::Window, "past the kept, gone with its list");
+}
+
+/// The cues: the banner in the world with the window in front, the flash with it behind, neither
+/// while hidden in the tray; the banner fades over its last second.
+#[test]
+fn the_banner_shows_in_the_world_and_the_flash_behind() {
+    let w = |focused, hidden, in_world| cues(Window { focused, hidden, in_world });
+    assert_eq!(w(true, false, true), Cues { banner: true, flash: false });
+    assert_eq!(w(true, false, false), Cues { banner: false, flash: false }, "a page in front: the bell and the list");
+    assert_eq!(w(false, false, true), Cues { banner: false, flash: true });
+    assert_eq!(w(false, true, false), Cues::default(), "no flash while hidden");
+    assert_eq!((opacity_after(0.0), opacity_after(5.5), opacity_after(6.0), opacity_after(-1.0)), (1.0, 0.5, 0.0, 0.0));
+}
+
+/// A notice carries its click token, escaped, and Linux's click is an option before `--`.
+#[test]
+fn a_notice_carries_its_click_token() {
+    let t = Toast { title: "Ben".into(), body: "hi".into(), tag: tag_for("dm:k1"), group: "dm".into(), launch: "hos1.r.1\" onclick=\"x".into() };
+    let xml = toast_xml(&t);
+    assert!(xml.starts_with("<toast launch=\"hos1.r.1&quot; onclick=&quot;x\">"), "a token cannot add an attribute: {xml}");
+    assert!(toast_xml(&Toast { launch: String::new(), ..t.clone() }).starts_with("<toast><visual>"));
+    let args = super::toast::linux_args_with_click(&Toast { title: "-v".into(), ..t.clone() }, "Open");
+    let dashdash = args.iter().position(|a| a == "--").expect("options end");
+    let act = args.iter().position(|a| a == "--action=default=Open").expect("the default action");
+    assert!(act < dashdash && args.iter().position(|a| a == "--wait").is_some_and(|w| w < dashdash), "the action is an option: {args:?}");
+    assert_eq!(args[dashdash + 1], "-v");
+    assert!(super::toast::linux_clicked("default\n") && !super::toast::linux_clicked("") && !super::toast::linux_clicked("closed"));
 }

@@ -284,3 +284,32 @@ test('7. Settings: the unread section is gone, the exceptions are there, the Mut
   assert.deepStrictEqual(plain(m.people), {}, 'Unmute clears it');
   assert.deepStrictEqual(Object.keys(m.rooms), ['https://example.test|general'], 'and only it');
 });
+
+// Rung 2, part 2 (2026-10-31): a click on the browser's own notice brings the tab forward AND
+// opens its conversation, through the list's own path (chat-notify.js `openEntry`). Red first by
+// running it against the part-1 `onclick`, which only focused the tab ("opens the DM").
+test('8. a click on the browser notice focuses the tab and opens its conversation', () => {
+  const page = chatPage({});
+  const { ctx } = page;
+  const made = [];
+  function Notification(title, opts) { this.title = title; this.opts = opts; this.closed = false; made.push(this); }
+  Notification.prototype.close = function () { this.closed = true; };
+  Notification.permission = 'granted';
+  ctx.Notification = Notification;
+  let focused = 0;
+  ctx.focus = () => { focused++; };
+  const opened = [];
+  ctx.openDmConversation = (key, name) => opened.push(['dm', key, name]);
+  ctx.switchChannel = (room) => opened.push(['room', room]);
+  ctx.HosChatNotify.prefsData(PREFS);
+  ctx.notifyNewMessage('Ben', 'meet at noon', true, { conversation: 'dm:k1' });
+  assert.strictEqual(made.length, 1, 'a notice was shown');
+  made[0].onclick();
+  assert.strictEqual(focused, 1, 'the tab comes forward');
+  assert.strictEqual(made[0].closed, true);
+  assert.deepStrictEqual(plain(opened), [['dm', 'k1', 'Ben']], 'opens the DM');
+  ctx.notifyNewMessage('Cy', 'hi @Ann', false, { room: 'news' });
+  assert.strictEqual(made.length, 2);
+  made[1].onclick();
+  assert.deepStrictEqual(plain(opened[1]), ['room', 'news'], 'opens the room');
+});

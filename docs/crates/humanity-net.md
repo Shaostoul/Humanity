@@ -24,7 +24,7 @@ the relay rather than on top of it.
 - **Its lib tests:** 256 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib net:: --skip gui::pages::settings::recovery_net:: --skip terrain::planet::
+just test-lib net:: --skip engine::frame_net:: --skip gui::pages::settings::recovery_net:: --skip terrain::planet::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
