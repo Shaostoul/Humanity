@@ -83,6 +83,11 @@ pub use hint::{with_hint, Hint};
 /// website's `[data-term]` overlay (2026-10-23). See `widgets/glossary_text.rs`.
 pub mod glossary_text;
 pub use glossary_text::{definition_card, glossary_note, glossary_text, glossary_words};
+/// Lay out only what is on screen (2026-10-31): a block of a long list that lies wholly outside
+/// its scroll area's view takes the space it took last time instead of being laid out, keyed by
+/// what decides its size and off with the Dev page's "Turn off all reuse". The Inventory page's
+/// Garden section is the first user. See `widgets/offscreen.rs`.
+pub mod offscreen;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
@@ -1472,6 +1477,21 @@ pub fn expandable_row(
     body: impl FnOnce(&mut Ui),
 ) {
     let id = ui.make_persistent_id(id_salt);
+    expandable_row_id(ui, id, default_open, force, header, body);
+}
+
+/// [`expandable_row`] with its id already made (2026-10-31). A caller that reads the row's open
+/// state before drawing it (the Inventory page's Garden groups, to skip a group while it is off
+/// screen: `widgets/offscreen.rs`) makes the id once, with `ui.make_persistent_id` in the Ui the
+/// row belongs to, and passes it here, so both always name the same row.
+pub fn expandable_row_id(
+    ui: &mut Ui,
+    id: egui::Id,
+    default_open: bool,
+    force: Option<bool>,
+    header: impl FnOnce(&mut Ui),
+    body: impl FnOnce(&mut Ui),
+) {
     let mut state =
         egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, default_open);
     if let Some(open) = force {

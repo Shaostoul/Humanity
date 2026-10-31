@@ -456,6 +456,23 @@ fn a_plant_between_picks_reads_bearing_not_ripe() {
     assert_eq!(picking::stage_word(false, false, "ripe", &row, true), "bearing, next pick in less than a garden day");
 }
 
+/// The tile's number printed onto the stack (2026-10-31, `write_stage_word`, which the Garden page
+/// also hashes every frame) reads exactly as the String it replaced: "2" for 2.0, "3" for 2.96
+/// (rounded to one place first), and a number too long for its 32 bytes still prints, through the
+/// String fallback.
+#[test]
+fn the_tile_word_prints_its_number_as_before() {
+    let word = |d: f64| {
+        picking::stage_word(false, false, "ripe", &picking::PickRow { card: String::new(), bearing_next_in: Some(d) }, false)
+    };
+    assert_eq!(word(1.5), "bearing\nnext 1.5d");
+    assert_eq!(word(2.0), "bearing\nnext 2d");
+    assert_eq!(word(2.96), "bearing\nnext 3d");
+    let huge = format!("{:.1}", 1e40_f64);
+    assert!(huge.len() > 32, "the fallback is exercised");
+    assert_eq!(word(1e40), format!("bearing\nnext {}d", huge.strip_suffix(".0").unwrap()));
+}
+
 /// Realistic mode, through the pure functions: a share not picked before the
 /// next comes ripe passes over and is lost, the card says so, and the plant
 /// is spent when its window ends however little was picked; Forgiving keeps

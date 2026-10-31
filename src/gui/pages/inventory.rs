@@ -1479,6 +1479,1105 @@ fn draw_mining_map(ui: &mut egui::Ui, theme: &Theme, asteroids: &[GuiAsteroid], 
     }
 }
 
+/// What the Garden section's buttons asked for this frame, applied to GuiState after the panel
+/// closes (the section only reads GuiState while it draws). Moved out of `draw`'s locals
+/// 2026-10-31 with the section itself.
+#[derive(Default)]
+pub(crate) struct GardenActions {
+    water_crop: Option<u64>,
+    harvest_crop: Option<u64>,
+    dev_grow: bool,
+    /// "Dev: stock seeds": the seed item ids of the starter set to grant.
+    stock_seeds: Option<Vec<String>>,
+    /// Plant a whole tower (v0.386): (tower id, plant ids) to spawn as crops.
+    plant_tower: Option<(String, Vec<String>)>,
+    /// Plant a bed/tray/field grow area (v0.738 grain loop): (machine id, plant id, unit count).
+    plant_bed: Option<(String, String, u32)>,
+    /// Bulk harvest (v0.739): every mature crop's bits from a group's "Harvest N ready" button.
+    harvest_many: Option<Vec<u64>>,
+    pest_control: Option<(String, String)>,
+    /// Hoe / Mulch (farming::weeds).
+    weed: Option<(String, String)>,
+    /// Soil pH amendment (farming::soil_ph): (area, amendment id).
+    soil_ph: Option<(String, String)>,
+    /// Hand-pollinate an area, or introduce a colony in a hive (farming::pollination).
+    pollinate: Option<crate::systems::farming::pollination::Request>,
+    /// Clear a ripe picked plant from its plot (farming::picking).
+    clear_crop: Option<u64>,
+    fertilize_crop: Option<u64>,
+}
+
+/// The Garden section's body, under its collapsible title (moved out of `draw` 2026-10-31, so a
+/// headless test can draw it alone in a scroll area of its own: inventory_garden_tests.rs).
+/// Numbered SLOT tiles per tower, bed or field; click a slot to expand its card. The Dev
+/// seed/grow buttons sit at the top.
+pub(crate) fn draw_garden_section(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &GuiState,
+    tree_force: Option<bool>,
+    tree_default_open: bool,
+    act: &mut GardenActions,
+) {
+    // The section's own draw (cpu.garden.page, 2026-10-30): measured on a wall screen.
+    let _garden_draw = crate::frame_costs::stage("cpu.garden.page");
+    ui.horizontal_wrapped(|ui| {
+        // Dev: grant the starter seed set (one of each tower variety), so
+        // survival-mode planting is testable now. Creative ignores seeds.
+        // Dev play mode + cheats switch, both required (task #50 gate).
+        if state.dev_cheats_active(theme) && widgets::secondary_button(ui, theme, "Dev: stock seeds") {
+            let mut seeds: Vec<String> = Vec::new();
+            for t in &state.tower_configs {
+                for p in &t.plantings {
+                    let sid = format!("seed_{}_0", p.plant);
+                    if !seeds.contains(&sid) {
+                        seeds.push(sid);
+                    }
+                }
+            }
+            // Bed/tray/field crops too (v0.738): the medium defaults,
+            // so survival-mode bed planting is testable immediately.
+            for m in &state.grow_media {
+                if let Some(crop) = &m.default_crop {
+                    let sid = format!("seed_{crop}_0");
+                    if !seeds.contains(&sid) {
+                        seeds.push(sid);
+                    }
+                }
+            }
+            if !seeds.is_empty() {
+                act.stock_seeds = Some(seeds);
+            }
+        }
+        if state.dev_cheats_active(theme) && !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
+            act.dev_grow = true;
+        }
+    });
+    ui.add_space(theme.spacing_xs);
+    // Grow-area overview: EVERY growing machine in the home's garden
+    // (towers, beds, racks, tanks, fields) and how many of each, as tiles,
+    // so the section shows the whole garden at a glance, not just the two
+    // plantable tower designs. Data-driven from data/machines/home.ron.
+    let areas = state.garden_areas.clone();
+    if !areas.is_empty() {
+        let total: u32 = areas.iter().map(|a| a.count).sum();
+        // The Home page's food total, computed from the crops (one figure, one source).
+        let grown = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
+        ui.label(
+            RichText::new(format!("{} grow areas, {} kinds, {:.0} kcal/day grown", total, areas.len(), grown))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        // The home's own air and its loops (2026-09-26, ship life
+        // support): the air the whole garden breathes into, and the
+        // day's carbon, oxygen and water between it and the tanks.
+        for (line, level) in &state.garden_pests.home_air {
+            let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
+            ui.label(RichText::new(line).size(theme.font_size_small).color(col));
+        }
+        ui.add_space(theme.spacing_xs);
+        let gcols = 4usize;
+        ui.columns(gcols, |cols| {
+            for (i, a) in areas.iter().enumerate() {
+                let c = &mut cols[i % gcols];
+                if garden_area_tile(c, theme, a) {
+                    let mid = a.machine_id.clone();
+                    with_garden_edit(|s| s.open = Some(mid));
+                }
+                c.add_space(theme.spacing_sm);
+            }
+        });
+        ui.add_space(theme.spacing_sm);
+        ui.label(
+            RichText::new("Plantable tower designs")
+                .strong()
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_xs);
+    }
+    // Garden as an aligned TABLE grouped by tower (operator 2026-06-08:
+    // rows/columns spreadsheet design, not a tree+detail). One collapsible
+    // group per tower (a Plant button in its body), each a compact egui::Grid
+    // with fixed columns; the growth bar is capped at theme.status_bar_width.
+    // Seed-planted crops fall under "Other crops".
+    if state.tower_configs.is_empty() && state.crops.is_empty() {
+        ui.label(
+            RichText::new("No garden plots yet. Add an aeroponic tower design at Home.")
+                .color(theme.text_muted()),
+        );
+    } else {
+        // Group order: one per configured tower, then "Other crops" if any
+        // seed-planted (tower-less) crops exist.
+        let mut groups: Vec<(Option<String>, String)> = state
+            .tower_configs
+            .iter()
+            .map(|t| (Some(t.id.clone()), t.name.clone()))
+            .collect();
+        // Non-tower grow areas (beds, trays, fields — v0.738 grain
+        // loop) get their own groups: crops planted there carry the
+        // MACHINE id as their grow-area tag, so the same filter works.
+        for a in &state.garden_areas {
+            if a.machine_id.starts_with("aeroponic_tower") {
+                continue;
+            }
+            groups.push((Some(a.machine_id.clone()), a.label.clone()));
+        }
+        // Every crop sorted into its group in ONE pass (2026-10-30, sim-frame-cost.md S1b): each
+        // group used to walk every crop, 91 groups times 1,981 crops a frame in the showcase.
+        // With the small fast hasher, and a crop next to one of its own group's (the usual order:
+        // a tower's crops are planted together) joins it without hashing at all (2026-10-31: this
+        // pass runs for every crop every frame, on screen or not).
+        let mut by_group: std::collections::HashMap<Option<&str>, Vec<&crate::gui::GuiCrop>, widgets::offscreen::KeyBuild> =
+            std::collections::HashMap::default();
+        {
+            let mut run: Vec<&crate::gui::GuiCrop> = Vec::new();
+            let mut run_tid: Option<&str> = None;
+            for c in &state.crops {
+                let tid = c.tower_id.as_deref();
+                if !run.is_empty() && tid != run_tid {
+                    by_group.entry(run_tid).or_default().append(&mut run);
+                }
+                run_tid = tid;
+                run.push(c);
+            }
+            if !run.is_empty() {
+                by_group.entry(run_tid).or_default().append(&mut run);
+            }
+        }
+        // Crops planted into a specific machine (the showcase
+        // garden: "ntower_3", "grain_field_1") get one group per
+        // machine (2026-09-25; they were invisible before).
+        {
+            let known: Vec<String> = groups.iter().filter_map(|(g, _)| g.clone()).collect();
+            // Crops' areas, each once (the groups above hold every crop's area; 2026-10-31, this
+            // list held one entry per crop and sorted them all every frame), and an emptied bed
+            // that still carries weeds or mulch (farming::weeds), so it can be hoed before sowing.
+            let mut crop_areas: Vec<&str> = by_group
+                .keys()
+                .filter_map(|k| *k)
+                .chain(state.garden_pests.weeds.iter().map(|w| w.area.as_str()))
+                // And an emptied bed with a row cover still on, so it can come off.
+                .chain(state.garden_pests.covers.iter().map(|c| c.area.as_str()))
+                .collect();
+            crop_areas.sort_unstable();
+            crop_areas.dedup();
+            let type_of: std::collections::HashMap<String, String> = state
+                .home_machines
+                .as_ref()
+                .map(|h| machine_types_of(h, &crop_areas))
+                .unwrap_or_default();
+            for (id, title) in crate::gui::machine_crop_groups(&crop_areas, &known, &type_of, &state.garden_areas) {
+                groups.push((Some(id), title));
+            }
+        }
+        if by_group.contains_key(&None) {
+            groups.push((None, "Other crops".to_string()));
+        }
+        // Each grow area's rows, looked up by area once a frame (2026-10-31): every group searched
+        // every list, and copied what it found, every frame. The first row for an area wins, as
+        // the search did.
+        let pests_by_area = rows_by_area(&state.garden_pests.areas, |a| a.area.as_str());
+        let pollinate_by_area = rows_by_area(&state.garden_pests.pollinate_areas, |a| a.area.as_str());
+        let air_by_area = rows_by_area(&state.garden_pests.air, |a| a.0.as_str());
+        let weeds_by_area = rows_by_area(&state.garden_pests.weeds, |w| w.area.as_str());
+        let covers_by_area = rows_by_area(&state.garden_pests.covers, |c| c.area.as_str());
+        let ph_amendments = &state.garden_pests.ph_amendments;
+        // Each crop's wait and water in words (farming::outlook, 2026-10-12), read from the
+        // one map by entity (it was copied per group, every crop's outlook every frame).
+        let outlook_here = &state.garden_pests.outlook;
+        // ── LAY OUT ONLY WHAT IS ON SCREEN (2026-10-31, gui/widgets/offscreen.rs) ──
+        // The section laid out every slot tile of every open group on every draw: about 2,000
+        // tiles in the showcase (cpu.garden.page, 5.4 to 6.5 ms a draw), and a farm five times the
+        // size would have cost five times as much to look at. Now a group, or a row of tiles in an
+        // open group, that lies wholly outside the view takes the space it took the last time it
+        // was laid out instead of being laid out again, so the scroll bar and everything below
+        // stay exactly where they were. Each remembered size is kept under a key of everything
+        // that decides it, worked out below every frame: a changed word on a tile, a group opened
+        // or closed, a different width, text size or font lays it out again the same frame. With
+        // the Dev page's "Turn off all reuse" nothing is skipped and nothing is remembered.
+        //
+        // The part of every key the whole section shares: its text sizes and spacing, and the
+        // screen width the tile grid wraps by.
+        let section_key = widgets::offscreen::style_key(
+            ui,
+            &[theme.font_size_small, theme.font_size_body, theme.font_size_heading],
+            &[theme.spacing_xs, theme.spacing_sm, theme.compact_button_height, ui.ctx().screen_rect().width()],
+        );
+        // Each slot tile's key, and the crop in each slot of a tower or bed, for the group being
+        // drawn (kept between groups so they are allocated once a frame, not once a group).
+        let mut slot_keys: Vec<u64> = Vec::new();
+        let mut slot_crops: Vec<Option<&crate::gui::GuiCrop>> = Vec::new();
+        for (gi, (tid, title)) in groups.iter().enumerate() {
+            // The group's crops, borrowed (2026-10-31: the list was copied for every group every frame).
+            let crops: &[&crate::gui::GuiCrop] = by_group.get(&tid.as_deref()).map_or(&[], |v| v.as_slice());
+            // The group's counts in ONE pass over its crops (2026-10-31): mature; ready to pick for
+            // the bulk harvest (v0.739: mature and not dead, their entity bits gathered when its
+            // button is clicked); picked plants between picks (farming::picking: bearing, not
+            // ready, so counted apart); and the pH range of its soil units for the Lime / Sulfur
+            // row (none for towers, which hold theirs): how many, lowest, highest.
+            let (mut ready, mut ready_n, mut bearing) = (0usize, 0usize, 0usize);
+            let (mut ph_units, mut ph_lo, mut ph_hi) = (0usize, f32::INFINITY, f32::NEG_INFINITY);
+            for c in crops {
+                ready += c.mature as usize;
+                ready_n += (c.mature && !c.dead) as usize;
+                bearing += (!c.dead && !c.mature && c.picking.bearing_next_in.is_some()) as usize;
+                if let Some(ph) = c.ph.filter(|_| !c.dead && !c.ph_held && c.tower_slot.is_some()) {
+                    ph_units += 1;
+                    ph_lo = ph_lo.min(ph);
+                    ph_hi = ph_hi.max(ph);
+                }
+            }
+            // The tower's CONFIG (None for the "Other crops" group, which
+            // holds loose seed-planted crops with no fixed-slot design).
+            let cfg = tid
+                .as_ref()
+                .and_then(|id| state.tower_configs.iter().find(|t| &t.id == id));
+            // Bed/tray/field group data (v0.738 grain loop): the grow
+            // area's crop (edit-modal Crop field if typed, else the
+            // medium's default_crop) and its unit count. None for tower
+            // groups, "Other crops", and media with no plantable crop.
+            let bed: Option<(String, String, u32)> = if cfg.is_none() {
+                tid.as_ref().and_then(|mid| {
+                    state
+                        .garden_areas
+                        .iter()
+                        .find(|a| &a.machine_id == mid)
+                        .and_then(|a| {
+                            let typed = with_garden_edit(|s| {
+                                s.configs
+                                    .get(mid)
+                                    .map(|c| c.crop.trim().to_lowercase())
+                            })
+                            .filter(|c| !c.is_empty());
+                            let crop = typed.or_else(|| {
+                                state
+                                    .grow_media
+                                    .iter()
+                                    .find(|m| m.matches(mid))
+                                    .and_then(|m| m.default_crop.clone())
+                            });
+                            // One crop per plot of every machine (grow_media `plots`).
+                            let plots = state.grow_media.iter().find(|m| m.matches(mid)).map_or(1, |m| m.plots.max(1));
+                            crop.map(|c| (mid.clone(), c, a.count.max(1) * plots))
+                        })
+                })
+            } else {
+                None
+            };
+            // How many slots the design plans: one per planting slot, counted EXACTLY as the
+            // farming handler assigns tower_slot, or one per UNIT of a bed, all the same crop
+            // (v0.738), so unplanted units still render. Each slot's (plant id, role, note) is
+            // read by index when it is drawn (`garden_slot_spec`; 2026-10-31, this was a list of
+            // three copied Strings per slot, built for every group every frame).
+            let planned_slots: usize = match (&bed, cfg) {
+                (Some((_, _, count)), _) => *count as usize,
+                (None, Some(t)) => t.plantings.iter().map(|p| p.slots.max(1) as usize).sum(),
+                (None, None) => 0,
+            };
+            // Slot rows to render: the design's planned slots for a real
+            // tower or bed, else one row per loose crop ("Other crops").
+            let by_slot = cfg.is_some() || bed.is_some();
+            let slot_count = if by_slot { planned_slots } else { crops.len() };
+            // The title row's counts and subtitle, worded only when the row is drawn (2026-10-31:
+            // they were formatted for every group every frame, on screen or not; the group's key
+            // hashes the numbers and names they are made from).
+            let count_txt = || {
+                if slot_count == 0 {
+                    "no slots".to_string()
+                } else if crops.is_empty() {
+                    format!("{} slots · not planted", slot_count)
+                } else if bearing > 0 {
+                    // Picked plants between picks (farming::picking): bearing,
+                    // not ready, so counted apart from the ready ones.
+                    format!("{}/{} ready · {} bearing · {} slots", ready, crops.len(), bearing, slot_count)
+                } else {
+                    format!("{}/{} ready · {} slots", ready, crops.len(), slot_count)
+                }
+            };
+            // Make/model/version subtitle for the tower title row (operator
+            // 2026-06-08: "aeroponic tower make model version"). Data-driven.
+            let subtitle = || {
+                cfg.map(|t| {
+                    let mut parts: Vec<String> = Vec::new();
+                    if !t.make.is_empty() {
+                        parts.push(t.make.clone());
+                    }
+                    if !t.model.is_empty() {
+                        parts.push(t.model.clone());
+                    }
+                    if !t.version.is_empty() {
+                        parts.push(format!("v{}", t.version));
+                    }
+                    parts.join(" ")
+                })
+                .unwrap_or_default()
+            };
+            let planted_label = if crops.is_empty() { "Plant this tower" } else { "Plant again" };
+            let area_tag: &str = tid.as_deref().unwrap_or("");
+            let pests_here = pests_by_area.get(area_tag).copied();
+            let pollinate_here = pollinate_by_area.get(area_tag).copied();
+            let air_here = air_by_area.get(area_tag).copied();
+            let weeds_here = weeds_by_area.get(area_tag).copied();
+            let cover_here = covers_by_area.get(area_tag).copied();
+
+            // ── Skip this group while it is off screen (see LAY OUT ONLY WHAT IS ON SCREEN). ──
+            // Its open state (Collapse all / Expand all applied) and the slot whose card is open,
+            // read the way the row itself reads them, before deciding.
+            let grp_id = ui.make_persistent_id(("garden_grp", gi));
+            let memo_id = grp_id.with("offscreen");
+            let sel_id = egui::Id::new(("garden_sel_slot", gi));
+            let sel_before: Option<usize> = ui.data_mut(|d| d.get_temp::<Option<usize>>(sel_id)).flatten();
+            let mut grp_state =
+                egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), grp_id, tree_default_open);
+            if let Some(open) = tree_force {
+                grp_state.set_open(open);
+            }
+            let open = grp_state.is_open();
+            let mut openness = grp_state.openness(ui.ctx());
+            if openness > 0.0
+                && openness < 1.0
+                && widgets::offscreen::enabled()
+                && ui.available_rect_before_wrap().top() > ui.clip_rect().bottom()
+            {
+                // Opening or closing wholly below the view (Collapse all, Expand all): nobody can
+                // see the animation, so finish it now, and the group is laid out once, settled,
+                // instead of once a frame while it animates.
+                ui.ctx().animate_bool_with_time(grp_id, open, 0.0);
+                openness = grp_state.openness(ui.ctx());
+            }
+            let settled = openness <= 0.0 || openness >= 1.0;
+            // The crop in each slot, and each slot tile's key, when the group's body is drawn.
+            slot_crops.clear();
+            slot_keys.clear();
+            if openness > 0.0 {
+                if by_slot {
+                    // The FIRST crop in each slot, as the tiles always showed.
+                    slot_crops.resize(slot_count, None);
+                    for c in crops {
+                        if let Some(cell) = c.tower_slot.and_then(|t| slot_crops.get_mut(t as usize)) {
+                            if cell.is_none() {
+                                *cell = Some(*c);
+                            }
+                        }
+                    }
+                }
+                for s in 0..slot_count {
+                    let crop = if by_slot { slot_crops[s] } else { crops.get(s).copied() };
+                    slot_keys.push(slot_tile_key(crop, outlook_here));
+                }
+            }
+            // The group's key: everything that decides its size. None (never skipped, never
+            // remembered) while it opens or closes, or while one of its slots' cards is open.
+            let key = (settled && sel_before.is_none()).then(|| {
+                use std::hash::Hasher;
+                let mut h = widgets::offscreen::KeyHasher::default();
+                h.write_u64(section_key);
+                h.write(title.as_bytes());
+                h.write(area_tag.as_bytes());
+                // The title row: what its words are made from (`count_txt`, `subtitle`), and its
+                // buttons (a button stands taller than words).
+                for n in [slot_count, crops.len(), ready, bearing] {
+                    h.write_usize(n);
+                }
+                if let Some(t) = cfg {
+                    h.write(t.make.as_bytes());
+                    h.write(t.model.as_bytes());
+                    h.write(t.version.as_bytes());
+                }
+                h.write_u8(cfg.is_some() as u8);
+                match &bed {
+                    Some((_, crop, count)) => {
+                        h.write(crop.as_bytes());
+                        h.write_u32(*count);
+                    }
+                    None => h.write_u8(0),
+                }
+                h.write_u8((ready_n > 0) as u8);
+                // Its body drawn or not (settled, so fully open or fully closed).
+                let body_shown = openness >= 1.0;
+                h.write_u8(body_shown as u8);
+                if body_shown {
+                    hash_area_lines(
+                        &mut h,
+                        (ph_units > 0).then_some((ph_lo, ph_hi)),
+                        ph_amendments,
+                        pollinate_here,
+                        air_here,
+                        weeds_here,
+                        cover_here,
+                        pests_here,
+                    );
+                    h.write_usize(slot_count);
+                    for k in &slot_keys {
+                        h.write_u64(*k);
+                    }
+                }
+                h.finish()
+            });
+            if let Some(k) = key {
+                if widgets::offscreen::skip_if_unseen(ui, memo_id, k) {
+                    // Not drawn, but a Collapse all / Expand all still reaches it.
+                    if tree_force.is_some() {
+                        grp_state.store(ui.ctx());
+                    }
+                    continue;
+                }
+            }
+            // Drawn. A click in it that changes its size this frame (its triangle, a slot tile
+            // opening a card) means what was measured is not what the key describes: forgotten.
+            let mut sel_changed = false;
+            widgets::offscreen::measure(ui, memo_id, key, |ui| widgets::expandable_row_id(
+                ui,
+                grp_id,
+                tree_default_open,
+                tree_force,
+                |ui| {
+                    // Tower title row: name + make/model/version + ready
+                    // count + the Plant button (widgets in the title row).
+                    let (count_txt, subtitle) = (count_txt(), subtitle());
+                    ui.label(RichText::new(title).strong().color(theme.accent()));
+                    if !subtitle.is_empty() {
+                        ui.label(RichText::new(format!("· {subtitle}")).size(theme.font_size_small).color(theme.text_muted()));
+                    }
+                    ui.label(RichText::new(format!("· {count_txt}")).size(theme.font_size_small).color(theme.text_secondary()));
+                    if let Some(t) = cfg {
+                        if widgets::compact_button(ui, theme, planted_label, widgets::ButtonVariant::Secondary) {
+                            // The tower's plant ids, one per slot, gathered on the click.
+                            let ids: Vec<String> = t
+                                .plantings
+                                .iter()
+                                .flat_map(|p| std::iter::repeat(p.plant.clone()).take(p.slots.max(1) as usize))
+                                .collect();
+                            act.plant_tower = Some((t.id.clone(), ids));
+                        }
+                    }
+                    // Bed/tray/field Plant button (v0.738 grain loop):
+                    // sows the area's crop into every empty unit.
+                    if let Some((mid, crop, count)) = &bed {
+                        let label = format!("Plant {crop} x{count}");
+                        if widgets::compact_button(ui, theme, &label, widgets::ButtonVariant::Secondary) {
+                            act.plant_bed =
+                                Some((mid.clone(), crop.clone(), *count));
+                        }
+                    }
+                    // Bulk harvest (v0.739): the whole ready set in one
+                    // click, no per-slot clicking.
+                    if ready_n > 0 {
+                        let label = format!("Harvest {} ready", ready_n);
+                        if widgets::compact_button(ui, theme, &label, widgets::ButtonVariant::Primary) {
+                            act.harvest_many =
+                                Some(crops.iter().filter(|c| c.mature && !c.dead).map(|c| c.entity_bits).collect());
+                        }
+                    }
+                },
+                |ui| {
+                    // KEEP IN STEP: every line drawn here above the slot tiles is hashed by
+                    // `hash_area_lines` for the group's offscreen key (its words decide its height).
+                    // Soil pH here (2026-09-26, farming::soil_ph): the
+                    // range over its units, and one button per amendment.
+                    if ph_units > 0 && !ph_amendments.is_empty() {
+                        let (lo, hi) = (ph_lo, ph_hi);
+                        ui.horizontal_wrapped(|ui| {
+                            let range = if hi - lo < 0.05 { format!("Soil pH {lo:.1}") } else { format!("Soil pH {lo:.1} to {hi:.1}") };
+                            ui.label(RichText::new(range).size(theme.font_size_small).color(theme.text_secondary()));
+                            for (id, label) in ph_amendments {
+                                if widgets::compact_button(ui, theme, label, widgets::ButtonVariant::Secondary) {
+                                    act.soil_ph = Some((area_tag.to_string(), id.clone()));
+                                }
+                            }
+                        });
+                    }
+                    // Flowers waiting for a pollinator (2026-09-26,
+                    // farming::pollination): indoors only a hand, bees or
+                    // a device do it. Then the hives reaching this area,
+                    // each with its colony and, when it has no working
+                    // one, the button that introduces a bought colony.
+                    if let Some(p) = &pollinate_here {
+                        if !p.waiting.is_empty() {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(RichText::new(&p.waiting).size(theme.font_size_small).color(theme.warning()));
+                                if widgets::compact_button(ui, theme, "Hand-pollinate", widgets::ButtonVariant::Secondary) {
+                                    act.pollinate = Some(crate::systems::farming::pollination::Request::Hand(area_tag.to_string()));
+                                }
+                            });
+                        }
+                        for h in &p.hives {
+                            ui.horizontal_wrapped(|ui| {
+                                let col = if h.needs_colony { theme.warning() } else { theme.text_secondary() };
+                                ui.label(RichText::new(&h.line).size(theme.font_size_small).color(col));
+                                if h.needs_colony && widgets::compact_button(ui, theme, "Introduce colony", widgets::ButtonVariant::Secondary) {
+                                    act.pollinate = Some(crate::systems::farming::pollination::Request::Colony(h.id.clone()));
+                                }
+                            });
+                        }
+                    }
+                    // The air here (2026-09-26, farming::humidity): its
+                    // humidity and what the room's exhaust fans are
+                    // doing, warmer as it nears the diseases' line.
+                    if let Some((_, line, level)) = &air_here {
+                        let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
+                        ui.label(RichText::new(line).size(theme.font_size_small).color(col));
+                    }
+                    // Weeds in this soil (2026-09-26, farming::weeds): cover, mulch,
+                    // seed bank, and the controls in the order growers are taught.
+                    if let Some(w) = &weeds_here {
+                        ui.horizontal_wrapped(|ui| {
+                            let col = if w.level >= 0.3 { theme.danger() } else if w.noticed { theme.warning() } else { theme.text_secondary() };
+                            ui.label(RichText::new(&w.line).size(theme.font_size_small).color(col));
+                            for (cid, cname, _note) in &w.controls {
+                                if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
+                                    act.weed = Some((w.area.clone(), cid.clone()));
+                                }
+                            }
+                        });
+                    }
+                    // Row cover here (2026-09-27, farming::pests): on or off,
+                    // warned when a crop that needs bees flowers under it.
+                    if let Some(cv) = &cover_here {
+                        ui.horizontal_wrapped(|ui| {
+                            let col = if cv.warn { theme.warning() } else { theme.text_secondary() };
+                            ui.label(RichText::new(&cv.line).size(theme.font_size_small).color(col));
+                            for (cid, cname, _note) in &cv.controls {
+                                if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
+                                    act.pest_control = Some((cv.area.clone(), cid.clone()));
+                                }
+                            }
+                        });
+                    }
+                    // Pests and diseases here (2026-09-26, farming::pests):
+                    // each with its level and its controls, gentlest first (IPM).
+                    if let Some(ap) = &pests_here {
+                        for (name, level, controls) in &ap.pests {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(
+                                    RichText::new(format!("{name} {:.0}%", level * 100.0))
+                                        .size(theme.font_size_small)
+                                        .color(if *level >= 0.3 { theme.danger() } else { theme.warning() }),
+                                );
+                                for (cid, cname, _note) in controls {
+                                    if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
+                                        act.pest_control = Some((ap.area.clone(), cid.clone()));
+                                    }
+                                }
+                            });
+                        }
+                        for (rname, days) in &ap.releases {
+                            ui.label(
+                                RichText::new(format!("{rname}: working, {days:.0} garden days left"))
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_secondary()),
+                            );
+                        }
+                    }
+                    if slot_count == 0 {
+                        ui.label(
+                            RichText::new("Nothing growing here yet.")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                        return;
+                    }
+                    // Prettify a plant id ("cherry_tomato" -> "Cherry Tomato")
+                    // for slots not yet grown (no GuiCrop to read a name from).
+                    let prettify = |id: &str| -> String {
+                        id.split(['_', '-', ' '])
+                            .filter(|w| !w.is_empty())
+                            .map(|w| {
+                                let mut ch = w.chars();
+                                match ch.next() {
+                                    Some(f) => {
+                                        f.to_uppercase().collect::<String>() + ch.as_str()
+                                    }
+                                    None => String::new(),
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    };
+                    // SLOT TILE GRID (v0.739, operator field report 2:
+                    // "scroll this list of slots and expand each one
+                    // individually is tedious"). Every slot is a compact
+                    // status tile; clicking one opens a SINGLE detail
+                    // card below the grid. Replaces one expandable row
+                    // per slot.
+                    let mut sel: Option<usize> = ui
+                        .data_mut(|d| d.get_temp::<Option<usize>>(sel_id))
+                        .flatten();
+                    // Wrap by the VISIBLE width (same fix as the backpack
+                    // grid: the tree content Ui is width-unbounded).
+                    let visible_w = (ui.ctx().screen_rect().width()
+                        - ui.min_rect().left()
+                        - 24.0)
+                        .max(140.0);
+                    const SLOT_TILE_W: f32 = 68.0;
+                    let per_row =
+                        ((visible_w / (SLOT_TILE_W + 6.0)).floor() as usize).max(2);
+                    // Per-slot resolve, shared by the tiles and the card.
+                    let slot_data = |s: usize| {
+                        let spec = garden_slot_spec(&bed, cfg, s);
+                        // The first crop in the slot, found once for the group above.
+                        let crop: Option<&crate::gui::GuiCrop> = if by_slot {
+                            slot_crops.get(s).copied().flatten()
+                        } else {
+                            crops.get(s).copied()
+                        };
+                        let plant_id = spec
+                            .map(|sp| sp.0.to_string())
+                            .or_else(|| crop.map(|c| c.name.clone()))
+                            .unwrap_or_default();
+                        let name = crop.map(|c| c.name.clone()).unwrap_or_else(|| {
+                            if plant_id.is_empty() {
+                                format!("Slot {}", s + 1)
+                            } else {
+                                prettify(&plant_id)
+                            }
+                        });
+                        (spec, crop, plant_id, name)
+                    };
+                    for r in 0..slot_count.div_ceil(per_row) {
+                        let (first, end) = (r * per_row, ((r + 1) * per_row).min(slot_count));
+                        // The row's key (see LAY OUT ONLY WHAT IS ON SCREEN): its tiles' own keys,
+                        // how many tiles share a row, and which one is selected (its border is
+                        // wider). A row wholly off screen takes its remembered height instead.
+                        let row_key = slot_keys.get(first..end).map(|keys| {
+                            use std::hash::Hasher;
+                            let mut h = widgets::offscreen::KeyHasher::default();
+                            h.write_u64(section_key);
+                            h.write_usize(per_row);
+                            for k in keys {
+                                h.write_u64(*k);
+                            }
+                            h.write_usize(sel.filter(|s| (first..end).contains(s)).map_or(0, |s| s - first + 1));
+                            h.finish()
+                        });
+                        widgets::offscreen::show(ui, grp_id.with(("row", r)), row_key, |ui| ui.horizontal(|ui| {
+                            for s in first..end {
+                                // The headless test counts the tiles laid out (inventory_garden_tests.rs).
+                                #[cfg(test)]
+                                garden_tests::note_tile(gi, s);
+                                let (_, crop, plant_id, name) = slot_data(s);
+                                // "ready" only when there is something to harvest;
+                                // a picked plant between picks reads "bearing" and
+                                // when its next pick comes (farming::picking).
+                                let (status, scol) = match crop {
+                                    Some(c) => {
+                                        let word = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, false);
+                                        let col = if c.dead { theme.danger() } else if c.mature { theme.accent() } else { theme.text_secondary() };
+                                        (word, col)
+                                    }
+                                    None => ("planned".to_string(), theme.text_muted()),
+                                };
+                                let selected = sel == Some(s);
+                                let stroke = if selected {
+                                    Stroke::new(2.0, theme.accent())
+                                } else {
+                                    Stroke::new(1.0, theme.border())
+                                };
+                                let swatch = widgets::swatch_color(if plant_id.is_empty() {
+                                    &name
+                                } else {
+                                    &plant_id
+                                });
+                                let glyph = name
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.to_uppercase().to_string())
+                                    .unwrap_or_default();
+                                let inner = Frame::none()
+                                    .fill(theme.bg_card())
+                                    .rounding(Rounding::same(theme.border_radius_lg as u8))
+                                    .stroke(stroke)
+                                    .inner_margin(Vec2::new(5.0, 5.0))
+                                    .show(ui, |ui| {
+                                        ui.set_width(SLOT_TILE_W - 10.0);
+                                        ui.vertical_centered(|ui| {
+                                            widgets::placeholder_tile(ui, theme, swatch, 34.0, &glyph);
+                                            ui.label(
+                                                RichText::new(status)
+                                                    .size(theme.font_size_small)
+                                                    .color(scol),
+                                            );
+                                            if let Some(c) = crop {
+                                                ui.add(
+                                                    egui::ProgressBar::new(c.progress.clamp(0.0, 1.0))
+                                                        .fill(theme.accent())
+                                                        .desired_width(SLOT_TILE_W - 16.0)
+                                                        .desired_height(4.0),
+                                                );
+                                                // Its wait in real time, or that it needs water
+                                                // (farming::outlook, 2026-10-12).
+                                                if let Some(o) = outlook_here.get(&c.entity_bits).filter(|o| !o.tile.is_empty()) {
+                                                    let col = if o.thirsty { theme.warning() } else { theme.text_muted() };
+                                                    ui.label(RichText::new(&o.tile).size(theme.font_size_small).color(col));
+                                                }
+                                            }
+                                        });
+                                    });
+                                // A plant between picks: the tile's short "next 1.5d"
+                                // in full on hover.
+                                let hover = match crop.filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()) {
+                                    Some(c) => format!("Slot {} · {name} · {}", s + 1, crate::systems::farming::picking::stage_word(false, false, &c.stage, &c.picking, true)),
+                                    None => match crop.and_then(|c| outlook_here.get(&c.entity_bits)).filter(|o| !o.grown && !o.ripens.is_empty()) {
+                                        // Its wait in full (farming::outlook, 2026-10-12).
+                                        Some(o) => format!("Slot {} · {name} · ripe in {}", s + 1, o.ripens),
+                                        None => format!("Slot {} · {name}", s + 1),
+                                    },
+                                };
+                                let resp = inner
+                                    .response
+                                    .interact(egui::Sense::click())
+                                    .on_hover_text(hover);
+                                if resp.hovered() {
+                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                }
+                                if resp.clicked() {
+                                    sel = if selected { None } else { Some(s) };
+                                }
+                            }
+                        }));
+                    }
+                    ui.data_mut(|d| d.insert_temp(sel_id, sel));
+                    sel_changed = sel != sel_before;
+                    // THE CARD — one for the selected slot: colored tile +
+                    // name + role + planting note + live details/actions.
+                    if let Some(s) = sel.filter(|s| *s < slot_count) {
+                        let (spec, crop, plant_id, name) = slot_data(s);
+                        let role = spec.map(|sp| sp.1.to_string()).unwrap_or_default();
+                        let note = spec.map(|sp| sp.2.to_string()).unwrap_or_default();
+                        let swatch = widgets::swatch_color(if plant_id.is_empty() {
+                            &name
+                        } else {
+                            &plant_id
+                        });
+                        let glyph = name
+                            .chars()
+                            .next()
+                            .map(|c| c.to_uppercase().to_string())
+                            .unwrap_or_default();
+                        ui.add_space(theme.spacing_xs);
+                        ui.horizontal_top(|ui| {
+                            widgets::placeholder_tile(ui, theme, swatch, 72.0, &glyph);
+                            ui.add_space(theme.spacing_sm);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(format!("{name} · Slot {}", s + 1))
+                                        .size(theme.font_size_heading)
+                                        .strong()
+                                        .color(theme.accent()),
+                                );
+                                if !role.is_empty() {
+                                    ui.label(
+                                        RichText::new(&role)
+                                            .size(theme.font_size_small)
+                                            .italics()
+                                            .color(theme.text_muted()),
+                                    );
+                                }
+                                if !note.is_empty() {
+                                    ui.label(
+                                        RichText::new(&note)
+                                            .color(theme.text_secondary()),
+                                    );
+                                }
+                                ui.add_space(theme.spacing_xs);
+                                match crop {
+                                    Some(c) => {
+                                        egui::Grid::new(("slot_card", gi, s))
+                                            .spacing([10.0, 2.0])
+                                            .show(ui, |ui| {
+                                                let mut stat =
+                                                    |ui: &mut egui::Ui,
+                                                     k: &str,
+                                                     v: String| {
+                                                        ui.label(
+                                                            RichText::new(k)
+                                                                .size(theme.font_size_small)
+                                                                .color(theme.text_muted()),
+                                                        );
+                                                        ui.label(
+                                                            RichText::new(v)
+                                                                .size(theme.font_size_small)
+                                                                .color(theme.text_secondary()),
+                                                        );
+                                                        ui.end_row();
+                                                    };
+                                                let stage = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, true);
+                                                stat(ui, "Stage", stage);
+                                                stat(ui, "Plants", c.plants.to_string());
+                                                stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
+                                                // Its wait and its water in plain words (2026-10-12,
+                                                // first-hour audit F11, farming::outlook).
+                                                if let Some(o) = outlook_here.get(&c.entity_bits) {
+                                                    if !o.ripens.is_empty() && !o.grown {
+                                                        stat(ui, "Ripe in", o.ripens.clone());
+                                                    }
+                                                    if !o.water.is_empty() {
+                                                        ui.label(RichText::new("Water").size(theme.font_size_small).color(theme.text_muted()));
+                                                        let col = if o.thirsty { theme.warning() } else { theme.text_secondary() };
+                                                        ui.label(RichText::new(&o.water).size(theme.font_size_small).color(col));
+                                                        ui.end_row();
+                                                    }
+                                                }
+                                                // Grams in the unit against the season's need (2026-09-26).
+                                                stat(ui, "Soil N·P·K", format!("{:.1} · {:.1} · {:.1} g", c.soil[0], c.soil[1], c.soil[2]));
+                                                stat(ui, "Season needs", format!("{:.1} · {:.1} · {:.1} g", c.need[0], c.need[1], c.need[2]));
+                                                if let Some(n) = &c.short_of {
+                                                    stat(ui, "Short of", n.clone());
+                                                }
+                                                // What each kg of this harvest takes out of the soil.
+                                                stat(ui, "Each kg takes", format!("{:.1} · {:.1} · {:.1} g", c.n, c.p, c.k));
+                                                stat(ui, "Light", c.light.clone());
+                                                if !c.light_need.is_empty() {
+                                                    stat(ui, "Light need", c.light_need.clone());
+                                                }
+                                                // The unit's pH against the crop's window (farming::soil_ph).
+                                                if let Some(ph) = c.ph {
+                                                    let (k, v) = if c.ph_held {
+                                                        ("Solution pH", format!("{ph:.1}, held by the tower"))
+                                                    } else {
+                                                        ("Soil pH", format!("{ph:.1} (grows best at {:.1} to {:.1})", c.ph_window[0], c.ph_window[1]))
+                                                    };
+                                                    stat(ui, k, v);
+                                                    if c.ph_cap < 99.5 {
+                                                        stat(ui, "pH holds health to", format!("{:.0}%", c.ph_cap));
+                                                    }
+                                                }
+                                                if !c.pollination.is_empty() {
+                                                    stat(ui, "Pollination", c.pollination.clone());
+                                                }
+                                                // Picked over a season (farming::picking).
+                                                if !c.picking.is_empty() {
+                                                    stat(ui, "Picking", c.picking.card.clone());
+                                                }
+                                                // The air it grows in against its window (farming::humidity).
+                                                if !c.humidity.is_empty() {
+                                                    stat(ui, "Humidity", c.humidity.clone());
+                                                }
+                                                if !c.weeds.is_empty() {
+                                                    stat(ui, "Weeds", c.weeds.clone()); // farming::weeds
+                                                }
+                                                stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
+                                                stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
+                                                stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
+                                                stat(ui, "Health", format!("{:.0}%", c.health));
+                                                // What the harvest will be scaled by (2026-09-26).
+                                                stat(ui, "Season health", format!("{:.0}%", c.season_health * 100.0));
+                                            });
+                                        ui.add_space(theme.spacing_xs);
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 4.0;
+                                            if c.mature && widgets::compact_button(ui, theme, "Harvest", widgets::ButtonVariant::Primary) {
+                                                act.harvest_crop = Some(c.entity_bits);
+                                            }
+                                            if !c.dead && widgets::compact_button(ui, theme, "Water", widgets::ButtonVariant::Secondary) {
+                                                act.water_crop = Some(c.entity_bits);
+                                            }
+                                            if !c.dead && widgets::compact_button(ui, theme, "Fertilize", widgets::ButtonVariant::Secondary) {
+                                                act.fertilize_crop = Some(c.entity_bits);
+                                            }
+                                            // A ripe picked plant can be pulled early to free its plot.
+                                            if !c.dead && c.progress >= 1.0 && !c.picking.is_empty() && widgets::compact_button(ui, theme, "Clear", widgets::ButtonVariant::Secondary) {
+                                                act.clear_crop = Some(c.entity_bits);
+                                            }
+                                        });
+                                    }
+                                    None => {
+                                        ui.label(
+                                            RichText::new("Not yet planted. Use the Plant button above to fill empty slots.")
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_muted()),
+                                        );
+                                    }
+                                }
+                            });
+                        });
+                        ui.add_space(theme.spacing_xs);
+                    }
+                },
+            ));
+            let opened_or_closed = egui::collapsing_header::CollapsingState::load(ui.ctx(), grp_id)
+                .is_some_and(|s| s.is_open() != open);
+            if sel_changed || opened_or_closed {
+                widgets::offscreen::forget(ui, memo_id);
+            }
+        }
+    }
+}
+
+/// One planned slot's (plant id, role, note) for the Garden section, by index (2026-10-31): a bed
+/// plans one slot per unit, all its crop; a tower design one per planting slot, counted EXACTLY as
+/// the farming handler assigns `tower_slot` (`slots.max(1)` each, in order). None past the plan,
+/// and for a group with neither ("Other crops", a machine group).
+fn garden_slot_spec<'a>(
+    bed: &'a Option<(String, String, u32)>,
+    cfg: Option<&'a crate::gui::TowerConfig>,
+    s: usize,
+) -> Option<(&'a str, &'a str, &'a str)> {
+    if let Some((_, crop, count)) = bed {
+        return (s < *count as usize).then_some((crop.as_str(), "", ""));
+    }
+    let mut first = 0usize;
+    for p in &cfg?.plantings {
+        let n = p.slots.max(1) as usize;
+        if s < first + n {
+            return Some((p.plant.as_str(), p.role.as_str(), p.note.as_str()));
+        }
+        first += n;
+    }
+    None
+}
+
+/// A slot tile's key for skipping it off screen (2026-10-31, gui/widgets/offscreen.rs): what
+/// decides its height. A tile is a fixed width, so its height is its lines: the word under its
+/// square (one line, or two for a plant between picks, "bearing / next 1.5d", or more where a long
+/// growth stage wraps), the growth bar when a crop is in the slot, and the line under the bar when
+/// its outlook has one ("needs water", "45 days"). KEEP IN STEP with the tile drawn in
+/// `draw_garden_section`: a line added there and not hashed here keeps a stale height.
+fn slot_tile_key(
+    crop: Option<&crate::gui::GuiCrop>,
+    outlook: &std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook, widgets::offscreen::KeyBuild>,
+) -> u64 {
+    use std::hash::Hasher;
+    let mut h = widgets::offscreen::KeyHasher::default();
+    match crop {
+        None => h.write_u8(0),
+        Some(c) => {
+            h.write_u8(1);
+            // The very word the tile prints, hashed without building it.
+            let _ = crate::systems::farming::picking::write_stage_word(&mut h, c.dead, c.mature, &c.stage, &c.picking, false);
+            match outlook.get(&c.entity_bits).filter(|o| !o.tile.is_empty()) {
+                Some(o) => h.write(o.tile.as_bytes()),
+                None => h.write_u8(0),
+            }
+        }
+    }
+    h.finish()
+}
+
+/// The lines above a group's slot tiles, hashed for the group's offscreen key (2026-10-31): each
+/// wraps at the panel's width, so its words decide the group's height. Each is hashed as it is
+/// printed (the pH to one decimal, a pest's level to a whole percent, a release's days whole), so
+/// a number creeping between frames re-lays the group out only when what it shows changes. KEEP IN
+/// STEP with the lines `draw_garden_section` draws in a group's body.
+#[allow(clippy::too_many_arguments)]
+fn hash_area_lines(
+    h: &mut widgets::offscreen::KeyHasher,
+    ph: Option<(f32, f32)>,
+    ph_amendments: &[(String, String)],
+    pollinate: Option<&crate::systems::farming::pollination::AreaRow>,
+    air: Option<&(String, String, u8)>,
+    weeds: Option<&crate::systems::farming::weeds::WeedAreaRow>,
+    cover: Option<&crate::systems::farming::pests::CoverRow>,
+    pests: Option<&crate::gui::GuiAreaPests>,
+) {
+    use std::fmt::Write as _;
+    use std::hash::Hasher;
+    // A marker per line, so two different sets of lines never run together into one.
+    match ph.filter(|_| !ph_amendments.is_empty()) {
+        Some((lo, hi)) => {
+            h.write_u8(1);
+            let _ = write!(h, "{lo:.1} {hi:.1} {}", hi - lo < 0.05);
+            for (_, label) in ph_amendments {
+                h.write(label.as_bytes());
+            }
+        }
+        None => h.write_u8(0),
+    }
+    match pollinate {
+        Some(p) => {
+            h.write_u8(2);
+            h.write(p.waiting.as_bytes());
+            for hive in &p.hives {
+                h.write(hive.line.as_bytes());
+                h.write_u8(hive.needs_colony as u8);
+            }
+        }
+        None => h.write_u8(0),
+    }
+    match air {
+        Some((_, line, _)) => {
+            h.write_u8(3);
+            h.write(line.as_bytes());
+        }
+        None => h.write_u8(0),
+    }
+    match weeds {
+        Some(w) => {
+            h.write_u8(4);
+            h.write(w.line.as_bytes());
+            for (_, name, _) in &w.controls {
+                h.write(name.as_bytes());
+            }
+        }
+        None => h.write_u8(0),
+    }
+    match cover {
+        Some(cv) => {
+            h.write_u8(5);
+            h.write(cv.line.as_bytes());
+            for (_, name, _) in &cv.controls {
+                h.write(name.as_bytes());
+            }
+        }
+        None => h.write_u8(0),
+    }
+    match pests {
+        Some(ap) => {
+            h.write_u8(6);
+            for (name, level, controls) in &ap.pests {
+                let _ = write!(h, "{name} {:.0}", level * 100.0);
+                for (_, cname, _) in controls {
+                    h.write(cname.as_bytes());
+                }
+            }
+            for (rname, days) in &ap.releases {
+                let _ = write!(h, "{rname} {days:.0}");
+            }
+        }
+        None => h.write_u8(0),
+    }
+}
+
+/// The rows of one of the Garden's per-area lists by area, the first row for an area winning (as a
+/// search from the front finds it). Built once a frame (2026-10-31) in place of a search per group.
+fn rows_by_area<'a, T>(
+    rows: &'a [T],
+    area: impl Fn(&'a T) -> &'a str,
+) -> std::collections::HashMap<&'a str, &'a T, widgets::offscreen::KeyBuild> {
+    let mut by_area = std::collections::HashMap::with_capacity_and_hasher(rows.len(), Default::default());
+    for row in rows {
+        by_area.entry(area(row)).or_insert(row);
+    }
+    by_area
+}
+
+/// The machine type of each placed machine named in `ids`, the way `MachineHome::all_instances`
+/// names them (each array cell "<prefix>_<n>"), and as its map would hold them (a later entry
+/// with the same id wins), without copying every machine in the home: the Garden section built
+/// that whole list every frame just to title its groups (2026-10-31).
+fn machine_types_of(home: &crate::machines::MachineHome, ids: &[&str]) -> std::collections::HashMap<String, String> {
+    let wanted: std::collections::HashSet<&str> = ids.iter().copied().collect();
+    let mut out = std::collections::HashMap::new();
+    for inst in &home.instances {
+        if wanted.contains(inst.id.as_str()) {
+            out.insert(inst.id.clone(), inst.machine.clone());
+        }
+    }
+    for arr in &home.arrays {
+        let cells = arr.rows as usize * arr.cols as usize;
+        for id in ids {
+            let cell = id
+                .strip_prefix(arr.id_prefix.as_str())
+                .and_then(|rest| rest.strip_prefix('_'))
+                .and_then(|n| n.parse::<usize>().ok().filter(|i| i.to_string() == n));
+            if cell.is_some_and(|i| i < cells) {
+                out.insert(id.to_string(), arr.machine.clone());
+            }
+        }
+    }
+    out
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Populate equipped slots from the loaded
     // `data/inventory/equipment_slots.json` (lazily: guards against the GUI
@@ -1502,35 +2601,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     let mut item_acts = ItemCardActions::default();
     // Crop actions come from the Garden section in the central panel; applied after.
-    let mut action_water_crop: Option<u64> = None;
-    let mut action_harvest_crop: Option<u64> = None;
-    let mut action_dev_grow = false;
-    // "Dev: stock seeds" — the seed item ids of the starter set to grant.
-    let mut action_stock_seeds: Option<Vec<String>> = None;
-    // Plant a whole tower (v0.386): (tower id, plant ids) to spawn as crops, set by
-    // the Garden "Plant a tower" buttons, applied to GuiState after the panel.
-    let mut action_plant_tower: Option<(String, Vec<String>)> = None;
-    // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id, plant id,
-    // unit count), set by the bed groups' Plant buttons, applied after the panel.
-    let mut action_plant_bed: Option<(String, String, u32)> = None;
-    // Bulk harvest (v0.739): every mature crop's bits from a group's
-    // "Harvest N ready" button, applied after the panel.
-    let mut action_harvest_many: Option<Vec<u64>> = None;
-    let mut action_pest_control: Option<(String, String)> = None;
-    let mut action_weed: Option<(String, String)> = None; // Hoe / Mulch (farming::weeds)
-    // Soil pH amendment (farming::soil_ph): (area, amendment id).
-    let mut action_soil_ph: Option<(String, String)> = None;
-    // Hand-pollinate an area, or introduce a colony in a hive (farming::pollination).
-    let mut action_pollinate: Option<crate::systems::farming::pollination::Request> = None;
-    // Clear a ripe picked plant from its plot (farming::picking).
-    let mut action_clear_crop: Option<u64> = None;
+    let mut garden_acts = GardenActions::default();
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
     let mut action_follow_vehicle: Option<u64> = None;
     let mut action_rest = false;
     let mut action_compost = false;
-    let mut action_fertilize_crop: Option<u64> = None;
     // ── ONE PANEL (operator 2026-06-08: back to a single panel; the 3-panel split
     //    read as stair-stepped). Everything in one CentralPanel + a vertical scroll,
     //    widgets aligned, the status bars capped at theme.status_bar_width. The
@@ -2123,727 +3200,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 //    buttons sit in the body. Closes before the Mining divider. ──
                 widgets::rgb_section_divider(ui, theme);
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "garden"), "Garden", tree_force) {
-                // The section's own draw (cpu.garden.page, 2026-10-30): measured on a wall screen.
-                let _garden_draw = crate::frame_costs::stage("cpu.garden.page");
-                ui.horizontal_wrapped(|ui| {
-                    // Dev: grant the starter seed set (one of each tower variety), so
-                    // survival-mode planting is testable now. Creative ignores seeds.
-                    // Dev play mode + cheats switch, both required (task #50 gate).
-                    if state.dev_cheats_active(theme) && widgets::secondary_button(ui, theme, "Dev: stock seeds") {
-                        let mut seeds: Vec<String> = Vec::new();
-                        for t in &state.tower_configs {
-                            for p in &t.plantings {
-                                let sid = format!("seed_{}_0", p.plant);
-                                if !seeds.contains(&sid) {
-                                    seeds.push(sid);
-                                }
-                            }
-                        }
-                        // Bed/tray/field crops too (v0.738): the medium defaults,
-                        // so survival-mode bed planting is testable immediately.
-                        for m in &state.grow_media {
-                            if let Some(crop) = &m.default_crop {
-                                let sid = format!("seed_{crop}_0");
-                                if !seeds.contains(&sid) {
-                                    seeds.push(sid);
-                                }
-                            }
-                        }
-                        if !seeds.is_empty() {
-                            action_stock_seeds = Some(seeds);
-                        }
-                    }
-                    if state.dev_cheats_active(theme) && !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
-                        action_dev_grow = true;
-                    }
-                });
-                ui.add_space(theme.spacing_xs);
-                // Grow-area overview: EVERY growing machine in the home's garden
-                // (towers, beds, racks, tanks, fields) and how many of each, as tiles,
-                // so the section shows the whole garden at a glance, not just the two
-                // plantable tower designs. Data-driven from data/machines/home.ron.
-                let areas = state.garden_areas.clone();
-                if !areas.is_empty() {
-                    let total: u32 = areas.iter().map(|a| a.count).sum();
-                    // The Home page's food total, computed from the crops (one figure, one source).
-                    let grown = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
-                    ui.label(
-                        RichText::new(format!("{} grow areas, {} kinds, {:.0} kcal/day grown", total, areas.len(), grown))
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                    // The home's own air and its loops (2026-09-26, ship life
-                    // support): the air the whole garden breathes into, and the
-                    // day's carbon, oxygen and water between it and the tanks.
-                    for (line, level) in &state.garden_pests.home_air {
-                        let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
-                        ui.label(RichText::new(line).size(theme.font_size_small).color(col));
-                    }
-                    ui.add_space(theme.spacing_xs);
-                    let gcols = 4usize;
-                    ui.columns(gcols, |cols| {
-                        for (i, a) in areas.iter().enumerate() {
-                            let c = &mut cols[i % gcols];
-                            if garden_area_tile(c, theme, a) {
-                                let mid = a.machine_id.clone();
-                                with_garden_edit(|s| s.open = Some(mid));
-                            }
-                            c.add_space(theme.spacing_sm);
-                        }
-                    });
-                    ui.add_space(theme.spacing_sm);
-                    ui.label(
-                        RichText::new("Plantable tower designs")
-                            .strong()
-                            .color(theme.text_secondary()),
-                    );
-                    ui.add_space(theme.spacing_xs);
-                }
-                // Garden as an aligned TABLE grouped by tower (operator 2026-06-08:
-                // rows/columns spreadsheet design, not a tree+detail). One collapsible
-                // group per tower (a Plant button in its body), each a compact egui::Grid
-                // with fixed columns; the growth bar is capped at theme.status_bar_width.
-                // Seed-planted crops fall under "Other crops".
-                if state.tower_configs.is_empty() && state.crops.is_empty() {
-                    ui.label(
-                        RichText::new("No garden plots yet. Add an aeroponic tower design at Home.")
-                            .color(theme.text_muted()),
-                    );
-                } else {
-                    // Group order: one per configured tower, then "Other crops" if any
-                    // seed-planted (tower-less) crops exist.
-                    let mut groups: Vec<(Option<String>, String)> = state
-                        .tower_configs
-                        .iter()
-                        .map(|t| (Some(t.id.clone()), t.name.clone()))
-                        .collect();
-                    // Non-tower grow areas (beds, trays, fields — v0.738 grain
-                    // loop) get their own groups: crops planted there carry the
-                    // MACHINE id as their grow-area tag, so the same filter works.
-                    for a in &state.garden_areas {
-                        if a.machine_id.starts_with("aeroponic_tower") {
-                            continue;
-                        }
-                        groups.push((Some(a.machine_id.clone()), a.label.clone()));
-                    }
-                    // Crops planted into a specific machine (the showcase
-                    // garden: "ntower_3", "grain_field_1") get one group per
-                    // machine (2026-09-25; they were invisible before).
-                    {
-                        let known: Vec<String> = groups.iter().filter_map(|(g, _)| g.clone()).collect();
-                        let type_of: std::collections::HashMap<String, String> = state
-                            .home_machines
-                            .as_ref()
-                            .map(|h| h.all_instances().into_iter().map(|i| (i.id, i.machine)).collect())
-                            .unwrap_or_default();
-                        // Crops' areas, and an emptied bed that still carries weeds or
-                        // mulch (farming::weeds), so it can be hoed before sowing.
-                        let crop_areas: Vec<&str> = state
-                            .crops
-                            .iter()
-                            .filter_map(|c| c.tower_id.as_deref())
-                            .chain(state.garden_pests.weeds.iter().map(|w| w.area.as_str()))
-                            // And an emptied bed with a row cover still on, so it can come off.
-                            .chain(state.garden_pests.covers.iter().map(|c| c.area.as_str()))
-                            .collect();
-                        for (id, title) in crate::gui::machine_crop_groups(&crop_areas, &known, &type_of, &state.garden_areas) {
-                            groups.push((Some(id), title));
-                        }
-                    }
-                    if state.crops.iter().any(|c| c.tower_id.is_none()) {
-                        groups.push((None, "Other crops".to_string()));
-                    }
-                    // Every crop sorted into its group in ONE pass (2026-10-30, sim-frame-cost.md S1b): each
-                    // group used to walk every crop, 91 groups times 1,981 crops a frame in the showcase.
-                    let mut by_group: std::collections::HashMap<Option<&str>, Vec<&crate::gui::GuiCrop>> =
-                        std::collections::HashMap::new();
-                    for c in &state.crops {
-                        by_group.entry(c.tower_id.as_deref()).or_default().push(c);
-                    }
-                    for (gi, (tid, title)) in groups.iter().enumerate() {
-                        let crops: Vec<&crate::gui::GuiCrop> = by_group.get(&tid.as_deref()).cloned().unwrap_or_default();
-                        let ready = crops.iter().filter(|c| c.mature).count();
-                        // Bulk-harvest set (v0.739): entity bits of every crop in
-                        // this group that is ready to pick (mature and not dead).
-                        let ready_bits: Vec<u64> = crops
-                            .iter()
-                            .filter(|c| c.mature && !c.dead)
-                            .map(|c| c.entity_bits)
-                            .collect();
-                        // The tower's CONFIG (None for the "Other crops" group, which
-                        // holds loose seed-planted crops with no fixed-slot design).
-                        let cfg = tid
-                            .as_ref()
-                            .and_then(|id| state.tower_configs.iter().find(|t| &t.id == id));
-                        // Bed/tray/field group data (v0.738 grain loop): the grow
-                        // area's crop (edit-modal Crop field if typed, else the
-                        // medium's default_crop) and its unit count. None for tower
-                        // groups, "Other crops", and media with no plantable crop.
-                        let bed: Option<(String, String, u32)> = if cfg.is_none() {
-                            tid.as_ref().and_then(|mid| {
-                                state
-                                    .garden_areas
-                                    .iter()
-                                    .find(|a| &a.machine_id == mid)
-                                    .and_then(|a| {
-                                        let typed = with_garden_edit(|s| {
-                                            s.configs
-                                                .get(mid)
-                                                .map(|c| c.crop.trim().to_lowercase())
-                                        })
-                                        .filter(|c| !c.is_empty());
-                                        let crop = typed.or_else(|| {
-                                            state
-                                                .grow_media
-                                                .iter()
-                                                .find(|m| m.matches(mid))
-                                                .and_then(|m| m.default_crop.clone())
-                                        });
-                                        // One crop per plot of every machine (grow_media `plots`).
-                                        let plots = state.grow_media.iter().find(|m| m.matches(mid)).map_or(1, |m| m.plots.max(1));
-                                        crop.map(|c| (mid.clone(), c, a.count.max(1) * plots))
-                                    })
-                            })
-                        } else {
-                            None
-                        };
-                        // Per-slot planned spec (plant id, role, note), flattened from the
-                        // plantings EXACTLY as the farming handler assigns tower_slot, so
-                        // slot index lines up with crop.tower_slot. Empty for "Other crops".
-                        let mut slot_specs: Vec<(String, String, String)> = cfg
-                            .map(|t| {
-                                t.plantings
-                                    .iter()
-                                    .flat_map(|p| {
-                                        std::iter::repeat((
-                                            p.plant.clone(),
-                                            p.role.clone(),
-                                            p.note.clone(),
-                                        ))
-                                        .take(p.slots.max(1) as usize)
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        // A bed group plans one slot per UNIT, all the same crop
-                        // (v0.738) — so unplanted units still render as rows.
-                        if let Some((_, crop, count)) = &bed {
-                            slot_specs = std::iter::repeat((
-                                crop.clone(),
-                                String::new(),
-                                String::new(),
-                            ))
-                            .take(*count as usize)
-                            .collect();
-                        }
-                        // Slot rows to render: the design's planned slots for a real
-                        // tower or bed, else one row per loose crop ("Other crops").
-                        let by_slot = cfg.is_some() || bed.is_some();
-                        let slot_count = if by_slot { slot_specs.len() } else { crops.len() };
-                        let count_txt = if slot_count == 0 {
-                            "no slots".to_string()
-                        } else if crops.is_empty() {
-                            format!("{} slots · not planted", slot_count)
-                        } else {
-                            // Picked plants between picks (farming::picking): bearing,
-                            // not ready, so counted apart from the ready ones.
-                            let bearing = crops.iter().filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()).count();
-                            if bearing > 0 {
-                                format!("{}/{} ready · {} bearing · {} slots", ready, crops.len(), bearing, slot_count)
-                            } else {
-                                format!("{}/{} ready · {} slots", ready, crops.len(), slot_count)
-                            }
-                        };
-                        // Make/model/version subtitle for the tower title row (operator
-                        // 2026-06-08: "aeroponic tower make model version"). Data-driven.
-                        let subtitle = cfg
-                            .map(|t| {
-                                let mut parts: Vec<String> = Vec::new();
-                                if !t.make.is_empty() {
-                                    parts.push(t.make.clone());
-                                }
-                                if !t.model.is_empty() {
-                                    parts.push(t.model.clone());
-                                }
-                                if !t.version.is_empty() {
-                                    parts.push(format!("v{}", t.version));
-                                }
-                                parts.join(" ")
-                            })
-                            .unwrap_or_default();
-                        // Resolve the tower's plant-id list up front (so the Plant button
-                        // doesn't borrow state inside the body closure).
-                        let plant_ids: Option<(String, Vec<String>)> = cfg.map(|t| {
-                            let ids: Vec<String> = t
-                                .plantings
-                                .iter()
-                                .flat_map(|p| {
-                                    std::iter::repeat(p.plant.clone()).take(p.slots.max(1) as usize)
-                                })
-                                .collect();
-                            (t.id.clone(), ids)
-                        });
-                        let planted_label = if crops.is_empty() { "Plant this tower" } else { "Plant again" };
-                        let area_tag = tid.clone().unwrap_or_default();
-                        let pests_here = state.garden_pests.areas.iter().find(|a| a.area == area_tag).cloned();
-                        // The pH range of this group's soil units, for the Lime /
-                        // Sulfur row (none for towers, which hold theirs).
-                        let soil_phs: Vec<f32> = crops
-                            .iter()
-                            .filter(|c| !c.dead && !c.ph_held && c.tower_slot.is_some())
-                            .filter_map(|c| c.ph)
-                            .collect();
-                        let ph_amendments = state.garden_pests.ph_amendments.clone();
-                        let pollinate_here = state.garden_pests.pollinate_areas.iter().find(|a| a.area == area_tag).cloned();
-                        let air_here = state.garden_pests.air.iter().find(|a| a.0 == area_tag).cloned();
-                        let weeds_here = state.garden_pests.weeds.iter().find(|w| w.area == area_tag).cloned();
-                        let cover_here = state.garden_pests.covers.iter().find(|c| c.area == area_tag).cloned();
-                        // Each crop's wait and water in words (farming::outlook, 2026-10-12), read from the
-                        // one map by entity (it was copied per group, every crop's outlook every frame).
-                        let outlook_here = &state.garden_pests.outlook;
-                        widgets::expandable_row(
-                            ui,
-                            ("garden_grp", gi),
-                            tree_default_open,
-                            tree_force,
-                            |ui| {
-                                // Tower title row: name + make/model/version + ready
-                                // count + the Plant button (widgets in the title row).
-                                ui.label(RichText::new(title).strong().color(theme.accent()));
-                                if !subtitle.is_empty() {
-                                    ui.label(RichText::new(format!("· {subtitle}")).size(theme.font_size_small).color(theme.text_muted()));
-                                }
-                                ui.label(RichText::new(format!("· {count_txt}")).size(theme.font_size_small).color(theme.text_secondary()));
-                                if let Some((tid2, ids)) = &plant_ids {
-                                    if widgets::compact_button(ui, theme, planted_label, widgets::ButtonVariant::Secondary) {
-                                        action_plant_tower = Some((tid2.clone(), ids.clone()));
-                                    }
-                                }
-                                // Bed/tray/field Plant button (v0.738 grain loop):
-                                // sows the area's crop into every empty unit.
-                                if let Some((mid, crop, count)) = &bed {
-                                    let label = format!("Plant {crop} x{count}");
-                                    if widgets::compact_button(ui, theme, &label, widgets::ButtonVariant::Secondary) {
-                                        action_plant_bed =
-                                            Some((mid.clone(), crop.clone(), *count));
-                                    }
-                                }
-                                // Bulk harvest (v0.739): the whole ready set in one
-                                // click, no per-slot clicking.
-                                if !ready_bits.is_empty() {
-                                    let label = format!("Harvest {} ready", ready_bits.len());
-                                    if widgets::compact_button(ui, theme, &label, widgets::ButtonVariant::Primary) {
-                                        action_harvest_many = Some(ready_bits.clone());
-                                    }
-                                }
-                            },
-                            |ui| {
-                                // Soil pH here (2026-09-26, farming::soil_ph): the
-                                // range over its units, and one button per amendment.
-                                if !soil_phs.is_empty() && !ph_amendments.is_empty() {
-                                    let lo = soil_phs.iter().copied().fold(f32::INFINITY, f32::min);
-                                    let hi = soil_phs.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-                                    ui.horizontal_wrapped(|ui| {
-                                        let range = if hi - lo < 0.05 { format!("Soil pH {lo:.1}") } else { format!("Soil pH {lo:.1} to {hi:.1}") };
-                                        ui.label(RichText::new(range).size(theme.font_size_small).color(theme.text_secondary()));
-                                        for (id, label) in &ph_amendments {
-                                            if widgets::compact_button(ui, theme, label, widgets::ButtonVariant::Secondary) {
-                                                action_soil_ph = Some((area_tag.clone(), id.clone()));
-                                            }
-                                        }
-                                    });
-                                }
-                                // Flowers waiting for a pollinator (2026-09-26,
-                                // farming::pollination): indoors only a hand, bees or
-                                // a device do it. Then the hives reaching this area,
-                                // each with its colony and, when it has no working
-                                // one, the button that introduces a bought colony.
-                                if let Some(p) = &pollinate_here {
-                                    if !p.waiting.is_empty() {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(RichText::new(&p.waiting).size(theme.font_size_small).color(theme.warning()));
-                                            if widgets::compact_button(ui, theme, "Hand-pollinate", widgets::ButtonVariant::Secondary) {
-                                                action_pollinate = Some(crate::systems::farming::pollination::Request::Hand(area_tag.clone()));
-                                            }
-                                        });
-                                    }
-                                    for h in &p.hives {
-                                        ui.horizontal_wrapped(|ui| {
-                                            let col = if h.needs_colony { theme.warning() } else { theme.text_secondary() };
-                                            ui.label(RichText::new(&h.line).size(theme.font_size_small).color(col));
-                                            if h.needs_colony && widgets::compact_button(ui, theme, "Introduce colony", widgets::ButtonVariant::Secondary) {
-                                                action_pollinate = Some(crate::systems::farming::pollination::Request::Colony(h.id.clone()));
-                                            }
-                                        });
-                                    }
-                                }
-                                // The air here (2026-09-26, farming::humidity): its
-                                // humidity and what the room's exhaust fans are
-                                // doing, warmer as it nears the diseases' line.
-                                if let Some((_, line, level)) = &air_here {
-                                    let col = match level { 2 => theme.danger(), 1 => theme.warning(), _ => theme.text_secondary() };
-                                    ui.label(RichText::new(line).size(theme.font_size_small).color(col));
-                                }
-                                // Weeds in this soil (2026-09-26, farming::weeds): cover, mulch,
-                                // seed bank, and the controls in the order growers are taught.
-                                if let Some(w) = &weeds_here {
-                                    ui.horizontal_wrapped(|ui| {
-                                        let col = if w.level >= 0.3 { theme.danger() } else if w.noticed { theme.warning() } else { theme.text_secondary() };
-                                        ui.label(RichText::new(&w.line).size(theme.font_size_small).color(col));
-                                        for (cid, cname, _note) in &w.controls {
-                                            if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
-                                                action_weed = Some((w.area.clone(), cid.clone()));
-                                            }
-                                        }
-                                    });
-                                }
-                                // Row cover here (2026-09-27, farming::pests): on or off,
-                                // warned when a crop that needs bees flowers under it.
-                                if let Some(cv) = &cover_here {
-                                    ui.horizontal_wrapped(|ui| {
-                                        let col = if cv.warn { theme.warning() } else { theme.text_secondary() };
-                                        ui.label(RichText::new(&cv.line).size(theme.font_size_small).color(col));
-                                        for (cid, cname, _note) in &cv.controls {
-                                            if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
-                                                action_pest_control = Some((cv.area.clone(), cid.clone()));
-                                            }
-                                        }
-                                    });
-                                }
-                                // Pests and diseases here (2026-09-26, farming::pests):
-                                // each with its level and its controls, gentlest first (IPM).
-                                if let Some(ap) = &pests_here {
-                                    for (name, level, controls) in &ap.pests {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(
-                                                RichText::new(format!("{name} {:.0}%", level * 100.0))
-                                                    .size(theme.font_size_small)
-                                                    .color(if *level >= 0.3 { theme.danger() } else { theme.warning() }),
-                                            );
-                                            for (cid, cname, _note) in controls {
-                                                if widgets::compact_button(ui, theme, cname, widgets::ButtonVariant::Secondary) {
-                                                    action_pest_control = Some((ap.area.clone(), cid.clone()));
-                                                }
-                                            }
-                                        });
-                                    }
-                                    for (rname, days) in &ap.releases {
-                                        ui.label(
-                                            RichText::new(format!("{rname}: working, {days:.0} garden days left"))
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_secondary()),
-                                        );
-                                    }
-                                }
-                                if slot_count == 0 {
-                                    ui.label(
-                                        RichText::new("Nothing growing here yet.")
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_muted()),
-                                    );
-                                    return;
-                                }
-                                // Prettify a plant id ("cherry_tomato" -> "Cherry Tomato")
-                                // for slots not yet grown (no GuiCrop to read a name from).
-                                let prettify = |id: &str| -> String {
-                                    id.split(['_', '-', ' '])
-                                        .filter(|w| !w.is_empty())
-                                        .map(|w| {
-                                            let mut ch = w.chars();
-                                            match ch.next() {
-                                                Some(f) => {
-                                                    f.to_uppercase().collect::<String>() + ch.as_str()
-                                                }
-                                                None => String::new(),
-                                            }
-                                        })
-                                        .collect::<Vec<_>>()
-                                        .join(" ")
-                                };
-                                // SLOT TILE GRID (v0.739, operator field report 2:
-                                // "scroll this list of slots and expand each one
-                                // individually is tedious"). Every slot is a compact
-                                // status tile; clicking one opens a SINGLE detail
-                                // card below the grid. Replaces one expandable row
-                                // per slot.
-                                let sel_id = egui::Id::new(("garden_sel_slot", gi));
-                                let mut sel: Option<usize> = ui
-                                    .data_mut(|d| d.get_temp::<Option<usize>>(sel_id))
-                                    .flatten();
-                                // Wrap by the VISIBLE width (same fix as the backpack
-                                // grid: the tree content Ui is width-unbounded).
-                                let visible_w = (ui.ctx().screen_rect().width()
-                                    - ui.min_rect().left()
-                                    - 24.0)
-                                    .max(140.0);
-                                const SLOT_TILE_W: f32 = 68.0;
-                                let per_row =
-                                    ((visible_w / (SLOT_TILE_W + 6.0)).floor() as usize).max(2);
-                                // Per-slot resolve, shared by the tiles and the card.
-                                let slot_data = |s: usize| {
-                                    let spec = slot_specs.get(s);
-                                    let crop: Option<&crate::gui::GuiCrop> = if by_slot {
-                                        crops.iter().copied().find(|c| c.tower_slot == Some(s as u32))
-                                    } else {
-                                        crops.get(s).copied()
-                                    };
-                                    let plant_id = spec
-                                        .map(|sp| sp.0.clone())
-                                        .or_else(|| crop.map(|c| c.name.clone()))
-                                        .unwrap_or_default();
-                                    let name = crop.map(|c| c.name.clone()).unwrap_or_else(|| {
-                                        if plant_id.is_empty() {
-                                            format!("Slot {}", s + 1)
-                                        } else {
-                                            prettify(&plant_id)
-                                        }
-                                    });
-                                    (spec, crop, plant_id, name)
-                                };
-                                for r in 0..slot_count.div_ceil(per_row) {
-                                    ui.horizontal(|ui| {
-                                        for s in (r * per_row)..((r + 1) * per_row).min(slot_count) {
-                                            let (_, crop, plant_id, name) = slot_data(s);
-                                            // "ready" only when there is something to harvest;
-                                            // a picked plant between picks reads "bearing" and
-                                            // when its next pick comes (farming::picking).
-                                            let (status, scol) = match crop {
-                                                Some(c) => {
-                                                    let word = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, false);
-                                                    let col = if c.dead { theme.danger() } else if c.mature { theme.accent() } else { theme.text_secondary() };
-                                                    (word, col)
-                                                }
-                                                None => ("planned".to_string(), theme.text_muted()),
-                                            };
-                                            let selected = sel == Some(s);
-                                            let stroke = if selected {
-                                                Stroke::new(2.0, theme.accent())
-                                            } else {
-                                                Stroke::new(1.0, theme.border())
-                                            };
-                                            let swatch = widgets::swatch_color(if plant_id.is_empty() {
-                                                &name
-                                            } else {
-                                                &plant_id
-                                            });
-                                            let glyph = name
-                                                .chars()
-                                                .next()
-                                                .map(|c| c.to_uppercase().to_string())
-                                                .unwrap_or_default();
-                                            let inner = Frame::none()
-                                                .fill(theme.bg_card())
-                                                .rounding(Rounding::same(theme.border_radius_lg as u8))
-                                                .stroke(stroke)
-                                                .inner_margin(Vec2::new(5.0, 5.0))
-                                                .show(ui, |ui| {
-                                                    ui.set_width(SLOT_TILE_W - 10.0);
-                                                    ui.vertical_centered(|ui| {
-                                                        widgets::placeholder_tile(ui, theme, swatch, 34.0, &glyph);
-                                                        ui.label(
-                                                            RichText::new(status)
-                                                                .size(theme.font_size_small)
-                                                                .color(scol),
-                                                        );
-                                                        if let Some(c) = crop {
-                                                            ui.add(
-                                                                egui::ProgressBar::new(c.progress.clamp(0.0, 1.0))
-                                                                    .fill(theme.accent())
-                                                                    .desired_width(SLOT_TILE_W - 16.0)
-                                                                    .desired_height(4.0),
-                                                            );
-                                                            // Its wait in real time, or that it needs water
-                                                            // (farming::outlook, 2026-10-12).
-                                                            if let Some(o) = outlook_here.get(&c.entity_bits).filter(|o| !o.tile.is_empty()) {
-                                                                let col = if o.thirsty { theme.warning() } else { theme.text_muted() };
-                                                                ui.label(RichText::new(&o.tile).size(theme.font_size_small).color(col));
-                                                            }
-                                                        }
-                                                    });
-                                                });
-                                            // A plant between picks: the tile's short "next 1.5d"
-                                            // in full on hover.
-                                            let hover = match crop.filter(|c| !c.dead && !c.mature && c.picking.bearing_next_in.is_some()) {
-                                                Some(c) => format!("Slot {} · {name} · {}", s + 1, crate::systems::farming::picking::stage_word(false, false, &c.stage, &c.picking, true)),
-                                                None => match crop.and_then(|c| outlook_here.get(&c.entity_bits)).filter(|o| !o.grown && !o.ripens.is_empty()) {
-                                                    // Its wait in full (farming::outlook, 2026-10-12).
-                                                    Some(o) => format!("Slot {} · {name} · ripe in {}", s + 1, o.ripens),
-                                                    None => format!("Slot {} · {name}", s + 1),
-                                                },
-                                            };
-                                            let resp = inner
-                                                .response
-                                                .interact(egui::Sense::click())
-                                                .on_hover_text(hover);
-                                            if resp.hovered() {
-                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                            }
-                                            if resp.clicked() {
-                                                sel = if selected { None } else { Some(s) };
-                                            }
-                                        }
-                                    });
-                                }
-                                ui.data_mut(|d| d.insert_temp(sel_id, sel));
-                                // THE CARD — one for the selected slot: colored tile +
-                                // name + role + planting note + live details/actions.
-                                if let Some(s) = sel.filter(|s| *s < slot_count) {
-                                    let (spec, crop, plant_id, name) = slot_data(s);
-                                    let role = spec.map(|sp| sp.1.clone()).unwrap_or_default();
-                                    let note = spec.map(|sp| sp.2.clone()).unwrap_or_default();
-                                    let swatch = widgets::swatch_color(if plant_id.is_empty() {
-                                        &name
-                                    } else {
-                                        &plant_id
-                                    });
-                                    let glyph = name
-                                        .chars()
-                                        .next()
-                                        .map(|c| c.to_uppercase().to_string())
-                                        .unwrap_or_default();
-                                    ui.add_space(theme.spacing_xs);
-                                    ui.horizontal_top(|ui| {
-                                        widgets::placeholder_tile(ui, theme, swatch, 72.0, &glyph);
-                                        ui.add_space(theme.spacing_sm);
-                                        ui.vertical(|ui| {
-                                            ui.label(
-                                                RichText::new(format!("{name} · Slot {}", s + 1))
-                                                    .size(theme.font_size_heading)
-                                                    .strong()
-                                                    .color(theme.accent()),
-                                            );
-                                            if !role.is_empty() {
-                                                ui.label(
-                                                    RichText::new(&role)
-                                                        .size(theme.font_size_small)
-                                                        .italics()
-                                                        .color(theme.text_muted()),
-                                                );
-                                            }
-                                            if !note.is_empty() {
-                                                ui.label(
-                                                    RichText::new(&note)
-                                                        .color(theme.text_secondary()),
-                                                );
-                                            }
-                                            ui.add_space(theme.spacing_xs);
-                                            match crop {
-                                                Some(c) => {
-                                                    egui::Grid::new(("slot_card", gi, s))
-                                                        .spacing([10.0, 2.0])
-                                                        .show(ui, |ui| {
-                                                            let mut stat =
-                                                                |ui: &mut egui::Ui,
-                                                                 k: &str,
-                                                                 v: String| {
-                                                                    ui.label(
-                                                                        RichText::new(k)
-                                                                            .size(theme.font_size_small)
-                                                                            .color(theme.text_muted()),
-                                                                    );
-                                                                    ui.label(
-                                                                        RichText::new(v)
-                                                                            .size(theme.font_size_small)
-                                                                            .color(theme.text_secondary()),
-                                                                    );
-                                                                    ui.end_row();
-                                                                };
-                                                            let stage = crate::systems::farming::picking::stage_word(c.dead, c.mature, &c.stage, &c.picking, true);
-                                                            stat(ui, "Stage", stage);
-                                                            stat(ui, "Plants", c.plants.to_string());
-                                                            stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
-                                                            // Its wait and its water in plain words (2026-10-12,
-                                                            // first-hour audit F11, farming::outlook).
-                                                            if let Some(o) = outlook_here.get(&c.entity_bits) {
-                                                                if !o.ripens.is_empty() && !o.grown {
-                                                                    stat(ui, "Ripe in", o.ripens.clone());
-                                                                }
-                                                                if !o.water.is_empty() {
-                                                                    ui.label(RichText::new("Water").size(theme.font_size_small).color(theme.text_muted()));
-                                                                    let col = if o.thirsty { theme.warning() } else { theme.text_secondary() };
-                                                                    ui.label(RichText::new(&o.water).size(theme.font_size_small).color(col));
-                                                                    ui.end_row();
-                                                                }
-                                                            }
-                                                            // Grams in the unit against the season's need (2026-09-26).
-                                                            stat(ui, "Soil N·P·K", format!("{:.1} · {:.1} · {:.1} g", c.soil[0], c.soil[1], c.soil[2]));
-                                                            stat(ui, "Season needs", format!("{:.1} · {:.1} · {:.1} g", c.need[0], c.need[1], c.need[2]));
-                                                            if let Some(n) = &c.short_of {
-                                                                stat(ui, "Short of", n.clone());
-                                                            }
-                                                            // What each kg of this harvest takes out of the soil.
-                                                            stat(ui, "Each kg takes", format!("{:.1} · {:.1} · {:.1} g", c.n, c.p, c.k));
-                                                            stat(ui, "Light", c.light.clone());
-                                                            if !c.light_need.is_empty() {
-                                                                stat(ui, "Light need", c.light_need.clone());
-                                                            }
-                                                            // The unit's pH against the crop's window (farming::soil_ph).
-                                                            if let Some(ph) = c.ph {
-                                                                let (k, v) = if c.ph_held {
-                                                                    ("Solution pH", format!("{ph:.1}, held by the tower"))
-                                                                } else {
-                                                                    ("Soil pH", format!("{ph:.1} (grows best at {:.1} to {:.1})", c.ph_window[0], c.ph_window[1]))
-                                                                };
-                                                                stat(ui, k, v);
-                                                                if c.ph_cap < 99.5 {
-                                                                    stat(ui, "pH holds health to", format!("{:.0}%", c.ph_cap));
-                                                                }
-                                                            }
-                                                            if !c.pollination.is_empty() {
-                                                                stat(ui, "Pollination", c.pollination.clone());
-                                                            }
-                                                            // Picked over a season (farming::picking).
-                                                            if !c.picking.is_empty() {
-                                                                stat(ui, "Picking", c.picking.card.clone());
-                                                            }
-                                                            // The air it grows in against its window (farming::humidity).
-                                                            if !c.humidity.is_empty() {
-                                                                stat(ui, "Humidity", c.humidity.clone());
-                                                            }
-                                                            if !c.weeds.is_empty() {
-                                                                stat(ui, "Weeds", c.weeds.clone()); // farming::weeds
-                                                            }
-                                                            stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
-                                                            stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
-                                                            stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
-                                                            stat(ui, "Health", format!("{:.0}%", c.health));
-                                                            // What the harvest will be scaled by (2026-09-26).
-                                                            stat(ui, "Season health", format!("{:.0}%", c.season_health * 100.0));
-                                                        });
-                                                    ui.add_space(theme.spacing_xs);
-                                                    ui.horizontal(|ui| {
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
-                                                        if c.mature && widgets::compact_button(ui, theme, "Harvest", widgets::ButtonVariant::Primary) {
-                                                            action_harvest_crop = Some(c.entity_bits);
-                                                        }
-                                                        if !c.dead && widgets::compact_button(ui, theme, "Water", widgets::ButtonVariant::Secondary) {
-                                                            action_water_crop = Some(c.entity_bits);
-                                                        }
-                                                        if !c.dead && widgets::compact_button(ui, theme, "Fertilize", widgets::ButtonVariant::Secondary) {
-                                                            action_fertilize_crop = Some(c.entity_bits);
-                                                        }
-                                                        // A ripe picked plant can be pulled early to free its plot.
-                                                        if !c.dead && c.progress >= 1.0 && !c.picking.is_empty() && widgets::compact_button(ui, theme, "Clear", widgets::ButtonVariant::Secondary) {
-                                                            action_clear_crop = Some(c.entity_bits);
-                                                        }
-                                                    });
-                                                }
-                                                None => {
-                                                    ui.label(
-                                                        RichText::new("Not yet planted. Use the Plant button above to fill empty slots.")
-                                                            .size(theme.font_size_small)
-                                                            .color(theme.text_muted()),
-                                                    );
-                                                }
-                                            }
-                                        });
-                                    });
-                                    ui.add_space(theme.spacing_xs);
-                                }
-                            },
-                        );
-                    }
-                }
+                draw_garden_section(ui, theme, state, tree_force, tree_default_open, &mut garden_acts);
                 } // ── end Garden ──
 
                 widgets::rgb_section_divider(ui, theme);
@@ -3015,40 +3372,40 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main
     // loop bridges these into FarmingSystem's command channels before the next tick.
-    if let Some(ids) = action_plant_tower {
+    if let Some(ids) = garden_acts.plant_tower {
         state.pending_plant_tower = Some(ids);
     }
-    if let Some(req) = action_plant_bed {
+    if let Some(req) = garden_acts.plant_bed {
         state.pending_plant_bed = Some(req);
     }
-    if let Some(seeds) = action_stock_seeds {
+    if let Some(seeds) = garden_acts.stock_seeds {
         state.pending_stock_seeds = Some(seeds);
     }
-    if let Some(bits) = action_water_crop {
+    if let Some(bits) = garden_acts.water_crop {
         state.pending_water_crop = Some(bits);
     }
-    if let Some(bits) = action_harvest_crop {
+    if let Some(bits) = garden_acts.harvest_crop {
         state.pending_harvest_crop = Some(bits);
     }
-    if let Some(bits) = action_harvest_many {
+    if let Some(bits) = garden_acts.harvest_many {
         state.pending_harvest_many = bits;
     }
-    if let Some(c) = action_pest_control {
+    if let Some(c) = garden_acts.pest_control {
         state.garden_pests.pending = Some(c);
     }
-    if let Some(c) = action_weed {
+    if let Some(c) = garden_acts.weed {
         state.garden_pests.weed_pending = Some(c);
     }
-    if let Some(c) = action_soil_ph {
+    if let Some(c) = garden_acts.soil_ph {
         state.garden_pests.ph_pending = Some(c);
     }
-    if let Some(req) = action_pollinate {
+    if let Some(req) = garden_acts.pollinate {
         state.garden_pests.pollinate_pending = Some(req);
     }
-    if let Some(bits) = action_clear_crop {
+    if let Some(bits) = garden_acts.clear_crop {
         state.garden_pests.clear_pending = Some(bits);
     }
-    if action_dev_grow {
+    if garden_acts.dev_grow {
         state.dev_grow_crops = true;
     }
     // (The drone manifest is now built + launched in the per-asteroid mining modal,
@@ -3061,7 +3418,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if action_compost {
         state.pending_compost = true;
     }
-    if let Some(bits) = action_fertilize_crop {
+    if let Some(bits) = garden_acts.fertilize_crop {
         state.pending_fertilize_crop = Some(bits);
     }
 
@@ -3078,6 +3435,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // TABLE now, not a tree, so the tree-node builders are no longer needed.)
 
 // detail_row moved to crate::gui::widgets::detail_row
+
+#[cfg(test)]
+#[path = "inventory_garden_tests.rs"]
+mod garden_tests;
+
+/// How many Garden slot tiles were laid out since the last call (test builds only): the Garden
+/// snapshot prints it per frame, so its log shows the rows off screen were skipped.
+#[cfg(test)]
+pub(crate) fn test_take_tiles_laid_out() -> usize {
+    garden_tests::take_tiles().0
+}
 
 #[cfg(test)]
 mod drone_row_tests {

@@ -193,6 +193,39 @@ Garden page lays out only the rows on screen (about 2,000 crops in the showcase)
 follow the rows' rotation. `just verify-screens` 13/13 after the change, and its viewport shows the
 page screens drawn.
 
+**The next step, built 2026-10-31: the Garden page lays out only what is on screen**
+(`gui/widgets/offscreen.rs`, used by `draw_garden_section` in `gui/pages/inventory.rs`). A group,
+or a row of slot tiles in an open group, that lies wholly outside the view takes the space it took
+the last time it was laid out instead of being laid out again, so the scroll bar and everything
+below stay where they were. Each size is kept under a key of everything that decides it (each
+tile's word and outlook line, a group's title row, open state and the lines above its tiles, where
+the block starts and how wide it may be, the text sizes, the font's measurements, the spacing and
+the screen width), so a change lays the block out again the same frame, and the Dev page's "Turn
+off all reuse" turns all of it off. A block never laid out before is laid out (nothing estimated),
+so the first draw of a page still costs what it always did. Measured headless
+(`garden_section_timings` in `gui/pages/inventory_garden_tests.rs`: the section's own draw, what
+`cpu.garden.page` times in the game, the median of 40 frames in a 1280 x 800 window, a busy
+machine). A test build is unoptimised, so these milliseconds are many times the release game's (the
+2,000-crop "before" reads 107 ms here against 5.4 to 6.5 ms in the game); before against after, and
+2,000 against 10,000, is what they are for:
+
+| Garden | Before (top / middle) | After (top / middle) | Tiles laid out after | After, first frame |
+|---|---|---|---|---|
+| 2,000 crops in 90 groups (about the showcase) | 107 / 107 ms | **8.0 / 8.0 ms** | 85 / 82 of 2,000 | 122 ms |
+| 10,000 crops in 450 groups (more towers) | 543 / 543 ms | **18.3 / 17.8 ms** | 69 / 66 of 10,000 | 605 ms |
+| 10,000 crops in 90 groups (bigger towers) | about 590 ms (switch off) | **15.6 / 17.0 ms** | 96 / 127 of 10,000 | 538 ms |
+
+"Before" is the test binary built from the code before the change (it had no 10,000-in-90 garden;
+that row's "before" is the new build with the Dev page's switch off). The new build with the switch
+off measured the same as the old one (104 / 105 and 575 / 579 ms), so the switch restores the old
+behaviour. Five times the crops cost about five times as much before and about twice as much after,
+the same whether they come as more towers or bigger ones: what is left grows with the crops but is
+no longer layout, it is the key every tile of an open group needs every frame (its word and its
+outlook line, so that a change re-lays it out the same frame) and the grouping, roughly 1 microsecond
+a crop in an unoptimised build. The first frame of a page
+still lays everything out once. Not yet re-read in the game: `cpu.garden.page` on the main screen
+and on the Inventory wall screen's turn wants a quiet-machine rig run (this change booted no game).
+
 ## Suspects in the untimed time, ranked
 
 - **S1. DONE 2026-10-30 (engine/garden_mirror.rs). Measured 16-20 ms a frame, not 4-9,** with the

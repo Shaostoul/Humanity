@@ -270,8 +270,10 @@ CPU time, so a span's CPU-time worst is the code's own spike, busy PC or not.
 
 **The reuse switch (2026-10-30, CLAUDE.md's reuse rule).** Dev > Performance,
 "Turn off all reuse" (`HUMANITY_NO_REUSE=1` for a rig): every in-memory reuse
-(the time-sliced Garden rows, the draw lists' memory, the request watcher)
-works everything out again every frame. When a bug might be stale data, turn
+(the time-sliced Garden rows, the draw lists' memory, the request watcher,
+and since 2026-10-31 the remembered sizes that let a page skip laying out
+what is off screen, `gui/widgets/offscreen.rs`, first used by the Inventory
+page's Garden groups) works everything out again every frame. When a bug might be stale data, turn
 it on: if the bug goes away, reuse is the cause.
 
 The `gpu.*` sum against `frame_ms` works the same way on the GPU side: the

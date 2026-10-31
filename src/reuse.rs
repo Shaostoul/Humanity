@@ -7,7 +7,9 @@
 //! this idea, let's do it."). Every reuse in the game asks `enabled()` and, when it is false, works
 //! everything out again instead: the draw lists start empty (`engine::state::DrawBufs`), the dev
 //! request reader checks every file every frame (`engine::ipc::RequestWatch`), the Garden page data
-//! rebuilds every row every frame (`engine::garden_mirror`). A new reuse that does not ask is a bug.
+//! rebuilds every row every frame (`engine::garden_mirror`), and a page lays out every block of a
+//! long list, on screen or not (`gui::widgets::offscreen`, 2026-10-31: the Inventory page's Garden
+//! groups and rows of slot tiles). A new reuse that does not ask is a bug.
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

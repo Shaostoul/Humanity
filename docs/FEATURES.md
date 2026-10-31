@@ -2632,8 +2632,12 @@ mushroom's spawn only onto a rack, nothing into a fish tank: grow_media.ron
 reach it plants nothing and names the nearest machine with room
 (`farming/sowing.rs`). The notice and each crop's card say when it ripens in
 real time at the clock's speed and what its water needs (`farming/outlook.rs`;
-lib.rs fills `GardenPests::outlook`).
-- Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden)
+lib.rs fills `GardenPests::outlook`). The Garden section lays out only the
+groups and rows of tiles on screen (2026-10-31): one wholly off screen takes
+its remembered size, kept under a key of everything that decides it and off
+with the Dev page's "Turn off all reuse" (`gui/widgets/offscreen.rs`, the
+reusable helper), so a bigger farm costs no more to look at.
+- Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden), `src/gui/widgets/offscreen.rs`
 - Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 
 ### Inventory

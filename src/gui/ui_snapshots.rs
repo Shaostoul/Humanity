@@ -3558,6 +3558,60 @@ fn snapshot_inventory_transfer() {
     });
 }
 
+/// The Inventory page's Garden groups themselves (2026-10-31): the snapshots above end before the
+/// first group. A normal window scrolled into the middle of a big garden (the demo's towers plus
+/// 800 crops in 40 machine groups), so groups and rows of tiles lie above and below the view and
+/// are SKIPPED (gui/widgets/offscreen.rs) on the captured frame, the harness's third. The picture
+/// must match the same snapshot taken with `HUMANITY_NO_REUSE=1`, which lays out every group.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_inventory_garden() {
+    render_page_png("inventory_garden", 1280, 900, |ctx, theme, state| {
+        if !state.crops.iter().any(|c| c.tower_id.as_deref() == Some("ntower_0")) {
+            let stages = ["seedling", "vegetative", "flowering", "fruiting", "ripe"];
+            let names = ["Lettuce", "Basil", "Tomato", "Wheat", "Kale", "Pepper", "Bean"];
+            for i in 0..800usize {
+                let bits = 50_000 + i as u64;
+                state.crops.push(GuiCrop {
+                    entity_bits: bits,
+                    name: names[i % names.len()].into(),
+                    stage: stages[i % stages.len()].into(),
+                    progress: (i % 5) as f32 / 4.0,
+                    mature: i % 11 == 0,
+                    tower_id: Some(format!("ntower_{}", i % 40)),
+                    picking: crate::systems::farming::picking::PickRow {
+                        card: String::new(),
+                        bearing_next_in: (i % 13 == 3).then_some(1.5),
+                    },
+                    ..Default::default()
+                });
+                let tile = ["needs water", "45 days", ""][i % 3];
+                state.garden_pests.outlook.insert(
+                    bits,
+                    crate::systems::farming::outlook::CropOutlook { tile: tile.into(), ..Default::default() },
+                );
+            }
+        }
+        crate::gui::pages::inventory::test_close_garden_edit();
+        let mut acts = crate::gui::pages::inventory::GardenActions::default();
+        crate::gui::pages::inventory::test_take_tiles_laid_out();
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().vertical_scroll_offset(3000.0).show(ui, |ui| {
+                    crate::gui::pages::inventory::draw_garden_section(ui, theme, state, None, true, &mut acts);
+                });
+            });
+        // The evidence the picture was taken with rows skipped: every tile the first frame, a
+        // screenful after (and every tile every frame with HUMANITY_NO_REUSE=1).
+        eprintln!(
+            "inventory_garden: {} slot tiles laid out this frame ({} crops in the garden)",
+            crate::gui::pages::inventory::test_take_tiles_laid_out(),
+            state.crops.len()
+        );
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_garden_modal_soil() {

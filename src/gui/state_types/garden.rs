@@ -76,8 +76,9 @@ pub struct GardenPests {
     /// and the line under its slot tile. Keyed by the crop's entity bits
     /// (`GuiCrop::entity_bits`), filled beside `crops` by lib.rs's crop
     /// bridge from `farming::outlook::OutlookView`; a crop with no entry
-    /// shows neither row.
-    pub outlook: std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook>,
+    /// shows neither row. Hashed with the small fast hasher (2026-10-31): the Garden page reads
+    /// every crop's entry every frame to key its tiles' sizes (gui/widgets/offscreen.rs).
+    pub outlook: std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook, crate::gui::widgets::offscreen::KeyBuild>,
 }
 
 /// A growing crop for GUI display (synced from the ECS each frame).

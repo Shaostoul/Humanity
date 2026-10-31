@@ -614,21 +614,75 @@ impl PickRow {
 /// yet); else its growth stage. The tile's form is two short lines ("bearing"
 /// over "next 1.5d"); the card's is a phrase.
 pub fn stage_word(dead: bool, ready: bool, stage: &str, row: &PickRow, long: bool) -> String {
+    let mut out = String::new();
+    // Writing into a String cannot fail.
+    let _ = write_stage_word(&mut out, dead, ready, stage, row, long);
+    out
+}
+
+/// [`stage_word`], written into any `fmt::Write` instead of a new String (2026-10-31). The
+/// Inventory page's Garden section hashes every slot tile's word every frame, to know whether a
+/// tile changed size while it was off screen (gui/widgets/offscreen.rs), and a String per crop per
+/// frame is the cost that exists to avoid. One function, so a tile and its hash never disagree.
+pub fn write_stage_word(
+    out: &mut impl std::fmt::Write,
+    dead: bool,
+    ready: bool,
+    stage: &str,
+    row: &PickRow,
+    long: bool,
+) -> std::fmt::Result {
+    use std::fmt::Write as _;
     if dead {
-        "dead".to_string()
+        out.write_str("dead")
     } else if ready {
-        "ready".to_string()
+        out.write_str("ready")
     } else if let Some(days) = row.bearing_next_in {
         if long {
-            format!("bearing, next pick in {}", days_words(days))
+            write!(out, "bearing, next pick in {}", days_words(days))
         } else if days < 0.95 {
-            "bearing\nnext <1d".to_string()
+            out.write_str("bearing\nnext <1d")
         } else {
-            let s = format!("{days:.1}");
-            format!("bearing\nnext {}d", s.strip_suffix(".0").unwrap_or(&s))
+            // "1.5", or "2" for "2.0", printed onto the stack (a huge number falls back to a String).
+            let mut num = ShortNumber::default();
+            match write!(num, "{days:.1}") {
+                Ok(()) => {
+                    let s = num.as_str();
+                    write!(out, "bearing\nnext {}d", s.strip_suffix(".0").unwrap_or(s))
+                }
+                Err(_) => {
+                    let s = format!("{days:.1}");
+                    write!(out, "bearing\nnext {}d", s.strip_suffix(".0").unwrap_or(&s))
+                }
+            }
         }
     } else {
-        stage.to_string()
+        out.write_str(stage)
+    }
+}
+
+/// A short number printed onto the stack, for [`write_stage_word`]: up to 32 bytes, else an error.
+#[derive(Default)]
+struct ShortNumber {
+    buf: [u8; 32],
+    len: usize,
+}
+
+impl ShortNumber {
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.buf[..self.len]).unwrap_or("")
+    }
+}
+
+impl std::fmt::Write for ShortNumber {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        let end = self.len + s.len();
+        if end > self.buf.len() {
+            return Err(std::fmt::Error);
+        }
+        self.buf[self.len..end].copy_from_slice(s.as_bytes());
+        self.len = end;
+        Ok(())
     }
 }
 
