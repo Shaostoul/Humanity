@@ -266,6 +266,31 @@ pub fn card_clickable(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut
     resp
 }
 
+/// A SUGGESTED card: something offered to the person, not one of their own.
+/// Hollow (the panel colour inside the same border, where `card` is filled), and
+/// it fills the width it is given, so a column of suggestions lines up; put
+/// `card_suggested_label` at its top. First used by the Tasks page's suggested
+/// cards (2026-10-30). Web mirror: `.card-suggested` in web/shared/theme.css.
+pub fn card_suggested(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
+    egui::Frame::none()
+        .fill(theme.bg_panel())
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .stroke(Stroke::new(1.0, theme.border()))
+        .show(ui, |ui| {
+            // Inside the Frame, the available width is already the column less
+            // the margin and stroke, so this never runs past the column.
+            ui.set_width(ui.available_width());
+            add_contents(ui);
+        });
+}
+
+/// The small muted label ("Suggested") at the top of a `card_suggested`.
+/// Web mirror: `.card-suggested-label`.
+pub fn card_suggested_label(ui: &mut Ui, theme: &Theme, text: &str) {
+    ui.label(RichText::new(text.to_uppercase()).size(theme.font_size_small).strong().color(theme.text_muted()));
+}
+
 /// Card with a title header.
 pub fn card_with_header(ui: &mut Ui, theme: &Theme, title: &str, add_contents: impl FnOnce(&mut Ui)) {
     card(ui, theme, |ui| {

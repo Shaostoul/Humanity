@@ -486,3 +486,22 @@ input[type="range"]:focus-visible {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* A SUGGESTED card, the twin of the native widgets::card_suggested: hollow (the
+   column shows through, where a person's own card is filled) inside the same
+   border, with a small muted "Suggested" label at its top, so a suggestion never
+   reads as one of the person's own. First used by the Tasks page's suggested
+   guides (2026-10-30). */
+.card-suggested {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md) var(--space-lg);
+}
+.card-suggested-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

@@ -1304,7 +1304,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                     .map(|s| s.trim().to_string())
                                     .collect();
                                 state.gui_state.tasks.push(
-                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels },
+                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels, chain: None },
                                 );
                                 if id >= state.gui_state.task_next_id {
                                     state.gui_state.task_next_id = id + 1;
@@ -1406,7 +1406,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                     .map(|s| s.trim().to_string())
                                     .collect();
                                 state.gui_state.tasks.push(
-                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels },
+                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels, chain: None },
                                 );
                                 if id >= state.gui_state.task_next_id {
                                     state.gui_state.task_next_id = id + 1;

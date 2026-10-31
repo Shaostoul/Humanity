@@ -1517,6 +1517,20 @@ User profile view/edit.
 Task board in native UI.
 - Native: `src/gui/pages/tasks.rs`
 
+### Suggested cards on the Tasks page (2026-10-30)
+The learn-by-doing chains (`data/onboarding/quests.json`) as hollow "Suggested"
+cards at the top of the Todo column (Backlog on the web), replacing the separate
+Learn by doing side panel at the operator's request: title, one-line `purpose`,
+"1 of 4", the steps with their ticks (the same `chain:step` progress keys as
+before), a step's words with Go there and, where a step names a written how-to
+(`how_to`), Open the how-to. Add to my tasks makes the chain an ordinary task
+linked to it (`GuiTask::chain` natively, a `chain:<id>` label on the web, where
+the New Task form opens filled in and the person presses Create); the card then
+goes away and the task shows its steps. Hide suggestions hides them. The shared
+hollow card is `widgets::card_suggested` / `.card-suggested`.
+- Native: `src/gui/pages/tasks.rs` (draw_suggestion), `src/gui/widgets/mod.rs` (card_suggested)
+- Web: `web/pages/tasks-app.js` (renderSuggestions), `web/shared/theme.css` (.card-suggested)
+
 ### Wallet Page
 Wallet management in native UI.
 - Native: `src/gui/pages/wallet.rs`
@@ -1838,10 +1852,11 @@ alias of ?s=. Design + remaining increment work: docs/design/studio-watch.md.
 
 ### Quests/Tasks Split (v0.1145)
 Quests = gameplay (sim quests, auto-tracked, native-only). Tasks = real
-life: the kanban plus the learn-by-doing tutorial chains as a collapsible
-guide panel (wide: right of the board; narrow: stacked below). Web nav
-entry renamed Onboarding; /quests redirects to /onboarding.
-- Native: src/gui/pages/quests.rs, tasks.rs (draw_guides), onboarding.rs
+life: the kanban plus the learn-by-doing tutorial chains, since 2026-10-30
+as suggested cards at the top of the Todo column (see "Suggested cards on
+the Tasks page"; until then a collapsible guide panel beside the board). Web
+nav entry renamed Onboarding; /quests redirects to /onboarding.
+- Native: src/gui/pages/quests.rs, tasks.rs (draw_suggestion), onboarding.rs
 
 ### Market Directory (web mirror, v0.1143)
 The web market page opens on a Directory section mirroring the native tab:

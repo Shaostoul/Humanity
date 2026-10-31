@@ -1,10 +1,11 @@
 {
-  "version": 4,
-  "description": "Quest chains shown on the /onboarding page (native + web both load this file). Data-driven so new quests can be added without touching page code. Progress is tracked per step in the user's localStorage under 'humanity_quest_progress'. v0.367: reworded to be UNIVERSAL, each quest must read as something that applies everywhere on Earth, in any climate or economy, with no place-specific or unverifiable claims and no single-nation stats or currency.",
+  "version": 5,
+  "description": "Learn-by-doing chains, shown as suggested cards at the top of the Tasks page's Todo column (native src/gui/pages/tasks.rs, web web/pages/tasks-app.js) and on the website's /onboarding page. Data-driven so new chains can be added without touching page code. A chain's `purpose` is the one line its card shows; a step's optional `how_to` names the written how-to (data/how_to/) that does that step, and the card offers to open it. Progress is tracked per step, keyed 'chain:step': in localStorage under 'humanity_quest_progress' on the web, in config.json's onboarding_quest_progress on the desktop. These chains become how-tos in increment 6 of docs/design/how-to.md. v0.367: reworded to be UNIVERSAL, each chain must read as something that applies everywhere on Earth, in any climate or economy, with no place-specific or unverifiable claims and no single-nation stats or currency.",
   "chains": [
     {
       "id": "first-steps",
       "title": "First Steps",
+      "purpose": "Get set up in under five minutes.",
       "description": "Get set up in under five minutes. Your identity is created automatically when you open the chat.",
       "steps": [
         {
@@ -23,7 +24,8 @@
           "id": "backup",
           "title": "Back up your recovery phrase",
           "description": "In Settings, write down your 24-word recovery phrase. This is the only way to recover your identity if you lose your device. Store it somewhere safe, offline.",
-          "link": "/settings"
+          "link": "/settings",
+          "how_to": "back_up_recovery_phrase"
         },
         {
           "id": "first-task",
@@ -36,6 +38,7 @@
     {
       "id": "water",
       "title": "Water Independence",
+      "purpose": "Never depend on a single water source you do not control.",
       "description": "Wherever you live, the safest water is water you can collect, filter, and store yourself. Wells run dry, pipes freeze or break, droughts and storms hit, and supplies get cut off or priced out of reach. Learn to never depend on a single source you do not control.",
       "steps": [
         {
@@ -54,7 +57,8 @@
           "id": "filtration",
           "title": "Make any water safe to drink",
           "description": "From boiling and simple sand-and-charcoal filters you can build by hand, to ceramic gravity filters, to reverse osmosis. Match the method to your water source and what you can afford. The goal is the same everywhere: water you can trust.",
-          "link": null
+          "link": null,
+          "how_to": "boil_water_safe"
         },
         {
           "id": "storage",
@@ -67,6 +71,7 @@
     {
       "id": "food",
       "title": "Food Independence",
+      "purpose": "Grow part of what you eat, whatever space you have.",
       "description": "However much space you have, from a single windowsill to open land, you can grow part of what you eat. Soil beds, containers, and soil-free towers each suit different climates and spaces. Practice in the simulation first, where a failed crop costs nothing, then grow the real thing.",
       "steps": [
         {
@@ -104,6 +109,7 @@
     {
       "id": "energy",
       "title": "Energy Independence",
+      "purpose": "Make and store enough power to keep your essentials running.",
       "description": "When power fails, much of the rest follows: water pumps, keeping food cold, communication, heating, cooling. Whether you are off the grid by choice, by circumstance, or because there is no grid where you live, learn to generate and store your own power.",
       "steps": [
         {
@@ -135,6 +141,7 @@
     {
       "id": "community",
       "title": "Build Your Network",
+      "purpose": "Find the people near you and share what each of you knows.",
       "description": "Self-sufficiency does not mean doing everything alone. The strongest communities are networks of people who each bring different skills and share freely. No one is good at everything, and no one has to be.",
       "steps": [
         {
@@ -166,6 +173,7 @@
     {
       "id": "advanced",
       "title": "Going Deeper",
+      "purpose": "Do more, or help build the platform itself.",
       "description": "When you are ready to do more, or to help build the platform itself.",
       "steps": [
         {

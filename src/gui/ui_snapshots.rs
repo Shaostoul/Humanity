@@ -295,9 +295,9 @@ fn demo_state() -> GuiState {
 
     // ── Tasks (one per kanban column) ──
     s.tasks = vec![
-        GuiTask { id: 1, title: "Plant the spring greens".into(), description: String::new(), priority: TaskPriority::High, status: TaskStatus::Todo, assignee: "Shaostoul".into(), labels: vec!["garden".into()] },
-        GuiTask { id: 2, title: "Wire the mining drone manifest".into(), description: String::new(), priority: TaskPriority::Medium, status: TaskStatus::InProgress, assignee: "Ada".into(), labels: vec![] },
-        GuiTask { id: 3, title: "Ship the Laws page".into(), description: String::new(), priority: TaskPriority::Low, status: TaskStatus::Done, assignee: "Shaostoul".into(), labels: vec!["ui".into()] },
+        GuiTask { id: 1, title: "Plant the spring greens".into(), description: String::new(), priority: TaskPriority::High, status: TaskStatus::Todo, assignee: "Shaostoul".into(), labels: vec!["garden".into()], chain: None },
+        GuiTask { id: 2, title: "Wire the mining drone manifest".into(), description: String::new(), priority: TaskPriority::Medium, status: TaskStatus::InProgress, assignee: "Ada".into(), labels: vec![], chain: None },
+        GuiTask { id: 3, title: "Ship the Laws page".into(), description: String::new(), priority: TaskPriority::Low, status: TaskStatus::Done, assignee: "Shaostoul".into(), labels: vec!["ui".into()], chain: None },
     ];
     s.task_next_id = 4;
 
@@ -3807,6 +3807,40 @@ fn snapshot_construction_storeys() {
 }
 
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
+
+/// The Tasks page's suggested cards (2026-10-30) in use: three chains already
+/// made into tasks (First Steps in Todo, its detail panel open with its steps;
+/// Food in progress; Build Your Network done), the other three still suggested
+/// at the top of Todo with a few steps ticked, and an open step showing its words,
+/// Go there and Open the how-to. `just snapshot tasks_suggested`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_tasks_suggested() {
+    crate::gui::pages::tasks::set_for_snapshot(Some(3), &[("water", "filtration"), ("first-steps", "backup")]);
+    render_page_png("tasks_suggested", 1280, 1300, |ctx, theme, state| {
+        if !state.tasks.iter().any(|t| t.chain.is_some()) {
+            let chained = |id: u32, title: &str, chain: &str, status: TaskStatus| GuiTask {
+                id,
+                title: title.into(),
+                description: String::new(),
+                priority: TaskPriority::Medium,
+                status,
+                assignee: String::new(),
+                labels: vec![],
+                chain: Some(chain.into()),
+            };
+            state.tasks.push(chained(4, "First Steps", "first-steps", TaskStatus::Todo));
+            state.tasks.push(chained(5, "Food Independence", "food", TaskStatus::InProgress));
+            state.tasks.push(chained(6, "Build Your Network", "community", TaskStatus::Done));
+            state.task_next_id = 7;
+            for key in ["first-steps:open-chat", "first-steps:profile", "water:understand-consumption", "food:understand-needs", "community:find-local"] {
+                state.onboarding_quest_progress.insert(key.into(), true);
+            }
+        }
+        crate::gui::pages::tasks::draw(ctx, theme, state);
+    });
+    crate::gui::pages::tasks::set_for_snapshot(None, &[]);
+}
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 
 /// The Maps page's Galaxy view (v0.1145): the real HYG catalog rendered

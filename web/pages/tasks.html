@@ -165,6 +165,44 @@
     .label-tag { font-size: 0.63rem; background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-sm); color: var(--text-muted); }
     .test-tally { margin-left: auto; font-size: 0.68rem; white-space: nowrap; }
     .empty-col { color: var(--text-dim); font-size: 0.75rem; text-align: center; padding: var(--space-2xl) 0; }
+    .card-steps { font-size: 0.63rem; color: var(--text-muted); margin-top: 0.22rem; }
+
+    /* ── Suggested guides (2026-10-30): the learn-by-doing chains as hollow
+       cards at the top of the first column (shared .card-suggested in
+       theme.css; native: tasks.rs draw_suggestion) ── */
+    .suggested-cards { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .sg-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+    .sg-count { font-size: 0.63rem; color: var(--text-muted); white-space: nowrap; }
+    .sg-count.all-done { color: var(--success); }
+    .sg-purpose { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.15rem; line-height: 1.4; }
+    .sg-bar { height: 4px; background: var(--border); border-radius: var(--radius-sm); margin: var(--space-sm) 0; overflow: hidden; }
+    .sg-bar span { display: block; height: 100%; background: var(--accent); }
+    .sg-steps { display: flex; flex-direction: column; gap: var(--space-xs); }
+    .sg-step { display: flex; align-items: flex-start; gap: var(--space-md); }
+    .sg-tick {
+      flex-shrink: 0; width: 16px; height: 16px; margin-top: 1px; border-radius: 3px;
+      border: 1.5px solid var(--text-muted); background: var(--bg-tertiary); color: var(--text-on-accent);
+      font-size: 0.65rem; line-height: 1; padding: 0; cursor: pointer;
+    }
+    .sg-step.done .sg-tick { background: var(--accent); border-color: var(--accent); }
+    .sg-step-main { flex: 1; min-width: 0; }
+    .sg-step-title {
+      background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit;
+      font-size: 0.72rem; font-weight: 600; color: var(--text); line-height: 1.35;
+    }
+    .sg-step-title:hover { color: var(--accent); }
+    .sg-step.done .sg-step-title { color: var(--text-muted); }
+    .sg-step-words { font-size: 0.68rem; color: var(--text-secondary); line-height: 1.45; margin-top: 0.15rem; }
+    .sg-acts { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
+    .sg-act, .sg-add {
+      background: transparent; border: 1px solid var(--border-bright); color: var(--text-muted);
+      border-radius: var(--radius); padding: var(--space-xs) var(--space-lg); font-size: 0.68rem;
+      font-family: inherit; cursor: pointer;
+    }
+    .sg-act:hover, .sg-add:hover { color: var(--text); border-color: var(--text-muted); }
+    .sg-add { margin-top: var(--space-md); color: var(--text); }
+    .detail-steps { margin-bottom: var(--space-xl); }
+    .detail-steps-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: var(--space-md); }
 
     /* ── Modal ── */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
@@ -769,6 +807,7 @@
     <input id="task-search" type="search" placeholder="Filter tasks..." data-i18n-placeholder="tasks.filter_tasks" data-i18n-tip="tasks.filter_tasks_web_hint" data-tip-desc="Type a word to show only the tasks that have it in their title, their description or the name of who does them." oninput="renderBoard()"
       style="background:var(--bg-input);border:1px solid var(--border-bright);border-radius:6px;padding:var(--space-sm) var(--space-lg);color:var(--text);font-size:0.78rem;font-family:inherit;outline:none;width:130px;flex-shrink:0;"
       onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
+    <button class="btn-refresh" id="btn-suggestions" onclick="toggleSuggestions()" data-i18n="tasks.hide_suggestions" data-i18n-tip="tasks.suggestions_hint" data-tip-desc="Shows or hides the suggestions at the top of the first column: step-by-step goals you can make your own. Your own tasks stay where they are.">Hide suggestions</button>
     <button class="btn-refresh" onclick="loadTasks()" title="Refresh" data-i18n-title="common.refresh" data-i18n-tip="tasks.refresh_hint" data-tip-desc="Loads the list of tasks again from the server.">↻</button>
     <button class="btn-new" onclick="openModal()" data-i18n="tasks.new_task" data-i18n-tip="tasks.new_task_hint" data-tip-desc="Opens the form for adding a new task to the board.">+ New Task</button>
   </div>
@@ -901,6 +940,7 @@
       <div class="detail-badges" id="detail-badges"></div>
       <div class="status-actions" id="detail-status-btns"></div>
       <div class="detail-desc" id="detail-desc"></div>
+      <div class="detail-steps" id="detail-steps"></div>
       <div class="status-actions" id="detail-priority-btns" style="margin-bottom:var(--space-md)"></div>
       <div id="detail-assignee-row" style="margin-bottom:0.85rem"></div>
       <div class="detail-labels" id="detail-labels"></div>

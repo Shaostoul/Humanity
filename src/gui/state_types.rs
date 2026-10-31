@@ -162,6 +162,8 @@ pub struct GuiTask {
     pub status: TaskStatus,
     pub assignee: String,
     pub labels: Vec<String>,
+    /// The learn-by-doing chain (data/onboarding/quests.json) Add to my tasks made this from (pages/tasks.rs).
+    pub chain: Option<String>,
 }
 
 /// A marketplace listing, mirroring the relay's ListingData shape (v0.752,

@@ -38,7 +38,7 @@ different shapes, none of which can be followed, ticked, timed, scheduled or sha
 |---|---|---|---|
 | `data/recipes.csv` (386 recipes), `data/crafting/tools.ron`, `data/crafting/categories.json` | crafting recipes, their hand tools, the Crafting sidebar | CSV rows plus two overlays | become how-tos with a `makes` block (increment 4); the Crafting page reads how-tos |
 | `docs/user/skills/*.md` (75 of 128 guides have a numbered list of four or more bold-led steps; copied to `data/library/` by `scripts/build-library.js`) | the "Step by step" sections of Library guides | Markdown lists | the steps move into how-tos and the guide embeds them, so they exist once (increment 2) |
-| `data/onboarding/quests.json` (6 chains, 26 steps) | "Learn by doing" on the Tasks and Quests pages, progress in localStorage | JSON chains | become how-tos (increment 6) |
+| `data/onboarding/quests.json` (6 chains, 26 steps) | suggested cards at the top of the Tasks page's Todo column (a "Learn by doing" side panel until 2026-10-30) and the website's onboarding page, progress in localStorage and the desktop's config.json | JSON chains | become how-tos (increment 6) |
 | `data/onboarding/sim_guides.json` (27 entries, 20 unwritten) | an index of game guides whose `_comment` says it "needs a render surface" | JSON | retired: its checklists become how-tos, its references become Library documents (increment 6) |
 | `data/admin/ops_registry.json` (78 actions, no ids) | every admin action, with a free-text `how` | JSON | gains ids, so a how-to step can be one of its actions (increment 6) |
 | `.claude/skills/{release,merge-agent,game-checks}/SKILL.md`, `docs/SOP.md` | the developers' procedures, for people and for AI | Markdown | the procedures become how-tos; the skills are generated from them (increment 6) |
@@ -581,7 +581,7 @@ stylesheet makes Print a clean page. `tests/page_parity_lint.rs` holds the two t
 | **Library** | The Library says why; the how-to says what to do. A guide embeds its how-to with a fenced code block whose language is `how-to` and whose one line is the how-to's id, which both clients' markdown readers render as the steps in Short view with Open in How-to, so the steps exist once. The guide keeps its hazards, worked example and "Know where your own work stops". The Dictionary's Define words mode works on a how-to too. |
 | **Curriculum** | A how-to lists `topics`; the Curriculum view shows each topic's how-tos and `scripts/curriculum-status.js` counts them. Not a fifth required layer until the content exists, so the goalposts do not move under the topics already counted done. |
 | **Skills** | A how-to lists `skills`. In the game, doing it earns XP. In real life nothing is recorded unless the person presses Add to my skills, which writes reality XP to their Skill DNA (`src/relay/storage/skill_dna.rs`, which already keeps reality and fantasy XP apart); others can then endorse it. |
-| **Tasks** | Add to Tasks makes a task linked to the how-to and the run; finishing the run offers to move it to Done. The Learn by doing panel lists how-tos in progress and the HumanityOS > Getting started how-tos (increment 6). |
+| **Tasks** | Add to Tasks makes a task linked to the how-to and the run; finishing the run offers to move it to Done. The suggested cards at the top of the Todo column list how-tos in progress and the HumanityOS > Getting started how-tos (increment 6). Those cards replaced the separate Learn by doing side panel on 2026-10-30, at the operator's request: "Shouldn't those be cards in like the Todo section instead of a weird dedicated right bar separate from the tasklist?" Until increment 6 they are fed by the onboarding chains: each card shows its steps and their ticks, Add to my tasks makes it an ordinary task linked to its chain (the card then goes away), and a step's optional `how_to` already opens its written how-to. |
 | **Calendar** | Shows repeats' due dates and running timers' end times, asked from the how-to data each time it draws, never copied. The native Calendar keeps its events only in memory today (`GuiState.cal_events`) and has no repeats; increment 3 gives it saved events and repeats, which it needs anyway. |
 | **Apps** | A How-to tile in the green HumanityOS tools part (`data/gui/humanityos_tools.json`); the Help and Services parts link the how-tos of their category. |
 | **Market** | "Find it on the Market" for a missing tool or material (offerings by `item_ref`); "Who can help" (above). |
@@ -809,8 +809,8 @@ shows, not what the data is.
 6. **The platform's own how-tos.** Ids, `danger` and handlers in the admin registry; action and
    command steps; the command-step gap report; the release, merge, game checks, host, back up,
    restore and move how-tos; the generated skills with their freshness check; the SOP linking
-   them; the onboarding chains as how-tos, read by the Learn by doing panel and the web onboarding
-   page; `sim_guides.json` retired.
+   them; the onboarding chains as how-tos, read by the Tasks page's suggested cards and the web
+   onboarding page; `sim_guides.json` retired.
    *Proves:* one source for the procedures people read and agents follow; the app's command-line
    gaps are counted from data.
 7. **Writing how-tos in the app.** An editor (GUI-first) for your own how-tos, kept in

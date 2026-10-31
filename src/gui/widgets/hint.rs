@@ -106,6 +106,25 @@ pub fn with_name<R>(ui: &mut Ui, name: &str, f: impl FnOnce(&mut Ui) -> R) -> R 
     r
 }
 
+/// Name and hint the keyboard stops an egui `ScrollArea` makes for itself (WCAG 4.1.2
+/// and 2.1.1). Once its content is larger than the area, egui makes the scroll bar a
+/// Tab stop, and with drag-to-scroll the content too, with no name and no hint, so a
+/// keyboard user lands on silence (found 2026-10-30, when the Tasks page's Todo
+/// column first overflowed in the a11y walk). Call it after `show`, with the output's
+/// `id`; the ids are egui 0.31's own (`scroll_area.rs`: `id.with("area")` for the
+/// content, `id.with(d)` for each bar). Nothing happens while the area does not scroll.
+pub fn name_scroll_area(ui: &Ui, area: Id, name: &str, hint_key: &'static str) {
+    let words = crate::gui::i18n::t(hint_key);
+    for id in [area.with("area"), area.with(0usize), area.with(1usize)] {
+        if let Some(resp) = ui.ctx().read_response(id) {
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, name));
+            if shown(ui.ctx()) {
+                show_on_focus(&resp, words);
+            }
+        }
+    }
+}
+
 /// The name waiting for the control being drawn, or "" when there is none.
 pub(crate) fn pending_name(ui: &Ui) -> Option<String> {
     ui.ctx().data(|d| d.get_temp::<Option<String>>(Id::new(NAME_ID))).flatten()

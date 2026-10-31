@@ -47,6 +47,11 @@ function init() {
   buildProjectIconPicker();
   loadTasks();
   loadProjects();
+  loadSuggestions();
+  // Suggested cards are redrawn into the first column, so their clicks are
+  // caught once on the column itself (and on the detail drawer's steps).
+  document.getElementById('col-backlog').addEventListener('click', onSuggestionClick);
+  document.getElementById('detail-steps').addEventListener('click', onSuggestionClick);
   // Connect to relay for real-time updates if user has an identity
   setTimeout(ensureTaskWs, 1000);
 }
@@ -86,12 +91,15 @@ async function loadTasks() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     allTasks = data.tasks || [];
+    tasksLoaded = true;
     renderBoard();
     renderControls();
     renderProjectSelectorBtn();
   } catch (e) {
     console.error('[tasks] load error:', e);
     document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ ${i18n.t('tasks.load_failed')}<br><small>${e.message}</small></div>`;
+    // The suggestions need no server, so they still show.
+    renderSuggestions();
   }
 }
 
@@ -105,8 +113,17 @@ function getTaskScope(task) {
 }
 
 function getNonScopeLabels(task) {
-  try { return JSON.parse(task.labels || '[]').filter(l => !l.startsWith('scope:')); }
+  // "scope:" and "chain:" labels are links the page reads, not tags a person wrote.
+  try { return JSON.parse(task.labels || '[]').filter(l => !l.startsWith('scope:') && !l.startsWith('chain:')); }
   catch { return []; }
+}
+
+/** The learn-by-doing chain a task was added from (its "chain:<id>" label), or null. */
+function getTaskChain(task) {
+  try {
+    const l = JSON.parse(task.labels || '[]').find(x => x.startsWith('chain:'));
+    return l ? suggestionChains.find(c => c.id === l.slice('chain:'.length)) || null : null;
+  } catch { return null; }
 }
 
 function scopedTasks() {
@@ -147,6 +164,7 @@ function renderBoard() {
       const col = document.getElementById('col-' + s);
       if (col) col.innerHTML = '';
     });
+    renderSuggestions();
     return;
   }
   ['backlog','in_progress','testing','done'].forEach(status => {
@@ -163,6 +181,7 @@ function renderBoard() {
       console.error('renderCard error in', status, e);
     }
   });
+  renderSuggestions();
 }
 
 function renderControls() {
@@ -204,11 +223,215 @@ function renderCard(task) {
       ${labels.slice(0,3).map(l=>`<span class="label-tag">${esc(l)}</span>`).join('')}
       ${testTally}
     </div>
+    ${chainStepsLine(getTaskChain(task))}
   </div>`;
+}
+
+/* ── Suggested guides (2026-10-30) ──
+ * The learn-by-doing chains (data/onboarding/quests.json) as SUGGESTED cards at
+ * the top of the first column: the twin of the desktop Tasks page
+ * (src/gui/pages/tasks.rs, draw_suggestion), where they replaced a separate
+ * "Learn by doing" side panel at the operator's request ("Shouldn't those be
+ * cards in like the Todo section"). A step's tick is kept in this browser under
+ * humanity_quest_progress, keyed "chain:step", the store /onboarding uses too.
+ *
+ * "Add to my tasks" opens the ordinary New Task form filled in from the chain.
+ * This board is the server's, so the person sees the form and presses Create
+ * themselves: nothing goes onto a shared board in one click. The task carries the
+ * label "chain:<id>" (hidden like "scope:"), and this browser remembers which task
+ * each chain became, so the suggestion stays away while that task is on the board
+ * and comes back if it is deleted. Once the chains become how-tos
+ * (docs/design/how-to.md, increment 6) these cards are fed by how-tos instead. */
+const SUGGEST_PROGRESS_KEY = 'humanity_quest_progress';
+const SUGGEST_ADDED_KEY = 'hos_task_suggestions_added';
+let suggestionChains = [];
+let suggestionsShown = true;   // the Hide suggestions button; for this visit only
+let suggestionOpen = {};       // chain id -> the step whose words are showing
+let suggestionPending = null;  // the chain the New Task form was filled in from
+let tasksLoaded = false;       // the board has been read from the server at least once
+
+function suggestionRead(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { return {}; }
+}
+function suggestionWrite(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked: the change lasts this visit */ }
+}
+
+async function loadSuggestions() {
+  try {
+    const res = await fetch('/data/onboarding/quests.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    suggestionChains = Array.isArray(data.chains) ? data.chains : [];
+  } catch (e) {
+    console.warn('[tasks] suggested guides not loaded:', e);
+    suggestionChains = [];
+  }
+  renderSuggestions();
+  if (openDetailId != null) openDetail(openDetailId);
+}
+
+/** Remember the task a chain became, then redraw without its suggestion. */
+function suggestionRemember(chainId, taskId) {
+  if (!chainId || taskId == null) return;
+  const added = suggestionRead(SUGGEST_ADDED_KEY);
+  added[chainId] = taskId;
+  suggestionWrite(SUGGEST_ADDED_KEY, added);
+  renderSuggestions();
+}
+
+/** The chains to suggest now: not hidden, not already a task on the board, no
+ *  project chosen (a suggestion is in none), and matching the search box. */
+function visibleSuggestions() {
+  if (!suggestionsShown || activeProject !== null) return [];
+  const added = suggestionRead(SUGGEST_ADDED_KEY);
+  const q = (document.getElementById('task-search')?.value || '').trim().toLowerCase();
+  return suggestionChains.filter(c => {
+    const id = added[c.id];
+    // Until the board has loaded, trust the record; after, the task must still be on it.
+    if (id != null && (!tasksLoaded || allTasks.some(t => t.id === id))) return false;
+    if (!q) return true;
+    return [c.title, c.purpose, ...c.steps.map(s => s.title)].some(w => String(w || '').toLowerCase().includes(q));
+  });
+}
+
+/** How many of a chain's steps are ticked. */
+function chainDone(chain, progress) {
+  return chain.steps.filter(s => progress[chain.id + ':' + s.id]).length;
+}
+
+/** The "Steps: 1 of 4" line on a task added from a chain (empty for any other task). */
+function chainStepsLine(chain) {
+  if (!chain) return '';
+  const done = chainDone(chain, suggestionRead(SUGGEST_PROGRESS_KEY));
+  return `<div class="card-steps">${i18n.t('tasks.card_steps', { done, total: chain.steps.length })}</div>`;
+}
+
+/** A chain's steps: a tick box and a title each; the open step also shows its
+ *  words and where to do it. Shared by the suggested card and the detail drawer. */
+function renderChainSteps(chain, progress) {
+  const open = suggestionOpen[chain.id];
+  return chain.steps.map(s => {
+    const ticked = !!progress[chain.id + ':' + s.id];
+    const isOpen = open === s.id;
+    let more = '';
+    if (isOpen) {
+      const outside = /^https?:/.test(s.link || '');
+      const go = s.link
+        ? `<a class="sg-act" href="${esc(s.link)}"${outside ? ' target="_blank" rel="noopener"' /* i18n-exempt: attributes */ : ''} data-i18n-tip="tasks.suggested_go_hint">${i18n.t('tasks.suggested_go')}</a>`
+        : '';
+      const howTo = s.how_to
+        ? `<a class="sg-act" href="/how-to#${encodeURIComponent(s.how_to)}" data-i18n-tip="tasks.suggested_how_to_hint">${i18n.t('tasks.suggested_how_to')}</a>`
+        : '';
+      more = `<div class="sg-step-words">${esc(s.description)}</div>` + (go || howTo ? `<div class="sg-acts">${go}${howTo}</div>` : '');
+    }
+    return `<div class="sg-step${ticked ? ' done' : '' /* i18n-exempt: a class name */}">
+      <button type="button" class="sg-tick" data-chain="${esc(chain.id)}" data-tick="${esc(s.id)}" aria-pressed="${ticked}" aria-label="${esc(s.title)}" data-i18n-tip="tasks.suggested_tick_hint">${ticked ? '✓' : ''}</button>
+      <div class="sg-step-main">
+        <button type="button" class="sg-step-title" data-chain="${esc(chain.id)}" data-step="${esc(s.id)}" aria-expanded="${isOpen}" data-i18n-tip="tasks.suggested_step_hint">${esc(s.title)}</button>
+        ${more}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/** One suggested card. */
+function renderSuggestion(chain, progress) {
+  const total = chain.steps.length;
+  const done = chainDone(chain, progress);
+  const count = done === total
+    ? i18n.t('tasks.suggested_all_done', { total })
+    : i18n.t('tasks.suggested_progress', { done, total });
+  const pct = total ? Math.round(done / total * 100) : 0;
+  return `<div class="card-suggested" data-suggestion="${esc(chain.id)}">
+    <div class="sg-head">
+      <span class="card-suggested-label">${i18n.t('tasks.suggested')}</span>
+      <span class="sg-count${done === total ? ' all-done' : '' /* i18n-exempt: a class name */}">${count}</span>
+    </div>
+    <div class="card-title">${esc(chain.title)}</div>
+    <div class="sg-purpose">${esc(chain.purpose || '')}</div>
+    <div class="sg-bar"><span style="width:${pct}%"></span></div>
+    <div class="sg-steps">${renderChainSteps(chain, progress)}</div>
+    <button type="button" class="sg-add" data-add="${esc(chain.id)}" data-i18n-tip="tasks.suggested_add_web_hint">${i18n.t('tasks.suggested_add')}</button>
+  </div>`;
+}
+
+/** Draw the suggested cards at the top of the first column (or take them away). */
+function renderSuggestions() {
+  const col = document.getElementById('col-backlog');
+  if (!col) return;
+  let box = document.getElementById('suggested-cards');
+  const chains = visibleSuggestions();
+  if (!chains.length) { if (box) box.remove(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'suggested-cards';
+    box.className = 'suggested-cards';
+  }
+  // Always first, above the person's own tasks (renderBoard rewrites the rest).
+  if (col.firstChild !== box) col.insertBefore(box, col.firstChild);
+  const progress = suggestionRead(SUGGEST_PROGRESS_KEY);
+  box.innerHTML = chains.map(c => renderSuggestion(c, progress)).join('');
+  i18n.apply(box);
+}
+
+/** The steps of a task added from a chain, in the detail drawer. */
+function renderDetailSteps(task) {
+  const el = document.getElementById('detail-steps');
+  if (!el) return;
+  const chain = task ? getTaskChain(task) : null;
+  if (!chain) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="detail-steps-title">${i18n.t('tasks.detail_steps')}</div>` +
+    `<div class="sg-steps">${renderChainSteps(chain, suggestionRead(SUGGEST_PROGRESS_KEY))}</div>`;
+  i18n.apply(el);
+}
+
+/** Clicks on a suggested card or on the drawer's steps (one listener each). */
+function onSuggestionClick(e) {
+  const tick = e.target.closest('[data-tick]');
+  if (tick) {
+    const key = tick.dataset.chain + ':' + tick.dataset.tick;
+    const progress = suggestionRead(SUGGEST_PROGRESS_KEY);
+    progress[key] = !progress[key];
+    suggestionWrite(SUGGEST_PROGRESS_KEY, progress);
+    renderBoard();
+    if (openDetailId != null) renderDetailSteps(allTasks.find(t => t.id === openDetailId));
+    return;
+  }
+  const step = e.target.closest('[data-step]');
+  if (step) {
+    const c = step.dataset.chain;
+    suggestionOpen[c] = suggestionOpen[c] === step.dataset.step ? null : step.dataset.step;
+    renderSuggestions();
+    if (openDetailId != null) renderDetailSteps(allTasks.find(t => t.id === openDetailId));
+    return;
+  }
+  const add = e.target.closest('[data-add]');
+  if (add) suggestionAdd(add.dataset.add);
+}
+
+/** Open the New Task form filled in from a chain. */
+function suggestionAdd(chainId) {
+  const chain = suggestionChains.find(c => c.id === chainId);
+  if (!chain) return;
+  openModal();
+  suggestionPending = chain.id;
+  document.getElementById('f-title').value = chain.title;
+  document.getElementById('f-desc').value = [chain.purpose || '', ''].concat(chain.steps.map(s => '- ' + s.title)).join('\n');
+}
+
+/** The Hide suggestions / Show suggestions button. */
+function toggleSuggestions() {
+  suggestionsShown = !suggestionsShown;
+  const key = suggestionsShown ? 'tasks.hide_suggestions' : 'tasks.show_suggestions';
+  setWords(document.getElementById('btn-suggestions'), key, i18n.t(key));
+  renderSuggestions();
 }
 
 /* ── Modal ── */
 function openModal() {
+  // A plain New Task is not from a suggestion (suggestionAdd sets it again after).
+  suggestionPending = null;
   document.getElementById('modal-overlay').classList.add('open');
   document.getElementById('f-title').focus();
   document.getElementById('form-msg').innerHTML = '';
@@ -218,6 +441,13 @@ function openModal() {
 
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
+  // A form filled in from a suggestion and then left is emptied, so the next
+  // plain New Task does not open holding the guide's words.
+  if (suggestionPending) {
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-desc').value = '';
+    suggestionPending = null;
+  }
 }
 
 /* ── Relay socket: live board updates + task edits ──
@@ -448,6 +678,10 @@ async function submitTask() {
   const rawLabels = document.getElementById('f-labels').value.trim();
   const labelArr = rawLabels ? rawLabels.split(',').map(l => l.trim()).filter(Boolean) : [];
   labelArr.push('scope:' + document.getElementById('f-scope').value);
+  // Filled in from a suggested guide: the task carries its chain, and once it
+  // exists the suggestion stays away (suggestionRemember).
+  const fromChain = suggestionPending;
+  if (fromChain) labelArr.push('chain:' + fromChain);
 
   const body = {
     title,
@@ -474,6 +708,7 @@ async function submitTask() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'HTTP ' + res.status);
+      suggestionRemember(fromChain, data.id);
       msg.innerHTML = `<div class="msg-success">✓ ${i18n.t('tasks.task_created', { id: data.id })}</div>`;
       setTimeout(() => { closeModal(); loadTasks(); }, 800);
     } catch(e) {
@@ -497,6 +732,7 @@ async function submitTask() {
         taskWs.send(JSON.stringify({ type: 'task_create', ...body }));
         setTimeout(() => { if (taskWsPending) { taskWsPending = null; reject(new Error('Timeout')); } }, 5000);
       });
+      suggestionRemember(fromChain, task?.id);
       msg.innerHTML = `<div class="msg-success">✓ ${i18n.t('tasks.task_created', { id: task?.id || '?' })}</div>`;
       setTimeout(() => { closeModal(); loadTasks(); }, 800);
     } catch(e) {
@@ -575,6 +811,8 @@ function openDetail(id) {
   i18n.apply(assigneeRow);
 
   document.getElementById('detail-desc').textContent = task.description || i18n.t('tasks.no_description');
+  // A task added from a suggested guide shows that guide's steps, tickable here too.
+  renderDetailSteps(task);
 
   document.getElementById('detail-labels').innerHTML = labels.length
     ? labels.map(l => `<span class="label-tag">${esc(l)}</span>`).join('')
