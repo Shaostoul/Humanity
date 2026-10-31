@@ -365,6 +365,15 @@ pub(crate) fn page_turns(waiting: &[usize], drawn_at: &[Option<u64>], budget: us
     order.into_iter().take(budget).map(|(_, si)| si).collect()
 }
 
+/// Whether surface `si` is drawn every frame instead of taking turns: a screen with a provider
+/// (video, camera, web), the hovered one, the dev-IPC target, and the one holding keyboard focus,
+/// so a key typed into it shows at once and `wants_keyboard` lets game keys go the frame its field
+/// lets go (the seams review of 2026-10-31: a focused screen not under the mouse waited up to four
+/// frames for its turn).
+pub(crate) fn drawn_every_frame(si: usize, has_provider: bool, hover: Option<usize>, ipc: Option<usize>, focused: Option<usize>) -> bool {
+    has_provider || hover == Some(si) || ipc == Some(si) || focused == Some(si)
+}
+
 /// The camera posts among `placements`: (instance id, lens pose). Pure, so
 /// a test can pin the pose a placed post resolves to.
 pub fn camera_posts_from(placements: &[PlacedMachine]) -> Vec<(String, CameraPose)> {
@@ -847,19 +856,17 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     // Garden data, built only on a frame that draws that page (engine/garden_mirror.rs); the
     // Quests chain window stays open while one shows Quests (lib.rs, the quest mirror, next frame).
     let framed = pages_of(chosen.iter().filter_map(|&si| state.screens.surfaces.get(si)).map(|s| &s.core.source));
-    // The page screens take turns (PAGE_FRAMES_PER_TICK, 2026-10-31): the hovered screen, the dev-IPC
-    // target and every screen with a provider are drawn every frame; of the other screens in view,
+    // The page screens take turns (PAGE_FRAMES_PER_TICK, 2026-10-31): the hovered screen, the focused
+    // one, the dev-IPC target and every screen with a provider are drawn every frame
+    // (`drawn_every_frame`); of the other screens in view,
     // the longest-undrawn are drawn this frame and the rest keep their picture. `framed_pages` still
     // names every page in view, so the Quests chain window stays open between a screen's turns.
     let tick = state.screens.frame_tick;
     state.screens.frame_tick = tick.wrapping_add(1);
     let n_surfaces = state.screens.surfaces.len();
     state.screens.page_drawn_at.resize(n_surfaces, None);
-    let every_frame = |si: usize, s: &ScreenSurface| {
-        s.provider().is_some()
-            || state.screens.hover.is_some_and(|(h, _)| h == si)
-            || state.screens.ipc.as_ref().is_some_and(|i| i.surface == si)
-    };
+    let (hover, ipc, focused) = (state.screens.hover.map(|(h, _)| h), state.screens.ipc.as_ref().map(|i| i.surface), state.screens.focused);
+    let every_frame = |si: usize, s: &ScreenSurface| drawn_every_frame(si, s.provider().is_some(), hover, ipc, focused);
     let waiting: Vec<usize> = chosen
         .iter()
         .copied()
@@ -977,6 +984,18 @@ mod tests {
         assert_eq!(page_turns(&waiting, &drawn_at, 1, false), waiting.to_vec());
         // A surface index past the record (surfaces just rebuilt) counts as never drawn.
         assert_eq!(page_turns(&[5, 0], &[Some(1)], 1, true), vec![5]);
+    }
+
+    /// THE SCREENS THAT NEVER WAIT FOR A TURN (2026-10-31, the seams review): a provider's, the
+    /// hovered one, the dev-IPC target, and the focused one, so keys typed into a screen the mouse
+    /// has left still show the frame they are typed. Seen red with `focused` left out.
+    #[test]
+    fn a_focused_screen_is_drawn_every_frame() {
+        assert!(drawn_every_frame(3, false, None, None, Some(3)), "the focused screen does not wait for its turn");
+        assert!(drawn_every_frame(3, true, None, None, None), "a video, camera or web screen");
+        assert!(drawn_every_frame(3, false, Some(3), None, None), "the hovered screen");
+        assert!(drawn_every_frame(3, false, None, Some(3), None), "the dev-IPC target");
+        assert!(!drawn_every_frame(3, false, Some(1), Some(2), Some(0)), "any other page screen takes its turn");
     }
 
     /// (a) THE FOUR CORNERS OF A YAW-ROTATED QUAD map to (0,0), (1,0), (0,1),
