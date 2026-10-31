@@ -331,3 +331,11 @@ what we will say about it.
   2026, and a new nested line could be read more broadly (the finding reads it
   as about circulars). JPL's small-body API gives only a citation request, and
   Lowell's astorb was down. Two open points, one message to the MPC settles both.
+- [`2026-10-30-quest-chain-facts-review.md`](2026-10-30-quest-chain-facts-review.md),
+  the refutation pass over the 61 survival facts in `docs/design/quest-chains.md` section 3 (water,
+  food, warmth, air, hygiene, first aid, sleep), each re-read against its primary source (CDC, EPA,
+  NASA, FDA, MedlinePlus, NCHFP, extension services, the Red Cross, the NHS). 38 confirmed, 19
+  corrected, 1 refuted in part (distillation does not remove chemicals that boil with the water),
+  3 unconfirmed (a solar still's yield, WHO's excreta guidelines, the crop gas figures). Sand filters
+  take out viruses in the lab, not in typical use; bleach doubles for cloudy water; a burn cools for
+  20 minutes; NASA's 2022 life support baseline supersedes the 2018 one.
