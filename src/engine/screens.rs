@@ -51,6 +51,13 @@ pub const FRAME_RANGE_M: f32 = 40.0;
 /// At most this many surfaces re-run their page in one frame (the nearest
 /// ones); the rest keep their last image until they come closer.
 pub const MAX_FRAMES_PER_TICK: usize = 4;
+/// Of those, at most this many PAGE screens (a page, no provider) are drawn in one frame, taking
+/// turns, the longest-undrawn first ([`page_turns`]); the hovered screen, a dev-IPC target and a
+/// screen with a provider (a video, a camera, the web view) are drawn every frame as before. Measured
+/// 2026-10-31 (the stutter survey, sim-frame-cost.md): four page screens in view cost 5 to 11 ms of
+/// every frame, about 2 to 3 ms each; taking turns, each of four still redraws 15 times a second at
+/// 60 fps, and a single one every frame.
+pub const PAGE_FRAMES_PER_TICK: usize = 1;
 /// How far the display quad floats in front of the body face, so it never
 /// z-fights with the box it sits on.
 pub const PROUD_M: f32 = 0.002;
@@ -336,6 +343,25 @@ pub struct Screens {
     /// next frame's page data reads to know a wall screen draws a page ([`page_drawn`]). Empty
     /// while a page covers the world (lib.rs frames no screen then, and clears it).
     pub framed_pages: Vec<GuiPage>,
+    /// Counts `frame_surfaces` calls: the clock the page screens' turns are kept by.
+    pub frame_tick: u64,
+    /// The tick each surface's page was last drawn, by surface index (None: never, or the surfaces
+    /// were rebuilt since). What [`page_turns`] ranks by.
+    pub page_drawn_at: Vec<Option<u64>>,
+}
+
+/// Which of the page screens in view (`waiting`, by surface index) are drawn this frame: at most
+/// `budget`, the longest-undrawn first (never-drawn before any), ties to the nearer (the order of
+/// `waiting`). Every one when `reuse` is off: the Dev page's "turn off all reuse" switch draws every
+/// screen in view every frame, as before 2026-10-31, since a screen's kept picture is a reuse.
+pub(crate) fn page_turns(waiting: &[usize], drawn_at: &[Option<u64>], budget: usize, reuse: bool) -> Vec<usize> {
+    if !reuse {
+        return waiting.to_vec();
+    }
+    let mut order: Vec<(usize, usize)> = waiting.iter().copied().enumerate().collect();
+    // None sorts before Some, then the older tick first; the stable sort keeps the nearer first.
+    order.sort_by_key(|&(_, si)| drawn_at.get(si).copied().flatten());
+    order.into_iter().take(budget).map(|(_, si)| si).collect()
 }
 
 /// The camera posts among `placements`: (instance id, lens pose). Pure, so
@@ -619,6 +645,8 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
     state.screens.quads = quads;
     state.screens.hover = None;
     state.screens.focused = None;
+    // The page screens' turns start over: every screen is drawn as if it never was.
+    state.screens.page_drawn_at.clear();
     if let Some(done) = state.screens.abandon_ipc("the placed screens were rebuilt while it was in flight") {
         crate::engine::ipc::write_screen_done(done);
     }
@@ -708,9 +736,12 @@ pub(crate) fn update(state: &mut EngineState) {
 
 /// Draw the pages of the surfaces that matter this frame into their
 /// textures: the nearest `MAX_FRAMES_PER_TICK` within `FRAME_RANGE_M` and in
-/// front of the camera, plus the hovered one and any dev-IPC target. A
-/// surface not framed keeps its last image (the texture persists), so a
-/// distant wall still shows a page, just a frozen one.
+/// front of the camera, plus the hovered one and any dev-IPC target. Of the
+/// nearest, the PAGE screens take turns, `PAGE_FRAMES_PER_TICK` a frame
+/// ([`page_turns`]); the hovered one, the IPC target and any screen with a
+/// provider are drawn every frame. A surface not drawn keeps its last image
+/// (the texture persists), so a distant wall still shows a page, just a
+/// frozen one, and a near one between its turns.
 ///
 /// Must run outside the main egui closure and before the scene passes (see
 /// the module doc). `lists` is this frame's draw lists as built so far, in
@@ -815,8 +846,34 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     // Garden data, built only on a frame that draws that page (engine/garden_mirror.rs); the
     // Quests chain window stays open while one shows Quests (lib.rs, the quest mirror, next frame).
     let framed = pages_of(chosen.iter().filter_map(|&si| state.screens.surfaces.get(si)).map(|s| &s.core.source));
-    if framed.contains(&GuiPage::Inventory) {
-        crate::engine::garden_mirror::build_for_this_frame(state);
+    // The page screens take turns (PAGE_FRAMES_PER_TICK, 2026-10-31): the hovered screen, the dev-IPC
+    // target and every screen with a provider are drawn every frame; of the other screens in view,
+    // the longest-undrawn are drawn this frame and the rest keep their picture. `framed_pages` still
+    // names every page in view, so the Quests chain window stays open between a screen's turns.
+    let tick = state.screens.frame_tick;
+    state.screens.frame_tick = tick.wrapping_add(1);
+    let n_surfaces = state.screens.surfaces.len();
+    state.screens.page_drawn_at.resize(n_surfaces, None);
+    let every_frame = |si: usize, s: &ScreenSurface| {
+        s.provider().is_some()
+            || state.screens.hover.is_some_and(|(h, _)| h == si)
+            || state.screens.ipc.as_ref().is_some_and(|i| i.surface == si)
+    };
+    let waiting: Vec<usize> = chosen
+        .iter()
+        .copied()
+        .filter(|&si| state.screens.surfaces.get(si).is_some_and(|s| !every_frame(si, s)))
+        .collect();
+    let turns = page_turns(&waiting, &state.screens.page_drawn_at, PAGE_FRAMES_PER_TICK, crate::reuse::enabled());
+    let drawn: Vec<usize> = chosen.iter().copied().filter(|si| !waiting.contains(si) || turns.contains(si)).collect();
+    for &si in &drawn {
+        state.screens.page_drawn_at[si] = Some(tick);
+    }
+    // A screen showing the Inventory page needs the Garden data, built only on a frame that draws
+    // that page; from a wall screen it rotates through its rows rather than rebuilding all of them
+    // at once when the screen comes back into view (engine/garden_mirror.rs).
+    if pages_of(drawn.iter().filter_map(|&si| state.screens.surfaces.get(si)).map(|s| &s.core.source)).contains(&GuiPage::Inventory) {
+        crate::engine::garden_mirror::build_for_wall_screen(state);
     }
     state.screens.framed_pages = framed;
     let EngineState { screens, renderer, theme, gui_state, .. } = state;
@@ -826,7 +883,7 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     // or the Entry's inventory wall would finish the opening's "check
     // your vitals: press I" the moment the player woke up facing it.
     crate::engine::quest_hooks::off_the_record(gui_state, |gui_state| {
-        for si in chosen {
+        for si in drawn {
             if let Some(s) = surfaces.get_mut(si) {
                 s.frame(&renderer.device, &renderer.queue, theme, gui_state);
                 // A provider that resized its surface to its frame left the
@@ -887,6 +944,38 @@ mod tests {
         assert!(page_drawn(GuiPage::None, &framed, GuiPage::Quests), "a wall screen framed this tick shows Quests");
         assert!(!page_drawn(GuiPage::None, &[GuiPage::Inventory], GuiPage::Quests), "another page's screen");
         assert!(!page_drawn(GuiPage::Chat, &[], GuiPage::Quests), "nowhere");
+    }
+
+    /// Page screens in view take turns (2026-10-31, the stutter survey: four page screens in view
+    /// cost 5 to 11 ms of EVERY frame, each re-running its page). One a frame, the longest-undrawn
+    /// first, a never-drawn one before any, ties to the nearer; over four frames each of four is
+    /// drawn once; with the Dev page's "turn off all reuse" switch on, every one every frame.
+    ///
+    /// Seen red 2026-10-31 with `page_turns` returning every waiting screen (the old behaviour):
+    /// "one page screen a frame".
+    #[test]
+    fn page_screens_take_turns_longest_undrawn_first() {
+        // Surfaces 0..4 in view, nearest first: 2, 0, 3, 1. Surface 3 was never drawn.
+        let waiting = [2, 0, 3, 1];
+        let drawn_at = vec![Some(7), Some(5), Some(6), None];
+        assert_eq!(page_turns(&waiting, &drawn_at, 1, true), vec![3], "one page screen a frame: the never-drawn one");
+        assert_eq!(page_turns(&waiting, &[Some(7), Some(5), Some(6), Some(8)], 1, true), vec![1], "then the oldest");
+        assert_eq!(page_turns(&waiting, &[Some(4), Some(4), Some(4), Some(4)], 1, true), vec![2], "a tie goes to the nearer");
+        // Run four frames: each screen once, none twice.
+        let mut at: Vec<Option<u64>> = vec![None; 4];
+        let mut seen = Vec::new();
+        for tick in 0..4 {
+            let t = page_turns(&waiting, &at, PAGE_FRAMES_PER_TICK, true);
+            assert_eq!(t.len(), 1);
+            at[t[0]] = Some(tick);
+            seen.push(t[0]);
+        }
+        seen.sort();
+        assert_eq!(seen, vec![0, 1, 2, 3], "four frames draw each of four screens once");
+        // Reuse off: every screen in view, every frame (each kept picture is a reuse).
+        assert_eq!(page_turns(&waiting, &drawn_at, 1, false), waiting.to_vec());
+        // A surface index past the record (surfaces just rebuilt) counts as never drawn.
+        assert_eq!(page_turns(&[5, 0], &[Some(1)], 1, true), vec![5]);
     }
 
     /// (a) THE FOUR CORNERS OF A YAW-ROTATED QUAD map to (0,0), (1,0), (0,1),

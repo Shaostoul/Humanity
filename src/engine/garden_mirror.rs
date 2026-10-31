@@ -33,21 +33,66 @@ const SLICES: u64 = 8;
 /// once, so it never opens on rows from minutes ago.
 const ROWS_FRESH_FOR: std::time::Duration = std::time::Duration::from_millis(500);
 
-thread_local! {
-    /// The rotation's frame count and when the rows were last built (the main thread's).
-    static SLICE: std::cell::Cell<(u64, Option<std::time::Instant>)> = const { std::cell::Cell::new((0, None)) };
+/// The rotation's state between builds (the main thread's).
+#[derive(Clone, Copy, Default)]
+struct Rotation {
+    /// Builds so far: which slice is next.
+    count: u64,
+    /// When the rows were last built.
+    last: Option<std::time::Instant>,
+    /// The build count from which every row is again younger than a rotation: set when a wall
+    /// screen came back into view and kept its old rows ([`plan`]).
+    all_fresh_at: u64,
 }
 
-/// Build the Garden data unless it was built already this frame.
+thread_local! {
+    static SLICE: std::cell::Cell<Rotation> = const { std::cell::Cell::new(Rotation { count: 0, last: None, all_fresh_at: 0 }) };
+}
+
+/// Build the Garden data for the main screen's Inventory page, unless it was built already this
+/// frame.
 pub(crate) fn build_for_this_frame(state: &mut EngineState) {
+    build_once(state, false);
+}
+
+/// Build the Garden data for a wall screen showing the Inventory page (engine/screens.rs), unless it
+/// was built already this frame. Coming back into view after a while it does not rebuild every row
+/// at once (about 10 ms with the showcase's crops, measured 2026-10-31): the screen's own picture is
+/// older still, so its kept rows stand in until the rotation reaches them, the way its picture does
+/// until its turn to be drawn.
+pub(crate) fn build_for_wall_screen(state: &mut EngineState) {
+    build_once(state, true);
+}
+
+fn build_once(state: &mut EngineState, wall: bool) {
     let pass = state.egui_ctx.cumulative_pass_nr();
     if BUILT_AT_PASS.swap(pass, Ordering::Relaxed) == pass {
         return;
     }
-    build(state);
+    build(state, wall);
 }
 
-fn build(state: &mut EngineState) {
+/// Which rows this build rebuilds: (every row, the next rotation state). Pure, so the rule is tested.
+///
+/// - The Dev page's "turn off all reuse" switch off (`reuse` false): every row, every build.
+/// - The main screen's page after a gap (`stale`), or while rows a wall screen kept are still in the
+///   rotation: every row, so the page a person opens never shows rows from minutes ago.
+/// - A wall screen after a gap: one slice, as always, and every row counts as fresh again only
+///   after a full rotation (`all_fresh_at`), so a main-screen page opened meanwhile rebuilds them.
+///   With no rows kept at all (`had_rows` false) every row is built anyway and fresh.
+fn plan(rot: Rotation, now: std::time::Instant, reuse: bool, wall: bool, had_rows: bool) -> (bool, Rotation) {
+    let stale = rot.last.map_or(true, |t| now.duration_since(t) > ROWS_FRESH_FOR);
+    let every_row = !reuse || (!wall && (stale || rot.count < rot.all_fresh_at));
+    let mut next = Rotation { count: rot.count.wrapping_add(1), last: Some(now), all_fresh_at: rot.all_fresh_at };
+    if every_row || !had_rows {
+        next.all_fresh_at = 0;
+    } else if stale {
+        next.all_fresh_at = rot.count.wrapping_add(SLICES);
+    }
+    (every_row, next)
+}
+
+fn build(state: &mut EngineState, wall: bool) {
     // Its cost, on the Performance page's "Data for the open pages" row (budget_systems.ron).
     let _cost = crate::renderer::frame_costs::stage("cpu.page_data.garden");
     // Its parts (cpu.garden.*, children of cpu.page_data.garden, never summed with it): each
@@ -81,14 +126,14 @@ fn build(state: &mut EngineState) {
     let outlook_view = crate::systems::farming::outlook::OutlookView::new(&state.game_world.world, &state.data_store);
     _part = crate::renderer::frame_costs::stage("cpu.garden.crop_rows");
     // Time-sliced (SLICES): this frame rebuilds every SLICES-th crop's row and keeps the others, a new
-    // crop's row is built at once and a gone crop's is dropped. Every row is rebuilt when the page was
-    // not drawn just before (ROWS_FRESH_FOR) and while the Dev page's "turn off all reuse" switch is
-    // off (crate::reuse): the kept rows are the one reuse here.
+    // crop's row is built at once and a gone crop's is dropped. Every row is rebuilt when the main
+    // screen's page was not drawn just before (ROWS_FRESH_FOR) and while the Dev page's "turn off all
+    // reuse" switch is off (crate::reuse): the kept rows are the one reuse here ([`plan`]).
     let now = std::time::Instant::now();
-    let (count, last) = SLICE.with(|c| c.get());
-    SLICE.with(|c| c.set((count.wrapping_add(1), Some(now))));
-    let every_row = !crate::reuse::enabled() || last.map_or(true, |t| now.duration_since(t) > ROWS_FRESH_FOR);
-    let phase = count % SLICES;
+    let rot = SLICE.with(|c| c.get());
+    let (every_row, next) = plan(rot, now, crate::reuse::enabled(), wall, !state.gui_state.crops.is_empty());
+    SLICE.with(|c| c.set(next));
+    let phase = rot.count % SLICES;
     let mut kept: std::collections::HashMap<u64, crate::gui::GuiCrop> =
         std::mem::take(&mut state.gui_state.crops).into_iter().map(|c| (c.entity_bits, c)).collect();
     let mut rows: Vec<crate::gui::GuiCrop> = Vec::with_capacity(kept.len());
@@ -206,5 +251,56 @@ fn build(state: &mut EngineState) {
                 (!pests.is_empty() || !releases.is_empty()).then(|| crate::gui::GuiAreaPests { area, pests, releases })
             })
             .collect();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    /// The rotation's rule (2026-10-31, the stutter survey: an Inventory wall screen coming back into
+    /// view rebuilt every row in one frame, about 10 ms with the showcase's crops). A wall screen
+    /// keeps rotating through its old rows, since its own picture is older still; the main screen's
+    /// page never opens on old rows, also not while a wall screen's old rows are still rotating out;
+    /// with reuse turned off every build rebuilds every row.
+    ///
+    /// Seen red 2026-10-31 against the rule of 2026-10-30 (a gap rebuilt every row from either
+    /// caller): "a wall screen back in view rebuilds one slice, not every row".
+    #[test]
+    fn a_wall_screen_back_in_view_rebuilds_one_slice() {
+        let t0 = Instant::now();
+        let soon = t0 + Duration::from_millis(20);
+        let later = t0 + Duration::from_secs(30);
+        let built = Rotation { count: 40, last: Some(t0), all_fresh_at: 0 };
+
+        // Drawn just before: one slice, from either caller.
+        assert!(!plan(built, soon, true, false, true).0, "the main page drawn just before: one slice");
+        assert!(!plan(built, soon, true, true, true).0, "a wall screen drawn just before: one slice");
+
+        // After a gap: the main page rebuilds every row; a wall screen one slice, and its rows are
+        // old until a full rotation has passed.
+        assert!(plan(built, later, true, false, true).0, "the main page after a gap: every row");
+        let (every, after_wall) = plan(built, later, true, true, true);
+        assert!(!every, "a wall screen back in view rebuilds one slice, not every row");
+        assert_eq!(after_wall.all_fresh_at, 40 + SLICES);
+
+        // The main page opened during that rotation, though drawn just before: every row.
+        let (every, after_main) = plan(after_wall, later + Duration::from_millis(20), true, false, true);
+        assert!(every, "rows kept by a wall screen are not the main page's");
+        assert_eq!(after_main.all_fresh_at, 0, "and after that every row is fresh");
+
+        // The wall screen's rotation completed: the main page goes back to slices.
+        let mut rot = after_wall;
+        for i in 0..SLICES {
+            rot = plan(rot, later + Duration::from_millis(20 * (i + 1)), true, true, true).1;
+        }
+        assert!(!plan(rot, later + Duration::from_millis(400), true, false, true).0, "a full rotation later: one slice");
+
+        // No rows kept at all: every row is built anyway (nothing to keep), so they are fresh.
+        assert_eq!(plan(built, later, true, true, false).1.all_fresh_at, 0);
+
+        // Reuse turned off (the Dev page's switch): every row, every build, from either caller.
+        assert!(plan(built, soon, false, true, true).0 && plan(built, soon, false, false, true).0);
     }
 }

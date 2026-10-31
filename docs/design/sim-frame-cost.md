@@ -165,6 +165,34 @@ slower hardware the same spike is bigger.
    than a few milliseconds over the average in a ten-minute rig run that includes an autosave, a
    harvest, a build edit and a walk past the wall screens.
 
+### Survey 1, 2026-10-31 (a busy machine: an agent was compiling throughout)
+
+A rig at home-overview-noon, clock released to normal speed, a 30 s walk past the wall screens at
+the start, then ten minutes standing; `game_frame_costs` every 5 s (each sample's worst is the
+worst frame of the last 5 to 10 s), then a minute walking back past the screens every 2 s. The
+background rig runs at 30 fps. With the machine busy, wall-clock worsts are inflated by preemption
+and only the spans' own thread CPU time (`thread_worst_ms`) is trusted below; the "few ms" verdict
+needs a quiet re-run.
+
+| What | Average | Worst (own CPU) | When | Verdict |
+|---|---|---|---|---|
+| **Wall screens** (`cpu.span.screens`, nearly all `cpu.screen_ui`) | 0 out of view; **5 to 11 ms a frame while four page screens are in view** | 35 to 50 ms the first time, 10 to 16 ms on every later return | every frame they are in view | **The biggest.** Each of up to four page screens re-ran its whole page every frame. FIXED 2026-10-31: page screens take turns, one a frame (`screens::PAGE_FRAMES_PER_TICK`, `page_turns`); the hovered screen, a dev-IPC target and video/camera/web screens still draw every frame |
+| The Inventory wall screen's Garden data (`cpu.page_data.garden`) | small | 10.3 ms (13.6 the first time) | each time that screen comes back into view after half a second away | Every row was rebuilt at once. FIXED 2026-10-31: from a wall screen it keeps rotating through its rows (`garden_mirror::build_for_wall_screen`, `plan`); the main page still never opens on old rows |
+| The home autosave (`cpu.span.save_editor`) | 0 | 2.3 to 3.2 ms | every 120 s (t = 20, 140, 260, 381, 501) | Under the goal; a candidate for writing off the main thread later |
+| Plant mesh rebuilds (`cpu.span.hot_reload`, `cpu.plant_rebuild`) | 0.2 ms | 2 to 4.3 ms | 16 windows in ten minutes, irregular | The main-thread part of the rebuild; measure on a quiet machine before slicing |
+| The dev IPC (`cpu.span.dev_ipc`) | 0.16 ms | 1.7 to 2.2 ms | each `game_frame_costs` request (the survey's own) | Dev tooling measuring itself; only when a tool asks |
+| The world passes and the ECS (`world_passes`, `ecs`) | 6.8 and 4.0 ms | window worsts about twice the average in EVERY window (13 to 17 and 7 to 9 ms) | always | Not periodic: the spread of a loaded machine (shared cores slow the thread itself). Re-read quietly |
+
+**After the two fixes** (the same walk back past the screens, the same busy machine, sampled every
+2 s): the screens' own CPU while in view averaged **2.4 to 2.9 ms a frame, from 5.9** (the same
+window at 6 s: 3.2 from 8.7), and the Inventory screen's cold Garden rows **1.9 to 2.8 ms, from
+7.2**. The WORST frame did not move (16.4 to 19.9 ms, from 16.6): it is the Inventory screen's own
+turn, where its Garden views (about 4.5 ms: pH, pollination, picking, air, weeds, outlook) and the
+page drawing its rows (`cpu.garden.page`, 6.5 ms) land on one frame. Next for the screens: the
+Garden page lays out only the rows on screen (about 2,000 crops in the showcase), and the views
+follow the rows' rotation. `just verify-screens` 13/13 after the change, and its viewport shows the
+page screens drawn.
+
 ## Suspects in the untimed time, ranked
 
 - **S1. DONE 2026-10-30 (engine/garden_mirror.rs). Measured 16-20 ms a frame, not 4-9,** with the

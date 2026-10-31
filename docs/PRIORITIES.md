@@ -196,8 +196,12 @@ In order:
     gets a per-frame budget. With it, the reuse rule's Dev page switch ("turn off all reuse",
     CLAUDE.md, refined the same day). DONE 2026-10-30: the worst frame per span (5 s windows)
     and each thread's own CPU time on the Performance page, the "Turn off all reuse" switch
-    (`src/reuse.rs`, `HUMANITY_NO_REUSE=1`), and the Garden mirror's rows in 8 slices. Next: the
-    survey of every periodic job's worst frame, then a budget for each.
+    (`src/reuse.rs`, `HUMANITY_NO_REUSE=1`), and the Garden mirror's rows in 8 slices. Survey 1
+    DONE 2026-10-31 (sim-frame-cost.md, a busy machine): the wall screens were the biggest (5 to 11
+    ms of every frame while four page screens were in view), now taking turns one a frame (2.4 to
+    2.9 ms); the autosave 2.3 to 3.2 ms every 120 s; plant mesh rebuilds up to 4.3 ms. Next: the
+    Inventory screen's own turn (its Garden views and the page laying out ~2,000 rows, about 16 ms
+    on the busy machine), then a quiet re-run of the survey.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches
