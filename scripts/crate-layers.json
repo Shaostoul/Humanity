@@ -177,5 +177,29 @@
         "humanity-gui"
       ]
     }
-  ]
+  ],
+  "budgets": {
+    "humanity-gui -> humanity-engine": 58,
+    "humanity-systems -> humanity-renderer": 20,
+    "humanity-terrain -> humanity-renderer": 17,
+    "humanity-renderer -> humanity-systems": 12,
+    "humanity-ship -> humanity-systems": 8,
+    "humanity-ship -> humanity-renderer": 8,
+    "humanity-core -> humanity-engine": 6,
+    "humanity-core -> humanity-renderer": 4,
+    "humanity-net -> humanity-gui": 4,
+    "humanity-net -> humanity-systems": 2,
+    "humanity-net -> humanity-renderer": 2,
+    "humanity-ship -> humanity-gui": 2,
+    "humanity-systems -> humanity-engine": 2,
+    "humanity-systems -> humanity-gui": 2,
+    "humanity-renderer -> humanity-ship": 1,
+    "humanity-core -> humanity-systems": 1,
+    "humanity-core -> humanity-ship": 1,
+    "humanity-relay -> humanity-gui": 1,
+    "humanity-ship -> humanity-engine": 1,
+    "humanity-net -> humanity-relay": 1,
+    "humanity-renderer -> humanity-gui": 1,
+    "humanity-renderer -> humanity-net": 1
+  }
 }

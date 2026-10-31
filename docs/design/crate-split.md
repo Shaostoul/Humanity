@@ -154,6 +154,10 @@ crate. CLAUDE.md's warning that an agent reporting edits under `crates/` was in 
    `scripts/crate-layers.json` the way `crate-graph.js --edges` does and fails on any new
    wrong-way reference, so the cycle cannot grow back while the rest is done. This rung is worth
    doing even if a later rung stalls: it untangles the dependency structure.
+   **The ratchet is built (2026-10-30):** `scripts/check-crate-layers.js`, in `just lints`, holds each
+   wrong-way edge to its budget in crate-layers.json's `budgets` (today's 155 in 22 edges): an edge
+   over its budget or a new one fails; one under asks for its budget to come down in the same commit
+   (`--write` sets them all to today's counts). Re-homing is next.
 1. **The workspace, `humanity-core` and `humanity-protocol`** (the smallest and lowest). Measure a
    cold build and a one-line edit against 241 s and 56 s.
 2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.

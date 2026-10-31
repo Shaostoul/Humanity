@@ -7,10 +7,12 @@
 //   --crates  each planned crate's lines, and what it may use
 // Written 2026-10-30 to plan the split from data rather than from a guess; --edges read a
 // hard-coded five-layer list until the plan grew to ten crates the same day.
-if (process.argv.includes("--edges") || process.argv.includes("--crates")) {
+/** The plan's reading of src/: lines per crate, the wrong-way edges ("from -> to" -> Map("module: item" -> count)),
+ * and the top-level modules no crate claims. Shared with scripts/check-crate-layers.js (the ratchet). */
+function analyse() {
   const fs = require('fs');
   const path = require('path');
-  const ROOT = 'C:/Humanity/src';
+  const ROOT = path.join(__dirname, '..', 'src');
   const PLAN = JSON.parse(fs.readFileSync(path.join(__dirname, 'crate-layers.json'), 'utf8'));
   // path -> crate, and each crate's transitive set of crates it may use.
   const owner = new Map();
@@ -84,6 +86,11 @@ if (process.argv.includes("--edges") || process.argv.includes("--crates")) {
       edges.set(k, m);
     }
   }
+  return { PLAN, lines, edges, unowned };
+}
+
+if (require.main === module && (process.argv.includes("--edges") || process.argv.includes("--crates"))) {
+  const { PLAN, lines, edges, unowned } = analyse();
   if (process.argv.includes("--crates")) {
     for (const c of PLAN.crates) {
       console.log(`${String(lines.get(c.name) || 0).padStart(7)}  ${c.name.padEnd(20)} uses ${c.uses.map((u) => u.replace('humanity-', '')).join(', ') || '(nothing)'}`);
@@ -100,10 +107,10 @@ if (process.argv.includes("--edges") || process.argv.includes("--crates")) {
     console.log(`\n${rows.length} wrong-way edges, ${total} references in non-test code (plan: scripts/crate-layers.json)`);
   }
   if (unowned.size) console.log(`\nNOT IN THE PLAN (add them to scripts/crate-layers.json): ${[...unowned].join(', ')}`);
-} else {
+} else if (require.main === module) {
   const fs = require('fs');
   const path = require('path');
-  const ROOT = 'C:/Humanity/src';
+  const ROOT = path.join(__dirname, '..', 'src');
   
   // 1. Top-level modules and their gates, from lib.rs.
   const lib = fs.readFileSync(path.join(ROOT, 'lib.rs'), 'utf8').split(/\r?\n/);
@@ -201,3 +208,5 @@ if (process.argv.includes("--edges") || process.argv.includes("--crates")) {
   for (const m of byLines.slice(0, 20)) console.log(`  ${m.name.padEnd(16)} <- ${fanIn.get(m.name).length}: ${fanIn.get(m.name).join(' ')}`);
 
 }
+
+module.exports = { analyse };
