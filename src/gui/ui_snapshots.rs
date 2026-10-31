@@ -1876,8 +1876,8 @@ fn snapshot_fleet_ledger() {
 /// Home > Household (ship homes 5b, pages/household.rs): a player in the shared world on p2 whose
 /// friends' permits stand each way the card can say (taken with Renew and Take back, on its way,
 /// unanswered, refused, ran out, being taken back, taken back, not online, old plot, blocked), and
-/// the permits friends gave them, one for each thing the server can say. The whole card, uncapped,
-/// so every row is in the picture. Dates are counted from today, so they move day to day.
+/// the permits friends gave them, one for each thing the server can say. The whole card (it has no
+/// height cap since the Home page became one scroll, 2026-10-30), every row in the picture. Dates are counted from today, so they move day to day.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_household() {
@@ -1888,7 +1888,7 @@ fn snapshot_household() {
         }
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
-            .show(ctx, |ui| household::draw_card_uncapped(ui, theme, state));
+            .show(ctx, |ui| household::draw_card_from(ui, theme, state, std::path::Path::new("data")));
     });
 }
 
@@ -3723,7 +3723,92 @@ fn snapshot_planet_tuner() {
     });
 }
 
-page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
+/// Sample rows for the Home page's Animals card, in the words `systems::animal_care::herd_rows`
+/// writes (its test pins them): a fed hen, a hen with an egg to collect, a hungry goat, a sheep,
+/// and a hen that starved.
+fn sample_herd() -> Vec<crate::systems::animal_care::HerdRow> {
+    use crate::systems::animal_care::HerdRow;
+    let row = |title: &str, kind: &str, condition: &str, product: &str, ready: bool, feed: &str, water: &str, alert: bool| HerdRow {
+        title: title.into(),
+        status: if product.is_empty() { format!("{condition}.") } else { format!("{condition}. {product}.") },
+        needs: format!("Eats about {feed} and drinks about {water} of water a day."),
+        alert,
+        kind: kind.into(),
+        condition: condition.into(),
+        product: product.into(),
+        ready,
+        feed: feed.into(),
+        water: water.into(),
+        dead: false,
+    };
+    vec![
+        row("Chicken 1", "Chicken", "Fed and watered", "Egg in 18 h", false, "110 g of Corn Grain", "0.25 L", false),
+        row("Chicken 2", "Chicken", "Fed and watered", "Egg ready to collect", true, "110 g of Corn Grain", "0.25 L", false),
+        row("Goat 1", "Goat", "Hungry (no feed in home storage)", "Goat Milk in about 9 h 40 min at its slower rate", false, "2.4 kg of Hay", "8.4 L", true),
+        row("Sheep 1", "Sheep", "Fed and watered", "Wool in 214 days", false, "1.8 kg of Hay", "3.5 L", false),
+        HerdRow {
+            title: "Chicken 3".into(),
+            status: "Starved to death.".into(),
+            alert: true,
+            kind: "Chicken".into(),
+            condition: "Starved to death".into(),
+            dead: true,
+            ..HerdRow::default()
+        },
+    ]
+}
+
+/// The Home page as the game draws it: the sample herd, and the shipped household's machines, so
+/// the loops' gauges read the food its crops grow and its power meter (the page's live inputs).
+fn homes_state(state: &mut GuiState) {
+    if state.herd.is_empty() {
+        state.herd = sample_herd();
+    }
+    if state.home_machines.is_none() {
+        state.home_machines = crate::machines::MachineHome::load(&std::path::Path::new("data").join("machines").join("home.ron"));
+    }
+}
+
+/// The Home page (2026-10-30: one scroll, cards in rows that fill the width): the Household card
+/// beside Where you live, the animals as cards, the readouts side by side, the loops as cards with
+/// their explanations folded. Tall, to show the page down to the ideal loops.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_homes() {
+    render_page_png("homes", 1280, 2600, |ctx, theme, state| {
+        homes_state(state);
+        crate::gui::pages::homes::draw(ctx, theme, state);
+    });
+}
+
+/// The Home page on a 2560-point window: the operator's "a ton of unused space", now filled. The
+/// ideal Power loop's "How this is worked out" is open: its words in a panel the width of the
+/// grid under the loops' row, in three columns (the note, the arithmetic, what it assumes).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_homes_wide() {
+    render_page_png("homes_wide", 2560, 2300, |ctx, theme, state| {
+        homes_state(state);
+        crate::gui::widgets::cards::set_fold_open(ctx, ("homes_outline_how", "power"), true);
+        crate::gui::pages::homes::draw(ctx, theme, state);
+    });
+}
+
+/// The Home page on a narrow window with both lists as tables (the animals, the ideal loops) and
+/// the first loop's "How this is worked out" open (its words in a panel under the Energy card's
+/// row, the Water card beside it its own size): every table and fold readable.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_homes_narrow_tables() {
+    use crate::gui::widgets::view_toggle::{set_remembered, ListView};
+    render_page_png("homes_narrow_tables", 760, 3600, |ctx, theme, state| {
+        homes_state(state);
+        set_remembered(ctx, crate::gui::pages::herd::VIEW_ID, ListView::Table);
+        set_remembered(ctx, crate::gui::pages::home_loops::OUTLINE_VIEW_ID, ListView::Table);
+        crate::gui::widgets::cards::set_fold_open(ctx, ("homes_loop_how", 0usize), true);
+        crate::gui::pages::homes::draw(ctx, theme, state);
+    });
+}
 
 // The construction editor needs a selected room with machines, so it gets a custom setup
 // (the macro only passes the default state). Garage holds machines + connections in the seed

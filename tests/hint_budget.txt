@@ -2,7 +2,7 @@
 # another src/gui file), how many controls still have no plain-language hint. Checked by
 # tests/i18n_lint.rs (native_hint_coverage_only_grows); the numbers only go DOWN and a page
 # not listed has a budget of zero. HINT_REPORT=1 prints controls and coverage per page.
-# Controls without a hint: 1293 of 1898
+# Controls without a hint: 1292 of 1910
 15 page apps
 5 page browser
 123 page chat
@@ -14,7 +14,6 @@
 108 page files
 4 page fleet_ledger
 3 page game_admin
-1 page homes
 8 page host_node
 8 page household
 23 page how_to

@@ -724,17 +724,24 @@ pub fn wait_words(seconds: f64) -> String {
 /// water a day." The feed named is the first in its list that home storage has (the one it is
 /// eating), else the first in its list.
 pub fn needs_line(sp: &SpeciesCare, cd: &CareData, items: Option<&ItemRegistry>, stock: Option<&HashMap<String, u32>>) -> String {
-    let in_stock = |id: &&String| stock.is_some_and(|s| s.get(*id).copied().unwrap_or(0) > 0);
-    let pick = sp.eats.iter().filter(|id| cd.feeds.contains_key(*id)).find(in_stock).or_else(|| sp.eats.iter().find(|id| cd.feeds.contains_key(*id)));
-    let water = litre_words(sp.water_l_day);
-    match pick {
-        Some(id) => {
-            let as_fed = sp.dry_matter_kg_day / cd.feeds[id].max(1e-9);
-            let name = items.and_then(|r| r.items.get(id)).map_or_else(|| id.clone(), |d| d.name.clone());
-            format!("Eats about {} of {name} and drinks about {water} of water a day.", mass_words(as_fed))
-        }
+    let (feed, water) = needs_parts(sp, cd, items, stock);
+    match feed {
+        Some(feed) => format!("Eats about {feed} and drinks about {water} of water a day."),
         None => format!("Drinks about {water} of water a day."),
     }
+}
+
+/// The two halves of [`needs_line`] apart, for the Home page's table: the feed a day ("110 g of
+/// Corn Grain"; None for an animal that eats nothing the data names) and the water a day ("0.25 L").
+pub fn needs_parts(sp: &SpeciesCare, cd: &CareData, items: Option<&ItemRegistry>, stock: Option<&HashMap<String, u32>>) -> (Option<String>, String) {
+    let in_stock = |id: &&String| stock.is_some_and(|s| s.get(*id).copied().unwrap_or(0) > 0);
+    let pick = sp.eats.iter().filter(|id| cd.feeds.contains_key(*id)).find(in_stock).or_else(|| sp.eats.iter().find(|id| cd.feeds.contains_key(*id)));
+    let feed = pick.map(|id| {
+        let as_fed = sp.dry_matter_kg_day / cd.feeds[id].max(1e-9);
+        let name = items.and_then(|r| r.items.get(id)).map_or_else(|| id.clone(), |d| d.name.clone());
+        format!("{} of {name}", mass_words(as_fed))
+    });
+    (feed, litre_words(sp.water_l_day))
 }
 
 /// How it is, in plain words: "Fed and watered", "Hungry and very thirsty", "Sick from hunger".
@@ -836,7 +843,8 @@ pub fn walk_up_lines(world: &hecs::World, e: hecs::Entity, data: &DataStore) -> 
     (prompt, line)
 }
 
-/// One row of the Home page's Animals card.
+/// One row of the Home page's Animals card: the whole lines its cards show, and the same facts
+/// apart for its table's columns (2026-10-30, the operator's "multiview list").
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HerdRow {
     /// "Chicken 1".
@@ -847,6 +855,20 @@ pub struct HerdRow {
     pub needs: String,
     /// Something is wrong (hungry, thirsty, sick, dead): drawn in the warning colour.
     pub alert: bool,
+    /// The kind of animal: "Chicken".
+    pub kind: String,
+    /// How it is, alone: "Fed and watered", "Hungry (no feed in home storage)", "Starved to death".
+    pub condition: String,
+    /// What it makes and when: "Egg in 18 h", "Egg ready to collect"; empty when it makes nothing.
+    pub product: String,
+    /// What it makes is ready to collect now.
+    pub ready: bool,
+    /// Its feed a day, "110 g of Corn Grain"; empty when it eats nothing named, or is dead.
+    pub feed: String,
+    /// Its water a day, "0.25 L"; empty when dead.
+    pub water: String,
+    /// It died (starved, of thirst).
+    pub dead: bool,
 }
 
 /// "Chicken 1" for the herd slot "chicken#0", by the species' name.
@@ -881,19 +903,31 @@ pub fn herd_rows(world: &hecs::World, data: &DataStore) -> Vec<HerdRow> {
             None => name.map_or_else(|| species_name(&c.def_id), |n| n.0.clone()),
         };
         let share = care.production(sp, mode);
-        let yield_line = h.map(|h| {
-            let item = items.and_then(|r| r.items.get(&h.resource)).map_or_else(|| h.resource.clone(), |d| d.name.clone());
-            format!(" {}.", yield_words(h, &item, share))
-        });
+        let product = h
+            .map(|h| {
+                let item = items.and_then(|r| r.items.get(&h.resource)).map_or_else(|| h.resource.clone(), |d| d.name.clone());
+                yield_words(h, &item, share)
+            })
+            .unwrap_or_default();
+        let ready = h.is_some_and(|h| h.time_since_harvest + f32::EPSILON >= h.regrow_time);
         let alert = care.hungry_h > sp.feed.slows_h || care.thirsty_h > sp.water.slows_h || care.no_feed || care.no_water;
         let key = slot.map_or_else(|| format!("~{title}"), |s| s.0.clone());
+        let condition = condition_words(care, sp, mode);
+        let (feed, water) = needs_parts(sp, cd, items, stock.as_ref());
         rows.push((
             key,
             HerdRow {
                 title,
-                status: format!("{}.{}", condition_words(care, sp, mode), yield_line.unwrap_or_default()),
+                status: if product.is_empty() { format!("{condition}.") } else { format!("{condition}. {product}.") },
                 needs: needs_line(sp, cd, items, stock.as_ref()),
                 alert,
+                kind: species_name(&c.def_id),
+                condition,
+                product,
+                ready,
+                feed: feed.unwrap_or_default(),
+                water,
+                dead: false,
             },
         ));
     }
@@ -904,7 +938,18 @@ pub fn herd_rows(world: &hecs::World, data: &DataStore) -> Vec<HerdRow> {
             "died of thirst" => "Died of thirst",
             _ => "Dead",
         };
-        rows.push((l.slot.clone(), HerdRow { title: slot_title(&l.slot, &species_name(species)), status: format!("{how}."), needs: String::new(), alert: true }));
+        rows.push((
+            l.slot.clone(),
+            HerdRow {
+                title: slot_title(&l.slot, &species_name(species)),
+                status: format!("{how}."),
+                alert: true,
+                kind: species_name(species),
+                condition: how.to_string(),
+                dead: true,
+                ..HerdRow::default()
+            },
+        ));
     }
     rows.sort_by(|a, b| a.0.cmp(&b.0));
     rows.into_iter().map(|(_, r)| r).collect()

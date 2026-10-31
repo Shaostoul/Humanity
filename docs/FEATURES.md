@@ -3630,16 +3630,38 @@ next time you enter the world, not live mid-session.
 - Native: `src/machines.rs` (`home_ron_path`), `src/save_load.rs` (`ActiveHome`), `src/ship/starts.rs` (`Starts::household`), `src/gui/pages/where_you_live.rs` (`draw_settings_section`), `src/gui/pages/settings.rs` (`draw_gameplay_content`)
 - Data: `data/machines/home_solo.ron`, `data/machines/cabin.ron`, `data/homes/starts.ron`
 
+### The Home page as cards that use the width (2026-10-30)
+The operator, of the Home page: "everything is left aligned. There's a ton of unused space ... We
+should join the two areas and make everything more visually friendly. Like the Closed-loop
+self-sufficiency areas are brutal walls of text." The page is ONE scroll (the Household card and the
+animals stood still above a scroll of their own, and the Household card had a capped third). Its
+parts are cards in rows that fill the width, one column on a narrow window and as many as fit on a
+wide one: the Household card beside Where you live; the Animals as a card each (the kind's tile, a
+pill for doing well / needs care / dead, what it makes, its feed and water a day) or a table, one row
+each, switched by a Table / Cards toggle; At a glance and the live power, water and air readouts side
+by side, with gauges (make against use, the battery, the cistern); the home's loops as cards (a pill
+for closed or short and "weakest loop", a gauge where the numbers are known: the food the placed
+crops grow, and the power meter's make against use; the need and supply cut to two lines, whole on
+hover; the rest behind "How this is worked out", which opens in a panel the width of the grid under
+the card's row, so the long words read at a comfortable width and the cards beside it keep their
+size); the ideal loops the same, or a table, each loop's
+arithmetic (`balance`) and assumptions now shown in its fold (both were in the data and invisible);
+the traded loops edged in the warning colour, why behind a fold; the bill of materials in columns;
+each room a card. The web Home page mirrors the ideal loops (cards or a table).
+- Native: `src/gui/pages/homes.rs` (`draw`, `draw_page`, `draw_design`, the readout cards, `room_card`), `src/gui/pages/home_loops.rs` (`draw_home_loops`, `gauge_for`, `draw_outline`, `draw_cannot_close`), `src/gui/pages/herd.rs` (`draw_card`, the cards and the table), `src/systems/animal_care.rs` (`HerdRow`'s columns, `needs_parts`), `src/gui/widgets/cards.rs` (`Grid`, `status_badge`, `plain_badge`, `gauge`, `fold`, `clamped`), `src/gui/widgets/view_toggle.rs`, `src/gui/widgets/data_table.rs`
+- Web: `web/pages/home.html`, `web/shared/view-toggle.js`, `web/shared/list-views.css`
+- Tests: `gui::widgets::cards::tests`, `gui::widgets::view_toggle::tests::a_click_on_table_shows_the_table`, `gui::widgets::data_table::tests`, `gui::pages::home_loops::tests`, `systems::animal_care::tests::the_walk_up_lines_and_the_animals_card_say_it_plainly`, `scripts/tests/view-toggle-web.test.js`; snapshots `homes`, `homes_wide`, `homes_narrow_tables`
+
 ### "What one home cannot close" panel (Home page)
 The pedagogical payoff of the homestead design (operator: "people need to see the bare minimum
 for 100% self-sufficiency so they understand the importance of all supporting civilizational
 infrastructure"). Directly below the closed-loop summary, a visually distinct outlined panel
 (warning stroke, muted treatment -- deliberately NOT the green closed-loop styling) lists the
 five loops no single homestead can close: electronics/semiconductors, metal from raw ore,
-medicine synthesis, equipment replacement, and raw chemistry inputs. Each is an expandable row:
-collapsed shows title + a "traded" tag; expanded gives a plain-language body naming the game
-recipe that abstracts the gap away (manufacture_cpu, smelt_steel, ...) plus a "provided by"
-trade line. Medicine names the opposite: since 2026-10-05 no recipe makes antibiotics (the
+medicine synthesis, equipment replacement, and raw chemistry inputs. Each is a card (since
+2026-10-30, edged in the warning colour): its title, a "traded" pill and the "provided by" trade
+line; "Why it stays open" opens a plain-language body naming the game recipe that abstracts the
+gap away (manufacture_cpu, smelt_steel, ...). Medicine names the opposite: since 2026-10-05 no recipe makes antibiotics (the
 old craft_antibiotics cultured them from water, flour and sugar), and the trading post sells
 them. Intro + footer carry the non-defeatist framing: these gaps ARE why
 civilization exists. Data-driven (infinite-of-X): categories live in the RON, not code.

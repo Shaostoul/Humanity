@@ -46,6 +46,13 @@ pub mod cover_tile;
 // A library shelf (2026-10-19): the toolbar, the Grid and its tiles, the List, and the details panel
 // the Apps page's parts share.
 pub mod shelf;
+// Cards that use the width (2026-10-30): a grid of cards in rows that fill the window, and a card's
+// parts (a status pill, a have-of-need gauge, a fold for the long words). The Home page first.
+pub mod cards;
+// Table or cards (2026-10-30): the toggle any list can show itself by, and the compact table it
+// switches to. The Home page's animals and loops first.
+pub mod view_toggle;
+pub mod data_table;
 // A video fetched and played in the app, with its sound (2026-10-18): the Media page and the chat.
 pub mod video_view;
 // A sound played in the app with its waveform and spectrum, and the waveform itself (2026-10-19):

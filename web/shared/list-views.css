@@ -1,0 +1,215 @@
+/* list-views.css: one list, two ways to see it, and cards that use the width (operator,
+   2026-10-30, of the Home page: "everything is left aligned. There's a ton of unused space" and
+   "a multiview list ... Like an excel spreadsheet for compact detail and tiles/cards for each
+   animal in a more visually friendly style").
+
+   The website's twins of the desktop app's widgets:
+     .card-grid      src/gui/widgets/cards.rs Grid: cards in rows that fill the width, as many to
+                     a row as fit at --card-min, the cards of a row one height.
+     .status-badge   cards::status_badge / plain_badge: a word in a pill tinted with its state's
+                     colour (.tone-success, .tone-warning, .tone-danger, .tone-info, .tone-neutral).
+     .gauge          cards::gauge: what there is against what is needed, a bar in the state's colour.
+     .fold           cards::fold: a <details> whose small accent <summary> opens the long words.
+     .clamp-2/.clamp-3  cards::clamped: words cut to two or three lines, whole in the title.
+     .view-toggle    src/gui/widgets/view_toggle.rs: the Table / Cards pair (web/shared/view-toggle.js
+                     draws it).
+     .data-table     src/gui/widgets/data_table.rs: a compact striped table, one row a thing.
+
+   Every colour and size is a theme token (web/shared/theme.css, generated from data/gui/theme.ron),
+   so the Settings theme editor restyles these too. */
+
+.card-grid {
+  --card-min: 320px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--card-min), 100%), 1fr));
+  /* dense: an opened .card-detail (a whole row, placed right after its card in the markup) takes
+     the next empty row, and the cards after it fill the rest of its card's row, so the detail
+     opens UNDER the row its card is in, as Grid::show_with_details draws it in the app. */
+  grid-auto-flow: row dense;
+  gap: var(--space-md);
+  margin: 0 0 var(--space-md);
+}
+.card-grid > .card-detail {
+  grid-column: 1 / -1;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.card-grid > .card-detail[hidden] { display: none; }
+.card-detail .detail-heading { font-size: var(--text-base); color: var(--accent); margin: 0 0 var(--space-xs); }
+.card-detail .detail-heading span { font-size: var(--text-sm); font-weight: 400; color: var(--text-muted); margin-left: var(--space-sm); }
+.card-detail .detail-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: var(--space-lg); }
+.card-detail .detail-cols > div { max-width: 72ch; min-width: 0; }
+.card-detail h4 { font-size: var(--text-sm); color: var(--text); margin: var(--space-sm) 0 2px; }
+.card-detail ul { padding-left: 1.2rem; margin: 0; }
+.card-grid > .card-cell {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  min-width: 0;
+}
+.card-grid.edge-warning > .card-cell { border-color: var(--warning); }
+
+.card-head { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.card-head .card-name { font-weight: 700; font-size: var(--text-base); margin-right: auto; }
+.card-meta { font-size: var(--text-sm); color: var(--text-muted); margin: var(--space-xs) 0; }
+
+.status-badge {
+  --tone: var(--text-secondary);
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 1px 8px;
+  border-radius: var(--pill-radius);
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
+  white-space: nowrap;
+}
+.status-badge.tone-success { --tone: var(--success); }
+.status-badge.tone-warning { --tone: var(--warning); }
+.status-badge.tone-danger { --tone: var(--danger); }
+.status-badge.tone-info { --tone: var(--info); }
+.status-badge.tone-neutral { background: var(--bg-tertiary); border-color: var(--border); }
+
+.gauge {
+  --tone: var(--accent);
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+  margin: var(--space-xs) 0;
+}
+.gauge > span { display: block; height: 100%; background: var(--tone); border-radius: 4px; }
+.gauge.tone-success { --tone: var(--success); }
+.gauge.tone-warning { --tone: var(--warning); }
+.gauge.tone-danger { --tone: var(--danger); }
+
+.fold { margin: var(--space-xs) 0 0; }
+.fold > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--accent);
+  list-style: none;
+  user-select: none;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-right: 6px;
+  border-style: solid;
+  border-width: 4px 0 4px 6px;
+  border-color: transparent transparent transparent currentColor;
+  vertical-align: middle;
+  transition: transform 0.1s;
+}
+.fold[open] > summary::before { transform: rotate(90deg); }
+.fold > summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* The card's own fold line: a button that opens its .card-detail (aria-expanded, aria-controls). */
+.fold-btn {
+  display: block;
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.fold-btn::before {
+  content: '';
+  display: inline-block;
+  margin-right: 6px;
+  border-style: solid;
+  border-width: 4px 0 4px 6px;
+  border-color: transparent transparent transparent currentColor;
+  vertical-align: middle;
+  transition: transform 0.1s;
+}
+.fold-btn[aria-expanded="true"]::before { transform: rotate(90deg); }
+.fold-btn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.fold-body { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; padding-top: var(--space-xs); }
+.fold-body h4 { font-size: var(--text-sm); color: var(--text); margin: var(--space-sm) 0 2px; }
+.fold-body ul { padding-left: 1.2rem; margin: 0; }
+
+.labelled { display: grid; grid-template-columns: 4.2em 1fr; gap: var(--space-sm); font-size: var(--text-sm); margin: 2px 0; }
+.labelled > .label { color: var(--text-muted); }
+.clamp-2, .clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-2 { -webkit-line-clamp: 2; line-clamp: 2; }
+.clamp-3 { -webkit-line-clamp: 3; line-clamp: 3; }
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--pill-radius);
+  background: var(--bg-secondary);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.view-toggle-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.view-toggle-seg:hover { background: var(--bg-tertiary); color: var(--text); }
+.view-toggle-seg[aria-pressed="true"] { background: var(--accent); color: var(--text-on-accent); }
+.view-toggle-seg:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+/* The pictures are shapes drawn in the text's colour, as the app paints them: rows for the table,
+   four tiles for the cards. */
+.view-toggle-icon { position: relative; width: 12px; height: 12px; flex: none; }
+.view-table .view-toggle-icon {
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 33% / 100% 1px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 66% / 100% 1px no-repeat;
+}
+.view-cards .view-toggle-icon {
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 5px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 0 / 5px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 100% / 5px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 100% / 5px 5px no-repeat;
+}
+
+.data-table-wrap { overflow-x: auto; margin: 0 0 var(--space-md); }
+.data-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.data-table th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 6px var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 6px var(--space-sm);
+  max-width: 32em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.data-table tbody tr:nth-child(even) { background: var(--row-stripe); }
+.data-table tbody tr:hover { background: var(--bg-tertiary); }
+.data-table .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--tone, var(--text-muted)); }
+.data-table .tone-success { --tone: var(--success); color: var(--success); }
+.data-table .tone-warning { --tone: var(--warning); color: var(--warning); }
+.data-table .tone-info { color: var(--info); }

@@ -40,6 +40,9 @@ pub mod humanity;
 pub mod library;
 pub mod quests;
 pub mod homes;
+// The Home page's loops as cards (2026-10-30): the home's own, the ideal outline's, and what one
+// home cannot close.
+pub mod home_loops;
 /// Home > Household: giving, renewing and taking back household permits (ship homes 5b, 2026-10-12).
 pub mod household;
 /// Choose where you live: the start and household of the live save, in Settings > Gameplay, on

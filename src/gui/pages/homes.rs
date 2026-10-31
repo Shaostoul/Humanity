@@ -1,24 +1,33 @@
-//! Home — your offline homestead (v0.379).
+//! Home: your offline homestead (v0.379).
 //!
 //! Surfaces the existing Fibonacci homestead blueprint (data/blueprints/
 //! fibonacci_homestead.ron) as a browsable Design. Pick a build SCALE (Solo /
 //! Family / Community / Colony) and see, for that scale:
 //!   - the total power + water DEMAND,
-//!   - the aggregated BILL OF MATERIALS (the parts list — the real-world-bridge
+//!   - the aggregated BILL OF MATERIALS (the parts list, the real-world-bridge
 //!     north star: what you would 3D-print / buy / trade to build it),
 //!   - a SELF-SUFFICIENCY summary (the generation / collection / recycling systems
 //!     that close the loops),
 //!   - the rooms grouped by construction tier.
+//!
+//! THE LAYOUT (operator, 2026-10-30: "everything is left aligned. There's a ton of unused space
+//! ... everything from the top where it says 'Household' down to 'just you: rooms F1 to F8' is
+//! anchored to the screen, then everything below is a scrollable area. We should join the two
+//! areas and make everything more visually friendly"): the whole page is ONE scroll, and its parts
+//! are cards in rows that fill the width (`widgets::cards::Grid`): the Household card beside
+//! "Where you live", the animals (cards or a table, herd.rs), the home's readouts side by side, and
+//! the loops as cards with their long explanations folded (home_loops.rs).
 //!
 //! Offline-first (operator 2026-06-07: "keep developing offline; multiplayer
 //! after offline singleplayer works"). Read-only for now (no editing / building
 //! yet). Server + Real homes, and exact closure SCORING (output vs demand per
 //! loop), are the next data layers. See docs/design/homes-as-profiles.md.
 
-use egui::{RichText, ScrollArea, Frame};
+use egui::{Frame, RichText, ScrollArea};
 use crate::gui::{GuiState, HomesteadDesign, DesignRoom, TowerConfig, TowerCompat};
+use crate::gui::i18n::{t, tf};
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
+use crate::gui::widgets::{self, cards};
 use std::cell::RefCell;
 
 /// Build scales, from the blueprint's scaling_notes. Each includes every room up
@@ -32,6 +41,8 @@ enum Scale {
 }
 
 impl Scale {
+    const ALL: [Scale; 4] = [Scale::Solo, Scale::Family, Scale::Community, Scale::Colony];
+
     fn ceiling(self) -> u32 {
         match self {
             Scale::Solo => 8,
@@ -42,25 +53,33 @@ impl Scale {
     }
     fn label(self) -> &'static str {
         match self {
-            Scale::Solo => "Solo",
-            Scale::Family => "Family",
-            Scale::Community => "Community",
-            Scale::Colony => "Colony",
+            Scale::Solo => t("home.scale_solo"),
+            Scale::Family => t("home.scale_family"),
+            Scale::Community => t("home.scale_community"),
+            Scale::Colony => t("home.scale_colony"),
         }
     }
     fn blurb(self) -> &'static str {
         match self {
-            Scale::Solo => "Just you: rooms F1 to F8.",
-            Scale::Family => "A household: rooms F1 to F13.",
-            Scale::Community => "A village: rooms F1 to F55.",
-            Scale::Colony => "Everything: all rooms to F233+.",
+            Scale::Solo => t("home.scale_solo_blurb"),
+            Scale::Family => t("home.scale_family_blurb"),
+            Scale::Community => t("home.scale_community_blurb"),
+            Scale::Colony => t("home.scale_colony_blurb"),
+        }
+    }
+    fn hint_key(self) -> &'static str {
+        match self {
+            Scale::Solo => "home.scale_solo_hint",
+            Scale::Family => "home.scale_family_hint",
+            Scale::Community => "home.scale_community_hint",
+            Scale::Colony => "home.scale_colony_hint",
         }
     }
 }
 
 fn with_scale<R>(f: impl FnOnce(&mut Scale) -> R) -> R {
     thread_local! {
-        static SCALE: RefCell<Scale> = RefCell::new(Scale::Solo);
+        static SCALE: RefCell<Scale> = const { RefCell::new(Scale::Solo) };
     }
     SCALE.with(|s| f(&mut s.borrow_mut()))
 }
@@ -161,6 +180,15 @@ pub struct OutlineLoop {
     pub demand: String,
     pub closes: bool,
     pub closure_note: String,
+    /// The arithmetic behind the loop's claims, one line a step (in_game_next's first item:
+    /// "the arithmetic that backs every claim on this page is in the data file and invisible in
+    /// the app"). Shown under "How this is worked out" since 2026-10-30.
+    #[serde(default)]
+    pub balance: Vec<String>,
+    /// What the loop's figures assume (the site, the sources), one line each; shown beside the
+    /// arithmetic.
+    #[serde(default)]
+    pub assumptions: Vec<String>,
     #[serde(default)]
     pub requirements: Vec<OutlineRequirement>,
 }
@@ -208,71 +236,98 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
-            // Home > Household (ship homes 5b, household.rs): first on the page, with or without a
-            // design loaded.
-            super::household::draw_card(ui, theme, state);
-            // Where you live (ship homes increment 6, where_you_live.rs): "In this world you live in
-            // a Homestead (a family of three).", read only (Settings > Gameplay changes the
-            // household; Characters chooses the start).
-            super::where_you_live::draw_home_line(ui, theme);
-            // Home > Animals (2026-10-12, herd.rs): the farm animals, fed and watered or not.
-            super::herd::draw_card(ui, theme, state);
-            // The homestead's own section below (its design, its loops, what one home cannot
-            // close) only for a home that has loops: a Cabin's household file has none, and a
-            // cabin is not an acre to close loops on (increment 6, plan 3.9).
-            if !home_has_loops(state) {
-                return;
-            }
-            // Clone so the immutable design can be browsed without holding a borrow
-            // of state (cheap; the blueprint is small).
-            let Some(design) = state.homestead_design.clone() else {
-                ui.label(RichText::new("Home").size(theme.font_size_title).color(theme.text_primary()));
-                ui.add_space(theme.spacing_sm);
-                ui.label(
-                    RichText::new("No homestead blueprint loaded (expected data/blueprints/fibonacci_homestead.ron).")
-                        .color(theme.text_muted()),
-                );
-                return;
-            };
-            let power = LivePower {
-                gen: state.power_generation,
-                usage: state.power_consumption,
-                balance: state.power_balance,
-                battery_wh: state.power_battery_wh,
-                capacity_wh: state.power_battery_capacity_wh,
-                autonomy: state.power_autonomy_hours,
-                ship: state.power_ship,
-            };
-            let water = LiveWater {
-                production: state.water_production_lpm,
-                demand: state.water_demand_lpm,
-                stored: state.water_stored_l,
-                capacity: state.water_capacity_l,
-                days_autonomy: state.water_days_autonomy,
-            };
-            let air = LiveAir {
-                o2: state.air_o2_pct,
-                co2: state.air_co2_pct,
-                pressure: state.air_pressure_atm,
-                temp_c: state.air_temp_c,
-                breathable: state.air_breathable,
-            };
-            // The home's food, computed from the crops in its placed grow machines: the
-            // same figure the machine cards and the garden overview sum.
-            let grown_kcal = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
-            // Each loop's live daily energy (2026-10-22): the machines as they ran over their last
-            // game day, by the meter the Construction page shows.
-            let basis = crate::machines::MeterBasis {
-                life_support_on_grid: state.garden_pests.life_support_realistic,
-                recorded: Some(&state.machine_day_energy),
-            };
-            let metered: Vec<Option<String>> = state
-                .homestead_loops
-                .iter()
-                .map(|l| l.meter.zip(state.home_machines.as_ref()).and_then(|(m, h)| h.loop_meter_line(m, crate::machines::METER_SUN_HOURS, basis)))
-                .collect();
-            draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &state.homestead_loops, &metered, grown_kcal, power, water, air);
+            // ONE scroll for the whole page (2026-10-30): the Household card and the animals used to
+            // stand still above a scroll of their own, and the Household card had a third, capped
+            // one inside it.
+            ScrollArea::vertical().id_salt("homes_page").auto_shrink([false, false]).show(ui, |ui| {
+                // Clear of the scroll bar, which floats over the right edge.
+                let clear = theme.spacing_md.round().clamp(0.0, 127.0) as i8;
+                Frame::none().inner_margin(egui::Margin { right: clear, ..Default::default() }).show(ui, |ui| {
+                    draw_page(ui, theme, state);
+                });
+            });
         });
+}
+
+/// The page inside its scroll: who lives here, the animals, then the homestead's own section.
+fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // Home > Household (ship homes 5b, household.rs) beside Where you live (ship homes increment 6,
+    // where_you_live.rs: "In this world you live in a Homestead (a family of three).", read only;
+    // Settings > Gameplay changes the household, Characters chooses the start), side by side when
+    // both fit, one above the other on a narrow window.
+    cards::Grid::new("homes_top").plain().min_width(460.0).max_columns(2).show(ui, theme, 2, |ui, i| {
+        if i == 0 {
+            super::household::draw_card(ui, theme, state);
+        } else {
+            super::where_you_live::draw_home_line(ui, theme);
+        }
+    });
+    // Home > Animals (2026-10-12, herd.rs): the farm animals, fed and watered or not.
+    super::herd::draw_card(ui, theme, state);
+    // The homestead's own section below (its design, its loops, what one home cannot
+    // close) only for a home that has loops: a Cabin's household file has none, and a
+    // cabin is not an acre to close loops on (increment 6, plan 3.9).
+    if !home_has_loops(state) {
+        return;
+    }
+    // Clone so the immutable design can be browsed without holding a borrow
+    // of state (cheap; the blueprint is small).
+    let Some(design) = state.homestead_design.clone() else {
+        ui.add_space(theme.spacing_md);
+        ui.label(RichText::new(t("home.your_home")).size(theme.font_size_title).color(theme.text_primary()));
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new(t("home.no_blueprint")).color(theme.text_muted()));
+        return;
+    };
+    // The home's food, computed from the crops in its placed grow machines: the
+    // same figure the machine cards and the garden overview sum.
+    let grown_kcal = state.home_machines.as_ref().map_or(0.0, |h| h.grown_kcal_per_day());
+    // Each loop's live daily energy (2026-10-22): the machines as they ran over their last
+    // game day, by the meter the Construction page shows.
+    let basis = crate::machines::MeterBasis {
+        life_support_on_grid: state.garden_pests.life_support_realistic,
+        recorded: Some(&state.machine_day_energy),
+    };
+    let metered: Vec<Option<String>> = state
+        .homestead_loops
+        .iter()
+        .map(|l| l.meter.zip(state.home_machines.as_ref()).and_then(|(m, h)| h.loop_meter_line(m, crate::machines::METER_SUN_HOURS, basis)))
+        .collect();
+    // The power meter's make and use, kWh a day: the Energy loop's gauge (its words say they are
+    // this meter's figures).
+    let power_meter = state.home_machines.as_ref().and_then(|h| {
+        h.utility_meters(crate::machines::METER_SUN_HOURS, basis).into_iter().find(|m| m.utility == "power").map(|m| (m.generation, m.demand))
+    });
+    let now = HomeNow {
+        power: LivePower {
+            gen: state.power_generation,
+            usage: state.power_consumption,
+            balance: state.power_balance,
+            battery_wh: state.power_battery_wh,
+            capacity_wh: state.power_battery_capacity_wh,
+            autonomy: state.power_autonomy_hours,
+            ship: state.power_ship,
+        },
+        water: LiveWater {
+            production: state.water_production_lpm,
+            demand: state.water_demand_lpm,
+            stored: state.water_stored_l,
+            capacity: state.water_capacity_l,
+            days_autonomy: state.water_days_autonomy,
+        },
+        air: LiveAir {
+            o2: state.air_o2_pct,
+            co2: state.air_co2_pct,
+            pressure: state.air_pressure_atm,
+            temp_c: state.air_temp_c,
+            breathable: state.air_breathable,
+        },
+        loops: &state.homestead_loops,
+        metered: &metered,
+        grown_kcal,
+        power_meter,
+    };
+    draw_design(ui, theme, &design, &state.tower_configs, &state.tower_compat, &now);
 }
 
 /// Whether the home has the homestead's coupled loops: the live household file's (a Cabin's
@@ -319,41 +374,91 @@ struct LiveAir {
     breathable: bool,
 }
 
-fn draw_design(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    design: &HomesteadDesign,
-    towers: &[TowerConfig],
-    compat: &[TowerCompat],
-    loops: &[crate::machines::HomeLoop],
-    metered: &[Option<String>],
-    grown_kcal: f32,
+/// The home as it runs, for `draw_design` (which has no `&GuiState`): the live readouts, the
+/// loops with their live lines, the food grown and the power meter's (make, use).
+struct HomeNow<'a> {
     power: LivePower,
     water: LiveWater,
     air: LiveAir,
-) {
-    ui.label(RichText::new("Your Home").size(theme.font_size_title).color(theme.text_primary()));
-    ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
-    ui.label(RichText::new(&design.description).size(theme.font_size_small).color(theme.text_muted()));
+    loops: &'a [crate::machines::HomeLoop],
+    metered: &'a [Option<String>],
+    grown_kcal: f32,
+    power_meter: Option<(f32, f32)>,
+}
+
+/// The cards in the row of readouts under the scale, in order; a live one only while the sim
+/// reports it.
+#[derive(Clone, Copy, PartialEq)]
+enum Readout {
+    Glance,
+    Power,
+    Water,
+    Air,
+    Kit,
+}
+
+/// What the At a glance card counts at the chosen scale.
+struct Glance {
+    rooms: usize,
+    power_w: u32,
+    water_l: u32,
+    kinds: usize,
+    parts: u32,
+}
+
+/// A readout card's title and the muted line under it.
+fn card_title(ui: &mut egui::Ui, theme: &Theme, title: &str, note: Option<&str>) {
+    ui.label(RichText::new(title).size(theme.font_size_body).strong().color(theme.text_primary()));
+    if let Some(note) = note {
+        ui.label(RichText::new(note).size(theme.font_size_small).color(theme.text_muted()));
+    }
     ui.add_space(theme.spacing_xs);
+}
+
+/// "Balance  +1350 W surplus" in the good or bad colour.
+fn coloured_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str, colour: egui::Color32) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_secondary()));
+        ui.label(RichText::new(value).size(theme.font_size_small).strong().color(colour));
+    });
+}
+
+/// A store's fill colour: green while comfortable, amber when low, red when nearly empty.
+fn fill_colour(theme: &Theme, fraction: f32) -> egui::Color32 {
+    if fraction >= 0.5 {
+        theme.success()
+    } else if fraction >= 0.2 {
+        theme.warning()
+    } else {
+        theme.danger()
+    }
+}
+
+fn draw_design(ui: &mut egui::Ui, theme: &Theme, design: &HomesteadDesign, towers: &[TowerConfig], compat: &[TowerCompat], now: &HomeNow) {
+    // ── Your Home: the design and the scale it is shown at ──
+    ui.add_space(theme.spacing_md);
+    ui.label(RichText::new(t("home.your_home")).size(theme.font_size_title).color(theme.text_primary()));
+    ui.label(RichText::new(&design.name).size(theme.font_size_heading).color(theme.accent()));
+    cards::prose(ui, theme, &design.description, theme.text_muted());
     // (The "Offline home ... design: fibonacci ... saving is the next step" card that stood here
     // was retired in ship homes increment 6: saves have long kept progress, a save names its start
     // rather than a design, and the "Where you live" card above says which home this is.)
     ui.add_space(theme.spacing_sm);
 
-    // Scale selector.
+    // Scale selector, its line beside it.
     let scale = with_scale(|s| {
-        ui.horizontal(|ui| {
-            for sc in [Scale::Solo, Scale::Family, Scale::Community, Scale::Colony] {
-                if widgets::Button::secondary(sc.label()).active(*s == sc).show(ui, theme) {
+        ui.horizontal_wrapped(|ui| {
+            for sc in Scale::ALL {
+                if widgets::Button::secondary(sc.label()).active(*s == sc).hint(sc.hint_key()).show(ui, theme) {
                     *s = sc;
                 }
             }
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new(s.blurb()).size(theme.font_size_small).color(theme.text_muted()));
         });
         *s
     });
-    ui.label(RichText::new(scale.blurb()).size(theme.font_size_small).color(theme.text_muted()));
-    ui.add_space(theme.spacing_sm);
+    ui.add_space(theme.spacing_md);
 
     // Rooms included at this scale.
     let rooms: Vec<&DesignRoom> = design
@@ -378,471 +483,209 @@ fn draw_design(
     }
     bom.sort_by(|a, b| b.1.cmp(&a.1));
     let total_parts: u32 = bom.iter().map(|(_, q)| *q).sum();
+    let glance = Glance { rooms: rooms.len(), power_w: total_power, water_l: total_water, kinds: bom.len(), parts: total_parts };
+    let kit = self_sufficiency_kit(&bom);
 
-    // Live power from the running sim (passed in; draw_design has no &GuiState).
-    let live_gen = power.gen;
-    let live_use = power.usage;
-    let live_balance = power.balance;
-    let live_battery_wh = power.battery_wh;
-    let live_capacity = power.capacity_wh;
-    let live_autonomy = power.autonomy;
+    // ── The home now: at a glance, the live readouts and the systems, side by side ──
+    let (power, water, air) = (now.power, now.water, now.air);
+    let mut readouts = vec![Readout::Glance];
+    // Generation swings with day/night; the battery charges on surplus + discharges on deficit.
+    // This is the home as a LIVE sim, not the authored demand (v0.518).
+    if power.gen > 0.0 || power.usage > 0.0 || power.capacity_wh > 0.0 || power.ship.fed {
+        readouts.push(Readout::Power);
+    }
+    // Production needs power (cut the power and the cistern stops filling, but for the cistern's
+    // own trickle of rain; the purifier makes no water, 2026-10-05); the cistern buffers the
+    // difference, so "days of water" is a draining number coupled to the power sim (v0.608).
+    if water.production > 0.0 || water.demand > 0.0 || water.capacity > 0.0 {
+        readouts.push(Readout::Water);
+    }
+    // The home is a sealed habitat: this is its life-support air (v0.617).
+    if air.pressure > 0.0 {
+        readouts.push(Readout::Air);
+    }
+    readouts.push(Readout::Kit);
+    cards::Grid::new("homes_now").min_width(290.0).show(ui, theme, readouts.len(), |ui, i| match readouts[i] {
+        Readout::Glance => glance_card(ui, theme, &glance),
+        Readout::Power => power_card(ui, theme, power),
+        Readout::Water => water_card(ui, theme, water),
+        Readout::Air => air_card(ui, theme, air),
+        Readout::Kit => kit_card(ui, theme, &kit),
+    });
 
-    ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        // ── At a glance ──
-        widgets::card(ui, theme, |ui| {
-            ui.label(RichText::new("At a glance").size(theme.font_size_body).strong().color(theme.text_primary()));
-            ui.add_space(theme.spacing_xs);
-            widgets::detail_row(ui, theme, "Rooms", &rooms.len().to_string());
-            widgets::detail_row(ui, theme, "Power demand", &format!("{} W", total_power));
-            widgets::detail_row(ui, theme, "Water demand", &format!("{} L/day", total_water));
-            widgets::detail_row(ui, theme, "Distinct parts", &bom.len().to_string());
-            widgets::detail_row(ui, theme, "Total parts", &total_parts.to_string());
+    // ── Loop closure (the self-sufficiency demonstration, v0.432) ──
+    // The coupled loops with whether each closes, from data/machines/home.ron.
+    super::home_loops::draw_home_loops(ui, theme, now.loops, now.metered, now.grown_kcal, now.power_meter);
+
+    // ── The ideal closed loop (the requirements outline) ──
+    // Operator 2026-07-05: Home outlines the perfect ideal closed-loop homestead; the outline IS
+    // the game's requirements list for Home. Data-driven from data/home_outline.json; web
+    // home.html renders the same file (web mirrors native). Its long words fold since 2026-10-30
+    // (the operator's "brutal walls of text"), which supersedes the 2026-07-05 "all the info
+    // immediately exposed": every fact is still there, a click away.
+    super::home_loops::draw_outline(ui, theme, home_outline());
+
+    // ── What one home cannot close (the pedagogical payoff) ──
+    // The survival loops above close; these five gaps do NOT, by the design of reality: the game's
+    // own recipes (manufacture_cpu, smelt_steel, ...) abstract away industrial infrastructure no
+    // single homestead can carry, and for medicine there is no recipe at all (the trading post
+    // sells antibiotics since 2026-10-05). Edged in the warning colour so they read apart from the
+    // loops that close. Data: data/self_sufficiency/cannot_close.ron (homestead-solo-design.md
+    // section 8).
+    super::home_loops::draw_cannot_close(ui, theme, cannot_close());
+
+    // ── Bill of materials ──
+    egui::CollapsingHeader::new(
+        RichText::new(tf("home.bom_title", &[("kinds", &bom.len()), ("total", &total_parts)]))
+            .size(theme.font_size_body)
+            .strong()
+            .color(theme.text_primary()),
+    )
+    .id_salt("homes_bom")
+    .default_open(true)
+    .show(ui, |ui| {
+        cards::prose(ui, theme, t("home.bom_note"), theme.text_muted());
+        ui.add_space(theme.spacing_xs);
+        cards::Grid::new("homes_bom_grid").plain().min_width(230.0).gap(theme.spacing_xs).show(ui, theme, bom.len(), |ui, i| {
+            let (id, qty) = &bom[i];
+            widgets::detail_row(ui, theme, &humanize(id), &format!("x{qty}"));
         });
-        ui.add_space(theme.spacing_sm);
+    });
+    ui.add_space(theme.spacing_sm);
 
-        // ── Live power (the running sim, v0.518) ──
-        // Generation swings with day/night; the battery charges on surplus + discharges
-        // on deficit. This is the home as a LIVE sim, not the authored demand above.
-        if live_gen > 0.0 || live_use > 0.0 || live_capacity > 0.0 || power.ship.fed {
-            widgets::card(ui, theme, |ui| {
-                ui.label(RichText::new("Live power").size(theme.font_size_body).strong().color(theme.text_primary()));
-                ui.label(
-                    RichText::new("The running sim: solar tracks the time of day, the battery buffers the swing.")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-                ui.add_space(theme.spacing_xs);
-                widgets::detail_row(ui, theme, "Generation", &format!("{:.0} W", live_gen));
-                widgets::detail_row(ui, theme, "Consumption", &format!("{:.0} W", live_use));
-                let (bal_text, bal_color) = if live_balance >= 0.0 {
-                    (format!("+{:.0} W surplus", live_balance), theme.success())
-                } else {
-                    (format!("{:.0} W deficit", live_balance), theme.danger())
-                };
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Balance").size(theme.font_size_small).color(theme.text_secondary()));
-                    ui.label(RichText::new(bal_text).size(theme.font_size_small).strong().color(bal_color));
-                });
-                if live_capacity > 0.0 {
-                    let pct = (live_battery_wh / live_capacity * 100.0).clamp(0.0, 100.0);
-                    widgets::detail_row(
-                        ui,
-                        theme,
-                        "Battery",
-                        &format!("{:.0}%  ({:.1} kWh)  ~{:.1} h autonomy", pct, live_battery_wh / 1000.0, live_autonomy),
-                    );
-                }
-                ship_power_rows(ui, theme, power.ship);
-            });
-            ui.add_space(theme.spacing_sm);
+    // ── Rooms by tier, each room a card ──
+    cards::group_heading(ui, theme, t("home.rooms_title"), None);
+    for tier in &design.tiers {
+        let tier_rooms: Vec<&DesignRoom> = rooms
+            .iter()
+            .filter(|r| r.tier.as_str() == tier.id.as_str())
+            .copied()
+            .collect();
+        if tier_rooms.is_empty() {
+            continue;
         }
-
-        // ── Live water (the running PlumbingSystem, v0.608) ──
-        // Production needs power (cut the power and the cistern stops filling, but for the cistern's
-        // own trickle of rain; the purifier makes no water, 2026-10-05); the cistern buffers
-        // the difference, so "days of water" is a draining number coupled to the power sim.
-        if water.production > 0.0 || water.demand > 0.0 || water.capacity > 0.0 {
-            widgets::card(ui, theme, |ui| {
-                ui.label(RichText::new("Live water").size(theme.font_size_body).strong().color(theme.text_primary()));
-                ui.label(
-                    RichText::new("The running sim: the pump, rain and the air handlers' condensate fill the cistern; the pump and air handlers need power, and without it the cistern drains.")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-                ui.add_space(theme.spacing_xs);
-                widgets::detail_row(ui, theme, "Production", &format!("{:.1} L/min", water.production));
-                widgets::detail_row(ui, theme, "Demand", &format!("{:.1} L/min", water.demand));
-                let (bal_text, bal_color) = if water.production - water.demand >= 0.0 {
-                    (format!("+{:.1} L/min filling", water.production - water.demand), theme.success())
-                } else {
-                    (format!("{:.1} L/min draining", water.production - water.demand), theme.danger())
-                };
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Balance").size(theme.font_size_small).color(theme.text_secondary()));
-                    ui.label(RichText::new(bal_text).size(theme.font_size_small).strong().color(bal_color));
-                });
-                if water.capacity > 0.0 {
-                    let pct = (water.stored / water.capacity * 100.0).clamp(0.0, 100.0);
-                    widgets::detail_row(
-                        ui,
-                        theme,
-                        "Cistern",
-                        &format!("{:.0}%  ({:.0} / {:.0} L)  ~{:.1} days", pct, water.stored, water.capacity, water.days_autonomy),
-                    );
-                }
-            });
-            ui.add_space(theme.spacing_sm);
-        }
-
-        // ── Live air (the running AtmosphereSystem, v0.617) ──
-        // The home is a sealed habitat: this is its life-support air. Stage 1 holds an Earth-like mix;
-        // occupancy + powered scrubbers (the power -> air consequence) land next.
-        if air.pressure > 0.0 {
-            widgets::card(ui, theme, |ui| {
-                ui.label(RichText::new("Live air").size(theme.font_size_body).strong().color(theme.text_primary()));
-                ui.label(
-                    RichText::new("The sealed home's life-support mix. Powered scrubbers will keep it breathable.")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-                ui.add_space(theme.spacing_xs);
-                widgets::detail_row(ui, theme, "Oxygen", &format!("{:.1}%", air.o2));
-                widgets::detail_row(ui, theme, "CO2", &format!("{:.2}%", air.co2));
-                widgets::detail_row(ui, theme, "Pressure", &format!("{:.2} atm", air.pressure));
-                widgets::detail_row(ui, theme, "Temp", &format!("{:.0} C", air.temp_c));
-                let (txt, col) = if air.breathable {
-                    ("breathable".to_string(), theme.success())
-                } else {
-                    ("NOT breathable".to_string(), theme.danger())
-                };
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Status").size(theme.font_size_small).color(theme.text_secondary()));
-                    ui.label(RichText::new(txt).size(theme.font_size_small).strong().color(col));
-                });
-            });
-            ui.add_space(theme.spacing_sm);
-        }
-
-        // ── Self-sufficiency systems ──
-        let kit = self_sufficiency_kit(&bom);
-        widgets::card(ui, theme, |ui| {
-            ui.label(RichText::new("Self-sufficiency systems").size(theme.font_size_body).strong().color(theme.text_primary()));
-            ui.label(
-                RichText::new("What closes your loops: generate power, collect and recycle water, grow food.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add_space(theme.spacing_xs);
-            if kit.is_empty() {
-                ui.label(RichText::new("None at this scale.").size(theme.font_size_small).color(theme.text_muted()));
-            } else {
-                for (label, n) in &kit {
-                    widgets::detail_row(ui, theme, label, &n.to_string());
-                }
-            }
-        });
-        ui.add_space(theme.spacing_sm);
-
-        // ── Loop closure (the self-sufficiency demonstration, v0.432) ──
-        // The four coupled loops with whether each closes, from data/machines/home.ron.
-        if !loops.is_empty() {
-            let closed = loops.iter().filter(|l| l.closes_given(grown_kcal)).count();
-            widgets::card(ui, theme, |ui| {
-                ui.label(RichText::new("Closed-loop self-sufficiency").size(theme.font_size_body).strong().color(theme.text_primary()));
-                ui.label(
-                    RichText::new(format!(
-                        "{}/{} loops close. You are only as self-sufficient as your weakest loop.",
-                        closed, loops.len()
-                    ))
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-                );
-                ui.add_space(theme.spacing_xs);
-                for (i, l) in loops.iter().enumerate() {
-                    let (mark, mark_color) = if l.closes_given(grown_kcal) {
-                        ("closed", theme.success())
-                    } else {
-                        ("short", theme.danger())
-                    };
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(&l.name).size(theme.font_size_small).strong().color(theme.text_primary()));
-                        ui.label(RichText::new(mark).size(theme.font_size_small).strong().color(mark_color));
-                        if l.weakest {
-                            ui.label(RichText::new("weakest loop").size(theme.font_size_small).color(theme.warning()));
-                        }
-                    });
-                    widgets::detail_row(ui, theme, "  demand", &l.demand);
-                    if let Some(d) = l.food_demand_kcal.filter(|d| *d > 0.0) {
-                        let grown = format!("{grown_kcal:.0} kcal/day, {:.0}% of {d:.0}, computed from the crops placed", grown_kcal / d * 100.0);
-                        widgets::detail_row(ui, theme, "  grown", &grown);
-                    }
-                    widgets::detail_row(ui, theme, "  supply", &l.supply);
-                    // As the home runs (2026-10-22): measured over the last game day, or estimated.
-                    if let Some(Some(line)) = metered.get(i) {
-                        widgets::detail_row(ui, theme, "  running", line);
-                    }
-                    ui.label(RichText::new(&l.note).size(theme.font_size_small).color(theme.text_secondary()));
-                    ui.add_space(theme.spacing_xs);
-                }
-            });
-            ui.add_space(theme.spacing_sm);
-        }
-
-        // ── The ideal closed loop (the requirements outline) ──
-        // Operator 2026-07-05: Home outlines the perfect ideal closed-loop
-        // homestead; the outline IS the game's requirements list for Home.
-        // Data-driven from data/home_outline.json; web home.html renders the
-        // same file (web mirrors native).
-        let outline = home_outline();
-        if !outline.loops.is_empty() {
-            widgets::card(ui, theme, |ui| {
-                ui.label(
-                    RichText::new(&outline.title)
-                        .size(theme.font_size_body)
-                        .strong()
-                        .color(theme.text_primary()),
-                );
-                if !outline.subtitle.is_empty() {
-                    ui.label(RichText::new(&outline.subtitle).size(theme.font_size_small).color(theme.text_muted()));
-                }
-                if !outline.intro.is_empty() {
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(RichText::new(&outline.intro).size(theme.font_size_small).color(theme.text_secondary()));
-                }
-                ui.add_space(theme.spacing_xs);
-                // Fully exposed, no expand/collapse (operator 2026-07-05:
-                // "I'd rather have all the info immediately exposed since
-                // there's not terribly much").
-                for l in &outline.loops {
-                    let closes_mark = if l.closes { "closes" } else { "open" };
-                    let mark_color = if l.closes { theme.success() } else { theme.warning() };
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(&l.name)
-                                .size(theme.font_size_body)
-                                .strong()
-                                .color(theme.text_primary()),
-                        );
-                        ui.label(
-                            RichText::new(closes_mark)
-                                .size(theme.font_size_small)
-                                .strong()
-                                .color(mark_color),
-                        );
-                    });
-                    widgets::detail_row(ui, theme, "demand", &l.demand);
-                    ui.label(
-                        RichText::new(&l.closure_note)
-                            .size(theme.font_size_small)
-                            .color(theme.text_secondary()),
-                    );
-                    ui.add_space(theme.spacing_xs);
-                    // Two tiers per loop (operator 2026-07-05): the bare
-                    // minimum first, then the life-of-luxury additions.
-                    // Empty game_id = "not in game yet" (the honest gap flag).
-                    for (tier_key, tier_label) in
-                        [("baseline", "Bare minimum"), ("luxury", "Life of luxury")]
-                    {
-                        let rows: Vec<&OutlineRequirement> = l
-                            .requirements
-                            .iter()
-                            .filter(|r| {
-                                r.tier == tier_key
-                                    || (tier_key == "baseline" && r.tier.is_empty())
-                            })
-                            .collect();
-                        if rows.is_empty() {
-                            continue;
-                        }
-                        ui.label(
-                            RichText::new(tier_label)
-                                .size(theme.font_size_small)
-                                .strong()
-                                .color(if tier_key == "luxury" {
-                                    theme.info()
-                                } else {
-                                    theme.text_primary()
-                                }),
-                        );
-                        for r in rows {
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label(
-                                    RichText::new(format!("{} {}", r.qty, r.item))
-                                        .size(theme.font_size_small)
-                                        .strong()
-                                        .color(theme.text_primary()),
-                                );
-                                if r.game_id.is_empty() {
-                                    ui.label(
-                                        RichText::new("not in game yet")
-                                            .size(theme.font_size_small)
-                                            .strong()
-                                            .color(theme.warning()),
-                                    );
-                                }
-                                ui.label(
-                                    RichText::new(&r.why)
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_muted()),
-                                );
-                            });
-                        }
-                        ui.add_space(theme.spacing_xs);
-                    }
-                    ui.separator();
-                    ui.add_space(theme.spacing_xs);
-                }
-                if !outline.in_game_next.is_empty() {
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(
-                        RichText::new("What the game still needs for Home")
-                            .size(theme.font_size_small)
-                            .strong()
-                            .color(theme.text_primary()),
-                    );
-                    for step in &outline.in_game_next {
-                        ui.label(
-                            RichText::new(format!("- {step}"))
-                                .size(theme.font_size_small)
-                                .color(theme.text_secondary()),
-                        );
-                    }
-                }
-                if !outline.footer.is_empty() {
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(RichText::new(&outline.footer).size(theme.font_size_small).italics().color(theme.text_muted()));
-                }
-            });
-            ui.add_space(theme.spacing_sm);
-        }
-
-        // ── What one home cannot close (the pedagogical payoff) ──
-        // The survival loops above close; these five gaps do NOT, by the design of
-        // reality: the game's own recipes (manufacture_cpu, smelt_steel, ...)
-        // abstract away industrial infrastructure no single homestead can carry,
-        // and for medicine there is no recipe at all (the trading post sells
-        // antibiotics since 2026-10-05). Marked externally-sourced/traded, in a deliberately
-        // muted OUTLINED treatment (warning stroke on the panel background) so it
-        // reads clearly apart from the green closed-loop rows above. Data:
-        // data/self_sufficiency/cannot_close.ron (homestead-solo-design.md section 8).
-        let cc = cannot_close();
-        if !cc.entries.is_empty() {
-            egui::Frame::none()
-                .fill(theme.bg_panel())
-                .rounding(egui::Rounding::same(theme.border_radius as u8))
-                .inner_margin(theme.card_padding)
-                .stroke(egui::Stroke::new(1.0, theme.warning()))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new("What one home cannot close")
-                                .size(theme.font_size_body)
-                                .strong()
-                                .color(theme.warning()),
-                        );
-                        ui.label(
-                            RichText::new(format!("{} traded loops", cc.entries.len()))
-                                .size(theme.font_size_small)
-                                .color(theme.text_muted()),
-                        );
-                    });
-                    if !cc.intro.is_empty() {
-                        ui.label(RichText::new(&cc.intro).size(theme.font_size_small).color(theme.text_muted()));
-                    }
-                    ui.add_space(theme.spacing_xs);
-                    // Fully exposed, no expand/collapse (operator 2026-07-05:
-                    // all Home info immediately visible).
-                    for entry in &cc.entries {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(&entry.title)
-                                    .size(theme.font_size_small)
-                                    .strong()
-                                    .color(theme.text_primary()),
-                            );
-                            ui.label(
-                                RichText::new("traded")
-                                    .size(theme.font_size_small)
-                                    .strong()
-                                    .color(theme.warning()),
-                            );
-                        });
-                        ui.label(
-                            RichText::new(&entry.body)
-                                .size(theme.font_size_small)
-                                .color(theme.text_secondary()),
-                        );
-                        ui.label(
-                            RichText::new(&entry.provided_by)
-                                .size(theme.font_size_small)
-                                .italics()
-                                .color(theme.text_muted()),
-                        );
-                        ui.add_space(theme.spacing_xs);
-                    }
-                    if !cc.footer.is_empty() {
-                        ui.add_space(theme.spacing_xs);
-                        ui.label(
-                            RichText::new(&cc.footer)
-                                .size(theme.font_size_small)
-                                .italics()
-                                .color(theme.text_secondary()),
-                        );
-                    }
-                });
-            ui.add_space(theme.spacing_sm);
-        }
-
-        // ── Bill of materials ──
         egui::CollapsingHeader::new(
-            RichText::new(format!("Bill of materials ({} kinds, {} total)", bom.len(), total_parts))
+            RichText::new(format!("{} ({})", tier.name, tier_rooms.len()))
                 .size(theme.font_size_body)
                 .strong()
-                .color(theme.text_primary()),
+                .color(theme.accent()),
         )
-        .id_salt("homes_bom")
+        .id_salt(("homes_tier", tier.id.as_str()))
         .default_open(true)
         .show(ui, |ui| {
-            ui.label(
-                RichText::new("Everything to build it. Real-world part numbers and where to 3D-print / buy / trade each one are the planned next layer.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add_space(theme.spacing_xs);
-            for (id, qty) in &bom {
-                widgets::detail_row(ui, theme, &humanize(id), &format!("x{}", qty));
+            if !tier.description.is_empty() {
+                cards::prose(ui, theme, &tier.description, theme.text_muted());
+                ui.add_space(theme.spacing_xs);
             }
+            cards::Grid::new(("homes_rooms", tier.id.as_str())).min_width(260.0).show_with_details(
+                ui,
+                theme,
+                tier_rooms.len(),
+                |ui, i| room_card(ui, theme, tier_rooms[i]),
+                |ui, i| room_words(ui, theme, tier_rooms[i]),
+            );
         });
-        ui.add_space(theme.spacing_sm);
+    }
 
-        // ── Rooms by tier ──
-        ui.label(RichText::new("Rooms").size(theme.font_size_heading).color(theme.text_primary()));
+    // ── Aeroponic towers (the food loop; v0.382) ──
+    if !towers.is_empty() {
+        cards::group_heading(ui, theme, t("home.towers_title"), Some(t("home.towers_note")));
+        cards::Grid::new("homes_towers").min_width(460.0).top_aligned().show(ui, theme, towers.len(), |ui, i| draw_tower(ui, theme, &towers[i], compat.get(i)));
+    }
+}
+
+/// At a glance: the rooms, power, water and parts at the chosen scale.
+fn glance_card(ui: &mut egui::Ui, theme: &Theme, g: &Glance) {
+    card_title(ui, theme, t("home.glance"), None);
+    widgets::detail_row(ui, theme, t("home.rooms"), &g.rooms.to_string());
+    widgets::detail_row(ui, theme, t("home.power_demand"), &format!("{} W", g.power_w));
+    widgets::detail_row(ui, theme, t("home.water_demand"), &format!("{} L/day", g.water_l));
+    widgets::detail_row(ui, theme, t("home.distinct_parts"), &g.kinds.to_string());
+    widgets::detail_row(ui, theme, t("home.total_parts"), &g.parts.to_string());
+}
+
+/// Live power: what the home makes against what it uses (the gauge), the balance, the battery.
+fn power_card(ui: &mut egui::Ui, theme: &Theme, p: LivePower) {
+    card_title(ui, theme, t("home.live_power"), Some(t("home.live_power_note")));
+    if p.usage > 0.0 {
+        cards::gauge(ui, theme, p.gen, p.usage, if p.gen >= p.usage { theme.success() } else { theme.warning() });
         ui.add_space(theme.spacing_xs);
-        for tier in &design.tiers {
-            let tier_rooms: Vec<&DesignRoom> = rooms
-                .iter()
-                .filter(|r| r.tier.as_str() == tier.id.as_str())
-                .copied()
-                .collect();
-            if tier_rooms.is_empty() {
-                continue;
-            }
-            egui::CollapsingHeader::new(
-                RichText::new(format!("{} ({})", tier.name, tier_rooms.len()))
-                    .size(theme.font_size_body)
-                    .strong()
-                    .color(theme.accent()),
-            )
-            .id_salt(("homes_tier", tier.id.as_str()))
-            .default_open(true)
-            .show(ui, |ui| {
-                if !tier.description.is_empty() {
-                    ui.label(RichText::new(&tier.description).size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add_space(theme.spacing_xs);
-                }
-                for r in tier_rooms {
-                    draw_room(ui, theme, r);
-                }
-            });
-        }
+    }
+    widgets::detail_row(ui, theme, t("home.generation"), &format!("{:.0} W", p.gen));
+    widgets::detail_row(ui, theme, t("home.consumption"), &format!("{:.0} W", p.usage));
+    if p.balance >= 0.0 {
+        coloured_row(ui, theme, t("home.balance"), &tf("home.surplus", &[("w", &format!("{:.0}", p.balance))]), theme.success());
+    } else {
+        coloured_row(ui, theme, t("home.balance"), &tf("home.deficit", &[("w", &format!("{:.0}", p.balance))]), theme.danger());
+    }
+    if p.capacity_wh > 0.0 {
+        let f = (p.battery_wh / p.capacity_wh).clamp(0.0, 1.0);
+        let value = tf(
+            "home.battery_value",
+            &[("pct", &format!("{:.0}", f * 100.0)), ("kwh", &format!("{:.1}", p.battery_wh / 1000.0)), ("hours", &format!("{:.1}", p.autonomy))],
+        );
+        widgets::detail_row(ui, theme, t("home.battery"), &value);
+        cards::gauge(ui, theme, p.battery_wh, p.capacity_wh, fill_colour(theme, f));
+        ui.add_space(theme.spacing_xs);
+    }
+    ship_power_rows(ui, theme, p.ship);
+}
 
-        // ── Aeroponic towers (the food loop; v0.382) ──
-        if !towers.is_empty() {
-            ui.add_space(theme.spacing_md);
-            ui.separator();
-            ui.add_space(theme.spacing_sm);
-            ui.label(RichText::new("Aeroponic towers").size(theme.font_size_heading).color(theme.text_primary()));
-            ui.label(
-                RichText::new("Your homestead's food loop: two curated 50-slot vertical towers.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add_space(theme.spacing_xs);
-            for (i, tower) in towers.iter().enumerate() {
-                draw_tower(ui, theme, tower, compat.get(i));
-            }
-        }
-    });
+/// Live water: production against demand, the balance, the cistern.
+fn water_card(ui: &mut egui::Ui, theme: &Theme, w: LiveWater) {
+    card_title(ui, theme, t("home.live_water"), Some(t("home.live_water_note")));
+    if w.demand > 0.0 {
+        cards::gauge(ui, theme, w.production, w.demand, if w.production >= w.demand { theme.success() } else { theme.warning() });
+        ui.add_space(theme.spacing_xs);
+    }
+    widgets::detail_row(ui, theme, t("home.production"), &format!("{:.1} L/min", w.production));
+    widgets::detail_row(ui, theme, t("home.demand"), &format!("{:.1} L/min", w.demand));
+    let net = w.production - w.demand;
+    if net >= 0.0 {
+        coloured_row(ui, theme, t("home.balance"), &tf("home.filling", &[("lpm", &format!("{net:.1}"))]), theme.success());
+    } else {
+        coloured_row(ui, theme, t("home.balance"), &tf("home.draining", &[("lpm", &format!("{net:.1}"))]), theme.danger());
+    }
+    if w.capacity > 0.0 {
+        let f = (w.stored / w.capacity).clamp(0.0, 1.0);
+        let value = tf(
+            "home.cistern_value",
+            &[
+                ("pct", &format!("{:.0}", f * 100.0)),
+                ("stored", &format!("{:.0}", w.stored)),
+                ("capacity", &format!("{:.0}", w.capacity)),
+                ("days", &format!("{:.1}", w.days_autonomy)),
+            ],
+        );
+        widgets::detail_row(ui, theme, t("home.cistern"), &value);
+        cards::gauge(ui, theme, w.stored, w.capacity, fill_colour(theme, f));
+    }
+}
+
+/// Live air: the sealed home's mix and whether it is breathable.
+fn air_card(ui: &mut egui::Ui, theme: &Theme, a: LiveAir) {
+    card_title(ui, theme, t("home.live_air"), Some(t("home.live_air_note")));
+    widgets::detail_row(ui, theme, t("home.oxygen"), &format!("{:.1}%", a.o2));
+    widgets::detail_row(ui, theme, t("home.co2"), &format!("{:.2}%", a.co2));
+    widgets::detail_row(ui, theme, t("home.pressure"), &format!("{:.2} atm", a.pressure));
+    widgets::detail_row(ui, theme, t("home.temp"), &format!("{:.0} C", a.temp_c));
+    ui.add_space(theme.spacing_xs);
+    if a.breathable {
+        cards::status_badge(ui, theme, t("home.breathable"), theme.success());
+    } else {
+        cards::status_badge(ui, theme, t("home.not_breathable"), theme.danger());
+    }
+}
+
+/// The self-sufficiency systems in the bill of materials at this scale.
+fn kit_card(ui: &mut egui::Ui, theme: &Theme, kit: &[(&'static str, u32)]) {
+    card_title(ui, theme, t("home.kit"), Some(t("home.kit_note")));
+    if kit.is_empty() {
+        ui.label(RichText::new(t("home.kit_none")).size(theme.font_size_small).color(theme.text_muted()));
+    }
+    for (label, n) in kit {
+        widgets::detail_row(ui, theme, label, &n.to_string());
+    }
 }
 
 /// One aeroponic tower, collapsible: purpose + what it covers / its gaps +
@@ -850,7 +693,7 @@ fn draw_design(
 fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Option<&TowerCompat>) {
     let planted: u32 = tower.plantings.iter().map(|p| p.slots).sum();
     egui::CollapsingHeader::new(
-        RichText::new(format!("{}  ({}/{} slots)", tower.name, planted, tower.slots))
+        RichText::new(tf("home.tower_title", &[("name", &tower.name), ("planted", &planted), ("slots", &tower.slots)]))
             .size(theme.font_size_body)
             .strong()
             .color(theme.accent()),
@@ -866,14 +709,14 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
         ui.add_space(theme.spacing_xs);
         if !tower.covers.is_empty() {
             ui.label(
-                RichText::new(format!("Covers: {}", tower.covers.join(", ")))
+                RichText::new(tf("home.tower_covers", &[("list", &tower.covers.join(", "))]))
                     .size(theme.font_size_small)
                     .color(theme.success()),
             );
         }
         if !tower.gaps.is_empty() {
             ui.label(
-                RichText::new(format!("Gaps: {}", tower.gaps.join(", ")))
+                RichText::new(tf("home.tower_gaps", &[("list", &tower.gaps.join(", "))]))
                     .size(theme.font_size_small)
                     .color(theme.warning()),
             );
@@ -894,27 +737,23 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
         if let Some(c) = compat {
             ui.add_space(theme.spacing_xs);
             let shared: Vec<String> = [
-                c.held_ph.map(|p| format!("solution held at pH {:.1}", p)),
+                c.held_ph.map(|p| tf("home.tower_ph", &[("ph", &format!("{p:.1}"))])),
                 c.temp.map(|(a, b)| format!("{:.0}-{:.0}°C", a, b)),
-                c.humidity.map(|(a, b)| format!("humidity {:.0}-{:.0}%", a * 100.0, b * 100.0)),
+                c.humidity.map(|(a, b)| tf("home.tower_humidity", &[("low", &format!("{:.0}", a * 100.0)), ("high", &format!("{:.0}", b * 100.0))])),
             ]
             .into_iter()
             .flatten()
             .collect();
             if c.conflicts.is_empty() {
                 ui.label(
-                    RichText::new(format!(
-                        "✓ These {} plants share one reservoir: {}",
-                        c.species,
-                        shared.join(", ")
-                    ))
-                    .size(theme.font_size_small)
-                    .color(theme.success()),
+                    RichText::new(format!("✓ {}", tf("home.tower_share", &[("n", &c.species), ("list", &shared.join(", "))])))
+                        .size(theme.font_size_small)
+                        .color(theme.success()),
                 );
             } else {
                 if !shared.is_empty() {
                     ui.label(
-                        RichText::new(format!("Shared where they can: {}", shared.join(", ")))
+                        RichText::new(tf("home.tower_shared_where", &[("list", &shared.join(", "))]))
                             .size(theme.font_size_small)
                             .color(theme.text_secondary()),
                     );
@@ -926,25 +765,16 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
                             .color(theme.warning()),
                     );
                 }
-                ui.label(
-                    RichText::new(
-                        "Split the flagged plants into a separate tower or climate zone.",
-                    )
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-                );
+                ui.label(RichText::new(t("home.tower_split")).size(theme.font_size_small).color(theme.text_muted()));
             }
             // Self-sufficiency numbers: total daily water draw + the harvest window
             // (ties the tower into the homestead's water + food loops).
             let mut stats: Vec<String> = Vec::new();
             if c.water_per_day_total > 0.0 {
-                stats.push(format!("Water draw ~{:.1} L/day", c.water_per_day_total));
+                stats.push(tf("home.tower_water", &[("l", &format!("{:.1}", c.water_per_day_total))]));
             }
             if c.full_harvest_days > 0.0 {
-                stats.push(format!(
-                    "Harvest ~{:.0}-{:.0} days",
-                    c.first_harvest_days, c.full_harvest_days
-                ));
+                stats.push(tf("home.tower_harvest", &[("first", &format!("{:.0}", c.first_harvest_days)), ("full", &format!("{:.0}", c.full_harvest_days))]));
             }
             if !stats.is_empty() {
                 ui.label(
@@ -973,19 +803,8 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
         //    bill of materials the operator + community refine. ──
         if !tower.parts.is_empty() {
             ui.add_space(theme.spacing_sm);
-            ui.label(
-                RichText::new("Parts list (real-world build)")
-                    .size(theme.font_size_body)
-                    .strong()
-                    .color(theme.text_primary()),
-            );
-            ui.label(
-                RichText::new(
-                    "What to 3D-print, buy, trade, or scavenge to build it. A starting list, refine for your setup.",
-                )
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-            );
+            ui.label(RichText::new(t("home.tower_parts")).size(theme.font_size_body).strong().color(theme.text_primary()));
+            ui.label(RichText::new(t("home.tower_parts_note")).size(theme.font_size_small).color(theme.text_muted()));
             ui.add_space(2.0);
             for part in &tower.parts {
                 ui.horizontal(|ui| {
@@ -1008,7 +827,6 @@ fn draw_tower(ui: &mut egui::Ui, theme: &Theme, tower: &TowerConfig, compat: Opt
             }
         }
     });
-    ui.add_space(theme.spacing_xs);
 }
 
 /// Humanize a part `source` tag for display ("3d_print" -> "3D-print").
@@ -1020,52 +838,91 @@ fn part_source_label(source: &str) -> &str {
     }
 }
 
-fn draw_room(ui: &mut egui::Ui, theme: &Theme, r: &DesignRoom) {
-    egui::CollapsingHeader::new(
-        RichText::new(format!("F{}  {}", r.fibonacci_index, r.name)).color(theme.text_primary()),
-    )
-    .id_salt(("homes_room", r.id.as_str()))
-    .show(ui, |ui| {
-        if !r.purpose.is_empty() {
-            ui.label(RichText::new(&r.purpose).size(theme.font_size_small).color(theme.text_secondary()));
-        }
-        widgets::detail_row(ui, theme, "Footprint", &format!("{:.0} x {:.0} m", r.size.x, r.size.z));
-        widgets::detail_row(ui, theme, "Power", &format!("{} W", r.requirements.power_watts));
-        widgets::detail_row(ui, theme, "Water", &format!("{} L/day", r.requirements.water_liters_per_day));
-        if !r.environment_notes.is_empty() {
-            ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new(&r.environment_notes).size(theme.font_size_small).color(theme.text_muted()));
-        }
+/// One room's card: its Fibonacci number and name, its purpose cut to two lines, its footprint,
+/// power and water; its environment notes and parts behind a fold ([`room_words`] draws them).
+/// Returns whether that fold is open.
+fn room_card(ui: &mut egui::Ui, theme: &Theme, r: &DesignRoom) -> bool {
+    ui.horizontal(|ui| {
+        cards::plain_badge(ui, theme, &format!("F{}", r.fibonacci_index));
+        ui.label(RichText::new(&r.name).size(theme.font_size_body).strong().color(theme.text_primary()));
+    });
+    if !r.purpose.is_empty() {
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Parts").size(theme.font_size_small).color(theme.text_secondary()));
-        for (id, qty) in &r.requirements.materials {
-            widgets::detail_row(ui, theme, &humanize(id), &format!("x{}", qty));
+        cards::clamped(ui, theme, &r.purpose, theme.font_size_small, theme.text_secondary(), 2);
+    }
+    ui.add_space(theme.spacing_xs);
+    widgets::detail_row(ui, theme, t("home.footprint"), &format!("{:.0} x {:.0} m", r.size.x, r.size.z));
+    widgets::detail_row(ui, theme, t("home.power"), &format!("{} W", r.requirements.power_watts));
+    widgets::detail_row(ui, theme, t("home.water"), &format!("{} L/day", r.requirements.water_liters_per_day));
+    (!r.environment_notes.is_empty() || !r.requirements.materials.is_empty())
+        && cards::fold(ui, theme, ("homes_room_more", r.id.as_str()), t("home.room_more"), "home.room_more_hint")
+}
+
+/// A room's opened words, under its row: its environment notes beside the parts it is built from.
+fn room_words(ui: &mut egui::Ui, theme: &Theme, r: &DesignRoom) {
+    cards::detail_heading(ui, theme, &format!("F{}  {}", r.fibonacci_index, r.name), t("home.room_more"));
+    cards::Grid::new(("homes_room_detail", r.id.as_str())).plain().min_width(320.0).max_columns(2).gap(theme.spacing_lg).show(ui, theme, 2, |ui, part| {
+        if part == 0 {
+            if !r.environment_notes.is_empty() {
+                cards::prose(ui, theme, &r.environment_notes, theme.text_secondary());
+            }
+        } else if !r.requirements.materials.is_empty() {
+            ui.label(RichText::new(t("home.parts_title")).size(theme.font_size_small).strong().color(theme.text_secondary()));
+            cards::Grid::new(("homes_room_parts", r.id.as_str())).plain().min_width(200.0).gap(theme.spacing_xs).show(ui, theme, r.requirements.materials.len(), |ui, k| {
+                if let Some((id, qty)) = r.requirements.materials.get(k) {
+                    widgets::detail_row(ui, theme, &humanize(id), &format!("x{qty}"));
+                }
+            });
         }
     });
 }
 
 /// Sum the generation / collection / recycling components in the BOM by group, so
-/// the page can show, at a glance, the systems that close the homestead's loops.
+/// the page can show, at a glance, the systems that close the homestead's loops. Each group is
+/// its words' key and the ids it gathers (the page's own presentation of the BOM).
 fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
     let groups: [(&str, &[&str]); 5] = [
-        ("Solar panels", &["solar_panel"]),
-        ("Wind turbines", &["wind_turbine"]),
-        ("Generators + batteries", &["generator", "battery"]),
-        ("Water (tank / pump / purifier / irrigation)", &["water_tank", "water_pump", "water_purifier", "irrigation"]),
-        ("Food + recycling (greenhouse / composter)", &["greenhouse", "composter"]),
+        ("home.kit_solar", &["solar_panel"]),
+        ("home.kit_wind", &["wind_turbine"]),
+        ("home.kit_generators", &["generator", "battery"]),
+        ("home.kit_water", &["water_tank", "water_pump", "water_purifier", "irrigation"]),
+        ("home.kit_food", &["greenhouse", "composter"]),
     ];
     let mut out = Vec::new();
-    for (label, subs) in groups {
+    for (key, subs) in groups {
         let n: u32 = bom
             .iter()
             .filter(|(id, _)| subs.iter().any(|s| id.contains(*s)))
             .map(|(_, q)| *q)
             .sum();
         if n > 0 {
-            out.push((label, n));
+            out.push((crate::gui::i18n::t_dyn(key), n));
         }
     }
     out
+}
+
+/// The ship's reactor on the Live power card (2026-09-27, systems::ship_power):
+/// in the Station-supplied mode what it supplies now and what the home has drawn
+/// from it in all, metered; in the Realistic mode a line saying the home runs on
+/// its own. Shown whatever the balance: using ship power is never a fault.
+fn ship_power_rows(ui: &mut egui::Ui, theme: &Theme, ship: crate::systems::electrical::ShipFeedReading) {
+    if !ship.fed {
+        ui.label(RichText::new(t("home.off_reactor")).size(theme.font_size_small).color(theme.text_muted()));
+        return;
+    }
+    widgets::detail_row(
+        ui,
+        theme,
+        t("home.ship_reactor"),
+        &tf("home.ship_reactor_value", &[("now", &format!("{:.0}", ship.drawn_w)), ("back", &format!("{:.0}", ship.returned_w))]),
+    );
+    widgets::detail_row(
+        ui,
+        theme,
+        t("home.ship_metered"),
+        &tf("home.ship_metered_value", &[("drawn", &format!("{:.2}", ship.drawn_wh / 1000.0)), ("returned", &format!("{:.2}", ship.returned_wh / 1000.0))]),
+    );
 }
 
 #[cfg(test)]
@@ -1272,26 +1129,4 @@ mod tests {
             }
         }
     }
-}
-
-/// The ship's reactor on the Live power card (2026-09-27, systems::ship_power):
-/// in the Station-supplied mode what it supplies now and what the home has drawn
-/// from it in all, metered; in the Realistic mode a line saying the home runs on
-/// its own. Shown whatever the balance: using ship power is never a fault.
-fn ship_power_rows(ui: &mut egui::Ui, theme: &Theme, ship: crate::systems::electrical::ShipFeedReading) {
-    if !ship.fed {
-        ui.label(
-            RichText::new("Off the ship's reactor (Realistic): the home runs on what it makes and stores.")
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-        );
-        return;
-    }
-    widgets::detail_row(ui, theme, "Ship's reactor", &format!("{:.0} W now, {:.0} W back to the ship", ship.drawn_w, ship.returned_w));
-    widgets::detail_row(
-        ui,
-        theme,
-        "Metered from the ship",
-        &format!("{:.2} kWh drawn, {:.2} kWh returned", ship.drawn_wh / 1000.0, ship.returned_wh / 1000.0),
-    );
 }

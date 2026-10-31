@@ -425,6 +425,8 @@ fn the_walk_up_lines_and_the_animals_card_say_it_plainly() {
     run(&mut world, &data, 72.0);
     let (prompt, _) = walk_up_lines(&world, hen, &data);
     assert_eq!(prompt, "[E] collect Egg (Chicken)", "she laid while she still could");
+    let laid = herd_rows(&world, &data);
+    assert!(laid[0].ready && laid[0].product == "Egg ready to collect", "{:?}", laid[0]);
     crate::systems::livestock::collect(&mut world.get::<&mut Harvestable>(hen).unwrap());
     run(&mut world, &data, 1.0 / 60.0);
     let (prompt, line) = walk_up_lines(&world, hen, &data);
@@ -435,6 +437,15 @@ fn the_walk_up_lines_and_the_animals_card_say_it_plainly() {
     assert_eq!(rows.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), ["Chicken 1", "Chicken 2"]);
     assert!(rows[0].alert && rows[0].status.starts_with("Hungry"), "{:?}", rows[0]);
     assert_eq!(rows[1].status, "Starved to death.");
+    // The same facts apart, for the Home page's table (2026-10-30): each column its own part of
+    // the lines above, so the table and the cards cannot say different things.
+    let hen = &rows[0];
+    assert_eq!((hen.kind.as_str(), hen.feed.as_str(), hen.water.as_str()), ("Chicken", "110 g of Corn Grain", "0.25 L"), "{hen:?}");
+    assert!(hen.condition.starts_with("Hungry (no feed in home storage)") && !hen.dead && !hen.ready, "{hen:?}");
+    assert!(hen.product.starts_with("Egg in about") && hen.status == format!("{}. {}.", hen.condition, hen.product), "{hen:?}");
+    assert_eq!(hen.needs, format!("Eats about {} and drinks about {} of water a day.", hen.feed, hen.water));
+    let lost = &rows[1];
+    assert!(lost.dead && lost.alert && lost.condition == "Starved to death" && lost.kind == "Chicken" && lost.feed.is_empty(), "{lost:?}");
 
     // A berry bush has a yield and no needs: the prompt it always had, and no care line.
     let bush = crate::systems::livestock::spawn_creature_at(&mut world, shipped_creatures().get("berry_bush").unwrap(), Some(&shipped_items()), Vec3::ZERO, [1.0; 3]);

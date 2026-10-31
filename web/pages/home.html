@@ -8,90 +8,82 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/shared/theme.css">
+  <link rel="stylesheet" href="/shared/list-views.css">
   <style>
     /* WEB MIRRORS NATIVE (operator, 2026-07-05): this page renders the SAME
-       data/home_outline.json the native Home page's "ideal closed loop" panel
-       renders (src/gui/pages/homes.rs). One data file, two faithful surfaces.
+       data/home_outline.json the native Home page's "ideal closed loop" group
+       renders (src/gui/pages/home_loops.rs). One data file, two faithful surfaces.
        The old localStorage room-decorator that used to live here diverged from
-       the native homestead system and was replaced by this outline (v0.700). */
-    /* Colours this page uses that have no theme token. The dark value is
-       exactly the page's look before the light theme reached its text
-       (2026-10-20); the light one is the theme's own info blue. */
-    :root { --pg-luxury-ink: #48f; }
-    :root[data-theme="light"] { --pg-luxury-ink: var(--info); }
+       the native homestead system and was replaced by this outline (v0.700).
+       Since 2026-10-30 (the operator's "brutal walls of text") each loop is a card
+       in a grid that fills the width: its pill, its parts and its demand first,
+       the closure note, the arithmetic and the assumptions behind "How this is
+       worked out", and the parts behind "What it takes"; or a table, one row a
+       loop (web/shared/view-toggle.js). The cards are web/shared/list-views.css. */
     body { min-height: 100vh; }
-    .container { max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
+    .container { max-width: 2400px; margin: 0 auto; padding: 0 24px 80px; }
 
-    .hero { text-align: center; padding: 40px 0 8px; }
+    .hero { padding: 32px 0 8px; }
     .hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 6px; }
-    .hero h1 em { font-style: normal; color: var(--accent); }
-    .hero .subtitle { color: var(--text-muted); font-size: 0.95rem; max-width: 640px; margin: 0 auto 10px; }
-    .hero .intro { color: var(--text-secondary, var(--text)); font-size: 0.88rem; max-width: 720px; margin: 0 auto 24px; line-height: 1.7; }
+    .hero .group-title { font-size: var(--text-lg); color: var(--accent); margin: 0; }
+    .hero .group-note { font-size: var(--text-sm); color: var(--text-muted); margin-left: var(--space-sm); }
+    .hero .subtitle { color: var(--text-muted); font-size: var(--text-sm); max-width: 72ch; margin: 6px 0 0; }
+    .outline-bar { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; margin: var(--space-sm) 0 var(--space-md); }
+    .outline-bar .fold { flex: 1 1 320px; }
+    .outline-bar .intro { max-width: 72ch; }
 
-    .loop-card {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); margin-bottom: 14px; overflow: hidden;
-    }
-    /* All info immediately exposed, no expand/collapse (operator 2026-07-05:
-       "I'd rather have all the info immediately exposed"). */
-    .loop-head {
-      display: flex; align-items: center; gap: 10px; padding: 14px 18px;
-    }
-    .loop-name { font-weight: 700; font-size: 1rem; }
-    .loop-mark { font-size: 0.72rem; font-weight: 700; padding: 2px 10px; border-radius: var(--radius-lg); }
-    .loop-mark.closes { background: rgba(42,102,68,0.2); color: var(--success, #2a6); }
-    .loop-mark.open { background: rgba(255,136,17,0.15); color: var(--accent); }
-    .loop-parts { margin-left: auto; font-size: 0.75rem; color: var(--text-muted); }
-    .loop-body { display: block; padding: 0 18px 16px; border-top: 1px solid var(--border); }
-    .loop-demand { font-size: 0.82rem; color: var(--text); margin: 12px 0 6px; }
-    .loop-demand b { color: var(--accent); font-weight: 600; }
-    .loop-note { font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 12px; }
-
-    .req { display: flex; gap: 10px; padding: 7px 0; border-top: 1px dashed var(--border); font-size: 0.82rem; }
-    .req .qty { flex-shrink: 0; min-width: 130px; font-weight: 600; }
-    .req .why { color: var(--text-muted); line-height: 1.55; }
-    .req .gid { display: block; font-size: 0.68rem; color: var(--text-muted); opacity: 0.7; font-family: monospace; }
-    .tier-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 2px; }
-    .tier-label.baseline { color: var(--text); }
-    .tier-label.luxury { color: var(--pg-luxury-ink); }
-    .notgame { display: inline-block; font-size: 0.66rem; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-lg); background: rgba(255,136,17,0.15); color: var(--accent); margin-left: 6px; }
+    .req { padding: 4px 0; border-top: 1px dashed var(--border); }
+    .req .qty { font-weight: 600; color: var(--text); }
+    .req .why { display: block; color: var(--text-muted); }
+    .req .gid { display: block; font-size: var(--text-xs); color: var(--text-muted); font-family: monospace; }
+    .tier-label { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 2px; color: var(--text); }
+    .tier-label.luxury { color: var(--info); }
 
     .panel {
       background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 18px 20px; margin: 22px 0;
+      border-radius: var(--radius); padding: 18px 20px; margin: 0 0 var(--space-md);
     }
-    .panel.traded { border-color: rgba(255,136,17,0.45); }
+    .panel.traded { border-color: var(--warning); }
     .panel h3 { font-size: 0.95rem; margin-bottom: 8px; }
-    .panel.traded h3 { color: var(--accent); }
-    .panel p, .panel li { font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; }
+    .panel.traded h3 { color: var(--warning); }
+    .panel p, .panel li { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.7; max-width: 100ch; }
     .panel ul { padding-left: 1.3rem; }
-    .footer-note { text-align: center; font-size: 0.82rem; color: var(--text-muted); font-style: italic; max-width: 680px; margin: 28px auto 0; line-height: 1.7; }
-    .load-err { text-align: center; color: var(--text-muted); padding: 40px 0; }
+    .footer-note { font-size: var(--text-sm); color: var(--text-muted); font-style: italic; max-width: 90ch; margin: 20px 0 0; line-height: 1.7; }
+    .load-err { color: var(--text-muted); padding: 40px 0; }
   </style>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
 <script src="/shared/shell.js" data-active="home"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
+<script src="/shared/view-toggle.js"></script>
 
 <div class="container">
   <div class="hero">
-    <h1>Home</h1>
-    <p class="page-hint" id="o-title">A home that makes what it needs</p>
+    <h1 data-i18n="home.title">Home</h1>
+    <p><span class="group-title" id="o-title"></span><span class="group-note" id="o-summary"></span></p>
     <p class="subtitle" id="o-subtitle"></p>
-    <p class="intro" id="o-intro"></p>
   </div>
-  <div id="o-loops"><p class="load-err">Loading the outline...</p></div>
-  <div class="panel traded" id="o-cannot" style="display:none">
-    <h3>What one home cannot close</h3>
+  <div class="outline-bar">
+    <details class="fold" id="o-about" hidden>
+      <summary data-i18n="home.outline_about" data-i18n-tip="home.outline_about_hint" data-tip-desc="Opens what this outline is, who it is sized for and where.">About this outline</summary>
+      <p class="fold-body intro" id="o-intro"></p>
+    </details>
+    <div id="o-view"></div>
+  </div>
+  <div id="o-loops"><p class="load-err" data-i18n="home.loading">Loading the outline...</p></div>
+  <div class="panel traded" id="o-cannot" hidden>
+    <h3 data-i18n="home.cannot_title">What one home cannot close</h3>
     <p id="o-cannot-note"></p>
   </div>
-  <div class="panel" id="o-next" style="display:none">
-    <h3>What the game still needs for Home</h3>
-    <ul id="o-next-list"></ul>
-  </div>
+  <details class="fold panel" id="o-next" hidden>
+    <summary data-i18n="home.game_needs" data-i18n-tip="home.game_needs_hint" data-tip-desc="Opens the list of what the game still has to build or fix for Home.">What the game still needs for Home</summary>
+    <ul class="fold-body" id="o-next-list"></ul>
+  </details>
   <p class="footer-note" id="o-footer"></p>
 </div>
 
@@ -100,63 +92,109 @@
   function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+  const T = (key, vars) => i18n.html(key, vars);
   let o;
   try {
     const res = await fetch('/data/home_outline.json');
     if (!res.ok) throw new Error(res.status);
     o = await res.json();
   } catch (e) {
-    document.getElementById('o-loops').innerHTML =
-      '<p class="load-err">Could not load the outline data (' + esc(e.message) + '). It ships with the app and site as data/home_outline.json.</p>';
+    document.getElementById('o-loops').innerHTML = '<p class="load-err">' + T('home.load_error', { error: e.message }) + '</p>';
     return;
   }
+  const loops = o.loops || [];
   if (o.title) document.getElementById('o-title').textContent = o.title;
+  const closing = loops.filter(l => l.closes).length;
+  document.getElementById('o-summary').innerHTML = T('home.outline_summary', { closed: closing, total: loops.length });
   document.getElementById('o-subtitle').textContent = o.subtitle || '';
-  document.getElementById('o-intro').textContent = o.intro || '';
+  if (o.intro) {
+    document.getElementById('o-intro').textContent = o.intro;
+    document.getElementById('o-about').hidden = false;
+  }
+
+  // The two tiers of a loop (operator 2026-07-05): the bare minimum first, then the life-of-luxury
+  // additions. An empty game_id is the honest "not in game yet" pill, so the luxury tier doubles
+  // as the game-gap list.
+  const tier = (l, t) => (l.requirements || []).filter(r => t === 'baseline' ? (!r.tier || r.tier === 'baseline') : r.tier === t);
+  const missing = l => (l.requirements || []).filter(r => !r.game_id).length;
+  const parts = n => esc(i18n.tn ? i18n.tn('home.parts', n) : (n + ''));
+  const pill = l => l.closes
+    ? '<span class="status-badge tone-success">' + T('home.outline_closes') + '</span>'
+    : '<span class="status-badge tone-warning">' + T('home.outline_open') + '</span>';
+  const list = lines => '<ul>' + lines.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>';
+
+  function reqRow(r) {
+    return '<div class="req"><span class="qty">' + esc(r.qty) + ' ' + esc(r.item) + '</span> ' +
+      (r.game_id ? '<span class="gid">' + esc(r.game_id) + '</span>' : '<span class="status-badge tone-warning">' + T('home.not_in_game') + '</span>') +
+      '<span class="why">' + esc(r.why) + '</span></div>';
+  }
+
+  // A loop's card, then its two detail panels (hidden until its fold buttons open them): each a
+  // whole row of the grid, opening under the card's row (list-views.css, .card-detail).
+  function card(l) {
+    const id = esc(l.id);
+    const base = tier(l, 'baseline');
+    const lux = tier(l, 'luxury');
+    const gap = missing(l);
+    const heading = what => '<h3 class="detail-heading">' + esc(l.name) + '<span>' + T(what) + '</span></h3>';
+    let takes = '';
+    if (base.length) takes += '<div><div class="tier-label">' + T('home.bare_minimum') + '</div>' + base.map(reqRow).join('') + '</div>';
+    if (lux.length) takes += '<div><div class="tier-label luxury">' + T('home.luxury') + '</div>' + lux.map(reqRow).join('') + '</div>';
+    const how = '<div><h4>' + T('home.demand') + '</h4><p>' + esc(l.demand) + '</p><p>' + esc(l.closure_note) + '</p></div>' +
+      ((l.balance || []).length ? '<div><h4>' + T('home.the_arithmetic') + '</h4>' + list(l.balance) + '</div>' : '') +
+      ((l.assumptions || []).length ? '<div><h4>' + T('home.assumptions') + '</h4>' + list(l.assumptions) + '</div>' : '');
+    return '<div class="card-cell" id="loop-' + id + '">' +
+      '<div class="card-head"><span class="card-name">' + esc(l.name) + '</span>' + pill(l) + '</div>' +
+      '<div class="card-meta">' + parts((l.requirements || []).length) +
+        (gap ? ' <span class="status-badge tone-warning">' + T('home.not_in_game_count', { n: gap }) + '</span>' : '') + '</div>' +
+      '<div class="labelled"><span class="label">' + T('home.demand') + '</span><span class="clamp-3" title="' + esc(l.demand) + '">' + esc(l.demand) + '</span></div>' +
+      '<button type="button" class="fold-btn" aria-expanded="false" aria-controls="how-' + id + '" data-i18n="home.how_worked_out" data-i18n-tip="home.how_worked_out_hint"></button>' +
+      (takes ? '<button type="button" class="fold-btn" aria-expanded="false" aria-controls="takes-' + id + '" data-i18n="home.what_it_takes" data-i18n-tip="home.what_it_takes_hint"></button>' : '') +
+    '</div>' +
+    '<div class="card-detail" id="how-' + id + '" hidden>' + heading('home.how_worked_out') + '<div class="detail-cols">' + how + '</div></div>' +
+    (takes ? '<div class="card-detail" id="takes-' + id + '" hidden>' + heading('home.what_it_takes') + '<div class="detail-cols">' + takes + '</div></div>' : '');
+  }
+
+  function table() {
+    const head = ['home.col_loop', 'home.col_status', 'home.demand', 'home.bare_minimum', 'home.luxury', 'home.col_missing']
+      .map(k => '<th>' + T(k) + '</th>').join('');
+    const rows = loops.map(l => {
+      const gap = missing(l);
+      const tone = l.closes ? 'tone-success' : 'tone-warning';
+      return '<tr><td><strong>' + esc(l.name) + '</strong></td>' +
+        '<td class="' + tone + '"><span class="dot"></span>' + T(l.closes ? 'home.outline_closes' : 'home.outline_open') + '</td>' +
+        '<td title="' + esc(l.demand) + '">' + esc(l.demand) + '</td>' +
+        '<td>' + parts(tier(l, 'baseline').length) + '</td>' +
+        '<td class="tone-info">' + parts(tier(l, 'luxury').length) + '</td>' +
+        '<td class="' + (gap ? 'tone-warning' : '') + '">' + gap + '</td></tr>';
+    }).join('');
+    return '<div class="data-table-wrap"><table class="data-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
 
   const wrap = document.getElementById('o-loops');
-  wrap.innerHTML = (o.loops || []).map(function (l, i) {
-    // Two tiers per loop (operator 2026-07-05): bare minimum first, then the
-    // life-of-luxury additions. Empty game_id renders the honest
-    // "not in game yet" chip, so the luxury tier doubles as the game-gap list.
-    function reqRow(r) {
-      return '<div class="req">' +
-        '<span class="qty">' + esc(r.qty) + ' ' + esc(r.item) +
-          (r.game_id
-            ? '<span class="gid">' + esc(r.game_id) + '</span>'
-            : '<span class="notgame">not in game yet</span>') +
-        '</span>' +
-        '<span class="why">' + esc(r.why) + '</span>' +
-      '</div>';
-    }
-    const all = l.requirements || [];
-    const base = all.filter(r => !r.tier || r.tier === 'baseline');
-    const lux = all.filter(r => r.tier === 'luxury');
-    let reqs = '';
-    if (base.length) reqs += '<div class="tier-label baseline">Bare minimum</div>' + base.map(reqRow).join('');
-    if (lux.length) reqs += '<div class="tier-label luxury">Life of luxury</div>' + lux.map(reqRow).join('');
-    return '<div class="loop-card" id="loop-' + esc(l.id) + '">' +
-      '<div class="loop-head">' +
-        '<span class="loop-name">' + esc(l.name) + '</span>' +
-        '<span class="loop-mark ' + (l.closes ? 'closes' : 'open') + '">' + (l.closes ? 'closes' : 'open') + '</span>' +
-        '<span class="loop-parts">' + (l.requirements || []).length + ' parts</span>' +
-      '</div>' +
-      '<div class="loop-body">' +
-        '<p class="loop-demand"><b>Demand:</b> ' + esc(l.demand) + '</p>' +
-        '<p class="loop-note">' + esc(l.closure_note) + '</p>' +
-        reqs +
-      '</div>' +
-    '</div>';
-  }).join('');
+  // A card's fold button opens or closes its detail panel.
+  wrap.addEventListener('click', function (e) {
+    const b = e.target.closest('.fold-btn');
+    if (!b) return;
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const panel = document.getElementById(b.getAttribute('aria-controls'));
+    if (panel) panel.hidden = !open;
+  });
+  function draw(view) {
+    wrap.innerHTML = view === 'table' ? table() : '<div class="card-grid" style="--card-min: 330px">' + loops.map(card).join('') + '</div>';
+    // The summaries' words and hints are keys: fill them (and their hover hints) now.
+    i18n.apply(wrap);
+  }
+  draw(HosViewToggle.render(document.getElementById('o-view'), 'home_outline', 'cards', draw));
 
   if (o.cannot_close && o.cannot_close.note) {
     document.getElementById('o-cannot-note').textContent = o.cannot_close.note;
-    document.getElementById('o-cannot').style.display = '';
+    document.getElementById('o-cannot').hidden = false;
   }
   if (Array.isArray(o.in_game_next) && o.in_game_next.length) {
-    document.getElementById('o-next-list').innerHTML =
-      o.in_game_next.map(s => '<li>' + esc(s) + '</li>').join('');
-    document.getElementById('o-next').style.display = '';
+    document.getElementById('o-next-list').innerHTML = o.in_game_next.map(s => '<li>' + esc(s) + '</li>').join('');
+    document.getElementById('o-next').hidden = false;
   }
   document.getElementById('o-footer').textContent = o.footer || '';
 })();

@@ -70,9 +70,6 @@ pub const WORKS_OUTSIDE: &str = "The server checks it when you step into its sha
 /// A held permit for the plot that is now your own here: nothing to check.
 pub const YOUR_OWN_PLOT: &str = "That plot is your own on this ship now, so you need no permit for it.";
 
-/// The card's tallest, pixels: its own scroll area past that, so the rest of the Home page stays
-/// in view (plan 3.9).
-const MAX_HEIGHT: f32 = 360.0;
 /// How long the card may go undrawn, seconds, before the lengths are read from the data file
 /// again: once each time the card comes into view, never once per frame (an installed game whose
 /// data folder predates the file would otherwise log "using the built-in copy" every frame).
@@ -180,7 +177,9 @@ enum Act {
 // ── Drawing ──────────────────────────────────────────────────────────────────────────────────────
 
 /// The Household card, first on the Home page (homes.rs `draw`, with or without a design loaded):
-/// a collapsible card whose body scrolls past [`MAX_HEIGHT`].
+/// a collapsible card. Its whole body shows: the Home page is one scroll since 2026-10-30 (the
+/// operator: "We should join the two areas"), so the card's own scroll, capped at 360 points so
+/// the rest of the page stayed in view (plan 3.9), went with the page's still top.
 pub fn draw_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     draw_card_from(ui, theme, state, &crate::data_dir());
 }
@@ -190,30 +189,11 @@ pub(crate) fn draw_card_from(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(ui.available_width());
         if widgets::section_disclosure(ui, theme, ("homes_sec", "household"), "Household", None) {
-            egui::ScrollArea::vertical()
-                .id_salt("household_card")
-                .max_height(MAX_HEIGHT)
-                .auto_shrink([false, true])
-                .show(ui, |ui| {
-                    let lengths = lengths(data_dir, ui.input(|i| i.time));
-                    draw_body(ui, theme, state, &lengths);
-                });
-        }
-    });
-    ui.add_space(theme.spacing_sm);
-}
-
-/// The card with its whole body, no height cap: the snapshot's (ui_snapshots.rs
-/// `snapshot_household`), so every row is in the picture.
-#[cfg(test)]
-pub(crate) fn draw_card_uncapped(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::card(ui, theme, |ui| {
-        ui.set_min_width(ui.available_width());
-        if widgets::section_disclosure(ui, theme, ("homes_sec", "household"), "Household", None) {
-            let lengths = lengths(Path::new("data"), ui.input(|i| i.time));
+            let lengths = lengths(data_dir, ui.input(|i| i.time));
             draw_body(ui, theme, state, &lengths);
         }
     });
+    ui.add_space(theme.spacing_sm);
 }
 
 fn say(ui: &mut egui::Ui, theme: &Theme, text: &str, color: Color32) {

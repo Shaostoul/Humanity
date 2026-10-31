@@ -2,7 +2,7 @@
 # still writes straight into a UI call instead of asking data/i18n/en.json by key.
 # Checked by tests/i18n_lint.rs (its header says how to lower these). The numbers
 # only go DOWN; a file not listed has a budget of zero.
-# Total: 2801
+# Total: 2730
 2 src/gui/drop_files.rs
 3 src/gui/model_view/mod.rs
 1 src/gui/pages/apps.rs
@@ -53,8 +53,8 @@
 6 src/gui/pages/files/your_folders.rs
 32 src/gui/pages/fleet_ledger.rs
 20 src/gui/pages/game_admin.rs
-2 src/gui/pages/herd.rs
-73 src/gui/pages/homes.rs
+1 src/gui/pages/herd.rs
+5 src/gui/pages/homes.rs
 25 src/gui/pages/host_node.rs
 10 src/gui/pages/household.rs
 20 src/gui/pages/hud.rs
