@@ -50,8 +50,8 @@
 
 use glam::DVec3;
 
-use crate::surface_walk::{rest_radius, settle_radius, vertical_step, EYE_HEIGHT_M,
-    TERMINAL_FALL_MPS};
+use crate::surface_walk::{rest_radius, settle_radius, vertical_step, TERMINAL_FALL_MPS};
+use crate::ecs::components::EYE_HEIGHT_M;
 
 /// Which control law the surface frame-lock runs this frame.
 ///
@@ -245,6 +245,21 @@ pub struct RadialStep {
     pub impact_m_s: f64,
 }
 
+impl RadialStep {
+    /// What the fall watch is told this frame (`CameraController::surface_step`):
+    /// the speed the ground stopped, when the ground stopped a fall or the walker
+    /// stands still on it, else None. Not merely within a boot's reach of the
+    /// floor (`grounded`) while still dropping: that frame comes before the one
+    /// that lands, and must not end the fall's watch before its landing.
+    ///
+    /// Here since the crate split's rung 0 (it was inside `surface_step`), so
+    /// the renderer's camera is handed numbers rather than the simulation's
+    /// `RadialStep`.
+    pub fn landing(&self) -> Option<f64> {
+        (self.impact_m_s > 0.0 || (self.grounded && self.v_r == 0.0)).then_some(self.impact_m_s)
+    }
+}
+
 /// ONE FRAME OF RADIAL MOTION, for whichever model is running.
 ///
 /// `rest` is the standing height (`surface_walk::rest_radius`); it doubles as
@@ -284,7 +299,7 @@ pub fn radial_step(
     let (mut r, mut v_r) = (r, v_r);
     // THE LANDING (falls, 2026-10-20): the speed the ground stops when a
     // falling walker meets it, from the energy at the start of the frame
-    // (`falls::landing_speed`: v^2 = v0^2 + 2 g h to the floor), so it is the
+    // (`physics::landing::landing_speed`: v^2 = v0^2 + 2 g h to the floor), so it is the
     // fall's real speed whatever the frame's length. Under thrust (Space
     // braking a fall, Shift's powered descent) it is the speed the frame
     // started at.
@@ -299,7 +314,7 @@ pub fn radial_step(
             // The glue catches a fall within half a metre of the floor: a
             // landing, with that last half metre still to fall.
             if v_in < 0.0 {
-                impact_m_s = crate::systems::falls::landing_speed(v_in, r_in - rest, g_accel);
+                impact_m_s = crate::physics::landing::landing_speed(v_in, r_in - rest, g_accel);
             }
             v_r = 0.0;
             r = settle_radius(r, rest, dt, settle_rate);
@@ -308,7 +323,7 @@ pub fn radial_step(
             let thrust = if thrusting { climb_rate * radial_wish } else { 0.0 };
             let vs = vertical_step(r, v_r, rest, g_accel, dt, thrust, TERMINAL_FALL_MPS);
             if vs.grounded && v_in < 0.0 {
-                impact_m_s = if thrusting { -v_in } else { crate::systems::falls::landing_speed(v_in, r_in - rest, g_accel) };
+                impact_m_s = if thrusting { -v_in } else { crate::physics::landing::landing_speed(v_in, r_in - rest, g_accel) };
             }
             r = vs.r;
             v_r = vs.v_r;
@@ -689,7 +704,7 @@ mod stand_still_tests {
         // Mirrors lib.rs 8810-8820: same reverse-Z projection, same transform
         // into the planet's unrotated frame (here spin 0, camera at the render
         // origin, so the planet offset is -cam_local).
-        let proj = crate::renderer::camera::celestial_projection_f64(cam.fov_degrees as f64, cam.aspect as f64);
+        let proj = crate::terrain::celestial_projection::celestial_projection_f64(cam.fov_degrees as f64, cam.aspect as f64);
         let frustum = pc::FrustumPlanes::from_view_proj(&(proj * cam.view_matrix().as_dmat4()))
             .into_local(DQuat::IDENTITY, -cam_local);
         let params = pc::ChunkParams {

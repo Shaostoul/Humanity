@@ -31,16 +31,9 @@ use std::time::{Duration, Instant};
 /// Frame tags. Must match `src/relay/live.rs` and `web/pages/live.html`.
 const TAG_KEYFRAME: u8 = 1;
 
-/// A raw frame handed over by the render thread. Pixels are still in the GPU's
-/// layout (padded rows, possibly BGRA) because converting them is the worker's job,
-/// not the render thread's.
-pub struct RawFrame {
-    pub pixels: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
-    pub bytes_per_row: u32,
-    pub bgra: bool,
-}
+// The frame the render thread hands over (`RawFrame`) is the core's, `crate::raw_frame`, since the
+// crate split's rung 0: the renderer's stream capture makes them, and may not reach the network.
+use crate::raw_frame::RawFrame;
 
 /// What the operator configured in Studio.
 #[derive(Clone)]

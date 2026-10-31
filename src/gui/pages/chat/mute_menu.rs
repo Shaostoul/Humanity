@@ -11,7 +11,7 @@
 
 use egui::RichText;
 
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::pages::settings::notifications::{mute_choices, until_words};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;

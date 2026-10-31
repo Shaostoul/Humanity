@@ -646,7 +646,8 @@ lints:
     # on its fixture (tests/fixtures/how_to/broken.json), the index current. A second of node, no compile.
     node scripts/build-how-to.js --check
     # The crate split's ratchet (docs/design/crate-split.md, rung 0): no new wrong-way reference
-    # under scripts/crate-layers.json while the 155 are being moved. A second of node.
+    # under scripts/crate-layers.json while the rest are being moved (part B's, after rung 0's
+    # part A of 2026-10-31). A second of node.
     node scripts/check-crate-layers.js
 
 # Text garbled by a PowerShell round trip (Get-Content/Set-Content, > or Out-File):

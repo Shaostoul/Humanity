@@ -64,6 +64,32 @@ pub struct RoomActionDef {
     pub filter: String,
 }
 
+/// An axis-aligned room volume, used by the HUD to tell which room the camera is in
+/// (for label occlusion). Populated by load_world from the homestead room info.
+///
+/// Made here, by `RoomTypeRegistry::room_bounds` below, the one place a detected room becomes
+/// one; the HUD, the maps, the footing and the grow rooms' air read them. A `gui` type until the
+/// crate split's rung 0, when the ship (which builds them) and the simulation (which reads them)
+/// stopped reaching up into the GUI for it.
+#[cfg(feature = "native")]
+#[derive(Clone)]
+pub struct RoomBounds {
+    pub id: String,
+    pub min: glam::Vec3,
+    pub max: glam::Vec3,
+    /// Function joined from data/rooms.ron at load (v0.439): display name, purpose text, the
+    /// in-room action labels, access class, and (Maps increment 3) the type's colour, `fill`.
+    pub display_name: String,
+    pub purpose: String,
+    /// Human LABELS for the in-room actions ("Change Outfit"), for showing to a person.
+    pub actions: Vec<String>,
+    /// The PAGE each of those actions opens ("wardrobe", ...), which is what code matches on: a
+    /// label can be reworded, the page is the action's identity (`RoomTypeRegistry::action_pages`).
+    pub action_pages: Vec<String>,
+    pub access: String,
+    pub fill: Option<[f32; 4]>,
+}
+
 /// The joined registry of room types + actions.
 #[derive(Debug, Clone, Default)]
 pub struct RoomTypeRegistry {
@@ -154,14 +180,14 @@ impl RoomTypeRegistry {
     /// the running game publishes. They had drifted: the tests built the boxes from the zones, and
     /// the greenhouse's zone stayed a storey tall while its room rose to the 6 m roof.
     #[cfg(feature = "native")]
-    pub fn room_bounds(&self, rooms: &[RoomInfo]) -> Vec<crate::gui::RoomBounds> {
+    pub fn room_bounds(&self, rooms: &[RoomInfo]) -> Vec<RoomBounds> {
         rooms
             .iter()
             .map(|r| {
                 // A zone-named room resolves through its zone's room_type (rooms.ron); a legacy id
                 // joins on itself; an anonymous room_N gets its id as its name.
                 let f = self.function_for(r);
-                crate::gui::RoomBounds {
+                RoomBounds {
                     id: r.id.clone(),
                     min: r.center - r.dimensions * 0.5,
                     max: r.center + r.dimensions * 0.5,

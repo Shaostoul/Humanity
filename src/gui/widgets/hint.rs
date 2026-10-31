@@ -59,10 +59,10 @@ pub trait Hint {
 
 impl Hint for Response {
     fn hint(self, key: &'static str) -> Response {
-        show_words(self, crate::gui::i18n::t(key))
+        show_words(self, crate::i18n::t(key))
     }
     fn hint_dyn(self, key: &str) -> Response {
-        show_words(self, crate::gui::i18n::t_dyn(key))
+        show_words(self, crate::i18n::t_dyn(key))
     }
 }
 
@@ -114,7 +114,7 @@ pub fn with_name<R>(ui: &mut Ui, name: &str, f: impl FnOnce(&mut Ui) -> R) -> R 
 /// `id`; the ids are egui 0.31's own (`scroll_area.rs`: `id.with("area")` for the
 /// content, `id.with(d)` for each bar). Nothing happens while the area does not scroll.
 pub fn name_scroll_area(ui: &Ui, area: Id, name: &str, hint_key: &'static str) {
-    let words = crate::gui::i18n::t(hint_key);
+    let words = crate::i18n::t(hint_key);
     for id in [area.with("area"), area.with(0usize), area.with(1usize)] {
         if let Some(resp) = ui.ctx().read_response(id) {
             resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, name));

@@ -27,7 +27,7 @@
 //! Pure geometry into a [`PlantMeshBuilder`] (flat per-face colour packed in
 //! the UV, the type-20 plant contract), built on the plant worker
 //! (`engine::plant_pass`) and drawn with the RIGID plant material
-//! (`renderer::plant_mesh::PLANT_RIGID_FLAG`), so a block never sways on its
+//! (`terrain::plant_mesh::PLANT_RIGID_FLAG`), so a block never sways on its
 //! shelf the way a leaf does in the wind.
 //!
 //! Which surface shading each part gets rides on the plant organ tag
@@ -41,8 +41,8 @@ use std::f32::consts::TAU;
 use glam::{Quat, Vec3};
 
 use crate::engine::plant_layout::{plot_plants, SHELF_POST_R};
-use crate::renderer::mesh::Vertex;
-use crate::renderer::plant_mesh::{
+use crate::vertex::Vertex;
+use crate::terrain::plant_mesh::{
     BagCut, FruitHabit, FungusFruit, FungusSubstrate, FungusVisualDef, Organ, PlantMeshBuilder,
 };
 
@@ -1205,7 +1205,7 @@ fn noise3(p: Vec3, seed: u64) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::renderer::plant_mesh::PlantVisualRegistry;
+    use crate::terrain::plant_mesh::PlantVisualRegistry;
 
     /// The shipped fungi, so the tests draw what the game draws.
     fn shipped() -> PlantVisualRegistry {

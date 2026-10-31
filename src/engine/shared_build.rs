@@ -78,9 +78,8 @@ use crate::gui::GuiState;
 use crate::hot_reload::data_store::DataStore;
 use crate::ship::build_frames::{parse_frame_id, BuildFrame, BuildFrames, FrameKind};
 use crate::ship::ship_structure::ShipStructure;
-use crate::systems::construction::shared::{
-    self, msg, Action, FromRelay, OutQueue, Piece, Ranks, Reason, SharedBuildIntent, SharedPiece, Spent, ToRelay, Why,
-};
+use crate::systems::construction::shared::{self, msg, Action, FromRelay, OutQueue, Piece, Ranks, Reason, SharedBuildIntent, SharedPiece, Spent, ToRelay};
+use crate::build_permission::Why;
 use crate::systems::construction::{Blueprint, BlueprintRegistry, BuildRequest, Construction, PlanetSite, Structure};
 use glam::{Mat4, Vec2, Vec3};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
@@ -1133,7 +1132,7 @@ fn wire(m: &ToRelay) -> String {
 /// plan 3.8): on a plot that is not this player's own, the held permit for it
 /// (`household::held_for`: one the relay said works first, never one that ran out), with its key
 /// to file a refusal under. None on the player's own plot, in a shared space, or with no permit.
-fn permit_to_show(gui: &GuiState, frame: &str) -> Option<(crate::net::household::PermitKey, crate::systems::construction::shared::Permit)> {
+fn permit_to_show(gui: &GuiState, frame: &str) -> Option<(crate::net::household::PermitKey, crate::build_permission::Permit)> {
     let Some((FrameKind::Plot, plot)) = parse_frame_id(frame) else { return None };
     let own = gui.ship_structure.as_ref().filter(|s| !s.home_is_away()).and_then(|s| s.home_plot()).map(|p| p.id.as_str());
     if own == Some(plot) {

@@ -2124,7 +2124,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 widgets::rgb_section_divider(ui, theme);
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "garden"), "Garden", tree_force) {
                 // The section's own draw (cpu.garden.page, 2026-10-30): measured on a wall screen.
-                let _garden_draw = crate::renderer::frame_costs::stage("cpu.garden.page");
+                let _garden_draw = crate::frame_costs::stage("cpu.garden.page");
                 ui.horizontal_wrapped(|ui| {
                     // Dev: grant the starter seed set (one of each tower variety), so
                     // survival-mode planting is testable now. Creative ignores seeds.

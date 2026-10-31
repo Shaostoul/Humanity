@@ -10,7 +10,7 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiState, WalletNetwork, WalletTransaction};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::widgets::{with_hint, Hint};
 
 /// Below this panel width the two columns stack into one.

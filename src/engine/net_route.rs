@@ -523,7 +523,7 @@ pub(crate) fn player_face(sent: glam::Quat) -> glam::Quat {
 /// Where each piece of another player's figure goes.
 ///
 /// `eye` is the position their client sends, their camera, which stands
-/// `surface_walk::EYE_HEIGHT_M` (1.7 m, the camera's standing eye height
+/// `ecs::components::EYE_HEIGHT_M` (1.7 m, the camera's standing eye height
 /// too) over their feet whatever their look. So the feet are put there, on
 /// the floor. `sent_rotation` is the rotation their client sends (see
 /// `player_face`).
@@ -533,7 +533,7 @@ pub(crate) fn player_face(sent: glam::Quat) -> glam::Quat {
 /// eye, the skin-tone head and the hair sat inside it, and the feet floated
 /// 0.85 m over the floor.
 pub(crate) fn remote_figure_parts(eye: glam::Vec3, sent_rotation: glam::Quat, look: Option<&crate::player_look::PlayerLook>) -> Vec<FigurePiece> {
-    let feet = eye - glam::Vec3::new(0.0, crate::surface_walk::EYE_HEIGHT_M as f32, 0.0);
+    let feet = eye - glam::Vec3::new(0.0, crate::ecs::components::EYE_HEIGHT_M as f32, 0.0);
     figure_parts(feet, player_face(sent_rotation), look)
 }
 
@@ -585,7 +585,7 @@ pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_loo
 /// 2026-10-03 co-presence screenshot), with the hair's crown hidden behind
 /// the head's far inside. BUG-128 turned `Mesh::sphere` itself the right way
 /// out, so the copy went; the test below still checks every triangle.
-pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<crate::renderer::mesh::Vertex>, Vec<u32>) {
+pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<crate::vertex::Vertex>, Vec<u32>) {
     const STACKS: u32 = 16;
     const SLICES: u32 = 24;
     crate::renderer::mesh::Mesh::sphere_data(radius, STACKS, SLICES)
@@ -701,7 +701,7 @@ pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake>
         }
         let parsed = std::fs::read(&path)
             .map_err(|e| format!("Failed to read {}: {e}", path.display()))
-            .and_then(|bytes| crate::assets::loader::parse_ron::<PlanetDef>(&bytes));
+            .and_then(|bytes| crate::data_parse::parse_ron::<PlanetDef>(&bytes));
         let mut def = match parsed {
             Ok(def) => def,
             Err(e) => {
@@ -1249,7 +1249,7 @@ mod tests {
         use glam::Vec3;
         // The figure's feet assume the camera rests this high over the floor.
         let cam = crate::renderer::camera::CameraController::new(1.0, 1.0);
-        assert_eq!(cam.eye_height(), crate::surface_walk::EYE_HEIGHT_M as f32, "the camera's standing eye height");
+        assert_eq!(cam.eye_height(), crate::ecs::components::EYE_HEIGHT_M as f32, "the camera's standing eye height");
         let eye = Vec3::new(0.0, 1.7 + 3.0, 0.0); // a player standing on a floor at y = 3
         let floor = 3.0;
         let plain = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
@@ -1287,7 +1287,7 @@ mod tests {
     /// culled). The body box is left out: these rays are all at head height.
     fn first_seen(
         pieces: &[FigurePiece],
-        mesh: &(Vec<crate::renderer::mesh::Vertex>, Vec<u32>),
+        mesh: &(Vec<crate::vertex::Vertex>, Vec<u32>),
         from: glam::Vec3,
         dir: glam::Vec3,
     ) -> Option<FigurePart> {
@@ -1483,7 +1483,7 @@ mod tests {
             head.at.y - head_r
         );
         // The same figure a player without a look standing there gets.
-        let eye = Vec3::new(pos.x, floor + crate::surface_walk::EYE_HEIGHT_M as f32, pos.z);
+        let eye = Vec3::new(pos.x, floor + crate::ecs::components::EYE_HEIGHT_M as f32, pos.z);
         let player = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
         for (c, p) in crew.iter().zip(&player) {
             assert!((c.at - p.at).length() < 1e-4 && (c.scale - p.scale).length() < 1e-5, "the crew's {:?} is a player's: {c:?} vs {p:?}", c.part);

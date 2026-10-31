@@ -1,9 +1,10 @@
-//! The day record (systems::day_energy) and the meters that read it. The
+//! The day record (machines::day_energy) and the meters that read it. The
 //! simulation-driven tests (a room resized changes its fan's day; the time
 //! away charges the recorded day) are beside the systems they run:
 //! `farming::humidity_tests` and `farming::heat_tests`.
 
-use super::*;
+use crate::machines::day_energy::*;
+use crate::hot_reload::data_store::DataStore;
 use crate::machines::{DaySource, MachineDef, MachineHome, MachineInstance, MachinePower, MeterBasis};
 
 /// A day's need is only what it drew and asked for over the LAST 24 whole
@@ -157,4 +158,11 @@ fn the_meter_charges_a_recorded_day_and_says_which_figures_are_measured() {
     // Nothing recorded: every figure from the data, as before.
     let none = home.utility_meters(4.5, MeterBasis::default()).into_iter().find(|m| m.utility == "power").unwrap();
     assert!((none.demand - 0.96).abs() < 1e-4, "{}", none.demand);
+}
+
+/// The record's hour is the game clock's hour: `machines::day_energy::HOUR_S` is written out
+/// as 3,600 because the clock is above the ship, so this holds the two equal.
+#[test]
+fn the_record_hour_is_the_clock_hour() {
+    assert_eq!(HOUR_S, crate::systems::time::SECONDS_PER_HOUR);
 }

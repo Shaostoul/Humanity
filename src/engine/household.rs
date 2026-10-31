@@ -58,7 +58,7 @@ use crate::net::dm_store::DmStore;
 use crate::net::household::{self as hh, Arrival, GivenPermit, GivenState, HeldPermit, Kept, PermitPut, Verdict};
 use crate::net::put_answers::{Answer, ANSWER_WAIT};
 use crate::relay::storage::plot_owner_id;
-use crate::systems::construction::shared::{Permit, Why, PERMIT_MAX_DAYS};
+use crate::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
 
 /// Seconds in a day.
 const DAY: u64 = 86_400;

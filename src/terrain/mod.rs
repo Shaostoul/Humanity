@@ -18,6 +18,13 @@ pub mod grass;
 /// tillers and near-field trees both stand on it).
 pub mod drawn_surface;
 pub mod far_trees;
+/// The tree species list (data/vegetation/trees.ron), the card atlas's tile for each species
+/// and variant, and each tile's framing: plain data the patch builder and the renderer's tree
+/// builder both read (the top of `renderer::tree_mesh` until the crate split's rung 0).
+pub mod tree_registry;
+/// Procedural plant geometry (crops, fungi, grass tillers, the trees' builder): plain
+/// `Vec<Vertex>`, here since the crate split's rung 0 (it was `renderer::plant_mesh`).
+pub mod plant_mesh;
 /// The near-tree harvest's re-run gate (moved / LOD changed / density
 /// changed, the change terms rate-limited), pure so it is testable without
 /// a planet and so the frame loop's `[NearTree] recompute` log can name
@@ -51,3 +58,6 @@ pub mod planet_heightmap;
 // data/star_systems/sol.json); per-planet terrain defs are planet.rs.
 pub mod procedural_heightmap;
 pub mod planet_surface;
+/// The celestial pass's projection (reverse-Z, 5 cm to 1e13 m) the patch selector's frustum is
+/// built from: `renderer::camera`'s until the crate split's rung 0.
+pub mod celestial_projection;

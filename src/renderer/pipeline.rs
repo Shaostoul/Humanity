@@ -2,7 +2,7 @@
 
 use super::camera::CameraUniforms;
 use super::deferred_build::{Deferred, Polled};
-use super::mesh::Vertex;
+use super::mesh::{instance_layout, vertex_layout};
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
 
@@ -660,7 +660,7 @@ impl Pipeline {
 
         // Group 1 for the terrain-batch pipelines: ONE shared batch uniform
         // (the planet rotation). Per-patch data rides the instance-rate
-        // vertex attribute (Vertex::instance_layout), not a binding.
+        // vertex attribute (mesh::instance_layout), not a binding.
         // FRAGMENT visibility because the fragment-stage obj_* accessors
         // read the uniform too (the v0.807 lesson: widen the layout in the
         // same commit as the shader use, and boot-verify -- naga cannot see
@@ -1337,7 +1337,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout(), Vertex::instance_layout()],
+                buffers: &[vertex_layout(), instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1416,7 +1416,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout(), Vertex::instance_layout()],
+                buffers: &[vertex_layout(), instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1476,7 +1476,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout(), Vertex::instance_layout()],
+                buffers: &[vertex_layout(), instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1700,7 +1700,7 @@ impl Pipeline {
                 vertex: wgpu::VertexState {
                     module: shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[Vertex::layout(), Vertex::instance_layout()],
+                    buffers: &[vertex_layout(), instance_layout()],
                     compilation_options: wgpu::PipelineCompilationOptions {
                         constants: &constants,
                         ..Default::default()

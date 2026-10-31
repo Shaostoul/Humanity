@@ -317,7 +317,7 @@ impl<'a> Button<'a> {
         // The words on hover: the name (an icon-only button's `.tooltip`) and the
         // plain-language hint, the hint only while hints are on.
         let hint_key = self.hint.or_else(|| super::hint::pending(ui));
-        let hint_words = hint_key.filter(|_| super::hint::shown(ui.ctx())).map(crate::gui::i18n::t_dyn);
+        let hint_words = hint_key.filter(|_| super::hint::shown(ui.ctx())).map(crate::i18n::t_dyn);
         let composed_tip: Option<String> = match (self.tooltip, hint_words) {
             (Some(name), Some(h)) => Some(format!("{name}\n{h}")),
             (Some(name), None) => Some(name.to_string()),

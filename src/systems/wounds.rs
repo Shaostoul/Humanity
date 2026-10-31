@@ -710,7 +710,7 @@ fn hint_text(w: &Wounds, reg: Option<&StatusEffectRegistry>) -> String {
 /// The hint's sentence on falls, with falls.ron's speeds as the heights they come from in
 /// Earth's gravity. None without fall data.
 fn fall_hint(f: &crate::systems::falls::Falls, reg: Option<&StatusEffectRegistry>) -> Option<String> {
-    use crate::systems::falls::drop_height_m;
+    use crate::physics::landing::drop_height_m;
     const EARTH_G: f32 = 9.81;
     if f.steps.is_empty() {
         return None;

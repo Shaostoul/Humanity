@@ -568,7 +568,7 @@ pub fn pack_color_to_uv(c: [f32; 3], water: bool) -> [f32; 2] {
 /// the baked cards are gone (grass is an instanced strand layer whose
 /// density ramps to zero on its own) and the shader branch that read the
 /// bit went with them. Do not resurrect it as a general-purpose flag
-/// without checking `renderer::plant_mesh`, which parks the organ tags
+/// without checking `terrain::plant_mesh`, which parks the organ tags
 /// immediately above it at bits 19 and 20.
 pub fn pack_color_to_uv_flags(c: [f32; 3], water: bool, tree_card: bool) -> [f32; 2] {
     let mut uv = pack_color_to_uv(c, water);

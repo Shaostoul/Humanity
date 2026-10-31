@@ -5,7 +5,7 @@
 //! memory. Worker-thread + mpsc for every request (the Server Settings fetch
 //! pattern); the relay's response is the only truth.
 
-use crate::gui::i18n::{t, t_marked, tf, tn};
+use crate::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::{GuiGuild, GuiState};

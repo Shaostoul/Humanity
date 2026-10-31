@@ -918,7 +918,7 @@ fn permit_for_picks_the_working_permit_for_that_plot() {
     let ada_held = held.iter().find(|h| h.from == ada).unwrap();
     let cy_held = held.iter().find(|h| h.from == cy && h.permit.plot == "p1").unwrap();
     gs.household.verdicts.insert(PermitKey::of(ada_held), Judged { verdict: Verdict::Works, at: 0.0 });
-    gs.household.verdicts.insert(PermitKey::of(cy_held), Judged { verdict: Verdict::Refused(crate::systems::construction::shared::Why::PermitNotFromHolder), at: 0.0 });
+    gs.household.verdicts.insert(PermitKey::of(cy_held), Judged { verdict: Verdict::Refused(crate::build_permission::Why::PermitNotFromHolder), at: 0.0 });
     assert_eq!(permit_for(&gs, "p1"), Some(ada_p1.clone()), "the one that works");
     assert_eq!(permit_for_at(&gs, "p1", t + 30 * DAY), Some(cy_p1), "never one that ran out");
     assert_eq!(permit_for(&gs, "p9"), None);

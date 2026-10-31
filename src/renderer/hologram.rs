@@ -9,7 +9,8 @@ use serde::Deserialize;
 use std::f32::consts::PI;
 use std::path::Path;
 
-use super::mesh::{Mesh, Vertex};
+use super::mesh::Mesh;
+use crate::vertex::Vertex;
 
 // ── RON data structures ─────────────────────────────────────
 

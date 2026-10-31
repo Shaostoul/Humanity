@@ -211,10 +211,10 @@ pub fn words(file: &File, c: &Candidate, show: Show) -> (String, String) {
     let Some(kind) = file.kind(&c.kind) else {
         return (String::new(), String::new());
     };
-    let t = crate::gui::i18n::t_dyn;
+    let t = crate::i18n::t_dyn;
     let name = clean(&c.sender, TITLE_CHARS);
     let room = clean(&c.room_name, TITLE_CHARS);
-    let named = || clean(&crate::gui::i18n::fill(t(&kind.title), &[("name", &name), ("room", &room)]), TITLE_CHARS);
+    let named = || clean(&crate::i18n::fill(t(&kind.title), &[("name", &name), ("room", &room)]), TITLE_CHARS);
     match show {
         Show::Nothing => (t(&kind.title_hidden).to_string(), t(&kind.body_hidden).to_string()),
         Show::Name => (named(), t(&kind.body_hidden).to_string()),

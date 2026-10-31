@@ -81,13 +81,13 @@ fn the_open_plot_you_stand_in_is_lit_and_on_nobodys_meter() {
 }
 
 /// A DOOR'S STOREY TOLERANCE IS THE STEP UP (ship homes increment 7): a body counts for a door when
-/// its feet are within `door_anim::DOOR_STOREY_TOLERANCE_M` of the door's band, which says it is
+/// its feet are within `door_panels::DOOR_STOREY_TOLERANCE_M` of the door's band, which says it is
 /// footing's `STEP_UP_M`, the height a body steps up onto a raised floor. door_anim.rs compiles in
 /// the relay, where footing.rs does not, so the number is written twice and held equal here.
 /// Seen red 2026-10-20 with the tolerance at 0.5: "left: 0.5, right: 0.6".
 #[test]
 fn a_doors_storey_tolerance_is_the_step_up() {
-    assert_eq!(crate::systems::door_anim::DOOR_STOREY_TOLERANCE_M, crate::engine::footing::STEP_UP_M);
+    assert_eq!(crate::ship::door_panels::DOOR_STOREY_TOLERANCE_M, crate::engine::footing::STEP_UP_M);
 }
 
 /// PIPES RUN UNDER EACH STOREY'S OWN CEILING (ship homes increment 7, plan section 3: conduits per
@@ -309,7 +309,7 @@ fn the_elevator_car_is_drawn_to_its_footprint() {
 /// household's machine layout placed, and every run of it (`conduit_runs`).
 fn shipped_runs() -> (ShipStructure, Vec<ConduitRun>) {
     let ship = ship("p1");
-    let home = crate::machines::MachineHome::load(&data_dir().join("machines/home.ron")).expect("the household's machines load");
+    let home = crate::systems::grow_machines::load_home(&data_dir().join("machines/home.ron")).expect("the household's machines load");
     let placements = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
     let picks = port_picks(&home, &placements, Some(&ship));
     let runs = conduit_runs(Some(&ship), &home, &placements, &picks);
@@ -451,7 +451,7 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
 
 /// The household's machines of `file` (under data/machines/) placed on `ship`.
 fn shipped_placements(ship: &ShipStructure, file: &str) -> (crate::machines::MachineHome, Vec<crate::machines::PlacedMachine>) {
-    let home = crate::machines::MachineHome::load(&data_dir().join("machines").join(file)).expect("the household's machines load");
+    let home = crate::systems::grow_machines::load_home(&data_dir().join("machines").join(file)).expect("the household's machines load");
     let placements = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
     (home, placements)
 }

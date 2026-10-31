@@ -43,14 +43,14 @@
 //! same split the engine publishes.
 //!
 //! Feature-neutral (serde, ron and the farming, inventory and self-sufficiency
-//! data), so `MachineHome::load` fills it in under every feature set.
+//! data), so `load_home` fills it in under every feature set.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::machines::{MachineHome, MachineStat};
+use crate::machines::{GrownFood, MachineHome};
 use crate::systems::farming::PlantRegistry;
 use crate::systems::inventory::ItemRegistry;
 use crate::systems::self_sufficiency::{crop_is_tabulated, food_supply_kcal_per_day, CropNutrition};
@@ -160,7 +160,7 @@ pub fn load_grow_media(data_dir: &Path) -> Vec<GrowMedium> {
     struct File {
         media: Vec<GrowMedium>,
     }
-    match crate::embedded_data::load_data_or_embedded(data_dir, "garden/grow_media.ron", crate::assets::loader::parse_ron::<File>) {
+    match crate::embedded_data::load_data_or_embedded(data_dir, "garden/grow_media.ron", crate::data_parse::parse_ron::<File>) {
         Ok(f) => f.media,
         Err(e) => {
             log::warn!("{e}; no grow media");
@@ -226,7 +226,7 @@ fn load_tower_cups(data_dir: &Path) -> Vec<TowerCups> {
         #[serde(default)]
         towers: Vec<TowerCups>,
     }
-    crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::assets::loader::parse_ron::<File>)
+    crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::data_parse::parse_ron::<File>)
         .map(|f| f.towers)
         .unwrap_or_default()
 }
@@ -244,32 +244,9 @@ pub struct GrowPlan {
     pub grows: String,
 }
 
-/// A grow machine type's computed food: kcal a day from its crops, and what it
-/// grows. Held on `MachineHome::grown` (never saved) and shown as the food
-/// line of every card that shows the machine (`MachineHome::stats_for`).
-#[derive(Debug, Clone, PartialEq)]
-pub struct GrownFood {
-    pub kcal_per_day: f32,
-    pub grows: String,
-}
+// A grow machine type's computed food (`GrownFood`) and its card text (`food_value`) are
+// `machines`', beside the `MachineHome::grown` that holds them, since the crate split's rung 0.
 
-impl GrownFood {
-    /// The food line as a machine stat.
-    pub fn stat(&self) -> MachineStat {
-        MachineStat {
-            kind: "food".to_string(),
-            value: food_value(self.kcal_per_day, &self.grows),
-            status: if self.kcal_per_day > 0.0 { "ok" } else { "off" }.to_string(),
-        }
-    }
-}
-
-/// The card text for a computed food figure: "+62 kcal/d (potato)". Whole
-/// kcal from 10 up, one decimal below, so a herb tower's 3.4 does not read 3.
-pub fn food_value(kcal_per_day: f32, grows: &str) -> String {
-    let n = if kcal_per_day >= 10.0 { format!("{kcal_per_day:.0}") } else { format!("{kcal_per_day:.1}") };
-    format!("+{n} kcal/d ({})", grows.replace('_', " "))
-}
 
 /// Everything the figure is computed from, loaded once per home load.
 pub struct GrowFoodModel {
@@ -339,6 +316,20 @@ impl GrowFoodModel {
     }
 }
 
+/// THE way to load a home above the ship (the engine, the GUI, the simulation and their tests):
+/// `MachineHome::load` (the file and its ship machines merged), then each grow machine type's
+/// food a day computed from its crops into `grown` (`grown_food`). `MachineHome::load` filled it
+/// itself until the crate split's rung 0, which made the ship reach up into the simulation; the
+/// test `nothing_above_the_ship_loads_a_home_without_its_food` holds every caller to this one.
+pub fn load_home(path: &Path) -> Option<MachineHome> {
+    let mut h = MachineHome::load(path)?;
+    // The home file sits in <data>/machines/, so its data dir is two up.
+    if let Some(data_dir) = path.parent().and_then(|p| p.parent()) {
+        h.grown = grown_food(&h, data_dir);
+    }
+    Some(h)
+}
+
 /// Every grow machine type in `home`'s catalog with a computed figure, keyed
 /// by type id. Empty when the model's data cannot be loaded from `data_dir`.
 pub fn grown_food(home: &MachineHome, data_dir: &Path) -> BTreeMap<String, GrownFood> {
@@ -354,13 +345,14 @@ pub fn grown_food(home: &MachineHome, data_dir: &Path) -> BTreeMap<String, Grown
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::machines::food_value;
 
     fn data_dir() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
     }
 
     fn home(file: &str) -> MachineHome {
-        MachineHome::load(&data_dir().join("machines").join(file)).unwrap_or_else(|| panic!("{file} loads"))
+        load_home(&data_dir().join("machines").join(file)).unwrap_or_else(|| panic!("{file} loads"))
     }
 
     /// Prints each grow machine type's computed food for both shipped homes,
@@ -504,5 +496,41 @@ mod tests {
         let plants = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         assert_eq!(tower_cup_crops(&plants, 5), vec!["a", "b", "c", "a", "b"]);
         assert!(tower_cup_crops(&[], 5).is_empty());
+    }
+
+    /// Every home a caller above the ship loads carries its food figures: nothing outside the
+    /// ship's own code calls `MachineHome::load` (the bare file, `grown` empty) instead of
+    /// `load_home`. Until the crate split's rung 0 `MachineHome::load` filled `grown` itself;
+    /// a card loaded the bare way would show the data's typed food line, not the computed one.
+    /// Seen red with lib.rs's startup load put back on `MachineHome::load`.
+    #[test]
+    fn nothing_above_the_ship_loads_a_home_without_its_food() {
+        fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).expect("src reads").flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    walk(&p, out);
+                } else if p.extension().is_some_and(|x| x == "rs") {
+                    out.push(p);
+                }
+            }
+        }
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        walk(&src, &mut files);
+        let mut bare = Vec::new();
+        for f in &files {
+            let rel = f.strip_prefix(&src).unwrap().to_string_lossy().replace('\\', "/");
+            let ship_own = rel.starts_with("ship/") || rel == "machines.rs" || rel.starts_with("machines/") || rel.starts_with("station/");
+            if ship_own || rel == "systems/grow_machines.rs" {
+                continue;
+            }
+            let text = std::fs::read_to_string(f).unwrap_or_default();
+            if text.contains(concat!("MachineHome::", "load(")) {
+                bare.push(rel);
+            }
+        }
+        assert!(files.len() > 500, "the scan found only {} files under src/", files.len());
+        assert!(bare.is_empty(), "these load a home without its food figures (use systems::grow_machines::load_home): {bare:?}");
     }
 }

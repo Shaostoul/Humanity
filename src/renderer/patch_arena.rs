@@ -32,17 +32,10 @@
 //! arena is full, the caller falls back to the classic per-mesh path for that
 //! patch (graceful degradation, logged -- never a crash).
 
-use super::mesh::Vertex;
-
-/// One allocated patch: element ranges in the shared arenas. `base_vertex`
-/// for the draw is `vstart`; indices are stored patch-local (0-based).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PatchSlot {
-    pub vstart: u32,
-    pub vcount: u32,
-    pub istart: u32,
-    pub icount: u32,
-}
+use crate::vertex::Vertex;
+// The ranges a patch is given (the patch cache keeps one per batched patch; terrain's since the
+// crate split's rung 0).
+use crate::terrain::planet_chunks::PatchSlot;
 
 /// First-fit range allocator over `0..cap` with free-list merging on free.
 /// Units are ELEMENTS (vertices or indices), not bytes.

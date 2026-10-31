@@ -16,7 +16,7 @@
 //! server-side. The UI says so before the user commits.
 
 use egui::{RichText, ScrollArea};
-use crate::gui::i18n::{t, t_marked, tf, tn};
+use crate::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::GuiState;

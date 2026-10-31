@@ -538,7 +538,7 @@ pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<St
 /// row and nothing else.
 ///
 /// The rule:
-/// - The disk copy is built inside `assets::loader::refusing_rows`, so a single
+/// - The disk copy is built inside `data_parse::refusing_rows`, so a single
 ///   CSV row this version cannot read refuses the file. When it builds, it is
 ///   used: a modded file wins, whatever it changes, adds or leaves out.
 /// - Otherwise (missing, unreadable, a row refused, does not parse) the built-in
@@ -556,7 +556,7 @@ pub fn load_data_or_embedded<T>(
 ) -> Result<T, String> {
     let path = data_dir.join(rel);
     let (why, refused) = match std::fs::read(&path) {
-        Ok(bytes) => match crate::assets::loader::refusing_rows(|| build(&bytes)) {
+        Ok(bytes) => match crate::data_parse::refusing_rows(|| build(&bytes)) {
             Ok(value) => return Ok(value),
             Err(e) => (format!("this version cannot read {}: {e}", path.display()), Some(bytes)),
         },
@@ -807,7 +807,7 @@ mod tests {
 
     /// A parse that asks only whether the text is RON.
     fn any_ron(bytes: &[u8]) -> Result<ron::Value, String> {
-        crate::assets::loader::parse_ron(bytes)
+        crate::data_parse::parse_ron(bytes)
     }
 
     /// One row of a test CSV that has no built-in copy.
@@ -848,7 +848,7 @@ mod tests {
     fn with_no_built_in_copy_a_csv_keeps_the_rows_it_can_read() {
         let dir = folder(&[("mine.csv", "id,n\na,1\nb,two\n")]);
         let (rows, lines) =
-            crate::test_log::capture(|| load_data_or_embedded(&dir, "mine.csv", crate::assets::loader::parse_csv::<Row>));
+            crate::test_log::capture(|| load_data_or_embedded(&dir, "mine.csv", crate::data_parse::parse_csv::<Row>));
         let rows = rows.expect("the rows that can be read");
         assert_eq!(rows.len(), 1);
         assert_eq!((rows[0].id.as_str(), rows[0].n), ("a", 1.0));

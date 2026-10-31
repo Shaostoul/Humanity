@@ -208,7 +208,7 @@ fn read_data_json<T: serde::de::DeserializeOwned>(
     data_dir: &std::path::Path,
     relative: &str,
 ) -> Option<T> {
-    crate::embedded_data::load_data_or_embedded(data_dir, relative, crate::assets::loader::parse_json::<T>)
+    crate::embedded_data::load_data_or_embedded(data_dir, relative, crate::data_parse::parse_json::<T>)
         .map_err(|e| log::warn!("{e}"))
         .ok()
 }
@@ -430,7 +430,7 @@ pub struct DesignTier {
 /// neither loads (the Home page then shows an empty state).
 pub fn load_homestead_design(data_dir: &std::path::Path) -> Option<HomesteadDesign> {
     let rel = "blueprints/fibonacci_homestead.ron";
-    crate::embedded_data::load_data_or_embedded(data_dir, rel, crate::assets::loader::parse_ron::<HomesteadDesign>)
+    crate::embedded_data::load_data_or_embedded(data_dir, rel, crate::data_parse::parse_ron::<HomesteadDesign>)
         .map_err(|e| log::warn!("{e}"))
         .ok()
 }
@@ -548,10 +548,12 @@ pub struct GardenArea {
 /// matches, the same test the engine publishes plots by), grouped by type, with its
 /// catalog label / food line / footprint. The food line is the one every card shows
 /// (`MachineHome::stats_for`). Resolved via `data_dir` so it works regardless of the
-/// process CWD. Empty if the file is absent.
-pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
-    let path = crate::machines::home_ron_path(data_dir);
-    let Some(home) = crate::machines::MachineHome::load(&path) else {
+/// process CWD. Empty if the file is absent. `machines_path` is the household's machine file
+/// (`save_load::active_home_machines_path`, which the caller resolves: the live save is the
+/// engine's, since the crate split's rung 0).
+pub fn load_garden_areas(machines_path: &std::path::Path, data_dir: &std::path::Path) -> Vec<GardenArea> {
+    let path = machines_path;
+    let Some(home) = crate::systems::grow_machines::load_home(path) else {
         return Vec::new();
     };
     garden_areas_of(&home, data_dir)
@@ -607,7 +609,7 @@ pub fn load_tower_configs(data_dir: &std::path::Path) -> Vec<TowerConfig> {
     }
     // The built-in copy when the data folder's is missing or this version
     // cannot read it (BUG-163).
-    match crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::assets::loader::parse_ron::<File>) {
+    match crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::data_parse::parse_ron::<File>) {
         Ok(f) => f.towers,
         Err(e) => {
             log::warn!("{e}");
@@ -1211,7 +1213,7 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
     // all of it, else the copy built into the exe (it read the disk alone, so a
     // data folder without recipes.csv listed none).
     let rows: Vec<Row> =
-        match crate::embedded_data::load_data_or_embedded(data_dir, "recipes.csv", crate::assets::loader::parse_csv::<Row>) {
+        match crate::embedded_data::load_data_or_embedded(data_dir, "recipes.csv", crate::data_parse::parse_csv::<Row>) {
             Ok(rows) => rows,
             Err(e) => {
                 log::warn!("{e}; the Crafting page lists no recipes");
@@ -1230,7 +1232,7 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         volume_l: f32,
     }
     let items: Vec<Dur> =
-        crate::embedded_data::load_data_or_embedded(data_dir, "items.csv", crate::assets::loader::parse_csv::<Dur>)
+        crate::embedded_data::load_data_or_embedded(data_dir, "items.csv", crate::data_parse::parse_csv::<Dur>)
             .unwrap_or_default();
     let durable: std::collections::HashSet<&str> = items.iter().filter(|d| d.durability > 0).map(|d| d.id.as_str()).collect();
     let litres: std::collections::HashMap<&str, f32> = items.iter().map(|d| (d.id.as_str(), d.volume_l)).collect();

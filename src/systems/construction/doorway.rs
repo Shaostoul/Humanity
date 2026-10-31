@@ -104,7 +104,7 @@ pub fn parts(tf: &Transform, d: &Doorway, open: bool) -> Vec<(Transform, Part)> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systems::construction::placement::world_aabb;
+    use crate::ecs::components::world_aabb;
     use glam::Quat;
 
     fn wall() -> Transform {

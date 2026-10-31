@@ -345,8 +345,8 @@ fn save_writes_through_part_files_the_exit_deletes() {
         let entries: Vec<std::path::PathBuf> = std::fs::read_dir(&*dir).unwrap().flatten().map(|e| e.path()).collect();
         assert_eq!(entries.len(), 1, "only the arriving ciphertext: {entries:?}");
         let name = entries[0].file_name().unwrap().to_string_lossy().to_string();
-        assert!(crate::gui::widgets::part_file::is_part_name(&name), "it is a hidden part: {name}");
-        assert!(crate::gui::widgets::part_file::is_listed(&entries[0]), "the ciphertext is in a part the exit deletes");
+        assert!(crate::net::part_file::is_part_name(&name), "it is a hidden part: {name}");
+        assert!(crate::net::part_file::is_listed(&entries[0]), "the ciphertext is in a part the exit deletes");
         write_all(f, &ct)
     })
     .expect("saved");

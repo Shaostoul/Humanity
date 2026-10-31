@@ -17,7 +17,7 @@
 //! ## The calls
 //!
 //! ```ignore
-//! use crate::gui::i18n::{t, tf, tn};
+//! use crate::i18n::{t, tf, tn};
 //! ui.label(t("calculator.title"));                          // "Calculator"
 //! ui.label(tf("market.listing_by", &[("name", &seller)]));  // "Listed by {{name}}"
 //! ui.label(tn("inventory.items", count, &[]));              // "1 item" / "3 items"
@@ -38,6 +38,12 @@
 //! with `{{n}}` set to the number. Languages with more plural forms than two will
 //! need more keys; that is a change to this function and to `i18n.tn` on the web,
 //! made with the first such translation.
+//!
+//! WHY IT LIVES IN THE CORE (the crate split's rung 0, 2026-10-31,
+//! docs/design/crate-split.md): it was `gui::i18n`, and the simulation's crafting notices
+//! (`systems::crafting::home_store::words`) reached up into the GUI for their words. It is the one
+//! word source for every part of the app (std, serde_json and the built-in copies of the language
+//! files), so it sits at the bottom where every crate may read it.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};

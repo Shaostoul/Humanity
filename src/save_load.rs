@@ -152,6 +152,15 @@ pub fn active_home() -> ActiveHome {
     ACTIVE_HOME.with(|a| a.borrow().clone()).unwrap_or_else(ActiveHome::offline)
 }
 
+/// The live save's household machine file: `machines::home_ron_path` for the active home's
+/// start and household (ship homes increment 6). Here, beside the live save it reads, since the
+/// crate split's rung 0 (`home_ron_path` read the active home itself before, and the ship may not
+/// reach up into the engine).
+pub fn active_home_machines_path(data_dir: &std::path::Path) -> PathBuf {
+    let active = active_home();
+    crate::machines::home_ron_path(data_dir, &active.start, &active.household)
+}
+
 /// Make `home` the live save: what every later save writes and every world load builds from.
 pub fn set_active_home(home: ActiveHome) {
     ACTIVE_HOME.with(|a| *a.borrow_mut() = Some(home));
@@ -883,7 +892,7 @@ pub fn asteroid_belt(data_dir: &std::path::Path) -> Vec<crate::ecs::components::
         asteroids: Vec<crate::ecs::components::AsteroidBody>,
     }
     crate::embedded_data::load_data_or_embedded(data_dir, ASTEROID_BELT_FILE, |bytes| {
-        let belt: Belt = crate::assets::loader::parse_ron(bytes)?;
+        let belt: Belt = crate::data_parse::parse_ron(bytes)?;
         let mut ids = std::collections::HashSet::new();
         if let Some(a) = belt.asteroids.iter().find(|a| a.id.trim().is_empty() || !ids.insert(a.id.as_str())) {
             return Err(format!("the asteroid '{}' has an empty or repeated id", a.name));
@@ -918,7 +927,7 @@ pub fn start_places(data_dir: &std::path::Path, start: &str) -> Vec<crate::gui::
     if row.storage.trim().is_empty() {
         return Vec::new();
     }
-    crate::embedded_data::load_data_or_embedded(data_dir, &row.storage, crate::assets::loader::parse_json::<File>)
+    crate::embedded_data::load_data_or_embedded(data_dir, &row.storage, crate::data_parse::parse_json::<File>)
         .map(|f| f.entities)
         .unwrap_or_else(|e| {
             log::warn!("{e}; the {} home starts with no storage", row.name);
@@ -1053,7 +1062,7 @@ pub(crate) fn save_home_at(
     save.ship_supply = crate::systems::ship_power::ledger(data);
     // And the record of what each machine drew over its last game day (2026-10-22,
     // systems::day_energy), which the meters and the time away read.
-    save.machine_day_energy = crate::systems::day_energy::for_save(world, data);
+    save.machine_day_energy = crate::machines::day_energy::for_save(world, data);
     // And the mess hall's meter on this computer (ship homes increment 6): the meals and water
     // the ship's stores gave this save away from a server. With no meter registered (nothing has
     // counted this session) the save keeps the one it had, rather than writing it back to zero.
@@ -1624,10 +1633,10 @@ pub fn resume_home(
     // THE MESS HALL'S METER (ship homes increment 6) comes back as saved: meals are not taken
     // while you are away.
     restore_ship_meals(data, &save.ship_meals);
-    // THE DAY RECORD (2026-10-22, systems::day_energy): what each machine drew over its
+    // THE DAY RECORD (2026-10-22, machines::day_energy): what each machine drew over its
     // last game day comes back as saved; the time away adds nothing to it, and charges
     // each machine that day (an estimate for one that had not run a whole one).
-    crate::systems::day_energy::restore(data, &save.machine_day_energy);
+    crate::machines::day_energy::restore(data, &save.machine_day_energy);
     let balance_w = home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.machine_day_energy));
     let dock_spare_w = crate::systems::ship_power::feed_watts(data)
         .unwrap_or_else(|| f64::from(balance_w[usize::from(crate::systems::life_support::is_realistic(data))].max(0.0)));
@@ -2650,7 +2659,7 @@ mod tests {
         let restored: Vec<Transform> = fresh.query::<(&Structure, &Transform)>().iter().map(|(_, (_, t))| t.clone()).collect();
         assert_eq!(restored.len(), 1);
         assert!(same(restored[0].rotation), "restored turned: {:?}", restored[0].rotation);
-        let (lo, hi) = placement::world_aabb(&restored[0]);
+        let (lo, hi) = crate::ecs::components::world_aabb(&restored[0]);
         assert!((hi.z - lo.z - 4.0).abs() < 1e-3, "still runs north-south: {lo} {hi}");
     }
 
@@ -2976,7 +2985,7 @@ mod tests {
         // the next click keeps it.
         let mut changed = WorldSave::new_offline("Home", "homestead");
         changed.character_name = "Changed".to_string();
-        persistence::write_atomic(&path, serde_json::to_string_pretty(&changed).unwrap().as_bytes()).unwrap();
+        crate::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&changed).unwrap().as_bytes()).unwrap();
         assert!(matches!(snapshot_home_now_at(&path, t + 3_000).unwrap(), SnapshotNow::Kept(_)));
         let slot = persistence::snapshots_root_for(&path).join("offline_home");
         assert_eq!(persistence::list_snapshots(&slot).len(), 2);
@@ -3304,7 +3313,7 @@ mod tests {
     /// The machine catalog the game ships (data/machines/home.ron).
     fn shipped_home() -> crate::machines::MachineHome {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
-        crate::machines::MachineHome::load(&path).expect("home.ron parses")
+        crate::systems::grow_machines::load_home(&path).expect("home.ron parses")
     }
 
     fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegistry {

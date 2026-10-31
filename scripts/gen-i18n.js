@@ -5,7 +5,7 @@
  * Writes web/shared/i18n-en.js from data/i18n/en.json, so the website has its
  * English words the moment a page loads (web/shared/i18n.js reads
  * window.HOS_I18N_EN) instead of after a fetch. data/i18n/en.json is the one
- * source: the desktop app reads it directly (src/gui/i18n.rs), the website
+ * source: the desktop app reads it directly (src/i18n.rs), the website
  * through this generated copy. Never edit i18n-en.js by hand; edit en.json and
  * run this (scripts/tests/i18n-web.test.js fails while the two differ).
  *

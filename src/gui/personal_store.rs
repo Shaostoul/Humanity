@@ -3,7 +3,7 @@
 //! Until now neither was saved anywhere: `GuiState.notes` and `GuiState.cal_events` lived only in
 //! memory, so every note and event vanished when the app closed. They are kept in one small file,
 //! `personal.json`, beside `config.json` (`AppConfig::config_path`, so a portable sandbox keeps
-//! its own), written crash-safely (`persistence::write_atomic`: a crash leaves the whole old file or
+//! its own), written crash-safely (`atomic_write::write_atomic`: a crash leaves the whole old file or
 //! the whole new one).
 //!
 //! The file is read the first time the Notes or Calendar page is drawn and written by those pages
@@ -124,7 +124,7 @@ pub fn save_if_changed(state: &GuiState) {
     if last.as_deref() == Some(s.as_str()) {
         return;
     }
-    match crate::persistence::write_atomic(&path(), s.as_bytes()) {
+    match crate::atomic_write::write_atomic(&path(), s.as_bytes()) {
         Ok(()) => *last = Some(s),
         Err(e) => log::warn!("personal.json could not be written: {e}"),
     }

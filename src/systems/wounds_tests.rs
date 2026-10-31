@@ -750,7 +750,7 @@ fn fall_on_planet(drop_m: f64, g: f64, dt: f64, on_water: bool, flying_for: u32)
         let flying = i < flying_for;
         let mode = if flying { MoveMode::DevFlight } else { MoveMode::Walk };
         let s = radial_step(mode, true, false, r, v, rest, g, SURFACE_SETTLE, dt, 0.0, 5.0 * dt);
-        ctl.surface_step(r, &s, flying, on_water);
+        ctl.surface_step(r, s.r, s.landing(), flying, on_water);
         (r, v) = (s.r, s.v_r);
         if s.grounded && s.v_r == 0.0 && !flying {
             break;

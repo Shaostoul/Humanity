@@ -5,7 +5,7 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::i18n::t;
+use crate::i18n::t;
 use crate::gui::widgets::Hint;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {

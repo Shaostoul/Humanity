@@ -152,7 +152,7 @@ pub fn not_here_reason(place: &StationsWhere, at_home: bool) -> Option<&'static 
 pub fn words(key: &'static str) -> &'static str {
     #[cfg(feature = "native")]
     {
-        crate::gui::i18n::t(key)
+        crate::i18n::t(key)
     }
     #[cfg(not(feature = "native"))]
     {

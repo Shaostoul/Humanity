@@ -490,7 +490,7 @@ pub(crate) fn spawn_with(state: &mut GuiState, job: Job, work: impl FnOnce() -> 
 /// downloads folder's unfinished part files, of anything a run that did not close cleanly left.
 pub(crate) fn poll_upload(ctx: &egui::Context, state: &mut GuiState) {
     open::sweep_temp_once();
-    crate::gui::widgets::part_file::sweep_downloads_once();
+    crate::gui::widgets::image_cache::sweep_downloads_once();
     sync_server(state);
     poll(ctx, state);
     note_token(state);

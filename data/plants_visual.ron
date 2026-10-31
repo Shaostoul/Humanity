@@ -1,5 +1,5 @@
 // Procedural plant appearance definitions (v0.862). Each entry is the FULL
-// visual recipe for a species: src/renderer/plant_mesh.rs turns these numbers
+// visual recipe for a species: src/terrain/plant_mesh.rs turns these numbers
 // into a 3D model at any growth stage. Edit this file while the game runs and
 // the plants regenerate live (hot reload). Colors are linear RGB 0..1.
 //

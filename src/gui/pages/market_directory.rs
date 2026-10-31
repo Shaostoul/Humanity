@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver};
 
-use crate::gui::i18n::{t, tf, tn};
+use crate::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::{with_hint, Hint};

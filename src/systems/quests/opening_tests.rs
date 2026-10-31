@@ -84,7 +84,7 @@ fn opening_store() -> DataStore {
 /// game publishes them for the station gate (`placed_machine_types`,
 /// engine::built_uses::publish_stations: every placed row and array cell).
 fn placed_in(home_file: &str) -> std::collections::HashSet<String> {
-    let home = crate::machines::MachineHome::load(&data_dir().join("machines").join(home_file)).unwrap_or_else(|| panic!("{home_file} parses"));
+    let home = crate::systems::grow_machines::load_home(&data_dir().join("machines").join(home_file)).unwrap_or_else(|| panic!("{home_file} parses"));
     home.all_instances().into_iter().map(|i| i.machine).collect()
 }
 

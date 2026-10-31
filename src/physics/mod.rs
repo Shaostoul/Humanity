@@ -4,6 +4,10 @@
 //! Physics config loaded from `config/physics.toml`.
 
 
+/// How hard a body meets the floor and whether a landing is a fall that can hurt: the physics
+/// half of falls, here since the crate split's rung 0 (it was in `systems::falls`).
+pub mod landing;
+
 use glam::Vec3;
 use rapier3d::prelude::*;
 

@@ -34,7 +34,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button};
 use crate::gui::GuiState;
 use crate::net::household::{self as hh, Lengths, Verdict};
-use crate::systems::construction::shared::Why;
+use crate::build_permission::Why;
 
 // ── The words ────────────────────────────────────────────────────────────────────────────────────
 

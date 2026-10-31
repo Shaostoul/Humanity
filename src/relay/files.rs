@@ -418,7 +418,7 @@ fn allowance_for(db: &Storage, u: &NewUpload, now: i64) -> Result<(), Refused> {
 fn date_words(ms: i64) -> String {
     const MONTHS: [&str; 12] =
         ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    let (y, m, d) = crate::relay::epoch_days_to_ymd(ms.div_euclid(24 * 60 * 60 * 1000));
+    let (y, m, d) = crate::civil_date::epoch_days_to_ymd(ms.div_euclid(24 * 60 * 60 * 1000));
     format!("{d} {} {y}", MONTHS[(m as usize).clamp(1, 12) - 1])
 }
 

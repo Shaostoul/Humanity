@@ -65,7 +65,7 @@ pub fn to_hull(riding: bool, station_rot: glam::DQuat, v: glam::DVec3) -> glam::
 /// North is Earth's spin axis (world +Y; the engine has no axial tilt) laid
 /// flat on the plane the player stands in, which is what north means on the
 /// ground. On a planet's surface the camera's yaw is already measured from that
-/// north (`surface_walk::tangent_basis`), so the answer is 0. Aboard, the
+/// north (`camera_angles::tangent_basis`), so the answer is 0. Aboard, the
 /// render frame is the hull's ([`hull_frame_rot`]) and the camera's yaw turns
 /// about hull +Y from hull -Z, which under the LVLH attitude is WEST along the
 /// orbit: until 2026-10-21 the compass drew N there and printed E over the real

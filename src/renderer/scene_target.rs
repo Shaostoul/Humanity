@@ -48,7 +48,8 @@
 //! * `present_dither` ("0" off, "1" on, the default): the high-frequency
 //!   gates pin it off so they read the scene, not the dither.
 
-use super::{frame_costs, Renderer};
+use super::Renderer;
+use crate::frame_costs;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
@@ -439,7 +440,7 @@ impl Renderer {
         if self.present_bypassed() {
             return;
         }
-        let (gpu_id, cpu_id) = frame_costs::SceneView::Main.present_ids();
+        let (gpu_id, cpu_id) = crate::renderer::gpu_costs::SceneView::Main.present_ids();
         let _cost = frame_costs::stage(cpu_id);
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Present Encoder"),
@@ -489,7 +490,7 @@ impl Renderer {
     /// Finish an off-screen view: present its scratch into `display` (timed
     /// under `who`'s present ids), then keep the scratch parked (`retain`,
     /// the camera screens) or drop it (the one-off screenshot).
-    pub fn end_view_scene(&mut self, display: &wgpu::TextureView, who: frame_costs::SceneView, retain: bool) {
+    pub fn end_view_scene(&mut self, display: &wgpu::TextureView, who: crate::renderer::gpu_costs::SceneView, retain: bool) {
         let state = std::mem::take(&mut self.view_scene.state);
         if state == ViewSceneState::Scratch {
             if let Some(scratch) = self.view_scene.spare.as_ref() {
@@ -522,8 +523,8 @@ impl Renderer {
     /// Bytes held by the scene targets (the window's and a parked view
     /// scratch), for the Performance page's render-target slice.
     pub(super) fn scene_target_bytes(&self) -> u64 {
-        frame_costs::texture_bytes(&self.scene.texture)
-            + self.view_scene.spare.as_ref().map_or(0, |s| frame_costs::texture_bytes(&s.texture))
+        crate::renderer::gpu_costs::texture_bytes(&self.scene.texture)
+            + self.view_scene.spare.as_ref().map_or(0, |s| crate::renderer::gpu_costs::texture_bytes(&s.texture))
     }
 }
 

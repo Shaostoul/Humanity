@@ -121,6 +121,34 @@ pub fn neighbour_panel_placements(ship: &crate::ship::ship_structure::ShipStruct
     mouths.iter().flat_map(|(plot, m)| mouth_pair(m, !ship.open.plots.contains(*plot))).collect()
 }
 
+/// How far under a door's sill a body's feet may stand and the door still count it, metres
+/// (`feet_reach_door`): 0.6, the step up a body takes onto a raised floor (engine/footing.rs
+/// `STEP_UP_M`, which a test in engine/home_meshes_tests.rs holds this to). So a body on a
+/// stair's last three risers opens the door at its landing, and one a storey below (3 m) never
+/// does. Beside `feet_reach_door`, its one reader, since the crate split's rung 0 (it was
+/// `systems::door_anim`'s).
+pub const DOOR_STOREY_TOLERANCE_M: f32 = 0.6;
+
+/// True when a body whose feet are at `feet_y` is on the storey of a door whose opening runs from
+/// its sill at `sill_y` up to `top_y` (world metres), so the door auto-opens for it (ship homes
+/// increment 7, plan section 3: a door opens only for a body on its storey). The feet count from
+/// `DOOR_STOREY_TOLERANCE_M` under the sill (a stair step below it) up to the door's head less a
+/// knee (`wall_collision::KNEE_M`): the band in which the shut door would stop the body
+/// (`WallSegment::stops_body`, a panel stops a body whose knee is under its head), so a door
+/// opens for anyone it would stand in the way of, a body on a step over its sill or in the middle
+/// of a jump in its doorway included, and for nobody over it.
+///
+/// The top used to reach `DOOR_STOREY_TOLERANCE_M` OVER the door's head, which for a 2.4 m ground
+/// door is the 3.0 m floor upstairs, so the homestead's five 2.4 m ground doors opened (with their
+/// sound) for someone walking on the floor over them (the increment's review, 2026-10-21). Before
+/// storeys every body counted at any height.
+///
+/// Here beside the door panels that ask it (it was `systems::door_anim`'s until the crate split's
+/// rung 0, and the ship reached up into the simulation for it); the door animation asks it too.
+pub fn feet_reach_door(feet_y: f32, sill_y: f32, top_y: f32) -> bool {
+    feet_y >= sill_y - DOOR_STOREY_TOLERANCE_M && feet_y < top_y - crate::ship::wall_collision::KNEE_M
+}
+
 /// How far door `p` is from the nearest actor that opens it, across the floor (eye height never
 /// counts, or a tall camera would never trigger a short door). An ordinary door opens for anyone
 /// near it: the local player (`camera`, None while away from the ship), the other players
@@ -129,13 +157,13 @@ pub fn neighbour_panel_placements(ship: &crate::ship::ship_structure::ShipStruct
 /// actors once per frame).
 ///
 /// Every actor is given by its FEET, and only one whose feet are on the door's storey counts (ship
-/// homes increment 7, `door_anim::feet_reach_door`: from a step under the door's sill up to a knee
+/// homes increment 7, `door_panels::feet_reach_door`: from a step under the door's sill up to a knee
 /// under its head), so a door upstairs does not open for a body walking under it, nor a ground door
 /// for one on the floor over it. The horizontal reach is the same as ever.
 pub fn door_actor_distance(p: &PanelPlacement, camera: Option<Vec3>, others: &[Vec3], animals: &[Vec3]) -> f32 {
     let (sill, head) = (p.center.y, p.center.y + p.size.y);
     let across = |a: &Vec3| {
-        if crate::systems::door_anim::feet_reach_door(a.y, sill, head) {
+        if feet_reach_door(a.y, sill, head) {
             ((a.x - p.center.x).powi(2) + (a.z - p.center.z).powi(2)).sqrt()
         } else {
             f32::MAX

@@ -908,6 +908,21 @@ pub fn filename_from_url(url: &str) -> String {
     }
 }
 
+/// Once per run, at the first frame: the downloads folder's leftover part files (the part file
+/// itself is `net::part_file`; this sweep stays here beside the folder it names, since the crate
+/// split's rung 0).
+pub(crate) fn sweep_downloads_once() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use crate::net::part_file::{sweep_stale, STALE_AFTER};
+    static DONE: AtomicBool = AtomicBool::new(false);
+    if !DONE.swap(true, Ordering::SeqCst) {
+        let gone = sweep_stale(&default_downloads_dir(), STALE_AFTER);
+        if gone > 0 {
+            log::info!("Downloads: {gone} unfinished file(s) a closed run left were deleted.");
+        }
+    }
+}
+
 /// Default location for downloaded attachments: a `downloads/` folder
 /// next to the running executable. Matches the user's ask for
 /// `C:\Humanity\downloads\` when the exe is at the repo root.

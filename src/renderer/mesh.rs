@@ -1,89 +1,86 @@
 //! Mesh primitives — vertex/index buffers for renderable geometry.
+//!
+//! The vertex itself is plain data and lives in the core (`crate::vertex::Vertex`, since the
+//! crate split's rung 0); what stays here is its GPU side: the buffer layouts that describe it
+//! and the per-instance record to wgpu, and the buffers.
 
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-/// Vertex with position, normal, and UV coordinates.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct Vertex {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
-    pub uv: [f32; 2],
+use crate::vertex::Vertex;
+
+/// wgpu vertex buffer layout of a `Vertex`, matching the PBR-lite shader. A free function
+/// rather than a method because `Vertex` is the core's type and this layout is the renderer's
+/// business.
+pub fn vertex_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            // position @ location(0)
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            // normal @ location(1)
+            wgpu::VertexAttribute {
+                offset: 12,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            // uv @ location(2)
+            wgpu::VertexAttribute {
+                offset: 24,
+                shader_location: 2,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+        ],
+    }
 }
 
-impl Vertex {
-    /// wgpu vertex buffer layout matching the PBR-lite shader.
-    pub fn layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                // position @ location(0)
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // normal @ location(1)
-                wgpu::VertexAttribute {
-                    offset: 12,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // uv @ location(2)
-                wgpu::VertexAttribute {
-                    offset: 24,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        }
-    }
-
-    /// Vertex buffer slot 1: per-INSTANCE data (draw-batching increment 2,
-    /// widened for grass strands in v0.1091). THREE vec4s per instance:
-    ///
-    ///   location 4 `inst_pos_fade`  xyz = translation, w = LOD fade
-    ///   location 5 `inst_up_scale`  grass: local radial up, w = height in m
-    ///   location 6 `inst_grass`     grass: yaw, wind phase, packed colour, -
-    ///
-    /// Every PBR pipeline declares this slot; classic draws bind a 48-byte
-    /// zero dummy, terrain-batch draws bind the arena's instance buffer
-    /// (locations 5-6 zero), and the grass draw binds its own. Attribute
-    /// fetch (unlike the instance_index builtin) respects first_instance in
-    /// BOTH direct and indirect draws on every backend, which is what makes
-    /// one multi_draw_indexed_indirect over 12k patches portable.
-    ///
-    /// WHY WIDEN A SHARED LAYOUT rather than give grass its own pipeline:
-    /// a fourth PBR PSO costs ~10 s of COLD BOOT on this GPU (the megashader
-    /// bakes whole into each PSO -- see the parallel-compile note in
-    /// pipeline.rs), permanently, for every user, to save 32 bytes per
-    /// terrain patch instance. The widened layout costs ~110 KB of extra
-    /// per-frame upload at a 3.4k-patch working set and nothing else; a
-    /// vertex layout may declare attributes a given entry point ignores.
-    pub fn instance_layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: INSTANCE_STRIDE,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 4,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: 16,
-                    shader_location: 5,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: 32,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        }
+/// Vertex buffer slot 1: per-INSTANCE data (draw-batching increment 2,
+/// widened for grass strands in v0.1091). THREE vec4s per instance:
+///
+///   location 4 `inst_pos_fade`  xyz = translation, w = LOD fade
+///   location 5 `inst_up_scale`  grass: local radial up, w = height in m
+///   location 6 `inst_grass`     grass: yaw, wind phase, packed colour, -
+///
+/// Every PBR pipeline declares this slot; classic draws bind a 48-byte
+/// zero dummy, terrain-batch draws bind the arena's instance buffer
+/// (locations 5-6 zero), and the grass draw binds its own. Attribute
+/// fetch (unlike the instance_index builtin) respects first_instance in
+/// BOTH direct and indirect draws on every backend, which is what makes
+/// one multi_draw_indexed_indirect over 12k patches portable.
+///
+/// WHY WIDEN A SHARED LAYOUT rather than give grass its own pipeline:
+/// a fourth PBR PSO costs ~10 s of COLD BOOT on this GPU (the megashader
+/// bakes whole into each PSO -- see the parallel-compile note in
+/// pipeline.rs), permanently, for every user, to save 32 bytes per
+/// terrain patch instance. The widened layout costs ~110 KB of extra
+/// per-frame upload at a 3.4k-patch working set and nothing else; a
+/// vertex layout may declare attributes a given entry point ignores.
+pub fn instance_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: INSTANCE_STRIDE,
+        step_mode: wgpu::VertexStepMode::Instance,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 16,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+        ],
     }
 }
 
@@ -93,7 +90,7 @@ impl Vertex {
 pub const INSTANCE_STRIDE: wgpu::BufferAddress = 48;
 
 /// One grass tiller for the instanced strand draw (v0.1091). Matches
-/// `Vertex::instance_layout` exactly -- 3 vec4s, 48 bytes.
+/// `instance_layout` exactly -- 3 vec4s, 48 bytes.
 ///
 /// The mesh (`terrain::planet_chunks::grass_tiller_mesh`) is ONE shared
 /// unit-height Y-up tiller, so everything that makes a tiller individual
@@ -877,7 +874,7 @@ mod tests {
             INSTANCE_STRIDE as usize,
             "GrassInstance is not one INSTANCE_STRIDE"
         );
-        let l = Vertex::instance_layout();
+        let l = instance_layout();
         assert_eq!(l.array_stride, INSTANCE_STRIDE);
         let offs: Vec<u64> = l.attributes.iter().map(|a| a.offset).collect();
         let locs: Vec<u32> = l.attributes.iter().map(|a| a.shader_location).collect();

@@ -16,6 +16,10 @@
 //!   ([`sweep_own`], engine/quit.rs); the next start deletes what a run that did not close cleanly
 //!   left ([`sweep_stale`], only parts nobody has written to for [`STALE_AFTER`], so another
 //!   instance's transfer under way is never touched).
+//!
+//! Plain std, no widget: it lived in gui/widgets/ until the crate split's rung 0, when it moved to
+//! the network side, the lowest part of the app that writes one (net/file_transfer.rs); the Files
+//! page and the chat's saves use it from here.
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -190,17 +194,9 @@ pub(crate) fn sweep_stale(dir: &Path, older_than: Duration) -> usize {
     gone
 }
 
-/// Once per run, at the first frame: the downloads folder's leftover part files.
-pub(crate) fn sweep_downloads_once() {
-    use std::sync::atomic::AtomicBool;
-    static DONE: AtomicBool = AtomicBool::new(false);
-    if !DONE.swap(true, Ordering::SeqCst) {
-        let gone = sweep_stale(&super::image_cache::default_downloads_dir(), STALE_AFTER);
-        if gone > 0 {
-            log::info!("Downloads: {gone} unfinished file(s) a closed run left were deleted.");
-        }
-    }
-}
+// The downloads folder's once-a-run sweep (`sweep_downloads_once`) is the GUI's, beside the
+// downloads folder it names (gui/widgets/image_cache.rs), since the crate split's rung 0.
+
 
 #[cfg(test)]
 #[path = "part_file_tests.rs"]

@@ -393,7 +393,7 @@ fn box_between(a: Vec3, b: Vec3, tf: &Transform) -> bool {
     // A millimetre: an end on a box's face counts as on the box.
     const EDGE_M: f32 = 1.0e-3;
     // Nowhere near the line (the boxes around each do not meet): no ray test.
-    let (lo, hi) = placement::world_aabb(tf);
+    let (lo, hi) = crate::ecs::components::world_aabb(tf);
     if hi.cmplt(a.min(b)).any() || lo.cmpgt(a.max(b)).any() {
         return false;
     }

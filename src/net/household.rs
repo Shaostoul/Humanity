@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 
 use super::dm_pq::CTL_PERMIT;
 use crate::relay::core::pq_crypto::{friend_cert_serial_ok, verify_plot_permit, PlotPermitError, PLOT_PERMIT_FIELD_MAX_LEN};
-use crate::systems::construction::shared::{Permit, Why, PERMIT_MAX_DAYS};
+use crate::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
 
 /// Permits held (from friends) kept per server at most. Past it, the earliest-ended go first.
 pub const HELD_MAX: usize = 64;
@@ -402,7 +402,7 @@ const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "Jun
 
 /// A Unix time as the page writes a date: "10 November 2026" (UTC).
 pub fn date_words(unix_s: u64) -> String {
-    let (y, m, d) = crate::relay::epoch_days_to_ymd((unix_s / 86_400) as i64);
+    let (y, m, d) = crate::civil_date::epoch_days_to_ymd((unix_s / 86_400) as i64);
     format!("{d} {} {y}", MONTHS[(m as usize).clamp(1, 12) - 1])
 }
 

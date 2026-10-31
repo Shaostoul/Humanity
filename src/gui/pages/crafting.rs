@@ -3,7 +3,7 @@
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::{GuiState, GuiRecipe};
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::systems::crafting::home_store::Draw;

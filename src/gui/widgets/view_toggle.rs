@@ -17,7 +17,7 @@ use egui::{Color32, Id, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 
 use super::hint::Hint;
-use crate::gui::i18n::t;
+use crate::i18n::t;
 use crate::gui::theme::Theme;
 
 /// How a list is shown.

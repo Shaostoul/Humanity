@@ -97,13 +97,13 @@ impl GameLink for LiveLink {
 
     fn frame_costs(&self) -> Value {
         // "Somebody is looking" for a little over a second, so the inventory sampling (VRAM,
-        // RAM) runs and the smoothed numbers are current (renderer/frame_costs.rs `watch`).
+        // RAM) runs and the smoothed numbers are current (src/frame_costs.rs `watch`).
         let until = Instant::now() + Duration::from_millis(1200);
         while Instant::now() < until {
-            crate::renderer::frame_costs::watch();
+            crate::frame_costs::watch();
             std::thread::sleep(Duration::from_millis(100));
         }
-        crate::renderer::frame_costs::snapshot_json()
+        crate::frame_costs::snapshot_json()
     }
 
     fn frames(&self) -> u64 {

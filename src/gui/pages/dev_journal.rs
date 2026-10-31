@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use egui::{RichText, ScrollArea};
 
-use crate::gui::i18n::{t, t_dyn, tf};
+use crate::i18n::{t, t_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;

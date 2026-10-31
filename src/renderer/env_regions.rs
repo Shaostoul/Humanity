@@ -279,12 +279,18 @@ pub fn storage_buffer(device: &wgpu::Device, capacity: usize) -> wgpu::Buffer {
 ///
 /// Returns true when it re-anchored, which is only of interest to a caller
 /// that wants to log it.
+///
+/// `C` is whatever names the weather system: the simulation's
+/// `systems::weather::WeatherCondition` in the game. All this needs of it is
+/// whether it changed, so it takes any comparable value rather than naming
+/// the simulation's type (the crate split's rung 0: the renderer may not
+/// reach up into the simulation).
 #[allow(clippy::too_many_arguments)]
-pub fn push_weather_region(
+pub fn push_weather_region<C: Copy + PartialEq>(
     regions: &mut Vec<EnvRegion>,
     kinds: Option<&RegionKinds>,
-    anchor: &mut Option<(glam::Vec3, crate::systems::weather::WeatherCondition)>,
-    condition: Option<(crate::systems::weather::WeatherCondition, f32)>,
+    anchor: &mut Option<(glam::Vec3, C)>,
+    condition: Option<(C, f32)>,
     kind_id: Option<&str>,
     cam_dir_body: glam::Vec3,
     body_km: f32,

@@ -406,7 +406,7 @@ pub(crate) fn identity_on_device(state: &GuiState) -> IdentityOnDevice {
 /// without asking again. While the protected setup is on, its PIN comes first, as it does for an
 /// unlocked identity, so the order is the same either way: PIN, then passphrase.
 fn draw_locked_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::gui::i18n::t;
+    use crate::i18n::t;
     ui.label(RichText::new(t("settings.identity_locked")).color(theme.text_muted()).size(theme.font_size_small));
     ui.add_space(theme.spacing_xs);
     if let Some(lock) = crate::gui::pages::safety_protected::phrase_lock(state) {
@@ -527,7 +527,7 @@ mod erase_memory_note_tests {
 }
 
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::gui::i18n::t;
+    use crate::i18n::t;
     let accent = section_accent(SettingsCategory::Account, theme);
 
     // ── Your data: export + erase (sovereignty, 2026-08-23) ──
@@ -1043,7 +1043,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         } else if state.private_key_bytes.is_some() {
             // In memory and never encrypted, so never saved (from_gui_state writes no plain key,
             // and the keychain is read at launch only beside an encrypted one): say so plainly.
-            ui.label(RichText::new(crate::gui::i18n::t("settings.key_not_kept"))
+            ui.label(RichText::new(crate::i18n::t("settings.key_not_kept"))
                 .color(theme.warning()).size(theme.font_size_small));
             ui.add_space(theme.spacing_sm);
             if widgets::primary_button(ui, theme, "Set Passphrase") {
@@ -1342,7 +1342,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     // Words by key and a hint on every control (the ELI5 mandate, 2026-10-22):
     // each control's hover hint is its own description line, so one plain
     // sentence explains it inline (Full), behind the (?) (Hover), and on hover.
-    use crate::gui::i18n::t;
+    use crate::i18n::t;
     use crate::gui::widgets::{with_hint, Hint};
     widgets::subsection_header(ui, theme, accent, t("settings.basics"), "");
     widgets::card(ui, theme, |ui| {
@@ -1978,7 +1978,7 @@ fn u8_radio_picker(
 /// whole). Returns true when the choice changed. A new translation file appears
 /// here with no code change.
 fn language_picker(ui: &mut egui::Ui, theme: &Theme, value: &mut String) -> bool {
-    use crate::gui::i18n;
+    use crate::i18n;
     use crate::gui::widgets::Hint;
     let label_for = |code: &str, name: &str| -> String {
         if code == "en" {
@@ -2024,7 +2024,7 @@ fn hint_display_picker(
     theme: &Theme,
     value: &mut crate::gui::HintDisplay,
 ) -> bool {
-    use crate::gui::i18n::t;
+    use crate::i18n::t;
     use crate::gui::HintDisplay;
     let mut changed = false;
     widgets::settings_row(ui, theme, t("settings.hints"), |ui| {
@@ -2720,7 +2720,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Noise filter").size(theme.font_size_small).color(theme.text_secondary()));
         ui.horizontal_wrapped(|ui| {
-            for m in crate::config::VoiceFilterMode::ALL {
+            for m in crate::net::voice::VoiceFilterMode::ALL {
                 let selected = state.voice_filter_mode == m;
                 if ui.selectable_label(selected, m.label()).clicked() && !selected {
                     state.voice_filter_mode = m;
@@ -2734,7 +2734,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Transmit mode").size(theme.font_size_small).color(theme.text_secondary()));
         ui.horizontal_wrapped(|ui| {
-            for m in crate::config::VoiceTransmitMode::ALL {
+            for m in crate::net::voice::VoiceTransmitMode::ALL {
                 let selected = state.voice_transmit_mode == m;
                 if ui.selectable_label(selected, m.label()).clicked() && !selected {
                     state.voice_transmit_mode = m;
@@ -2768,7 +2768,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         }
 
         // Activation threshold (voice-activated only). Stored 0.0..=1.0, shown as %.
-        if state.voice_transmit_mode == crate::config::VoiceTransmitMode::VoiceActivated {
+        if state.voice_transmit_mode == crate::net::voice::VoiceTransmitMode::VoiceActivated {
             let mut vad_pct = state.voice_vad_threshold * 100.0;
             if widgets::labeled_slider(ui, theme, "Activation threshold %", &mut vad_pct, 0.0..=30.0) {
                 state.voice_vad_threshold = (vad_pct / 100.0).clamp(0.0, 1.0);

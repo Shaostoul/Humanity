@@ -695,7 +695,7 @@ fn native_ui_literals_only_shrink() {
         over.is_empty(),
         "\n\nWORDS WRITTEN INTO UI CODE, past the file's budget:\n{}\n\n\
          Put the words in data/i18n/en.json under the page's own key and ask for them \
-         by key: `ui.label(t(\"page.key\"))` (crate::gui::i18n). A brand name or a \
+         by key: `ui.label(t(\"page.key\"))` (crate::i18n). A brand name or a \
          symbol that is the same in every language takes `// i18n-exempt: <reason>` \
          on its line. Do not raise the budget.\n",
         over.join("\n")
@@ -852,7 +852,7 @@ fn parse_value(c: &[char], i: &mut usize) -> Result<Json, String> {
     }
 }
 
-/// Flatten to dotted keys, strings only (the shape `gui/i18n.rs` reads).
+/// Flatten to dotted keys, strings only (the shape `src/i18n.rs` reads).
 fn flatten(prefix: &str, v: &Json, out: &mut BTreeMap<String, String>) {
     match v {
         Json::Obj(m) => {

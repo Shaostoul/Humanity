@@ -258,7 +258,7 @@ fn near_words(distance_m: Option<f32>) -> String {
 /// place (a headless world), else not known.
 fn feet(world: &hecs::World, data: &DataStore) -> Option<Vec3> {
     if let Some(eye) = data.get::<Vec3>("camera_position") {
-        return Some(*eye - Vec3::Y * crate::surface_walk::EYE_HEIGHT_M as f32);
+        return Some(*eye - Vec3::Y * crate::ecs::components::EYE_HEIGHT_M as f32);
     }
     world
         .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()

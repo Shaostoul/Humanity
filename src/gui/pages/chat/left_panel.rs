@@ -404,11 +404,11 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             // it would flip the defaults, not what the person chose.
                             let loaded = state.notif_prefs_loaded;
                             let dm_notif_label = if !loaded {
-                                crate::gui::i18n::t("notifications.dm_wait")
+                                crate::i18n::t("notifications.dm_wait")
                             } else if state.notif_dm_enabled {
-                                crate::gui::i18n::t("notifications.dm_on")
+                                crate::i18n::t("notifications.dm_on")
                             } else {
-                                crate::gui::i18n::t("notifications.dm_off")
+                                crate::i18n::t("notifications.dm_off")
                             };
                             let hint = if loaded { "notifications.kind_dm_hint" } else { "notifications.dm_wait_hint" };
                             if ui.add_enabled(loaded, egui::Button::new(dm_notif_label)).hint(hint).clicked() {

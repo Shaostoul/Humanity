@@ -132,7 +132,7 @@ mod tests {
     /// nobody can get.
     #[test]
     fn every_required_tool_can_be_had() {
-        use crate::assets::loader::parse_csv;
+        use crate::data_parse::parse_csv;
         #[derive(Deserialize)]
         struct Item {
             id: String,

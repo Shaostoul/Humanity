@@ -159,7 +159,7 @@ fn filling_bottles_at_the_counter() {
 /// shelf row shelf_1 offers no meal".
 #[test]
 fn only_a_serving_counter_offers_a_meal() {
-    let mut home = crate::machines::MachineHome::load(&data_dir().join("machines/home.ron")).expect("home.ron loads");
+    let mut home = crate::systems::grow_machines::load_home(&data_dir().join("machines/home.ron")).expect("home.ron loads");
     let mut counter = home.instances.iter().find(|i| i.zone != "home").cloned().expect("a ship row to copy the shape of");
     counter.id = "mess-hall-counter".into();
     counter.machine = COUNTER_TYPE.into();

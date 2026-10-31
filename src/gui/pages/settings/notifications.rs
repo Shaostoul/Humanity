@@ -14,7 +14,7 @@
 
 use egui::{Color32, RichText};
 
-use crate::gui::i18n::{t, t_dyn, tf};
+use crate::i18n::{t, t_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::GuiState;

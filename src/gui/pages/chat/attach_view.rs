@@ -222,7 +222,7 @@ pub(crate) fn save_file<F>(url: &str, k: &str, n: &str, name: &str, dir: &std::p
 where
     F: FnOnce(&str, u64, &mut std::fs::File) -> Result<u64, String>,
 {
-    use crate::gui::widgets::part_file::Part;
+    use crate::net::part_file::Part;
     use std::io::{Seek, SeekFrom};
     if let Some(store) = kept.filter(|s| s.has(url, k, n)) {
         let mut sealed = Part::create(dir)?;

@@ -14,8 +14,6 @@ pub mod help_modal;
 pub mod passphrase_modal;
 pub mod image_cache;
 pub mod image_cache_view;
-/// Files written a piece at a time get their real name only when complete (files-showcase round 3).
-pub mod part_file;
 pub mod form_row;
 pub mod alert;
 pub mod dialog;
@@ -1923,7 +1921,7 @@ pub fn detail_row_bold(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
 pub fn search_bar(ui: &mut Ui, theme: &Theme, value: &mut String, hint: &str) -> bool {
     let before = value.clone();
     ui.horizontal(|ui| {
-        ui.label(RichText::new(crate::gui::i18n::t("common.search_label")).color(theme.text_secondary()).size(theme.body_size));
+        ui.label(RichText::new(crate::i18n::t("common.search_label")).color(theme.text_secondary()).size(theme.body_size));
         let resp = ui.add(
             egui::TextEdit::singleline(value)
                 .desired_width(200.0)

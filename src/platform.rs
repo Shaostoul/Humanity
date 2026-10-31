@@ -3,6 +3,13 @@
 //! Game code calls these functions without caring which platform runs underneath.
 //! On native: std::fs, std::time, println. On WASM: fetch, performance.now(), console.log.
 
+/// Reading the Windows registry, and only reading (KEY_READ): Steam's and GOG's records, Windows'
+/// installed-programs list, the display adapters' memory. Here since the crate split's rung 0 (it
+/// was `games::registry`): the Apps page, the Tools page and the renderer's adapter probe all read
+/// through it, and the renderer may not reach up into the GUI's game readers.
+#[cfg(all(windows, feature = "native"))]
+pub mod registry;
+
 /// Log a message through the platform's logging mechanism.
 pub fn log_info(msg: &str) {
     log::info!("{}", msg);

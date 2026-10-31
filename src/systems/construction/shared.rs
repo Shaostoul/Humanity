@@ -46,8 +46,10 @@
 //!   paid-for build waiting to be sent), [`OUT_CHANNEL`] and [`OutQueue`] (where it waits);
 //! - the limits: caps, pacing, tolerances.
 
-use super::placement::{quarter_turn, world_aabb, GRID_M, LEVEL_TOLERANCE_M};
+use super::placement::{quarter_turn, GRID_M, LEVEL_TOLERANCE_M};
+use crate::ecs::components::world_aabb;
 use super::{Blueprint, BlueprintRegistry};
+use crate::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
 use crate::ecs::components::Transform;
 use crate::ship::build_frames::{BuildFrame, EDGE_SLACK_M, MAX_LOCAL_Y_M, MIN_LOCAL_Y_M};
 use glam::{Quat, Vec3};
@@ -81,11 +83,9 @@ pub const MAX_FRAME_LEN: usize = 64;
 /// The longest blueprint id a message may carry, bytes.
 pub const MAX_BLUEPRINT_ID_LEN: usize = 64;
 
-/// The longest a household permit may run, days (the operator, 2026-10-05: every permit has an
-/// end date, renewable; no endless permits). The relay enforces it in
-/// `relay::core::pq_crypto::verify_plot_permit` (its `PLOT_PERMIT_MAX_DAYS`, which must equal
-/// this: the pq_crypto test pins them together), and [`Why::PermitTooLong`]'s words name it.
-pub const PERMIT_MAX_DAYS: u64 = 90;
+// The longest a household permit may run (`PERMIT_MAX_DAYS`), the permit itself (`Permit`) and
+// the codes a refused build names (`Why`) are `crate::build_permission`'s since the crate split's
+// rung 0: the permit book on the app's network side speaks them too.
 
 // ── Pace ──────────────────────────────────────────────────────────────────
 
@@ -281,84 +281,26 @@ impl Reason {
 /// The words for every code that means this game and the server disagree.
 const DISAGREE: &str = "this game and the server disagree about the piece; update whichever is older";
 
-/// Why a request was `not_allowed`: the `why` code that comes with it, exactly as it goes on the
-/// wire.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Why {
-    /// Someone else's plot, and no household permit for it.
-    NotYourPlot,
-    /// A take-down by a permit holder of a piece someone else put up.
-    NotYourPiece,
-    /// The sender holds no plot on this ship (a guest) and brought no permit.
-    Guest,
-    /// The household permit has run out.
-    PermitExpired,
-    /// The permit's signer does not hold the plot (it may have changed hands).
-    PermitNotFromHolder,
-    /// The permit is malformed or its signature does not check out.
-    PermitBad,
-    /// The permit runs out more than [`PERMIT_MAX_DAYS`] days ahead.
-    PermitTooLong,
-    /// The plot's holder took this permit back (ship homes 5b, amendment A1): its serial is on the
-    /// relay's withdrawal list, the one friendship passes use (`friend_cert_revocations`).
-    PermitWithdrawn,
-    /// A shared space (`zone:*`), and the sender lacks the `can_edit_ship` rank.
-    ShipRank,
-    /// A code this game does not know (a newer server). Never sent.
-    #[serde(other)]
-    Unknown,
-}
-
-impl Why {
-    /// Every code the relay sends.
-    pub const ALL: [Why; 9] = [
-        Why::NotYourPlot,
-        Why::NotYourPiece,
-        Why::Guest,
-        Why::PermitExpired,
-        Why::PermitNotFromHolder,
-        Why::PermitBad,
-        Why::PermitTooLong,
-        Why::PermitWithdrawn,
-        Why::ShipRank,
-    ];
-
-    /// The code as it goes on the wire.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Why::NotYourPlot => "not_your_plot",
-            Why::NotYourPiece => "not_your_piece",
-            Why::Guest => "guest",
-            Why::PermitExpired => "permit_expired",
-            Why::PermitNotFromHolder => "permit_not_from_holder",
-            Why::PermitBad => "permit_bad",
-            Why::PermitTooLong => "permit_too_long",
-            Why::PermitWithdrawn => "permit_withdrawn",
-            Why::ShipRank => "ship_rank",
-            Why::Unknown => "unknown",
+/// Why, in words that follow "Wood Wall not built: " or "Placing Wood Wall: ". A function here
+/// rather than a method of `Why` since the crate split's rung 0 (`Why` is the core's now; its words
+/// stay with the other refusal words, beside `DISAGREE`).
+fn why_clause(why: Why) -> String {
+    match why {
+        Why::NotYourPlot => {
+            "this is someone else's plot; you build only on your own plot, or where its holder has given you a household permit"
+                .into()
         }
-    }
-
-    /// Why, in words that follow "Wood Wall not built: " or "Placing Wood Wall: ".
-    fn words(self) -> String {
-        match self {
-            Why::NotYourPlot => {
-                "this is someone else's plot; you build only on your own plot, or where its holder has given you a household permit"
-                    .into()
-            }
-            Why::NotYourPiece => "it was put up by someone else, and only this plot's holder can take it down".into(),
-            Why::Guest => "you are a guest on this ship, with no plot of your own to build on".into(),
-            Why::PermitExpired => "your household permit for this plot has run out; ask its holder for a new one".into(),
-            Why::PermitNotFromHolder => "this permit is not from the plot's holder (it may have changed hands)".into(),
-            Why::PermitBad => "this household permit does not check out; ask the plot's holder for a new one".into(),
-            Why::PermitTooLong => format!(
-                "a household permit lasts at most {PERMIT_MAX_DAYS} days, and this one runs longer; ask the plot's holder for a new one"
-            ),
-            Why::PermitWithdrawn => "the plot's holder took this permit back".into(),
-            Why::ShipRank => "the ship's shared spaces are built by people this server has given that rank".into(),
-            Why::Unknown => DISAGREE.into(),
-        }
+        Why::NotYourPiece => "it was put up by someone else, and only this plot's holder can take it down".into(),
+        Why::Guest => "you are a guest on this ship, with no plot of your own to build on".into(),
+        Why::PermitExpired => "your household permit for this plot has run out; ask its holder for a new one".into(),
+        Why::PermitNotFromHolder => "this permit is not from the plot's holder (it may have changed hands)".into(),
+        Why::PermitBad => "this household permit does not check out; ask the plot's holder for a new one".into(),
+        Why::PermitTooLong => format!(
+            "a household permit lasts at most {PERMIT_MAX_DAYS} days, and this one runs longer; ask the plot's holder for a new one"
+        ),
+        Why::PermitWithdrawn => "the plot's holder took this permit back".into(),
+        Why::ShipRank => "the ship's shared spaces are built by people this server has given that rank".into(),
+        Why::Unknown => DISAGREE.into(),
     }
 }
 
@@ -371,7 +313,7 @@ pub fn why_words(action: Action, reason: Reason, why: Option<Why>) -> String {
         (Action::Unbuild, Some(Why::NotYourPlot | Why::Guest)) => {
             "this is someone else's plot, and you cannot take down what stands on it".into()
         }
-        (_, Some(w)) => w.words(),
+        (_, Some(w)) => why_clause(w),
         (_, None) => reason.words(),
     }
 }
@@ -475,40 +417,6 @@ pub mod msg {
     pub const PERMIT_STATUS: &str = "game_permit_status";
 }
 
-/// A household permit (ship homes section 4): a plot's holder lets one person build on that
-/// plot, on one server, until a date. Held by the grantee and sent with each build or take-down
-/// they make there; the relay checks it without storing it
-/// (`relay::core::pq_crypto::verify_plot_permit`), the friendship certificate's pattern. The
-/// relay rebuilds the signed words from what it knows (its own server id, the frame's plot, the
-/// sender's own id), so `server`, `plot` and `grantee` here only say what the permit claims to be
-/// for: the grantee's game files it by them and shows them.
-///
-/// v2 (ship homes 5b, amendment A1, 2026-10-12): a permit names a `serial` its giver chose, so
-/// the giver can take it back before its end date: `cert_revoke {serial}` on their own signed-in
-/// socket puts it on the relay's withdrawal list (the one friendship passes use), and the relay
-/// refuses it from then on as [`Why::PermitWithdrawn`]. The fields are in the order the words are
-/// signed in, which is also the order a permit note's JSON is written in (net/household.rs).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Permit {
-    /// The plot holder's Dilithium3 public key, hex: whose signature this is.
-    pub issuer: String,
-    /// The server it was given on: that server's own `did:hum:` (its /api/server-info). Good on
-    /// that server only: one person often holds the same plot id on several servers.
-    pub server: String,
-    /// The plot it is for, by its ship-file id (`p3`, not `plot:p3`).
-    pub plot: String,
-    /// Who it lets build: the grantee's id as a relay holds plots under it (`did:hum:...`,
-    /// `relay::storage::plots::plot_owner_id`).
-    pub grantee: String,
-    /// The name its giver chose for it: 16 random bytes in lowercase hex, the friendship pass's
-    /// serial shape (`relay::core::pq_crypto::friend_cert_serial_ok`). What a withdrawal names.
-    pub serial: String,
-    /// When it runs out, Unix seconds; never more than [`PERMIT_MAX_DAYS`] days ahead.
-    pub expiry: u64,
-    /// The issuer's Dilithium3 signature over
-    /// `hum/permit/v2\n{server}\n{plot}\n{grantee}\n{serial}\n{expiry}`, base64.
-    pub sig: String,
-}
 
 /// What this player may do beyond their own plot, as the welcome's `ranks` field tells it
 /// (absent fields read false).

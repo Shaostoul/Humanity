@@ -4,7 +4,7 @@
 //! A run belongs to the person, lives on their device, and is never sent anywhere. On the desktop
 //! each run is one file, `<app data>/how_to/runs/<run>.json` (`%APPDATA%\HumanityOS\how_to\runs`
 //! on Windows, beside `saves/`), written to a `.tmp` and renamed after every tick
-//! (persistence::write_atomic), so closing the app or a power cut loses at most the tick being
+//! (atomic_write::write_atomic), so closing the app or a power cut loses at most the tick being
 //! written. The website keeps the same shape in IndexedDB (web/pages/how-to-app.js).
 //!
 //! A step's state is keyed by the step's ID, never its position: a how-to that is edited,
@@ -223,7 +223,7 @@ impl RunStore {
     pub fn save(&self, run: &Run) -> Result<(), String> {
         std::fs::create_dir_all(&self.dir).map_err(|e| format!("could not make {}: {e}", self.dir.display()))?;
         let bytes = serde_json::to_vec_pretty(run).map_err(|e| e.to_string())?;
-        crate::persistence::write_atomic(&self.path_of(&run.run), &bytes)
+        crate::atomic_write::write_atomic(&self.path_of(&run.run), &bytes)
     }
 
     fn path_of(&self, run: &str) -> PathBuf {

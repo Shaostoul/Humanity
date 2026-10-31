@@ -11,7 +11,7 @@
 
 use egui::{Color32, Frame, Pos2, RichText, Stroke};
 
-use crate::gui::i18n::{t, tf, tn};
+use crate::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;

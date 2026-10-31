@@ -411,7 +411,7 @@ pub fn shelter_at(world: &hecs::World, feet: Vec3, frame: Option<&PlanetSite>) -
     // Every piece at roof height over this chest, as its box.
     let roofs: Vec<(hecs::Entity, (Vec3, Vec3))> = pieces
         .iter()
-        .map(|(e, tf)| (*e, placement::world_aabb(tf)))
+        .map(|(e, tf)| (*e, crate::ecs::components::world_aabb(tf)))
         .filter(|(_e, b)| (SHELTER_HEADROOM_M..=SHELTER_ROOF_REACH_M).contains(&(b.0.y - chest.y)))
         .collect();
     let boxes: Vec<(Vec3, Vec3)> = roofs.iter().map(|(_e, b)| *b).collect();

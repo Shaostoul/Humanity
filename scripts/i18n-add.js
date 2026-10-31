@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * i18n-add.js: put words into data/i18n/en.json (the one source of the app's
- * and the website's English, src/gui/i18n.rs and web/shared/i18n.js), then
+ * and the website's English, src/i18n.rs and web/shared/i18n.js), then
  * regenerate web/shared/i18n-en.js.
  *
  * Words go in as a JSON fragment shaped like en.json itself:

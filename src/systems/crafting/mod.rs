@@ -117,7 +117,7 @@ impl RecipeRegistry {
     /// populate `DataStore["recipe_registry"]` — before v0.323 the CSV was loaded
     /// then discarded, so CraftingSystem found no recipes and could craft nothing.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<RecipeRow> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<RecipeRow> = crate::data_parse::parse_csv(data)?;
         let mut recipes = HashMap::new();
         for row in rows {
             let station = row.station_required.trim();
@@ -2499,7 +2499,7 @@ mod auto_refine_tests {
         let data = real_data();
         let recipes = data.get::<RecipeRegistry>("recipe_registry").unwrap();
         let items = data.get::<ItemRegistry>("item_registry").unwrap();
-        let home = crate::machines::MachineHome::load(
+        let home = crate::systems::grow_machines::load_home(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines/home.ron"),
         )
         .expect("home.ron");
@@ -2531,7 +2531,7 @@ mod auto_refine_tests {
         }
         assert!(!items.items.contains_key("fuel_refined_0"), "Refined Fuel is retired");
         for file in ["home.ron", "home_solo.ron"] {
-            let h = crate::machines::MachineHome::load(
+            let h = crate::systems::grow_machines::load_home(
                 &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines").join(file),
             )
             .expect("home");

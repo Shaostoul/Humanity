@@ -24,7 +24,7 @@
 //! like every homestead slot) and the render loop draws it in the opaque pass, gated by
 //! `GuiState::show_hull` (H key + the Settings toggle, mirroring the show_roof pattern).
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use crate::ship::ship_structure::{CorridorAxis, ShipStructure};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};

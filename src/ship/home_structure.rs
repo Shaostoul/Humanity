@@ -18,7 +18,7 @@
 //! existing `HomesteadMeshes` form so it renders through the same path. Wiring it into the live world
 //! + the node-placement editor + room subdivision are later stages.
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use crate::ship::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};

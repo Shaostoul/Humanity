@@ -696,7 +696,7 @@ impl ItemRegistry {
     /// `DataStore["item_registry"]` — before v0.323 the CSV was loaded then
     /// discarded, so item-name/stack/mass lookups silently fell back to defaults.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<ItemRow> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<ItemRow> = crate::data_parse::parse_csv(data)?;
         let mut items = HashMap::new();
         for row in rows {
             let max_stack = row.stack_size.max(1);
@@ -866,7 +866,7 @@ mod item_registry_csv_tests {
                 .to_string_lossy()
                 .replace('\\', "/");
 
-            // Mirror crate::assets::loader::parse_csv: '#' comment lines are
+            // Mirror crate::data_parse::parse_csv: '#' comment lines are
             // stripped BEFORE the csv reader sees the file, so the first
             // surviving non-blank line is the header row.
             let mut rows = text

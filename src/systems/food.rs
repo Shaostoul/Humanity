@@ -117,7 +117,7 @@ impl ItemProfiles {
     /// loads. With neither the list is empty, which means nothing is edible:
     /// loud in the log, never a crash.
     pub fn load(data_dir: &Path) -> Self {
-        crate::embedded_data::load_data_or_embedded(data_dir, Self::FILE, crate::assets::loader::parse_ron).unwrap_or_else(|e| {
+        crate::embedded_data::load_data_or_embedded(data_dir, Self::FILE, crate::data_parse::parse_ron).unwrap_or_else(|e| {
             log::warn!("{e}; nothing is edible until it is fixed");
             Self::default()
         })
@@ -142,7 +142,7 @@ pub fn consume_kinds() -> &'static HashMap<String, bool> {
         let dir = crate::data_dir();
         let list = ItemProfiles::load(&dir);
         let data: Option<FoodData> =
-            crate::embedded_data::load_data_or_embedded(&dir, "food_system.ron", crate::assets::loader::parse_ron)
+            crate::embedded_data::load_data_or_embedded(&dir, "food_system.ron", crate::data_parse::parse_ron)
                 .map_err(|e| log::warn!("{e}; no item offers Eat or Drink"))
                 .ok();
         let mut out = HashMap::new();
@@ -530,7 +530,7 @@ impl FoodSystem {
         // install keeps its nutrition/cooking data, and so does a data folder
         // whose copy this version cannot read (BUG-163).
         let data: FoodData =
-            crate::embedded_data::load_data_or_embedded(data_dir, "food_system.ron", crate::assets::loader::parse_ron)
+            crate::embedded_data::load_data_or_embedded(data_dir, "food_system.ron", crate::data_parse::parse_ron)
                 .unwrap_or_else(|e| {
                     log::warn!("{e}; no food data this session");
                     FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }
@@ -956,7 +956,7 @@ impl System for FoodSystem {
         let heat_mode = crate::systems::body_heat::Mode::from_store(data);
         // Asleep in a bed the body makes the least heat (ASHRAE: 0.7 met).
         let activity_met =
-            if self.asleep.is_some() { crate::systems::body_heat::MET_SLEEPING } else { env.activity_met };
+            if self.asleep.is_some() { crate::ecs::components::MET_SLEEPING } else { env.activity_met };
         // The crew g-tolerance row, if flight data loaded at all. Absent = the
         // drive is not modelled here, so nobody is crushed by a missing file.
         let g_tolerance = data
@@ -1606,7 +1606,7 @@ mod nutrition_tests {
                     ambient_temp_c: air_c,
                     relative_humidity: 0.3,
                     wind_m_s: 1.0,
-                    activity_met: crate::systems::body_heat::MET_WALKING,
+                    activity_met: crate::ecs::components::MET_WALKING,
                     ..Default::default()
                 },
             );
@@ -1998,7 +1998,7 @@ mod nutrition_tests {
                     ambient_temp_c: 15.0,
                     relative_humidity: 0.6,
                     wind_m_s: 0.0,
-                    activity_met: body_heat::MET_WALKING,
+                    activity_met: crate::ecs::components::MET_WALKING,
                     ..Default::default()
                 },
             );
@@ -2188,7 +2188,7 @@ mod nutrition_tests {
 
     fn items_csv() -> Vec<ItemRow> {
         let bytes = std::fs::read(data_dir().join("items.csv")).expect("read data/items.csv");
-        crate::assets::loader::parse_csv(&bytes).expect("parse data/items.csv")
+        crate::data_parse::parse_csv(&bytes).expect("parse data/items.csv")
     }
 
     /// A fresh world holding one player who carries a single `item_id`.
@@ -2346,7 +2346,7 @@ mod nutrition_tests {
         let sys = FoodSystem::new(data_dir());
         let list = ItemProfiles::load(data_dir());
         let bytes = std::fs::read(data_dir().join("recipes.csv")).expect("read data/recipes.csv");
-        let recipes: Vec<RecipeRow> = crate::assets::loader::parse_csv(&bytes).expect("parse recipes.csv");
+        let recipes: Vec<RecipeRow> = crate::data_parse::parse_csv(&bytes).expect("parse recipes.csv");
         let mut undecided = Vec::new();
         for r in recipes.iter().filter(|r| r.category == "cooking") {
             for out in r.outputs.split('|') {

@@ -230,7 +230,7 @@ pub(crate) fn save_public<F>(url: &str, name: &str, dir: &std::path::Path, fetch
 where
     F: FnOnce(&str, u64, &mut std::fs::File) -> Result<u64, String>,
 {
-    use crate::gui::widgets::part_file::Part;
+    use crate::net::part_file::Part;
     let mut part = Part::create(dir)?;
     fetch(url, MAX_PUBLIC_FILE, part.file())?;
     part.finish(dir, &super::attach_view::save_name(name))

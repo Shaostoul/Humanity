@@ -177,7 +177,7 @@ pub struct EquipmentRegistry {
 
 impl EquipmentRegistry {
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<EquipmentDef> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<EquipmentDef> = crate::data_parse::parse_csv(data)?;
         let mut defs = HashMap::new();
         for row in rows {
             defs.insert(row.id.clone(), row);
@@ -649,7 +649,7 @@ mod tests {
             category: String,
         }
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/items.csv");
-        let rows: Vec<Row> = crate::assets::loader::parse_csv(&std::fs::read(path).unwrap()).unwrap();
+        let rows: Vec<Row> = crate::data_parse::parse_csv(&std::fs::read(path).unwrap()).unwrap();
         rows.into_iter().filter(|r| r.category == "vehicle").map(|r| r.id).collect()
     }
 

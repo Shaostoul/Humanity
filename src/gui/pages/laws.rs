@@ -6,7 +6,7 @@
 
 use egui::{Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 
-use crate::gui::i18n::{t, t_marked, tf};
+use crate::i18n::{t, t_marked, tf};
 use crate::gui::laws::Rule;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Hint};

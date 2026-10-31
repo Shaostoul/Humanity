@@ -264,7 +264,7 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
             })
             .collect();
         let _cost_tree_harvest =
-            crate::renderer::frame_costs::stage("cpu.near_tree_harvest");
+            crate::frame_costs::stage("cpu.near_tree_harvest");
         // v0.1097, the 13 m floating-trees fix:
         // bases interpolate the DRAWN mesh at
         // this depth (computed above the gate
@@ -439,7 +439,7 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
         // stem + _bark pair they always had.
         let va = (tr.variant % 3) as usize;
         let tdef =
-            crate::renderer::tree_mesh::registry()
+            crate::terrain::tree_registry::registry()
                 .get(tr.species as usize);
         let procedural =
             tdef.map(|t| t.is_procedural()).unwrap_or(false);

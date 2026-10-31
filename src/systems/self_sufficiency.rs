@@ -273,7 +273,7 @@ mod tests {
     /// with the real loader), so no output figure floats free of an actual machine.
     #[test]
     fn every_component_output_id_exists_in_home_ron_catalog() {
-        let home = crate::machines::MachineHome::load(&data_dir().join("machines").join("home.ron"))
+        let home = crate::systems::grow_machines::load_home(&data_dir().join("machines").join("home.ron"))
             .expect("data/machines/home.ron loads");
         let outputs = load_outputs();
         for c in &outputs.components {
@@ -319,7 +319,7 @@ mod tests {
     fn potato_bed_calories_come_from_the_cited_yield() {
         let nutrition = load_nutrition();
         let (plants, items) = load_registries();
-        let home = crate::machines::MachineHome::load(&data_dir().join("machines").join("home.ron"))
+        let home = crate::systems::grow_machines::load_home(&data_dir().join("machines").join("home.ron"))
             .expect("data/machines/home.ron loads");
         let bed = home.catalog.get("potato_grow_bed").expect("potato_grow_bed is in the catalog");
         let area = bed.size.0 * bed.size.2;
@@ -376,7 +376,7 @@ mod tests {
             &[("solar_panel".to_string(), 4), ("wind_turbine_small".to_string(), 1), ("generator_portable".to_string(), 1)],
             &outputs,
         );
-        let solo = crate::machines::MachineHome::load(&data_dir().join("machines").join("home_solo.ron")).expect("home_solo.ron parses");
+        let solo = crate::systems::grow_machines::load_home(&data_dir().join("machines").join("home_solo.ron")).expect("home_solo.ron parses");
         let day_kwh = |id: &str| solo.catalog[id].average_supply_watts(4.5) * 24.0 / 1000.0;
         let catalog = 4.0 * day_kwh("solar_panel") + day_kwh("wind_turbine_small");
         assert!((supply - catalog).abs() < 0.05, "4 panels and a turbine: the table says {supply} kWh/day, the catalog {catalog}");

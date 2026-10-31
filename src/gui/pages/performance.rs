@@ -11,7 +11,7 @@
 //! 2026-10-20) and this is the page-sized sibling of the F2 performance
 //! overlay, so it needs no new top-level page and no `GuiPage` variant.
 //!
-//! WHERE THE NUMBERS COME FROM: `renderer::frame_costs`, a process-global store
+//! WHERE THE NUMBERS COME FROM: `crate::frame_costs`, a process-global store
 //! the renderer writes each frame (GPU timestamp queries resolved a frame late,
 //! CPU stage timers, tracked allocations, process working set). The page only
 //! reads, formats, and calls `frame_costs::watch()` so the expensive inventory
@@ -26,10 +26,10 @@ use egui::{RichText, ScrollArea};
 use serde::Deserialize;
 
 use crate::gui::theme::Theme;
-use crate::gui::i18n::t;
+use crate::i18n::t;
 use crate::gui::widgets::{self, pie::{fmt_bytes, fmt_ms, PieSlice, PieSpec}, with_hint};
 use crate::gui::GuiState;
-use crate::renderer::frame_costs::{self, GpuTiming, Snapshot};
+use crate::frame_costs::{self, GpuTiming, Snapshot};
 
 /// One row of `data/performance/budget_systems.ron`.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -120,7 +120,7 @@ pub fn row_measurable(snap: &Snapshot, row: &BudgetSystem) -> (usize, usize) {
 /// The GPU pie's footer line about passes the timestamp ring refused this
 /// frame, or an empty string when every pass was timed. A refused pass runs
 /// untimed and looks free on the pie, so the count is said out loud with the
-/// fix (`MAX_TIMED_PASSES` in `renderer/frame_costs.rs`).
+/// fix (`MAX_TIMED_PASSES` in `renderer/gpu_costs.rs`).
 pub fn untimed_note(untimed: u32) -> String {
     match untimed {
         0 => String::new(),

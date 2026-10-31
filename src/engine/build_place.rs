@@ -425,7 +425,7 @@ pub(crate) fn refused_off_plot_here(gui: &GuiState, placed: &Result<planet_build
 }
 
 /// True when a piece built aboard with `pose` (ship metres) would reach outside the builder's own
-/// plot: any part of its turned footprint (`placement::world_aabb`, x and z) lies past the plot
+/// plot: any part of its turned footprint (`ecs::components::world_aabb`, x and z) lies past the plot
 /// box, give or take the slack that lets a wall lie ON the plot line the way the home's own shell
 /// does (`build_frames::EDGE_SLACK_M`, half the thickest wall). Height is not bounded, the same
 /// 2D rule collision uses. Testing the centre alone let a 4 x 4 m foundation centred 2 m inside
@@ -776,8 +776,8 @@ pub(crate) fn built_piece_boxes(world: &hecs::World, registry: Option<&Blueprint
         }
         let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
         match parts {
-            Some(parts) => out.extend(parts.iter().map(|(p, _)| placement::world_aabb(p))),
-            None => out.push(placement::world_aabb(tf)),
+            Some(parts) => out.extend(parts.iter().map(|(p, _)| crate::ecs::components::world_aabb(p))),
+            None => out.push(crate::ecs::components::world_aabb(tf)),
         }
     }
     out
@@ -1234,7 +1234,7 @@ mod collision_tests {
         let (foundation, chest) = (top_at(0.0), top_at(6.0));
         assert!(foundation > 0.0 && foundation <= crate::engine::footing::STEP_UP_M, "the foundation's top is {foundation}");
         assert!(chest > crate::engine::footing::STEP_UP_M, "the chest's top is {chest}");
-        let room = crate::gui::RoomBounds {
+        let room = crate::ship::room_types::RoomBounds {
             id: "room".into(),
             min: Vec3::new(-10.0, 0.0, -10.0),
             max: Vec3::new(10.0, 3.0, 10.0),

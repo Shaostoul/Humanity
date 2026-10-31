@@ -20,7 +20,7 @@ use egui::{Align2, RichText, Vec2};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
-use crate::gui::i18n::{t, t_dyn, t_marked_dyn, tf};
+use crate::i18n::{t, t_dyn, t_marked_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState, SettingsCategory};
@@ -265,8 +265,8 @@ mod tests {
             assert!(ids.contains(&want), "the {want} step is there: {ids:?}");
         }
         for step in &file.steps {
-            assert!(crate::gui::i18n::has(&step.title), "{} title key {}", step.id, step.title);
-            assert!(crate::gui::i18n::has(&step.text), "{} text key {}", step.id, step.text);
+            assert!(crate::i18n::has(&step.title), "{} title key {}", step.id, step.title);
+            assert!(crate::i18n::has(&step.text), "{} text key {}", step.id, step.text);
             if let Some(page) = step.native.as_ref().and_then(|p| p.page.as_deref()) {
                 assert!(
                     crate::gui::dispatch::page_from_id(page).is_some(),

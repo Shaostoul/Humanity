@@ -8,7 +8,7 @@ use crate::gui::screen_surface::find_text_in_shapes;
 use crate::net::dm_store::DmStore;
 use crate::net::household::{GivenPermit, GivenState, HeldPermit, Judged, PermitKey, PermitPut};
 use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
-use crate::systems::construction::shared::Permit;
+use crate::build_permission::Permit;
 use serde_json::Value;
 use std::sync::mpsc::Receiver;
 

@@ -63,7 +63,7 @@ staged lighting expires fast; local solar noon = 12 - east_longitude/15;
 scene brightness follows the global game hour while the sun's screen position
 is longitude-aware.
 
-## Frame costs: the per-pass and per-stage breakdown (`renderer::frame_costs`)
+## Frame costs: the per-pass and per-stage breakdown (`frame_costs`, its GPU half `renderer::gpu_costs`)
 
 The Performance page (Dev > Performance) and the `HUMANITY_FRAME_COSTS=1`
 JSON drop (`debug/frame_costs.json`, rewritten once a second while the

@@ -285,7 +285,7 @@ fn a_grow_room_taller_than_a_storey_trades_the_air_of_one_storey() {
 /// in the 10 x 3 x 10 m Greenhouse over 140 units of tomatoes (322 L a day
 /// breathed out, about 1,700 m3 an hour of the home's air to carry it off at
 /// the fan's 80%, so the fan runs at about half speed), with the machines'
-/// power tick recording what it draws (`systems::day_energy`). After a game
+/// power tick recording what it draws (`machines::day_energy`). After a game
 /// day the power meter charges it what it drew, measured: the day's mean of
 /// the draw its controller set, not its data's 0 W. Then the room is
 /// published twice as long, 20 x 10 m, as a player's edit republishes it, and
@@ -307,10 +307,10 @@ fn a_room_resized_changes_its_fans_day_on_the_meter() {
     use crate::machines::{DaySource, MachineHome, MachineInstance, MachinePower, MeterBasis};
     let mut data = store(0.5, 1.0, 0.0);
     data.insert(units::PLOT_AREA_KEY, HashMap::from([("bed_a".to_string(), 1.0_f32)]));
-    crate::systems::day_energy::register(&mut data);
+    crate::machines::day_energy::register(&mut data);
     data.insert("power_status", Mutex::new(crate::systems::electrical::PowerStatus::default()));
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut home = MachineHome::load(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let fan_def = home.catalog["exhaust_fan"].clone();
     let Some(MachinePower::Consumer { average_watts: Some(estimate), .. }) = fan_def.power else { panic!("the shipped fan carries its data's day") };
     let inst = MachineInstance { id: "fan_t".into(), machine: "exhaust_fan".into(), room: "room-a".into(), offset: (5.0, 2.2, 9.5), rotation: 0.0, zone: "home".into(), screen_source: None };
@@ -341,7 +341,7 @@ fn a_room_resized_changes_its_fans_day_on_the_meter() {
         sum / 600.0
     };
     let fan_on_meter = |data: &DataStore| {
-        let recorded = crate::systems::day_energy::snapshot(data);
+        let recorded = crate::machines::day_energy::snapshot(data);
         let meter = home.utility_meters(4.5, MeterBasis { life_support_on_grid: false, recorded: Some(&recorded) });
         let power = meter.into_iter().find(|m| m.utility == "power").expect("a power meter");
         power.sources.into_iter().find(|s| s.id == "fan_t").expect("the fan is on the meter").draw
@@ -948,7 +948,7 @@ fn the_shipped_homes_keep_every_racks_tent_in_range() {
     use crate::machines::{MachineHome, MachinePower};
     let settle = |file: &str, powered: bool| -> (Vec<f64>, f64, f64, f64, usize, bool) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        let home = MachineHome::load(&root.join("data").join("machines").join(file)).expect("home parses");
+        let home = crate::systems::grow_machines::load_home(&root.join("data").join("machines").join(file)).expect("home parses");
         // The SHIPPED home design (data/homes/shipped/homestead.ron, never the checkout's
         // data/homes/homestead.ron, the developer's own home): its rooms are home-local, the
         // frame the home's machine offsets are in.

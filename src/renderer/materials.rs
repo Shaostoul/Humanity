@@ -205,7 +205,7 @@ impl Renderer {
         let bg = self.build_albedo_group_from_view(view, &self.albedo_sampler);
         self.materials[idx].albedo_bind_group = Some(bg);
         self.materials[idx].albedo_texture = None;
-        super::frame_costs::set_vram_keyed("vram.textures", idx as u64, 0);
+        crate::frame_costs::set_vram_keyed("vram.textures", idx as u64, 0);
     }
 
     /// Write new pixels into material `idx`'s RETAINED albedo texture. When
@@ -232,7 +232,7 @@ impl Renderer {
         let bg = self.build_albedo_group_from_view(&view, &self.albedo_sampler);
         self.materials[idx].albedo_bind_group = Some(bg);
         self.materials[idx].albedo_texture = Some((texture, width, height));
-        super::frame_costs::set_vram_keyed(
+        crate::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             (width as u64) * (height as u64) * 4,
@@ -266,7 +266,7 @@ impl Renderer {
         // VRAM inventory (resource budgets increment 1). Keyed by material
         // index so a later in-place albedo swap REPLACES this figure instead of
         // adding to it.
-        super::frame_costs::set_vram_keyed(
+        crate::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             (width as u64) * (height as u64) * 4,
@@ -288,7 +288,7 @@ impl Renderer {
     /// trunk_color. Emissive is 0 - type 22 does not repurpose params.w (its
     /// wind class is implied by the type in the vertex shader), so the normal
     /// emissive meaning of that slot is left alone.
-    pub fn bark_material(&mut self, def: &tree_mesh::TreeDef) -> usize {
+    pub fn bark_material(&mut self, def: &crate::terrain::tree_registry::TreeDef) -> usize {
         if let Some(&idx) = self.bark_materials.get(&def.id) {
             return idx;
         }
@@ -304,7 +304,7 @@ impl Renderer {
         self.materials[idx].albedo_bind_group = Some(bg);
         self.bark_materials.insert(def.id.clone(), idx);
         // VRAM inventory: the whole mip chain, not just the base level.
-        super::frame_costs::set_vram_keyed(
+        crate::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             levels.iter().map(|l| l.len() as u64).sum(),
@@ -341,7 +341,7 @@ impl Renderer {
         self.materials[idx].albedo_texture = Some((texture, width, height));
         // The old texture is freed with its bind group, so the inventory
         // REPLACES this material's contribution rather than accumulating.
-        super::frame_costs::set_vram_keyed(
+        crate::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             (width as u64) * (height as u64) * 4,

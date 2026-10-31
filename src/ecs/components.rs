@@ -26,6 +26,32 @@ impl Default for Transform {
     }
 }
 
+/// The world-space box a structure's transform covers, (min, max): `position` is the box's
+/// base centre, `scale` its size, turned by `rotation`. Exact for the quarter turns placement
+/// makes; for any other rotation it is the box around the turned box.
+///
+/// A function of a `Transform` alone, so it sits beside it (it was
+/// `systems::construction::placement`'s until the crate split's rung 0, and the ship's build
+/// frames reached up into the simulation for it). Placement and the build frames both read it.
+pub fn world_aabb(tf: &Transform) -> (Vec3, Vec3) {
+    let m = glam::Mat3::from_quat(tf.rotation);
+    let half = tf.scale * 0.5;
+    let center = tf.position + tf.rotation * Vec3::new(0.0, half.y, 0.0);
+    let ext = Vec3::new(
+        m.x_axis.x.abs() * half.x + m.y_axis.x.abs() * half.y + m.z_axis.x.abs() * half.z,
+        m.x_axis.y.abs() * half.x + m.y_axis.y.abs() * half.y + m.z_axis.y.abs() * half.z,
+        m.x_axis.z.abs() * half.x + m.y_axis.z.abs() * half.y + m.z_axis.z.abs() * half.z,
+    );
+    (center - ext, center + ext)
+}
+
+/// Standing eye height above the ground (metres): where a person's eyes are over their feet.
+/// The planet walk rests the camera this far over the ground (`surface_walk`), and every
+/// position a game sends and the relay holds for a player is the eye (`ship::moves::feet_y`).
+/// Here, a fact about the body, since the crate split's rung 0 (it was `surface_walk`'s, and the
+/// ship and the terrain's tests reached up into the simulation for it).
+pub const EYE_HEIGHT_M: f64 = 1.7;
+
 /// Linear and angular velocity.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Velocity {
@@ -175,7 +201,7 @@ pub struct EnvironmentContext {
     pub radiant_temp_c: Option<f32>,
     /// Air pressure, kPa (101.325 at sea level; about 0 in vacuum).
     pub pressure_kpa: f32,
-    /// What the player is doing, in met (`body_heat::MET_*`): standing,
+    /// What the player is doing, in met (`MET_*` below): standing,
     /// walking, sprinting. The heat a body makes.
     pub activity_met: f32,
     /// Felt gravity in g, AFTER inertial dampening (see `systems::flight`).
@@ -202,11 +228,34 @@ impl Default for EnvironmentContext {
             sheltered: false,
             radiant_temp_c: None,
             pressure_kpa: 101.325,
-            activity_met: crate::systems::body_heat::MET_STANDING,
+            activity_met: MET_STANDING,
             g_load: 1.0,
         }
     }
 }
+
+// -- Activity (met; 1 met = 58.2 W per square metre of skin) -------------------------
+//
+// ASHRAE Handbook Fundamentals chapter 9, Table 4 (typical metabolic heat
+// generation): sleeping 0.7, standing relaxed 1.2, walking on the level at
+// 0.9 m/s 2.0, at 1.8 m/s 3.8; driving a car 1.0 to 2.0. The game's walking
+// pace is faster than a real walk (a pacing choice), so its gait is billed
+// by what the player is doing, not by the speed on screen.
+//
+// Beside `EnvironmentContext::activity_met`, the field whose unit they are, since the crate
+// split's rung 0 (they were `systems::body_heat`'s, and the default above reached up for one).
+// The body heat model reads them from here.
+
+/// Asleep (ASHRAE: sleeping, 0.7 met).
+pub const MET_SLEEPING: f32 = 0.7;
+/// Standing still (ASHRAE: standing, relaxed, 1.2 met).
+pub const MET_STANDING: f32 = 1.2;
+/// Walking (ASHRAE: walking on the level at 0.9 m/s, 2.0 met).
+pub const MET_WALKING: f32 = 2.0;
+/// Sprinting (ASHRAE: walking at 1.8 m/s, 3.8 met; heavy work is 3 to 4).
+pub const MET_SPRINTING: f32 = 3.8;
+/// Driving (ASHRAE: automobile, 1.0 to 2.0 met; the middle).
+pub const MET_DRIVING: f32 = 1.5;
 
 /// One active status effect on an entity, with its remaining duration in seconds.
 /// Timed buffs/debuffs count down to 0 and expire; condition-type effects (e.g.

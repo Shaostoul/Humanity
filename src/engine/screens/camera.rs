@@ -583,12 +583,12 @@ mod tests {
     fn shipped_homes_place_a_camera_post_and_the_console_screens_name_it() {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = MachineHome::load(&data.join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            let home = crate::systems::grow_machines::load_home(&data.join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let def = home.catalog.get("camera_post").unwrap_or_else(|| panic!("{file} catalogs a camera_post"));
             assert!(def.camera.is_some(), "{file}: camera_post has a camera");
             assert_eq!(def.category, "Displays", "{file}: the post sits with the displays in the palette");
         }
-        let home = MachineHome::load(&data.join("home.ron")).expect("home.ron parses");
+        let home = crate::systems::grow_machines::load_home(&data.join("home.ron")).expect("home.ron parses");
         let zones = [ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (55.0, 89.0, 3.0) }];
         let placements = home.placements(&Default::default(), Some(&zones));
         let posts = camera_posts_from(&placements);

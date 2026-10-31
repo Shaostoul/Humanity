@@ -475,6 +475,8 @@ test("--forwarded-for takes an address and only an address", () => {
 
 const REPO = path.join(__dirname, "..", "..");
 const SHARED_RS = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "shared.rs"), "utf8");
+// The household permit's wire shape lives in the core since the crate split's rung 0 (2026-10-31).
+const PERMIT_RS = fs.readFileSync(path.join(REPO, "src", "build_permission.rs"), "utf8");
 /** The field names of one variant of the wire enums in shared.rs, by its serde type string. */
 function contractFields(typeName) {
   const at = SHARED_RS.indexOf(`#[serde(rename = "${typeName}")]`);
@@ -636,8 +638,8 @@ test("permitPreimage equals the Rust KAT string", async () => {
     assert.equal(sp.permitPreimage(...args), unescape(expected), `permitPreimage(${argText})`);
   }
   // The fields a permit carries on the wire.
-  const at = SHARED_RS.indexOf("pub struct Permit {");
-  const fields = [...SHARED_RS.slice(at, SHARED_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
+  const at = PERMIT_RS.indexOf("pub struct Permit {");
+  const fields = [...PERMIT_RS.slice(at, PERMIT_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
   const noble = await sp.loadNoble();
   const issuer = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "permit issuer", "TestBotIssuer"));
   const expiry = 1900000000;
@@ -996,8 +998,8 @@ test("the walker's permit note is the game's", async (t) => {
   const ada = sp.deriveIdentity(noble, seeded(22));
   const permit = sp.mintPermit(game, { server: SERVER_DID, plot: "p2", grantee: sp.didFor(noble, ada.publicKeyHex), expiry: 1900000000 });
   const note = sp.permitNoteText(permit);
-  const at = SHARED_RS.indexOf("pub struct Permit {");
-  const fields = [...SHARED_RS.slice(at, SHARED_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
+  const at = PERMIT_RS.indexOf("pub struct Permit {");
+  const fields = [...PERMIT_RS.slice(at, PERMIT_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
   assert.ok(note.startsWith(DM.CTL_PERMIT) && note[DM.CTL_PERMIT.length] === "{", "the JSON follows the marker directly");
   assert.deepEqual(Object.keys(JSON.parse(note.slice(DM.CTL_PERMIT.length))), fields, "in the contract's field order");
   const shuffled = Object.fromEntries(Object.entries(permit).reverse());
@@ -1296,7 +1298,8 @@ test("the walker's public key line is read whole, and never from the shortened o
 const STARTS_RS = fs.readFileSync(path.join(REPO, "src", "ship", "starts.rs"), "utf8");
 const SHIP_STORES_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "ship_stores.rs"), "utf8");
 const MOVES_RS = fs.readFileSync(path.join(REPO, "src", "ship", "moves.rs"), "utf8");
-const SURFACE_WALK_RS = fs.readFileSync(path.join(REPO, "src", "surface_walk.rs"), "utf8");
+// The standing eye height is the body's, in the core, since the crate split's rung 0 (2026-10-31).
+const COMPONENTS_RS = fs.readFileSync(path.join(REPO, "src", "ecs", "components.rs"), "utf8");
 const FLEET_LEDGER_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "fleet_ledger.rs"), "utf8");
 /** A `pub const NAME: &str = "..."` of starts.rs. */
 const startsConst = (name) => {
@@ -1399,7 +1402,7 @@ test("take-meal goes to the nearest food store in reach, and its answer is logge
     ["INTERACT_REACH_M", MOVES_RS, /pub const INTERACT_REACH_M: f32 = ([0-9.]+);/],
     ["STOREY_M", MOVES_RS, /pub const STOREY_M: f32 = ([0-9.]+);/],
     ["STOREY_BAND_BELOW_M", MOVES_RS, /pub const STOREY_BAND_BELOW_M: f32 = ([0-9.]+);/],
-    ["EYE_HEIGHT_M", SURFACE_WALK_RS, /pub const EYE_HEIGHT_M: f64 = ([0-9.]+);/],
+    ["EYE_HEIGHT_M", COMPONENTS_RS, /pub const EYE_HEIGHT_M: f64 = ([0-9.]+);/],
   ]) {
     const m = file.match(re);
     assert.ok(m, `the Rust source defines ${name}`);

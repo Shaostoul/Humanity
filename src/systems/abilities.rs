@@ -132,7 +132,7 @@ pub struct AbilityRegistry {
 
 impl AbilityRegistry {
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<AbilityDef> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<AbilityDef> = crate::data_parse::parse_csv(data)?;
         let mut defs = HashMap::new();
         for row in rows {
             defs.insert(row.id.clone(), row);

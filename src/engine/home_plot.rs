@@ -2465,7 +2465,7 @@ mod tests {
     /// field moved by Vec3(0.0, 0.0, 0.0)".
     #[test]
     fn what_was_anchored_to_a_home_machine_goes_with_it() {
-        let home = crate::machines::MachineHome::load(&crate::machines::home_ron_path(&data_dir())).expect("the machines load");
+        let home = crate::systems::grow_machines::load_home(&crate::save_load::active_home_machines_path(&data_dir())).expect("the machines load");
         let place = |plot: &str| {
             let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).unwrap();
             home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()))

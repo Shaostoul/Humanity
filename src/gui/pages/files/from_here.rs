@@ -163,7 +163,7 @@ pub fn load(path: &Path) -> Record {
 /// Write the record to `path`, whole or not at all (a temporary file, then a rename).
 pub fn save(path: &Path, record: &Record) -> std::io::Result<()> {
     let text = serde_json::to_string(record).map_err(std::io::Error::other)?;
-    crate::persistence::write_atomic(path, text.as_bytes()).map_err(std::io::Error::other)
+    crate::atomic_write::write_atomic(path, text.as_bytes()).map_err(std::io::Error::other)
 }
 
 /// Where the record is kept: beside `config.json`, or nowhere while the storage choice is still

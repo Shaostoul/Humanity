@@ -356,8 +356,8 @@ mod tests {
             let mesh = mesh_angular_radius(dist, px);
             assert!(mesh >= r + 1.5 * px, "the sphere from {what} ({mesh} rad) does not cover the disc ({r} rad)");
             let front = dist - dist * mesh.tan();
-            let depth = super::super::camera::celestial_depth_at(front as f32);
-            assert!(depth > 0.0 && dist + dist * mesh.tan() < super::super::camera::CELESTIAL_FAR_M as f64, "the Sun from {what} is outside the celestial depth range (depth {depth})");
+            let depth = crate::terrain::celestial_projection::celestial_depth_at(front as f32);
+            assert!(depth > 0.0 && dist + dist * mesh.tan() < crate::terrain::celestial_projection::CELESTIAL_FAR_M as f64, "the Sun from {what} is outside the celestial depth range (depth {depth})");
         }
     }
 

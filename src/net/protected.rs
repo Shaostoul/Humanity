@@ -17,7 +17,7 @@
 //! this code. A test holds all of them, and every string literal in the feature's files, to the
 //! preset's `avoid_words`.
 //!
-//! THE PIN is kept only as a verifier, `PinVerifier`: PBKDF2-SHA-256 (`crate::config::pbkdf2_sha256`,
+//! THE PIN is kept only as a verifier, `PinVerifier`: PBKDF2-SHA-256 (`crate::relay::core::kdf::pbkdf2_sha256`,
 //! the vault's derivation) under a random 16-byte salt, at `PIN_ITERATIONS` (600,000, the PIN's
 //! own constant) when made, and checked at whatever count it records. Neither the PIN nor
 //! anything it could be read back from is stored.
@@ -275,7 +275,7 @@ impl PinVerifier {
     pub fn with_salt(pin: &str, salt: &[u8], iterations: u32) -> Self {
         use base64::Engine;
         let b64 = base64::engine::general_purpose::STANDARD;
-        let hash = crate::config::pbkdf2_sha256(pin.as_bytes(), salt, iterations);
+        let hash = crate::relay::core::kdf::pbkdf2_sha256(pin.as_bytes(), salt, iterations);
         Self { salt: b64.encode(salt), hash: b64.encode(hash), iterations }
     }
 
@@ -301,7 +301,7 @@ impl PinVerifier {
         if want.len() != 32 || self.iterations == 0 || self.iterations > PIN_ITERATIONS_MAX || pin.is_empty() {
             return false;
         }
-        let got = crate::config::pbkdf2_sha256(pin.as_bytes(), &salt, self.iterations);
+        let got = crate::relay::core::kdf::pbkdf2_sha256(pin.as_bytes(), &salt, self.iterations);
         got.iter().zip(want.iter()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
     }
 }

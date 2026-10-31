@@ -13,7 +13,7 @@ fn shipped() -> ShipStructure {
 /// Every vertex of every family of `m`, with its normal.
 fn all_vertices(m: &HomesteadMeshes) -> Vec<(Vec3, Vec3)> {
     let mut out = Vec::new();
-    let mut take = |vs: &[crate::renderer::mesh::Vertex]| {
+    let mut take = |vs: &[crate::vertex::Vertex]| {
         out.extend(vs.iter().map(|v| (Vec3::from(v.position), Vec3::from(v.normal))));
     };
     for f in &m.floors {

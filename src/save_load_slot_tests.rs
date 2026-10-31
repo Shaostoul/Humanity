@@ -203,7 +203,7 @@ fn a_restore_reloads_the_active_slot() {
     );
     let mut after = before.clone();
     after.inventory.clear();
-    persistence::write_atomic(&path, serde_json::to_string_pretty(&after).unwrap().as_bytes()).unwrap();
+    crate::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&after).unwrap().as_bytes()).unwrap();
 
     set_active_home(ActiveHome::of_save(slot, path.clone(), &before));
     let mut gui = crate::gui::GuiState::default();

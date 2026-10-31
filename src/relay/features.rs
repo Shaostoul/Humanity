@@ -4208,7 +4208,7 @@ mod tests {
     }
 
     /// `msg` carrying household permit `p`.
-    fn with_permit(mut msg: Value, p: &crate::systems::construction::shared::Permit) -> Value {
+    fn with_permit(mut msg: Value, p: &crate::build_permission::Permit) -> Value {
         msg["permit"] = serde_json::to_value(p).expect("a permit serialises");
         msg
     }
@@ -4217,10 +4217,10 @@ mod tests {
     /// `grantee` (a did:hum) on `plot` of the server `server`, running out at `expiry`, minted at
     /// `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`), under a fresh serial
     /// (permit v2, ship homes 5b).
-    fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> crate::systems::construction::shared::Permit {
+    fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> crate::build_permission::Permit {
         let serial = crate::relay::core::pq_crypto::new_friend_cert_serial().expect("randomness");
         let sig = crate::relay::core::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, &serial, expiry, minted).expect("minted");
-        crate::systems::construction::shared::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
+        crate::build_permission::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
     }
 
     /// The relay's clock, Unix seconds.
@@ -4304,7 +4304,8 @@ mod tests {
 
     /// The one sentence shared.rs keeps for a refusal, as a relay sends it.
     fn sentence(action: &str, piece: &str, reason: &str, why: Option<&str>) -> String {
-        use crate::systems::construction::shared::{refusal_message, Action, Reason, Why};
+        use crate::systems::construction::shared::{refusal_message, Action, Reason};
+        use crate::build_permission::Why;
         let action: Action = serde_json::from_value(serde_json::json!(action)).unwrap();
         let reason: Reason = serde_json::from_value(serde_json::json!(reason)).unwrap();
         let why: Option<Why> = why.map(|w| serde_json::from_value(serde_json::json!(w)).unwrap());
@@ -4493,7 +4494,7 @@ mod tests {
     }
 
     /// A `game_permit_check` numbered `req_id` for permit `p`, as the game sends it.
-    fn permit_check_msg(req_id: u32, p: &crate::systems::construction::shared::Permit) -> Value {
+    fn permit_check_msg(req_id: u32, p: &crate::build_permission::Permit) -> Value {
         serde_json::json!({ "type": "game_permit_check", "req_id": req_id, "permit": p })
     }
 
@@ -4507,7 +4508,8 @@ mod tests {
 
     /// The `game_permit_status` a permit that does not work is answered with: `why` and its words.
     fn permit_refused(req_id: u32, plot: &str, why: &str) -> Value {
-        use crate::systems::construction::shared::{why_words, Action, Reason, Why};
+        use crate::systems::construction::shared::{why_words, Action, Reason};
+        use crate::build_permission::Why;
         let w: Why = serde_json::from_value(serde_json::json!(why)).unwrap();
         let message = why_words(Action::Build, Reason::NotAllowed, Some(w));
         serde_json::json!({ "type": "game_permit_status", "req_id": req_id, "plot": plot, "ok": false, "why": why, "message": message })

@@ -517,7 +517,7 @@ pub fn verify_friend_cert(
 pub const PLOT_PERMIT_DOMAIN: &str = "hum/permit/v2";
 
 /// The longest a household permit may run, days (the operator, 2026-10-05). The sentence a player
-/// reads names it too (`systems::construction::shared::PERMIT_MAX_DAYS`, pinned to this by a
+/// reads names it too (`systems::construction::crate::build_permission::PERMIT_MAX_DAYS`, pinned to this by a
 /// test).
 pub const PLOT_PERMIT_MAX_DAYS: u64 = 90;
 
@@ -1407,7 +1407,7 @@ mod tests {
     #[test]
     fn a_permit_longer_than_90_days_is_refused() {
         use base64::{engine::general_purpose::STANDARD as B64, Engine};
-        assert_eq!(crate::systems::construction::shared::PERMIT_MAX_DAYS, PLOT_PERMIT_MAX_DAYS, "the words name the ceiling enforced");
+        assert_eq!(crate::build_permission::PERMIT_MAX_DAYS, PLOT_PERMIT_MAX_DAYS, "the words name the ceiling enforced");
         let issuer_master = [0x11u8; 32];
         let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer_master));
         let issuer_hex = hex::encode(issuer.public_key());

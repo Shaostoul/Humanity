@@ -583,7 +583,7 @@ were read on 3 October 2026.
 - The F2 performance overlay and its 120-frame bar graph:
   `src/gui/pages/diagnostics.rs`, with the per-frame figure set in
   `src/lib.rs`; the Performance page and its smoothing
-  (`EMA_ALPHA` in `src/renderer/frame_costs.rs`,
+  (`EMA_ALPHA` in `src/frame_costs.rs`,
   `src/gui/pages/performance.rs`).
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`); the Trading skill in

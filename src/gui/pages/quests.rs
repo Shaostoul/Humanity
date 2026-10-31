@@ -23,7 +23,7 @@ use egui::{Frame, RichText, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::widgets::{with_hint, Hint};
 
 mod chain_window;

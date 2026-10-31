@@ -135,7 +135,7 @@ fn play(state: &mut EngineState, id: &str) {
 /// with the sound if sound is on; Play plays the chosen sound once.
 pub(crate) fn pump(state: &mut EngineState) {
     if std::mem::take(&mut state.gui_state.notify.test_requested) {
-        let t = crate::gui::i18n::t;
+        let t = crate::i18n::t;
         n::toast::show(n::toast::Toast {
             title: t("notifications.test_title").to_string(),
             body: t("notifications.test_body").to_string(),

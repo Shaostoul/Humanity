@@ -374,7 +374,7 @@ fn a_machine_selection_follows_the_storey() {
     let hz = ship.home_zone_index();
     let mut g = crate::gui::GuiState::default();
     g.ship_structure = Some(ship);
-    g.home_machines = crate::machines::MachineHome::load(&data.join("machines").join("home.ron"));
+    g.home_machines = crate::systems::grow_machines::load_home(&data.join("machines").join("home.ron"));
     assert!(g.home_machines.is_some(), "the household's machines load");
     g.construction_zone = hz;
     g.construction_storeys.chosen = 1;
@@ -413,7 +413,7 @@ fn the_cut_away_leaves_out_what_stands_over_it() {
     let o = ship.zones[hz].origin_vec();
 
     // Machines: hidden exactly when the layout puts them on the home's upper floor.
-    let home = crate::machines::MachineHome::load(&data.join("machines/home.ron")).expect("the household's machines load");
+    let home = crate::systems::grow_machines::load_home(&data.join("machines/home.ron")).expect("the household's machines load");
     let rects = ship.zone_rects();
     let upstairs: std::collections::HashSet<String> = home
         .all_instances()

@@ -5,7 +5,7 @@
 //! containing loaded game data (items, plants, recipes, etc.).
 //!
 //! MEASUREMENT (resource budgets increment 1): every system's tick is timed and
-//! deposited in `renderer::frame_costs` as `cpu.system.<slug>`, plus the whole
+//! deposited in `crate::frame_costs` as `cpu.system.<slug>`, plus the whole
 //! loop as `cpu.systems`. That is what puts "Game systems" on the CPU pie of the
 //! Performance page with a real number behind it, and what increment 3's
 //! governor will read to notice a system running over its share.
@@ -18,7 +18,7 @@
 use std::time::Instant;
 
 use crate::hot_reload::data_store::DataStore;
-use crate::renderer::frame_costs;
+use crate::frame_costs;
 
 /// A game system that runs each frame.
 pub trait System: Send + Sync {

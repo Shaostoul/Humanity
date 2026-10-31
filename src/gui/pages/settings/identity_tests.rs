@@ -4,7 +4,7 @@
 // seen failing once; what it saw red is at the test.
 
 use super::*;
-use crate::gui::i18n::t;
+use crate::i18n::t;
 use crate::gui::theme::load_theme;
 
 /// Every text drawn.

@@ -123,7 +123,7 @@ impl StatusEffectRegistry {
     /// Build the registry from raw `status_effects.csv` bytes (shared loader:
     /// skips `#` comments, header-mapped, row-resilient).
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<StatusEffectDef> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<StatusEffectDef> = crate::data_parse::parse_csv(data)?;
         let mut effects = HashMap::new();
         for row in rows {
             effects.insert(row.id.clone(), row);

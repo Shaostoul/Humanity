@@ -18,7 +18,8 @@
 use super::*;
 use crate::renderer::camera::CameraController;
 use crate::surface_move::{radial_step, rest_height, walk_rest, MoveMode, RadialStep};
-use crate::surface_walk::{DRAWN_CLEARANCE_M, EYE_HEIGHT_M};
+use crate::surface_walk::DRAWN_CLEARANCE_M;
+use crate::ecs::components::EYE_HEIGHT_M;
 
 const EARTH_R: f64 = 6_371_000.0;
 /// Earth's surface gravity (data/planets/earth.ron).
@@ -57,7 +58,7 @@ fn open_hut(x: f32, z: f32) -> [(&'static str, f32, f32, u8); 4] {
 fn top_of(world: &hecs::World, id: &str) -> f32 {
     let mut q = world.query::<(&Structure, &Transform)>();
     let tf = q.iter().find(|(_e, (s, _))| s.blueprint_id == id).map(|(_e, (_, tf))| tf.clone()).expect("the piece is built");
-    placement::world_aabb(&tf).1.y
+    crate::ecs::components::world_aabb(&tf).1.y
 }
 
 /// What a frame of the walk is asked to do: a direction to walk (in the body's frame), and
@@ -110,7 +111,7 @@ impl Walker {
         let vs = radial_step(MoveMode::Walk, true, false, r0, self.v_r, rest, G, crate::engine::frame_lock::SURFACE_SETTLE_RATE, DT, wish, step);
         self.v_r = vs.v_r;
         self.anchor = dir1 * vs.r;
-        self.ctl.surface_step(r0, &vs, false, false);
+        self.ctl.surface_step(r0, vs.r, vs.landing(), false, false);
         self.landings.extend(self.ctl.take_landing());
         vs
     }

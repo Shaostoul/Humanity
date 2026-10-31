@@ -1756,7 +1756,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             crate::renderer::billboard_bake::BakeCpuModel,
         > = std::collections::HashMap::new();
         let t_parse = std::time::Instant::now();
-        for t in crate::renderer::tree_mesh::registry().trees.iter() {
+        for t in crate::terrain::tree_registry::registry().trees.iter() {
             if t.is_procedural() {
                 continue;
             }
@@ -2390,9 +2390,9 @@ pub(crate) fn render_view_onto_kept(
     // keying it as a "screen" would misattribute a screenshot to the
     // camera wall.
     let who = match passes {
-        ViewPasses::Everything | ViewPasses::SkyOnly => crate::renderer::frame_costs::SceneView::Main,
-        ViewPasses::SceneOnly => crate::renderer::frame_costs::SceneView::Screen,
-        ViewPasses::Plan => crate::renderer::frame_costs::SceneView::MapTile,
+        ViewPasses::Everything | ViewPasses::SkyOnly => crate::renderer::gpu_costs::SceneView::Main,
+        ViewPasses::SceneOnly => crate::renderer::gpu_costs::SceneView::Screen,
+        ViewPasses::Plan => crate::renderer::gpu_costs::SceneView::MapTile,
     };
     // The view's own depth buffer goes in; the window's is parked, not
     // recreated (see `Renderer::begin_view_depth`).
@@ -2420,7 +2420,7 @@ pub(crate) fn render_view_onto_kept(
         // / `cpu.stars` for the screenshot (see `who` above). The CPU stage
         // is the submission twin the no-timestamp fallback reads.
         let (sky_gpu, sky_cpu) = who.sky_ids();
-        let _cost = crate::renderer::frame_costs::stage(sky_cpu);
+        let _cost = crate::frame_costs::stage(sky_cpu);
         let stars = passes != ViewPasses::Plan; // a plan tile clears to black, no sky
         if let Some(ref star_r) = state.star_renderer.as_ref().filter(|_| stars) {
             star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), fades);
@@ -5612,7 +5612,7 @@ mod household_ipc_tests {
     use crate::net::household::{GivenPermit, GivenState, HeldPermit, Household, Judged, PermitKey, Verdict};
     use crate::ship::door_panels::{neighbour_panel_placements, ship_panel_placements, PanelPlacement};
     use crate::ship::ship_structure::{OpenPlots, ShipStructure};
-    use crate::systems::construction::shared::Permit;
+    use crate::build_permission::Permit;
     use std::collections::BTreeSet;
 
     /// The body of `fn name` in this file, up to the first line that is a lone `}`.

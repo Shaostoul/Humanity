@@ -47,7 +47,7 @@ use egui::RichText;
 use super::api::{self, Item, ItemFile, ItemRef};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::widgets::part_file::Part;
+use crate::net::part_file::Part;
 use crate::gui::GuiState;
 
 /// The most a fetch or a download takes (the Media budget's own ceiling is far below).
@@ -128,7 +128,7 @@ pub(crate) fn sweep(dir: &Path) {
 pub(crate) fn forget_temp_files(state: &mut GuiState) {
     state.files.open = None;
     sweep(&temp_dir());
-    crate::gui::widgets::part_file::sweep_own();
+    crate::net::part_file::sweep_own();
 }
 
 /// The name of one Play here copy: the server and item it is from, then this process and a number

@@ -12,7 +12,7 @@ use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::i18n::{t, t_marked, tf};
+use crate::i18n::{t, t_marked, tf};
 use crate::gui::widgets::{with_hint, Hint};
 use std::cell::RefCell;
 

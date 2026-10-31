@@ -27,8 +27,15 @@
 //!   bulb      - garlic (strap leaves from a bulb)
 //!   bromeliad - pineapple (stiff rosette, central crowned fruit)
 //! Unknown forms fall back to `rosette` so a new species always renders.
+//!
+//! WHY IT LIVES IN TERRAIN (the crate split's rung 0, 2026-10-31,
+//! docs/design/crate-split.md): it was `renderer::plant_mesh`, but every line of it is plain
+//! geometry (`Vec<Vertex>`, no GPU), and the planet's own ground cover is built with it
+//! (`terrain::grass_mesh`'s tillers), so terrain reached up into the renderer for its mesh
+//! builder. Here, under both, the renderer's trees and card bake and the engine's crops and
+//! fungi build with it as before, and terrain stays beneath the renderer.
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use crate::terrain::planet_surface::pack_color_to_uv;
 use serde::Deserialize;
 use std::collections::HashMap;

@@ -1167,7 +1167,7 @@ mod tests {
         let server = temp_server();
         let mut store = DmStore::load(&seed, &me, &server);
         assert!(store.set_pass_server("did:hum:one"));
-        let permit = crate::systems::construction::shared::Permit {
+        let permit = crate::build_permission::Permit {
             issuer: "ada".into(),
             server: "did:hum:one".into(),
             plot: "p1".into(),

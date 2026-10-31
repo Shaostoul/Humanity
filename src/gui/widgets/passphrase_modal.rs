@@ -112,7 +112,7 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // The words say what a skip costs: the key stays in memory only, and the saved settings
         // never hold a key that is not encrypted (config.rs, from_gui_state), so a new identity
         // skipped here is gone when the app closes unless its words were written down.
-        if widgets::secondary_button(ui, theme, crate::gui::i18n::t("passphrase.skip_not_kept")) {
+        if widgets::secondary_button(ui, theme, crate::i18n::t("passphrase.skip_not_kept")) {
             // User skips: key stays in memory but is not persisted encrypted
             state.passphrase_needed = false;
             state.passphrase_input.clear();

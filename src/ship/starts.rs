@@ -127,7 +127,7 @@ impl Starts {
     /// built-in copy with, so a file that parses but breaks a rule is set aside like one that
     /// does not parse.
     pub fn parse(bytes: &[u8]) -> Result<Starts, String> {
-        let starts: Starts = crate::assets::loader::parse_ron(bytes)?;
+        let starts: Starts = crate::data_parse::parse_ron(bytes)?;
         starts.validate()?;
         Ok(starts)
     }

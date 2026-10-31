@@ -109,7 +109,7 @@ pub struct MoveContext<'a> {
 
 /// How high over the plot's floor shutting the build editor stands a person: the eye height
 /// (lib.rs, the editor's close: the zone's floor plus 1.7 m, surface_walk::EYE_HEIGHT_M).
-const EDITOR_EYE_M: f32 = crate::surface_walk::EYE_HEIGHT_M as f32;
+const EDITOR_EYE_M: f32 = crate::ecs::components::EYE_HEIGHT_M as f32;
 
 /// How far from that height an editor close may be, metres: rounding, never a deck or a flight.
 const EDITOR_FLOOR_TOLERANCE_M: f32 = 0.25;

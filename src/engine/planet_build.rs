@@ -35,7 +35,7 @@
 //! scene pass CLEARS depth, so the copy was painted over everything drawn
 //! only in the celestial pass: a chest inside the hut vanished behind its own
 //! wall, and a wall's buried base painted over the grass on a slope. The
-//! celestial near plane is now 5 cm (`renderer::camera::CELESTIAL_NEAR_M`),
+//! celestial near plane is now 5 cm (`terrain::celestial_projection::CELESTIAL_NEAR_M`),
 //! which costs no depth precision anywhere (the tests there prove it), and
 //! every site piece is drawn once, in the celestial pass.
 //!
@@ -417,7 +417,7 @@ pub(crate) fn player_at_site(
 ) -> Option<PlayerFrame> {
     let site = site::nearest_site(world, body, eye_body, site::SITE_JOIN_M)?;
     let up = eye_body.normalize_or_zero();
-    let eye_h = crate::surface_walk::EYE_HEIGHT_M;
+    let eye_h = crate::ecs::components::EYE_HEIGHT_M;
     let feet_body = match ground_r() {
         Some(g) if eye_body.length() - g <= MAX_EYE_OVER_GROUND_M => up * g,
         _ => eye_body - up * eye_h,
@@ -723,9 +723,9 @@ pub(crate) fn dev_stand(state: &mut EngineState, spec: &str, at: Option<&str>) -
     // (clearing it would make the frame lock re-capture the anchor).
     let look = look_render.as_vec3();
     let (cam_yaw, cam_pitch) = if state.camera.surface_mode {
-        crate::surface_walk::surface_look_angles(state.camera.up, look)
+        crate::camera_angles::surface_look_angles(state.camera.up, look)
     } else {
-        crate::surface_walk::world_look_angles(look)
+        crate::camera_angles::world_look_angles(look)
     };
     state.camera.yaw = cam_yaw;
     state.camera.pitch = cam_pitch;
@@ -832,8 +832,8 @@ pub(crate) fn built_floor_radius(
         }
         let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| crate::systems::construction::doorway::piece_parts(bp, tf, open.is_some()));
         let boxes: Vec<(Vec3, Vec3)> = match parts {
-            Some(parts) => parts.iter().map(|(p, _)| placement::world_aabb(p)).collect(),
-            None => vec![placement::world_aabb(tf)],
+            Some(parts) => parts.iter().map(|(p, _)| crate::ecs::components::world_aabb(p)).collect(),
+            None => vec![crate::ecs::components::world_aabb(tf)],
         };
         for (lo, hi) in boxes {
             let top_r = (base + f64::from(hi.y)) / cos;
@@ -1085,7 +1085,7 @@ mod tests {
         let hit = |id: &str| pieces.iter().filter(|(b, _)| b == id).filter_map(|(_, tf)| uses::ray_hits_box(from, dir, tf)).fold(f32::MAX, f32::min);
         let (chest, wall) = (hit("storage_chest"), hit("wood_wall"));
         assert!(chest < wall && wall < 10.0, "the chest ({chest} m) is in front of the wall ({wall} m)");
-        let depth = |d: f32| crate::renderer::camera::celestial_depth_at(d);
+        let depth = |d: f32| crate::terrain::celestial_projection::celestial_depth_at(d);
         assert!(depth(chest) > depth(wall) && depth(chest) <= 1.0, "one pass, nearer wins: {} vs {}", depth(chest), depth(wall));
     }
 }

@@ -1640,7 +1640,7 @@ mod tests {
         assert!(goods.vendor_sell_price(&d.colony_item).is_some());
         assert!(!d.devices.is_empty(), "a device is listed");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap();
+            let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap();
             for dv in &d.devices {
                 let def = home.catalog.get(&dv.machine).unwrap_or_else(|| panic!("{file}: no catalog machine '{}'", dv.machine));
                 assert!(

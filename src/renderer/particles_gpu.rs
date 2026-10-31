@@ -215,7 +215,7 @@ impl GpuParticles {
         queue: &wgpu::Queue,
         mut params: SimParams,
         live: u32,
-        timers: Option<&crate::renderer::frame_costs::GpuTimers>,
+        timers: Option<&crate::renderer::gpu_costs::GpuTimers>,
     ) {
         self.live = live.min(self.capacity);
         if self.live == 0 {
@@ -382,7 +382,7 @@ mod device_tests {
         for _ in 0..8 {
             // Untimed: this device has no TIMESTAMP_QUERY requested. The timed
             // path (compute_writes through this same call) is covered by
-            // frame_costs::tests::gpu_timestamps_resolve_a_real_pass_duration.
+            // gpu_costs::tests::gpu_timestamps_resolve_a_real_pass_duration.
             gp.simulate(&device, &queue, params, 100_000, None);
         }
         device.poll(wgpu::Maintain::Wait);

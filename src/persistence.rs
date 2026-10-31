@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::atomic_write::write_atomic;
+
 /// Complete world save state. A "home" (the homes-as-save-profiles model, v0.380)
 /// IS a WorldSave that knows its `kind` and its `start`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,14 +179,14 @@ pub struct WorldSave {
     #[serde(default)]
     pub machine_levels: Vec<crate::systems::machine_levels::MachineLevels>,
     /// What each placed machine drew over its last game day, by its machine
-    /// instance id (2026-10-22, `systems::day_energy`): the rolling record the
+    /// instance id (2026-10-22, `machines::day_energy`): the rolling record the
     /// power meters, the machine cards and the time away
     /// (`crafting::away::day_power_balance`) read in place of a figure measured
     /// once by hand. It replaced `heater_draw_w`, a space heater's draw at the
     /// moment of the save. Empty for a new game, where every machine is charged
     /// its data's estimate until it has run a whole day.
-    #[serde(default, skip_serializing_if = "crate::systems::day_energy::DayEnergy::is_empty")]
-    pub machine_day_energy: crate::systems::day_energy::DayEnergy,
+    #[serde(default, skip_serializing_if = "crate::machines::day_energy::DayEnergy::is_empty")]
+    pub machine_day_energy: crate::machines::day_energy::DayEnergy,
     /// What the home has drawn from and returned to the ship's supply
     /// (2026-09-27, systems::ship_power): the reactor's kWh, metered. Empty in
     /// a save from before it; the meter then starts at zero.
@@ -943,60 +945,10 @@ fn snapshot_save_protecting(
     Ok(Some(target))
 }
 
-/// The temp file a save is written to before it is renamed over the real one:
-/// `offline_home.json.tmp`, in the same folder (a rename only replaces
-/// atomically within one volume). Its extension is not `.json`, so nothing
-/// that scans the saves folder for saves ever mistakes it for one.
-fn staging_path(path: &Path) -> PathBuf {
-    let mut name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
-    name.push(".tmp");
-    path.with_file_name(name)
-}
+// The crash-safe write (stage to a temp file, flush, rename over: `write_atomic`) is the core's,
+// `crate::atomic_write`, since the crate split's rung 0: the settings, the protected setup's
+// file, the how-to runs and the GUI's own files write the same way.
 
-/// Step one of a crash-safe write: put all the bytes in the temp file and
-/// flush them to the disk. The real file is not touched. A crash after this
-/// and before `commit_staged` leaves the real file exactly as it was.
-fn stage_write(path: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
-    use std::io::Write;
-    let tmp = staging_path(path);
-    let mut f = std::fs::File::create(&tmp).map_err(|e| format!("could not create {}: {e}", tmp.display()))?;
-    f.write_all(bytes).map_err(|e| format!("could not write {}: {e}", tmp.display()))?;
-    // On the disk, not just in the OS cache, before the rename makes it the
-    // save: otherwise a power cut could leave a renamed but empty file.
-    f.sync_all().map_err(|e| format!("could not flush {}: {e}", tmp.display()))?;
-    Ok(tmp)
-}
-
-/// Step two: rename the temp file over the real one. The rename replaces the
-/// file in one step, so a reader (or a crash) sees the old save or the new
-/// one, never half of either. On Windows a rename can fail for a moment while
-/// another program (an antivirus scan, a backup tool) holds the target open,
-/// so it is retried briefly before giving up; giving up leaves the old save
-/// intact.
-fn commit_staged(tmp: &Path, path: &Path) -> Result<(), String> {
-    let mut last_err = None;
-    for attempt in 0..5u32 {
-        match std::fs::rename(tmp, path) {
-            Ok(()) => return Ok(()),
-            Err(e) => {
-                last_err = Some(e);
-                std::thread::sleep(std::time::Duration::from_millis(10 << attempt));
-            }
-        }
-    }
-    Err(format!(
-        "could not replace {} (the previous version is still there): {}",
-        path.display(),
-        last_err.map(|e| e.to_string()).unwrap_or_default()
-    ))
-}
-
-/// Write `bytes` to `path` so that a crash at any moment leaves either the
-/// whole old file or the whole new one.
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let tmp = stage_write(path, bytes)?;
-    commit_staged(&tmp, path)
-}
 
 /// Write a save's bytes: keep a snapshot of what is about to be replaced
 /// (subject to the spacing), then write crash-safely. A snapshot that fails
@@ -1532,7 +1484,7 @@ mod tests {
         let mut unfinished = test_save();
         unfinished.name = "Never finished".to_string();
         let full = serde_json::to_string_pretty(&unfinished).unwrap();
-        stage_write(&save, &full.as_bytes()[..full.len() / 2]).unwrap();
+        crate::atomic_write::stage_write(&save, &full.as_bytes()[..full.len() / 2]).unwrap();
 
         assert!(std::fs::read(&save).unwrap() == before, "the previous save is byte for byte intact");
         assert_eq!(load_world(&save).unwrap().name, "Before the crash");
@@ -1542,7 +1494,7 @@ mod tests {
         // The next save replaces the leftover temp file and lands whole.
         save_world(&save, &unfinished).unwrap();
         assert_eq!(load_world(&save).unwrap().name, "Never finished");
-        assert!(!staging_path(&save).exists(), "no temp file is left behind");
+        assert!(!crate::atomic_write::staging_path(&save).exists(), "no temp file is left behind");
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -15,6 +15,12 @@
 //!
 //! These are tunable via [`KdfParams`] for callers that need different latency/cost
 //! tradeoffs (e.g., headless server bulk operations vs. interactive logins).
+//!
+//! The one PBKDF2-HMAC-SHA-256 the app still runs is here too, at the bottom (`pbkdf2_sha256`):
+//! the desktop vault's format (AES-256-GCM under PBKDF2-SHA-256, 600,000 rounds, matching the
+//! web) and the protected setup's PIN verifier are built on it. It moved here from `config.rs`
+//! unchanged in the crate split's rung 0 (2026-10-31), so the app's network side reaches the
+//! protocol for it rather than the GUI's settings.
 
 use argon2::{Algorithm, Argon2, Params, Version};
 
@@ -105,6 +111,24 @@ pub fn derive_key_with_params(
             reason: e.to_string(),
         })?;
     Ok(output)
+}
+
+// ── PBKDF2-HMAC-SHA-256: the desktop vault and the protected setup's PIN ──
+
+/// PBKDF2-HMAC-SHA-256 of `secret` under `salt`, `iterations` rounds, 32 bytes out: the one
+/// derivation the vault and the protected setup's PIN verifier (net/protected.rs) share, so
+/// both stay on the same function and the same iteration constant.
+///
+/// The desktop vault's rounds are 600,000 (`config::PBKDF2_ITERATIONS_NEW`), the PIN's its own
+/// `net::protected::PIN_ITERATIONS`; this function only runs what it is given
+/// (docs/reference/cryptography.md, "Vault encryption (native)"). Here, in the protocol, since the
+/// crate split's rung 0 (it was `config::pbkdf2_sha256`), beside the Argon2id stretching above.
+/// Native-only like the `pbkdf2` crate it calls: the relay derives no vault key.
+#[cfg(feature = "native")]
+pub fn pbkdf2_sha256(secret: &[u8], salt: &[u8], iterations: u32) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(secret, salt, iterations, &mut out);
+    out
 }
 
 #[cfg(test)]

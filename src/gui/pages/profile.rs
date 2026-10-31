@@ -209,7 +209,7 @@ fn draw_private_notes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 pub(crate) fn bio_refusal(bio: &str) -> Option<String> {
     let n = bio.trim().chars().count();
     let max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
-    (n > max).then(|| crate::gui::i18n::tf("profile.bio_over_limit", &[("n", &n), ("limit", &max)]))
+    (n > max).then(|| crate::i18n::tf("profile.bio_over_limit", &[("n", &n), ("limit", &max)]))
 }
 
 fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

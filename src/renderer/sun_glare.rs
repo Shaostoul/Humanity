@@ -20,7 +20,8 @@
 //! submits its own encoder, in frame order, and the views never interleave.
 
 use super::camera::{self, Camera};
-use super::{frame_costs, Renderer};
+use super::Renderer;
+use crate::frame_costs;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 
@@ -364,7 +365,7 @@ impl Renderer {
         }
         // Covered by anything nearer than 99% of the Sun's distance (reverse-Z:
         // a nearer surface has the larger depth).
-        let threshold = camera::celestial_depth_at((sun.dist_m * 0.99) as f32);
+        let threshold = crate::terrain::celestial_projection::celestial_depth_at((sun.dist_m * 0.99) as f32);
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Sun Vis Encoder") });
         self.sun_vis.encode(
             &self.device,

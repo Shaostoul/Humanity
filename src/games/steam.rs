@@ -183,7 +183,7 @@ fn read_manifest(path: &Path, file_id: &str, steamapps: &Path) -> Option<Game> {
 /// folders shown read as Windows paths.
 #[cfg(windows)]
 pub fn root_on_this_computer() -> Option<PathBuf> {
-    let key = super::registry::open(super::registry::Root::CurrentUser, r"Software\Valve\Steam")?;
+    let key = crate::platform::registry::open(crate::platform::registry::Root::CurrentUser, r"Software\Valve\Steam")?;
     let path = key.string("SteamPath")?;
     let path = PathBuf::from(path.trim().replace('/', "\\"));
     path.is_dir().then_some(path)
@@ -194,7 +194,7 @@ pub fn root_on_this_computer() -> Option<PathBuf> {
 /// when nobody is signed in. `None` when Steam is not running.
 #[cfg(windows)]
 pub fn active_user_on_this_computer() -> Option<u32> {
-    let key = super::registry::open(super::registry::Root::CurrentUser, r"Software\Valve\Steam\ActiveProcess")?;
+    let key = crate::platform::registry::open(crate::platform::registry::Root::CurrentUser, r"Software\Valve\Steam\ActiveProcess")?;
     key.dword("ActiveUser").filter(|id| *id != 0)
 }
 

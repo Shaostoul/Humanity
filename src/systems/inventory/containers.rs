@@ -25,7 +25,7 @@
 //!
 //! This module compiles in BOTH the `native` and `relay` builds (the
 //! `systems` module is not feature-gated). The CSV/RON *parsing* helpers here
-//! use the crate's pure `assets::loader` parsers (also not feature-gated), so
+//! use the crate's pure `data_parse` parsers (also not feature-gated), so
 //! the registry can be built from in-memory bytes in either build and in tests.
 //! The file-reading wiring (AssetManager -> DataStore) lives in `src/lib.rs`
 //! behind `#[cfg(feature = "native")]`, mirroring how `item_registry` loads.
@@ -721,7 +721,7 @@ impl ContainerRegistry {
     /// file's copy by itself (BUG-163: the data folder's when this version can
     /// read it, else the one built into the exe).
     pub fn types_from_csv(types_csv: &[u8]) -> Result<HashMap<String, ContainerType>, String> {
-        let rows: Vec<ContainerTypeRow> = crate::assets::loader::parse_csv(types_csv)?;
+        let rows: Vec<ContainerTypeRow> = crate::data_parse::parse_csv(types_csv)?;
         Ok(rows
             .into_iter()
             .map(|row| {
@@ -734,7 +734,7 @@ impl ContainerRegistry {
     /// The content classes of `data/containers/content_classes.ron` alone (see
     /// `types_from_csv`).
     pub fn classes_from_ron(classes_ron: &[u8]) -> Result<HashMap<String, ContentClass>, String> {
-        let classes: Vec<ContentClass> = crate::assets::loader::parse_ron(classes_ron)?;
+        let classes: Vec<ContentClass> = crate::data_parse::parse_ron(classes_ron)?;
         Ok(classes.into_iter().map(|c| (c.id.clone(), c)).collect())
     }
 
@@ -841,21 +841,21 @@ impl ContainerRegistry {
     /// The contact materials of `data/containers/materials.csv` alone (see
     /// `types_from_csv`).
     pub fn materials_from_csv(materials_csv: &[u8]) -> Result<HashMap<String, Material>, String> {
-        let mats: Vec<Material> = crate::assets::loader::parse_csv(materials_csv)?;
+        let mats: Vec<Material> = crate::data_parse::parse_csv(materials_csv)?;
         Ok(mats.into_iter().map(|m| (m.id.clone(), m)).collect())
     }
 
     /// The content traits of `data/containers/content_traits.ron` alone: by food
     /// profile, and by content class (see `types_from_csv`).
     pub fn traits_from_ron(traits_ron: &[u8]) -> Result<ContentTraits, String> {
-        let traits: ContentTraitsFile = crate::assets::loader::parse_ron(traits_ron)?;
+        let traits: ContentTraitsFile = crate::data_parse::parse_ron(traits_ron)?;
         Ok((traits.profiles, traits.classes))
     }
 
     /// Item -> food profile, from `data/food/item_profiles.ron` alone (see
     /// `types_from_csv`).
     pub fn profiles_from_ron(item_profiles_ron: &[u8]) -> Result<HashMap<String, String>, String> {
-        let profiles: ItemProfilesFile = crate::assets::loader::parse_ron(item_profiles_ron)?;
+        let profiles: ItemProfilesFile = crate::data_parse::parse_ron(item_profiles_ron)?;
         Ok(profiles.items.into_iter().collect())
     }
 
@@ -1595,7 +1595,7 @@ mod tests {
         let items = shipped_items();
         let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(format!("{root}/data/recipes.csv")).expect("recipes.csv"))
             .expect("recipe registry");
-        let home = crate::machines::MachineHome::load(&std::path::Path::new(root).join("data/machines/home.ron")).expect("home.ron");
+        let home = crate::systems::grow_machines::load_home(&std::path::Path::new(root).join("data/machines/home.ron")).expect("home.ron");
         let def = &home.catalog["fuel_refinery"];
         let recipe_id = def.auto_recipe.clone().expect("the refinery runs a recipe by itself");
         let drum_type = def.container_type.clone().expect("the refinery has a drum");

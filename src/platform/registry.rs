@@ -5,6 +5,9 @@
 //! (`HKLM\...\GOG.com\Games`). Since 2026-10-19 the Tools page reads Windows' own
 //! installed-programs list and App Paths through it too (software/records.rs), in both the 64-bit
 //! and the 32-bit view of the registry ([`View`]): still KEY_READ, only the view chosen.
+//!
+//! In the core (`platform`) since the crate split's rung 0, 2026-10-31: the renderer's display
+//! adapter probe reads through it too (renderer/bounced_light_detail.rs).
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::ERROR_SUCCESS;

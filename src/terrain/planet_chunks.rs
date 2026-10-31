@@ -574,7 +574,7 @@ pub fn veg_biome_ok(sc: [f32; 3]) -> bool {
 /// forest can never silently vanish on a planet whose latitudes or elevations
 /// fall outside every authored range.
 pub fn pick_tree_species(def: &PlanetDef, dir: DVec3, elev_m: f32, r5: u64) -> usize {
-    let reg = crate::renderer::tree_mesh::registry();
+    let reg = crate::terrain::tree_registry::registry();
     if reg.is_empty() {
         return 0;
     }
@@ -601,7 +601,7 @@ pub fn pick_tree_species(def: &PlanetDef, dir: DVec3, elev_m: f32, r5: u64) -> u
 /// model-backed species' baked AABB height is the glTF's, not the registry's,
 /// and only the ratio form is right for both kinds.
 pub(crate) fn sprite_card_frame(
-    fp: crate::renderer::tree_mesh::CardFootprint,
+    fp: crate::terrain::tree_registry::CardFootprint,
     h: f32,
 ) -> (f32, f32) {
     let s = fp.frame_m * (h / fp.h_nominal_m.max(0.01));
@@ -2049,7 +2049,7 @@ pub fn build_patch_mesh_at_density(
         // this tree's height against the baked one, dropped so the tree's base
         // lands on the ground. `v01` now spans the FRAME rather than the tree,
         // which is what the baked pixels actually occupy.
-        let fp_table = crate::renderer::tree_mesh::card_footprint_table();
+        let fp_table = crate::terrain::tree_registry::card_footprint_table();
         let mut emit_sprite_card = |base: glam::Vec3,
                                     up: glam::Vec3,
                                     side: glam::Vec3,
@@ -2317,7 +2317,7 @@ pub fn build_patch_mesh_at_density(
                             // species"): full-grown, with a natural spread.
                             // BOTH stream sites stay identical.
                             let sp_i = pick_tree_species(def, dir, elev_m, r5);
-                            let reg = crate::renderer::tree_mesh::registry();
+                            let reg = crate::terrain::tree_registry::registry();
                             let sp = reg.get(sp_i);
                             let (sp_h, sp_jit) = match sp {
                                 Some(t) => (t.height_m, t.height_jitter),
@@ -2340,7 +2340,7 @@ pub fn build_patch_mesh_at_density(
                             // Variant picks match near_tree_instances exactly
                             // ((r5 >> 11) % 3).
                             let variant = ((r5 >> 11) % 3) as u32;
-                            let tile = crate::renderer::tree_mesh::tile_of(sp_i, variant);
+                            let tile = crate::terrain::tree_registry::tile_of(sp_i, variant);
                             if let (true, Some(tile)) = (albedo.is_some(), tile) {
                                 emit_sprite_card(base, up, side_a, h, tile, &mut vertices, &mut indices);
                                 emit_sprite_card(base, up, side_b, h, tile, &mut vertices, &mut indices);
@@ -2471,6 +2471,20 @@ pub use water_patches::*;
 // ── Per-planet runtime cache (engine side; holds renderer mesh handles as
 // plain indices so this module stays GPU-free and testable) ──
 
+/// One allocated patch: element ranges in the renderer's shared arenas. `base_vertex`
+/// for the draw is `vstart`; indices are stored patch-local (0-based).
+///
+/// Defined here, beside the cache that holds one per batched patch, since the crate split's
+/// rung 0: it is four numbers, and the cache keeping it is what keeps this module GPU-free. The
+/// renderer's patch arena (renderer/patch_arena.rs) hands them out and takes them back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PatchSlot {
+    pub vstart: u32,
+    pub vcount: u32,
+    pub istart: u32,
+    pub icount: u32,
+}
+
 pub struct PatchEntry {
     /// Index into Renderer::meshes. usize::MAX when the patch lives in the
     /// mega-buffer arena instead (slot below) -- the arena is the normal
@@ -2479,7 +2493,7 @@ pub struct PatchEntry {
     pub mesh: usize,
     /// Arena ranges when this patch is batched (plain data - keeps this
     /// module GPU-free and testable; the engine owns the actual buffers).
-    pub slot: Option<crate::renderer::patch_arena::PatchSlot>,
+    pub slot: Option<PatchSlot>,
     /// GPU byte estimate for the LRU cap.
     pub bytes: usize,
     /// Patch anchor: planet-local unrotated frame, meters (f64). The draw
@@ -2709,7 +2723,7 @@ impl ChunkState {
         &mut self,
         id: PatchId,
         mesh: usize,
-        slot: Option<crate::renderer::patch_arena::PatchSlot>,
+        slot: Option<PatchSlot>,
         bytes: usize,
         anchor: DVec3,
         band: RadialBand,
@@ -2725,7 +2739,7 @@ impl ChunkState {
         &mut self,
         id: PatchId,
         mesh: usize,
-        slot: Option<crate::renderer::patch_arena::PatchSlot>,
+        slot: Option<PatchSlot>,
         bytes: usize,
         anchor: DVec3,
         band: RadialBand,
@@ -2796,7 +2810,7 @@ impl ChunkState {
     /// `collect_evictions`; the caller frees the renderer resources.
     pub fn purge_all(
         &mut self,
-    ) -> Vec<(PatchId, usize, Option<crate::renderer::patch_arena::PatchSlot>)> {
+    ) -> Vec<(PatchId, usize, Option<PatchSlot>)> {
         self.sel_dirty = true;
         self.last_drawn.clear();
         self.cache.drain().map(|(id, e)| (id, e.mesh, e.slot)).collect()
@@ -2810,7 +2824,7 @@ impl ChunkState {
     pub fn collect_evictions(
         &mut self,
         byte_cap: usize,
-    ) -> Vec<(PatchId, usize, Option<crate::renderer::patch_arena::PatchSlot>)> {
+    ) -> Vec<(PatchId, usize, Option<PatchSlot>)> {
         let mut evicted = Vec::new();
         // Recency guard (v0.898): never evict anything used in the last ~2
         // seconds. When the working set genuinely exceeds the cap, evicting
@@ -3638,7 +3652,7 @@ pub(crate) mod tests {
     /// rendered 27% too short with its base 13.4% of the card off the ground).
     #[test]
     fn sprite_card_frame_puts_the_tree_on_the_ground() {
-        use crate::renderer::tree_mesh::CardFootprint;
+        use crate::terrain::tree_registry::CardFootprint;
         // (footprint, drawn height). Cases: a 22 m conifer (height-dominant,
         // only the 5% margin), a 9 m acacia with a 1.3:1 crown worked through
         // the baker's own arithmetic, and the pre-bake square default.
@@ -3859,7 +3873,7 @@ pub(crate) mod tests {
         // Camera at origin looking down -Z (glam look_at_rh convention),
         // 60 deg fov, 16:9, celestial-style reverse-Z far plane.
         let view = DMat4::look_at_rh(DVec3::ZERO, DVec3::new(0.0, 0.0, -1.0), DVec3::Y);
-        let proj = crate::renderer::camera::celestial_projection_f64(60.0, 16.0 / 9.0);
+        let proj = crate::terrain::celestial_projection::celestial_projection_f64(60.0, 16.0 / 9.0);
         let f = FrustumPlanes::from_view_proj(&(proj * view));
         // In front: visible. Behind: culled. Far off to the side: culled.
         assert!(f.sphere_visible(DVec3::new(0.0, 0.0, -100.0), 1.0));
@@ -3890,7 +3904,7 @@ pub(crate) mod tests {
         // Render frame == local frame here (identity planet transform);
         // looking +X from above the +X pole faces away from the center.
         let view = DMat4::look_at_rh(cam_local, cam_local + DVec3::X, DVec3::Y);
-        let proj = crate::renderer::camera::celestial_projection_f64(60.0, 16.0 / 9.0);
+        let proj = crate::terrain::celestial_projection::celestial_projection_f64(60.0, 16.0 / 9.0);
         let fr = FrustumPlanes::from_view_proj(&(proj * view));
         let sel = select_patches(cam_local, Some(&fr), &|_| Some(tight), &params);
         assert!(

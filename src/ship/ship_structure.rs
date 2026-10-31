@@ -39,7 +39,7 @@
 //! the ship file only with ShipStructureEditing, and the home's origin never, because it comes
 //! from the plot. `validate` refuses overlapping plots, zones and corridor tubes.
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use crate::ship::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
 use crate::ship::home_structure::{HomeStructure, ShellCut, Zone};
 use glam::Vec3;
@@ -570,7 +570,7 @@ pub struct OpenPlots {
 }
 
 /// Eye height over the floor, metres: where a player's camera stands, and so where a spawn
-/// point puts it (the same 1.7 m the walking camera and `surface_walk::EYE_HEIGHT_M` use).
+/// point puts it (the same 1.7 m the walking camera and `ecs::components::EYE_HEIGHT_M` use).
 pub const SPAWN_EYE_HEIGHT_M: f32 = 1.7;
 
 /// A local (x, z) spawn point in a box whose min corner is `origin`, as a ship position at eye

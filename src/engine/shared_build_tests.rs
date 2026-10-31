@@ -1178,7 +1178,7 @@ fn what_waits_for_another_server_holds_nothing_up_here() {
 
 use crate::engine::household::{self as household_glue, open_for, set_open, PlotPermit};
 use crate::net::household::{HeldPermit, Household, Judged, PermitKey, Verdict};
-use crate::systems::construction::shared::Permit;
+use crate::build_permission::Permit;
 
 const DAY: u64 = 86_400;
 

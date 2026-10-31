@@ -53,7 +53,7 @@ fn home() -> DataStore {
 
 /// Stand at (x, z) on the deck at height 0: the camera is the eye, 1.7 m up.
 fn stand(data: &mut DataStore, x: f32, z: f32) {
-    data.insert("camera_position", Vec3::new(x, crate::surface_walk::EYE_HEIGHT_M as f32, z));
+    data.insert("camera_position", Vec3::new(x, crate::ecs::components::EYE_HEIGHT_M as f32, z));
 }
 
 fn player(world: &mut hecs::World, seeds: &[(&str, u32)]) -> hecs::Entity {
@@ -158,7 +158,7 @@ fn nothing_in_reach_plants_nothing_and_names_the_nearest() {
             .to_string()]
     );
     // Right above the bed, one deck up.
-    data.insert("camera_position", Vec3::new(10.0, 5.0 + crate::surface_walk::EYE_HEIGHT_M as f32, -1.5));
+    data.insert("camera_position", Vec3::new(10.0, 5.0 + crate::ecs::components::EYE_HEIGHT_M as f32, -1.5));
     plant(&mut sys, &mut world, &data, "seed_lettuce_0");
     assert_eq!(world.query::<&CropInstance>().iter().count(), 0, "nothing sown from another deck");
     assert_eq!(

@@ -4,7 +4,7 @@
 //! is an axis-aligned box with floor, ceiling, and four walls. Walls have
 //! rectangular openings where doors are placed.
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use crate::ship::layout::{Direction, RoomDef};
 
 /// Door opening dimensions (meters). All doors are a uniform 2m x 2.5m.

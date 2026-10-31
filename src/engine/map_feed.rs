@@ -121,7 +121,7 @@ fn where_aboard(state: &EngineState) -> (Option<i32>, Option<(String, String)>) 
 /// Once a frame, from lib.rs's station block, after it has placed the ship
 /// (`vel` is the velocity it propagated with the pose).
 pub(crate) fn publish(state: &mut EngineState, vel: DVec3) {
-    let _cost = crate::renderer::frame_costs::stage("cpu.maps_feed");
+    let _cost = crate::frame_costs::stage("cpu.maps_feed");
     let (game_seconds, game_day_s) = state
         .data_store
         .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")

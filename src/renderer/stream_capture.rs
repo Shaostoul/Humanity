@@ -22,7 +22,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::net::live::RawFrame;
+use crate::raw_frame::RawFrame;
 
 /// A reusable async readback slot.
 pub struct StreamCapture {

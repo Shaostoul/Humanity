@@ -184,7 +184,7 @@ pub(crate) fn refresh_own_home(gui: &mut GuiState) {
 /// `autosave_ship_structure`, lib.rs): keep the edits where the mode keeps them, and outside Dev
 /// write the save at once, so the edit and what it cost reach the disk together.
 pub(crate) fn keep_edits_now(state: &mut EngineState) -> Result<String, String> {
-    let machines_path = crate::machines::home_ron_path(&state.data_dir);
+    let machines_path = crate::save_load::active_home_machines_path(&state.data_dir);
     match keep_editor_edits(&mut state.gui_state, &state.data_dir, &machines_path)? {
         Kept::DataFiles(note) => Ok(note),
         Kept::Save(note) => {
@@ -220,7 +220,7 @@ pub(crate) fn adopt_saved_home(gui: &mut GuiState, save: &crate::persistence::Wo
 /// The machine layout for world load: the data file's, with the character's own machines in
 /// place of the household's when one applies. Also says whether the live home is now their own.
 pub(crate) fn machines_for_world(gui: &mut GuiState, path: &Path) -> Option<MachineHome> {
-    let mut home = MachineHome::load(path)?;
+    let mut home = crate::systems::grow_machines::load_home(path)?;
     let own = in_effect(gui).cloned();
     gui.own_home_live = own.is_some();
     overlay_machines(&mut home, own.as_ref());
@@ -239,7 +239,7 @@ pub(crate) fn reapply_saved_home(state: &mut EngineState, save: &crate::persiste
     if authors_data_files(state.gui_state.settings.play_mode) {
         return;
     }
-    let path = crate::machines::home_ron_path(&state.data_dir);
+    let path = crate::save_load::active_home_machines_path(&state.data_dir);
     if let Some(home) = machines_for_world(&mut state.gui_state, &path) {
         state.gui_state.home_machines = Some(home);
     }
@@ -412,7 +412,7 @@ mod tests {
         let mut gui = GuiState::default();
         gui.settings.play_mode = mode;
         gui.ship_structure = Some(ShipStructure::load_and_assemble(dir, None).expect("the ship assembles"));
-        gui.home_machines = MachineHome::load(&dir.join("machines").join("home.ron"));
+        gui.home_machines = crate::systems::grow_machines::load_home(&dir.join("machines").join("home.ron"));
         gui
     }
 
@@ -487,7 +487,7 @@ mod tests {
 
         // The next session: the data files' layout, with the save's home put in.
         let mut next = GuiState::default();
-        next.home_machines = MachineHome::load(&machines_path);
+        next.home_machines = crate::systems::grow_machines::load_home(&machines_path);
         assert!(!next.home_machines.as_ref().unwrap().instances.iter().any(|i| i.id == id), "the data file never had it");
         assert!(adopt_saved_home(&mut next, &back), "the save's home applies in Normal");
         let m = next.home_machines.as_ref().unwrap();
@@ -517,7 +517,7 @@ mod tests {
         let kept = keep_editor_edits(&mut gui, &dir, &machines_path).expect("written");
         assert!(matches!(kept, Kept::DataFiles(_)), "a Dev-mode edit is written to the data files: {kept:?}");
         assert!(gui.own_home.is_none(), "the Dev mode gives the character no home of their own");
-        let written = MachineHome::load(&machines_path).expect("home.ron loads");
+        let written = crate::systems::grow_machines::load_home(&machines_path).expect("home.ron loads");
         assert!(written.instances.iter().any(|i| i.id == id), "the smelter is in data/machines/home.ron");
         assert!(written.paid.is_empty(), "a payment is never written into a shared file");
         let text = std::fs::read_to_string(&machines_path).unwrap();
@@ -581,7 +581,7 @@ mod tests {
         save.home = normal.own_home.clone();
         let mut dev = GuiState::default();
         dev.settings.play_mode = PlayMode::Dev;
-        dev.home_machines = MachineHome::load(&machines_path);
+        dev.home_machines = crate::systems::grow_machines::load_home(&machines_path);
         assert!(!adopt_saved_home(&mut dev, &save), "Dev does not apply the save's home");
         assert!(dev.own_home.is_some(), "but keeps it, to write back into the save");
         assert!(!dev.home_machines.as_ref().unwrap().instances.iter().any(|i| i.id == id));

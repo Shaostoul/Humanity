@@ -203,7 +203,7 @@ Each seen failing first:
 `embedded_data::load_data_or_embedded` (and `load_text_or_embedded` for a parser
 that takes text) is the one rule every registry loads through: the data folder's
 file when this version can read ALL of it (a CSV is parsed under
-`assets::loader::refusing_rows`, so a single row it cannot read refuses the
+`data_parse::refusing_rows`, so a single row it cannot read refuses the
 file), else the copy built into the game, with one `[built-in data copy]` line
 naming the file, the line and why. A file with no built-in copy keeps the old
 behaviour: the rows this version can read are used (`environment/region_kinds.ron`

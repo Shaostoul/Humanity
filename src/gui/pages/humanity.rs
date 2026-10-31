@@ -12,7 +12,7 @@
 use egui::{Align2, Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
-use crate::gui::i18n::{t, t_marked};
+use crate::i18n::{t, t_marked};
 use crate::gui::widgets::{self, with_hint, Hint, SectionNavItem};
 use super::{civilization, governance, identity, donate};
 

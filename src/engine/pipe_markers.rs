@@ -14,7 +14,8 @@
 //! player's config. A change of either rebuilds the pipes (`rebuild_if_mode_changed`).
 
 use crate::engine::state::EngineState;
-use crate::renderer::mesh::{Mesh, Vertex};
+use crate::renderer::mesh::Mesh;
+use crate::vertex::Vertex;
 use crate::ship::pipe_marking::{self, MarkingMode};
 use glam::{Quat, Vec3};
 use std::collections::{HashMap, HashSet};

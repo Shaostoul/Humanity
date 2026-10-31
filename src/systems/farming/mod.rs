@@ -242,7 +242,7 @@ impl PlantRegistry {
     /// before v0.323 the CSV was loaded then discarded, so FarmingSystem ran on
     /// default growth stages with no species data.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<PlantRow> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<PlantRow> = crate::data_parse::parse_csv(data)?;
         let mut plants = HashMap::new();
         for row in rows {
             plants.insert(
@@ -1008,7 +1008,7 @@ impl System for FarmingSystem {
         // resets because the date changed.
         // Where the tick's time goes, pass by pass (cpu.farm.*, children of cpu.system.farming,
         // never summed with it): each assignment closes the pass before it (2026-10-30).
-        let mut _farm_t = crate::renderer::frame_costs::stage("cpu.farm.setup");
+        let mut _farm_t = crate::frame_costs::stage("cpu.farm.setup");
         let total = crate::systems::time::rebase_total(data);
         let shift = total - self.clock_rebase_seen.unwrap_or(total);
         if shift != 0.0 {
@@ -1278,7 +1278,7 @@ impl System for FarmingSystem {
             per_plant.scaled(f64::from(plants))
         };
 
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.commands");
+        _farm_t = crate::frame_costs::stage("cpu.farm.commands");
         // ── GUI / dev gardening commands (the inventory page writes these via the
         //    main-loop bridge): plant a seed, water a crop, dev-grow all, harvest. ──
         // PLANT: a seed from the backpack goes into the nearest free place of
@@ -1699,7 +1699,7 @@ impl System for FarmingSystem {
             };
             soil_ph::handle_request(world, data, ph_data, &mut self.ph_rt, &area, &amendment, creative, &mut need_n);
         }
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.pollination");
+        _farm_t = crate::frame_costs::stage("cpu.farm.pollination");
         // POLLINATION (2026-09-26, pollination.rs): the Hand-pollinate request,
         // each indoor flowering crop's record on the garden clock, the notices.
         self.pollination.tick(world, data, game_dt / SECONDS_PER_DAY);
@@ -1725,7 +1725,7 @@ impl System for FarmingSystem {
             }
         }
 
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.picking");
+        _farm_t = crate::frame_costs::stage("cpu.farm.picking");
         // PICKING (2026-09-26, picking.rs): the Clear request, each ripe
         // picked plant's window on the garden clock, and (Realistic mode) the
         // plants whose window ended. Each leaves its unit as a harvest does.
@@ -1743,7 +1743,7 @@ impl System for FarmingSystem {
             vacate_unit(world, e, plants_here, plant_registry, item_registry, demand_scale, legume_harvest_share);
         }
 
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.harvest");
+        _farm_t = crate::frame_costs::stage("cpu.farm.harvest");
         // HARVEST: a fully-grown crop -> produce items into the player + despawn it.
         // Volume-gate surplus that doesn't fit the pack routes into a compatible
         // home vessel (the grain silo) instead of vanishing — collected here,
@@ -1991,7 +1991,7 @@ impl System for FarmingSystem {
         }
 
         // Collect entities to update (avoid borrow conflict with world)
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.crop_setup");
+        _farm_t = crate::frame_costs::stage("cpu.farm.crop_setup");
         // A crop with no soil record yet (newly sown, spawned or loaded) gets the one the loop
         // makes for it, inserted after the loop; every other crop and record is changed in place
         // (F2 of docs/design/sim-frame-cost.md: until 2026-10-30 every crop was cloned, Strings
@@ -2063,7 +2063,7 @@ impl System for FarmingSystem {
         }
         let mut ph_out: HashMap<String, soil_ph::OutOfWindow> = HashMap::new();
 
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.pest_tally");
+        _farm_t = crate::frame_costs::stage("cpu.farm.pest_tally");
         // PESTS: step every grow area's pressure on the garden clock
         // (2026-09-26, pests.rs). First a tally of each area's living crops
         // (mature ones too: a ripe plant still feeds a pest until it is
@@ -2172,7 +2172,7 @@ impl System for FarmingSystem {
                 }
             }
         }
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.weeds");
+        _farm_t = crate::frame_costs::stage("cpu.farm.weeds");
         // WEEDS (weeds.rs): every soil area's cover and seed bank, taken out and
         // stepped on the garden clock like the pests, and put back after the loop.
         let weed_days = game_dt / SECONDS_PER_DAY;
@@ -2182,7 +2182,7 @@ impl System for FarmingSystem {
         // (2026-09-26): it drinks, breathes out its water, takes stress and can
         // die, so an unwatered tomato stops bearing. A picked plant still
         // standing is a bearing one: it leaves its plot at its last share.
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.crops");
+        _farm_t = crate::frame_costs::stage("cpu.farm.crops");
         let windows = data
             .get::<picking::HarvestWindows>(picking::DATA_KEY)
             .unwrap_or_else(|| picking::HarvestWindows::shipped());
@@ -2667,7 +2667,7 @@ impl System for FarmingSystem {
         // With ship life support (2026-09-26) the step also runs each room's
         // carbon dioxide, the air handlers and scrubbers, and the home's own
         // air, whose state is taken out of the soil memory the same way.
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.air");
+        _farm_t = crate::frame_costs::stage("cpu.farm.air");
         let air_hours = game_dt / crate::systems::time::SECONDS_PER_HOUR;
         air_step.water_ok = water_available && irrigation_on;
         air_step.hours = air_hours;
@@ -2793,7 +2793,7 @@ impl System for FarmingSystem {
 
         // A crop ticking for the first time gets its soil component here; everything else was
         // changed in place by the loop (F2).
-        _farm_t = crate::renderer::frame_costs::stage("cpu.farm.apply");
+        _farm_t = crate::frame_costs::stage("cpu.farm.apply");
         for (entity, crop_soil) in new_soil {
             let _ = world.insert_one(entity, crop_soil);
         }
@@ -3800,7 +3800,7 @@ mod gardening_tests {
             growing_seconds: 0.0,
         };
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
-        let home = crate::machines::MachineHome::load(&path).expect("home.ron parses");
+        let home = crate::systems::grow_machines::load_home(&path).expect("home.ron parses");
         let router = home.catalog.get("wifi_router").expect("home.ron catalogs the wifi_router");
         let inst = crate::machines::MachineInstance {
             id: "router_test".to_string(),

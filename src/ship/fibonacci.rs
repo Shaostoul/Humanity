@@ -6,7 +6,7 @@
 //! Layout loaded from `data/blueprints/homestead_layout.ron` (data-driven)
 //! or computed procedurally from room list + layout style.
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use glam::Vec3;
 use std::path::Path;
 

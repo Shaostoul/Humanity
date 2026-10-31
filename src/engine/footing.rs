@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 use glam::Vec3;
 
-use crate::gui::RoomBounds;
+use crate::ship::room_types::RoomBounds;
 use crate::renderer::camera::{Underfoot, HEAD_ABOVE_EYE_M};
 use crate::ship::home_structure::{HomeStructure, STOREY_EPS};
 use crate::ship::ship_structure::ShipStructure;
@@ -674,7 +674,7 @@ mod tests {
     use crate::input::bindings::GameAction as A;
     use crate::renderer::camera::{Camera, CameraController, SPRINT_FACTOR, STEP_DOWN_M, WALK_SPEED_MPS, WALK_SUBSTEP_M};
     use crate::ship::ship_structure::ShipZone;
-    use crate::systems::falls::drop_height_m;
+    use crate::physics::landing::drop_height_m;
 
     /// The homestead's gravity (data/game.csv `gravity_m_s2`).
     const G: f32 = 9.81;
@@ -1028,7 +1028,7 @@ mod tests {
     /// WALKING DOWN THE STAIRS IS NOT A FALL (BUG-208). Down the 3.0 m stairs from the top
     /// tread, walking and sprinting, at 60 frames a second and at 54 and 100 ms frames, the body
     /// steps down each tread: its feet are on its floor at the end of every frame, and nothing
-    /// lands hard enough to count (`falls::LANDING_M_S`).
+    /// lands hard enough to count (`physics::landing::LANDING_M_S`).
     ///
     /// Seen red 2026-10-20 on the walk before the fix (6cc5ad8c9): "walking down the stairs left
     /// the floor: [\"walking at 17 ms: feet up to 0.972 m above the floor, landing
@@ -1265,7 +1265,7 @@ mod storey_tests {
     use super::*;
     use crate::input::bindings::GameAction as A;
     use crate::renderer::camera::{Camera, CameraController, HEAD_ABOVE_EYE_M, WALK_SPEED_MPS};
-    use crate::systems::falls::drop_height_m;
+    use crate::physics::landing::drop_height_m;
 
     const EYE: f32 = EYE_HEIGHT_M;
     const DT: f32 = 1.0 / 60.0;

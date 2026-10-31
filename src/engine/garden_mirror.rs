@@ -94,10 +94,10 @@ fn plan(rot: Rotation, now: std::time::Instant, reuse: bool, wall: bool, had_row
 
 fn build(state: &mut EngineState, wall: bool) {
     // Its cost, on the Performance page's "Data for the open pages" row (budget_systems.ron).
-    let _cost = crate::renderer::frame_costs::stage("cpu.page_data.garden");
+    let _cost = crate::frame_costs::stage("cpu.page_data.garden");
     // Its parts (cpu.garden.*, children of cpu.page_data.garden, never summed with it): each
     // assignment closes the part before it (2026-10-30, to find which part of the 16-20 ms is which).
-    let mut _part = crate::renderer::frame_costs::stage("cpu.garden.setup");
+    let mut _part = crate::frame_costs::stage("cpu.garden.setup");
     let plant_reg = state
         .data_store
         .get::<crate::systems::farming::PlantRegistry>("plant_registry");
@@ -110,21 +110,21 @@ fn build(state: &mut EngineState, wall: bool) {
         .and_then(|(nd, reg)| nd.scale_for(reg));
     let lit = crate::systems::farming::lighting::light_now(&state.game_world.world, &state.data_store);
     let light_data = state.data_store.get::<crate::systems::farming::lighting::LightingData>("garden_lighting");
-    _part = crate::renderer::frame_costs::stage("cpu.garden.ph_view");
+    _part = crate::frame_costs::stage("cpu.garden.ph_view");
     let ph_view = crate::systems::farming::soil_ph::GardenView::new(&state.data_store, &state.game_world.world);
     state.gui_state.garden_pests.ph_amendments = ph_view.amendments();
-    _part = crate::renderer::frame_costs::stage("cpu.garden.pollination_view");
+    _part = crate::frame_costs::stage("cpu.garden.pollination_view");
     let pollination = crate::systems::farming::pollination::GuiView::new(&state.game_world.world, &state.data_store);
-    _part = crate::renderer::frame_costs::stage("cpu.garden.picking_view");
+    _part = crate::frame_costs::stage("cpu.garden.picking_view");
     let picking = crate::systems::farming::picking::GuiView::new(&state.game_world.world, &state.data_store);
-    _part = crate::renderer::frame_costs::stage("cpu.garden.air_view");
+    _part = crate::frame_costs::stage("cpu.garden.air_view");
     let air_view = crate::systems::farming::humidity::GuiView::new(&state.game_world.world, &state.data_store); // humidity rows
-    _part = crate::renderer::frame_costs::stage("cpu.garden.weed_view");
+    _part = crate::frame_costs::stage("cpu.garden.weed_view");
     let weed_view = crate::systems::farming::weeds::GuiView::new(&state.game_world.world, &state.data_store); // weed rows
     // Each crop's wait and water, for the Garden card (first-hour F11, systems/farming/outlook.rs).
-    _part = crate::renderer::frame_costs::stage("cpu.garden.outlook_view");
+    _part = crate::frame_costs::stage("cpu.garden.outlook_view");
     let outlook_view = crate::systems::farming::outlook::OutlookView::new(&state.game_world.world, &state.data_store);
-    _part = crate::renderer::frame_costs::stage("cpu.garden.crop_rows");
+    _part = crate::frame_costs::stage("cpu.garden.crop_rows");
     // Time-sliced (SLICES): this frame rebuilds every SLICES-th crop's row and keeps the others, a new
     // crop's row is built at once and a gone crop's is dropped. Every row is rebuilt when the main
     // screen's page was not drawn just before (ROWS_FRESH_FOR) and while the Dev page's "turn off all
@@ -220,7 +220,7 @@ fn build(state: &mut EngineState, wall: bool) {
     }
     state.gui_state.crops = rows;
     state.gui_state.garden_pests.outlook.retain(|bits, _| present.contains(bits));
-    _part = crate::renderer::frame_costs::stage("cpu.garden.areas");
+    _part = crate::frame_costs::stage("cpu.garden.areas");
     state.gui_state.garden_pests.weeds = weed_view.areas;
     state.gui_state.garden_pests.pollinate_areas = pollination.areas;
     state.gui_state.garden_pests.home_air = air_view.home; // ship life support: the home's air

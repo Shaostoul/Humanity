@@ -31,7 +31,8 @@ use crate::engine::state::{EngineState, SceneDrawLists};
 use crate::gui::screen_surface::{LoadState, ScreenProvider, ScreenSource, ScreenSurface, ScreenWorld, SURFACE_FORMAT};
 use crate::gui::GuiPage;
 use crate::machines::{CameraPose, PlacedMachine};
-use crate::renderer::mesh::{Mesh, Vertex};
+use crate::renderer::mesh::Mesh;
+use crate::vertex::Vertex;
 use crate::renderer::RenderObject;
 use glam::{Quat, Vec3};
 

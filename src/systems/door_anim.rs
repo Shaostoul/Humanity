@@ -94,29 +94,9 @@ pub fn is_operable(style: &str) -> bool {
 /// open/shut every frame as float noise crosses the line.
 pub const AUTO_CLOSE_HYSTERESIS: f32 = 0.8;
 
-/// How far under a door's sill a body's feet may stand and the door still count it, metres
-/// (`feet_reach_door`): 0.6, the step up a body takes onto a raised floor (engine/footing.rs
-/// `STEP_UP_M`, which a test in engine/home_meshes_tests.rs holds this to). So a body on a
-/// stair's last three risers opens the door at its landing, and one a storey below (3 m) never
-/// does.
-pub const DOOR_STOREY_TOLERANCE_M: f32 = 0.6;
 
-/// True when a body whose feet are at `feet_y` is on the storey of a door whose opening runs from
-/// its sill at `sill_y` up to `top_y` (world metres), so the door auto-opens for it (ship homes
-/// increment 7, plan section 3: a door opens only for a body on its storey). The feet count from
-/// `DOOR_STOREY_TOLERANCE_M` under the sill (a stair step below it) up to the door's head less a
-/// knee (`wall_collision::KNEE_M`): the band in which the shut door would stop the body
-/// (`WallSegment::stops_body`, a panel stops a body whose knee is under its head), so a door
-/// opens for anyone it would stand in the way of, a body on a step over its sill or in the middle
-/// of a jump in its doorway included, and for nobody over it.
-///
-/// The top used to reach `DOOR_STOREY_TOLERANCE_M` OVER the door's head, which for a 2.4 m ground
-/// door is the 3.0 m floor upstairs, so the homestead's five 2.4 m ground doors opened (with their
-/// sound) for someone walking on the floor over them (the increment's review, 2026-10-21). Before
-/// storeys every body counted at any height.
-pub fn feet_reach_door(feet_y: f32, sill_y: f32, top_y: f32) -> bool {
-    feet_y >= sill_y - DOOR_STOREY_TOLERANCE_M && feet_y < top_y - crate::ship::wall_collision::KNEE_M
-}
+// Whether a body's feet are on a door's storey (`feet_reach_door`) is `ship::door_panels`', the
+// ship's door code that also asks it, since the crate split's rung 0.
 
 /// Target open fraction for an AUTO door: `dist` is the nearest actor's HORIZONTAL distance to
 /// the door (eye height must not count -- a tall camera would otherwise never trigger a short
@@ -147,6 +127,8 @@ pub fn ease_open(open: f32, target: f32, dt: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The storey band is the ship door code's (the crate split's rung 0); its tests stay here.
+    use crate::ship::door_panels::feet_reach_door;
 
     #[test]
     fn closed_at_zero_for_every_style() {

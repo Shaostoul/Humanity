@@ -280,7 +280,7 @@ fn the_time_away_waits_for_the_machines() {
 fn the_shipped_homes_have_no_power_to_spare_while_away() {
     for file in ["home.ron", "home_solo.ron"] {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
-        let home = crate::machines::MachineHome::load(&path).expect("parses");
+        let home = crate::systems::grow_machines::load_home(&path).expect("parses");
         let [station, realistic] = away::day_power_balance(&home, &Default::default());
         assert!(
             station < 0.0 && realistic < station,

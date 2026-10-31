@@ -34,7 +34,8 @@
 //! its parent's private items, so `surface`, `config`, `pending_present_mode`,
 //! `depth_texture` and `bloom` stay private and are reached from here.
 
-use super::{frame_costs, Renderer};
+use super::Renderer;
+use crate::frame_costs;
 
 impl Renderer {
     /// Apply the Settings VSync toggle (v0.909 - the toggle used to save a

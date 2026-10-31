@@ -80,9 +80,10 @@ pub mod clouds;
 /// A build the renderer runs on a background thread and installs when it is
 /// ready: the two cloud PSOs, off the startup path since 2026-10-18.
 pub mod deferred_build;
-/// Live per-pass / per-stage / per-allocation cost measurement (resource
-/// budgets increment 1). Ungated: `renderer` compiles in the relay build too.
-pub mod frame_costs;
+/// The GPU side of the frame costs (resource budgets increment 1): the timestamp ring, the
+/// per-view pass ids and the VRAM walk, publishing into the core's `crate::frame_costs` store
+/// (the two were `renderer::frame_costs` until the crate split's rung 0).
+pub mod gpu_costs;
 pub mod ground_textures;
 pub mod floating_origin;
 pub mod hologram;
@@ -101,7 +102,6 @@ pub mod multi_scale;
 /// header for why this cluster.
 pub mod overlay_draw;
 pub mod patch_arena;
-pub mod plant_mesh;
 pub mod tree_mesh;
 pub mod particles;
 pub mod particles_gpu;
@@ -157,6 +157,8 @@ pub use surface::{pending_mode_change, vsync_present_mode};
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};
 use mesh::Mesh;
+// The cost store every pass records into (the core's; children see it through `use super::*`).
+use crate::frame_costs;
 use pipeline::{ObjectUniforms, Pipeline, ShaderClass};
 
 /// Max opaque/transparent objects drawn per frame (dynamic uniform buffer capacity + the per-pass
@@ -177,7 +179,7 @@ const MAX_OBJECTS: usize = 16384;
 /// same fade encoding the classic path smuggles through model[0].w).
 #[derive(Clone, Copy, Debug)]
 pub struct PatchDraw {
-    pub slot: patch_arena::PatchSlot,
+    pub slot: crate::terrain::planet_chunks::PatchSlot,
     pub position: Vec3,
     pub fade: f32,
 }
@@ -288,11 +290,10 @@ impl Material {
 }
 
 /// Core renderer state wrapping wgpu device, queue, and surface.
-/// Live weather map dimensions (v0.874). Defined HERE (not in
-/// net::live_weather) because the renderer compiles in every feature set
-/// while the fetcher is native-only; the fetcher aliases these.
-pub const WEATHER_MAP_W: u32 = 1440;
-pub const WEATHER_MAP_H: u32 = 720;
+// The live weather map's size (`WEATHER_MAP_W`, `WEATHER_MAP_H`) is the core's,
+// `crate::weather_map`, since the crate split's rung 0: the fetcher (net::live_weather) fills a
+// grid that size and the renderer uploads it.
+use crate::weather_map::{WEATHER_MAP_H, WEATHER_MAP_W};
 /// Weather-map mip levels (increment 11b): 720 halves to 1 in 9 steps + the
 /// base = 10; wgpu floor-halves the non-square 1440x720 the same way.
 pub const WEATHER_MAP_MIPS: u32 = 10;
@@ -965,7 +966,7 @@ pub struct Renderer {
     /// Shared (`Arc`) so a pass submitted outside this module - the in-world
     /// screens' egui pass in `gui::screen_surface` - can open a timestamp
     /// scope through the same query ring; see `Renderer::gpu_timers`.
-    gpu_timers: Option<std::sync::Arc<frame_costs::GpuTimers>>,
+    gpu_timers: Option<std::sync::Arc<crate::renderer::gpu_costs::GpuTimers>>,
     /// Throttle for the VRAM/RAM inventory walk (at most once a second, and
     /// only while the Performance page is open).
     inventory_sampled: std::sync::Mutex<Option<std::time::Instant>>,
@@ -1245,7 +1246,7 @@ impl Renderer {
             if patch_indirect { "SUPPORTED (one submit per batch)" } else { "unsupported (per-draw loop)" }
         );
         // GPU pass timers. `None` = no timestamp queries on this adapter.
-        let gpu_timers = frame_costs::GpuTimers::new(&device, &queue).map(std::sync::Arc::new);
+        let gpu_timers = crate::renderer::gpu_costs::GpuTimers::new(&device, &queue).map(std::sync::Arc::new);
         frame_costs::set_gpu_timing(gpu_timers.is_some());
         log::info!(
             "[FrameCosts] GPU pass timing: {}",
@@ -1753,8 +1754,8 @@ impl Renderer {
         let tree_atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Tree Card Sprite Atlas"),
             size: wgpu::Extent3d {
-                width: billboard_bake::ATLAS_COLS * billboard_bake::ATLAS_TILE_PX,
-                height: billboard_bake::ATLAS_ROWS * billboard_bake::ATLAS_TILE_PX,
+                width: crate::terrain::tree_registry::ATLAS_COLS * billboard_bake::ATLAS_TILE_PX,
+                height: crate::terrain::tree_registry::ATLAS_ROWS * billboard_bake::ATLAS_TILE_PX,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -2324,9 +2325,9 @@ impl Renderer {
     /// classic per-patch Mesh (graceful, logged inside the arena).
     pub fn patch_arena_upload(
         &mut self,
-        vertices: &[mesh::Vertex],
+        vertices: &[crate::vertex::Vertex],
         indices: &[u32],
-    ) -> Option<patch_arena::PatchSlot> {
+    ) -> Option<crate::terrain::planet_chunks::PatchSlot> {
         let _cost = frame_costs::stage("cpu.patch_upload");
         if self.patch_arena.is_none() {
             self.patch_arena = Some(patch_arena::PatchArena::new(
@@ -2341,7 +2342,7 @@ impl Renderer {
     }
 
     /// Return a patch's arena ranges to the free lists (eviction).
-    pub fn patch_arena_release(&mut self, slot: patch_arena::PatchSlot) {
+    pub fn patch_arena_release(&mut self, slot: crate::terrain::planet_chunks::PatchSlot) {
         if let Some(arena) = self.patch_arena.as_mut() {
             arena.release(slot);
         }

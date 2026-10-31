@@ -23,7 +23,7 @@
 use egui::{Align, Color32, Layout, RichText, Ui};
 
 use super::homes::{CannotCloseData, HomeOutline, OutlineLoop, OutlineRequirement};
-use crate::gui::i18n::{t, tf, tn};
+use crate::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cards, data_table, view_toggle};
 
@@ -415,7 +415,7 @@ mod tests {
     use super::*;
 
     fn home_loops() -> Vec<crate::machines::HomeLoop> {
-        crate::machines::MachineHome::load(&std::path::Path::new("data").join("machines").join("home.ron")).map(|h| h.loops).unwrap_or_default()
+        crate::systems::grow_machines::load_home(&std::path::Path::new("data").join("machines").join("home.ron")).map(|h| h.loops).unwrap_or_default()
     }
 
     /// THE GAUGES SAY ONLY WHAT IS KNOWN: the food loop's is the grown calories against its stated

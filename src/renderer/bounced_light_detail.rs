@@ -311,7 +311,7 @@ pub fn pick_dedicated(records: &[(String, u64)], vendor: u32, device: u32) -> Op
 /// or the 32-bit `HardwareInformation.MemorySize` an older driver writes).
 #[cfg(all(windows, feature = "native"))]
 fn display_adapter_records() -> Vec<(String, u64)> {
-    use crate::games::registry::{open, Root};
+    use crate::platform::registry::{open, Root};
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::ERROR_SUCCESS;
     use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_QWORD};

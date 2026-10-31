@@ -19,7 +19,7 @@ use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::i18n::{t, tf, tn};
+use crate::i18n::{t, tf, tn};
 use crate::gui::widgets::{with_hint, Hint};
 
 // Severity and category lists are loaded from `data/bugs/taxonomy.json` into

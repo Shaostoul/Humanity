@@ -22,10 +22,10 @@
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-/// Weather grid dimensions (equirect). Canonical values live on the
-/// renderer (compiled in every feature set); aliased here for the fetcher.
-pub const WEATHER_W: u32 = crate::renderer::WEATHER_MAP_W;
-pub const WEATHER_H: u32 = crate::renderer::WEATHER_MAP_H;
+/// Weather grid dimensions (equirect). Canonical values live in the core
+/// (`crate::weather_map`, compiled in every feature set); aliased here for the fetcher.
+pub const WEATHER_W: u32 = crate::weather_map::WEATHER_MAP_W;
+pub const WEATHER_H: u32 = crate::weather_map::WEATHER_MAP_H;
 
 const WMS_URL: &str = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=MODIS_Terra_Cloud_Fraction_Day&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=1440&HEIGHT=720&FORMAT=image/png";
 

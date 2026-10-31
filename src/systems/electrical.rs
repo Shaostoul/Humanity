@@ -19,7 +19,7 @@
 //!      ship supply ledger. The Realistic mode and a planet site have no feed.
 //!   6. Throttle log spam to once per 5 seconds.
 //!
-//!   7. THE DAY RECORD (2026-10-22, `systems::day_energy`): once the island
+//!   7. THE DAY RECORD (2026-10-22, `machines::day_energy`): once the island
 //!      has decided who is shed, every placed machine's draw this tick (its
 //!      request, for one shed) goes into the rolling record of its last game
 //!      day, which the power meters, the machine cards and the time away read.
@@ -431,11 +431,11 @@ impl System for ElectricalSystem {
         for entity in to_enable {
             if let Ok(mut c) = world.get::<&mut PowerConsumer>(entity) { c.enabled = true; }
         }
-        // 3b. THE DAY RECORD (2026-10-22, systems::day_energy): what each placed machine drew
+        // 3b. THE DAY RECORD (2026-10-22, machines::day_energy): what each placed machine drew
         // this tick on the game clock, its draw while powered and its request while shed, so
         // every daily-energy figure (the meters, the cards, the time away) reads what the
         // machines really did rather than a figure measured once by hand.
-        crate::systems::day_energy::record_world(world, data, f64::from(dt));
+        crate::machines::day_energy::record_world(world, data, f64::from(dt));
 
         self.total_generation = total_gen_all;
         self.total_consumption = consumed_all;

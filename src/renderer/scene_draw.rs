@@ -282,7 +282,7 @@ impl Renderer {
         camera: &Camera,
         objects: &[RenderObject],
         view: &wgpu::TextureView,
-        who: frame_costs::SceneView,
+        who: crate::renderer::gpu_costs::SceneView,
     ) {
         let (gpu_id, cpu_id) = who.scene_ids();
         let _cost = frame_costs::stage(cpu_id);
@@ -346,7 +346,7 @@ impl Renderer {
         camera: &Camera,
         objects: &[RenderObject],
         view: &wgpu::TextureView,
-        who: frame_costs::SceneView,
+        who: crate::renderer::gpu_costs::SceneView,
     ) {
         let (gpu_id, cpu_id) = who.transparent_ids();
         let _cost = frame_costs::stage(cpu_id);
@@ -460,7 +460,7 @@ impl Renderer {
         camera: &Camera,
         objects: &[RenderObject],
         view: &wgpu::TextureView,
-        who: frame_costs::SceneView,
+        who: crate::renderer::gpu_costs::SceneView,
     ) {
         let (gpu_id, cpu_id) = who.overlay_ids();
         let _cost = frame_costs::stage(cpu_id);

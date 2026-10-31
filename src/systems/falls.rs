@@ -18,7 +18,7 @@
 //! - On a planet's surface: `surface_move::radial_step`, the radial ballistics, which reports
 //!   `RadialStep::impact_m_s`; lib.rs hands it to `CameraController::surface_step`.
 //!
-//! Both feed one `FallWatch` on the controller, which decides whether a landing is a fall that
+//! Both feed one `FallWatch` (`physics::landing`) on the controller, which decides whether a landing is a fall that
 //! can hurt: never one that began in dev flight (fly mode, the F9 hover, the planet's flight
 //! band) or after something else moved the body (a teleport, driving, the rig's camera hold),
 //! and never one onto water. lib.rs takes the landing once a frame (`CameraController::
@@ -164,73 +164,11 @@ impl Falls {
     }
 }
 
-/// The height of a drop that lands at `v` m/s under gravity `g`: h = v^2 / (2 g).
-pub fn drop_height_m(v: f32, g: f32) -> f32 {
-    if g <= 0.0 {
-        return 0.0;
-    }
-    v * v / (2.0 * g)
-}
-
-/// The speed a body meets the floor at, from what it had at the start of the frame: `v_up` its
-/// vertical speed then (+ up), `above_m` how far above the floor it was, `g` the gravity pulling
-/// it down. Energy, not the integrated velocity: v^2 = v0^2 + 2 g h holds whatever the frame's
-/// length, so a long frame (a stall while loading) neither invents a fall for a body standing
-/// still (0 and 0 give 0) nor overstates a real one, as the frame's last velocity step would.
-pub fn landing_speed(v_up: f64, above_m: f64, g: f64) -> f64 {
-    (v_up * v_up + 2.0 * g.max(0.0) * above_m.max(0.0)).sqrt()
-}
-
-/// Below this a landing is a step, not a fall, and is not reported: standing still lands at 0,
-/// and the aboard walk steps down a stair's riser without leaving the floor at all
-/// (`renderer::camera::STEP_DOWN_M`, BUG-208). Well under every harm in falls.ron.
-pub const LANDING_M_S: f64 = 1.0;
-
-/// One body's falls, between leaving the ground and landing again (the controller keeps one for
-/// the player). Decides whether a landing is a fall that can hurt.
-#[derive(Debug, Clone, Default)]
-pub struct FallWatch {
-    /// This time off the ground was flight or a placement: its landing hurts nobody.
-    exempt: bool,
-    /// The hardest landing not yet taken, m/s.
-    pending: Option<f32>,
-}
-
-impl FallWatch {
-    /// Dev flight is on (fly mode, the F9 hover, the planet's flight band), or something other
-    /// than walking moved the body (a teleport, driving, the rig's camera hold): the landing
-    /// that ends this time off the ground hurts nobody.
-    pub fn exempt(&mut self) {
-        self.exempt = true;
-    }
-
-    /// Held up by something other than the floor (a ladder): this time off the ground is over,
-    /// and a fall from here starts fresh.
-    pub fn supported(&mut self) {
-        self.exempt = false;
-    }
-
-    /// The floor stopped the body at `impact_m_s` (0 for a frame standing on it). A fall that can
-    /// hurt is kept for `take`; one onto water, an exempt one or a mere step is not. Either way
-    /// the time off the ground is over.
-    pub fn landed(&mut self, impact_m_s: f64, on_water: bool) {
-        if !self.exempt && !on_water && impact_m_s >= LANDING_M_S {
-            let v = impact_m_s as f32;
-            self.pending = Some(self.pending.map_or(v, |p| p.max(v)));
-        }
-        self.exempt = false;
-    }
-
-    /// The landing waiting to be given to the body, taken.
-    pub fn take(&mut self) -> Option<f32> {
-        self.pending.take()
-    }
-
-    /// Whether the time off the ground so far is exempt (for tests).
-    pub fn is_exempt(&self) -> bool {
-        self.exempt
-    }
-}
+// The landing's physics (how fast the floor stopped a body, `drop_height_m`, `landing_speed`)
+// and the watch that decides whether it was a fall that can hurt (`FallWatch`, `LANDING_M_S`)
+// are `physics::landing`'s, in the core, since the crate split's rung 0: the renderer's camera
+// controller keeps the watch and measures the aboard landing, and must not reach up into the
+// simulation for it. What a landing does to the body stays here.
 
 /// The player landed at `impact_m_s`: give it to their body (the one Controllable with the body's
 /// meters), whose next body pass makes it the fall's injury. A dead body takes nothing (the

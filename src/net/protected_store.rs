@@ -12,7 +12,7 @@
 //! exists but cannot be read, wholly or in part, counts as ON (`ProtectedSetup::from_stored`
 //! reads each field on its own and fails closed: no PIN that matches, the rules on), so only the
 //! recovery phrase can then set a new PIN. The file is written whole or not at all: to a temp
-//! file first, then renamed over the old one (persistence.rs `write_atomic`), so a crash leaves
+//! file first, then renamed over the old one (`atomic_write::write_atomic`), so a crash leaves
 //! the old state or the new one, never half.
 //!
 //! What remains, said plainly as the spec does: deleting the file deletes the lock, the same as
@@ -65,7 +65,7 @@ pub fn save(path: &Path, setup: &ProtectedSetup) -> Result<(), String> {
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     }
-    crate::persistence::write_atomic(path, &json)
+    crate::atomic_write::write_atomic(path, &json)
 }
 
 #[cfg(test)]

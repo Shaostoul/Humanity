@@ -559,7 +559,7 @@ fn the_shipped_death_rules_parse() {
     assert_eq!(disk, built_in, "the built-in copy is the file");
     assert_eq!(rules(), disk, "load reads it");
     assert!(disk.keep_minutes_of_play > disk.warn_minutes_left && disk.warn_minutes_left >= 0.0);
-    assert!(disk.reach_m > f64::from(crate::surface_walk::EYE_HEIGHT_M), "a pack at your feet is in reach");
+    assert!(disk.reach_m > f64::from(crate::ecs::components::EYE_HEIGHT_M), "a pack at your feet is in reach");
     assert!(disk.facing_cos > 0.0 && disk.facing_cos < 1.0);
     assert!(disk.wall_clearance_m >= 0.0 && disk.room_slack_m >= 0.0 && disk.open_space_m > 0.0);
     assert!(disk.shore.ring_growth > 1.0 && disk.shore.bearings >= 4 && disk.shore.max_m > disk.shore.first_ring_m);

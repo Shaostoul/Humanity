@@ -47,7 +47,7 @@
 //! player's OWN home into every slot of a residential district and laid walkway connectors between
 //! the slots; increment 1a switched it off because the clones overlapped the Commons).
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use crate::ship::fibonacci::HomesteadMeshes;
 use crate::ship::home_structure::{PlacedLight, ShellCut};
 use crate::ship::ship_structure::{

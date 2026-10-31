@@ -578,7 +578,7 @@ fn every_shipped_grow_area_lands_in_its_medium() {
     };
     let mut checked = 0;
     for file in ["data/machines/home.ron", "data/machines/home_solo.ron"] {
-        let home = crate::machines::MachineHome::load(&root.join(file)).unwrap_or_else(|| panic!("{file} loads"));
+        let home = crate::systems::grow_machines::load_home(&root.join(file)).unwrap_or_else(|| panic!("{file} loads"));
         for inst in home.all_instances() {
             let Some(want) = expected(&inst.machine) else { continue };
             for tag in [inst.id.as_str(), inst.machine.as_str()] {

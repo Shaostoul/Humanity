@@ -32,8 +32,8 @@
 use super::shared::SharedPiece;
 use super::site::{in_frame, PlanetSite};
 use super::{Blueprint, BlueprintRegistry, Construction, Mount, Structure};
-use crate::ecs::components::Transform;
-use glam::{Mat3, Quat, Vec3};
+use crate::ecs::components::{world_aabb, Transform};
+use glam::{Quat, Vec3};
 
 /// The placement grid, metres. Walls are 4 m long, so a 4 m room lines up.
 pub const GRID_M: f32 = 1.0;
@@ -144,20 +144,9 @@ pub fn ray_ground_hit(eye: Vec3, dir: Vec3, ground: &impl Fn(f32, f32) -> f32, m
     None
 }
 
-/// The world-space box a structure's transform covers, (min, max). Exact for
-/// the quarter turns placement makes; for any other rotation it is the box
-/// around the turned box.
-pub fn world_aabb(tf: &Transform) -> (Vec3, Vec3) {
-    let m = Mat3::from_quat(tf.rotation);
-    let half = tf.scale * 0.5;
-    let center = tf.position + tf.rotation * Vec3::new(0.0, half.y, 0.0);
-    let ext = Vec3::new(
-        m.x_axis.x.abs() * half.x + m.y_axis.x.abs() * half.y + m.z_axis.x.abs() * half.z,
-        m.x_axis.y.abs() * half.x + m.y_axis.y.abs() * half.y + m.z_axis.y.abs() * half.z,
-        m.x_axis.z.abs() * half.x + m.y_axis.z.abs() * half.y + m.z_axis.z.abs() * half.z,
-    );
-    (center - ext, center + ext)
-}
+// The world box a structure's transform covers (`world_aabb`) is `ecs::components`', beside
+// `Transform`, since the crate split's rung 0: the ship's build frames read it too.
+
 
 /// Do two boxes overlap on the ground (x and z), by more than a few
 /// centimetres ([`OVERLAP_EPS_M`])?

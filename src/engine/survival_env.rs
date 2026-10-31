@@ -157,7 +157,7 @@ fn fire_warmth(state: &EngineState) -> f64 {
     let Some(body) = state.frame_lock_body.as_deref() else { return 0.0 };
     let eye = state.frame_lock_anchor;
     let up = eye.normalize_or_zero();
-    let middle = eye - up * (crate::surface_walk::EYE_HEIGHT_M - fires::BODY_MIDDLE_M);
+    let middle = eye - up * (crate::ecs::components::EYE_HEIGHT_M - fires::BODY_MIDDLE_M);
     let registry = state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry");
     fires::warmth_at(&state.game_world.world, registry, body, middle, up)
 }
@@ -195,9 +195,9 @@ pub(crate) fn publish(state: &mut EngineState) {
         .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
         .map(|e| e.breathable_outside())
         .unwrap_or(false);
-    // What the body is doing (ASHRAE met values, body_heat::MET_*).
+    // What the body is doing (ASHRAE met values, ecs::components::MET_*).
     let activity = if state.driving_vehicle.is_some() {
-        body_heat::MET_DRIVING
+        crate::ecs::components::MET_DRIVING
     } else {
         let (moving, sprinting) = state.controller.gait();
         body_heat::activity_met(moving, sprinting)
@@ -472,7 +472,7 @@ mod tests {
     fn a_heaters_warm_air_and_a_fires_warmth_add_up() {
         let home = Some((19.85_f32, 0.5_f32, 101.3_f32));
         let inside = |grow_room: Option<(f64, f64)>, fire_w_m2: f64| {
-            inside_home_context(home, grow_room, true, body_heat::MET_STANDING, 1.0, fire_w_m2)
+            inside_home_context(home, grow_room, true, crate::ecs::components::MET_STANDING, 1.0, fire_w_m2)
         };
         let flux = 130.0;
         let neither = inside(None, 0.0);
@@ -494,7 +494,7 @@ mod tests {
             let ex = body_heat::Exposure::from_context(c);
             let mut body = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
             for _ in 0..60 {
-                body.step(&ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 60.0);
+                body.step(&ex, body_heat::BASE_OUTFIT_CLO, crate::ecs::components::MET_STANDING, 60.0);
             }
             body.skin_c
         };
@@ -559,7 +559,7 @@ mod tests {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
         let air = ship.air_spaces();
-        let eye = crate::surface_walk::EYE_HEIGHT_M as f32;
+        let eye = crate::ecs::components::EYE_HEIGHT_M as f32;
         let jump_rise = crate::renderer::camera::JUMP_SPEED_MPS.powi(2) / (2.0 * 9.81);
         let places = [
             ("the elevator's car at the top (elevator-1)", Vec3::new(31.0, 3.0 + eye, 26.0)),
@@ -587,7 +587,7 @@ mod tests {
             .and_then(|rest| rest.split(',').next())
             .and_then(|v| v.trim().parse().ok())
             .expect("gravity_m_s2 in data/game.csv");
-        let needed = crate::surface_walk::EYE_HEIGHT_M as f32 + crate::renderer::camera::JUMP_SPEED_MPS.powi(2) / (2.0 * g);
+        let needed = crate::ecs::components::EYE_HEIGHT_M as f32 + crate::renderer::camera::JUMP_SPEED_MPS.powi(2) / (2.0 * g);
         let headroom = crate::ship::ship_space::HEADROOM_M;
         assert!(headroom >= needed, "a home's headroom of {headroom} m is under a standing jump's {needed:.2} m at {g} m/s2");
     }
@@ -635,10 +635,10 @@ mod tests {
 
         // And the body feels it: an hour standing in each, same clothes.
         let body_after_an_hour = |air: ExposedAir| {
-            let ctx = outside_context(air, true, uses::ShelterCheck::default(), body_heat::MET_STANDING, 1.0);
+            let ctx = outside_context(air, true, uses::ShelterCheck::default(), crate::ecs::components::MET_STANDING, 1.0);
             let ex = body_heat::Exposure::from_context(&ctx);
             let mut b = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
-            b.step(&ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 3_600.0);
+            b.step(&ex, body_heat::BASE_OUTFIT_CLO, crate::ecs::components::MET_STANDING, 3_600.0);
             b
         };
         let (low, high) = (body_after_an_hour(shore), body_after_an_hour(summit));
@@ -724,7 +724,8 @@ mod tests {
     /// assertion fails.
     #[test]
     fn a_built_shelter_keeps_a_wet_windy_5c_day_off_the_body() {
-        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
+        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO};
+        use crate::ecs::components::MET_STANDING;
         use crate::systems::construction::{placement, BlueprintRegistry, Structure};
         use glam::Vec3;
         let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
@@ -795,7 +796,8 @@ mod tests {
     /// first assertion.
     #[test]
     fn a_roof_keeps_the_night_sky_off_the_body() {
-        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
+        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO};
+        use crate::ecs::components::MET_STANDING;
         let night = ExposedAir {
             temp_c: 10.0,
             relative_humidity: 0.7,
@@ -842,7 +844,8 @@ mod tests {
     /// assertion.
     #[test]
     fn a_roof_is_shade_at_noon() {
-        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO, MET_STANDING};
+        use crate::systems::body_heat::{BodyHeat, Exposure, BASE_OUTFIT_CLO};
+        use crate::ecs::components::MET_STANDING;
         let noon = ExposedAir {
             temp_c: 30.0,
             relative_humidity: 0.4,
@@ -919,7 +922,7 @@ mod tests {
         use crate::systems::construction::fires;
         let middle = site.to_body(Vec3::new(x, fires::BODY_MIDDLE_M as f32, 0.0));
         let warmth = fires::warmth_at(world, Some(reg), "earth", middle, site.origin.normalize());
-        let ctx = outside_context(CLEAR_FREEZING_NIGHT, true, uses::ShelterCheck::default(), body_heat::MET_STANDING, 1.0);
+        let ctx = outside_context(CLEAR_FREEZING_NIGHT, true, uses::ShelterCheck::default(), crate::ecs::components::MET_STANDING, 1.0);
         (warmth, body_heat::Exposure::from_context(&warmed_by_fires(ctx, warmth)))
     }
 
@@ -927,7 +930,7 @@ mod tests {
     fn standing_for(ex: &body_heat::Exposure, hours: u32) -> body_heat::BodyHeat {
         let mut body = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
         for _ in 0..hours * 60 {
-            body.step(ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 60.0);
+            body.step(ex, body_heat::BASE_OUTFIT_CLO, crate::ecs::components::MET_STANDING, 60.0);
         }
         body
     }
@@ -954,7 +957,7 @@ mod tests {
             CLEAR_FREEZING_NIGHT,
             true,
             uses::ShelterCheck::default(),
-            body_heat::MET_STANDING,
+            crate::ecs::components::MET_STANDING,
             1.0,
         ));
         let (_, near) = by_the_fire(&world, &reg, &site, 1.5);
@@ -998,7 +1001,7 @@ mod tests {
             CLEAR_FREEZING_NIGHT,
             true,
             uses::ShelterCheck::default(),
-            body_heat::MET_STANDING,
+            crate::ecs::components::MET_STANDING,
             1.0,
         ));
         assert_eq!(ex, open, "beside an out fire, the open night");

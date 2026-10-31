@@ -71,7 +71,7 @@
 //! Everything here is pure data and math with no engine state, so it compiles
 //! in every feature set (the relay build includes `systems/`).
 
-use crate::ecs::components::EnvironmentContext;
+use crate::ecs::components::{EnvironmentContext, MET_SPRINTING, MET_STANDING, MET_WALKING};
 use crate::hot_reload::data_store::DataStore;
 use crate::systems::precipitation::Falling;
 
@@ -170,22 +170,10 @@ pub fn harm_per_s(shown_core_c: f32, mode: Mode) -> f32 {
 
 // -- Activity (met; 1 met = 58.2 W per square metre of skin) -------------------------
 //
-// ASHRAE Handbook Fundamentals chapter 9, Table 4 (typical metabolic heat
-// generation): sleeping 0.7, standing relaxed 1.2, walking on the level at
-// 0.9 m/s 2.0, at 1.8 m/s 3.8; driving a car 1.0 to 2.0. The game's walking
-// pace is faster than a real walk (a pacing choice), so its gait is billed
-// by what the player is doing, not by the speed on screen.
-
-/// Asleep (ASHRAE: sleeping, 0.7 met).
-pub const MET_SLEEPING: f32 = 0.7;
-/// Standing still (ASHRAE: standing, relaxed, 1.2 met).
-pub const MET_STANDING: f32 = 1.2;
-/// Walking (ASHRAE: walking on the level at 0.9 m/s, 2.0 met).
-pub const MET_WALKING: f32 = 2.0;
-/// Sprinting (ASHRAE: walking at 1.8 m/s, 3.8 met; heavy work is 3 to 4).
-pub const MET_SPRINTING: f32 = 3.8;
-/// Driving (ASHRAE: automobile, 1.0 to 2.0 met; the middle).
-pub const MET_DRIVING: f32 = 1.5;
+// The activity levels themselves (`MET_SLEEPING` to `MET_DRIVING`, from ASHRAE's table) are
+// `ecs::components`', beside the `BodyEnvironment::activity_met` field whose unit they are,
+// since the crate split's rung 0: that component's default is `MET_STANDING`, and the core
+// may not reach up into the simulation for it.
 
 /// The player's activity from their movement state.
 pub fn activity_met(moving: bool, sprinting: bool) -> f32 {

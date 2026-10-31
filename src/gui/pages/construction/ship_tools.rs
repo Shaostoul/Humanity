@@ -844,7 +844,7 @@ mod tests {
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let mut state = GuiState::default();
         state.settings.play_mode = crate::config::PlayMode::Dev;
-        state.home_machines = crate::machines::MachineHome::load(&data.join("machines").join("home.ron"));
+        state.home_machines = crate::systems::grow_machines::load_home(&data.join("machines").join("home.ron"));
         let locked = |s: &GuiState| s.home_machines.as_ref().expect("the machines load").is_locked("aqua_c1");
         super::super::sync_ship_machine_lock(&mut state);
         assert!(!locked(&state), "offline, the Dev mode edits the Commons' fish tank");

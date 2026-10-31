@@ -11,7 +11,7 @@
 
 use egui::{Align, Layout, Pos2, RichText, Sense, Ui, Vec2};
 
-use crate::gui::i18n::{t, tf, tn};
+use crate::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cards, data_table, view_toggle};
 use crate::gui::GuiState;

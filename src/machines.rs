@@ -16,6 +16,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
+/// What each placed machine drew over its last game day: the record the meters read
+/// (`MachineHome::day_draw`). The machines' own data, here since the crate split's rung 0 (it was
+/// `systems::day_energy`); the simulation writes it.
+pub mod day_energy;
+
 /// Default placement-palette category for an untagged machine type. (v0.527)
 fn default_category() -> String {
     "Machines".to_string()
@@ -84,7 +89,7 @@ pub enum MachinePower {
     /// (farming::life_support_tests pins each figure to the measured balance).
     /// Since 2026-10-22 it is only the ESTIMATE: the power meters charge a
     /// placed machine what it really drew over its last game day
-    /// (`systems::day_energy`), and this until it has run one. Absent = the
+    /// (`machines::day_energy`), and this until it has run one. Absent = the
     /// estimate is its full draw (or its idle draw).
     Consumer {
         watts: f32,
@@ -545,7 +550,7 @@ impl MachineDef {
     }
 
     /// Whether the simulation's day record decides this machine's daily figure
-    /// (2026-10-22, `systems::day_energy`): a machine on the grid with a power
+    /// (2026-10-22, `machines::day_energy`): a machine on the grid with a power
     /// role of its own, whose draw the system that runs it sets as it goes (an
     /// air machine's controller, a heater's thermostat, a grow light's timer, a
     /// steady load's own watts). Not a work station: its working draw is
@@ -893,10 +898,11 @@ pub struct MachineHome {
     #[serde(default)]
     pub conduit_edges: Vec<ConduitEdge>,
     /// COMPUTED, never saved (2026-09-26): each grow machine type's food a day, from
-    /// the crops it grows (`systems::grow_machines`). Filled by `load`; read through
-    /// `stats_for`, which makes it the food line of every card that shows the machine.
+    /// the crops it grows (`systems::grow_machines`). Filled by `systems::grow_machines::load_home`
+    /// (empty after a bare `load`); read through `stats_for`, which makes it the food line of
+    /// every card that shows the machine.
     #[serde(skip)]
-    pub grown: BTreeMap<String, crate::systems::grow_machines::GrownFood>,
+    pub grown: BTreeMap<String, GrownFood>,
     /// COMPUTED, never saved: what `load` merged in from the `ship_machines` file, and whether
     /// those rows may be edited right now (see `ShipPart`).
     #[serde(skip)]
@@ -993,10 +999,10 @@ pub struct MeterBasis<'a> {
     /// 2026-09-27); they are not charged to the home's grid line.
     pub life_support_on_grid: bool,
     /// The simulation's record of each placed machine's last game day
-    /// (`systems::day_energy`, 2026-10-22). A machine with a whole day on it
+    /// (`machines::day_energy`, 2026-10-22). A machine with a whole day on it
     /// is charged that day; one without, its data's figure, the estimate
     /// (`MachineHome::day_draw`). None: every figure from the data.
-    pub recorded: Option<&'a crate::systems::day_energy::DayEnergy>,
+    pub recorded: Option<&'a crate::machines::day_energy::DayEnergy>,
 }
 
 /// The sun-hours the pages and the time away read the power meter at. Only a panel with no site
@@ -1007,7 +1013,7 @@ pub const METER_SUN_HOURS: f32 = 4.5;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DaySource {
     /// The simulation's record of what it drew over its last game day
-    /// (`systems::day_energy`).
+    /// (`machines::day_energy`).
     Measured,
     /// Its data's figure (`MachineDef::average_load_watts`), until it has run
     /// a whole game day: `hours` of that day are recorded so far.
@@ -1385,11 +1391,43 @@ pub fn placement_item_id(machine_type: &str) -> String {
 /// Before the starts it was one setting per install (Settings, "Home Design"); now each save
 /// carries its own. Reads the starts file at each call (startup, world-load and save frequency
 /// only, never per frame).
+///
+/// The caller says which start and household (`save_load::active_home_machines_path` passes the
+/// live save's): the live save is the engine's, and the ship may not reach up into it (the crate
+/// split's rung 0; this read `save_load::active_home` itself before).
 #[cfg(feature = "native")]
-pub fn home_ron_path(data_dir: &Path) -> std::path::PathBuf {
-    let active = crate::save_load::active_home();
+pub fn home_ron_path(data_dir: &Path, start: &str, household: &str) -> std::path::PathBuf {
     let starts = crate::ship::starts::Starts::load(data_dir);
-    data_dir.join("machines").join(&starts.household(&active.start, &active.household).machines)
+    data_dir.join("machines").join(&starts.household(start, household).machines)
+}
+
+/// A grow machine type's computed food: kcal a day from its crops, and what it
+/// grows. Held on `MachineHome::grown` (never saved) and shown as the food
+/// line of every card that shows the machine (`MachineHome::stats_for`). Here beside
+/// the home that holds it since the crate split's rung 0 (it was `systems::grow_machines`',
+/// which still computes it: `grown_food`, `load_home`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct GrownFood {
+    pub kcal_per_day: f32,
+    pub grows: String,
+}
+
+impl GrownFood {
+    /// The food line as a machine stat.
+    pub fn stat(&self) -> MachineStat {
+        MachineStat {
+            kind: "food".to_string(),
+            value: food_value(self.kcal_per_day, &self.grows),
+            status: if self.kcal_per_day > 0.0 { "ok" } else { "off" }.to_string(),
+        }
+    }
+}
+
+/// The card text for a computed food figure: "+62 kcal/d (potato)". Whole
+/// kcal from 10 up, one decimal below, so a herb tower's 3.4 does not read 3.
+pub fn food_value(kcal_per_day: f32, grows: &str) -> String {
+    let n = if kcal_per_day >= 10.0 { format!("{kcal_per_day:.0}") } else { format!("{kcal_per_day:.1}") };
+    format!("+{n} kcal/d ({})", grows.replace('_', " "))
 }
 
 impl MachineHome {
@@ -1400,6 +1438,11 @@ impl MachineHome {
     ///
     /// A file that names `ship_machines` comes back with that file's rows merged in (see the
     /// field), so every caller sees the same set it saw before the ship's machines moved out.
+    ///
+    /// WITHOUT the grow machines' food figures (`grown` is empty): those come from the
+    /// simulation's crop model, above the ship, so every caller above the ship loads through
+    /// `systems::grow_machines::load_home`, which fills them (the crate split's rung 0; this
+    /// filled them itself before). Only the ship's own code and tests call this directly.
     pub fn load(path: &Path) -> Option<Self> {
         let mut h = Self::load_file(path)?;
         if let Some(file) = h.ship_machines.clone() {
@@ -1412,10 +1455,6 @@ impl MachineHome {
                     ship_path.display()
                 ),
             }
-        }
-        // The home file sits in <data>/machines/, so its data dir is two up.
-        if let Some(data_dir) = path.parent().and_then(|p| p.parent()) {
-            h.grown = crate::systems::grow_machines::grown_food(&h, data_dir);
         }
         Some(h)
     }
@@ -2050,7 +2089,7 @@ impl MachineHome {
     /// What the placed machine `inst` (of catalog type `def`) draws averaged over a day, W, and
     /// where that figure comes from (2026-10-22, the operator's "Do rooms not automatically
     /// calculate their volumes on the fly?"): what it really drew over its last game day, from
-    /// the simulation's record (`recorded`, `systems::day_energy`), once it has run a whole one;
+    /// the simulation's record (`recorded`, `machines::day_energy`), once it has run a whole one;
     /// until then, and for a machine the record does not decide (`MachineDef::day_is_recorded`),
     /// its data's figure (`MachineDef::average_load_watts`). Its own draw, whoever powers it:
     /// `grid_day_draw` says what of it the home's grid carries.
@@ -2058,7 +2097,7 @@ impl MachineHome {
     /// Before this a controller-driven machine was charged the `average_watts` a person had
     /// measured once in the shipped home, so a room resized, a fan moved or a player's own room
     /// left the figure where it was (`day_energy_tests`).
-    pub fn day_draw(&self, inst: &MachineInstance, def: &MachineDef, recorded: Option<&crate::systems::day_energy::DayEnergy>) -> DayDraw {
+    pub fn day_draw(&self, inst: &MachineInstance, def: &MachineDef, recorded: Option<&crate::machines::day_energy::DayEnergy>) -> DayDraw {
         let estimate = def.average_load_watts(MeterBasis { life_support_on_grid: true, recorded: None }, is_grow_light(&inst.machine));
         if !def.day_is_recorded() {
             return DayDraw { watts: estimate, shed_watts: 0.0, source: DaySource::Data };
@@ -2066,7 +2105,7 @@ impl MachineHome {
         match recorded.and_then(|r| r.day_of(&inst.id, &inst.machine)) {
             Some(day) => DayDraw {
                 watts: day.average_w() as f32,
-                shed_watts: (day.shed_wh / crate::systems::day_energy::DAY_HOURS as f64) as f32,
+                shed_watts: (day.shed_wh / crate::machines::day_energy::DAY_HOURS as f64) as f32,
                 source: DaySource::Measured,
             },
             None => DayDraw {
@@ -2984,7 +3023,9 @@ mod tests {
     /// Which household machine file loads is the live save's start and household, looked up in
     /// data/homes/starts.ron, never a setting of the install (ship homes increment 6): a
     /// homestead's family is home.ron, its solo home_solo.ron, a cabin cabin.ron, and the file
-    /// each names loads. (`ActiveHome` is thread-local, so this test's is its own.)
+    /// each names loads. The start and household are given straight to `home_ron_path` since the
+    /// crate split's rung 0 (the live save that names them is the engine's,
+    /// `save_load::active_home_machines_path`, and the ship's tests may not reach up into it).
     ///
     /// Seen red 2026-10-12 with `home_ron_path` still reading AppConfig's `home_variant`: "a
     /// homestead for solo" failed (home.ron for home_solo.ron; that install's setting said Family).
@@ -2997,11 +3038,7 @@ mod tests {
             ("homestead", "solo", "home_solo.ron"),
             ("cabin", "solo", "cabin.ron"),
         ] {
-            let mut active = crate::save_load::ActiveHome::offline();
-            active.start = start.into();
-            active.household = household.into();
-            crate::save_load::set_active_home(active);
-            let path = home_ron_path(&data);
+            let path = home_ron_path(&data, start, household);
             assert_eq!(path, data.join("machines").join(file), "a {start} for {household}");
             assert!(MachineHome::load(&path).is_some(), "{} loads", path.display());
         }

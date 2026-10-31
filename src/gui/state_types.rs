@@ -631,9 +631,9 @@ pub enum WalletNetwork {
 impl WalletNetwork {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Mainnet => crate::gui::i18n::t("wallet.network_mainnet"),
-            Self::Devnet => crate::gui::i18n::t("wallet.network_devnet"),
-            Self::Testnet => crate::gui::i18n::t("wallet.network_testnet"),
+            Self::Mainnet => crate::i18n::t("wallet.network_mainnet"),
+            Self::Devnet => crate::i18n::t("wallet.network_devnet"),
+            Self::Testnet => crate::i18n::t("wallet.network_testnet"),
         }
     }
 }
@@ -1612,26 +1612,9 @@ pub struct CrewLabel {
     pub working: bool,
 }
 
-/// An axis-aligned room volume, used by the HUD to tell which room the camera is in
-/// (for label occlusion). Populated by load_world from the homestead room info.
-#[cfg(feature = "native")]
-#[derive(Clone)]
-pub struct RoomBounds {
-    pub id: String,
-    pub min: glam::Vec3,
-    pub max: glam::Vec3,
-    /// Function joined from data/rooms.ron at load (v0.439): display name, purpose text, the
-    /// in-room action labels, access class, and (Maps increment 3) the type's colour, `fill`.
-    pub display_name: String,
-    pub purpose: String,
-    /// Human LABELS for the in-room actions ("Change Outfit"), for showing to a person.
-    pub actions: Vec<String>,
-    /// The PAGE each of those actions opens ("wardrobe", ...), which is what code matches on: a
-    /// label can be reworded, the page is the action's identity (`RoomTypeRegistry::action_pages`).
-    pub action_pages: Vec<String>,
-    pub access: String,
-    pub fill: Option<[f32; 4]>,
-}
+// `RoomBounds`, a detected room's box and function, is `ship::room_types`' since the crate
+// split's rung 0 (the ship builds one per room, and the simulation's grow rooms read them).
+
 
 /// Kind of a placed opening in the editor mirror (v0.469). Mirrors a subset of
 /// `fibonacci::OpeningKind` (Hatch is engine-only for now -- the editor offers the three the

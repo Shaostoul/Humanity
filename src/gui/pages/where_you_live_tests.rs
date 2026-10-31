@@ -259,7 +259,7 @@ fn where_you_live_in_words() {
 
     let mut gs = GuiState::default();
     gs.homestead_design = crate::gui::load_homestead_design(Path::new("data"));
-    gs.home_machines = crate::machines::MachineHome::load(&Path::new("data").join("machines").join("home.ron"));
+    gs.home_machines = crate::systems::grow_machines::load_home(&Path::new("data").join("machines").join("home.ron"));
     let out = home_page(&ctx, &theme, &mut gs);
     assert_eq!(
         missing(&out, &["Where you live", "In this world you live in a Homestead (a family of three).", "Your Home"]),
@@ -287,7 +287,7 @@ fn where_you_live_in_words() {
 
     let mut gs = GuiState::default();
     gs.homestead_design = crate::gui::load_homestead_design(Path::new("data"));
-    gs.home_machines = crate::machines::MachineHome::load(&Path::new("data").join("machines").join("cabin.ron"));
+    gs.home_machines = crate::systems::grow_machines::load_home(&Path::new("data").join("machines").join("cabin.ron"));
     let out = home_page(&ctx, &theme, &mut gs);
     assert_eq!(missing(&out, &["Where you live", "In this world you live in a Cabin (just you)."]), Vec::<String>::new());
     assert_eq!(
@@ -405,11 +405,11 @@ fn the_household_choice_is_the_saves() {
     set_active_home(offline_homestead());
     let mut gs = GuiState::default();
     let config_before = serde_json::to_value(AppConfig::from_gui_state(&gs)).expect("AppConfig serializes");
-    assert_eq!(crate::machines::home_ron_path(data), data.join("machines").join("home.ron"));
+    assert_eq!(crate::save_load::active_home_machines_path(data), data.join("machines").join("home.ron"));
 
     click(&ctx, "Just you", &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
     assert_eq!(active_home().household, "solo", "the live save's household is now solo");
-    assert_eq!(crate::machines::home_ron_path(data), data.join("machines").join("home_solo.ron"), "and the household file follows it");
+    assert_eq!(crate::save_load::active_home_machines_path(data), data.join("machines").join("home_solo.ron"), "and the household file follows it");
     assert!(!gs.settings_dirty, "Settings is not marked to be saved: the household is the save's");
     assert_eq!(serde_json::to_value(AppConfig::from_gui_state(&gs)).unwrap(), config_before, "nothing AppConfig writes changed");
     let out = frame(&ctx, Vec::new(), &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
@@ -417,7 +417,7 @@ fn the_household_choice_is_the_saves() {
 
     click(&ctx, "A family of three", &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
     assert_eq!(active_home().household, "family");
-    assert_eq!(crate::machines::home_ron_path(data), data.join("machines").join("home.ron"));
+    assert_eq!(crate::save_load::active_home_machines_path(data), data.join("machines").join("home.ron"));
     assert!(!gs.settings_dirty);
     assert_eq!(serde_json::to_value(AppConfig::from_gui_state(&gs)).unwrap(), config_before);
     set_active_home(ActiveHome::offline());

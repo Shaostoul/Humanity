@@ -79,7 +79,7 @@ fn demo_state() -> GuiState {
     // the home machine layout; load the seed home.ron directly (same as
     // snapshot_construction) so the closed loops render adjacent to the
     // "What one home cannot close" panel (which self-loads its own RON).
-    s.homestead_loops = crate::machines::MachineHome::load(
+    s.homestead_loops = crate::systems::grow_machines::load_home(
         &data.join("machines").join("home.ron"),
     )
     .map(|h| h.loops)
@@ -92,7 +92,7 @@ fn demo_state() -> GuiState {
     s.library = lib.sections;
     s.library_tags = lib.tag_groups;
     s.curriculum = crate::gui::load_curriculum(data);
-    s.garden_areas = crate::gui::load_garden_areas(data);
+    s.garden_areas = crate::gui::load_garden_areas(&crate::save_load::active_home_machines_path(data), data);
     s.grow_media = crate::gui::load_grow_media(data);
     // The app loads the donate FAQ at startup (lib.rs); without it the Donate
     // snapshot ended on a "Frequently Asked Questions" heading over nothing.
@@ -3893,7 +3893,7 @@ fn homes_state(state: &mut GuiState) {
         state.herd = sample_herd();
     }
     if state.home_machines.is_none() {
-        state.home_machines = crate::machines::MachineHome::load(&std::path::Path::new("data").join("machines").join("home.ron"));
+        state.home_machines = crate::systems::grow_machines::load_home(&std::path::Path::new("data").join("machines").join("home.ron"));
     }
 }
 
@@ -3947,7 +3947,7 @@ fn snapshot_construction() {
     render_page_png("construction", 1280, 1200, |ctx, theme, state| {
         use crate::ship::fibonacci::WallKind;
         if state.home_machines.is_none() {
-            state.home_machines = crate::machines::MachineHome::load(
+            state.home_machines = crate::systems::grow_machines::load_home(
                 &std::path::Path::new("data").join("machines").join("home.ron"),
             );
         }
@@ -4458,7 +4458,7 @@ page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_performance() {
-    use crate::renderer::frame_costs as fc;
+    use crate::frame_costs as fc;
     render_page_png("performance", 1280, 1200, |ctx, theme, state| {
         fc::set_gpu_timing(true);
         fc::begin_frame();
@@ -4509,7 +4509,7 @@ fn snapshot_performance() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_performance_narrow() {
-    use crate::renderer::frame_costs as fc;
+    use crate::frame_costs as fc;
     render_page_png("performance_narrow", 560, 2000, |ctx, theme, state| {
         fc::set_gpu_timing(true);
         for _ in 0..40 {

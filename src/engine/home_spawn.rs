@@ -10,8 +10,8 @@ use glam::{Quat, Vec3};
 /// strings). load_world re-spawns these WITH meshes on Enter World after despawning
 /// every HomeMachine, so there is no double-spawn. Silent no-op if home.ron is absent.
 pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std::path::Path) {
-    let path = crate::machines::home_ron_path(data_dir);
-    let Some(home) = crate::machines::MachineHome::load(&path) else {
+    let path = crate::save_load::active_home_machines_path(data_dir);
+    let Some(home) = crate::systems::grow_machines::load_home(&path) else {
         return;
     };
     spawn_home_power_entities_for(world, &home, data_dir);
@@ -419,7 +419,7 @@ mod tests {
         use crate::ecs::components::{AirHandler, Co2Scrubber, PlumbingCircuit, PowerConsumer, WaterProducer};
         for file in ["home.ron", "home_solo.ron"] {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
-            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             let mut world = hecs::World::new();
             let empty = std::collections::HashMap::new();
             let mut spawned = Vec::new();
@@ -460,7 +460,7 @@ mod tests {
                 .join("data")
                 .join("machines")
                 .join(file);
-            let home = crate::machines::MachineHome::load(&path)
+            let home = crate::systems::grow_machines::load_home(&path)
                 .unwrap_or_else(|| panic!("{file} parses"));
             let mut world = hecs::World::new();
             let empty = std::collections::HashMap::new();
@@ -499,7 +499,7 @@ mod tests {
         use crate::ecs::components::{MachineInstanceId, PowerConsumer, Transform, Ventilator};
         for file in ["home.ron", "home_solo.ron"] {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
-            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             let mut world = hecs::World::new();
             let empty = std::collections::HashMap::new();
             let inst = crate::machines::MachineInstance {
@@ -532,7 +532,7 @@ mod tests {
         use crate::ecs::components::{Humidifier, MachineInstanceId, PowerConsumer, Transform};
         for file in ["home.ron", "home_solo.ron"] {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
-            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (machine, l_h, watts) in [("humidifier", 1.3, 100.0), ("tent_humidifier", 0.24, 24.0)] {
                 let mut world = hecs::World::new();
                 let empty = std::collections::HashMap::new();
@@ -568,7 +568,7 @@ mod tests {
         use crate::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
         for file in ["home.ron", "home_solo.ron"] {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
-            let home = crate::machines::MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             let hives: Vec<&String> = home.catalog.iter().filter(|(_, d)| d.pollinates_crops).map(|(id, _)| id).collect();
             assert_eq!(hives, vec!["bumblebee_hive"], "{file}: the hive and nothing else pollinates");
             assert!(
@@ -628,7 +628,7 @@ mod tests {
             )
             .expect("contact rules");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
+            let home = crate::systems::grow_machines::load_home(&data_dir.join("machines").join(file))
                 .unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
                 // A backstop genset burns fuel, and since 2026-10-20 so does a
@@ -732,7 +732,7 @@ mod tests {
             "a recipe builds the diesel generator"
         );
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
+            let home = crate::systems::grow_machines::load_home(&data_dir.join("machines").join(file))
                 .unwrap_or_else(|| panic!("{file} parses"));
             let def = home.catalog.get("generator_diesel").unwrap_or_else(|| panic!("{file} has no diesel generator"));
             assert_eq!(def.fuels(), ["diesel_0".to_string()], "{file}: the diesel generator burns Diesel");
@@ -840,7 +840,7 @@ mod tests {
             );
         }
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
+            let home = crate::systems::grow_machines::load_home(&data_dir.join("machines").join(file))
                 .unwrap_or_else(|| panic!("{file} parses"));
             let tab = home.catalog["heater"].category.clone();
             for machine in ["heat_pump", "wood_stove"] {

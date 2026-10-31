@@ -19,7 +19,7 @@
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, FontId, Response, Sense, Stroke, Ui};
 
-use crate::gui::i18n::{self, Segment};
+use crate::i18n::{self, Segment};
 use crate::gui::theme::Theme;
 
 /// Body text by key, its glossary marks underlined and explained on hover.

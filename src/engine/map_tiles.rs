@@ -380,7 +380,7 @@ fn bake_one(state: &mut EngineState, level: &ShipLevel) {
     };
     let Some(me) = state.gui_state.maps.me.clone() else { return };
     let started = std::time::Instant::now();
-    let _cost = crate::renderer::frame_costs::stage("cpu.map_tiles");
+    let _cost = crate::frame_costs::stage("cpu.map_tiles");
     let texture = state.renderer.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Maps Plan Tile"),
         size: wgpu::Extent3d { width: TILE_PX, height: TILE_PX, depth_or_array_layers: 1 },

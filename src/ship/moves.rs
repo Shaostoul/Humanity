@@ -227,9 +227,9 @@ pub const STOREY_BAND_ABOVE_M: f32 = STOREY_M - STOREY_BAND_BELOW_M;
 
 /// Where a person's feet are, from where their eyes are (metres, y). Every position a game sends
 /// and the relay holds for a player is the eye, the camera: the floor plus
-/// `surface_walk::EYE_HEIGHT_M` (1.7 m).
+/// `ecs::components::EYE_HEIGHT_M` (1.7 m).
 pub fn feet_y(eye_y: f32) -> f32 {
-    eye_y - crate::surface_walk::EYE_HEIGHT_M as f32
+    eye_y - crate::ecs::components::EYE_HEIGHT_M as f32
 }
 
 /// THE STOREY RULE: true when a thing whose point is at height `thing_y` stands on the storey of a

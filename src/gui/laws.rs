@@ -87,7 +87,7 @@ impl Rule {
     /// at the top of the page does not go with it.
     /// The words are the website's own (data/i18n/en.json `laws.checked_*`, `laws.never_checked`).
     pub fn provenance_line(&self) -> String {
-        use crate::gui::i18n::{t, tf};
+        use crate::i18n::{t, tf};
         match &self.verified {
             Some(v) if v.human_reviewed => tf("laws.checked_reviewed", &[("date", &v.on)]),
             Some(v) => tf("laws.checked_not_reviewed", &[("date", &v.on)]),

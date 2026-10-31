@@ -804,7 +804,7 @@ mod shipped {
     fn shipped_home(file: &str) -> (DataStore, hecs::World) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let data_dir = root.join("data");
-        let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file)).expect("home parses");
+        let home = crate::systems::grow_machines::load_home(&data_dir.join("machines").join(file)).expect("home parses");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
         // The machines below stand at their zone-local offsets, which are their ship
         // positions (and so in the rooms' frame) because the home stands on p1, at the origin.
@@ -895,7 +895,7 @@ mod shipped {
         mushroom_room_ppm: (f64, f64),
         mushroom_room_rh: (f64, f64),
         /// The day record the machines' draw wrote over the two days (2026-10-22).
-        recorded: crate::systems::day_energy::DayEnergy,
+        recorded: crate::machines::day_energy::DayEnergy,
     }
 
     /// Run a shipped home a game day to settle, then one to measure, each tick
@@ -915,7 +915,7 @@ mod shipped {
         data.insert(life_support::DATA_KEY, ld);
         // The day record the meters read (2026-10-22), written each tick as the machines' power
         // tick writes it, over the tick's game seconds.
-        crate::systems::day_energy::register(&mut data);
+        crate::machines::day_energy::register(&mut data);
         let d = air();
         let mut sys = FarmingSystem::new();
         let dt = 6.0_f32;
@@ -923,7 +923,7 @@ mod shipped {
         for tick in 0..per_day {
             advance(&data, f64::from(dt));
             sys.tick(&mut world, dt, &data);
-            crate::systems::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
+            crate::machines::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
             if tick == 0 {
                 tweak_world(&mut world);
             }
@@ -948,7 +948,7 @@ mod shipped {
         for _ in 0..per_day {
             advance(&data, f64::from(dt));
             sys.tick(&mut world, dt, &data);
-            crate::systems::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
+            crate::machines::day_energy::record_world(&world, &data, f64::from(dt) * OLD_S);
             let m = memory(&world);
             let n = per_day as f64;
             day.greenhouse_rh += m.rooms.get("room-greenhouse").map_or(0.0, |a: &RoomAir| d.rh_of(a.vapour_g_m3, d.room_temp_c)) / n;
@@ -1015,7 +1015,7 @@ mod shipped {
         }
         println!("  {file} ledger {:?}", m.home_air.ledger);
         println!("{file}: {day:#?}");
-        day.recorded = crate::systems::day_energy::snapshot(&data);
+        day.recorded = crate::machines::day_energy::snapshot(&data);
         day
     }
 
@@ -1052,7 +1052,7 @@ mod shipped {
     /// home has 30.
     ///
     /// Since 2026-10-22 the day also writes the record the meters read
-    /// (`systems::day_energy`), and the test holds it to what the day measured:
+    /// (`machines::day_energy`), and the test holds it to what the day measured:
     /// each type's recorded days add up to its average draw, and the power
     /// meter read from the record is within 5% of the meter on the data's
     /// estimates. Seen red (2026-10-23) with `MachineHome::day_draw` reading
@@ -1083,7 +1083,7 @@ mod shipped {
             assert!((day.returned_l - into_air).abs() < 0.01 * into_air, "{file}: {} L returned of {into_air} L put in the air", day.returned_l);
             // The mushrooms' air (2026-09-27).
             assert!(day.tents_co2_ppm.1 < d.fruiting_co2_limit_ppm, "{file}: tents at {:?} ppm, over the {}", day.tents_co2_ppm, d.fruiting_co2_limit_ppm);
-            let home = crate::machines::MachineHome::load(&root.join(file)).expect("home parses");
+            let home = crate::systems::grow_machines::load_home(&root.join(file)).expect("home parses");
             let room_set = f64::from(home.catalog["room_co2_fan"].co2_setpoint_ppm);
             // The room under its fan's setpoint, with 2% for an evening peak its S6
             // cannot hold flat out (it held 600 at the family home's, the home's air
@@ -1109,7 +1109,7 @@ mod shipped {
                 let recorded: f64 = placed.iter().filter(|i| &i.machine == id).filter_map(|i| day.recorded.day_of(&i.id, &i.machine)).map(|d| d.average_w()).sum();
                 assert!((recorded - total).abs() <= 1e-6 * total.max(1.0), "{file}: `{id}`'s units recorded {recorded} W over the day, the day averaged {total} W");
             }
-            let power = |recorded: Option<&crate::systems::day_energy::DayEnergy>| {
+            let power = |recorded: Option<&crate::machines::day_energy::DayEnergy>| {
                 let basis = crate::machines::MeterBasis { life_support_on_grid: true, recorded };
                 home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").expect("a power meter")
             };

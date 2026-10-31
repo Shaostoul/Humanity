@@ -23,7 +23,8 @@
 //! on the file-size ratchet.
 
 use super::*;
-use crate::surface_walk::{rest_radius, walk_ground_radius, DRAWN_CLEARANCE_M, EYE_HEIGHT_M};
+use crate::surface_walk::{rest_radius, walk_ground_radius, DRAWN_CLEARANCE_M};
+use crate::ecs::components::EYE_HEIGHT_M;
 use crate::terrain::ocean_mask::OceanMask;
 use crate::terrain::osm_region::{
     latlon_to_dir_f64, parse_dem, parse_region, region_meters_to_latlon, M_PER_DEG_LAT,

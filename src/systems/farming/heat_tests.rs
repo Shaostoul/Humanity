@@ -322,7 +322,7 @@ fn the_heat_step_keeps_every_joule() {
 /// 22.6 m3 an hour) about 7.6 W, so its heater holds it 3 C over its 21 C on
 /// about 182 W, 12% of the time; the greenhouse's never reaches 24 C and runs
 /// flat out. They run a game day and two hours with the machines' power tick
-/// recording what each drew (`systems::day_energy`); the save keeps that day
+/// recording what each drew (`machines::day_energy`); the save keeps that day
 /// (through the save file), it comes back with the home, and the time away
 /// `resume_home` hands the machines, with the shipped family home and the two
 /// heaters placed in it, has a day's balance better than the meter's estimate
@@ -339,7 +339,7 @@ fn the_heat_step_keeps_every_joule() {
 #[test]
 fn the_time_away_charges_each_machine_the_day_it_drew() {
     use crate::machines::{MachineHome, MachineInstance};
-    use crate::systems::day_energy;
+    use crate::machines::day_energy;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let tent = crate::systems::grow_machines::load_grow_media(&root.join("data"))
         .into_iter()
@@ -354,7 +354,7 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
     data.insert("power_status", Mutex::new(crate::systems::electrical::PowerStatus::default()));
 
     // The shipped family home, with the two heaters placed in it and spawned.
-    let mut home = MachineHome::load(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let def = home.catalog.get("heater").expect("home.ron catalogs the heater").clone();
     let mut world = hecs::World::new();
     let empty = std::collections::HashMap::new();
@@ -518,7 +518,7 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
     assert_eq!(crate::machines::placement_item_id("heater"), "heater_0");
     let d = air();
     for file in ["home.ron", "home_solo.ron"] {
-        let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+        let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
         let def = home.catalog.get("heater").unwrap_or_else(|| panic!("{file} catalogs the heater"));
         let Some(crate::machines::MachinePower::Consumer { watts, .. }) = def.power else { panic!("{file}: the heater is a Consumer") };
         assert_eq!(def.heats_w, watts, "{file}: a resistance heater's heat is its draw");
@@ -562,7 +562,7 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
 /// The shipped catalog `file`'s machine `id`.
 fn shipped(file: &str, id: &str) -> crate::machines::MachineDef {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+    let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
     home.catalog.get(id).unwrap_or_else(|| panic!("{file} catalogs `{id}`")).clone()
 }
 
@@ -655,7 +655,7 @@ fn greenhouse_w_k() -> f64 {
 /// its 24 C, so flat out: it draws its 620 W, not the 2,814.8 W it gives.
 /// The COP follows the sheet's table as the air it draws from cools: 2.63 at
 /// -8.3 C (17 F), 3.585 at 0 C, its last point's 1.89 below -25 C. And the
-/// bill is its draw: its recorded day is 620 W (`systems::day_energy`), and
+/// bill is its draw: its recorded day is 620 W (`machines::day_energy`), and
 /// the family home with it placed is 620 W a day-average worse off, not
 /// 2,814.8, whether the time away charges that day or, with none recorded,
 /// the meter's full draw (`day_power_balance`, both Ship life support modes).
@@ -701,15 +701,15 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
 
     // The bill is its draw, never its heat: a day of it recorded by the power tick.
     let mut rec = DataStore::new();
-    crate::systems::day_energy::register(&mut rec);
+    crate::machines::day_energy::register(&mut rec);
     for _ in 0..24 {
-        crate::systems::day_energy::record_world(&world, &rec, 3600.0);
+        crate::machines::day_energy::record_world(&world, &rec, 3600.0);
     }
-    let saved = crate::systems::day_energy::snapshot(&rec);
+    let saved = crate::machines::day_energy::snapshot(&rec);
     let pump_day = saved.day_of("heat_pump_t", "heat_pump").map(|d| d.average_w());
     assert!(pump_day.is_some_and(|w| (w - 620.0).abs() < 1e-6), "its day is its draw: {pump_day:?}");
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut home = crate::machines::MachineHome::load(&root.join("data/machines/home.ron")).expect("home.ron parses");
+    let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let without = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
     home.instances.push(crate::machines::MachineInstance {
         id: "heat_pump_t".into(),

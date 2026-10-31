@@ -145,11 +145,6 @@ pub fn near_haze_scale(w_edge: f32, w_far: f32) -> f32 {
     let near_surf = (1.0 - w_edge.max(w_far)).clamp(0.0, 1.0);
     1.0 + (NEAR_HAZE - 1.0) * near_surf
 }
-/// Earth's density scale height as a fraction of its radius (8.5 km over
-/// 6371 km). Planets without an explicit `scale_height_m` get this RATIO
-/// applied to their own radius, so a modded planet with an atmosphere color
-/// gets Earth-like proportions without hand-tuning.
-pub const EARTH_SCALE_HEIGHT_RATIO: f64 = 8_500.0 / 6_371_000.0;
 
 /// Pack the physical atmosphere parameters for the type-14 material slots.
 ///

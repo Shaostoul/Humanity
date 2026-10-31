@@ -19,7 +19,7 @@
 //! - an electric machine works only on power the home could have spared: the
 //!   Usage meter's day average of what the home makes less what it uses, each
 //!   machine at what it really drew over its last game day where it has run
-//!   one (`day_power_balance`, `systems::day_energy`), paid out no faster than
+//!   one (`day_power_balance`, `machines::day_energy`), paid out no faster than
 //!   the home made it. A home
 //!   that does not cover its own day runs no electric machine while away;
 //! - a batch still running when the time runs out is left running, where
@@ -77,14 +77,14 @@ pub struct AwayWork {
 ///
 /// Each machine is charged what it really drew over its last game day, from
 /// the simulation's record saved with the home (`recorded`,
-/// `systems::day_energy`, 2026-10-22): a fan or a humidifier at what its
+/// `machines::day_energy`, 2026-10-22): a fan or a humidifier at what its
 /// controller ran it at in the room it stands in, a heater at what its
 /// thermostat did. One that has not run a whole day yet (placed since, or a
 /// new game) is charged its data's estimate, which for a heater is its full
 /// draw. Until 2026-10-22 only a heater had a figure of its own here, the draw
 /// its thermostat was running it at when the game was saved (the review of
 /// BUG-155, 2026-10-05); the record replaced that with a day of its draw.
-pub fn day_power_balance(home: &crate::machines::MachineHome, recorded: &crate::systems::day_energy::DayEnergy) -> [f32; 2] {
+pub fn day_power_balance(home: &crate::machines::MachineHome, recorded: &crate::machines::day_energy::DayEnergy) -> [f32; 2] {
     let balance = |life_support_on_grid: bool| {
         home.utility_meters(METER_SUN_HOURS, crate::machines::MeterBasis { life_support_on_grid, recorded: Some(recorded) })
             .into_iter()

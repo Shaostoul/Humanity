@@ -40,6 +40,12 @@
 //! record. It is saved with the home (`persistence::WorldSave::machine_day_energy`)
 //! and put back with it (`save_load::resume_home`). The time away adds
 //! nothing to it: only time the simulation ran is a measured day.
+//!
+//! WHY IT LIVES WITH THE MACHINES (the crate split's rung 0, 2026-10-31,
+//! docs/design/crate-split.md): it was `machines::day_energy`, and the machines' own meters
+//! (`MachineHome::day_draw`, `MeterBasis::recorded`) read it, so the ship reached up into the
+//! simulation. The record is the home's machines' data; the simulation writes it (the
+//! ElectricalSystem calls `record_world`) and its tests stay there (systems/day_energy_tests.rs).
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -49,8 +55,11 @@ use crate::hot_reload::data_store::DataStore;
 
 /// DataStore key of the record, `Mutex<DayEnergy>`.
 pub const KEY: &str = "machine_day_energy";
-/// Game seconds in one of the record's hours.
-pub const HOUR_S: f64 = crate::systems::time::SECONDS_PER_HOUR;
+/// Game seconds in one of the record's hours: an hour of the game clock is always 3,600 game
+/// seconds (`systems::time::SECONDS_PER_HOUR`; a calendar changes how many make a day, never
+/// the hour). Written out here because the simulation's clock is above the ship, and the test
+/// `the_record_hour_is_the_clock_hour` (systems/day_energy_tests.rs) holds the two equal.
+pub const HOUR_S: f64 = 3600.0;
 /// The hours in a recorded day. 24 whatever the calendar's day length: every
 /// daily figure the meters show is per 24 hours (kWh a day = W x 24).
 pub const DAY_HOURS: usize = 24;
@@ -260,6 +269,3 @@ pub fn restore(data: &DataStore, saved: &DayEnergy) {
     }
 }
 
-#[cfg(test)]
-#[path = "day_energy_tests.rs"]
-mod tests;

@@ -28,7 +28,7 @@ The honest justification is **coverage**, and only coverage.
 
 `data/plants.csv` has 134 species. `data/plants_visual.ron` has **19** authored recipes.
 `assets/models/plants/` has models for **19** crop species. So **115 of 134 crops have no
-art and no recipe at all**, and fall back to `generic_visual()` (`src/renderer/plant_mesh.rs:77`),
+art and no recipe at all**, and fall back to `generic_visual()` (`src/terrain/plant_mesh.rs`),
 which exists specifically because the operator complained in v0.903 that "the potato garden is
 just a plain slab of brown". No amount of GLTF sourcing scales to the infinite-of-X rule, and
 hand-authoring 134 flat recipes does not scale to the species count this project implies.
@@ -62,7 +62,7 @@ Two further measured facts that matter:
 
 | Piece | Where | State |
 |---|---|---|
-| Procedural plant mesh generator | `src/renderer/plant_mesh.rs` (712 LOC) | WORKING. 6 form archetypes, **continuous** growth `t`, a `wilt` axis, deterministic seeding, `generic_visual()` fallback. |
+| Procedural plant mesh generator | `src/terrain/plant_mesh.rs` (712 LOC then; in the renderer until the 2026-10-31 crate split) | WORKING. 6 form archetypes, **continuous** growth `t`, a `wilt` axis, deterministic seeding, `generic_visual()` fallback. |
 | Per-species visual recipe | `data/plants_visual.ron` | WORKING, hot-reloadable. 19 of 134 crops authored. |
 | Hero GLTF crop tier | `src/engine/home_meshes.rs:843-852` | WORKING. Bed and field crops with a model render at the growth quartile as material type 19. |
 | Agronomic species data | `data/plants.csv` | 134 species, real USDA/FAO-derived numbers, including unused `ph_min`/`ph_max`. |

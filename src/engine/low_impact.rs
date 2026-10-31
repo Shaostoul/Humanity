@@ -32,7 +32,7 @@
 //!
 //! WHAT IT NEVER CHANGES: movement, physics, rooms, doors, elevators, falls (the walk is
 //! frame-rate independent: substeps, BUG-207; a landing's speed comes from the height fallen,
-//! systems::falls::landing_speed), chat, networking, saves, the terrain's shape and streaming,
+//! physics::landing::landing_speed), chat, networking, saves, the terrain's shape and streaming,
 //! the water's waves (`water_fft` is the float's twin, lib.rs), the trees that stand (the density
 //! is kept: only how many are drawn as full 3D models goes down, and some still are, so the
 //! textured-model path verify-runtime's forest vantage exists for is still exercised), the CPU

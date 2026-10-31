@@ -595,7 +595,7 @@ pub fn build_home(state: &mut EngineState) -> Result<(), String> {
 /// character's own in the household's place (`own_home::machines_for_world`), and what is drawn
 /// from them (`refresh_household_views`).
 pub fn reload_household(state: &mut EngineState) {
-    let path = crate::machines::home_ron_path(&state.data_dir);
+    let path = crate::save_load::active_home_machines_path(&state.data_dir);
     if let Some(home) = crate::engine::own_home::machines_for_world(&mut state.gui_state, &path) {
         state.gui_state.home_machines = Some(home);
     }

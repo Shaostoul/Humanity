@@ -22,7 +22,7 @@
 
 use glam::Vec3;
 
-use crate::renderer::plant_mesh::{Organ, PlantMeshBuilder};
+use crate::terrain::plant_mesh::{Organ, PlantMeshBuilder};
 use crate::terrain::planet_chunks::grass_detail;
 
 /// Blades on one tiller at the SHIPPED DEFAULT quality (0.6), and the width

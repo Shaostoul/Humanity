@@ -23,7 +23,7 @@ use glam::{Quat, Vec3};
 use crate::assets::GltfCpuMesh;
 use crate::engine::fungus_mesh::{self, Growth};
 use crate::engine::plant_layout::{bake_copy, plot_draw_cap, plot_plants, PlotRect};
-use crate::renderer::plant_mesh::{build_plant, generic_visual, PlantMeshBuilder, PlantVisualRegistry};
+use crate::terrain::plant_mesh::{build_plant, generic_visual, PlantMeshBuilder, PlantVisualRegistry};
 
 /// The part of a tower's config its plants are placed from.
 #[derive(Debug, Clone, Copy)]
@@ -496,7 +496,7 @@ pub(crate) fn geometry_checksum(meshes: &[&PlantMeshBuilder]) -> u64 {
 mod tests {
     use super::*;
     use crate::engine::plant_layout::plot_rects;
-    use crate::renderer::mesh::Vertex;
+    use crate::vertex::Vertex;
 
     fn visuals() -> PlantVisualRegistry {
         PlantVisualRegistry { plot_visual_cap: 128, plot_vertex_budget: 65_536, ..PlantVisualRegistry::default() }

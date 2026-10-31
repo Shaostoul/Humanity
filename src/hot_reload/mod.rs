@@ -5,10 +5,13 @@
 //! On WASM: hot-reload is not supported (data fetched from server).
 
 pub mod data_store;
+/// The data folder's file watcher (notify): here since the crate split's rung 0, beside the
+/// coordinator that polls it (it was `assets::watcher`).
+#[cfg(feature = "native")]
+pub mod watcher;
 
 #[cfg(feature = "native")]
-use crate::assets::watcher::FileWatcher;
-use crate::assets::AssetManager;
+use watcher::FileWatcher;
 
 /// Coordinates hot-reload between file watcher and asset manager.
 pub struct HotReloadCoordinator {
@@ -36,23 +39,22 @@ impl HotReloadCoordinator {
         Self {}
     }
 
-    /// Poll for file changes and invalidate affected cache entries.
-    /// Call once per frame. Returns the list of changed file paths (for logging).
+    /// Poll for file changes. Call once per frame. Returns the changed file paths, relative to
+    /// the data directory, for the caller to invalidate in the asset manager and to log
+    /// (`poll_and_apply`). It used to take the asset manager and invalidate them itself; since the
+    /// crate split's rung 0 it only reports, so this coordinator does not name the renderer's
+    /// `AssetManager`.
     #[cfg(feature = "native")]
-    pub fn poll(&self, asset_manager: &mut AssetManager) -> Vec<String> {
-        let mut changed = Vec::new();
-        if let Some(ref watcher) = self.watcher {
-            for path in watcher.poll_changes() {
-                asset_manager.invalidate(&path);
-                changed.push(path);
-            }
+    pub fn poll(&self) -> Vec<String> {
+        match self.watcher {
+            Some(ref watcher) => watcher.poll_changes(),
+            None => Vec::new(),
         }
-        changed
     }
 
     /// No-op poll for WASM.
     #[cfg(feature = "wasm")]
-    pub fn poll(&self, _asset_manager: &mut AssetManager) -> Vec<String> {
+    pub fn poll(&self) -> Vec<String> {
         Vec::new()
     }
 }
@@ -68,7 +70,10 @@ impl HotReloadCoordinator {
 /// the signature, preserving the original ordering exactly.
 #[cfg(feature = "native")]
 pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
-    let changes = state.hot_reload.poll(&mut state.asset_manager);
+    let changes = state.hot_reload.poll();
+    for changed in &changes {
+        state.asset_manager.invalidate(changed);
+    }
     for changed in &changes {
         log::info!("Hot-reload: {changed}");
     }

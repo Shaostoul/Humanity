@@ -84,7 +84,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     let available = ui.available_size();
     let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
     let paint = ui.painter_at(rect);
-    let _cost = crate::renderer::frame_costs::stage("cpu.maps_symbology");
+    let _cost = crate::frame_costs::stage("cpu.maps_symbology");
     let started = std::time::Instant::now();
     controls::note_canvas(ui, rect, state);
     let me = state.maps.me.clone();

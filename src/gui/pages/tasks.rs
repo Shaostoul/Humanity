@@ -38,7 +38,7 @@ use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::{GuiPage, GuiState, TaskPriority, TaskStatus, GuiTask};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::widgets::{with_hint, Hint};
 use std::cell::RefCell;
 use std::collections::HashMap;

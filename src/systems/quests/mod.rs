@@ -73,7 +73,7 @@ impl QuestRegistry {
         let mut quests = HashMap::new();
         for name in &shipped {
             let rel = format!("quests/{name}");
-            match crate::embedded_data::load_data_or_embedded(data_dir, &rel, crate::assets::loader::parse_ron::<Vec<QuestDef>>) {
+            match crate::embedded_data::load_data_or_embedded(data_dir, &rel, crate::data_parse::parse_ron::<Vec<QuestDef>>) {
                 Ok(defs) => quests.extend(defs.into_iter().map(|d| (d.id.clone(), d))),
                 Err(e) => log::warn!("{e}; its quests are missing"),
             }
@@ -90,7 +90,7 @@ impl QuestRegistry {
         for path in own {
             match std::fs::read(&path)
                 .map_err(|e| e.to_string())
-                .and_then(|bytes| crate::assets::loader::parse_ron::<Vec<QuestDef>>(&bytes))
+                .and_then(|bytes| crate::data_parse::parse_ron::<Vec<QuestDef>>(&bytes))
             {
                 Ok(defs) => quests.extend(defs.into_iter().map(|d| (d.id.clone(), d))),
                 Err(e) => log::warn!("Quest file {} skipped: {e}", path.display()),
@@ -1776,7 +1776,7 @@ mod quest_tests {
         let inventory = std::fs::read_to_string(root.join("src/gui/pages/inventory.rs")).expect("the Inventory page source");
         assert!(inventory.contains("\"Mining\", tree_force"), "the Inventory page has a Mining section");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
             assert!(
                 home.all_instances().iter().any(|i| i.machine == "trading_post" && i.zone == "home"),
                 "{file} places a trading post in the home, where the iron step sends the player"

@@ -166,7 +166,7 @@ fn split_csv_line(line: &str) -> Vec<String> {
 }
 
 /// A parsed CSV: `#` comment lines and blank lines are dropped BEFORE the
-/// header is read, exactly like `crate::assets::loader::parse_csv`.
+/// header is read, exactly like `crate::data_parse::parse_csv`.
 struct Csv {
     rel: String,
     header: Vec<String>,

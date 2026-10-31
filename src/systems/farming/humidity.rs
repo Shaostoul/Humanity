@@ -504,7 +504,7 @@ where
 /// shipped homes' air, through this one call so the two cannot drift
 /// (2026-10-21: the tests had built the boxes from the zones).
 #[cfg(feature = "native")]
-pub fn publish_room_bounds(data: &DataStore, rooms: &[crate::gui::RoomBounds]) {
+pub fn publish_room_bounds(data: &DataStore, rooms: &[crate::ship::room_types::RoomBounds]) {
     publish_rooms(data, rooms.iter().map(|r| (r.id.as_str(), r.display_name.as_str(), r.min.to_array(), r.max.to_array())));
 }
 

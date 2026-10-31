@@ -1214,7 +1214,7 @@ const PLOT_ID_RULE = /^[A-Za-z0-9_-]{1,64}$/;
  *  longest issuer a permit note may carry (net/household.rs ISSUER_MAX_LEN, 8,192). A Dilithium3
  *  key is 3,904; the lower bound only keeps a typing slip from passing for one. */
 const MEMBER_KEY_RULE = /^(?:[0-9a-fA-F]{2}){32,4096}$/;
-/** The longest a household permit may run, days: shared.rs PERMIT_MAX_DAYS, the relay's
+/** The longest a household permit may run, days: build_permission.rs PERMIT_MAX_DAYS, the relay's
  *  pq_crypto.rs PLOT_PERMIT_MAX_DAYS (the operator, 2026-10-05: no endless permits). */
 const PERMIT_MAX_DAYS = 90;
 /** The permit's signature domain: pq_crypto.rs PLOT_PERMIT_DOMAIN (v2 since ship homes 5b: the

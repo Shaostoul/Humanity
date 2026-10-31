@@ -134,7 +134,7 @@ test('a key that marks glossary terms is drawn with its marks on both apps', () 
   const bad = [];
   for (const f of walk(path.join(ROOT, 'src'), /\.rs$/)) {
     const rel = path.relative(ROOT, f).replace(/\\/g, '/');
-    if (rel === 'src/gui/i18n.rs') continue; // the reader itself and its tests
+    if (rel === 'src/i18n.rs') continue; // the reader itself and its tests
     for (const r of rustReads(fs.readFileSync(f, 'utf8'))) {
       if (!r.marked && MARKED.has(r.key)) bad.push(rel + ':' + r.line + ' reads "' + r.key + '" without its marks (use t_marked + widgets::glossary_words)');
     }

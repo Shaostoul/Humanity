@@ -77,17 +77,17 @@ const REPO = path.resolve(__dirname, "..", "..");
 // differently from a rebuild; if that is not true, put the file in
 // FINGERPRINT_INPUTS instead.
 const ALLOWLIST = {
-  // The app's words (src/gui/i18n.rs, 2026-10-22). Each language is its built-in copy with the
+  // The app's words (src/i18n.rs, 2026-10-22). Each language is its built-in copy with the
   // file on disk laid OVER it, so a disk file from an older install never takes a word away; the
   // loader notes the built-in copy when a language's disk file is missing or does not parse. Words
   // change nothing a rig judges (rendering, world, gameplay), and a rig's data/ is the tree's, so
   // every word it shows comes from disk anyway: the only difference from a rebuild is a key removed
   // since the build, which this exe would still show in the old words.
-  "data/i18n/en.json": "words only, laid under the disk copy (src/gui/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/es.json": "words only, laid under the disk copy (src/gui/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/fr.json": "words only, laid under the disk copy (src/gui/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/ja.json": "words only, laid under the disk copy (src/gui/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/zh.json": "words only, laid under the disk copy (src/gui/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/en.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/es.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/fr.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/ja.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/zh.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
   // The first five minutes' tour steps (src/gui/first_minutes.rs, 2026-10-23): the disk file
   // first, the built-in copy only when it is missing or does not parse (noted in the log). The
   // tour card draws over pages, never over the 3D world a rig judges.

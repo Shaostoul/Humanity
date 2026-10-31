@@ -25,7 +25,7 @@
 
 use egui::{Frame, RichText, ScrollArea};
 use crate::gui::{GuiState, HomesteadDesign, DesignRoom, TowerConfig, TowerCompat};
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cards};
 use std::cell::RefCell;
@@ -220,7 +220,7 @@ pub struct HomeOutline {
 /// (BUG-163). When neither loads the data is empty (the panel hides; the page
 /// still works).
 pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
-    crate::embedded_data::load_data_or_embedded(data_dir, "home_outline.json", crate::assets::loader::parse_json::<HomeOutline>)
+    crate::embedded_data::load_data_or_embedded(data_dir, "home_outline.json", crate::data_parse::parse_json::<HomeOutline>)
         .unwrap_or_else(|e| {
             log::warn!("{e}; the home outline panel is hidden");
             HomeOutline::default()
@@ -896,7 +896,7 @@ fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
             .map(|(_, q)| *q)
             .sum();
         if n > 0 {
-            out.push((crate::gui::i18n::t_dyn(key), n));
+            out.push((crate::i18n::t_dyn(key), n));
         }
     }
     out

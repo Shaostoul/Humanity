@@ -5,7 +5,7 @@
 
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::{GuiState, GuiListing};
-use crate::gui::i18n::{t, t_marked, tf, tn};
+use crate::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::{with_hint, Hint};

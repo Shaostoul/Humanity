@@ -148,7 +148,7 @@ pub(crate) fn assign_slots(
 /// materials with the glass floor slabs after them; the trim; the windows; the mirrors; the glass
 /// roofs' ceilings; the opaque roofs' ceilings. A combined family needs one mesh, or none when empty.
 pub(crate) fn shell_family_needs(m: &crate::ship::fibonacci::HomesteadMeshes) -> [usize; 8] {
-    let one = |b: &(Vec<crate::renderer::mesh::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
+    let one = |b: &(Vec<crate::vertex::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
     let glass = m.floors.iter().filter(|f| !is_opaque_floor(f.2)).count();
     [
         m.floors.len() - glass,
@@ -172,7 +172,7 @@ fn is_opaque_floor(rgba: [f32; 4]) -> bool {
 /// A one-triangle stand-in mesh, every corner at the origin so nothing is drawn: what a slot holds
 /// while nothing uses it, so the mesh it held is freed at once.
 fn stand_in_mesh(device: &wgpu::Device) -> Mesh {
-    let v = crate::renderer::mesh::Vertex { position: [0.0; 3], normal: [0.0, 1.0, 0.0], uv: [0.0; 2] };
+    let v = crate::vertex::Vertex { position: [0.0; 3], normal: [0.0, 1.0, 0.0], uv: [0.0; 2] };
     Mesh::from_vertices(device, &[v; 3], &[0, 1, 2])
 }
 
@@ -189,7 +189,7 @@ fn park_slot(r: &mut crate::renderer::Renderer, (mi, _): Slot) {
 }
 
 /// Fill `slot` with a mesh of `verts`/`indices` drawn in `look`.
-fn fill_slot(r: &mut crate::renderer::Renderer, (mi, ma): Slot, verts: &[crate::renderer::mesh::Vertex], indices: &[u32], look: Look) {
+fn fill_slot(r: &mut crate::renderer::Renderer, (mi, ma): Slot, verts: &[crate::vertex::Vertex], indices: &[u32], look: Look) {
     let mesh = Mesh::from_vertices(&r.device, verts, indices);
     r.replace_mesh(mi, mesh);
     let (rgba, metallic, roughness, ty, emissive) = look;
@@ -197,7 +197,7 @@ fn fill_slot(r: &mut crate::renderer::Renderer, (mi, ma): Slot, verts: &[crate::
 }
 
 /// A combined family's one slot (`slots` holds it, or nothing when the family is empty), filled.
-fn fill_one(r: &mut crate::renderer::Renderer, slots: &[Slot], mesh: &(Vec<crate::renderer::mesh::Vertex>, Vec<u32>), look: Look) -> Option<Slot> {
+fn fill_one(r: &mut crate::renderer::Renderer, slots: &[Slot], mesh: &(Vec<crate::vertex::Vertex>, Vec<u32>), look: Look) -> Option<Slot> {
     let slot = *slots.first()?;
     fill_slot(r, slot, &mesh.0, &mesh.1, look);
     Some(slot)
@@ -1118,7 +1118,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     // The pass's main-thread milliseconds show on the Performance page
     // (cpu.plant_rebuild, in the vegetation slice); the worker's do not
     // cost the frame and are summarised in run.log by `note_plant_rebuild`.
-    let _cost = crate::renderer::frame_costs::stage("cpu.plant_rebuild");
+    let _cost = crate::frame_costs::stage("cpu.plant_rebuild");
     let t0 = std::time::Instant::now();
     let mut pass = std::mem::take(&mut state.garden_draw.plants);
     if changed {
@@ -1242,7 +1242,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
             0.0,
             0.9,
             20.0,
-            crate::renderer::plant_mesh::PLANT_RIGID_FLAG,
+            crate::terrain::plant_mesh::PLANT_RIGID_FLAG,
         ));
     }
     // Everything the worker has already sent is in hand before deciding
@@ -1555,7 +1555,7 @@ fn upload_plant_group(
     let Some(plant_material) = pass.material else { return 0 };
     // Each finished mesh with its material: the shared procedural plant
     // material, or a stage model's textured one.
-    let mut built: Vec<(&crate::renderer::plant_mesh::PlantMeshBuilder, usize)> = Vec::new();
+    let mut built: Vec<(&crate::terrain::plant_mesh::PlantMeshBuilder, usize)> = Vec::new();
     if !g.procedural.vertices.is_empty() {
         built.push((&g.procedural, plant_material));
     }
@@ -1699,7 +1699,7 @@ pub(crate) struct PlantPass {
 /// tower configs, parsed, with the stamps of the files they came from.
 struct PlanInputs {
     stamps: [FileStamp; 2],
-    visuals: std::sync::Arc<crate::renderer::plant_mesh::PlantVisualRegistry>,
+    visuals: std::sync::Arc<crate::terrain::plant_mesh::PlantVisualRegistry>,
     /// Hash of the recipes' text: part of every machine's signature, so an
     /// edit to the file replants the whole garden.
     vis_hash: u64,
@@ -1719,7 +1719,7 @@ fn file_stamp(path: &std::path::Path) -> FileStamp {
 fn read_plan_inputs(dir: &std::path::Path, stamps: [FileStamp; 2]) -> PlanInputs {
     use std::hash::{Hash, Hasher};
     let vis_text = std::fs::read_to_string(dir.join("plants_visual.ron")).unwrap_or_default();
-    let visuals = crate::renderer::plant_mesh::PlantVisualRegistry::from_ron(&vis_text).unwrap_or_default();
+    let visuals = crate::terrain::plant_mesh::PlantVisualRegistry::from_ron(&vis_text).unwrap_or_default();
     let mut vh = std::collections::hash_map::DefaultHasher::new();
     vis_text.hash(&mut vh);
     PlanInputs {
@@ -3080,7 +3080,7 @@ pub(crate) fn render_door_panels(
     // own eye height; another player's position is the eye their game sends), an animal's position
     // is where it stands.
     let camera_actor = state.aboard_station.then_some(state.camera.position - Vec3::Y * state.controller.eye_height());
-    let remote_eye = crate::surface_walk::EYE_HEIGHT_M as f32;
+    let remote_eye = crate::ecs::components::EYE_HEIGHT_M as f32;
     let others: Vec<Vec3> = state
         .game_world
         .world

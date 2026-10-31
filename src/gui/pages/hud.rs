@@ -1054,7 +1054,7 @@ pub fn draw(
 /// IPC's storey probe asks that same function (engine/storey_probe.rs), so `just verify-storeys`
 /// reads the name the HUD shows, not a copy of the rule. The walk-up station E opens (lib.rs, the
 /// wardrobe and the mirror) asks this one: a shaft opens no page.
-pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&crate::gui::RoomBounds> {
+pub(crate) fn room_at(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3) -> Option<&crate::ship::room_types::RoomBounds> {
     let inside = rooms.iter().find(|r| {
         eye.x >= r.min.x && eye.x <= r.max.x && eye.y >= r.min.y && eye.y <= r.max.y && eye.z >= r.min.z && eye.z <= r.max.z
     });
@@ -1068,7 +1068,7 @@ pub(crate) fn room_at(rooms: &[crate::gui::RoomBounds], eye: Vec3) -> Option<&cr
 
 /// The room on the storey of `eye` (a box whose heights hold it) nearest to it across the floor,
 /// if that is within `reach` metres (0 inside the box).
-fn room_near(rooms: &[crate::gui::RoomBounds], eye: Vec3, reach: f32) -> Option<&crate::gui::RoomBounds> {
+fn room_near(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3, reach: f32) -> Option<&crate::ship::room_types::RoomBounds> {
     rooms
         .iter()
         .filter(|r| eye.y >= r.min.y && eye.y <= r.max.y)
@@ -1090,11 +1090,11 @@ fn room_near(rooms: &[crate::gui::RoomBounds], eye: Vec3, reach: f32) -> Option<
 /// middle of the car, past `ROOM_EDGE_SLACK_M`. In the car at the bottom it named the service way
 /// it stands in; it names the elevator the whole ride now.
 pub(crate) fn room_card_at<'a>(
-    rooms: &'a [crate::gui::RoomBounds],
+    rooms: &'a [crate::ship::room_types::RoomBounds],
     ship: Option<&crate::ship::ship_structure::ShipStructure>,
     keys: &crate::input::bindings::Keybinds,
     eye: Vec3,
-) -> Option<std::borrow::Cow<'a, crate::gui::RoomBounds>> {
+) -> Option<std::borrow::Cow<'a, crate::ship::room_types::RoomBounds>> {
     if let Some(card) = ship.and_then(|s| lift_card(s, rooms, keys, eye)) {
         return Some(std::borrow::Cow::Owned(card));
     }
@@ -1114,10 +1114,10 @@ const LIFT_STOP_ROOM_M: f32 = 2.0;
 /// name. Its box is the shaft's, for the probe's floor; it opens no page.
 pub(crate) fn lift_card(
     ship: &crate::ship::ship_structure::ShipStructure,
-    rooms: &[crate::gui::RoomBounds],
+    rooms: &[crate::ship::room_types::RoomBounds],
     keys: &crate::input::bindings::Keybinds,
     eye: Vec3,
-) -> Option<crate::gui::RoomBounds> {
+) -> Option<crate::ship::room_types::RoomBounds> {
     use crate::input::bindings::{pretty_key_name, GameAction};
     use crate::ship::home_structure::{storey_index, STOREY_EPS};
     for lift in crate::engine::footing::lifts(ship) {
@@ -1146,7 +1146,7 @@ pub(crate) fn lift_card(
         let rides = lift.stops.len() > 1;
         let (w, _, d) = lift.ty.size;
         let half = 0.5 * w.hypot(d);
-        return Some(crate::gui::RoomBounds {
+        return Some(crate::ship::room_types::RoomBounds {
             id: format!("lift-{}-{}", lift.key.0, lift.key.1),
             min: Vec3::new(lift.base.x - half, lift.base.y, lift.base.z - half),
             max: Vec3::new(lift.base.x + half, top, lift.base.z + half),
@@ -2205,7 +2205,7 @@ mod crosshair_tests {
 #[cfg(test)]
 mod room_card_tests {
     use super::room_at;
-    use crate::gui::RoomBounds;
+    use crate::ship::room_types::RoomBounds;
     use glam::Vec3;
 
     /// The shipped homestead's rooms as the HUD holds them (engine/world_load.rs builds

@@ -5,6 +5,11 @@
 
 #[cfg(feature = "native")]
 pub mod protocol;
+/// Files written a piece at a time get their real name only when complete (files-showcase round 3):
+/// a download, a transfer, a private file's Save. Here since the crate split's rung 0 (it was
+/// `gui::widgets::part_file`), so the file transfer does not reach up into the GUI.
+#[cfg(feature = "native")]
+pub mod part_file;
 #[cfg(feature = "native")]
 pub mod client;
 #[cfg(feature = "native")]

@@ -15,10 +15,6 @@ pub mod pages;
 pub mod fonts;
 #[cfg(feature = "native")]
 pub mod glossary;
-/// Every word a person reads, by key, from `data/i18n/<language>.json` with
-/// English as the fallback (the ELI5 mandate, 2026-10-22). See `gui/i18n.rs`.
-#[cfg(feature = "native")]
-pub mod i18n;
 /// The first five minutes: the short guided tour a new person meets after the
 /// first-run setup (the ELI5 mandate, 2026-10-23). See `gui/first_minutes.rs`.
 #[cfg(feature = "native")]
@@ -941,7 +937,7 @@ pub struct GuiState {
     /// Last equip action's receipt or refusal, shown in the Equipment section.
     pub equip_status: String,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
-    pub room_bounds: Vec<RoomBounds>,
+    pub room_bounds: Vec<crate::ship::room_types::RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
     /// through walls across all owned/explored rooms. True only while Tab is held.
     pub reveal_held: bool,
@@ -1476,9 +1472,9 @@ pub struct GuiState {
     pub power_battery_capacity_wh: f32,
     pub power_autonomy_hours: f32,
     pub power_ship: crate::systems::electrical::ShipFeedReading, // the ship's reactor feed (ship_power)
-    /// What each placed machine drew over its last game day (2026-10-22, systems::day_energy),
+    /// What each placed machine drew over its last game day (2026-10-22, machines::day_energy),
     /// copied from the DataStore when an hour completes: the meters and machine cards read it.
-    pub machine_day_energy: crate::systems::day_energy::DayEnergy,
+    pub machine_day_energy: crate::machines::day_energy::DayEnergy,
     /// Live home WATER readout (v0.608), mirrored from PlumbingSystem each frame: production + demand
     /// (L/min), stored + capacity (litres), and days of autonomy at the current demand.
     pub water_production_lpm: f32,
@@ -1767,9 +1763,9 @@ pub struct GuiState {
     /// Mic input gain, 1.0 = 100%. Range 0.0..=2.0 (200%).
     pub voice_gain: f32,
     /// Noise filter applied to the mic before encode.
-    pub voice_filter_mode: crate::config::VoiceFilterMode,
+    pub voice_filter_mode: crate::net::voice::VoiceFilterMode,
     /// When the mic is actually transmitted (open mic / PTT / VAD / push-to-mute).
-    pub voice_transmit_mode: crate::config::VoiceTransmitMode,
+    pub voice_transmit_mode: crate::net::voice::VoiceTransmitMode,
     /// The push key (egui Key name) for PTT / push-to-mute.
     pub voice_ptt_key: String,
     /// Voice-activation RMS threshold (0.0..=1.0).
@@ -3766,8 +3762,8 @@ impl Default for GuiState {
             mic_meter: 0.0,
             mic_test_prev: false,
             voice_gain: 1.0,
-            voice_filter_mode: crate::config::VoiceFilterMode::default(),
-            voice_transmit_mode: crate::config::VoiceTransmitMode::default(),
+            voice_filter_mode: crate::net::voice::VoiceFilterMode::default(),
+            voice_transmit_mode: crate::net::voice::VoiceTransmitMode::default(),
             voice_ptt_key: "CapsLock".to_string(),
             voice_vad_threshold: 0.05,
             voice_ptt_held: false,

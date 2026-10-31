@@ -7,6 +7,7 @@
 //! a user passphrase via PBKDF2-SHA256. The plaintext `private_key_hex`
 //! field is only kept temporarily for migration from older config files.
 
+use crate::net::voice::{VoiceFilterMode, VoiceTransmitMode};
 use serde::{Deserialize, Serialize};
 
 /// Number of PBKDF2 iterations for NEW vaults (v0.277.0+).
@@ -259,86 +260,8 @@ impl PlayMode {
     }
 }
 
-/// How the microphone signal is cleaned up before it is encoded + transmitted
-/// (v0.488). The chain is always: user gain, then this filter, then the
-/// transmit-mode gate, then Opus. "Off" sends the raw mic; the others remove
-/// progressively more non-speech noise (rumble, hiss, keyboard clicks, coughs).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum VoiceFilterMode {
-    /// No processing: the raw mic (after gain) goes straight to Opus.
-    Off,
-    /// Always-safe light clean-up: an ~85 Hz high-pass (kills rumble / desk
-    /// thumps / AC hum fundamentals) plus a gentle noise gate. Very low CPU,
-    /// never distorts speech.
-    Light,
-    /// Full noise suppression (RNNoise-class): removes keyboard clicks, coughs,
-    /// fans, and steady background noise while preserving the voice. Slightly
-    /// more CPU; the strongest option. The default (operator choice, v0.490).
-    #[default]
-    NoiseSuppression,
-}
-impl VoiceFilterMode {
-    pub const ALL: [VoiceFilterMode; 3] =
-        [VoiceFilterMode::Off, VoiceFilterMode::Light, VoiceFilterMode::NoiseSuppression];
-    pub fn label(self) -> &'static str {
-        match self {
-            VoiceFilterMode::Off => "No filter",
-            VoiceFilterMode::Light => "Light clean-up",
-            VoiceFilterMode::NoiseSuppression => "Noise suppression",
-        }
-    }
-    pub fn hint(self) -> &'static str {
-        match self {
-            VoiceFilterMode::Off => "Sends your raw mic. Best with a studio mic in a quiet room.",
-            VoiceFilterMode::Light => "Removes rumble and hiss with a high-pass and a soft gate. Safe default.",
-            VoiceFilterMode::NoiseSuppression => "Removes keyboards, coughs, fans, and background noise.",
-        }
-    }
-}
-
-/// When the microphone is actually transmitted (v0.488). The filter runs first;
-/// this decides whether the cleaned audio is sent at all this moment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum VoiceTransmitMode {
-    /// Always transmit (classic open mic).
-    OpenMic,
-    /// Transmit only while the push-to-talk key is held. The default (operator
-    /// choice, v0.490), with CapsLock as the default push key.
-    #[default]
-    PushToTalk,
-    /// Transmit only when your voice rises above the activation threshold.
-    VoiceActivated,
-    /// Transmit always, EXCEPT while the push-to-mute key is held.
-    PushToMute,
-}
-impl VoiceTransmitMode {
-    pub const ALL: [VoiceTransmitMode; 4] = [
-        VoiceTransmitMode::OpenMic,
-        VoiceTransmitMode::PushToTalk,
-        VoiceTransmitMode::VoiceActivated,
-        VoiceTransmitMode::PushToMute,
-    ];
-    pub fn label(self) -> &'static str {
-        match self {
-            VoiceTransmitMode::OpenMic => "Open mic",
-            VoiceTransmitMode::PushToTalk => "Push to talk",
-            VoiceTransmitMode::VoiceActivated => "Voice activated",
-            VoiceTransmitMode::PushToMute => "Push to mute",
-        }
-    }
-    pub fn hint(self) -> &'static str {
-        match self {
-            VoiceTransmitMode::OpenMic => "Your mic is always live.",
-            VoiceTransmitMode::PushToTalk => "Hold the key to talk; silent otherwise.",
-            VoiceTransmitMode::VoiceActivated => "Transmits when you speak above the threshold.",
-            VoiceTransmitMode::PushToMute => "Always live; hold the key to mute.",
-        }
-    }
-    /// True if this mode needs the push key bound (PTT / push-to-mute).
-    pub fn uses_key(self) -> bool {
-        matches!(self, VoiceTransmitMode::PushToTalk | VoiceTransmitMode::PushToMute)
-    }
-}
+// The voice settings' two modes (`VoiceFilterMode`, `VoiceTransmitMode`) are `net::voice`'s, the
+// code that runs them, since the crate split's rung 0; the settings file stores them as before.
 
 /// One saved chat server: the identity that persists across relaunches.
 /// Connection state and channel lists are runtime and rehydrate on connect.
@@ -1282,15 +1205,9 @@ fn default_voice_gain() -> f32 { 1.0 }
 fn default_voice_ptt_key() -> String { "CapsLock".to_string() }
 fn default_voice_vad_threshold() -> f32 { 0.05 }
 
-/// PBKDF2-HMAC-SHA-256 of `secret` under `salt`, `iterations` rounds, 32 bytes out: the one
-/// derivation the vault and the protected setup's PIN verifier (net/protected.rs) share, so
-/// both stay on the same function and the same iteration constant.
-#[cfg(feature = "native")]
-pub fn pbkdf2_sha256(secret: &[u8], salt: &[u8], iterations: u32) -> [u8; 32] {
-    let mut out = [0u8; 32];
-    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(secret, salt, iterations, &mut out);
-    out
-}
+// The vault key's derivation (`pbkdf2_sha256`) is the protocol's, `relay::core::kdf`, since the
+// crate split's rung 0: the protected setup's PIN verifier (net/protected.rs) shares it, and the
+// app's network side may not reach up into the GUI's settings for a key derivation.
 
 /// Encrypt a private key with AES-256-GCM using a passphrase.
 ///
@@ -1313,7 +1230,7 @@ pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String
     getrandom::getrandom(&mut salt).map_err(|e| format!("RNG failed: {}", e))?;
 
     // Derive 32-byte AES key via PBKDF2-SHA256
-    let derived_key = pbkdf2_sha256(passphrase.as_bytes(), &salt, PBKDF2_ITERATIONS_NEW);
+    let derived_key = crate::relay::core::kdf::pbkdf2_sha256(passphrase.as_bytes(), &salt, PBKDF2_ITERATIONS_NEW);
 
     // Generate random 12-byte IV
     let mut iv = [0u8; 12];
@@ -1368,7 +1285,7 @@ pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str, iterat
     // for vaults written by absurdly-old or fuzzed binaries.
     let iters = iterations.max(PBKDF2_ITERATIONS_LEGACY);
 
-    let derived_key = pbkdf2_sha256(passphrase.as_bytes(), &salt_bytes, iters);
+    let derived_key = crate::relay::core::kdf::pbkdf2_sha256(passphrase.as_bytes(), &salt_bytes, iters);
 
     // AES-256-GCM decrypt
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&derived_key));
@@ -1543,7 +1460,7 @@ impl AppConfig {
 
     /// Save to `path` (config.json) and, when this is a snapshot of the running app, the
     /// protected setup to its own file beside it. Each is written whole or not at all (a temp
-    /// file, then a rename: persistence.rs `write_atomic`), so a crash mid-save leaves the old
+    /// file, then a rename: `atomic_write::write_atomic`), so a crash mid-save leaves the old
     /// file rather than a torn one that would load as the defaults.
     pub fn save_at(&self, path: &std::path::Path) {
         // A rig's low impact (engine::low_impact) is never written: the sandbox keeps its own
@@ -1553,7 +1470,7 @@ impl AppConfig {
             None => serde_json::to_string_pretty(self),
         };
         if let Ok(json) = text {
-            match crate::persistence::write_atomic(path, json.as_bytes()) {
+            match crate::atomic_write::write_atomic(path, json.as_bytes()) {
                 Ok(_) => log::info!("Saved config to {}", path.display()),
                 Err(e) => log::warn!("Failed to save config to {}: {}", path.display(), e),
             }
@@ -1837,10 +1754,10 @@ impl AppConfig {
         state.settings.hint_display = self.hint_display;
         // The language: a code no file provides (a translation removed since)
         // falls back to English rather than leaving the choice pointing nowhere.
-        state.settings.language = if crate::gui::i18n::set_language(&self.language) {
+        state.settings.language = if crate::i18n::set_language(&self.language) {
             self.language.clone()
         } else {
-            crate::gui::i18n::set_language("en");
+            crate::i18n::set_language("en");
             "en".to_string()
         };
         // Rehydrate the saved-server list (identity only; channels and

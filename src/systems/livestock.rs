@@ -140,7 +140,7 @@ pub struct CreatureRegistry {
 
 impl CreatureRegistry {
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<CreatureDef> = crate::assets::loader::parse_csv(data)?;
+        let rows: Vec<CreatureDef> = crate::data_parse::parse_csv(data)?;
         let mut defs = HashMap::new();
         for row in rows {
             defs.insert(row.id.clone(), row);
@@ -907,7 +907,7 @@ mod tests {
             .join("data")
             .join("machines")
             .join("home.ron");
-        let home = crate::machines::MachineHome::load(&home_path).expect("home.ron parses");
+        let home = crate::systems::grow_machines::load_home(&home_path).expect("home.ron parses");
         let instance_ids: std::collections::HashSet<String> = home
             .all_instances()
             .iter()

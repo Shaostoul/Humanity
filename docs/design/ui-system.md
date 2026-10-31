@@ -52,7 +52,7 @@ English; a key English lacks fails the build.
 
 | | Native | Web |
 |---|---|---|
-| Module | `src/gui/i18n.rs` | `web/shared/i18n.js` (+ `i18n-en.js`, generated) |
+| Module | `src/i18n.rs` | `web/shared/i18n.js` (+ `i18n-en.js`, generated) |
 | Words | `t("page.key")` | `i18n.t('page.key')`; in HTML `data-i18n="page.key"` |
 | Placeholders | `tf("k", &[("name", &v)])` fills `{{name}}` | `i18n.t('k', { name: v })` |
 | Counts | `tn("k", n, &[])` reads `k.one` / `k.other` | `i18n.tn('k', n)` |

@@ -531,7 +531,7 @@ mod near_tree_draw_plan_tests {
     /// same matrices the frame loop builds from `Camera::celestial_uniforms`.
     fn frustum_looking(dir: DVec3) -> FrustumPlanes {
         let view = DMat4::look_at_rh(DVec3::ZERO, dir, DVec3::Y);
-        let proj = crate::renderer::camera::celestial_projection_f64(60.0, 16.0 / 9.0);
+        let proj = crate::terrain::celestial_projection::celestial_projection_f64(60.0, 16.0 / 9.0);
         FrustumPlanes::from_view_proj(&(proj * view))
     }
 
@@ -1038,7 +1038,7 @@ pub fn near_tree_instances_at_density(
                             // same inputs, same helper - or a tree changes
                             // species as you walk toward it.
                             let sp_i = pick_tree_species(def, dir, elev_m, r5);
-                            let (sp_h, sp_jit) = match crate::renderer::tree_mesh::registry().get(sp_i)
+                            let (sp_h, sp_jit) = match crate::terrain::tree_registry::registry().get(sp_i)
                             {
                                 Some(t) => (t.height_m, t.height_jitter),
                                 None => (22.0, 0.12),

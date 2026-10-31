@@ -38,12 +38,12 @@
 //! Relay-safe on purpose: the parser, the projection, and the ear clipper are
 //! pure std + glam, so they compile and unit-test under
 //! `--features relay --no-default-features`. Only the mesher (which speaks
-//! `renderer::mesh::Vertex`) is gated behind `native`.
+//! `vertex::Vertex`) is gated behind `native`.
 
 use glam::DVec3;
 
 #[cfg(feature = "native")]
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 
 // ───────────────────────────── Region data types ────────────────────────────
 
@@ -1577,7 +1577,7 @@ mod tests {
         );
     }
 
-    // ── Mesher (native only: it speaks renderer::mesh::Vertex) ───────────
+    // ── Mesher (native only: it speaks vertex::Vertex) ───────────
 
     #[cfg(feature = "native")]
     const FLAT_R: f64 = 6_371_000.0;

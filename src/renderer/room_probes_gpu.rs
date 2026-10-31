@@ -773,7 +773,7 @@ impl Renderer {
     /// up in the hull frame when this frame has a sky-view table (None aboard
     /// a station in orbit, where the glass lid looks out at space).
     pub fn update_room_gi(&mut self, station_off: Vec3, eye: Vec3, sky_up: Option<Vec3>) {
-        let _cost = super::frame_costs::stage("cpu.room_probes");
+        let _cost = crate::frame_costs::stage("cpu.room_probes");
         let gi = &mut self.room_gi;
         let render_rooms: Vec<RoomBox> = gi.rooms.iter().map(|r| r.shifted(station_off)).collect();
         let (gmin, gmax) = render_rooms.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), r| {
@@ -961,7 +961,7 @@ impl Renderer {
         };
         self.queue.write_buffer(&gi.params_buf, 0, bytemuck::bytes_of(&params));
         // The dev drop, once a second while frame costs are dumped.
-        if super::frame_costs::dump_enabled() && gi.dumped_at.is_none_or(|t| t.elapsed().as_secs_f32() >= 1.0) {
+        if crate::frame_costs::dump_enabled() && gi.dumped_at.is_none_or(|t| t.elapsed().as_secs_f32() >= 1.0) {
             gi.dumped_at = Some(std::time::Instant::now());
             let sun = Sun { dir: sun_dir, color: sc, intensity: si };
             let lights: Vec<Vec<super::light::RoomLight>> =

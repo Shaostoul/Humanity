@@ -14,7 +14,7 @@
 //! PLACEABLE and VISIBLE with distinguishable geometry, plus a bounds gizmo. FUNCTION (walking up
 //! the stairs, riding the elevator, teleporting) is wired in v0.584 -- the `kind` tag is the hook.
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 use glam::Vec3;
 use serde::Deserialize;
 

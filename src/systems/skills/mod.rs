@@ -86,7 +86,7 @@ impl SkillRegistry {
     /// the runtime calls to populate `DataStore["skill_registry"]`; without it the
     /// SkillSystem would find no defs and every XP award would silently no-op.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let defs: Vec<SkillDef> = crate::assets::loader::parse_csv(data)?;
+        let defs: Vec<SkillDef> = crate::data_parse::parse_csv(data)?;
         let mut skills = HashMap::new();
         for def in defs {
             skills.insert(def.id.clone(), def);

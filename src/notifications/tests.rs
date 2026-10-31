@@ -270,7 +270,7 @@ fn the_data_file_parses_and_every_word_it_names_is_in_english() {
         keys.push(snd.label.as_str());
     }
     for key in keys {
-        assert!(crate::gui::i18n::has(key), "data/notifications/notifications.json names {key}, which en.json lacks");
+        assert!(crate::i18n::has(key), "data/notifications/notifications.json names {key}, which en.json lacks");
     }
     assert!(file.mute_for.iter().any(|m| m.seconds == 0), "until I unmute");
     assert!(file.sound(&LocalSettings::default().sound_id).is_some_and(|s| s.id == "sfx.chat_message"), "the default sound is listed");

@@ -55,7 +55,7 @@ impl Renderer {
         camera: &Camera,
         verts: &[line::LineVertex],
         view: &wgpu::TextureView,
-        who: frame_costs::SceneView,
+        who: crate::renderer::gpu_costs::SceneView,
     ) {
         let (gpu_id, cpu_id) = who.lines_ids();
         let _cost = frame_costs::stage(cpu_id);

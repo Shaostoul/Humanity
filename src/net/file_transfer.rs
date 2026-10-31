@@ -879,7 +879,7 @@ pub fn finish_part(part: &std::path::Path, dir: &std::path::Path, name: &str, wh
     if h.finalize().to_hex().as_str() != whole {
         return Err(whole_mismatch_line(name, sender));
     }
-    crate::gui::widgets::part_file::claim_and_move(part, dir, name)
+    crate::net::part_file::claim_and_move(part, dir, name)
 }
 
 #[cfg(test)]

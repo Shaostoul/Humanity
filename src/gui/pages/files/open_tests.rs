@@ -144,7 +144,7 @@ fn a_download_has_its_name_only_when_complete() {
         std::thread::sleep(Duration::from_millis(5));
         during = names_in(&out);
     }
-    assert!(during.len() == 1 && crate::gui::widgets::part_file::is_part_name(&during[0]), "only a part file while it arrives (left: {during:?})");
+    assert!(during.len() == 1 && crate::net::part_file::is_part_name(&during[0]), "only a part file while it arrives (left: {during:?})");
     let path = worker.join().unwrap().expect("fetched");
     assert_eq!(names_in(&out), vec!["dusk.webm".to_string()], "only the file, under its name, once done");
     assert_eq!(std::fs::read(&path).unwrap().len(), 30);

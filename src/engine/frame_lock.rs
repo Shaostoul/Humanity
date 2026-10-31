@@ -475,8 +475,8 @@ pub(crate) fn sun_cloud_alpha(state: &EngineState) -> f32 {
         dir0.y,
         c * dir0.z - s * dir0.x,
     );
-    let w = crate::renderer::WEATHER_MAP_W as usize;
-    let h = crate::renderer::WEATHER_MAP_H as usize;
+    let w = crate::weather_map::WEATHER_MAP_W as usize;
+    let h = crate::weather_map::WEATHER_MAP_H as usize;
     // Same equirect mapping as the sky shader's cloud_weather.
     let lon = (-dir.z).atan2(dir.x);
     let lat = dir.y.clamp(-1.0, 1.0).asin();

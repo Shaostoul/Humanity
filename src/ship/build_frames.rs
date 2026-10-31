@@ -37,7 +37,7 @@
 
 use crate::ecs::components::Transform;
 use crate::ship::ship_structure::{ShipStructure, HOME_ZONE_ID};
-use crate::systems::construction::placement::world_aabb;
+use crate::ecs::components::world_aabb;
 use glam::Vec3;
 use serde::Serialize;
 
@@ -167,7 +167,7 @@ impl BuildFrame {
         (dx * dx + dz * dz).sqrt()
     }
 
-    /// Does all of `local`'s turned footprint (`placement::world_aabb`, x and z) lie on this
+    /// Does all of `local`'s turned footprint (`ecs::components::world_aabb`, x and z) lie on this
     /// frame's floor, give or take [`EDGE_SLACK_M`]? `local` is measured from the frame's corner,
     /// so the floor is 0 to `size`. Only x and z are looked at; a NaN in either, or in the turn,
     /// reads as outside.

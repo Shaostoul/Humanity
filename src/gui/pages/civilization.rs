@@ -8,7 +8,7 @@
 //! v0.197.0 note kept: this page commits to the Real (community) framing;
 //! a colony/sim variant would be a separate in-world surface.
 
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiCivStats, GuiState};

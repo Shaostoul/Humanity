@@ -81,7 +81,7 @@ impl TimestampFormat {
     /// Human label for the settings dropdown (with a live example), from the word source; the
     /// website's Settings names the same five with the same keys.
     pub fn label(self) -> &'static str {
-        use crate::gui::i18n::t;
+        use crate::i18n::t;
         match self {
             TimestampFormat::HourMin => t("settings.timestamp_format_hour_min"),
             TimestampFormat::HourMinSec => t("settings.timestamp_format_hour_min_sec"),
@@ -145,8 +145,8 @@ impl TimestampZone {
     /// Its name in the Settings menu.
     pub fn label(self) -> &'static str {
         match self {
-            TimestampZone::Local => crate::gui::i18n::t("settings.timestamp_zone_local"),
-            TimestampZone::Utc => crate::gui::i18n::t("settings.timestamp_zone_utc"),
+            TimestampZone::Local => crate::i18n::t("settings.timestamp_zone_local"),
+            TimestampZone::Utc => crate::i18n::t("settings.timestamp_zone_utc"),
         }
     }
     pub const ALL: [TimestampZone; 2] = [TimestampZone::Local, TimestampZone::Utc];

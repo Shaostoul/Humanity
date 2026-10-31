@@ -31,7 +31,7 @@
 
 use glam::{Quat, Vec3};
 
-use crate::renderer::mesh::Vertex;
+use crate::vertex::Vertex;
 
 /// One plot of a grow machine, in the machine's own frame (before its yaw).
 #[derive(Debug, Clone, Copy, PartialEq)]

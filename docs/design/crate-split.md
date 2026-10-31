@@ -6,7 +6,8 @@ decision (CLAUDE.md, Architecture: "one `Cargo.toml` at the repo root, no worksp
 sub-crates"), which changes when rung 1 lands, not before. **The ten crates and the names are his
 decisions too, the same day:** "I like the idea of going the full 10. It sounds like it'd be the
 most beneficial over a long period of time. Feels kind of small now but, huge a year from now."
-and, of the names, "Let's go with humanity." Nothing has moved yet.
+and, of the names, "Let's go with humanity." Rung 0's part A is done (2026-10-31): 62 wrong-way
+references are left, all part B's (Order of work, below).
 
 The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
 which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
@@ -114,7 +115,10 @@ The crates live in `crates/<name>/` (the Rust convention), with `src/` emptying 
 crate. CLAUDE.md's warning that an agent reporting edits under `crates/` was in a stale worktree
 (the v0.90 layout) is rewritten in the same rung.
 
-## The 155 references to re-home first (`node scripts/crate-graph.js --edges`)
+## The 155 references to re-home first (`node scripts/crate-graph.js --edges`, 2026-10-30)
+
+The list as it was planned. The ratchet's corrected reading (rung 0, below) counted 157 in 19 edges
+on the same tree; part A's cuts, where they differ from this table's, are in rung 0's status.
 
 | Edge | Refs | What crosses | The cut |
 |---|---|---|---|
@@ -157,7 +161,45 @@ crate. CLAUDE.md's warning that an agent reporting edits under `crates/` was in 
    **The ratchet is built (2026-10-30):** `scripts/check-crate-layers.js`, in `just lints`, holds each
    wrong-way edge to its budget in crate-layers.json's `budgets` (today's 155 in 22 edges): an edge
    over its budget or a new one fails; one under asks for its budget to come down in the same commit
-   (`--write` sets them all to today's counts). Re-homing is next.
+   (`--write` sets them all to today's counts).
+   **Part A is done (2026-10-31): 62 references in 3 edges remain, all part B's.**
+   First the ratchet's reading was corrected (`scripts/crate-graph.js`): it had stopped reading a
+   file at its first `#[cfg(test)] mod`, so a test file declared near the top of a file
+   (systems/farming/mod.rs) hid eleven real `frame_costs` calls, and it counted tests gated
+   `cfg(all(test, ...))` and files named plain `tests.rs` as code. Read as rustc reads them, the
+   same tree held 157 references in 19 edges (not 155 in 22). Then, a few edges per commit, each
+   reference went to the lowest crate that uses it, or the caller now passes the value in:
+   - **into the core:** the data parsers (`data_parse`, was `assets::loader`), the mesh vertex
+     (`vertex`, its wgpu layouts staying in the renderer as `mesh::vertex_layout` and
+     `instance_layout`), the camera's aim math (`camera_angles`, was in `surface_walk`), the fall
+     physics (`physics::landing`, was in `systems::falls`), the cost store (`frame_costs`; its GPU
+     half is `renderer::gpu_costs`), the file watcher (`hot_reload::watcher`), the met table, the
+     eye height and a structure's box (`ecs::components`), the household permit and the refusal
+     codes (`build_permission`), the crash-safe write (`atomic_write`), the weather map's size
+     (`weather_map`), the civil date (`civil_date`), the stream's frame (`raw_frame`), the Windows
+     registry reader (`platform::registry`) and the word source (`i18n`, was `gui::i18n`);
+   - **into terrain:** the plant geometry builder (`plant_mesh`), the tree species and card atlas
+     tables (`tree_registry`), the patch slot, Earth's scale-height ratio and the celestial
+     projection (`celestial_projection`);
+   - **into the ship:** the machines' day record (`machines::day_energy`), `GrownFood`, the door
+     storey band (`door_panels::feet_reach_door`) and `RoomBounds` (`room_types`);
+   - **into the protocol:** the vault's key derivation (`relay::core::kdf::pbkdf2_sha256`, the
+     algorithm and its 600,000 rounds unchanged); **into net:** the part file and the voice modes;
+   - **the caller passes it in:** the camera's fall step takes numbers (`RadialStep::landing`), the
+     weather region takes any comparable condition, `home_ron_path` takes the start and household
+     (`save_load::active_home_machines_path`), `MachineHome::load` no longer fills the food
+     figures (`systems::grow_machines::load_home` does, for every caller above the ship, and a
+     test holds them to it), and hot reload's `poll` returns the changed files instead of
+     invalidating the asset manager itself.
+   **Left for part B:** gui -> engine (55, the page buttons that call the engine) and core ->
+   engine (6) with core -> ship (1): all seven are `hot_reload::poll_and_apply`, which takes the
+   engine's state and belongs to the engine.
+   **Not counted, and needed before each crate is cut:** the ratchet counts code, not tests, and
+   the tests hold 139 wrong-way references of their own (gui -> engine 34, systems -> engine
+   27, ship -> systems 19, systems -> gui 12, and smaller ones). A test moves up with the crate it
+   reaches, or reaches through the crate under it. And `crate::data_dir()` (lib.rs, the engine)
+   is read by the GUI, the simulation and the word source; no path counts it, but it must move to
+   the core at rung 1.
 1. **The workspace, `humanity-core` and `humanity-protocol`** (the smallest and lowest). Measure a
    cold build and a one-line edit against 241 s and 56 s.
 2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.

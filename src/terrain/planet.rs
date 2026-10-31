@@ -176,6 +176,14 @@ pub struct PlanetDef {
     pub gravity_curve: Option<Vec<(f64, f32)>>,
 }
 
+/// Earth's density scale height as a fraction of its radius (8.5 km over
+/// 6371 km). Planets without an explicit `scale_height_m` get this RATIO
+/// applied to their own radius, so a modded planet with an atmosphere color
+/// gets Earth-like proportions without hand-tuning. Beside the planet def that
+/// applies it since the crate split's rung 0 (it was `renderer::atmosphere`'s,
+/// whose only reader is `scale_height_or_default` below).
+pub const EARTH_SCALE_HEIGHT_RATIO: f64 = 8_500.0 / 6_371_000.0;
+
 impl PlanetDef {
     /// The atmosphere scale height in meters, defaulting to Earth's ratio of
     /// scale height to radius applied to THIS planet's radius. A ratio (not
@@ -183,7 +191,7 @@ impl PlanetDef {
     /// scale height would wear its whole atmosphere as a thick fuzzy coat.
     pub fn scale_height_or_default(&self) -> f32 {
         self.scale_height_m
-            .unwrap_or((self.radius * crate::renderer::atmosphere::EARTH_SCALE_HEIGHT_RATIO) as f32)
+            .unwrap_or((self.radius * EARTH_SCALE_HEIGHT_RATIO) as f32)
     }
 
     /// The cloud slab bounds as PLANET-RADIUS multiples (base, top), from the

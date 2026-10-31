@@ -575,7 +575,7 @@ fn every_medical_item_has_a_treatment_and_every_treatment_is_real() {
         #[serde(default)]
         category: String,
     }
-    let items: Vec<ItemRow> = crate::assets::loader::parse_csv(read("items.csv").as_bytes()).expect("items.csv");
+    let items: Vec<ItemRow> = crate::data_parse::parse_csv(read("items.csv").as_bytes()).expect("items.csv");
     let rows = treatments();
     let reg = registry();
     for item in items.iter().filter(|i| i.category == "medical") {

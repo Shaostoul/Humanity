@@ -14,7 +14,7 @@
 
 use egui::{Color32, RichText, Vec2};
 
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{ChatMessage, GuiState};

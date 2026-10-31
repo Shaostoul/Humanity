@@ -239,7 +239,7 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     };
     let now = state.egui_ctx.input(|i| i.time);
     let Some(dir) = dir() else {
-        state.gui_state.toast(crate::gui::i18n::t("dev.journal_not_running"), crate::gui::ToastKind::Error, now);
+        state.gui_state.toast(crate::i18n::t("dev.journal_not_running"), crate::gui::ToastKind::Error, now);
         return;
     };
     let n = next_mark_number(dir);
@@ -271,7 +271,7 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     prune_marks(dir, MARKS_KEPT);
     // Only a mark by hand says so: a rig's note would stand in the picture it judges.
     if ask.picture && ask.label.is_empty() {
-        state.gui_state.toast(crate::gui::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
+        state.gui_state.toast(crate::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
     }
 }
 

@@ -49,7 +49,7 @@ struct GodrayUniforms {
     aspect: f32,
     intensity: f32,
     /// rgb = the ray tint; a = the depth under which a tap counts as open
-    /// sky (`camera::celestial_depth_at(CELESTIAL_SKY_M)`).
+    /// sky (`celestial_projection::celestial_depth_at(CELESTIAL_SKY_M)`).
     color: [f32; 4],
 }
 
@@ -169,7 +169,7 @@ impl GodrayPass {
         sun_dir: Vec3,
         aspect: f32,
         intensity: f32,
-        timers: Option<&crate::renderer::frame_costs::GpuTimers>,
+        timers: Option<&crate::renderer::gpu_costs::GpuTimers>,
     ) {
         // The timestamp slot is claimed AFTER every early return below, never
         // before the call (2026-09-18, the runtime gate): a slot claimed for a
@@ -226,7 +226,7 @@ impl GodrayPass {
                     1.0,
                     0.86,
                     0.62,
-                    crate::renderer::camera::celestial_depth_at(crate::renderer::camera::CELESTIAL_SKY_M),
+                    crate::terrain::celestial_projection::celestial_depth_at(crate::terrain::celestial_projection::CELESTIAL_SKY_M),
                 ],
             }),
         );

@@ -25,7 +25,7 @@
 
 use crate::engine::footing::{lifts, ElevatorCars};
 use crate::engine::state::EngineState;
-use crate::gui::RoomBounds;
+use crate::ship::room_types::RoomBounds;
 use crate::ship::ship_structure::ShipStructure;
 
 /// The room the HUD names, as the probe reports it: its id (the zone's, `room-upper-hall`), the

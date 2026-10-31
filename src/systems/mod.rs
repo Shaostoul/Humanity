@@ -16,7 +16,10 @@ pub mod encumbrance;
 pub mod machine_levels;
 /// What each home machine drew over its last game day, the record every daily-energy figure
 /// reads (2026-10-22).
-pub mod day_energy;
+// The machines' day record is `machines::day_energy` (the crate split's rung 0); its tests, which
+// run the ElectricalSystem, stay here.
+#[cfg(test)]
+mod day_energy_tests;
 pub mod combat;
 pub mod quests;
 pub mod crafting;

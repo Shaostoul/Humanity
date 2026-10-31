@@ -129,7 +129,7 @@ impl SsaoPass {
         focal_px: f32,
         radius_m: f32,
         strength: f32,
-        timers: Option<&crate::renderer::frame_costs::GpuTimers>,
+        timers: Option<&crate::renderer::gpu_costs::GpuTimers>,
     ) {
         if strength <= 0.001 {
             return;

@@ -803,7 +803,7 @@ pub struct ScreenSurface {
     /// simply untimed. Installed by `engine::screens::sync_screens` right
     /// after creation (`set_gpu_timers`); the constructors take no renderer
     /// so the tests can build a surface from a bare device.
-    gpu_timers: Option<std::sync::Arc<crate::renderer::frame_costs::GpuTimers>>,
+    gpu_timers: Option<std::sync::Arc<crate::renderer::gpu_costs::GpuTimers>>,
 }
 
 /// The texture format of every surface that draws pixels or egui content.
@@ -872,7 +872,7 @@ impl ScreenSurface {
     /// untimed, which is what the headless twin wants.
     pub fn set_gpu_timers(
         &mut self,
-        timers: Option<std::sync::Arc<crate::renderer::frame_costs::GpuTimers>>,
+        timers: Option<std::sync::Arc<crate::renderer::gpu_costs::GpuTimers>>,
     ) {
         self.gpu_timers = timers;
     }
@@ -1098,7 +1098,7 @@ impl ScreenSurface {
         // screen, CPU side. Several screens a frame sum under the one id;
         // pairs with the pass's `gpu.screen_ui` for the no-timestamp
         // fallback rule.
-        let _cost = crate::renderer::frame_costs::stage("cpu.screen_ui");
+        let _cost = crate::frame_costs::stage("cpu.screen_ui");
         theme.apply_to_egui(&self.core.ctx);
         // Two runs on the first frame, one after (`ScreenCore::runs_this_frame`
         // owns the rule so the headless twin drives the same count). A
@@ -1712,7 +1712,7 @@ mod tests {
     /// `pages::profile::draw` and this fails, naming `standing_mirror`.
     #[test]
     fn no_page_drawn_on_a_wall_screen_changes_the_app_page() {
-        let home = crate::machines::MachineHome::load(std::path::Path::new(
+        let home = crate::systems::grow_machines::load_home(std::path::Path::new(
             "data/machines/home.ron",
         ))
         .expect("the shipped home loads");

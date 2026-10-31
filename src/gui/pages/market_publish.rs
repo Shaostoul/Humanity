@@ -17,7 +17,7 @@ use egui::{RichText, ScrollArea};
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver};
 
-use crate::gui::i18n::{t, tf};
+use crate::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::Hint;
@@ -891,8 +891,8 @@ pub fn draw(
                                 // Each day's short name by key (market.publish.day_monday ...),
                                 // falling back to the vocabulary's first three letters.
                                 let key = format!("market.publish.day_{d}");
-                                let short = if crate::gui::i18n::has(&key) {
-                                    crate::gui::i18n::t_dyn(&key)
+                                let short = if crate::i18n::has(&key) {
+                                    crate::i18n::t_dyn(&key)
                                 } else {
                                     &d[..3]
                                 };

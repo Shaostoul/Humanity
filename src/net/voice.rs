@@ -93,7 +93,90 @@ impl Drop for Decoder {
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::Mutex;
 
-use crate::config::{VoiceFilterMode, VoiceTransmitMode};
+use serde::{Deserialize, Serialize};
+
+// The two modes the Settings page offers and config.json stores (they were `config`'s until the
+// crate split's rung 0; the code that runs them is here).
+/// How the microphone signal is cleaned up before it is encoded + transmitted
+/// (v0.488). The chain is always: user gain, then this filter, then the
+/// transmit-mode gate, then Opus. "Off" sends the raw mic; the others remove
+/// progressively more non-speech noise (rumble, hiss, keyboard clicks, coughs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VoiceFilterMode {
+    /// No processing: the raw mic (after gain) goes straight to Opus.
+    Off,
+    /// Always-safe light clean-up: an ~85 Hz high-pass (kills rumble / desk
+    /// thumps / AC hum fundamentals) plus a gentle noise gate. Very low CPU,
+    /// never distorts speech.
+    Light,
+    /// Full noise suppression (RNNoise-class): removes keyboard clicks, coughs,
+    /// fans, and steady background noise while preserving the voice. Slightly
+    /// more CPU; the strongest option. The default (operator choice, v0.490).
+    #[default]
+    NoiseSuppression,
+}
+impl VoiceFilterMode {
+    pub const ALL: [VoiceFilterMode; 3] =
+        [VoiceFilterMode::Off, VoiceFilterMode::Light, VoiceFilterMode::NoiseSuppression];
+    pub fn label(self) -> &'static str {
+        match self {
+            VoiceFilterMode::Off => "No filter",
+            VoiceFilterMode::Light => "Light clean-up",
+            VoiceFilterMode::NoiseSuppression => "Noise suppression",
+        }
+    }
+    pub fn hint(self) -> &'static str {
+        match self {
+            VoiceFilterMode::Off => "Sends your raw mic. Best with a studio mic in a quiet room.",
+            VoiceFilterMode::Light => "Removes rumble and hiss with a high-pass and a soft gate. Safe default.",
+            VoiceFilterMode::NoiseSuppression => "Removes keyboards, coughs, fans, and background noise.",
+        }
+    }
+}
+
+/// When the microphone is actually transmitted (v0.488). The filter runs first;
+/// this decides whether the cleaned audio is sent at all this moment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VoiceTransmitMode {
+    /// Always transmit (classic open mic).
+    OpenMic,
+    /// Transmit only while the push-to-talk key is held. The default (operator
+    /// choice, v0.490), with CapsLock as the default push key.
+    #[default]
+    PushToTalk,
+    /// Transmit only when your voice rises above the activation threshold.
+    VoiceActivated,
+    /// Transmit always, EXCEPT while the push-to-mute key is held.
+    PushToMute,
+}
+impl VoiceTransmitMode {
+    pub const ALL: [VoiceTransmitMode; 4] = [
+        VoiceTransmitMode::OpenMic,
+        VoiceTransmitMode::PushToTalk,
+        VoiceTransmitMode::VoiceActivated,
+        VoiceTransmitMode::PushToMute,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            VoiceTransmitMode::OpenMic => "Open mic",
+            VoiceTransmitMode::PushToTalk => "Push to talk",
+            VoiceTransmitMode::VoiceActivated => "Voice activated",
+            VoiceTransmitMode::PushToMute => "Push to mute",
+        }
+    }
+    pub fn hint(self) -> &'static str {
+        match self {
+            VoiceTransmitMode::OpenMic => "Your mic is always live.",
+            VoiceTransmitMode::PushToTalk => "Hold the key to talk; silent otherwise.",
+            VoiceTransmitMode::VoiceActivated => "Transmits when you speak above the threshold.",
+            VoiceTransmitMode::PushToMute => "Always live; hold the key to mute.",
+        }
+    }
+    /// True if this mode needs the push key bound (PTT / push-to-mute).
+    pub fn uses_key(self) -> bool {
+        matches!(self, VoiceTransmitMode::PushToTalk | VoiceTransmitMode::PushToMute)
+    }
+}
 
 /// True while the mic loopback test is running. The worker thread loops on this.
 static MIC_RUNNING: AtomicBool = AtomicBool::new(false);

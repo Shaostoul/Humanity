@@ -259,7 +259,7 @@ mod tests {
         use std::sync::Mutex;
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
-            let home = MachineHome::load(&dir.join(file)).expect("the home parses");
+            let home = crate::systems::grow_machines::load_home(&dir.join(file)).expect("the home parses");
             let mut sleepers: Vec<&str> = home
                 .catalog
                 .iter()
@@ -270,7 +270,7 @@ mod tests {
             assert_eq!(sleepers, vec!["bed"], "{file}: the machines E sleeps you in");
             assert!(home.all_instances().iter().any(|i| i.machine == "bed"), "{file}: a bed is placed");
         }
-        let home = MachineHome::load(&dir.join("home.ron")).unwrap();
+        let home = crate::systems::grow_machines::load_home(&dir.join("home.ron")).unwrap();
         let label = |machine: &str, name: &str| crate::gui::MachineLabel {
             pos: Vec3::ZERO,
             foot_y: 0.0,

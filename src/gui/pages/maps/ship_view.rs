@@ -28,7 +28,8 @@ use crate::gui::state_types::{MapSelf, MapsState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::label_placer::LabelPlacer;
 use crate::gui::widgets::level_picker::{self, PickerClick, PickerLevel};
-use crate::gui::{GuiState, RoomBounds};
+use crate::gui::GuiState;
+use crate::ship::room_types::RoomBounds;
 use crate::ship::home_structure::{storey_index, wall_in_storey};
 use crate::ship::levels::{self, ShipLevel};
 

@@ -97,7 +97,7 @@ fn read_game(entry: &Installed) -> Game {
 /// is not there (GOG has never installed anything here).
 #[cfg(windows)]
 pub fn installed_on_this_computer() -> Option<Vec<Installed>> {
-    use super::registry::{open, Root};
+    use crate::platform::registry::{open, Root};
     let games = open(Root::LocalMachine, r"SOFTWARE\WOW6432Node\GOG.com\Games").or_else(|| open(Root::LocalMachine, r"SOFTWARE\GOG.com\Games"))?;
     let mut out = Vec::new();
     for id in games.subkeys() {

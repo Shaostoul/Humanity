@@ -7,8 +7,6 @@
 //! On native: reads from disk, watches for changes via notify.
 //! On WASM: data fetched via HTTP from the server.
 
-#[cfg(feature = "native")]
-pub mod watcher;
 pub mod loader;
 /// Comment-preserving single-field RON value rewriter (Planet Tuner enabler,
 /// docs/design/artificial-planet.md). Pure std, ungated on purpose.
@@ -27,7 +25,7 @@ use crate::embedded_data;
 /// `crate::renderer::mesh::Mesh::from_vertices(device, &vertices, &indices)`.
 #[cfg(feature = "native")]
 pub struct GltfCpuMesh {
-    pub vertices: Vec<crate::renderer::mesh::Vertex>,
+    pub vertices: Vec<crate::vertex::Vertex>,
     pub indices: Vec<u32>,
 }
 
@@ -139,7 +137,7 @@ impl AssetManager {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let records: Vec<T> = loader::parse_csv(&bytes)?;
+            let records: Vec<T> = crate::data_parse::parse_csv(&bytes)?;
             log::info!("Loaded {} records from {}", records.len(), relative_path);
             self.cache.insert(relative_path.to_string(), Box::new(records));
         }
@@ -159,7 +157,7 @@ impl AssetManager {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let value: T = loader::parse_toml(&bytes)?;
+            let value: T = crate::data_parse::parse_toml(&bytes)?;
             log::info!("Loaded TOML: {}", relative_path);
             self.cache.insert(relative_path.to_string(), Box::new(value));
         }
@@ -179,7 +177,7 @@ impl AssetManager {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let value: T = loader::parse_ron(&bytes)?;
+            let value: T = crate::data_parse::parse_ron(&bytes)?;
             log::info!("Loaded RON: {}", relative_path);
             self.cache.insert(relative_path.to_string(), Box::new(value));
         }
@@ -286,8 +284,8 @@ impl AssetManager {
         } else {
             generate_planar_uvs(&positions)
         };
-        let vertices: Vec<crate::renderer::mesh::Vertex> = positions.iter().enumerate().map(|(i, pos)| {
-            crate::renderer::mesh::Vertex {
+        let vertices: Vec<crate::vertex::Vertex> = positions.iter().enumerate().map(|(i, pos)| {
+            crate::vertex::Vertex {
                 position: *pos,
                 normal: normals.get(i).copied().unwrap_or([0.0, 1.0, 0.0]),
                 uv: uvs.get(i).copied().unwrap_or([0.0, 0.0]),
@@ -481,7 +479,7 @@ impl AssetManager {
         let records: Vec<T> = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match loader::parse_csv(&bytes) {
+                    match crate::data_parse::parse_csv(&bytes) {
                         Ok(r) => {
                             log::info!("Loaded {} records from disk: {}", r.len(), relative_path);
                             r
@@ -526,7 +524,7 @@ impl AssetManager {
         let value: T = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match loader::parse_toml(&bytes) {
+                    match crate::data_parse::parse_toml(&bytes) {
                         Ok(v) => {
                             log::info!("Loaded TOML from disk: {relative_path}");
                             v
@@ -571,7 +569,7 @@ impl AssetManager {
         let value: T = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match loader::parse_ron(&bytes) {
+                    match crate::data_parse::parse_ron(&bytes) {
                         Ok(v) => {
                             log::info!("Loaded RON from disk: {relative_path}");
                             v
@@ -616,7 +614,7 @@ impl AssetManager {
         let value: T = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match loader::parse_json(&bytes) {
+                    match crate::data_parse::parse_json(&bytes) {
                         Ok(v) => {
                             log::info!("Loaded JSON from disk: {relative_path}");
                             v
@@ -659,7 +657,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        loader::parse_csv(text.as_bytes())
+        crate::data_parse::parse_csv(text.as_bytes())
     }
 
     fn parse_embedded_toml<T: DeserializeOwned>(path: &str) -> Result<T, String> {
@@ -668,7 +666,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        loader::parse_toml(text.as_bytes())
+        crate::data_parse::parse_toml(text.as_bytes())
     }
 
     fn parse_embedded_ron<T: DeserializeOwned>(path: &str) -> Result<T, String> {
@@ -677,7 +675,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        loader::parse_ron(text.as_bytes())
+        crate::data_parse::parse_ron(text.as_bytes())
     }
 
     fn parse_embedded_json<T: DeserializeOwned>(path: &str) -> Result<T, String> {
@@ -686,7 +684,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        loader::parse_json(text.as_bytes())
+        crate::data_parse::parse_json(text.as_bytes())
     }
 
     /// Invalidate a cached entry (called by hot-reload on file change).
@@ -1330,7 +1328,7 @@ mod crop_palette_tests {
 #[cfg(all(test, feature = "native"))]
 mod model_scale_tests {
     use super::*;
-    use crate::renderer::mesh::Vertex;
+    use crate::vertex::Vertex;
 
     fn mesh_of_height(h: f32) -> GltfCpuMesh {
         // A unit-square column standing on y = 0, like the furniture pack.
@@ -1397,7 +1395,7 @@ mod model_scale_tests {
     #[test]
     fn every_modelled_machine_in_the_home_is_drawn_at_its_declared_height() {
         let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let home = crate::machines::MachineHome::load(&repo_root.join("data/machines/home.ron"))
+        let home = crate::systems::grow_machines::load_home(&repo_root.join("data/machines/home.ron"))
             .expect("the shipped home loads");
         let manager = AssetManager::new(repo_root.join("data"));
 

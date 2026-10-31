@@ -81,7 +81,7 @@ Say we add quinoa.
 
 3. **The visual recipe**: add a `"quinoa"` entry to `data/plants_visual.ron`.
    This is the FULL 3D appearance, no model file needed:
-   `src/renderer/plant_mesh.rs` turns the numbers into a procedural mesh at
+   `src/terrain/plant_mesh.rs` turns the numbers into a procedural mesh at
    any growth stage (forms: `rosette | herb | vine | tree | bulb | bromeliad`,
    unknown forms fall back to rosette so a new species always renders). Copy
    the amaranth entry as a starting point (also a tall herb with a seed
