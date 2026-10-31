@@ -94,7 +94,6 @@ fn demo_state() -> GuiState {
     s.curriculum = crate::gui::load_curriculum(data);
     s.garden_areas = crate::gui::load_garden_areas(data);
     s.grow_media = crate::gui::load_grow_media(data);
-    s.onboarding_quest_chains = crate::gui::pages::onboarding::load_quest_chains(data);
     // The app loads the donate FAQ at startup (lib.rs); without it the Donate
     // snapshot ended on a "Frequently Asked Questions" heading over nothing.
     s.donate_faq = crate::gui::load_donate_faq(data);
@@ -235,10 +234,9 @@ fn demo_state() -> GuiState {
         GuiSkill { id: "mining".into(), name: "Mining".into(), category: "Survival".into(), level: 2, xp: 40, xp_needed: 120, max_level: 20 },
         GuiSkill { id: "crafting".into(), name: "Crafting".into(), category: "Production".into(), level: 3, xp: 75, xp_needed: 150, max_level: 20 },
     ];
-    s.quests = vec![
-        GuiQuest { name: "First Harvest".into(), step_index: 1, step_total: 3, step_desc: "Plant a seed in a tower".into(), completed: false },
-        GuiQuest { name: "Welcome to HumanityOS".into(), step_index: 0, step_total: 0, step_desc: String::new(), completed: true },
-    ];
+    // The opening as the operator was playing it on 2026-10-30: First Steps, on its second step
+    // of eight, made the way the quest mirror makes it, from the shipped quests.
+    s.quests = vec![snapshot_quest(&shipped_quests(), "gs_first_steps", 1)];
 
     // ── Chat ──
     s.ws_status = "Connected".into();
@@ -964,6 +962,7 @@ fn settings_panel(
             step_total: 4,
             step_desc: "Plant a seed in the garden".to_string(),
             completed: false,
+            ..Default::default()
         }];
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(theme.bg_primary()))
@@ -4124,6 +4123,114 @@ fn snapshot_curriculum() {
 page_snapshot!(snapshot_identity, "identity", identity, 1280, 900);
 page_snapshot!(snapshot_wallet, "wallet", wallet, 1280, 900);
 page_snapshot!(snapshot_quests, "quests", quests, 1280, 900);
+
+/// The shipped quests (data/quests), for the Quests page's snapshots.
+fn shipped_quests() -> crate::systems::quests::QuestRegistry {
+    crate::systems::quests::QuestRegistry::from_ron_dir(std::path::Path::new("data/quests"))
+}
+
+/// The words a snapshot reads without the game's registries: the front door opens on the
+/// Commons, and an item or skill id reads as its words ("iron_ingot_0" is "Iron Ingot").
+fn snapshot_words<R>(f: impl FnOnce(&crate::systems::quests::chain::Words) -> R) -> R {
+    let step = |d: &str| d.replace("{front_door_opens_on}", "the Commons");
+    let name = |id: &str| {
+        id.trim_end_matches(|c: char| c.is_ascii_digit() || c == '_')
+            .split('_')
+            .map(|w| {
+                let mut c = w.chars();
+                c.next().map(|first| first.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    f(&crate::systems::quests::chain::Words { step: &step, item: &name, skill: &name })
+}
+
+/// A quest under way at `step` (0-based), its card made the way the quest mirror makes it.
+fn snapshot_quest(reg: &crate::systems::quests::QuestRegistry, id: &str, step: usize) -> GuiQuest {
+    let active = crate::systems::quests::ActiveQuest { quest_id: id.into(), current_step: step, progress: Default::default() };
+    snapshot_words(|w| GuiQuest::active(Some(reg), &active, w))
+}
+
+/// After the habitat: the opening, Toolsmith and Build First Habitat finished, every quest that
+/// needs the habitat under way (finishing it starts them all), Start Farming on its second step.
+fn after_the_habitat(reg: &crate::systems::quests::QuestRegistry) -> crate::systems::quests::QuestTracker {
+    let mut branches: Vec<&str> = reg
+        .quests
+        .values()
+        .filter(|q| q.prerequisite.as_deref() == Some("tutorial_first_habitat"))
+        .map(|q| q.id.as_str())
+        .collect();
+    branches.sort();
+    crate::systems::quests::QuestTracker {
+        active_quests: branches
+            .into_iter()
+            .map(|id| crate::systems::quests::ActiveQuest {
+                quest_id: id.into(),
+                current_step: usize::from(id == "tutorial_farming_basics"),
+                progress: Default::default(),
+            })
+            .collect(),
+        completed_quests: vec!["gs_first_steps".into(), "gs_toolsmith".into(), "tutorial_first_habitat".into()],
+    }
+}
+
+/// The Quests page after the habitat (2026-10-30): its four branches under way side by side,
+/// the finished quests in the column beside them.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_branches() {
+    let reg = shipped_quests();
+    let tracker = after_the_habitat(&reg);
+    render_page_png("quests_branches", 1280, 900, |ctx, theme, state| {
+        state.quests = tracker.active_quests.iter().map(|a| snapshot_quest(&reg, &a.quest_id, a.current_step)).collect();
+        state.quests.extend(tracker.completed_quests.iter().map(|c| GuiQuest::completed(Some(&reg), c)));
+        crate::gui::pages::quests::draw(ctx, theme, state);
+    });
+}
+
+/// The chain window open on `focus` over the Quests page, as `reveal` shows it.
+fn quest_chain_png(name: &str, h: u32, tracker: crate::systems::quests::QuestTracker, focus: &str, reveal: crate::systems::quests::chain::Reveal) {
+    let reg = shipped_quests();
+    let view = snapshot_words(|w| crate::systems::quests::chain::build(&reg, &tracker, focus, reveal, w)).expect("the chain");
+    render_page_png(name, 1280, h, |ctx, theme, state| {
+        state.quest_chain_open = Some(focus.to_string());
+        state.quest_chain = Some(view.clone());
+        crate::gui::pages::quests::draw(ctx, theme, state);
+    });
+}
+
+/// The operator's own step, 2026-10-30: First Steps on its second step of eight.
+fn on_the_second_step() -> crate::systems::quests::QuestTracker {
+    crate::systems::quests::QuestTracker {
+        active_quests: vec![crate::systems::quests::ActiveQuest { quest_id: "gs_first_steps".into(), current_step: 1, progress: Default::default() }],
+        completed_quests: Vec::new(),
+    }
+}
+
+/// The chain window in normal play on the operator's step: the finished step, the one he is on,
+/// "6 more steps to discover" and "More quests to discover", nothing ahead named.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_chain_first_steps() {
+    quest_chain_png("quests_chain_first_steps", 900, on_the_second_step(), "gs_first_steps", crate::systems::quests::chain::Reveal::Learned);
+}
+
+/// The chain window in normal play mid-chain: Start Farming opened after the habitat, the
+/// finished quests above it, the habitat's branches as a tree, what follows each one hidden.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_chain_branches() {
+    quest_chain_png("quests_chain_branches", 1100, after_the_habitat(&shipped_quests()), "tutorial_farming_basics", crate::systems::quests::chain::Reveal::Learned);
+}
+
+/// The chain window in the Dev view on the operator's step: every quest and step of the chain,
+/// the ones he has not reached yet dimmed.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_chain_dev() {
+    quest_chain_png("quests_chain_dev", 1400, on_the_second_step(), "gs_first_steps", crate::systems::quests::chain::Reveal::All);
+}
 page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
 page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);
 

@@ -550,7 +550,33 @@
     "available": "Available",
     "accept": "Accept",
     "accept_hint": "Takes on this quest, so the game starts keeping track of how far along you are.",
-    "completed": "Completed"
+    "completed": "Completed",
+    "none_active": "No quest under way. Accept one under Available to begin.",
+    "chain_eyebrow": "Quest {{n}} of the {{chain}} chain",
+    "step_count": "Step {{n}} of {{total}}",
+    "now": "Now",
+    "reward_line": "Reward: {{list}}",
+    "reward_item": "{{n}} {{item}}",
+    "reward_xp": "{{n}} {{skill}} XP",
+    "see_chain": "See the whole chain",
+    "card_hint": "Opens this quest's chain: the quests before and after it, with their steps.",
+    "available_hint": "Opens the chain this quest belongs to, with the quests that lead to it.",
+    "completed_hint": "Opens the chain this finished quest belongs to, with its steps.",
+    "chain_title": "The {{chain}} chain",
+    "chain_intro_learned": "Steps show up as you reach them, so nothing ahead is spoiled.",
+    "chain_intro_dev": "Dev view: every quest and step, the ones not reached yet dimmed.",
+    "branches": "Branches from here, in any order",
+    "state_done": "Done",
+    "state_locked": "Not unlocked yet",
+    "ready_steps": {
+      "one": "Ready to start, 1 step",
+      "other": "Ready to start, {{n}} steps"
+    },
+    "more_steps": {
+      "one": "1 more step to discover",
+      "other": "{{n}} more steps to discover"
+    },
+    "more_quests": "More quests to discover after this one"
   },
   "market": {
     "sort_newest": "Newest",
@@ -2170,5 +2196,16 @@
   "performance": {
     "no_reuse": "Turn off all reuse",
     "no_reuse_hint": "For chasing a bug that might come from old data. The game keeps some results between frames to save work (the Garden page rows, the draw lists, the dev request checks). On, it works everything out again every frame instead: slower, but nothing shown can be old. If the bug goes away with this on, reused data is the cause. This run only; HUMANITY_NO_REUSE=1 does the same for a rig."
+  },
+  "onboarding": {
+    "next": "Next",
+    "all_done": "Every step done.",
+    "chain_card_hint": "Opens this guide's steps in a window, where you can tick them off or go to the page a step is about.",
+    "chain_intro": "Tick a step once you have done it, in any order. Your progress stays in this browser.",
+    "tick_hint": "Marks this step done, or not done again. Kept in this browser.",
+    "go": "Go",
+    "go_hint": "Opens the page this step is about.",
+    "close_hint": "Closes this window and goes back to the guides.",
+    "load_failed": "Could not load quests ({{error}}). Try refreshing, or start with the Chat."
   }
 }

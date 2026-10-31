@@ -79,48 +79,105 @@
     .core-page h4 { margin: 0; font-size: 0.98rem; font-weight: 700; }
     .core-page p { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
 
-    /* ── Quest chains ── */
-    .quest-chain {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 22px 24px;
-      margin-bottom: 16px;
+    /* ── Quest chains (2026-10-30): one card per chain, the native Quests page's quest card
+       (src/gui/pages/quests.rs): its name, "Step 2 of 4" over a meter with a segment per step,
+       the next step as the card's focus. A click opens the chain's window with every step. ── */
+    .chain-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
     }
-    .quest-chain h3 {
-      margin: 0 0 4px;
-      font-size: 1.05rem;
-      font-weight: 700;
-    }
-    .quest-chain .chain-desc {
-      margin: 0 0 16px;
-      color: var(--text-muted);
-      font-size: 0.92rem;
-    }
-    .quest-steps {
+    .chain-card {
       display: flex;
       flex-direction: column;
       gap: 10px;
+      text-align: left;
+      font: inherit;
+      color: var(--text);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .chain-card:hover, .chain-card:focus-visible { border-color: var(--accent); outline: none; }
+    .chain-card.all-done { border-left-color: var(--success); }
+    .chain-card-head { display: flex; align-items: baseline; gap: 10px; }
+    .chain-card-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--text-strong); }
+    .chain-card-count { font-size: 0.85rem; color: var(--accent); white-space: nowrap; }
+    .chain-card.all-done .chain-card-count { color: var(--success); }
+    .chain-meter { display: flex; gap: 4px; height: 8px; }
+    .chain-meter i { flex: 1; border-radius: 4px; background: var(--border); }
+    .chain-meter i.done { background: var(--accent); }
+    .chain-meter i.now { background: var(--accent-dim); box-shadow: inset 0 0 0 1px var(--accent); }
+    .chain-card.all-done .chain-meter i.done { background: var(--success); }
+    .chain-now {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: var(--accent-dim);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+    }
+    .chain-now-label { font-size: 0.72rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+    .chain-now-title { font-weight: 600; font-size: 0.94rem; }
+    .chain-now-desc { font-size: 0.85rem; color: var(--text-muted); }
+    .chain-card-more { align-self: flex-end; font-size: 0.82rem; color: var(--accent); }
+
+    /* The chain window: the native app's dialog (widgets::dialog) with the steps of one chain. */
+    .chain-backdrop {
+      position: fixed; inset: 0; z-index: 10050;
+      background: var(--bg-modal);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .chain-modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%; max-width: 600px; max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      padding: 20px 22px;
+      color: var(--text);
+    }
+    .chain-modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .chain-modal-head h3 { flex: 1; margin: 0; font-size: 1.15rem; font-weight: 700; }
+    .chain-close {
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: var(--radius); width: 30px; height: 30px; cursor: pointer; font: inherit; line-height: 1;
+    }
+    .chain-close:hover, .chain-close:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+    .chain-modal-desc { margin: 0 0 6px; color: var(--text-muted); font-size: 0.92rem; }
+    .chain-modal-intro { margin: 0 0 14px; color: var(--text-muted); font-size: 0.82rem; }
+    .quest-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
     }
     .quest-step {
       display: flex;
       align-items: flex-start;
       gap: 12px;
-      padding: 12px 14px;
+      padding: 10px 12px;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 8px;
-      text-decoration: none;
       color: var(--text);
-      transition: all 0.15s;
     }
-    .quest-step:hover {
-      border-color: var(--accent);
-    }
-    .quest-step.done {
-      opacity: 0.6;
-    }
+    .quest-step.now { border-color: var(--accent); background: var(--accent-dim); }
+    .quest-step.done .qs-title { color: var(--text-secondary); }
+    /* A step after the next one: slightly dimmed, the native chain window's look. */
+    .quest-step.ahead { opacity: 0.6; }
     .quest-checkbox {
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
       width: 18px; height: 18px;
       border: 1.5px solid var(--border);
       border-radius: 4px;
@@ -138,6 +195,7 @@
       border-color: var(--accent);
       color: var(--text-on-accent);
     }
+    .quest-checkbox:hover, .quest-checkbox:focus-visible { border-color: var(--accent); outline: none; }
     .quest-text { flex: 1; }
     .quest-text .qs-title { font-weight: 600; font-size: 0.94rem; margin-bottom: 2px; }
     .quest-text .qs-desc { font-size: 0.85rem; color: var(--text-muted); }
@@ -147,6 +205,7 @@
       font-weight: 600;
       flex-shrink: 0;
       align-self: center;
+      text-decoration: none;
     }
 
     /* ── Concepts grid ── */
@@ -220,6 +279,8 @@
 </head>
 <body>
   <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/i18n-en.js"></script>
+  <script src="/shared/i18n.js"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
@@ -316,7 +377,7 @@
     <div class="container">
       <div class="section-label">Quest Chains</div>
       <h2>Learn by doing</h2>
-      <p class="section-intro">Step-by-step guides from setup to self-sufficiency. Click any step to go there. Your progress is saved in this browser. Tick them off at your own pace.</p>
+      <p class="section-intro">Step-by-step guides from setup to self-sufficiency. Open a guide to see its steps, tick them off at your own pace, or go to the page a step is about. Your progress is saved in this browser.</p>
       <div id="quest-root">
         <div class="loading-state">Loading quest chains...</div>
       </div>
@@ -347,79 +408,171 @@
 
   <script>
     // ── Quest chain renderer ──
-    // Loads data/onboarding/quests.json, tracks progress in localStorage,
-    // re-renders on click. Data-driven so new quests can be added without
-    // touching this page.
+    // Loads data/onboarding/quests.json, tracks progress in localStorage. Each chain is a card,
+    // the native Quests page's quest card (src/gui/pages/quests.rs, 2026-10-30): its name,
+    // "Step 2 of 4" over a meter with a segment per step, the next step as the card's focus.
+    // A click opens the chain's window (the native chain window, quests/chain_window.rs) with
+    // every step, to tick off or to go to. These are real-life guides, with no story to spoil,
+    // so every step shows, the ones after the next slightly dimmed (the native Dev view's look).
+    // Data-driven: a new chain is a new entry in the JSON, not a change here.
     (function () {
       var STORAGE_KEY = 'humanity_quest_progress';
       var root = document.getElementById('quest-root');
       var resetBtn = document.getElementById('reset-quests');
+      var data = null;
+      // The chain whose window is open, by id.
+      var openChain = null;
 
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
       function loadProgress() {
         try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
         catch (e) { return {}; }
       }
       function saveProgress(p) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch (e) { /* private window: kept for this visit only */ }
+      }
+      function stepKey(chain, step) { return chain.id + ':' + step.id; }
+
+      /** How many steps of a chain are done, and the first one not done (-1 when all are). */
+      function standing(chain, progress) {
+        var done = 0, next = -1;
+        chain.steps.forEach(function (step, i) {
+          if (progress[stepKey(chain, step)]) done++;
+          else if (next < 0) next = i;
+        });
+        return { done: done, next: next };
       }
 
-      function render(data) {
+      /** A chain's card: its name, where it stands, the meter, the next step, "See the whole chain". */
+      function card(chain, progress) {
+        var st = standing(chain, progress);
+        var allDone = st.next < 0;
+        var count = allDone ? i18n.t('quests.state_done') : i18n.t('quests.step_count', { n: st.next + 1, total: chain.steps.length });
+        var html = '<button type="button" class="chain-card' + (allDone ? ' all-done' : '') + '" data-chain="' + esc(chain.id) + '" data-i18n-tip="onboarding.chain_card_hint">';
+        html += '<span class="chain-card-head"><span class="chain-card-title">' + esc(chain.title) + '</span>';
+        html += '<span class="chain-card-count">' + esc(count) + '</span></span>';
+        html += '<span class="chain-meter" aria-hidden="true">';
+        chain.steps.forEach(function (step, i) {
+          html += '<i class="' + (progress[stepKey(chain, step)] ? 'done' : (i === st.next ? 'now' : '')) + '"></i>';
+        });
+        html += '</span>';
+        if (allDone) {
+          html += '<span class="chain-now-desc">' + esc(i18n.t('onboarding.all_done')) + '</span>';
+        } else {
+          var next = chain.steps[st.next];
+          html += '<span class="chain-now"><span class="chain-now-label">' + esc(i18n.t('onboarding.next')) + '</span>';
+          html += '<span class="chain-now-title">' + esc(next.title) + '</span>';
+          html += '<span class="chain-now-desc">' + esc(next.description) + '</span></span>';
+        }
+        html += '<span class="chain-card-more">' + esc(i18n.t('quests.see_chain')) + '</span>';
+        return html + '</button>';
+      }
+
+      /** A chain's window: its name and description, then every step with its tick box and Go. */
+      function chainWindow(chain, progress) {
+        var st = standing(chain, progress);
+        var html = '<div class="chain-modal" role="dialog" aria-modal="true" aria-labelledby="chain-modal-title">';
+        html += '<div class="chain-modal-head"><h3 id="chain-modal-title">' + esc(chain.title) + '</h3>';
+        html += '<button type="button" class="chain-close" data-close="1" aria-label="' + esc(i18n.t('common.close')) + '" data-i18n-tip="onboarding.close_hint">×</button></div>';
+        html += '<p class="chain-modal-desc">' + esc(chain.description) + '</p>';
+        html += '<p class="chain-modal-intro">' + esc(i18n.t('onboarding.chain_intro')) + '</p>';
+        html += '<ol class="quest-steps">';
+        chain.steps.forEach(function (step, i) {
+          var key = stepKey(chain, step);
+          var done = !!progress[key];
+          html += '<li class="quest-step ' + (done ? 'done' : (i === st.next ? 'now' : 'ahead')) + '">';
+          html += '<button type="button" class="quest-checkbox" data-step-key="' + esc(key) + '" aria-pressed="' + done + '" aria-label="' + esc(step.title) + '" data-i18n-tip="onboarding.tick_hint">' + (done ? '✓' : '') + '</button>';
+          html += '<span class="quest-text"><span class="qs-title">' + esc(step.title) + '</span><br><span class="qs-desc">' + esc(step.description) + '</span></span>';
+          if (step.link) {
+            var outside = step.link.indexOf('http') === 0;
+            html += '<a class="qs-action" href="' + esc(step.link) + '"' + (outside ? ' target="_blank" rel="noopener"' : '') + ' data-i18n-tip="onboarding.go_hint">' + esc(i18n.t('onboarding.go')) + ' →</a>';
+          }
+          html += '</li>';
+        });
+        return html + '</ol></div>';
+      }
+
+      /** Draw the window for the open chain, or take it away when none is open. */
+      function drawWindow(progress) {
+        var existing = document.getElementById('chain-modal-root');
+        var chain = openChain && data.chains.filter(function (c) { return c.id === openChain; })[0];
+        if (!chain) {
+          if (existing) existing.remove();
+          return;
+        }
+        var backdrop = existing;
+        if (!backdrop) {
+          backdrop = document.createElement('div');
+          backdrop.id = 'chain-modal-root';
+          backdrop.className = 'chain-backdrop';
+          backdrop.addEventListener('click', onWindowClick);
+          document.body.appendChild(backdrop);
+        }
+        backdrop.innerHTML = chainWindow(chain, progress);
+        i18n.apply(backdrop);
+      }
+
+      function render() {
         var progress = loadProgress();
-        var html = '';
-        data.chains.forEach(function (chain) {
-          html += '<div class="quest-chain">';
-          html += '<h3>' + chain.title + '</h3>';
-          html += '<p class="chain-desc">' + chain.description + '</p>';
-          html += '<div class="quest-steps">';
-          chain.steps.forEach(function (step) {
-            var stepKey = chain.id + ':' + step.id;
-            var done = !!progress[stepKey];
-            var tag = step.link ? 'a' : 'button';
-            var linkAttrs = step.link
-              ? 'href="' + step.link + '"' + (step.link.indexOf('http') === 0 ? ' target="_blank" rel="noopener"' : '')
-              : 'type="button"';
-            html += '<' + tag + ' class="quest-step' + (done ? ' done' : '') + '" ' + linkAttrs + ' data-step-key="' + stepKey + '">';
-            html += '<span class="quest-checkbox">' + (done ? '\u2713' : '') + '</span>';
-            html += '<span class="quest-text">';
-            html += '<div class="qs-title">' + step.title + '</div>';
-            html += '<div class="qs-desc">' + step.description + '</div>';
-            html += '</span>';
-            if (step.link) html += '<span class="qs-action">Go \u2192</span>';
-            html += '</' + tag + '>';
-          });
-          html += '</div>';
-          html += '</div>';
-        });
-        root.innerHTML = html;
-
-        // Toggle done state when a step is clicked (in addition to navigating)
-        root.querySelectorAll('.quest-step').forEach(function (el) {
-          el.addEventListener('click', function (e) {
-            // Only toggle if the checkbox itself was clicked, otherwise the
-            // click navigates (for <a>) or does nothing (for <button>).
-            var cb = e.target.closest('.quest-checkbox');
-            if (cb) {
-              e.preventDefault();
-              e.stopPropagation();
-              var key = el.dataset.stepKey;
-              progress[key] = !progress[key];
-              saveProgress(progress);
-              render(data);
-            }
-          });
-        });
+        root.className = 'chain-grid';
+        root.innerHTML = data.chains.map(function (c) { return card(c, progress); }).join('');
+        i18n.apply(root);
+        drawWindow(progress);
       }
+
+      function closeWindow() {
+        var was = openChain;
+        openChain = null;
+        drawWindow(loadProgress());
+        var back = root.querySelector('.chain-card[data-chain="' + CSS.escape(was || '') + '"]');
+        if (back) back.focus();
+      }
+
+      // A click on the dimmed screen or the close button closes the window; on a tick box it
+      // marks its step done or not done, and the card under the window follows.
+      function onWindowClick(e) {
+        if (e.target.id === 'chain-modal-root' || e.target.closest('[data-close]')) {
+          closeWindow();
+          return;
+        }
+        var tick = e.target.closest('.quest-checkbox');
+        if (!tick) return;
+        var key = tick.dataset.stepKey;
+        var progress = loadProgress();
+        progress[key] = !progress[key];
+        saveProgress(progress);
+        render();
+        var again = document.querySelector('#chain-modal-root .quest-checkbox[data-step-key="' + CSS.escape(key) + '"]');
+        if (again) again.focus();
+      }
+
+      root.addEventListener('click', function (e) {
+        var c = e.target.closest('.chain-card');
+        if (!c || !data) return;
+        openChain = c.dataset.chain;
+        drawWindow(loadProgress());
+        var close = document.querySelector('#chain-modal-root .chain-close');
+        if (close) close.focus();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && openChain) closeWindow();
+      });
 
       fetch('/data/onboarding/quests.json')
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
-        .then(render)
+        .then(function (d) {
+          data = d;
+          render();
+        })
         .catch(function (err) {
-          root.innerHTML =
-            '<div class="loading-state">Could not load quests (' + err.message + '). ' +
-            'Try refreshing, or start with the Chat.</div>';
+          root.innerHTML = '<div class="loading-state">' + esc(i18n.t('onboarding.load_failed', { error: err.message })) + '</div>';
         });
 
       if (resetBtn) {

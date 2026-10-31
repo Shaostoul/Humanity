@@ -82,6 +82,9 @@ pub use state_types::*;
 /// The P2P trade types (`gui/trade_types.rs`, 2026-09-29).
 mod trade_types;
 pub use trade_types::*;
+/// The Quests page's types (`gui/quest_types.rs`, 2026-10-30).
+mod quest_types;
+pub use quest_types::*;
 
 #[cfg(test)]
 mod ui_snapshots;
@@ -1406,6 +1409,12 @@ pub struct GuiState {
     /// Quest id the player clicked Accept on; the frame bridge applies it to
     /// the ECS QuestTracker.
     pub pending_accept_quest: Option<String>,
+    /// The quest whose chain window is open (a click on its card on the Quests page), and its
+    /// chain, which the quest mirror builds only while that window is open on the Quests page
+    /// (`systems::quests::chain`, 2026-10-30): everything in Dev, what the player has reached
+    /// otherwise.
+    pub quest_chain_open: Option<String>,
+    pub quest_chain: Option<crate::systems::quests::chain::ChainView>,
     /// The views a quest can ask the player to open (2026-10-04, the
     /// opening's "check your vitals"), as drawn this frame: a page adds one
     /// through `on_screen` while it shows it ("vitals": the Inventory page's
@@ -2771,9 +2780,8 @@ pub struct GuiState {
     /// ID of the currently-open help topic, if any. Setting this opens the help modal.
     pub active_help_topic: Option<String>,
 
-    // ── Onboarding quest chains (loaded from data/onboarding/quests.json) ──
-    /// Quest chains displayed on the Onboarding page.
-    pub onboarding_quest_chains: Vec<crate::gui::pages::onboarding::QuestChain>,
+    // ── The learn-by-doing chains (data/onboarding/quests.json, which the Tasks page reads
+    //    itself since 2026-10-30) ──
     /// Map of "chain_id:step_id" -> done?. Persisted via
     /// `AppConfig::onboarding_quest_progress`, written the moment a step is
     /// ticked. (This comment claimed persistence from v0.415 until v0.1066
@@ -3544,6 +3552,8 @@ impl Default for GuiState {
             quests: Vec::new(),
             quests_available: Vec::new(),
             pending_accept_quest: None,
+            quest_chain_open: None,
+            quest_chain: None,
             views_on_screen: Vec::new(),
             prev_views_on_screen: Vec::new(),
 
@@ -4105,7 +4115,6 @@ impl Default for GuiState {
             // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
-            onboarding_quest_chains: Vec::new(),
             onboarding_quest_progress: std::collections::HashMap::new(),
             image_cache: crate::gui::widgets::image_cache::ImageCache::new(),
             image_viewer_url: None,

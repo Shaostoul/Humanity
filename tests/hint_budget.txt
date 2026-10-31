@@ -25,7 +25,6 @@
 15 page library
 22 page main_menu
 9 page maps
-1 page onboarding
 17 page planet_tuner
 3 page privacy
 17 page profile

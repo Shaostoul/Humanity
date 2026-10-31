@@ -220,7 +220,7 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, bugs, donate, studio,
-        onboarding, server_settings, identity, governance, testing,
+        server_settings, identity, governance, testing,
         browser, real,
         humanity, library, quests, homes,
     };
@@ -1520,7 +1520,6 @@ mod native_app {
             // button can open the same panel without F1 ever being touched, so they
             // are loaded up front now; the lazy path below stays as a safety net.
             gui_state.keymaps = crate::gui::pages::keymap::load_keymaps(&data_dir);
-            gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets();
             // The places the live save's start holds (a cabin its own, data/homes/starts.ron).
             gui_state.places = crate::save_load::start_places(&data_dir, &crate::save_load::active_home().start);
@@ -12804,38 +12803,25 @@ mod native_app {
                             .query::<(&QuestTracker, &Controllable)>()
                             .iter()
                         {
-                            for active in &tracker.active_quests {
-                                let def = quest_reg.and_then(|r| r.get(&active.quest_id));
-                                let name = def
-                                    .map(|d| d.name.clone())
-                                    .unwrap_or_else(|| active.quest_id.clone());
-                                let step_total = def.map(|d| d.steps.len()).unwrap_or(0);
-                                // As the player reads it (the own front door named, 2026-10-04).
-                                let step_desc = def
-                                    .and_then(|d| d.steps.get(active.current_step))
-                                    .map(|s| crate::systems::quests::step_text(&s.description, &state.data_store))
-                                    .unwrap_or_default();
-                                state.gui_state.quests.push(crate::gui::GuiQuest {
-                                    name,
-                                    step_index: active.current_step,
-                                    step_total,
-                                    step_desc,
-                                    completed: false,
-                                });
-                            }
+                            // The step as the player reads it (the own front door named, 2026-10-04),
+                            // the chain and the rewards: gui/quest_types.rs.
+                            crate::systems::quests::chain::with_store_words(&state.data_store, |w| {
+                                for active in &tracker.active_quests {
+                                    state.gui_state.quests.push(crate::gui::GuiQuest::active(quest_reg, active, w));
+                                }
+                            });
                             for cid in &tracker.completed_quests {
-                                let name = quest_reg
-                                    .and_then(|r| r.get(cid))
-                                    .map(|d| d.name.clone())
-                                    .unwrap_or_else(|| cid.clone());
-                                state.gui_state.quests.push(crate::gui::GuiQuest {
-                                    name,
-                                    step_index: 0,
-                                    step_total: 0,
-                                    step_desc: String::new(),
-                                    completed: true,
-                                });
+                                state.gui_state.quests.push(crate::gui::GuiQuest::completed(quest_reg, cid));
                             }
+                            // The chain window (2026-10-30), built only while it is open on the Quests
+                            // page: every step in Dev, only what the player has reached otherwise.
+                            if state.gui_state.active_page != GuiPage::Quests {
+                                state.gui_state.quest_chain_open = None;
+                            }
+                            let reveal = if state.gui_state.dev_cheats_active(&state.theme) { crate::systems::quests::chain::Reveal::All } else { crate::systems::quests::chain::Reveal::Learned };
+                            state.gui_state.quest_chain = state.gui_state.quest_chain_open.as_deref().zip(quest_reg).and_then(|(id, reg)| {
+                                crate::systems::quests::chain::with_store_words(&state.data_store, |w| crate::systems::quests::chain::build(reg, tracker, id, reveal, w))
+                            });
                             // Available quests (v0.748, ladder rung 4): accept-able
                             // content the chaining alone never reached — quests with
                             // no prerequisite (or a completed one) that aren't active

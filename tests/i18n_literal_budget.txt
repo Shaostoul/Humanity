@@ -73,7 +73,6 @@
 4 src/gui/pages/maps/system_view.rs
 14 src/gui/pages/maps/time_bar.rs
 3 src/gui/pages/maps/you_layer.rs
-1 src/gui/pages/onboarding.rs
 6 src/gui/pages/performance.rs
 2 src/gui/pages/placeholder.rs
 56 src/gui/pages/planet_tuner.rs

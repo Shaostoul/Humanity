@@ -1856,7 +1856,28 @@ life: the kanban plus the learn-by-doing tutorial chains, since 2026-10-30
 as suggested cards at the top of the Todo column (see "Suggested cards on
 the Tasks page"; until then a collapsible guide panel beside the board). Web
 nav entry renamed Onboarding; /quests redirects to /onboarding.
-- Native: src/gui/pages/quests.rs, tasks.rs (draw_suggestion), onboarding.rs
+- Native: src/gui/pages/quests.rs, tasks.rs (draw_suggestion). `onboarding.rs` (the chains' old
+  drawing and loading) was removed 2026-10-30: the Tasks page reads the chains itself.
+
+### Quests: the active card and the chain window (2026-10-30)
+Operator: "when we click on that quest, I want it to like popup all the quests in the chain.
+We'd want two modes." A quest under way is a card: "Quest 1 of the First Steps chain", its
+name, "Step 2 of 8" over a meter with a segment per step, the step it is on as the card's focus
+("Now", on a faint accent ground), and its rewards. Several under way sit side by side;
+Available and Completed sit in a column beside them (stacked when narrow). A click on any quest
+(under way, available or finished) opens its CHAIN: every quest joined to it by `prerequisite`,
+top to bottom, quests needing the same one drawn as branches off it (finishing it starts them
+all, so none locks another). Normal play shows only what the player has reached: the finished
+steps and the current one, "6 more steps to discover", "More quests to discover"; the steps
+ahead and the quests not unlocked are left out of the data itself (`Reveal::Learned`), not just
+hidden. The Dev play mode with dev cheats on (`dev_cheats_active`) shows every quest and step,
+the ones not reached dimmed. The chain is built only while its window is open on the Quests
+page. Web: the /onboarding guides (the web's Quests target) became the same cards, each opening
+its steps in a window (real-life guides: every step shows, the ones after the next dimmed).
+- Native: src/gui/pages/quests.rs, src/gui/pages/quests/chain_window.rs, src/gui/quest_types.rs,
+  src/systems/quests/chain.rs (the view and its no-spoiler tests); lib.rs quest mirror
+- Web: web/pages/onboarding.html
+- Snapshots: quests, quests_branches, quests_chain_first_steps, quests_chain_branches, quests_chain_dev
 
 ### Market Directory (web mirror, v0.1143)
 The web market page opens on a Directory section mirroring the native tab:
@@ -4001,7 +4022,7 @@ Built-in help topic `real-sim` explains the context toggle. Rendered as a `?` ne
 ### Onboarding Page (dual UI)
 First-run orientation plus permanent reference. Four core concepts, core-pages overview, data-driven quest chains. Progress tracked locally per step.
 - Data: `data/onboarding/quests.json` (three chains, 14 steps)
-- Native: `src/gui/pages/onboarding.rs`, `GuiPage::Onboarding` enum variant
+- Native: none since 2026-10-30 (`GuiPage::Onboarding` went in v0.415.0, `onboarding.rs` with the Tasks page's suggested cards); the chains are the Tasks page's suggested cards
 - Web: `web/pages/onboarding.html`
 - Route: `/onboarding` (web), "Onboarding" nav tab (native)
 

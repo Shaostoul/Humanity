@@ -842,28 +842,7 @@ pub struct GuiSkill {
     pub max_level: u32,
 }
 
-/// A player quest for GUI display, synced from the ECS QuestTracker each frame.
-/// Active quests carry their current step (index/total + description); completed
-/// quests have `completed = true` and `step_total = 0`.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, Default)]
-pub struct GuiQuest {
-    pub name: String,
-    pub step_index: usize,
-    pub step_total: usize,
-    pub step_desc: String,
-    pub completed: bool,
-}
-
-/// A quest the player COULD accept (v0.747.x, ladder rung 4): prerequisite
-/// satisfied, not active, not completed. The Quests page's Available section.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone)]
-pub struct GuiAvailableQuest {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-}
+// GuiQuest and GuiAvailableQuest moved to gui/quest_types.rs (2026-10-30).
 
 /// A guild for GUI display.
 #[cfg(feature = "native")]

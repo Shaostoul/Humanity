@@ -5,6 +5,8 @@
 //! objectives are met, and awards item rewards on completion.
 
 pub mod objectives;
+/// A quest's chain for the Quests page's chain window (2026-10-30).
+pub mod chain;
 /// The opening, played on the shipped data with the real systems (2026-10-04).
 #[cfg(all(test, feature = "native"))]
 mod opening_tests;

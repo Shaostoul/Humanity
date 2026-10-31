@@ -73,7 +73,6 @@ pub mod server_strip;
 // passphrase_modal moved to widgets/ in v0.115.0 (it's a modal, not a page).
 // Re-export from its new location to keep callers compiling.
 pub use crate::gui::widgets::passphrase_modal;
-pub mod onboarding;
 pub mod server_settings;
 pub mod relay_control;
 // "Host a node": start/stop a relay on THIS machine from inside the app
