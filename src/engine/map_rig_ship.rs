@@ -59,7 +59,7 @@ pub(crate) fn apply(maps: &mut MapsState, verb: &MapVerb) {
 pub(crate) fn report(maps: &MapsState) -> serde_json::Value {
     let s = &maps.ship_drawn;
     let t = &maps.tiles;
-    let key = |k: &crate::engine::map_tiles::TileKey| serde_json::json!({ "level": k.level, "z": k.z, "x": k.x, "y": k.y, "rect": k.rect() });
+    let key = |k: &crate::gui::pages::maps::tile_grid::TileKey| serde_json::json!({ "level": k.level, "z": k.z, "x": k.x, "y": k.y, "rect": k.rect() });
     let mut have: Vec<_> = t.have.keys().copied().collect();
     have.sort();
     serde_json::json!({

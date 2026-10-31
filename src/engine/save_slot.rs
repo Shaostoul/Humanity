@@ -20,11 +20,19 @@
 //!   for a home there (`choose_on_server`), and engine/net_route.rs hands `game_home` answers to
 //!   `on_game_message`.
 //!
-//! The types they share are persistence's `SaveSlot`, `ShipPlace` and `ShipMeals`, save_load's
-//! `ActiveHome`, and ship::starts.
+//! The types they share are persistence's `SaveSlot`, `ShipPlace` and `ShipMeals`, and
+//! ship::starts. Which save is live (`ActiveHome`), the choices waiting for a slot's fresh save, the
+//! slot a pairing asks for (`slot_for`) and an erased account's save set aside are
+//! persistence/live_save.rs; the questions the picker asks on the GUI state (this server's slot,
+//! asking where you live, a card's Choose) are gui/pages/where_you_live.rs (the crate split's
+//! rung 0, part B, 2026-10-31: the GUI reached up into this file for them).
 
 use crate::engine::state::EngineState;
 use crate::gui::GuiState;
+use crate::persistence::live_save::{
+    active_home, active_home_machines_path, choice_for, choose_new_home, forget_choice, remember_choice,
+    restored_save_waiting, set_active_home, slot_for, ActiveHome, Choice,
+};
 use crate::persistence::{SaveSlot, SavedHome, ShipPlace, WorldSave};
 use crate::ship::ship_structure::{HomeDesign, ShipStructure};
 use crate::ship::starts::{HomeAnswer, Start, Starts};
@@ -89,28 +97,8 @@ impl Look {
 /// its save is set aside (`set_aside`) and your own home is live until the person signs up there
 /// again (Connect), when a fresh save is made.
 pub fn wanted(gui: &GuiState) -> SaveSlot {
-    let server = crate::engine::home_plot::active_server_key(gui);
+    let server = gui.active_server_key();
     slot_for(&gui.launcher_last_world, &gui.profile_public_key, &server, gui.account_erased_here(&server))
-}
-
-/// `wanted` from its four facts (pure): the pairing, the identity's public key, the server's
-/// normalized address and whether this identity's account there was erased.
-pub fn slot_for(last_world: &str, identity: &str, server: &str, erased_here: bool) -> SaveSlot {
-    let identity = identity.trim().to_ascii_lowercase();
-    if last_world.starts_with("home:") || identity.is_empty() || server.is_empty() || erased_here {
-        return SaveSlot::Offline;
-    }
-    SaveSlot::Server { server: server.to_string(), identity }
-}
-
-/// The save this identity keeps for the server the game talks to, whatever the pairing says (a
-/// server card's Choose is made while paired with your own home). None without an identity or a
-/// server.
-pub fn server_slot(gui: &GuiState) -> Option<SaveSlot> {
-    match slot_for("", &gui.profile_public_key, &crate::engine::home_plot::active_server_key(gui), false) {
-        SaveSlot::Offline => None,
-        slot => Some(slot),
-    }
 }
 
 /// The save the config asks for at startup (`wanted`, from the config before it is applied: its
@@ -146,7 +134,7 @@ pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::Ap
         let look = offline.as_ref().map(Look::of_save).unwrap_or_default();
         match open_slot(saves_dir, data_dir, &starts, &slot, None, None, &look) {
             Ok((save, path, fresh)) => {
-                crate::save_load::set_active_home(crate::save_load::ActiveHome::of_save(slot.clone(), path, &save));
+                set_active_home(ActiveHome::of_save(slot.clone(), path, &save));
                 log::info!("Startup: playing this server's save, a {} ({}){}", save.start, save.household, if fresh { ", made fresh" } else { "" });
                 return Boot { slot, save: Some(save) };
             }
@@ -154,8 +142,8 @@ pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::Ap
         }
     }
     let home = match &offline {
-        Some(save) => crate::save_load::ActiveHome::of_save(SaveSlot::Offline, offline_path, save),
-        None => crate::save_load::ActiveHome {
+        Some(save) => ActiveHome::of_save(SaveSlot::Offline, offline_path, save),
+        None => ActiveHome {
             slot: SaveSlot::Offline,
             path: offline_path,
             start: crate::persistence::default_start(),
@@ -164,7 +152,7 @@ pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::Ap
             ship_place: None,
         },
     };
-    crate::save_load::set_active_home(home);
+    set_active_home(home);
     Boot { slot: SaveSlot::Offline, save: offline }
 }
 
@@ -302,7 +290,7 @@ pub fn write_active(state: &mut EngineState) -> Look {
         !state.gui_state.settings.fresh_world_each_launch,
         state.gui_state.own_home.as_ref(),
     );
-    crate::engine::play_journal::record("world", "Saved the game", serde_json::json!({ "server": state.gui_state.server_url }));
+    crate::play_journal::record("world", "Saved the game", serde_json::json!({ "server": state.gui_state.server_url }));
     look
 }
 
@@ -382,7 +370,7 @@ pub fn take_up_before_home(
 ) -> Result<TakenUp, String> {
     let (save, path, fresh) = open_slot(saves_dir, data_dir, starts, slot, start, household, look)?;
     let applied = what_to_apply(data_dir, starts, &save, gui.settings.fresh_world_each_launch);
-    crate::save_load::set_active_home(crate::save_load::ActiveHome::of_save(slot.clone(), path.clone(), &save));
+    set_active_home(ActiveHome::of_save(slot.clone(), path.clone(), &save));
     gui.save_slot = slot.clone();
     crate::save_load::put_save_on_world(world, data, gui, data_dir, &applied, true);
     Ok(TakenUp { save, applied, path, fresh })
@@ -416,56 +404,19 @@ pub fn what_to_apply(data_dir: &Path, starts: &Starts, save: &WorldSave, fresh_w
 
 // ── The swap ─────────────────────────────────────────────────────────────────────────────────────
 
-/// A start chosen for a save that does not exist yet: a home chosen on a server's card (`chose`
-/// with its plot, `on_game_message`) or the new-home row's choice (`choose_new_home`). The save
-/// `follow` then makes for that slot is of this start and household, standing on `place`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Choice {
-    pub start: String,
-    pub household: String,
-    pub place: Option<ShipPlace>,
-}
-
 /// How long `follow` waits before it tries a swap that failed again (a save that could not be
 /// read or written): a disk error does not clear in a frame, and retrying every frame would fill
 /// the log.
 pub const SWAP_RETRY_SECS: u64 = 30;
 
-// Thread-local for the reason save_load's ACTIVE_HOME is: every swap runs on the one main thread,
-// and a thread-local keeps each test's its own.
+// Thread-local for the reason persistence::live_save's ACTIVE_HOME is: every swap runs on the one
+// main thread, and a thread-local keeps each test's its own. (The choices waiting for a slot's fresh
+// save are live_save's; the start a server card's Choose asked for is where_you_live.rs's.)
 thread_local! {
-    /// Choices waiting for their slot's fresh save, at most one per slot.
-    static CHOICES: RefCell<Vec<(SaveSlot, Choice)>> = const { RefCell::new(Vec::new()) };
     /// The slot a swap last failed for, and when.
     static BACKOFF: RefCell<Option<(SaveSlot, std::time::Instant)>> = const { RefCell::new(None) };
     /// The server the last `game_home` answer came from (its normalized address).
     static ANSWER_FROM: RefCell<String> = const { RefCell::new(String::new()) };
-    /// The start and household a server card's Choose asked for, until its answer comes.
-    static ASKED: RefCell<Option<(String, String)>> = const { RefCell::new(None) };
-}
-
-/// Remember `choice` for `slot`'s fresh save (replacing an earlier one for that slot).
-pub fn remember_choice(slot: &SaveSlot, choice: Choice) {
-    CHOICES.with(|c| {
-        let mut c = c.borrow_mut();
-        c.retain(|(s, _)| s != slot);
-        c.push((slot.clone(), choice));
-    });
-}
-
-/// The choice waiting for `slot`, if any.
-pub fn choice_for(slot: &SaveSlot) -> Option<Choice> {
-    CHOICES.with(|c| c.borrow().iter().find(|(s, _)| s == slot).map(|(_, ch)| ch.clone()))
-}
-
-fn forget_choice(slot: &SaveSlot) {
-    CHOICES.with(|c| c.borrow_mut().retain(|(s, _)| s != slot));
-}
-
-/// The new-home row's choice (lane 2B: Characters (Play), "A new home"): your own home, when it
-/// has no save yet, is made of this start and household.
-pub fn choose_new_home(start: &str, household: &str) {
-    remember_choice(&SaveSlot::Offline, Choice { start: start.to_string(), household: household.to_string(), place: None });
 }
 
 /// Swap the live save when the pairing asks for another (3.6, every frame after
@@ -484,7 +435,7 @@ pub fn follow(state: &mut EngineState) {
     if !swap && chosen.is_none() {
         return;
     }
-    if !may_swap(state.world_loaded, crate::save_load::restored_save_waiting(), state.gui_state.construction_active) {
+    if !may_swap(state.world_loaded, restored_save_waiting(), state.gui_state.construction_active) {
         return;
     }
     if BACKOFF.with(|b| b.borrow().as_ref().is_some_and(|(s, at)| *s == want && at.elapsed().as_secs() < SWAP_RETRY_SECS)) {
@@ -564,7 +515,7 @@ fn write_chosen(saves_dir: &Path, data_dir: &Path, slot: &SaveSlot, choice: &Cho
 /// nothing along: the save just put on the world carries its own pieces to the home by its own
 /// frame (`take_up`, `carry_saved_pieces_home`).
 pub fn build_home(state: &mut EngineState) -> Result<(), String> {
-    let active = crate::save_load::active_home();
+    let active = active_home();
     let starts = Starts::load(&state.data_dir);
     // The live ship's file (a Dev edit of the ship is kept), else the ship file on disk.
     let file = match state.gui_state.ship_structure.as_ref() {
@@ -595,7 +546,7 @@ pub fn build_home(state: &mut EngineState) -> Result<(), String> {
 /// character's own in the household's place (`own_home::machines_for_world`), and what is drawn
 /// from them (`refresh_household_views`).
 pub fn reload_household(state: &mut EngineState) {
-    let path = crate::save_load::active_home_machines_path(&state.data_dir);
+    let path = active_home_machines_path(&state.data_dir);
     if let Some(home) = crate::engine::own_home::machines_for_world(&mut state.gui_state, &path) {
         state.gui_state.home_machines = Some(home);
     }
@@ -617,14 +568,14 @@ pub fn refresh_household_views(gui: &mut GuiState, data_dir: &Path) {
 /// and household in `ActiveHome`, so the next save writes them and the household file loaded is
 /// the new one, and its machines reloaded. The caller builds the home.
 pub fn change_start(state: &mut EngineState, start: &str, household: &str) {
-    let mut active = crate::save_load::active_home();
+    let mut active = active_home();
     if active.start == start && active.household == household {
         return;
     }
     log::info!("Where you live: now a {start} ({household})");
     active.start = start.to_string();
     active.household = household.to_string();
-    crate::save_load::set_active_home(active);
+    set_active_home(active);
     reload_household(state);
 }
 
@@ -639,20 +590,20 @@ pub fn start_row<'a>(starts: &'a Starts, start: &str) -> &'a Start {
 /// The live save's start, read from `data_dir` (world_load.rs: what the home carries of the
 /// homestead's world, and whether it breathes its own air).
 pub fn live_start(data_dir: &Path) -> Start {
-    start_row(&Starts::load(data_dir), &crate::save_load::active_home().start).clone()
+    start_row(&Starts::load(data_dir), &active_home().start).clone()
 }
 
 /// Whether the live save's home breathes its own air (`Start::own_air`; a cabin is on the ship's
 /// ventilation), from the starts file read once per run: asked on every rebuild of the home.
 pub fn live_own_air() -> bool {
-    start_row(crate::gui::pages::where_you_live::starts(), &crate::save_load::active_home().start).own_air
+    start_row(crate::gui::pages::where_you_live::starts(), &active_home().start).own_air
 }
 
 /// Whether the live save's start carries `content` of the homestead's world (`Start::home_content`:
-/// the showcase garden's first planting, hot_reload/mod.rs), from the starts file read once per
-/// run: asked every frame.
+/// the showcase garden's first planting, engine/hot_reload_gates.rs), from the starts file read
+/// once per run: asked every frame.
 pub fn live_carries(content: crate::ship::starts::HomeContent) -> bool {
-    start_row(crate::gui::pages::where_you_live::starts(), &crate::save_load::active_home().start).home_content.contains(&content)
+    start_row(crate::gui::pages::where_you_live::starts(), &active_home().start).home_content.contains(&content)
 }
 
 /// The plot `place` names on `ship_file` for a home of `kind` (pure): its plot when the place was
@@ -741,13 +692,13 @@ pub fn assemble_start(
 /// the home's frame as it stood, which the next world load carries to the plot (`HomeFrame`).
 pub fn set_ship_place(state: &mut EngineState, plot: Option<String>) {
     let place = plot.and_then(|p| place_on(state.gui_state.ship_structure.as_ref(), &p));
-    let mut active = crate::save_load::active_home();
+    let mut active = active_home();
     if active.ship_place == place {
         return;
     }
     log::info!("Where you live: this save's plot is now {:?} (kept in the save)", place.as_ref().map(|p| &p.plot));
     active.ship_place = place;
-    crate::save_load::set_active_home(active);
+    set_active_home(active);
     crate::engine::own_home::refresh_own_home(&mut state.gui_state);
     crate::save_load::save_active_home(
         &state.game_world.world,
@@ -779,10 +730,10 @@ pub fn on_game_message(state: &mut EngineState, v: &serde_json::Value) -> bool {
 /// card picked for it (`choose_on_server`), else the start's first, and the plot as a place on the
 /// ship the game runs.
 pub fn take_answer(gui: &mut GuiState, answer: HomeAnswer) -> Option<(SaveSlot, Choice)> {
-    ANSWER_FROM.with(|a| *a.borrow_mut() = crate::engine::home_plot::active_server_key(gui));
-    let taken = match (answer.chose, answer.plot.as_ref(), server_slot(gui)) {
+    ANSWER_FROM.with(|a| *a.borrow_mut() = gui.active_server_key());
+    let taken = match (answer.chose, answer.plot.as_ref(), crate::gui::pages::where_you_live::server_slot(gui)) {
         (true, Some(held), Some(slot)) => {
-            let asked = ASKED.with(|a| a.borrow_mut().take());
+            let asked = crate::gui::pages::where_you_live::take_asked();
             let household = asked.filter(|(s, _)| *s == held.start).map(|(_, h)| h).unwrap_or_default();
             let household = crate::gui::pages::where_you_live::starts().household(&held.start, &household).id.clone();
             let place = place_on(gui.ship_structure.as_ref(), &held.id);
@@ -831,9 +782,9 @@ pub fn took_home(state: &mut EngineState, slot: &SaveSlot, choice: Choice) {
     let live = state.gui_state.save_slot == *slot;
     let path = crate::persistence::slot_path(&crate::persistence::saves_dir(), slot);
     if live {
-        let mut active = crate::save_load::active_home();
+        let mut active = active_home();
         active.ship_place = choice.place.clone();
-        crate::save_load::set_active_home(active);
+        set_active_home(active);
     }
     match after_choice(live, path.exists(), state.game_joined, state.last_welcome) {
         AfterChoice::Wait => remember_choice(slot, choice),
@@ -862,48 +813,13 @@ pub fn took_home(state: &mut EngineState, slot: &SaveSlot, choice: Choice) {
     }
 }
 
-/// Ask the server the game talks to where this identity lives on it, and what is free
-/// (`game_home_request`; the answer comes to `on_game_message`). False when not connected.
-pub fn ask_where_you_live(gui: &GuiState) -> bool {
-    match gui.ws_client.as_ref() {
-        Some(ws) if ws.is_connected() && gui.ws_identified => {
-            ws.send(&serde_json::json!({ "type": crate::ship::starts::HOME_REQUEST }).to_string());
-            true
-        }
-        _ => false,
-    }
-}
-
 /// A server card's Choose (3.9; the probe's `{"choose_start":"cabin"}`): send `game_choose_home`
 /// for `start` to the server the game talks to, with the household the card picked for it
 /// (`where_you_live::draft_household`). Its answer (`on_game_message`) puts the home chosen into
 /// that server's save. Err with the sentence to show when it cannot be asked.
 pub fn choose_on_server(state: &mut EngineState, start: &str) -> Result<(), String> {
-    choose_on_server_gui(&state.gui_state, start)
+    crate::gui::pages::where_you_live::choose_on_server(&state.gui_state, start)
 }
-
-/// `choose_on_server` on the GUI state alone (the picker's server card is drawn on it).
-pub fn choose_on_server_gui(gui: &GuiState, start: &str) -> Result<(), String> {
-    let starts = crate::gui::pages::where_you_live::starts();
-    let Some(row) = starts.get(start).filter(|s| s.offered) else {
-        return Err(format!("'{start}' is not a home you can choose."));
-    };
-    if server_slot(gui).is_none() {
-        return Err("A server keeps your home there under your identity: make one first (Settings > Identity).".into());
-    }
-    let Some(ws) = gui.ws_client.as_ref().filter(|w| w.is_connected() && gui.ws_identified) else {
-        return Err("Connect to this server in Chat first.".into());
-    };
-    ws.send(&serde_json::json!({ "type": crate::ship::starts::CHOOSE_HOME, "start": row.id }).to_string());
-    let household = crate::gui::pages::where_you_live::draft_household(starts, &row.id);
-    ASKED.with(|a| *a.borrow_mut() = Some((row.id.clone(), household)));
-    log::info!("Where you live: asked this server for a {}", row.id);
-    Ok(())
-}
-
-/// The picker's row for the server the game is connected to (gui/pages/showroom.rs
-/// `CONNECTED_SERVER_ID`): what a server pairing records.
-pub const CONNECTED_SERVER_ROW: &str = "__connected__";
 
 /// The picker's Enter (3.9; the probe's `{"pairing":"home"}` / `{"pairing":"server"}`): pair with
 /// your own home (alone, out of the shared world) or with the connected server (its shared world),
@@ -932,11 +848,11 @@ pub fn enter_pairing_gui(gui: &mut GuiState, pairing: &str) -> Result<(), String
             if !gui.ws_client.as_ref().is_some_and(|w| w.is_connected()) {
                 return Err("Connect to a server in Chat first.".into());
             }
-            if server_slot(gui).is_none() {
+            if crate::gui::pages::where_you_live::server_slot(gui).is_none() {
                 return Err("A server keeps your home there under your identity: make one first (Settings > Identity).".into());
             }
             gui.launcher_where_kind = crate::gui::LauncherWhere::Server;
-            gui.launcher_selected_server = Some(CONNECTED_SERVER_ROW.to_string());
+            gui.launcher_selected_server = Some(crate::gui::pages::showroom::CONNECTED_SERVER_ID.to_string());
             gui.copresence_solo = false;
         }
         other => return Err(format!("'{other}' is not a pairing: home or server")),
@@ -953,59 +869,13 @@ pub fn enter_pairing_gui(gui: &mut GuiState, pairing: &str) -> Result<(), String
 /// look crosses into every world, and its things would otherwise go into that server's save at
 /// the next save. Any other save loads whole (`save_load::apply_onto_running_world`).
 pub fn apply_pending_load(state: &mut EngineState, save: &WorldSave) {
-    if crate::save_load::active_home().is_server() && save.kind != "server" {
+    if active_home().is_server() && save.kind != "server" {
         Look::of_save(save).put_on(&mut state.game_world.world, &mut state.gui_state);
         log::info!("Launcher: '{}' wears that character's look here; this server's save keeps its own things", save.name);
         return;
     }
     crate::save_load::apply_onto_running_world(state, save);
     log::info!("Launcher: loaded character '{}'", save.name);
-}
-
-// ── An erased account ────────────────────────────────────────────────────────────────────────────
-
-/// Set the save of `slot` aside (3.6, an erased account): renamed beside itself to
-/// `<name>.erased-<day>.json` (a second one that day `<name>.erased-<day>-2.json`), never
-/// deleted, so a sign-up there again starts fresh while the old one can still be looked at. The
-/// new path, None when there was no save.
-pub fn set_aside(saves_dir: &Path, slot: &SaveSlot, day: &str) -> Option<PathBuf> {
-    let path = crate::persistence::slot_path(saves_dir, slot);
-    if !path.exists() {
-        return None;
-    }
-    let stem = path.file_stem()?.to_string_lossy().to_string();
-    let aside = (1..1000)
-        .map(|n| if n == 1 { format!("{stem}.erased-{day}.json") } else { format!("{stem}.erased-{day}-{n}.json") })
-        .map(|name| path.with_file_name(name))
-        .find(|p| !p.exists())?;
-    match std::fs::rename(&path, &aside) {
-        Ok(()) => {
-            log::info!("An erased account's save on that server is set aside as {}", aside.display());
-            Some(aside)
-        }
-        Err(e) => {
-            log::warn!("An erased account's save could not be set aside ({e}); it stays where it was");
-            None
-        }
-    }
-}
-
-/// `set_aside` for this identity's save on `server` (gui/connections.rs, when the server confirms
-/// the account erased), today's date in the name. When that save is the live one, the live world
-/// goes on writing into the file set aside until `follow` swaps to your own home (`wanted` says so
-/// for an erased account), so nothing is written back where a sign-up again would find it.
-pub fn set_aside_erased(saves_dir: &Path, server: &str, identity: &str) -> Option<PathBuf> {
-    let slot = slot_for("", identity, &crate::gui::pages::chat::norm_server_url(server), false);
-    if slot == SaveSlot::Offline {
-        return None;
-    }
-    let aside = set_aside(saves_dir, &slot, &crate::persistence::utc_day(crate::persistence::now_ms()))?;
-    let mut active = crate::save_load::active_home();
-    if active.slot == slot {
-        active.path = aside.clone();
-        crate::save_load::set_active_home(active);
-    }
-    Some(aside)
 }
 
 /// The save half of the swap (lane 1C): which save is live, a fresh server save, the apply.

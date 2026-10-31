@@ -3068,7 +3068,7 @@ pub(crate) struct UiIpc {
 /// ```json
 /// {"action": "f10", "flag": "show_cloud_dev_panel"}
 /// {"action": "escape"}
-/// {"action": "mark"}   (the play journal's Mark this moment, as F8: engine/play_journal.rs;
+/// {"action": "mark"}   (the play journal's Mark this moment, as F8: engine/play_journal_frame.rs;
 ///                      optional "label" and "picture": false, as the rigs send it)
 /// {"action": "state", "flag": "cloud_dev_dither_off"}
 /// {"action": "pointer_move", "pos": [200, 300]}
@@ -3202,7 +3202,7 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
         // Optional "label" (a rig's vantage id) and "picture" (default true); a rig sends
         // {"action": "mark", "label": "<vantage>", "picture": false} (rung 4).
         "mark" => {
-            state.gui_state.play_mark_request = Some(crate::engine::play_journal::MarkAsk {
+            state.gui_state.play_mark_request = Some(crate::play_journal::MarkAsk {
                 label: v.get("label").and_then(|l| l.as_str()).unwrap_or("").chars().take(80).collect(),
                 picture: v.get("picture").and_then(|p| p.as_bool()).unwrap_or(true),
             });
@@ -4452,7 +4452,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // Ship homes 5b: the household permits given and held on this server, what the relay
         // said of each this session, the plots open to walk into and the one lit, and each
         // neighbour corridor's doors (engine/household.rs `probe_json`).
-        "household": crate::engine::household::probe_json(state),
+        "household": crate::engine::household_world::probe_json(state),
         // Ship homes increment 6: which save is live (your own home or this server's), its start,
         // household and place aboard, the home it built, what the character carries, the mess
         // hall's meter and counter, the server's `game_home` answer and the last home verb
@@ -4489,7 +4489,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
 //                     pairing asks for (`save_slot::wanted`); they differ until `follow` swaps
 //   pairing           the recorded pairing (`launcher_last_world`, "home:..." / "server:...")
 //   path              the live save's file
-//   server, start, household, ship_place   the live save's (`save_load::active_home`)
+//   server, start, household, ship_place   the live save's (`persistence::live_save::active_home`)
 //   home              the home built: its kind, plot, whether it is put away (a guest), its box
 //   backpack          every item the character carries and how many, summed by id
 //   skills            how many skills have any level or experience
@@ -4547,7 +4547,7 @@ pub(crate) fn home_session_core(
         SaveSlot::Offline => "offline",
         SaveSlot::Server { .. } => "server",
     };
-    let active = crate::save_load::active_home();
+    let active = crate::persistence::live_save::active_home();
     // The character as the live world holds it, as a save would write it.
     let me = crate::save_load::extract_world_save(world);
     let quests = me.quests.clone().unwrap_or_default();
@@ -4567,7 +4567,7 @@ pub(crate) fn home_session_core(
             .map(|k| serde_json::json!({ "direction": k.direction, "quantity": k.quantity, "value": k.value }))
             .collect::<Vec<_>>()
     });
-    let server_save = crate::engine::save_slot::server_slot(gs).map(|s| save_file_json(&crate::persistence::slot_path(saves_dir, &s)));
+    let server_save = crate::gui::pages::where_you_live::server_slot(gs).map(|s| save_file_json(&crate::persistence::slot_path(saves_dir, &s)));
     serde_json::json!({
         "slot": word(&gs.save_slot),
         "wanted": word(&crate::engine::save_slot::wanted(gs)),
@@ -5667,7 +5667,7 @@ mod household_ipc_tests {
     /// And the recorder writes it into its done JSON beside `shared_build`.
     ///
     /// Seen red 2026-10-12 before the probe was wired (`"household"` not yet in the recorder's done
-    /// JSON): "the recorder never writes \"household\": crate::engine::household::probe_json(state)".
+    /// JSON): "the recorder never writes \"household\": crate::engine::household_world::probe_json(state)".
     #[test]
     fn the_probe_reports_the_household() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
@@ -5707,7 +5707,7 @@ mod household_ipc_tests {
         gs.household.verdicts.insert(PermitKey::of(&held), Judged { verdict: Verdict::Works, at: 1.0 });
         gs.ship_structure = Some(ship);
 
-        let v = crate::engine::household::probe_core(&gs, &doors);
+        let v = crate::engine::household_world::probe_core(&gs, &doors);
         let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
         keys.sort_unstable();
         assert_eq!(
@@ -5745,7 +5745,7 @@ mod household_ipc_tests {
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
 
         let rec = body_of("poll_remote_players_request");
-        let wired = "\"household\": crate::engine::household::probe_json(state)";
+        let wired = "\"household\": crate::engine::household_world::probe_json(state)";
         assert!(rec.contains(wired), "the recorder never writes {wired}");
     }
 }
@@ -5847,7 +5847,7 @@ mod home_session_ipc_tests {
         let saves = std::env::temp_dir().join(format!("home-session-probe-{nanos}"));
         let server_path = crate::persistence::slot_path(&saves, &slot);
         let place = crate::engine::save_slot::place_on(Some(&ship), "c2");
-        crate::save_load::set_active_home(crate::save_load::ActiveHome {
+        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome {
             slot: slot.clone(),
             path: server_path.clone(),
             start: "cabin".into(),
@@ -5865,7 +5865,7 @@ mod home_session_ipc_tests {
         let mut gs = GuiState::default();
         gs.profile_public_key = me.clone();
         gs.server_url = server.clone();
-        gs.launcher_last_world = format!("server:{}", crate::engine::save_slot::CONNECTED_SERVER_ROW);
+        gs.launcher_last_world = format!("server:{}", crate::gui::pages::showroom::CONNECTED_SERVER_ID);
         gs.save_slot = slot.clone();
         gs.ship_structure = Some(ship);
         gs.vitals.satiation = 70.0;

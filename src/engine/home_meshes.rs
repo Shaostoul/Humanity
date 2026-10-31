@@ -1899,7 +1899,7 @@ fn note_plant_rebuild(r: PlantRebuild) {
 }
 
 /// Frame times around a garden rebuild (2026-09-27). The plant pass runs
-/// once a frame (`hot_reload::poll_and_apply`), so the time between two of
+/// once a frame (`hot_reload_gates::poll_and_apply`), so the time between two of
 /// its calls is one whole frame. The probe keeps the last 30 of them and,
 /// from the frame the pass starts building geometry until five frames after
 /// it has none left to do, the worst and the mean frame, and the plant
@@ -2781,7 +2781,7 @@ pub(crate) const CAR_CLEARANCE_M: f32 = 0.02;
 const CAR_THICK_M: f32 = 0.15;
 
 /// Every elevator car to draw (v0.590; moved here from lib.rs in the increment 7 review): (where,
-/// its turn, its scale for the unit box), one per elevator of the ship (`footing::lifts`, the same
+/// its turn, its scale for the unit box), one per elevator of the ship (`ship::lifts::lifts`, the same
 /// list the cars ride on and the gates stand round), its floor's top at the car's height (`cars`),
 /// the slab its footprint less `CAR_CLEARANCE_M` a side. A car the editor's cut-away hides (`cut`:
 /// at or over the cut, standing on the floor above) is left out.
@@ -2791,7 +2791,7 @@ pub(crate) fn elevator_car_poses(
     cut: impl Into<crate::engine::editor::Cuts>,
 ) -> Vec<(Vec3, Quat, Vec3)> {
     let cut = cut.into();
-    crate::engine::footing::lifts(ship)
+    crate::ship::lifts::lifts(ship)
         .into_iter()
         .filter_map(|lift| {
             let top = lift.base.y + cars.get(&lift.key).map_or(0.0, |e| e.0);

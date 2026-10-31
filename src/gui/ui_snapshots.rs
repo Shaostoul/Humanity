@@ -92,7 +92,7 @@ fn demo_state() -> GuiState {
     s.library = lib.sections;
     s.library_tags = lib.tag_groups;
     s.curriculum = crate::gui::load_curriculum(data);
-    s.garden_areas = crate::gui::load_garden_areas(&crate::save_load::active_home_machines_path(data), data);
+    s.garden_areas = crate::gui::load_garden_areas(&crate::persistence::live_save::active_home_machines_path(data), data);
     s.grow_media = crate::gui::load_grow_media(data);
     // The app loads the donate FAQ at startup (lib.rs); without it the Donate
     // snapshot ended on a "Frequently Asked Questions" heading over nothing.
@@ -1946,7 +1946,7 @@ fn snapshot_where_you_live() {
     };
     render_page_png("where_you_live", 1280, 780, |ctx, theme, state| {
         let theme: &Theme = theme;
-        crate::save_load::set_active_home(crate::save_load::ActiveHome::offline());
+        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::offline());
         wyl::reset_draft();
         let caption = |ui: &mut egui::Ui, theme: &Theme, text: &str| {
             ui.label(egui::RichText::new(text).size(theme.font_size_small).italics().color(theme.text_muted()));

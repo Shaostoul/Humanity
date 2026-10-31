@@ -705,11 +705,11 @@ pub(crate) struct EngineState {
     /// teleport pad; counts down each frame so standing on the destination pad doesn't ping-pong.
     pub(crate) teleport_cooldown: f32,
     /// ELEVATOR runtime state (v0.590), keyed by the zone's id and the elevator's own
-    /// (`footing::LiftKey`, since the increment 7 follow-ups of 2026-10-21; list indexes before,
+    /// (`ship::lifts::LiftKey`, since the increment 7 follow-ups of 2026-10-21; list indexes before,
     /// which an edit shifted) (v0.754 -- every zone's elevators run): (the car's height over the shaft's base in
     /// metres, the target stop's height in metres, someone riding). Pure runtime -- not saved
     /// with the home; resynced each frame during play. Since ship homes increment 7 the stops
-    /// are the storey floors the shaft spans (`footing::lifts`): anyone at any landing calls the
+    /// are the storey floors the shaft spans (`ship::lifts::lifts`): anyone at any landing calls the
     /// car, and while riding Space goes up a stop and Shift down (`footing::elevator_tick`).
     pub(crate) elevator_state: crate::engine::footing::ElevatorCars,
     /// Cached unit-box mesh + material for the moving elevator CAR slab (v0.590), scaled + posed
@@ -814,7 +814,7 @@ pub(crate) struct EngineState {
     /// stands on the plot the relay gave us. Positions are only sent after it, so nobody sees us
     /// at the default plot's door for the moment before the welcome arrives (increment 1b).
     pub(crate) game_welcomed: bool,
-    /// The server (`home_plot::active_server_key`) we refused to join: its ship is not ours, it
+    /// The server (`GuiState::active_server_key`) we refused to join: its ship is not ours, it
     /// has none, or our home does not fit the plot it gave us (engine/home_plot.rs). The join
     /// gate skips it until a fresh connection to it, a switch to another server and back, or a
     /// fresh world load (`home_plot::follow_server`, world_load).

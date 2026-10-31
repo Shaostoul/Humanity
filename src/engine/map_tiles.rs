@@ -10,7 +10,9 @@
 //! across its z. The ship file is the ship (its id is the cache's: another ship, a fresh cache).
 //! The page asks for the tiles its view covers at the zoom that keeps a tile pixel no bigger than
 //! a screen pixel (`zoom_for`, `keys_covering`, gui/pages/maps/ship_view.rs) and draws a coarser
-//! tile's part where a finer one is not baked yet.
+//! tile's part where a finer one is not baked yet. The grid itself (`TileKey`, the zoom, which
+//! tiles cover a view) is gui/pages/maps/tile_grid.rs, the GUI crate's: the page and this bake
+//! both key their tiles by it (the crate split's rung 0, part B).
 //!
 //! THE BAKE. At most ONE tile a frame, while the plan is shown and the home is drawn at the level
 //! (the cutaway, engine/map_cut.rs: everything over the level taken away by the editor's rule):
@@ -43,87 +45,18 @@ use glam::{DQuat, DVec3, Vec3};
 
 use crate::engine::editor::Cuts;
 use crate::engine::state::{EngineState, SceneDrawLists};
+use crate::gui::pages::maps::tile_grid::{rects_touch, TileKey, TILE_PX};
 use crate::renderer::RenderObject;
 use crate::ship::home_structure::storey_index;
 use crate::ship::levels::ShipLevel;
 use crate::ship::ship_structure::{CorridorAxis, ShipStructure};
 
-/// A tile's side in pixels.
-pub const TILE_PX: u32 = 512;
-/// A zoom-0 tile's side, metres (1 m a pixel).
-pub const TILE_BASE_M: f32 = 512.0;
-/// The finest zoom: 8 m tiles, 1.6 cm a pixel.
-pub const MAX_ZOOM: u8 = 6;
 /// One tile's texture, bytes.
 pub const TILE_BYTES: usize = (TILE_PX * TILE_PX * 4) as usize;
 /// The most the tiles may hold, bytes (64 tiles).
 pub const CACHE_BYTES: usize = 64 * 1024 * 1024;
 /// The bake's field of view, degrees (see the module doc).
 const TILE_FOV_DEG: f64 = 2.0;
-
-/// One tile: its level (ordinal), zoom, and place in the zoom's grid.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TileKey {
-    pub level: i32,
-    pub z: u8,
-    pub x: i32,
-    pub y: i32,
-}
-
-impl TileKey {
-    /// A tile's side at zoom `z`, metres.
-    pub fn size_m(z: u8) -> f32 {
-        TILE_BASE_M / (1u32 << z.min(MAX_ZOOM)) as f32
-    }
-
-    /// Its footprint, ship metres: [min x, min z, max x, max z].
-    pub fn rect(&self) -> [f32; 4] {
-        let s = Self::size_m(self.z);
-        [self.x as f32 * s, self.y as f32 * s, (self.x + 1) as f32 * s, (self.y + 1) as f32 * s]
-    }
-
-    /// The tile one zoom coarser that holds this one.
-    pub fn parent(&self) -> Option<TileKey> {
-        (self.z > 0).then(|| TileKey { level: self.level, z: self.z - 1, x: self.x.div_euclid(2), y: self.y.div_euclid(2) })
-    }
-
-    /// Where this tile is in `outer`'s image (a tile holding it), as [u0, v0, u1, v1]: u across
-    /// the ship's x, v across its z (the bake's image has the ship's -z at its top).
-    pub fn uv_in(&self, outer: &TileKey) -> [f32; 4] {
-        let (a, b) = (self.rect(), outer.rect());
-        let s = TileKey::size_m(outer.z);
-        [(a[0] - b[0]) / s, (a[1] - b[1]) / s, (a[2] - b[0]) / s, (a[3] - b[1]) / s]
-    }
-}
-
-/// The zoom whose tile pixel is no bigger than a screen pixel of `m_per_px` metres (the finest
-/// needed), within 0 and `MAX_ZOOM`.
-pub fn zoom_for(m_per_px: f64) -> u8 {
-    if !(m_per_px.is_finite() && m_per_px > 0.0) {
-        return 0;
-    }
-    let base = (TILE_BASE_M / TILE_PX as f32) as f64;
-    (base / m_per_px).log2().ceil().clamp(0.0, MAX_ZOOM as f64) as u8
-}
-
-/// The tiles of `level` at zoom `z` that cover `rect` ([min x, min z, max x, max z], ship metres).
-pub fn keys_covering(level: i32, z: u8, rect: [f32; 4]) -> Vec<TileKey> {
-    let s = TileKey::size_m(z);
-    let (x0, y0) = ((rect[0] / s).floor() as i32, (rect[1] / s).floor() as i32);
-    let (x1, y1) = (((rect[2] / s).ceil() as i32 - 1).max(x0), ((rect[3] / s).ceil() as i32 - 1).max(y0));
-    let mut out = Vec::new();
-    for y in y0..=y1 {
-        for x in x0..=x1 {
-            out.push(TileKey { level, z, x, y });
-        }
-    }
-    out
-}
-
-/// True when two footprints overlap (touching edges do not).
-pub fn rects_touch(a: [f32; 4], b: [f32; 4]) -> bool {
-    a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
-}
 
 /// One thing a level's plan is made of: its footprint (ship metres) and a hash of what it is.
 #[derive(Debug, Clone, Copy, PartialEq)]

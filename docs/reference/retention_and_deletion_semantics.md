@@ -445,7 +445,7 @@ Ship homes increment 6 gave every world its own game save (docs/design/ship-home
 - **When your account on that server is erased** (by you or by an admin, finished or not), the app
   sets that server's save aside as soon as it is told: it renames the file beside itself to
   `<name>.erased-<yyyy-mm-dd>.json` (a second one the same day gets `-2`), and never deletes it
-  (`src/engine/save_slot.rs` `set_aside_erased`, called from `src/gui/connections.rs`
+  (`src/persistence/live_save.rs` `set_aside_erased`, called from `src/gui/connections.rs`
   `account_erased_on_server`). Your own home becomes the live save, and signing up on that server
   again (Connect under the erase note) starts a fresh save there, because the old file no longer
   has the name the game looks for. Said plainly, what stays on the device:

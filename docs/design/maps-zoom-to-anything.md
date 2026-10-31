@@ -775,7 +775,7 @@ Built as planned above, with these differences, each for a stated reason.
   two: "Storey 1 (ground)" (0 to 3 m) and "Storey 2" (3 m to the Commons' 8 m roof). The
   ordinal is IMDF's (0 the level the deck datum, y = 0, is on; negative is a basement,
   "Basement 1", "B1"), the names are the build editor's storey names, which now come from
-  the same function (`level_name`; `editor_storeys::storey_name` calls it).
+  the same function (`level_name`; `storey_name`, ship/storey_edits.rs since 2026-10-31, calls it).
 - **The cutaway is the editor's own, not a shader cut** (`src/engine/map_cut.rs`, new). The
   plan's preference, object-level culling, was not possible as it stood (a home's walls are
   one mesh per wall material across the whole ship), but the build editor already draws a

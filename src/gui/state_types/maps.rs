@@ -343,15 +343,15 @@ pub struct MapsState {
 #[derive(Debug, Clone, Default)]
 pub struct MapTiles {
     /// The tiles the plan's view covers this frame, finest first.
-    pub want: Vec<crate::engine::map_tiles::TileKey>,
+    pub want: Vec<crate::gui::pages::maps::tile_grid::TileKey>,
     /// The tiles baked and kept, each with its texture as registered with the window's egui.
-    pub have: std::collections::HashMap<crate::engine::map_tiles::TileKey, egui::TextureId>,
+    pub have: std::collections::HashMap<crate::gui::pages::maps::tile_grid::TileKey, egui::TextureId>,
     /// What the engine did: tiles baked this opening of the page, the last one's cost, the bytes
     /// kept, and the tiles an edit made it drop (each with the reason's footprint).
     pub baked: u32,
     pub last_bake_ms: f32,
     pub bytes: usize,
-    pub dropped: Vec<crate::engine::map_tiles::TileKey>,
+    pub dropped: Vec<crate::gui::pages::maps::tile_grid::TileKey>,
     pub dirty: Vec<[f32; 4]>,
 }
 

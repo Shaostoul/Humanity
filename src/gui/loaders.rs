@@ -549,7 +549,7 @@ pub struct GardenArea {
 /// catalog label / food line / footprint. The food line is the one every card shows
 /// (`MachineHome::stats_for`). Resolved via `data_dir` so it works regardless of the
 /// process CWD. Empty if the file is absent. `machines_path` is the household's machine file
-/// (`save_load::active_home_machines_path`, which the caller resolves: the live save is the
+/// (`persistence::live_save::active_home_machines_path`, which the caller resolves: the live save is the
 /// engine's, since the crate split's rung 0).
 pub fn load_garden_areas(machines_path: &std::path::Path, data_dir: &std::path::Path) -> Vec<GardenArea> {
     let path = machines_path;

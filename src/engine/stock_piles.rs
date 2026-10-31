@@ -632,7 +632,7 @@ mod tests {
     fn the_starting_barn_holds_coal_for_the_first_ingot() {
         use crate::systems::quests::objectives::QuestObjective;
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let home = crate::systems::grow_machines::load_home(&crate::save_load::active_home_machines_path(&root)).expect("home.ron");
+        let home = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&root)).expect("home.ron");
         let recipe_id = home.catalog.get("smelter").and_then(|d| d.auto_recipe.clone()).expect("the smelter runs a recipe");
         let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("recipes.csv")).unwrap()).unwrap();
         let smelt = recipes.recipes.get(&recipe_id).expect("the smelter's recipe");

@@ -23,7 +23,8 @@
 //! Every height is world metres, the camera's frame: a rig subtracts the home's box corner
 //! (`home_session.home.box.min`) for the home's own metres.
 
-use crate::engine::footing::{lifts, ElevatorCars};
+use crate::engine::footing::ElevatorCars;
+use crate::ship::lifts::lifts;
 use crate::engine::state::EngineState;
 use crate::ship::room_types::RoomBounds;
 use crate::ship::ship_structure::ShipStructure;
@@ -38,7 +39,7 @@ pub(crate) fn room_json(room: Option<&RoomBounds>) -> serde_json::Value {
 }
 
 /// Every elevator aboard, bottom stop first, as the probe's done block lists it: its piece id, its
-/// key in `ElevatorCars` (its zone's id and its own, `footing::LiftKey`), its base (world metres),
+/// key in `ElevatorCars` (its zone's id and its own, `ship::lifts::LiftKey`), its base (world metres),
 /// its stops (metres over the base), and its car
 /// now (its height over the base, the stop it is heading for, whether someone rides it; a car
 /// nobody has moved yet stands at its base, as `elevator_tick` starts it).

@@ -13,6 +13,12 @@
 //! - FLOOR SLABS are drawn, resized by their corners and removed (`add_floor_slab`,
 //!   `move_slab_corner`, `remove_floor_slab`); a new slab makes a storey and the selector follows.
 //! A child of engine/editor.rs, which re-exports all of it (`pub(crate) use storeys::*`).
+//!
+//! Its two other halves (the crate split's rung 0, part B, 2026-10-31): what a storey edit does
+//! to a home, with no editor around it (which storey is edited, the names, a new wall, guard or
+//! floor slab, a slab's removal and what it leaves standing, the box the cut-away hides by) is
+//! the ship's, ship/storey_edits.rs; and the panel's choices on the GUI state (the storey, the
+//! slab, the tool, the cut the HUD follows) are the page's, gui/pages/construction/storeys.rs.
 
 use glam::Vec3;
 
@@ -20,23 +26,15 @@ use super::{active_zone_origin, DRAG_THRESHOLD_PX};
 use crate::engine::geom::snap_node_position;
 use crate::engine::home_meshes::rebuild_homestead;
 use crate::engine::state::EngineState;
-pub(crate) use crate::gui::pages::construction::SlabDraw;
+use crate::gui::pages::construction::storeys::{choose_storey, editor_cut_of, select_slab, storey_cut_key_of};
 use crate::gui::GuiState;
 use crate::ship::home_structure::{
     storey_index, wall_in_storey, FloorSlab, HomeStructure, InteriorWall, SlabMaterial, Storey, ROOM_DIVIDER_MIN_M,
     STOREY_EPS,
 };
 use crate::ship::ship_structure::{zone_body, zone_body_mut, ShipStructure};
+use crate::ship::storey_edits::{add_floor_slab, new_slab_top, storey_name, CutAway, EditStorey, SlabDraw};
 
-/// Floor to floor of a storey drawn over the top one (metres): 3.0, the increment's storey (plan
-/// section 4, decision 2: a 0.25 m slab leaves 2.75 m of room under the next floor).
-pub(crate) const NEW_STOREY_M: f32 = 3.0;
-/// A new slab's thickness when no slab of its floor says otherwise (metres): 0.25, what a slab's
-/// file means when it leaves its thickness out (`FloorSlab::thickness`).
-pub(crate) const NEW_SLAB_THICKNESS_M: f32 = 0.25;
-/// The shortest side a drawn slab may have (metres): two clicks closer than this on either axis
-/// are a slip of the hand, not a floor.
-pub(crate) const MIN_SLAB_SIDE_M: f32 = 0.25;
 /// How near a room's floor must be to the storey's floor to be on it (metres). A room's floor is
 /// its storey's floor exactly (`detect_rooms`), so this only absorbs float error.
 const FLOOR_MATCH_M: f32 = 0.05;
@@ -46,55 +44,10 @@ const SLAB_CORNER_PICK_M: f32 = 0.45;
 /// How near a slab's outline a click on its plane must land to pick the slab (metres).
 const SLAB_EDGE_PICK_M: f32 = 0.3;
 
-/// The storey the editor works on, in the zone it is editing: which (`index`, bottom up, 0 the
-/// ground), of how many, and its band of height (body-local).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct EditStorey {
-    pub(crate) index: usize,
-    pub(crate) count: usize,
-    pub(crate) storey: Storey,
-}
-
-impl EditStorey {
-    /// Storey `chosen` of `hs`, or its top storey when it has fewer (a slab removed, another zone
-    /// chosen): `chosen` is kept in range here, where it is read.
-    pub(crate) fn of(hs: &HomeStructure, chosen: usize) -> Self {
-        let storeys = hs.storeys();
-        let index = chosen.min(storeys.len() - 1);
-        EditStorey { index, count: storeys.len(), storey: storeys[index] }
-    }
-
-    /// True when there is a storey above this one, so the cut-away hides something.
-    pub(crate) fn has_above(&self) -> bool {
-        self.index + 1 < self.count
-    }
-
-    /// True when something standing at body-local height `y` is drawn in the cut-away: below
-    /// this storey's top, or anywhere when nothing is above it.
-    pub(crate) fn shows(&self, y: f32) -> bool {
-        !self.has_above() || y < self.storey.top - STOREY_EPS
-    }
-}
-
 /// The storey the editor works on in the zone it is editing (None without a ship).
 pub(crate) fn edit_storey(state: &EngineState) -> Option<EditStorey> {
     zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
         .map(|hs| EditStorey::of(hs, state.gui_state.construction_storeys.chosen))
-}
-
-/// Storey `k`'s name as the panel shows it, counted from 1 as people count floors in a plan:
-/// "Storey 1 (ground)", "Storey 2", ...
-pub(crate) fn storey_name(k: usize) -> String {
-    // One naming rule with the Maps page's ship levels (ship/levels.rs, Maps increment 3).
-    crate::ship::levels::level_name(k as i32)
-}
-
-/// A floor slab's name: its label, else "Floor slab N" (counted from 1).
-pub(crate) fn slab_name(i: usize, s: &FloorSlab) -> String {
-    match s.label.as_deref().map(str::trim) {
-        Some(l) if !l.is_empty() => l.to_string(),
-        _ => format!("Floor slab {}", i + 1),
-    }
 }
 
 /// The floor plan the pick keeps to (`storey_floor_hit`), world metres: the storey's floor height,
@@ -299,45 +252,6 @@ pub(crate) fn ray_hits_wall(w: &InteriorWall, zo: Vec3, origin: Vec3, dir: Vec3,
     (s >= -0.1 && s <= len + 0.1 && hit.y >= y0 - 0.1 && hit.y <= y1 + 0.1).then_some(t)
 }
 
-/// A new wall from `a` to `b` on the chosen storey: it stands on the storey's floor and rises to
-/// the next floor (or the roof), in the body's shell material.
-pub(crate) fn new_wall_on_storey(hs: &HomeStructure, es: EditStorey, a: (f32, f32), b: (f32, f32)) -> InteriorWall {
-    InteriorWall {
-        a,
-        b,
-        base: es.storey.floor,
-        height: es.storey.height(),
-        material: hs.shell_material,
-        openings: Vec::new(),
-        thickness: None,
-        layers: Vec::new(),
-    }
-}
-
-/// The structure type a guard is drawn as, and the palette's Guard entry (`structure_types.ron`).
-pub(crate) const GUARD_TYPE: &str = "guard";
-
-/// A new GUARD from `a` to `b` on the chosen storey: the palette's Guard entry draws these with the
-/// wall tool (ship homes increment 7). A guard is a wall in a balustrade material, whose form is
-/// the `guard` structure type (`InteriorWall::guard`; it draws as posts, balusters and a rail and
-/// collides like a wall), so this is the first such material ("Steel balustrade"; Oak is a pick
-/// in the wall's detail panel), as tall as that type (1.0 m), standing on the storey's floor. A
-/// loose `guard` piece placed on its own would stop nobody. None when the data has no balustrade.
-pub(crate) fn new_guard_on_storey(es: EditStorey, a: (f32, f32), b: (f32, f32)) -> Option<InteriorWall> {
-    let material = crate::ship::home_structure::wall_materials().iter().find(|m| m.form.as_deref() == Some(GUARD_TYPE))?;
-    let height = crate::ship::structure::structure_type(GUARD_TYPE)?.size.1;
-    Some(InteriorWall {
-        a,
-        b,
-        base: es.storey.floor,
-        height,
-        material: material.id,
-        openings: Vec::new(),
-        thickness: None,
-        layers: Vec::new(),
-    })
-}
-
 /// How high a new light of `type_id` goes on the chosen storey at (x, z), body-local metres. A warm
 /// lamp sits 0.8 m up its storey (table height); a ceiling type hangs 0.3 m under the ceiling over
 /// that spot: the underside of the lowest slab above the storey's floor that covers it, else the
@@ -427,83 +341,6 @@ pub(crate) fn opening_resize_handles_on_storey(hs: &HomeStructure, zo: Vec3, k: 
         .collect()
 }
 
-/// Where a new floor drawn from storey `es` goes, its top (body-local), or why it cannot be drawn:
-/// - `Above`: the floor of the storey above, at that storey's floor when there is one (the new
-///   slab is more of it), else `NEW_STOREY_M` up, if that leaves a person room to stand
-///   (`ROOM_DIVIDER_MIN_M`) under the roof. The body's size is its plot's, so the editor does not
-///   raise it.
-/// - `Here`: more of the chosen storey's own floor. The ground storey's floor is the home's own,
-///   everywhere, so there is none to add there.
-pub(crate) fn new_slab_top(es: EditStorey, draw: SlabDraw) -> Result<f32, String> {
-    match draw {
-        SlabDraw::Here if es.index == 0 => Err(
-            "The ground storey's floor is the home's own floor, everywhere: draw a floor above it instead.".to_string(),
-        ),
-        SlabDraw::Here => Ok(es.storey.floor),
-        SlabDraw::Above if es.has_above() => Ok(es.storey.top),
-        SlabDraw::Above => {
-            let top = es.storey.floor + NEW_STOREY_M;
-            let roof = es.storey.top; // the top storey ends at the body's top
-            if roof - top >= ROOM_DIVIDER_MIN_M - STOREY_EPS {
-                Ok(top)
-            } else {
-                Err(format!(
-                    "No room for a storey above {}: the home is {roof:.1} m tall, and a floor {NEW_STOREY_M:.1} m up with \
-                     {ROOM_DIVIDER_MIN_M:.1} m to stand in over it needs {:.1} m. A home's size is its plot's.",
-                    storey_name(es.index).to_lowercase(),
-                    top + ROOM_DIVIDER_MIN_M,
-                ))
-            }
-        }
-    }
-}
-
-/// ADD A FLOOR SLAB drawn from corner `a` to the opposite corner `b` (body-local, either way
-/// round, kept inside the body) on storey `es`, at the height `new_slab_top` gives `draw`. Its
-/// thickness is its floor's (a floor drawn in pieces is one floor), else `NEW_SLAB_THICKNESS_M`;
-/// it is solid, and unnamed. A new top makes a new storey (storeys are derived). Ok(its index), or
-/// why nothing was added.
-pub(crate) fn add_floor_slab(hs: &mut HomeStructure, es: EditStorey, draw: SlabDraw, a: (f32, f32), b: (f32, f32)) -> Result<usize, String> {
-    let top = new_slab_top(es, draw)?;
-    let (w, d) = (hs.width, hs.depth);
-    let (x0, x1) = (a.0.min(b.0).clamp(0.0, w), a.0.max(b.0).clamp(0.0, w));
-    let (z0, z1) = (a.1.min(b.1).clamp(0.0, d), a.1.max(b.1).clamp(0.0, d));
-    if x1 - x0 < MIN_SLAB_SIDE_M || z1 - z0 < MIN_SLAB_SIDE_M {
-        return Err(format!(
-            "A floor needs at least {MIN_SLAB_SIDE_M:.2} m on each side inside the home: click two opposite corners further apart."
-        ));
-    }
-    let thickness = hs.floors.iter().find(|s| (s.top - top).abs() < STOREY_EPS).map_or(NEW_SLAB_THICKNESS_M, |s| s.thickness);
-    hs.floors.push(FloorSlab { a: (x0, z0), b: (x1, z1), top, thickness, material: SlabMaterial::Solid, label: None });
-    Ok(hs.floors.len() - 1)
-}
-
-/// REMOVE floor slab `i`, giving it back (None when there is none). A storey whose last slab it
-/// was is gone with it (storeys are derived); what stood on it stays where it was.
-pub(crate) fn remove_floor_slab(hs: &mut HomeStructure, i: usize) -> Option<FloorSlab> {
-    (i < hs.floors.len()).then(|| hs.floors.remove(i))
-}
-
-/// What stands on the storey floor slab `i` is the floor of, when it is that floor's LAST slab
-/// (removing it would leave them in the air): (walls, zones, pieces). (0, 0, 0) otherwise.
-pub(crate) fn left_standing_without(hs: &HomeStructure, i: usize) -> (usize, usize, usize) {
-    let Some(s) = hs.floors.get(i) else { return (0, 0, 0) };
-    let storeys = hs.storeys();
-    // The storey above the ground this slab is a floor of; a slab at the ground or the roof
-    // starts none, and holds nothing up.
-    let Some(k) = storeys.iter().position(|st| s.is_floor_of(st)).filter(|k| *k > 0) else {
-        return (0, 0, 0);
-    };
-    if hs.floors.iter().enumerate().any(|(j, o)| j != i && o.is_floor_of(&storeys[k])) {
-        return (0, 0, 0); // another slab of the same floor is still there
-    }
-    let on = |y: f32| storey_index(&storeys, y) == k;
-    let walls = hs.walls.iter().filter(|w| on(w.base)).count();
-    let zones = hs.zones.iter().filter(|z| on(z.origin.1)).count();
-    let pieces = hs.structures.iter().filter(|p| on(p.pos.1)).count();
-    (walls, zones, pieces)
-}
-
 /// Corner `c` (0..4) of a slab's footprint, round it from its smallest x and z:
 /// (x0, z0), (x1, z0), (x1, z1), (x0, z1).
 pub(crate) fn slab_corner(s: &FloorSlab, c: u8) -> (f32, f32) {
@@ -553,50 +390,11 @@ pub(crate) fn storey_cut_key(state: &EngineState) -> Option<(usize, usize)> {
     storey_cut_key_of(&state.gui_state)
 }
 
-/// `storey_cut_key` from the GUI state alone (the HUD and its overlay ask it).
-pub(crate) fn storey_cut_key_of(g: &GuiState) -> Option<(usize, usize)> {
-    if !g.construction_active {
-        return None;
-    }
-    let es = zone_body(&g.ship_structure, g.construction_zone).map(|hs| EditStorey::of(hs, g.construction_storeys.chosen))?;
-    es.has_above().then_some((g.construction_zone, es.index))
-}
-
 /// The ship the editor should DRAW (engine/home_meshes.rs `rebuild_homestead` asks): the cut-away
 /// of the storey being edited, or None to draw the ship as it is.
 pub(crate) fn editor_cut_away(state: &EngineState) -> Option<ShipStructure> {
     let (zone, k) = storey_cut_key(state)?;
     cut_away_ship(state.gui_state.ship_structure.as_ref()?, zone, k)
-}
-
-/// How far outside the cut zone's box a thing may stand and still be cut with it (metres): a door
-/// in the shell stands on the box's edge. (The port gizmos of a unit against the shell, and the
-/// risers to them, stood just past it too, the study's uplink and router at x 55.05 on a 55 m box,
-/// until the 2026-10-21 follow-ups kept every gizmo inside its home, `home_meshes::gizmo_room`.)
-pub(crate) const CUT_EDGE_M: f32 = 0.3;
-
-/// THE CUT-AWAY FOR WHAT IS NOT IN THE BODY (ship homes increment 7 review): the home's machines,
-/// their screens, its door panels and its elevator cars are drawn from the whole ship, not from
-/// the cut body, so they follow the cut by where they stand. World metres: the cut zone's footprint
-/// and the cut's height, the top of the storey being edited.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CutAway {
-    pub(crate) min: (f32, f32),
-    pub(crate) max: (f32, f32),
-    pub(crate) cut_y: f32,
-}
-
-impl CutAway {
-    /// True when the cut-away takes out a thing standing at world point `at` (its foot: a machine's
-    /// placement, a door panel's bottom, an elevator car's floor): in the cut zone's box and at or
-    /// over the cut, the rule `cut_away_body` keeps the body's pieces and lights by.
-    pub(crate) fn hides(&self, at: Vec3) -> bool {
-        at.y >= self.cut_y - STOREY_EPS
-            && at.x >= self.min.0 - CUT_EDGE_M
-            && at.x <= self.max.0 + CUT_EDGE_M
-            && at.z >= self.min.1 - CUT_EDGE_M
-            && at.z <= self.max.1 + CUT_EDGE_M
-    }
 }
 
 /// EVERY CUT-AWAY the home is drawn with (`HomeDraw::cut`): none for the whole ship, the build
@@ -625,29 +423,10 @@ impl From<Option<CutAway>> for Cuts {
     }
 }
 
-/// The cut-away of storey `k` of zone `zone` (`CutAway`): None when nothing is above that storey,
-/// as `cut_away_body`.
-pub(crate) fn cut_away_of(ship: &ShipStructure, zone: usize, k: usize) -> Option<CutAway> {
-    let z = ship.zones.get(zone)?;
-    let storeys = z.body.storeys();
-    if k + 1 >= storeys.len() {
-        return None;
-    }
-    let o = z.origin_vec();
-    Some(CutAway { min: (o.x, o.z), max: (o.x + z.body.width, o.z + z.body.depth), cut_y: o.y + storeys[k].top })
-}
-
 /// The cut-away the editor should draw now (`storey_cut_key`), as `CutAway`; None for the whole
 /// ship. engine/home_meshes.rs `rebuild_homestead` keeps it with the meshes it draws.
 pub(crate) fn editor_cut(state: &EngineState) -> Option<CutAway> {
     editor_cut_of(&state.gui_state)
-}
-
-/// `editor_cut` from the GUI state alone: what the HUD's machine labels and the build editor's
-/// overlay follow, so they hide with what the cut-away hides.
-pub(crate) fn editor_cut_of(g: &GuiState) -> Option<CutAway> {
-    let (zone, k) = storey_cut_key_of(g)?;
-    cut_away_of(g.ship_structure.as_ref()?, zone, k)
 }
 
 /// WHAT THE HOME SHOULD BE DRAWN AS NOW (Maps increment 3): the build editor's cut-away while it
@@ -687,95 +466,6 @@ pub(crate) fn follow_storey_view(state: &mut EngineState) {
     }
     if !state.gui_state.construction_structure_dirty && state.gui_state.ship_structure.is_some() {
         rebuild_homestead(state);
-    }
-}
-
-/// Work on storey `k` of the edited body (kept in range). Drops a half-drawn slab's or wall's
-/// first corner, which was on the old storey's plan, and a selected machine that is not on the
-/// new storey (`machine_on_storey`; the increment 7 follow-ups, 2026-10-22: it stayed selected,
-/// its handles hidden by the cut-away when it stood over the storey chosen, so the right panel
-/// worked on a machine nobody could see).
-pub(crate) fn choose_storey(g: &mut GuiState, k: usize) {
-    let count = zone_body(&g.ship_structure, g.construction_zone).map_or(1, |hs| hs.storeys().len());
-    let k = k.min(count.saturating_sub(1));
-    if k != g.construction_storeys.chosen {
-        g.construction_storeys.chosen = k;
-        g.construction_storeys.draw_start = None;
-        g.construction_wall_start = None;
-        if g.construction_machine_selected.as_deref().is_some_and(|id| !machine_on_storey(g, id, k)) {
-            g.construction_machine_selected = None;
-        }
-    }
-}
-
-/// True when the household's machine `id` stands on storey `k` of the edited zone: it is in that
-/// zone (`MachineInstance::zone`) and its foot (its placement's height over the zone's floor) is on
-/// that storey, by the body's own storeys, the rule the cut-away hides it by (`CutAway::hides`: a
-/// machine at or over the top of the storey being edited is taken out with the floors over it).
-fn machine_on_storey(g: &GuiState, id: &str, k: usize) -> bool {
-    let (Some(hs), Some(ship), Some(home)) = (zone_body(&g.ship_structure, g.construction_zone), g.ship_structure.as_ref(), g.home_machines.as_ref()) else {
-        return false;
-    };
-    let zone_id = ship.zones.get(g.construction_zone).map_or("", |z| z.id.as_str());
-    home.all_instances().into_iter().find(|m| m.id == id).is_some_and(|m| m.zone == zone_id && storey_index(&hs.storeys(), m.offset.1) == k)
-}
-
-/// Let go of every selection in the editor but the slab's (a slab selected takes the right panel
-/// alone).
-fn clear_other_selections(g: &mut GuiState) {
-    g.construction_wall_selected = None;
-    g.construction_structure_selected = None;
-    g.construction_light_selected = None;
-    g.construction_machine_selected = None;
-    g.construction_road_node_selected = None;
-    g.construction_conduit_node_selected = None;
-    g.construction_connection_selected = None;
-    g.construction_zone_selected = None;
-}
-
-/// SELECT floor slab `i` of the edited body (its detail fills the right panel) and work on the
-/// storey it is the floor of, so it is in view and its corners are on the plan.
-pub(crate) fn select_slab(g: &mut GuiState, i: usize) {
-    let Some(k) = zone_body(&g.ship_structure, g.construction_zone).and_then(|hs| hs.floors.get(i).map(|s| hs.storey_of_y(s.top))) else {
-        return;
-    };
-    clear_other_selections(g);
-    g.construction_storeys.slab_selected = Some(i);
-    g.construction_storeys.confirm_remove = None;
-    choose_storey(g, k);
-}
-
-/// REMOVE floor slab `i` of the edited body (the panel's Remove, the object list's x): it is gone,
-/// nothing is selected, and the chosen storey stays in range (its storey may have gone with it).
-pub(crate) fn remove_slab_in_editor(g: &mut GuiState, i: usize) {
-    if zone_body_mut(&mut g.ship_structure, g.construction_zone).and_then(|hs| remove_floor_slab(hs, i)).is_some() {
-        g.construction_structure_dirty = true;
-    }
-    g.construction_storeys.slab_selected = None;
-    g.construction_storeys.confirm_remove = None;
-    let k = g.construction_storeys.chosen;
-    choose_storey(g, k);
-    // `choose_storey` changes nothing when the index is still in range; the storey under it may
-    // still have gone, so clamp the stored index too.
-    let count = zone_body(&g.ship_structure, g.construction_zone).map_or(1, |hs| hs.storeys().len());
-    g.construction_storeys.chosen = g.construction_storeys.chosen.min(count.saturating_sub(1));
-}
-
-/// Turn the floor-slab drawing tool on (`draw`) or off (None). It is a shape of the drawing tool,
-/// so the wall tool's mode comes on and off with it, and a half-drawn wall is dropped.
-pub(crate) fn set_slab_tool(g: &mut GuiState, draw: Option<SlabDraw>) {
-    g.construction_storeys.draw = draw;
-    g.construction_storeys.draw_start = None;
-    g.construction_storeys.note.clear();
-    g.construction_wall_start = None;
-    g.construction_wall_mode = draw.is_some();
-    g.construction_wall_guard = false;
-    if draw.is_some() {
-        // The drawing tool takes the click from every held placement (the press chain in lib.rs).
-        g.construction_place_type = None;
-        g.construction_place_light = None;
-        g.construction_structure_type = None;
-        g.construction_place_conduit_node = false;
     }
 }
 

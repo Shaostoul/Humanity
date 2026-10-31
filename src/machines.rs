@@ -1384,7 +1384,8 @@ pub fn placement_item_id(machine_type: &str) -> String {
 }
 
 /// Resolve which household machine file to load and save: the live save's start and household
-/// (`save_load::active_home`, ship homes increment 6), looked up in data/homes/starts.ron
+/// (`persistence::live_save::active_home`, ship homes increment 6), looked up in
+/// data/homes/starts.ron
 /// (`Starts::household`): a homestead's family is home.ron, its solo home_solo.ron (the
 /// one-person self-sufficient design, `docs/design/homestead-solo-design.md`), a cabin
 /// cabin.ron. A household the start lacks is its first, a start the file lacks the default's.
@@ -1392,9 +1393,9 @@ pub fn placement_item_id(machine_type: &str) -> String {
 /// carries its own. Reads the starts file at each call (startup, world-load and save frequency
 /// only, never per frame).
 ///
-/// The caller says which start and household (`save_load::active_home_machines_path` passes the
-/// live save's): the live save is the engine's, and the ship may not reach up into it (the crate
-/// split's rung 0; this read `save_load::active_home` itself before).
+/// The caller says which start and household (`persistence::live_save::active_home_machines_path`
+/// passes the live save's): the live save is the simulation crate's, above the ship, and the ship
+/// may not reach up into it (the crate split's rung 0; this read the active home itself before).
 #[cfg(feature = "native")]
 pub fn home_ron_path(data_dir: &Path, start: &str, household: &str) -> std::path::PathBuf {
     let starts = crate::ship::starts::Starts::load(data_dir);
@@ -3024,8 +3025,9 @@ mod tests {
     /// data/homes/starts.ron, never a setting of the install (ship homes increment 6): a
     /// homestead's family is home.ron, its solo home_solo.ron, a cabin cabin.ron, and the file
     /// each names loads. The start and household are given straight to `home_ron_path` since the
-    /// crate split's rung 0 (the live save that names them is the engine's,
-    /// `save_load::active_home_machines_path`, and the ship's tests may not reach up into it).
+    /// crate split's rung 0 (the live save that names them is above the ship,
+    /// `persistence::live_save::active_home_machines_path`, and the ship's tests may not reach up
+    /// into it).
     ///
     /// Seen red 2026-10-12 with `home_ron_path` still reading AppConfig's `home_variant`: "a
     /// homestead for solo" failed (home.ron for home_solo.ron; that install's setting said Family).

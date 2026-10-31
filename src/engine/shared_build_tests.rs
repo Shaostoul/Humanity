@@ -1176,7 +1176,8 @@ fn what_waits_for_another_server_holds_nothing_up_here() {
 
 // ── Household permits, the game's glue (ship homes 5b, lane 2A, 2026-10-12) ─────────────────────
 
-use crate::engine::household::{self as household_glue, open_for, set_open, PlotPermit};
+use crate::engine::household::{self as household_glue, PlotPermit};
+use crate::engine::household_world::{open_for, set_open};
 use crate::net::household::{HeldPermit, Household, Judged, PermitKey, Verdict};
 use crate::build_permission::Permit;
 
@@ -1225,7 +1226,7 @@ impl Game {
     }
 
     /// The plots open to this game now, standing at `at` (ship metres; None: not aboard), its
-    /// permits read against `now_s`: what `household::apply_open` sets on the ship each frame.
+    /// permits read against `now_s`: what `household_world::apply_open` sets on the ship each frame.
     fn open_at(&mut self, at: Option<Vec3>, now_s: u64) -> crate::ship::ship_structure::OpenPlots {
         let held = self.held();
         let ship = self.gui.ship_structure.clone().expect("a ship");

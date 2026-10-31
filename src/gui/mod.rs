@@ -1855,8 +1855,8 @@ pub struct GuiState {
     /// dimension. Same engine path as dropping debug/screenshot_request.json.
     pub screenshot_capture_request: Option<(u32, u32)>,
     /// F8 or the Dev page asked for a play-journal mark; taken at the end of the frame
-    /// (engine/play_journal.rs `take_mark`, 2026-10-24).
-    pub play_mark_request: Option<crate::engine::play_journal::MarkAsk>,
+    /// (engine/play_journal_frame.rs `take_mark`, 2026-10-24).
+    pub play_mark_request: Option<crate::play_journal::MarkAsk>,
     /// One-line outcome of the last capture ("Saved debug/screenshot_3.png (3840x2160)"
     /// or the error), shown under the Testing page's capture buttons.
     pub screenshot_last_result: Option<String>,

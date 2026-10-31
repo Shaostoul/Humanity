@@ -283,7 +283,7 @@ Game (Wave 2A): `household::tick` sends checks at most one per 250 ms (`shared::
   - `ship_segments_impl`, walking path only: for each neighbour whose plot is in `open.plots`, add its zone cut to the zone it runs to and its `segments(false)` (the home's walls with its door open, windows solid, interior doorways open, and its corridor side walls);
   - `neighbour_panel_placements`: `mouth_pair(m, others_only = !open.plots.contains(plot))`;
   - `home_lights`: when `open.lit` names an open neighbour, add its design's placed lights (`design.body.lights`, about 35 for the homestead) offset by the plot origin. Zone lights only reach `lighting_watts` (ship_structure.rs:699), so no meter is charged.
-- **Who decides.** `engine::household::apply_open(state)` runs once a frame after `shared_build::tick_core`:
+- **Who decides.** `engine::household_world::apply_open(state)` runs once a frame after `shared_build::tick_core`:
   - `walkable = usable ∪ ({plot under the camera or in its corridor} ∩ last frame's walkable)`. The camera is used only while aboard (`home_plot::aboard`), through a new `home_plot::plot_ground_of(ship, p) -> Option<&Plot>`.
   - `lit = walkable ∩ {plot under the camera or its corridor}`.
   - When either differs from `ship.open`, it sets it and calls a new `home_meshes::open_plots_changed(state)`, which redoes `wall_colliders`, `rebuild_door_panels` (the count is unchanged, so open fractions are kept) and `room_lights`. Meshes, hull and sight are unchanged.

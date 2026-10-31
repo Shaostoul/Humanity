@@ -112,7 +112,7 @@ fn the_plan_wants_the_tiles_under_its_view() {
     assert!(keys.iter().all(|k| k.z == z && k.level == 0), "one zoom, one level");
     let hits = floor_hits(&proj, &me, 0.0).unwrap();
     let m_per_px = (hits[1] - hits[0]).length() / 1000.0;
-    assert!(TileKey::size_m(z) as f64 / 512.0 <= m_per_px * 1.0001 || z == crate::engine::map_tiles::MAX_ZOOM, "zoom {z} is coarser than the view's {m_per_px:.3} m pixels");
+    assert!(TileKey::size_m(z) as f64 / 512.0 <= m_per_px * 1.0001 || z == crate::gui::pages::maps::tile_grid::MAX_ZOOM, "zoom {z} is coarser than the view's {m_per_px:.3} m pixels");
     let under = DVec3::new(me.you_ship_m.x, 0.0, me.you_ship_m.z);
     let first = keys[0].rect();
     assert!(under.x as f32 >= first[0] - 1.0 && under.x as f32 <= first[2] + 1.0 && under.z as f32 >= first[1] - 1.0 && under.z as f32 <= first[3] + 1.0, "the first tile is not the one under you: {first:?}");

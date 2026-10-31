@@ -14,7 +14,7 @@
 //! ("The Level feature's 'stacking' position, relative to others", OGC 20-094): 0 is the level the
 //! ship's deck datum (y = 0, "the deck height" of the ship file) is on, 1 the one over it, -1 the
 //! one under. Its name is the build editor's storey name for the same count ("Storey 1 (ground)",
-//! "Storey 2", `level_name`, which engine/editor_storeys.rs `storey_name` calls), and under the
+//! "Storey 2", `level_name`, which ship/storey_edits.rs `storey_name` calls), and under the
 //! ground "Basement 1".
 //!
 //! THE CUT AT A LEVEL. Seeing a level means cutting away what is above it, body by body, by the

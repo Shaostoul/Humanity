@@ -10,7 +10,7 @@ use glam::{Quat, Vec3};
 /// strings). load_world re-spawns these WITH meshes on Enter World after despawning
 /// every HomeMachine, so there is no double-spawn. Silent no-op if home.ron is absent.
 pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std::path::Path) {
-    let path = crate::save_load::active_home_machines_path(data_dir);
+    let path = crate::persistence::live_save::active_home_machines_path(data_dir);
     let Some(home) = crate::systems::grow_machines::load_home(&path) else {
         return;
     };

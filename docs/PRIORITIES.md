@@ -179,11 +179,15 @@ In order:
     `node scripts/crate-graph.js --crates | --edges`). Ten crates named `humanity-<module>` (core,
     protocol, ship, terrain, systems, relay, net, renderer, gui, engine: the ten and the names decided by
     him the same day, "going the full 10" and "Let's go with humanity"). An average edit would re-check about half the code, an engine
-    edit about 15% (estimates). Next: rung 0, re-homing the 155 wrong-way references inside the one
-    crate, then the layer lint reading the same JSON, and a one-page card in each crate (what it
-    owns, its interface and rules, how to test it, its open work, requests from other crates: the
-    operator, 2026-10-30, "Sounds like something we gotta do"), so an agent dedicated to one crate
-    reads one page instead of catching up on the repo.
+    edit about 15% (estimates). Rung 0 DONE 2026-10-31: inside the one crate nothing reaches upward
+    any more (part A 157 -> 62 references, part B 62 -> 0), and the layer lint
+    (`scripts/check-crate-layers.js`, in `just lints`) has empty budgets, so a new wrong-way
+    reference fails it. Next: a one-page card in each crate (what it owns, its interface and rules,
+    how to test it, its open work, requests from other crates: the operator, 2026-10-30, "Sounds
+    like something we gotta do"), so an agent dedicated to one crate reads one page instead of
+    catching up on the repo; then rung 1, the Cargo workspace with core and protocol split out
+    (first the backlog in crate-split.md: 125 wrong-way references in test code, `data_dir()` to
+    the core).
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by

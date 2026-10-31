@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::engine::save_slot;
+use crate::persistence::live_save;
 use crate::gui::screen_surface::find_text_in_shapes;
 use crate::persistence::SaveSlot;
 use crate::ship::starts::{HomeAnswer, Starts};
@@ -181,7 +182,7 @@ fn the_pickers_hint_says_each_server_keeps_its_own_save() {
 /// muted, with no radio) with why. The Enter bar names the home Enter makes: "Enter as Wanderer ->
 /// a new Homestead (solo)" by default, "a new Cabin" once the Cabin is picked, and still the Cabin
 /// after a click on the Apartment, which cannot be chosen. Enter remembers the choice for your own
-/// home's save (`save_slot::choice_for(Offline)`: a Cabin, just you, no place yet), which
+/// home's save (`live_save::choice_for(Offline)`: a Cabin, just you, no place yet), which
 /// `save_slot::follow` makes once the pairing is recorded. With a home of your own already saved,
 /// the row offers no choice (there is one save for your own home), says a new character moves into
 /// it, the Enter bar names that home, and Enter remembers nothing.
@@ -222,8 +223,8 @@ fn the_new_home_row_offers_the_starts_from_data() {
     click(&ctx, &theme, &mut gs, "Enter");
     assert!(gs.showroom_confirm, "Enter commits the pairing");
     assert_eq!(
-        save_slot::choice_for(&SaveSlot::Offline),
-        Some(save_slot::Choice { start: "cabin".into(), household: "solo".into(), place: None }),
+        live_save::choice_for(&SaveSlot::Offline),
+        Some(live_save::Choice { start: "cabin".into(), household: "solo".into(), place: None }),
         "Enter remembers the new home for your own home's save"
     );
 

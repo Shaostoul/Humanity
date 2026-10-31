@@ -21,9 +21,9 @@
 //! after it needs, never a step on a ladder (docs/design/engagement-modes.md).
 //!
 //! THE HOUSEHOLD IS THE SAVE'S. Choosing "Just you" in Settings changes the live save's household
-//! (`save_load::ActiveHome::household`), which the save writes at its next save and the household
-//! file the world loads comes from (`machines::home_ron_path`). It never touches AppConfig: since
-//! increment 6 each save keeps its own, and a test holds that too.
+//! (`persistence::live_save::ActiveHome::household`), which the save writes at its next save and
+//! the household file the world loads comes from (`machines::home_ron_path`). It never touches
+//! AppConfig: since increment 6 each save keeps its own, and a test holds that too.
 //!
 //! The widget's own choices (the start picked on the new-home row, the household picked per start)
 //! live in a `thread_local!`, the way homes.rs keeps its scale. The website's mirror of the
@@ -37,6 +37,7 @@ use egui::{Color32, RichText};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button};
 use crate::gui::{GuiState, HintDisplay};
+use crate::persistence::SaveSlot;
 use crate::ship::starts::{Engagement, EngagementDefaults, HomeAnswer, Start, Starts};
 
 // ── The words this file owns ─────────────────────────────────────────────────────────────────────
@@ -265,9 +266,73 @@ pub fn draft_household(starts: &Starts, start: &str) -> String {
 /// Make `household` the live save's household (Settings' sub-choice). The save writes it at its
 /// next save; the world loads its household file the next time it is entered. Never AppConfig.
 pub fn set_household(household: &str) {
-    let mut active = crate::save_load::active_home();
+    let mut active = crate::persistence::live_save::active_home();
     active.household = household.to_string();
-    crate::save_load::set_active_home(active);
+    crate::persistence::live_save::set_active_home(active);
+}
+
+// ── Asking the server (the save slot's questions on the GUI state) ───────────────────────────────
+//
+// The picker's server card asks these on the GUI state alone; they were engine/save_slot.rs's until
+// the crate split's rung 0, part B (2026-10-31). What the answers do to the saves is still the
+// engine's (engine/save_slot.rs `on_game_message`, `follow`).
+
+/// The save this identity keeps for the server the game talks to, whatever the pairing says (a
+/// server card's Choose is made while paired with your own home). None without an identity or a
+/// server.
+pub fn server_slot(gui: &GuiState) -> Option<SaveSlot> {
+    match crate::persistence::live_save::slot_for("", &gui.profile_public_key, &gui.active_server_key(), false) {
+        SaveSlot::Offline => None,
+        slot => Some(slot),
+    }
+}
+
+/// Ask the server the game talks to where this identity lives on it, and what is free
+/// (`game_home_request`; the answer comes to engine/save_slot.rs `on_game_message`). False when
+/// not connected.
+pub fn ask_where_you_live(gui: &GuiState) -> bool {
+    match gui.ws_client.as_ref() {
+        Some(ws) if ws.is_connected() && gui.ws_identified => {
+            ws.send(&serde_json::json!({ "type": crate::ship::starts::HOME_REQUEST }).to_string());
+            true
+        }
+        _ => false,
+    }
+}
+
+thread_local! {
+    /// The start and household a server card's Choose asked for, until its answer comes
+    /// (engine/save_slot.rs `take_answer` takes it).
+    static ASKED: RefCell<Option<(String, String)>> = const { RefCell::new(None) };
+}
+
+/// What the last Choose asked for, taken once (engine/save_slot.rs `take_answer`, when the answer
+/// comes).
+pub fn take_asked() -> Option<(String, String)> {
+    ASKED.with(|a| a.borrow_mut().take())
+}
+
+/// A server card's Choose (3.9; the probe's `{"choose_start":"cabin"}` through engine/save_slot.rs
+/// `choose_on_server`): send `game_choose_home` for `start` to the server the game talks to, with
+/// the household the card picked for it (`draft_household`). Its answer (engine/save_slot.rs
+/// `on_game_message`) puts the home chosen into that server's save. Err with the sentence to show
+/// when it cannot be asked.
+pub fn choose_on_server(gui: &GuiState, start: &str) -> Result<(), String> {
+    let starts = starts();
+    let Some(row) = starts.get(start).filter(|s| s.offered) else {
+        return Err(format!("'{start}' is not a home you can choose."));
+    };
+    if server_slot(gui).is_none() {
+        return Err("A server keeps your home there under your identity: make one first (Settings > Identity).".into());
+    }
+    let Some(ws) = gui.ws_client.as_ref().filter(|w| w.is_connected() && gui.ws_identified) else {
+        return Err("Connect to this server in Chat first.".into());
+    };
+    ws.send(&serde_json::json!({ "type": crate::ship::starts::CHOOSE_HOME, "start": row.id }).to_string());
+    let household = draft_household(starts, &row.id);
+    ASKED.with(|a| *a.borrow_mut() = Some((row.id.clone(), household)));
+    log::info!("Where you live: asked this server for a {}", row.id);
+    Ok(())
 }
 
 // ── Drawing ──────────────────────────────────────────────────────────────────────────────────────
@@ -442,7 +507,7 @@ pub fn draw_settings_section(ui: &mut egui::Ui, theme: &Theme, state: &GuiState)
 pub(crate) fn draw_settings_section_with(ui: &mut egui::Ui, theme: &Theme, hint: HintDisplay, starts: &Starts) {
     ui.label(RichText::new(HEADING).color(theme.text_secondary()).strong());
     ui.add_space(theme.spacing_xs);
-    let active = crate::save_load::active_home();
+    let active = crate::persistence::live_save::active_home();
     ui.label(RichText::new(live_in_line(starts, &active.start, &active.household)).color(theme.text_primary()));
     let start = start_of(starts, &active.start);
     if start.households.len() > 1 {
@@ -462,7 +527,7 @@ pub fn draw_home_line(ui: &mut egui::Ui, theme: &Theme) {
 
 /// [`draw_home_line`] over a given starts file.
 pub(crate) fn draw_home_line_with(ui: &mut egui::Ui, theme: &Theme, starts: &Starts) {
-    let active = crate::save_load::active_home();
+    let active = crate::persistence::live_save::active_home();
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(ui.available_width());
         widgets::subsection_label(ui, theme, HEADING);

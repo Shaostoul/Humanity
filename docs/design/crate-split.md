@@ -6,8 +6,9 @@ decision (CLAUDE.md, Architecture: "one `Cargo.toml` at the repo root, no worksp
 sub-crates"), which changes when rung 1 lands, not before. **The ten crates and the names are his
 decisions too, the same day:** "I like the idea of going the full 10. It sounds like it'd be the
 most beneficial over a long period of time. Feels kind of small now but, huge a year from now."
-and, of the names, "Let's go with humanity." Rung 0's part A is done (2026-10-31): 62 wrong-way
-references are left, all part B's (Order of work, below).
+and, of the names, "Let's go with humanity." **Rung 0 is done (2026-10-31):** parts A and B took
+the wrong-way references in code from 157 to 0, and the ratchet holds every edge at zero; rung 1 is
+next (Order of work, below).
 
 The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
 which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
@@ -61,8 +62,12 @@ And the reasons not to split:
 | `humanity-relay` | `relay`, `how_to`, `release_update`: the server | 110,645 | 142 | 60% | core, protocol, ship, systems |
 | `humanity-net` | `net`: the app's side of the network | 30,691 | 58 | 47% | core, protocol |
 | `humanity-renderer` | `renderer`, `assets`: uploading and drawing | 68,820 | 37 | 53% | core, terrain |
-| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes) | 177,268 | 255 | 42% | all of the above |
-| `humanity-engine` | `engine` (THE FRAME), `lib.rs`, `save_load`, `updater`, the binary | 94,250 | 242 | 15% | everything |
+| `humanity-gui` | `gui`, `config`, `games`, `software`, `media`, `web_reader`, `updater` (since rung 0 part B), and the chat-safety code now in `engine/` (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; since part B also the friend choices, the pass answers, household permits and low impact) | 177,268 | 255 | 42% | all of the above |
+| `humanity-engine` | `engine` (THE FRAME), `lib.rs`, `save_load`, the binary | 94,250 | 242 | 15% | everything |
+
+The lines, commits and shares are the 2026-10-30 reading. After rung 0 (2026-10-31,
+`node scripts/crate-graph.js --crates`): core 14,577, protocol 12,645, ship 32,680, terrain 25,638,
+systems 80,491, relay 110,833, net 31,064, renderer 65,877, gui 183,772, engine 91,183.
 
 "An edit re-checks" is the crate plus every crate that may use it, as a share of all the lines.
 Weighted by how often each is edited, **an average edit would re-check about half the code instead
@@ -187,19 +192,56 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      algorithm and its 600,000 rounds unchanged); **into net:** the part file and the voice modes;
    - **the caller passes it in:** the camera's fall step takes numbers (`RadialStep::landing`), the
      weather region takes any comparable condition, `home_ron_path` takes the start and household
-     (`save_load::active_home_machines_path`), `MachineHome::load` no longer fills the food
+     (`save_load::active_home_machines_path`, `persistence::live_save`'s since part B),
+     `MachineHome::load` no longer fills the food
      figures (`systems::grow_machines::load_home` does, for every caller above the ship, and a
      test holds them to it), and hot reload's `poll` returns the changed files instead of
      invalidating the asset manager itself.
-   **Left for part B:** gui -> engine (55, the page buttons that call the engine) and core ->
-   engine (6) with core -> ship (1): all seven are `hot_reload::poll_and_apply`, which takes the
-   engine's state and belongs to the engine.
-   **Not counted, and needed before each crate is cut:** the ratchet counts code, not tests, and
-   the tests hold 139 wrong-way references of their own (gui -> engine 34, systems -> engine
-   27, ship -> systems 19, systems -> gui 12, and smaller ones). A test moves up with the crate it
-   reaches, or reaches through the crate under it. And `crate::data_dir()` (lib.rs, the engine)
-   is read by the GUI, the simulation and the word source; no path counts it, but it must move to
-   the core at rung 1.
+   **Part B is done (2026-10-31): 0 references in 0 edges** (gui -> engine 55, core -> engine 6,
+   core -> ship 1, all gone; the budgets are empty, so any wrong-way reference now fails
+   `just lints`). Every reference was a direct call and stays one: no request was turned into a
+   next-frame action, so nothing a person sees moved by a frame. The cuts, a theme per commit:
+   - **hot reload's gates to the engine:** `poll_and_apply` takes the engine's state, so it is
+     `engine::hot_reload_gates`; the core's `hot_reload` keeps the coordinator and the watcher.
+   - **files that work on the GUI's state, listed under the GUI** (crate-layers.json): the friend
+     choices (`engine/choice`), the server's answers to the passes (`engine/put_answer`), the
+     household permits (`engine/household`, its running-world half split out to the engine as
+     `engine/household_world`: the open plots and the dev IPC's report), low impact
+     (`engine/low_impact`, the rig's overlay on config.json) and the updater (`updater`, the
+     Settings > Updates backend that GuiState holds; the launch policy's answer is now handed to it,
+     `Updater::relaunch_behind`, and to the host node's autostart);
+   - **into the core:** the play journal's store and pure watcher (`play_journal`; the mark's
+     picture and the frame watcher stay in `engine::play_journal_frame`);
+   - **into the ship:** the elevators as data (`ship::lifts`: `Lift`, `LiftKey`, `lifts`) and what
+     a storey edit does to a home (`ship::storey_edits`: `EditStorey`, the storey and slab names,
+     a new wall, guard or floor slab, `SlabDraw`, the cut-away's box `CutAway`);
+   - **into the GUI's own pages:** the plan tiles' grid (`gui::pages::maps::tile_grid`:
+     `TileKey`, the zoom, which tiles cover a view), the build editor's choices on the GUI state
+     (`gui::pages::construction::storeys`: the storey, the slab, the tool, `editor_cut_of`), the
+     picker's questions (`where_you_live`: `server_slot`, `ask_where_you_live`,
+     `choose_on_server`), Settings' Restore (`restore_snapshot_into_game`), the connected row's one
+     constant (`showroom::CONNECTED_SERVER_ID`) and the server the game talks to
+     (`GuiState::active_server_key`);
+   - **into the simulation, beside the save files:** which save is live and what waits for which
+     save (`persistence::live_save`: `ActiveHome`, the restore hold, "Snapshot now", the choices
+     waiting for a fresh save, `slot_for`, an erased account's save set aside), from save_load.rs
+     and engine/save_slot.rs.
+   **Not counted, and needed before each crate is cut (rung 1 and after):**
+   - **The tests** hold 125 wrong-way references of their own (2026-10-31, after part B; 139 after
+     part A): systems -> engine 27, gui -> engine 20, ship -> systems 19, systems -> gui 12, ship ->
+     engine 8, net -> relay 7, systems -> relay 7, ship -> renderer 5, systems -> renderer 5, and
+     smaller ones. A test moves up with the crate it reaches, or reaches through the crate under it.
+   - **`crate::data_dir()`** (lib.rs, the engine) is read by about 50 files under the engine (the
+     GUI 22, the simulation 20, the ship, the relay, net, media, the word source, cosmos, and the
+     engine-folder files the GUI owns, such as low impact); no path counts it, but it must move to
+     the core at rung 1.
+   - **The engine-folder files the plan gives the GUI** (the chat-safety files, `choice`,
+     `put_answer`, `household`, `low_impact`) move into `crates/humanity-gui/` when that crate is
+     cut (rung 4); their `crate::engine::` paths change then.
+   - **`pub(crate)`** items now used across a planned boundary (most of the moved items kept their
+     visibility) become `pub` as each crate is cut.
+   - A small cleanup the moves made visible: `ship::levels::LevelCut` and `ship::storey_edits::CutAway`
+     are the same box (min, max, cut height), and engine/map_cut.rs converts one to the other.
 1. **The workspace, `humanity-core` and `humanity-protocol`** (the smallest and lowest). Measure a
    cold build and a one-line edit against 241 s and 56 s.
 2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.

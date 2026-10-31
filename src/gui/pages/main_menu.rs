@@ -1148,7 +1148,7 @@ mod first_session_tests {
         assert_eq!(boot.slot, slot, "the server's save is the live one");
         let save = boot.save.expect("the server's save was read");
         assert_eq!(save.inventory, theirs.inventory, "a relaunch on a server pairing loaded your own home's save: {:?}", save.inventory);
-        let active = crate::save_load::active_home();
+        let active = crate::persistence::live_save::active_home();
         assert_eq!((active.start.as_str(), active.household.as_str(), active.path.clone()), ("cabin", "solo", slot_path(&saves, &slot)));
         assert!(crate::save_load::applies_progress(&save, true), "a server's save keeps its progress whatever the fresh-home setting says");
 
@@ -1159,7 +1159,7 @@ mod first_session_tests {
         let boot = crate::engine::save_slot::boot(&saves, &data_dir, Some(&home));
         assert_eq!(boot.slot, SaveSlot::Offline);
         assert_eq!(boot.save.map(|s| s.inventory), Some(own.inventory));
-        assert_eq!(crate::save_load::active_home().start, "homestead");
-        crate::save_load::set_active_home(crate::save_load::ActiveHome::offline());
+        assert_eq!(crate::persistence::live_save::active_home().start, "homestead");
+        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::offline());
     }
 }

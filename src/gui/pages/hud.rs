@@ -541,7 +541,7 @@ pub fn draw(
             // The build editor's cut-away (engine/editor_storeys.rs `editor_cut_of`): a machine it
             // leaves out is not drawn, so its label is not either (increment 7 follow-ups,
             // 2026-10-21), by the same rule and at the same point, the machine's foot.
-            let cut = crate::engine::editor::editor_cut_of(state);
+            let cut = crate::gui::pages::construction::storeys::editor_cut_of(state);
             for (i, label) in state.machine_labels.iter().enumerate() {
                 if cut.is_some_and(|c| c.hides(Vec3::new(label.pos.x, label.foot_y, label.pos.z))) {
                     continue;
@@ -1120,12 +1120,12 @@ pub(crate) fn lift_card(
 ) -> Option<crate::ship::room_types::RoomBounds> {
     use crate::input::bindings::{pretty_key_name, GameAction};
     use crate::ship::home_structure::{storey_index, STOREY_EPS};
-    for lift in crate::engine::footing::lifts(ship) {
+    for lift in crate::ship::lifts::lifts(ship) {
         let base = (lift.base.x, lift.base.y, lift.base.z);
         if !crate::ship::structure::in_footprint(lift.ty, base, lift.yaw, eye.x, eye.z) {
             continue;
         }
-        // Keyed by the zone's id since the elevator-key follow-up (`footing::LiftKey`).
+        // Keyed by the zone's id since the elevator-key follow-up (`ship::lifts::LiftKey`).
         let Some(zone) = ship.zones.iter().find(|z| z.id == lift.key.0) else { continue };
         let oy = zone.origin_vec().y;
         let storeys = zone.body.storeys();

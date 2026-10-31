@@ -11,6 +11,11 @@ use std::path::{Path, PathBuf};
 
 use crate::atomic_write::write_atomic;
 
+/// Which save is live, the restore hold, and the choices waiting for a slot's fresh save: the
+/// session's state of the save files (ship homes increment 6; the crate split's rung 0, part B).
+#[cfg(feature = "native")]
+pub mod live_save;
+
 /// Complete world save state. A "home" (the homes-as-save-profiles model, v0.380)
 /// IS a WorldSave that knows its `kind` and its `start`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -325,7 +330,7 @@ pub enum SaveSlot {
     Offline,
     /// One server, for one identity: saves/servers/<server hash>-<identity>.json.
     Server {
-        /// The server's normalized address (engine/home_plot.rs `active_server_key`).
+        /// The server's normalized address (gui/connections.rs `GuiState::active_server_key`).
         server: String,
         /// The identity's public key, hex.
         identity: String,

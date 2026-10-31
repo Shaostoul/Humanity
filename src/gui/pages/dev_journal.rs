@@ -4,7 +4,7 @@
 //! moment, Open the folder, and Clear the journal (asking first).
 //!
 //! The files are read on a worker thread at most every two seconds while this section is on
-//! screen (engine/play_journal.rs writes them); the draw only shows the last reading. The kinds
+//! screen (src/play_journal.rs writes them); the draw only shows the last reading. The kinds
 //! come from data/dev/journal_kinds.json, their words from data/i18n/en.json
 //! (`dev_journal.kind_<id>`), so a new kind is a data row, a words key and a record() call.
 //! The website has no game to journal: its Dev Workbench lists Journal as the desktop app's.
@@ -167,7 +167,7 @@ pub enum Act {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let dir = crate::engine::play_journal::dir().map(Path::to_path_buf);
+    let dir = crate::play_journal::dir().map(Path::to_path_buf);
     let snap = dir.as_deref().map(|d| refresh(ctx, d)).unwrap_or_default();
     let mut act = None;
     egui::CentralPanel::default()
@@ -178,7 +178,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
         });
     match act {
-        Some(Act::Mark) => state.play_mark_request = Some(crate::engine::play_journal::MarkAsk::by_hand()),
+        Some(Act::Mark) => state.play_mark_request = Some(crate::play_journal::MarkAsk::by_hand()),
         Some(Act::OpenFolder) => {
             if let Some(d) = dir.as_deref() {
                 open_with_system(d);

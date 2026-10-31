@@ -22,11 +22,12 @@
 //! Cost: one shell build of the cut ship (and of the whole ship for its rooms, as the editor's
 //! storey change does) per level picked, not per frame: measured in the increment's record.
 
-use crate::engine::editor::{CutAway, Cuts};
+use crate::engine::editor::Cuts;
 use crate::engine::state::EngineState;
 use crate::gui::{GuiPage, GuiState};
 use crate::renderer::RenderObject;
 use crate::ship::levels::{self, ShipLevel};
+use crate::ship::storey_edits::CutAway;
 
 /// The level the Maps page shows cut open, when the home should be drawn cut for it: the page
 /// open, a level shown (`ship_view::shown_level`: picked, or yours on the plan; aboard, near the

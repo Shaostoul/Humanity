@@ -5,13 +5,19 @@
 //! whatever the slabs make. The engine half (the floor pick on the chosen storey, placing on it,
 //! the cut-away that hides the storeys above, drawing and dragging slabs in the view) is
 //! engine/editor_storeys.rs. A child of the page in the 2018 directory form, like ship_tools.rs.
+//!
+//! The panel's choices on the GUI state live here too (since the crate split's rung 0, part B,
+//! 2026-10-31; they were the engine's): the storey worked on (`choose_storey`), the slab selected
+//! and removed (`select_slab`, `remove_slab_in_editor`), the slab tool (`set_slab_tool`), and the
+//! cut-away the HUD and the editor's overlay follow (`editor_cut_of`). What a storey edit does to
+//! the home itself is ship/storey_edits.rs.
 
 use super::*;
-use crate::engine::editor::{
-    choose_storey, left_standing_without, new_slab_top, remove_slab_in_editor, select_slab, set_slab_tool, slab_name,
-    storey_name, EditStorey,
+use crate::ship::home_structure::{storey_index, SlabMaterial};
+use crate::ship::storey_edits::{
+    add_floor_slab, cut_away_of, left_standing_without, new_slab_top, remove_floor_slab, slab_name, storey_name, CutAway,
+    EditStorey, SlabDraw,
 };
-use crate::ship::home_structure::SlabMaterial;
 
 /// What the storey tools remember between frames (`GuiState::construction_storeys`). None of it is
 /// a setting: like the zone being edited, it is where the editor is looking, and it starts again
@@ -47,18 +53,6 @@ pub struct StoreyEditor {
     /// (zone, spot, storey), engine `seed_build_avatar`. While the avatar is still there, it was
     /// not moved, and the editor's Save leaves the home's spawn alone (`spawn_from_avatar`).
     pub avatar_seed: Option<(usize, (f32, f32), usize)>,
-}
-
-/// Which floor the slab drawing tool draws (`StoreyEditor::draw`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SlabDraw {
-    /// The floor of the storey ABOVE the chosen one: at that storey's floor when there is one,
-    /// else a new storey 3.0 m up. When the first slab is down the selector follows up onto it
-    /// and the tool keeps drawing that floor (`Here`).
-    Above,
-    /// More of the chosen storey's own floor (a storey above the ground: the ground's floor is the
-    /// home's own floor, everywhere).
-    Here,
 }
 
 /// The STOREY SELECTOR and the floor-slab tools, in the left panel under the zone selector: which
@@ -339,7 +333,7 @@ pub(super) fn exec_storey_command(state: &mut GuiState, parts: &[&str]) -> Strin
             let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else {
                 return "No home loaded.".into();
             };
-            match crate::engine::editor::add_floor_slab(hs, es, draw, (x0, z0), (x1, z1)) {
+            match add_floor_slab(hs, es, draw, (x0, z0), (x1, z1)) {
                 Ok(i) => {
                     let top = hs.floors[i].top;
                     state.construction_structure_dirty = true;
@@ -368,4 +362,111 @@ pub(super) fn exec_storey_command(state: &mut GuiState, parts: &[&str]) -> Strin
         }
         other => format!("unknown storey verb '{other}'"),
     }
+}
+
+// ── The panel's choices on the GUI state (the engine and the HUD call these too) ────────────────
+
+/// Work on storey `k` of the edited body (kept in range). Drops a half-drawn slab's or wall's
+/// first corner, which was on the old storey's plan, and a selected machine that is not on the
+/// new storey (`machine_on_storey`; the increment 7 follow-ups, 2026-10-22: it stayed selected,
+/// its handles hidden by the cut-away when it stood over the storey chosen, so the right panel
+/// worked on a machine nobody could see).
+pub(crate) fn choose_storey(g: &mut GuiState, k: usize) {
+    let count = zone_body(&g.ship_structure, g.construction_zone).map_or(1, |hs| hs.storeys().len());
+    let k = k.min(count.saturating_sub(1));
+    if k != g.construction_storeys.chosen {
+        g.construction_storeys.chosen = k;
+        g.construction_storeys.draw_start = None;
+        g.construction_wall_start = None;
+        if g.construction_machine_selected.as_deref().is_some_and(|id| !machine_on_storey(g, id, k)) {
+            g.construction_machine_selected = None;
+        }
+    }
+}
+
+/// True when the household's machine `id` stands on storey `k` of the edited zone: it is in that
+/// zone (`MachineInstance::zone`) and its foot (its placement's height over the zone's floor) is on
+/// that storey, by the body's own storeys, the rule the cut-away hides it by (`CutAway::hides`: a
+/// machine at or over the top of the storey being edited is taken out with the floors over it).
+fn machine_on_storey(g: &GuiState, id: &str, k: usize) -> bool {
+    let (Some(hs), Some(ship), Some(home)) = (zone_body(&g.ship_structure, g.construction_zone), g.ship_structure.as_ref(), g.home_machines.as_ref()) else {
+        return false;
+    };
+    let zone_id = ship.zones.get(g.construction_zone).map_or("", |z| z.id.as_str());
+    home.all_instances().into_iter().find(|m| m.id == id).is_some_and(|m| m.zone == zone_id && storey_index(&hs.storeys(), m.offset.1) == k)
+}
+
+/// Let go of every selection in the editor but the slab's (a slab selected takes the right panel
+/// alone).
+fn clear_other_selections(g: &mut GuiState) {
+    g.construction_wall_selected = None;
+    g.construction_structure_selected = None;
+    g.construction_light_selected = None;
+    g.construction_machine_selected = None;
+    g.construction_road_node_selected = None;
+    g.construction_conduit_node_selected = None;
+    g.construction_connection_selected = None;
+    g.construction_zone_selected = None;
+}
+
+/// SELECT floor slab `i` of the edited body (its detail fills the right panel) and work on the
+/// storey it is the floor of, so it is in view and its corners are on the plan.
+pub(crate) fn select_slab(g: &mut GuiState, i: usize) {
+    let Some(k) = zone_body(&g.ship_structure, g.construction_zone).and_then(|hs| hs.floors.get(i).map(|s| hs.storey_of_y(s.top))) else {
+        return;
+    };
+    clear_other_selections(g);
+    g.construction_storeys.slab_selected = Some(i);
+    g.construction_storeys.confirm_remove = None;
+    choose_storey(g, k);
+}
+
+/// REMOVE floor slab `i` of the edited body (the panel's Remove, the object list's x): it is gone,
+/// nothing is selected, and the chosen storey stays in range (its storey may have gone with it).
+pub(crate) fn remove_slab_in_editor(g: &mut GuiState, i: usize) {
+    if zone_body_mut(&mut g.ship_structure, g.construction_zone).and_then(|hs| remove_floor_slab(hs, i)).is_some() {
+        g.construction_structure_dirty = true;
+    }
+    g.construction_storeys.slab_selected = None;
+    g.construction_storeys.confirm_remove = None;
+    let k = g.construction_storeys.chosen;
+    choose_storey(g, k);
+    // `choose_storey` changes nothing when the index is still in range; the storey under it may
+    // still have gone, so clamp the stored index too.
+    let count = zone_body(&g.ship_structure, g.construction_zone).map_or(1, |hs| hs.storeys().len());
+    g.construction_storeys.chosen = g.construction_storeys.chosen.min(count.saturating_sub(1));
+}
+
+/// Turn the floor-slab drawing tool on (`draw`) or off (None). It is a shape of the drawing tool,
+/// so the wall tool's mode comes on and off with it, and a half-drawn wall is dropped.
+pub(crate) fn set_slab_tool(g: &mut GuiState, draw: Option<SlabDraw>) {
+    g.construction_storeys.draw = draw;
+    g.construction_storeys.draw_start = None;
+    g.construction_storeys.note.clear();
+    g.construction_wall_start = None;
+    g.construction_wall_mode = draw.is_some();
+    g.construction_wall_guard = false;
+    if draw.is_some() {
+        // The drawing tool takes the click from every held placement (the press chain in lib.rs).
+        g.construction_place_type = None;
+        g.construction_place_light = None;
+        g.construction_structure_type = None;
+        g.construction_place_conduit_node = false;
+    }
+}
+
+/// `storey_cut_key` from the GUI state alone (the HUD and its overlay ask it).
+pub(crate) fn storey_cut_key_of(g: &GuiState) -> Option<(usize, usize)> {
+    if !g.construction_active {
+        return None;
+    }
+    let es = zone_body(&g.ship_structure, g.construction_zone).map(|hs| EditStorey::of(hs, g.construction_storeys.chosen))?;
+    es.has_above().then_some((g.construction_zone, es.index))
+}
+
+/// `editor_cut` from the GUI state alone: what the HUD's machine labels and the build editor's
+/// overlay follow, so they hide with what the cut-away hides.
+pub(crate) fn editor_cut_of(g: &GuiState) -> Option<CutAway> {
+    let (zone, k) = storey_cut_key_of(g)?;
+    cut_away_of(g.ship_structure.as_ref()?, zone, k)
 }

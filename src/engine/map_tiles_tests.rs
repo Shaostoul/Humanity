@@ -2,6 +2,7 @@
 //! said is in its comment.
 
 use super::*;
+use crate::gui::pages::maps::tile_grid::keys_covering;
 use crate::ship::levels::{level_cuts, ship_levels};
 
 fn shipped() -> ShipStructure {
@@ -10,45 +11,7 @@ fn shipped() -> ShipStructure {
 }
 
 fn cuts_at(ship: &ShipStructure, level: &ShipLevel) -> Cuts {
-    Cuts(level_cuts(ship, level).into_iter().map(|c| crate::engine::editor::CutAway { min: c.min, max: c.max, cut_y: c.cut_y }).collect())
-}
-
-/// A tile knows its footprint (zoom 0 is 512 m, each zoom halves it), the tile one zoom coarser
-/// that holds it, and where it sits in that tile's image.
-///
-/// Seen red 2026-10-22 with the parent found by plain division (`x / 2`), which rounds a
-/// negative x toward zero: "tile (-1, -3) at zoom 2 has parent (0, -1), want (-1, -2)".
-#[test]
-fn a_tile_knows_its_footprint_and_its_parent() {
-    assert_eq!(TileKey::size_m(0), 512.0);
-    assert_eq!(TileKey::size_m(6), 8.0);
-    let k = TileKey { level: 1, z: 2, x: 3, y: -2 };
-    assert_eq!(k.rect(), [384.0, -256.0, 512.0, -128.0]);
-    let p = TileKey { level: 1, z: 2, x: -1, y: -3 }.parent().unwrap();
-    assert_eq!((p.x, p.y), (-1, -2), "tile (-1, -3) at zoom 2 has parent ({}, {}), want (-1, -2)", p.x, p.y);
-    let parent = k.parent().unwrap();
-    assert_eq!((parent.z, parent.x, parent.y), (1, 1, -1));
-    assert_eq!(k.uv_in(&parent), [0.5, 0.0, 1.0, 0.5]);
-    assert_eq!(TileKey { level: 0, z: 0, x: 0, y: 0 }.parent(), None);
-}
-
-/// The zoom keeps a tile's pixel no bigger than a screen pixel: 1 m a pixel is zoom 0, half a
-/// metre zoom 1, 0.3 m zoom 2 (a 0.25 m tile pixel), never past the finest or under the
-/// coarsest; and the tiles cover the view.
-///
-/// Seen red 2026-10-22 with the zoom rounded down: "0.3 m a screen pixel takes zoom 1, whose
-/// 0.50 m pixels are bigger".
-#[test]
-fn the_zoom_keeps_a_tile_pixel_no_bigger_than_a_screen_pixel() {
-    for (m, want) in [(1.0, 0u8), (0.5, 1), (0.3, 2), (5.0, 0), (0.001, MAX_ZOOM)] {
-        let z = zoom_for(m);
-        let px = TileKey::size_m(z) as f64 / TILE_PX as f64;
-        assert_eq!(z, want, "{m} m a screen pixel takes zoom {z}, whose {px:.2} m pixels are bigger");
-    }
-    let keys = keys_covering(0, 3, [10.0, -5.0, 140.0, 60.0]);
-    let xs: Vec<i32> = keys.iter().map(|k| k.x).collect();
-    assert_eq!((xs.iter().min(), xs.iter().max()), (Some(&0), Some(&2)));
-    assert_eq!(keys.len(), 3 * 2, "64 m tiles over 10..140 by -5..60: three across, two down");
+    Cuts(level_cuts(ship, level).into_iter().map(|c| crate::ship::storey_edits::CutAway { min: c.min, max: c.max, cut_y: c.cut_y }).collect())
 }
 
 /// AN EDIT DROPS EXACTLY THE TILES IT TOUCHED (the design's proof for plan tiles). On the shipped

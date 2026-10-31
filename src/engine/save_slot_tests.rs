@@ -193,7 +193,7 @@ fn a_fresh_server_save_carries_only_the_look() {
     assert_eq!(on_disk.credits, Wallet::default().credits);
     assert!(on_disk.progress_saved);
     assert_eq!(on_disk.character_name, "Ann");
-    let active = crate::save_load::active_home();
+    let active = crate::persistence::live_save::active_home();
     assert_eq!((active.slot, active.path, active.start.as_str()), (slot.clone(), path, "cabin"));
     assert_eq!(gui.save_slot, slot);
 }

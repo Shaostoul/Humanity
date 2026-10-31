@@ -7,6 +7,7 @@ use crate::engine::geom::{light_ring_pick_tolerance, light_ring_radius, ray_aabb
 use crate::engine::home_meshes::{rebuild_homestead, rebuild_machine_objects};
 use crate::engine::state::*;
 use crate::ship::ship_structure::{zone_body, zone_body_mut, zone_origin};
+use crate::ship::storey_edits::{new_guard_on_storey, new_wall_on_storey, EditStorey};
 
 // STOREYS (ship homes increment 7): the storey the editor works on, the cut-away above it, the
 // floor pick and placing on it, and the floor-slab tools. A child file of this module.

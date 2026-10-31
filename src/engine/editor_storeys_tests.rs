@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::ship::home_structure::{FloorSlab, HomeStructure, SlabMaterial, Storey};
+use crate::ship::storey_edits::{cut_away_of, new_guard_on_storey, new_wall_on_storey, remove_floor_slab};
 use glam::Vec3;
 
 fn body(text: &str) -> HomeStructure {

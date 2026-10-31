@@ -7,7 +7,7 @@ use super::*;
 use crate::config::AppConfig;
 use crate::gui::screen_surface::find_text_in_shapes;
 use crate::persistence::{SaveSlot, ShipPlace};
-use crate::save_load::{active_home, set_active_home, ActiveHome};
+use crate::persistence::live_save::{active_home, set_active_home, ActiveHome};
 use crate::ship::starts::{HeldHome, HomeRefusal, StartOffer};
 use std::path::Path;
 
@@ -405,11 +405,11 @@ fn the_household_choice_is_the_saves() {
     set_active_home(offline_homestead());
     let mut gs = GuiState::default();
     let config_before = serde_json::to_value(AppConfig::from_gui_state(&gs)).expect("AppConfig serializes");
-    assert_eq!(crate::save_load::active_home_machines_path(data), data.join("machines").join("home.ron"));
+    assert_eq!(crate::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home.ron"));
 
     click(&ctx, "Just you", &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
     assert_eq!(active_home().household, "solo", "the live save's household is now solo");
-    assert_eq!(crate::save_load::active_home_machines_path(data), data.join("machines").join("home_solo.ron"), "and the household file follows it");
+    assert_eq!(crate::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home_solo.ron"), "and the household file follows it");
     assert!(!gs.settings_dirty, "Settings is not marked to be saved: the household is the save's");
     assert_eq!(serde_json::to_value(AppConfig::from_gui_state(&gs)).unwrap(), config_before, "nothing AppConfig writes changed");
     let out = frame(&ctx, Vec::new(), &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
@@ -417,7 +417,7 @@ fn the_household_choice_is_the_saves() {
 
     click(&ctx, "A family of three", &mut |ui| crate::gui::pages::settings::draw_gameplay_content(ui, &theme, &mut gs));
     assert_eq!(active_home().household, "family");
-    assert_eq!(crate::save_load::active_home_machines_path(data), data.join("machines").join("home.ron"));
+    assert_eq!(crate::persistence::live_save::active_home_machines_path(data), data.join("machines").join("home.ron"));
     assert!(!gs.settings_dirty);
     assert_eq!(serde_json::to_value(AppConfig::from_gui_state(&gs)).unwrap(), config_before);
     set_active_home(ActiveHome::offline());

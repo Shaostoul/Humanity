@@ -120,6 +120,13 @@ pub struct Updater {
     /// Path to the exe captured at startup (before any renames).
     /// Used for restart after update.
     pub exe_path: PathBuf,
+    /// This instance was launched behind the window in front (a script's launch, not a person's:
+    /// engine/launch_focus.rs `launch_in_background`), so the restart script brings the new exe
+    /// back behind too (`create_restart_script`). The engine fills it in at startup (lib.rs): the
+    /// launch policy is the engine's, and this updater is the GUI crate's since the crate split's
+    /// rung 0, part B (2026-10-31), so it is handed the answer instead of asking. False until then,
+    /// a person's launch.
+    pub relaunch_behind: bool,
 }
 
 #[cfg(feature = "native")]
@@ -134,6 +141,7 @@ impl Updater {
             last_check_elapsed: 0.0,
             rx: None,
             exe_path: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("HumanityOS.exe")),
+            relaunch_behind: false,
         }
     }
 
@@ -738,9 +746,10 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
 }
 
 /// Create a batch script that waits for this process to exit, then launches
-/// the new exe. The script deletes itself after running.
+/// the new exe. The script deletes itself after running. `behind`: this
+/// instance was launched behind the window in front (`Updater::relaunch_behind`).
 #[cfg(all(feature = "native", target_os = "windows"))]
-pub fn create_restart_script(exe_path: &std::path::Path) -> Result<PathBuf, String> {
+pub fn create_restart_script(exe_path: &std::path::Path, behind: bool) -> Result<PathBuf, String> {
     let bat_path = exe_path.with_extension("restart.bat");
     let exe_str = exe_path.to_string_lossy();
     // The relaunched exe's parent is cmd.exe, which the focus policy
@@ -748,7 +757,7 @@ pub fn create_restart_script(exe_path: &std::path::Path) -> Result<PathBuf, Stri
     // the restart script must carry this instance's OWN focus state
     // forward: a foreground app that updates comes back foreground, a
     // background rig that updates stays behind.
-    let focus_line = if crate::engine::launch_focus::launch_in_background() {
+    let focus_line = if behind {
         "set HUMANITY_NO_FOCUS=1"
     } else {
         "set HUMANITY_TAKE_FOCUS=1"

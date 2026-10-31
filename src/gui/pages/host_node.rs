@@ -181,11 +181,14 @@ fn node() -> &'static Mutex<LocalNode> {
 /// (port/db/name saved when Start was pressed; disarmed by Stop). Called
 /// once from engine init, right after the config lands in GuiState -- the
 /// field-test failure this fixes is "my self-relay is unreachable after
-/// every app restart" (the node simply was not running).
-pub fn autostart_if_configured(state: &crate::gui::GuiState) {
+/// every app restart" (the node simply was not running). `background`: how
+/// this copy was launched (`autostart`); the engine passes its launch policy's
+/// answer in (engine/launch_focus.rs `launch_in_background`), because this page
+/// is the GUI crate's and the policy is the engine's (crate split rung 0, part B).
+pub fn autostart_if_configured(state: &crate::gui::GuiState, background: bool) {
     note_owner_key(&state.profile_public_key);
     let Ok(mut n) = node().lock() else { return };
-    autostart(&mut n, state, crate::engine::launch_focus::launch_in_background());
+    autostart(&mut n, state, background);
 }
 
 /// The first click into a window a script opened (the same moment that

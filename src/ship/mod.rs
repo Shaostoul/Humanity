@@ -21,6 +21,9 @@ pub mod home_structure;
 /// The ship's levels (its distinct storey floors), and the ship cut away at one (Maps increment 3:
 /// the Maps page's level picker, cutaway, room plan and plan tiles read one list).
 pub mod levels;
+/// The ship's elevators with their stops (Lift, LiftKey, `lifts`): what the footing runs and the
+/// HUD names.
+pub mod lifts;
 /// The homestead's upper floor checked as the shipped design carries it (ship homes increment 7).
 #[cfg(test)]
 mod homestead_layout_tests;
@@ -41,6 +44,9 @@ pub mod ship_structure;
 /// Where on a storey of a home a person can stand: a floor with room over it, inside the rooms,
 /// never a glass lid or an opening (ship homes increment 7; the build editor's close).
 pub mod standing;
+/// What a storey edit does to a home, with no editor around it (the B editor's pure half, ship homes
+/// increment 7): the storey edited, its name, a new wall or floor slab, the cut-away's box.
+pub mod storey_edits;
 /// The starts as data (increment 6, data/homes/starts.ron): Cabin, Apartment, Homestead, what
 /// each builds, who lives there and what a new character carries; and the `game_home` wire.
 pub mod starts;

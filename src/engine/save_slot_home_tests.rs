@@ -118,7 +118,7 @@ fn switching_servers_swaps_saves_before_the_join() {
     let mut data = data_store();
     let mut gui = GuiState::default();
     gui.profile_public_key = "AB".repeat(32);
-    gui.launcher_last_world = format!("server:{CONNECTED_SERVER_ROW}");
+    gui.launcher_last_world = format!("server:{}", crate::gui::pages::showroom::CONNECTED_SERVER_ID);
     gui.connected_server_url = "https://a.example/".into();
     let mut world = hecs::World::new();
     crate::save_load::spawn_fresh_player(&mut world, &data_dir, "homestead");
@@ -141,7 +141,7 @@ fn switching_servers_swaps_saves_before_the_join() {
     };
     let join_start = || {
         let mut join = serde_json::json!({ "type": "game_join" });
-        assert!(add_join_fields(&mut join, Some(&ship), &crate::save_load::active_home().start));
+        assert!(add_join_fields(&mut join, Some(&ship), &crate::persistence::live_save::active_home().start));
         join["start"].clone()
     };
 
@@ -230,7 +230,7 @@ fn a_home_chosen_as_a_guest_joins_again_to_take_it() {
     gui.profile_public_key = "ab".repeat(32);
     gui.connected_server_url = "https://a.example".into();
     gui.ship_structure = Some(ShipStructure::load_and_assemble_shipped(&data_dir(), None).unwrap());
-    gui.save_slot = server_slot(&gui).expect("an identity on a server");
+    gui.save_slot = crate::gui::pages::where_you_live::server_slot(&gui).expect("an identity on a server");
     let answer = HomeAnswer {
         plot: Some(HeldHome { id: "c2".into(), kind: "cabin".into(), start: "cabin".into() }),
         starts: Vec::new(),

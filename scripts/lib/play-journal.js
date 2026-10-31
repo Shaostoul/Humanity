@@ -1,5 +1,5 @@
 // Reading the game's play journal (docs/design/play-journal.md): the folder beside the game's logs
-// where src/engine/play_journal.rs writes <kind>.jsonl, one JSON line per event, and marks/<n>.png.
+// where src/play_journal.rs writes <kind>.jsonl, one JSON line per event, and marks/<n>.png.
 // One reader for the dev MCP bridge (scripts/mcp-server.js: dev_play_journal, dev_play_marks) and
 // the rigs (scripts/probe-sweep.js: a vantage's mark and, when it fails, what happened since).
 "use strict";

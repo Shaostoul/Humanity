@@ -56,6 +56,8 @@ mod sky_events;
 mod stations;
 mod system_view;
 mod time_bar;
+/// The plan tiles' grid: a tile's key, the zoom, which tiles cover a view (Maps increment 3).
+pub mod tile_grid;
 pub mod world_layer;
 pub mod you_layer;
 #[cfg(test)]

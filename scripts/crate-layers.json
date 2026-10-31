@@ -27,6 +27,7 @@
         "vertex",
         "camera_angles",
         "frame_costs",
+        "play_journal",
         "raw_frame",
         "i18n",
         "build_permission",
@@ -132,7 +133,7 @@
     },
     {
       "name": "humanity-gui",
-      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes). With it in net instead, 205 references pointed the wrong way; here, 155.",
+      "why": "Every page and widget, the settings that save them, the page backends (games, tools, media, the web reader, the updater that Settings > Updates drives and GuiState holds), low impact (a rig's overlay on those settings: laid over config.json as it is read, taken out as it is saved), and the chat-safety code that lived in engine's folder and works on the GUI's state (protected mode, warnings, DMs, blocking, reports, reach, key cards, group reports, file transfer, friend codes; and since rung 0 part B the friend choices, the server's answers to the passes, and the household permits, which work on the same state: their engine half is engine/household_world). With it in net instead, 205 references pointed the wrong way; here, 155.",
       "paths": [
         "gui",
         "config",
@@ -141,6 +142,7 @@
         "software",
         "media",
         "web_reader",
+        "updater",
         "engine/protected",
         "engine/warnings",
         "engine/dm",
@@ -150,7 +152,11 @@
         "engine/key_cards",
         "engine/group_report",
         "engine/file_transfer",
-        "engine/friend_code"
+        "engine/friend_code",
+        "engine/choice",
+        "engine/put_answer",
+        "engine/household",
+        "engine/low_impact"
       ],
       "uses": [
         "humanity-core",
@@ -165,11 +171,10 @@
     },
     {
       "name": "humanity-engine",
-      "why": "THE FRAME: the main loop (lib.rs), engine/, saving and loading, the updater, the binary, and the two save_load test files at the top of src/. The most edited code, so it sits on top where an edit re-checks the least.",
+      "why": "THE FRAME: the main loop (lib.rs), engine/, saving and loading, the binary, and the two save_load test files at the top of src/. The most edited code, so it sits on top where an edit re-checks the least.",
       "paths": [
         "engine",
         "save_load",
-        "updater",
         "wasm_entry",
         "lib.rs",
         "main.rs",
@@ -189,9 +194,5 @@
       ]
     }
   ],
-  "budgets": {
-    "humanity-gui -> humanity-engine": 55,
-    "humanity-core -> humanity-engine": 6,
-    "humanity-core -> humanity-ship": 1
-  }
+  "budgets": {}
 }

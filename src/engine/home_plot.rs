@@ -297,14 +297,6 @@ pub(crate) struct OtherKind<'a> {
     pub server: bool,
 }
 
-/// The server the game is talking to, as the connection list keys it (normalized, the URL the
-/// socket was dialed for, never the server field being edited): the key the co-presence state
-/// is kept under (which server we joined, arrived on, or were refused by).
-pub(crate) fn active_server_key(gui: &crate::gui::GuiState) -> String {
-    let dialed = if gui.connected_server_url.trim().is_empty() { &gui.server_url } else { &gui.connected_server_url };
-    crate::gui::pages::chat::norm_server_url(dialed)
-}
-
 /// True while the player stands aboard the ship, where the camera is in ship metres: not on
 /// a Dev trip (a planet, a moon, a bookmark) and not held in a planet's frame. Only then does
 /// the game join the shared world, or stand where a welcome says (the third review of 1b: a
@@ -384,7 +376,7 @@ impl<'a> WelcomeContext<'a> {
             starts: crate::gui::pages::where_you_live::starts(),
             own: crate::engine::own_home::in_effect(&state.gui_state),
             dev: crate::engine::own_home::authors_data_files(state.gui_state.settings.play_mode),
-            server: crate::save_load::active_home().is_server(),
+            server: crate::persistence::live_save::active_home().is_server(),
         };
         WelcomeContext {
             arrived_on: state.home_arrived_on.as_deref(),
@@ -632,7 +624,7 @@ fn relay_holds_us(welcome: &serde_json::Value) -> Option<Vec3> {
 /// The fields our `game_join` carries for the plot (lib.rs, the join): `ship_hash`, the ship we
 /// draw; `home_spawn`, our own home's door in plot-local metres
 /// (`ShipStructure::home_arrival_local`), left out when the home has no authored door; and
-/// `start`, the live save's start (increment 6, `save_load::ActiveHome::start`), so a player who
+/// `start`, the live save's start (increment 6, `persistence::live_save::ActiveHome::start`), so a player who
 /// holds no plot there is given one of that start's kind (one already held is kept, whatever the
 /// start). False, and nothing added, when there is no ship: a join must never go out naming none
 /// (round 4 of the 1b review: an empty hash went out on the frame Enter World was pressed,
@@ -719,7 +711,7 @@ pub(crate) fn refuse_shared_world(state: &mut EngineState, sentence: String, lea
         send_game_leave(state, give_up);
     }
     forget_shared_world(state);
-    state.copresence_refused = Some(active_server_key(&state.gui_state));
+    state.copresence_refused = Some(state.gui_state.active_server_key());
     state.gui_state.copresence_refused_note = Some(sentence.clone());
     state.gui_state.pending_notices.push(sentence);
 }
@@ -759,11 +751,11 @@ pub(crate) fn server_follow(prev: &str, now: &str, joined: bool, identified: boo
 }
 
 /// Whether this identity's account was erased on the server the game talks to: the CONNECTED
-/// address (`active_server_key`, as `follow_server`'s `now` is), never the Chat page's server
-/// field, which the person may be editing (review of BUG-135 option 2, second round,
+/// address (`GuiState::active_server_key`, as `follow_server`'s `now` is), never the Chat page's
+/// server field, which the person may be editing (review of BUG-135 option 2, second round,
 /// finding 9: the follow read the field while its `now` came from the connection).
 pub(crate) fn erased_on_followed_server(gui: &crate::gui::GuiState) -> bool {
-    gui.account_erased_here(&active_server_key(gui))
+    gui.account_erased_here(&gui.active_server_key())
 }
 
 /// Every frame, before the co-presence block (lib.rs): follow the server the game talks to.
@@ -772,7 +764,7 @@ pub(crate) fn erased_on_followed_server(gui: &crate::gui::GuiState) -> bool {
 /// frozen for good), and the shared world is forgotten here, so the join gate joins the new
 /// server and its welcome is an arrival.
 pub(crate) fn follow_server(state: &mut EngineState) {
-    let now = active_server_key(&state.gui_state);
+    let now = state.gui_state.active_server_key();
     let erased_here = erased_on_followed_server(&state.gui_state);
     let f = server_follow(&state.copresence_server, &now, state.game_joined, state.gui_state.ws_identified, erased_here);
     if let Some(old) = &f.leave_on {
@@ -813,7 +805,7 @@ pub(crate) fn respawn_through_relay(state: &mut EngineState) {
 /// world load or a welcome with a plot).
 fn bring_home_back(state: &mut EngineState) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return };
-    match home_back_from_away(ship, crate::save_load::active_home().ship_place.as_ref()) {
+    match home_back_from_away(ship, crate::persistence::live_save::active_home().ship_place.as_ref()) {
         None => {}
         Some(Ok(back)) => {
             log::info!("Co-presence: out of the shared world; our home comes back from where it was put away, onto plot {:?}", back.home_plot().map(|p| &p.id));
@@ -850,7 +842,7 @@ pub(crate) fn home_back_from_away(ship: &ShipStructure, place: Option<&ShipPlace
 /// no ship (the legacy layout shows).
 pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::GuiState) -> Result<ShipStructure, String> {
     let file = ShipStructure::load_ship_file(data_dir)?;
-    let active = crate::save_load::active_home();
+    let active = crate::persistence::live_save::active_home();
     let starts = Starts::load(data_dir);
     let own = crate::engine::own_home::in_effect(gui);
     let dev = crate::engine::own_home::authors_data_files(gui.settings.play_mode);
@@ -896,7 +888,7 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
         }
         return false;
     }
-    let server = active_server_key(&state.gui_state);
+    let server = state.gui_state.active_server_key();
     let plan = plan_welcome(state.gui_state.ship_structure.as_ref(), welcome, &WelcomeContext::of(state, &server));
     // What this welcome teaches about our plot on this server, kept in the live save so the next
     // world load builds the home there (increment 2; the save's since increment 6), and what it
@@ -1581,7 +1573,7 @@ fn editor_shafts(
     use crate::ship::structure::{frame_post_width, structure_type, StructureKind};
     let mut on_car = None;
     let mut shafts = Vec::new();
-    // The cars are keyed by the zone's id and the elevator's own (`footing::LiftKey`).
+    // The cars are keyed by the zone's id and the elevator's own (`ship::lifts::LiftKey`).
     let zone_id = footing.ship.and_then(|s| s.zones.get(zone)).map_or("", |z| z.id.as_str());
     for ps in &body.structures {
         let Some(ty) = structure_type(&ps.type_id).filter(|t| t.kind == StructureKind::Elevator) else { continue };
@@ -1614,7 +1606,7 @@ fn editor_shafts(
 /// None for a spot only too near a wall or an edge, which is moved half a metre without a word.
 fn editor_spot_note(why: &crate::ship::standing::NoStanding, k: usize, moved: bool) -> Option<String> {
     use crate::ship::standing::NoStanding;
-    let storey = crate::engine::editor::storey_name(k).to_lowercase();
+    let storey = crate::ship::storey_edits::storey_name(k).to_lowercase();
     let what = match why {
         NoStanding::GlassRoof(Some(label)) => format!("on a glass roof ({label}), and nobody stands on a roof"),
         NoStanding::GlassRoof(None) => "on a glass roof, and nobody stands on a roof".to_string(),
@@ -1653,7 +1645,7 @@ pub(crate) fn editor_close_pick(state: &EngineState) -> (Option<Vec3>, Option<St
         });
         return (spawn, None);
     };
-    let storey = crate::engine::editor::EditStorey::of(body, g.construction_storeys.chosen).index;
+    let storey = crate::ship::storey_edits::EditStorey::of(body, g.construction_storeys.chosen).index;
     let built = crate::engine::build_place::built_piece_boxes(
         &state.game_world.world,
         state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry"),
@@ -2465,7 +2457,7 @@ mod tests {
     /// field moved by Vec3(0.0, 0.0, 0.0)".
     #[test]
     fn what_was_anchored_to_a_home_machine_goes_with_it() {
-        let home = crate::systems::grow_machines::load_home(&crate::save_load::active_home_machines_path(&data_dir())).expect("the machines load");
+        let home = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&data_dir())).expect("the machines load");
         let place = |plot: &str| {
             let ship = ShipStructure::load_and_assemble_shipped(&data_dir(), Some(plot)).unwrap();
             home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()))
@@ -2956,7 +2948,7 @@ mod tests {
         let back: crate::persistence::WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
         assert_eq!(back.ship_place.as_ref(), Some(&place));
         // The next boot of that save.
-        crate::save_load::set_active_home(crate::save_load::ActiveHome::of_save(slot.clone(), std::path::PathBuf::from("unused.json"), &back));
+        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::of_save(slot.clone(), std::path::PathBuf::from("unused.json"), &back));
         let gui = crate::gui::GuiState::default();
         let built = assemble_for_boot(&data_dir(), &gui).unwrap();
         assert_eq!(built.home_plot().map(|p| p.id.as_str()), Some("p2"), "the next boot built the home on {:?}, the save stands on p2", built.home_plot().map(|p| &p.id));
@@ -2965,10 +2957,10 @@ mod tests {
         // Taken on another ship: not trusted.
         let mut elsewhere = back.clone();
         elsewhere.ship_place = Some(crate::persistence::ShipPlace { ship_hash: "0123456789abcdef".into(), ..place });
-        crate::save_load::set_active_home(crate::save_load::ActiveHome::of_save(slot, std::path::PathBuf::from("unused.json"), &elsewhere));
+        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::of_save(slot, std::path::PathBuf::from("unused.json"), &elsewhere));
         let built = assemble_for_boot(&data_dir(), &gui).unwrap();
         assert_eq!(built.home_plot().map(|p| p.id.as_str()), Some("p1"), "a place on another ship was trusted");
-        crate::save_load::set_active_home(crate::save_load::ActiveHome::offline());
+        crate::persistence::live_save::set_active_home(crate::persistence::live_save::ActiveHome::offline());
     }
 
     /// A WELCOME OF ANOTHER KIND BUILDS THAT KIND'S HOME AND KEEPS THE PLOT (increment 6, plan

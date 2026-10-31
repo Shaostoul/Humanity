@@ -1539,7 +1539,7 @@ orbits, v0.647.0).
   `data/rooms.ron`, `RoomBounds::fill`) and named as the HUD names them, with your dot and the
   way you face (the feed's `level` and `you_room`, by the game's own rules)
   (`src/gui/pages/maps/ship_view.rs`). "Plan" turns it straight down and draws it from baked
-  PLAN TILES (`src/engine/map_tiles.rs`: 512 px tiles keyed by level, zoom, x, y, one baked a
+  PLAN TILES (`src/engine/map_tiles.rs`, their grid `src/gui/pages/maps/tile_grid.rs`: 512 px tiles keyed by level, zoom, x, y, one baked a
   frame through `ViewPasses::Plan`, 64 MB least recently used, and only the tiles an edit
   touched dropped, from a hash of every wall, slab, piece, light, room volume, corridor,
   neighbour and machine). Theme tokens `map_room_fill`, `map_room_edge`,
@@ -2307,7 +2307,7 @@ Gameplay "Where you live" (the household, for the live save), on the Home page (
 in Characters (Play): "A new home" while your own home has no save yet, and the connected
 server's card. The website's chat has a "Where you live" window (command palette).
 - Data: `data/homes/starts.ron`, `data/homes/shipped/cabin.ron` (the player's copy `data/homes/cabin.ron`), `data/machines/cabin.ron`, `data/places/cabin_seed.json`, `data/asteroids/belt.ron`, `data/blueprints/ship_structure.ron` (`cabins-1`, c1 to c16, `commons-2`), `data/blueprints/zone_types.ron`
-- Native: `src/ship/starts.rs` (`Starts`, `HomeAnswer`, `refusal_words`), `src/engine/save_slot.rs` (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`, `set_aside_erased`), `src/save_load.rs` (`ActiveHome`, `apply_onto_running_world`, `starting_kit`), `src/persistence.rs` (`SaveSlot`, `slot_path`, `ShipPlace`, `ShipMeals`), `src/engine/home_plot.rs` (`add_join_fields`, `guest_arrival`), `src/engine/world_load.rs` (`refresh_home_content`), `src/ship/ship_space.rs` (`air_spaces_for`), `src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`, `src/gui/pages/settings.rs`, `src/gui/pages/homes.rs`, `src/engine/ipc.rs` (`choose_start`, `pairing`, `meal`, `water`, `home_session`)
+- Native: `src/ship/starts.rs` (`Starts`, `HomeAnswer`, `refusal_words`), `src/engine/save_slot.rs` (`wanted`, `fresh_save`, `follow`, `home_for`, `on_game_message`), `src/persistence/live_save.rs` (`ActiveHome`, the choices waiting for a fresh save, `set_aside_erased`), `src/save_load.rs` (`apply_onto_running_world`, `starting_kit`), `src/persistence.rs` (`SaveSlot`, `slot_path`, `ShipPlace`, `ShipMeals`), `src/engine/home_plot.rs` (`add_join_fields`, `guest_arrival`), `src/engine/world_load.rs` (`refresh_home_content`), `src/ship/ship_space.rs` (`air_spaces_for`), `src/gui/pages/where_you_live.rs`, `src/gui/pages/showroom.rs`, `src/gui/pages/settings.rs`, `src/gui/pages/homes.rs`, `src/engine/ipc.rs` (`choose_start`, `pairing`, `meal`, `water`, `home_session`)
 - Server: `src/relay/handlers/game_state.rs` (`JoinHome`, `assign_home`, `HomeAssignment::add_to_welcome`), `src/relay/handlers/home_plots.rs` (`handle_home`, `answer_home`), `src/relay/storage/plots.rs` (`claim_plot`, `held_by`, `free_of`)
 - Web: `web/chat/chat-home.js` (palette item `openWhereYouLive` in `data/commands.json`)
 - Tests: `src/ship/starts.rs`, `src/engine/save_slot_tests.rs`, `src/engine/save_slot_home_tests.rs`, `src/save_load_slot_tests.rs`, `src/gui/pages/where_you_live_tests.rs`, `src/gui/pages/showroom_tests.rs`, `src/relay/features.rs` (`a_cabin_and_a_homestead_on_one_ship`), `scripts/tests/chat-home.test.js`. Design: `docs/design/ship-homes-and-logistics.md` (increment 6 as built), `docs/design/ship-homes-increment-6-plan.md`
@@ -3670,7 +3670,7 @@ only ~half the calories for 3 people closes ~94% for 1). Since ship homes increm
 `data/homes/starts.ron` lists its households (the Homestead "A family of three" = `home.ron` and
 "Just you" = `home_solo.ron`; the Cabin "Just you" = `cabin.ron`), the save records which
 (`WorldSave::household`; a save from before is a family), and `machines::home_ron_path()` reads
-the live save's start and household (`save_load::ActiveHome`) at every real `MachineHome::load`
+the live save's start and household (`persistence::live_save::ActiveHome`) at every real `MachineHome::load`
 call site. Chosen in Settings > Gameplay > "Where you live", which replaced "Home Design"
 (Family / Solo, one setting per install in `AppConfig.home_variant`, now gone). Takes effect the
 next time you enter the world, not live mid-session.
@@ -4113,7 +4113,7 @@ error line), `panic`, and `mark`. F8 on any page (or the dev IPC's `{"action": "
 a numbered mark with that frame's picture (`marks/<n>.png`, the last 30 kept). A Claude session
 reads it through the dev MCP, even after the game closed: `dev_play_marks` lists the marks,
 `dev_play_journal {since_mark: 12}` gives everything after one. Never in it: message words, keys,
-tokens, recovery phrases. `src/engine/play_journal.rs`, `data/dev/journal_kinds.json`,
+tokens, recovery phrases. `src/play_journal.rs` (its frame half `src/engine/play_journal_frame.rs`), `data/dev/journal_kinds.json`,
 `scripts/mcp-server.js`. In the app: Dev > Journal (`src/gui/pages/dev_journal.rs`, rung 2): each
 kind's count and newest event, the marks with Open picture, Mark this moment, Open the folder and
 Clear the journal. Rung 3 (the same day): `page` (each page change), `frame` (hitches: 100 ms and

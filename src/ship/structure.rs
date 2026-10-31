@@ -897,8 +897,9 @@ pub fn structure_mesh(ty: &StructureType, pos: Vec3, yaw_rad: f32) -> (Vec<Verte
 }
 
 /// World (px,pz) -> the piece's LOCAL (x,z) coordinates (inverse of `structure_mesh`'s yaw): used
-/// by the footing + footprint tests so they agree exactly with the rendered geometry. (v0.584)
-fn world_to_local_xz(pos: (f32, f32, f32), yaw_rad: f32, px: f32, pz: f32) -> (f32, f32) {
+/// by the footing + footprint tests so they agree exactly with the rendered geometry (v0.584), and
+/// by an elevator's reach (ship/lifts.rs `Lift::reaches`).
+pub fn world_to_local_xz(pos: (f32, f32, f32), yaw_rad: f32, px: f32, pz: f32) -> (f32, f32) {
     let (s, c) = yaw_rad.sin_cos();
     let (dx, dz) = (px - pos.0, pz - pos.2);
     // structure_mesh maps local->world by (x*c + z*s, -x*s + z*c); this is the inverse rotation.

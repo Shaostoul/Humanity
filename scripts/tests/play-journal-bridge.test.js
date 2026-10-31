@@ -1,6 +1,6 @@
 // The play journal's bridge tools (docs/design/play-journal.md, rung 1): dev_play_marks and
 // dev_play_journal in scripts/mcp-server.js read a journal folder the game wrote
-// (src/engine/play_journal.rs: <kind>.jsonl, one JSON line per event, marks/<n>.png).
+// (src/play_journal.rs: <kind>.jsonl, one JSON line per event, marks/<n>.png).
 // Run: node --test scripts/tests/play-journal-bridge.test.js
 //
 // A scratch journal stands in for the game's, in the game's own line format; the game side's

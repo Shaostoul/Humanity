@@ -673,7 +673,7 @@ The polish batch (2026-10-22, after v0.1543.0), each with a test seen red first:
 - **Placed boxes and stairs hide HUD labels** (`ship::sight::PieceSolid`): a label behind a built
   wall piece or beyond a flight is hidden through the piece's solid, step by step for a flight.
 - **A machine selection follows the storey**: choosing a storey the selected machine is not on
-  lets it go (engine/editor_storeys.rs `choose_storey`).
+  lets it go (gui/pages/construction/storeys.rs `choose_storey`, engine/editor_storeys.rs until 2026-10-31).
 - **The runs to the greenhouse's air handlers g1 and g2 reach their ports**: a run's end is kept
   under the ceiling really over it from its floor (engine/home_meshes.rs `RunSite::end_ceiling`),
   the greenhouse's 6 m roof, not the ground storey's 2.75 m service level, which held them at

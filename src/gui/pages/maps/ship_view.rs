@@ -23,7 +23,7 @@ use egui::epaint::{Mesh, Vertex};
 use egui::{Color32, Pos2, Rect, Shape, Stroke, Vec2};
 use glam::DVec3;
 
-use crate::engine::map_tiles::{keys_covering, rects_touch, zoom_for, TileKey};
+use crate::gui::pages::maps::tile_grid::{keys_covering, rects_touch, zoom_for, TileKey};
 use crate::gui::state_types::{MapSelf, MapsState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::label_placer::LabelPlacer;

@@ -414,11 +414,11 @@ impl GuiState {
 
     /// `account_erased_on_active` and `account_erased_on_parked` past the connection: remember the
     /// erase for this identity on `url`, and set aside this identity's save there (ship homes
-    /// increment 6, engine/save_slot.rs `set_aside_erased`: renamed beside itself, never deleted,
+    /// increment 6, persistence/live_save.rs `set_aside_erased`: renamed beside itself, never deleted,
     /// so a sign-up there again starts fresh, and its plot, which the relay released with the
     /// account, is not built on again). `saves_dir` is the saves folder (a test gives a throwaway).
     pub fn account_erased_on_server(&mut self, url: &str, outcome: EraseOutcome, saves_dir: &std::path::Path) {
-        crate::engine::save_slot::set_aside_erased(saves_dir, url, &self.profile_public_key);
+        crate::persistence::live_save::set_aside_erased(saves_dir, &crate::gui::pages::chat::norm_server_url(url), &self.profile_public_key);
         let entry = erased_entry(&self.profile_public_key, url);
         self.account_erased_on.insert(entry, outcome);
     }
@@ -437,6 +437,16 @@ impl GuiState {
         conn.status = "Disconnected".to_string();
         let url = conn.url.clone();
         self.account_erased_on_server(&url, outcome, &crate::persistence::saves_dir());
+    }
+
+    /// The server the game is talking to, as the connection list keys it (normalized, the URL the
+    /// socket was dialed for, never the server field being edited): the key the co-presence state
+    /// is kept under (which server we joined, arrived on, or were refused by), and the server a
+    /// save slot is for. A GuiState question, so here since the crate split's rung 0, part B
+    /// (2026-10-31); it was engine/home_plot.rs's.
+    pub fn active_server_key(&self) -> String {
+        let dialed = if self.connected_server_url.trim().is_empty() { &self.server_url } else { &self.connected_server_url };
+        crate::gui::pages::chat::norm_server_url(dialed)
     }
 
     /// True when this identity erased its account on the server at `url`, finished or not:
@@ -1061,7 +1071,7 @@ mod erased_account_tests {
     fn an_erased_account_sets_its_server_save_aside() {
         let saves = crate::test_temp::dir("erased_account_save_aside");
         let save_of = |key: &str, url: &str| {
-            let slot = crate::engine::save_slot::slot_for("", key, &crate::gui::pages::chat::norm_server_url(url), false);
+            let slot = crate::persistence::live_save::slot_for("", key, &crate::gui::pages::chat::norm_server_url(url), false);
             let path = crate::persistence::slot_path(&saves, &slot);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(&path, b"{}").unwrap();

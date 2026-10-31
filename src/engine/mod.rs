@@ -15,6 +15,11 @@ pub mod put_answer;
 /// renewing and taking back a permit for my plot, a friend's permit arriving, and the server's
 /// answers to those sends. The rules without a socket are src/net/household.rs.
 pub mod household;
+/// The household permits in the running world: the plots this game may walk into, opened on the
+/// live ship each frame, and the dev IPC's report (split from household.rs in the crate split's
+/// rung 0, part B: household.rs works on the GUI's state and is the GUI crate's, these on the
+/// engine's).
+pub mod household_world;
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// relay's reach frames, contact requests sent and received, and the "People I choose" ticks.
 pub mod reach;
@@ -84,6 +89,10 @@ pub mod home_spawn;
 /// cursor-free predicate and the flag-by-name lookup the dev IPC reports
 /// (2026-09-18). Pure GuiState logic: the key, the tests and the IPC share it.
 pub mod input;
+/// What a changed data file rebuilds in the running game, once a frame (the gates of hot reload:
+/// planets, plants, the hull, game.csv). The watcher is the core's `hot_reload`; the gates touch
+/// the engine's state, so they are here (the crate split's rung 0, part B, 2026-10-31).
+pub mod hot_reload_gates;
 pub mod ipc;
 pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
@@ -113,9 +122,9 @@ pub mod home_probe;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;
-/// The play journal (2026-10-24): what happened while the game ran, by kind, in small capped files
-/// beside the logs, and F8, Mark this moment. docs/design/play-journal.md.
-pub mod play_journal;
+/// The play journal's frame half (2026-10-24): a mark's picture through the renderer, and what the
+/// frame watcher sees each frame. The store is the core's src/play_journal.rs.
+pub mod play_journal_frame;
 /// Leaving the app: the save every way out runs first (first-hour audit 2026-10-04, Blocker 5).
 pub mod quit;
 /// The character's own home (2026-10-04): the build editor's edits outside the Dev mode are kept

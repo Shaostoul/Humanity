@@ -20,6 +20,10 @@ pub mod data_parse;
 pub mod vertex;
 /// What a frame cost: the store every system records into (its GPU half is `renderer::gpu_costs`).
 pub mod frame_costs;
+/// The play journal (2026-10-24, docs/design/play-journal.md): what happened while the game ran, in
+/// small capped files beside the logs. Its frame half is engine/play_journal_frame.rs.
+#[cfg(feature = "native")]
+pub mod play_journal;
 /// A frame of pixels read back from the GPU for the live stream (was `net::live`'s).
 #[cfg(feature = "native")]
 pub mod raw_frame;
@@ -262,6 +266,7 @@ mod native_app {
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
     use crate::ship::ship_structure::{zone_body, zone_body_mut, zone_origin, ShipStructure};
+    use crate::ship::storey_edits::EditStorey;
     use crate::systems::crafting::CraftingSystem;
     use crate::systems::farming::FarmingSystem;
     use crate::systems::food::FoodSystem;
@@ -395,8 +400,8 @@ mod native_app {
                 let _ = std::io::Write::flush(&mut *f);
             }
             let _ = std::io::Write::write_all(&mut std::io::stderr(), buf);
-            // Warnings and errors also go to the play journal's `log` kind (engine/play_journal.rs).
-            crate::engine::play_journal::note_log_bytes(buf);
+            // Warnings and errors also go to the play journal's `log` kind (src/play_journal.rs).
+            crate::play_journal::note_log_bytes(buf);
             Ok(buf.len())
         }
         fn flush(&mut self) -> std::io::Result<()> {
@@ -469,11 +474,11 @@ mod native_app {
                 let _ = std::io::Write::flush(&mut cf);
             }
             eprintln!("{body}");
-            crate::engine::play_journal::note_panic(&info.to_string()); // written at once
+            crate::play_journal::note_panic(&info.to_string()); // written at once
             default_hook(info);
         }));
         // The play journal beside the logs folder (docs/design/play-journal.md).
-        crate::engine::play_journal::start(&dir);
+        crate::play_journal::start(&dir);
         log::info!("===== HumanityOS v{} starting =====", env!("CARGO_PKG_VERSION"));
         log::info!("log file:  {}", run_path.display());
         log::info!("crash log: {}", crash_path.display());
@@ -1489,7 +1494,7 @@ mod native_app {
             crate::save_load::register_ship_meals(&mut data_store);
             let boot = crate::engine::save_slot::boot(&crate::persistence::saves_dir(), &data_dir, boot_config.as_ref());
             let (boot_slot, home_save) = (boot.slot, boot.save);
-            crate::save_load::spawn_fresh_player(&mut game_world.world, &data_dir, &crate::save_load::active_home().start);
+            crate::save_load::spawn_fresh_player(&mut game_world.world, &data_dir, &crate::persistence::live_save::active_home().start);
             // A new world's asteroids for the mining loop (finite ore; DroneSystem deletes one when
             // mined out), from data/asteroids/belt.ron. A save's replace them.
             crate::save_load::fresh_asteroids(&mut game_world.world, &data_dir);
@@ -1552,7 +1557,7 @@ mod native_app {
             gui_state.keymaps = crate::gui::pages::keymap::load_keymaps(&data_dir);
             gui_state.map_planets = crate::gui::load_planets();
             // The places the live save's start holds (a cabin its own, data/homes/starts.ron).
-            gui_state.places = crate::save_load::start_places(&data_dir, &crate::save_load::active_home().start);
+            gui_state.places = crate::save_load::start_places(&data_dir, &crate::persistence::live_save::active_home().start);
             // Organize-layer inventory pool: restore the SAVED container contents if the
             // active home has any (transfers persisted, v0.517), else seed from the
             // places spine (every leaf item tagged with its container path). The live
@@ -1564,14 +1569,14 @@ mod native_app {
             // Load the home's machine layout ONCE: both the Home-page self-sufficiency
             // loops AND the construction editor's editable machine layout come from it
             // (v0.519: machine placement). See docs/design/home-design.md.
-            gui_state.home_machines = crate::systems::grow_machines::load_home(&crate::save_load::active_home_machines_path(&data_dir));
+            gui_state.home_machines = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&data_dir));
             gui_state.homestead_loops = gui_state
                 .home_machines
                 .as_ref()
                 .map(|h| h.loops.clone())
                 .unwrap_or_default();
             gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
-            gui_state.garden_areas = crate::gui::load_garden_areas(&crate::save_load::active_home_machines_path(&data_dir), &data_dir);
+            gui_state.garden_areas = crate::gui::load_garden_areas(&crate::persistence::live_save::active_home_machines_path(&data_dir), &data_dir);
             gui_state.grow_media = crate::gui::load_grow_media(&data_dir);
             let lib = crate::gui::load_library(&data_dir);
             gui_state.library = lib.sections;
@@ -1829,7 +1834,7 @@ mod native_app {
             // Stop). Must run after the config lands so port/db/name match.
             // A script-launched instance holds it back until the first click
             // (no firewall prompt from an agent's boot; see host_node::autostart).
-            crate::gui::pages::host_node::autostart_if_configured(&gui_state);
+            crate::gui::pages::host_node::autostart_if_configured(&gui_state, crate::engine::launch_focus::launch_in_background());
             // Push the LOADED settings into the engine on the first frame. Without this the
             // camera boots at CameraController::new's hardcoded sensitivity (and the camera
             // FOV / far-plane stay at their constructor defaults) until the user nudges a
@@ -1854,6 +1859,8 @@ mod native_app {
 
             // Clean up .old files from previous updates
             crate::updater::Updater::cleanup_old_versions();
+            // A restart after an update comes back behind when this launch was (launch_focus).
+            gui_state.updater.relaunch_behind = crate::engine::launch_focus::launch_in_background();
 
             // Auto-check for updates on startup (if enabled)
             if gui_state.updater.channel == crate::updater::UpdateChannel::AlwaysLatest {
@@ -2506,9 +2513,9 @@ mod native_app {
                         }
                         // F8 (2026-10-24): Mark this moment for the play journal, on any page: a
                         // numbered mark with this frame's picture, taken at the end of the frame
-                        // (engine/play_journal.rs `take_mark`, docs/design/play-journal.md).
+                        // (engine/play_journal_frame.rs `take_mark`, docs/design/play-journal.md).
                         if key == KeyCode::F8 && pressed {
-                            state.gui_state.play_mark_request = Some(crate::engine::play_journal::MarkAsk::by_hand());
+                            state.gui_state.play_mark_request = Some(crate::play_journal::MarkAsk::by_hand());
                             return;
                         }
                         // F9 (v0.1109, operator request): toggle DEV FLIGHT
@@ -3630,9 +3637,9 @@ mod native_app {
                     crate::frame_costs::span("cpu.span.hot_reload");
                     // Hot-reload: poll the watcher and apply every data-file
                     // regeneration gate (planets, plants, hull, game.csv).
-                    // The gates live in hot_reload::poll_and_apply - add new
+                    // The gates live in engine/hot_reload_gates.rs - add new
                     // ones THERE, not here (monolith ratchet, v0.1119).
-                    crate::hot_reload::poll_and_apply(state);
+                    crate::engine::hot_reload_gates::poll_and_apply(state);
 
                     crate::frame_costs::span("cpu.span.move_setup");
                     // Apply the player's active status-effect SPEED modifiers to movement
@@ -6868,7 +6875,7 @@ mod native_app {
                                 solo: state.gui_state.copresence_solo,
                                 aboard: crate::engine::home_plot::aboard(state),
                                 refused_here: state.copresence_refused.as_deref()
-                                    == Some(crate::engine::home_plot::active_server_key(&state.gui_state).as_str()),
+                                    == Some(state.gui_state.active_server_key().as_str()),
                                 world_loaded: state.world_loaded,
                                 has_ship: state.gui_state.ship_structure.is_some(),
                                 slot_ready: crate::engine::save_slot::slot_ready(&state.gui_state),
@@ -6901,7 +6908,7 @@ mod native_app {
                                     });
                                     // Our ship and our own door, for the plot (increment 1b).
                                     // Never a join without a ship (round 4).
-                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref(), &crate::save_load::active_home().start) {
+                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref(), &crate::persistence::live_save::active_home().start) {
                                         if let Some(ref ws) = state.gui_state.ws_client {
                                             ws.send(&join.to_string());
                                         }
@@ -7386,7 +7393,7 @@ mod native_app {
                             // file the AI edits -- home-design parity).
                             if save_machines {
                                 if let Some(home) = &state.gui_state.home_machines {
-                                    let path = crate::save_load::active_home_machines_path(&state.data_dir);
+                                    let path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
                                     match home.save(&path) {
                                         Ok(()) => {
                                             log::info!("Construction: machine layout saved to {}", path.display());
@@ -12862,7 +12869,7 @@ mod native_app {
                             if let Some(reg) = quest_reg {
                                 // Another start's opening is never offered (increment 6: each start
                                 // has its own, and none has a prerequisite).
-                                let my_start = crate::save_load::active_home().start;
+                                let my_start = crate::persistence::live_save::active_home().start;
                                 let openings = crate::ship::starts::opening_quests(&state.data_dir);
                                 let mut avail: Vec<crate::gui::GuiAvailableQuest> = reg
                                     .quests
@@ -16129,10 +16136,10 @@ mod native_app {
                                 );
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
-                            crate::engine::play_journal::take_mark(state, &surface_texture.texture);
+                            crate::engine::play_journal_frame::take_mark(state, &surface_texture.texture);
                             // The play journal's page, frame, world and net kinds: what changed
-                            // this frame (engine/play_journal.rs `note_frame`).
-                            crate::engine::play_journal::note_frame(state);
+                            // this frame (engine/play_journal_frame.rs `note_frame`).
+                            crate::engine::play_journal_frame::note_frame(state);
                             crate::engine::movie::capture(state, &surface_texture.texture);
                             poll_showcase_request(state);
 

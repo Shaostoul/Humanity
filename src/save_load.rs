@@ -23,6 +23,7 @@
 //! offline catch-up are `resume_home` below.
 
 use crate::ecs::components::Controllable;
+use crate::persistence::live_save::{self, active_home, active_home_path, release_restore_hold, restored_save_waiting, ActiveHome};
 use crate::persistence::{self, WorldSave};
 use crate::systems::inventory::Inventory;
 use crate::systems::skills::{PlayerSkills, SkillProgress};
@@ -91,81 +92,6 @@ pub fn record_home_frame(save: &mut WorldSave, frame: Option<&HomeFrame>) {
     save.home_plot_box = frame.map(|f| [f.home.0.to_array(), f.home.1.to_array()]);
 }
 
-/// Which save is live and what it is (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md
-/// 3.6): the slot (your own home, or one server's), its file, the start and household it is, the
-/// server it belongs to, and where its home stands aboard. Every save writes to `path`, and the
-/// household file comes from `start` and `household` (`machines::home_ron_path`). Until anything
-/// sets it, it is your own home, a homestead for a family, where every save before the starts was.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ActiveHome {
-    pub slot: persistence::SaveSlot,
-    pub path: PathBuf,
-    pub start: String,
-    pub household: String,
-    pub server: String,
-    pub ship_place: Option<persistence::ShipPlace>,
-}
-
-impl ActiveHome {
-    /// Your own home: saves/offline_home.json, a homestead for a family.
-    pub fn offline() -> ActiveHome {
-        let slot = persistence::SaveSlot::Offline;
-        ActiveHome {
-            path: persistence::slot_path(&persistence::saves_dir(), &slot),
-            slot,
-            start: persistence::default_start(),
-            household: persistence::default_household(),
-            server: String::new(),
-            ship_place: None,
-        }
-    }
-
-    /// The live save `save`, kept at `path` for `slot` (engine/save_slot.rs `take_up`, when a
-    /// change of pairing makes another save live): its start, household, server and place.
-    pub fn of_save(slot: persistence::SaveSlot, path: PathBuf, save: &WorldSave) -> ActiveHome {
-        ActiveHome {
-            slot,
-            path,
-            start: save.start.clone(),
-            household: save.household.clone(),
-            server: save.server.clone(),
-            ship_place: save.ship_place.clone(),
-        }
-    }
-
-    /// A server's save (`SaveSlot::Server`): it always keeps its progress, whatever "Start every
-    /// session from the default home" says, because that setting is about your own home.
-    pub fn is_server(&self) -> bool {
-        matches!(self.slot, persistence::SaveSlot::Server { .. })
-    }
-}
-
-// Thread-local for the reason RESTORED_SAVE_WAITING below is: every save, every load and every
-// world build runs on the one main (event loop) thread, and a thread-local keeps each test's
-// active home its own.
-thread_local! {
-    static ACTIVE_HOME: std::cell::RefCell<Option<ActiveHome>> = const { std::cell::RefCell::new(None) };
-}
-
-/// The live save (`ActiveHome::offline` until something sets another).
-pub fn active_home() -> ActiveHome {
-    ACTIVE_HOME.with(|a| a.borrow().clone()).unwrap_or_else(ActiveHome::offline)
-}
-
-/// The live save's household machine file: `machines::home_ron_path` for the active home's
-/// start and household (ship homes increment 6). Here, beside the live save it reads, since the
-/// crate split's rung 0 (`home_ron_path` read the active home itself before, and the ship may not
-/// reach up into the engine).
-pub fn active_home_machines_path(data_dir: &std::path::Path) -> PathBuf {
-    let active = active_home();
-    crate::machines::home_ron_path(data_dir, &active.start, &active.household)
-}
-
-/// Make `home` the live save: what every later save writes and every world load builds from.
-pub fn set_active_home(home: ActiveHome) {
-    ACTIVE_HOME.with(|a| *a.borrow_mut() = Some(home));
-}
-
 /// The DataStore key of the mess hall's offline meter (`persistence::ShipMeals`): the meals and
 /// water the ship's stores have given this save on this computer (increment 6). The DataStore holds
 /// it as `std::sync::Mutex<ShipMeals>` (the ship supply ledger's pattern: a system or the counter's
@@ -199,11 +125,6 @@ fn restore_ship_meals(data: &crate::hot_reload::data_store::DataStore, meals: &p
     if let Some(Ok(mut m)) = data.get::<std::sync::Mutex<persistence::ShipMeals>>(SHIP_MEALS_KEY).map(|m| m.lock()) {
         *m = meals.clone();
     }
-}
-
-/// The live save's file (`ActiveHome::path`): saves/offline_home.json for your own home.
-pub fn active_home_path() -> PathBuf {
-    active_home().path
 }
 
 /// A new save of the live save's kind: its start, household, server and place
@@ -1092,33 +1013,6 @@ pub(crate) fn save_home_at(
     }
 }
 
-// ── Restoring a save snapshot while the game runs (2026-10-03) ──────────────
-//
-// Settings > Data > "Save snapshots" can put an earlier copy of the active home
-// back (persistence::restore_snapshot). The file on disk is then the restored
-// home, but the live world still holds what it replaced, and the next periodic
-// save (or the save on quit) would write that straight back over the restore.
-// So a restore of the active home (1) asks for the restored file to be loaded
-// into the world, through the same `launcher_pending_load` path the character
-// picker uses (lib.rs applies it once the world is up, rewinding crafts and
-// catching up the time since the snapshot like any time away), and (2) holds
-// `save_active_home` off until that load has happened. The load ends in
-// `apply_save_to_world` or `apply_identity`, which release the hold. Restored
-// from the main menu before the world was ever entered and then quit: the hold
-// keeps the quit-save off the restored file, and the next launch loads it.
-//
-// Thread-local on purpose: every save, every restore click and every apply
-// runs on the one main (event loop) thread, and a thread-local keeps each
-// test's hold its own, where a process-wide flag would be released at random
-// by the many tests that call apply_save_to_world in parallel. If saving ever
-// moves to another thread, this has to move with it.
-thread_local! {
-    static RESTORED_SAVE_WAITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// The file a restore of the live save asked to be loaded into the running game (taken once,
-    /// by `take_pending_load`).
-    static RELOAD_WAITING: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
-}
-
 /// The save to load into the running world now, taken once: the live save a snapshot restore just
 /// put back (by its path, so a server's save is found too), else the save the character picker
 /// asked for by name (`GuiState::launcher_pending_load`, among the saves at the top of the saves
@@ -1126,7 +1020,7 @@ thread_local! {
 /// A restored file that cannot be read is logged and lets the saves go on (holding them for a load
 /// that can never happen would stop saving for the session).
 pub fn take_pending_load(gui: &mut crate::gui::GuiState) -> Option<WorldSave> {
-    if let Some(path) = RELOAD_WAITING.with(|r| r.borrow_mut().take()) {
+    if let Some(path) = live_save::take_reload_waiting() {
         match persistence::load_world(&path) {
             Ok(save) => {
                 // The same save, also asked for by name for the older loader: not twice.
@@ -1239,98 +1133,6 @@ pub fn settle_save_on_world(
     }
     gui.appearance_dirty = true;
     gui.outfit_dirty = true;
-}
-
-/// True while a restored active home is waiting to be loaded into the world
-/// (saves of the active home are held off until then). Settings shows it.
-pub fn restored_save_waiting() -> bool {
-    RESTORED_SAVE_WAITING.with(|w| w.get())
-}
-
-fn hold_saves_for_restore() {
-    RESTORED_SAVE_WAITING.with(|w| w.set(true));
-}
-
-fn release_restore_hold() {
-    RESTORED_SAVE_WAITING.with(|w| w.set(false));
-}
-
-/// Settings > Data "Restore": put `snapshot` back as the save at `save_path`
-/// (persistence::restore_snapshot keeps a snapshot of what it replaces), and
-/// when that save is the active home, load it into the running game. Returns
-/// the line to show the player.
-pub fn restore_snapshot_into_game(
-    gui: &mut crate::gui::GuiState,
-    snapshot: &std::path::Path,
-    save_path: &std::path::Path,
-) -> Result<String, String> {
-    // Settings names each slot's save saves/<slot>.json; a server's save lives in saves/servers/
-    // (ship homes increment 6), and its snapshot goes back THERE, never beside your own home.
-    let save_path = &match (save_path.parent(), save_path.file_stem().and_then(|s| s.to_str())) {
-        (Some(dir), Some(slot)) if !save_path.exists() => persistence::snapshot_slot_save(dir, slot),
-        _ => save_path.to_path_buf(),
-    };
-    let restored = persistence::restore_snapshot(snapshot, save_path, persistence::now_ms())?;
-    let active = active_home();
-    if *save_path == active.path {
-        hold_saves_for_restore();
-        // Loaded by its PATH (`take_pending_load`): a server's save is not among the saves the
-        // picker finds by name, and two saves can carry one name.
-        RELOAD_WAITING.with(|r| *r.borrow_mut() = Some(save_path.clone()));
-        // Your own home is also found by its name, by the loader lib.rs has until it takes the
-        // path (the same save: `take_pending_load` drops this when it takes the path).
-        if !active.is_server() {
-            gui.launcher_pending_load = Some(restored.name.clone());
-        }
-        // With "Start every session from the default home" on (off by default
-        // since 2026-10-04) the load applies only the character, so say so:
-        // the restored home is safe on disk (a character-only save leaves the
-        // progress in the file untouched), it just is not what you are playing.
-        // (Never for a server's save, which always loads whole.)
-        if gui.settings.fresh_world_each_launch && !active.is_server() {
-            Ok("Restored on disk. Because \"Start every session from the default home\" is on (Settings > Gameplay), only your character is loaded now; turn it off and the restored home is what you play. The save it replaced is kept among the snapshots.".to_string())
-        } else {
-            Ok("Restored. Your home is being loaded back into the game; the save it replaced is kept among the snapshots.".to_string())
-        }
-    } else {
-        Ok(format!(
-            "Restored {}. The save it replaced is kept among the snapshots.",
-            save_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
-        ))
-    }
-}
-
-/// What a "Snapshot now" click did, for the line Settings shows.
-#[derive(Debug, Clone, PartialEq)]
-pub enum SnapshotNow {
-    /// A new copy was kept, at this path.
-    Kept(PathBuf),
-    /// The save has not changed since the last copy kept, so that copy
-    /// already holds it and nothing new was taken (a new one would only push
-    /// the oldest copy out).
-    AlreadyKept,
-    /// There is no save of the home yet, so there is nothing to keep.
-    NotSavedYet,
-}
-
-/// Settings > Data "Snapshot now": keep a copy of the active home as it was
-/// last saved (the game saves every two minutes and on quit), whatever the
-/// spacing, unless the save is unchanged since the last copy.
-pub fn snapshot_active_home_now() -> Result<SnapshotNow, String> {
-    snapshot_home_now_at(&active_home_path(), persistence::now_ms())
-}
-
-/// `snapshot_active_home_now` for a save at any path and moment (tests).
-fn snapshot_home_now_at(path: &std::path::Path, now_ms: u64) -> Result<SnapshotNow, String> {
-    if !path.is_file() {
-        return Ok(SnapshotNow::NotSavedYet);
-    }
-    // Forced, so the only way it keeps nothing for a save that exists is the
-    // save being unchanged since the last copy (persistence::snapshot_save).
-    Ok(match persistence::snapshot_save(path, &persistence::snapshots_root_for(path), now_ms, true)? {
-        Some(kept) => SnapshotNow::Kept(kept),
-        None => SnapshotNow::AlreadyKept,
-    })
 }
 
 /// Whether the periodic save of the offline home is due: at most once per `interval_secs` of
@@ -2853,12 +2655,12 @@ mod tests {
         let save = WorldSave::new_offline("Restored", "homestead");
         let mut world = hecs::World::new();
 
-        hold_saves_for_restore();
+        live_save::hold_saves_for_restore();
         assert!(restored_save_waiting(), "a restore holds saves");
         apply_identity(&mut world, &save);
         assert!(!restored_save_waiting(), "loading the character only releases the hold");
 
-        hold_saves_for_restore();
+        live_save::hold_saves_for_restore();
         apply_save_to_world(&mut world, &save);
         assert!(!restored_save_waiting(), "loading the whole save releases the hold");
 
@@ -2867,7 +2669,7 @@ mod tests {
         // saving for the rest of the session.
         let mut real = WorldSave::new_offline("Elsewhere", "homestead");
         real.kind = "real".to_string();
-        hold_saves_for_restore();
+        live_save::hold_saves_for_restore();
         apply_save_to_world(&mut world, &real);
         assert!(!restored_save_waiting(), "an ignored save still releases the hold");
     }
@@ -2936,7 +2738,7 @@ mod tests {
         let mut world = hecs::World::new();
         let data = crate::hot_reload::data_store::DataStore::new();
 
-        hold_saves_for_restore();
+        live_save::hold_saves_for_restore();
         save_home_at(&path, &world, &[], &data, true, None);
         save_home_at(&path, &world, &[], &data, false, None);
         assert!(
@@ -2954,41 +2756,6 @@ mod tests {
         let kept = persistence::list_snapshots(&slot);
         assert_eq!(kept.len(), 1);
         assert!(std::fs::read(&kept[0].path).unwrap() == restored_bytes, "the restored home was kept first");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// "Snapshot now" says what it did: nothing to keep before the first
-    /// save, a new copy for a changed save, and "already kept" for a save
-    /// unchanged since the last copy (where it used to keep a duplicate and
-    /// push the oldest copy out).
-    ///
-    /// Red check (2026-10-03): with the "Unchanged since the last copy" loop
-    /// removed from `persistence::snapshot_save_protecting`, this failed with
-    /// `a second click on an unchanged home says it is already kept`, `left:
-    /// Kept(...), right: AlreadyKept`. Restored byte for byte, it passes.
-    #[test]
-    fn snapshot_now_says_when_the_home_is_already_kept() {
-        let root = std::env::temp_dir().join(format!("hos_snapshot_now_test_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        let path = root.join("saves").join("offline_home.json");
-        let t = 1_759_400_000_000u64;
-        assert_eq!(snapshot_home_now_at(&path, t).unwrap(), SnapshotNow::NotSavedYet);
-
-        persistence::save_world(&path, &WorldSave::new_offline("Home", "homestead")).unwrap();
-        assert!(matches!(snapshot_home_now_at(&path, t + 1_000).unwrap(), SnapshotNow::Kept(_)));
-        assert_eq!(
-            snapshot_home_now_at(&path, t + 2_000).unwrap(),
-            SnapshotNow::AlreadyKept,
-            "a second click on an unchanged home says it is already kept"
-        );
-        // The home changes (written without the snapshot a save would keep):
-        // the next click keeps it.
-        let mut changed = WorldSave::new_offline("Home", "homestead");
-        changed.character_name = "Changed".to_string();
-        crate::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&changed).unwrap().as_bytes()).unwrap();
-        assert!(matches!(snapshot_home_now_at(&path, t + 3_000).unwrap(), SnapshotNow::Kept(_)));
-        let slot = persistence::snapshots_root_for(&path).join("offline_home");
-        assert_eq!(persistence::list_snapshots(&slot).len(), 2);
         let _ = std::fs::remove_dir_all(&root);
     }
 

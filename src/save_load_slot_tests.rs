@@ -5,6 +5,8 @@
 //! hall's meter rides the save.
 
 use super::*;
+use crate::gui::pages::settings::restore_snapshot_into_game;
+use crate::persistence::live_save::set_active_home;
 use crate::ecs::components::{AsteroidBody, Battery, HomeMachine, MachineInstanceId, Name, WaterTank};
 use crate::persistence::{SaveSlot, ShipMeals, ShipPlace};
 use crate::systems::inventory::containers::Container;

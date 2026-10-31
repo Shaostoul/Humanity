@@ -755,6 +755,11 @@
       "date": "2026-10-31",
       "decision": "Crate split rung 0 part A merged (3350399e1): 157 wrong-way references down to 62, all part B's (gui->engine 55, hot_reload->engine 6 + ship 1). Departures from the design's cuts: look math to core (not terrain), WeatherCondition left in place behind a generic, frame_costs split (store to core, GPU half renderer/gpu_costs.rs), MachineHome::load no longer fills food (systems::grow_machines::load_home does, pinned by a test), i18n and build permission to core. Part B dispatched the same morning. Also: wall screens take turns (41c3cb1a6, Survey 1 in sim-frame-cost.md), and the Garden section laying out only visible rows dispatched.",
       "why": "The ratchet was miscounting (stopped reading at the first test module), so the baseline is now 157 in 19 edges. Rung 1 backlog recorded in crate-split.md: 139 wrong-way references in test code, crate::data_dir() (~50 readers) to core."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Crate split rung 0 DONE (part B merged): wrong-way references 62 -> 0, the budgets in scripts/crate-layers.json empty, so check-crate-layers fails on any new one. Cuts: hot reload's gates to engine/hot_reload_gates.rs; engine/choice, put_answer, household (its world tail split to engine/household_world.rs), low_impact and the updater filed under the GUI crate; the play journal's store to src/play_journal.rs; plan tiles to gui/pages/maps/tile_grid.rs; elevators to ship/lifts.rs; storey edits to ship/storey_edits.rs; which save is live to persistence/live_save.rs. Two values passed in: host_node autostart(background) and Updater::relaunch_behind (filled at boot).",
+      "why": "No cut deferred a call (no request queue was needed), so every save, restore, erase and Choose still happens at the same point in the frame: the safest form of an inversion. Next is the crate cards, then rung 1 (workspace; core + protocol), after the backlog: 125 wrong-way references in test code and crate::data_dir() read by about 50 files below the engine. A `use a::{x, y, z}` group counts as ONE reference, so size work with a per-file lister, not the count."
     }
   ],
   "active_scopes_to_avoid": [

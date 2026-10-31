@@ -184,7 +184,7 @@ pub(crate) fn refresh_own_home(gui: &mut GuiState) {
 /// `autosave_ship_structure`, lib.rs): keep the edits where the mode keeps them, and outside Dev
 /// write the save at once, so the edit and what it cost reach the disk together.
 pub(crate) fn keep_edits_now(state: &mut EngineState) -> Result<String, String> {
-    let machines_path = crate::save_load::active_home_machines_path(&state.data_dir);
+    let machines_path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
     match keep_editor_edits(&mut state.gui_state, &state.data_dir, &machines_path)? {
         Kept::DataFiles(note) => Ok(note),
         Kept::Save(note) => {
@@ -239,14 +239,14 @@ pub(crate) fn reapply_saved_home(state: &mut EngineState, save: &crate::persiste
     if authors_data_files(state.gui_state.settings.play_mode) {
         return;
     }
-    let path = crate::save_load::active_home_machines_path(&state.data_dir);
+    let path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
     if let Some(home) = machines_for_world(&mut state.gui_state, &path) {
         state.gui_state.home_machines = Some(home);
     }
     let own_design = design_in_effect(&state.gui_state).cloned();
     // A server's save is the SHIPPED design (ship homes increment 6, `save_slot::design_of`), never
     // data/homes/<kind>.ron, which an offline Dev session can change; your own home the file's.
-    let server = crate::save_load::active_home().is_server();
+    let server = crate::persistence::live_save::active_home().is_server();
     if let Some(ship) = state.gui_state.ship_structure.as_ref() {
         if let (Some(plot), Some(now)) = (ship.home_plot().map(|p| p.id.clone()), ship.home_design()) {
             let design = own_design.filter(|d| d.kind == now.kind).or_else(|| {

@@ -153,10 +153,10 @@ fn a_machines_pipes_and_a_rooms_light_keep_to_their_storey() {
 
 /// The shipped homestead's elevator (elevator-1, at (31, 0, 26) of the home zone): its key in
 /// `ElevatorCars`.
-fn homestead_lift(ship: &ShipStructure) -> crate::engine::footing::LiftKey {
+fn homestead_lift(ship: &ShipStructure) -> crate::ship::lifts::LiftKey {
     let hz = ship.home_zone_index();
     let at = ship.zones[hz].origin_vec() + Vec3::new(31.0, 0.0, 26.0);
-    crate::engine::footing::lifts(ship)
+    crate::ship::lifts::lifts(ship)
         .into_iter()
         .find(|l| l.key.0 == ship.zones[hz].id && (l.base - at).length() < 0.01)
         .expect("the homestead's elevator-1 at (31, 0, 26)")
@@ -279,7 +279,7 @@ fn an_elevators_landing_door_opens_only_with_the_car_there() {
 fn the_elevator_car_is_drawn_to_its_footprint() {
     use crate::engine::footing::ElevatorCars;
     let ship = ship("p1");
-    let lifts = crate::engine::footing::lifts(&ship);
+    let lifts = crate::ship::lifts::lifts(&ship);
     let mut cars = ElevatorCars::new();
     let poses = elevator_car_poses(&ship, &cars, None);
     assert_eq!(poses.len(), lifts.len(), "one car per elevator");
@@ -296,7 +296,7 @@ fn the_elevator_car_is_drawn_to_its_footprint() {
         assert!((pos.x - lift.base.x).abs() < 1e-5 && (pos.z - lift.base.z).abs() < 1e-5, "elevator {:?}: the car is off its shaft", lift.key);
     }
     let hz = ship.home_zone_index();
-    let cut = crate::engine::editor::cut_away_of(&ship, hz, 0);
+    let cut = crate::ship::storey_edits::cut_away_of(&ship, hz, 0);
     assert!(cut.is_some(), "the homestead's ground storey has the upper floor over it");
     let key = homestead_lift(&ship);
     cars.insert(key.clone(), (3.0, 3.0, false));
@@ -397,12 +397,12 @@ fn the_cut_away_leaves_out_the_runs_over_it() {
     let (ship, runs) = shipped_runs();
     let site = run_site(Some(&ship));
     let hz = ship.home_zone_index();
-    let cut = crate::engine::editor::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
+    let cut = crate::ship::storey_edits::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
     let (o, body) = (ship.zones[hz].origin_vec(), &ship.zones[hz].body);
     // Over the cut in the home's box, and the edge round it the cut takes with it (a door in the
     // shell stands on its edge; a wall unit's port gizmos stood past it, the study's uplink and
     // router risers at x 55.05, until `gizmo_room` kept them in), by the numbers, not by `hides`.
-    let m = crate::engine::editor::CUT_EDGE_M;
+    let m = crate::ship::storey_edits::CUT_EDGE_M;
     let over = |p: Vec3| {
         p.y > cut.cut_y + 1e-3 && p.x >= o.x - m && p.x <= o.x + body.width + m && p.z >= o.z - m && p.z <= o.z + body.depth + m
     };
@@ -528,7 +528,7 @@ fn world_entries_again_and_again_keep_the_machines_slots() {
 #[test]
 fn the_cut_away_is_drawn_again_after_a_world_load() {
     let ship = ship("p1");
-    let want = crate::engine::editor::cut_away_of(&ship, ship.home_zone_index(), 0);
+    let want = crate::ship::storey_edits::cut_away_of(&ship, ship.home_zone_index(), 0);
     assert!(want.is_some(), "the homestead's ground storey has the upper floor over it");
     let mut draw = HomeDraw::default();
     assert!(draw.view_stale(want), "the editor opened on the ground storey: its cut-away is to be drawn");
@@ -556,7 +556,7 @@ fn the_cut_away_leaves_out_the_plants_and_tents_over_it() {
     let ship = ship("p1");
     let hz = ship.home_zone_index();
     let o = ship.zones[hz].origin_vec();
-    let cut = crate::engine::editor::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
+    let cut = crate::ship::storey_edits::cut_away_of(&ship, hz, 0).expect("the ground storey has the upper floor over it");
     let greenhouse = o + Vec3::new(30.0, 0.0, 60.0);
     let bedroom = o + Vec3::new(38.0, 3.0, 34.0);
     let plants = vec![(1, 7, greenhouse), (2, 7, bedroom)];

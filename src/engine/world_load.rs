@@ -257,7 +257,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     let start_row = crate::engine::save_slot::live_start(&state.data_dir);
     let content = start_row.home_content.clone();
     {
-        let path = crate::save_load::active_home_machines_path(&state.data_dir);
+        let path = crate::persistence::live_save::active_home_machines_path(&state.data_dir);
         // The data file's layout, with the character's own machines in the household's place when
         // their save holds a home of their own outside the Dev mode (engine/own_home.rs,
         // 2026-10-04). The editor edits this same layout from here on, so what it shows, what is

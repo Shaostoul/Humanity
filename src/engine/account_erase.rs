@@ -19,7 +19,7 @@ use crate::gui::EraseOutcome;
 /// `account_erased` message.
 pub(crate) fn on_active_server(state: &mut EngineState, frame: &serde_json::Value) {
     let outcome = EraseOutcome::from_receipt(frame);
-    let server = home_plot::active_server_key(&state.gui_state);
+    let server = state.gui_state.active_server_key();
     state.gui_state.account_erased_on_active(outcome);
     crate::config::AppConfig::from_gui_state(&state.gui_state).save();
     if let Some(sentence) = erase_refusal(outcome, state.gui_state.copresence_refused_note.as_deref()) {

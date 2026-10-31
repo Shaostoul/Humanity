@@ -367,7 +367,7 @@ pub(crate) struct SharedBuild {
     active: bool,
     /// Counts welcomes, so a build sent in an earlier session is settled by this one's lists.
     session: u32,
-    /// The server this session is with (`home_plot::active_server_key`, set as its welcome comes,
+    /// The server this session is with (`GuiState::active_server_key`, set as its welcome comes,
     /// [`on_welcome`]): builds and take-downs sent are filed under it, and only its lists settle
     /// them. A request sent to one server and never answered waits for that server.
     pub(crate) server: String,
@@ -528,7 +528,7 @@ pub(crate) fn on_game_message(state: &mut EngineState, v: &serde_json::Value) ->
 /// A welcome to a shared world (engine/net_route.rs, once the home has taken it). The server it
 /// comes from is this session's ([`SharedBuild::server`]).
 pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
-    state.shared_build.server = crate::engine::home_plot::active_server_key(&state.gui_state);
+    state.shared_build.server = state.gui_state.active_server_key();
     welcome(&mut ctx(state), v);
     flush(state);
 }
@@ -540,7 +540,7 @@ pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
 pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
     let (joined, welcomed) = (state.game_joined, state.game_welcomed);
     tick_core(&mut ctx(state), real_dt, joined, welcomed);
-    crate::engine::household::apply_open(state);
+    crate::engine::household_world::apply_open(state);
     flush(state);
 }
 

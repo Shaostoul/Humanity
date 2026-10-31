@@ -4461,7 +4461,7 @@ fn snapshot_size(bytes: u64) -> String {
 /// `persistence::save_world` keeps before it overwrites a save
 /// (`backups/saves/<slot>/`), takes one on request, and puts one back with a
 /// two-click confirm. Restoring the active home also loads it into the running
-/// game (`save_load::restore_snapshot_into_game`). Native only: game saves
+/// game (`restore_snapshot_into_game`, below). Native only: game saves
 /// live on this device, and the website has no game save to mirror.
 fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     use crate::persistence;
@@ -4501,7 +4501,7 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     };
 
-    if crate::save_load::restored_save_waiting() {
+    if crate::persistence::live_save::restored_save_waiting() {
         ui.add_space(theme.spacing_xs);
         ui.label(
             RichText::new("A restored save is waiting: it loads when you enter the world, and the game does not save over it until then.")
@@ -4512,8 +4512,8 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.add_space(theme.spacing_xs);
     if widgets::secondary_button(ui, theme, "Snapshot now") {
-        use crate::save_load::SnapshotNow;
-        let line = match crate::save_load::snapshot_active_home_now() {
+        use crate::persistence::live_save::SnapshotNow;
+        let line = match crate::persistence::live_save::snapshot_active_home_now() {
             Ok(SnapshotNow::Kept(_)) => "Kept a snapshot of your home as it was last saved.".to_string(),
             // Not an error: the newest copy already holds this save, and a
             // second identical copy would only push the oldest one out.
@@ -4541,7 +4541,7 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let confirming: Option<std::path::PathBuf> = ui.data_mut(|d| d.get_temp(confirm_id));
     let now_ms = persistence::now_ms();
     let saves = persistence::saves_dir();
-    let active = crate::save_load::active_home_path();
+    let active = crate::persistence::live_save::active_home_path();
     // Deferred so the rows never mutate state while they are drawn.
     let mut restore: Option<(std::path::PathBuf, std::path::PathBuf)> = None;
     let mut cancel = false;
@@ -4595,7 +4595,7 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.data_mut(|d| d.remove::<std::path::PathBuf>(confirm_id));
     }
     if let Some((snapshot, save_path)) = restore {
-        let line = match crate::save_load::restore_snapshot_into_game(state, &snapshot, &save_path) {
+        let line = match restore_snapshot_into_game(state, &snapshot, &save_path) {
             Ok(msg) => msg,
             Err(e) => format!("Nothing was changed: {e}"),
         };
@@ -4615,6 +4615,54 @@ fn draw_save_snapshots(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .color(if failed { theme.danger() } else { theme.success() }),
             );
         }
+    }
+}
+
+/// Settings > Data "Restore": put `snapshot` back as the save at `save_path`
+/// (persistence::restore_snapshot keeps a snapshot of what it replaces), and
+/// when that save is the active home, load it into the running game. Returns
+/// the line to show the player. Settings' own (it was save_load.rs's until the crate split's
+/// rung 0, part B): the hold and the load it asks for are persistence/live_save.rs's, and
+/// save_load.rs `take_pending_load` does the load.
+pub(crate) fn restore_snapshot_into_game(
+    gui: &mut crate::gui::GuiState,
+    snapshot: &std::path::Path,
+    save_path: &std::path::Path,
+) -> Result<String, String> {
+    use crate::persistence;
+    // Settings names each slot's save saves/<slot>.json; a server's save lives in saves/servers/
+    // (ship homes increment 6), and its snapshot goes back THERE, never beside your own home.
+    let save_path = &match (save_path.parent(), save_path.file_stem().and_then(|s| s.to_str())) {
+        (Some(dir), Some(slot)) if !save_path.exists() => persistence::snapshot_slot_save(dir, slot),
+        _ => save_path.to_path_buf(),
+    };
+    let restored = persistence::restore_snapshot(snapshot, save_path, persistence::now_ms())?;
+    let active = crate::persistence::live_save::active_home();
+    if *save_path == active.path {
+        crate::persistence::live_save::hold_saves_for_restore();
+        // Loaded by its PATH (`take_pending_load`): a server's save is not among the saves the
+        // picker finds by name, and two saves can carry one name.
+        crate::persistence::live_save::reload_after_restore(save_path.clone());
+        // Your own home is also found by its name, by the loader lib.rs has until it takes the
+        // path (the same save: `take_pending_load` drops this when it takes the path).
+        if !active.is_server() {
+            gui.launcher_pending_load = Some(restored.name.clone());
+        }
+        // With "Start every session from the default home" on (off by default
+        // since 2026-10-04) the load applies only the character, so say so:
+        // the restored home is safe on disk (a character-only save leaves the
+        // progress in the file untouched), it just is not what you are playing.
+        // (Never for a server's save, which always loads whole.)
+        if gui.settings.fresh_world_each_launch && !active.is_server() {
+            Ok("Restored on disk. Because \"Start every session from the default home\" is on (Settings > Gameplay), only your character is loaded now; turn it off and the restored home is what you play. The save it replaced is kept among the snapshots.".to_string())
+        } else {
+            Ok("Restored. Your home is being loaded back into the game; the save it replaced is kept among the snapshots.".to_string())
+        }
+    } else {
+        Ok(format!(
+            "Restored {}. The save it replaced is kept among the snapshots.",
+            save_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+        ))
     }
 }
 
@@ -4923,7 +4971,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         // Use a batch script to wait for this process to exit
                         // before launching the new binary. This avoids the race
                         // where the old process hasn't fully released the exe.
-                        match crate::updater::create_restart_script(&target) {
+                        match crate::updater::create_restart_script(&target, state.updater.relaunch_behind) {
                             Ok(bat) => {
                                 crate::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
                                 use std::os::windows::process::CommandExt;
