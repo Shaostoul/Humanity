@@ -127,12 +127,20 @@ instrumentation are PERMANENT, load-bearing infrastructure. Trim genuine throwaw
 code, broken pages and redundant tech-demo pages; never anything a developer or operator uses to
 build, debug or inspect. When unsure whether something is fluff or dev tooling, KEEP it and ask.
 
-**No app-level caches during development (operator, 2026-07-16).** Verbatim: "Caching makes sense
-but, I don't want it enabled while we're developing. Every cache is a chance to encounter a bug."
-Stale caches masquerade as code bugs. Before launch, never add shader or pipeline caches, baked
-asset caches or memoized data files as an optimization: make the cold path fast instead (the
-v0.865 DXC swap, the v0.866 background prebuild). OS and driver caches outside our code are fine.
-(Memory `feedback_no_dev_caches`, which source comments cite as "CLAUDE.md's no-caches rule".)
+**No caches kept across runs during development; in-memory reuse only when it cannot go stale,
+and all of it behind one off switch (operator, 2026-07-16, refined 2026-10-30).** Verbatim, the
+rule: "Caching makes sense but, I don't want it enabled while we're developing. Every cache is a
+chance to encounter a bug." Stale caches masquerade as code bugs. So before launch, never add
+anything kept across runs as an optimization (shader or pipeline caches, baked asset caches,
+memoized data files on disk): make the cold path fast instead (the v0.865 DXC swap, the v0.866
+background prebuild). OS and driver caches outside our code are fine. **Refined 2026-10-30**
+(operator: "I like this idea, let's do it."), because the literal rule also forbade reuse that
+cannot go stale and that the game needs at MMO scale: **data kept in memory across frames is
+allowed when it is rebuilt on a schedule (every tick, a slice per frame) or tagged with a version
+its source bumps on every change, and EVERY such reuse obeys the one "turn off all reuse" switch
+on the Dev page** (`HUMANITY_NO_REUSE=1` for rigs), so a bug that smells like stale data is ruled
+in or out with one click. A new reuse that does not check the switch is a bug. (Memory
+`feedback_no_dev_caches`, which source comments cite as "CLAUDE.md's no-caches rule".)
 
 **Web MIRRORS native; native is the product (operator, 2026-07-05).** The native egui app is the
 source of truth for every UI pattern; the website reflects it ("just the GUI of the app is meant to

@@ -180,7 +180,20 @@ In order:
     protocol, ship, terrain, systems, relay, net, renderer, gui, engine: the ten and the names decided by
     him the same day, "going the full 10" and "Let's go with humanity"). An average edit would re-check about half the code, an engine
     edit about 15% (estimates). Next: rung 0, re-homing the 155 wrong-way references inside the one
-    crate, then the layer lint reading the same JSON.
+    crate, then the layer lint reading the same JSON, and a one-page card in each crate (what it
+    owns, its interface and rules, how to test it, its open work, requests from other crates: the
+    operator, 2026-10-30, "Sounds like something we gotta do"), so an agent dedicated to one crate
+    reads one page instead of catching up on the repo.
+11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
+    asked for the farm to update on a configurable interval and for crops to be computed only when
+    looked at. Rung 1: the four step-size-dependent places made exact (the golden state equal at
+    one tick a frame and one a second); rung 2: the farm's own interval, time-sliced by area;
+    rung 3: events and closed-form crops; rung 4: lazy homes on the server.
+12. **Stutter: spread every spike across frames (operator, 2026-10-30: "We want to avoid
+    stuttering.")** (`docs/design/sim-frame-cost.md`, Stutter). First the worst frame per span
+    beside its average, then each periodic job (autosaves, mesh rebuilds, the shader poll, ...)
+    gets a per-frame budget. With it, the reuse rule's Dev page switch ("turn off all reuse",
+    CLAUDE.md, refined the same day).
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

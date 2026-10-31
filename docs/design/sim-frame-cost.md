@@ -117,6 +117,32 @@ mirror_player 12590-12796, garden_mirror 12797-12945, mirror_world 12946-13292, 
 14749-14790, world_passes 14791-15333 (sub-span point_lights 14885-~15040), ui_run 15336-15816,
 audio 15818-15973, ui_paint 15975-16083, tail 16085-16148.
 
+## Stutter: spread every spike across frames (operator, 2026-10-30)
+
+The operator, on time-slicing the Garden data: "We should consider everywhere we should implement
+this for the best MMO experience. I imagine it'll help lower end hardware a bit too. We want to
+avoid stuttering." A frame that runs long is felt as a hitch even when the average is fine, and on
+slower hardware the same spike is bigger.
+
+1. **Measure the worst frame, not only the average.** Every `cpu.*` id and span is an exponential
+   average, which hides a 17 ms job that runs once a second. `frame_costs` keeps, beside each
+   average, the largest value in the last few seconds; the JSON drop and `game_frame_costs` report
+   both, and a span whose worst is far above its average is a periodic spike.
+2. **The known periodic or bursty work to check first:** the autosave of the offline home every
+   120 s (`save_load::periodic_save_due`, written on the main thread) and the ship-structure
+   autosave; the plant mesh rebuilds (the log reports their worst frame); the shader-change poll
+   (once a second, a file-time read per megashader part, about 60 microseconds each on this PC);
+   the hot-reload watcher's poll; the room light probes; the terrain patch builds (already given a
+   per-frame budget); the Performance page's once-a-second memory walk; the request watcher's
+   once-a-second listing; the chat history pump and the background server connections.
+3. **Each one gets a per-frame budget** and is spread across frames (a slice of its work per frame,
+   the way the terrain patch builds already are) or moved off the main thread (the way the plant
+   meshes' build already is). Every slice that keeps data across frames follows CLAUDE.md's reuse
+   rule: rebuilt on a schedule, and off with the Dev page's "turn off all reuse" switch.
+4. **The goal is stated as a worst frame,** not an average: on the operator's PC, no frame more
+   than a few milliseconds over the average in a ten-minute rig run that includes an autosave, a
+   harvest, a build edit and a walk past the wall screens.
+
 ## Suspects in the untimed time, ranked
 
 - **S1. DONE 2026-10-30 (engine/garden_mirror.rs). Measured 16-20 ms a frame, not 4-9,** with the
