@@ -260,9 +260,12 @@ paragraph:
   evaluates household water treatment technologies including this one;
   start from their drinking-water quality guidance rather than from a
   summary.
-- **Distillation**, which is the one home method that separates water
-  from dissolved chemicals and salts. It is slow, fuel-hungry, and has
-  its own procedure.
+- **Distillation**, which separates water from germs, dissolved salts
+  and heavy metals. It does **not** separate it from chemicals that boil
+  off with the water, such as fuel, solvents and some pesticides: those
+  "will vaporize along with the water" (University of Nebraska Extension,
+  G1493). Never rely on a still for water that may hold fuel or solvents.
+  It is slow, fuel-hungry, and has its own procedure.
 
 ## After treatment: do not put it back where it came from
 
