@@ -750,6 +750,11 @@
       "date": "2026-10-31",
       "decision": "The night wave's seams fixed (009606c77, 7 findings of the critic's batch review, each test seen red): notification switches are a PARTIAL update now (update_notification_prefs changes only the fields it carries, quiet hours null = clear; one atomic upsert; the answer is the whole stored set), and no client writes before its server answered (desktop synced_frame None, web asks once its socket is accepted, Settings queues hos_notify_pending). The website strip room: 33 fixed bottom rules + every window-tall page box (072fd581c) stand on --hos-wip-h, both enforced by wip-strip-room-web.test.js. Desktop windows over a page stand on the strip (bottom_strip::height / room_above). Then (2026-10-31) the notification switches moved from the relay's Push feature to Chat (relay/features.rs).",
       "why": "Partial update, not a shim: the message shape changed outright to the safe one (channel_update's), because one client sending only what it knew wiped quiet hours on every device (protect-users rule). Switches under Chat: since rung 1 they decide the desktop's own OS notices too, and the apps notify nothing until they know them, so a server with Push off silently never notified; Push still decides whether that server SENDS a Web Push."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Crate split rung 0 part A merged (3350399e1): 157 wrong-way references down to 62, all part B's (gui->engine 55, hot_reload->engine 6 + ship 1). Departures from the design's cuts: look math to core (not terrain), WeatherCondition left in place behind a generic, frame_costs split (store to core, GPU half renderer/gpu_costs.rs), MachineHome::load no longer fills food (systems::grow_machines::load_home does, pinned by a test), i18n and build permission to core. Part B dispatched the same morning. Also: wall screens take turns (41c3cb1a6, Survey 1 in sim-frame-cost.md), and the Garden section laying out only visible rows dispatched.",
+      "why": "The ratchet was miscounting (stopped reading at the first test module), so the baseline is now 157 in 19 edges. Rung 1 backlog recorded in crate-split.md: 139 wrong-way references in test code, crate::data_dir() (~50 readers) to core."
     }
   ],
   "active_scopes_to_avoid": [
