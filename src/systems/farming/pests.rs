@@ -1219,17 +1219,6 @@ pub fn cover_rows(
     data: &PestData,
 ) -> Vec<CoverRow> {
     use crate::ecs::components::{CropInstance, SoilMemory, STAGE_DEAD};
-    let severity = store
-        .get::<std::sync::Mutex<f32>>("garden_pest_severity")
-        .and_then(|m| m.lock().ok().map(|v| *v))
-        .unwrap_or(DEFAULT_PEST_SEVERITY);
-    let covers: Vec<&ControlDef> = data.controls.iter().filter(|c| c.is_cover()).collect();
-    let Some(soil) = store.get::<super::soil_ph::SoilPhData>("garden_soil_ph") else { return Vec::new() };
-    if !(severity > 0.0) || covers.is_empty() {
-        return Vec::new();
-    }
-    let pol = store.get::<super::pollination::PollinationData>(super::pollination::DATA_KEY);
-    let registry = store.get::<super::PlantRegistry>("plant_registry");
     // Each area's living crops: (plant id, stage).
     let mut crops: std::collections::BTreeMap<String, Vec<(String, String)>> = std::collections::BTreeMap::new();
     {
@@ -1248,57 +1237,76 @@ pub fn cover_rows(
         let found = q.iter().next().map(|(_, m)| m.pests.clone()).unwrap_or_default();
         found
     };
-    let mut areas: std::collections::BTreeSet<String> =
-        crops.keys().filter(|a| soil.soil_for(a).is_some()).cloned().collect();
-    for (a, st) in &on {
-        if covers.iter().any(|c| st.releases.contains_key(&c.id)) {
-            areas.insert(a.clone());
-        }
-    }
+    let mut areas: std::collections::BTreeSet<&str> = crops.keys().map(String::as_str).collect();
+    areas.extend(on.keys().map(String::as_str));
     areas
         .into_iter()
-        .map(|area| {
-            let st = on.get(&area);
-            let laid = covers.iter().find_map(|c| st.and_then(|s| s.releases.get(&c.id)).map(|left| (*c, *left)));
-            match laid {
-                Some((c, left)) => {
-                    let mut line = format!(
-                        "{} on · {left:.0} garden days of wear left · about {:.0} C warmer in sun",
-                        c.name, c.warms_day_c
-                    );
-                    // Flowering under it, with bees shut out.
-                    let mut flowering: Vec<String> = crops
-                        .get(&area)
-                        .into_iter()
-                        .flatten()
-                        .filter(|(p, stage)| {
-                            pol.and_then(|d| d.crop(p))
-                                .map_or(false, |d| d.by == super::pollination::PollinatedBy::Insects && d.is_flowering(stage))
-                        })
-                        .map(|(p, _)| registry.and_then(|r| r.get(p).map(|d| d.name.to_lowercase())).unwrap_or_else(|| p.replace('_', " ")))
-                        .collect();
-                    flowering.sort();
-                    flowering.dedup();
-                    let warn = !flowering.is_empty();
-                    if warn {
-                        line.push_str(&format!(" · {} in flower under it: take it off so bees can reach them", and_list(&flowering)));
-                    }
-                    let controls = data
-                        .controls
-                        .iter()
-                        .filter(|t| t.takes_off == c.id)
-                        .map(|t| (t.id.clone(), t.name.clone(), t.note.clone()))
-                        .collect();
-                    CoverRow { area, line, warn, controls }
-                }
-                None => {
-                    let line = format!("No {}", covers.first().map_or("cover".to_string(), |c| c.name.to_lowercase()));
-                    let controls = covers.iter().map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
-                    CoverRow { area, line, warn: false, controls }
-                }
-            }
-        })
+        .filter_map(|area| cover_row(store, data, area, on.get(area), crops.get(area).map_or(&[][..], |v| v.as_slice())))
         .collect()
+}
+
+/// One grow area's row-cover row (2026-10-31, split out of `cover_rows` so the Garden page's data
+/// builds the rows of the areas that changed): `on` is the area's pests and releases, `living` its
+/// living crops as (plant id, stage). None when the area shows no row: pests off, no cover in the
+/// data, no soil data, or an area that neither grows a living crop in soil nor still has a cover on.
+pub fn cover_row(
+    store: &crate::hot_reload::data_store::DataStore,
+    data: &PestData,
+    area: &str,
+    on: Option<&AreaPests>,
+    living: &[(String, String)],
+) -> Option<CoverRow> {
+    let severity = store
+        .get::<std::sync::Mutex<f32>>("garden_pest_severity")
+        .and_then(|m| m.lock().ok().map(|v| *v))
+        .unwrap_or(DEFAULT_PEST_SEVERITY);
+    let covers: Vec<&ControlDef> = data.controls.iter().filter(|c| c.is_cover()).collect();
+    let soil = store.get::<super::soil_ph::SoilPhData>("garden_soil_ph")?;
+    if !(severity > 0.0) || covers.is_empty() {
+        return None;
+    }
+    let covered_now = on.is_some_and(|st| covers.iter().any(|c| st.releases.contains_key(&c.id)));
+    if !((!living.is_empty() && soil.soil_for(area).is_some()) || covered_now) {
+        return None;
+    }
+    let pol = store.get::<super::pollination::PollinationData>(super::pollination::DATA_KEY);
+    let registry = store.get::<super::PlantRegistry>("plant_registry");
+    let laid = covers.iter().find_map(|c| on.and_then(|s| s.releases.get(&c.id)).map(|left| (*c, *left)));
+    Some(match laid {
+        Some((c, left)) => {
+            let mut line = format!(
+                "{} on · {left:.0} garden days of wear left · about {:.0} C warmer in sun",
+                c.name, c.warms_day_c
+            );
+            // Flowering under it, with bees shut out.
+            let mut flowering: Vec<String> = living
+                .iter()
+                .filter(|(p, stage)| {
+                    pol.and_then(|d| d.crop(p))
+                        .map_or(false, |d| d.by == super::pollination::PollinatedBy::Insects && d.is_flowering(stage))
+                })
+                .map(|(p, _)| registry.and_then(|r| r.get(p).map(|d| d.name.to_lowercase())).unwrap_or_else(|| p.replace('_', " ")))
+                .collect();
+            flowering.sort();
+            flowering.dedup();
+            let warn = !flowering.is_empty();
+            if warn {
+                line.push_str(&format!(" · {} in flower under it: take it off so bees can reach them", and_list(&flowering)));
+            }
+            let controls = data
+                .controls
+                .iter()
+                .filter(|t| t.takes_off == c.id)
+                .map(|t| (t.id.clone(), t.name.clone(), t.note.clone()))
+                .collect();
+            CoverRow { area: area.to_string(), line, warn, controls }
+        }
+        None => {
+            let line = format!("No {}", covers.first().map_or("cover".to_string(), |c| c.name.to_lowercase()));
+            let controls = covers.iter().map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
+            CoverRow { area: area.to_string(), line, warn: false, controls }
+        }
+    })
 }
 
 /// The pests in one grow area, for the Garden panel: (pest, pressure 0..1,

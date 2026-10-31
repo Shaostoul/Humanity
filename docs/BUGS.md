@@ -6965,3 +6965,27 @@ every place that already notified before building on them.
   rang on "also"). FIXED: `@` and the whole name (`notifications::is_mention`, shared cases).
 - **The web wrote quiet hours as "22"** and the desktop as "22:00" into the same server row; the
   web's Settings also showed a midnight start (0) as 22. FIXED: both write "22:00", both read both.
+
+## BUG-219: a farm brought up to now outside the frame lost its fertilizer draws (FIXED 2026-10-31, found 2026-10-31, never in a release)
+
+**Found by** the critic's seam review of the day's merges (farm clock rung 2, ca2c984c4), not
+operator-reported. Main only: no tag contains it.
+
+- **What happened.** Rung 2 of the farm clock (`docs/design/farm-clock.md`) advances each grow
+  area on its own turn, so a reader that needs the garden as it is now (the Garden page, the
+  plant meshes, every save) calls `farming::settle` first. The farm draws fertilizer from home
+  storage only through the frame's stock window (`publish_home_stock` before the systems tick,
+  `take_consumed_home_stock` after it, in lib.rs). A settle run outside that window drew from a
+  copy nobody took back: the crops were fed and the containers kept the fertilizer. The save
+  settled the whole farm on its own frame too, a spike of about 10 ms on every autosave with the
+  showcase garden.
+- **Fixed** (the Garden views merge, 2026-10-31): `engine::stock_piles::settle_farm` and
+  `settle_farm_areas` open the stock window around a settle and take back what it drew, exactly
+  once, and open nothing when there is nothing to settle; the Garden mirror and the plant meshes
+  use them. The save no longer settles: it writes what each area still owes
+  (`WorldSave::farm_owed`) and the load owes it again (`clock::hand_over_resume`). Tests: the
+  settle's draws leave the containers ("what the settle drew left the containers") and the save
+  carries what each area owed (`src/save_load_farm_tests.rs`), each seen red first. Outputs were
+  already safe: harvests are commands, which run inside the tick.
+- **Lesson.** Anything that runs a system's body outside the frame's tick must also bring that
+  frame's publish-and-take windows with it, or what it consumes or produces goes nowhere.

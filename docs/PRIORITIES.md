@@ -197,9 +197,13 @@ In order:
     with its measured size). Rung 2 DONE 2026-10-31 (`systems/farming/clock.rs`: each grow area on
     its own turn of a configurable interval, Settings > Gameplay > Garden updates, every second by
     default; readers bring their areas to now; 3.51 -> 0.24 ms a frame, worst 0.63 to 0.94 ms).
-    Next: the 0.1 ms / 0.5 ms budget (cheaper per-crop work, the turns' fixed 0.16 ms), "looked at"
-    narrowed from aboard the station to the areas in sight; rung 3: events and closed-form crops;
-    rung 4: lazy homes on the server.
+    The Garden views merge DONE 2026-10-31: "looked at" narrowed to the grow areas in sight (the
+    camera's frustum, `home_meshes::areas_in_sight`), looked-at areas on 1 s turns; settles open
+    the home-storage window (BUG-219); the save writes what each area owes instead of settling;
+    the air's room layout and the pollinators' reach kept for a round (every hour, aboard: 0.39 ->
+    0.23 ms, 0.028 ms facing away). Next: the turns' remaining fixed cost (six passes over the turn
+    marks), the 0.1 ms / 0.5 ms budget; rung 3: events and closed-form crops; rung 4: lazy homes on
+    the server.
 12. **Stutter: spread every spike across frames (operator, 2026-10-30: "We want to avoid
     stuttering.")** (`docs/design/sim-frame-cost.md`, Stutter). First the worst frame per span
     beside its average, then each periodic job (autosaves, mesh rebuilds, the shader poll, ...)
@@ -211,10 +215,14 @@ In order:
     ms of every frame while four page screens were in view), now taking turns one a frame (2.4 to
     2.9 ms); the autosave 2.3 to 3.2 ms every 120 s; plant mesh rebuilds up to 4.3 ms. The Garden
     section lays out only what is on screen since 2026-10-31 (6fbb2341c, `widgets::offscreen`:
-    2,000 crops 107 -> 8 ms headless unoptimised, 10,000 crops 543 -> 18 ms). Next: the Garden
-    views (pH, pollination, picking, air, weeds, outlook: about 4.5 ms on the Inventory screen's
-    turn) and the per-tile keys, both from per-area change signatures in the garden mirror; then a
-    quiet re-run of the survey, in the game, on the main screen and a wall screen.
+    2,000 crops 107 -> 8 ms headless unoptimised, 10,000 crops 543 -> 18 ms). The Garden views and
+    per-tile keys DONE 2026-10-31, kept per grow area until its version moves
+    (`systems/farming/versions.rs`, `engine/garden_mirror.rs`): facing the Inventory wall screen
+    with 1,981 crops, the Garden data 9.89 -> 0.83 ms, the screens span's own CPU 11.56 -> 3.18 ms;
+    the autosave's farm settle 10.4 -> 0.015 ms (sim-frame-cost.md, "The Garden views by area").
+    Next: a quiet re-run of the survey in the game (the first sight of the Garden page read 31.5 ms
+    own CPU on a busy machine: if it stands, give the first build the wall budget), then the plant
+    mesh rebuilds and the rest of the autosave.
 13. **Notifications (operator, 2026-10-30: "let's get it made.")** (`docs/design/notifications.md`,
     section 11). Rung 1 DONE 2026-10-30 (OS notices for DMs and mentions, the one decision in two
     twins, Settings > Notifications, mute server and room). Rung 2 part 1 DONE 2026-10-31: the

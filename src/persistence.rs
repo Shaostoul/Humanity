@@ -131,6 +131,11 @@ pub struct WorldSave {
     /// What each emptied unit's soil still held, for the next crop sown there.
     #[serde(default)]
     pub soil_memory: crate::ecs::components::SoilMemory,
+    /// What each grow area and the air still owed on the farm's own clock when this was written
+    /// (2026-10-31, farm-clock.md rung 2, the seam review's B): the garden is saved as it stands,
+    /// each area at its own last turn, and the load owes each this again.
+    #[serde(default)]
+    pub farm_owed: crate::systems::farming::clock::Owed,
     /// The player's credit balance (v0.747, ladder rung 3). serde-default -1 =
     /// "no wallet saved yet" so pre-v0.747 saves keep the fresh-start default
     /// (10,000 CR) instead of loading as broke.
@@ -430,6 +435,7 @@ impl WorldSave {
             inventory_state: Vec::new(),
             inventory_age: Vec::new(),
             soil_memory: Default::default(),
+            farm_owed: Default::default(),
             credits: -1,
             quests: None,
             herd: Vec::new(),
@@ -1108,6 +1114,7 @@ mod tests {
             inventory_state: Vec::new(),
             inventory_age: Vec::new(),
             soil_memory: Default::default(),
+            farm_owed: Default::default(),
             credits: -1,
             quests: None,
             herd: Vec::new(),

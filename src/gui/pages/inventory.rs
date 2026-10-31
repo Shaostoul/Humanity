@@ -2438,20 +2438,34 @@ fn slot_tile_key(
     outlook: &std::collections::HashMap<u64, crate::systems::farming::outlook::CropOutlook, widgets::offscreen::KeyBuild>,
 ) -> u64 {
     use std::hash::Hasher;
-    let mut h = widgets::offscreen::KeyHasher::default();
     match crop {
-        None => h.write_u8(0),
-        Some(c) => {
-            h.write_u8(1);
-            // The very word the tile prints, hashed without building it.
-            let _ = crate::systems::farming::picking::write_stage_word(&mut h, c.dead, c.mature, &c.stage, &c.picking, false);
-            match outlook.get(&c.entity_bits).filter(|o| !o.tile.is_empty()) {
-                Some(o) => h.write(o.tile.as_bytes()),
-                None => h.write_u8(0),
-            }
+        None => {
+            let mut h = widgets::offscreen::KeyHasher::default();
+            h.write_u8(0);
+            h.finish()
         }
+        // Worked out with the row (engine/garden_mirror.rs, 2026-10-31): the row is built again
+        // whenever anything it shows changes, and its key with it.
+        Some(c) if c.tile_key != 0 => c.tile_key,
+        Some(c) => crop_tile_key(c, outlook.get(&c.entity_bits).map_or("", |o| o.tile.as_str())),
     }
-    h.finish()
+}
+
+/// A crop's slot tile key (`slot_tile_key`), from its row and its outlook's tile line: the Garden
+/// page's data works it out when it builds the row (`GuiCrop::tile_key`, 2026-10-31), and the page
+/// for a row made by hand. Never 0, which means "not worked out".
+pub(crate) fn crop_tile_key(c: &crate::gui::GuiCrop, outlook_tile: &str) -> u64 {
+    use std::hash::Hasher;
+    let mut h = widgets::offscreen::KeyHasher::default();
+    h.write_u8(1);
+    // The very word the tile prints, hashed without building it.
+    let _ = crate::systems::farming::picking::write_stage_word(&mut h, c.dead, c.mature, &c.stage, &c.picking, false);
+    if outlook_tile.is_empty() {
+        h.write_u8(0);
+    } else {
+        h.write(outlook_tile.as_bytes());
+    }
+    h.finish().max(1)
 }
 
 /// The lines above a group's slot tiles, hashed for the group's offscreen key (2026-10-31): each

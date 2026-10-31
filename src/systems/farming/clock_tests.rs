@@ -559,3 +559,164 @@ fn a_reader_that_looks_keeps_the_garden_within_a_second() {
         sys.settle(&mut world, &data, super::clock::LOOK_FRESH_S);
     }
 }
+
+/// A BURN HARMS EACH CROP ONCE A FRAME, A COMMAND WAITING OR NOT (2026-10-31, the seam review's
+/// D). During a burn every area advances every frame, and the harm is the burn's on real seconds
+/// (`flight::harm_per_sec`), applied where a run of the farm's body ends a crop's step. A frame
+/// with a command waiting runs the body three times for what it touches: the bring-up to now, the
+/// commands, and the touched areas once more with no time so what they draw is what the command
+/// left. That last run was handed the frame's real seconds and took the burn's harm a second
+/// time: a touched crop lost twice what its neighbour lost. (The command here is a harvest
+/// pressed on an unripe crop, which touches its area and changes nothing else: a hand watering
+/// would add its own health.) Seen red 2026-10-31 on the code before the fix (the re-run given
+/// `dt`): "the touched crop lost 0.9993057 to the burn's frame, its neighbour 0.49930573".
+#[test]
+fn a_burn_harms_a_crop_once_a_frame_with_a_command_waiting() {
+    let mut data = gardening_tests::make_store();
+    data.insert("player_notices", Mutex::new(Vec::<String>::new()));
+    // A burn the plants feel at 2 g: past a 1 g safe line, harm 5 health a real second at 2 g.
+    data.insert(
+        "flight_data",
+        crate::systems::flight::FlightData {
+            tolerances: vec![crate::systems::flight::GToleranceDef {
+                id: "plant".into(),
+                safe_g: 1.0,
+                harm_g: 2.0,
+                harm_per_sec: 5.0,
+                description: String::new(),
+            }],
+            ..Default::default()
+        },
+    );
+    data.insert(
+        "felt_gravity",
+        crate::systems::flight::FeltGravity { raw_g: 2.0, felt_g: 2.0, tilt_deg: 0.0, raw_tilt_deg: 0.0, dampener_watts: 0.0 },
+    );
+    let noon = 12.0 * 3600.0;
+    {
+        let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
+        let mut g = gt.lock().unwrap();
+        g.time_scale = 1.0;
+        g.set_elapsed(noon);
+    }
+    let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
+    let def = reg.get("lettuce").expect("lettuce in plants.csv");
+    let stages = def.stages();
+    let growth_s = f64::from(def.growth_days) * SECONDS_PER_DAY;
+    let mut world = hecs::World::new();
+    world.spawn((crate::systems::inventory::Inventory::new(40), crate::ecs::components::Controllable));
+    let crop = |area: &str| CropInstance {
+        crop_def_id: "lettuce".to_string(),
+        growth_stage: stages[1].to_string(),
+        planted_at: noon - 0.3 * growth_s,
+        water_level: 1.0,
+        health: 100.0,
+        tower_id: Some(area.to_string()),
+        tower_slot: Some(0),
+        health_seconds: 0.0,
+        growing_seconds: 0.0,
+    };
+    let watered = world.spawn((crop("lettuce_bed_1"),));
+    let other = world.spawn((crop("lettuce_bed_2"),));
+    let mut sys = FarmingSystem::new();
+    sys.reuse_override = Some(true);
+    let dt = 0.1_f32;
+    let mut t = noon;
+    let mut frame = |sys: &mut FarmingSystem, world: &mut hecs::World| {
+        t += f64::from(dt);
+        set_clock(&data, t);
+        sys.tick(world, dt, &data);
+    };
+    let health = |world: &hecs::World, e: hecs::Entity| world.get::<&CropInstance>(e).unwrap().health;
+    frame(&mut sys, &mut world);
+    frame(&mut sys, &mut world);
+    let (a0, b0) = (health(&world, watered), health(&world, other));
+    *data.get::<Mutex<Option<u64>>>("harvest_request").unwrap().lock().unwrap() = Some(watered.to_bits().get());
+    frame(&mut sys, &mut world);
+    assert!(world.get::<&CropInstance>(watered).is_ok(), "an unripe crop is not harvested");
+    let (a, b) = (a0 - health(&world, watered), b0 - health(&world, other));
+    assert!(b > 0.4, "the burn harms the crop nobody touched: it lost {b}");
+    assert!((a - b).abs() < 1e-3, "the touched crop lost {a} to the burn's frame, its neighbour {b}: the harm once each");
+}
+
+/// A READER THAT LOOKS AT SOME AREAS KEEPS ONLY THOSE FRESH, AND ONE COMING INTO SIGHT IS BROUGHT
+/// UP AT ONCE (2026-10-31: the plant meshes, for the areas in sight). With an hour's interval, the
+/// area asked for every frame stays within a second and a turn of now while the others fall
+/// minutes behind; the frame another area is asked for too, it is brought to now by that same
+/// call, before anything draws it. Seen red 2026-10-31 with `settle_areas` advancing nothing (the
+/// look recorded, no bring-up): "the area that came into sight is brought to now the frame it
+/// does".
+#[test]
+fn a_reader_that_looks_at_some_areas_keeps_only_those_fresh() {
+    let (mut data, mut world) = step_tests::garden(true);
+    data.insert(super::clock::INTERVAL_KEY, Mutex::new(3600.0));
+    let mut sys = FarmingSystem::new();
+    sys.reuse_override = Some(true);
+    let mut t = step_tests::START_S;
+    let mut seen: Vec<String> = vec!["bed_a".into()];
+    let limit = super::clock::LOOK_FRESH_S * (1.0 + 1.0 / f64::from(super::clock::TURNS));
+    for k in 0..240 {
+        t += 1.0;
+        set_clock(&data, t);
+        sys.tick(&mut world, 1.0, &data);
+        if k == 200 {
+            seen.push("bed_b".into());
+            let b = sys.clock.find("bed_b").unwrap() as usize;
+            assert!(sys.clock.areas[b].owed > 60.0, "out of sight, bed_b followed the hour's interval: it owes {}", sys.clock.areas[b].owed);
+            sys.settle_areas(&mut world, &data, &seen, super::clock::LOOK_FRESH_S);
+            assert_eq!(sys.clock.areas[b].owed, 0.0, "the area that came into sight is brought to now the frame it does");
+            continue;
+        }
+        sys.settle_areas(&mut world, &data, &seen, super::clock::LOOK_FRESH_S);
+        if k > 2 {
+            let a = sys.clock.find("bed_a").unwrap() as usize;
+            assert!(sys.clock.areas[a].owed <= limit + 1.0, "in sight, bed_a stays within a second and a turn: it owes {}", sys.clock.areas[a].owed);
+        }
+    }
+    let f = sys.clock.find("veg_field_1").unwrap() as usize;
+    assert!(sys.clock.areas[f].owed > 60.0, "the field nobody looks at keeps the hour's interval: it owes {}", sys.clock.areas[f].owed);
+}
+
+/// WHAT IS KEPT FOR A ROUND ENDS WHERE WORKING IT OUT EVERY RUN ENDS (2026-10-31, a turn's fixed
+/// cost, sim-frame-cost.md): the rooms' layout for the air (`humidity::AirLayout`) and the
+/// pollinators' reach (`pollination`'s `reach`) are kept for a round of the rotation instead of
+/// worked out in every run of the farm's body. The step_tests garden with its air and a bumblebee
+/// hive (a colony introduced), on its own clock at a second in frames of a tenth of a second (a
+/// turn on most frames), for two game minutes, with the grow plots published again halfway (a
+/// machine edit: the greenhouse bed moved), ends to the bit where the same run working both out
+/// in every run ends. Seen red 2026-10-31 with the grow plots' stamp left out of the layout's key
+/// (`AirLayout::key_of`): the run kept the old layout until the next air turn and ended apart,
+/// "crop.health: 0.0013885498046875 at cherry_blossom in bed_a".
+#[test]
+fn what_is_kept_for_a_round_ends_where_working_it_out_every_run_ends() {
+    use crate::ecs::components::{MachineInstanceId, PollinatorHive};
+    let run = |fresh: bool| {
+        let (mut data, mut world) = step_tests::garden(true);
+        super::pollination::register(&mut data);
+        data.insert(super::clock::INTERVAL_KEY, Mutex::new(1.0));
+        world.spawn((PollinatorHive, MachineInstanceId("bumblebee_hive_1".into()), Transform { position: glam::Vec3::new(6.0, 0.0, 6.0), ..Default::default() }));
+        let mut sys = FarmingSystem::new();
+        sys.reuse_override = Some(true);
+        sys.fresh_each_run = fresh;
+        let mut t = step_tests::START_S;
+        for k in 0..1200 {
+            if k == 5 {
+                *data.get::<Mutex<Option<super::pollination::Request>>>(super::pollination::REQUEST_KEY).unwrap().lock().unwrap() =
+                    Some(super::pollination::Request::Colony("bumblebee_hive_1".into()));
+            }
+            if k == 600 {
+                let mut plots = data.get::<Vec<super::lighting::GrowPlot>>("grow_plots").unwrap().clone();
+                plots.iter_mut().find(|p| p.id == "bed_a").unwrap().pos = [21.0, 0.0, 3.0];
+                data.insert("grow_plots", plots);
+            }
+            t += 0.1;
+            set_clock(&data, t);
+            sys.tick(&mut world, 0.1, &data);
+        }
+        step_tests::ended(&world)
+    };
+    let (kept, every_run) = (run(false), run(true));
+    let (stages, worst) = step_tests::compare(&every_run, &kept);
+    let apart: Vec<String> = stages.into_iter().chain(worst.into_iter().filter(|(_, w)| w.abs > 0.0).map(|(k, w)| format!("{k}: {} at {}", w.abs, w.at))).collect();
+    assert!(apart.is_empty(), "kept for a round, the garden ended apart from working it out every run: {apart:?}");
+}

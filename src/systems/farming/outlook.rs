@@ -245,6 +245,58 @@ pub fn outlook(
     out
 }
 
+/// The lowest value `s` may fall to with `duration_words(s)` and `short_words(s)` unchanged
+/// (both step at the same places: a whole day from a day and a half up, a whole hour from an hour
+/// and a half, a whole minute from 90 s, nothing under that). A count shown as `k` holds while the
+/// value stays at or above `k - 0.5` units (`round` keeps `k` down to there).
+fn words_floor(s: f64) -> f64 {
+    let s = if s.is_finite() { s.max(0.0) } else { 0.0 };
+    let step = |unit: f64, floor: f64| (((s / unit).round() - 0.5) * unit).max(floor);
+    if s >= 1.5 * 86_400.0 {
+        step(86_400.0, 1.5 * 86_400.0)
+    } else if s >= 1.5 * 3600.0 {
+        step(3600.0, 1.5 * 3600.0)
+    } else if s >= 90.0 {
+        step(60.0, 90.0)
+    } else {
+        f64::NEG_INFINITY
+    }
+}
+
+/// The game clock's second until which `outlook` gives this crop the same words, all else equal
+/// (2026-10-31, docs/design/sim-frame-cost.md, "The Garden views by area": the Garden page keeps a
+/// crop's row until something it reads changes, and the clock is the one input of this row that
+/// moves by itself). Only "when it ripens" and the tile's count read the clock, and they count
+/// down by whole days, hours or minutes, so they hold until the next step of the count, in game
+/// time and in real time at the clock's speed. A little early (by `MARGIN_S`), never late: a row
+/// built again early is the same row. Infinite for a dead or fully grown crop, an unknown
+/// species, or a wait already at zero.
+pub fn words_hold_until(crop: &CropInstance, def: Option<&PlantDef>, elapsed_s: f64, time_scale: f32) -> f64 {
+    /// How much earlier than the exact step the row is built again, game seconds: the steps are
+    /// worked out in floating point, and a row must never outlive its words.
+    const MARGIN_S: f64 = 0.01;
+    let Some(d) = def else { return f64::INFINITY };
+    if crop.growth_stage == STAGE_DEAD || crop.growth_stage == d.last_stage() {
+        return f64::INFINITY;
+    }
+    let left = ripe_in_game_s(crop, d, elapsed_s);
+    if !(left > 0.0) {
+        return f64::INFINITY;
+    }
+    // `left` falls one game second a second once the crop is sown (its age is held at 0 before).
+    let mut lowest = words_floor(left);
+    let scale = f64::from(time_scale);
+    if scale > 0.0 {
+        // The real-time count (and the tile's) steps where left / scale does.
+        lowest = lowest.max(words_floor(left / scale) * scale);
+    }
+    let mut until = if lowest == f64::NEG_INFINITY { f64::INFINITY } else { elapsed_s + (left - lowest) - MARGIN_S };
+    if elapsed_s < crop.planted_at {
+        until = until.min(crop.planted_at);
+    }
+    until
+}
+
 /// The outlook of every crop on one frame, for the Garden card: the clock and
 /// the water supply read once, then `row` per crop. lib.rs's crop bridge
 /// fills `GardenPests::outlook` with it, keyed by the crop's entity bits.
@@ -258,6 +310,11 @@ impl OutlookView {
     pub fn new(world: &hecs::World, data: &DataStore) -> Self {
         let (elapsed_s, time_scale) = clock(data);
         Self { supply: WaterSupply::now(world, data), elapsed_s, time_scale }
+    }
+
+    /// `words_hold_until` for this view's clock.
+    pub fn hold_until(&self, crop: &CropInstance, def: Option<&PlantDef>) -> f64 {
+        words_hold_until(crop, def, self.elapsed_s, self.time_scale)
     }
 
     pub fn row(&self, crop: &CropInstance, def: Option<&PlantDef>) -> CropOutlook {

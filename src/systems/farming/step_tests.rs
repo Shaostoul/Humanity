@@ -70,7 +70,7 @@ const MULTIPLES: [u32; 2] = [10, 60];
 
 /// The golden garden on the real-time clock, made to cross every regime (see the module comment).
 /// `air`: with the golden garden's grow rooms and the home's air space, or with no air tracked.
-pub(super) fn garden(air: bool) -> (DataStore, hecs::World) {
+pub(crate) fn garden(air: bool) -> (DataStore, hecs::World) {
     let mut data = golden_store();
     {
         let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
@@ -117,7 +117,7 @@ pub(super) fn garden(air: bool) -> (DataStore, hecs::World) {
 
 /// One crop's end state, the parts compared.
 #[derive(Debug, Clone)]
-pub(super) struct Crop {
+pub(crate) struct Crop {
     plant: String,
     area: String,
     stage: String,
@@ -132,7 +132,7 @@ pub(super) struct Crop {
 
 /// Where one run ended: every crop in entity order, and the soil memory (pests, rooms, pH, weeds,
 /// organic N, the home's air) as canonical JSON.
-pub(super) type Ended = (Vec<Crop>, serde_json::Value);
+pub(crate) type Ended = (Vec<Crop>, serde_json::Value);
 
 /// The garden run SPAN_S game seconds at ticks of `step_s`, after the warm-up tick.
 fn run(step_s: f64, air: bool) -> Ended {
@@ -151,7 +151,7 @@ fn run(step_s: f64, air: bool) -> Ended {
 
 /// Where a garden ended: every crop in entity order, and the soil memory as canonical JSON (also
 /// clock_tests.rs's, for the farm on its own clock).
-pub(super) fn ended(world: &hecs::World) -> Ended {
+pub(crate) fn ended(world: &hecs::World) -> Ended {
     let mut crops: Vec<(u64, Crop)> = world
         .query::<(&CropInstance, Option<&CropSoil>)>()
         .iter()
@@ -180,6 +180,14 @@ pub(super) fn ended(world: &hecs::World) -> Ended {
     (crops.into_iter().map(|(_, c)| c).collect(), canonical(serde_json::Value::Array(memory)))
 }
 
+/// `ended`, its crops in (area, plant) order instead of entity order, for two worlds whose crops
+/// were spawned in different orders (a save and its load; each plant grows once per area here).
+pub(crate) fn ended_by_place(world: &hecs::World) -> Ended {
+    let (mut crops, memory) = ended(world);
+    crops.sort_by(|a, b| (&a.area, &a.plant).cmp(&(&b.area, &b.plant)));
+    (crops, memory)
+}
+
 fn canonical(v: serde_json::Value) -> serde_json::Value {
     match v {
         serde_json::Value::Object(m) => {
@@ -193,10 +201,10 @@ fn canonical(v: serde_json::Value) -> serde_json::Value {
 
 /// The largest difference seen in one quantity, and where.
 #[derive(Debug, Default, Clone)]
-pub(super) struct Worst {
-    pub(super) abs: f64,
-    pub(super) rel: f64,
-    pub(super) at: String,
+pub(crate) struct Worst {
+    pub(crate) abs: f64,
+    pub(crate) rel: f64,
+    pub(crate) at: String,
 }
 
 impl Worst {
@@ -246,7 +254,7 @@ fn json_diff(a: &serde_json::Value, b: &serde_json::Value, path: &str, group: &s
 }
 
 /// How two runs' ends differ: stage mismatches by name, and the worst difference per quantity.
-pub(super) fn compare(base: &Ended, other: &Ended) -> (Vec<String>, BTreeMap<String, Worst>) {
+pub(crate) fn compare(base: &Ended, other: &Ended) -> (Vec<String>, BTreeMap<String, Worst>) {
     let mut stages = Vec::new();
     let mut worst: BTreeMap<String, Worst> = BTreeMap::new();
     assert_eq!(base.0.len(), other.0.len(), "the same crops in both runs");

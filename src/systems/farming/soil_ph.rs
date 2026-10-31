@@ -860,3 +860,12 @@ impl<'a> GardenView<'a> {
         }
     }
 }
+
+/// `GardenView::amendments` without building the view (which copies every unit's pH): what the
+/// Garden page's data reads every time it is built (2026-10-31).
+pub fn amendments(store: &DataStore) -> Vec<(String, String)> {
+    match (store.get::<SoilPhData>("garden_soil_ph"), is_on(store)) {
+        (Some(d), true) => d.amendments.iter().map(|a| (a.id.clone(), a.name.clone())).collect(),
+        _ => Vec::new(),
+    }
+}

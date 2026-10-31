@@ -2683,9 +2683,17 @@ its own clock (2026-10-31, `farming/clock.rs`, docs/design/farm-clock.md rung 2)
 each grow area advances once per interval by exactly the time it owes, on its
 own turn, the air on its own turn at least every game second; Settings >
 Gameplay > Garden updates (every frame, every second by default, every minute,
-every hour). Whatever reads a crop (a command, the save, the Garden page, the
-plant meshes while aboard) brings its area up to now first, and "Turn off all
-reuse" runs every area every frame.
+every hour). Whatever reads a crop (a command, the Garden page, the plant
+meshes of the grow areas in the camera's view) brings its area up to now
+first, inside the frame's home-storage window so its fertilizer draws leave
+the containers (`engine/stock_piles.rs`); areas in view take 1 s turns. The
+save writes the garden as it stands with what each area still owes
+(`WorldSave::farm_owed`), and the load owes it again. The Garden page keeps
+each grow area's rows and tile keys until that area's change number
+(`farming/versions.rs`), a data file it reads or the clock's words move
+(`engine/garden_mirror.rs`); a wall screen builds at most an eighth of the
+crops a build. "Turn off all reuse" runs every area every frame and builds
+every row every build.
 - Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden), `src/gui/widgets/offscreen.rs`
 - Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 

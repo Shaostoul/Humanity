@@ -173,16 +173,20 @@ advances every frame, as before.
 |---|---|---|
 | A player's command: harvest, harvest many, water, fertilize, Clear (picking), Plant tower, Plant bed, the showcase tower, weed control, a pH amendment, Hand-pollinate | `FarmingSystem::tick`, `touched` | The areas it names, or its crops' areas, advance to now (this frame's step included) before the commands run; then they run once more with no time, so what they draw and breathe from then on is what the command left (a harvested crop drinks no more) |
 | A sowing from the backpack (its place is chosen inside it), a pest control (a ventilation reaches the room's air, a row cover the bees), a new bee colony (its hive serves several areas), the dev grow | the same | Every area, and for a pest control or a colony the air too |
-| The save (`save_active_home`: the autosave every 120 s, quitting, a character switch, an edit's save) | `save_load.rs` | `farming::settle(.., 0)`: every area and the air exactly to the moment the save's clock records |
-| A save loaded (`resume_home`, the offline catch-up's handover) | `save_load.rs`, `clock::hand_over_resume` | Every area's clock starts again from the loaded moment: its crops are as the save left them (brought to that moment before it was written), and the time away is the catch-up's, as before |
-| The Garden page's data (the main screen's Inventory page, or a wall screen showing it) | `engine/garden_mirror.rs` | `settle(.., LOOK_FRESH_S)`: every area more than a second (and a turn) behind advances, and while the page keeps being drawn the farm's turns run on at most a second, so its next asks find nothing to do |
-| The plant meshes (a stage, a tenth of health: the wilt) | `engine/home_meshes.rs` `rebuild_plant_meshes` | The same ask, while aboard (`aboard_station`: the home is near enough to be seen; on a planet or in space it is not), so on board the garden is never more than a second behind whatever the setting |
+| The save (`save_active_home`: the autosave every 120 s, quitting, a character switch, an edit's save) | `save_load.rs` `save_home_at` | **Nothing is advanced** (since 2026-10-31, the seam review's B): the garden is written as it stands, each area at its own last turn, with what each area and the air still owe (`WorldSave::farm_owed`, `clock::Owed`, from `farming::owed`) |
+| A save loaded (`resume_home`, the offline catch-up's handover) | `save_load.rs`, `clock::hand_over_resume` | Every area's clock starts again from the loaded moment owing what the save says it owed (`FarmClock::owe_saved`, once the loaded crops are marked); every area advances on the first frame (`AreaClock::fresh`), so it takes exactly the time it had not taken when the save was written; the time away is the catch-up's, as before |
+| The Garden page's data (the main screen's Inventory page, or a wall screen showing it) | `engine/garden_mirror.rs` | `settle(.., LOOK_FRESH_S)` inside a home-storage window of its own (`engine::stock_piles::settle_farm`, the seam review's A): every area more than a second (and a turn) behind advances, and while the page keeps being drawn the farm's turns run on at most a second, so its next asks find nothing to do |
+| The plant meshes (a stage, a tenth of health: the wilt) | `engine/home_meshes.rs` `rebuild_plant_meshes` | While aboard, only the grow areas IN SIGHT (since 2026-10-31: the machine's sphere inside the camera's frustum, `home_meshes::areas_in_sight`): `settle_areas(.., LOOK_FRESH_S)` brings such an area within a second the frame it comes into sight, before that frame's plant signature, and while it stays in sight its own turns run on at most a second; the rest keep the setting. Also inside `settle_farm`'s window |
 | The grow rooms' and the home's air (the body's warmth and humidity, the atmosphere system's breathable, the Air readout) | `survival_env.rs`, `atmosphere` | The air's own turn, at least every game second |
 
-So the setting decides how often the farm advances what nobody looks at: on board, or with the
-Garden page open, it is never more than a second behind, which the default already is. The
-longer choices are for the farm while the player is off the station, and for the server's lazy
-homes of rung 4. **The headless server does not run FarmingSystem** (`HumanityOS --headless` runs
+So the setting decides how often the farm advances what nobody looks at: with the Garden page
+open it is never more than a second behind, which the default already is; on board, the areas in
+sight are kept so and the rest follow the setting (until 2026-10-31 the plant meshes kept the
+whole home within a second whenever the player was aboard, so on board every choice behaved like
+every second). Measured in the game (sim-frame-cost.md, "The Garden views by area"): at "every
+hour" aboard, FarmingSystem averaged 0.39 ms before; after, 0.23 ms with the whole acre in view and
+0.028 ms facing away from it. The longer choices are for what is out of sight, the farm while the
+player is off the station, and the server's lazy homes of rung 4. **The headless server does not run FarmingSystem** (`HumanityOS --headless` runs
 the relay alone, `relay::run_relay`; no ECS system ticks there), so there is no server setting
 yet; rung 4 is where a server's homes get their clock.
 
@@ -220,8 +224,13 @@ What is shared is read where it stands, and is first order in the interval:
 frame at the same frame length, `step_tests::compare`, held to `step_tests::tolerance` for a step of
 the interval plus what is said here):
 
-- **The golden digest does not move**, with no interval published and at the default (its ticks
-  are 8 game hours, so every area is due every tick and the body runs once over the whole farm).
+- **The golden digest does not move** with no interval published, nor with the default published.
+  That second check shows only that a frame longer than the interval runs the whole farm as one:
+  the golden's ticks are 8 game hours (speed 400 in 1 s frames, 28,800 game seconds a frame), so
+  every area is due every tick and the turns never run (`golden_tests.rs`
+  `a_frame_longer_than_the_interval_runs_the_whole_farm_as_one`, which since 2026-10-31 checks that
+  no area's own version moved; until then it was named for "the default interval" as though it
+  exercised the turns, the seam review's C). The turns are the cases below.
 - **Every second and every minute**, two and a half game minutes across a sunrise in frames of a
   tenth of a second (so a second's eight turns land on different frames): every stage the same.
   Without the air everything to rounding, and the water (3.6e-5) and health (2.3e-3) apart are the
@@ -259,6 +268,51 @@ average, 0.5 ms worst) is not met yet: one whole advance of those crops is 3.5 t
 every second is 0.12 ms a frame at 30 fps however it is sliced, and each turn has a fixed cost of
 about 0.16 ms (the rooms' air map, the pollinators' reach, the passes over the marks). Both next
 cuts are named there.
+
+**Kept for a round** (2026-10-31): two parts of that fixed cost are now kept for a round of the
+rotation, as the pest host lists are: the rooms' layout for the air (`humidity::AirLayout`: which
+room each grow machine stands in, the tents, the grow rooms' volume; worked out from the published
+room boxes, the grow plots and the humidity data, and kept only while their key holds: the boxes
+read whole, the grow plots' and the data's change stamps) and the pollinators' reach
+(`pollination`'s `reach`: the hives' and the devices' areas before the row covers, kept under the
+grow plots' and the pollination data's stamps and worked out again after any command). Both are
+dropped on the air's turn (at least every game second) and never kept with the Dev page's "Turn off
+all reuse". A device's power switched within a round reaches the reach on the next air turn. Proved
+by `clock_tests.rs` `what_is_kept_for_a_round_ends_where_working_it_out_every_run_ends` (two game
+minutes of turns with a colony introduced and a machine edit halfway, to the bit against working
+both out every run). Left of the fixed cost: each pass of the body (six of them: the host lists,
+the pest tally, the crops, picking, pollination, weeds) walks every crop's mark to pick out its
+turn's; gathering the turn's crops once and walking only them needs hecs's unchecked access to a
+list of entities (`View::get_unchecked`), not taken for this.
+
+**The seam review's findings, 2026-10-31** (a critic's review of the day's merges; each fixed with
+a test seen red first):
+
+- **A. A settle outside the systems tick lost its fertilizer draws.** The feeder draws from the
+  DataStore's "home_stock" map, which lib.rs publishes from the containers before the systems tick
+  and takes back after it (`stock_piles::publish_home_stock`, `take_consumed_home_stock`): only
+  what dropped in that window left the containers. The settles of rung 2 ran the farm's body
+  outside it (the plant meshes' before the publish, the Garden page's and the save's after the
+  take), so a crop was fed and the bag stayed: off the station at "every hour", about 29 of every
+  30 game seconds of feeding happened in the autosave's settle and were free. Now every settle
+  outside the tick goes through `engine::stock_piles::settle_farm`, which publishes home storage,
+  settles, and takes what it drew out of the containers, once (and publishes nothing when the
+  settle has nothing to advance, `farming::settle_needed`); the save no longer settles at all (B).
+  What a settle makes for home storage would wait in "home_stock_outputs" for the frame's
+  `receive_machine_outputs`, which takes it once; only a harvest makes any, and only the tick's
+  commands run harvests.
+- **B. The save advanced the whole farm on one frame.** `settle(.., 0)` on every autosave (120 s)
+  and every editor keep-edits (60 s): at "every hour" off the station a full catch-up of the
+  garden, 3.5 to 4 ms and each group's fixed cost, every two minutes (measured before the fix in
+  the game: `cpu.farm.settle` 5.4 to 10.4 ms on the autosave's frame, the save span's own CPU 8 to
+  13 ms). Now the save writes what each area and the air owe (`WorldSave::farm_owed`) and the load
+  owes it again; the save runs no farm (the autosave frame's numbers after: sim-frame-cost.md, "The
+  Garden views by area").
+- **C.** The golden "default interval" test could not exercise the turns (above).
+- **D. A burn harmed a touched crop twice a frame.** With a command waiting, the touched areas
+  were brought up to now and then run once more with no game time but the frame's real seconds,
+  and a burn's harm is on real seconds: the re-run now gets none (`clock_tests.rs`
+  `a_burn_harms_a_crop_once_a_frame_with_a_command_waiting`).
 
 **Left for rung 3:** the air between events in closed form (its turn-apart coupling above is the
 largest spread left); the readings a step still takes at its start, which is what keeps six hours
@@ -312,7 +366,12 @@ change only at a growth stage, which rung 3 turns into an event instead of a per
   a tenth of a second, ten minutes and an hour over step_tests' thirty hours, each against the
   farm advancing every area every frame; the harvest between two turns (with and without the
   bring-up); a reader that looks; `farm_cost_per_frame` and `six_hours_and_a_day_measured`
-  (ignored, measurements). `golden_tests.rs`: the golden digest at the default interval.
+  (ignored, measurements); a burn's harm once a frame with a command waiting. `golden_tests.rs`:
+  the golden digest with the default published, which shows only the whole-farm path (above).
+  `save_load_farm_tests.rs`: a save moves nothing and carries what each area owes, and a load
+  owes it again (the first frame after it ends where the saved world brought to now ends, to the
+  bit). `engine/stock_piles.rs` `settle_farm_tests`: a settle outside the tick takes its draws out
+  of the containers once.
 - A rung-3 equivalence rig: the same home, the same script of outside events, run ticked (rung 2)
   and event-driven (rung 3); every crop's state compared at every event and at the end.
 - The away-versus-live rig (headless-sim-runner.md) becomes the check that rung 4's lazy homes and

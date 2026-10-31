@@ -372,7 +372,7 @@ pub fn nearest_plot(pos: [f32; 3], plots: &[GrowPlot]) -> Option<&GrowPlot> {
 
 /// What pollinates each indoor grow area now: the areas a hive with a
 /// working colony reaches, and the powered devices at each grow machine.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Help {
     hive_areas: HashSet<String>,
     /// Grow-area tag -> indexes into `PollinationData::devices`.
@@ -385,13 +385,16 @@ impl Help {
     /// and a fan's draught off the flowers (critic review, 2026-09-27: a
     /// covered greenhouse bed was still pollinated by its hive).
     pub fn now(world: &hecs::World, data: &DataStore, d: &PollinationData) -> Self {
-        let mut help = Self::uncovered(world, data, d);
-        let covered = covered_fields(world, data);
+        Self::uncovered(world, data, d).covered_by(&covered_fields(world, data))
+    }
+
+    /// This help with the areas under a row cover taken out (`now`'s last step).
+    fn covered_by(mut self, covered: &HashSet<String>) -> Self {
         if !covered.is_empty() {
-            help.hive_areas.retain(|a| !covered.contains(a));
-            help.devices.retain(|a, _| !covered.contains(a));
+            self.hive_areas.retain(|a| !covered.contains(a));
+            self.devices.retain(|a, _| !covered.contains(a));
         }
-        help
+        self
     }
 
     /// The hives and devices before any cover is counted.
@@ -486,6 +489,14 @@ pub fn publish(data: &DataStore, on: bool, pending: Option<Request>) {
 pub struct Pollination {
     data: Option<PollinationData>,
     told: HashSet<String>,
+    /// The hives' and devices' reach before the row covers (`Help::uncovered`), kept for a round
+    /// of the farm's rotation (2026-10-31, docs/design/sim-frame-cost.md, a turn's fixed cost):
+    /// worked out again on the air's turn (when the colonies age, at least every game second), after
+    /// any command (a colony introduced), and whenever the grow plots or the pollination data were
+    /// published again (their change stamps are its key); not kept with the Dev page's "Turn off
+    /// all reuse". A device's power switched within a round reaches it on the next air turn. The
+    /// row covers are applied every run.
+    reach: Option<(u64, Help)>,
 }
 
 impl Pollination {
@@ -518,6 +529,7 @@ impl Pollination {
             Some(Request::Colony(hive)) => introduce_colony(world, data, d, &hive),
             None => {}
         }
+        self.reach = None;
     }
 
     /// One farming step of `days` garden days for the areas `scope` advances
@@ -525,7 +537,7 @@ impl Pollination {
     /// when the air steps (a hive serves several areas, so it ages on the
     /// air's own turn, farm-clock.md rung 2), then each of those areas'
     /// indoor crops' record, then their notices.
-    pub fn step(&mut self, world: &mut hecs::World, data: &DataStore, days: f64, colony_days: Option<f64>, scope: &super::clock::Scope) {
+    pub fn step(&mut self, world: &mut hecs::World, data: &DataStore, days: f64, colony_days: Option<f64>, scope: &super::clock::Scope, keep: bool) {
         if !mode_on(data) {
             self.told.clear();
             return;
@@ -534,12 +546,22 @@ impl Pollination {
         let Some(d) = data.get::<PollinationData>(DATA_KEY).or(self.data.as_ref()) else { return };
         if let Some(cd) = colony_days {
             age_colonies(world, data, d, cd);
+            self.reach = None;
         }
         if !scope.advances() {
             return;
         }
-        let help = Help::now(world, data, d);
         let covered = covered_fields(world, data);
+        let key = data.stamp("grow_plots") ^ data.stamp(DATA_KEY).rotate_left(32);
+        let help = match &self.reach {
+            Some((k, h)) if keep && *k == key => h.clone(),
+            _ => {
+                let h = Help::uncovered(world, data, d);
+                self.reach = keep.then(|| (key, h.clone()));
+                h
+            }
+        }
+        .covered_by(&covered);
         let (waiting, flowering) = step_crops(world, d, &help, days, &covered, scope);
         // Told once per area while it flowers: a hand pollination wearing
         // off is not news, the Garden panel's button says it. An area another
@@ -1011,19 +1033,112 @@ pub fn hive_line(id: &str, colony: Colony, d: &PollinationData, item: &str) -> S
 pub struct GuiView {
     rows: HashMap<hecs::Entity, String>,
     pub areas: Vec<AreaRow>,
+    /// What each grow area's line is made from by its own crops (only the areas of the crops the
+    /// view was built for): the hives' part of the line is the hives' own, `hive_rows`.
+    pub flags: BTreeMap<String, AreaFlags>,
+}
+
+/// One grow area's pollination, as its own crops make it: flowers with no help at all, flowers
+/// only partly helped, and whether it grows a crop bees pollinate (so the hives reaching it are
+/// listed under it).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AreaFlags {
+    pub none: bool,
+    pub partly: bool,
+    pub bees: bool,
+}
+
+/// What every crop's row is worked out against, once (2026-10-31, docs/design/sim-frame-cost.md,
+/// "The Garden views by area"): the data, the plants, the hives' and devices' help, the row
+/// covers. None with the mode Off or no data, when there are no rows.
+pub struct GuiContext<'a> {
+    d: &'a PollinationData,
+    plants: Option<&'a super::PlantRegistry>,
+    help: Help,
+    covered: HashSet<String>,
+}
+
+impl<'a> GuiContext<'a> {
+    pub fn now(world: &hecs::World, data: &'a DataStore) -> Option<Self> {
+        let d = data.get::<PollinationData>(DATA_KEY).filter(|_| mode_on(data))?;
+        Some(Self { d, plants: data.get::<super::PlantRegistry>("plant_registry"), help: Help::now(world, data, d), covered: covered_fields(world, data) })
+    }
+
+    /// Everything about `area` its crops' rows read besides the crops themselves: a working hive
+    /// reaching it, the powered devices at it, a row cover over it. Two areas' rows built under the
+    /// same of these (and the same crops and data) are the same rows.
+    pub fn area_key(&self, area: &str, h: &mut impl std::hash::Hasher) {
+        h.write_u8(self.help.hive(area) as u8);
+        match self.help.devices.get(area) {
+            Some(v) => {
+                h.write_usize(v.len());
+                for i in v {
+                    h.write_usize(*i);
+                }
+            }
+            None => h.write_usize(usize::MAX),
+        }
+        h.write_u8(self.covered.contains(area) as u8);
+    }
+}
+
+/// Each bumblebee hive's line and the grow areas it reaches, for the lines under the areas that
+/// grow a crop bees serve (`area_row`). Worked out from the hives, where they stand and their
+/// colonies, which age on the air's turn, so the Garden page's data reads them every time it is
+/// built: a few hives, not a crop each.
+pub fn hive_rows(world: &hecs::World, data: &DataStore) -> Vec<(HashSet<String>, HiveRow)> {
+    let Some(d) = data.get::<PollinationData>(DATA_KEY).filter(|_| mode_on(data)) else { return Vec::new() };
+    let Some(plots) = data.get::<Vec<GrowPlot>>("grow_plots") else { return Vec::new() };
+    let kept = colonies(world);
+    let item = item_name(data, &d.colony_item);
+    hives(world)
+        .into_iter()
+        .map(|(id, p)| {
+            let cover = hive_cover(&[p], plots, d.hive_reach_m());
+            let colony = Colony::of(kept.get(&id), d.colony_life_days);
+            (cover, HiveRow { line: hive_line(&id, colony, d, &item), needs_colony: !colony.working(), id })
+        })
+        .collect()
+}
+
+/// One grow area's pollination line from its crops' `flags` and the hives' rows, or None when it
+/// has nothing to say (every flower pollinated, and no hive listed under it).
+pub fn area_row(area: &str, flags: AreaFlags, hives: &[(HashSet<String>, HiveRow)]) -> Option<AreaRow> {
+    let waiting = if flags.none {
+        "Flowering, nothing to pollinate it".to_string()
+    } else if flags.partly {
+        "Flowering, only partly pollinated".to_string()
+    } else {
+        String::new()
+    };
+    let hives: Vec<HiveRow> =
+        if flags.bees { hives.iter().filter(|(cover, _)| cover.contains(area)).map(|(_, r)| r.clone()).collect() } else { Vec::new() };
+    (!waiting.is_empty() || !hives.is_empty()).then(|| AreaRow { area: area.to_string(), waiting, hives })
 }
 
 impl GuiView {
     pub fn new(world: &hecs::World, data: &DataStore) -> Self {
+        let Some(ctx) = GuiContext::now(world, data) else { return Self::default() };
+        let all: Vec<hecs::Entity> = world.query::<&CropInstance>().iter().map(|(e, _)| e).collect();
+        let mut v = Self::for_crops(world, &ctx, &all);
+        let hives = hive_rows(world, data);
+        v.areas = v.flags.iter().filter_map(|(area, f)| area_row(area, *f, &hives)).collect();
+        v
+    }
+
+    /// The rows of these crops only, and the flags of their areas (2026-10-31, the Garden page's
+    /// data builds the rows of the grow areas that changed): a row reads its own crop and record
+    /// and its area's help (`GuiContext::area_key`), so it is the row `new` gives that crop. `areas`
+    /// is left empty: the hives' part is read every time (`hive_rows`, `area_row`).
+    pub fn for_crops(world: &hecs::World, ctx: &GuiContext, crops: &[hecs::Entity]) -> Self {
         let mut v = Self::default();
-        let Some(d) = data.get::<PollinationData>(DATA_KEY).filter(|_| mode_on(data)) else { return v };
-        let plants = data.get::<super::PlantRegistry>("plant_registry");
-        let help = Help::now(world, data, d);
-        let covered = covered_fields(world, data);
+        let (d, plants, help, covered) = (ctx.d, ctx.plants, &ctx.help, &ctx.covered);
         // Per area: (flowers with no help at all, flowers only partly helped,
         // grows a crop bees pollinate).
         let mut areas: BTreeMap<String, (bool, bool, bool)> = BTreeMap::new();
-        for (e, (crop, rec)) in world.query::<(&CropInstance, Option<&CropPollination>)>().iter() {
+        for &e in crops {
+            let Ok(mut q) = world.query_one::<(&CropInstance, Option<&CropPollination>)>(e) else { continue };
+            let Some((crop, rec)) = q.get() else { continue };
             let Some(def) = d.crop(&crop.crop_def_id) else { continue };
             if crop.growth_stage == STAGE_DEAD {
                 continue;
@@ -1037,7 +1152,7 @@ impl GuiView {
                 let opens = stages.iter().position(|s| def.is_flowering(s));
                 if matches!((at, opens), (Some(a), Some(o)) if a < o) { Phase::Before } else { Phase::After }
             };
-            let outdoors = rec.is_none() && open_field(area, &covered);
+            let outdoors = rec.is_none() && open_field(area, covered);
             let hive_here = help.hive(area);
             let device = help.device(d, def, area);
             let sets = device.map(|(dv, _)| (dv.name.as_str(), dv.sets.get(&def.id).copied().unwrap_or(0.0)));
@@ -1056,37 +1171,7 @@ impl GuiView {
             }
             v.rows.insert(e, row);
         }
-        // The hives, under each area they reach that grows a crop bees serve.
-        let kept = colonies(world);
-        let item = item_name(data, &d.colony_item);
-        let reach: Vec<(String, HashSet<String>)> = match data.get::<Vec<GrowPlot>>("grow_plots") {
-            Some(plots) => hives(world).into_iter().map(|(id, p)| (id, hive_cover(&[p], plots, d.hive_reach_m()))).collect(),
-            None => Vec::new(),
-        };
-        for (area, (none, partly, bees)) in areas {
-            let waiting = if none {
-                "Flowering, nothing to pollinate it".to_string()
-            } else if partly {
-                "Flowering, only partly pollinated".to_string()
-            } else {
-                String::new()
-            };
-            let hives: Vec<HiveRow> = if bees {
-                reach
-                    .iter()
-                    .filter(|(_, cover)| cover.contains(&area))
-                    .map(|(id, _)| {
-                        let colony = Colony::of(kept.get(id), d.colony_life_days);
-                        HiveRow { id: id.clone(), line: hive_line(id, colony, d, &item), needs_colony: !colony.working() }
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            if !waiting.is_empty() || !hives.is_empty() {
-                v.areas.push(AreaRow { area, waiting, hives });
-            }
-        }
+        v.flags = areas.into_iter().map(|(a, (none, partly, bees))| (a, AreaFlags { none, partly, bees })).collect();
         v
     }
 
@@ -1184,7 +1269,7 @@ mod tests {
     /// farm's step with the colonies aged the same (the tick's order with every area due).
     fn step(p: &mut Pollination, world: &mut hecs::World, data: &DataStore, days: f64) {
         p.requests(world, data);
-        p.step(world, data, days, Some(days), &crate::systems::farming::clock::Scope::all(0.0, None));
+        p.step(world, data, days, Some(days), &crate::systems::farming::clock::Scope::all(0.0, None), true);
     }
 
     /// The shipped file parses; every crop is a real plants.csv id; every

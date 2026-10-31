@@ -171,7 +171,7 @@
     },
     {
       "name": "humanity-engine",
-      "why": "THE FRAME: the main loop (lib.rs), engine/, saving and loading, the binary, and the two save_load test files at the top of src/. The most edited code, so it sits on top where an edit re-checks the least.",
+      "why": "THE FRAME: the main loop (lib.rs), engine/, saving and loading, the binary, and the three save_load test files at the top of src/. The most edited code, so it sits on top where an edit re-checks the least.",
       "paths": [
         "engine",
         "save_load",
@@ -179,7 +179,8 @@
         "lib.rs",
         "main.rs",
         "save_load_body_tests",
-        "save_load_slot_tests"
+        "save_load_slot_tests",
+        "save_load_farm_tests"
       ],
       "uses": [
         "humanity-core",

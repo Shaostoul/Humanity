@@ -704,11 +704,22 @@ pub struct GuiView {
 
 impl GuiView {
     pub fn new(world: &hecs::World, data: &DataStore) -> Self {
+        let all: Vec<hecs::Entity> = world.query::<&CropInstance>().iter().map(|(e, _)| e).collect();
+        Self::for_crops(world, data, &all)
+    }
+
+    /// The view for these crops only (2026-10-31, docs/design/sim-frame-cost.md, "The Garden views
+    /// by area"): the Garden page's data builds the rows of the grow areas that changed, not every
+    /// crop's every time. A row reads only its own crop and its record, so it is the row `new`
+    /// gives that crop.
+    pub fn for_crops(world: &hecs::World, data: &DataStore, crops: &[hecs::Entity]) -> Self {
         let mut v = Self::default();
         let windows = data.get::<HarvestWindows>(DATA_KEY).unwrap_or_else(|| HarvestWindows::shipped());
         let plants = data.get::<super::PlantRegistry>("plant_registry");
         let realistic = realistic(data);
-        for (e, (crop, rec)) in world.query::<(&CropInstance, Option<&CropPicking>)>().iter() {
+        for &e in crops {
+            let Ok(mut q) = world.query_one::<(&CropInstance, Option<&CropPicking>)>(e) else { continue };
+            let Some((crop, rec)) = q.get() else { continue };
             let Some(plan) = windows.plan(&crop.crop_def_id) else { continue };
             if crop.growth_stage == STAGE_DEAD {
                 continue;

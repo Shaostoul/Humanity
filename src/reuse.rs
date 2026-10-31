@@ -7,9 +7,16 @@
 //! this idea, let's do it."). Every reuse in the game asks `enabled()` and, when it is false, works
 //! everything out again instead: the draw lists start empty (`engine::state::DrawBufs`), the dev
 //! request reader checks every file every frame (`engine::ipc::RequestWatch`), the Garden page data
-//! rebuilds every row every frame (`engine::garden_mirror`), and a page lays out every block of a
-//! long list, on screen or not (`gui::widgets::offscreen`, 2026-10-31: the Inventory page's Garden
-//! groups and rows of slot tiles). A new reuse that does not ask is a bug.
+//! builds every grow area's rows every build instead of keeping them by area while the farm's
+//! change numbers, the data's stamps and the clock say nothing they read moved
+//! (`engine::garden_mirror`, `systems::farming::versions`, 2026-10-31), and a page lays out every
+//! block of a long list, on screen or not (`gui::widgets::offscreen`, 2026-10-31: the Inventory
+//! page's Garden groups and rows of slot tiles). The farm itself (systems/farming, farm-clock.md
+//! rung 2): an area not yet advanced to now is state kept stale on purpose, so with the switch off
+//! every grow area and the air advance every frame (`clock.rs`); and what the farm's body keeps
+//! for a round of its rotation is worked out again in every run: which pests eat each plant
+//! (`FarmingSystem::pest_hosts`), the grow rooms' layout for the air (`humidity::AirLayout`) and
+//! the hives' and devices' reach (`pollination`). A new reuse that does not ask is a bug.
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

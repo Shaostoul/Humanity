@@ -921,11 +921,12 @@ pub fn save_active_home(
     keep_progress: bool,
     own_home: Option<&crate::persistence::SavedHome>,
 ) {
-    // The garden as it is NOW (2026-10-31, docs/design/farm-clock.md rung 2): the farm advances
-    // each grow area on its own turn, so before the crops, their soil and the rooms' air are
-    // written every area and the air are brought to this moment, the one the save's clock
-    // records. A crop saved a turn behind would lose that time on every load.
-    crate::systems::farming::settle(world, data, 0.0);
+    // The garden is written as it stands, each grow area at its own last turn of the farm's clock,
+    // with what each still owes (`WorldSave::farm_owed`, written in `save_home_at`), which the load
+    // owes again (2026-10-31, farm-clock.md rung 2, the seam review's B). Until then this brought
+    // the whole farm to now first, on the save's frame: every autosave and keep-edits paid a full
+    // advance of the garden at once, and its fertilizer draws, made outside the frame's
+    // home-storage window, never left the containers (A).
     let world: &hecs::World = world;
     // A server's save always keeps its progress (ship homes increment 6): "Start every session
     // from the default home", which every caller passes as `keep_progress`, is about your own
@@ -973,6 +974,10 @@ pub(crate) fn save_home_at(
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
     save.game_time = crate::systems::time::elapsed_now(data);
+    // And what each grow area and the air still owe on the farm's own clock (clock::Owed): the
+    // garden above is each area as its last turn left it. No farm in this store (a headless
+    // tool's save): nothing owed.
+    save.farm_owed = crate::systems::farming::owed(data).unwrap_or_default();
     save.progress_saved = true;
     // Craft batches in flight, from the CraftingSystem's export (the list
     // lives inside the system). Their inputs are already spent.
@@ -1425,10 +1430,11 @@ pub fn resume_home(
     // player's own Soil pH switch, which reaches the DataStore only after
     // this runs (farming::soil_ph::hand_away_secs).
     crate::systems::farming::soil_ph::hand_away_secs(data, r.away_secs);
-    // THE FARM'S CLOCK (2026-10-31, farming::clock): the crops are as the save left them, at the
-    // clock it restored, so every grow area starts its turns again from now (the save brought
-    // each to its moment, `save_active_home`), not from what it owed before the load.
-    crate::systems::farming::clock::hand_over_resume(data);
+    // THE FARM'S CLOCK (2026-10-31, farming::clock): the crops are as the save left them, each
+    // grow area at its own last turn, at the clock it restored, so every area starts its turns
+    // again from now owing what it owed when the save was written (`WorldSave::farm_owed`), not
+    // what it owed before the load.
+    crate::systems::farming::clock::hand_over_resume(data, save.farm_owed.clone());
     // THE DRONE: its standing order is the player's own setting, so it comes
     // back whether or not the time away counts; then the trip in flight and
     // any the order sends finish in the time away, out of the asteroid's real
@@ -3427,3 +3433,9 @@ mod body_tests;
 #[cfg(test)]
 #[path = "save_load_slot_tests.rs"]
 mod slot_tests;
+
+/// The save and the farm's own clock (2026-10-31, farm-clock.md rung 2): the garden is saved as it
+/// stands with what each area owes, and a load owes it again; the save runs no farm.
+#[cfg(test)]
+#[path = "save_load_farm_tests.rs"]
+mod farm_tests;

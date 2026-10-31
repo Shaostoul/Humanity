@@ -1094,11 +1094,24 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
 pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     use std::hash::{Hash, Hasher};
     // The plants as they are now (2026-10-31, docs/design/farm-clock.md rung 2): the farm
-    // advances each grow area on its own turn, so while the home is near enough to be seen
-    // (aboard; on a planet or in space it is out of sight) its crops are kept within a second of
-    // now, and a stage or a wilt shows when it happens (`farming::settle`).
+    // advances each grow area on its own turn, so while aboard (on a planet or in space the home
+    // is out of sight) the grow areas IN SIGHT are kept within a second of now, and a stage or a
+    // wilt shows when it happens: one coming into sight is brought up this frame, before the
+    // signature below reads it (`farming::settle_areas`). The rest follow the Garden updates
+    // setting (until the same day every area was kept so whenever aboard, which made every
+    // setting behave like every second there). Inside a home-storage window of its own
+    // (stock_piles::settle_farm_areas, the seam review's A).
     if state.aboard_station {
-        crate::systems::farming::settle(&mut state.game_world.world, &state.data_store, crate::systems::farming::clock::LOOK_FRESH_S);
+        let frustum = crate::terrain::planet_chunks::FrustumPlanes::from_view_proj(&state.camera.view_projection_matrix().as_dmat4());
+        let in_sight = areas_in_sight(&state.grow_positions, &frustum);
+        crate::engine::stock_piles::settle_farm_areas(
+            &mut state.game_world.world,
+            &mut state.data_store,
+            &mut state.gui_state.placed_items,
+            &mut state.gui_state.home_stock,
+            &in_sight,
+            crate::systems::farming::clock::LOOK_FRESH_S,
+        );
     }
     // Signature over everything that changes a plant's look.
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -1154,6 +1167,39 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     }
     state.garden_draw.plants = pass;
     hitch_probe_pass(frame_ms, ms as f32, busy, groups, verts);
+}
+
+/// How far a grow area's plants may reach beyond its machine's box (a tower's helix, a tall crop),
+/// and so how early before its machine enters the view the area is brought up to now, metres.
+const SIGHT_MARGIN_M: f32 = 3.0;
+
+/// The grow areas whose plants are in sight (2026-10-31, docs/design/farm-clock.md, the readers):
+/// each grow machine whose box, as a sphere `SIGHT_MARGIN_M` larger, is not wholly outside one of
+/// the camera's frustum planes (the plant meshes are world-space geometry drawn at the origin, so
+/// nothing else culls them on the CPU, and walls between rooms are not counted: a plant behind one
+/// counts as in sight). By the machine's instance id, which its crops carry, and, for the first
+/// placed column of each tower design, the design's id too: crops planted by the design (the
+/// Garden page's Plant button) dress that column (`plan_plant_groups`).
+pub(crate) fn areas_in_sight(spots: &[GrowSpot], frustum: &crate::terrain::planet_chunks::FrustumPlanes) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen_type: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for g in spots {
+        let first_of_type = seen_type.insert(g.ty.as_str());
+        let (w, h, d) = g.size;
+        let tall = (g.top_y - g.pos.y).max(h).max(0.0);
+        let center = g.pos + Vec3::Y * (tall * 0.5);
+        let radius = 0.5 * (w * w + tall * tall + d * d).sqrt() + SIGHT_MARGIN_M;
+        if !frustum.sphere_visible(center.as_dvec3(), f64::from(radius)) {
+            continue;
+        }
+        out.push(g.id.clone());
+        if first_of_type {
+            if let Some(design) = g.ty.strip_prefix("aeroponic_tower_") {
+                out.push(design.to_string());
+            }
+        }
+    }
+    out
 }
 
 /// Work out which machines need new plants and hand them to a worker

@@ -226,6 +226,96 @@ a crop in an unoptimised build. The first frame of a page
 still lays everything out once. Not yet re-read in the game: `cpu.garden.page` on the main screen
 and on the Inventory wall screen's turn wants a quiet-machine rig run (this change booted no game).
 
+### The Garden views by area, 2026-10-31 (the next step after the two fixes)
+
+The Inventory wall screen's turn was the worst frame left: its Garden views (pH, pollination,
+picking, the air, weeds, the outlook) were built over every crop on every build, the crop rows
+an eighth at a time, and the page hashed every tile of every open group every frame for its
+layout keys. All of it grew with the crops. Since farm-clock rung 2 an area's data changes only
+when something writes it, so each grow area's rows are KEPT and built again only when something
+they read moved (`engine/garden_mirror.rs`; its module notes list every input):
+
+- **Versions the farm bumps** (`systems/farming/versions.rs`, a DataStore channel, so two farms
+  never share one): an area's own number in every run of the farm's body that covers it (its
+  turn, the run after a command, a reader's settle: `FarmingSystem::run` writes only the areas its
+  scope names), an epoch for every area at once (a whole-farm run, the commands run, the clock's
+  rebase of every `planted_at`, a load handed over after the catch-up aged its crops), the air's
+  on each air step. A crop spawned or despawned by anyone (a sowing, a harvest, a load, the dev
+  showcase) changes the area's list of crops, which the mirror compares itself; a new soil memory
+  (a load) is in the global key by its entity.
+- **The data and the settings**: the DataStore's new per-key change stamp (`DataStore::stamp`: it
+  moves on every insert and remove) of the 14 entries the rows read (a hot reload; a machine edit,
+  which publishes the grow plots again), and by value the pH, pollination, picking and pest
+  severity settings, the clock's speed, the language, the tanks holding water and the irrigation
+  running; per area, its irrigation target and the pollinators reaching it.
+- **The clock**: "ripens in", the tile's count and the weeds' row read it, but only by whole
+  days, hours or minutes and by the edges of a crop's critical period, so each row says until
+  which game second its words hold (`outlook::words_hold_until`, `weeds::GuiView::row_holds_until`)
+  and the area is built again when the clock leaves that span (backwards too).
+- **The light and the air** move for the whole home at once (the sun and the lamps; every room's
+  air on the air's own turn, every game second), so they are not in an area's key: each area's
+  readings are taken every build, words are made only where a reading moved, once per species in
+  the area, and written only into the rows whose words changed. The air lines, the home's air and
+  the hives' lines are made every build: a line per area or hive, never per crop.
+- **The page** reads each tile's layout key from its row (`GuiCrop::tile_key`, made with the row by
+  `inventory::crop_tile_key`) instead of hashing the tile's words every frame.
+- **The switch**: with the Dev page's "Turn off all reuse" every area is built every build, as
+  before. A wall screen's build rebuilds at most an eighth of the crops, the oldest-built areas
+  first (`garden_mirror::pick`); the main screen's page never shows a kept row whose key moved.
+
+Proved by `engine/garden_mirror_tests.rs` against the real farm (the step_tests garden with its
+air, every Garden dataset and a bumblebee hive): after each kind of change (an area's own turn, a
+watering, a weed control, a row cover, a colony, the clock run on, a reader's settle, a save
+applied and handed over, plants.csv reloaded, the grow plots published again, each setting, an
+irrigation target, the tanks running dry, the clock a day on with no farm tick and set back, the
+air's turns, sunset) the kept build equals a build from scratch the same build, and the page
+changed; after five game minutes of turns and commands at a second's and an hour's interval it
+equals one too; a build with nothing changed builds nothing and a turn builds its own areas. Seen
+red with the area's own version left out of the key, and with the farm's bump left out of `run`.
+The page: `inventory_garden_tests.rs` `a_group_changed_off_screen_is_laid_out_again_when_it_returns`
+(tower designs, area lines; seen red with a changed tile's key left as it was). `just snapshot
+inventory_garden` is byte-identical with reuse on and off (955 tiles laid out every frame with it
+off; 955, then 76, with it on), and the same as the committed picture.
+
+**Measured in the game** (release build, the showcase's 1,981 crops at `home-overview-noon`, the
+rig's clock released to real time with `time_scale 1`, 30 fps in the background; twelve
+`game_frame_costs` readings 5 s apart facing the Inventory wall screen (`wall_screen_1` at 2.2 m),
+ten at the overview; a busy machine both times (another session compiling, the sweep flagged both
+captures), so the averages compare and, for a span's worst, its own CPU time is the one to trust; a
+page open on the MAIN screen discards its frames' costs (`frame_costs::discard_frame`: every reading
+froze), so the main screen's build was not read in the game: it is the same build without the wall
+screen's budget). Before: ca2c984c4 built just before this work; after: this commit.
+
+| Facing the Inventory wall screen, every second | Before | After |
+|---|---|---|
+| `cpu.page_data.garden`, the Garden data (average of the 12) | 9.89 ms (4.49 to 21.5) | **0.83 ms** (0.76 to 0.93) |
+| its views: pollination, picking, air, weeds, pH, outlook | 0.72, 0.90, 0.99, 0.56, 0.007, 0.007 | 0.019, 0.021, 0.34, 0.005, 0.001, 0.001 |
+| its crop rows (`cpu.garden.crop_rows`) | 3.66 ms | 0.23 ms |
+| its per-area part (`cpu.garden.areas`) | 2.82 ms | 0.07 ms |
+| the section's draw (`cpu.garden.page`) | 1.29 ms | 0.49 ms |
+| `cpu.screen_ui` | 4.71 ms | 2.35 ms |
+| `cpu.span.screens`, own CPU, average | 11.56 ms | **3.18 ms** |
+| `cpu.span.screens`, own CPU, worst frame in each window | 14.4 to 19.6 ms in every window | 31.5 ms in the first 10 s (the first sight: every area built and the page laid out whole), then **3.8 to 6.5 ms** |
+| the Garden data's worst frame in each window (clock time) | 10.5 to 68 ms | 9.2 ms the first, then 1.6 to 2.8 ms |
+| back to the screen after 50 s at the overview: the screens' own-CPU worst | 10 to 16 ms (Survey 1) | 7.4 ms (the Garden data 3.2 ms) |
+| FarmingSystem average (the page looks: the whole farm within a second) | 0.58 ms | 0.22 ms |
+
+The first sight of the page is the one frame still paying for every crop (every area's rows built
+and the whole page laid out once, as before); read it again on a quiet machine, and if it stands,
+spread the first build the way a wall screen's later builds are (`pick`'s budget with every area
+still to build).
+
+**The save (finding B, farm-clock.md):** before, the autosave's frame advanced the whole farm:
+`cpu.farm.settle` up to 10.4 ms and the save span's own CPU up to 12.8 ms in the overview's
+windows; after, an autosave in the same windows: `cpu.farm.settle` at most 0.015 ms, the save span's
+own CPU at most 3.6 ms (the save itself, Survey 1's 2.3 to 3.2 ms).
+
+**The plant meshes narrowed to the areas in sight** (farm-clock.md, the readers), FarmingSystem's
+average aboard with "Garden updates: every hour": before, at the overview, 0.39 ms (the meshes kept
+the whole home within a second); after, at the overview with the whole acre in view, 0.23 ms; from
+the same spot facing away from the acre, **0.028 ms**. At the default (every second) nothing
+changes there, as expected: 0.31 ms before, 0.22 ms after at the overview.
+
 ### FarmingSystem on its own clock, 2026-10-31 (docs/design/farm-clock.md rung 2)
 
 FarmingSystem averaged 3.6 ms of EVERY frame in Survey 1, its worst frames about 9 ms of its own
@@ -281,7 +371,11 @@ sixtieth of it.
   the nutrient data), the pollinators' reach (`pollination::Help::now`, every machine), and a pass
   over every crop's mark in each of six passes. F3's "cache AirMap's structure until rooms or
   plots change" and the same for the pollinators, kept for a round like `pest_hosts`, is the next
-  cut; with it a turn is about its share, under 0.5 ms.
+  cut; with it a turn is about its share, under 0.5 ms. **Built 2026-10-31** (farm-clock.md, "Kept
+  for a round"): the rooms' layout (`humidity::AirLayout`, keyed by the room boxes and the grow
+  plots' and humidity data's stamps) and the pollinators' reach are kept for a round; the six
+  passes over the marks are what is left (FarmingSystem in the game after: below, "The Garden views
+  by area").
 - What was cut on the way: the pest host lists rebuilt every turn (now kept for a round,
   `FarmingSystem::pest_hosts`), the tally reading every skipped crop's record before its mark.
 

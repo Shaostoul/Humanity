@@ -20,6 +20,7 @@ pub mod outlook;
 pub mod sowing;
 pub mod step_path;
 pub mod clock;
+pub mod versions;
 #[cfg(test)]
 mod sowing_tests;
 #[cfg(test)]
@@ -42,11 +43,11 @@ pub mod weeds;
 #[cfg(test)]
 mod weed_tests;
 #[cfg(test)]
-mod golden_tests;
+pub(crate) mod golden_tests;
 #[cfg(test)]
-mod step_tests;
+pub(crate) mod step_tests;
 #[cfg(test)]
-mod clock_tests;
+pub(crate) mod clock_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1001,6 +1002,15 @@ pub struct FarmingSystem {
     /// command meets without it (clock_tests.rs, the harvest between two turns, seen red).
     #[cfg(test)]
     pub(crate) no_bring_up: bool,
+    /// The rooms' layout for the air (humidity::AirLayout), kept for a round like `pest_hosts`
+    /// (2026-10-31): emptied on the air's turn, worked out again whenever its key moves (the room
+    /// boxes, the grow plots' and the humidity data's change stamps), never kept with the Dev
+    /// page's "Turn off all reuse" (`keeps_round_data`).
+    air_layout: Option<humidity::AirLayout>,
+    /// Tests only: work out what is kept for a round (the air's layout, the pollinators' reach)
+    /// again in every run, the reference the kept round is compared with (clock_tests.rs).
+    #[cfg(test)]
+    pub(crate) fresh_each_run: bool,
 }
 
 impl FarmingSystem {
@@ -1013,6 +1023,9 @@ impl FarmingSystem {
             pest_hosts: HashMap::new(),
             #[cfg(test)]
             no_bring_up: false,
+            air_layout: None,
+            #[cfg(test)]
+            fresh_each_run: false,
             weeds: weeds::Weeds::new(),
             picking: picking::Picking::new(),
             _initialized: false,
@@ -1078,6 +1091,36 @@ pub fn settle(world: &mut hecs::World, data: &DataStore, within_s: f64) {
         Ok(mut farm) => farm.settle(world, data, within_s),
         Err(_) => log::warn!("[Farming] settle asked while the farm was busy; what it reads may be up to an interval behind"),
     };
+}
+
+/// Would [`settle`] with `within_s` advance anything? (2026-10-31, the seam review's A.) A settle
+/// that advances an area runs the farm's body, whose feeder draws fertilizer from the "home_stock"
+/// map; outside the systems tick nobody takes that draw out of the containers, so the engine
+/// brackets such a settle with home storage published and taken (`engine::stock_piles::settle_farm`),
+/// and asks this first so a settle with nothing to do costs no publish. False without the game's
+/// shared farm, or while it is busy.
+pub fn settle_needed(data: &DataStore, within_s: f64) -> bool {
+    data.get::<Shared>(SHARED_KEY).and_then(|s| s.try_lock().ok().map(|f| f.settle_needed(within_s))).unwrap_or(false)
+}
+
+/// `settle` for some areas only (`FarmingSystem::settle_areas`: the plant meshes' areas in sight).
+pub fn settle_areas(world: &mut hecs::World, data: &DataStore, names: &[String], within_s: f64) {
+    let Some(shared) = data.get::<Shared>(SHARED_KEY) else { return };
+    match shared.try_lock() {
+        Ok(mut farm) => farm.settle_areas(world, data, names, within_s),
+        Err(_) => log::warn!("[Farming] settle asked while the farm was busy; what it reads may be up to an interval behind"),
+    };
+}
+
+/// `settle_needed` for `settle_areas`.
+pub fn settle_areas_needed(data: &DataStore, names: &[String], within_s: f64) -> bool {
+    data.get::<Shared>(SHARED_KEY).and_then(|s| s.try_lock().ok().map(|f| f.settle_areas_needed(names, within_s))).unwrap_or(false)
+}
+
+/// What every grow area and the air owe on the game's farm clock now, for a save
+/// (`clock::Owed`): None without the game's shared farm (a test's store, a headless tool).
+pub fn owed(data: &DataStore) -> Option<clock::Owed> {
+    data.get::<Shared>(SHARED_KEY).and_then(|s| s.lock().ok().map(|f| f.clock.owed()))
 }
 
 /// What the player's commands waiting for this tick touch (2026-10-31, farm-clock.md rung 2): each
@@ -1193,6 +1236,8 @@ impl System for FarmingSystem {
             for (_e, crop) in world.query_mut::<&mut CropInstance>() {
                 crop.planted_at += shift;
             }
+            // Every crop's planted_at moved (versions.rs).
+            versions::touch_all(data);
         }
         self.clock_rebase_seen = Some(total);
         // The frame's game seconds, worked out the way TimeSystem advances the clock (a jump of
@@ -1223,10 +1268,13 @@ impl System for FarmingSystem {
             interval = interval.min(clock::LOOK_FRESH_S);
         }
         let every = !reuse || burn_harm_per_s(data) > 0.0 || !(interval > 0.0);
-        // A save just loaded: its crops are as it left them, at the clock it restored.
+        // A save just loaded: its crops are as it left them, each area at its own last advance,
+        // at the clock it restored; what each area and the air still owed then is owed again below.
         let resumed = clock::take_resume(data);
-        if resumed {
+        if resumed.is_some() {
             self.clock.restart();
+            // The loaded crops, aged by the catch-up (versions.rs).
+            versions::touch_all(data);
             // What the old world's crops breathed is not the loaded ones'.
             self.held = clock::Held::default();
         }
@@ -1235,7 +1283,7 @@ impl System for FarmingSystem {
         // Crops sown, spawned or loaded since the last tick join their area, a new area with this
         // frame's step owed (it was there for it). The first tick, and after a load, also take in
         // the areas the soil memory knows that have no crop (an emptied bed's weeds and pH).
-        let fresh_world = !self.clock_started || resumed;
+        let fresh_world = !self.clock_started || resumed.is_some();
         self.clock.mark_new(world, game_dt, fresh_world);
         if fresh_world {
             self.clock_started = true;
@@ -1251,12 +1299,27 @@ impl System for FarmingSystem {
                 self.clock.index_of(&n, game_dt, 0);
             }
         }
+        // And the time each area and the air still owed when the save was written (clock::Owed,
+        // 2026-10-31): the save no longer brings the farm to now first.
+        if let Some(saved) = &resumed {
+            self.clock.owe_saved(saved, game_dt);
+        }
         // The turns this frame brought up, and the air on its own (slot 0 of the rotation, at
         // least every clock::AIR_MAX_S). On the air's turn, and every frame when everything
         // advances every frame, the plants' host lists are worked out again (`pest_hosts`).
         let due = clock::plan(farm_t0, self.clock.farm_t, interval, interval.min(clock::AIR_MAX_S), every);
+        // The areas a reader shows one by one (the plant meshes: the areas in sight, 2026-10-31)
+        // take their own turns at no more than LOOK_FRESH_S while it looks; the rest keep the
+        // interval, so the setting saves work aboard too.
+        let look_due = if !every && interval > clock::LOOK_FRESH_S && self.clock.any_looked() {
+            clock::plan(farm_t0, self.clock.farm_t, clock::LOOK_FRESH_S, clock::AIR_MAX_S, false)
+        } else {
+            clock::Due::none()
+        };
+        self.clock.age_looks();
         if due.air {
             self.pest_hosts.clear();
+            self.air_layout = None;
         }
         drop(farm_t);
         // The commands: what they touch brought up to now (this frame's step included), then the
@@ -1288,15 +1351,18 @@ impl System for FarmingSystem {
             // an area nobody had yet starts that area, which advances below as a new one.
             self.clock.mark_new(world, 0.0, false);
             done.resize(self.clock.areas.len(), false);
+            // No time, game or real: a burn's harm (on real seconds) was taken by the bring-up
+            // above, and taking it here as well harmed every touched crop twice a frame (2026-10-31,
+            // the seam review's D).
             let again = clock::Scope::areas(&self.clock, &areas, 0.0, t.air.then_some(0.0));
-            self.run(world, dt, data, &again);
+            self.run(world, 0.0, data, &again);
             for i in &areas {
                 done[*i as usize] = true;
             }
             air_now = t.air;
         }
         // The areas whose turn came up, and the air on its own.
-        let areas = self.clock.due_areas(&due, &done);
+        let areas = self.clock.due_areas(&due, &look_due, &done);
         self.advance(world, dt, data, &areas, due.air && !air_now, true);
         // What the irrigation draws, in litres per game minute: each area's daily need as its
         // last advance worked it out, and the humidifiers' as the air's last step did. The plants'
@@ -1356,6 +1422,60 @@ impl FarmingSystem {
     /// `clock::LOOK_FRESH_S` while it keeps asking, so after its first ask the turns keep the
     /// garden fresh and there is nothing left for it to catch up. With the reuse switch off every
     /// area advanced this frame already.
+    /// A reader that shows SOME areas wants them within `within_s` game seconds of now (2026-10-31:
+    /// the plant meshes, for the grow areas in sight, `engine::home_meshes::areas_in_sight`). An
+    /// area of `names` not looked at the frame before, and further behind than `within_s` and a
+    /// turn, advances now, so an area coming into sight is brought up the frame it does; while the
+    /// reader keeps asking, those areas take their own turns at no more than `clock::LOOK_FRESH_S`
+    /// (`AreaClock::look_frames`) and the others keep the interval. A name the farm does not know
+    /// (a machine with no crops) is passed over.
+    pub fn settle_areas(&mut self, world: &mut hecs::World, data: &DataStore, names: &[String], within_s: f64) {
+        let _cost = crate::frame_costs::stage("cpu.farm.settle");
+        let slack = within_s / f64::from(clock::TURNS);
+        let mut stale: Vec<u32> = Vec::new();
+        for n in names {
+            let Some(i) = self.clock.find(n) else { continue };
+            let a = &mut self.clock.areas[i as usize];
+            let kept = a.look_frames > 0;
+            a.look_frames = clock::LOOK_KEEP_FRAMES;
+            if !kept && a.owed > within_s + slack {
+                stale.push(i);
+            }
+        }
+        if !stale.is_empty() {
+            stale.sort_unstable();
+            stale.dedup();
+            self.advance(world, 0.0, data, &stale, false, false);
+        }
+    }
+
+    /// May what is kept for a round (the air's layout, the pollinators' reach) be kept? Not with
+    /// the Dev page's "Turn off all reuse", nor in a test's reference run (`fresh_each_run`).
+    fn keeps_round_data(&self) -> bool {
+        let reuse = self.reuse_override.unwrap_or_else(crate::reuse::enabled);
+        #[cfg(test)]
+        let reuse = reuse && !self.fresh_each_run;
+        reuse
+    }
+
+    /// Would `settle_areas(.., names, within_s)` advance anything now? The same rule, without asking.
+    pub fn settle_areas_needed(&self, names: &[String], within_s: f64) -> bool {
+        let slack = within_s / f64::from(clock::TURNS);
+        names.iter().filter_map(|n| self.clock.find(n)).any(|i| {
+            let a = &self.clock.areas[i as usize];
+            a.look_frames == 0 && a.owed > within_s + slack
+        })
+    }
+
+    /// Would `settle(.., within_s)` advance anything now? The same rule, without asking.
+    pub fn settle_needed(&self, within_s: f64) -> bool {
+        if within_s > 0.0 && self.clock.look_frames > 0 {
+            return false;
+        }
+        let slack = if within_s > 0.0 { within_s / f64::from(clock::TURNS) } else { 0.0 };
+        !self.clock.stale(within_s + slack).is_empty() || self.clock.air_owed > within_s + slack
+    }
+
     pub fn settle(&mut self, world: &mut hecs::World, data: &DataStore, within_s: f64) {
         let _cost = crate::frame_costs::stage("cpu.farm.settle");
         let kept = self.clock.look_frames > 0;
@@ -1379,6 +1499,22 @@ impl FarmingSystem {
     /// The farm's body: one step of `scope`'s areas and, when it steps with them, the air (until
     /// 2026-10-31 the whole tick, every area every frame; `tick` decides what runs).
     fn run(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore, scope: &clock::Scope) {
+        // What this run may write, for the readers that keep their rows (2026-10-31, versions.rs):
+        // every area it covers, before it acts; the whole farm, and the commands (a harvest, a
+        // sowing, a pest control may write any area), move the epoch; a step of the air (which also
+        // ages the hives' colonies) moves the air's.
+        versions::with(data, |v| {
+            if scope.every() || scope.commands {
+                v.touch_all();
+            } else {
+                for name in scope.area_names() {
+                    v.touch_area(name);
+                }
+            }
+            if scope.air_s.is_some() {
+                v.touch_air();
+            }
+        });
         // Where the tick's time goes, pass by pass (cpu.farm.*, children of cpu.system.farming,
         // never summed with it): each assignment closes the pass before it (2026-10-30).
         let mut _farm_t = crate::frame_costs::stage("cpu.farm.setup");
@@ -1601,7 +1737,18 @@ impl FarmingSystem {
         }
         let air_data: &humidity::HumidityData =
             data.get::<humidity::HumidityData>(humidity::DATA_KEY).or(self.humidity.as_ref()).expect("loaded above");
-        let air_map = humidity::AirMap::new(world, data, air_data);
+        // The rooms' layout, kept for a round while what it is worked out from holds
+        // (humidity::AirLayout; 2026-10-31, a turn's fixed cost): matching every grow machine
+        // against every room box was done again in every run.
+        let layout_key = humidity::AirLayout::key_now(data);
+        let keep_layout = self.keeps_round_data();
+        if !(keep_layout && self.air_layout.as_ref().is_some_and(|l| l.key == layout_key)) {
+            self.air_layout = Some(humidity::AirLayout::new(data, air_data));
+        }
+        let air_map = humidity::AirMap::with_layout(world, data, air_data, self.air_layout.as_ref().expect("laid out just above"));
+        if !keep_layout {
+            self.air_layout = None;
+        }
         // SHIP LIFE SUPPORT (2026-09-26, systems::life_support; every number
         // in data/life_support.ron): the crops' carbon dioxide and oxygen, the
         // water their tissue keeps, the home's own air and its machines.
@@ -2061,7 +2208,8 @@ impl FarmingSystem {
         if scope.commands {
             self.pollination.requests(world, data);
         }
-        self.pollination.step(world, data, game_dt / SECONDS_PER_DAY, scope.air_s.map(|s| s / SECONDS_PER_DAY), scope);
+        let keep = self.keeps_round_data();
+        self.pollination.step(world, data, game_dt / SECONDS_PER_DAY, scope.air_s.map(|s| s / SECONDS_PER_DAY), scope, keep);
 
         // DEV: instantly mature every living crop (a testing affordance, like
         // "Dev: stock all materials" — so the loop is verifiable without waiting

@@ -303,10 +303,21 @@ pub fn age_home_storage(state: &mut crate::engine::state::EngineState) {
 /// planet, not in the home. Returns the snapshot, for
 /// [`take_consumed_home_stock`] after the tick.
 pub fn publish_home_stock(state: &mut crate::engine::state::EngineState) -> std::collections::HashMap<String, u32> {
-    let away = crate::systems::construction::uses::planet_store_paths(&state.game_world.world);
-    let stock = crate::systems::inventory::placed::stock_counts(&state.gui_state.placed_items, &away);
-    state.data_store.insert("home_stock", std::sync::Mutex::new(stock.clone()));
+    let stock = publish_stock(&state.game_world.world, &mut state.data_store, &state.gui_state.placed_items);
     state.gui_state.home_stock = stock.clone();
+    stock
+}
+
+/// [`publish_home_stock`] on its parts: the counts of `placed` (less the planet chests) put in the
+/// DataStore as "home_stock" for the systems to draw on, and returned.
+pub(crate) fn publish_stock(
+    world: &hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    placed: &[crate::systems::inventory::placed::PlacedItem],
+) -> std::collections::HashMap<String, u32> {
+    let away = crate::systems::construction::uses::planet_store_paths(world);
+    let stock = crate::systems::inventory::placed::stock_counts(placed, &away);
+    data.insert("home_stock", std::sync::Mutex::new(stock.clone()));
     stock
 }
 
@@ -317,16 +328,94 @@ pub fn take_consumed_home_stock(
     state: &mut crate::engine::state::EngineState,
     before: &std::collections::HashMap<String, u32>,
 ) {
-    let after = match state
-        .data_store
+    take_stock(&state.game_world.world, &state.data_store, &mut state.gui_state.placed_items, before);
+}
+
+/// [`take_consumed_home_stock`] on its parts.
+pub(crate) fn take_stock(
+    world: &hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    before: &std::collections::HashMap<String, u32>,
+) {
+    let after = match data
         .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
         .and_then(|m| m.lock().ok().map(|s| s.clone()))
     {
         Some(a) => a,
         None => return,
     };
-    let away = crate::systems::construction::uses::planet_store_paths(&state.game_world.world);
-    crate::systems::inventory::placed::take_consumed(&mut state.gui_state.placed_items, before, &after, &away);
+    let away = crate::systems::construction::uses::planet_store_paths(world);
+    crate::systems::inventory::placed::take_consumed(placed, before, &after, &away);
+}
+
+/// Bring the farm within `within_s` game seconds of now from OUTSIDE the systems tick (2026-10-31,
+/// the seam review's finding A): the readers that show the garden (the Garden page's data,
+/// engine/garden_mirror.rs; the plant meshes, home_meshes.rs) call this, never `farming::settle`
+/// by itself. A settle that advances an area runs the farm's body, and its feeder draws fertilizer
+/// from the "home_stock" map. The frame publishes that map from the containers before the systems
+/// tick and takes out of the containers only what dropped between that publish and the take after
+/// it; a draw made anywhere else lands in a map the next publish throws away, so the crop was fed
+/// and the bag never left the containers (and a save wrote both). So the settle runs inside a
+/// window of its own: home storage published, the settle, what it drew taken out, exactly once,
+/// and `home_stock` (the GUI's copy) left as the containers now stand. A settle with nothing to
+/// advance (`farming::settle_needed`: the usual frame, the turns keeping the garden fresh) only
+/// renews the reader's look and publishes nothing. What a settle's run makes for home storage
+/// ("home_stock_outputs": only a harvest, which only the tick's commands run does) waits in its
+/// channel for the frame's `receive_machine_outputs`, which takes it once.
+pub(crate) fn settle_farm(
+    world: &mut hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    home_stock: &mut std::collections::HashMap<String, u32>,
+    within_s: f64,
+) {
+    settle_farm_of(world, data, placed, home_stock, None, within_s);
+}
+
+/// `settle_farm` for some grow areas only (`farming::settle_areas`: the plant meshes' areas in
+/// sight, 2026-10-31), in the same home-storage window.
+pub(crate) fn settle_farm_areas(
+    world: &mut hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    home_stock: &mut std::collections::HashMap<String, u32>,
+    areas: &[String],
+    within_s: f64,
+) {
+    settle_farm_of(world, data, placed, home_stock, Some(areas), within_s);
+}
+
+fn settle_farm_of(
+    world: &mut hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    home_stock: &mut std::collections::HashMap<String, u32>,
+    areas: Option<&[String]>,
+    within_s: f64,
+) {
+    use crate::systems::farming;
+    let settle = |world: &mut hecs::World, data: &crate::hot_reload::data_store::DataStore| match areas {
+        None => farming::settle(world, data, within_s),
+        Some(a) => farming::settle_areas(world, data, a, within_s),
+    };
+    let needed = match areas {
+        None => farming::settle_needed(data, within_s),
+        Some(a) => farming::settle_areas_needed(data, a, within_s),
+    };
+    if !needed {
+        settle(world, data);
+        return;
+    }
+    let before = publish_stock(world, data, placed);
+    settle(world, data);
+    take_stock(world, data, placed, &before);
+    if let Some(now) = data
+        .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+        .and_then(|m| m.lock().ok().map(|s| s.clone()))
+    {
+        *home_stock = now;
+    }
 }
 
 /// The organize-pool container path of the first place labelled as one of
@@ -700,5 +789,100 @@ mod tests {
         assert!(slots[..per_deck].iter().all(|p| (p.y - slots[0].y).abs() < 1e-4));
         // The racks never poke through the roof.
         assert!(f.built_height(size.y) < size.y);
+    }
+}
+
+#[cfg(test)]
+mod settle_farm_tests {
+    //! A SETTLE OUTSIDE THE TICK TAKES ITS DRAWS OUT OF THE CONTAINERS, ONCE (2026-10-31, the seam
+    //! review's finding A; `settle_farm`). The frame publishes home storage as the "home_stock"
+    //! map before the systems tick and takes out of the containers what dropped in it by the take
+    //! after; a settle of the farm anywhere else drew from a map the next publish replaced, so the
+    //! crop was fed and the fertilizer never left the containers. The existing farm tests could
+    //! not see it: their store holds a home_stock of a million of each item, published once.
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use super::{publish_stock, settle_farm, take_stock};
+    use crate::ecs::systems::System;
+    use crate::hot_reload::data_store::DataStore;
+    use crate::systems::farming::{self, FarmingSystem};
+    use crate::systems::inventory::placed::PlacedItem;
+
+    /// The garden, the game's shared farm at an hour's interval, nothing fed yet, and 500 of each
+    /// fertilizer in a container.
+    fn home() -> (DataStore, hecs::World, farming::Shared, Vec<String>, Vec<PlacedItem>) {
+        let (mut data, world) = farming::step_tests::garden(false);
+        data.insert(farming::clock::INTERVAL_KEY, Mutex::new(3600.0_f64));
+        data.insert("garden_nutrient", Mutex::new(HashMap::<String, f32>::new()));
+        let mut sys = FarmingSystem::new();
+        sys.reuse_override = Some(true);
+        let shared: farming::Shared = Arc::new(Mutex::new(sys));
+        data.insert(farming::SHARED_KEY, shared.clone());
+        let fert: Vec<String> = farming::soil::NutrientData::parse(farming::soil::NUTRIENTS_RON)
+            .expect("nutrients.ron")
+            .fertilizers
+            .iter()
+            .map(|f| f.item.clone())
+            .collect();
+        let placed = fert
+            .iter()
+            .map(|k| PlacedItem { key: k.clone(), name: k.clone(), qty: 500, container: "Home".into(), ..Default::default() })
+            .collect();
+        (data, world, shared, fert, placed)
+    }
+
+    /// One frame as lib.rs runs it: the clock on by `dt`, home storage published, the systems
+    /// tick, what they drew taken out of the containers.
+    fn frame(data: &mut DataStore, world: &mut hecs::World, shared: &farming::Shared, placed: &mut Vec<PlacedItem>, dt: f32) {
+        {
+            let gt = data.get::<Mutex<crate::systems::time::GameTime>>("game_time").unwrap();
+            let mut g = gt.lock().unwrap();
+            let t = g.elapsed_seconds + f64::from(dt) * f64::from(g.time_scale);
+            g.set_elapsed(t);
+        }
+        let before = publish_stock(world, data, placed);
+        shared.lock().unwrap().tick(world, dt, data);
+        take_stock(world, data, placed, &before);
+    }
+
+    fn held(placed: &[PlacedItem], fert: &[String]) -> u64 {
+        placed.iter().filter(|p| fert.contains(&p.key)).map(|p| u64::from(p.qty)).sum()
+    }
+
+    fn in_map(data: &DataStore, fert: &[String]) -> u64 {
+        data.get::<Mutex<HashMap<String, u32>>>("home_stock")
+            .map(|m| m.lock().unwrap().iter().filter(|(k, _)| fert.contains(k)).map(|(_, v)| u64::from(*v)).sum())
+            .unwrap_or(0)
+    }
+
+    /// The bed's first feeding happens in a settle outside the tick (the Garden page's data and
+    /// the plant meshes ask from outside it): what the feeder opened leaves the containers then,
+    /// and the next frame neither takes it again nor puts it back. Seen red 2026-10-31 with
+    /// `settle_farm` settling with no window of its own (as every reader did): "what the settle
+    /// drew left the containers".
+    #[test]
+    fn a_settle_outside_the_tick_takes_its_draws_out_of_the_containers_once() {
+        let (mut data, mut world, shared, fert, mut placed) = home();
+        // A second to start every area, then four minutes: the bed's turn of the hour (its slot
+        // starts at 450 s) has not come, so it owes them.
+        frame(&mut data, &mut world, &shared, &mut placed, 1.0);
+        for _ in 0..4 {
+            frame(&mut data, &mut world, &shared, &mut placed, 60.0);
+        }
+        assert_eq!(held(&placed, &fert), 500 * fert.len() as u64, "nothing fed yet: no area has a feeder setting");
+        // The player sets bed_a's feeder; the Garden page then asks for the garden now.
+        data.get::<Mutex<HashMap<String, f32>>>("garden_nutrient").unwrap().lock().unwrap().insert("bed_a".into(), 0.25);
+        let base = held(&placed, &fert);
+        assert_eq!(in_map(&data, &fert), base, "after the frame's take the map stands as the containers do");
+        let mut gui_stock = HashMap::new();
+        settle_farm(&mut world, &mut data, &mut placed, &mut gui_stock, 0.0);
+        let drawn = base - in_map(&data, &fert);
+        assert!(drawn > 0, "the settle fed bed_a from home storage (it opened fertilizer)");
+        assert_eq!(held(&placed, &fert), base - drawn, "what the settle drew left the containers");
+        assert_eq!(gui_stock.values().map(|v| u64::from(*v)).sum::<u64>(), held(&placed, &fert), "and the GUI's copy says so");
+        // A frame with no time: nothing is fed in it, and nothing comes back or goes twice.
+        frame(&mut data, &mut world, &shared, &mut placed, 0.0);
+        assert_eq!(held(&placed, &fert), base - drawn, "the next frame neither takes it again nor puts it back");
     }
 }

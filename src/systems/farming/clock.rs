@@ -115,15 +115,36 @@ pub const LOOK_FRESH_S: f64 = 1.0;
 pub const LOOK_KEEP_FRAMES: u32 = 30;
 
 /// The DataStore channel by which a save just loaded into the world tells the farm
-/// (`Mutex<bool>`): its crops are as the save left them, at the clock the save restored, so every
-/// area starts again from now (`save_load::resume_home`).
+/// (`Mutex<Option<Owed>>`): its crops are as the save left them, each grow area at its own last
+/// advance, with the game time each still owed when the save was written ([`Owed`]), at the clock
+/// the save restored (`save_load::resume_home`).
 pub const RESUME_KEY: &str = "garden_clock_resume";
+
+/// What each grow area, and the air, still owed when a save was written (2026-10-31, the seam
+/// review's finding B). The save writes the garden as it stands, each area at its own last turn,
+/// and this beside it, so a load gives each area exactly the time it had not yet taken. Until then
+/// the save first brought every area and the air to now (`farming::settle(.., 0)`): the whole farm
+/// on one frame at every autosave (120 s) and every editor keep-edits (60 s), the spike the turns
+/// were built to remove; and that settle's fertilizer draws, made outside the frame's
+/// home-storage window, never left the containers (finding A). Keyed by the area's tag (a crop's
+/// `tower_id`, "" for the hand-planted crops).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Owed {
+    /// Game seconds each area owed, by tag.
+    #[serde(default)]
+    pub areas: BTreeMap<String, f64>,
+    /// Game seconds the air owed.
+    #[serde(default)]
+    pub air_s: f64,
+}
 
 /// Register the farm clock's channels (the main loop, at boot): the interval at the default until
 /// the Settings value reaches it, and the resume flag.
 pub fn register(data: &mut DataStore) {
     data.insert(INTERVAL_KEY, Mutex::new(DEFAULT_INTERVAL_S));
-    data.insert(RESUME_KEY, Mutex::new(false));
+    data.insert(RESUME_KEY, Mutex::new(Option::<Owed>::None));
+    // What changed in the garden, for the readers that keep their rows (versions.rs).
+    super::versions::register(data);
 }
 
 /// Carry this frame's Settings choice to the farm (lib.rs, every frame).
@@ -138,17 +159,20 @@ pub fn interval(data: &DataStore) -> Option<f64> {
     data.get::<Mutex<f64>>(INTERVAL_KEY).and_then(|m| m.lock().ok().map(|v| clamp_interval(*v)))
 }
 
-/// A save was just loaded into the world (`save_load::resume_home`): the farm takes it at its next
-/// tick and starts every area's clock again from then.
-pub fn hand_over_resume(data: &DataStore) {
-    if let Some(Ok(mut v)) = data.get::<Mutex<bool>>(RESUME_KEY).map(|m| m.lock()) {
-        *v = true;
+/// A save was just loaded into the world (`save_load::resume_home`), with what its areas and its
+/// air still owed when it was written: the farm takes it at its next tick, starts every area's
+/// clock again from then, and owes each area (by tag) and the air that much more.
+pub fn hand_over_resume(data: &DataStore, owed: Owed) {
+    // The loaded crops, aged by the catch-up: every area changed (versions.rs).
+    super::versions::touch_all(data);
+    if let Some(Ok(mut v)) = data.get::<Mutex<Option<Owed>>>(RESUME_KEY).map(|m| m.lock()) {
+        *v = Some(owed);
     }
 }
 
-/// Take the resume flag, leaving it down (the farming tick).
-pub fn take_resume(data: &DataStore) -> bool {
-    data.get::<Mutex<bool>>(RESUME_KEY).and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v))).unwrap_or(false)
+/// Take what a load handed over, leaving the channel empty (the farming tick). None: no load.
+pub fn take_resume(data: &DataStore) -> Option<Owed> {
+    data.get::<Mutex<Option<Owed>>>(RESUME_KEY).and_then(|m| m.lock().ok().and_then(|mut v| v.take()))
 }
 
 /// Which grow area of which farm clock a crop belongs to: the index of its `tower_id` in that
@@ -189,6 +213,10 @@ pub struct AreaClock {
     /// minute's interval left the rooms' air stepping without the crops' breath for up to a
     /// minute after every load, their CO2 and water 4 to 14% off at the end.
     pub fresh: bool,
+    /// Frames left while a reader that shows this area alone wants it fresh (2026-10-31: the plant
+    /// meshes, for the areas in sight): it advances on its own turn at no more than
+    /// `LOOK_FRESH_S` until this lapses, whatever the interval; the other areas keep the interval.
+    pub look_frames: u32,
 }
 
 /// What is due on one frame: the areas whose turn came up, every area, the air.
@@ -233,6 +261,13 @@ pub fn plan(t0: f64, t: f64, interval_s: f64, air_s: f64, every: bool) -> Due {
     }
     due.air = due.all || !(air_s > 0.0) || (t / air_s).floor() > (t0 / air_s).floor();
     due
+}
+
+impl Due {
+    /// Nothing due.
+    pub fn none() -> Self {
+        Self { all: false, turns: [false; TURNS as usize], air: false }
+    }
 }
 
 /// The farm's own clock: every grow area's place in the rotation and its time owed, the air's,
@@ -287,7 +322,7 @@ impl FarmClock {
         }
         let turn = (1..TURNS).min_by_key(|t| load[*t as usize]).unwrap_or(1);
         let i = self.areas.len() as u32;
-        self.areas.push(AreaClock { name: name.to_string(), owed, turn, crops, irrigation_l_day: 0.0, fresh: true });
+        self.areas.push(AreaClock { name: name.to_string(), owed, turn, crops, irrigation_l_day: 0.0, fresh: true, look_frames: 0 });
         self.by_name.insert(name.to_string(), i);
         i
     }
@@ -316,6 +351,24 @@ impl FarmClock {
             a.irrigation_l_day = 0.0;
         }
         self.air_owed = 0.0;
+    }
+
+    /// What a loaded save's areas and air still owed when it was written ([`Owed`]), owed again:
+    /// each area it names, and the air, owe that much more than they do now. Called once the
+    /// loaded crops are marked, so their areas are already balanced over the turns by their crops;
+    /// an area the save names that this clock has still not seen is started here owing `new_owed`
+    /// (the frame's step, as every area is after a load) plus the save's time.
+    pub fn owe_saved(&mut self, saved: &Owed, new_owed: f64) {
+        for (name, s) in &saved.areas {
+            let i = self.index_of(name, new_owed, 0) as usize;
+            self.areas[i].owed += s.max(0.0);
+        }
+        self.air_owed += saved.air_s.max(0.0);
+    }
+
+    /// What every area and the air owe now, for a save ([`Owed`]).
+    pub fn owed(&self) -> Owed {
+        Owed { areas: self.areas.iter().map(|a| (a.name.clone(), a.owed)).collect(), air_s: self.air_owed }
     }
 
     /// Mark every crop that has no mark (sown, spawned or loaded since the last tick), starting
@@ -359,14 +412,26 @@ impl FarmClock {
 
     /// The areas a frame's `due` brings up, by index, and every area not advanced yet
     /// (`AreaClock::fresh`), leaving out `skip` (advanced already this tick, by a command).
-    pub fn due_areas(&self, due: &Due, skip: &[bool]) -> Vec<u32> {
+    pub fn due_areas(&self, due: &Due, look: &Due, skip: &[bool]) -> Vec<u32> {
         (0..self.areas.len() as u32)
             .filter(|i| !skip.get(*i as usize).copied().unwrap_or(false))
             .filter(|i| {
                 let a = &self.areas[*i as usize];
-                due.all || due.turns[a.turn as usize] || a.fresh
+                due.all || due.turns[a.turn as usize] || a.fresh || (a.look_frames > 0 && (look.all || look.turns[a.turn as usize]))
             })
             .collect()
+    }
+
+    /// Is a reader looking at any area by itself (`AreaClock::look_frames`)?
+    pub fn any_looked(&self) -> bool {
+        self.areas.iter().any(|a| a.look_frames > 0)
+    }
+
+    /// A frame went by for the areas readers look at by themselves.
+    pub fn age_looks(&mut self) {
+        for a in &mut self.areas {
+            a.look_frames = a.look_frames.saturating_sub(1);
+        }
     }
 
     /// The areas more than `within_s` behind now (a reader's ask).
@@ -455,6 +520,12 @@ impl Scope {
             None => true,
             Some(o) => mark.is_some_and(|m| m.clock == o.clock && o.by_index.get(m.index as usize).copied().unwrap_or(false)),
         }
+    }
+
+    /// The areas this run covers by name (none for the whole farm, which [`Scope::every`] says,
+    /// and none for the commands run): the ones whose versions it moves (versions.rs).
+    pub fn area_names(&self) -> impl Iterator<Item = &str> {
+        self.only.iter().flat_map(|o| o.names.iter().map(String::as_str))
     }
 
     /// Does this run advance the area named `name` (its pests, weeds, soil pH, notices)?

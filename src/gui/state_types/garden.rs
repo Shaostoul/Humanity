@@ -147,4 +147,11 @@ pub struct GuiCrop {
     /// Its "Weeds" card row when weeds are capping it: the cover, where it is
     /// in its critical period, the health held to (farming::weeds::GuiView).
     pub weeds: String,
+    /// The layout key of its slot tile on the Garden page (2026-10-31, docs/design/
+    /// sim-frame-cost.md, "The Garden views by area"): worked out when the row is built
+    /// (`pages::inventory::crop_tile_key`: the word under its square and the line under its
+    /// bar), so the page reads a number for each tile every frame instead of hashing its words.
+    /// 0: not worked out (a row made by hand, in a test or a snapshot), and the page works it
+    /// out itself.
+    pub tile_key: u64,
 }

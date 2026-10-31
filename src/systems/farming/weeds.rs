@@ -692,56 +692,85 @@ pub struct GuiView {
 
 impl GuiView {
     pub fn new(world: &hecs::World, store: &DataStore) -> Self {
+        let mut view = Self::context(world, store);
+        // Sorted by area, each once: every area with a living crop, and the emptied beds whose soil
+        // still carries weeds or mulch, so the player can see and clear them before sowing again.
+        let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for (_, c) in world.query::<&CropInstance>().iter() {
+            if c.growth_stage != STAGE_DEAD {
+                set.insert(c.tower_id.clone().unwrap_or_default());
+            }
+        }
+        set.extend(view.kept_areas().map(str::to_string));
+        view.areas = set.iter().filter_map(|area| view.area_row(store, area)).collect();
+        view
+    }
+
+    /// The view with no area rows yet (2026-10-31, docs/design/sim-frame-cost.md, "The Garden views
+    /// by area"): what `area_row` and `crop_row` read, so the Garden page's data builds the rows of
+    /// the areas that changed and keeps the rest.
+    pub fn context(world: &hecs::World, store: &DataStore) -> Self {
         let data = store.get::<WeedData>(DATA_KEY).cloned();
         let weeds = world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.weeds.clone()).unwrap_or_default();
         let severity = store
             .get::<Mutex<f32>>("garden_pest_severity")
             .and_then(|m| m.lock().ok().map(|v| *v))
             .unwrap_or(super::pests::DEFAULT_PEST_SEVERITY);
-        let mut view = Self { data, weeds, severity, elapsed: crate::systems::time::elapsed_now(store), areas: Vec::new() };
-        let (Some(data), Some(soil), true) = (view.data.as_ref(), store.get::<SoilPhData>("garden_soil_ph"), severity > 0.0) else {
-            return view;
+        Self { data, weeds, severity, elapsed: crate::systems::time::elapsed_now(store), areas: Vec::new() }
+    }
+
+    /// The emptied beds that still show a row: weeds or mulch on their soil.
+    pub fn kept_areas(&self) -> impl Iterator<Item = &str> {
+        self.weeds.iter().filter(|(_, st)| st.level >= 0.01 || !st.mulch.is_empty()).map(|(a, _)| a.as_str())
+    }
+
+    /// One soil area's row, for an area with a living crop or one of `kept_areas`: None with weeds
+    /// off (or no data), and for an area with no soil (a tower's medium).
+    pub fn area_row(&self, store: &DataStore, area: &str) -> Option<WeedAreaRow> {
+        let (Some(data), Some(soil), true) = (self.data.as_ref(), store.get::<SoilPhData>("garden_soil_ph"), self.severity > 0.0) else {
+            return None;
         };
+        soil.soil_for(area)?;
         let items = store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
-        // Sorted by area, each once.
-        let areas: Vec<String> = {
-            let mut set: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-            let mut q = world.query::<&CropInstance>();
-            for (_, c) in q.iter() {
-                if c.growth_stage != STAGE_DEAD {
-                    set.insert(c.tower_id.as_deref().unwrap_or(""));
-                }
-            }
-            // And the emptied beds whose soil still carries weeds or mulch, so
-            // the player can see and clear them before sowing again.
-            for (a, st) in view.weeds.iter() {
-                if st.level >= 0.01 || !st.mulch.is_empty() {
-                    set.insert(a.as_str());
-                }
-            }
-            set.into_iter().filter(|a| soil.soil_for(a).is_some()).map(str::to_string).collect()
+        let st = self.weeds.get(area).cloned().unwrap_or_else(|| data.new_area(super::is_field_area(area)));
+        let mut line = format!("Weeds {}", pct(st.level));
+        let mut mulch: Vec<(&String, &f64)> = st.mulch.iter().collect();
+        mulch.sort_by(|a, b| a.0.cmp(b.0));
+        for (id, left) in mulch {
+            let what = data
+                .control(id)
+                .map(|c| items.and_then(|r| r.items.get(&c.item).map(|d| d.name.to_lowercase())).unwrap_or_else(|| c.item.clone()))
+                .unwrap_or_else(|| id.clone());
+            line.push_str(&format!(" · {what} mulch, {left:.0} garden days left"));
+        }
+        line.push_str(&format!(" · seed in the soil {:.1}x a typical field's", st.bank));
+        let controls: Vec<(String, String, String)> = data.controls.iter().map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
+        Some(WeedAreaRow { area: area.to_string(), level: st.level as f32, noticed: st.level >= data.detect_at, line, controls })
+    }
+
+    /// The game clock's second until which `crop_row` gives this crop the same words, all else
+    /// equal (2026-10-31, the Garden page keeps a row until its inputs change): the row reads the
+    /// crop's days since sowing only through which side of its critical period it stands on, so it
+    /// holds until the next edge of the period. Infinite once past it, or when the row is empty for
+    /// a reason the clock does not change (weeds off, no data, no weeds in the area).
+    pub fn row_holds_until(&self, crop: &CropInstance, def: Option<&PlantDef>) -> f64 {
+        let area = crop.tower_id.as_deref().unwrap_or("");
+        let (Some(data), Some(_), true) = (self.data.as_ref(), self.weeds.get(area), self.severity > 0.0) else {
+            return f64::INFINITY;
         };
-        let controls: Vec<(String, String, String)> =
-            data.controls.iter().map(|c| (c.id.clone(), c.name.clone(), c.note.clone())).collect();
-        view.areas = areas
-            .into_iter()
-            .map(|area| {
-                let st = view.weeds.get(&area).cloned().unwrap_or_else(|| data.new_area(super::is_field_area(&area)));
-                let mut line = format!("Weeds {}", pct(st.level));
-                let mut mulch: Vec<(&String, &f64)> = st.mulch.iter().collect();
-                mulch.sort_by(|a, b| a.0.cmp(b.0));
-                for (id, left) in mulch {
-                    let what = data
-                        .control(id)
-                        .map(|c| items.and_then(|r| r.items.get(&c.item).map(|d| d.name.to_lowercase())).unwrap_or_else(|| c.item.clone()))
-                        .unwrap_or_else(|| id.clone());
-                    line.push_str(&format!(" · {what} mulch, {left:.0} garden days left"));
-                }
-                line.push_str(&format!(" · seed in the soil {:.1}x a typical field's", st.bank));
-                WeedAreaRow { area, level: st.level as f32, noticed: st.level >= data.detect_at, line, controls: controls.clone() }
-            })
-            .collect();
-        view
+        let growth = def.map_or(0.0, |d| f64::from(d.growth_days));
+        let (start, end) = data.window(&crop.crop_def_id, growth);
+        let days = crop_days(crop, self.elapsed);
+        // The words change where `phase_share` (and the phase's words) do: at `start` (days < start
+        // turns false) and past `end`. Before sowing the days are held at 0 until the clock reaches it.
+        let edge = if days < start {
+            start
+        } else if days <= end {
+            end
+        } else {
+            return f64::INFINITY;
+        };
+        crop.planted_at + edge * super::SECONDS_PER_DAY
     }
 
     /// The crop card's "Weeds" row: the cover, where the crop is in its

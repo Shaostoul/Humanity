@@ -775,6 +775,11 @@
       "date": "2026-10-31",
       "decision": "Notifications rung 2 part 1 merged: the in-app list (bell, count, panel; 100 entries in memory only, never on disk; text only when the person shows text) on both apps, mute a conversation, per-room level (every line / mentions / nothing), reply, contact-request and Commons-mention kinds, synced quiet-hours exceptions (relay notification_prefs gains quiet_friends, quiet_mentions by guarded ALTER). The website bell lives on the chat page only. A friend for the exception = mutual follow (DmStore::is_friend).",
       "why": "The website's notices come only from an open chat tab and the list is that tab's memory, so a bell on other pages could never fill. Sealed sender means the server can never apply the friends exception to a DM push; that is the design's answer, not a gap to close. Part 2 (tray, close-to-tray, OS-notice click, in-world banner, taskbar flash) needs the game booted, so it waits for the Garden views agent's in-game measurements to finish (one instance machine-wide)."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Garden views by area merged: each grow area's Garden rows and tile keys are kept until its change number (systems/farming/versions.rs), a data stamp (DataStore::stamp) or the clock's words move; wall screens build at most 1/8 of the crops a build. The critic's A-F fixed: settles open the home-storage window (BUG-219), the save writes WorldSave::farm_owed instead of settling, the golden test renamed for what it shows. \"Looked at\" = grow areas in the camera frustum, on 1 s turns.",
+      "why": "The Inventory wall screen spent ~10 ms of its turn rebuilding every view for every crop (9.89 -> 0.83 ms after). Versions live in the DataStore, not a static, so parallel tests cannot mask a missed bump; every write site was swept and the equivalence tests compare kept rows with a build from scratch after each kind of change. A save that settled the farm paid a full advance on the autosave frame and lost its fertilizer draws; owing the time across the save removes both. Left: the turns' six passes over their marks (needs hecs unsafe get_unchecked), and the 31.5 ms first sight of the Garden page on a busy machine, to re-read quietly."
     }
   ],
   "active_scopes_to_avoid": [

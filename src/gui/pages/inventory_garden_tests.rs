@@ -397,3 +397,96 @@ fn slot_specs_read_by_index_match_the_flattened_plantings() {
     assert_eq!(super::garden_slot_spec(&bed, None, 3), None);
     assert_eq!(super::garden_slot_spec(&None, None, 0), None);
 }
+
+/// Forty tower designs of `slots` lettuce each (the tower path: a fixed slot per crop, every slot
+/// a tile, `by_slot`), each group with a weeds line above its tiles, and every crop's tile key
+/// made the way the Garden data makes it with the row (`crop_tile_key`, engine/garden_mirror.rs).
+fn towers(slots: usize) -> GuiState {
+    let mut s = GuiState::default();
+    s.trees_start_collapsed = false;
+    for g in 0..40usize {
+        let id = format!("t{g}");
+        let cfg: crate::gui::TowerConfig = serde_json::from_value(serde_json::json!({
+            "id": id, "name": format!("Tower {g}"), "slots": slots,
+            "plantings": [{ "plant": "lettuce", "slots": slots, "role": "", "note": "" }],
+        }))
+        .expect("a tower design");
+        s.tower_configs.push(cfg);
+        for k in 0..slots {
+            let bits = (g * 1000 + k) as u64;
+            s.crops.push(GuiCrop {
+                entity_bits: bits,
+                name: "Lettuce".into(),
+                stage: "seedling".into(),
+                tower_id: Some(id.clone()),
+                tower_slot: Some(k as u32),
+                ..Default::default()
+            });
+            s.garden_pests.outlook.insert(bits, crate::systems::farming::outlook::CropOutlook { tile: "45 days".into(), ..Default::default() });
+        }
+        s.garden_pests.weeds.push(crate::systems::farming::weeds::WeedAreaRow {
+            area: id,
+            level: 0.1,
+            line: "Weeds 10%".into(),
+            controls: vec![("hoe".into(), "Hoe".into(), String::new())],
+            ..Default::default()
+        });
+    }
+    for c in &mut s.crops {
+        let tile = s.garden_pests.outlook.get(&c.entity_bits).map_or(String::new(), |o| o.tile.clone());
+        c.tile_key = super::crop_tile_key(c, &tile);
+    }
+    s
+}
+
+/// A GROUP CHANGED WHILE IT IS OFF SCREEN IS LAID OUT AGAIN, AND SHOWS SO WHEN IT RETURNS
+/// (2026-10-31, the seam review's F: every garden above is static, with no tower designs, beds or
+/// area lines, so neither a change off screen nor the by-slot path was ever drawn here). Drawn at
+/// the top, then, far below the screen, a tile of Tower 30 turns into a plant between picks (two
+/// lines, a taller row; its tile key made again with its row, as the Garden data makes it when the
+/// area's version moves) and Tower 31's weeds line grows long enough to wrap. While they are off
+/// screen the page is the height of the same page laid out whole; scrolled to them, every text is
+/// where the whole page puts it, the new words among them. Seen red 2026-10-31 with the changed
+/// tile's key left as it was (a missed version, the stale-cache bug this guards against): "with
+/// the changes off screen, the content height with skipping differs from the whole page's".
+#[test]
+fn a_group_changed_off_screen_is_laid_out_again_when_it_returns() {
+    let theme = crate::gui::theme::load_theme();
+    let mut state = towers(22);
+    offscreen::set_test_override(Some(true));
+    let skip_ctx = ctx_for(&theme);
+    let first = settled(&skip_ctx, &theme, &state, 0.0);
+    assert!(first.tiles < 40 * 22, "at the top most tiles are off screen and skipped ({} laid out)", first.tiles);
+
+    // The changes, far below the view.
+    let c = state.crops.iter_mut().find(|c| c.tower_id.as_deref() == Some("t30") && c.tower_slot == Some(3)).unwrap();
+    c.stage = "fruiting".into();
+    c.picking = crate::systems::farming::picking::PickRow { card: "picked once".into(), bearing_next_in: Some(2.0) };
+    let tile = state.garden_pests.outlook.get(&c.entity_bits).map_or(String::new(), |o| o.tile.clone());
+    c.tile_key = super::crop_tile_key(c, &tile);
+    state.garden_pests.weeds[31].line = "Weeds 64% · sawdust mulch, 80 garden days left · seed in the soil 1.4x a typical field's · \
+        and a line long enough to wrap at any width this page is drawn at, so the group stands taller"
+        .into();
+    let away = settled(&skip_ctx, &theme, &state, 0.0);
+
+    offscreen::set_test_override(Some(false));
+    let whole_ctx = ctx_for(&theme);
+    let whole = settled(&whole_ctx, &theme, &state, 0.0);
+    assert!(
+        (away.content_h - whole.content_h).abs() <= 1.0,
+        "with the changes off screen, the content height with skipping ({}) differs from the whole page's ({})",
+        away.content_h,
+        whole.content_h
+    );
+
+    // Scrolled to Tower 30 (three quarters of the way down: forty groups of the same size).
+    let at = ((whole.content_h - whole.view_h) * 30.0 / 40.0).round();
+    let whole_there = settled(&whole_ctx, &theme, &state, at);
+    offscreen::set_test_override(Some(true));
+    let back = settled(&skip_ctx, &theme, &state, at);
+    let (a, b) = (visible_texts(&whole_there.output), visible_texts(&back.output));
+    assert!(a.iter().any(|(t, _)| t.starts_with("bearing")), "scrolled there, the changed tile is on screen: {:?}", a.iter().map(|(t, _)| t).collect::<Vec<_>>());
+    assert_eq!(a, b, "scrolled back, the changed groups' texts are where the whole page puts them");
+    assert!((back.content_h - whole_there.content_h).abs() <= 1.0, "and the page is its height: {} vs {}", back.content_h, whole_there.content_h);
+    offscreen::set_test_override(None);
+}

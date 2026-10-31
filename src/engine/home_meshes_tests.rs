@@ -706,3 +706,25 @@ fn a_run_to_a_unit_hung_in_a_double_height_room_ends_at_its_port() {
     }
     assert_eq!(checked, 4, "the shipped homestead runs power and water to g1 and g2");
 }
+
+/// THE GROW AREAS IN SIGHT (2026-10-31, docs/design/farm-clock.md, the readers): the plant meshes
+/// keep only these within a second of now. A camera on the home's floor looking north sees the
+/// tower ahead (and, as the first column of its design, the design's id) and not the bed behind
+/// it; turned south it sees the bed and not the tower. Seen red 2026-10-31 with `areas_in_sight`
+/// answering every machine (the plant meshes' ask as it was, the whole home): "the bed behind the
+/// camera is not in sight".
+#[test]
+fn the_areas_in_sight_are_the_machines_in_the_view() {
+    use crate::terrain::planet_chunks::FrustumPlanes;
+    let spot = |ty: &str, id: &str, z: f32| GrowSpot { ty: ty.into(), id: id.into(), pos: Vec3::new(0.0, 0.0, z), yaw: 0.0, top_y: 2.0, size: (1.0, 2.0, 1.0) };
+    let spots = vec![spot("aeroponic_tower_nutrition", "ntower_0", -20.0), spot("raised_bed", "raised_bed_1", 20.0)];
+    let eye = Vec3::new(0.0, 1.7, 0.0);
+    // The camera's own projection: reverse-Z perspective (renderer/camera.rs).
+    let proj = glam::Mat4::perspective_rh(70f32.to_radians(), 16.0 / 9.0, 10_000.0, 0.05);
+    let look = |at: Vec3| FrustumPlanes::from_view_proj(&(proj * glam::Mat4::look_at_rh(eye, at, Vec3::Y)).as_dmat4());
+    let north = areas_in_sight(&spots, &look(Vec3::new(0.0, 1.7, -10.0)));
+    assert!(north.contains(&"ntower_0".to_string()) && north.contains(&"nutrition".to_string()), "the tower ahead, and its design: {north:?}");
+    assert!(!north.contains(&"raised_bed_1".to_string()), "the bed behind the camera is not in sight: {north:?}");
+    let south = areas_in_sight(&spots, &look(Vec3::new(0.0, 1.7, 10.0)));
+    assert_eq!(south, vec!["raised_bed_1".to_string()], "turned round, only the bed");
+}

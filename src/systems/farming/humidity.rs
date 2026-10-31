@@ -536,13 +536,13 @@ fn room_name(id: &str, display: &str) -> String {
 pub struct AirMap {
     /// The rooms that hold a grow machine, the machines' enclosures (fruiting
     /// tents), and the rooms those stand in.
-    pub rooms: Vec<GrowRoom>,
+    pub rooms: std::sync::Arc<Vec<GrowRoom>>,
     /// For each of `rooms`, the room its air exchanges with: an enclosure's
     /// room (index into `rooms`), or None for the home's air.
-    parent: Vec<Option<usize>>,
+    parent: std::sync::Arc<Vec<Option<usize>>>,
     /// Grow area tag (a machine instance id, or a tower design alias) ->
     /// index into `rooms`.
-    area_room: HashMap<String, usize>,
+    area_room: std::sync::Arc<HashMap<String, usize>>,
     /// The home air's vapour, g/m3, and its relative humidity at its own
     /// temperature.
     pub home_vapour: f64,
@@ -571,13 +571,46 @@ pub struct AirMap {
     pub modules: f64,
 }
 
-impl AirMap {
-    pub fn new(world: &hecs::World, data: &DataStore, d: &HumidityData) -> Self {
+/// The rooms' layout an `AirMap` reads the air through (2026-10-31, docs/design/sim-frame-cost.md,
+/// "FarmingSystem on its own clock", the next cut): which room each grow machine stands in, the
+/// fruiting tents around machines and the rooms they exchange with, the grow rooms' own volume and
+/// the home's rooms counted for its leak. It is worked out from the published room boxes, the grow
+/// plots and the humidity data, matching every grow machine against every room box, and each run
+/// of the farm's body used to do that again (part of a turn's fixed cost). The farm keeps one for
+/// a round of its rotation, and only while `key` is the key of what it would be worked out from
+/// now (`key_now`): the room boxes as published (they change in place, so they are read whole),
+/// and the change stamps of the grow plots and of the humidity data (`DataStore::stamp`).
+#[derive(Debug, Clone, Default)]
+pub struct AirLayout {
+    rooms: std::sync::Arc<Vec<GrowRoom>>,
+    parent: std::sync::Arc<Vec<Option<usize>>>,
+    area_room: std::sync::Arc<HashMap<String, usize>>,
+    /// The grow rooms that keep their own air (no parent room), m3 together.
+    grow_m3: f64,
+    /// The home's own rooms, counted as modules for its leak.
+    modules: f64,
+    /// What it was worked out from (`key_now`).
+    pub key: u64,
+}
+
+impl AirLayout {
+    pub fn new(data: &DataStore, d: &HumidityData) -> Self {
         let boxes: Vec<GrowRoom> = data
             .get::<Mutex<Vec<GrowRoom>>>(ROOMS_KEY)
             .and_then(|m| m.lock().ok().map(|v| v.clone()))
             .unwrap_or_default();
-        let mut map = AirMap::default();
+        let mut rooms: Vec<GrowRoom> = Vec::new();
+        let mut parent: Vec<Option<usize>> = Vec::new();
+        let mut area_room: HashMap<String, usize> = HashMap::new();
+        // `room` as an index into `rooms`, added (exchanging with `up`) if it is not there yet.
+        let mut add = |rooms: &mut Vec<GrowRoom>, parent: &mut Vec<Option<usize>>, room: GrowRoom, up: Option<usize>| -> usize {
+            if let Some(i) = rooms.iter().position(|x| x.id == room.id) {
+                return i;
+            }
+            rooms.push(room);
+            parent.push(up);
+            rooms.len() - 1
+        };
         if let Some(plots) = data.get::<Vec<GrowPlot>>("grow_plots") {
             for p in plots.iter().filter(|p| !p.outdoors) {
                 // The smallest of the home's rooms the machine stands in.
@@ -585,22 +618,71 @@ impl AirMap {
                     .iter()
                     .filter(|r| r.contains(p.pos))
                     .min_by(|a, b| a.volume_m3().total_cmp(&b.volume_m3()))
-                    .map(|r| map.add(r.clone(), None));
+                    .map(|r| add(&mut rooms, &mut parent, r.clone(), None));
                 // A machine in an enclosure grows in the enclosure's air,
                 // which exchanges with that room's (or the home's).
                 let idx = match &p.enclosure {
-                    Some(e) => map.add(tent_box(d, p, e), room),
+                    Some(e) => add(&mut rooms, &mut parent, tent_box(d, p, e), room),
                     None => match room {
                         Some(i) => i,
                         None => continue,
                     },
                 };
-                map.area_room.insert(p.id.clone(), idx);
+                area_room.insert(p.id.clone(), idx);
                 for a in &p.aliases {
-                    map.area_room.entry(a.clone()).or_insert(idx);
+                    area_room.entry(a.clone()).or_insert(idx);
                 }
             }
         }
+        // The grow rooms that keep their own air (tents stand inside rooms and are not counted),
+        // and the home's own rooms as modules for the leak (the home's, not every room of the
+        // ship the engine publishes: 2026-10-21).
+        let grow_m3: f64 = (0..rooms.len()).filter(|i| parent[*i].is_none()).map(|i| rooms[i].volume_m3()).sum();
+        let modules = (boxes.iter().filter(|r| is_home_room(&r.id)).count() as f64).max(1.0);
+        let key = Self::key_of(data, &boxes);
+        Self { rooms: std::sync::Arc::new(rooms), parent: std::sync::Arc::new(parent), area_room: std::sync::Arc::new(area_room), grow_m3, modules, key }
+    }
+
+    /// The key of the layout `new` would work out now.
+    pub fn key_now(data: &DataStore) -> u64 {
+        match data.get::<Mutex<Vec<GrowRoom>>>(ROOMS_KEY).map(|m| m.lock()) {
+            Some(Ok(boxes)) => Self::key_of(data, &boxes),
+            _ => Self::key_of(data, &[]),
+        }
+    }
+
+    fn key_of(data: &DataStore, boxes: &[GrowRoom]) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        data.stamp("grow_plots").hash(&mut h);
+        data.stamp(DATA_KEY).hash(&mut h);
+        boxes.len().hash(&mut h);
+        for r in boxes {
+            r.id.hash(&mut h);
+            r.name.hash(&mut h);
+            r.min.map(f32::to_bits).hash(&mut h);
+            r.max.map(f32::to_bits).hash(&mut h);
+            r.air_changes_per_hour.map(f64::to_bits).hash(&mut h);
+            r.substrate_kg.to_bits().hash(&mut h);
+        }
+        h.finish()
+    }
+}
+
+impl AirMap {
+    pub fn new(world: &hecs::World, data: &DataStore, d: &HumidityData) -> Self {
+        Self::with_layout(world, data, d, &AirLayout::new(data, d))
+    }
+
+    /// The map on a layout worked out already (`AirLayout`, kept by the farm for a round): the
+    /// rooms as laid out there, and the home's air and the weather's as they are now.
+    pub fn with_layout(world: &hecs::World, data: &DataStore, d: &HumidityData, layout: &AirLayout) -> Self {
+        let mut map = AirMap {
+            rooms: layout.rooms.clone(),
+            parent: layout.parent.clone(),
+            area_room: layout.area_room.clone(),
+            ..Default::default()
+        };
         // The home's air: THE home space's, else an Earth-like default.
         use crate::systems::atmosphere::{Atmosphere, EnclosedSpace, HomeAir};
         let home = world
@@ -657,26 +739,15 @@ impl AirMap {
         // home's own, not every room of the ship the engine publishes
         // (2026-10-21: the Commons', the street's and the corridors' made the
         // shipped homestead's 30 rooms 48, and its leak 0.96 kg a day).
-        let grow: f64 = (0..map.rooms.len()).filter(|i| map.parent[*i].is_none()).map(|i| map.rooms[i].volume_m3()).sum();
         let whole = f64::from(volume).max(0.0);
-        map.home_volume_m3 = (whole - grow).max(whole * 0.1);
-        map.modules = (boxes.iter().filter(|r| is_home_room(&r.id)).count() as f64).max(1.0);
+        map.home_volume_m3 = (whole - layout.grow_m3).max(whole * 0.1);
+        map.modules = layout.modules;
         map.outdoor_rh = data
             .get::<Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| f64::from(w.humidity).clamp(0.0, 1.0)));
         map
     }
 
-    /// `room` as an index into `rooms`, added (exchanging with `parent`) if
-    /// it is not there yet.
-    fn add(&mut self, room: GrowRoom, parent: Option<usize>) -> usize {
-        if let Some(i) = self.rooms.iter().position(|x| x.id == room.id) {
-            return i;
-        }
-        self.rooms.push(room);
-        self.parent.push(parent);
-        self.rooms.len() - 1
-    }
 
     /// The vapour, g/m3, of the air room `i` exchanges with: its parent
     /// room's, or the home's.
@@ -1806,6 +1877,21 @@ pub struct GuiView {
 
 impl GuiView {
     pub fn new(world: &hecs::World, data: &DataStore) -> Self {
+        let mut tags: Vec<String> = world
+            .query::<&CropInstance>()
+            .iter()
+            .filter(|(_, c)| c.growth_stage != STAGE_DEAD)
+            .map(|(_, c)| c.tower_id.clone().unwrap_or_default())
+            .collect();
+        tags.sort();
+        tags.dedup();
+        Self::with_areas(world, data, tags)
+    }
+
+    /// The view with a line for each of `tags`, the grow areas with a living crop, sorted, each once
+    /// (2026-10-31, docs/design/sim-frame-cost.md, "The Garden views by area": the Garden page's data
+    /// knows them from its own pass over the crops, and this view walked every crop again for them).
+    pub fn with_areas(world: &hecs::World, data: &DataStore, tags: Vec<String>) -> Self {
         let Some(d) = data.get::<HumidityData>(DATA_KEY) else { return Self::default() };
         let map = AirMap::new(world, data, d);
         let state: HashMap<String, RoomAir> = world
@@ -1824,14 +1910,6 @@ impl GuiView {
         super::heat::stoke(&mut heaters, 0.0);
         // Who powers the air machines (Settings: Ship life support).
         let watts_word = |w: f64| format!("{w:.0} W");
-        let mut tags: Vec<String> = world
-            .query::<&CropInstance>()
-            .iter()
-            .filter(|(_, c)| c.growth_stage != STAGE_DEAD)
-            .map(|(_, c)| c.tower_id.clone().unwrap_or_default())
-            .collect();
-        tags.sort();
-        tags.dedup();
         let pct = |rh: f64| format!("{:.0}%", (rh * 100.0).clamp(0.0, 100.0));
         let areas = tags
             .into_iter()
@@ -1989,8 +2067,15 @@ impl GuiView {
     /// window, and the cap when it is outside. "" when there is no data or
     /// the air there is not known (`AirMap::known_rh`).
     pub fn crop_row(&self, crop: &CropInstance, def: Option<&PlantDef>) -> String {
+        self.row_in(crop.tower_id.as_deref().unwrap_or(""), def)
+    }
+
+    /// What the air of `area` reads for a crop card (`crop_row`): it reads the crop only for its
+    /// area and its species, so every crop of one species in one area shares it, and the Garden
+    /// page's data words it once for each (2026-10-31).
+    pub fn row_in(&self, area: &str, def: Option<&PlantDef>) -> String {
         let Some(d) = &self.data else { return String::new() };
-        let Some(rh) = self.map.known_rh(d, crop.tower_id.as_deref().unwrap_or(""), &self.state) else {
+        let Some(rh) = self.map.known_rh(d, area, &self.state) else {
             return String::new();
         };
         let mut s = format!("{:.0}%", (rh * 100.0).clamp(0.0, 100.0));
@@ -2007,7 +2092,7 @@ impl GuiView {
         }
         // A fungus's carbon dioxide (2026-09-27): stale air costs it its crop.
         if let Some(def) = def.filter(|p| !p.needs_light) {
-            if let Some(ppm) = self.map.known_co2_ppm(d, crop.tower_id.as_deref().unwrap_or(""), &self.state) {
+            if let Some(ppm) = self.map.known_co2_ppm(d, area, &self.state) {
                 let limit = d.fungus_co2_limit_ppm(&def.id);
                 s.push_str(&format!("; CO2 {} ppm", thousands(ppm)));
                 if ppm > limit {
@@ -2020,5 +2105,19 @@ impl GuiView {
             }
         }
         s
+    }
+
+    /// Everything `row_in` reads of `area` that moves: its humidity and its CO2 as known (`AirMap`'s
+    /// `known_rh` and `known_co2_ppm`), to the bit, None as a value of its own. A reader that keeps
+    /// the words of an area's rows keeps them while this, the view's data and its severity hold.
+    pub fn reading(&self, area: &str) -> [u64; 2] {
+        let Some(d) = &self.data else { return [u64::MAX; 2] };
+        let bits = |v: Option<f64>| v.map_or(u64::MAX, f64::to_bits);
+        [bits(self.map.known_rh(d, area, &self.state)), bits(self.map.known_co2_ppm(d, area, &self.state))]
+    }
+
+    /// The view's pest severity, which `row_in` reads for a fungus's CO2 cap.
+    pub fn severity(&self) -> f32 {
+        self.severity
     }
 }

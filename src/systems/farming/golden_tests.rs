@@ -155,6 +155,8 @@ struct Ended {
     past_first_stage: usize,
     pest_areas: usize,
     rooms_tracked: usize,
+    /// The garden's change numbers at the end (versions.rs): which kind of run the body made.
+    versions: super::versions::Versions,
 }
 
 /// The golden garden run TICKS ticks, with the farm's interval (rung 2, farm-clock.md) published
@@ -164,6 +166,8 @@ fn run_at(interval_s: Option<f64>) -> Ended {
     if let Some(s) = interval_s {
         data.insert(super::clock::INTERVAL_KEY, Mutex::new(s));
     }
+    // The change numbers (versions.rs): they record the runs and change nothing the farm does.
+    super::versions::register(&mut data);
     let (mut world, sown) = world(&data);
     let mut sys = FarmingSystem::new();
     let dt = 1.0_f32;
@@ -191,7 +195,8 @@ fn run_at(interval_s: Option<f64>) -> Ended {
         "crops": crops.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
         "memory": memories.into_iter().map(|(_, m)| serde_json::to_value(m).expect("SoilMemory serializes")).collect::<Vec<_>>(),
     });
-    Ended { state: serde_json::to_string(&canonical(all)).expect("the state serializes"), sown, past_first_stage, pest_areas, rooms_tracked }
+    let versions = super::versions::read(&data, |v| v.clone()).expect("registered above");
+    Ended { state: serde_json::to_string(&canonical(all)).expect("the state serializes"), sown, past_first_stage, pest_areas, rooms_tracked, versions }
 }
 
 /// THE GARDEN ENDS IN THE SAME STATE EVERY RUN, AND IN THE RECORDED ONE (the proof the speed work
@@ -235,17 +240,32 @@ fn the_garden_ends_in_the_same_state_every_run_and_in_the_recorded_one() {
     );
 }
 
-/// THE GOLDEN STATE HOLDS AT THE SETTINGS DEFAULT (2026-10-31, docs/design/farm-clock.md rung 2):
-/// the same garden with the farm's interval at every second, the default a player has, ends in the
-/// recorded state too. Its ticks are 8 game hours each (speed 400), far past the interval, so every
-/// area and the air advance every tick through the same one run of the farm's body as with no
-/// interval at all; this pins that the farm's own clock changes nothing then.
+/// A FRAME LONGER THAN THE INTERVAL RUNS THE WHOLE FARM AS ONE (2026-10-31, docs/design/
+/// farm-clock.md rung 2; restated the same day after the seam review's C). The golden garden's
+/// ticks are 8 game hours each (speed 400: 28,800 game seconds in each 1 s frame), far past every
+/// interval Settings offers, so `clock::plan` brings up every area every tick and the farm's body
+/// runs once over the whole farm, exactly as with no interval: that, and only that, is what this
+/// shows, so the golden digest holds with the default interval published. It was named "the golden
+/// state holds at the default interval" as though it exercised the turns there; it never could. The
+/// turns themselves (frames shorter than the interval, each area on its own turn, against the farm
+/// advancing every area every frame) are clock_tests.rs's: `each_area_advances_once_an_interval`,
+/// `every_second_and_every_minute_end_where_every_frame_ends`,
+/// `ten_minutes_and_an_hour_end_where_every_frame_ends` and the readers' tests.
+///
+/// That the turn path never ran is checked, not assumed: every run of the body moves the garden's
+/// change numbers (versions.rs), a whole-farm run the epoch and a run over named areas each area's
+/// own, and here no area's own number ever moves. Seen red 2026-10-31 with the interval published as
+/// `clock::MAX_INTERVAL_S` (a day, longer than a tick: the four areas then advance a day at a time
+/// every third tick, still all together as one) by the end it reaches, "left: 272037 right: 273520"
+/// (the state's length against no interval's).
 #[test]
-fn the_golden_state_holds_at_the_default_interval() {
+fn a_frame_longer_than_the_interval_runs_the_whole_farm_as_one() {
     let every_frame = run_at(None);
     let default = run_at(Some(super::clock::DEFAULT_INTERVAL_S));
+    assert!(default.versions.epoch > 0, "the body ran");
+    assert!(!default.versions.any_area(), "a run over named areas: the turns ran, which this garden's ticks cannot make them do");
     assert_eq!(default.state.len(), every_frame.state.len());
-    assert!(default.state == every_frame.state, "the default interval changed the golden garden's end");
+    assert!(default.state == every_frame.state, "the whole farm in one run ended differently from no interval at all");
     let digest = blake3::hash(default.state.as_bytes()).to_hex().to_string();
     let recorded = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN)).expect("the golden");
     assert!(recorded.contains(&digest), "the default interval's digest {digest} is not the recorded one: {recorded}");
