@@ -91,7 +91,9 @@ count). CI does not set it. To see what a change adds: run the same `cargo check
 --message-format short` with `RUSTFLAGS` unset for main's tree and for yours, each in its own
 `CARGO_TARGET_DIR` in the scratchpad (a `RUSTFLAGS` change rebuilds everything, so never in a
 shared `target/`), keep the `src...: warning` lines without their line and column numbers, and
-compare the two lists by count. Delete the scratch targets after.
+compare the two lists by count. Delete the scratch targets after. The plan (PRIORITIES TIER 0,
+"Rust warnings to zero"): the operator removes the variable, the warnings are cleaned to zero, and
+a ratchet in `just verify` and CI keeps them there; this section goes when that lands.
 
 ## Rigs wait for memory, not for "no builds"
 

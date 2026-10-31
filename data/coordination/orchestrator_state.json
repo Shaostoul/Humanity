@@ -795,6 +795,11 @@
       "date": "2026-10-31",
       "decision": "Garden views critic follow-up merged: F1 crops sorted per area so a hecs reorder rebuilds nothing; F2 a camera screen rendered within 1 s or the Maps page drawing plants settles the whole farm; F3 settles wait for a load hand-over; F4 versions.rs comment corrected; F5 every change case visible, every STAMPED key proven (14 -> 12). The crate split farm leftovers done: budgets and testBudgets empty, 0 wrong-way references anywhere, lib.rs data_dir re-export gone.",
       "why": "F2 takes the whole farm while any camera feed is live rather than each camera frustum: less code than the cost it saves (a feed renders at most 10 Hz and only while framed). Two STAMPED keys came out because no kept row reads them (grow_instances only by commands, which touch every area). Lesson recorded in docs/ai/code-patterns.md: a hecs query order is not stable, and a change test must check the change is visible."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Rust warnings to zero, approved (operator: \"Sounds like we have a reasonable path forward.\"): remove the user RUSTFLAGS=-Awarnings, clean the ~1,070 warning lines to zero (after the stutter and tray-fix agents land, before crate split rung 1), then a ratchet in just verify and CI.",
+      "why": "The flag hid every warning on this PC, so every \"0 warnings\" gate was vacuous, and real defects sat among them (a terrain budget counter never read). The operator asked to be told when it is safe to restart the Claude app (the restart is what makes the removed variable take effect; it stops running agents)."
     }
   ],
   "active_scopes_to_avoid": [
@@ -817,6 +822,7 @@
     "Do NOT re-run the near-tree test suite hunting a ~50% flake. It was a sibling test writing a process-global mid-run, and it is gone by construction now that density is an argument."
   ],
   "things_pending_or_known_gaps": [
+    "TELL THE OPERATOR WHEN IT IS SAFE TO RESTART THE CLAUDE APP (2026-10-31, he asked): safe once no agent is running and nothing of the orchestrator is compiling or booted. The restart makes his removal of the user RUSTFLAGS=-Awarnings take effect (he removes the variable; do not change his environment without his explicit okay). Then every checkout rebuilds once.",
     "RELEASE BLOCKER (2026-10-31): notifications part 2 (22983c236) closing into the tray leaves a voice room or call running with the microphone open, and its in-world banner shows on the Live broadcast. The critic found both (plus Commons duplicate notices, Wayland and no-tray-host hides); the part 2 agent is fixing them. Do NOT cut a release from main until that fix is merged and this line removed.",
     "RELEASES UNSIGNED: v0.1110.2 and v0.1111.1. Operator-only (needs the passphrase). The desktop updater only offers SIGNED releases, so v0.421+ users are still on an older build.",
     "19 stale agent-* worktrees under .claude/worktrees/. Audited 2026-08-04: none could be cheaply proven redundant, so none was removed - clean-worktrees force-deletes branches and has destroyed review-approved work before. The three wf_f9e9bae9-* worktrees WERE proven fully superseded and were removed.",

@@ -246,6 +246,19 @@ In order:
     taskbar flash, and part 1's two leftovers. Next: rung 3 (task, call and game-event kinds,
     per-kind sound); still later, recorded in the design: Windows' taskbar overlay badge, macOS's
     menu-bar count, a click on a notice after the app has quit.
+14. **Rust warnings to zero, then held there (operator, 2026-10-31: "Sounds like we have a
+    reasonable path forward.")** The user environment's `RUSTFLAGS=-Awarnings` hid every warning
+    on this PC (docs/ai/builds.md); main had about 1,070 warning lines: ~530 renamed egui and rand
+    APIs, 211 float literals whose type is guessed (a future-compatibility lint), ~180 unused
+    imports, variables and `mut`s, ~65 items nothing calls, ~36 visibility mismatches, 62 results
+    thrown away (53 in the relay's tests), and a few real ones (lib.rs's `patch_builds_this_frame`
+    is counted and never read, so the terrain build limit "across all bodies" its comment
+    promises is not enforced). The plan: (1) the operator removes the user variable and restarts
+    the Claude app once the running agents are done (the orchestrator tells him when it is safe);
+    (2) one agent cleans to zero, mechanical first, then each never-called item looked at (delete
+    it, or wire it up if it was meant to work; dev tooling stays), after the stutter and tray-fix
+    agents land and before crate split rung 1; (3) a ratchet: `just verify` and CI's relay check
+    fail when a change adds a warning.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches
