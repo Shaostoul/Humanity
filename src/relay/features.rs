@@ -364,9 +364,13 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
     {
         return Some(Feature::Federation);
     }
-    // Web-push preferences belong to push notifications.
+    // The notification switches belong to the chat (2026-10-31): they decide which DMs and
+    // mentions notify on every one of the person's devices, the desktop's own notices included,
+    // not only this server's Web Push. Under Push, a server with Push off never answered them, and
+    // the apps, which notify nothing until they know the switches, never notified there at all.
+    // Whether this server SENDS a Web Push is still the Push feature's (/api/push*).
     if msg_type.ends_with("notification_prefs") || msg_type == "notification_prefs_data" {
-        return Some(Feature::Push);
+        return Some(Feature::Chat);
     }
     // The member directory rides the message plane: friend codes, threads,
     // member lists, profiles and link previews are all chat surfaces, and
@@ -623,6 +627,12 @@ mod tests {
         assert_eq!(ws_message_feature("dm_put"), Some(Feature::Chat));
         assert_eq!(ws_message_feature("dm_fetch"), Some(Feature::Chat));
         assert_eq!(ws_message_feature("dm_purge"), Some(Feature::Chat));
+        // The notification switches decide which DMs and mentions notify on EVERY device (the
+        // desktop's own notices since 2026-10-30), not only Web Push: a server with Push off still
+        // answers them, or the desktop app never notifies there at all (the seams pass).
+        assert_eq!(ws_message_feature("get_notification_prefs"), Some(Feature::Chat));
+        assert_eq!(ws_message_feature("update_notification_prefs"), Some(Feature::Chat));
+        assert_eq!(ws_message_feature("notification_prefs_data"), Some(Feature::Chat));
         // The second door onto the owner's disk, closed by the same switch.
         assert_eq!(ws_message_feature("sync_save"), Some(Feature::VaultBackup));
         assert_eq!(ws_message_feature("sync_load"), Some(Feature::VaultBackup));

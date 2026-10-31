@@ -99,7 +99,11 @@ The checks, in order, each with the reason it reports:
 3. `not_loaded`: the synced switches have not arrived from the server yet, so quiet hours are
    unknown. Nothing fires until they do (asked for at every sign-in on the desktop, and by the
    website's chat once its socket is accepted, so this lasts one round trip). The browser's own
-   copy never counts as loaded: it may be old, or only the defaults (2026-10-30).
+   copy never counts as loaded: it may be old, or only the defaults (2026-10-30). So the server
+   must always answer: the switches belong to its Chat feature, not to Push (2026-10-31,
+   `relay/features.rs`). Under Push, a server whose owner turned Push off never answered, and
+   neither app ever notified there (the seams pass found it). Push still decides whether that
+   server SENDS a Web Push.
 4. `kind_off`: the kind's synced switch is off.
 5. `all_muted`: everything is muted (Settings > Notifications > Mute everything, and the tray's
    Mute from rung 2), DMs included. Then `server_muted`, `room_muted`: a room kind, from a server

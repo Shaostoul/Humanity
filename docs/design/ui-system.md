@@ -81,6 +81,8 @@ the click that locks the win in):
 - Native: `tests/i18n_lint.rs` (in `just lints`), budgets in `tests/i18n_literal_budget.txt`.
   It also fails on a key the code asks for that `en.json` lacks, and on a translation holding a
   key English no longer has. `I18N_DUMP=src/gui/pages/notes.rs` lists a file's remaining words.
+  It reads a call by its NAME, so a local helper named like a UI call (a closure `text("...")`)
+  has its string arguments counted as words on screen: give such a helper another name (`field`).
 - Web: `scripts/tests/i18n-web.test.js` (in `just rig-tests`), budgets in
   `scripts/tests/fixtures/i18n-web-budget.txt`. `node scripts/i18n-web.js --list <file>` lists
   a file's remaining words.
