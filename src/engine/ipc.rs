@@ -616,6 +616,10 @@ impl RequestWatch {
 /// running, the file is in that folder, and it has not been announced: the reader then skips the
 /// file system entirely. A path anywhere else (the tests' own folders) is always checked.
 fn request_may_exist(path: &std::path::Path, now: std::time::Instant) -> bool {
+    // With every reuse off (the Dev page's switch, crate::reuse), every file is checked every frame.
+    if !crate::reuse::enabled() {
+        return true;
+    }
     if !path.is_relative() || path.parent() != Some(std::path::Path::new(REQUEST_DIR)) {
         return true;
     }

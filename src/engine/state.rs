@@ -1225,9 +1225,13 @@ pub(crate) struct DrawBufs {
 }
 
 impl DrawBufs {
-    /// One list, emptied, keeping its capacity.
+    /// One list, emptied, keeping its capacity; a new empty one while the Dev page's "turn off all
+    /// reuse" switch is off (crate::reuse).
     pub(crate) fn take<T>(v: &mut Vec<T>) -> Vec<T> {
         let mut v = std::mem::take(v);
+        if !crate::reuse::enabled() {
+            return Vec::new();
+        }
         v.clear();
         v
     }

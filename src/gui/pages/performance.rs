@@ -26,7 +26,8 @@ use egui::{RichText, ScrollArea};
 use serde::Deserialize;
 
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, pie::{fmt_bytes, fmt_ms, PieSlice, PieSpec}};
+use crate::gui::i18n::t;
+use crate::gui::widgets::{self, pie::{fmt_bytes, fmt_ms, PieSlice, PieSpec}, with_hint};
 use crate::gui::GuiState;
 use crate::renderer::frame_costs::{self, GpuTiming, Snapshot};
 
@@ -354,6 +355,13 @@ pub fn draw_content(ui: &mut egui::Ui, theme: &Theme) {
     );
     ui.add_space(theme.spacing_sm);
 
+    // The one "turn off all reuse" switch (CLAUDE.md's reuse rule, 2026-10-30; crate::reuse).
+    let mut off = !crate::reuse::enabled();
+    if with_hint(ui, "performance.no_reuse_hint", |ui| widgets::toggle(ui, theme, t("performance.no_reuse"), &mut off)) {
+        crate::reuse::set_enabled(!off);
+    }
+    ui.add_space(theme.spacing_sm);
+
     if !snap.has_frames {
         widgets::card(ui, theme, |ui| {
             ui.label(
@@ -555,6 +563,10 @@ mod tests {
     /// `cpu.system.farming`, which already counts their sum. Not rows, for the same reason.
     const FARM_FAMILY_PREFIX: &str = "cpu.farm.";
 
+    /// The Garden data's parts (`cpu.garden.ph_view`, `.crop_rows`, ...) and its page section's
+    /// draw (`cpu.garden.page`): children of `cpu.page_data.garden` and `cpu.screen_ui`. Not rows.
+    const GARDEN_FAMILY_PREFIX: &str = "cpu.garden.";
+
     /// Every `.rs` file under `src/`, recursively.
     fn rust_sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
@@ -703,7 +715,8 @@ mod tests {
                 || REMAINDER_IDS.iter().any(|(r, _)| r == id)
                 || id.starts_with(ECS_FAMILY_PREFIX)
                 || id.starts_with(SPAN_FAMILY_PREFIX)
-                || id.starts_with(FARM_FAMILY_PREFIX);
+                || id.starts_with(FARM_FAMILY_PREFIX)
+                || id.starts_with(GARDEN_FAMILY_PREFIX);
             if !ok {
                 orphans.push(id.clone());
             }

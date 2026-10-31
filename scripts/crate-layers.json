@@ -30,7 +30,8 @@
         "dev_travel",
         "test_temp",
         "test_log",
-        "test_clock"
+        "test_clock",
+        "reuse"
       ],
       "uses": []
     },

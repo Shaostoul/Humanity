@@ -68,6 +68,8 @@ pub mod lod_registry;
 pub mod engine;
 /// Boot-phase timing -> log summary + debug/boot_timing.json (dev tooling).
 pub mod boot_timing;
+/// The one "turn off all reuse" switch every in-memory reuse obeys (CLAUDE.md's reuse rule, 2026-10-30).
+pub mod reuse;
 /// A clock a test moves by hand, for code that decides things by elapsed time
 /// (BUG-152). Test builds only.
 #[cfg(test)]
@@ -9475,6 +9477,7 @@ mod native_app {
                             crate::renderer::sun_disc::aperture_from_setting_mm(state.gui_state.settings.sun_aperture_mm)
                         });
 
+                        crate::renderer::frame_costs::span("cpu.span.sky_bodies");
                         // Temporal clouds (phase 4): cleared each frame; the
                         // cloud branch below re-arms it for the (single)
                         // cloud-bearing body in view - at EVERY altitude
@@ -11246,6 +11249,7 @@ mod native_app {
                             }
                         }
 
+                        crate::renderer::frame_costs::span("cpu.span.sky_orbits");
                         // ── Orbit paths (v0.262.20 — thin world lines) ──
                         // Per frame: offset each cached parent-frame
                         // ellipse to its parent's Earth-relative position
@@ -11367,6 +11371,7 @@ mod native_app {
                         // imperceptible) and keeps every lit hemisphere honest
                         // anywhere in the system.
                         state.sun_world_pos = sun_rel_earth_m;
+                        crate::renderer::frame_costs::span("cpu.span.sky_light");
                         // HULL FRAME (v0.1225), site 2 of 3, and the one that actually
                         // lights the deck. Note this cannot be replaced by "move the
                         // station and let the direction follow": the sun is 1 AU away, so
@@ -12041,6 +12046,7 @@ mod native_app {
                         state.gui_state.attack_pulse_active = false;
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_livestock");
                     // ── Livestock collect bridge (v0.751, ladder rung 7) ──
                     // E on a ready animal or forage moves its product into the
                     // pack, volume-gated: what does not fit stays at the source,
@@ -12099,6 +12105,7 @@ mod native_app {
                         state.gui_state.livestock_notice.clear();
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_melee");
                     // ── Melee swing settle (v0.765) ── F swings the worn
                     // hands-slot weapon (its equipment.csv damage + reach) or
                     // bare hands at the faced creature; the hit rides the one
@@ -12153,6 +12160,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_loot");
                     // ── Loot settle (v0.760, combat arc) ── kills roll their
                     // loot into the loot_drops channel; it lands in the
                     // killer's pack volume-gated (overflow is dropped with an
@@ -12210,6 +12218,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_build");
                     // ── Blueprint building bridges (v0.746, ladder rung 2) ──
                     // Build clicked puts the piece in hand; the ghost, R to turn
                     // and E to build it there live in engine/build_place.rs.
@@ -12257,6 +12266,7 @@ mod native_app {
                     // CraftingSystem and the Crafting page (engine/built_uses.rs).
                     crate::engine::built_uses::publish_stations(state);
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_vendor");
                     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
                     // Live credit balance for the HUD + vendor modal.
                     for (_e, (wallet, _c)) in state
@@ -12364,6 +12374,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_abilities");
                     // ── Abilities bridge (v0.753, ladder rung 8) ──
                     // Cast click -> the ability_request channel AbilitySystem
                     // drains at its tick; the status line rides back the same
@@ -12463,6 +12474,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_armor");
                     // ── Armor from worn gear (v0.761, combat arc) ── the
                     // equipment.csv armor columns populate the player's Armor
                     // component every frame (cheap: a few map sums) so saved
@@ -12497,6 +12509,7 @@ mod native_app {
                         }
                     }
 
+                    crate::renderer::frame_costs::span("cpu.span.settle_equip");
                     // ── Equip/unequip bridge (v0.750, ladder rung 8) ──
                     // Equipping MOVES the item from the pack into the ECS
                     // Outfit (slot from equipment.csv); anything already worn
@@ -12656,6 +12669,7 @@ mod native_app {
                         // door too (ship homes 1b, engine/home_plot.rs).
                         crate::engine::home_plot::respawn_through_relay(state);
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_inventory");
                     // Bridge inventory from the player entity
                     let item_registry = state.data_store.get::<ItemRegistry>("item_registry");
                     for (_entity, (inv, _ctrl)) in state.game_world.world.query::<(&Inventory, &Controllable)>().iter() {
@@ -12677,6 +12691,7 @@ mod native_app {
                             })
                         }).collect();
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_vitals");
                     // Bridge player vitals + active status effects from ECS for the HUD.
                     {
                         let fx_registry = state.data_store.get::<
@@ -12736,6 +12751,7 @@ mod native_app {
                             state.gui_state.vitals.care = crate::systems::wounds::care_lines(effects, fx_registry);
                         }
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_skills");
                     // Bridge player skills (live levels + XP) from ECS for the profile
                     // Skills panel. Reads SkillRegistry for the display name + the
                     // per-level XP curve (xp_needed = XP to reach the next level).
@@ -12775,6 +12791,7 @@ mod native_app {
                             }
                         }
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_quests");
                     // Bridge player quests (active steps + completed) from ECS for
                     // the profile Quests panel.
                     {
@@ -12863,6 +12880,7 @@ mod native_app {
                             }
                         }
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_towers");
                     // The Garden data the Inventory page shows (crops, pests, weeds, the air) is built only on a
                     // frame that draws the Inventory page: engine/garden_mirror.rs (2026-10-30). Here, every frame,
                     // only the one-time tower table.
@@ -12893,6 +12911,7 @@ mod native_app {
                             }
                         }
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_mining");
                     // Bridge asteroids + active mining drones from ECS for the Mining panel.
                     {
                         state.gui_state.asteroids.clear();
@@ -12975,6 +12994,7 @@ mod native_app {
                             state.gui_state.factory_status = status;
                         }
                     }
+                    crate::renderer::frame_costs::span("cpu.span.mirror_drone");
                     // Mining drone, DOCKED at the hangar (v0.639): the operator's "the homestead
                     // should feel like a homestead" ask. `DroneSystem` (systems::mining) is pure
                     // simulation with no visual today; this is the first render of it. The model is
