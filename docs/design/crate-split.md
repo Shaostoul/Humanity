@@ -16,6 +16,12 @@ which crates each may use. `node scripts/crate-graph.js --crates` prints each cr
 Every number here comes from those, from `git log` over the 30 days to 2026-10-30, or from
 `docs/ai/builds.md` ("Measured 2026-10-24"). Re-run before acting: the code moves daily.
 
+**Each crate has a one-page card** ([docs/crates/](../crates/README.md), 2026-10-31; the operator,
+2026-10-30: "Sounds like something we gotta do"): what it owns, its interface and rules, how to test
+it, its open work and the requests other crates have made of it, so an agent dedicated to one crate
+reads one page. Each card's numbers are generated from `scripts/crate-layers.json` and the counting
+above, and `just brief` refreshes them.
+
 ## Why
 
 - **One compile of our crate, cold: 241 s** on the operator's PC. Type checking 46 s and borrow
@@ -231,6 +237,10 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      part A): systems -> engine 27, gui -> engine 20, ship -> systems 19, systems -> gui 12, ship ->
      engine 8, net -> relay 7, systems -> relay 7, ship -> renderer 5, systems -> renderer 5, and
      smaller ones. A test moves up with the crate it reaches, or reaches through the crate under it.
+     The same day the reading gave a file named by a `#[path]` to the module that declares it (the
+     crate cards' work): the GUI's eight test files in `engine/`, such as `engine/household_tests.rs`,
+     had been counted as the engine's, so the tests hold 127 (gui -> engine 22), and 5,143 lines move
+     from the engine's count to the GUI's. Each card's "At a glance" carries its crate's own count.
    - **`crate::data_dir()`** (lib.rs, the engine) is read by about 50 files under the engine (the
      GUI 22, the simulation 20, the ship, the relay, net, media, the word source, cosmos, and the
      engine-folder files the GUI owns, such as low impact); no path counts it, but it must move to

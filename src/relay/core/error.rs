@@ -1,4 +1,4 @@
-//! Error types for humanity-core.
+//! Error types for the protocol core (`relay/core`, the crate split's planned humanity-protocol).
 
 use thiserror::Error;
 
@@ -36,5 +36,5 @@ pub enum Error {
     UnsupportedPayloadEncoding(String),
 }
 
-/// Result type alias for humanity-core operations.
+/// Result type alias for the protocol core's operations.
 pub type Result<T> = std::result::Result<T, Error>;

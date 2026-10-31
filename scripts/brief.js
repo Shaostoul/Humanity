@@ -180,6 +180,15 @@ try {
 } catch {
   L.push('CODE MAP: could not refresh (run: just code-map)');
 }
+// The crate cards (docs/crates/, 2026-10-31): one page per planned crate; their generated blocks are
+// refreshed here with the code map, and the line says which crates have requests waiting.
+try {
+  const r = require('child_process').spawnSync(process.execPath, [require('path').join(__dirname, 'crate-cards.js')], { encoding: 'utf8' });
+  const last = String(r.stdout || '').trim().split('\n').pop() || '';
+  L.push('CRATES:   ' + (r.status === 0 ? last.replace(/^crate cards: /, '') + ' (work inside one crate: read its card first)' : 'could not refresh the cards: ' + (String(r.stdout || '').trim().split('\n')[0] || String(r.stderr || '').trim().split('\n')[0])));
+} catch {
+  L.push('CRATES:   could not refresh the cards (run: just code-map)');
+}
 L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');

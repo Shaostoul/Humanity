@@ -1,4 +1,4 @@
-//! # humanity-core
+//! # The protocol core (`relay/core`; the crate split's planned humanity-protocol, docs/crates/humanity-protocol.md)
 //!
 //! Core types for the Humanity Network:
 //! - Canonical CBOR encoding/decoding
@@ -8,8 +8,8 @@
 //! - Legacy Ed25519 (kept only for the one-time migration bridge and Solana opt-in)
 //! - The immutable signed Object model
 //!
-//! This crate has no network code and no storage code.
-//! It is the foundation that all other Humanity crates build on.
+//! This module has no storage code. It may use only the core (scripts/crate-layers.json):
+//! the server (relay), the app's network side (net) and the GUI build on it.
 
 /// What a picture's or video's hidden information says, in plain words, for the attach step
 /// (2026-10-11): a port of the web's `HosStrip.describe`, held to it by shared fixtures.

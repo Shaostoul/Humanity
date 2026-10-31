@@ -70,6 +70,49 @@ test('a test item in the middle of a file goes, and the code after it stays', ()
   assert.deepStrictEqual(testMods, [{ name: 'sowing_tests', path: null }, { name: 'tests', path: 'falls_tests.rs' }]);
 });
 
+// The readers the crate cards added (2026-10-31, scripts/crate-cards.js).
+const { declaredGates, innerGates, pathDecls, testOnlyCode } = require('../crate-graph.js');
+
+test('a module\'s gates are the cfg attributes on its mod line, never a cfg named in a comment above it', () => {
+  const lib = [
+    '/// Engine-wide on purpose, NOT `#[cfg(native)]`, so every view reads one source.',
+    'pub mod cosmos;',
+    '/// The play journal.',
+    '#[cfg(feature = "native")]',
+    'pub mod play_journal;',
+    '#[cfg(test)]',
+    'pub(crate) mod test_clock;',
+    '',
+    '#[cfg(feature = "relay")]',
+    'pub mod relay;',
+    'pub mod hot_reload;',
+    '#[cfg(test)] #[path = "x_tests.rs"] mod same_line;',
+  ].join('\r\n');
+  const g = declaredGates(lib);
+  assert.deepStrictEqual(g.get('cosmos'), []);
+  assert.deepStrictEqual(g.get('play_journal'), ['feature = "native"']);
+  assert.deepStrictEqual(g.get('test_clock'), ['test']);
+  assert.deepStrictEqual(g.get('relay'), ['feature = "relay"']);
+  assert.deepStrictEqual(g.get('hot_reload'), []);
+  assert.deepStrictEqual(g.get('same_line'), ['test']);
+  assert.deepStrictEqual(innerGates('//! Signed releases.\n#![cfg(feature = "native")]\nuse x;\n'), ['feature = "native"']);
+});
+
+test('a #[path] declaration is read from code, its path from the source, and a commented one is not', () => {
+  const raw = '#[cfg(test)]\n#[path = "household_tests.rs"]\nmod tests;\n// #[path = "old.rs"] mod gone;\n#[path="a/b.rs"] pub(crate) mod b;\n';
+  const { all } = nonTestCode(raw);
+  assert.deepStrictEqual(pathDecls(raw, all), [{ name: 'tests', path: 'household_tests.rs' }, { name: 'b', path: 'a/b.rs' }]);
+});
+
+test('the test reading keeps only the test-gated items, in place', () => {
+  const raw = 'use crate::a;\n#[cfg(test)]\nmod t { use crate::engine::x; }\nfn f() { crate::b(); }\n';
+  const { code, all } = nonTestCode(raw);
+  const tests = testOnlyCode(all, code);
+  assert.strictEqual(tests.length, raw.length);
+  assert.ok(tests.includes('crate::engine::x'));
+  for (const gone of ['crate::a', 'crate::b']) assert.ok(!tests.includes(gone), gone);
+});
+
 test('a declared test module is found where rustc finds it', () => {
   assert.deepStrictEqual(declaredFiles('systems/farming/mod.rs', { name: 'heat_tests', path: null }),
     ['systems/farming/heat_tests.rs', 'systems/farming/heat_tests/mod.rs']);

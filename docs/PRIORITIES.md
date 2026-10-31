@@ -182,12 +182,14 @@ In order:
     edit about 15% (estimates). Rung 0 DONE 2026-10-31: inside the one crate nothing reaches upward
     any more (part A 157 -> 62 references, part B 62 -> 0), and the layer lint
     (`scripts/check-crate-layers.js`, in `just lints`) has empty budgets, so a new wrong-way
-    reference fails it. Next: a one-page card in each crate (what it owns, its interface and rules,
+    reference fails it. A one-page card in each crate (what it owns, its interface and rules,
     how to test it, its open work, requests from other crates: the operator, 2026-10-30, "Sounds
     like something we gotta do"), so an agent dedicated to one crate reads one page instead of
-    catching up on the repo; then rung 1, the Cargo workspace with core and protocol split out
-    (first the backlog in crate-split.md: 125 wrong-way references in test code, `data_dir()` to
-    the core).
+    catching up on the repo: DONE 2026-10-31 (`docs/crates/`, the generated blocks refreshed by
+    `just code-map` and `just brief`, the structure held by `crate-cards.js --check` in `just
+    lints`). Next: rung 1, the Cargo workspace with core and protocol split out (first the backlog
+    in crate-split.md: 127 wrong-way references in test code, `data_dir()` to the core,
+    `release_update.rs` planned for relay but native-only).
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by
@@ -2050,7 +2052,9 @@ load-bearing work.
 4. **A full accessibility audit** against WCAG 2.1 AA. The modes exist in
    `src/gui/theme.rs`; the audit does not.
 5. **Glossary on every page.** 442 terms in `data/glossary.json`; web has the
-   overlay, native has no widget yet.
+   overlay and native the widget (`gui/widgets/glossary_text.rs`, 2026-10-23,
+   docs/design/ui-system.md "The glossary on every page"); what is left is the
+   terms marked `[[term]]` on every page.
 
 ---
 

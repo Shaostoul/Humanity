@@ -38,6 +38,9 @@ For the session the operator talks to directly (it orients, dispatches, merges, 
   per source file; `just brief` refreshes it), then `grep -i <word> docs/ai/code-map.md`. It is a
   map: open the file before relying on a detail. Non-obvious facts about particular files (web
   mirrors of native pages, save files, `sol.json`): the File map in `docs/ai/code-patterns.md`.
+- **work inside one crate's code**: its card, `docs/crates/<crate>.md` (what it owns, its interface
+  and rules, how to test it, its open work, and the requests other crates have made of it). The
+  index is `docs/crates/README.md`; each card's Owns line says which folders are that crate's.
 - **plan or re-plan work**: search `docs/STATUS.md` (built vs planned; never re-plan completed
   work). Page counts live in the heading of `docs/PAGES.md`, the page registry; never trust a copy.
 - **fix a bug**: grep `docs/BUGS.md` for the symptom, the file or the BUG number (over 400 KB).

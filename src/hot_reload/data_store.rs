@@ -1,7 +1,7 @@
 //! In-memory data store — type-erased cache for game data loaded from files.
 //!
-//! The DataStore wraps AssetManager and provides a simpler interface for
-//! game systems that just need to look up loaded data by key.
+//! The DataStore is a plain map from a key to any loaded value: game systems
+//! look up their parsed data by key (it does not reach the asset manager).
 
 use std::collections::HashMap;
 use std::any::Any;

@@ -765,6 +765,11 @@
       "date": "2026-10-31",
       "decision": "Farm clock rung 2 merged: each grow area advances on its own turn (16 turns per interval, systems/farming/clock.rs), the air on its own turn at least every game second; Settings > Gameplay > Garden updates (every frame / second (default) / minute / hour; 6 h and a day not offered, they broke rung 1 bounds). Readers (commands, save, load, Garden page data, plant meshes while aboard) bring their areas to now. FarmingSystem 3.51 -> 0.24 ms a frame. DECIDED at the merge, not asked: a garden in sight is computed as it is looked at, so aboard the station every setting behaves like every second.",
       "why": "The operator's own words settle it: \"only calculate the value of the viewed objects along its timeline\". The interval saves work where nobody looks (off the station now; every home on an MMO server at rung 4). Next: narrow \"looked at\" from aboard_station to the areas in sight, and the budget (0.1 ms avg, 0.5 ms worst): per-crop work and the turns' fixed 0.16 ms (AirMap::new, pollination::Help::now)."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Crate cards merged: docs/crates/<crate>.md for all ten crates plus an index; a generated At a glance block (scripts/crate-cards.js, refreshed by just code-map and just brief) and hand-written rules, tests, open work and a requests mailbox; crate-cards.js --check in just lints holds the structure only. CLAUDE.md Router: work inside one crate, read its card.",
+      "why": "The lint never compares numbers because every code edit moves them (a numbers check would fail every session). just brief now rewrites up to 11 tracked docs as the code moves, like code-map.md: commit them with it. A file belongs to the module that declares it (#[path]), which moved test-code references to 127."
     }
   ],
   "active_scopes_to_avoid": [

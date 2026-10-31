@@ -130,7 +130,48 @@ function nonTestCode(raw) {
     for (let k = m.index; k < end; k++) if (code[k] !== '\n' && code[k] !== '\r') code[k] = ' ';
     re.lastIndex = end;
   }
-  return { code: code.join(''), testMods };
+  // `all` is the whole file as `blankLiterals` gives it, test items included (the crate cards
+  // read test code from the difference, scripts/crate-cards.js).
+  return { code: code.join(''), testMods, all: text };
+}
+
+/** Only the test-gated items of a file: where `all` (literals blanked) and `code` (test items
+ * blanked too) differ, `all`'s text; everywhere else spaces, newlines kept. */
+function testOnlyCode(all, code) {
+  let out = '';
+  for (let k = 0; k < all.length; k++) {
+    const ch = all[k];
+    out += ch === code[k] ? (ch === '\n' || ch === '\r' ? ch : ' ') : ch;
+  }
+  return out;
+}
+
+/** The `cfg(...)` predicates on each file module a source declares (`mod name;`, with or without
+ * `pub`): Map(name -> [predicate, ...]), from the attributes on its line and the lines right above
+ * it (blank lines, comments, doc comments and other attributes between are passed over). Shared
+ * by the default report below and the crate cards (scripts/crate-cards.js). */
+function declaredGates(text) {
+  const lines = text.split(/\r?\n/);
+  const out = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*((?:#\[[^\]]*\]\s*)*)(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_0-9]+)\s*;/);
+    if (!m) continue;
+    const gates = [];
+    for (let j = i - 1; j >= 0; j--) {
+      const t = lines[j].trim();
+      const g = t.match(/^#\[cfg\((.*)\)\]/);
+      if (g) gates.unshift(g[1]);
+      else if (t && !t.startsWith('//') && !t.startsWith('#[')) break;
+    }
+    for (const a of m[1].matchAll(/#\[cfg\((.*?)\)\]/g)) gates.push(a[1]);
+    out.set(m[2], gates);
+  }
+  return out;
+}
+
+/** A module file's own gates: its `#![cfg(...)]` inner attributes (release_update.rs has one). */
+function innerGates(text) {
+  return [...text.matchAll(/^#!\[cfg\((.*)\)\]/gm)].map((m) => m[1]);
 }
 
 /** The files a test-only `mod` declaration in `rel` (a path under src/, `/`-separated) can name:
@@ -145,8 +186,18 @@ function declaredFiles(rel, decl) {
 }
 
 /** The plan's reading of src/: lines per crate, the wrong-way edges ("from -> to" -> Map("module: item" -> count)),
- * and the top-level modules no crate claims. Shared with scripts/check-crate-layers.js (the ratchet). */
-function analyse() {
+ * and the top-level modules no crate claims. Shared with scripts/check-crate-layers.js (the ratchet).
+ * Also, for the crate cards (scripts/crate-cards.js, 2026-10-31): `crossing`, EVERY reference from one
+ * crate into another, allowed or not ("from -> to" -> Map(the path as written after `crate::` -> count)),
+ * counted exactly as the edges are; `files` ({ rel, crate, lines, test, raw, code }); and the plan's
+ * lookups (`crateOf`, `may`, `isTestFile`).
+ * `{ tests: true }` also reads the TEST code in the same pass (test files, and the test-gated items of
+ * the others) into `testEdges`, the wrong-way references rung 1 must move first
+ * (docs/design/crate-split.md, rung 0's "Not counted"). There a `super::` counts only in a test file:
+ * inside an inline `mod tests { }` it names the file's own module, which the file's path alone cannot
+ * tell from its parent, and that module is the code under test, in the same crate. */
+function analyse(opts = {}) {
+  const withTests = !!opts.tests;
   const fs = require('fs');
   const path = require('path');
   const ROOT = path.join(__dirname, '..', 'src');
@@ -184,60 +235,109 @@ function analyse() {
   const parsed = [];
   const testFiles = new Set();
   const testDirs = [];
+  // A file a `#[path = "..."] mod x;` names belongs to the module that declares it, wherever it
+  // sits (2026-10-31, the crate cards): engine/household.rs declares engine/household_tests.rs as
+  // its `tests`, so that file is `engine::household::tests`, the GUI's, not a file of the engine
+  // folder's. file -> { by: the declaring file, name }.
+  const declaredBy = new Map();
   for (const f of files) {
     const rel = path.relative(ROOT, f).replace(/\\/g, '/');
     if (rel === 'build.rs') continue;
     const raw = fs.readFileSync(f, 'utf8');
-    const { code, testMods } = nonTestCode(raw);
+    const { code, testMods, all } = nonTestCode(raw);
     for (const t of testMods) {
       for (const p of declaredFiles(rel, t)) {
         testFiles.add(p);
         testDirs.push(p.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '') + '/');
       }
     }
-    parsed.push({ rel, raw, code });
+    for (const d of pathDecls(raw, all)) {
+      const target = declaredFiles(rel, d)[0];
+      if (!declaredBy.has(target)) declaredBy.set(target, { by: rel, name: d.name });
+    }
+    parsed.push({ rel, raw, code, all });
   }
   const isTestFile = (rel) =>
     /_tests?\.rs$|(^|\/)tests?(\.rs$|\/)/.test(rel) || testFiles.has(rel) || testDirs.some((d) => rel.startsWith(d));
+  // A file's module path: a/b.rs -> a/b, a/b/mod.rs -> a/b, and a `#[path]` file its declarer's
+  // path and the name it was declared by (lib.rs's children sit at the top).
+  const modulePath = (rel, depth = 0) => {
+    const d = declaredBy.get(rel);
+    if (d && depth < 16) {
+      const base = /^(lib|main)\.rs$/.test(d.by) ? '' : modulePath(d.by, depth + 1);
+      return base ? `${base}/${d.name}` : d.name;
+    }
+    return rel.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '');
+  };
   const lines = new Map();
   const edges = new Map(); // "from -> to" -> Map("module: item" -> count)
+  const crossing = new Map(); // "from -> to" -> Map("path::as::written" -> count), allowed ones too
+  const testEdges = new Map(); // as `edges`, in test code (only with { tests: true })
+  const fileList = [];
   let unowned = new Set();
-  for (const { rel, raw, code } of parsed) {
-    // The file's module path: a/b.rs -> a/b, a/b/mod.rs -> a/b.
-    const mod = rel.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '');
+  for (const { rel, raw, code, all } of parsed) {
+    const mod = modulePath(rel);
     const from = crateOf(mod);
     if (!from) { unowned.add(mod.split('/')[0]); continue; }
-    lines.set(from, (lines.get(from) || 0) + raw.split('\n').length);
-    if (isTestFile(rel)) continue;
-    const src = code;
+    const n = raw.split('\n').length;
+    lines.set(from, (lines.get(from) || 0) + n);
+    const test = isTestFile(rel);
+    fileList.push({ rel, mod, crate: from, lines: n, test, raw, code, all });
     // `super::` resolves against this file's module: a/b/c.rs's super is a/b (mod.rs's is a's).
     const selfPath = mod.split('/');
     const parentOf = (n) => selfPath.slice(0, Math.max(0, selfPath.length - n));
-    const refs = [];
-    for (const r of src.matchAll(/crate::([a-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) refs.push(r[1].split('::'));
-    for (const g of src.matchAll(/use\s+crate::\{([^}]*)\}/g)) {
-      for (const part of g[1].split(',')) {
-        const p = part.trim().replace(/\s+as\s+\w+$/, '');
-        if (p) refs.push(p.split('::'));
+    // One reading of the code (never a test file's), and with { tests: true } one of the tests.
+    const readings = [];
+    if (!test) readings.push({ src: code, supers: true, into: edges, cross: crossing });
+    if (withTests) readings.push({ src: test ? all : testOnlyCode(all, code), supers: test, into: testEdges, cross: null });
+    for (const { src, supers, into, cross } of readings) {
+      const refs = [];
+      for (const r of src.matchAll(/crate::([a-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) refs.push(r[1].split('::'));
+      for (const g of src.matchAll(/use\s+crate::\{([^}]*)\}/g)) {
+        for (const part of g[1].split(',')) {
+          const p = part.trim().replace(/\s+as\s+\w+$/, '');
+          if (p) refs.push(p.split('::'));
+        }
+      }
+      if (supers) {
+        for (const r of src.matchAll(/((?:super::)+)([A-Za-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) {
+          const ups = r[1].length / 'super::'.length;
+          refs.push([...parentOf(ups), ...r[2].split('::')]);
+        }
+      }
+      for (const segs of refs) {
+        const lower = [];
+        for (const s of segs) { if (!/^[a-z_0-9]+$/.test(s)) break; lower.push(s); }
+        const to = crateOf(lower.join('/'));
+        if (!to || to === from) continue;
+        const k = `${from} -> ${to}`;
+        if (cross) {
+          const c = cross.get(k) || new Map();
+          const target = segs.join('::');
+          c.set(target, (c.get(target) || 0) + 1);
+          cross.set(k, c);
+        }
+        if (may.get(from).has(to)) continue;
+        const m = into.get(k) || new Map();
+        const item = `${selfPath[0]}: ${segs.join('::')}`;
+        m.set(item, (m.get(item) || 0) + 1);
+        into.set(k, m);
       }
     }
-    for (const r of src.matchAll(/((?:super::)+)([A-Za-z_0-9]+(?:::[A-Za-z_0-9]+)*)/g)) {
-      const ups = r[1].length / 'super::'.length;
-      refs.push([...parentOf(ups), ...r[2].split('::')]);
-    }
-    for (const segs of refs) {
-      const lower = [];
-      for (const s of segs) { if (!/^[a-z_0-9]+$/.test(s)) break; lower.push(s); }
-      const to = crateOf(lower.join('/'));
-      if (!to || to === from || may.get(from).has(to)) continue;
-      const k = `${from} -> ${to}`;
-      const m = edges.get(k) || new Map();
-      const item = `${selfPath[0]}: ${segs.join('::')}`;
-      m.set(item, (m.get(item) || 0) + 1);
-      edges.set(k, m);
-    }
   }
-  return { PLAN, lines, edges, unowned };
+  return { PLAN, lines, edges, unowned, crossing, testEdges, files: fileList, crateOf, may, isTestFile };
+}
+
+/** Every `#[path = "..."] mod name;` in a file's code (comments passed over; `all` is the file as
+ * `blankLiterals` gives it, so the path itself is read from `raw` at the same place). */
+function pathDecls(raw, all) {
+  const out = [];
+  const re = /#\[\s*path\s*=\s*"[^"]*"\s*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_0-9]+)\s*;/g;
+  for (const m of all.matchAll(re)) {
+    const p = /#\[\s*path\s*=\s*"([^"]+)"/.exec(raw.slice(m.index, m.index + m[0].length));
+    if (p) out.push({ name: m[1], path: p[1] });
+  }
+  return out;
 }
 
 if (require.main === module && (process.argv.includes("--edges") || process.argv.includes("--crates"))) {
@@ -263,19 +363,10 @@ if (require.main === module && (process.argv.includes("--edges") || process.argv
   const path = require('path');
   const ROOT = path.join(__dirname, '..', 'src');
   
-  // 1. Top-level modules and their gates, from lib.rs.
-  const lib = fs.readFileSync(path.join(ROOT, 'lib.rs'), 'utf8').split(/\r?\n/);
+  // 1. Top-level modules and their gates, from lib.rs (the reader the crate cards share).
   const mods = new Map();
-  for (let i = 0; i < lib.length; i++) {
-    const m = lib[i].match(/^\s*(?:pub(?:\(crate\))?\s+)?mod\s+([a-z_0-9]+)\s*;/);
-    if (!m) continue;
-    const gates = [];
-    for (let j = i - 1; j >= 0 && j >= i - 6; j--) {
-      const g = lib[j].match(/#\[cfg\((.*)\)\]/);
-      if (g) gates.unshift(g[1]);
-      else if (lib[j].trim() && !lib[j].trim().startsWith('//') && !lib[j].trim().startsWith('#[')) break;
-    }
-    mods.set(m[1], { name: m[1], gate: gates.join(' & ') || 'always', files: [], lines: 0, out: new Map() });
+  for (const [name, gates] of declaredGates(fs.readFileSync(path.join(ROOT, 'lib.rs'), 'utf8'))) {
+    mods.set(name, { name, gate: gates.join(' & ') || 'always', files: [], lines: 0, out: new Map() });
   }
   
   // 2. Files of each module.
@@ -360,4 +451,4 @@ if (require.main === module && (process.argv.includes("--edges") || process.argv
 
 }
 
-module.exports = { analyse, blankLiterals, cfgIsTestOnly, nonTestCode, declaredFiles };
+module.exports = { analyse, blankLiterals, cfgIsTestOnly, nonTestCode, testOnlyCode, declaredFiles, declaredGates, innerGates, pathDecls };

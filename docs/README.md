@@ -64,6 +64,7 @@ pipeline guides live in **[dev/](dev/)**.
 | **[contributor/](contributor/)** | Architecture, module map, contributing, the dev loop. |
 | **[dev/](dev/)** | Content-pipeline how-tos: adding sounds, 3D models, shaders, game data, planets, UI pages; profiling and debug instrumentation. |
 | **[design/](design/)** | System and product design specs (the technical "how"). |
+| **[crates/](crates/)** | One card for each crate the crate split plans: what it owns, its interface and rules, how to test it, its open work, and the requests other crates have made of it. |
 | **[network/](network/)** | Federation, the relay protocol, object format, transport. |
 | **[game/](game/)** | The educational simulation: gameplay, modules, world. |
 | **[accord/](accord/)** | The Humanity Accord (principles, governance, rights). |
