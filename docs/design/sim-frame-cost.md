@@ -92,7 +92,8 @@ structure until rooms or plots change; cache `light_at` per area at night; keep 
 
 After F1-F3: FarmingSystem ~0.5-1.0 ms. **F4 (lower tick rate) changes results** (left Riemann
 `health_seconds`, the 0.2 water-stress crossing, dawn/dusk light gating, feeder steps): keep it for
-headless soaks only.
+headless soaks only. (2026-10-30: docs/design/farm-clock.md rung 1 made those four exact, and found
+more; the `health_seconds` sum was in fact a right one, the end health.)
 
 **Proof first:** a lib test that runs the 1,981-crop showcase ~600 ticks and snapshots the bits of
 every `CropInstance`, `CropSoil` and `SoilMemory`; bit-identical after the change is the proof.

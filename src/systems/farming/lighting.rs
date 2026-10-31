@@ -99,9 +99,16 @@ impl LightingData {
     pub fn lamps_on_at(&self, hour: f32) -> bool {
         let day_h = 24.0 * super::DAYLIGHT_FRACTION;
         let sunset = SUNRISE_H + day_h;
-        let lamp_h = (self.lamp_photoperiod_h - day_h).clamp(0.0, 24.0 - day_h);
         let since_sunset = (f64::from(hour) - sunset).rem_euclid(24.0);
-        since_sunset < lamp_h && since_sunset < 24.0 - day_h
+        since_sunset < self.lamp_hours() && since_sunset < 24.0 - day_h
+    }
+
+    /// Hours the timer keeps the grow lights on after sunset: the photoperiod less the sun's
+    /// hours, within the night. The farming tick cuts its step where they switch off
+    /// (step_path::light_spans, 2026-10-30).
+    pub fn lamp_hours(&self) -> f64 {
+        let day_h = 24.0 * super::DAYLIGHT_FRACTION;
+        (self.lamp_photoperiod_h - day_h).clamp(0.0, 24.0 - day_h)
     }
 }
 
@@ -232,14 +239,22 @@ pub fn light_at(world: &hecs::World, data: &crate::hot_reload::data_store::DataS
     let sun_up = crate::systems::solar::sun_factor(hour) > 0.0;
     let ld = data.get::<LightingData>("garden_lighting");
     let lamps_on = !sun_up && ld.map_or(false, |d| d.lamps_on_at(hour));
-    let cover = match (data.get::<Vec<GrowPlot>>("grow_plots"), ld) {
-        (Some(plots), Some(d)) if lamps_on => {
+    let cover = if lamps_on { lamp_cover(world, data) } else { HashMap::new() };
+    LightNow { sun_up, lamps_on, cover }
+}
+
+/// Each grow area's cover by the powered grow lights, as it is while their timer has them on:
+/// what `light_at` gives after dark, and what the farming tick uses for the lit part of a step
+/// that ends after the lamps go off (2026-10-30, step_path::light_spans). Empty with no lighting
+/// data or no plots.
+pub fn lamp_cover(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore) -> HashMap<String, f64> {
+    match (data.get::<Vec<GrowPlot>>("grow_plots"), data.get::<LightingData>("garden_lighting")) {
+        (Some(plots), Some(d)) => {
             let need = area_needs(world, data.get::<super::PlantRegistry>("plant_registry"), d);
             light_cover(&powered_lights(world), plots, d, &need)
         }
         _ => HashMap::new(),
-    };
-    LightNow { sun_up, lamps_on, cover }
+    }
 }
 
 /// `light_at` for the clock's hour now at the home's longitude (no clock =

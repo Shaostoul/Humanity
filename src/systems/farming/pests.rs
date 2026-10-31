@@ -86,8 +86,13 @@ pub const DEFAULT_PEST_SEVERITY: f32 = 0.5;
 /// starve". A thousandth of a full infestation.
 pub const PREY_GONE: f64 = 1e-3;
 
-/// A pest this rare that the player has not been told about is dropped from
-/// the area, so the saved map does not fill with near-zero entries.
+/// A pest this rare that the player has not been told about, with nothing in
+/// the area to feed on, is dropped from the area, so the saved map does not
+/// fill with near-zero entries. Only with no host (2026-10-30, farm-clock.md
+/// rung 1): a pest arriving on a host starts from nothing, and a frame's
+/// arrivals (0.002 a day for a sixtieth of a game second at normal speed is
+/// about 4e-10) were under this every frame, so it was dropped every frame
+/// and never arrived at all at a short step, while an hour's step kept it.
 const FORGET_BELOW: f64 = 1e-6;
 
 // -- Data: data/garden/pests.ron --------------------------------------------------
@@ -446,6 +451,60 @@ pub fn decay(p: f64, half_life: f64, days: f64) -> f64 {
     p * 0.5f64.powf(days / half_life)
 }
 
+/// Grow a pressure as `grow` does while the natural enemies released in the area take `m` of it
+/// a garden day (a rate: the sum of `-ln(1 - k)` over their cited daily shares `k`), so
+/// dP/dt = (r P + a)(1 - P) - m P, solved exactly the way `grow` is (2026-10-30,
+/// docs/design/farm-clock.md rung 1). Until then a step grew the pressure for the whole step and
+/// then took the enemies' share of the whole step off the result, which is right at a frame's
+/// step and not at a long one (pest_tests.rs measures the gap it left).
+///
+/// The right side is the quadratic -r P^2 + (r - a - m) P + a, whose roots are p1 >= 0 >= p2 (the
+/// constant term a is never negative), so dP/dt = -r (P - p1)(P - p2), and (P - p1) / (P - p2)
+/// shrinks as exp(-r (p1 - p2) t): the pressure runs to p1, where breeding and arrivals balance
+/// what the enemies eat. With no enemies this is `grow` itself, called as it was, so a garden
+/// with none ends exactly where it did.
+pub fn grow_removed(p0: f64, r: f64, a: f64, m: f64, days: f64) -> f64 {
+    let p0 = if p0.is_finite() { p0.clamp(0.0, 1.0) } else { 0.0 };
+    let (r, a) = (r.max(0.0), a.max(0.0));
+    if !(days > 0.0) {
+        return p0;
+    }
+    if !(m > 0.0) {
+        return grow(p0, r, a, days);
+    }
+    if !m.is_finite() {
+        // A share of 1: every one of them eaten at once.
+        return 0.0;
+    }
+    let b = r - a - m;
+    if r <= 0.0 {
+        // No breeding: dP/dt = a - (a + m) P, straight to its balance.
+        let k = a + m;
+        let eq = a / k;
+        return (eq + (p0 - eq) * (-k * days).exp()).clamp(0.0, 1.0);
+    }
+    // The roots, each from the form that does not cancel (their product is -a / r).
+    let disc = (b * b + 4.0 * r * a).sqrt();
+    let (p1, p2) = if b >= 0.0 {
+        let p1 = (b + disc) / (2.0 * r);
+        (p1, if p1 > 0.0 { -a / (r * p1) } else { 0.0 })
+    } else {
+        let p2 = (b - disc) / (2.0 * r);
+        (if p2 < 0.0 { -a / (r * p2) } else { 0.0 }, p2)
+    };
+    let gap = p1 - p2;
+    if !(gap > 0.0) {
+        // A double root at zero (no arrivals, breeding just matched by predation): dP/dt = -r P^2.
+        return (p0 / (1.0 + r * p0 * days)).clamp(0.0, 1.0);
+    }
+    if p0 - p2 <= 0.0 {
+        // At the lower root (zero, with nothing arriving): it stays there.
+        return p0;
+    }
+    let u = (p0 - p1) / (p0 - p2) * (-r * gap * days).exp();
+    ((p1 - u * p2) / (1.0 - u)).clamp(0.0, 1.0)
+}
+
 /// Step one area's pests `days` garden days. `favour_sum[i]` is, for
 /// `data.pests[i]`, the sum of `favour` over the area's `n_crops` living
 /// crops (indexed, not keyed by id, because the tally runs over every crop
@@ -454,6 +513,12 @@ pub fn decay(p: f64, half_life: f64, days: f64) -> f64 {
 /// the area in another crop is 0.5, and it is 0 with no host (the pressure
 /// then decays). A missing entry reads as 0. Returns the ids of the pests
 /// that have just become noticeable (`detect_at`), for the one notice each.
+///
+/// A release that runs out within the step ends the step's first part
+/// (2026-10-30, docs/design/farm-clock.md rung 1): each part runs with the
+/// releases actually there, so a spray's guard, a row cover and the
+/// predators all stop at their own moment at any step length, instead of
+/// working on to the step's end.
 pub fn step_area(
     area: &mut AreaPests,
     data: &PestData,
@@ -461,12 +526,28 @@ pub fn step_area(
     n_crops: usize,
     days: f64,
 ) -> Vec<String> {
-    let mut appeared = Vec::new();
+    let mut appeared: Vec<String> = Vec::new();
     if !(days > 0.0) {
         return appeared;
     }
     // A pest a mod has since removed from pests.ron is forgotten.
     area.pressure.retain(|id, _| data.pest(id).is_some());
+    let mut left = days;
+    while left > 0.0 {
+        let part = area.releases.values().copied().filter(|d| *d > 0.0 && *d < left).fold(left, f64::min);
+        for id in step_part(area, data, favour_sum, n_crops, part) {
+            if !appeared.contains(&id) {
+                appeared.push(id);
+            }
+        }
+        left -= part;
+    }
+    appeared
+}
+
+/// One part of `step_area`, with no release ending inside it.
+fn step_part(area: &mut AreaPests, data: &PestData, favour_sum: &[f64], n_crops: usize, days: f64) -> Vec<String> {
+    let mut appeared = Vec::new();
     for (i, pest) in data.pests.iter().enumerate() {
         let share = if n_crops > 0 {
             (favour_sum.get(i).copied().unwrap_or(0.0) / n_crops as f64).clamp(0.0, 1.0)
@@ -496,24 +577,31 @@ pub fn step_area(
             .filter_map(|cid| data.control(cid).and_then(|c| c.excludes.get(&pest.id)))
             .map(|k| 1.0 - k.clamp(0.0, 1.0))
             .product();
+        // Natural enemies released here keep eating while they last: each
+        // takes its cited share a day, as a rate (`grow_removed`).
+        let eaten: f64 = area
+            .releases
+            .keys()
+            .filter_map(|cid| data.control(cid).and_then(|c| c.removes_per_day.get(&pest.id)))
+            .map(|k| -(1.0 - k.clamp(0.0, 1.0)).ln())
+            .sum();
         st.level = if share > 0.0 {
-            grow(st.level, pest.growth_rate() * share * guard, pest.arrival_per_day * share * guard * shut, days)
+            grow_removed(st.level, pest.growth_rate() * share * guard, pest.arrival_per_day * share * guard * shut, eaten, days)
         } else {
-            decay(st.level, pest.no_host_half_life_days, days)
-        };
-        // Natural enemies released here keep eating while they last.
-        for cid in area.releases.keys() {
-            if let Some(k) = data.control(cid).and_then(|c| c.removes_per_day.get(&pest.id)) {
-                st.level *= (1.0 - k.clamp(0.0, 1.0)).powf(days);
+            let left = decay(st.level, pest.no_host_half_life_days, days);
+            if eaten > 0.0 {
+                left * (-eaten * days).exp()
+            } else {
+                left
             }
-        }
+        };
         if st.level >= data.detect_at && !st.told {
             st.told = true;
             appeared.push(pest.id.clone());
         } else if st.level < data.detect_at / 2.0 {
             st.told = false;
         }
-        if st.level < FORGET_BELOW && !st.told {
+        if st.level < FORGET_BELOW && !st.told && share <= 0.0 {
             area.pressure.remove(&pest.id);
         } else {
             area.pressure.insert(pest.id.clone(), st);

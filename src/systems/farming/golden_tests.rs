@@ -49,7 +49,7 @@ const AREAS: [&str; 4] = ["bed_a", "bed_b", "aeroponic_tower_1", "veg_field_1"];
 
 /// The channels the tick reads, two grow rooms of different size, the four areas as plots, pests
 /// and weeds at a middling severity.
-fn store() -> DataStore {
+pub(super) fn store() -> DataStore {
     let mut data = make_store();
     set_garden_speed(&data, GARDEN_SPEED);
     data.insert("garden_pest_severity", Mutex::new(0.5_f32));
@@ -85,7 +85,7 @@ fn store() -> DataStore {
 /// Every plant in the registry, in id order, sown in every area on its own slot, the sowing times
 /// spread so the garden holds every stage at once. Plus the home's air, two air handlers, the
 /// irrigation and a cistern, as the life-support tests build them.
-fn world(data: &DataStore) -> (hecs::World, usize) {
+pub(super) fn world(data: &DataStore) -> (hecs::World, usize) {
     let reg = data.get::<PlantRegistry>("plant_registry").unwrap();
     let mut ids: Vec<String> = reg.plants.keys().cloned().collect();
     ids.sort();

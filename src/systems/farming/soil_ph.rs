@@ -64,8 +64,17 @@ pub const DEFAULT_SOIL_PH_ON: bool = true;
 /// The pending pool for the acidity of newly added ammonium.
 pub const NITRIFICATION: &str = "nitrification";
 
-/// A pool this small has finished reacting and is dropped.
-const FORGET_BELOW: f64 = 1e-9;
+/// A pool this small has finished reacting: what is left of it reaches the
+/// pH at once and the pool is dropped. 1e-15 of a pH unit, about the
+/// resolution of an f64 pH near 7, so dropping it changes nothing anyone
+/// could ever read. It was 1e-9 until 2026-10-30 (farm-clock.md rung 1),
+/// which was more than the acidity one frame of the feeder's urine adds to a
+/// bed at normal speed: 1.8 g of CaCO3 a gram of N, over 381.1 g a m2 of
+/// buffer, for a 60-day crop drawing this file's reference 16.8 g of N a m2
+/// a season, lit, at 60 frames a second, is about 5e-10 a frame. Each
+/// frame's share was dropped before it could react, so at a short step a fed
+/// bed's pH never moved, while at an hour's step it did.
+const FORGET_BELOW: f64 = 1e-15;
 
 /// Every unit's pH, keyed by grow-area tag then unit index, as in
 /// `SoilMemory::ph`.
@@ -304,9 +313,15 @@ pub fn step_unit(u: &mut UnitPh, data: &SoilPhData, days: f64) {
         let reacted = if h > 0.0 { *left * (1.0 - 0.5f64.powf(days / h)) } else { *left };
         u.ph += reacted;
         *left -= reacted;
+        // What is too small to keep reacts at once rather than vanishing, so
+        // nothing a unit was given is lost however the time is sliced.
+        if left.abs() <= FORGET_BELOW {
+            u.ph += *left;
+            *left = 0.0;
+        }
     }
     u.ph = u.ph.clamp(data.ph_floor, data.ph_ceiling);
-    u.pending.retain(|_, v| v.abs() > FORGET_BELOW);
+    u.pending.retain(|_, v| v.abs() > 0.0);
 }
 
 /// Step every remembered unit `days` garden days.

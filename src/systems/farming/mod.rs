@@ -18,6 +18,7 @@ pub mod humidity;
 pub mod heat;
 pub mod outlook;
 pub mod sowing;
+pub mod step_path;
 #[cfg(test)]
 mod sowing_tests;
 #[cfg(test)]
@@ -41,6 +42,8 @@ pub mod weeds;
 mod weed_tests;
 #[cfg(test)]
 mod golden_tests;
+#[cfg(test)]
+mod step_tests;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -615,6 +618,49 @@ pub fn light_growth_rate(needs_light: bool, outdoors: bool, sun_up: bool, lamp_c
     }
 }
 
+/// The solar hour at the home's longitude, to the precision of the clock's
+/// f64 seconds (2026-10-30, farm-clock.md rung 1): GameTime's own `hour` is
+/// an f32, good to about 7 ms at an evening hour, which would move each
+/// step's sunrise and sunset (step_path::light_spans) by that much from one
+/// tick to the next. The same formula as `GameTime::solar_hour_at`, on the
+/// seconds. Where the clock's hour does not follow its seconds (a test's
+/// default clock reads 08:00 at second 0), the hour wins: it is what the sun,
+/// the panels and the grow lights' timer all read.
+fn solar_hour_fine(gt: &crate::systems::time::GameTime, lon_deg: f64) -> f64 {
+    let day = gt.seconds_per_day();
+    let fine = (gt.elapsed_seconds.rem_euclid(day) / day * 24.0 + lon_deg / 15.0).rem_euclid(24.0);
+    let coarse = f64::from(gt.solar_hour_at(lon_deg));
+    let apart = (fine - coarse).rem_euclid(24.0);
+    if apart.min(24.0 - apart) < 1.0 / 3600.0 {
+        fine
+    } else {
+        coarse
+    }
+}
+
+/// The outdoor climate factor of a FIELD crop of `def` (v0.749, ladder rung
+/// 6) in `season` at `temp_c`: indoor grows (towers, beds, trays, racks) are
+/// climate-controlled and skip it, the tradeoff that justifies indoor
+/// farming. Off-season fields crawl at 25%; temperature outside the plant's
+/// window slows growth toward a 20% floor (5% per degree): slow, not lethal
+/// (death stays water- and acceleration-driven). An empty season or a plant
+/// with no seasons listed is never off-season. It multiplies the crop's
+/// progress, so it is read at each moment, not summed (2026-10-30: taken out
+/// of the tick so a step can read it by day and by night, farm-clock.md rung
+/// 1).
+fn field_climate(def: &PlantDef, season: &str, temp_c: f32) -> f32 {
+    let season_ok = season.is_empty() || def.seasons.is_empty() || def.seasons.iter().any(|s| s.eq_ignore_ascii_case(season));
+    let season_f: f32 = if season_ok { 1.0 } else { 0.25 };
+    let temp_f: f32 = if temp_c < def.temp_min_c {
+        (1.0 - (def.temp_min_c - temp_c) * 0.05).clamp(0.2, 1.0)
+    } else if temp_c > def.temp_max_c {
+        (1.0 - (temp_c - def.temp_max_c) * 0.05).clamp(0.2, 1.0)
+    } else {
+        1.0
+    };
+    season_f * temp_f
+}
+
 /// Game seconds in a garden day: 24 hours of the one game clock
 /// (`time::EARTH_DAY_S`), the day plants.csv `growth_days` and every litre
 /// a day are counted in, whatever the calendar's day length.
@@ -831,14 +877,16 @@ fn clear_dead_keeping_soil(world: &mut hecs::World, dead: Vec<hecs::Entity>, are
 /// Spawn a newly sown crop into its unit, on whatever soil that unit was
 /// left with (soil::recall). A unit with nothing remembered, and a
 /// hand-planted crop with no unit, get fresh soil on the crop's first tick.
+/// Marked as sown at this tick's end (step_path::SownThisTick), so the step
+/// it was not there for neither dries nor ages it.
 fn spawn_in_remembered_soil(world: &mut hecs::World, crop: CropInstance) -> hecs::Entity {
     let remembered = match (&crop.tower_id, crop.tower_slot) {
         (Some(area), Some(slot)) => soil::recall(world, area, slot),
         _ => None,
     };
     match remembered {
-        Some(store) => world.spawn((crop, CropSoil { store, uptake: 0.0 })),
-        None => world.spawn((crop,)),
+        Some(store) => world.spawn((crop, CropSoil { store, uptake: 0.0 }, step_path::SownThisTick)),
+        None => world.spawn((crop, step_path::SownThisTick)),
     }
 }
 
@@ -996,11 +1044,14 @@ impl System for FarmingSystem {
         // same default SolarSystem uses, so nothing is dark by accident.
         // The sun at the home's longitude, the one the deck sees (BUG-090).
         let home_lon = crate::systems::time::home_longitude_deg(data);
-        let (hour, time_scale) = data
+        // And the calendar day's length, which sets how fast the solar dial
+        // turns through the step (24 solar hours a calendar day, whatever its
+        // hours: GameTime::solar_hour).
+        let (hour, hour_fine, time_scale, day_s) = data
             .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
             .and_then(|m| m.lock().ok())
-            .map(|gt| (gt.solar_hour_at(home_lon), gt.time_scale))
-            .unwrap_or((12.0, 1.0));
+            .map(|gt| (gt.solar_hour_at(home_lon), solar_hour_fine(&gt, home_lon), gt.time_scale, gt.seconds_per_day()))
+            .unwrap_or((12.0, 12.0, 1.0, crate::systems::time::EARTH_DAY_S));
         // Outdoor climate inputs (v0.749, ladder rung 6): the current season +
         // live weather temperature, applied to FIELD crops only below. Empty
         // season / absent weather = no penalty (headless tests, early boot).
@@ -1071,10 +1122,9 @@ impl System for FarmingSystem {
         // plot's share of one follows its crops' own light need (plants.csv
         // `dli_target`, 2026-09-26): lighting::light_at.
         let lit_now = lighting::light_at(world, data, hour);
-        let sun_up = lit_now.sun_up;
-        let lamp_cover = lit_now.cover;
         // The timer drives the lights' power too: full draw while on, none
-        // by day or after it switches them off (2026-09-26 review).
+        // by day or after it switches them off (2026-09-26 review). The
+        // electrical sim reads it as the load now.
         for (_e, (gl, pc)) in world.query_mut::<(&crate::ecs::components::GrowLight, &mut crate::ecs::components::PowerConsumer)>() {
             pc.draw_watts = if lit_now.lamps_on { gl.watts } else { 0.0 };
         }
@@ -1083,11 +1133,27 @@ impl System for FarmingSystem {
         // passed. A clock jump (the dev hour set, a save restore) is not a
         // tick and is not light-counted, as it was not before.
         let game_dt = f64::from(dt) * f64::from(time_scale);
-        // The same, for the per-second crop rates (water, health): they run
-        // on the game clock too, so a crop dries in the same game hours at
-        // any time speed. A sustained burn's harm (g_harm_per_sec) stays on
-        // real seconds: it is the ship's acceleration this moment.
-        let game_dt32 = game_dt as f32;
+        // The light through the step (2026-10-30, farm-clock.md rung 1): the
+        // step cut at sunrise, sunset and the lamps' switch-off, which the
+        // clock knows in advance, so a step that spans one counts each part
+        // under its own light (step_path::light_spans). Until then the whole
+        // step took the light of its last moment. A step of no game time is
+        // the moment as it is.
+        let lamp_h = data.get::<lighting::LightingData>("garden_lighting").map_or(0.0, |d| d.lamp_hours());
+        let spans = step_path::light_spans(hour_fine, game_dt, 24.0 / day_s, lamp_h);
+        // Each area's share of the powered grow lights, wherever the step
+        // has them on (the timer's, not only at the step's end).
+        let lamp_cover = if lit_now.lamps_on {
+            lit_now.cover
+        } else if spans.iter().any(|s| s.light == step_path::Light::Lamps) {
+            lighting::lamp_cover(world, data)
+        } else {
+            HashMap::new()
+        };
+        // The per-second crop rates (water, health) run on the game clock
+        // too, so a crop dries in the same game hours at any time speed. A
+        // sustained burn's harm (g_harm_per_sec) stays on real seconds: it is
+        // the ship's acceleration this moment.
         // Rain waters outdoor fields (2026-09-25): litres of water level per
         // second at full intensity; 0 when it is not raining. Only the LIQUID
         // share (2026-09-27, systems::precipitation): whether water falls as
@@ -1339,7 +1405,8 @@ impl System for FarmingSystem {
                 for slot in 0..slots {
                     let frac = slot as f32 / (slots - 1) as f32;
                     let _ = n_stages;
-                    world.spawn((CropInstance {
+                    // Marked sown at this tick's end, like every sowing (step_path::SownThisTick).
+                    world.spawn((step_path::SownThisTick, CropInstance {
                         crop_def_id: plant_id.clone(),
                         growth_stage: stage_from_progress(frac, &stages).to_string(),
                         // Its age on the game clock.
@@ -1350,7 +1417,7 @@ impl System for FarmingSystem {
                         tower_slot: Some(slot),
                         health_seconds: 0.0,
                         growing_seconds: 0.0,
-                    },));
+                    }));
                 }
                 log::info!("[Farming] showcase: {tower_id} filled with staggered {plant_id}");
             }
@@ -2003,25 +2070,31 @@ impl System for FarmingSystem {
         // picked) and, per pest, how much of the area feeds it in the
         // conditions it likes; then each area with crops or pests steps.
         if pest_severity > 0.0 {
-            // Garden days this tick: game time, the clock
-            // the crops ripen on, so a pest's life cycle keeps its real length
-            // against the season. Continuous, not light-gated: pests feed in
-            // the dark too (slugs mostly at night).
-            let pest_days = game_dt / SECONDS_PER_DAY;
+            // Garden days, game time, the clock the crops ripen on, so a
+            // pest's life cycle keeps its real length against the season.
+            // Continuous, not light-gated: pests feed in the dark too (slugs
+            // mostly at night). But an outdoor crop's conditions follow the
+            // sun (the damp of the night, a row cover's warmth by day), so a
+            // step spanning sunrise or sunset steps each area in its parts,
+            // each with the favour its light gives (2026-10-30, farm-clock.md
+            // rung 1: until then the whole step took the light of its end).
+            let suns = step_path::sun_spans(&spans);
+            let (has_sun, has_dark) = (suns.iter().any(|s| s.1), suns.iter().any(|s| !s.1));
             // Per area: living crops, and per pest (by its index in
-            // pests.ron) the summed favour. Indexed so this pass over every
-            // crop allocates nothing per crop.
+            // pests.ron) the summed favour, under the sun and in the dark.
+            // Indexed so this pass over every crop allocates nothing per crop.
             let n_pests = pest_data.pests.len();
-            let mut tally: HashMap<String, (usize, Vec<f64>)> = HashMap::new();
-            for (_e, (c, s)) in world.query::<(&CropInstance, Option<&CropSoil>)>().iter() {
-                if c.growth_stage == STAGE_DEAD {
+            let mut tally: HashMap<String, (usize, Vec<f64>, Vec<f64>)> = HashMap::new();
+            for (_e, (c, s, sown)) in world.query::<(&CropInstance, Option<&CropSoil>, Option<&step_path::SownThisTick>)>().iter() {
+                // A crop sown at the step's end fed nothing through it.
+                if c.growth_stage == STAGE_DEAD || sown.is_some() {
                     continue;
                 }
                 let area = c.tower_id.as_deref().unwrap_or("");
                 let outdoors = is_field_area(area);
                 // The unit's need, against the unit's store.
                 let need_n = need_for(&c.crop_def_id, unit_plants(c)).n;
-                let cond = pests::CropConditions {
+                let cond = |sun_up: bool| pests::CropConditions {
                     outdoors,
                     // Warmer under a row cover (pests::cover_warming, 2026-09-27),
                     // and indoors in air a heater has warmed (2026-10-05, BUG-155,
@@ -2034,8 +2107,13 @@ impl System for FarmingSystem {
                     season: &season,
                     humidity: air_map.rh_for(air_data, area, &room_air),
                 };
+                // Indoors the light changes nothing a pest likes: one set of
+                // conditions serves both. Outdoors, one for each light the
+                // step holds.
+                let lit = (!outdoors || has_sun).then(|| cond(true));
+                let dark = (outdoors && has_dark).then(|| cond(false));
                 if !tally.contains_key(area) {
-                    tally.insert(area.to_string(), (0, vec![0.0; n_pests]));
+                    tally.insert(area.to_string(), (0, vec![0.0; n_pests], vec![0.0; n_pests]));
                 }
                 let entry = tally.get_mut(area).expect("inserted above");
                 entry.0 += 1;
@@ -2044,7 +2122,19 @@ impl System for FarmingSystem {
                 let hosts = plant_tick.get(c.crop_def_id.as_str()).map(|p| &p.2);
                 for (i, pest) in pest_data.pests.iter().enumerate() {
                     let hosted = hosts.map_or_else(|| pest.hosts_plant(&c.crop_def_id), |h| h[i]);
-                    entry.1[i] += pests::favour_hosted(pest, hosted, &cond, pest_data.unfavoured_rate);
+                    let fav = |cond: &pests::CropConditions| pests::favour_hosted(pest, hosted, cond, pest_data.unfavoured_rate);
+                    if outdoors {
+                        if let Some(l) = &lit {
+                            entry.1[i] += fav(l);
+                        }
+                        if let Some(d) = &dark {
+                            entry.2[i] += fav(d);
+                        }
+                    } else if let Some(l) = &lit {
+                        let f = fav(l);
+                        entry.1[i] += f;
+                        entry.2[i] += f;
+                    }
                 }
             }
             let mut areas: Vec<String> = tally.keys().chain(area_pests.keys()).cloned().collect();
@@ -2054,12 +2144,20 @@ impl System for FarmingSystem {
             // pest per tick, however many areas it turned up in.
             let mut appeared: Vec<(String, Vec<String>)> = Vec::new();
             for area in areas {
-                let (n, fav): (usize, &[f64]) = tally.get(&area).map_or((0, &[]), |(n, f)| (*n, f.as_slice()));
+                let (n, lit, dark): (usize, &[f64], &[f64]) =
+                    tally.get(&area).map_or((0, &[], &[]), |(n, l, d)| (*n, l.as_slice(), d.as_slice()));
                 let st = area_pests.entry(area.clone()).or_default();
-                for pest_id in pests::step_area(st, pest_data, fav, n, pest_days) {
-                    match appeared.iter_mut().find(|(p, _)| *p == pest_id) {
-                        Some((_, list)) => list.push(area.clone()),
-                        None => appeared.push((pest_id, vec![area.clone()])),
+                for (secs, up) in &suns {
+                    let fav = if *up { lit } else { dark };
+                    for pest_id in pests::step_area(st, pest_data, fav, n, secs / SECONDS_PER_DAY) {
+                        match appeared.iter_mut().find(|(p, _)| *p == pest_id) {
+                            Some((_, list)) => {
+                                if !list.contains(&area) {
+                                    list.push(area.clone());
+                                }
+                            }
+                            None => appeared.push((pest_id, vec![area.clone()])),
+                        }
                     }
                 }
                 if st.pressure.is_empty() && st.releases.is_empty() {
@@ -2088,7 +2186,13 @@ impl System for FarmingSystem {
         let windows = data
             .get::<picking::HarvestWindows>(picking::DATA_KEY)
             .unwrap_or_else(|| picking::HarvestWindows::shipped());
-        for (entity, (crop, soil_slot)) in world.query_mut::<(&mut CropInstance, Option<&mut CropSoil>)>() {
+        // Where this tick's step began on the clock (farm-clock.md rung 1): the clock moves first
+        // (TimeSystem ticks before this system), so the step is the `game_dt` seconds that ended
+        // at `elapsed_seconds`. A crop's age at the step's start is that, less its planted_at.
+        let step_start = elapsed_seconds - game_dt;
+        for (entity, (crop, soil_slot, sown)) in
+            world.query_mut::<(&mut CropInstance, Option<&mut CropSoil>, Option<&step_path::SownThisTick>)>()
+        {
             // Skip dead crops
             if crop.growth_stage == STAGE_DEAD {
                 continue;
@@ -2102,8 +2206,9 @@ impl System for FarmingSystem {
             // Skip crops already at their final stage (they sit until
             // harvested), except a plant still bearing through its picking
             // window (see `windows` above).
+            let bears = windows.plan(&crop.crop_def_id).is_some();
             if let Some(last) = plant_stages.last() {
-                if crop.growth_stage == *last && windows.plan(&crop.crop_def_id).is_none() {
+                if crop.growth_stage == *last && !bears {
                     continue;
                 }
             }
@@ -2119,9 +2224,94 @@ impl System for FarmingSystem {
                 store: soil::fresh_store(need),
                 uptake: 0.0,
             });
+            // Sown at this tick's end (a Plant button, the showcase): it was not there for the
+            // step, so it gets its soil now and its first step next tick (step_path::SownThisTick).
+            if sown.is_some() {
+                match soil_slot {
+                    Some(s) => *s = crop_soil,
+                    None => new_soil.push((entity, crop_soil)),
+                }
+                continue;
+            }
             // The unit's garden clock: this crop's days to ripening, and how
             // far it has come (for urine's withholding period below).
             let growth_days = def.map_or(0.0, |d| f64::from(d.growth_days));
+            let area = crop.tower_id.as_deref().unwrap_or("");
+            let outdoors = is_field_area(area);
+
+            // LIGHT (2026-09-26): the crop's growth clock runs at the rate
+            // its light allows (see light_growth_rate), under each light the
+            // step holds (farm-clock.md rung 1: until then the whole step ran
+            // at the light of its last moment, so a step spanning sunrise was
+            // all dark or all lit). Growth is read from the crop's age,
+            // elapsed minus planted_at, so the clock is run by moving
+            // planted_at: forward in the dark (the age holds still), back in
+            // the light (the age gains two seconds a second). The same device
+            // the offline catch-up in save_load.rs uses. The dark pauses a
+            // crop; it does not harm it.
+            let needs_light = def.map_or(true, |d| d.needs_light);
+            let cover = lamp_cover.get(area).copied().unwrap_or(0.0);
+            let rate = [step_path::Light::Sun, step_path::Light::Lamps, step_path::Light::Dark]
+                .map(|l| light_growth_rate(needs_light, outdoors, l == step_path::Light::Sun, if l == step_path::Light::Lamps { cover } else { 0.0 }));
+            // Outdoor climate (v0.749, ladder rung 6): FIELD crops face the
+            // season and live weather (`field_climate`); indoor grows are
+            // climate-controlled. A row cover warms a field more by day than
+            // by night (pests::cover_warming), so the factor is taken for each.
+            let climate: [f64; 3] = match def {
+                Some(d) if outdoors => {
+                    let under = |sunlit: bool| {
+                        f64::from(field_climate(d, &season, weather_temp + pests::cover_warming(pest_data, area_pests.get(area), sunlit, pest_severity) as f32))
+                    };
+                    let (day, night) = (under(true), under(false));
+                    [day, night, night]
+                }
+                _ => [1.0; 3],
+            };
+            // Its season in game seconds; 0 when nothing tracks its stage
+            // (no registry, an unknown plant, or no growth_days).
+            let growth_s = match (plant_registry.is_some(), def) {
+                (true, Some(d)) if d.growth_days > 0.0 => d.growth_days as f64 * SECONDS_PER_DAY,
+                _ => 0.0,
+            };
+            let age0 = step_start - crop.planted_at;
+            // What the step will draw. The crop draws its season need in
+            // step with its growth clock (soil::uptake_fraction): nothing in
+            // the dark, and after the offline catch-up the whole time away in
+            // one go. That follows the light, not the health, so it is known
+            // before the health is: the feeder below covers it.
+            let (age_full, clock_full) = step_path::clock_over(&spans, &rate, &climate, age0, growth_s);
+            let uptake_full = if growth_s > 0.0 {
+                soil::uptake_fraction(clock_full as f32, plant_stages.len()).max(crop_soil.uptake)
+            } else {
+                crop_soil.uptake
+            };
+            let draw_share = f64::from(uptake_full - crop_soil.uptake);
+
+            // Weeds (weeds.rs): the cover caps it, hardest in its critical period;
+            // a sawdust or bark mulch over its unit takes nitrogen as it rots.
+            // Taken before the feeder (2026-10-30), so a fed unit is topped up
+            // for it in the same step instead of running a step short.
+            // Its cap reads the crop's growth age halfway through the step
+            // (2026-10-30): its critical period is counted in growth days,
+            // and the age the step began at plus the step's whole game time
+            // overstated it by up to the step (the age stands still in the
+            // dark). `crop_days` reads the age as a clock less planted_at.
+            let age_mid_clock = crop.planted_at + 0.5 * (age0 + age_full);
+            let weed_ceiling = self.weeds.crop_tick(data, &area_weeds, &crop, def, pest_severity, age_mid_clock, weed_days, &mut crop_soil.store, &mut organic);
+            // Compost's slow release first (2026-09-26): the unit's banked
+            // organic N ages by the garden days this crop grows through this
+            // step, and what it gives up joins the store before the feeder and
+            // the draw.
+            if draw_share > 0.0 {
+                if let (Some(tid), Some(slot)) = (&crop.tower_id, crop.tower_slot) {
+                    if let Some(pool) = organic.get_mut(tid).and_then(|m| m.get_mut(&slot)) {
+                        let days = soil::garden_days(growth_days, plant_stages.len(), draw_share);
+                        crop_soil.store.n += soil::release_organic(pool, days, &organic_yearly);
+                    }
+                }
+            }
+            let want = need.scaled(draw_share);
+
             // The feeder, where this area's "nutrient" slider is set: top the
             // unit up to the slider's target, one fertilizer at a time in the
             // listed order, each for the nutrients it is dosed by, from that
@@ -2130,9 +2320,23 @@ impl System for FarmingSystem {
             // then covers the phosphorus and potassium, and any nitrogen urine
             // could not (none in stock, or the crop is within urine's month
             // of harvest).
+            //
+            // It doses for the target PLUS this step's draw (2026-10-30,
+            // farm-clock.md rung 1): a feeder works all the time, so through
+            // a step the unit stays at its target while the crop draws, and
+            // the step ends there. Topping up to the target alone and then
+            // drawing the step left a long step's unit short by its whole
+            // draw, and once that draw passed the target, short in the middle.
+            // A fertilizer with a withholding period (urine) covers only the
+            // part of the draw before the crop comes within it
+            // (`FertilizerDose::share_allowed`); the next in the list covers
+            // the rest.
             if let Some(tid) = &crop.tower_id {
                 if let Some(v) = nutrient.get(tid).copied() {
-                    let target = soil::feed_target(need, v);
+                    let base = soil::feed_target(need, v);
+                    // A slider at 0 feeds nothing, the draw included.
+                    let cover = |share: f64| if v > 0.0 { base.plus(want.scaled(share)) } else { base };
+                    let target = cover(1.0);
                     let days_left = soil::days_to_maturity(growth_days, plant_stages.len(), crop_soil.uptake);
                     let mut could_supply = [false; 3];
                     for dose_def in fertilizer_doses.iter().filter(|d| d.allowed(days_left)) {
@@ -2140,7 +2344,8 @@ impl System for FarmingSystem {
                         for (i, per) in [per_item.n, per_item.p2o5, per_item.k2o].into_iter().enumerate() {
                             could_supply[i] |= dose_def.dose_for[i] && per > 0.0;
                         }
-                        let dose = soil::feed_dose_for(&crop_soil.store, &target, &per_item, dose_def.dose_for);
+                        let its_target = cover(dose_def.share_allowed(growth_days, crop_soil.uptake, uptake_full));
+                        let dose = soil::feed_dose_for(&crop_soil.store, &its_target, &per_item, dose_def.dose_for);
                         if dose <= 0.0 {
                             continue;
                         }
@@ -2194,8 +2399,14 @@ impl System for FarmingSystem {
                     }
                 }
             }
-            // Liebig: the scarcest nutrient caps the crop's health (soil.rs).
-            let (supplied, scarcest) = soil::sufficiency(&crop_soil.store, &need);
+            // Liebig: the scarcest nutrient caps the crop's health (soil.rs),
+            // read at what the unit holds through the step (2026-10-30): a fed
+            // unit is held at its target while the crop draws, which is where
+            // the step leaves it; an unfed one draws down through the step, so
+            // halfway is its average (the step's start overstated it).
+            let fed = crop.tower_id.as_ref().and_then(|t| nutrient.get(t)).map_or(false, |v| *v > 0.0);
+            let reads = soil::partway(&crop_soil.store, &want, if fed { 1.0 } else { 0.5 });
+            let (supplied, scarcest) = soil::sufficiency(&reads, &need);
             let nutrient_ceiling = soil::health_ceiling(supplied);
             if supplied < 1.0 {
                 short_now
@@ -2203,65 +2414,17 @@ impl System for FarmingSystem {
                     .or_insert(scarcest);
             }
 
-            // Dehydration: water level drops over time
-            crop.water_level = (crop.water_level - DEHYDRATION_RATE * game_dt32).max(0.0);
-
-            // Per-area irrigation: if the crop's grow area is configured with a water
-            // target, automated irrigation keeps it topped up to that level. A high
-            // setting holds crops well-watered (healthy, fast growth); a low setting
-            // lets them dehydrate and wilt -- so the garden edit slider is meaningful.
-            // GATED on the home's water sim (v0.611): a dry cistern can't feed the
-            // irrigation, so the top-up is suppressed and the crops dehydrate.
-            //
-            // A grow area with NO slider set is watered by the home's automated
-            // irrigation at DEFAULT_AUTO_IRRIGATION (2026-09-25). Before this an
-            // un-configured area got nothing, so every crop still growing died of
-            // thirst about eight minutes into a session (0.002/s down to the 0.2
-            // stress line, then 100 s of health): the operator's save held 1,575
-            // of 1,976 crops dead of thirst, and a new player's showcase garden
-            // went the same way. A slider still overrides it (set it low to let an
-            // area dry out), a dry cistern still cuts it off, and a crop planted
-            // outside any grow area still needs watering by hand. The rule is
-            // `WaterSupply::holds` (outlook.rs), which the Garden card reads too.
-            if let Some(target) = supply.holds(crop.tower_id.as_deref()) {
-                crop.water_level = crop.water_level.max(target);
-                // The water is real: this unit's daily need, plants.csv's
-                // litres per plant times the plants it holds (2026-09-26;
-                // a 666-plant wheat tray drinks 666 wheat plants' water,
-                // not one), counts toward what the irrigation draws.
-                // And, with ship life support (2026-09-26), the water its
-                // tissue keeps on top of what it breathes out
-                // (life_support.ron, WHAT A CROP KEEPS).
-                if target > 0.0 {
-                    let kept = life.map_or(0.0, |l| l.exchange_for(&crop.crop_def_id).kept_l_per_l) as f32;
-                    irrigation_l_per_day += def
-                        .map_or(0.0, |d| d.water_per_day)
-                        * plants_here as f32
-                        * (1.0 + kept);
-                }
-            }
-            // Rain on an outdoor field (2026-09-25).
-            if rain > 0.0 && crop.tower_id.as_deref().map_or(false, is_field_area) {
-                crop.water_level = (crop.water_level + RAIN_WATER_PER_S * rain * game_dt32).min(1.0);
-            }
-
             // Pests (2026-09-26, pests.rs): each pest in this crop's area that
             // eats it caps its health by its pressure there, the same way a
             // nutrient shortage does, and never below pests::PEST_HEALTH_FLOOR.
             // The lower of the two caps is the one that binds.
             let pest_ceiling = if pest_severity > 0.0 {
-                pests::health_ceiling(
-                    pest_data,
-                    area_pests.get(crop.tower_id.as_deref().unwrap_or("")),
-                    &crop.crop_def_id,
-                    pest_severity,
-                )
+                pests::health_ceiling(pest_data, area_pests.get(area), &crop.crop_def_id, pest_severity)
             } else {
                 100.0
             };
             // Soil pH (soil_ph.rs): outside its window a crop's nutrients are
             // less available, capped the same way; said once per area below.
-            let area = crop.tower_id.as_deref().unwrap_or("");
             let (ph_ceiling, off) = soil_ph::check_crop(&ph_units, ph_data, ph_on, area, crop.tower_slot, def);
             if let Some(o) = off {
                 // The area's String only when it is new to the map (F1: no allocation per crop).
@@ -2269,9 +2432,6 @@ impl System for FarmingSystem {
                     ph_out.insert(area.to_string(), o);
                 }
             }
-            // Weeds (weeds.rs): the cover caps it, hardest in its critical period;
-            // a sawdust or bark mulch over its unit takes nitrogen as it rots.
-            let weed_ceiling = self.weeds.crop_tick(data, &area_weeds, &crop, def, pest_severity, elapsed_seconds, weed_days, &mut crop_soil.store, &mut organic);
             // Humidity (humidity.rs): outside its plants.csv window a crop is
             // gently capped; and a growing, watered crop breathes its day's
             // water into its grow room's air (the room steps after the loop).
@@ -2289,13 +2449,90 @@ impl System for FarmingSystem {
             } else {
                 100.0
             };
-            if crop.water_level >= WATER_STRESS_THRESHOLD {
+            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling).min(co2_ceiling).min(weed_ceiling);
+
+            // WATER. Dehydration: the level drops over time. Rain on an
+            // outdoor field (2026-09-25) adds to it. Per-area irrigation: if
+            // the crop's grow area is configured with a water target,
+            // automated irrigation keeps it topped up to that level. A high
+            // setting holds crops well-watered (healthy, fast growth); a low
+            // setting lets them dehydrate and wilt -- so the garden edit
+            // slider is meaningful. GATED on the home's water sim (v0.611): a
+            // dry cistern can't feed the irrigation, so the top-up is
+            // suppressed and the crops dehydrate.
+            //
+            // A grow area with NO slider set is watered by the home's automated
+            // irrigation at DEFAULT_AUTO_IRRIGATION (2026-09-25). Before this an
+            // un-configured area got nothing, so every crop still growing died of
+            // thirst about eight minutes into a session (0.002/s down to the 0.2
+            // stress line, then 100 s of health): the operator's save held 1,575
+            // of 1,976 crops dead of thirst, and a new player's showcase garden
+            // went the same way. A slider still overrides it (set it low to let an
+            // area dry out), a dry cistern still cuts it off, and a crop planted
+            // outside any grow area still needs watering by hand. The rule is
+            // `WaterSupply::holds` (outlook.rs), which the Garden card reads too.
+            //
+            // All three are one line through the step (step_path::WaterPath,
+            // 2026-10-30): the irrigation holds the level up, the rain and the
+            // drying move it, and the crop's water stress starts (or ends) at
+            // the moment the level crosses the stress line, not at the step's end.
+            let held = supply.holds(crop.tower_id.as_deref());
+            let rain_gain = if rain > 0.0 && outdoors { f64::from(RAIN_WATER_PER_S * rain) } else { 0.0 };
+            let water = step_path::WaterPath::new(f64::from(crop.water_level), rain_gain - f64::from(DEHYDRATION_RATE), held.map(f64::from));
+
+            // HEALTH, its season record, its light clock and its stage, along
+            // the step's path (step_path::walk, farm-clock.md rung 1). Water
+            // stress decays health; well watered, health recovers as far as
+            // its nutrients and pests allow (100 when fed and pest-free, so
+            // unchanged for a healthy crop); watered but short of a nutrient
+            // or eaten by a pest, health eases down to what the cap allows,
+            // slowly, and never below the floors (soil::NUTRIENT_HEALTH_FLOOR,
+            // pests::PEST_HEALTH_FLOOR). A shortage or an infestation stunts;
+            // it does not kill. Fertilize, or knock the pest back, and the cap
+            // lifts at once.
+            let path = step_path::walk(&step_path::CropPathIn {
+                spans: &spans,
+                rate,
+                climate,
+                water,
+                health: f64::from(crop.health),
+                ceiling: f64::from(ceiling),
+                age: age0,
+                growth_s,
+                stop_when_ripe: !bears,
+            });
+            // The share of the step it lived through (all of it, unless it
+            // died or ripened partway), and the share it was watered. A step
+            // of no game time (the clock held) counts the moment as it is.
+            let (lived, watered, photo_rate) = if game_dt > 0.0 {
+                (path.alive_s / game_dt, path.unstressed_s / game_dt, path.photo_s / game_dt)
+            } else {
+                let now = spans.first().map_or(step_path::Light::Sun, |s| s.light);
+                let w = if crop.water_level >= WATER_STRESS_THRESHOLD { 1.0 } else { 0.0 };
+                (1.0, w, w * rate[now.index()] * f64::from((crop.health / 100.0).max(0.1)))
+            };
+
+            // The irrigation water is real: this unit's daily need,
+            // plants.csv's litres per plant times the plants it holds
+            // (2026-09-26; a 666-plant wheat tray drinks 666 wheat plants'
+            // water, not one), counts toward what the irrigation draws. And,
+            // with ship life support (2026-09-26), the water its tissue keeps
+            // on top of what it breathes out (life_support.ron, WHAT A CROP
+            // KEEPS). For the part of the step it lived through.
+            if let Some(target) = held {
+                if target > 0.0 {
+                    let kept = life.map_or(0.0, |l| l.exchange_for(&crop.crop_def_id).kept_l_per_l) as f32;
+                    irrigation_l_per_day += def.map_or(0.0, |d| d.water_per_day) * plants_here as f32 * (1.0 + kept) * lived as f32;
+                }
+            }
+            if watered > 0.0 {
+                // Its breath, for the part of the step it was watered.
                 let litres = def.map_or(0.0, |d| f64::from(d.water_per_day)) * f64::from(plants_here);
                 // An area's String is made only the first time it enters a map (F1).
                 match breathed.get_mut(area) {
-                    Some(v) => *v += litres,
+                    Some(v) => *v += litres * watered,
                     None => {
-                        breathed.insert(area.to_string(), 0.0 + litres);
+                        breathed.insert(area.to_string(), 0.0 + litres * watered);
                     }
                 }
                 // Ship life support (2026-09-26): through the same pores a
@@ -2303,26 +2540,24 @@ impl System for FarmingSystem {
                 // proportion to the water it breathes out (NASA's measured
                 // ratio per litre, life_support.ron), in its lit hours at its
                 // light rate and in proportion to its health: the two things
-                // its growth follows. A fungus instead has its tent's substrate
+                // its growth follows (both along the step's path,
+                // `photo_rate`). A fungus instead has its tent's substrate
                 // breathe (humidity::step_rooms).
                 if let (Some(l), Some(dd)) = (life, def) {
                     if dd.needs_light {
-                        let cover = lamp_cover.get(area).copied().unwrap_or(0.0);
-                        let lit = light_growth_rate(true, is_field_area(area), sun_up, cover);
-                        let health = f64::from((crop.health / 100.0).max(0.1));
                         let x = l.exchange_for(&crop.crop_def_id);
                         if !air_step.photo.contains_key(area) {
                             air_step.photo.insert(area.to_string(), (0.0, 0.0));
                         }
                         if let Some(e) = air_step.photo.get_mut(area) {
-                            e.0 += litres * x.co2_g_per_l * lit * health;
-                            e.1 += litres * x.o2_g_per_l * lit * health;
+                            e.0 += litres * x.co2_g_per_l * photo_rate;
+                            e.1 += litres * x.o2_g_per_l * photo_rate;
                         }
                     } else {
                         // Its blocks (or square feet of bed) breathe, each at
                         // its species' rate (2026-09-27, humidity.ron THE
                         // FUNGI'S BREATH): only what is planted.
-                        let g = air_data.fungus_co2_g_h(&crop.crop_def_id) * f64::from(plants_here);
+                        let g = air_data.fungus_co2_g_h(&crop.crop_def_id) * f64::from(plants_here) * watered;
                         match air_step.fungi.get_mut(area) {
                             Some(v) => *v += g,
                             None => {
@@ -2332,51 +2567,54 @@ impl System for FarmingSystem {
                     }
                 }
             }
-            let ceiling = nutrient_ceiling.min(pest_ceiling).min(ph_ceiling).min(air_ceiling).min(co2_ceiling).min(weed_ceiling);
 
-            // Health effects from water level, capped by nutrients and pests.
-            if crop.water_level < WATER_STRESS_THRESHOLD {
-                // Water stress -- health decays
-                crop.health = (crop.health - HEALTH_DECAY_RATE * game_dt32).max(0.0);
-            } else if crop.health < ceiling {
-                // Well watered -- health recovers, as far as its nutrients
-                // and pests allow (100 when fed and pest-free, so unchanged
-                // for a healthy crop).
-                crop.health = (crop.health + HEALTH_RECOVERY_RATE * game_dt32).min(ceiling);
-            } else {
-                // Watered but short of a nutrient or eaten by a pest: health
-                // eases down to what the cap allows, slowly, and never below
-                // the floors (soil::NUTRIENT_HEALTH_FLOOR,
-                // pests::PEST_HEALTH_FLOOR). A shortage or an infestation
-                // stunts; it does not kill. Fertilize, or knock the pest
-                // back, and the cap lifts at once.
-                crop.health = (crop.health - soil::NUTRIENT_DECLINE_RATE * game_dt32).max(ceiling);
-            }
+            crop.water_level = path.water as f32;
+            crop.health = path.health as f32;
+            // Season health record (2026-09-26): the running total of health
+            // over the growing season the harvest reads (see season_health),
+            // now the exact integral of the path (2026-10-30; it was the
+            // health the tick ended at, times the whole tick). Mature crops
+            // never reach this line (skipped above), so the record covers the
+            // growing season and nothing after it, except a plant bearing
+            // through its picking window: its record keeps running, so a
+            // drought shows in its health, can kill it, and lowers the picks
+            // after it: each pick is scaled by the season health and fruit set
+            // at that pick (the harvest path; the season's place in the yield
+            // range is the one thing rolled once, picking.rs).
+            crop.health_seconds += path.health_s;
+            crop.growing_seconds += path.alive_s;
+            let mut died = path.died;
 
             // Sustained acceleration snaps stems and collapses trellises: a
             // ship-wide scalar eating crop health until something gives. Silent at cruise, lethal during an evasion
             // burn -- which makes "the farm dies if you run from the missile" a
-            // consequence of the flight plan rather than a scripted event.
-            if g_harm_per_sec > 0.0 {
+            // consequence of the flight plan rather than a scripted event. On
+            // real seconds, the burn's own, at the step's end.
+            if g_harm_per_sec > 0.0 && !died {
                 crop.health = (crop.health - g_harm_per_sec * dt).max(0.0);
+                died = crop.health <= 0.0;
             }
 
-            // Season health record (2026-09-26): every tick of growth adds
-            // this tick's health to the running total the harvest reads (see
-            // season_health). Taken after every stress above so a tick spent
-            // thirsty, in RF or under a burn counts at the health it left the
-            // crop with. Mature crops never reach this line (skipped above),
-            // so the record covers the growing season and nothing after it,
-            // except a plant bearing through its picking window: its record
-            // keeps running, so a drought shows in its health, can kill it,
-            // and lowers the picks after it: each pick is scaled by the season
-            // health and fruit set at that pick (the harvest path; the season's
-            // place in the yield range is the one thing rolled once, picking.rs).
-            crop.health_seconds += f64::from((crop.health / 100.0).clamp(0.0, 1.0)) * game_dt;
-            crop.growing_seconds += game_dt;
+            // The light clock: planted_at put where the path left the crop's
+            // age (where it stopped, if it died or ripened partway), clamped so
+            // a crop is never planted in the future.
+            let stopped_at = if path.died || path.ripened { step_start + path.alive_s } else { elapsed_seconds };
+            crop.planted_at = (stopped_at - path.age).min(elapsed_seconds);
+
+            if growth_s > 0.0 {
+                // The draw, as far as its clock got: what the feeder covered
+                // for a crop that lived the step, less for one that died
+                // partway. What the unit cannot give the crop goes without;
+                // the cap above already says so.
+                let drawn_by_now = soil::uptake_fraction(path.max_clock as f32, plant_stages.len());
+                if drawn_by_now > crop_soil.uptake {
+                    soil::draw(&mut crop_soil.store, need.scaled(f64::from(drawn_by_now - crop_soil.uptake)));
+                    crop_soil.uptake = drawn_by_now;
+                }
+            }
 
             // If health hits zero, crop dies
-            if crop.health <= 0.0 {
+            if died {
                 crop.growth_stage = STAGE_DEAD.to_string();
                 match soil_slot {
                     Some(s) => *s = crop_soil,
@@ -2385,128 +2623,28 @@ impl System for FarmingSystem {
                 continue;
             }
 
-            // LIGHT (2026-09-26): run this crop's growth clock at the rate
-            // its light allows (see light_growth_rate). Growth below is read
-            // from the crop's age, elapsed minus planted_at, so the clock is
-            // run by moving planted_at: forward by this tick's game time in
-            // the dark (the age holds still), back by it in the light (the
-            // age gains two seconds a second). The same device the offline
-            // catch-up in save_load.rs uses. Clamped so a crop is never
-            // planted in the future. Health, water and the season record
-            // above are untouched: the dark pauses a crop, it does not harm
-            // it.
-            let outdoors = crop.tower_id.as_deref().map_or(false, is_field_area);
-            let needs_light = def.map_or(true, |d| d.needs_light);
-            let cover = crop.tower_id.as_deref().and_then(|t| lamp_cover.get(t)).copied().unwrap_or(0.0);
-            let light_rate = light_growth_rate(needs_light, outdoors, sun_up, cover);
-            crop.planted_at = (crop.planted_at + game_dt * (1.0 - light_rate)).min(elapsed_seconds);
-
-            // Calculate growth progress based on elapsed time since planting
-            if plant_registry.is_some() {
-                if let Some(plant_def) = def {
-                    // Total growth time in game seconds
-                    let growth_seconds = plant_def.growth_days as f64 * SECONDS_PER_DAY;
-
-                    if growth_seconds > 0.0 {
-                        let age = elapsed_seconds - crop.planted_at;
-                        let progress = (age / growth_seconds) as f32;
-
-                        // Health-weighted progress: unhealthy crops grow slower.
-                        // Nutrients act through this (and through the season
-                        // health the harvest reads): a crop short of its
-                        // scarcest nutrient has its health capped above, so it
-                        // grows slower and yields less. The "nutrient" slider's
-                        // old direct growth multiplier (0.5x..1.5x, until
-                        // 2026-09-26) is gone: the slider now runs the feeder,
-                        // and past sufficiency more feed grows nothing faster.
-                        let health_factor = (crop.health / 100.0).max(0.1);
-                        // Outdoor climate (v0.749, ladder rung 6): FIELD crops
-                        // face the season + live weather; indoor grows (towers,
-                        // beds, trays, racks) are climate-controlled and skip
-                        // this — the tradeoff that justifies indoor farming.
-                        // Off-season fields crawl at 25%; temperature outside
-                        // the plant's window slows growth toward a 20% floor
-                        // (5% per degree) — slow, not lethal (death stays
-                        // water/RF-driven).
-                        // A row cover warms the field under it (pests::
-                        // cover_warming, 2026-09-27): growth in the cool,
-                        // heat stress in summer.
-                        let weather_temp = weather_temp
-                            + pests::cover_warming(pest_data, area_pests.get(crop.tower_id.as_deref().unwrap_or("")), sun_up, pest_severity) as f32;
-                        let climate_factor = if crop
-                            .tower_id
-                            .as_deref()
-                            .map_or(false, is_field_area)
-                        {
-                            let season_ok = season.is_empty()
-                                || plant_def.seasons.is_empty()
-                                || plant_def
-                                    .seasons
-                                    .iter()
-                                    .any(|s| s.eq_ignore_ascii_case(&season));
-                            let season_f: f32 = if season_ok { 1.0 } else { 0.25 };
-                            let temp_f: f32 = if weather_temp < plant_def.temp_min_c {
-                                (1.0 - (plant_def.temp_min_c - weather_temp) * 0.05)
-                                    .clamp(0.2, 1.0)
-                            } else if weather_temp > plant_def.temp_max_c {
-                                (1.0 - (weather_temp - plant_def.temp_max_c) * 0.05)
-                                    .clamp(0.2, 1.0)
-                            } else {
-                                1.0
-                            };
-                            season_f * temp_f
-                        } else {
-                            1.0
-                        };
-                        // The clock is the only speed: a crop at time speed
-                        // 72 ripens 72 times sooner in real time, and so does
-                        // everything it drinks and breathes.
-                        let clock_progress = progress * climate_factor;
-                        let effective_progress = clock_progress * health_factor;
-
-                        // The crop draws its season need in step with its
-                        // growth clock (soil::uptake_fraction): nothing in the
-                        // dark, ten times as fast at 10x, and after the offline
-                        // catch-up the whole time away in one go, so growth
-                        // made while the player was away is paid for from the
-                        // unit on return. What the unit cannot give the crop
-                        // goes without; the cap above already says so.
-                        let drawn_by_now =
-                            soil::uptake_fraction(clock_progress, plant_stages.len());
-                        if drawn_by_now > crop_soil.uptake {
-                            let step = f64::from(drawn_by_now - crop_soil.uptake);
-                            // Compost's slow release first (2026-09-26): the
-                            // unit's banked organic N ages by the garden days
-                            // this crop just grew through, and what it gives
-                            // up joins the store in time for this draw.
-                            if let (Some(tid), Some(slot)) = (&crop.tower_id, crop.tower_slot) {
-                                if let Some(pool) = organic.get_mut(tid).and_then(|m| m.get_mut(&slot)) {
-                                    let days = soil::garden_days(growth_days, plant_stages.len(), step);
-                                    crop_soil.store.n += soil::release_organic(pool, days, &organic_yearly);
-                                }
-                            }
-                            let want = need.scaled(step);
-                            soil::draw(&mut crop_soil.store, want);
-                            crop_soil.uptake = drawn_by_now;
-                        }
-
-                        let new_stage =
-                            stage_from_progress(effective_progress, &plant_stages);
-
-                        // Only advance forward, never regress (except to Dead)
-                        let current_idx = stage_index(&crop.growth_stage, &plant_stages);
-                        let new_idx = stage_index(new_stage, &plant_stages);
-
-                        if let (Some(cur), Some(nxt)) = (current_idx, new_idx) {
-                            if nxt > cur {
-                                crop.growth_stage = new_stage.to_string();
-                                log::debug!(
-                                    "Crop {} advanced to {}",
-                                    crop.crop_def_id,
-                                    crop.growth_stage
-                                );
-                            }
-                        }
+            // Its stage, from the highest effective progress the path reached
+            // (age x climate x health factor over the season). Health-weighted
+            // progress: unhealthy crops grow slower. Nutrients act through
+            // this (and through the season health the harvest reads): a crop
+            // short of its scarcest nutrient has its health capped above, so
+            // it grows slower and yields less. The "nutrient" slider's old
+            // direct growth multiplier (0.5x..1.5x, until 2026-09-26) is gone:
+            // the slider now runs the feeder, and past sufficiency more feed
+            // grows nothing faster. The clock is the only speed: a crop at
+            // time speed 72 ripens 72 times sooner in real time, and so does
+            // everything it drinks and breathes. Only forward, never back
+            // (except to Dead): the running maximum is what many short steps
+            // keep, so a crop that crossed a stage boundary while healthy
+            // keeps that stage through a later dip.
+            if growth_s > 0.0 {
+                let new_stage = stage_from_progress(path.max_eff as f32, plant_stages);
+                let current_idx = stage_index(&crop.growth_stage, plant_stages);
+                let new_idx = stage_index(new_stage, plant_stages);
+                if let (Some(cur), Some(nxt)) = (current_idx, new_idx) {
+                    if nxt > cur {
+                        crop.growth_stage = new_stage.to_string();
+                        log::debug!("Crop {} advanced to {}", crop.crop_def_id, crop.growth_stage);
                     }
                 }
             }
@@ -2517,6 +2655,11 @@ impl System for FarmingSystem {
             }
         }
         drop(home_stock);
+        // The sowing markers come off the crops this tick sowed: from the next tick they grow.
+        let sown_now: Vec<hecs::Entity> = world.query::<&step_path::SownThisTick>().iter().map(|(e, _)| e).collect();
+        for e in sown_now {
+            let _ = world.remove_one::<step_path::SownThisTick>(e);
+        }
         // The grow rooms' air takes in what the crops breathed out and loses
         // it to the home's air through leakage and fans, on the game clock
         // (humidity.rs; its fans' draw is set here too). Its humidifiers run
@@ -4058,9 +4201,12 @@ mod gardening_tests {
     /// Why lit time counts double: over a whole natural day, a crop under
     /// the sun gains exactly one day of growth, so plants.csv growth_days
     /// (calendar days, nights included) stay true. Holds for a field and
-    /// for an indoor tower with no grow light (lit by the skylight); within
-    /// a tick either side, since the sun is sampled once a tick and is down
-    /// on the exact second of sunrise and of sunset.
+    /// for an indoor tower with no grow light (lit by the skylight). Exactly
+    /// since 2026-10-30 (farm-clock.md rung 1: each tick is cut at sunrise
+    /// and sunset, step_path::light_spans); until then it held only within a
+    /// tick either side, since the sun was sampled once a tick, at its end,
+    /// and the tick ending on the second of sunset read the sun as down and
+    /// counted its lit 72 s as dark.
     #[test]
     fn a_natural_day_grows_a_crop_exactly_one_day() {
         let mut data = make_store();
@@ -4076,7 +4222,7 @@ mod gardening_tests {
         for e in crops {
             let age = growth_age(&world, e, &data);
             assert!(
-                (age - SECONDS_PER_DAY).abs() <= 2.0 * TICK_S,
+                (age - SECONDS_PER_DAY).abs() < 1e-6,
                 "a day of sun and night is one day of growth, got {age} s of {SECONDS_PER_DAY}"
             );
         }
@@ -4109,8 +4255,9 @@ mod gardening_tests {
         assert!(shed_tower.abs() < 1e-6, "a shed grow light gives no light, age {shed_tower}");
         // The timer (lighting.ron lamp_photoperiod_h 18) runs it 19:00 to
         // midnight of this 19:00-04:00 night: five lit hours at 2x, 500 s.
-        // Within a tick (2 s of growth) at the midnight switch, as the natural-day test allows at sunrise and sunset.
-        assert!((lit_tower - 500.0 * TICK_S).abs() <= 2.0 * TICK_S, "a powered grow light lights it until midnight, age {lit_tower}");
+        // Exactly, since each tick is cut where the timer switches the lamps off (2026-10-30; it was
+        // within a tick of it, the tick ending at midnight reading the lamps as off).
+        assert!((lit_tower - 500.0 * TICK_S).abs() < 1e-6, "a powered grow light lights it until midnight, age {lit_tower}");
         assert!(lit_field.abs() < 1e-6, "a grow light does not reach an outdoor field, age {lit_field}");
 
         // By day, no grow light needed.
@@ -4149,7 +4296,7 @@ mod gardening_tests {
         let far = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_9")),));
         run_seconds(&mut sys, &mut world, &data, 450); // 19:00 to 04:00
         let (n, f) = (growth_age(&world, near, &data), growth_age(&world, far, &data));
-        assert!((n - 500.0 * TICK_S).abs() <= 2.0 * TICK_S, "the tower under the light grew until the timer, age {n}");
+        assert!((n - 500.0 * TICK_S).abs() < 1e-6, "the tower under the light grew until the timer, age {n}");
         assert!(f.abs() < 1e-6, "the tower across the room did not, age {f}");
     }
 

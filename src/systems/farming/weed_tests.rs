@@ -129,7 +129,11 @@ fn weeds_cap_an_out_competed_crop_hardest_in_its_critical_period() {
     assert!((critical - 53.0).abs() < 1.0, "in its critical period: {critical}");
     assert!((late - 76.5).abs() < 1.0 && (early - 88.25).abs() < 1.0, "{early} / {late}");
     assert!(critical < late && late < early);
-    assert_eq!(health(&world, "ntower_1"), 100.0, "a tower has no soil for weeds");
+    // A tower has no soil for weeds: only the first few pests arriving touch it (a few
+    // hundredths; kept from the first tick since 2026-10-30, farm-clock.md rung 1, where at this
+    // tick each tick's arrivals were dropped and it stayed at exactly 100).
+    let tower = health(&world, "ntower_1");
+    assert!(tower > 99.9 && tower > critical + 40.0, "a tower has no soil for weeds: {tower}");
 }
 
 /// Hoeing takes 90% of small weeds and 60% of big ones (NEVG's figure for

@@ -284,10 +284,33 @@ pub fn mulch_block(area: &AreaWeeds, data: &WeedData) -> f64 {
 /// under a mulch), the bank runs down and fills with the seed of the weeds
 /// standing, and mulches age. True when the weeds have just become
 /// noticeable (`detect_at`), for the one notice.
+///
+/// A mulch that rots away within the step ends the step's first part
+/// (2026-10-30, docs/design/farm-clock.md rung 1), so the cover grows under
+/// the mulch only while the mulch lasts, at any step length; until then it
+/// held the cover down to the end of the step it ran out in.
 pub fn step_area(area: &mut AreaWeeds, data: &WeedData, days: f64) -> bool {
     if !(days > 0.0) {
         return false;
     }
+    let mut left = days;
+    while left > 0.0 {
+        let part = area.mulch.values().copied().filter(|d| *d > 0.0 && *d < left).fold(left, f64::min);
+        step_part(area, data, part);
+        left -= part;
+    }
+    if area.level >= data.detect_at && !area.told {
+        area.told = true;
+        return true;
+    }
+    if area.level < data.detect_at / 2.0 {
+        area.told = false;
+    }
+    false
+}
+
+/// One part of `step_area`, with no mulch running out inside it.
+fn step_part(area: &mut AreaWeeds, data: &WeedData, days: f64) {
     let open = 1.0 - mulch_block(area, data);
     let before = area.level;
     let a = data.emergence_per_day.max(0.0) * area.bank.max(0.0) * open;
@@ -308,14 +331,6 @@ pub fn step_area(area: &mut AreaWeeds, data: &WeedData, days: f64) -> bool {
         *left -= days;
         *left > 0.0
     });
-    if area.level >= data.detect_at && !area.told {
-        area.told = true;
-        return true;
-    }
-    if area.level < data.detect_at / 2.0 {
-        area.told = false;
-    }
-    false
 }
 
 /// The highest health a crop of `plant` can hold at weed `cover`, `crop_days`

@@ -268,6 +268,23 @@ impl FertilizerDose {
     pub fn allowed(&self, days_left: f64) -> bool {
         self.withhold_days <= 0.0 || days_left >= self.withhold_days
     }
+
+    /// The share of a step's draw it may cover for a crop of `growth_days`
+    /// whose uptake rises from `from` to `to` in the step (2026-10-30,
+    /// farm-clock.md rung 1): all of it with no withholding period, else the
+    /// part before the crop comes within `withhold_days` of ripening (the
+    /// draw follows the uptake, so the share is the uptake's). Until then a
+    /// fertilizer allowed at a step's start covered the whole step's draw, so a
+    /// long step crossing into urine's month went on dosing urine past it.
+    pub fn share_allowed(&self, growth_days: f64, from: f32, to: f32) -> f64 {
+        let (from, to) = (f64::from(from), f64::from(to));
+        if self.withhold_days <= 0.0 || !(to > from) {
+            return 1.0;
+        }
+        let g = growth_days.max(0.0) * mature_at(1);
+        let last = if g > 0.0 { 1.0 - self.withhold_days / g } else { 0.0 };
+        ((last.clamp(from, to) - from) / (to - from)).clamp(0.0, 1.0)
+    }
 }
 
 impl FertilizerDef {
@@ -654,6 +671,16 @@ pub fn uptake_fraction(clock_progress: f32, n_stages: usize) -> f32 {
     }
     let _ = n_stages;
     clock_progress.clamp(0.0, 1.0)
+}
+
+/// What `store` holds `share` (0..1) of the way through a step that draws
+/// `want` from it, as much of each nutrient as it has (2026-10-30,
+/// farm-clock.md rung 1): the store the crop's nutrient cap reads, halfway for
+/// a unit drawing down through the step, at the end for one the feeder holds.
+pub fn partway(store: &Npk, want: &Npk, share: f64) -> Npk {
+    let s = share.clamp(0.0, 1.0);
+    let at = |have: f64, w: f64| have - s * w.max(0.0).min(have.max(0.0));
+    Npk::new(at(store.n, want.n), at(store.p2o5, want.p2o5), at(store.k2o, want.k2o))
 }
 
 /// Take `want` out of `store`, as much of each nutrient as it has, and

@@ -177,7 +177,10 @@ fn an_infestation_lowers_health_gradually_and_so_the_season_health() {
     };
     let (sick, well, minute) = run_pair(1.0);
     assert!(minute < 100.0 && minute > 90.0, "gradual: about 94 after a minute, got {minute}");
-    assert!((sick.health - 70.0).abs() < 0.01, "settles at the cap, got {}", sick.health);
+    // 70 from the aphids, a hundredth or so under it from the tomato's other pests arriving in
+    // the tower: kept from the first tick since 2026-10-30 (farm-clock.md rung 1), where at this
+    // tick each tick's arrivals were under the forgetting line and dropped.
+    assert!((sick.health - 70.0).abs() < 0.05, "settles at the cap, got {}", sick.health);
     assert_ne!(sick.growth_stage, STAGE_DEAD, "never killed");
     // The twin's tower has only the first few arrivals (a ten-thousandth of
     // a full infestation after eleven minutes at 1x).
@@ -186,7 +189,7 @@ fn an_infestation_lowers_health_gradually_and_so_the_season_health() {
     assert!(s < 0.9 && s > 0.7, "the season record carries the loss: {s}");
     assert!(w > 0.999, "{w}");
     let (gentle, _, _) = run_pair(0.5);
-    assert!((gentle.health - 85.0).abs() < 0.01, "gentle mode: half the damage, got {}", gentle.health);
+    assert!((gentle.health - 85.0).abs() < 0.05, "gentle mode: half the damage, got {}", gentle.health);
 }
 
 /// The player is told ONCE when a pest appears on a grow area: what it is,
@@ -958,4 +961,44 @@ fn the_pest_notice_offers_only_controls_usable_there() {
     assert!(!field.contains("Encarsia"), "Encarsia is for greenhouses: {field}");
     let house = pests::appeared_notice(&d, whitefly, &["bed_1".to_string()], true, true);
     assert!(house.contains("Encarsia"), "{house}");
+}
+
+/// THE PRESSURE IS THE SAME AT ANY STEP (2026-10-30, docs/design/farm-clock.md rung 1). Spider
+/// mites at 0.3 under predatory mites (pests.ron's own rates), for a garden day: one step of a
+/// day, 24 of an hour and 1,440 of a minute all end at the same pressure with predation solved
+/// with the breeding (`grow_removed`). The old order, breed for the whole step and then take the
+/// predators' share, ended differently at each step length (the numbers it printed are in the
+/// commit). And a pest arriving on a host is kept from its first frame: at 60 frames a second of
+/// normal speed a frame's arrivals are a few billionths, under the old forgetting line, so it was
+/// dropped every frame and never arrived. Seen red: the old step_area forgot it.
+#[test]
+fn pests_end_the_same_at_any_step_and_arrive_at_a_frames_step() {
+    let d = shipped();
+    let mite = d.pest("spider_mite").expect("pests.ron has spider mites");
+    let k = d.control("predatory_mites").and_then(|c| c.removes_per_day.get("spider_mite").copied()).expect("predatory mites eat them");
+    let (r, a, m) = (mite.growth_rate(), mite.arrival_per_day, -(1.0 - k.clamp(0.0, 1.0)).ln());
+    let steps = |n: usize, f: &dyn Fn(f64, f64) -> f64| -> f64 { (0..n).fold(0.3, |p, _| f(p, 1.0 / n as f64)) };
+    let exact = |p: f64, days: f64| pests::grow_removed(p, r, a, m, days);
+    let (day, hours, minutes) = (steps(1, &exact), steps(24, &exact), steps(1440, &exact));
+    assert!((day - minutes).abs() < 1e-12 && (hours - minutes).abs() < 1e-12, "exact: {day} {hours} {minutes}");
+    let old = |p: f64, days: f64| pests::grow(p, r, a, days) * (1.0 - k).powf(days);
+    let (o_day, o_hours, o_minutes) = (steps(1, &old), steps(24, &old), steps(1440, &old));
+    println!("predation, the old order: a day's step {o_day:.6}, hourly {o_hours:.6}, by the minute {o_minutes:.6}; exact {minutes:.6}");
+    assert!((o_day - o_minutes).abs() > 1e-4, "the old order did depend on the step");
+    assert!((o_minutes - minutes).abs() < 1e-3 * minutes.max(1e-9), "and at a minute's step it was nearly exact");
+    // No enemies: `grow` itself, bit for bit.
+    assert_eq!(pests::grow_removed(0.3, r, a, 0.0, 0.7), pests::grow(0.3, r, a, 0.7));
+
+    // Arrival at a frame's step: a host stand of beans, an empty area, a sixtieth of a game second.
+    let mut area = AreaPests::default();
+    let idx = d.pests.iter().position(|p| p.id == "spider_mite").unwrap();
+    let mut fav = vec![0.0; d.pests.len()];
+    fav[idx] = 1.0;
+    let frame = 1.0 / 60.0 / 86_400.0;
+    for _ in 0..600 {
+        pests::step_area(&mut area, &d, &fav, 1, frame);
+    }
+    let after = area.pressure.get("spider_mite").map_or(0.0, |p| p.level);
+    let one = pests::grow(0.0, r, a, 600.0 * frame);
+    assert!(one > 0.0 && (after - one).abs() < 1e-6 * one, "ten seconds of frames arrive as ten seconds at once: {after} vs {one}");
 }
