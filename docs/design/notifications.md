@@ -171,6 +171,16 @@ sound is a row.
      notice's (`decide::words`): the title always, the message only when "What a notice shows"
      shows it (never its "Open HumanityOS to read it", which would be odd on HumanityOS's own
      screen). A newer notice replaces it.
+   - **Never on a broadcast window** (the critic's review of part 2, 2026-10-31): Studio's Go
+     Live sends what the window paints (`ipc::pump_live_broadcast` captures the frame after the
+     GUI is drawn), so a banner would show every viewer who wrote to the person, and with "who
+     and the message", what. `clicks::Window::broadcasting` (the publisher running, or the
+     Studio's live flag) stops a new banner, and the HUD stops one already up when the broadcast
+     begins. What else of the notices could be in such a picture, checked the same day: the OS
+     toast and the taskbar flash are outside the window, so never in it; the bell in a page's
+     header shows a number with no names (the page itself is the person's choice to show, as the
+     Chat page is); the notice panel shows names only when the person opens it, the same choice as
+     opening Chat. Those stay.
    - **The flash** only for a person's launch: a rig's background window never lights the
      operator's taskbar.
 5. **The website**: the browser's Notification API while a chat tab is open in the background, and
@@ -213,7 +223,14 @@ The checks, in order, each with the reason it reports:
 8. `on_screen`: the window has focus AND that conversation is the one showing (the Chat page or the
    in-world chat panel, on the same server; a shared room's Commons view counts).
 9. `too_soon`: a notice for the same conversation went out under 5 seconds ago (a burst of lines
-   is one notice, and a flood of mentions cannot turn the computer into a siren).
+   is one notice, and a flood of mentions cannot turn the computer into a siren). On the desktop
+   the conversation is keyed by its server and its id (`decide::burst_key`, the in-app list's
+   folding too), except a Commons room, one room carried by two or more of my linked servers
+   (`chat::in_commons`, from `commons_carriers`): it is `commons:<room>`, because each carrier
+   delivers its own copy of a line said there, and one mention bridged between united-humanity.us
+   and public.guide was two notices, two sounds and a bell count of 2 (the critic's review of part
+   2, 2026-10-31). The website's twin keys by the conversation alone: a tab is one server, which
+   never receives a second carrier's copy, so it needs neither.
 10. Otherwise it notifies: the OS notice when desktop notices are on AND the window is not focused
     (a focused window gets the sound and the in-app list), the sound when sound is on, and the
     in-app list always (rung 2, section 3: `list`).
@@ -315,6 +332,11 @@ to the right click menu a button for mute that opens to the available options."
   never pile icons into the operator's tray (a force-closed process leaves its icon behind until
   the pointer passes over it), and it never answers a click on the person's own notices. A rig
   that tests the tray sets `HUMANITY_TRAY=1` and closes gracefully, so the icon goes with it.
+  `HUMANITY_TRAY=1` alone serves no clicks on notices: the notice activator is ONE class id for
+  every copy of the app (`REGCLS_MULTIPLEUSE`), so a rig serving it beside the operator's own game
+  could be handed his clicks. A script's instance serves clicks only when it also sets
+  `HUMANITY_TRAY_CLICKS=1` (`tray::serves_clicks`; the critic's review of part 2, 2026-10-31);
+  `just verify-tray` never does (docs/ai/game-boots.md).
 - **A left click on the icon** opens the window (a double-click too); the right click is the menu.
 - **The menu**, every word by key: Open HumanityOS; Mute everything, opening to the same choices as
   Mute server (For 1 hour, For 8 hours, Until I unmute; and Unmute, with "Muted until 14:00" as a
@@ -323,13 +345,39 @@ to the right click menu a button for mute that opens to the available options."
   from one server's Mute. It is the same state as Settings > Notifications > Mute everything, which
   rung 1 builds, so the tray adds a second place to reach it and nothing else.
 - **Closing the window: a choice in Settings, off by default, so closing still quits** unless the
-  person turns it on, and it does nothing without the icon showing (there would be no way back to
-  the window): `tray_window::keeps_running`. When on, closing hides the window instead:
+  person turns it on, and it does nothing without the icon SEEN or where the window cannot be
+  hidden (there would be no way back to the window, or a window that never went):
+  `tray_window::keeps_running`. Seen means made AND, on Linux, a tray host registered with the
+  StatusNotifierWatcher (`tray::icon_can_be_seen`, asked through `busctl`, else `gdbus`, else
+  `dbus-send` when the window is closed; none of them, or no watcher, is no host): tray-icon
+  0.26.1's `ksni` path assumes a host (`assume_sni_available(true)`), so the icon counts as made on
+  a desktop with no tray at all. A window that cannot be hidden: under Wayland, winit 0.30.13's
+  `set_visible` does nothing and `is_visible` answers None, so there it would stay on screen,
+  frozen, with its X doing nothing (`tray_window::can_hide`). Both from the critic's review of part
+  2, 2026-10-31; the Settings note on Linux says both. When on, closing hides the window instead:
   - the world is left first, the way quitting leaves it: saved (`quit::save_game`, the game's
     half of `save_before_exit`; the run's temporary files stay, it is not an exit), out of a
     server's shared world (`game_leave`, so nobody sees a frozen figure; entering the world again
     joins afresh), and the main menu in front. The game has no "Leave" of its own to reuse (the
     Escape key toggles between the world and the last page), so this is it;
+  - **every call and voice room is left, and the microphone closed** (the critic's review of part
+    2, 2026-10-31; part 2 as merged hid the window with the call still up: the capture thread kept
+    the microphone open, peers' voices played in 250 ms bursts, the server and the peers still saw
+    the person in the room, an outgoing ring never timed out, a peer's hang-up was not acted on, and
+    in open-mic modes about five seconds of microphone waited to go to every peer on reopen). The
+    same paths the person's own controls use: the room's Leave (`chat::set_voice_room`), the call
+    bar's Hang up and the ringing bar's Cancel (`modals::hang_up_call`, `cancel_outgoing_call`), the
+    Settings microphone test stopped, the live session stopped and its queued frames dropped both
+    ways (`net::voice::clear_voice_queues`); an incoming ring is let ring out with nothing sent back
+    (as a busy ring, BUG-177) and a missed-call line kept (`chat::leave_all_voice`,
+    `tray_window::quiet_for_tray`). The network pump hands a peer's voice frame on only while voice
+    is wanted (`chat::voice_wanted`), so nothing in the hidden tick feeds a session. The notice says
+    the call ended, every time one did, and a line says so when the window comes back.
+    **Staying in a call while in the tray** (as some chat apps do) is a later rung: it needs the
+    voice pump (session start and stop, the microphone frames sent to peers, the ring-out timeout)
+    in the hidden tick, AND a state the person can see without the window (the tray icon in a
+    "in a call, microphone on" look, with Hang up and Mute in its menu). Without the second, a
+    hidden window with an open microphone is a privacy failure, so it is not done now;
   - no frame is drawn: `about_to_wait` stops asking for redraws and the RedrawRequested arm returns
     at once, so the GPU does nothing and no world simulates;
   - four times a second a tick runs the frame's own network pump (`engine/frame_net.rs`, moved out
@@ -338,7 +386,12 @@ to the right click menu a button for mute that opens to the available options."
     notice's sound, so notices still arrive;
   - the first time in each run, an operating-system notice says HumanityOS is still running beside
     the clock (with desktop notices on): once per run, so a person who chose this months ago is
-    told where it went, and never at every close.
+    told where it went, and never at every close; and every time a call or a voice room was left,
+    a notice that says so. **Mute everything and quiet hours do not hold either back** (decided
+    2026-10-31, the critic's review): they are about other people reaching you, and these are the
+    answer to the person's own click, once a run, or the news that their own call just ended. The
+    desktop-notices switch does hold them back (it is the person's "no notices from the operating
+    system at all"); the line kept for the window's return says the call ended either way.
   Quit from the tray runs the same save as closing does (`engine/quit.rs` `save_before_exit`, in
   `about_to_wait` while hidden, and through the frame's quit request while shown).
 - **Closed by another program, it quits whatever the setting** (Windows): a WM_CLOSE POSTED to the
@@ -361,9 +414,10 @@ to the right click menu a button for mute that opens to the available options."
   (`ITaskbarList3::SetOverlayIcon`), which needs `HICON` from the windows crate's
   `Win32_UI_WindowsAndMessaging`, its largest module and one the tree does not build yet, for what
   the tray icon already shows.
-- **Linux desktops with no tray** (GNOME without its AppIndicator extension) show no icon, which is
-  the desktop's choice; Settings says so on Linux, and to keep closing-into-the-tray off there.
-  The StatusNotifierItem cannot tell whether anything shows it.
+- **Linux desktops with no tray** (GNOME without its AppIndicator extension) show no icon, and a
+  window under Wayland cannot be hidden: the desktop's rules. Settings says so on Linux, and
+  closing there quits whatever the switch says (the host and the hide are both checked when the
+  window is closed, above).
 - **Why rung 2 and not rung 1:** close-to-tray changes the window's close path in `lib.rs` (the
   merge funnel) and adds a hidden-window mode, and both can only be verified by booting the app,
   which rung 1 deliberately does not do; the crate is a new dependency tree on three platforms.
@@ -562,10 +616,19 @@ separate increment.
 - For a rig, the dev IPC's `debug/tray_request.json` does what each click does (close, a menu
   line, the icon, a click on a notice by its token, a made-up notice) and reports the tray and
   the window in `debug/tray_done.json` (engine/tray.rs).
+- The critic's review of the merged part 2 (2026-10-31), each fixed in its own commit: closing
+  into the tray leaves every call and voice room and closes the microphone; no banner on a
+  broadcast window; a Commons room keyed once whichever carrier brings its line; no hiding where
+  the window cannot hide (Wayland) or the icon cannot be seen (Linux with no tray host); a
+  script's instance serves notice clicks only with `HUMANITY_TRAY_CLICKS=1`; the "still running"
+  notice's rule against mutes and quiet hours decided and written down; and the hidden-window
+  chain under a committed rig, `just verify-tray` (scripts/verify-tray.js, judged by
+  scripts/lib/tray-judge.js, its test breaking each link).
 
 *Still later, recorded:* Windows' taskbar overlay badge (section 5, "The tray"), macOS's menu-bar
-count, a click on a notice after the app has quit starting it (rung 5, with Reply), and Linux's
-click through D-Bus (rung 5).
+count, a click on a notice after the app has quit starting it (rung 5, with Reply), Linux's click
+through D-Bus (rung 5), and staying in a call while in the tray (section 5, "The tray": the voice
+pump in the hidden tick and an "in a call" tray state, both needed together).
 
 **Rung 3:** task, call and game-event kinds (the relay sends task events; the tasks switch finally
 does something; game events per event, from data, raised by the simulation's systems through the
@@ -614,6 +677,9 @@ notices grouped per conversation in the notification centre.
   `debug/tray_request.json`, reading `run.log`'s `tray:`, `window:` and `notifications:` lines;
   a person checks them by hand (Settings > Notifications, then close the window, right-click
   the icon beside the clock, click a notice).
+- `just verify-tray` (since the critic's review, 2026-10-31): the hidden-window chain in the
+  running game, two boots, judged link by link (scripts/lib/tray-judge.js; `node --test
+  scripts/tests/tray-judge.test.js`, in `just rig-tests`, breaks each link alone).
 - What the rigs showed on 2026-10-31 (four boots of the release exe with `HUMANITY_TRAY=1`, run.log
   and `tray_done.json` read): the icon made and the activator served; a made-up mention through
   THE rule stopped at `not_loaded` (no server in the sandbox), and past it with `force` it made a

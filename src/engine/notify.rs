@@ -90,6 +90,9 @@ pub(crate) fn room_line(
         kind: kind.into(),
         from_me: sender_key == me,
         from_friend: is_friend(gs, &server, sender_key),
+        // One Commons room with another of my linked servers: each carrier delivers its own copy
+        // of the line, and the notice is one (decide::burst_key).
+        commons: crate::gui::pages::chat::in_commons(gs, &server, room),
         server,
         room: Some(room.to_string()),
         conversation: room.to_string(),
@@ -133,6 +136,7 @@ pub(crate) fn dm(gs: &GuiState, server: &str, inner: &crate::net::dm_pq::DmInner
         sender: crate::engine::dm::dm_display_name(gs, &inner.from),
         room_name: String::new(),
         text: crate::gui::pages::chat::reply::preview_of(&inner.text),
+        commons: false,
     }
 }
 
@@ -218,7 +222,9 @@ pub(crate) fn act_on(state: &mut EngineState, c: Candidate, out: n::Outcome, now
     let local = &state.gui_state.settings.notifications;
     let show = local.show;
     let sound_id = local.sound_id.clone();
-    let window = n::clicks::Window { focused: state.window_focused, hidden: state.tray.hidden, in_world: hud_showing(state) };
+    // Broadcasting (Studio's Go Live): the frame goes to viewers, so no banner (clicks::cues).
+    let broadcasting = state.live_publisher.is_some() || state.gui_state.studio.is_live;
+    let window = n::clicks::Window { focused: state.window_focused, hidden: state.tray.hidden, in_world: hud_showing(state), broadcasting };
     let cues = n::clicks::cues(window);
     let (title, body) = n::decide::words(file, &c, show);
     let rt = &mut state.gui_state.notify;
@@ -351,6 +357,41 @@ mod tests {
         assert_eq!(last_notice(&rt, &b), None, "B's #general is another room");
         note_notice(&mut rt, &b, 102);
         assert_eq!((last_notice(&rt, &a), last_notice(&rt, &b)), (Some(100), Some(102)));
+    }
+
+    /// A Commons room carried by two of my linked servers is ONE conversation: each carrier delivers
+    /// its own copy of a line said there, and a mention bridged between them is one notice (the
+    /// second copy inside the burst guard), one sound and one entry in the list, not two. Seen red
+    /// 2026-10-31 on part 2 as merged (the critic's finding: two notices, a bell count of 2), with
+    /// `burst_key` keying it by server: "B's copy is inside A's five seconds".
+    #[test]
+    fn a_commons_room_is_one_conversation_whichever_carrier_brings_it() {
+        let mut g = gs();
+        let (client, _sent) = crate::net::ws_client::WsClient::recording();
+        g.ws_client = Some(client);
+        g.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), federated: true, ..Default::default() });
+        g.connections.push(crate::gui::ServerConnection {
+            url: "https://b.example".into(),
+            identified: true,
+            channels: vec![crate::gui::ChatChannel { id: "general".into(), name: "general".into(), federated: true, ..Default::default() }],
+            ..Default::default()
+        });
+        g.federation_links.link_for_tests("https://a.example", "https://b.example");
+        let a = room_line(&g, "https://a.example", "Ann", "general", "k2", "Ben", "@ann look", None).expect("A's copy");
+        let b = room_line(&g, "https://b.example/", "Ann", "general", "k2", "Ben", "@ann look", None).expect("B's copy");
+        assert!(a.commons && b.commons, "both carriers' copies are the Commons room");
+        let mut rt = n::Runtime::default();
+        note_notice(&mut rt, &a, 100);
+        assert_eq!(last_notice(&rt, &b), Some(100), "B's copy is inside A's five seconds");
+        rt.list.add(&a, n::Show::Name, 100);
+        rt.list.add(&b, n::Show::Name, 101);
+        assert_eq!((rt.list.len(), rt.list.unseen()), (1, 1), "one entry, one on the bell");
+        // Unlinked, the same room name on two servers stays two rooms.
+        g.federation_links = Default::default();
+        let a2 = room_line(&g, "https://a.example", "Ann", "general", "k2", "Ben", "@ann look", None).unwrap();
+        let b2 = room_line(&g, "https://b.example", "Ann", "general", "k2", "Ben", "@ann look", None).unwrap();
+        assert!(!a2.commons && !b2.commons);
+        assert_ne!(n::decide::burst_key(&a2), n::decide::burst_key(&b2));
     }
 
     fn kind_of(c: Option<Candidate>) -> String {

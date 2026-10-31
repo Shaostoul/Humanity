@@ -255,6 +255,12 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
                         // Phase D: inbound Opus from a voice peer -> the voice
                         // session decodes, mixes, and plays it. Count frames
                         // for the debug log (~50 frames ~= 1s of speech).
+                        // Only while voice is wanted (a room or a call): a frame
+                        // after leaving (closing into the tray leaves all voice,
+                        // notifications rung 2 part 2) feeds no session.
+                        if !crate::gui::pages::chat::voice_wanted(&state.gui_state) {
+                            continue;
+                        }
                         crate::net::voice::push_remote_opus(peer.clone(), opus.clone());
                         state.gui_state.voice_rx_frames = state.gui_state.voice_rx_frames.wrapping_add(1);
                         if state.gui_state.voice_rx_frames % 100 == 1 {

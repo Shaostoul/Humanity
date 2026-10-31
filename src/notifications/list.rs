@@ -43,6 +43,8 @@ pub struct Entry {
     pub at: i64,
     /// The panel has been opened since it arrived.
     pub seen: bool,
+    /// A Commons room (`Candidate::commons`): one room whichever carrier brought it.
+    pub commons: bool,
 }
 
 impl Entry {
@@ -59,6 +61,7 @@ impl Entry {
             text,
             at: now,
             seen: false,
+            commons: c.commons,
         }
     }
 
@@ -73,6 +76,7 @@ impl Entry {
             sender: self.sender.clone(),
             room_name: self.room_name.clone(),
             text: self.text.clone().unwrap_or_default(),
+            commons: self.commons,
             ..Default::default()
         }
     }
@@ -89,7 +93,10 @@ impl List {
     /// Add the notice `c` that arrived at `now`, as `show` allows its words to be kept.
     pub fn add(&mut self, c: &Candidate, show: Show, now: i64) {
         let text = (show == Show::NameAndText && !c.text.is_empty()).then(|| c.text.clone());
-        let same = |e: &Entry| !e.seen && e.kind == c.kind && e.server == c.server && e.conversation == c.conversation;
+        // The same conversation: the burst guard's key (`decide::burst_key`), so a Commons room's copy
+        // from a second carrier folds into the first's entry.
+        let key = super::decide::burst_key(c);
+        let same = |e: &Entry| !e.seen && e.kind == c.kind && super::decide::key_of(&e.server, &e.conversation, e.room.as_deref(), e.commons) == key;
         if let Some(i) = self.entries.iter().position(same) {
             if let Some(mut e) = self.entries.remove(i) {
                 e.sender = c.sender.clone();

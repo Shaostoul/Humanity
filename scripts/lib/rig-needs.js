@@ -85,6 +85,11 @@ const RIGS = Object.freeze({
     lowImpact: "1",
     why: "whether the wall screen's own picture moves, stops and says why: the screen's texture, not the window",
   },
+  "verify-tray": {
+    kind: "behaviour",
+    lowImpact: "1",
+    why: "whether closing into the tray hid the window, left voice, stopped frames and quit saved: tray_done.json and run.log, no picture; it sets HUMANITY_TRAY=1 and never HUMANITY_TRAY_CLICKS, so beside the operator's own game it serves no clicks on his notices",
+  },
   "second-player": {
     kind: "no-game",
     why: "a scripted player against a headless relay: no window, no GPU",

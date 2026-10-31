@@ -109,8 +109,20 @@ fn take_events() -> Vec<Event> {
     EVENTS.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default()
 }
 
-/// May this instance have a tray icon (and answer clicks on notices)? A person's launch, or a
-/// script's that set [`TRAY_ENV`]. Read once.
+/// The environment variable a script ALSO sets to have its instance serve clicks on notices (the
+/// Windows notice activator). Separate from [`TRAY_ENV`]: a rig with a tray beside the operator's
+/// own game would register the same activator class, and Windows could hand HIS clicks to the rig.
+pub(crate) const TRAY_CLICKS_ENV: &str = "HUMANITY_TRAY_CLICKS";
+
+/// Does an instance serve clicks on notices? A person's launch does; a script's only when it names
+/// [`TRAY_CLICKS_ENV`] too, never for [`TRAY_ENV`] alone (the critic's review of part 2,
+/// 2026-10-31). Pure.
+pub(crate) fn serves_clicks(person: bool, clicks_asked: bool) -> bool {
+    person || clicks_asked
+}
+
+/// May this instance have a tray icon? A person's launch, or a script's that set [`TRAY_ENV`].
+/// Read once.
 pub(crate) fn allowed() -> bool {
     static ALLOWED: OnceLock<bool> = OnceLock::new();
     *ALLOWED.get_or_init(|| {
@@ -134,7 +146,58 @@ fn start() {
             _ => {}
         }
     }));
-    n::toast::enable_clicks(Box::new(crate::engine::tray_window::wake));
+    let person = !crate::engine::launch_focus::launch_in_background();
+    let clicks_asked = std::env::var(TRAY_CLICKS_ENV).map(|v| v == "1").unwrap_or(false);
+    if serves_clicks(person, clicks_asked) {
+        n::toast::enable_clicks(Box::new(crate::engine::tray_window::wake));
+    } else {
+        log::info!("notifications: a script's instance serves no clicks on notices ({TRAY_CLICKS_ENV}=1 asks for it)");
+    }
+}
+
+/// Can the person see the icon? Made, and on Linux a tray host registered with the
+/// StatusNotifierWatcher: tray-icon's `ksni` path counts the icon made with no host at all (it
+/// assumes one), so on a desktop with no tray (GNOME without its AppIndicator extension) the window
+/// could hide with no icon anywhere and no way back. Asked when the window is closed (a process
+/// start, as notices on Linux are: `busctl`, else `gdbus`, else `dbus-send`; none of them, or no
+/// watcher, is no host). Elsewhere the icon that was made is seen.
+pub(crate) fn icon_can_be_seen() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let seen = linux_tray_host();
+        log::info!("tray: a tray host is {}registered on this desktop", if seen { "" } else { "NOT " });
+        seen
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
+/// Is a StatusNotifierHost registered (Linux)? Through the first of three D-Bus command-line tools
+/// present; none present is no.
+#[cfg(target_os = "linux")]
+fn linux_tray_host() -> bool {
+    const W: &str = "org.kde.StatusNotifierWatcher";
+    const PROP: &str = "IsStatusNotifierHostRegistered";
+    let tries: [(&str, Vec<&str>); 3] = [
+        ("busctl", vec!["--user", "get-property", W, "/StatusNotifierWatcher", W, PROP]),
+        ("gdbus", vec!["call", "--session", "--dest", W, "--object-path", "/StatusNotifierWatcher", "--method", "org.freedesktop.DBus.Properties.Get", W, PROP]),
+        ("dbus-send", vec!["--session", "--print-reply", "--dest=org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.freedesktop.DBus.Properties.Get", "string:org.kde.StatusNotifierWatcher", "string:IsStatusNotifierHostRegistered"]),
+    ];
+    for (tool, args) in tries {
+        let out = std::process::Command::new(tool)
+            .args(&args)
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output();
+        match out {
+            // The tool is there: its answer decides (a failure is no watcher, so no host).
+            Ok(o) => return o.status.success() && n::tray::sni_host_answer(&String::from_utf8_lossy(&o.stdout)),
+            Err(_) => continue,
+        }
+    }
+    false
 }
 
 /// Once per frame (from `frame_ws_poll::poll_relay_messages`) and once per tick while hidden: the
@@ -181,7 +244,9 @@ pub(crate) fn pump(state: &mut EngineState) {
 /// `action`: `state`; `close` (the window's close button); `menu` with `id` (a menu line: `open`,
 /// `mute:1h`, `unmute`, `quit`); `icon` (a click on the icon); `click` with `launch` (a click on a
 /// notice, the token as Windows hands it back); `notice` (a made-up notice for `kind`, `sender`,
-/// `room`, `text`, through THE rule, or past it with `force`, to see its surfaces); `setting` with
+/// `room`, `text`, through THE rule, or past it with `force`, to see its surfaces); `voice_close`
+/// (a stand-in room and call, then the close button, to see voice left; no microphone is opened);
+/// `setting` with
 /// any of `tray`, `close_to_tray`, `desktop` (booleans) and `show` (the rig's own sandbox settings).
 const DEV_REQUEST: &str = "debug/tray_request.json";
 const DEV_DONE: &str = "debug/tray_done.json";
@@ -197,6 +262,22 @@ fn poll_dev_request(state: &mut EngineState) {
             if !crate::engine::tray_window::close_to_tray(state) {
                 state.gui_state.quit_requested = true;
             }
+        }
+        "voice_close" => {
+            // A rig's check that closing into the tray leaves voice, with no microphone ever
+            // opened: a stand-in room and call are set and the window closed in the SAME call,
+            // before any frame could start a voice session from them; whatever the close did not
+            // take down is cleared here at once (the critic's review of part 2, 2026-10-31).
+            let gs = &mut state.gui_state;
+            gs.voice_active_room = Some("rig-voice-room".into());
+            gs.call_active = Some(("rig-peer".into(), "Rig peer".into()));
+            let hid = crate::engine::tray_window::close_to_tray(state);
+            let gs = &mut state.gui_state;
+            let left_by_close = gs.voice_active_room.is_none() && gs.call_active.is_none();
+            if !left_by_close {
+                crate::gui::pages::chat::leave_all_voice(gs);
+            }
+            extra = serde_json::json!({ "voice_close": { "hid": hid, "left_by_close": left_by_close } });
         }
         "menu" => match n::tray::action(&s("id"), n::data::get()) {
             Some(a) => act(state, a),
@@ -248,7 +329,7 @@ fn poll_dev_request(state: &mut EngineState) {
             let token = state.gui_state.notify.targets.last_token().filter(|t| Some(t) != before.as_ref());
             extra = serde_json::json!({ "why": out.why.code(), "toast": out.toast, "launch": token, "banner": state.gui_state.notify.banner.is_some() });
         }
-        other => extra = serde_json::json!({ "error": format!("unknown action {other:?}: state, close, menu, icon, click, notice, setting") }),
+        other => extra = serde_json::json!({ "error": format!("unknown action {other:?}: state, close, voice_close, menu, icon, click, notice, setting") }),
     }
     let look = Look::of(&state.gui_state.settings.notifications.mutes, state.gui_state.notify.list.unseen(), n::now_secs());
     let mut done = serde_json::json!({
@@ -267,6 +348,14 @@ fn poll_dev_request(state: &mut EngineState) {
         "tooltip": look.tooltip(),
         "menu": format!("{:?}", look.menu(n::data::get())),
         "chat_channel": state.gui_state.chat_active_channel,
+        "voice": {
+            "room": state.gui_state.voice_active_room,
+            "call": state.gui_state.call_active.as_ref().map(|c| c.0.clone()),
+            "wanted": crate::gui::pages::chat::voice_wanted(&state.gui_state),
+            "session_running": crate::net::voice::voice_session_running(),
+            "mic_test": state.gui_state.mic_test_active,
+        },
+        "pending_notices": state.gui_state.pending_notices.len(),
     });
     if let (Some(d), Some(e)) = (done.as_object_mut(), extra.as_object()) {
         for (k, val) in e {
@@ -421,4 +510,34 @@ fn menu_of(lines: &[MenuLine]) -> tray_icon::menu::Menu {
         }
     }
     menu
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A person's launch serves clicks on notices; a script's only when it names HUMANITY_TRAY_CLICKS,
+    /// never for HUMANITY_TRAY alone, so a rig with a tray beside the operator's own game never
+    /// registers the activator his notices' clicks would go to. Seen red 2026-10-31 with the rule
+    /// as part 2 merged it (every instance with a tray served clicks): "a rig's tray alone serves
+    /// no clicks".
+    #[test]
+    fn a_rigs_tray_alone_serves_no_clicks() {
+        assert!(serves_clicks(true, false), "a person's launch");
+        assert!(!serves_clicks(false, false), "a rig's tray alone serves no clicks");
+        assert!(serves_clicks(false, true), "a rig that names it");
+    }
+
+    /// The Linux tray host's answer, from each of the three D-Bus tools: yes only for a yes. Seen
+    /// red 2026-10-31 with the parser reading busctl's form alone ("gdbus").
+    #[test]
+    fn the_tray_hosts_answer_is_read_from_each_tool() {
+        use crate::notifications::tray::sni_host_answer as yes;
+        assert!(yes("b true\n"), "busctl");
+        assert!(yes("(<true>,)\n"), "gdbus");
+        assert!(yes("method return time=1 sender=:1.1 -> destination=:1.2 serial=3 reply_serial=2\n   variant       boolean true\n"), "dbus-send");
+        for no in ["b false\n", "(<false>,)\n", "   variant       boolean false\n", "", "Error: no such name"] {
+            assert!(!yes(no), "{no:?}");
+        }
+    }
 }

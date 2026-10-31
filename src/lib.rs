@@ -12016,8 +12016,7 @@ mod native_app {
                         // Voice rooms AND 1:1 calls run the same live session +
                         // Opus pump; a call peer lands in voice_connected_peers
                         // via the same VoiceConnected event as room peers (v0.703).
-                        let want_session = state.gui_state.voice_active_room.is_some()
-                            || state.gui_state.call_active.is_some();
+                        let want_session = crate::gui::pages::chat::voice_wanted(&state.gui_state);
                         if want_session && !state.gui_state.voice_session_prev {
                             crate::net::voice::start_voice_session(
                                 state.gui_state.audio_input_device.clone(),

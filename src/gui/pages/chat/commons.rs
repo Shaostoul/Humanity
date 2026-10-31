@@ -155,6 +155,20 @@ pub(crate) fn commons_carriers(state: &GuiState, room: &str) -> CommonsCarriers 
     out
 }
 
+/// Is `room` on `server` (normalised, `norm_server_url`) one Commons room with another of my
+/// servers: grouped by [`commons_carriers`], this server among its carriers? Then every carrier
+/// delivers its own copy of a line said there, and a notice about it is one notice, whichever
+/// carrier brought it (the burst guard and the in-app list key it `commons:<room>`,
+/// `notifications::decide::burst_key`; notifications rung 2 part 2).
+pub(crate) fn in_commons(state: &GuiState, server: &str, room: &str) -> bool {
+    let c = commons_carriers(state, room);
+    if !c.is_commons() {
+        return false;
+    }
+    let norm = super::norm_server_url;
+    (c.active && norm(&state.server_url) == server) || c.parked.iter().any(|&i| state.connections.get(i).is_some_and(|k| norm(&k.url) == server))
+}
+
 /// How a line typed in a Commons room is sent: through the active server when it is one of the
 /// room's carriers and connected, else through the first parked carrier with a live socket. The
 /// send (chat.rs `send_composed_content`), the message box's limit (line_limit.rs), the composer
@@ -267,6 +281,12 @@ impl FederationLinks {
     pub fn linked(&self, a: &str, b: &str) -> bool {
         let names = |x: &str, y: &str| self.known.get(x).map_or(false, |l| l.iter().any(|p| p == y));
         a == b || names(a, b) || names(b, a)
+    }
+
+    /// Tests elsewhere: `a`'s list names `b`, by their addresses.
+    #[cfg(test)]
+    pub(crate) fn link_for_tests(&mut self, a: &str, b: &str) {
+        self.known.entry(link_key(a)).or_default().push(link_key(b));
     }
 }
 
@@ -405,6 +425,24 @@ mod tests {
         assert_eq!(rooms[0].carrier_urls, vec!["https://united-humanity.us".to_string(), "https://public.guide".to_string()]);
         assert!(commons_rooms_carried_by(&state, "https://public.guide").contains("general"));
         assert!(!commons_rooms_carried_by(&state, "http://127.0.0.1:3210").contains("general"), "it stays in the private node's own list");
+    }
+
+    /// `in_commons` (notifications, the critic's review of part 2): the room on a server that is one
+    /// of its linked carriers is one Commons room; the same name on a server linked to neither, a
+    /// room not marked federated, and a room only one server carries are each that server's own.
+    /// Seen red 2026-10-31 with `in_commons` answering false throughout ("the first carrier").
+    #[test]
+    fn in_commons_is_a_carriers_room_and_nothing_else() {
+        let mut state = GuiState::default();
+        state.connections.push(conn("https://united-humanity.us", true, &[("general", true, false), ("ops", false, false)]));
+        state.connections.push(conn("http://127.0.0.1:3210", true, &[("general", true, false)]));
+        state.connections.push(conn("https://public.guide", true, &[("general", true, false), ("solo", true, false)]));
+        link(&mut state, "https://united-humanity.us", "https://public.guide");
+        assert!(in_commons(&state, "https://united-humanity.us", "general"), "the first carrier");
+        assert!(in_commons(&state, "https://public.guide", "general"), "the second carrier");
+        assert!(!in_commons(&state, "http://127.0.0.1:3210", "general"), "a server linked to neither");
+        assert!(!in_commons(&state, "https://united-humanity.us", "ops"), "not federated");
+        assert!(!in_commons(&state, "https://public.guide", "solo"), "one carrier is no Commons room");
     }
 
     #[test]

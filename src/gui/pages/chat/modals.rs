@@ -1373,7 +1373,7 @@ pub(crate) fn draw_incoming_call_modal(ctx: &egui::Context, theme: &Theme, state
 /// call rings (v0.705). Anchored top-center so it stays visible over the chat.
 pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Outgoing ring (waiting for the callee to accept).
-    if let Some((peer_key, peer_name)) = state.call_outgoing.clone() {
+    if let Some((_, peer_name)) = state.call_outgoing.clone() {
         let mut cancel = false;
         egui::Window::new("call_bar_ringing")
             .title_bar(false)
@@ -1395,16 +1395,7 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
                 });
             });
         if cancel {
-            if let Some(ref client) = state.ws_client {
-                let _ = client.send(&serde_json::json!({
-                    "type": "voice_call",
-                    "from": state.profile_public_key,
-                    "to": peer_key,
-                    "action": "hangup",
-                }).to_string());
-            }
-            state.call_outgoing = None;
-            state.call_outgoing_deadline = None;
+            cancel_outgoing_call(state);
         }
         return;
     }
@@ -1464,23 +1455,43 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         state.call_muted = !state.call_muted;
     }
     if hangup {
-        if let Some(ref client) = state.ws_client {
-            let _ = client.send(&serde_json::json!({
-                "type": "voice_call",
-                "from": state.profile_public_key,
-                "to": peer_key,
-                "action": "hangup",
-            }).to_string());
-        }
-        state.call_active = None;
-        state.call_muted = false;
-        state.voice_connected_peers.remove(&peer_key);
-        // Drop the str0m connection NOW; leaving it to ICE timeout would
-        // make on_voice_offer's already-connected guard refuse this peer's
-        // next call for ~30s.
-        if let Some(ref webrtc) = state.webrtc {
-            webrtc.close_peer(peer_key);
-        }
+        hang_up_call(state);
     }
+}
+
+/// Hang up the 1:1 call: the call bar's Hang up, and closing the window into the tray
+/// (`voice_room::leave_all_voice`). Tells the peer, ends the call here, and drops the connection.
+pub(crate) fn hang_up_call(state: &mut GuiState) {
+    let Some((peer_key, _)) = state.call_active.take() else { return };
+    if let Some(ref client) = state.ws_client {
+        let _ = client.send(&serde_json::json!({
+            "type": "voice_call",
+            "from": state.profile_public_key,
+            "to": peer_key,
+            "action": "hangup",
+        }).to_string());
+    }
+    state.call_muted = false;
+    state.voice_connected_peers.remove(&peer_key);
+    // Drop the str0m connection NOW; leaving it to ICE timeout would
+    // make on_voice_offer's already-connected guard refuse this peer's
+    // next call for ~30s.
+    if let Some(ref webrtc) = state.webrtc {
+        webrtc.close_peer(peer_key);
+    }
+}
+
+/// Cancel the outgoing ring: the ringing bar's Cancel, and closing the window into the tray.
+pub(crate) fn cancel_outgoing_call(state: &mut GuiState) {
+    let Some((peer_key, _)) = state.call_outgoing.take() else { return };
+    if let Some(ref client) = state.ws_client {
+        let _ = client.send(&serde_json::json!({
+            "type": "voice_call",
+            "from": state.profile_public_key,
+            "to": peer_key,
+            "action": "hangup",
+        }).to_string());
+    }
+    state.call_outgoing_deadline = None;
 }
 

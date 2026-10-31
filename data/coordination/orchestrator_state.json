@@ -800,6 +800,11 @@
       "date": "2026-10-31",
       "decision": "Rust warnings to zero, approved (operator: \"Sounds like we have a reasonable path forward.\"): remove the user RUSTFLAGS=-Awarnings, clean the ~1,070 warning lines to zero (after the stutter and tray-fix agents land, before crate split rung 1), then a ratchet in just verify and CI.",
       "why": "The flag hid every warning on this PC, so every \"0 warnings\" gate was vacuous, and real defects sat among them (a terrain budget counter never read). The operator asked to be told when it is safe to restart the Claude app (the restart is what makes the removed variable take effect; it stops running agents)."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Notifications part 2 critic fixes merged (BUG-220): hiding into the tray leaves every call and voice room and closes the mic; no banner while broadcasting; a Commons room is one conversation; closing quits where the window cannot hide (Wayland) or no tray host is registered (Linux); rigs serve notice clicks only with HUMANITY_TRAY_CLICKS=1; the \"still running\" notice is held back only by the desktop-notices switch; just verify-tray (9 links, red then green).",
+      "why": "Safe by default: staying in a call while hidden would need the voice pump in the hidden tick AND a visible in-a-call tray state together, so it is a later rung rather than a silent background call. The release blocker line is removed from things_pending."
     }
   ],
   "active_scopes_to_avoid": [
@@ -823,7 +828,6 @@
   ],
   "things_pending_or_known_gaps": [
     "TELL THE OPERATOR WHEN IT IS SAFE TO RESTART THE CLAUDE APP (2026-10-31, he asked): safe once no agent is running and nothing of the orchestrator is compiling or booted. The restart makes his removal of the user RUSTFLAGS=-Awarnings take effect (he removes the variable; do not change his environment without his explicit okay). Then every checkout rebuilds once.",
-    "RELEASE BLOCKER (2026-10-31): notifications part 2 (22983c236) closing into the tray leaves a voice room or call running with the microphone open, and its in-world banner shows on the Live broadcast. The critic found both (plus Commons duplicate notices, Wayland and no-tray-host hides); the part 2 agent is fixing them. Do NOT cut a release from main until that fix is merged and this line removed.",
     "RELEASES UNSIGNED: v0.1110.2 and v0.1111.1. Operator-only (needs the passphrase). The desktop updater only offers SIGNED releases, so v0.421+ users are still on an older build.",
     "19 stale agent-* worktrees under .claude/worktrees/. Audited 2026-08-04: none could be cheaply proven redundant, so none was removed - clean-worktrees force-deletes branches and has destroyed review-approved work before. The three wf_f9e9bae9-* worktrees WERE proven fully superseded and were removed.",
     "The 103 ms forest frame at operator settings is UNEXPLAINED. Do not rank grass culling vs blade LOD vs draw batching until the per-pass breakdown is measured. Separately unexplained: the same scene, camera parked on byte-identical content, swings 44.3 -> 101.1 ms over 35 minutes.",

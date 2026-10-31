@@ -147,10 +147,21 @@ pub(crate) fn posted(message: u32, hwnd: isize, main: isize) -> Posted {
     }
 }
 
-/// Does closing the window keep HumanityOS running in the tray? Only with the setting on AND the
-/// icon showing: without the icon there would be no way back to the window. Pure.
-pub(crate) fn keeps_running(s: &LocalSettings, icon_shown: bool) -> bool {
-    s.tray && s.close_to_tray && icon_shown
+/// Does closing the window keep HumanityOS running in the tray? Only with the setting on, the icon
+/// SEEN (made, and on Linux a tray host showing it: `tray::icon_can_be_seen`), and a window that can
+/// be hidden at all (`can_hide`: not under Wayland, whose winit has no hide). Otherwise there would
+/// be no way back to the window, or a window that never went. Pure.
+pub(crate) fn keeps_running(s: &LocalSettings, icon_seen: bool, can_hide: bool) -> bool {
+    s.tray && s.close_to_tray && icon_seen && can_hide
+}
+
+/// Can this window be hidden? winit 0.30's Wayland backend has no hide (`set_visible` does nothing,
+/// and `is_visible` answers None), so there the window would stay on screen, frozen, with its X
+/// doing nothing (the critic's review of part 2, 2026-10-31).
+pub(crate) fn can_hide(window: &winit::window::Window) -> bool {
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let wayland = matches!(window.window_handle().map(|h| h.as_raw()), Ok(RawWindowHandle::Wayland(_)));
+    !wayland && window.is_visible().is_some()
 }
 
 /// The window's close button (WindowEvent::CloseRequested): true when the window was hidden in the
@@ -163,16 +174,24 @@ pub(crate) fn close_to_tray(state: &mut EngineState) -> bool {
     if state.tray.hidden {
         return true;
     }
-    if !keeps_running(&state.gui_state.settings.notifications, state.tray.shown()) {
+    let s = &state.gui_state.settings.notifications;
+    // The cheap checks first: a person with the setting off never pays for the Linux host's ask.
+    if !(s.tray && s.close_to_tray && state.tray.shown()) {
+        return false;
+    }
+    if !keeps_running(s, crate::engine::tray::icon_can_be_seen(), can_hide(&state.window)) {
+        log::info!("window: the tray icon cannot be seen or this window cannot be hidden here, so closing quits");
         return false;
     }
     hide(state);
     true
 }
 
-/// Leave the world (saved, out of a shared world), then hide the window.
+/// Leave the world (saved, out of a shared world) and every call and voice room, then hide the
+/// window.
 pub(crate) fn hide(state: &mut EngineState) {
     leave_world(state);
+    let left = quiet_for_tray(&mut state.gui_state);
     let _ = state.window.set_cursor_grab(winit::window::CursorGrabMode::None);
     state.window.set_cursor_visible(true);
     state.cursor_free = true;
@@ -184,10 +203,30 @@ pub(crate) fn hide(state: &mut EngineState) {
     state.tray.next_tick = Some(now + TICK);
     crate::config::AppConfig::from_gui_state(&state.gui_state).save();
     log::info!("window: hidden in the tray; no frames are drawn, the sockets are read every {} ms", TICK.as_millis());
-    if !state.tray.told {
+    // Said every time a call or a room was left (the person must know it ended), else once a run.
+    if left.voice || !state.tray.told {
         state.tray.told = true;
-        tell_still_running(state);
+        tell_still_running(state, left.voice);
     }
+}
+
+/// The GUI's half of hiding (pure on GuiState, so a lib test drives it): every voice room, call,
+/// ring and microphone test left the way the person's own Leave, Hang up and Cancel do, the live
+/// voice session stopped and its queued frames dropped (`chat::leave_all_voice`), and the lines the
+/// person reads when the window comes back. A hidden window never keeps a microphone open: nothing
+/// would show it is, the peers would still hear it, and its sound would come in bursts (the
+/// critic's review of part 2, 2026-10-31). Staying in a call in the tray is a later rung
+/// (docs/design/notifications.md, "The tray").
+pub(crate) fn quiet_for_tray(gs: &mut crate::gui::GuiState) -> crate::gui::pages::chat::LeftVoice {
+    let left = crate::gui::pages::chat::leave_all_voice(gs);
+    if left.voice {
+        log::info!("voice: the call or voice room was left and the microphone closed (the window went to the tray)");
+        gs.pending_notices.push(crate::i18n::t("notifications.tray_left_voice").to_string());
+    }
+    if let Some(name) = left.missed_ring.as_deref() {
+        gs.pending_notices.push(crate::i18n::tf("notifications.tray_missed_call", &[("name", &name)]));
+    }
+    left
 }
 
 /// Hide the window, whoever showed it. winit hides only a window it knows is shown, and a
@@ -235,19 +274,25 @@ fn leave_world(state: &mut EngineState) {
     }
 }
 
-/// The notice that says where HumanityOS went: through the operating system, since the window is
-/// gone (only with desktop notices on; a click shows the window).
-fn tell_still_running(state: &mut EngineState) {
+/// The notice that says where HumanityOS went, and that a call or a voice room it was in ended
+/// (`voice_left`): through the operating system, since the window is gone; a click shows the
+/// window. Only with desktop notices on (the person's switch for notices from the operating system
+/// at all; the line kept for the window's return, `quiet_for_tray`, says the call ended either way).
+/// Mute everything and quiet hours do NOT hold it back: they are about other people reaching you,
+/// and this is the answer to the person's own click, once a run, or the news that their own call
+/// just ended (decided 2026-10-31, the critic's review of part 2; docs/design/notifications.md).
+fn tell_still_running(state: &mut EngineState, voice_left: bool) {
     if !state.gui_state.settings.notifications.desktop {
         log::info!("window: desktop notices are off, so no notice says HumanityOS is still running");
         return;
     }
-    log::info!("window: a notice says HumanityOS is still running in the tray");
+    log::info!("window: a notice says HumanityOS is still running in the tray{}", if voice_left { " and the call or voice room was left" } else { "" });
     let t = crate::i18n::t;
     let launch = state.gui_state.notify.targets.window_token();
+    let body = if voice_left { "notifications.tray_still_running_body_voice" } else { "notifications.tray_still_running_body" };
     n::toast::show(n::toast::Toast {
         title: t("notifications.tray_still_running_title").to_string(),
-        body: t("notifications.tray_still_running_body").to_string(),
+        body: crate::i18n::t_dyn(body).to_string(),
         tag: n::toast::tag_for("tray"),
         group: "tray".into(),
         launch,
@@ -344,19 +389,102 @@ fn play_queued_sounds(state: &mut EngineState) {
 mod tests {
     use super::*;
 
-    /// Closing keeps HumanityOS running only with the setting on, the icon wanted AND showing: a
-    /// hidden window with no icon could never be shown again. Seen red 2026-10-31 with the icon
-    /// check left out: a person whose tray icon failed to appear (a Linux desktop with no tray)
-    /// closed the window into nowhere.
+    /// Closing keeps HumanityOS running only with the setting on, the icon wanted AND seen, and a
+    /// window that can be hidden: a hidden window with no icon could never be shown again, and one
+    /// that cannot hide would freeze on screen. This holds the RULE; whether the icon is seen is
+    /// `tray::icon_can_be_seen` (on Linux, a tray host must be registered: tray-icon's ksni path
+    /// succeeds without one, so "the icon was made" alone did not catch a Linux desktop with no
+    /// tray, as this comment first claimed) and whether the window can hide is `can_hide`
+    /// (Wayland cannot). Seen red 2026-10-31 by a deliberate break that dropped the icon check
+    /// ("no icon seen: closing quits"), and again with the hide check dropped ("Wayland: the window
+    /// cannot hide").
     #[test]
-    fn closing_keeps_running_only_with_the_icon_showing() {
+    fn closing_keeps_running_only_with_the_icon_seen_and_a_window_that_hides() {
         let mut s = LocalSettings::default();
-        assert!(!keeps_running(&s, true), "off by default: closing quits");
+        assert!(!keeps_running(&s, true, true), "off by default: closing quits");
         s.close_to_tray = true;
-        assert!(keeps_running(&s, true));
-        assert!(!keeps_running(&s, false), "no icon showing: closing quits");
+        assert!(keeps_running(&s, true, true));
+        assert!(!keeps_running(&s, false, true), "no icon seen: closing quits");
+        assert!(!keeps_running(&s, true, false), "Wayland: the window cannot hide");
         s.tray = false;
-        assert!(!keeps_running(&s, true), "the icon turned off: closing quits");
+        assert!(!keeps_running(&s, true, true), "the icon turned off: closing quits");
+    }
+
+    fn voice_gs() -> (crate::gui::GuiState, std::sync::mpsc::Receiver<String>) {
+        let mut gs = crate::gui::GuiState::default();
+        let (client, sent) = crate::net::ws_client::WsClient::recording();
+        gs.ws_client = Some(client);
+        gs.profile_public_key = "me".into();
+        gs.chat_channels.push(crate::gui::ChatChannel { id: "12".into(), name: "lounge".into(), voice_joined: true, ..Default::default() });
+        (gs, sent)
+    }
+
+    /// Closing into the tray leaves voice the way the person's own Leave, Hang up and Cancel do:
+    /// the room (the server told), the call (the peer told), an outgoing ring (cancelled), the
+    /// microphone test, and the connected peers; an incoming ring is let ring out unsent, with a
+    /// missed-call line; and the window's return says the call ended. Seen red 2026-10-31 with
+    /// `quiet_for_tray` not calling `leave_all_voice` (the critic's finding): its first assertion,
+    /// `left.voice`.
+    #[test]
+    fn hiding_leaves_every_call_and_voice_room() {
+        let (mut gs, sent) = voice_gs();
+        gs.voice_active_room = Some("12".into());
+        gs.call_active = Some(("peer".into(), "Pat".into()));
+        gs.voice_connected_peers.insert("peer".into());
+        gs.mic_test_active = true;
+        let left = quiet_for_tray(&mut gs);
+        assert!(left.voice);
+        assert_eq!(gs.voice_active_room, None, "the room is left");
+        assert_eq!(gs.call_active, None, "the call is hung up");
+        assert!(!gs.mic_test_active && gs.voice_connected_peers.is_empty() && !gs.voice_session_prev);
+        assert!(!crate::gui::pages::chat::voice_wanted(&gs), "no session is wanted");
+        let frames: Vec<serde_json::Value> = sent.try_iter().map(|s| serde_json::from_str(&s).unwrap()).collect();
+        assert!(frames.iter().any(|f| f["type"] == "voice_room" && f["action"] == "leave" && f["room_id"] == "12"), "the server is told: {frames:?}");
+        assert!(frames.iter().any(|f| f["type"] == "voice_call" && f["action"] == "hangup" && f["to"] == "peer"), "the peer is told: {frames:?}");
+        assert_eq!(gs.pending_notices, vec![crate::i18n::t("notifications.tray_left_voice").to_string()]);
+
+        // An outgoing ring is cancelled; an incoming one rings out with nothing sent back.
+        let (mut gs, sent) = voice_gs();
+        gs.call_outgoing = Some(("callee".into(), "Cy".into()));
+        gs.call_incoming = Some(("caller".into(), "Dee".into()));
+        let left = quiet_for_tray(&mut gs);
+        assert!(left.voice && gs.call_outgoing.is_none() && gs.call_incoming.is_none());
+        let frames: Vec<serde_json::Value> = sent.try_iter().map(|s| serde_json::from_str(&s).unwrap()).collect();
+        assert_eq!(frames.len(), 1, "only the cancel goes out: {frames:?}");
+        assert_eq!((frames[0]["to"].as_str(), frames[0]["action"].as_str()), (Some("callee"), Some("hangup")));
+        assert!(gs.pending_notices.iter().any(|l| l.contains("Dee")), "{:?}", gs.pending_notices);
+
+        // Nothing to leave: nothing said.
+        let (mut gs, sent) = voice_gs();
+        assert_eq!(quiet_for_tray(&mut gs), Default::default());
+        assert!(sent.try_recv().is_err() && gs.pending_notices.is_empty());
+    }
+
+    /// Nothing the hidden window's tick runs starts a voice session or the microphone test, and the
+    /// network pump it shares with the frame hands a peer's voice frame on only while voice is
+    /// wanted, so after hiding nothing feeds a session (read from the source: the tick cannot run
+    /// in a unit test; the pattern of engine/quit.rs). Seen red 2026-10-31 on part 2 as merged
+    /// (22983c236), whose pump pushed every VoiceFrame: "the network pump feeds a peer's voice
+    /// without asking voice_wanted".
+    #[test]
+    fn the_hidden_tick_never_starts_or_feeds_voice() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}")).replace("\r\n", "\n");
+        for rel in ["src/engine/tray_window.rs", "src/engine/frame_net.rs", "src/engine/tray.rs"] {
+            let src = read(rel);
+            let code = src.split("#[cfg(test)]").next().unwrap_or("");
+            for starts in ["start_voice_session", "start_mic_test"] {
+                assert!(!code.contains(starts), "{rel} starts voice ({starts}); the hidden tick runs it");
+            }
+        }
+        let net = read("src/engine/frame_net.rs");
+        let at = net.find("crate::net::voice::push_remote_opus(").expect("the pump hands peers' voice on");
+        let before = &net[at.saturating_sub(600)..at];
+        assert!(
+            before.contains("if !crate::gui::pages::chat::voice_wanted(&state.gui_state) {"),
+            "the network pump feeds a peer's voice without asking voice_wanted"
+        );
+        assert_eq!(net.matches("push_remote_opus(").count(), 1, "one place hands peers' voice on");
     }
 
     /// A WM_CLOSE posted to ANY of the app's windows is another program's close (taskkill posts it

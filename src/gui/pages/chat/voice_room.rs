@@ -51,3 +51,64 @@ pub(crate) fn set_voice_room(state: &mut GuiState, room_id: &str, joining: bool)
         }
     }
 }
+
+/// Should a live voice session run: is the app in a voice room or a 1:1 call? The frame starts and
+/// stops the session on it (lib.rs), and the network pump drops a peer's voice frame without it
+/// (engine/frame_net.rs), so nothing feeds a session that is not wanted.
+pub(crate) fn voice_wanted(state: &GuiState) -> bool {
+    state.voice_active_room.is_some() || state.call_active.is_some()
+}
+
+/// What [`leave_all_voice`] ended.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(crate) struct LeftVoice {
+    /// A voice room or a 1:1 call (in it, or ringing out) was left.
+    pub voice: bool,
+    /// Who was ringing in, unanswered (no reply is sent: it rings out on their side, as a busy
+    /// ring does, BUG-177).
+    pub missed_ring: Option<String>,
+}
+
+/// Leave every voice thing at once, the way a person's own Leave, Hang up and Cancel do, and close
+/// the microphone: the voice room (`set_voice_room`), the 1:1 call (`hang_up_call`), an outgoing
+/// ring (`cancel_outgoing_call`), the Settings microphone test, and the live session with its
+/// queued frames both ways. Closing the window into the tray runs it (notifications rung 2,
+/// part 2, engine/tray_window.rs): a hidden window must never keep a microphone open, and its
+/// sound would come in bursts with no frame to play it. An incoming ring is let ring out, unsent.
+pub(crate) fn leave_all_voice(state: &mut GuiState) -> LeftVoice {
+    let mut left = LeftVoice::default();
+    if let Some(room) = state.voice_active_room.clone() {
+        set_voice_room(state, &room, false);
+        if state.voice_active_room.take().is_some() {
+            // A room no longer in this server's list (`set_voice_room` finds no row): the leave
+            // is still said, so the server takes this person out of it.
+            if let Some(client) = state.ws_client.as_ref().filter(|c| c.is_connected()) {
+                client.send(&serde_json::json!({ "type": "voice_room", "action": "leave", "room_id": room }).to_string());
+            }
+        }
+        left.voice = true;
+    }
+    if state.call_active.is_some() {
+        super::modals::hang_up_call(state);
+        left.voice = true;
+    }
+    if state.call_outgoing.is_some() {
+        super::modals::cancel_outgoing_call(state);
+        left.voice = true;
+    }
+    if let Some((_, name)) = state.call_incoming.take() {
+        left.missed_ring = Some(name);
+    }
+    if state.mic_test_active || state.mic_test_prev {
+        state.mic_test_active = false;
+        state.mic_test_prev = false;
+        crate::net::voice::stop_mic_test();
+    }
+    if state.voice_session_prev {
+        crate::net::voice::stop_voice_session();
+        state.voice_session_prev = false;
+    }
+    state.voice_connected_peers.clear();
+    crate::net::voice::clear_voice_queues();
+    left
+}

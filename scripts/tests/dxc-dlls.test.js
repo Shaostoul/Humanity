@@ -356,6 +356,7 @@ const RIGS = {
   "make-clips.js": "EXE",
   "verify-falls.js": "EXE",
   "verify-storeys.js": "EXE",
+  "verify-tray.js": "EXE",
 };
 const SCRIPTS = path.join(__dirname, "..");
 

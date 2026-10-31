@@ -2532,15 +2532,18 @@ window.HOS_I18N_EN = {
     "muted_web_note": "Mutes and room levels are kept in this browser only.",
     "tray": "Show HumanityOS in the notification area",
     "tray_hint": "Puts the HumanityOS icon beside the clock. Right-click it to open HumanityOS, mute everything for a while, or quit. A dot on it means notices you have not opened yet.",
-    "tray_linux_note": "Some Linux desktops show no icons beside the clock, such as GNOME without its AppIndicator extension. That is the desktop's own choice. There, keep the next switch off, so closing the window quits.",
+    "tray_linux_note": "Some Linux desktops show no icons beside the clock, such as GNOME without its AppIndicator extension, and a window under Wayland cannot be hidden. Those are the desktop's own rules. There, closing the window always quits, whatever the next switch says.",
     "close_to_tray": "Closing the window keeps HumanityOS running in the tray",
-    "close_to_tray_hint": "When on, closing the window hides it beside the clock instead of quitting, so notices still arrive. Open it again from the icon, or quit from the icon's menu. Off unless you turn it on.",
+    "close_to_tray_hint": "When on, closing the window hides it beside the clock instead of quitting, so notices still arrive. Closing also leaves any call or voice room and turns your microphone off. Open it again from the icon, or quit from the icon's menu. Off unless you turn it on.",
     "close_to_tray_needs_tray": "This needs the icon beside the clock: without it there would be no way back to the window, so closing quits.",
     "tray_open": "Open HumanityOS",
     "tray_quit": "Quit HumanityOS",
     "tray_muted": "Muted {{until}}",
     "tray_still_running_title": "HumanityOS is still running",
     "tray_still_running_body": "It is beside the clock, so notices still arrive. Click its icon to open it, or right-click it to quit.",
-    "open_action": "Open"
+    "open_action": "Open",
+    "tray_still_running_body_voice": "Your call or voice room was left and your microphone is off. HumanityOS is still beside the clock, so notices still arrive.",
+    "tray_left_voice": "Closing the window left your call or voice room and turned your microphone off.",
+    "tray_missed_call": "Missed call from {{name}}: the window was closing into the tray."
   }
 };

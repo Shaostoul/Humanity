@@ -72,7 +72,7 @@ mod warnings;
 mod protected;
 /// Joining and leaving a channel's voice room. See `chat/voice_room.rs`.
 mod voice_room;
-pub(crate) use voice_room::set_voice_room;
+pub(crate) use voice_room::{leave_all_voice, set_voice_room, voice_wanted, LeftVoice};
 /// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
 pub(crate) mod attach_send;
 /// A sent file's bytes kept to one copy: read on the worker, encrypted in place, streamed (round 3).
@@ -109,7 +109,7 @@ pub use timestamps::*;
 mod commons;
 pub use commons::FederationLinks;
 pub(crate) use commons::{
-    commons_carriers, commons_room_of, commons_room_read_only, commons_rooms, commons_rooms_carried_by, commons_route,
+    commons_carriers, commons_room_of, commons_room_read_only, commons_rooms, commons_rooms_carried_by, commons_route, in_commons,
     open_commons_room, pump_federation_links, CommonsRoom,
 };
 #[cfg(test)]

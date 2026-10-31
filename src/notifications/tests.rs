@@ -92,6 +92,7 @@ fn every_shared_case_gets_the_same_answer() {
             room_name: s(&cand, "room_name"),
             text: s(&cand, "text"),
             from_friend: b(&cand, "from_friend"),
+            commons: false,
         };
         let qs = synced.get("quiet_start").and_then(Value::as_str).map(str::to_string);
         let qe = synced.get("quiet_end").and_then(Value::as_str).map(str::to_string);
@@ -488,12 +489,23 @@ fn a_click_on_a_notice_opens_only_this_runs_conversation() {
 /// while hidden in the tray; the banner fades over its last second.
 #[test]
 fn the_banner_shows_in_the_world_and_the_flash_behind() {
-    let w = |focused, hidden, in_world| cues(Window { focused, hidden, in_world });
+    let w = |focused, hidden, in_world| cues(Window { focused, hidden, in_world, broadcasting: false });
     assert_eq!(w(true, false, true), Cues { banner: true, flash: false });
     assert_eq!(w(true, false, false), Cues { banner: false, flash: false }, "a page in front: the bell and the list");
     assert_eq!(w(false, false, true), Cues { banner: false, flash: true });
     assert_eq!(w(false, true, false), Cues::default(), "no flash while hidden");
     assert_eq!((opacity_after(0.0), opacity_after(5.5), opacity_after(6.0), opacity_after(-1.0)), (1.0, 0.5, 0.0, 0.0));
+}
+
+/// No banner on a window being broadcast (Studio's Go Live captures what the window paints, so a
+/// banner would show every viewer who wrote, and what). The taskbar flash is outside the window and
+/// stays. Seen red 2026-10-31 on part 2 as merged, which had no broadcasting term (the critic's
+/// finding): "no banner while broadcasting".
+#[test]
+fn no_banner_on_a_broadcast_window() {
+    let live = Window { focused: true, hidden: false, in_world: true, broadcasting: true };
+    assert_eq!(cues(live), Cues { banner: false, flash: false }, "no banner while broadcasting");
+    assert_eq!(cues(Window { focused: false, ..live }), Cues { banner: false, flash: true }, "the flash is not in the picture");
 }
 
 /// A notice carries its click token, escaped, and Linux's click is an option before `--`.

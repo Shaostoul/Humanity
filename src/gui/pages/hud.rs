@@ -462,7 +462,9 @@ pub fn draw(
 
             // ── A notice while playing (notifications rung 2, part 2): its banner, under the
             // compass, for a few seconds (widgets/notice_banner.rs) ──
-            if let Some(b) = state.notify.banner.as_ref() {
+            // Never while broadcasting (Studio's Go Live sends what the window paints): a banner
+            // that was already up when the broadcast began stops at once.
+            if let Some(b) = state.notify.banner.as_ref().filter(|_| !state.studio.is_live) {
                 crate::gui::widgets::notice_banner::paint(painter, theme, screen, b, b.opacity());
             }
 

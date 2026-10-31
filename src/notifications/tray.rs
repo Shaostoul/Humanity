@@ -123,6 +123,14 @@ pub fn action(id: &str, file: &File) -> Option<Action> {
     }
 }
 
+/// Did a D-Bus tool's answer to `IsStatusNotifierHostRegistered` say yes? `busctl` prints `b true`,
+/// `gdbus` `(<true>,)`, `dbus-send` `variant boolean true`. Anything else (false, an error, nothing)
+/// is no (the engine's Linux check, `tray::icon_can_be_seen`). Pure.
+pub fn sni_host_answer(out: &str) -> bool {
+    let t = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    t == "b true" || t.contains("<true>") || t.ends_with("boolean true")
+}
+
 /// `s` cut to at most `units` UTF-16 units, never inside a character.
 pub fn cut_units(s: &str, units: usize) -> String {
     let mut out = String::new();

@@ -17,11 +17,22 @@ use super::settings::{LocalSettings, Show};
 /// of lines is one notice, and a flood of mentions cannot make the computer a siren.
 pub const BURST_SECS: i64 = 5;
 
-/// The burst guard's key for `c`: its server and its conversation, so two servers' rooms of one
-/// name (each has a "general") keep their own five seconds (rung 2, part 2: rung 2's first part keyed
-/// by the conversation alone).
+/// The burst guard's key for `c` (and the in-app list's, `list::List::add`): its server and its
+/// conversation, so two servers' rooms of one name (each has a "general") keep their own five
+/// seconds (rung 2, part 2: rung 2's first part keyed by the conversation alone); but a Commons
+/// room (`commons`: carried by two or more of my linked servers) is `commons:<room>`, ONE room
+/// whichever carrier delivers a copy of its line, so a mention bridged between two servers is one
+/// notice, one sound and one entry, not two (the critic's review of part 2, 2026-10-31).
 pub fn burst_key(c: &Candidate) -> String {
-    format!("{}|{}", c.server, c.conversation)
+    key_of(&c.server, &c.conversation, c.room.as_deref(), c.commons)
+}
+
+/// [`burst_key`] from its parts (the in-app list keys its entries with it).
+pub fn key_of(server: &str, conversation: &str, room: Option<&str>, commons: bool) -> String {
+    match (room, commons) {
+        (Some(room), true) => format!("commons:{room}"),
+        _ => format!("{server}|{conversation}"),
+    }
 }
 
 /// Longest title and body a notice carries, in characters.
@@ -52,6 +63,9 @@ pub struct Candidate {
     /// follows travel with friendship passes; `DmStore::is_friend`). Decided on the device: the
     /// server cannot know it for a DM (sealed sender).
     pub from_friend: bool,
+    /// A Commons room: `room` on this server is one room with another of my linked servers
+    /// (`chat::in_commons`), so its notices are keyed by the room alone ([`burst_key`]).
+    pub commons: bool,
 }
 
 /// The person's synced switches (the server's `notification_prefs`), as last received.

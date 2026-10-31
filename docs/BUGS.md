@@ -6989,3 +6989,31 @@ operator-reported. Main only: no tag contains it.
   already safe: harvests are commands, which run inside the tick.
 - **Lesson.** Anything that runs a system's body outside the frame's tick must also bring that
   frame's publish-and-take windows with it, or what it consumes or produces goes nowhere.
+
+## BUG-220: closing into the tray left a call and the microphone running, and the banner showed on a broadcast (FIXED 2026-10-31, found 2026-10-31, never in a release)
+
+**Found by** the critic's review of notifications rung 2 part 2 (22983c236), not operator-reported.
+Main only: no tag contains it.
+
+- **The call.** With "Closing the window keeps HumanityOS running in the tray" on, closing during
+  a voice room or a 1:1 call hid the window but left the call: the voice session is started,
+  stopped and drained only in the drawn frame, and the hidden tick still fed peers' voice in.
+  The microphone stayed open, the person stayed in the room for everyone else, a peer's hang-up
+  and an outgoing ring's timeout were not acted on, and in the open-mic modes about 5 s of queued
+  sound went to every peer when the window came back. FIXED: hiding leaves the room, hangs up and
+  cancels a ring through the same paths as the person's own buttons (`chat::leave_all_voice`,
+  `modals::hang_up_call`, `cancel_outgoing_call`), stops the session and clears both voice
+  queues; the "still running" notice says the call ended. Tests
+  `hiding_leaves_every_call_and_voice_room`, `the_hidden_tick_never_starts_or_feeds_voice`, and
+  `just verify-tray`'s `voice_left` link, each seen red first.
+- **The banner.** The new in-world banner is painted in the HUD, and the Live broadcast captures
+  the window after the HUD is painted, so a DM while streaming showed the sender (and, with "name
+  and text", the message) to every viewer. FIXED: no banner while broadcasting
+  (`no_banner_on_a_broadcast_window`).
+- **Also from the same review:** a Commons room bridged by two linked servers notified twice
+  (now one conversation, `commons:<room>`); on Wayland and on Linux with no tray host the window
+  could hide with no way back (closing quits there now); a rig with its tray on could take the
+  operator's notice clicks (a script's instance serves clicks only with HUMANITY_TRAY_CLICKS=1).
+- **Lesson.** Hiding a window is leaving: everything the drawn frame keeps alive (voice,
+  capture, timers) must be stopped or moved into the hidden tick on purpose, never left to stop
+  by itself when frames stop.

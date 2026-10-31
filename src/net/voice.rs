@@ -755,6 +755,18 @@ pub fn voice_session_status() -> String {
 pub fn drain_voice_send() -> Vec<Vec<u8>> {
     VOICE_SEND.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default()
 }
+/// Drop every frame waiting either way: the mic's not yet sent and the peers' not yet played. When
+/// voice is left all at once (closing the window into the tray, notifications rung 2 part 2), so a
+/// later session never sends seconds of old microphone to anyone.
+pub fn clear_voice_queues() {
+    if let Ok(mut q) = VOICE_SEND.lock() {
+        q.clear();
+    }
+    if let Ok(mut q) = VOICE_REMOTE.lock() {
+        q.clear();
+    }
+}
+
 /// Queue one inbound Opus frame from `peer` for decode + playback.
 pub fn push_remote_opus(peer: String, opus: Vec<u8>) {
     if let Ok(mut q) = VOICE_REMOTE.lock() {

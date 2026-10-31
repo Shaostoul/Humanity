@@ -125,12 +125,21 @@ notification-area icon, never flashes its taskbar button for a notice, and never
 answers a click on an operating-system notice (`src/engine/tray.rs` `allowed`):
 a force-closed process leaves its tray icon behind until the pointer passes over
 it, so agents' boots would pile icons into the operator's tray, and a rig must not
-take a click on the operator's own notice. A rig that tests the tray, the notice
-click or the flash sets `HUMANITY_TRAY=1` for its game, drives it through
-`debug/tray_request.json` (engine/tray.rs: `close`, `menu`, `icon`, `click`,
-`notice`, `state`; answered in `debug/tray_done.json`), and closes it GRACEFULLY
-so its icon goes with it. A close posted by another program (`taskkill` without
-`/F`) always quits, even with "closing keeps HumanityOS running in the tray" on,
+take a click on the operator's own notice. A rig that tests the tray or the flash
+sets `HUMANITY_TRAY=1` for its game; that alone serves NO clicks on notices (the
+Windows notice activator is one class id for every copy, so a rig serving it beside
+the operator's own game could take his clicks): only a rig that also sets
+`HUMANITY_TRAY_CLICKS=1` serves them, and it runs only when his game is not up
+(src/engine/tray.rs `serves_clicks`; the dev request's `click` action needs neither,
+it calls the same open path directly). `just verify-tray` is the committed rig for
+the hidden-window chain (HUMANITY_TRAY=1, never HUMANITY_TRAY_CLICKS). A rig drives
+the tray through `debug/tray_request.json` (engine/tray.rs: `close`, `voice_close`,
+`menu`, `icon`, `click`, `notice`, `setting`, `state`; answered in
+`debug/tray_done.json`), and closes it GRACEFULLY so its icon goes with it. Never set
+a real voice room or call in a rig: `voice_close` sets stand-ins and closes in the
+same step, so no frame ever starts a voice session (that would open the operator's
+microphone). A close posted by another program (`taskkill` without `/F`) always
+quits, hidden or shown, even with "closing keeps HumanityOS running in the tray" on,
 so the graceful close still saves (`src/engine/tray_window.rs`).
 
 ## A quick manual boot

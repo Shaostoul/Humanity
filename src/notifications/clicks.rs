@@ -13,7 +13,8 @@
 //!   window gets no toast); with the window behind, the taskbar button flashes. Both only for what
 //!   THE rule let through, and neither while the window is hidden in the tray (there is no
 //!   taskbar button then, and the toast is the cue). The banner's words are the notice's
-//!   (`decide::words`), so it shows the message only when "What a notice shows" does.
+//!   (`decide::words`), so it shows the message only when "What a notice shows" does. No banner
+//!   while the window is broadcast (Studio's Go Live captures what the window paints).
 
 use std::collections::VecDeque;
 
@@ -111,6 +112,9 @@ pub struct Window {
     pub hidden: bool,
     /// The person is playing in the world (no page open over it).
     pub in_world: bool,
+    /// The window is being broadcast (Studio's Go Live): what it paints goes to every viewer
+    /// (`ipc::pump_live_broadcast` captures the frame after the GUI is drawn).
+    pub broadcasting: bool,
 }
 
 /// The cues beside a notice the rule let through.
@@ -127,7 +131,9 @@ pub fn cues(w: Window) -> Cues {
     if w.hidden {
         return Cues::default();
     }
-    Cues { banner: w.focused && w.in_world, flash: !w.focused }
+    // Never a banner on a broadcast window: it would show every viewer who wrote to the person, and
+    // what, with "who and the message" (the critic's review of part 2, 2026-10-31).
+    Cues { banner: w.focused && w.in_world && !w.broadcasting, flash: !w.focused }
 }
 
 /// The in-world banner showing now: the notice's words, and when it came.
