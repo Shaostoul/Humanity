@@ -16,7 +16,11 @@
 //! every grow area and the air advance every frame (`clock.rs`); and what the farm's body keeps
 //! for a round of its rotation is worked out again in every run: which pests eat each plant
 //! (`FarmingSystem::pest_hosts`), the grow rooms' layout for the air (`humidity::AirLayout`) and
-//! the hives' and devices' reach (`pollination`). A new reuse that does not ask is a bug.
+//! the hives' and devices' reach (`pollination`). Since stutter survey 2 (2026-10-31): every egui
+//! context's fonts borrow one copy of the font files read at startup (`gui::fonts`), and a page
+//! screen's first sight comes over its first turns (`gui::screen_surface::turn_plan`); with the
+//! switch off each context builds its own fonts and a first sight runs twice and paints on one
+//! frame, as before. A new reuse that does not ask is a bug.
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

@@ -567,6 +567,14 @@ mod tests {
     /// draw (`cpu.garden.page`): children of `cpu.page_data.garden` and `cpu.screen_ui`. Not rows.
     const GARDEN_FAMILY_PREFIX: &str = "cpu.garden.";
 
+    /// Parts of one-off jobs, timed so a stutter names its cause (stutter survey 2, 2026-10-31):
+    /// a rebuild of the home (`cpu.home_rebuild` and its `.meshes`, `.apply`, ...: inside the span
+    /// the edit ran in), a page screen's turns up to its first picture (`cpu.screen_first` and its
+    /// `.runs`, `.textures`, `.paint`: inside `cpu.screen_ui`), the save's halves (`cpu.save.read`,
+    /// `.extract`, `.serialize`, `.disk`, `.write`: inside `cpu.span.save_editor` and the other
+    /// spans a save runs in). Not rows: each is part of a stage or span already counted.
+    const ONE_OFF_FAMILY_PREFIXES: &[&str] = &["cpu.home_rebuild", "cpu.screen_first", "cpu.save."];
+
     /// Every `.rs` file under `src/`, recursively.
     fn rust_sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         let Ok(rd) = std::fs::read_dir(dir) else { return };
@@ -716,7 +724,8 @@ mod tests {
                 || id.starts_with(ECS_FAMILY_PREFIX)
                 || id.starts_with(SPAN_FAMILY_PREFIX)
                 || id.starts_with(FARM_FAMILY_PREFIX)
-                || id.starts_with(GARDEN_FAMILY_PREFIX);
+                || id.starts_with(GARDEN_FAMILY_PREFIX)
+                || ONE_OFF_FAMILY_PREFIXES.iter().any(|p| id.starts_with(p));
             if !ok {
                 orphans.push(id.clone());
             }

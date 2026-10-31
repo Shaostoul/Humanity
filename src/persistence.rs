@@ -575,9 +575,13 @@ pub fn saves_dir() -> PathBuf {
 /// Before this the save was rewritten in place with `std::fs::write`, which
 /// truncates the file first: a crash at the wrong moment lost the home.
 pub fn save_world(path: &Path, save: &WorldSave) -> Result<(), String> {
+    // Its two halves on the Performance page's clock (stutter survey 2, 2026-10-31).
+    let serialize = crate::frame_costs::stage("cpu.save.serialize");
     let json = serde_json::to_string_pretty(save)
         .map_err(|e| format!("Failed to serialize world save: {e}"))?;
+    drop(serialize);
 
+    let _disk = crate::frame_costs::stage("cpu.save.disk");
     write_save_bytes(path, json.as_bytes(), &snapshots_root_for(path), now_ms())?;
 
     log::info!("World saved to {}", path.display());

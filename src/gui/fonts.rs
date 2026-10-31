@@ -43,7 +43,44 @@ use egui::FontFamily;
 /// Each fallback is independent: a machine with no CJK font still gets the
 /// arrow fix and whatever emoji it has.
 pub fn install_font_fallbacks(ctx: &egui::Context) {
-    ctx.set_fonts(build_font_definitions());
+    ctx.set_fonts(font_definitions(crate::reuse::enabled()));
+}
+
+/// The definitions a context installs (stutter survey 2, 2026-10-31). Every in-world page screen
+/// has an egui context of its own, and each built these afresh: it READ the system CJK and emoji
+/// files again (about 15.7 MB on the operator's PC: Yu Gothic and Segoe UI Emoji), and egui copied
+/// each file's bytes again on the context's first frame to parse them (`FontData::from_owned`
+/// clones its bytes for every context that uses it). That copy, a fresh 15.7 MB allocation, was
+/// most of the 5 ms every screen's first frame cost before its page drew anything, and the
+/// thirteen screens of the home held thirteen copies, about 200 MB.
+///
+/// So the definitions are built once a process and every context borrows the same bytes
+/// (`share_font_bytes`: egui then parses a borrowed slice in place). The system font files are
+/// read at startup, as the main context always read them; nothing derived is kept. With the Dev
+/// page's "Turn off all reuse" (`reuse` false) each context builds its own, as before.
+fn font_definitions(reuse: bool) -> egui::FontDefinitions {
+    if !reuse {
+        return build_font_definitions();
+    }
+    static SHARED: std::sync::OnceLock<egui::FontDefinitions> = std::sync::OnceLock::new();
+    SHARED.get_or_init(|| share_font_bytes(build_font_definitions())).clone()
+}
+
+/// The same definitions, every font's bytes borrowed: a font read from a file (owned bytes) is
+/// kept for the rest of the process (the font files are a few megabytes, held for as long as any
+/// context draws text, which is the whole run) and handed out as a `'static` slice, so a context's
+/// first frame parses it where it lies instead of copying it. Built-in fonts are borrowed already.
+fn share_font_bytes(mut defs: egui::FontDefinitions) -> egui::FontDefinitions {
+    for data in defs.font_data.values_mut() {
+        if let std::borrow::Cow::Owned(bytes) = &data.font {
+            let kept: &'static [u8] = Box::leak(bytes.clone().into_boxed_slice());
+            let mut shared = egui::FontData::from_static(kept);
+            shared.index = data.index;
+            shared.tweak = data.tweak;
+            *data = std::sync::Arc::new(shared);
+        }
+    }
+    defs
 }
 
 /// Build the fallback chains. Split out from [`install_font_fallbacks`] so the
@@ -329,5 +366,31 @@ mod tests {
     fn both_probes_offer_candidates_on_this_platform() {
         assert!(!platform_emoji_paths().is_empty(), "no emoji candidates for this platform");
         assert!(!platform_cjk_paths().is_empty(), "no CJK candidates for this platform");
+    }
+
+    /// EVERY CONTEXT BORROWS ONE COPY OF THE FONT FILES (stutter survey 2, 2026-10-31). Each wall
+    /// screen's context copied the system CJK and emoji files (owned bytes, which egui copies again
+    /// on a context's first frame to parse them), the bulk of every screen's first-frame cost
+    /// before its page drew anything. With reuse on, two contexts' definitions are the same
+    /// borrowed bytes, and they are the very fonts and chains a context built afresh gets (the Dev
+    /// page's switch off), byte for byte.
+    ///
+    /// Seen red 2026-10-31 with `font_definitions` building afresh whatever the switch said (as
+    /// before): "system_cjk is a copy of its own".
+    #[test]
+    fn every_context_borrows_one_copy_of_the_font_files() {
+        let (a, b) = (font_definitions(true), font_definitions(true));
+        for (name, data) in &a.font_data {
+            assert!(matches!(data.font, std::borrow::Cow::Borrowed(_)), "{name} is a copy of its own");
+            assert_eq!(data.font.as_ptr(), b.font_data[name].font.as_ptr(), "{name}: two contexts read one copy of its bytes");
+        }
+        let fresh = font_definitions(false);
+        assert_eq!(fresh.families, a.families, "the same fallback chains");
+        assert_eq!(fresh.font_data.keys().collect::<Vec<_>>(), a.font_data.keys().collect::<Vec<_>>(), "the same fonts");
+        for (name, data) in &fresh.font_data {
+            let shared = &a.font_data[name];
+            assert!(*data.font == *shared.font, "{name}: the same bytes");
+            assert_eq!((data.index, data.tweak), (shared.index, shared.tweak), "{name}: the same face and tweak");
+        }
     }
 }

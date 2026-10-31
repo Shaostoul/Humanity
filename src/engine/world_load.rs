@@ -5,11 +5,11 @@
 use glam::Vec3;
 use std::time::Instant;
 use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
-use crate::engine::home_meshes::{apply_homestead_meshes, home_lights, machine_body_mesh, rebuild_connection_objects, rebuild_door_panels, rebuild_hull};
+use crate::engine::home_meshes::{apply_homestead_meshes, home_lights, rebuild_connection_objects, rebuild_door_panels, rebuild_hull};
 use crate::engine::home_spawn::{spawn_home_air_space, spawn_home_machine_entity};
 use crate::engine::net_route::reload_planet_defs;
 use crate::engine::registries::load_data_registries;
-use crate::engine::state::{EngineState, GrowSpot};
+use crate::engine::state::EngineState;
 use crate::renderer::mesh::Mesh;
 use crate::ship::starts::HomeContent;
 use crate::systems::inventory::ItemRegistry;
@@ -351,79 +351,12 @@ pub(crate) fn load_world(state: &mut EngineState) {
                     Some((inst, def, pos))
                 })
                 .collect();
-            // The bodies' slots: last entry's, then the home's spares, then new ones (the
-            // 2026-10-21 follow-ups: every entry used to add a slot per machine, orphaning the
-            // last entry's, so the renderer's mesh list grew by the household at each entry).
-            let slots = crate::engine::home_meshes::take_machine_slots(state, resolved.len());
-            for (&(inst, def, pos), &(mesh_idx, mat)) in resolved.iter().zip(&slots) {
-                let (sx, sy, _sz) = def.size;
-                // GLB model when declared (v0.734); primitive fallback on
-                // any load error. Per-instance parse — see the editor
-                // rebuild's note on why the mesh is never cache-shared.
-                let mesh = def
-                    .model
-                    .as_deref()
-                    .and_then(|m| {
-                        state
-                            .asset_manager
-                            // Fitted to the def SIZE height (v0.1324.1): this is the
-                            // path that draws the machines AT WORLD LOAD, which is
-                            // the one a player actually sees.
-                            .parse_gltf_mesh_fit_height(&state.renderer.device, m, sy)
-                            .map_err(|e| {
-                                log::warn!(
-                                    "machine {} model '{m}' failed: {e}; primitive fallback",
-                                    inst.id
-                                )
-                            })
-                            .ok()
-                    })
-                    .unwrap_or_else(|| {
-                        // Open shelving for a stacked grow machine (2026-09-27).
-                        machine_body_mesh(
-                            &state.renderer.device,
-                            &state.gui_state.grow_media,
-                            &inst.machine,
-                            &def.shape,
-                            def.size,
-                        )
-                    });
-                state.renderer.replace_mesh(mesh_idx, mesh);
-                state.renderer.update_material_typed(mat, [def.color.0, def.color.1, def.color.2, 1.0], 0.1, 0.7, 0.0);
-                // sphere is center-origin; lift it so it rests on the floor.
-                let draw_pos = if def.shape == "sphere" {
-                    Vec3::new(pos.x, pos.y + sx, pos.z)
-                } else {
-                    pos
-                };
+            // The bodies, their labels, their pick volumes and the grow anchors are built after
+            // this loop by the editor's own builder (home_meshes::build_machine_bodies, stutter
+            // survey 2, 2026-10-31): this loop places each machine's live entity and records where
+            // it stands.
+            for &(inst, def, pos) in resolved.iter() {
                 machine_world_pos.insert(inst.id.clone(), pos);
-                state.machine_objects.push((mesh_idx, mat, draw_pos, inst.rotation));
-                // Floating label anchor: just above the machine's top.
-                let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
-                // Grow anchor for the procedural plant pass (v0.863): the
-                // INITIAL load path must record these too, not just
-                // rebuild_machine_objects, or a fresh boot has no anchors
-                // and the showcase auto-seed stays idle until an edit.
-                state.grow_positions.push(GrowSpot {
-                    ty: inst.machine.clone(),
-                    id: inst.id.clone(),
-                    pos,
-                    yaw: inst.rotation,
-                    top_y,
-                    size: def.size,
-                });
-                let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
-                state.gui_state.machine_labels.push(crate::gui::MachineLabel {
-                    pos: Vec3::new(pos.x, top_y + 0.4, pos.z),
-                    foot_y: pos.y,
-                    name,
-                    // A grow machine's food line is computed from its crops.
-                    stats: home.stats_for(&inst.machine),
-                    room: inst.room.clone(),
-                    machine_id: inst.id.clone(),
-                    // What E does at it (the home's bed sleeps you, first-hour audit F5).
-                    on_use: crate::engine::built_uses::machine_use(def),
-                });
                 // Spawn the machine's electrical + water roles as a LIVE ECS entity so the
                 // SolarSystem + ElectricalSystem + PlumbingSystem tick against the real home
                 // (v0.437/v0.608). One entity per machine (power + water on the same entity).
@@ -452,13 +385,16 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 log::warn!("Machines: {} saved machine levels had no machine to go to: {:?}", orphaned.len(), orphaned);
             }
 
-            // In-world screens (rung 2): a page surface + display quad for
-            // every placed machine whose def carries a `screen`. Built here
-            // on the initial load as well as in rebuild_machine_objects, or
-            // a fresh boot would show blank bodies until the first edit.
-            if let Some(placements) = crate::engine::home_meshes::current_placements(state) {
-                crate::engine::screens::sync_screens(state, &placements);
-            }
+            // The machines' bodies (each model with its texture, as every later rebuild draws it),
+            // their labels, pick volumes and grow anchors, from the builder the editor's rebuild
+            // uses, so the first rebuild after this load finds them in step with the placements
+            // and only moves them (home_meshes::build_machine_bodies). Then the in-world screens
+            // (rung 2): a page surface + display quad for every placed machine whose def carries a
+            // `screen`, built here on the initial load as well as in rebuild_machine_objects, or a
+            // fresh boot would show blank bodies until the first edit.
+            let placements = crate::engine::home_meshes::placements_now(state).unwrap_or_default();
+            crate::engine::home_meshes::build_machine_bodies(state, &placements);
+            crate::engine::screens::sync_screens(state, &placements);
 
             // ── Starter livestock (v0.751, ladder rung 7) ── farm animals near the outdoor
             // fields, only for a home whose start carries a herd (`spawn_herd`).

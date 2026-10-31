@@ -959,13 +959,20 @@ pub(crate) fn save_home_at(
     if !keep_progress {
         // "Start every session from the default home": record the character,
         // leave any progress save exactly as it was.
+        // Its parts (stutter survey 2, 2026-10-31: the autosave's frame ran 2 to 4 ms of its own
+        // CPU): reading the save back, then writing it.
+        let read = crate::frame_costs::stage("cpu.save.read");
         let save = identity_only_save(load_home_at(path), world);
+        drop(read);
+        let _write = crate::frame_costs::stage("cpu.save.write");
         if let Err(e) = persistence::save_world(path, &save) {
             log::error!("save_active_home (character only) failed: {e}");
         }
         return;
     }
+    let extract = crate::frame_costs::stage("cpu.save.extract");
     let mut save = extract_world_save(world);
+    drop(extract);
     // Where the home stood, beside its pieces and vehicles where they stand (`HomeFrame`).
     record_home_frame(&mut save, frame_for_save(data).as_ref());
     save.placed_items = Some(placed.to_vec());
@@ -1013,6 +1020,7 @@ pub(crate) fn save_home_at(
         save.herd_care = crate::systems::animal_care::pending_care(data).unwrap_or_default();
     }
     save.herd_lost = crate::systems::animal_care::lost(data);
+    let _write = crate::frame_costs::stage("cpu.save.write");
     if let Err(e) = persistence::save_world(path, &save) {
         log::error!("save_active_home failed: {e}");
     } else {

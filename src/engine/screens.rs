@@ -28,7 +28,7 @@
 //! this reason.
 
 use crate::engine::state::{EngineState, SceneDrawLists};
-use crate::gui::screen_surface::{LoadState, ScreenProvider, ScreenSource, ScreenSurface, ScreenWorld, SURFACE_FORMAT};
+use crate::gui::screen_surface::{turn_plan, LoadState, ScreenProvider, ScreenSource, ScreenSurface, ScreenWorld, Turn, SURFACE_FORMAT};
 use crate::gui::GuiPage;
 use crate::machines::{CameraPose, PlacedMachine};
 use crate::renderer::mesh::Mesh;
@@ -883,6 +883,30 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     if pages_of(drawn.iter().filter_map(|&si| state.screens.surfaces.get(si)).map(|s| &s.core.source)).contains(&GuiPage::Inventory) {
         crate::engine::garden_mirror::build_for_wall_screen(state);
     }
+    // A page screen's first sight is spread over its first turns (stutter survey 2, 2026-10-31,
+    // `screen_surface::turn_plan`): the turn that builds its page's own data (above) draws nothing
+    // more, the next runs the page's warm-up, the one after paints. Not for the dev IPC's target.
+    let spread = crate::reuse::enabled();
+    let readying: Vec<usize> = drawn
+        .iter()
+        .copied()
+        .filter(|&si| {
+            state.screens.surfaces.get(si).is_some_and(|s| {
+                Some(si) != ipc && turn_plan(s.core.runs(), s.data_readied, page_has_frame_data(&s.core.source), spread) == Turn::ReadyData
+            })
+        })
+        .collect();
+    for &si in &readying {
+        if let Some(s) = state.screens.surfaces.get_mut(si) {
+            s.data_readied = true;
+        }
+    }
+    let drawn: Vec<usize> = drawn.into_iter().filter(|si| !readying.contains(si)).collect();
+    for &si in &drawn {
+        if let Some(s) = state.screens.surfaces.get_mut(si) {
+            s.ipc_target = Some(si) == ipc;
+        }
+    }
     state.screens.framed_pages = framed;
     let EngineState { screens, renderer, theme, gui_state, .. } = state;
     let Screens { surfaces, quads, .. } = screens;
@@ -905,6 +929,14 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
             }
         }
     });
+}
+
+/// Whether a screen showing `source` has data of its own built on a frame that draws it: the
+/// Inventory page's Garden rows (engine/garden_mirror.rs, built in `frame_surfaces` before the
+/// screens draw), whose first build, every grow area at once, is a turn of its own on the screen's
+/// first sight (`screen_surface::Turn::ReadyData`).
+pub(crate) fn page_has_frame_data(source: &ScreenSource) -> bool {
+    matches!(source, ScreenSource::Page(GuiPage::Inventory))
 }
 
 /// The pages that `sources` show, in order, each once.

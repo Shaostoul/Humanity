@@ -202,6 +202,71 @@ struct Store {
     frame_worst_cur: f32,
     frame_worst_prev: f32,
     worst_since: Option<Instant>,
+    /// The last `SPIKES_KEPT` slow frames, oldest first (`note_spike`).
+    spikes: std::collections::VecDeque<Spike>,
+}
+
+/// A frame whose work (`cpu.frame_total`) ran more than `SPIKE_OVER_MS` over its average, and what
+/// in it cost the most (stutter survey 2, 2026-10-31). The worst-frame windows (`note_worst`) say
+/// each id's largest frame in the last 5 to 10 s but not WHICH frame: two ids' worsts may be two
+/// different frames. A spike is one frame, so its parts are what made that frame long.
+#[derive(Clone, Debug)]
+pub struct Spike {
+    /// Seconds since the process's measuring epoch.
+    pub at_s: f64,
+    /// The frame's work (`cpu.frame_total`) and its running average before it, ms.
+    pub frame_ms: f64,
+    pub avg_ms: f64,
+    /// That frame's largest stages (`cpu.*`, not spans), ms, largest first.
+    pub stages: Vec<Entry>,
+    /// That frame's spans by their own CPU time (where the platform counts it, else their clock
+    /// time), ms, largest first.
+    pub spans: Vec<Entry>,
+}
+
+/// A frame this much (ms) over its average work is a spike: the goal's "a few milliseconds"
+/// (sim-frame-cost.md, Stutter, item 4).
+pub const SPIKE_OVER_MS: f64 = 4.0;
+/// How many spikes are kept (the newest).
+pub const SPIKES_KEPT: usize = 32;
+/// How many of a spike's stages and spans are kept, the largest.
+const SPIKE_PARTS: usize = 8;
+
+/// Keep the frame just closed if its work ran `SPIKE_OVER_MS` over its average (`avg`, the running
+/// average before it): its largest stages and its spans, largest first. The ids that only measure
+/// the frame as a whole or its waiting are left out of the parts.
+fn note_spike(s: &mut Store, at_s: f64, avg: f64, frame: &[Entry], thread: &[Entry]) {
+    let Some(total) = frame.iter().find(|e| e.id == "cpu.frame_total").map(|e| e.value) else { return };
+    if avg <= 0.0 || total <= avg + SPIKE_OVER_MS {
+        return;
+    }
+    let whole = |id: &str| matches!(id, "cpu.frame_total" | "cpu.fps_cap_sleep" | "cpu.present_wait");
+    let top = |mut v: Vec<Entry>| {
+        v.sort_by(|a, b| b.value.partial_cmp(&a.value).unwrap_or(std::cmp::Ordering::Equal));
+        v.truncate(SPIKE_PARTS);
+        v
+    };
+    // A span's id is `cpu.span.<name>` (`span`); its family read by its second word, so the
+    // Performance page's id scan finds no new prefix here.
+    let is_span = |id: &str| id.split('.').nth(1) == Some("span");
+    let stages = top(frame.iter().filter(|e| !whole(e.id) && !is_span(e.id)).copied().collect());
+    // Own CPU where it was counted, else the span's clock time.
+    let mut spans: Vec<Entry> = thread.to_vec();
+    for e in frame.iter().filter(|e| is_span(e.id)) {
+        if !spans.iter().any(|t| t.id == e.id) {
+            spans.push(*e);
+        }
+    }
+    let spans = top(spans);
+    if s.spikes.len() >= SPIKES_KEPT {
+        s.spikes.pop_front();
+    }
+    s.spikes.push_back(Spike { at_s, frame_ms: total, avg_ms: avg, stages, spans });
+}
+
+/// The slow frames kept (`note_spike`), oldest first.
+pub fn spikes() -> Vec<Spike> {
+    store().lock().map(|s| s.spikes.iter().cloned().collect()).unwrap_or_default()
 }
 
 /// How long one window of worst frames lasts. What is reported is the worst of this window and
@@ -538,6 +603,10 @@ pub fn begin_frame() {
         note_worst(&mut s, now, frame_ms, &accum);
         // The spans' own CPU time: averaged like the stages, worst-tracked in the same windows.
         let thread_accum = std::mem::take(&mut s.thread_accum);
+        // A slow frame, with what made it slow, against the average before it.
+        let avg_total = s.cpu.iter().find(|e| e.id == "cpu.frame_total").map_or(0.0, |e| e.value);
+        let at_s = now.saturating_duration_since(epoch()).as_secs_f64();
+        note_spike(&mut s, at_s, avg_total, &accum, &thread_accum);
         let ids: Vec<&'static str> = s.thread.iter().map(|e| e.id).collect();
         for id in ids {
             let v = thread_accum.iter().find(|e| e.id == id).map(|e| e.value).unwrap_or(0.0);
@@ -664,6 +733,15 @@ pub fn snapshot_json() -> serde_json::Value {
         // average and worst. Empty where the platform cannot count a thread's cycles.
         "thread_ms": col(&thread_avg),
         "thread_worst_ms": col(&thread_worst),
+        // The last slow frames (`note_spike`): each one frame's work against its average and what
+        // in THAT frame cost the most, so a stutter is read off its own frame.
+        "spikes": spikes().iter().map(|k| serde_json::json!({
+            "at_s": k.at_s,
+            "frame_ms": k.frame_ms,
+            "avg_ms": k.avg_ms,
+            "stages": k.stages.iter().map(|e| serde_json::json!([e.id, e.value])).collect::<Vec<_>>(),
+            "spans": k.spans.iter().map(|e| serde_json::json!([e.id, e.value])).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
     })
 }
 
@@ -983,6 +1061,35 @@ mod tests {
         // Two windows on, it has gone.
         note_worst(&mut s, t0 + WORST_WINDOW * 2 + Duration::from_millis(2), Some(16.0), &f(1.0));
         assert_eq!(w(&s), (16.0, 1.0), "forgotten two windows later");
+    }
+
+    /// A SLOW FRAME IS KEPT WITH ITS OWN PARTS (stutter survey 2, 2026-10-31): a frame whose work
+    /// runs more than `SPIKE_OVER_MS` over its average is kept with that frame's largest stages
+    /// and its spans by their own CPU time; a frame within it is not; only the newest
+    /// `SPIKES_KEPT` stay.
+    #[test]
+    fn a_slow_frame_is_kept_with_what_made_it_slow() {
+        let _g = serial();
+        let mut s = Store::default();
+        let e = |id: &'static str, value: f64| Entry { id, value };
+        let frame = |total: f64, scene: f64| {
+            vec![e("cpu.frame_total", total), e("cpu.scene", scene), e("cpu.present_wait", 20.0), e("cpu.ssao", 0.2), e("cpu.span.world_passes", scene + 1.0)]
+        };
+        let own = |v: f64| vec![e("cpu.span.world_passes", v), e("cpu.span.ecs", 0.5)];
+        note_spike(&mut s, 1.0, 13.0, &frame(16.5, 3.0), &own(4.0));
+        assert!(s.spikes.is_empty(), "3.5 ms over is within the goal");
+        note_spike(&mut s, 2.0, 13.0, &frame(25.0, 12.0), &own(12.5));
+        assert_eq!(s.spikes.len(), 1, "12 ms over is a spike");
+        let k = &s.spikes[0];
+        assert_eq!((k.at_s, k.frame_ms, k.avg_ms), (2.0, 25.0, 13.0));
+        assert_eq!(k.stages.first().map(|x| x.id), Some("cpu.scene"), "the largest stage first, the frame's whole and its waiting left out: {:?}", k.stages);
+        assert!(k.stages.iter().all(|x| x.id.split('.').nth(1) != Some("span") && x.id != "cpu.present_wait"), "{:?}", k.stages);
+        assert_eq!(k.spans.first().map(|x| (x.id, x.value)), Some(("cpu.span.world_passes", 12.5)), "a span by its own CPU time: {:?}", k.spans);
+        for i in 0..SPIKES_KEPT + 3 {
+            note_spike(&mut s, 10.0 + i as f64, 13.0, &frame(30.0, 15.0), &own(15.0));
+        }
+        assert_eq!(s.spikes.len(), SPIKES_KEPT, "the newest kept");
+        assert_eq!(s.spikes.back().map(|k| k.at_s), Some(10.0 + (SPIKES_KEPT + 2) as f64));
     }
 
     /// A stage that stops running must decay to zero instead of sticking in

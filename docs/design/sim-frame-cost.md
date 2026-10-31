@@ -149,7 +149,11 @@ slower hardware the same spike is bigger.
    keeps, beside each average, the largest single-frame value over the last 5 to 10 s
    (`note_worst`, `worst`), and the JSON drop and `game_frame_costs` report both (`cpu_worst_ms`,
    `frame_ms_worst`); a span whose worst is far above its average is a periodic spike. Read it on
-   a quiet machine (see above), until the spans also count thread CPU time.
+   a quiet machine (see above), until the spans also count thread CPU time. **Built 2026-10-31
+   (Survey 2):** the slow frames themselves, `frame_costs::note_spike`: a frame whose work
+   (`cpu.frame_total`) runs more than `SPIKE_OVER_MS` (4 ms) over its average is kept, the newest
+   32, with THAT frame's largest stages and its spans by their own CPU time (the JSON's `spikes`),
+   since two ids' window worsts may be two different frames.
 2. **The known periodic or bursty work to check first:** the autosave of the offline home every
    120 s (`save_load::periodic_save_due`, written on the main thread) and the ship-structure
    autosave; the plant mesh rebuilds (the log reports their worst frame); the shader-change poll
@@ -385,6 +389,141 @@ sixtieth of it.
   by area").
 - What was cut on the way: the pest host lists rebuilt every turn (now kept for a round,
   `FarmingSystem::pest_hosts`), the tally reading every skipped crop's record before its mark.
+
+### Survey 2, 2026-10-31 (a quiet machine)
+
+**The machine.** Both measuring windows ran with nothing else compiling (`just build-slot-status`:
+0 compiling, 0 waiting, at the start, at five minutes and at the end of each run; the orchestrator
+held the other sessions' compiles and boots out of both windows) and one HumanityOS on the machine.
+The worktree's release build, booted by probe-sweep with `--wait-builds` at `home-overview-noon`
+(the showcase's 1,981 crops), the clock released to real time (showcase `time_scale 1`), driven
+through the dev MCP. The background rig runs at 30 fps paced by present (`cpu.fps_cap_sleep` 0,
+`cpu.present_wait` about 20 ms), so the frame's WORK is `cpu.frame_total` (handler entry to the
+last submit), and each span's own CPU (`thread_ms`) is the code's own cost.
+
+**The run, the goal's:** `game_frame_costs` every 5 s for ten minutes (each worst is the worst
+frame of the last 5 to 10 s). At 0 s the overview; at 60 s the Inventory wall screen
+(`wall_screen_1` at 2.2 m), its first sight; at 100 s a harvest through that screen (its Harvest
+button lies below "You & places", so the unscrolled find found none in either run: the harvest was
+measured on its own, below); at 140 s a build edit (dev console `add_wall`, the first rebuild of the
+home since the world load) and at 175 s its undo (`rm_wall`); 200 to 264 s a walk past nine wall
+screens at 3 m, 8 s each; at 280 s ten seconds on foot (past the camera screen); 300 to 480 s the
+overview; at 481 s back to the Inventory screen; 560 s the overview. Autosaves every 120 s. Script:
+the session scratchpad's `stutter2-survey.js` (its `report` mode lists the slow frames too).
+
+**Before** (the main of 51358ff68; the frame's work averaged **13.0 ms**, its window worst 23.6 ms
+at the median window, 37.3 at the 90th, 124.5 at most; 114 of 120 windows had a frame more than
+4 ms over the average):
+
+| What | Average (own CPU) | Worst (own CPU) | When | Verdict |
+|---|---|---|---|---|
+| A build edit, `rebuild_homestead` (the console's, in `cpu.span.tail`) | 0 | **99.6 ms**, 23.4 on the undo | each edit | **Breaks the goal.** The first rebuild after a load re-made every machine body: below |
+| Page screens' first sight (`cpu.span.screens`) | 1.76 ms | **44.0 ms** (the tour), 31.3 (the Inventory screen: the screen's run 22.5 wall, its Garden data 9.2) | once per screen per session | **Breaks it.** Below |
+| The world passes (`cpu.span.world_passes`, `cpu.scene` inside) | 6.58 ms | 12.6 at the median window, 22.5 at most; `cpu.scene` (wall) 3.4 average, 7.8 median window worst, 16.2 at most | every window | **Breaks it, in every window.** Not periodic: below, "What still breaks the goal" |
+| A camera screen's render (`cpu.screen_scene`) | 0.07 ms | 13.8 ms | every 100 ms while it is framed (the walk at 280 s) | Breaks it while framed; not taken on here |
+| The home autosave (`cpu.span.save_editor`) | 0 | 2.1 to 4.2 ms own, 4.5 to 8.4 wall | every 120 s | Over by the wait for the disk, not the CPU: below |
+| Plant mesh rebuilds (`cpu.span.hot_reload`, `cpu.plant_rebuild`) | 0.23 ms | 3.4 ms | 23 windows | Its upload budget (3 ms) by design |
+| FarmingSystem (`cpu.system.farming`, wall) | 0.23 ms | 6.8 ms wall at 172 and 368 s, with the ECS span's own CPU at most 2.45 | twice | The OS, not the farm: no own-CPU spike |
+| The dev IPC (`cpu.span.dev_ipc`) | 0.15 ms | 2.3 ms | each sample (the survey's own) | Dev tooling measuring itself |
+
+**The harvest** (its own run, both builds, from the Inventory wall screen's "Harvest 4 ready" button,
+the player's own path): FarmingSystem's worst 0.53 to 0.99 ms, the plant meshes 1.9 to 2.0 ms, the
+frame's worst within its window's usual: not a spike.
+
+**What cost, read with three new instruments** (the slow-frame record above, a log line and
+`cpu.screen_first.*` for each screen's turns up to its first picture, `cpu.home_rebuild.*` and a log
+line for each rebuild of the home, `cpu.save.*` for the save's parts):
+
+- **The build edit.** The world load built the machines' bodies with a copy of the editor's builder
+  that parsed each model WITHOUT its texture and recorded no pick volumes (`machine_pick`), so the
+  first rebuild after a load (opening the build editor, the first edit) found the lists out of step
+  with the placements, took the add-or-remove path, parsed every model from its file again (about
+  80 ms) and swapped every furniture model's flat colour for its texture: the home drew differently
+  the first time anything rebuilt it (v0.1324.1 named the two paths). A later edit is about 23 to
+  29 ms: the ship's meshes 9 to 10 ms, their upload 6.5 to 10, the machines' move path 4.8 (the
+  pipes' markers made again), the dev snapshot file 1.3.
+- **A page screen's first sight** (each line one screen's first frame): run 1 of the page 4.5 to
+  19.5 ms, its texture uploads (the font atlas) 1.5 to 3.0, run 2 0 to 12.2 (the Library 12.2, the
+  Crafting page 7.0), the paint under 1.5. Run 1 cost about 5 ms even for a notice: every context
+  built its fonts afresh, READING the system CJK and emoji files (Yu Gothic and Segoe UI Emoji, about
+  15.7 MB on this PC) for each of the home's 13 screens, and egui copied each file's bytes again on
+  the context's first frame (`FontData::from_owned` is cloned for each context that parses it), a
+  fresh 15.7 MB allocation on each screen's first frame; each context held its own copies (the read
+  and egui's), some 200 to 400 MB for the home's thirteen. The Inventory
+  screen's first frame also built its Garden data, every grow area at once (9 ms).
+- **The process's first egui paint into a screen** costs 82 to 120 ms (once, at world entry,
+  whichever screen paints first), outside this run; the next screen's paint is under 1 ms.
+- **The autosave** (character only, as the operator's settings save): reading the save back 1.1 to
+  1.3 ms and its write about 4 ms of clock time, nearly all the file's flush to the disk
+  (`atomic_write::stage_write`'s `sync_all`), on the main thread.
+
+**The fixes** (all three proven in the game below; the second and third also by tests seen red):
+
+1. **One builder for the machines' bodies** (`home_meshes::build_machine_bodies`, used by the world
+   load and the editor's add-or-remove path): each model with its texture, its label, its pick
+   volume and its grow anchor, so the first rebuild after a load takes the move path, and the home
+   looks the same before and after an edit (it is textured from the world load now, as every rebuild
+   already drew it). The log no longer says "spawned live entity" for each of the 80 machines with
+   no live role on every rebuild (none was spawned). Proven in the game: the first rebuild's log line
+   names no screens placed (the move path) and costs what a later edit does. Not headless: the
+   bodies need a GPU device.
+2. **The fonts built once a process, every context borrowing the bytes** (`gui::fonts::font_definitions`,
+   `share_font_bytes`: a font read from a file is kept for the run and handed out as a `'static`
+   slice, which egui parses in place). The system files are read once, at startup, as the main
+   context always did. With the Dev page's "Turn off all reuse" each context builds its own, as
+   before. `every_context_borrows_one_copy_of_the_font_files` (seen red with the old build: "system_cjk
+   is a copy of its own").
+3. **A page screen's first sight over its first turns** (`gui::screen_surface::turn_plan`,
+   `engine::screens::frame_surfaces`): the turn that builds its page's own data (the Inventory page's
+   Garden rows, `Turn::ReadyData`) draws nothing more, the next runs the warm-up and paints nothing,
+   the one after runs and paints. The picture is the double run's, a turn or two later (two runs
+   before it, as before); until then the screen shows what it showed. Not for a provider's screen
+   (a camera's notice is drawn once), the dev IPC's target, or with the switch off (both runs and
+   the paint on one frame, as before). `a_first_sight_comes_on_the_screens_first_turns` (seen red with
+   the old rule: "a page with data of its own readies it first") and
+   `a_spread_first_sight_paints_what_the_double_run_painted` (the spread first sight's settled
+   layout is the double run's to half a point, on a Grid that moves between egui's runs).
+
+**After** (this commit, the same run; the frame's work averaged **12.4 ms**, its window worst
+**18.4 ms** at the median window, 25.1 at the 90th, **39.0 at most**; 88 of 119 windows had a frame
+more than 4 ms over the average):
+
+| What | Before (own CPU worst) | After |
+|---|---|---|
+| The build edit's frame (`cpu.span.tail`), the first after the load | 99.6 ms (frame 124.5) | **24.9 ms** (frame 38.7): ship meshes 9.9, their upload 7.1, machines 4.8, the snapshot file 1.4 |
+| Its undo | 23.4 ms | 22.6 ms |
+| The Inventory screen's first sight (`cpu.span.screens`, 60 to 75 s) | 31.3 ms (frame 43.3) | **14.0 ms** (frame 25.1): the Garden data 9.0 on its own turn, the warm-up 8.4, the first picture 1.9 |
+| The walk past the screens (200 to 275 s) | 44.0 ms (frame 55.8) | **25.2 ms** (frame 36.7): the Library's warm-up turn 18.8 and first picture 13.1, the Crafting page's 16.3 and 7.7 |
+| Run 1 of a page with little on it (Tasks, Chat, Calendar, a notice; before: the instrumented diagnostic boot, a compile running) | 4.5 to 8.8 ms (clock) | 1.3 to 3.5 ms (clock) |
+| The world passes' window worst, median | 12.6 ms | 10.2 ms (not touched here: the spread of a calmer machine) |
+| The autosave | 2.1 to 4.2 own, 4.5 to 8.4 wall | 2.4 to 2.9 own, 4.4 to 4.8 wall (not touched) |
+
+**What still breaks the goal, and why:**
+
+- **The world passes' spread, in every window**: `cpu.span.world_passes` averages 6.3 ms of its own
+  CPU and its worst frame in a window is about 4 ms over (median window), up to 18; inside it
+  `cpu.scene` (the scene pass's draw encoding and its one object-uniform upload) shows clock-time
+  spikes far above its own CPU's (in a busy-machine diagnostic run, `cpu.scene` up to 50 ms while the
+  whole world-pass span's own CPU was 11.6): a wait, not work. The candidates: `queue.write_buffer`
+  of the object uniforms (up to 256 bytes a draw, a fresh staging allocation each frame) and the
+  driver's own waits. The next step is the slow-frame record (`spikes`) on the operator's PC at
+  his settings, then a persistent upload buffer or a staging belt for the uniforms; the scene pass
+  culls nothing per view either (`screens/camera.rs`: "the draw list is not culled per camera"),
+  which a camera screen's 6.5 to 13.8 ms render every 100 ms shows too.
+- **A build edit is still 23 to 25 ms on its frame**: the ship's meshes (9 to 10 ms, CPU only:
+  `ShipStructure::generate_meshes` could run on a worker as the plant meshes do), their upload (6.5
+  to 7 ms, could be budgeted), the pipes' markers made again on a wall edit (most of the machines'
+  4.8 ms), and the dev snapshot file (1.3 ms, could be written off the frame).
+- **Heavy pages' first sight**: the Library's run 1 is 16 ms and its run 2 still 12.5 (a page that
+  lays out its whole list twice), the Crafting page's 15 and 7; each page's own layout is the next
+  cut (the Garden page's offscreen skipping, `gui/widgets/offscreen.rs`, for their long lists).
+- **The autosave's 4.4 to 4.8 ms of clock time** is the disk's flush; the CPU is 2.4 to 2.9 ms.
+  Writing the save on a writer thread (the main thread extracts, a writer serializes and writes,
+  every reader and writer of a save file waiting for it first) is the fix; not built here because
+  every one of the save file's readers and writers would have to wait on it, and that wants its own
+  review.
+- **The process's first egui paint into a screen** (82 to 120 ms, at world entry): a paint at the
+  world load would move it under the loading screen.
 
 ## Suspects in the untimed time, ranked
 

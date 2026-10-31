@@ -334,6 +334,10 @@ pub(crate) fn rebuild_hull(state: &mut EngineState) {
 /// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
 /// them. (v0.455)
 pub(crate) fn rebuild_homestead(state: &mut EngineState) {
+    // Its parts (stutter survey 2, 2026-10-31: a build edit's frame was 23 to 100 ms): each
+    // `part` closes the one before it, as a `cpu.home_rebuild.*` stage, and the log line at the
+    // end names them.
+    let mut parts = RebuildParts::new();
     // Normalize every corner onto the corner grid (v0.574) so co-located corners are byte-identical
     // -- this self-heals any older home whose snapped corners had sub-tolerance residue (which read
     // as two overlapping orbs that dragged apart). Idempotent: an on-grid corner is unchanged.
@@ -355,6 +359,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write("debug/home_snapshot.json", json);
     }
+    parts.part("cpu.home_rebuild.snapshot");
     // v0.534/v0.754: regenerate the WHOLE SHIP (every zone, offset by its origin) when present,
     // else the legacy AABB-room layout.
     let homestead = if let Some(ship) = state.gui_state.ship_structure.as_ref() {
@@ -377,6 +382,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         return;
     };
     let room_info = homestead.room_info.clone();
+    parts.part("cpu.home_rebuild.meshes");
     // Rebuild the wall collision segments from the live ship (v0.556; per-zone offsets v0.754)
     // so editing a wall updates what the player walks into. Empty for the legacy AABB layout.
     state.wall_colliders = match &state.gui_state.ship_structure {
@@ -387,7 +393,9 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         Some(ship) => crate::ship::wall_collision::ship_sight_segments(ship),
         None => Vec::new(),
     };
+    parts.part("cpu.home_rebuild.colliders");
     apply_homestead_meshes(state, homestead);
+    parts.part("cpu.home_rebuild.apply");
     // What else the cut-away leaves out, kept with the meshes it drew (`apply_homestead_meshes`
     // clears it, so a load that draws the whole ship drops it): the machines, their screens, the
     // door panels and the elevator cars, drawn from the whole ship, follow it by where they stand
@@ -397,9 +405,11 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     state.home_draw.drew_cut(drawn);
     // Room GI follows the rooms (engine/room_gi.rs; a no-op when they did not change).
     crate::engine::room_gi::rooms_changed(state, &room_info);
+    parts.part("cpu.home_rebuild.room_gi");
     // The hull wrap follows the structure (increment D): a zone add/move/resize or a roof
     // material change regrows the exterior shell in the same rebuild.
     rebuild_hull(state);
+    parts.part("cpu.home_rebuild.hull");
     // Refresh lights + sealed bounds from the new room_info (height edits move them).
     let auto_lights = auto_room_lights(state.gui_state.ship_structure.as_ref(), room_info.iter().map(|r| (r.center, r.dimensions)));
     // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
@@ -411,6 +421,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     });
     // Whose air each place breathes and where aboard ends follow the ship (increment 4).
     crate::engine::survival_env::refresh_ship_spaces(state);
+    parts.part("cpu.home_rebuild.lights_spaces");
     // Refresh the HUD room volumes (the "you are in <room>" detection + occlusion) so a
     // moved/resized/added/removed room is tracked live, not just on restart. (v0.459)
     // (Machine placement + pipes + hologram/spawn still resolve at load_world; they refresh
@@ -419,16 +430,52 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // The function join (rooms.ron) and the boxes the grow rooms' air is published from
     // (RoomTypeRegistry::room_bounds, shared with world entry and the life-support tests).
     state.gui_state.room_bounds = room_types.room_bounds(&room_info);
+    parts.part("cpu.home_rebuild.rooms");
     // Room geometry changed, so the machines in those rooms must follow (a moved/resized room
     // carries its machines). Refresh the machine meshes from the new room bounds. (v0.525)
     rebuild_machine_objects(state);
+    parts.part("cpu.home_rebuild.machines");
     // Door/window panels follow the structure too (a wall edit can add/move/remove openings).
     rebuild_door_panels(state);
+    parts.part("cpu.home_rebuild.doors");
     // When the plot the home stands on changed (a relay's welcome, the Dev Plots panel, an
     // undo of either), what the home holds goes with it and the save's frame follows
     // (engine/home_plot.rs, ship homes 1b; a no-op otherwise).
     crate::engine::home_plot::follow_home_box(state);
-    log::info!("Homestead rebuilt: {} rooms", room_info.len());
+    parts.part("cpu.home_rebuild.plot");
+    log::info!("Homestead rebuilt: {} rooms in {}", room_info.len(), parts.finish());
+}
+
+/// `rebuild_homestead`'s part timers: each `part` records the time since the last as that
+/// stage and keeps it for the log line `finish` writes.
+struct RebuildParts {
+    t0: std::time::Instant,
+    last: std::time::Instant,
+    done: Vec<(&'static str, f64)>,
+}
+
+impl RebuildParts {
+    fn new() -> Self {
+        let now = std::time::Instant::now();
+        Self { t0: now, last: now, done: Vec::new() }
+    }
+
+    fn part(&mut self, id: &'static str) {
+        let now = std::time::Instant::now();
+        let d = now.duration_since(self.last);
+        crate::frame_costs::record_cpu(id, d);
+        self.done.push((id, d.as_secs_f64() * 1000.0));
+        self.last = now;
+    }
+
+    /// "23.1 ms (meshes 4.0, apply 3.2, ...)", the whole and each part, and the whole as
+    /// `cpu.home_rebuild`.
+    fn finish(&self) -> String {
+        let whole = self.t0.elapsed();
+        crate::frame_costs::record_cpu("cpu.home_rebuild", whole);
+        let each: Vec<String> = self.done.iter().map(|(id, ms)| format!("{} {ms:.1}", id.rsplit('.').next().unwrap_or(id))).collect();
+        format!("{:.1} ms ({})", whole.as_secs_f64() * 1000.0, each.join(", "))
+    }
 }
 
 /// The crude one-per-room fill light (`home_lights`' `auto`): a warm point near each room's
@@ -588,6 +635,16 @@ pub(crate) fn hangar_placement(state: &EngineState) -> Option<(Vec3, f32)> {
 /// world load to build the in-world screens once the machines are placed,
 /// without duplicating the resolve at that call site.
 pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<crate::machines::PlacedMachine>> {
+    if state.gui_state.room_bounds.is_empty() {
+        return None;
+    }
+    placements_now(state)
+}
+
+/// `current_placements` without its wait for the room geometry: what the world load places (a
+/// zone home places every machine in its zone whatever the rooms; a room layout skips a machine
+/// whose room is not there, as `MachineHome::placements` says). None without a machine layout.
+pub(crate) fn placements_now(state: &EngineState) -> Option<Vec<crate::machines::PlacedMachine>> {
     use std::collections::HashMap;
     let home = state.gui_state.home_machines.as_ref()?;
     let rooms: HashMap<String, crate::machines::RoomGeom> = state
@@ -606,9 +663,6 @@ pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<crate::machi
             )
         })
         .collect();
-    if rooms.is_empty() {
-        return None;
-    }
     let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
     Some(home.placements(&rooms, zone_rects.as_deref()))
 }
@@ -740,6 +794,10 @@ pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate
             }
         } else if let Some(inst) = inst_by_id.get(p.id.as_str()) {
             if let Some(def) = home.catalog.get(&inst.machine) {
+                // A machine with no live role (a tower, a chair) gets no entity, and so is never
+                // found here: it was logged as spawned on every rebuild, about 80 lines a build
+                // edit (stutter survey 2, 2026-10-31). Said only when one was.
+                let before = state.game_world.world.len();
                 spawn_home_machine_entity(
                     &mut state.game_world.world,
                     inst,
@@ -749,7 +807,9 @@ pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate
                     Some(pos),
                     containers,
                 );
-                log::info!("[Machines] spawned live entity for placed machine {}", p.id);
+                if state.game_world.world.len() > before {
+                    log::info!("[Machines] spawned live entity for placed machine {}", p.id);
+                }
             }
         }
     }
@@ -859,7 +919,33 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
         rebuild_connection_objects(state);
         return;
     }
-    // Count changed (add / remove) or first build. Reuse the machines' mesh/material SLOTS
+    // Count changed (add / remove) or first build.
+    build_machine_bodies(state, &placements);
+    publish_grow_plots(state);
+    // In-world screens (rung 2): a surface + display quad per placed machine
+    // with a `screen` def. Reuses surfaces by instance id (a count change
+    // that keeps a screen keeps its page state), drops the ones whose
+    // machine is gone. Same prior-slot reuse discipline as the bodies above.
+    crate::engine::screens::sync_screens(state, &placements);
+    state.plant_mesh_sig = 0; // machine layout may have moved: replant visuals
+    rebuild_connection_objects(state);
+}
+
+/// Every placed machine's body (its model or primitive mesh and its material), its floating label,
+/// its pick volume and, for a grow machine, its grow anchor, in placement order: ONE builder for the
+/// world load and the editor's rebuild (stutter survey 2, 2026-10-31).
+///
+/// The world load had a copy of its own that parsed each model WITHOUT its texture and recorded no
+/// pick volumes, so the first rebuild after a load (opening the build editor, the first edit) never
+/// found the lists the length of the placements, took this whole path again, re-parsed every model
+/// from its file, and swapped every furniture model's flat colour for its texture: the operator's
+/// home drew differently the first time anything rebuilt it (v0.1324.1 named the two paths), and
+/// that frame cost about 100 ms against the 23 of a later edit. Built here by both, the first
+/// rebuild finds the lists in step and takes the move path, and the home looks the same before and
+/// after an edit.
+pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[crate::machines::PlacedMachine]) {
+    use std::collections::HashMap;
+    // Reuse the machines' mesh/material SLOTS
     // (replace in place) instead of clear()+re-add, so a single add/remove doesn't orphan the
     // whole ~100-mesh home (v0.531 -- the renderer free path). Since the 2026-10-21 follow-ups
     // a shrink gives its tail to the home's spares (`machine_body_slots`), where it was orphaned.
@@ -981,7 +1067,7 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
     // (grid across the footprint at top_y). Type looked up by instance id
     // (placements carry no catalog key).
     state.grow_positions.clear();
-    for p in &placements {
+    for p in placements {
         if let Some(ty) = type_by_id.get(&p.id) {
             state.grow_positions.push(GrowSpot {
                 ty: ty.clone(),
@@ -993,14 +1079,6 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
             });
         }
     }
-    publish_grow_plots(state);
-    // In-world screens (rung 2): a surface + display quad per placed machine
-    // with a `screen` def. Reuses surfaces by instance id (a count change
-    // that keeps a screen keeps its page state), drops the ones whose
-    // machine is gone. Same prior-slot reuse discipline as the bodies above.
-    crate::engine::screens::sync_screens(state, &placements);
-    state.plant_mesh_sig = 0; // machine layout may have moved: replant visuals
-    rebuild_connection_objects(state);
 }
 
 /// Publish the home's grow machines for the farming system (2026-09-26),

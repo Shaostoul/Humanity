@@ -804,6 +804,48 @@ pub struct ScreenSurface {
     /// after creation (`set_gpu_timers`); the constructors take no renderer
     /// so the tests can build a surface from a bare device.
     gpu_timers: Option<std::sync::Arc<crate::renderer::gpu_costs::GpuTimers>>,
+    /// Its first turn readied its page's own data and drew nothing (`Turn::ReadyData`): set by
+    /// `engine::screens::frame_surfaces`.
+    pub data_readied: bool,
+    /// It has painted a picture of its own (`run_and_render`); until then its turns are logged.
+    painted: bool,
+    /// Set by `frame` for the page draw's own run: its first frame may be spread (`turn_plan`).
+    spread_first: bool,
+    /// The dev IPC works this screen this frame (`engine::screens::frame_surfaces`): its first
+    /// frame is not spread.
+    pub ipc_target: bool,
+}
+
+/// What a surface does on its turn (stutter survey 2, 2026-10-31). A page screen's first sight was
+/// one frame that built its page's data (the Inventory page's Garden rows, every grow area at
+/// once), ran the page twice (egui's warm-up: Windows and Areas measure themselves on the first
+/// run and settle on the second), uploaded its new font atlas and painted: 16 to 42 ms of the
+/// main thread when it came into view (the Library, the Crafting and the Quests pages the worst),
+/// against a frame's 13 ms. Spread, those come on the screen's first turns, one each: the data, the
+/// warm-up run, then a run that paints. The picture is the one the double run painted (two runs
+/// before it, as before), a turn or two later; until then the screen shows what it showed (dark,
+/// for a screen never drawn).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Turn {
+    /// Build what its page reads on a frame that draws it, and draw nothing.
+    ReadyData,
+    /// Run the page once and paint nothing (its texture deltas, the font atlas, are uploaded).
+    WarmUp,
+    /// Run the page `runs` times and paint the last.
+    Paint { runs: usize },
+}
+
+/// The rule for [`Turn`], pure so it is tested: `runs` the page's runs so far, `readied` whether its
+/// data turn was taken, `has_data` whether its page builds data of its own on a frame that draws it,
+/// `spread` false with the Dev page's "Turn off all reuse" (and while a dev-IPC lookup waits on the
+/// screen), when the first frame runs twice and paints, as before.
+pub fn turn_plan(runs: u64, readied: bool, has_data: bool, spread: bool) -> Turn {
+    match (runs, spread) {
+        (0, false) => Turn::Paint { runs: 2 },
+        (0, true) if has_data && !readied => Turn::ReadyData,
+        (0, true) => Turn::WarmUp,
+        _ => Turn::Paint { runs: 1 },
+    }
 }
 
 /// The texture format of every surface that draws pixels or egui content.
@@ -863,6 +905,10 @@ impl ScreenSurface {
             provider: None,
             view_changed: false,
             gpu_timers: None,
+            data_readied: false,
+            painted: false,
+            spread_first: false,
+            ipc_target: false,
         }
     }
 
@@ -1067,7 +1113,14 @@ impl ScreenSurface {
             self.provider = Some(provider);
             return;
         }
+        // A page screen's first sight is spread over its turns (`turn_plan`). Only a page's: a
+        // provider (a video, the web, a camera) may draw its egui content once and keep the
+        // picture (a camera's notice is drawn when it changes), so its first frame paints.
+        // Nor while the dev IPC works the screen (a snapshot or a click on it reads this frame's
+        // picture): `ipc_target`, set by `engine::screens::frame_surfaces`.
+        self.spread_first = !self.ipc_target;
         self.run_and_render(device, queue, theme, gui_state, |core, theme, state| core.run(theme, state));
+        self.spread_first = false;
     }
 
     /// Run egui content through the core with the pending events and draw
@@ -1076,11 +1129,15 @@ impl ScreenSurface {
     /// other egui content, the way a provider draws a status page or the web
     /// view) and must return that run's output.
     ///
-    /// The FIRST frame after creation runs the content twice: egui Windows
-    /// and Areas measure themselves on frame 1 and only settle their position
-    /// on frame 2, so a single run leaves Window-based pages blank (the same
+    /// Before its first picture the content runs twice: egui Windows and
+    /// Areas measure themselves on run 1 and only settle their position on
+    /// run 2, so a single run leaves Window-based pages blank (the same
     /// warm-up `ui_snapshots::render_page_png` does). Both runs' texture
-    /// deltas are applied because the font atlas is created on run 1.
+    /// deltas are applied because the font atlas is created on run 1. A
+    /// page's two runs come on two of its turns, the first painting nothing
+    /// (`turn_plan`, stutter survey 2, 2026-10-31); a provider's, a dev-IPC
+    /// target's and every one with the Dev page's "Turn off all reuse" on one
+    /// frame.
     ///
     /// The theme is re-applied every frame. It is two small style writes,
     /// and it means a theme edit in Settings reaches every wall screen the
@@ -1100,16 +1157,37 @@ impl ScreenSurface {
         // fallback rule.
         let _cost = crate::frame_costs::stage("cpu.screen_ui");
         theme.apply_to_egui(&self.core.ctx);
-        // Two runs on the first frame, one after (`ScreenCore::runs_this_frame`
-        // owns the rule so the headless twin drives the same count). A
-        // pending `find` is answered by EVERY run and the last answer wins,
-        // so on the warm-up frame the reported rect is the settled one.
-        let runs = self.core.runs_this_frame();
+        // The first frame's two runs (the warm-up) come on two turns, the first painting nothing
+        // (`turn_plan`, stutter survey 2); with the Dev page's "Turn off all reuse", or a dev-IPC
+        // lookup waiting on this screen, both on one frame as before. A pending `find` is answered
+        // by EVERY run and the last answer wins, so after the warm-up the reported rect is the
+        // settled one.
+        let spread = self.spread_first && crate::reuse::enabled() && !self.core.find_pending();
+        let (runs, paint) = match turn_plan(self.core.runs(), true, false, spread) {
+            Turn::Paint { runs } => (runs, true),
+            Turn::WarmUp | Turn::ReadyData => (1, false),
+        };
+        // A surface's turns up to its first picture, in parts (stutter survey 2, 2026-10-31): each
+        // run, the texture uploads (the font atlas is made on the first run) and the paint, logged
+        // once per surface and kept as `cpu.screen_first.*` so their worst frame shows beside the
+        // average.
+        let first = !self.painted;
+        let mut parts: Vec<(f64, f64)> = Vec::new();
+        let mut atlas_px: usize = 0;
+        let t_first = std::time::Instant::now();
         let mut last: Option<egui::FullOutput> = None;
         for _ in 0..runs {
+            let t_run = std::time::Instant::now();
             let out = draw(&mut self.core, theme, gui_state);
+            let t_tex = std::time::Instant::now();
             for (id, delta) in &out.textures_delta.set {
+                if first {
+                    atlas_px += delta.image.width() * delta.image.height();
+                }
                 self.renderer.update_texture(device, queue, *id, delta);
+            }
+            if first {
+                parts.push((t_tex.duration_since(t_run).as_secs_f64() * 1000.0, t_tex.elapsed().as_secs_f64() * 1000.0));
             }
             if let Some(prev) = last.replace(out) {
                 for id in &prev.textures_delta.free {
@@ -1118,6 +1196,18 @@ impl ScreenSurface {
             }
         }
         let Some(out) = last else { return };
+        if !paint {
+            // The warm-up turn: the run's texture deltas are in, its shapes are not painted.
+            for id in &out.textures_delta.free {
+                self.renderer.free_texture(id);
+            }
+            if first {
+                self.note_first_turn("warm-up turn", t_first, &parts, None, atlas_px);
+            }
+            return;
+        }
+        let t_paint = std::time::Instant::now();
+        let _first_paint = first.then(|| crate::frame_costs::stage("cpu.screen_first.paint"));
         let (w, h) = self.core.size();
         let ppp = 1.0_f32;
         let clipped = self.core.ctx.tessellate(out.shapes, ppp);
@@ -1158,6 +1248,29 @@ impl ScreenSurface {
         for id in &out.textures_delta.free {
             self.renderer.free_texture(id);
         }
+        if first {
+            self.painted = true;
+            self.note_first_turn("first picture", t_first, &parts, Some(t_paint.elapsed()), atlas_px);
+        }
+    }
+
+    /// Log and record one of a surface's turns up to its first picture (stutter survey 2): its
+    /// whole as `cpu.screen_first`, each run and its texture uploads, and the paint when it painted.
+    fn note_first_turn(&self, what: &str, t0: std::time::Instant, runs: &[(f64, f64)], paint: Option<std::time::Duration>, atlas_px: usize) {
+        let whole = t0.elapsed();
+        let ms = |v: f64| std::time::Duration::from_secs_f64(v.max(0.0) / 1000.0);
+        crate::frame_costs::record_cpu("cpu.screen_first", whole);
+        crate::frame_costs::record_cpu("cpu.screen_first.runs", ms(runs.iter().map(|r| r.0).sum()));
+        crate::frame_costs::record_cpu("cpu.screen_first.textures", ms(runs.iter().map(|r| r.1).sum()));
+        let each: Vec<String> = runs.iter().enumerate().map(|(i, (r, t))| format!("run {} {r:.1} (its textures {t:.1})", i + 1)).collect();
+        let paint = paint.map_or(String::new(), |p| format!(", paint {:.1}", p.as_secs_f64() * 1000.0));
+        log::info!(
+            "[Screens] {} ({}) {what} {:.1} ms: {}{paint} ({atlas_px} texture pixels uploaded)",
+            self.core.id,
+            self.core.source_id,
+            whole.as_secs_f64() * 1000.0,
+            each.join(", "),
+        );
     }
 
     /// Read the surface back as tightly packed RGBA8 rows (top row first),
@@ -1478,6 +1591,71 @@ mod tests {
             warm.rect,
             settled.rect
         );
+    }
+
+    /// A PAGE SCREEN'S FIRST SIGHT COMES ON ITS FIRST TURNS (stutter survey 2, 2026-10-31): the
+    /// page's own data, then the warm-up run, then a run that paints; one turn each, and only on a
+    /// screen never run. With the Dev page's "Turn off all reuse" the first frame runs twice and
+    /// paints, as before.
+    ///
+    /// Seen red 2026-10-31 with `turn_plan` the old rule (two runs and a paint on the first frame
+    /// whatever `spread` said): "a page with data of its own readies it first".
+    #[test]
+    fn a_first_sight_comes_on_the_screens_first_turns() {
+        assert_eq!(turn_plan(0, false, true, true), Turn::ReadyData, "a page with data of its own readies it first");
+        assert_eq!(turn_plan(0, true, true, true), Turn::WarmUp, "then runs its warm-up and paints nothing");
+        assert_eq!(turn_plan(0, false, false, true), Turn::WarmUp, "a page with no data of its own starts at the warm-up");
+        assert_eq!(turn_plan(1, true, true, true), Turn::Paint { runs: 1 }, "then one run, painted");
+        assert_eq!(turn_plan(7, false, false, true), Turn::Paint { runs: 1 }, "and every turn after");
+        for (readied, has_data) in [(false, false), (false, true), (true, true)] {
+            assert_eq!(turn_plan(0, readied, has_data, false), Turn::Paint { runs: 2 }, "the switch off: the warm-up and the paint on one frame");
+        }
+        assert_eq!(turn_plan(3, false, true, false), Turn::Paint { runs: 1 });
+    }
+
+    /// THE SPREAD FIRST SIGHT PAINTS WHAT THE DOUBLE RUN PAINTED (stutter survey 2): the warm-up run
+    /// on one turn and the painted run on the next draw exactly the shapes the old first frame's
+    /// second run drew, on a layout that moves between egui's first and second run (a Grid's second
+    /// column, `a_find_asked_before_the_first_frame_answers_from_the_settled_run`). The headless
+    /// twin of `ScreenSurface::run_and_render`, which follows `turn_plan` the same way.
+    #[test]
+    fn a_spread_first_sight_paints_what_the_double_run_painted() {
+        let theme = load_theme();
+        let mut state = GuiState::default();
+        let draw = |ctx: &egui::Context, _: &mut GuiState| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                egui::Grid::new("settle_probe").show(ui, |ui| {
+                    ui.label("A first-column label a good deal wider than forty points");
+                    ui.label("Settled label");
+                    ui.end_row();
+                });
+            });
+        };
+        let painted = |spread: bool, state: &mut GuiState| {
+            let mut core = ScreenCore::new("probe", "inventory", 640, 360, &theme);
+            let mut frames = 0;
+            loop {
+                frames += 1;
+                let (runs, paint) = match turn_plan(core.runs(), true, false, spread) {
+                    Turn::Paint { runs } => (runs, true),
+                    _ => (1, false),
+                };
+                core.find_text("Settled label");
+                for _ in 0..runs {
+                    core.run_with(state, draw);
+                }
+                let found = core.take_found_text().flatten();
+                if paint {
+                    return (frames, found.map(|f| f.rect));
+                }
+            }
+        };
+        let (double_frames, double) = painted(false, &mut state);
+        let (spread_frames, spread) = painted(true, &mut state);
+        assert_eq!((double_frames, spread_frames), (1, 2), "the double run paints on its first frame, the spread one on its second turn");
+        let (double, spread) = (double.expect("drawn by the double run"), spread.expect("drawn by the spread run"));
+        assert!(double.min.x > 100.0, "the grid settled its second column (x = {}), or this proves nothing", double.min.x);
+        assert!((double.min - spread.min).length() < 0.5 && (double.max - spread.max).length() < 0.5, "the same picture: {double:?} and {spread:?}");
     }
 
     /// The matching rule on synthetic shapes: exact beats prefix beats
