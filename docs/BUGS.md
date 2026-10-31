@@ -6922,3 +6922,17 @@ that shows an unsafe method teaches it.
   replaced by the water-contents model of the Water chain's rung 1 (quest-chains.md, section 4.1).
 
 Every fact here still needs the teaching-data refutation pass before the chains that use it ship.
+
+## BUG-217: a task made in the desktop app is never saved, and vanishes on reconnect (OPEN, found 2026-10-30)
+
+**Found by** the Tasks page agent (2026-10-30) while turning the Learn by doing panel into suggested
+cards. Native tasks have never been saved anywhere: `GuiState::tasks` lives only in memory, and when
+the server's task list arrives (`src/engine/frame_ws_poll.rs`, `task_list_response` and `task_list`,
+about line 1262 and 1365) it REPLACES the local list. So a task made in the desktop app, including
+one made with a suggested card's "Add to my tasks", is gone after a reconnect or a restart, and the
+suggestion card comes back. (The suggested cards' step ticks do survive: they are kept in
+config.json.) The web board is the server's shared board, and its "Add to my tasks" opens the New
+Task form so the person creates it there. The fix is a decision: a person's own tasks are Real-side
+data (docs/design/two-realities.md), so they belong on the device (and in the person's E2EE backup),
+not merged blindly with a server's shared board; the native page should keep its own tasks, saved
+locally, and show a server's shared board beside them.
