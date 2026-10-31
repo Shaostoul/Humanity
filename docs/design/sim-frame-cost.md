@@ -133,6 +133,8 @@ priority (the share guard) on a busy PC, nearly every span showed a worst of 5-2
 samples: the thread was paused mid-span. So the worst-frame readings need a quiet machine, and the
 next instrument step is to time each span in the thread's own CPU time as well as clock time
 (`QueryThreadCycleTime` on Windows), so a span's worst is the code's and a pause shows as the gap.
+**Built the same night:** `thread_ms` / `thread_worst_ms` (`frame_costs::close_span`), with a test that a
+sleeping span records almost no CPU time (seen red recording the clock time instead).
 
 ## Stutter: spread every spike across frames (operator, 2026-10-30)
 

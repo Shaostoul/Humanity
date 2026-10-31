@@ -186,6 +186,12 @@ struct Store {
     /// before (`note_worst`, `worst`).
     worst_cur: Vec<Entry>,
     worst_prev: Vec<Entry>,
+    /// The spans' own CPU time (`close_span`): this frame's accumulation, its average, and its worst
+    /// frames, beside `cpu_accum`, `cpu` and `worst_cur` / `worst_prev`.
+    thread_accum: Vec<Entry>,
+    thread: Vec<Entry>,
+    thread_worst_cur: Vec<Entry>,
+    thread_worst_prev: Vec<Entry>,
     frame_worst_cur: f32,
     frame_worst_prev: f32,
     worst_since: Option<Instant>,
@@ -203,6 +209,7 @@ const WORST_WINDOW: Duration = Duration::from_secs(5);
 fn note_worst(s: &mut Store, now: Instant, frame_ms: Option<f32>, frame: &[Entry]) {
     if s.worst_since.map_or(true, |t| now.saturating_duration_since(t) >= WORST_WINDOW) {
         s.worst_prev = std::mem::take(&mut s.worst_cur);
+        s.thread_worst_prev = std::mem::take(&mut s.thread_worst_cur);
         s.frame_worst_prev = s.frame_worst_cur;
         s.frame_worst_cur = 0.0;
         s.worst_since = Some(now);
@@ -216,6 +223,20 @@ fn note_worst(s: &mut Store, now: Instant, frame_ms: Option<f32>, frame: &[Entry
             None => s.worst_cur.push(Entry { id: e.id, value: e.value }),
         }
     }
+}
+
+/// Each span's own CPU time: its average and its worst frame in the last 5 to 10 s (`close_span`).
+pub fn thread_times() -> (Vec<Entry>, Vec<Entry>) {
+    let Ok(s) = store().lock() else { return (Vec::new(), Vec::new()) };
+    let avg = s.thread.iter().map(|e| Entry { id: e.id, value: e.value }).collect();
+    let mut worst: Vec<Entry> = s.thread_worst_prev.iter().map(|e| Entry { id: e.id, value: e.value }).collect();
+    for e in &s.thread_worst_cur {
+        match worst.iter_mut().find(|w| w.id == e.id) {
+            Some(w) => w.value = w.value.max(e.value),
+            None => worst.push(Entry { id: e.id, value: e.value }),
+        }
+    }
+    (avg, worst)
 }
 
 /// The longest frame (ms) and each CPU id's largest single-frame value in the last 5 to 10 s.
@@ -508,6 +529,22 @@ pub fn begin_frame() {
         s.has_frames = true;
         let accum = std::mem::take(&mut s.cpu_accum);
         note_worst(&mut s, now, frame_ms, &accum);
+        // The spans' own CPU time: averaged like the stages, worst-tracked in the same windows.
+        let thread_accum = std::mem::take(&mut s.thread_accum);
+        let ids: Vec<&'static str> = s.thread.iter().map(|e| e.id).collect();
+        for id in ids {
+            let v = thread_accum.iter().find(|e| e.id == id).map(|e| e.value).unwrap_or(0.0);
+            ema_into(&mut s.thread, id, v);
+        }
+        for e in &thread_accum {
+            if !s.thread.iter().any(|x| x.id == e.id) {
+                s.thread.push(Entry { id: e.id, value: e.value });
+            }
+            match s.thread_worst_cur.iter_mut().find(|w| w.id == e.id) {
+                Some(w) => w.value = w.value.max(e.value),
+                None => s.thread_worst_cur.push(Entry { id: e.id, value: e.value }),
+            }
+        }
         // Stages that did not run this frame decay toward zero, otherwise a
         // one-off cost (a single patch upload) would stick in the pie forever.
         let ids: Vec<&'static str> = s.cpu.iter().map(|e| e.id).collect();
@@ -531,6 +568,7 @@ pub fn begin_frame() {
 pub fn discard_frame() {
     if let Ok(mut s) = store().lock() {
         s.cpu_accum.clear();
+        s.thread_accum.clear();
         // Drop the clock too: the gap spent sitting in a menu is not a frame.
         s.last_frame_start = None;
     }
@@ -588,6 +626,7 @@ pub fn dump_json() {
 pub fn snapshot_json() -> serde_json::Value {
     let s = snapshot();
     let (worst_frame, worst_cpu) = worst();
+    let (thread_avg, thread_worst) = thread_times();
     let col = |list: &[Entry]| -> serde_json::Value {
         serde_json::Value::Object(
             list.iter()
@@ -614,6 +653,10 @@ pub fn snapshot_json() -> serde_json::Value {
         // sim-frame-cost.md): a span whose worst is far above its average is a periodic spike.
         "frame_ms_worst": worst_frame,
         "cpu_worst_ms": col(&worst_cpu),
+        // Each span's own CPU time (the thread's cycles, so OS pauses and waits are left out):
+        // average and worst. Empty where the platform cannot count a thread's cycles.
+        "thread_ms": col(&thread_avg),
+        "thread_worst_ms": col(&thread_worst),
     })
 }
 
@@ -675,37 +718,109 @@ pub fn stage(id: &'static str) -> StageTimer {
 // rather than a timer per stretch, so a stretch cannot be left untimed by a
 // missing close and a new one is one line.
 
+/// One open span: its id, when it opened, and the thread's CPU cycles then (None where the platform
+/// cannot say).
+type OpenSpan = (&'static str, Instant, Option<u64>);
+
 thread_local! {
-    /// The open span and when it opened, and whether spans are recorded.
-    static SPAN: std::cell::Cell<(Option<(&'static str, Instant)>, bool)> =
-        const { std::cell::Cell::new((None, true)) };
+    /// The open span, and whether spans are recorded.
+    static SPAN: std::cell::Cell<(Option<OpenSpan>, bool)> = const { std::cell::Cell::new((None, true)) };
+}
+
+// ── The spans' own CPU time (2026-10-30) ──
+//
+// A span's clock time includes everything that happened to the thread meanwhile: on a busy PC the
+// OS pauses the game (it runs below normal priority while developing) partway through a span, and
+// the first worst-frame readings showed nearly every span's worst jumping at once for that reason.
+// So each span also counts the CPU cycles the thread actually used (Windows' QueryThreadCycleTime;
+// none elsewhere, where the column stays empty), turned into milliseconds at the thread's own rate,
+// which is learned as the HIGHEST cycles-per-millisecond seen over any span of at least half a
+// millisecond: a stretch the thread ran through unpaused shows the true rate, a pause only lowers it.
+// Waiting (a blocked present) shows as clock time without cycles too, so the gap between the two is
+// "not working", whatever the reason, and a span's CPU-time worst is the code's own spike.
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetCurrentThread() -> isize;
+    fn QueryThreadCycleTime(thread: isize, cycles: *mut u64) -> i32;
+}
+
+/// The calling thread's CPU cycles so far.
+fn thread_cycles() -> Option<u64> {
+    #[cfg(windows)]
+    {
+        let mut c: u64 = 0;
+        // SAFETY: GetCurrentThread returns a pseudo-handle that needs no closing, and `c` is a
+        // valid place for the one u64 QueryThreadCycleTime writes.
+        let ok = unsafe { QueryThreadCycleTime(GetCurrentThread(), &mut c) };
+        if ok != 0 {
+            return Some(c);
+        }
+    }
+    None
+}
+
+/// The highest cycles per millisecond seen (bits of an f64; 0 = none yet).
+static CYCLES_PER_MS: AtomicU64 = AtomicU64::new(0);
+
+/// Close the stretch `open` at `now`: its clock time to `record_cpu`, and its CPU time (once the
+/// rate is known) to the thread column.
+fn close_span(open: OpenSpan, now: Instant, cycles_now: Option<u64>) {
+    let (id, t0, c0) = open;
+    let wall = now.duration_since(t0);
+    record_cpu(id, wall);
+    let (Some(c0), Some(c1)) = (c0, cycles_now) else { return };
+    let cycles = c1.saturating_sub(c0) as f64;
+    let wall_ms = wall.as_secs_f64() * 1000.0;
+    let mut rate = f64::from_bits(CYCLES_PER_MS.load(Ordering::Relaxed));
+    if wall_ms >= 0.5 && cycles / wall_ms > rate {
+        rate = cycles / wall_ms;
+        CYCLES_PER_MS.store(rate.to_bits(), Ordering::Relaxed);
+    }
+    if rate > 0.0 {
+        record_thread(id, cycles / rate);
+    }
+}
+
+/// Accumulate a span's CPU time (ms) into the frame in progress.
+fn record_thread(id: &'static str, ms: f64) {
+    if let Ok(mut s) = store().lock() {
+        match s.thread_accum.iter_mut().find(|e| e.id == id) {
+            Some(e) => e.value += ms,
+            None => s.thread_accum.push(Entry { id, value: ms }),
+        }
+    }
 }
 
 /// Open the frame's first span: forget anything left open (a frame that
 /// returned early), and record again (see `span_stop_recording`).
 pub fn span_begin(id: &'static str) {
-    SPAN.with(|s| s.set((Some((id, Instant::now())), true)));
+    let c = thread_cycles();
+    SPAN.with(|s| s.set((Some((id, Instant::now(), c)), true)));
 }
 
 /// Close the open span, recording it, and open `id`.
 pub fn span(id: &'static str) {
     let now = Instant::now();
+    let c = thread_cycles();
     SPAN.with(|s| {
         let (open, recording) = s.get();
-        if let (Some((prev, t0)), true) = (open, recording) {
-            record_cpu(prev, now.duration_since(t0));
+        if let (Some(o), true) = (open, recording) {
+            close_span(o, now, c);
         }
-        s.set((Some((id, now)), recording));
+        s.set((Some((id, now, c)), recording));
     });
 }
 
 /// Close the open span, recording it, and open none.
 pub fn span_end() {
     let now = Instant::now();
+    let c = thread_cycles();
     SPAN.with(|s| {
         let (open, recording) = s.get();
-        if let (Some((prev, t0)), true) = (open, recording) {
-            record_cpu(prev, now.duration_since(t0));
+        if let (Some(o), true) = (open, recording) {
+            close_span(o, now, c);
         }
         s.set((None, recording));
     });
@@ -1384,6 +1499,38 @@ mod tests {
         assert!(a >= 3.0 && b >= 2.0, "each stretch holds its own time: a {a} ms, b {b} ms");
         assert!(a + b <= whole + 0.01, "the stretches never add up to more than the whole: {a} + {b} > {whole}");
         assert!(acc("cpu.span.test_c").is_none(), "a span closed while not recording was recorded");
+        reset_for_test();
+    }
+
+    /// A SPAN'S CPU TIME LEAVES OUT TIME THE THREAD DID NOT RUN (2026-10-30): a span spent working
+    /// records about its clock time, a span spent asleep (as a thread the OS paused would be)
+    /// records almost none, though its clock time is the same. Windows only (elsewhere the column
+    /// is empty). Proven able to fail: with `close_span` recording the clock time into the thread
+    /// column, the "asleep" assertion fires.
+    #[cfg(windows)]
+    #[test]
+    fn a_spans_cpu_time_leaves_out_a_pause() {
+        let _g = serial();
+        reset_for_test();
+        let spin = |ms: u64| {
+            let t = Instant::now();
+            let mut x = 0u64;
+            while t.elapsed() < Duration::from_millis(ms) {
+                x = std::hint::black_box(x.wrapping_add(1));
+            }
+        };
+        // Twice working first, so the rate is learned from an unpaused stretch.
+        span_begin("cpu.span.test_work");
+        spin(4);
+        span("cpu.span.test_work2");
+        spin(4);
+        span("cpu.span.test_sleep");
+        std::thread::sleep(Duration::from_millis(8));
+        span_end();
+        let acc = |id: &str| store().lock().unwrap().thread_accum.iter().find(|e| e.id == id).map(|e| e.value).unwrap_or(0.0);
+        let wall = |id: &str| store().lock().unwrap().cpu_accum.iter().find(|e| e.id == id).map(|e| e.value).unwrap_or(0.0);
+        assert!(acc("cpu.span.test_work2") > 0.5 * wall("cpu.span.test_work2"), "working: {} of {} ms", acc("cpu.span.test_work2"), wall("cpu.span.test_work2"));
+        assert!(acc("cpu.span.test_sleep") < 0.25 * wall("cpu.span.test_sleep"), "asleep: {} of {} ms", acc("cpu.span.test_sleep"), wall("cpu.span.test_sleep"));
         reset_for_test();
     }
 

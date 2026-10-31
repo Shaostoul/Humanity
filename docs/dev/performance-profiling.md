@@ -262,7 +262,11 @@ screen, since a page open on the main screen pauses these numbers).
 the last 5 to 10 s. An average hides a job that costs 17 ms once a second;
 the worst does not. Read it on a quiet machine: the game runs below normal
 priority, and on a busy PC the OS pauses its thread mid-span, which shows as
-every span's worst jumping at once.
+every span's worst jumping at once. **Since the same night each span also has
+its own CPU time** (`thread_ms` and `thread_worst_ms` in the drop: the thread's
+cycles from Windows' `QueryThreadCycleTime`, turned into milliseconds at the
+thread's own learned rate): a pause or a wait shows as clock time without
+CPU time, so a span's CPU-time worst is the code's own spike, busy PC or not.
 
 **The reuse switch (2026-10-30, CLAUDE.md's reuse rule).** Dev > Performance,
 "Turn off all reuse" (`HUMANITY_NO_REUSE=1` for a rig): every in-memory reuse
