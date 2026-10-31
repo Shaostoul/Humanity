@@ -298,7 +298,10 @@ to the right click menu a button for mute that opens to the available options."
   ayatana libraries installed on the Linux release runner. On macOS it uses `objc2`, already here
   through winit. `Cargo.lock` gained 37 packages (most of them `zbus` and its async stack, built on
   Linux only), every one MIT, Apache-2.0 or either, and `ksni` under the Unlicense (public
-  domain). The icon is made in the first frame's socket pump, on the main thread after
+  domain). This PC cannot compile for Linux, so the release workflow (`build-desktop.yml`, run by
+  hand on main at 22983c236, 2026-10-31, run 41232495715) is the check: the native release build
+  passed on Linux x64, macOS arm64 and x64 and Windows x64. Compiled, not run: the tray, the
+  `notify-send --action` click and the macOS paths have not been tried on those systems. The icon is made in the first frame's socket pump, on the main thread after
   winit's loop has started (macOS's rule). Beside winit: on Windows the tray's own window
   procedure runs on the event-loop thread; its menu and click events go through handlers
   (`MenuEvent::set_event_handler`, `TrayIconEvent::set_event_handler`) that queue them and wake
