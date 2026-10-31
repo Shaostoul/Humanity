@@ -904,13 +904,41 @@ Web Push API with VAPID keys.
 - Server: `src/relay/storage/push.rs`, `src/relay/api.rs`
 
 ### Notification Preferences
-Per-user DM/mention/task/DND toggles synced to server.
-- Web: `web/pages/settings-app.js` (full toggle set + DND time range)
-- Native: `src/gui/pages/chat.rs`'s DM-list "DM Notifications" button (v0.641.0) fetches +
-  toggles the DM flag only; mentions/tasks/DND are fetched and preserved (so the DM toggle
-  never clobbers them) but have no native UI control yet -- a later increment should add a
-  proper Settings-page section mirroring the web client's, for full dual-UI parity.
+Per-user DM/mention/task switches and quiet hours, synced to the server (each server the person is
+signed in to), and honoured by the server's Web Push since 2026-10-30 (`Storage::wants_push`).
+- Web: `web/pages/settings-app.js` (the switches + quiet hours, written "22:00"); the chat's DM cog
+  flips the synced DM switch (`web/chat/chat-ui.js` `openDmSettings`)
+- Native: Settings > Notifications, `src/gui/pages/settings/notifications.rs` (the whole set, every
+  word by key; changes sent to every connected server by `send_synced`); the chat's DM cog
 - Server: `src/relay/storage/notification_prefs.rs`
+
+### Desktop and browser notifications (2026-10-30, rung 1 of `docs/design/notifications.md`)
+A notice from the operating system (Windows toast, Linux freedesktop, macOS) and a sound, for a
+DM or an `@mention`, by ONE rule with a web twin held to shared cases: never for my own messages,
+a switch turned off, a muted server or room, everything muted, quiet hours, or the conversation
+already on screen; 5-second burst guard. A notice says who it is from, never what was said,
+unless the person chooses "Who it is from and the message".
+- The rule: `src/notifications/decide.rs` / `web/shared/notify-rules.js`; cases
+  `scripts/tests/fixtures/notify-cases.json`; kinds, mute lengths, sounds as data
+  `data/notifications/notifications.json`
+- The OS notice: `src/notifications/toast.rs` (WinRT `ToastNotificationManager` through the
+  `windows` crate, `notify-send`, `osascript`; one worker thread)
+- Where messages reach it: `src/engine/notify.rs` (from `engine/mailbox.rs`,
+  `engine/bg_connections.rs`, `engine/frame_ws_poll.rs`)
+- This device's choices (`config.json` `notifications`): `src/notifications/settings.rs`
+- Settings > Notifications: desktop notices, what a notice shows, sound + which + Play, Show a
+  test notification, the synced switches, quiet hours, Mute everything, the muted list
+- Web: `web/chat/chat-notify.js` (the chat's use of the rule); Settings > Notifications "A notice
+  shows" (`notif-show`)
+
+### Mute server, Mute room, Mute everything (2026-10-30)
+1 hour, 8 hours or until unmuted (lengths in `data/notifications/notifications.json`). Kept on the
+device; a server's mute never silences a DM.
+- Native: the active server's cog menu, a saved server's right-click, a room's right-click
+  (`src/gui/pages/chat/mute_menu.rs`); the bell-with-a-slash mark on a muted server's row;
+  Settings > Notifications > Muted (Mute everything, Unmute)
+- Web: the bell on the server's row in the chat sidebar (`web/chat/chat-notify.js`)
+- Planned (rung 2): the tray icon's Mute everything menu, Mute room and the muted list on the web
 
 ### Notification Actions
 Reply and Mark Read buttons on push notifications.

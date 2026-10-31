@@ -79,27 +79,25 @@ pub(crate) fn on_batch(gs: &mut GuiState, frame: &Value) {
 /// its Dilithium-verified inner trusted, and taken in as usual. It moves the read position only
 /// once this connection's own fetch is done (10o O1): before that the row may lie past rows the
 /// fetch has not reached yet, and moving past it would skip them. (Its own fetch brings it again;
-/// the store takes it once.) True when it is a new message from someone else in a conversation not
-/// on screen, with DM notifications on: the caller plays the ding.
-pub(crate) fn on_new(gs: &mut GuiState, frame: &Value) -> bool {
+/// the store takes it once.) A message newly taken in is handed back as a notification candidate
+/// (engine/notify.rs; the rule decides, a DM of my own included, which it never notifies).
+pub(crate) fn on_new(gs: &mut GuiState, frame: &Value) -> Option<crate::notifications::Candidate> {
     let mail_id = frame.get("id").and_then(Value::as_i64).unwrap_or(0);
     let raw = frame.get("content").and_then(Value::as_str).unwrap_or("");
     if raw.is_empty() {
-        return false;
+        return None;
     }
     let ding = match crate::engine::dm::open_verify_dm(raw, gs) {
         Ok(inner) => {
-            let is_from_me = inner.from == gs.profile_public_key;
-            let peer = if is_from_me { &inner.to } else { &inner.from };
-            let dm_is_open = gs.chat_active_channel == format!("dm:{peer}");
             let was_new = crate::engine::dm::ingest_dm(gs, &inner);
-            was_new && !is_from_me && !dm_is_open && gs.notif_dm_enabled
+            let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+            was_new.then(|| crate::engine::notify::dm(gs, &server, &inner))
         }
         Err(e) => {
             // Not ours, tampered, or a spoofed sender: never shown. Once the fetch is done the
             // read position still moves past it, so a poison envelope cannot wedge every fetch.
             log::warn!("DM envelope {mail_id} dropped: {e}");
-            false
+            None
         }
     };
     let moves = gs.dm_fetch.is_read();

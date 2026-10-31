@@ -2413,6 +2413,9 @@ pub struct GuiState {
     pub notif_dnd_start: Option<String>,
     pub notif_dnd_end: Option<String>,
     pub notif_prefs_loaded: bool,
+    /// The notification system's run-only state: each conversation's last notice (the burst
+    /// guard) and what Settings asked for this frame (`crate::notifications::Runtime`).
+    pub notify: crate::notifications::Runtime,
 
     /// Privacy-tier UI transients (2026-08-23): loaded tier defs, the
     /// radio selection, and whether the first-connect chooser is open.
@@ -3950,6 +3953,7 @@ impl Default for GuiState {
             notif_dnd_start: None,
             notif_dnd_end: None,
             notif_prefs_loaded: false,
+            notify: crate::notifications::Runtime::default(),
             account_export_status: String::new(),
             account_export_rx: None,
             account_delete_confirm_input: String::new(),
@@ -4429,6 +4433,9 @@ pub struct SettingsState {
     /// The public STUN server the third call mode asks, by its id in data/net/call_connection.json
     /// (empty: the first listed).
     pub call_public_stun: String,
+    /// This device's notification choices: desktop notices, what a notice shows, the sound, the
+    /// mutes (src/notifications/settings.rs; docs/design/notifications.md).
+    pub notifications: crate::notifications::LocalSettings,
     /// The video file each in-world screen plays, keyed by the placed
     /// instance id, chosen with the screen's Open button (2026-09-18).
     /// Persisted in AppConfig; the data file's `video:` source is only the
@@ -4667,6 +4674,7 @@ impl Default for SettingsState {
             readable_web: false,
             call_connection: crate::net::call_connection::CallConnection::Private,
             call_public_stun: String::new(),
+            notifications: crate::notifications::LocalSettings::default(),
             screen_media: std::collections::BTreeMap::new(),
             ffmpeg_path: String::new(),
             track_station: true,

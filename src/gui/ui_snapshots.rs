@@ -992,6 +992,40 @@ fn settings_panel(
     });
 }
 
+/// Settings > Notifications (2026-10-30, docs/design/notifications.md): this device's choices,
+/// the synced switches (here signed out, so their line says to sign in), and the muted list
+/// holding everything, a server and a room.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_notification_settings() {
+    render_page_png("notification_settings", 960, 1400, |ctx, theme, state| {
+        let now = crate::notifications::now_secs();
+        let m = &mut state.settings.notifications.mutes;
+        if m.servers.is_empty() {
+            m.mute_everything(now, 3600);
+            m.mute_server("https://united-humanity.us", now, 0);
+            m.mute_room("https://united-humanity.us", "general", now, 8 * 3600);
+        }
+        state.notif_dnd_start = Some("22:00".into());
+        state.notif_dnd_end = Some("07:00".into());
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_notifications_content);
+    });
+}
+
+/// The chat with the active server muted until unmuted: the bell with a slash on its row.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_muted_server() {
+    render_page_png("chat_muted_server", 1280, 900, |ctx, theme, state| {
+        let url = state.server_url.clone();
+        let key = crate::gui::pages::chat::norm_server_url(&url);
+        if state.settings.notifications.mutes.servers.is_empty() {
+            state.settings.notifications.mutes.mute_server(&key, crate::notifications::now_secs(), 0);
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_audio_settings() {

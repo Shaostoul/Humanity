@@ -1018,6 +1018,25 @@
         </div>
       </div>
 
+      <!-- What a notice shows (2026-10-30, docs/design/notifications.md): who it is from by default,
+           never what was said unless chosen here. Read by the chat (chat-notify.js). Replaced the
+           Chat section's "Message Preview", which nothing read. -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="notifications.device_heading">On this computer</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong id="lbl-notif-show" data-i18n="notifications.show">A notice shows</strong>
+            <span data-i18n="notifications.show_hint">How much a notice says. Anyone near your screen can read a notice, and your computer keeps a copy of it, so the message itself is left out unless you choose it.</span>
+          </div>
+          <select class="setting-select" id="pref-notif-show" aria-labelledby="lbl-notif-show" onchange="savePref()">
+            <option value="nothing" data-i18n="notifications.show_nothing">Only that something arrived</option>
+            <option value="name" data-i18n="notifications.show_name">Who it is from</option>
+            <option value="name_and_text" data-i18n="notifications.show_name_and_text">Who it is from and the message</option>
+          </select>
+        </div>
+        <p class="section-desc" data-i18n="notifications.web_ios_note">On an iPhone or iPad, notices arrive only for a site added to the home screen: that is Apple's rule.</p>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-title">In-App</div>
         <div class="setting-row">
@@ -1150,13 +1169,6 @@
 
       <div class="settings-group">
         <div class="settings-group-title">Messages</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Message Preview</strong>
-            <span>Show a preview of messages in notifications</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-msg-preview" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Send on Enter</strong>

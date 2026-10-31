@@ -40,15 +40,26 @@ function toggleChannelVoice(channel) {
   if (typeof renderServerList === 'function') renderServerList();
 }
 
-// DM settings (the DMs-section cog). Native opens a small popup whose only live
-// control is a DM-notifications toggle; mirror that intent as a mute toggle.
+// DM settings (the DMs-section cog): the person's synced DM switch, the same one as Settings >
+// Notifications and the desktop's DM cog (2026-10-30; it was a mute kept only in this browser),
+// saved here and sent to the server so its pushes follow it too.
 window.openDmSettings = function() {
-  const key = 'hos_dm_notifications_muted';
-  const muted = localStorage.getItem(key) === '1';
-  localStorage.setItem(key, muted ? '0' : '1');
-  const msg = muted ? '🔔 DM notifications unmuted' : '🔕 DM notifications muted';
-  if (typeof addNotice === 'function') addNotice(msg, muted ? 'green' : 'orange', 4);
-  else if (typeof addSystemMessage === 'function') addSystemMessage(msg);
+  const on = localStorage.getItem('hos_notify_dms') === 'false';
+  localStorage.setItem('hos_notify_dms', on ? 'true' : 'false');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const msg = {
+      type: 'update_notification_prefs',
+      dm: on,
+      mentions: localStorage.getItem('hos_notify_mentions') !== 'false',
+      tasks: localStorage.getItem('hos_notify_tasks') !== 'false',
+    };
+    const qs = localStorage.getItem('hos_dnd_start');
+    const qe = localStorage.getItem('hos_dnd_end');
+    if (qs !== null && qe !== null) { msg.dnd_start = qs; msg.dnd_end = qe; }
+    ws.send(JSON.stringify(msg));
+  }
+  const words = window.i18n ? i18n.t(on ? 'notifications.dm_on' : 'notifications.dm_off') : '';
+  if (typeof addNotice === 'function') addNotice(words, on ? 'green' : 'orange', 4);
 };
 
 // ── Key Bindings ──
@@ -102,13 +113,6 @@ document.addEventListener('visibilitychange', () => {
     windowFocused = false;
   }
 });
-
-/** Check if a message content mentions the current user. */
-function isMentioned(content) {
-  if (!myName) return false;
-  const pattern = new RegExp('@' + myName.replace(/[-_]/g, '[-_]'), 'i');
-  return pattern.test(content);
-}
 
 // ── Notification Sounds ──
 let audioCtx = null;
@@ -221,30 +225,33 @@ function toggleSoundEnabled() {
 // Set initial bell icon.
 document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
 
-function notifyNewMessage(author, content, isDm) {
-  const mentioned = isMentioned(content);
-
+// A live line or DM that may deserve a notice (2026-10-30, docs/design/notifications.md). The
+// title flashes for any line while the tab is behind; a sound or the browser's notice comes only
+// for a DM or an @mention, and only as THE rule allows (chat-notify.js, /shared/notify-rules.js,
+// the desktop's twin): the synced switches, quiet hours, a muted server, the conversation already
+// on screen. The notice says who it is from, never what was said, unless the person chose that in
+// Settings. `where`: {conversation: 'dm:<key>'} for a DM, {room: <channel id>} for a room line.
+function notifyNewMessage(author, content, isDm, where) {
+  where = where || {};
   if (!windowFocused) {
     unreadCount++;
     startTitleFlash();
   }
-
-  // DM notifications can be muted via the DMs-section cog (DM settings).
-  const dmMuted = isDm && localStorage.getItem('hos_dm_notifications_muted') === '1';
-
-  // Always notify on @mention or DM, even if focused (unless DMs are muted).
-  if (!dmMuted && (mentioned || isDm || !windowFocused)) {
-    playNotificationChime();
-  }
-
-  // Browser notification (if permitted).
-  if (!dmMuted && Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
-    const prefix = isDm ? '💬 DM from ' : '';
-    const n = new Notification(prefix + author, {
-      body: content.substring(0, 100),
-      icon: '/favicon.png',
-      tag: isDm ? 'humanity-dm' : 'humanity-msg',
-    });
+  if (!window.HosChatNotify || !window.HosNotifyRules) return;
+  if (!isDm && !HosNotifyRules.isMention(content, myName)) return;
+  const room = isDm ? null : (where.room || activeChannel || null);
+  const conversation = isDm ? (where.conversation || 'dm:') : (room || '');
+  const onScreen = isDm
+    ? (!!activeDmPartner && conversation === 'dm:' + activeDmPartner)
+    : (!activeDmPartner && !activeGroupId && room === activeChannel);
+  const canShow = ('Notification' in window) && Notification.permission === 'granted';
+  const d = HosChatNotify.decide(
+    { kind: isDm ? 'dm' : 'mention', from_me: false, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content },
+    { focused: windowFocused, on_screen: onScreen, desktop: canShow, sound: soundEnabled }
+  );
+  if (d.sound) playNotificationChime();
+  if (d.toast && canShow) {
+    const n = new Notification(d.title, { body: d.body, icon: '/favicon.png', tag: d.tag });
     n.onclick = () => {
       window.focus();
       n.close();
@@ -368,7 +375,7 @@ handleMessage = function(msg) {
     localStorage.setItem('humanity_last_seen', String(msg.timestamp));
     // Notify if from someone else.
     if (msg.from !== myKey) {
-      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false);
+      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel });
     }
   }
 };
@@ -2118,6 +2125,7 @@ var federatedRetryMs = 30000;
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
+        ${window.HosChatNotify ? HosChatNotify.bellHtml() : ''}
       </div>
       <div class="server-group-channels">${channelsHtml}${roomsHiddenHtml}${createChannelBtn}</div>
     </div>`;

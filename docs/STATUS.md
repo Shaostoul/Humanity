@@ -217,7 +217,8 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Subscription management | ✅ | Save, get, remove subscriptions |
 | DM and @mention triggers | ✅ | Offline-only delivery to prevent duplicates |
 | Stale subscription cleanup | ✅ | Auto-removes expired/invalid subscriptions |
-| Notification preferences | ✅ | Per-user DM/mention/task/DND settings, server-side storage (v0.31.0) |
+| Notification preferences | ✅ | Per-user DM/mention/task/DND settings, server-side storage (v0.31.0); pushes honour them (2026-10-30) |
+| Desktop notifications | ✅ rung 1 | OS notices + sound for DMs and mentions, one rule on both apps, Mute server / room / everything, Settings > Notifications full set (2026-10-30, `docs/design/notifications.md`; tray icon, in-app list and more kinds are rungs 2-5) |
 | Notification actions | ✅ | Reply and mark-read buttons on push notifications (v0.31.0) |
 
 ---

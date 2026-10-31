@@ -48,6 +48,9 @@
     'notif-quests': true,
     'notif-cal': true,
     'notif-sound': false,
+    // What a notice shows (2026-10-30, docs/design/notifications.md): 'nothing' | 'name' |
+    // 'name_and_text', as the desktop's Settings > Notifications. Who it is from by default.
+    'notif-show': 'name',
     // Privacy
     'who-dm': 'everyone',
     'show-online': true,
@@ -56,7 +59,6 @@
     'local-only': true,
     analytics: false,
     // Chat
-    'msg-preview': true,
     'enter-send': true,
     timestamps: 'hover',
     'msg-group': true,

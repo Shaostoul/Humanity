@@ -38,6 +38,7 @@
 //! shared section-header and colour helpers, so nothing had to be widened.
 
 use super::*;
+use crate::gui::widgets::Hint as _;
 use crate::gui::{connect_target, OFFICIAL_SERVER};
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
@@ -397,26 +398,16 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 }
                                 state.dm_settings_popup_open = false;
                             }
+                            // The synced DM switch, the same one as Settings > Notifications, sent
+                            // to every server signed in to (settings/notifications.rs).
                             let dm_notif_label = if state.notif_dm_enabled {
-                                "DM Notifications: On"
+                                crate::gui::i18n::t("notifications.dm_on")
                             } else {
-                                "DM Notifications: Off"
+                                crate::gui::i18n::t("notifications.dm_off")
                             };
-                            if ui.button(dm_notif_label).clicked() {
+                            if ui.button(dm_notif_label).hint("notifications.kind_dm_hint").clicked() {
                                 state.notif_dm_enabled = !state.notif_dm_enabled;
-                                if let Some(ref client) = state.ws_client {
-                                    if client.is_connected() {
-                                        let msg = serde_json::json!({
-                                            "type": "update_notification_prefs",
-                                            "dm": state.notif_dm_enabled,
-                                            "mentions": state.notif_mentions_enabled,
-                                            "tasks": state.notif_tasks_enabled,
-                                            "dnd_start": state.notif_dnd_start,
-                                            "dnd_end": state.notif_dnd_end,
-                                        });
-                                        client.send(&msg.to_string());
-                                    }
-                                }
+                                crate::gui::pages::settings::notifications::send_synced(state);
                                 state.dm_settings_popup_open = false;
                             }
                         });
@@ -1074,6 +1065,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         collapsed: sec_collapsed,
                         bridges,
                         can_forget: !is_current,
+                        muted: super::mute_menu::server_mute(state, &server.url),
                     };
                     let out = draw_server_row(ui, theme, state, &spec);
                     if out.collapse_clicked {
@@ -1104,6 +1096,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         // unlocked, the status line says to unlock first.
                         state.switch_to_server(&server.url, &server.name);
                     }
+                    // Right-click: Mute server, without switching to it (chat/mute_menu.rs).
+                    out.row.context_menu(|ui| {
+                        ui.set_min_width(160.0);
+                        super::mute_menu::server_items(ui, theme, state, &server.url);
+                    });
                     // This server's channels, live from its background
                     // connection (multi-connection stage 4). ALL channels are
                     // listed; a bridged one carries the federation badge and
@@ -1268,6 +1265,8 @@ struct ServerRowSpec {
     bridges: Vec<String>,
     /// Offer the hold-to-forget X (saved, non-current rows).
     can_forget: bool,
+    /// Muted until (0: until unmuted), for the bell-with-a-slash mark (chat/mute_menu.rs).
+    muted: Option<i64>,
 }
 
 /// What the row reported back; the caller applies the effects.
@@ -1279,6 +1278,8 @@ struct ServerRowOut {
     collapse_clicked: bool,
     cog: egui::Response,
     forget_fired: bool,
+    /// The whole row, for a right-click menu that opens and closes as egui's own (Mute server).
+    row: egui::Response,
 }
 
 /// THE server header row -- one painter-based template with FIXED slots,
@@ -1353,7 +1354,14 @@ fn draw_server_row(
     cx += 10.0;
     // Link dot: green only when genuinely up.
     let dot_color = if spec.link_up { theme.success() } else { theme.text_muted() };
-    ui.painter().circle_filled(egui::pos2(cx + 4.0, cy), 4.0, dot_color);
+    // Muted: the dot becomes a bell with a slash, in the dot's colour and slot, so the row's
+    // online state still shows and the name never moves (chat/mute_menu.rs).
+    match spec.muted {
+        Some(until) => super::mute_menu::paint_muted_mark(ui, egui::pos2(cx + 4.0, cy), dot_color, row_id.with("muted"), until),
+        None => {
+            ui.painter().circle_filled(egui::pos2(cx + 4.0, cy), 4.0, dot_color);
+        }
+    }
     cx += 14.0;
     // Name (+ online count for the active server), RGB-animated when current.
     let name_color = if spec.is_current {
@@ -1519,6 +1527,7 @@ fn draw_server_row(
         collapse_clicked,
         cog,
         forget_fired,
+        row: row_resp,
     }
 }
 
@@ -1577,6 +1586,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         collapsed: svr_collapsed,
                         bridges,
                         can_forget: false,
+                        muted: super::mute_menu::server_mute(state, &state.server_url),
                     };
                     let out = draw_server_row(ui, theme, state, &spec);
                     let mut svr_disconnect = false;
@@ -1627,9 +1637,10 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             }
                         }
                         ui.separator();
-                        // (v0.847.x: "Mute Server" removed — native has no
-                        // notification/desktop-alert system yet, so there was
-                        // nothing to mute. Re-add wired when notifications land.)
+                        // Mute server (2026-10-30; removed in v0.847 while there was nothing to mute).
+                        let url = state.server_url.clone();
+                        super::mute_menu::server_items(ui, theme, state, &url);
+                        ui.separator();
                         if ui.button(RichText::new("Disconnect").color(theme.danger())).clicked() {
                             svr_disconnect = true;
                         }
@@ -1819,6 +1830,10 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                 ui.ctx().copy_text(link);
                                 ui.close_menu();
                             }
+                            // Mute room (2026-10-30, chat/mute_menu.rs).
+                            ui.separator();
+                            let url = state.server_url.clone();
+                            super::mute_menu::room_items(ui, theme, state, &url, &ch.id);
                         });
 
                         // Voice roster (v0.481): who is currently connected to this

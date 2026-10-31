@@ -631,7 +631,9 @@ async function onDCMessage(event, peerKey) {
   if (typeof addDmMessage === 'function' && activeDmPartner === peerKey) {
     addDmMessage(name, inner.text, inner.ts || Date.now(), peerKey, myKey, true);
   } else if (typeof notifyNewMessage === 'function') {
-    notifyNewMessage(name, inner.text, true);
+    // A file's marker (whose text holds the key that opens it) is shown by its name, never as it is.
+    const preview = (typeof dmSafePreview === 'function') ? dmSafePreview(inner.text) : '';
+    notifyNewMessage(name, preview, true, { conversation: 'dm:' + peerKey });
   }
   if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
 }

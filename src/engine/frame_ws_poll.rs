@@ -57,6 +57,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     crate::engine::dm::pace_owed_passes(&mut state.gui_state, std::time::Instant::now()); // passes the sweep held back, at the server's pace
     crate::engine::file_transfer::pump(&mut state.gui_state); // device-to-device big files: offers, connections, dialling
     crate::engine::key_cards::pump(&mut state.gui_state); // key cards wanted: asked of the server, a batch at a time
+    crate::engine::notify::pump(state); // Settings > Notifications' test notice and sound preview, when asked
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {
@@ -200,23 +201,13 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 c.unread = true;
                             }
                         }
-                        // Mention ding (v0.987): someone ELSE names us in a
-                        // live channel message. Case-insensitive contains on
-                        // the display name; this handler only sees live WS
-                        // broadcasts (history arrives via REST), so old
-                        // mentions never re-ding.
-                        if sender_key != state.gui_state.profile_public_key
-                            && state.gui_state.notif_mentions_enabled
-                            && crate::engine::protected::lists_commons_room(&state.gui_state, &channel) // no ding from a room the protected setup hides
-                            && !state.gui_state.user_name.is_empty()
-                            && content
-                                .to_lowercase()
-                                .contains(&state.gui_state.user_name.to_lowercase())
-                        {
-                            state.pending_sfx.push((
-                                "sfx.chat_message",
-                                "audio/ui/chat_message.ogg",
-                            ));
+                        // A mention (`@name`, 2026-10-30; was any line containing the name, v0.987)
+                        // goes to the notification rule: this arm only sees live broadcasts
+                        // (history arrives via REST), so an old mention never notifies again; the
+                        // rule drops my own, a muted room, quiet hours (engine/notify.rs).
+                        let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
+                        if let Some(c) = crate::engine::notify::mention(&state.gui_state, &server, &state.gui_state.user_name, &channel, &sender_key, &sender_name, &content) {
+                            crate::engine::notify::deliver(state, c);
                         }
                         state.gui_state.chat_messages.push(
                             crate::gui::ChatMessage {
@@ -252,6 +243,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         let first_on_socket = state.gui_state.socket_signed_in();
                         if let Some(join) = voice_rejoin_frame(&mut state.gui_state, first_on_socket) {
                             if let Some(ref c) = state.gui_state.ws_client { c.send(&join); }
+                        }
+                        // The person's notification switches and quiet hours, before any live
+                        // message: nothing notifies until they arrive (engine/notify.rs).
+                        if first_on_socket {
+                            crate::engine::notify::ask_prefs(&state.gui_state);
                         }
                         // Fetch this server's real donation info (GET /api/server-info's
                         // `funding` field) so the Donate page shows the connected server's
@@ -815,8 +811,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     // connection's own fetch pages count, and a live DM moves the read
                     // position only once that fetch is done (10o O1).
                     Some("dm_new") => {
-                        if crate::engine::mailbox::on_new(&mut state.gui_state, &val) {
-                            state.pending_sfx.push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
+                        if let Some(c) = crate::engine::mailbox::on_new(&mut state.gui_state, &val) {
+                            crate::engine::notify::deliver(state, c);
                         }
                     }
                     Some("dm_batch") => crate::engine::mailbox::on_batch(&mut state.gui_state, &val),

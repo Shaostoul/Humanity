@@ -90,7 +90,7 @@
 39 src/gui/pages/server_settings/federation.rs
 14 src/gui/pages/server_settings/reports.rs
 3 src/gui/pages/server_settings/role_limits.rs
-430 src/gui/pages/settings.rs
+423 src/gui/pages/settings.rs
 8 src/gui/pages/settings/data_folder.rs
 62 src/gui/pages/settings/recovery.rs
 8 src/gui/pages/settings_time.rs

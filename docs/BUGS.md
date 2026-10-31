@@ -6936,3 +6936,26 @@ Task form so the person creates it there. The fix is a decision: a person's own 
 data (docs/design/two-realities.md), so they belong on the device (and in the person's E2EE backup),
 not merged blindly with a server's shared board; the native page should keep its own tasks, saved
 locally, and show a server's shared board beside them.
+
+## BUG-218: notifications ignored the person's switches and put message text in notices (FIXED 2026-10-30, found 2026-10-30)
+
+**Found by** the notification system's plan (`docs/design/notifications.md`, section 1), reading
+every place that already notified before building on them.
+
+- **The relay's mention push** (`src/relay/relay.rs`) carried the first 100 BYTES of the line
+  (`&content[..100]`): a public room's text in a notice by default, and a slice that panics the
+  sender's socket task when byte 100 falls inside a letter (any line of over 100 bytes with a
+  non-ASCII letter there, mentioning someone who is offline). FIXED: the push says
+  who mentioned you and in which room, never the line.
+- **Every Web Push ignored the person's switches** (DMs off, mentions off still pushed). FIXED:
+  `Storage::wants_push` (`src/relay/storage/notification_prefs.rs`), test `a_push_needs_its_switch_on`.
+  Quiet hours are by the person's own clock, which the server does not know: rung 4 of the plan.
+- **The web chat's browser notices** fired for EVERY line in a background tab, with the first 100
+  characters of the message (a DM's included), ignoring the synced switches, quiet hours and the
+  Settings "Message Preview" switch (read by nothing). FIXED: only a DM or an `@mention`, by the
+  shared rule (`web/shared/notify-rules.js`), showing who it is from unless the person chooses
+  the message too; "Message Preview" removed for "A notice shows".
+- **The desktop's mention ding** rang for any line CONTAINING the person's name, `@` or not ("Al"
+  rang on "also"). FIXED: `@` and the whole name (`notifications::is_mention`, shared cases).
+- **The web wrote quiet hours as "22"** and the desktop as "22:00" into the same server row; the
+  web's Settings also showed a midnight start (0) as 22. FIXED: both write "22:00", both read both.

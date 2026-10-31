@@ -479,8 +479,9 @@ async fn deposit_dm(
 
     // Push notification for an offline recipient. Deliberately generic:
     // the push payload transits Google/Mozilla/Apple push infrastructure,
-    // so it must not carry the sender's name or any message preview.
-    if !is_self_copy {
+    // so it must not carry the sender's name or any message preview. Only when the person's DM
+    // switch is on (docs/design/notifications.md, 2026-10-30).
+    if !is_self_copy && state.db.wants_push(&to, crate::relay::storage::PushKind::Dm) {
         let target_online = state.peers.read().await.contains_key(&to);
         if !target_online {
             state.send_push_notification(

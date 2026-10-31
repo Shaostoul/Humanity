@@ -1122,7 +1122,7 @@ async function handleDmNew(msg) {
     if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
   }
   if (!isFromMe) {
-    notifyNewMessage(peerName, previewText, true);
+    notifyNewMessage(peerName, previewText, true, { conversation: 'dm:' + peer });
   }
 }
 

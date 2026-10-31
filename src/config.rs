@@ -819,6 +819,11 @@ pub struct AppConfig {
     /// Empty = the first listed.
     #[serde(default)]
     pub call_public_stun: String,
+    /// This device's notification choices (Settings > Notifications, the chat's Mute menus; 2026-10-30,
+    /// docs/design/notifications.md): desktop notices, what a notice shows, the sound, the mutes.
+    /// Absent (a config from before them) = the safe defaults.
+    #[serde(default)]
+    pub notifications: crate::notifications::LocalSettings,
     /// The video file each in-world screen plays, keyed by the screen's
     /// placed instance id (`wall_screen_5`), chosen with the screen's Open
     /// button (2026-09-18). The data file's `video:` source is only the
@@ -1694,6 +1699,7 @@ impl AppConfig {
             readable_web: state.settings.readable_web,
             call_connection: state.settings.call_connection.id().to_string(),
             call_public_stun: state.settings.call_public_stun.clone(),
+            notifications: state.settings.notifications.clone(),
             screen_media: state.settings.screen_media.clone(),
             ffmpeg_path: state.settings.ffmpeg_path.clone(),
             cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
@@ -1990,6 +1996,7 @@ impl AppConfig {
         state.settings.readable_web = self.readable_web;
         state.settings.call_connection = crate::net::call_connection::CallConnection::from_id(&self.call_connection);
         state.settings.call_public_stun = self.call_public_stun.clone();
+        state.settings.notifications = self.notifications.clone();
         state.settings.screen_media = self.screen_media.clone();
         state.settings.ffmpeg_path = self.ffmpeg_path.clone();
         // The cloud resolution rides GuiState directly (the F10 page and the

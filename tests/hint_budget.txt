@@ -5,7 +5,7 @@
 # Controls without a hint: 1292 of 1910
 15 page apps
 5 page browser
-123 page chat
+122 page chat
 1 page chat_text
 28 page cloud_dev
 280 page construction
@@ -34,7 +34,7 @@
 22 page safety_protected
 100 page server_settings
 3 page server_strip
-169 page settings
+165 page settings
 4 page settings_time
 12 page showroom
 33 page studio

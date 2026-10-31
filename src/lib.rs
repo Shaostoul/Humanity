@@ -159,6 +159,11 @@ pub mod web_reader;
 #[cfg(feature = "native")]
 pub mod config;
 
+// Notifications (2026-10-30, docs/design/notifications.md): the rule, the mutes, quiet hours and
+// the operating system's notice. Native-only: the relay build carries none of it.
+#[cfg(feature = "native")]
+pub mod notifications;
+
 // The Apps page's game readers (2026-10-18): the stores' install records, read only, and the one
 // launcher. Native-only: the relay never reads a computer's games. See
 // docs/reference/findings/2026-10-13-game-stores-and-a-games-library.md.

@@ -284,7 +284,9 @@ serialport = { version = "4.9", optional = true }
 # saving included, through Windows' own SystemTimeToTzSpecificLocalTime, so the app shows times
 # in local time as the website does (src/gui/pages/chat/timestamps.rs). No time library.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", optional = true, features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell"] }
+windows = { version = "0.62", optional = true, features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell", "UI_Notifications", "Data_Xml_Dom"] }
+# UI_Notifications + Data_Xml_Dom (2026-10-30): the operating system's notice for a DM or a mention
+# (src/notifications/toast.rs, docs/design/notifications.md); the same crate, no new dependency.
 
 [build-dependencies]
 winres = "0.1"

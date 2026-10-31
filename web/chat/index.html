@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="/shared/theme.css?v=4">
   <link rel="stylesheet" href="/chat/base.css?v=4">
   <link rel="stylesheet" href="/chat/layout.css?v=8">
-  <link rel="stylesheet" href="/chat/sidebar.css?v=4">
+  <link rel="stylesheet" href="/chat/sidebar.css?v=5">
   <link rel="stylesheet" href="/chat/messages.css?v=10">
   <!-- A file's type, always shown just before its name (2026-10-17): the badge /shared/file-risk.js draws. -->
   <link rel="stylesheet" href="/shared/file-badge.css?v=1">
@@ -817,7 +817,13 @@
   <script src="/chat/chat-social.js?v=22"></script>
   <script src="/chat/chat-groups-p2p.js?v=19"></script>
   <script src="/shared/over-limit.js?v=1"></script>
-  <script src="/chat/chat-ui.js?v=21"></script>
+  <!-- notify-rules.js: THE notification rule, shared with Node tests and twin of the desktop's
+       src/notifications/decide.rs (2026-10-30, docs/design/notifications.md); chat-notify.js: the
+       chat's use of it and the server row's Mute bell. Both before chat-ui.js, whose
+       notifyNewMessage and renderServerList ask them. -->
+  <script src="/shared/notify-rules.js?v=1"></script>
+  <script src="/chat/chat-notify.js?v=1"></script>
+  <script src="/chat/chat-ui.js?v=22"></script>
   <script src="/chat/chat-voice-rooms.js?v=9"></script>
   <script src="/chat/chat-voice-calls.js?v=9"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>

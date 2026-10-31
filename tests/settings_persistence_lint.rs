@@ -97,6 +97,12 @@ const SETTINGS_FILES: &[&str] = &[
     // by settings/calls.rs. Seen red 2026-10-22 with the load leg of `call_connection` removed
     // from config.rs: "call_connection: never read by apply_to_state".
     "src/gui/pages/settings/calls.rs",
+    // Settings > Notifications (2026-10-30, docs/design/notifications.md): this device's choices
+    // and its mutes, one `notifications` setting, drawn by settings/notifications.rs and changed by
+    // the chat's Mute server / Mute room too (chat/mute_menu.rs). Seen red 2026-10-30 with the load
+    // leg of `notifications` removed from config.rs: "notifications: never read by apply_to_state".
+    "src/gui/pages/settings/notifications.rs",
+    "src/gui/pages/chat/mute_menu.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

@@ -455,17 +455,17 @@ pub(crate) fn bg_begin_fetch(gs: &mut GuiState, ci: usize) {
 /// A live `dm_new` on a parked server: no sender on the wire, so it is opened with our key and
 /// only the verified inner is trusted; screened (`bg_screen`), stored in that server's store and
 /// folded into its parked sidebar. It moves that store's read position only once this
-/// connection's own fetch is done (10o O1), so a backlog is never skipped. True when it should
-/// ding: a new message from someone else, DM notifications on (a person is a person, whichever
-/// relay carried them).
-pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -> bool {
+/// connection's own fetch is done (10o O1), so a backlog is never skipped. A message newly taken
+/// in comes back as a notification candidate for the rule (engine/notify.rs): a person is a
+/// person, whichever relay carried them.
+pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -> Option<crate::notifications::Candidate> {
     let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
     let raw_env = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
     if raw_env.is_empty() {
-        return false;
+        return None;
     }
     let moves = gs.connections.get(ci).is_some_and(|c| c.mailbox.is_read());
-    let Some(mut store) = bg_dm_store(gs, ci) else { return false };
+    let mut store = bg_dm_store(gs, ci)?;
     let mut fresh = None;
     match crate::engine::dm::open_verify_dm(raw_env, gs) {
         // Step B: a contact request, or a DM our settings there would refuse, goes to that
@@ -483,10 +483,12 @@ pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -
         store.set_high_water(mail_id);
     }
     store.save();
-    let Some(inner) = fresh else { return false }; // taken, or a duplicate (an echo, a refetch)
+    let inner = fresh?; // taken, or a duplicate (an echo, a refetch)
     let is_from_me = inner.from == gs.profile_public_key;
     bg_apply_dm(gs, ci, &inner, is_from_me);
-    !is_from_me && gs.notif_dm_enabled
+    // A notification candidate (engine/notify.rs); the rule drops my own.
+    let server = gs.connections.get(ci).map(|c| c.url.clone()).unwrap_or_default();
+    Some(crate::engine::notify::dm(gs, &server, &inner))
 }
 
 /// A `dm_batch` page on a parked server. One carrying another ref, or none, is another of my
@@ -683,6 +685,12 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     c.unread = true;
                 }
             }
+            let url = conn.url.clone();
+            let my_name = conn.ws.as_ref().map(|w| w.user_name().to_string()).unwrap_or_default();
+            // A mention of me (by the name I signed in with here) in a live line (engine/notify.rs;
+            // the rule drops a muted server).
+            let notice = crate::engine::notify::mention(&state.gui_state, &url, &my_name, &channel, &sender_key, &sender_name, &content);
+            let conn = &mut state.gui_state.connections[ci];
             conn.messages.push(crate::gui::ChatMessage {
                 sender_name,
                 sender_key,
@@ -690,11 +698,14 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 timestamp: crate::gui::pages::chat::format_timestamp(ts),
                 timestamp_ms: ts,
                 channel,
-                server: conn.url.clone(),
+                server: url,
                 ..Default::default()
             });
             while conn.messages.len() > 200 {
                 conn.messages.remove(0);
+            }
+            if let Some(c) = notice {
+                crate::engine::notify::deliver(state, c);
             }
         }
         Some("federated_chat") => {
@@ -744,8 +755,8 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
         // Sealed-sender DMs on a parked server: only its own fetch pages count, and a live DM moves
         // its read position only once that fetch is done (10o O1).
         Some("dm_new") => {
-            if bg_dm_new(&mut state.gui_state, ci, &val) {
-                state.pending_sfx.push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
+            if let Some(c) = bg_dm_new(&mut state.gui_state, ci, &val) {
+                crate::engine::notify::deliver(state, c);
             }
         }
         Some("dm_batch") => bg_dm_batch(&mut state.gui_state, ci, &val),

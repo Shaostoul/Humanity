@@ -803,8 +803,10 @@ function loadPushPrefs() {
   var mentions = localStorage.getItem('hos_notify_mentions') !== 'false';
   var tasks = localStorage.getItem('hos_notify_tasks') !== 'false';
   var dndEnabled = localStorage.getItem('hos_dnd_start') !== null && localStorage.getItem('hos_dnd_end') !== null;
-  var dndStart = parseInt(localStorage.getItem('hos_dnd_start')) || 22;
-  var dndEnd = parseInt(localStorage.getItem('hos_dnd_end')) || 7;
+  // The hour of "22:00" (or the older "22"); midnight is 0, not "unset".
+  var hourOf = function (key, dflt) { var h = parseInt(localStorage.getItem(key), 10); return isNaN(h) ? dflt : h; };
+  var dndStart = hourOf('hos_dnd_start', 22);
+  var dndEnd = hourOf('hos_dnd_end', 7);
 
   var elEnabled = document.getElementById('pref-push-enabled');
   var elDms = document.getElementById('pref-push-dms');
@@ -951,8 +953,11 @@ function savePushDnd() {
   updateDndTimes(enabled);
 
   if (enabled) {
-    localStorage.setItem('hos_dnd_start', elStart ? elStart.value : '22');
-    localStorage.setItem('hos_dnd_end', elEnd ? elEnd.value : '7');
+    // "22:00", the shape the desktop writes too (2026-10-30; this page wrote "22" before, which
+    // both apps still read: web/shared/notify-rules.js parseClock, src/notifications/quiet.rs).
+    var hhmm = function (h) { h = parseInt(h, 10) || 0; return (h < 10 ? '0' : '') + h + ':00'; };
+    localStorage.setItem('hos_dnd_start', hhmm(elStart ? elStart.value : 22));
+    localStorage.setItem('hos_dnd_end', hhmm(elEnd ? elEnd.value : 7));
   } else {
     localStorage.removeItem('hos_dnd_start');
     localStorage.removeItem('hos_dnd_end');

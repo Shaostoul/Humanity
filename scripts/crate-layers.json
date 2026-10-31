@@ -126,6 +126,7 @@
       "paths": [
         "gui",
         "config",
+        "notifications",
         "games",
         "software",
         "media",

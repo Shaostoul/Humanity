@@ -5291,12 +5291,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         // Resolve name → public key(s), check if offline.
                                         if let Ok(keys) = state_clone.db.keys_for_name(mentioned_name) {
                                             for mentioned_key in keys {
-                                                if mentioned_key != my_key_for_recv && !peers.contains_key(&mentioned_key) {
-                                                    let preview = if content.len() > 100 { &content[..100] } else { &content };
+                                                // Only with their mentions switch on, and never the line
+                                                // itself (BUG-218: it was its first 100 BYTES, which
+                                                // also panicked inside a letter). notifications.md.
+                                                if mentioned_key != my_key_for_recv && !peers.contains_key(&mentioned_key)
+                                                    && state_clone.db.wants_push(&mentioned_key, crate::relay::storage::PushKind::Mention) {
                                                     state_clone.send_push_notification(
                                                         &mentioned_key,
                                                         &format!("{} mentioned you", display),
-                                                        preview,
+                                                        &format!("In #{ch}. Open HumanityOS to read it."),
                                                         &format!("mention-{}", &ch),
                                                         "/chat",
                                                     );

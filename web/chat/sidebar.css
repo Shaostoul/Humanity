@@ -641,6 +641,51 @@
 .server-group.collapsed .server-group-channels { display: none; }
 .server-group-channels { padding-left: var(--space-xs); }
 
+/* Mute server (2026-10-30, chat-notify.js): the bell at the end of the server's row, crossed out
+   while muted (the desktop's mark), and the small menu of lengths it opens. */
+.server-group-header .srv-mute {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.server-group-header .srv-mute:hover,
+.server-group-header .srv-mute:focus-visible { color: var(--text); opacity: 1; background: var(--bg-hover); }
+.server-group-header .srv-mute.muted { opacity: 1; }
+.srv-mute-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.srv-mute-menu .srv-mute-head {
+  font-size: var(--text-xs, 0.72rem);
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 var(--space-xs);
+}
+.srv-mute-menu button {
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.srv-mute-menu button:hover,
+.srv-mute-menu button:focus-visible { background: var(--bg-hover); }
+
 /* ── Groups Placeholder ── */
 .groups-placeholder {
   font-size: var(--text-xs);

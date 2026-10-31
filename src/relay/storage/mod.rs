@@ -3047,7 +3047,7 @@ pub mod docs_accord;
 
 pub use civilization::CivilizationStats;
 pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
-pub use notification_prefs::NotifPrefs;
+pub use notification_prefs::{NotifPrefs, PushKind};
 pub use bugs::BugReport;
 pub use reputation::{ReputationRecord, ReputationEventRecord};
 pub use trading::TradeRecord;

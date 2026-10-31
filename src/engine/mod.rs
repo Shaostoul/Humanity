@@ -32,6 +32,9 @@ pub mod choice;
 /// carrying this connection's own ref count, and a live DM moves the read position only once its
 /// own fetch is done.
 pub mod mailbox;
+/// Notifications (2026-10-30, docs/design/notifications.md): a live DM or mention handed to the
+/// rule with what only the engine knows (focus, what is on screen), and the sound and notice done.
+pub mod notify;
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
 pub mod report;

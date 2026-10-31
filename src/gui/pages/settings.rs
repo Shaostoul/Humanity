@@ -14,6 +14,10 @@ mod data_folder;
 /// Settings > Privacy > "Calls and voice rooms" (10p, 2026-10-22): Private, Direct, or Direct
 /// also asking a public service, and who can see the person's address in each.
 mod calls;
+/// Settings > Notifications (2026-10-30, docs/design/notifications.md): this device's choices, the
+/// person's synced switches and quiet hours, and the muted list. `send_synced` and the mute menu
+/// items are shared with the chat's DM cog and its Mute server / Mute room menus.
+pub(crate) mod notifications;
 /// Settings > Account > "Recovery through trusted people" (2026-10-20, was the Platform tab's
 /// Recovery page; finished 2026-10-21): choosing trusted people, helping someone back in, and
 /// asking for help on a new device. `recovery_net` is the work it runs on threads.
@@ -2556,76 +2560,12 @@ fn draw_cistercian(
     }
 }
 
+/// Settings > Notifications: the whole set, in settings/notifications.rs (2026-10-30,
+/// docs/design/notifications.md). It replaced the v0.980 card here, which edited the same synced
+/// switches with its words written into the code and quiet hours typed as free text.
 pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // v0.980 (the 2026-07-20 dead-fields audit): this card used to edit
-    // Settings fields NOTHING read - the real notification prefs live on the
-    // RELAY (notification_prefs table), mirrored in state.notif_* and edited
-    // by the chat DM cog. The card now edits that same live state and syncs
-    // it to the server, making Settings and the cog two views of one truth.
-    let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
-    // Lazy fetch, same rule as the DM cog: the first time this card renders
-    // while connected, pull the stored prefs so toggles show reality.
-    if connected && !state.notif_prefs_loaded {
-        if let Some(ref client) = state.ws_client {
-            client.send(&serde_json::json!({ "type": "get_notification_prefs" }).to_string());
-            state.notif_prefs_loaded = true;
-        }
-    }
-    let hint = state.settings.hint_display;
-    let mut changed = false;
-    widgets::card(ui, theme, |ui| {
-        changed |= widgets::toggle(ui, theme, "Direct Messages", &mut state.notif_dm_enabled);
-        changed |= widgets::toggle(ui, theme, "Mentions", &mut state.notif_mentions_enabled);
-        changed |= widgets::toggle(ui, theme, "Task Updates", &mut state.notif_tasks_enabled);
-        widgets::setting_hint(ui, theme, hint, "Which events notify you: private messages, someone naming you in chat, and changes to tasks you are on.");
-
-        ui.label(RichText::new("Do Not Disturb").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-
-        // The live fields are Option<String>; edit through plain buffers and
-        // store trimmed non-empty values back as Some.
-        let mut dnd_start = state.notif_dnd_start.clone().unwrap_or_default();
-        let mut dnd_end = state.notif_dnd_end.clone().unwrap_or_default();
-        widgets::form_row(ui, theme, "Quiet hours start", |ui| {
-            if ui
-                .add(egui::TextEdit::singleline(&mut dnd_start).desired_width(80.0).hint_text("22:00"))
-                .lost_focus()
-            {
-                changed = true;
-            }
-        });
-        widgets::form_row(ui, theme, "Quiet hours end", |ui| {
-            if ui
-                .add(egui::TextEdit::singleline(&mut dnd_end).desired_width(80.0).hint_text("08:00"))
-                .lost_focus()
-            {
-                changed = true;
-            }
-        });
-        state.notif_dnd_start = Some(dnd_start.trim().to_string()).filter(|s| !s.is_empty());
-        state.notif_dnd_end = Some(dnd_end.trim().to_string()).filter(|s| !s.is_empty());
-        widgets::setting_hint(ui, theme, hint, "Notifications stay silent between these times. 24-hour clock, e.g. 22:00 to 08:00 keeps nights quiet.");
-
-        if !connected {
-            ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new("Sign in to chat to sync these to the server - they apply across your devices once saved.").color(theme.text_muted()).size(theme.font_size_small));
-        }
-    });
-    if changed && connected {
-        if let Some(ref client) = state.ws_client {
-            client.send(
-                &serde_json::json!({
-                    "type": "update_notification_prefs",
-                    "dm": state.notif_dm_enabled,
-                    "mentions": state.notif_mentions_enabled,
-                    "tasks": state.notif_tasks_enabled,
-                    "dnd_start": state.notif_dnd_start,
-                    "dnd_end": state.notif_dnd_end,
-                })
-                .to_string(),
-            );
-        }
-    }
+    let accent = section_accent(SettingsCategory::Notifications, theme);
+    notifications::draw(ui, theme, state, accent);
 }
 
 pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

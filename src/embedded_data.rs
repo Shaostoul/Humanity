@@ -91,6 +91,9 @@ pub const PLANET_TOOLTIPS_JSON: &str = include_str!("../data/planets/tooltips.js
 /// Embedded so an exe shipped without its data/ folder still finds ffmpeg
 /// at the common install spots.
 pub const MEDIA_INGEST_JSON: &str = include_str!("../data/media/ingest.json");
+/// The kinds of notice, mute lengths and sounds (docs/design/notifications.md). Ungated though only
+/// the desktop app reads it, because EMBEDDED_KEYS (which every build checks) lists it.
+pub const NOTIFICATIONS_JSON: &str = include_str!("../data/notifications/notifications.json");
 
 // ── Solar system body definitions (RON) ─────────────────────────────
 pub const SOLAR_BODY_EARTH_RON: &str = include_str!("../data/solar_system/earth.ron");
@@ -364,6 +367,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "solar-system.json" => Some(SOLAR_SYSTEM_LEGACY_JSON),
         "planets/tooltips.json" => Some(PLANET_TOOLTIPS_JSON),
         "media/ingest.json" => Some(MEDIA_INGEST_JSON),
+        "notifications/notifications.json" => Some(NOTIFICATIONS_JSON),
         "external/catalog.json" => Some(EXTERNAL_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
         "coastlines.json" => Some(COASTLINES_JSON),
@@ -781,6 +785,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "abilities.csv",
     "governance/proposal_types.ron",
     "ship/household.ron",
+    "notifications/notifications.json",
 ];
 
 #[cfg(test)]

@@ -14,7 +14,32 @@ pub struct NotifPrefs {
     pub dnd_end: Option<String>,
 }
 
+/// What a Web Push is about, for the person's switch that allows it (docs/design/notifications.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PushKind {
+    Dm,
+    Mention,
+}
+
+impl NotifPrefs {
+    /// Does this person's switch allow a push of `kind`? (Quiet hours are by the person's own clock,
+    /// which the server does not know: rung 4 of the plan.)
+    pub fn allows(&self, kind: PushKind) -> bool {
+        match kind {
+            PushKind::Dm => self.dm_enabled,
+            PushKind::Mention => self.mentions_enabled,
+        }
+    }
+}
+
 impl Storage {
+    /// Does `public_key` want a push of `kind`? Yes when they never saved preferences (the
+    /// switches' defaults are on), otherwise as their switch says (2026-10-30: before, every push
+    /// went out whatever the switches said).
+    pub fn wants_push(&self, public_key: &str, kind: PushKind) -> bool {
+        self.get_notification_prefs(public_key).map_or(true, |p| p.allows(kind))
+    }
+
     /// Save notification preferences for a user (upsert).
     pub fn save_notification_prefs(
         &self,
@@ -61,5 +86,25 @@ impl Storage {
             )
             .ok()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A push goes out only when the person's switch for it is on; someone who never saved
+    /// preferences gets both (the switches' defaults). Seen red 2026-10-30 with `wants_push`
+    /// answering true whatever was stored: a person with DMs off still got the DM push.
+    #[test]
+    fn a_push_needs_its_switch_on() {
+        let db = Storage::open_temp("notification_prefs");
+        assert!(db.wants_push("k1", PushKind::Dm) && db.wants_push("k1", PushKind::Mention), "nothing saved: on");
+        db.save_notification_prefs("k1", false, true, true, Some("22:00"), Some("07:00")).unwrap();
+        assert!(!db.wants_push("k1", PushKind::Dm), "DMs off");
+        assert!(db.wants_push("k1", PushKind::Mention), "mentions on");
+        db.save_notification_prefs("k1", true, false, true, None, None).unwrap();
+        assert!(db.wants_push("k1", PushKind::Dm) && !db.wants_push("k1", PushKind::Mention));
+        assert!(db.wants_push("k2", PushKind::Dm), "another person's switches are theirs");
     }
 }

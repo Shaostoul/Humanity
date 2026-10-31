@@ -94,8 +94,12 @@ mod transfer_rows;
 #[cfg(test)]
 pub(crate) use attach_view::{cache_key as private_file_key, open as open_private_file};
 /// Quote / reply: a reply stays in its own conversation and never carries private words or a
-/// file's key. See `chat/reply.rs`.
-mod reply;
+/// file's key. See `chat/reply.rs`. A notice's text goes through its `preview_of` too
+/// (engine/notify.rs), so a notice never holds a file's key either.
+pub(crate) mod reply;
+/// Mute server and Mute room, and a server row's muted mark (2026-10-30,
+/// docs/design/notifications.md). See `chat/mute_menu.rs`.
+mod mute_menu;
 // A line's length against the server's limit, and whether my line was posted (2026-10-24).
 pub(crate) mod line_limit;
 // The timestamp formats and formatters (moved out 2026-10-24, file-size ratchet).
