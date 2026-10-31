@@ -2203,7 +2203,7 @@ window.HOS_I18N_EN = {
   },
   "performance": {
     "no_reuse": "Turn off all reuse",
-    "no_reuse_hint": "For chasing a bug that might come from old data. The game keeps some results between frames to save work (the Garden page rows, the draw lists, the dev request checks). On, it works everything out again every frame instead: slower, but nothing shown can be old. If the bug goes away with this on, reused data is the cause. This run only; HUMANITY_NO_REUSE=1 does the same for a rig."
+    "no_reuse_hint": "For chasing a bug that might come from old data. The game keeps some results between frames to save work (the Garden rows and the sizes of long lists, the wall screens' pictures between their turns, the draw lists, the dev request checks). On, it works everything out again every frame instead: slower, but nothing shown can be old. If the bug goes away with this on, reused data is the cause. This run only; HUMANITY_NO_REUSE=1 does the same for a rig."
   },
   "onboarding": {
     "next": "Next",
