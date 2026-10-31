@@ -186,14 +186,18 @@ In order:
     reads one page instead of catching up on the repo.
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
-    looked at. Rung 1: the four step-size-dependent places made exact (the golden state equal at
-    one tick a frame and one a second); rung 2: the farm's own interval, time-sliced by area;
-    rung 3: events and closed-form crops; rung 4: lazy homes on the server.
+    looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by
+    `step_tests.rs` at a 60 s, 600 s and 3,600 s tick; what is still stepped is listed in the design
+    with its measured size); next, rung 2: the farm's own interval, time-sliced by area; rung 3:
+    events and closed-form crops; rung 4: lazy homes on the server.
 12. **Stutter: spread every spike across frames (operator, 2026-10-30: "We want to avoid
     stuttering.")** (`docs/design/sim-frame-cost.md`, Stutter). First the worst frame per span
     beside its average, then each periodic job (autosaves, mesh rebuilds, the shader poll, ...)
     gets a per-frame budget. With it, the reuse rule's Dev page switch ("turn off all reuse",
-    CLAUDE.md, refined the same day).
+    CLAUDE.md, refined the same day). DONE 2026-10-30: the worst frame per span (5 s windows)
+    and each thread's own CPU time on the Performance page, the "Turn off all reuse" switch
+    (`src/reuse.rs`, `HUMANITY_NO_REUSE=1`), and the Garden mirror's rows in 8 slices. Next: the
+    survey of every periodic job's worst frame, then a budget for each.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches
