@@ -124,6 +124,7 @@
   /* Semantic */
   --success: #33bf4d;
   --warning: #f2bf1a;
+  --warning-bg: #332100;
   --danger: #e64033;
   --danger-bg: #4d0a0a;
   --info: #3380e6;
@@ -267,6 +268,7 @@
   --accent-dim: rgba(168, 79, 0, 0.12);
   --success: #1a6e2e;
   --warning: #8a6100;
+  --warning-bg: #fbf0d0;
   --danger: #c0281c;
   --danger-bg: #f6d4d1;
   --info: #1f5fbf;

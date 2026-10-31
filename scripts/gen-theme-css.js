@@ -141,6 +141,7 @@ function buildCss(tokens) {
   lines.push('  /* Semantic */');
   lines.push(`  --success: ${c('success')};`);
   lines.push(`  --warning: ${c('warning')};`);
+  lines.push(`  --warning-bg: ${c('warning_bg')};`);
   lines.push(`  --danger: ${c('danger')};`);
   lines.push(`  --danger-bg: ${c('danger_bg')};`);
   lines.push(`  --info: ${c('info')};`);
@@ -320,6 +321,9 @@ const LIGHT = {
   // Semantic
   '--success': '#1a6e2e',
   '--warning': '#8a6100',
+  // The unfinished-software strip's ground (gui/bottom_strip.rs): a pale amber the dark
+  // warning ink reads on at 4.9:1, and the body text and muted text well above that.
+  '--warning-bg': '#fbf0d0',
   '--danger': '#c0281c',
   '--danger-bg': '#f6d4d1',
   '--info': '#1f5fbf',

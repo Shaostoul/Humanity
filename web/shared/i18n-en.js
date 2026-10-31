@@ -2374,5 +2374,12 @@ window.HOS_I18N_EN = {
     "col_water": "Water a day",
     "loading": "Loading the outline...",
     "load_error": "Could not load the outline data ({{error}}). It ships with the app and site as data/home_outline.json."
+  },
+  "wip": {
+    "line": "Unfinished software: it can be wrong, break, or lose your work. Do not rely on it for health, safety, food or water. It comes as is, with no [[warranty]].",
+    "more": "What this means",
+    "more_hint": "Opens a page in the Library about what unfinished means here, what the software does not promise, and how to report a problem.",
+    "version": "Version {{version}}",
+    "label": "Unfinished software warning"
   }
 };

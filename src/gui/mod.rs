@@ -27,6 +27,10 @@ pub mod first_minutes;
 /// page's draw call, shared by the main UI and the world screens.
 #[cfg(feature = "native")]
 pub mod dispatch;
+/// The bottom of every app page (docs/design/app-bottom-strip.md): the unfinished-software
+/// warning until version 1.0, and later the chat footer above it.
+#[cfg(feature = "native")]
+pub mod bottom_strip;
 /// Files dragged onto the window from the computer's file manager: where they go, and the
 /// overlay that says so (2026-10-17).
 #[cfg(feature = "native")]

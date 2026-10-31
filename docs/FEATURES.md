@@ -1206,6 +1206,21 @@ Galaxy to street level zoom on 2D canvas. Galaxy spiral, solar system, planet gl
 Color-coded nav groups (red=identity, green=contextual, blue=system) with icon tooltips.
 - Web: `web/shared/shell.js`
 
+### Unfinished-software warning (both apps, 2026-10-30)
+One amber line fixed to the bottom of every page until version 1.0 (rung 1 of
+`docs/design/app-bottom-strip.md`): "Unfinished software: it can be wrong, break, or lose your work.
+Do not rely on it for health, safety, food or water. It comes as is, with no warranty." (warranty a
+glossary term), What this means opening the Library's `unfinished-software` page
+(`docs/user/rights/unfinished_software.md`), and the version. Shown on every page and the title screen,
+never in the first-person world or on in-world screens; decided by the version alone (every 0.x and
+every pre-release of 1.0), one rule held to one list by both apps' tests
+(`scripts/tests/fixtures/wip-versions.json`). Not dismissible. Words from the dated finding
+`docs/reference/findings/2026-10-30-wip-warning-and-liability.md`; colour the `warning_bg` token.
+- Native: `src/gui/bottom_strip.rs` (called by `src/lib.rs` before the page; the chat footer is planned
+  above it), snapshots `wip_strip`, `wip_strip_narrow`, `wip_strip_title`, `wip_details`
+- Web: `web/shared/shell.js` (`wipStrip`, `.hos-wip-strip`; the footer stands on it through
+  `--hos-wip-h`, a spacer ends the page), `scripts/tests/wip-strip-web.test.js`
+
 ### Real/Sim Toggle
 Global context switch between real-life tools and simulation mode. Stored in localStorage.
 - Web: `web/shared/shell.js` (toggle UI), pages listen for `hos-context-change` event

@@ -1427,6 +1427,11 @@
       "category": "platform",
       "definition": "A legal tool that places a work in the public domain worldwide by waiving every copyright claim the author holds. HumanityOS uses it, which is why the project can never be fenced off or sold back to you."
     },
+    "warranty": {
+      "term": "Warranty",
+      "category": "platform",
+      "definition": "A promise from whoever made or sold something that it works and is fit for its use, with a way to put it right if it is not. HumanityOS comes with no warranty: nobody promises that it works, so check anything important for yourself."
+    },
     "portable_mode": {
       "term": "Portable Mode",
       "category": "platform",

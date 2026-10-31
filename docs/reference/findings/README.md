@@ -339,3 +339,17 @@ what we will say about it.
   3 unconfirmed (a solar still's yield, WHO's excreta guidelines, the crop gas figures). Sand filters
   take out viruses in the lab, not in typical use; bleach doubles for cloudy water; a burn cools for
   20 minutes; NASA's 2022 life support baseline supersedes the 2018 one.
+- [`2026-10-30-wip-warning-and-liability.md`](2026-10-30-wip-warning-and-liability.md),
+  what an unfinished-software warning on every page can and cannot do. The licence (CC0 1.0)
+  already disclaims warranties "as-is" but has no clause limiting liability; the AGPL and CC BY-SA
+  in the licence vote have one, each yielding to the law. A warning makes the risk obvious, and
+  every law read weighs warnings (the EU Product Liability Directive's presentation and
+  instructions, Washington's product liability act's adequate warnings, its sales law's "as is").
+  No warning makes anyone immune: where the UK's Unfair Contract Terms Act 1977 s.2(1) or the
+  Consumer Rights Act 2015 s.65 apply, liability for death or personal injury from negligence
+  cannot be excluded by any notice, and the EU directive (Article 15) and the UK's 1987 Act (s.7)
+  forbid limiting their liability. Several of these may not reach a free, donation-funded,
+  open-source project (the directive leaves out free software supplied outside a commercial
+  activity; the UK rules bind a business or trader; Washington's warranties need a sale for a
+  price), and no text read settles that. Ends with the warning's words. Not legal advice; a lawyer
+  should read it before 1.0.

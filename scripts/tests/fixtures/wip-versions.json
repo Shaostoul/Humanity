@@ -1,0 +1,5 @@
+{
+  "_comment": "Which versions show the unfinished-software warning (docs/design/app-bottom-strip.md). Read by BOTH apps' tests, so the desktop rule (src/gui/bottom_strip.rs wip_shown) and the website's (web/shared/shell.js hosWipShown) are held to one list: every 0.x version and every pre-release of 1.0 shows it, a version neither can read shows it, and a finished release hides it.",
+  "shown": ["0.1547.0", "0.0.1", "v0.9.9", "0.0.0-snapshot", "1.0.0-rc.1", "1.2.0-beta", "", "garbage", "x.1.2", "+1.0.0"],
+  "hidden": ["1.0.0", "v1.0.0", "1.0.0+build.7", "1.4.2", "2.0.0", " 1.0.0 "]
+}

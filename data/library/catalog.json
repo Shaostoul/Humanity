@@ -1481,6 +1481,15 @@
             "real",
             "governance"
           ]
+        },
+        {
+          "title": "Unfinished Software: What the Warning Means",
+          "src": "docs/user/rights/unfinished_software.md",
+          "tags": [
+            "reference",
+            "safety",
+            "beginner"
+          ]
         }
       ],
       "section": "The Accord"

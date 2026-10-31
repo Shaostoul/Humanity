@@ -632,7 +632,8 @@
     /* ── Footer ── */
     .site-footer {
       position: fixed;
-      bottom: 0;
+      /* Above the unfinished-software strip (wipStrip below keeps --hos-wip-h at its height). */
+      bottom: var(--hos-wip-h, 0px);
       left: 0;
       right: 0;
       background: var(--hos-chrome-bg);
@@ -699,6 +700,35 @@
       animation-duration: 3s;
     }
     .footer-toggle:hover { color: var(--hos-ink-bright); background: var(--hos-toggle-hover-bg); }
+
+    /* ── The unfinished-software warning (wipStrip below; the desktop app's gui/bottom_strip.rs).
+       Fixed to the very bottom of every page, over the footer's panel (z-index 2100) so the folded
+       footer slides away behind it, under the menus, help and tooltips. One line on a wide window;
+       on a narrow one the words wrap and the link and version go under them, never cut off. ── */
+    .hos-wip-strip {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2150;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px var(--space-lg, 12px);
+      padding: 3px var(--space-lg, 12px);
+      background: var(--warning-bg);
+      border-top: 1px solid var(--warning);
+      color: var(--text);
+      font-size: var(--text-sm);
+      line-height: 1.35;
+    }
+    .hos-wip-strip .hos-wip-sign { color: var(--warning); }
+    .hos-wip-strip .hos-wip-line { flex: 1 1 24em; min-width: 0; }
+    .hos-wip-strip .hos-wip-more { color: var(--warning); text-decoration: underline; white-space: nowrap; }
+    .hos-wip-strip .hos-wip-more:hover { color: var(--text-strong); }
+    .hos-wip-strip .hos-wip-version { color: var(--text-muted); white-space: nowrap; }
+    /* Keeps the end of the page, and the chat's message box, clear of the fixed strip. */
+    .hos-wip-spacer { display: block; flex: 0 0 auto; height: var(--hos-wip-h, 0px); }
 
     /* ── Mobile / More menu: clean FULL-SCREEN popup ──
        The hamburger opens this as a full-screen overlay that fully covers the page
@@ -2120,6 +2150,8 @@
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
 
+    // The unfinished-software strip reads the version from here (wipStrip below).
+    window.__HOS_WEB_VERSION = CURRENT_VERSION;
     function compareVersions(a, b) {
       var pa = a.replace(/^v/, '').split('.').map(Number);
       var pb = b.replace(/^v/, '').split('.').map(Number);
@@ -2230,6 +2262,70 @@
       }
     }, 2000);
     setTimeout(function() { clearInterval(_hosUpdatePoll); }, 30000);
+  })();
+
+  // ── The unfinished-software warning (2026-10-30, docs/design/app-bottom-strip.md) ──
+  // The desktop app's gui/bottom_strip.rs, mirrored: one amber line fixed to the bottom of every
+  // page until version 1.0, decided by the version alone (hosWipShown, the same rule as the app's
+  // wip_shown; scripts/tests/wip-strip-web.test.js runs both on one list of versions). The words
+  // are data/i18n/en.json's wip.* keys, the English already in the markup so the page reads before
+  // any other script finishes (another language replaces it through i18n.js). The footer sits on
+  // top of it through --hos-wip-h, and a spacer at the end of the page keeps the page's last line,
+  // and the chat's message box, clear of it. Nothing runs after it is built but a resize watch.
+  function hosWipShown(version) {
+    var v = String(version == null ? '' : version).trim().replace(/^v+/, '').split('+')[0];
+    var dash = v.indexOf('-');
+    var core = dash >= 0 ? v.slice(0, dash) : v;
+    var preRelease = dash >= 0 && v.slice(dash + 1) !== '';
+    var major = core.split('.')[0];
+    // A version it cannot read shows the warning: failing toward the warning is the safe way.
+    if (!/^[0-9]+$/.test(major)) return true;
+    return Number(major) < 1 || preRelease;
+  }
+  window.hosWipShown = hosWipShown;
+  (function wipStrip() {
+    var version = window.__HOS_WEB_VERSION || '';
+    if (!hosWipShown(version) || document.getElementById('hos-wip-strip')) return;
+    var holder = document.createElement('div');
+    holder.innerHTML =
+      '<div id="hos-wip-strip" class="hos-wip-strip" role="note" data-i18n-aria-label="wip.label" aria-label="Unfinished software warning">' +
+        '<span class="hos-wip-sign" aria-hidden="true">\u26A0</span>' +
+        '<span class="hos-wip-line" data-i18n="wip.line">Unfinished software: it can be wrong, break, or lose your work. Do not rely on it for health, safety, food or water. It comes as is, with no <span data-term="warranty">warranty</span>.</span>' +
+        '<a class="hos-wip-more" href="/library#unfinished-software" data-i18n="wip.more" data-i18n-tip="wip.more_hint" data-tip-desc="Opens a page in the Library about what unfinished means here, what the software does not promise, and how to report a problem.">What this means</a>' +
+        '<span class="hos-wip-version"></span>' +
+      '</div>';
+    var strip = holder.firstChild;
+    var versionEl = strip.querySelector('.hos-wip-version');
+    // The number alone until the words for "Version {{version}}" are here, then those words.
+    function showVersion() {
+      versionEl.textContent = (window.i18n && typeof window.i18n.t === 'function')
+        ? window.i18n.t('wip.version', { version: version })
+        : version;
+    }
+    showVersion();
+    window.addEventListener('languagechange', showVersion);
+    document.body.appendChild(strip);
+
+    // The footer and the spacer follow the strip's real height (two lines on a narrow window).
+    function syncHeight() {
+      var h = Math.ceil(strip.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--hos-wip-h', h + 'px');
+    }
+    syncHeight();
+    if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(strip);
+    else window.addEventListener('resize', syncHeight);
+
+    // The spacer goes LAST in the page, so it waits for the page to be read: shell.js runs at the
+    // top of <body>, before the page's own content exists.
+    function addSpacer() {
+      if (document.querySelector('.hos-wip-spacer')) return;
+      var spacer = document.createElement('div');
+      spacer.className = 'hos-wip-spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(spacer);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addSpacer);
+    else addSpacer();
   })();
 
   // ── Onboarding Tour ──

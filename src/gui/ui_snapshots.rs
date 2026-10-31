@@ -2736,6 +2736,64 @@ fn snapshot_server_strip_media() {
     });
 }
 
+/// The app's frame as lib.rs draws it on a page: the top menu, then the bottom strip
+/// (gui/bottom_strip.rs), then the page. The version is pinned to a plainly fake one, as the main
+/// menu's snapshot pins its own, so the picture does not change with every release.
+fn wip_strip_frame(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState, page: crate::gui::GuiPage) {
+    state.active_page = page;
+    crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.0.0-snapshot");
+    crate::gui::dispatch::draw_tool_page(ctx, page, theme, state);
+}
+
+/// The unfinished-software warning (docs/design/app-bottom-strip.md, rung 1): one amber line
+/// across the bottom of every page, under the page, its words on the left with "warranty" marked
+/// for the glossary, What this means and the version on the right.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_strip() {
+    render_page_png("wip_strip", 1280, 720, |ctx, theme, state| {
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Humanity);
+    });
+}
+
+/// The same warning on a narrow window: the words wrap onto a second line rather than being cut
+/// off, and the link and the version stay on the right.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_strip_narrow() {
+    render_page_png("wip_strip_narrow", 720, 520, |ctx, theme, state| {
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Humanity);
+    });
+}
+
+/// The title screen carries the warning too: it is a menu page, not the first-person world.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_strip_title() {
+    crate::gui::pages::main_menu::set_version_for_snapshot(Some("0.0.0-snapshot"));
+    render_page_png("wip_strip_title", 1280, 720, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::MainMenu;
+        crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.0.0-snapshot");
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+    crate::gui::pages::main_menu::set_version_for_snapshot(None);
+}
+
+/// Where What this means leads: the Library open on the page about the warning, the strip still
+/// under it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_details() {
+    render_page_png("wip_details", 1280, 900, |ctx, theme, state| {
+        assert!(
+            crate::gui::pages::library::show_doc(state, crate::gui::bottom_strip::DETAILS_SLUG),
+            "the Library does not ship the warning's page; run node scripts/build-library.js"
+        );
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Library);
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_wrapped() {

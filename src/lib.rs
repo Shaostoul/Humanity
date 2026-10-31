@@ -15348,6 +15348,10 @@ mod native_app {
                                         escape_menu::draw_nav_bar(ctx, &state.theme, &mut state.gui_state);
                                     }
                                 }
+                                // The bottom strip on every page but the first-person world (the
+                                // unfinished-software warning; gui/bottom_strip.rs), added before the
+                                // page so egui stacks the page's own bottom panels above it.
+                                crate::gui::bottom_strip::draw(ctx, &state.theme, &mut state.gui_state);
 
                                 // Draw active full-screen page. The engine-bound
                                 // arms (title screen, in-game None) stay here; every

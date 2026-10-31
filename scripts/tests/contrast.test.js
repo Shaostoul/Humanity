@@ -69,7 +69,7 @@ function lightPalette(dark) {
     row_stripe: '--row-stripe', bg_panel: '--bg-panel', bg_sidebar: '--bg-sidebar', bg_sidebar_dark: '--bg-sidebar-dark',
     text_primary: '--text', text_secondary: '--text-secondary', text_muted: '--text-muted',
     text_on_accent: '--text-on-accent', text_strong: '--text-strong', accent: '--accent', success: '--success',
-    warning: '--warning', danger: '--danger', info: '--info', border: '--border', border_focus: '--border-focus',
+    warning: '--warning', warning_bg: '--warning-bg', danger: '--danger', info: '--info', border: '--border', border_focus: '--border-focus',
     badge_admin: '--badge-admin', badge_mod: '--badge-mod', badge_verified: '--badge-verified', badge_donor: '--badge-donor',
     badge_live: '--badge-live', slider_track: '--slider-track',
   };
@@ -101,6 +101,12 @@ const PAIRS = [
   ['a control\'s outline (checkbox, text box)', 'text_muted', ['bg_card', 'bg_primary', 'bg_tertiary'], 3],
   ['a slider\'s rail', 'slider_track', ['bg_card', 'bg_primary', 'bg_secondary'], 3],
   ['the focus ring', 'border_focus', ['bg_card', 'bg_primary', 'bg_tertiary'], 3],
+  // The unfinished-software strip at the bottom of every page (gui/bottom_strip.rs and
+  // web/shared/shell.js): its words, its link, its glossary word and its version.
+  ['the unfinished-software warning\'s words', 'text_primary', ['warning_bg'], 4.5],
+  ['the warning\'s link', 'warning', ['warning_bg'], 4.5],
+  ['the warning\'s glossary word', 'accent', ['warning_bg'], 4.5],
+  ['the warning\'s version', 'text_muted', ['warning_bg'], 4.5],
 ];
 const DARK_ONLY = [
   ['map names', 'map_label', ['map_space'], 4.5],

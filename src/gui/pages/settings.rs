@@ -1492,6 +1492,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Text (strong / emphasis)", &mut theme.text_strong as *mut _),
                     ("Success", &mut theme.success as *mut _),
                     ("Warning", &mut theme.warning as *mut _),
+                    ("Warning background (the unfinished-software strip)", &mut theme.warning_bg as *mut _),
                     ("Danger", &mut theme.danger as *mut _),
                     ("Danger background (past a limit)", &mut theme.danger_bg as *mut _),
                     ("Info", &mut theme.info as *mut _),

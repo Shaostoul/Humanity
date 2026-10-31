@@ -36,6 +36,11 @@ pub struct Theme {
     pub text_strong: C,
     pub success: C,
     pub warning: C,
+    /// The ground under a standing caution (2026-10-30): the unfinished-software strip at the
+    /// bottom of every app page (gui/bottom_strip.rs), a dark amber that `warning` text, the
+    /// body text, the muted text and the accent all read on (scripts/tests/contrast.test.js).
+    #[serde(default = "default_warning_bg")]
+    pub warning_bg: C,
     pub danger: C,
     /// The ground under something that went past a limit or failed (2026-10-24, operator: "the
     /// character spots that go beyond the character limit have their background highlight dark
@@ -469,6 +474,7 @@ impl Theme {
     pub fn text_strong(&self) -> Color32 { Self::c32(&self.text_strong) }
     pub fn success(&self) -> Color32 { Self::c32(&self.success) }
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
+    pub fn warning_bg(&self) -> Color32 { Self::c32(&self.warning_bg) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
     pub fn danger_bg(&self) -> Color32 { Self::c32(&self.danger_bg) }
     pub fn info(&self) -> Color32 { Self::c32(&self.info) }
@@ -603,6 +609,7 @@ impl Theme {
         self.text_strong = default_text_strong();
         self.success = (0.165, 0.722, 0.439, 1.0);        // #2AB870
         self.warning = (0.961, 0.722, 0.231, 1.0);        // #F5B83B
+        self.warning_bg = default_warning_bg();
         self.danger = (0.937, 0.310, 0.310, 1.0);         // #EF4F4F
         self.danger_bg = default_danger_bg();
         self.info = (0.310, 0.667, 0.937, 1.0);           // #4FAAEF
@@ -779,6 +786,7 @@ fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
 fn default_text_strong() -> C { (1.0, 1.0, 1.0, 1.0) } // #ffffff, one step above text_primary
+fn default_warning_bg() -> C { (0.20, 0.13, 0.0, 1.0) } // #332100, dark amber under the unfinished-software strip
 fn default_danger_bg() -> C { (0.30, 0.04, 0.04, 1.0) } // #4D0A0A, dark red under danger text
 fn default_orbit_line() -> C { (0.0078, 0.0118, 0.0196, 1.0) } // #020305 near-black
 fn default_constellation_line() -> C { (0.133, 0.267, 0.267, 1.0) } // #224444 teal
@@ -881,6 +889,7 @@ fn default_theme() -> Theme {
         text_strong: default_text_strong(),
         success: (0.2, 0.75, 0.3, 1.0),
         warning: (0.95, 0.75, 0.1, 1.0),
+        warning_bg: default_warning_bg(),
         danger: (0.9, 0.25, 0.2, 1.0),
         danger_bg: default_danger_bg(),
         info: (0.2, 0.5, 0.9, 1.0),

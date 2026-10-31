@@ -36,8 +36,11 @@ fn shown_version() -> &'static str {
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Full-screen dark backdrop — derived from theme.bg_primary with 94% alpha
     // so the 3D world (if rendered behind) shows through faintly.
+    // Over what the panels leave free, not the whole screen: the unfinished-software strip
+    // (gui/bottom_strip.rs) is a panel on the same background layer, drawn first, and a
+    // whole-screen fill here darkened it to near black (seen in the wip_strip_title snapshot).
     let bg = theme.bg_primary();
-    let screen = ctx.screen_rect();
+    let screen = ctx.available_rect();
     let painter = ctx.layer_painter(egui::LayerId::background());
     painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), 240));
 
