@@ -12819,8 +12819,9 @@ mod native_app {
                                 state.gui_state.quests.push(crate::gui::GuiQuest::completed(quest_reg, cid));
                             }
                             // The chain window (2026-10-30), built only while it is open on the Quests
-                            // page: every step in Dev, only what the player has reached otherwise.
-                            if state.gui_state.active_page != GuiPage::Quests {
+                            // page (the main screen's, or a wall screen's framed last tick): every
+                            // step in Dev, only what the player has reached otherwise.
+                            if !crate::engine::screens::page_drawn(state.gui_state.active_page, &state.screens.framed_pages, GuiPage::Quests) {
                                 state.gui_state.quest_chain_open = None;
                             }
                             let reveal = if state.gui_state.dev_cheats_active(&state.theme) { crate::systems::quests::chain::Reveal::All } else { crate::systems::quests::chain::Reveal::Learned };
@@ -14748,6 +14749,9 @@ mod native_app {
                         };
                         crate::engine::screens::frame_surfaces(state, &screen_lists);
                         crate::engine::ipc::complete_screen_request(state);
+                    } else {
+                        // No wall screen is framed under a page: none draws its page this tick.
+                        state.screens.framed_pages.clear();
                     }
 
                     // A VSync toggle recorded by the previous frame's settings

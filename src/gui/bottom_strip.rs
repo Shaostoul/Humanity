@@ -26,11 +26,14 @@
 //! THE WORDS are the dated finding's (`docs/reference/findings/2026-10-30-wip-warning-and-
 //! liability.md`): what the software is, what not to rely on it for, and that it comes as is with
 //! no warranty, which is what the licence says. Its link opens the Library's page about it
-//! (`docs/user/rights/unfinished_software.md`, [`DETAILS_SLUG`]). The website draws the same strip
-//! from the same keys (`web/shared/shell.js`, `#hos-wip-strip`).
+//! (`docs/user/rights/unfinished_software.md`, [`DETAILS_SLUG`]); during the first-run setup the
+//! same page opens in a window over the setup instead, so the link is never a way out of the setup
+//! before the person has an identity. The website draws the same strip from the same keys
+//! (`web/shared/shell.js`, `#hos-wip-strip`).
 //!
 //! COST: one panel holding three labels, laid out each frame the app already draws; it reads no
-//! file, keeps nothing between frames, and never asks for a repaint, so an idle app stays idle.
+//! file, keeps nothing between frames (but, while the setup's details window is open, that it
+//! is), and never asks for a repaint, so an idle app stays idle.
 //! Colours are theme tokens (`warning_bg`, `warning`, `text_primary`, `text_muted`; their contrast
 //! is checked in scripts/tests/contrast.test.js).
 
@@ -47,6 +50,32 @@ pub const DETAILS_SLUG: &str = "unfinished-software";
 
 /// The warning's panel, by id. The chat footer (rung 2) gets its own, added after this one.
 const WARNING_PANEL: &str = "hos_wip_strip";
+
+/// Where the strip notes its height for the frame it drew in: (the context's pass number, height).
+fn height_key() -> egui::Id {
+    egui::Id::new(WARNING_PANEL).with("height")
+}
+
+/// How tall the bottom strip is on this frame, in points: 0 when it did not draw (the
+/// first-person world, a 1.0 build) or has not drawn yet this frame.
+///
+/// For a window or area anchored to the bottom of the screen (2026-10-30): egui anchors to the
+/// whole screen (`screen_rect`), not to the room the bottom panels leave, so such a window adds
+/// this to its offset to stand on the strip instead of running into it. lib.rs draws the strip
+/// before the page and before the windows over it, so they read this frame's height.
+pub fn height(ctx: &egui::Context) -> f32 {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<(u64, f32)>(height_key()))
+        .filter(|(at, _)| *at == pass)
+        .map_or(0.0, |(_, h)| h)
+}
+
+/// The screen above the bottom strip: where a window kept clear of it may go.
+pub fn room_above(ctx: &egui::Context) -> egui::Rect {
+    let mut r = ctx.screen_rect();
+    r.max.y -= height(ctx);
+    r
+}
 
 /// Whether the bottom strip belongs on this page: every page except the first-person world.
 pub fn shown_on(page: GuiPage) -> bool {
@@ -91,6 +120,14 @@ pub(crate) fn draw_for_version(ctx: &egui::Context, theme: &Theme, state: &mut G
     if wip_shown(version) {
         draw_warning(ctx, theme, state, version);
     }
+    if details_window_open(ctx) {
+        if in_first_run_setup(state) {
+            draw_details_window(ctx, theme, state);
+        } else {
+            // The setup finished (or was left) with the window open: it belongs to the setup.
+            close_details_window(ctx);
+        }
+    }
 }
 
 /// The warning: one line on a dark amber ground across the whole width, its words on the left, What
@@ -98,7 +135,7 @@ pub(crate) fn draw_for_version(ctx: &egui::Context, theme: &Theme, state: &mut G
 /// rather than being cut off, since a warning cut short says less than it should.
 fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, version: &str) {
     let size = theme.font_size_small;
-    egui::TopBottomPanel::bottom(WARNING_PANEL)
+    let panel = egui::TopBottomPanel::bottom(WARNING_PANEL)
         .frame(egui::Frame::none().fill(theme.warning_bg()).inner_margin(egui::Margin::symmetric(8, 3)))
         // Its own edge in the warning colour, not the panel's grey separator.
         .show_separator_line(false)
@@ -109,12 +146,13 @@ fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, versio
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.label(RichText::new(tf("wip.version", &[("version", &version)])).size(size).color(theme.text_muted()));
                 ui.add_space(theme.spacing_md);
+                let more_hint = if in_first_run_setup(state) { "wip.more_setup_hint" } else { "wip.more_hint" };
                 let more = ui
                     .add(egui::Label::new(RichText::new(t("wip.more")).size(size).color(theme.warning()).underline()).sense(Sense::click()))
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .hint("wip.more_hint");
+                    .hint(more_hint);
                 if more.clicked() {
-                    open_details(state);
+                    open_details(ctx, state);
                 }
                 ui.add_space(theme.spacing_md);
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
@@ -124,10 +162,81 @@ fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, versio
                 });
             });
         });
+    let pass = ctx.cumulative_pass_nr();
+    let h = panel.response.rect.height();
+    ctx.data_mut(|d| d.insert_temp(height_key(), (pass, h)));
 }
 
-/// What this means: the Library, open on the page about the warning.
-fn open_details(state: &mut GuiState) {
+/// The window that shows the warning's page over the first-run setup, by id.
+const DETAILS_WINDOW: &str = "hos_wip_details";
+
+/// The first-run setup: the title screen before `onboarding_complete` (name, server, identity and
+/// the 24 words). Nothing may lead out of it before the person has an identity.
+fn in_first_run_setup(state: &GuiState) -> bool {
+    state.active_page == GuiPage::MainMenu && !state.onboarding_complete
+}
+
+/// Is the warning's page open in its window over the setup? Kept in egui's memory: it lasts only
+/// while the setup shows, so it is not app state.
+fn details_window_open(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(egui::Id::new(DETAILS_WINDOW))).unwrap_or(false)
+}
+
+fn close_details_window(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<bool>(egui::Id::new(DETAILS_WINDOW)));
+}
+
+/// The warning's page in a window over the first-run setup (2026-10-30): the Library's document,
+/// from the copy already loaded, with Close. It reads nothing from disk and opens no browser, so
+/// it works offline and the person never leaves the setup.
+fn draw_details_window(ctx: &egui::Context, theme: &Theme, state: &GuiState) {
+    let doc = state
+        .library
+        .iter()
+        .flat_map(|s| s.categories.iter())
+        .flat_map(|c| c.entries.iter())
+        .find(|e| e.slug == DETAILS_SLUG);
+    let title = doc.map_or_else(|| t("wip.more").to_string(), |d| d.title.clone());
+    let mut open = true;
+    let mut close = false;
+    crate::gui::widgets::dialog::dialog_scrolling(ctx, theme, DETAILS_WINDOW, &title, &mut open, |ui| {
+        ui.set_max_width(640.0_f32.min(ctx.screen_rect().width() - 80.0).max(240.0));
+        match doc {
+            Some(d) => crate::gui::widgets::markdown::render_markdown(ui, theme, &d.body),
+            // Only when data/library/ is missing the page (the test keeps it shipped): the line itself.
+            None => {
+                widgets::glossary_words(ui, theme, t_marked("wip.line"), theme.font_size_body, theme.text_primary());
+            }
+        }
+        ui.add_space(theme.spacing_md);
+        if widgets::Button::primary(t("common.close")).hint("wip.details_close_hint").show(ui, theme) {
+            close = true;
+        }
+    });
+    // Over the setup's own windows, which are drawn after the strip in the same frame: the
+    // dimmed backdrop first, then the window on it.
+    for id in [egui::Id::new(format!("{DETAILS_WINDOW}-backdrop")), egui::Id::new(DETAILS_WINDOW)] {
+        ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
+    }
+    if !open || close {
+        close_details_window(ctx);
+    }
+}
+
+/// The setup's details window open, for the snapshot that photographs it (it has no cursor).
+#[cfg(test)]
+pub(crate) fn open_details_for_snapshot(ctx: &egui::Context, state: &mut GuiState) {
+    open_details(ctx, state);
+}
+
+/// What this means: the Library, open on the page about the warning. During the first-run setup
+/// the same page opens in a window over the setup instead: the Library page carries the top menu,
+/// a way into the whole app before the person has an identity (the seams review, 2026-10-30).
+fn open_details(ctx: &egui::Context, state: &mut GuiState) {
+    if in_first_run_setup(state) {
+        ctx.data_mut(|d| d.insert_temp(egui::Id::new(DETAILS_WINDOW), true));
+        return;
+    }
     if !crate::gui::pages::library::show_doc(state, DETAILS_SLUG) {
         // Only when data/library/ is missing the page; the test below keeps the slug shipped.
         log::warn!("bottom strip: the Library has no {DETAILS_SLUG:?} document; opening the Library as it is");
@@ -206,6 +315,57 @@ mod tests {
         assert_eq!(left_for_page(GuiPage::Humanity, "1.0.0"), screen.bottom(), "the warning drew on a 1.0 build");
     }
 
+    /// Windows over a page stand on the warning, never over it (2026-10-30): `height` is the
+    /// strip's real height on a page and 0 in the world, a tall dialog is kept above it
+    /// (`widgets::dialog`, constrained to `room_above`), and the lowest toast stands its 48 points
+    /// above it. Drawn for real, headless, in lib.rs's order: the strip, then the windows.
+    ///
+    /// Seen red 2026-10-30 with `height` answering 0 (egui's own anchoring, as before): the dialog
+    /// ran into the strip and the toast stood 24 points above it.
+    #[test]
+    fn windows_stand_on_the_strip() {
+        let theme = crate::gui::theme::load_theme();
+        let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 720.0));
+        let run = |page: GuiPage| -> (f32, f32, egui::Rect, egui::Rect) {
+            let ctx = egui::Context::default();
+            crate::gui::install_fonts(&ctx);
+            theme.apply_to_egui(&ctx);
+            let mut state = GuiState::default();
+            state.active_page = page;
+            state.pending_toasts.push(("Saved".into(), crate::gui::ToastKind::Info));
+            let (mut strip_top, mut h) = (0.0, 0.0);
+            for _ in 0..3 {
+                let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+                let _ = ctx.run(input, |ctx| {
+                    draw_for_version(ctx, &theme, &mut state, "0.0.0-test");
+                    strip_top = ctx.available_rect().bottom();
+                    h = height(ctx);
+                    let mut open = true;
+                    crate::gui::widgets::dialog::dialog_scrolling(ctx, &theme, "tall_dialog", "Tall", &mut open, |ui| {
+                        for i in 0..80 {
+                            ui.label(format!("line {i}"));
+                        }
+                    });
+                    crate::gui::widgets::draw_toasts(ctx, &theme, &mut state);
+                });
+            }
+            let dialog = ctx.memory(|m| m.area_rect(egui::Id::new("tall_dialog"))).expect("the dialog drew");
+            let toast = ctx.memory(|m| m.area_rect(egui::Id::new(("hos_toast", 0usize)))).expect("the toast drew");
+            (strip_top, h, dialog, toast)
+        };
+        let (strip_top, h, dialog, toast) = run(GuiPage::Humanity);
+        assert!(strip_top < screen.bottom() - 10.0, "the strip drew on a page");
+        let toast_wrong = toast.bottom() > strip_top - 47.5;
+        assert!(dialog.bottom() <= strip_top + 0.5, "the dialog ({dialog:?}) runs into the strip at {strip_top} (and the toast is {})", if toast_wrong { "too low too" } else { "fine" });
+        assert!(!toast_wrong, "the toast ({toast:?}) stands less than 48 above the strip at {strip_top}");
+        assert!((screen.bottom() - strip_top - h).abs() < 0.5, "height {h} is the strip's (its top at {strip_top})");
+        // In the world there is no strip, so nothing moves.
+        let (world_bottom, world_h, _, world_toast) = run(GuiPage::None);
+        assert_eq!(world_h, 0.0);
+        assert_eq!(world_bottom, screen.bottom());
+        assert!((world_toast.bottom() - (screen.bottom() - 48.0)).abs() < 0.5, "{world_toast:?}");
+    }
+
     /// The link must lead somewhere: the shipped Library has the page it opens.
     #[test]
     fn what_this_means_opens_a_document_the_library_ships() {
@@ -220,8 +380,45 @@ mod tests {
         let mut state = GuiState::default();
         state.library = lib.sections;
         state.active_page = GuiPage::Humanity;
-        open_details(&mut state);
+        let ctx = egui::Context::default();
+        open_details(&ctx, &mut state);
         assert_eq!(state.active_page, GuiPage::Library);
         assert_eq!(crate::gui::pages::library::shown_doc(&state).as_deref(), Some(DETAILS_SLUG));
+    }
+
+    /// During the first-run setup (the title screen before `onboarding_complete`) What this means
+    /// must not lead out of it: the Library page carries the top menu, a way into the whole app
+    /// before the person has an identity. It opens the same document in a window over the setup
+    /// instead, and Close puts the setup back as it was.
+    ///
+    /// Seen red 2026-10-30: the link pushed the Library page from the setup.
+    #[test]
+    fn what_this_means_stays_inside_the_first_run_setup() {
+        let lib = crate::gui::load_library(std::path::Path::new("data"));
+        let mut state = GuiState::default();
+        state.library = lib.sections;
+        state.active_page = GuiPage::MainMenu;
+        state.onboarding_complete = false;
+        let ctx = egui::Context::default();
+        open_details(&ctx, &mut state);
+        assert_eq!(state.active_page, GuiPage::MainMenu, "the setup is still what shows");
+        assert!(state.nav_back_stack.is_empty(), "and nothing was pushed to come back to");
+        assert!(details_window_open(&ctx), "the document opened in a window over the setup");
+        // Drawn headless: the window shows the document's own words, then Close shuts it.
+        let theme = crate::gui::theme::load_theme();
+        crate::gui::install_fonts(&ctx);
+        theme.apply_to_egui(&ctx);
+        let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 720.0));
+        for _ in 0..2 {
+            let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+            let _ = ctx.run(input, |ctx| draw_for_version(ctx, &theme, &mut state, "0.0.0-test"));
+        }
+        assert!(ctx.memory(|m| m.area_rect(egui::Id::new(DETAILS_WINDOW))).is_some(), "the window drew");
+        close_details_window(&ctx);
+        assert!(!details_window_open(&ctx));
+        // Once the setup is done the link is the Library page again (the test above).
+        state.onboarding_complete = true;
+        open_details(&ctx, &mut state);
+        assert_eq!(state.active_page, GuiPage::Library);
     }
 }

@@ -2126,19 +2126,20 @@ pub enum RelayMessage {
         hide_presence: bool,
     },
 
-    /// Client updates notification preferences.
+    /// Client changes notification preferences: only the fields it carries (2026-10-30). An absent
+    /// one keeps what is stored; quiet hours sent as null clear them (storage/notification_prefs.rs).
     #[serde(rename = "update_notification_prefs")]
     UpdateNotificationPrefs {
-        #[serde(default = "default_true")]
-        dm: bool,
-        #[serde(default = "default_true")]
-        mentions: bool,
-        #[serde(default = "default_true")]
-        tasks: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        dnd_start: Option<String>,
+        dm: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        dnd_end: Option<String>,
+        mentions: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tasks: Option<bool>,
+        #[serde(default, deserialize_with = "crate::relay::storage::sent_or_null", skip_serializing_if = "Option::is_none")]
+        dnd_start: Option<Option<String>>,
+        #[serde(default, deserialize_with = "crate::relay::storage::sent_or_null", skip_serializing_if = "Option::is_none")]
+        dnd_end: Option<Option<String>>,
     },
 
     /// Server sends notification preferences to the requesting client.

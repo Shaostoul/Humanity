@@ -107,7 +107,7 @@
 #cmd-palette-overlay {
   display: none;
   position: fixed;
-  inset: 0;
+  inset: 0 0 var(--hos-wip-h, 0px) 0;
   z-index: 999;
 }
 #cmd-palette-overlay.open { display: block; }

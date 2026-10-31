@@ -245,7 +245,7 @@
   </div>
 
   <!-- Seller Profile Modal -->
-  <div id="seller-profile-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.seller_profile_label" aria-label="Seller profile" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1100;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
+  <div id="seller-profile-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.seller_profile_label" aria-label="Seller profile" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:1100;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
    <div style="max-width:520px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="seller-profile-content"></div>
    </div>
@@ -253,21 +253,21 @@
 
   <!-- Offering Detail Modal (Directory). Same shell as the classifieds
        detail modal below, so both read as one page. -->
-  <div id="offering-detail-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.offering_details_label" aria-label="Offering details" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeOfferingDetail()">
+  <div id="offering-detail-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.offering_details_label" aria-label="Offering details" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeOfferingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="offering-detail-content"></div>
    </div>
   </div>
 
   <!-- Listing Detail Modal -->
-  <div id="listing-detail-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.listing_details_label" aria-label="Listing details" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
+  <div id="listing-detail-modal" role="dialog" aria-modal="true" data-i18n-aria-label="market.listing_details_label" aria-label="Listing details" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="listing-detail-content"></div>
    </div>
   </div>
 
   <!-- Create/Edit Listing Modal -->
-  <div id="listing-modal" role="dialog" aria-modal="true" aria-labelledby="listing-modal-title" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
+  <div id="listing-modal" role="dialog" aria-modal="true" aria-labelledby="listing-modal-title" data-i18n-tip="market.modal_backdrop_hint" data-tip-desc="Press anywhere outside the box to close it." style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
    <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <h2 style="color:var(--accent);margin-bottom:var(--space-xl);font-size:var(--text-base);" id="listing-modal-title" data-i18n="market.create_listing">Create Listing</h2>
     <input type="hidden" id="listing-edit-id" value="">

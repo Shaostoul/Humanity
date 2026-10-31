@@ -96,9 +96,10 @@ The checks, in order, each with the reason it reports:
 
 1. `own_message`: the person's own line or DM (from this device or another of theirs). Never.
 2. `unknown_kind`: a kind not in the data file.
-3. `not_loaded`: the synced switches have not arrived from the server yet on the desktop, so quiet
-   hours are unknown. Nothing fires until they do (asked for at every sign-in, so this lasts one
-   round trip). The website keeps its own copy in the browser and is always loaded.
+3. `not_loaded`: the synced switches have not arrived from the server yet, so quiet hours are
+   unknown. Nothing fires until they do (asked for at every sign-in on the desktop, and by the
+   website's chat once its socket is accepted, so this lasts one round trip). The browser's own
+   copy never counts as loaded: it may be old, or only the defaults (2026-10-30).
 4. `kind_off`: the kind's synced switch is off.
 5. `all_muted`: everything is muted (Settings > Notifications > Mute everything, and the tray's
    Mute from rung 2), DMs included. Then `server_muted`, `room_muted`: a room kind, from a server
@@ -207,6 +208,16 @@ to the right click menu a button for mute that opens to the available options."
   server's Web Push must honour them (it now does for the switches), and a person expects the same
   quiet hours on every device. The desktop asks for them at every sign-in and sends a change to
   EVERY server it is signed in to, so each one's pushes agree.
+- **A change names only what it changes (2026-10-30).** `update_notification_prefs` carries the
+  switches that changed; every one it leaves out keeps its stored value, and quiet hours sent as
+  null are cleared (storage/notification_prefs.rs `NotifPrefsChange`). The server answers every
+  connection of that person with the whole stored set. No client writes before the server has
+  answered it: the desktop's controls wait (`synced_frame` is `None` until then), the website's DM
+  cog says it is still asking, and the website's Settings page, which has no socket, queues just
+  the switch that changed (`hos_notify_pending`) for the chat to send. Before this, the server
+  replaced all five values, a missing switch counting as on, so one click on the website's DM
+  cog in a browser that never opened Settings wiped the person's quiet hours and turned mentions
+  back on, on every device.
 - **This device** (the desktop's `config.json` `notifications`; the browser's localStorage):
   desktop notices, what a notice shows, the sound, and mutes. What a notice may show depends on
   the screen (a shared family computer, a phone), and a sound is the device's. Mutes are kept
@@ -260,7 +271,7 @@ to the right click menu a button for mute that opens to the available options."
 - The website: notices only for DMs and mentions, honouring the synced switches, quiet hours,
   mutes and what a notice shows; Mute server on the server row; "A notice shows" in Settings
   (the unread "Message Preview" removed); the DM cog flips the synced DM switch as the desktop's
-  does; quiet hours written as "22:00".
+  does, from what the server holds and sending only that switch; quiet hours written as "22:00".
 - The relay: a push only when the person's switch for it is on; the mention push without the text.
 
 **Rung 2:** the tray icon ("The tray", after section 5), with its Mute everything menu, the

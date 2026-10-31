@@ -2,10 +2,10 @@
  * The chat's notifications (2026-10-30, docs/design/notifications.md), the
  * desktop app's engine/notify.rs and chat/mute_menu.rs mirrored:
  *
- * - HosChatNotify.decide(c, at): THE rule (/shared/notify-rules.js) with what
- *   this browser keeps: the copy of the person's synced switches and quiet hours
- *   (localStorage hos_notify_dms / _mentions / _tasks, hos_dnd_start / _end,
- *   written by Settings), what a notice shows (humanity_settings['notif-show'],
+ * - HosChatNotify.decide(c, at): THE rule (/shared/notify-rules.js) with the
+ *   person's synced switches and quiet hours AS THEIR SERVER HOLDS THEM (asked
+ *   once the socket is accepted, prefsData; nothing notifies until it answered),
+ *   what a notice shows (humanity_settings['notif-show'],
  *   "name" by default: who it is from, never what was said), and the mutes
  *   (hos_notify_mutes). chat-ui.js notifyNewMessage acts on the answer.
  * - Mute server: the bell on this server's row in the sidebar, opening the
@@ -61,13 +61,114 @@
     try { return localStorage.getItem(key); } catch (_) { return null; }
   }
 
+  // ── The person's synced switches, as their server holds them (2026-10-30) ──
+  // Asked of the server once this page's socket is accepted, and taken live whenever the server
+  // sends them (its answer to a change made on any of the person's devices). Until the first
+  // answer nothing notifies (the desktop's Why::NotLoaded) and the DM cog writes nothing: this
+  // browser's own copy may be from long ago, or only the defaults, and must never be sent back
+  // over what the person chose elsewhere. A change is sent as just the switch that changed; the
+  // relay keeps every switch a message leaves out.
+  var held = null;
+  var PENDING_KEY = 'hos_notify_pending';
+  var SWITCHES = { dm: 'boolean', mentions: 'boolean', tasks: 'boolean', dnd_start: 'clock', dnd_end: 'clock' };
+
+  function sock() {
+    return typeof ws !== 'undefined' && ws && ws.readyState === 1 ? ws : null;
+  }
+
+  function ask() {
+    var s = sock();
+    if (s) s.send(JSON.stringify({ type: 'get_notification_prefs' }));
+  }
+
+  function keep(key, value) {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    } catch (_) { /* private window: this page only */ }
+  }
+
+  /** This browser's copy, for the Settings page to show. */
+  function mirror() {
+    keep('hos_notify_dms', held.dm ? 'true' : 'false');
+    keep('hos_notify_mentions', held.mentions ? 'true' : 'false');
+    keep('hos_notify_tasks', held.tasks ? 'true' : 'false');
+    keep('hos_dnd_start', held.dnd_start);
+    keep('hos_dnd_end', held.dnd_end);
+  }
+
+  /** The server's `notification_prefs_data`: the whole stored set. */
+  function prefsData(msg) {
+    var clock = function (v) { return typeof v === 'string' && v ? v : null; };
+    held = {
+      dm: msg.dm !== false,
+      mentions: msg.mentions !== false,
+      tasks: msg.tasks !== false,
+      dnd_start: clock(msg.dnd_start),
+      dnd_end: clock(msg.dnd_end)
+    };
+    mirror();
+  }
+
+  /** A change the Settings page queued (it has no socket): sent as it is, switches only. */
+  function flushPending() {
+    var s = sock();
+    var raw = stored(PENDING_KEY);
+    if (!s || raw === null) return false;
+    var change = {};
+    try { change = JSON.parse(raw) || {}; } catch (_) { change = {}; }
+    var msg = { type: 'update_notification_prefs' };
+    var any = false;
+    Object.keys(SWITCHES).forEach(function (k) {
+      if (!Object.prototype.hasOwnProperty.call(change, k)) return;
+      var v = change[k];
+      var ok = SWITCHES[k] === 'boolean' ? typeof v === 'boolean' : v === null || typeof v === 'string';
+      if (ok) { msg[k] = v; any = true; }
+    });
+    keep(PENDING_KEY, null);
+    if (any) s.send(JSON.stringify(msg));
+    return any;
+  }
+
+  /** This socket's identity was accepted: send a queued change (the server answers with the
+   *  whole set), else ask for the set. */
+  function onIdentified() {
+    if (!flushPending()) ask();
+  }
+
+  /** The DMs section's cog: the DM switch, flipped from what the server holds. */
+  function toggleDm() {
+    if (!held) {
+      ask();
+      if (typeof addNotice === 'function') addNotice(T('notifications.dm_wait'), 'orange', 4);
+      return;
+    }
+    var s = sock();
+    if (!s) {
+      if (typeof addNotice === 'function') addNotice(T('notifications.not_connected'), 'orange', 4);
+      return;
+    }
+    var on = !held.dm;
+    s.send(JSON.stringify({ type: 'update_notification_prefs', dm: on }));
+    held.dm = on;
+    mirror();
+    if (typeof addNotice === 'function') addNotice(T(on ? 'notifications.dm_on' : 'notifications.dm_off'), on ? 'green' : 'orange', 4);
+  }
+
+  if (window.hos && typeof window.hos.on === 'function') window.hos.on('socket-identified', onIdentified);
+  // Settings open in another tab queued a change: send it now, while this socket is accepted.
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('storage', function (e) { if (e && e.key === PENDING_KEY && held) flushPending(); });
+  }
+
   function synced() {
+    if (!held) return { dm: false, mentions: false, tasks: false, quiet_start: null, quiet_end: null, loaded: false };
     return {
-      dm: stored('hos_notify_dms') !== 'false',
-      mentions: stored('hos_notify_mentions') !== 'false',
-      tasks: stored('hos_notify_tasks') !== 'false',
-      quiet_start: stored('hos_dnd_start'),
-      quiet_end: stored('hos_dnd_end'),
+      dm: held.dm,
+      mentions: held.mentions,
+      tasks: held.tasks,
+      quiet_start: held.dnd_start,
+      quiet_end: held.dnd_end,
       loaded: true
     };
   }
@@ -217,5 +318,5 @@
   else wire();
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
 
-  window.HosChatNotify = { decide: decide, server: server, serverMuted: serverMuted, bellHtml: bellHtml };
+  window.HosChatNotify = { decide: decide, server: server, serverMuted: serverMuted, bellHtml: bellHtml, prefsData: prefsData, toggleDm: toggleDm };
 })();

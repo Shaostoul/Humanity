@@ -36,7 +36,7 @@
     if (document.getElementById('hos-error-banner')) return;
     var banner = document.createElement('div');
     banner.id = 'hos-error-banner';
-    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#991b1b;color:#fff;padding:10px 16px;font:14px/1.4 sans-serif;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    banner.style.cssText = 'position:fixed;bottom:var(--hos-wip-h, 0px);left:0;right:0;z-index:999999;background:#991b1b;color:#fff;padding:10px 16px;font:14px/1.4 sans-serif;display:flex;align-items:center;justify-content:space-between;gap:12px;';
     var text = document.createElement('span');
     text.textContent = 'Something went wrong. Try refreshing.';
     var btn = document.createElement('button');
@@ -2046,7 +2046,7 @@
 
     var dbg = document.createElement('div');
     dbg.id = 'hos-debug-overlay';
-    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;'; // theme-exempt: the debug overlay is a green-on-black terminal readout in both themes
+    dbg.style.cssText = 'position:fixed;bottom:calc(48px + var(--hos-wip-h, 0px));right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;'; // theme-exempt: the debug overlay is a green-on-black terminal readout in both themes
     document.body.appendChild(dbg);
 
     var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];

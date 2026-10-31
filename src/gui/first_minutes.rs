@@ -179,7 +179,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::Window::new("first_minutes_card")
         .title_bar(false)
         .resizable(false)
-        .anchor(Align2::RIGHT_BOTTOM, Vec2::new(-16.0, -16.0))
+        // Standing on the unfinished-software warning: egui anchors to the whole screen.
+        .anchor(Align2::RIGHT_BOTTOM, Vec2::new(-16.0, -16.0 - crate::gui::bottom_strip::height(ctx)))
         .fixed_size(Vec2::new(340.0, 0.0))
         .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
         .show(ctx, |ui| {
@@ -293,6 +294,38 @@ mod tests {
         assert!(!fm.showing(), "Skip ends it");
         fm.resume();
         assert!(fm.showing() && fm.step == 0, "taking it again after the end starts at the top");
+    }
+
+    /// The card stands on the unfinished-software warning, never over it (2026-10-30): egui
+    /// anchors a window to the whole screen, not to the room the bottom panels leave, so the card's
+    /// offset adds the warning's height (`bottom_strip::height`). Drawn for real, headless, on a
+    /// page with the warning, and in the world, where there is none to clear.
+    ///
+    /// Seen red 2026-10-30 with the card anchored 16 points from the screen's bottom: it ran about
+    /// 4 points into the warning.
+    #[test]
+    fn the_card_stands_above_the_warning() {
+        let theme = crate::gui::theme::load_theme();
+        let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 720.0));
+        let ctx = egui::Context::default();
+        crate::gui::install_fonts(&ctx);
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        state.onboarding_complete = true;
+        state.active_page = GuiPage::Humanity;
+        state.first_minutes.start();
+        let mut strip_top = screen.bottom();
+        for _ in 0..3 {
+            let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+            let _ = ctx.run(input, |ctx| {
+                crate::gui::bottom_strip::draw_for_version(ctx, &theme, &mut state, "0.0.0-test");
+                strip_top = ctx.available_rect().bottom();
+                draw(ctx, &theme, &mut state);
+            });
+        }
+        assert!(strip_top < screen.bottom() - 10.0, "the warning drew: it ends the page at {strip_top}");
+        let card = ctx.memory(|m| m.area_rect(egui::Id::new("first_minutes_card"))).expect("the card drew");
+        assert!(card.bottom() <= strip_top - 8.0, "the card ({card:?}) runs into the warning, whose top is {strip_top}");
     }
 
     /// A config written before the tour existed has no first_minutes: it reads as

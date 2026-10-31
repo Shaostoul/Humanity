@@ -101,8 +101,12 @@ fn dialog_inner(
     // held to exactly the height its content took last frame, up to the screen less a margin;
     // past that it scrolls. The first frame, before anything is measured, is only capped.
     let measured_key = egui::Id::new(id).with("content_height");
+    // The screen above the unfinished-software warning (gui/bottom_strip.rs): the window is placed
+    // and kept inside it, so a tall dialog stands on the warning instead of running over it (egui
+    // anchors to the whole screen otherwise).
+    let room = crate::gui::bottom_strip::room_above(ctx);
     if vscroll {
-        let tallest = (ctx.screen_rect().height() - 80.0).max(200.0);
+        let tallest = (room.height() - 80.0).max(200.0);
         let last: Option<f32> = ctx.data(|d| d.get_temp(measured_key));
         window = match last {
             Some(h) => {
@@ -115,6 +119,7 @@ fn dialog_inner(
     let win_resp = window
         .id(egui::Id::new(id))
         .open(&mut local_open)
+        .constrain_to(room)
         .anchor(anchor, offset)
         .resizable(false)
         .collapsible(false)

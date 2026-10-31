@@ -1695,7 +1695,7 @@ function quest_showToast(msg, duration) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'quest-toast';
-    el.style.cssText = 'position:fixed;bottom:3rem;left:50%;transform:translateX(-50%);background:var(--tk-toast-bg);border:1px solid #f0a500;color:var(--tk-toast-ink);padding:var(--space-lg) 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
+    el.style.cssText = 'position:fixed;bottom:calc(3rem + var(--hos-wip-h, 0px));left:50%;transform:translateX(-50%);background:var(--tk-toast-bg);border:1px solid #f0a500;color:var(--tk-toast-ink);padding:var(--space-lg) 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
     document.body.appendChild(el);
   }
   el.textContent = msg;

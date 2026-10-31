@@ -2376,7 +2376,9 @@
     "more": "What this means",
     "more_hint": "Opens a page in the Library about what unfinished means here, what the software does not promise, and how to report a problem.",
     "version": "Version {{version}}",
-    "label": "Unfinished software warning"
+    "label": "Unfinished software warning",
+    "more_setup_hint": "Opens a page about what unfinished means here, what the software does not promise, and how to report a problem. It opens over the setup, so you stay where you are.",
+    "details_close_hint": "Closes this page and goes back to setting up."
   },
   "notifications": {
     "device_heading": "On this computer",
@@ -2472,6 +2474,8 @@
     "call_title": "{{name}} is calling",
     "call_title_hidden": "Someone is calling",
     "game_event_title": "{{name}}",
-    "game_event_title_hidden": "Something in your home needs you"
+    "game_event_title_hidden": "Something in your home needs you",
+    "dm_wait": "Still asking your server what you chose. Try again in a moment.",
+    "dm_wait_hint": "Your notification choices are kept on your server. Until it has answered, this switch waits, so it never changes anything you set on another device."
   }
 }

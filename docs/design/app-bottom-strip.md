@@ -75,7 +75,17 @@ and the Library; he is weighing an Overview page instead, or as well (section 5.
 - **The website** builds the same layers in `shell.js`: the warning fixed at `bottom: 0`, the
   footer standing on it (`bottom: var(--hos-wip-h)`), and a spacer as the page's last element so
   nothing is hidden under it (the chat page's message box included). A future chat footer would
-  stand on the warning the same way (section 4.6).
+  stand on the warning the same way (section 4.6). **Every other element fixed or sticky at the
+  bottom of the window stands on it too** (2026-10-30): `bottom: var(--hos-wip-h, 0px)`, or
+  `calc(<its offset> + var(--hos-wip-h, 0px))`, Settings' Save bar, the chat's phone drawers, the
+  Tasks drawer, the dialogs' backdrops and the toasts among them; the one other answer is a layer
+  over the whole window above the strip (a full-screen viewer, the phone menu), which hides the
+  warning while it is open. `scripts/tests/wip-strip-room-web.test.js` finds every such rule in
+  web/ and fails on one that does neither. **The desktop's twin:** egui anchors a window to the
+  whole screen, not to the room the bottom panels leave, so a window anchored to the bottom adds
+  `bottom_strip::height(ctx)` to its offset (the first-minutes tour card, the toasts) and the
+  themed dialogs are kept inside `bottom_strip::room_above(ctx)`; in the world, where the strip
+  does not draw, both are the whole screen.
 - **Budget, all layers:** nothing per frame when idle. Each layer lays out a few labels on frames
   the app already draws, reads no file, keeps no cache, and never asks for a repaint. The website
   builds static DOM once; its only listener is a resize watch on the strip.
@@ -93,7 +103,13 @@ immune, and several rules forbid excluding liability for death or injury from ne
 - The line (`wip.line`): "Unfinished software: it can be wrong, break, or lose your work. Do not
   rely on it for health, safety, food or water. It comes as is, with no [[warranty]]." The word
   warranty is a glossary term (`data/glossary.json` `warranty`).
-- The link (`wip.more`): "What this means", with its hint (`wip.more_hint`).
+- The link (`wip.more`): "What this means", with its hint (`wip.more_hint`). It opens the Library
+  on the details page, except during the desktop's first-run setup (the title screen before
+  `onboarding_complete`), where the same page opens in a window over the setup, with Close
+  (`wip.more_setup_hint`, `wip.details_close_hint`), from the copy of the Library already loaded:
+  the Library page carries the top menu, and the link must not be a way into the app before the
+  person has an identity (2026-10-30, the seams review). A browser was the other choice and was
+  not taken: the setup may be offline, and a person new to computers should not be sent out of it.
 - The version (`wip.version`): "Version {{version}}", the running version.
 
 **Why not "we can't be held liable for any harm":** the finding shows that is untrue in places

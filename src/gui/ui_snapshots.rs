@@ -2828,6 +2828,42 @@ fn snapshot_wip_details() {
     });
 }
 
+/// The windows over a page stand on the warning (2026-10-30): the first-minutes tour card at the
+/// bottom right and a toast at the bottom centre, both above the strip, not over it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_strip_windows() {
+    render_page_png("wip_strip_windows", 1280, 720, |ctx, theme, state| {
+        state.onboarding_complete = true;
+        if !state.first_minutes.showing() {
+            state.first_minutes.start();
+        }
+        if state.toasts.is_empty() && state.pending_toasts.is_empty() {
+            state.pending_toasts.push(("Saved".into(), crate::gui::ToastKind::Success));
+        }
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Humanity);
+        crate::gui::widgets::draw_toasts(ctx, theme, state);
+        crate::gui::first_minutes::draw(ctx, theme, state);
+    });
+}
+
+/// What this means during the first-run setup (2026-10-30): the same page in a window over the
+/// setup, never the Library page (which carries the top menu, a way out of the setup).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_wip_details_setup() {
+    crate::gui::pages::main_menu::set_version_for_snapshot(Some("0.0.0-snapshot"));
+    render_page_png("wip_details_setup", 1280, 900, |ctx, theme, state| {
+        state.active_page = crate::gui::GuiPage::MainMenu;
+        state.onboarding_complete = false;
+        state.onboarding_step = 0;
+        crate::gui::bottom_strip::open_details_for_snapshot(ctx, state);
+        crate::gui::bottom_strip::draw_for_version(ctx, theme, state, "0.0.0-snapshot");
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+    crate::gui::pages::main_menu::set_version_for_snapshot(None);
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_wrapped() {

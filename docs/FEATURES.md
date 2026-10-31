@@ -4086,10 +4086,10 @@ Built-in help topic `real-sim` explains the context toggle. Rendered as a `?` ne
 
 ### Onboarding Page (dual UI)
 First-run orientation plus permanent reference. Four core concepts, core-pages overview, data-driven quest chains. Progress tracked locally per step.
-- Data: `data/onboarding/quests.json` (three chains, 14 steps)
-- Native: none since 2026-10-30 (`GuiPage::Onboarding` went in v0.415.0, `onboarding.rs` with the Tasks page's suggested cards); the chains are the Tasks page's suggested cards
-- Web: `web/pages/onboarding.html`
-- Route: `/onboarding` (web), "Onboarding" nav tab (native)
+- Data: `data/onboarding/quests.json` (version 5: six chains, 26 steps; each chain has a one-line `purpose`, a step may name its written `how_to`)
+- Native: no page. `GuiPage::Onboarding` and its nav tab went in v0.415.0, and `onboarding.rs` was removed on 2026-10-30; the chains are the Tasks page's suggested cards (`src/gui/pages/tasks.rs`)
+- Web: `web/pages/onboarding.html`, the chains as quest-style cards with their purpose and a chain window per chain (Go there, and Open the how-to where a step has one); the website's Tasks page has them as suggested cards too
+- Route: `/onboarding` (web only)
 
 ### Universal Spreadsheet / Nested-Row Widgets (v0.400 - v0.517)
 The one-panel inventory redesign's reusable primitives: a nested expandable row, a fixed-width row cell,

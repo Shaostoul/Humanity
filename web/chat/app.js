@@ -1519,6 +1519,11 @@ async function handleMessage(msg) {
       break;
     // (account_export_data removed 2026-09-06: the export is an authenticated
     // HTTP download now, built in chat-privacy.js. See the note there.)
+    case 'notification_prefs_data':
+      // The person's synced switches as the server holds them: the answer to our ask once this
+      // socket was accepted, and to a change from any of their devices (chat-notify.js).
+      if (window.HosChatNotify) HosChatNotify.prefsData(msg);
+      break;
     case 'dm_purged': {
       // Confirmation of our own server-mailbox scrub.
       const n = Number(msg.count) || 0;

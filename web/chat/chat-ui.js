@@ -41,25 +41,11 @@ function toggleChannelVoice(channel) {
 }
 
 // DM settings (the DMs-section cog): the person's synced DM switch, the same one as Settings >
-// Notifications and the desktop's DM cog (2026-10-30; it was a mute kept only in this browser),
-// saved here and sent to the server so its pushes follow it too.
+// Notifications and the desktop's DM cog. It flips the switch AS THE SERVER HOLDS IT and sends
+// only that switch (chat-notify.js toggleDm); before the server has answered it writes nothing
+// (2026-10-30: it sent a whole set from this browser's memory, which wiped quiet hours).
 window.openDmSettings = function() {
-  const on = localStorage.getItem('hos_notify_dms') === 'false';
-  localStorage.setItem('hos_notify_dms', on ? 'true' : 'false');
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const msg = {
-      type: 'update_notification_prefs',
-      dm: on,
-      mentions: localStorage.getItem('hos_notify_mentions') !== 'false',
-      tasks: localStorage.getItem('hos_notify_tasks') !== 'false',
-    };
-    const qs = localStorage.getItem('hos_dnd_start');
-    const qe = localStorage.getItem('hos_dnd_end');
-    if (qs !== null && qe !== null) { msg.dnd_start = qs; msg.dnd_end = qe; }
-    ws.send(JSON.stringify(msg));
-  }
-  const words = window.i18n ? i18n.t(on ? 'notifications.dm_on' : 'notifications.dm_off') : '';
-  if (typeof addNotice === 'function') addNotice(words, on ? 'green' : 'orange', 4);
+  if (window.HosChatNotify) HosChatNotify.toggleDm();
 };
 
 // ── Key Bindings ──

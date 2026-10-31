@@ -74,8 +74,8 @@ missing/malformed input, pages render an empty filter row rather than crashing.
 | `web/chat/chat-ui.js:1652-1720` | 30+ command palette items | `data/commands.json` | Fetched at startup; `action_id`/`nav_url` fields hydrate via `CMD_PALETTE_ACTIONS` registry. `requires_role` gates mod/admin categories. |
 | `src/gui/pages/donate.rs:122-143` | 5 FAQ entries | `data/donate/faq.json` | Loader: `load_donate_faq()` → `state.donate_faq`. |
 | `web/chat/chat-ui.js:70-77` | 6 notification sound presets | `data/sounds/presets.json` | Fetched at startup; empty until resolved. |
-| `src/gui/pages/onboarding.rs:69-86` | 4 onboarding concept cards | `data/onboarding/core_concepts.json` | Loader: `load_onboarding_concepts()`. |
-| `src/gui/pages/onboarding.rs:95-104` | 8 core-page shortcuts | `data/onboarding/core_pages.json` | Loader: `load_onboarding_core_pages()`. `page_id` strings mapped to `GuiPage` variants by `page_id_to_gui_page()`. |
+| `src/gui/pages/onboarding.rs:69-86` (file removed) | 4 onboarding concept cards | `data/onboarding/core_concepts.json` | Loader `load_onboarding_concepts()` removed with the page in v0.415.0, `onboarding.rs` itself on 2026-10-30. The file is kept as content, but nothing reads it today (the note in `src/gui/mod.rs`). |
+| `src/gui/pages/onboarding.rs:95-104` (file removed) | 8 core-page shortcuts | `data/onboarding/core_pages.json` | Loader `load_onboarding_core_pages()` and `page_id_to_gui_page()` removed with the page in v0.415.0, `onboarding.rs` itself on 2026-10-30. The file is kept as content, but nothing reads it today. |
 
 ### Migrated in v0.135.0
 

@@ -108,7 +108,8 @@
     #settings-app {
       display: flex;
       flex: 1;
-      height: calc(100vh - 42px);
+      /* Ends where the unfinished-software warning begins (its spacer fills the rest). */
+      height: calc(100vh - 42px - var(--hos-wip-h, 0px));
       overflow: hidden;
       font-size: 15px !important;
     }
@@ -276,7 +277,7 @@
     /* Fixed bottom action bar */
     #settings-action-bar {
       position: fixed;
-      bottom: 0;
+      bottom: var(--hos-wip-h, 0px);
       left: 0;
       right: 0;
       display: flex;
@@ -605,7 +606,7 @@
 
     /* Vault entry modal */
     #vault-sec-entry-modal-overlay {
-      display: none; position: fixed; inset: 0;
+      display: none; position: fixed; inset: 0 0 var(--hos-wip-h, 0px) 0;
       background: rgba(0,0,0,.82); z-index: 800;
       align-items: center; justify-content: center; padding: var(--space-xl);
     }
@@ -974,21 +975,21 @@
               <strong>Direct Messages</strong>
               <span>Notify when you receive a direct message</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row" style="padding-left:var(--space-2xl);">
             <div class="setting-label">
               <strong>@Mentions</strong>
               <span>Notify when someone mentions you in a channel</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row" style="padding-left:var(--space-2xl);">
             <div class="setting-label">
               <strong>Task Updates</strong>
               <span>Notify when tasks assigned to you are updated</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
         </div>
       </div>
@@ -2220,7 +2221,7 @@
 
 <!-- Vault blur overlay -->
 <div id="vault-sec-blur-overlay"
-  style="display:none;position:fixed;inset:0;z-index:900;background:var(--set-cover-bg);
+  style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;z-index:900;background:var(--set-cover-bg);
          align-items:center;justify-content:center;flex-direction:column;gap:var(--space-lg);cursor:pointer"
   onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
   <div style="font-size:2.5rem">🔒</div>
@@ -2230,7 +2231,7 @@
 
 <!-- Vault import modal -->
 <div id="vault-sec-import-overlay"
-  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;
+  style="display:none;position:fixed;inset:0 0 var(--hos-wip-h, 0px) 0;background:rgba(0,0,0,.82);z-index:800;
          align-items:center;justify-content:center;padding:var(--space-xl)"
   onclick="if(event.target===this)this.style.display='none'">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:var(--text)">

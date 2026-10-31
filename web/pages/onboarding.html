@@ -107,6 +107,7 @@
     .chain-card-head { display: flex; align-items: baseline; gap: 10px; }
     .chain-card-title { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--text-strong); }
     .chain-card-count { font-size: 0.85rem; color: var(--accent); white-space: nowrap; }
+    .chain-card-purpose { font-size: 0.9rem; color: var(--text-muted); }
     .chain-card.all-done .chain-card-count { color: var(--success); }
     .chain-meter { display: flex; gap: 4px; height: 8px; }
     .chain-meter i { flex: 1; border-radius: 4px; background: var(--border); }
@@ -151,6 +152,8 @@
     }
     .chain-close:hover, .chain-close:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
     .chain-modal-desc { margin: 0 0 6px; color: var(--text-muted); font-size: 0.92rem; }
+    .chain-modal-purpose { margin: 0 0 6px; color: var(--text-strong); font-size: 0.95rem; }
+    .quest-step .qs-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; align-self: center; }
     .chain-modal-intro { margin: 0 0 14px; color: var(--text-muted); font-size: 0.82rem; }
     .quest-steps {
       display: flex;
@@ -408,9 +411,12 @@
 
   <script>
     // ── Quest chain renderer ──
-    // Loads data/onboarding/quests.json, tracks progress in localStorage. Each chain is a card,
-    // the native Quests page's quest card (src/gui/pages/quests.rs, 2026-10-30): its name,
-    // "Step 2 of 4" over a meter with a segment per step, the next step as the card's focus.
+    // Loads data/onboarding/quests.json, tracks progress in localStorage. Each chain is a card
+    // shaped like the native Quests page's quest card (src/gui/pages/quests.rs, 2026-10-30): its
+    // name and one-line purpose, "Step 2 of 4" over a meter with a segment per step, the next step
+    // as the card's focus. (On the desktop these chains are the Tasks page's suggested cards, the
+    // website's Tasks page shows them the same way, and this page is their second home on the
+    // website: docs/design/ui-system.md, its "Quest card and chain window" row.)
     // A click opens the chain's window (the native chain window, quests/chain_window.rs) with
     // every step, to tick off or to go to. These are real-life guides, with no story to spoil,
     // so every step shows, the ones after the next slightly dimmed (the native Dev view's look).
@@ -455,6 +461,8 @@
         var html = '<button type="button" class="chain-card' + (allDone ? ' all-done' : '') + '" data-chain="' + esc(chain.id) + '" data-i18n-tip="onboarding.chain_card_hint">';
         html += '<span class="chain-card-head"><span class="chain-card-title">' + esc(chain.title) + '</span>';
         html += '<span class="chain-card-count">' + esc(count) + '</span></span>';
+        // The chain's one line, as the desktop's suggested card has it (Tasks page, quests.json purpose).
+        if (chain.purpose) html += '<span class="chain-card-purpose">' + esc(chain.purpose) + '</span>';
         html += '<span class="chain-meter" aria-hidden="true">';
         chain.steps.forEach(function (step, i) {
           html += '<i class="' + (progress[stepKey(chain, step)] ? 'done' : (i === st.next ? 'now' : '')) + '"></i>';
@@ -478,6 +486,7 @@
         var html = '<div class="chain-modal" role="dialog" aria-modal="true" aria-labelledby="chain-modal-title">';
         html += '<div class="chain-modal-head"><h3 id="chain-modal-title">' + esc(chain.title) + '</h3>';
         html += '<button type="button" class="chain-close" data-close="1" aria-label="' + esc(i18n.t('common.close')) + '" data-i18n-tip="onboarding.close_hint">×</button></div>';
+        if (chain.purpose) html += '<p class="chain-modal-purpose">' + esc(chain.purpose) + '</p>';
         html += '<p class="chain-modal-desc">' + esc(chain.description) + '</p>';
         html += '<p class="chain-modal-intro">' + esc(i18n.t('onboarding.chain_intro')) + '</p>';
         html += '<ol class="quest-steps">';
@@ -487,9 +496,18 @@
           html += '<li class="quest-step ' + (done ? 'done' : (i === st.next ? 'now' : 'ahead')) + '">';
           html += '<button type="button" class="quest-checkbox" data-step-key="' + esc(key) + '" aria-pressed="' + done + '" aria-label="' + esc(step.title) + '" data-i18n-tip="onboarding.tick_hint">' + (done ? '✓' : '') + '</button>';
           html += '<span class="quest-text"><span class="qs-title">' + esc(step.title) + '</span><br><span class="qs-desc">' + esc(step.description) + '</span></span>';
-          if (step.link) {
-            var outside = step.link.indexOf('http') === 0;
-            html += '<a class="qs-action" href="' + esc(step.link) + '"' + (outside ? ' target="_blank" rel="noopener"' : '') + ' data-i18n-tip="onboarding.go_hint">' + esc(i18n.t('onboarding.go')) + ' →</a>';
+          // Go there, and Open the how-to where the step has a written one (quests.json how_to; the
+          // desktop's suggested cards and the Tasks page offer the same two, with the same words).
+          if (step.link || step.how_to) {
+            html += '<span class="qs-actions">';
+            if (step.link) {
+              var outside = step.link.indexOf('http') === 0;
+              html += '<a class="qs-action" href="' + esc(step.link) + '"' + (outside ? ' target="_blank" rel="noopener"' : '') + ' data-i18n-tip="onboarding.go_hint">' + esc(i18n.t('onboarding.go')) + ' →</a>';
+            }
+            if (step.how_to) {
+              html += '<a class="qs-action" href="/how-to#' + encodeURIComponent(step.how_to) + '" data-i18n-tip="tasks.suggested_how_to_hint">' + esc(i18n.t('tasks.suggested_how_to')) + '</a>';
+            }
+            html += '</span>';
           }
           html += '</li>';
         });

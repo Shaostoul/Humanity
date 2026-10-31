@@ -191,7 +191,8 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     // step assumed every toast was one line.
     let wrap_w = toast_wrap_width(ctx.screen_rect().width());
     let font = egui::FontId::proportional(theme.font_size_body);
-    let mut from_bottom = 48.0_f32;
+    // From the top of the unfinished-software warning, which egui's anchor does not know about.
+    let mut from_bottom = 48.0_f32 + crate::gui::bottom_strip::height(ctx);
     for (i, t) in state.toasts.iter().enumerate() {
         let age = now - t.created;
         let alpha = if age > t.life - FADE {

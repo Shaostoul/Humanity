@@ -409,7 +409,7 @@
     #tab-skills .skill-card.levelup { animation: skill-levelup-flash 0.6s ease-out; }
 
     #skill-toast {
-      position: fixed; bottom: 60px; left: 50%;
+      position: fixed; bottom: calc(60px + var(--hos-wip-h, 0px)); left: 50%;
       transform: translateX(-50%) translateY(20px);
       background: var(--bg-card, #1a1a1a); border: 1px solid var(--border, #333);
       border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: 0.82rem;

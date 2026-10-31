@@ -1803,33 +1803,33 @@ pub async fn handle_review_delete(
 
 // ── Notification Preferences handlers ──
 
+/// Only the switches the message names change; the rest keep what is stored (2026-10-30,
+/// storage/notification_prefs.rs `NotifPrefsChange`).
 pub async fn handle_update_notification_prefs(
     state: &Arc<RelayState>,
     my_key: &str,
-    dm: bool,
-    mentions: bool,
-    tasks: bool,
-    dnd_start: Option<String>,
-    dnd_end: Option<String>,
+    dm: Option<bool>,
+    mentions: Option<bool>,
+    tasks: Option<bool>,
+    dnd_start: Option<Option<String>>,
+    dnd_end: Option<Option<String>>,
 ) {
-    if let Err(e) = state.db.save_notification_prefs(
-        my_key,
-        dm,
-        mentions,
-        tasks,
-        dnd_start.as_deref(),
-        dnd_end.as_deref(),
-    ) {
-        tracing::error!("Failed to save notification prefs: {e}");
-        return;
-    }
-    // Send back confirmation with the saved prefs.
+    let change = crate::relay::storage::NotifPrefsChange { dm, mentions, tasks, dnd_start, dnd_end };
+    let p = match state.db.change_notification_prefs(my_key, &change) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("Failed to save notification prefs: {e}");
+            return;
+        }
+    };
+    // The whole stored set back to every connection of this person, so each device holds what
+    // the server holds, not the half that was sent.
     let _ = state.broadcast_tx.send(RelayMessage::NotificationPrefsData {
-        dm,
-        mentions,
-        tasks,
-        dnd_start,
-        dnd_end,
+        dm: p.dm_enabled,
+        mentions: p.mentions_enabled,
+        tasks: p.tasks_enabled,
+        dnd_start: p.dnd_start,
+        dnd_end: p.dnd_end,
         target: Some(my_key.to_string()),
     });
 }
@@ -4210,6 +4210,11 @@ mod reach_tests;
 #[cfg(test)]
 #[path = "msg_handlers_pass_tests.rs"]
 mod pass_tests;
+
+/// A notification-switch change touches only the switches it names (2026-10-30).
+#[cfg(test)]
+#[path = "msg_handlers_notif_prefs_tests.rs"]
+mod notif_prefs_tests;
 
 #[cfg(test)]
 mod reconnect_grace_tests {

@@ -6937,6 +6937,12 @@ data (docs/design/two-realities.md), so they belong on the device (and in the pe
 not merged blindly with a server's shared board; the native page should keep its own tasks, saved
 locally, and show a server's shared board beside them.
 
+**The chain link, for whoever saves them (2026-10-30, the seams review):** the website links a task
+to its chain by a `chain:<id>` label in the task's labels (a JSON-array string on the server); the
+desktop now reads that label into `GuiTask::chain` and hides it from the shown labels
+(`pages/tasks.rs` `task_from_server`). A desktop task saved to the server must carry its chain the
+same way, as that label, or the website will not know it.
+
 ## BUG-218: notifications ignored the person's switches and put message text in notices (FIXED 2026-10-30, found 2026-10-30)
 
 **Found by** the notification system's plan (`docs/design/notifications.md`, section 1), reading

@@ -468,7 +468,7 @@
 #sidebar-overlay {
   display: none;
   position: fixed;
-  top: 48px; left: 0; right: 0; bottom: 0;
+  top: 48px; left: 0; right: 0; bottom: var(--hos-wip-h, 0px);
   background: rgba(0,0,0,0.5);
   z-index: 9;
 }
@@ -780,7 +780,7 @@
   #sidebar {
     display: none;
     position: fixed;
-    left: 0; top: 48px; bottom: 0;
+    left: 0; top: 48px; bottom: var(--hos-wip-h, 0px);
     z-index: 10;
     width: 260px;
     max-width: 80vw;
@@ -790,7 +790,7 @@
   #right-sidebar {
     display: none;
     position: fixed;
-    right: 0; top: 48px; bottom: 0;
+    right: 0; top: 48px; bottom: var(--hos-wip-h, 0px);
     z-index: 10;
     width: 260px;
     max-width: 80vw;

@@ -3,9 +3,9 @@
 //! to accept, then completed.
 //!
 //! The learn-by-doing chains (`data/onboarding/quests.json`) used to share this
-//! page as a second column; they moved to the Tasks page's guide panel
-//! (operator 2026-08-16: "Quests is for gameplay stuff and Tasks is for
-//! not-game stuff"). The Profile page's game-quests section was folded in here
+//! page as a second column; they moved to the Tasks page (operator 2026-08-16:
+//! "Quests is for gameplay stuff and Tasks is for not-game stuff"), where since
+//! 2026-10-30 they are the suggested cards at the top of Todo (`pages/tasks.rs`). The Profile page's game-quests section was folded in here
 //! in v0.415.0.
 //!
 //! THE ACTIVE CARD AND THE CHAIN WINDOW (operator, 2026-10-30: "make it so the 'active area'

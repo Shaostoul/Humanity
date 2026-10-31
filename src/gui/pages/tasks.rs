@@ -23,7 +23,8 @@
 //! - Add to my tasks makes the chain an ordinary Todo task linked to it
 //!   (`GuiTask::chain`), and the card goes away while that task exists. The
 //!   task's card then shows "Steps: 1 of 4" and its detail panel the steps,
-//!   tickable there.
+//!   tickable there. A task the server sends with a `chain:<id>` label (the
+//!   website's link, [`task_from_server`]) is linked the same way.
 //! - The header's Hide suggestions button hides them, for this run of the app.
 //!
 //! These cards are built to be fed by how-tos: increment 6 of
@@ -181,6 +182,58 @@ fn suggested<'a>(chains: &'a [Chain], tasks: &[GuiTask], search: &str) -> Vec<&'
                 || c.steps.iter().any(|s| s.title.to_lowercase().contains(search))
         })
         .collect()
+}
+
+/// The prefix of the label that links a task to its learn-by-doing chain (`chain:water`). The
+/// website writes it (web/pages/tasks-app.js submitTask, getTaskChain); it is a link the pages
+/// read, not a tag a person wrote.
+const CHAIN_LABEL: &str = "chain:";
+
+/// A task as the server's task list sends it (`task_list` and `task_list_response`,
+/// engine/frame_ws_poll.rs), made into the page's own.
+///
+/// The server keeps a task's labels as one string: a JSON array when the website wrote it
+/// (`["water","scope:city","chain:water"]`), else words separated by commas. A `chain:<id>`
+/// label becomes `GuiTask::chain` (2026-10-30), so a chain added on the website is the same
+/// chain here: its task shows its steps and its suggested card goes away.
+pub(crate) fn task_from_server(task: &serde_json::Value) -> GuiTask {
+    // A field of the server's JSON (not words for the screen: these are the task's own).
+    let field = |k: &str| task.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let status = match task.get("status").and_then(|v| v.as_str()).unwrap_or("todo") {
+        "in_progress" => TaskStatus::InProgress,
+        "done" => TaskStatus::Done,
+        _ => TaskStatus::Todo,
+    };
+    let priority = match task.get("priority").and_then(|v| v.as_str()).unwrap_or("medium") {
+        "low" => TaskPriority::Low,
+        "high" => TaskPriority::High,
+        "critical" => TaskPriority::Critical,
+        _ => TaskPriority::Medium,
+    };
+    let raw = field("labels");
+    let all: Vec<String> = match serde_json::from_str::<Vec<String>>(raw.trim()) {
+        Ok(list) => list,
+        Err(_) => raw.split(',').map(str::trim).filter(|s| !s.is_empty()).map(str::to_string).collect(),
+    };
+    let chain = all.iter().find_map(|l| l.strip_prefix(CHAIN_LABEL)).filter(|id| !id.is_empty()).map(str::to_string);
+    let labels: Vec<String> = all.into_iter().filter(|l| !l.starts_with(CHAIN_LABEL)).collect();
+    GuiTask {
+        id: task.get("id").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+        title: field("title"),
+        description: field("description"),
+        priority,
+        status,
+        assignee: field("assignee"),
+        labels,
+        chain,
+    }
+}
+
+/// The labels a task's card and detail panel show: the person's own tags. The `scope:` label the
+/// website files a task under is a setting of that board, not a tag (the website hides it too,
+/// tasks-app.js getNonScopeLabels), so it stays in `labels` but is not drawn.
+fn shown_labels(task: &GuiTask) -> Vec<&str> {
+    task.labels.iter().map(String::as_str).filter(|l| !l.starts_with("scope:")).collect()
 }
 
 /// Where a step's link leads in this app: a page of its own, a full web link
@@ -542,10 +595,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_xs);
 
                             // Labels
-                            if !task.labels.is_empty() {
+                            let shown = shown_labels(task);
+                            if !shown.is_empty() {
                                 ui.label(RichText::new(t("tasks.labels")).size(theme.font_size_body).color(theme.text_secondary()));
                                 ui.horizontal_wrapped(|ui| {
-                                    for label in &task.labels {
+                                    for label in shown {
                                         widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
                                     }
                                 });
@@ -955,9 +1009,10 @@ fn draw_board(
                                 ui.label(RichText::new(tf("tasks.card_assignee", &[("name", &task.assignee)])).color(theme.text_secondary()).size(theme.font_size_small));
                             }
                             // Labels as small badges
-                            if !task.labels.is_empty() {
+                            let shown = shown_labels(task);
+                            if !shown.is_empty() {
                                 ui.horizontal_wrapped(|ui| {
-                                    for label in &task.labels {
+                                    for label in shown {
                                         widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
                                     }
                                 });
@@ -1077,6 +1132,33 @@ mod tests {
         assert!(after.iter().all(|x| x.id != "water"));
         // An ordinary task hides nothing.
         assert_eq!(suggested(&c, &[task(None)], "").len(), c.len());
+    }
+
+    /// A chain added on the website is the same chain here (2026-10-30). The website links its
+    /// task to the chain by a `chain:<id>` label, and the server keeps a task's labels as one
+    /// JSON-array string; the desktop read that string by splitting on commas, so the task
+    /// showed raw tags (`["water"`, `"chain:water"]`) and the card for its chain was still
+    /// suggested. Plain comma labels (an older or hand-written task) still read as before.
+    ///
+    /// Seen red 2026-10-30: the labels came out as `["[\"water\""...` and `chain` as None.
+    #[test]
+    fn a_chain_added_on_the_website_is_known_here() {
+        let from_web = serde_json::json!({
+            "id": 7, "title": "Water Independence", "status": "todo", "priority": "medium",
+            "labels": "[\"water\",\"scope:city\",\"chain:water\"]",
+        });
+        let t = task_from_server(&from_web);
+        assert_eq!(t.chain.as_deref(), Some("water"), "the chain label links the task");
+        assert_eq!(t.labels, vec!["water".to_string(), "scope:city".to_string()], "the link is not a tag");
+        assert_eq!(shown_labels(&t), vec!["water"], "and neither is the scope the website keeps");
+        let c = chains();
+        assert!(suggested(&c, &[t], "").iter().all(|x| x.id != "water"), "its card is no longer suggested");
+        // Comma labels, and none at all.
+        let plain = task_from_server(&serde_json::json!({ "id": 8, "title": "x", "labels": "garden, food" }));
+        assert_eq!(plain.labels, vec!["garden".to_string(), "food".to_string()]);
+        assert!(plain.chain.is_none());
+        assert!(task_from_server(&serde_json::json!({ "id": 9, "title": "y", "labels": "[]" })).labels.is_empty());
+        assert!(task_from_server(&serde_json::json!({ "id": 10, "title": "z" })).labels.is_empty());
     }
 
     /// The search box filters suggestions by title, purpose and step titles.

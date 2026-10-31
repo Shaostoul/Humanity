@@ -1414,8 +1414,9 @@ pub struct GuiState {
     /// the ECS QuestTracker.
     pub pending_accept_quest: Option<String>,
     /// The quest whose chain window is open (a click on its card on the Quests page), and its
-    /// chain, which the quest mirror builds only while that window is open on the Quests page
-    /// (`systems::quests::chain`, 2026-10-30): everything in Dev, what the player has reached
+    /// chain, which the quest mirror builds only while that window is open on the Quests page,
+    /// the main screen's or a wall screen's (`engine::screens::page_drawn`;
+    /// `systems::quests::chain`, 2026-10-30): everything in Dev, what the player has reached
     /// otherwise.
     pub quest_chain_open: Option<String>,
     pub quest_chain: Option<crate::systems::quests::chain::ChainView>,

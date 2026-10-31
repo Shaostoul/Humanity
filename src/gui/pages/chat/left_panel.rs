@@ -399,13 +399,19 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.dm_settings_popup_open = false;
                             }
                             // The synced DM switch, the same one as Settings > Notifications, sent
-                            // to every server signed in to (settings/notifications.rs).
-                            let dm_notif_label = if state.notif_dm_enabled {
+                            // to every server signed in to (settings/notifications.rs). It waits
+                            // for the server's answer (asked when this popup opened): until then
+                            // it would flip the defaults, not what the person chose.
+                            let loaded = state.notif_prefs_loaded;
+                            let dm_notif_label = if !loaded {
+                                crate::gui::i18n::t("notifications.dm_wait")
+                            } else if state.notif_dm_enabled {
                                 crate::gui::i18n::t("notifications.dm_on")
                             } else {
                                 crate::gui::i18n::t("notifications.dm_off")
                             };
-                            if ui.button(dm_notif_label).hint("notifications.kind_dm_hint").clicked() {
+                            let hint = if loaded { "notifications.kind_dm_hint" } else { "notifications.dm_wait_hint" };
+                            if ui.add_enabled(loaded, egui::Button::new(dm_notif_label)).hint(hint).clicked() {
                                 state.notif_dm_enabled = !state.notif_dm_enabled;
                                 crate::gui::pages::settings::notifications::send_synced(state);
                                 state.dm_settings_popup_open = false;

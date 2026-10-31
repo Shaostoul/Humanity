@@ -205,7 +205,7 @@
     .detail-steps-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: var(--space-md); }
 
     /* ── Modal ── */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay { display: none; position: fixed; inset: 0 0 var(--hos-wip-h, 0px) 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
     .modal { background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: 14px; padding: var(--space-2xl); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
     .modal h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-xl); display: flex; align-items: center; gap: var(--space-md); }
@@ -235,7 +235,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Detail drawer ── */
-    .detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 800; }
+    .detail-overlay { display: none; position: fixed; inset: 0 0 var(--hos-wip-h, 0px) 0; background: rgba(0,0,0,.6); z-index: 800; }
     .detail-overlay.open { display: block; }
     #detail-drawer {
       position: absolute; right: 0; top: 0; bottom: 0; width: 460px; max-width: 100%;
@@ -392,7 +392,7 @@
     .btn-new-project:hover { color: var(--accent); border-color: var(--accent); }
 
     /* ── Project modal ── */
-    .project-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .project-modal-overlay { display: none; position: fixed; inset: 0 0 var(--hos-wip-h, 0px) 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
     .project-modal-overlay.open { display: flex; }
     .project-modal { background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: 14px; padding: var(--space-2xl); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
     .project-modal h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-xl); display: flex; align-items: center; gap: var(--space-md); }

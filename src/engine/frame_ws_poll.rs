@@ -1260,51 +1260,12 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
                             state.gui_state.tasks.clear();
                             for task in tasks {
-                                let id = task.get("id")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(0) as u32;
-                                let title = task.get("title")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let description = task.get("description")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let status_str = task.get("status")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("todo");
-                                let status = match status_str {
-                                    "in_progress" => crate::gui::TaskStatus::InProgress,
-                                    "done" => crate::gui::TaskStatus::Done,
-                                    _ => crate::gui::TaskStatus::Todo,
-                                };
-                                let priority_str = task.get("priority")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("medium");
-                                let priority = match priority_str {
-                                    "low" => crate::gui::TaskPriority::Low,
-                                    "high" => crate::gui::TaskPriority::High,
-                                    "critical" => crate::gui::TaskPriority::Critical,
-                                    _ => crate::gui::TaskPriority::Medium,
-                                };
-                                let assignee = task.get("assignee")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let labels: Vec<String> = task.get("labels")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .split(',')
-                                    .filter(|s| !s.is_empty())
-                                    .map(|s| s.trim().to_string())
-                                    .collect();
-                                state.gui_state.tasks.push(
-                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels, chain: None },
-                                );
-                                if id >= state.gui_state.task_next_id {
-                                    state.gui_state.task_next_id = id + 1;
+                                // The labels, and the chain a website task names in them (pages/tasks.rs).
+                                let task = crate::gui::pages::tasks::task_from_server(task);
+                                if task.id >= state.gui_state.task_next_id {
+                                    state.gui_state.task_next_id = task.id + 1;
                                 }
+                                state.gui_state.tasks.push(task);
                             }
                             log::info!("Received {} tasks from server (task_list_response)", state.gui_state.tasks.len());
                         }
@@ -1362,51 +1323,12 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
                             state.gui_state.tasks.clear();
                             for task in tasks {
-                                let id = task.get("id")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(0) as u32;
-                                let title = task.get("title")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let description = task.get("description")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let status_str = task.get("status")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("todo");
-                                let status = match status_str {
-                                    "in_progress" => crate::gui::TaskStatus::InProgress,
-                                    "done" => crate::gui::TaskStatus::Done,
-                                    _ => crate::gui::TaskStatus::Todo,
-                                };
-                                let priority_str = task.get("priority")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("medium");
-                                let priority = match priority_str {
-                                    "low" => crate::gui::TaskPriority::Low,
-                                    "high" => crate::gui::TaskPriority::High,
-                                    "critical" => crate::gui::TaskPriority::Critical,
-                                    _ => crate::gui::TaskPriority::Medium,
-                                };
-                                let assignee = task.get("assignee")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let labels: Vec<String> = task.get("labels")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .split(',')
-                                    .filter(|s| !s.is_empty())
-                                    .map(|s| s.trim().to_string())
-                                    .collect();
-                                state.gui_state.tasks.push(
-                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels, chain: None },
-                                );
-                                if id >= state.gui_state.task_next_id {
-                                    state.gui_state.task_next_id = id + 1;
+                                // The labels, and the chain a website task names in them (pages/tasks.rs).
+                                let task = crate::gui::pages::tasks::task_from_server(task);
+                                if task.id >= state.gui_state.task_next_id {
+                                    state.gui_state.task_next_id = task.id + 1;
                                 }
+                                state.gui_state.tasks.push(task);
                             }
                             log::info!("Received {} tasks from server", state.gui_state.tasks.len());
                         }

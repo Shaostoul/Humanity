@@ -29,9 +29,15 @@ fn show_words(s: Show) -> (&'static str, &'static str) {
     }
 }
 
-/// The person's synced switches as the relay takes them.
-pub(crate) fn synced_frame(state: &GuiState) -> String {
-    serde_json::json!({
+/// The person's synced switches as the relay takes them: all five, quiet hours off as null (which
+/// the relay reads as "clear them"). `None` until the server has said what it holds
+/// (`notif_prefs_loaded`): before that this device has only the defaults, and sending them would
+/// undo what the person chose on another device (2026-10-30). Every write goes through here.
+pub(crate) fn synced_frame(state: &GuiState) -> Option<String> {
+    if !state.notif_prefs_loaded {
+        return None;
+    }
+    Some(serde_json::json!({
         "type": "update_notification_prefs",
         "dm": state.notif_dm_enabled,
         "mentions": state.notif_mentions_enabled,
@@ -39,13 +45,13 @@ pub(crate) fn synced_frame(state: &GuiState) -> String {
         "dnd_start": state.notif_dnd_start,
         "dnd_end": state.notif_dnd_end,
     })
-    .to_string()
+    .to_string())
 }
 
 /// Send the person's synced switches to every server this device is signed in to: the active one
 /// and each saved server's background link (the switches are the person's, not one server's).
 pub(crate) fn send_synced(state: &GuiState) {
-    let frame = synced_frame(state);
+    let Some(frame) = synced_frame(state) else { return };
     if let Some(c) = state.ws_client.as_ref().filter(|c| c.is_connected()) {
         c.send(&frame);
     }
@@ -171,7 +177,8 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
         } else if !state.notif_prefs_loaded {
             ui.label(RichText::new(t("notifications.loading")).size(theme.font_size_small).color(theme.text_muted()));
         }
-        ui.add_enabled_ui(connected, |ui| {
+        // Until the server has answered there is nothing true to show or change (synced_frame).
+        ui.add_enabled_ui(connected && state.notif_prefs_loaded, |ui| {
             changed |= with_hint(ui, "notifications.kind_dm_hint", |ui| widgets::toggle(ui, theme, t("notifications.kind_dm"), &mut state.notif_dm_enabled));
             widgets::setting_hint(ui, theme, hint, t("notifications.kind_dm_hint"));
             changed |= with_hint(ui, "notifications.kind_mention_hint", |ui| widgets::toggle(ui, theme, t("notifications.kind_mention"), &mut state.notif_mentions_enabled));
@@ -289,5 +296,36 @@ fn draw_muted(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, now: i64) 
                 state.settings_dirty = true;
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The person's switches are written only once their server has said what it holds
+    /// (2026-10-30): before that the app holds only the defaults (every switch on, no quiet
+    /// hours), and sending those would undo what the person chose on another device. Every
+    /// write from this device goes through `synced_frame` (Settings and the chat's DM cog).
+    ///
+    /// Seen red 2026-10-30: `synced_frame` built a frame from the defaults before the answer.
+    #[test]
+    fn nothing_is_written_until_the_server_answered() {
+        let mut state = GuiState::default();
+        assert!(!state.notif_prefs_loaded);
+        assert!(synced_frame(&state).is_none(), "the defaults must never reach the server");
+        state.notif_prefs_loaded = true;
+        state.notif_mentions_enabled = false;
+        state.notif_dnd_start = Some("22:00".into());
+        state.notif_dnd_end = Some("07:00".into());
+        let frame: serde_json::Value = serde_json::from_str(&synced_frame(&state).expect("loaded: a frame")).unwrap();
+        assert_eq!(frame["type"], "update_notification_prefs");
+        assert_eq!(frame["mentions"], false);
+        assert_eq!(frame["dnd_start"], "22:00");
+        // Quiet hours off travel as null, which the relay reads as "clear them".
+        state.notif_dnd_start = None;
+        state.notif_dnd_end = None;
+        let off: serde_json::Value = serde_json::from_str(&synced_frame(&state).unwrap()).unwrap();
+        assert!(off.get("dnd_start").is_some_and(|v| v.is_null()), "{off}");
     }
 }

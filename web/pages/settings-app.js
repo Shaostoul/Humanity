@@ -933,15 +933,28 @@ async function togglePushNotifications(enabled) {
   }
 }
 
-/** Save category preferences to localStorage and sync to server */
-function savePushPref() {
-  var elDms = document.getElementById('pref-push-dms');
-  var elMentions = document.getElementById('pref-push-mentions');
-  var elTasks = document.getElementById('pref-push-tasks');
-  if (elDms) localStorage.setItem('hos_notify_dms', elDms.checked ? 'true' : 'false');
-  if (elMentions) localStorage.setItem('hos_notify_mentions', elMentions.checked ? 'true' : 'false');
-  if (elTasks) localStorage.setItem('hos_notify_tasks', elTasks.checked ? 'true' : 'false');
+/** Queue a change to the person's synced switches for their server (2026-10-30). This page has
+ *  no connection of its own, so the change waits in localStorage (hos_notify_pending) and the
+ *  chat sends it once its socket is accepted (chat-notify.js flushPending), as just the switches
+ *  that changed: the relay keeps every switch a message leaves out. A whole set written from this
+ *  page's checkboxes, which may never have heard from the server, would undo choices made on
+ *  another device. */
+function queueNotifChange(change) {
+  var pending = {};
+  try { pending = JSON.parse(localStorage.getItem('hos_notify_pending')) || {}; } catch (e) { pending = {}; }
+  Object.keys(change).forEach(function (k) { pending[k] = change[k]; });
+  localStorage.setItem('hos_notify_pending', JSON.stringify(pending));
   syncNotifPrefsToServer();
+}
+
+/** One of the three switches changed (`el` names which): shown here, queued for the server. */
+function savePushPref(el) {
+  var field = { 'pref-push-dms': ['dm', 'hos_notify_dms'], 'pref-push-mentions': ['mentions', 'hos_notify_mentions'], 'pref-push-tasks': ['tasks', 'hos_notify_tasks'] }[el && el.id];
+  if (!field) return;
+  localStorage.setItem(field[1], el.checked ? 'true' : 'false');
+  var change = {};
+  change[field[0]] = !!el.checked;
+  queueNotifChange(change);
 }
 
 /** Save DND schedule to localStorage and sync to server */
@@ -962,28 +975,21 @@ function savePushDnd() {
     localStorage.removeItem('hos_dnd_start');
     localStorage.removeItem('hos_dnd_end');
   }
-  syncNotifPrefsToServer();
+  // Both ends together, or null for none (which the relay reads as "clear the quiet hours").
+  queueNotifChange({ dnd_start: localStorage.getItem('hos_dnd_start'), dnd_end: localStorage.getItem('hos_dnd_end') });
 }
 
-/** Send current notification preferences to the server via WebSocket */
+/** Send the queued change now when this page shares a socket that is open (window._humanityWs);
+ *  otherwise the chat sends it once its socket is accepted. */
 function syncNotifPrefsToServer() {
   var ws = window._humanityWs;
   if (!ws || ws.readyState !== 1) return;
-  var dm = localStorage.getItem('hos_notify_dms') !== 'false';
-  var mentions = localStorage.getItem('hos_notify_mentions') !== 'false';
-  var tasks = localStorage.getItem('hos_notify_tasks') !== 'false';
-  var dndStart = localStorage.getItem('hos_dnd_start');
-  var dndEnd = localStorage.getItem('hos_dnd_end');
-  var msg = {
-    type: 'update_notification_prefs',
-    dm: dm,
-    mentions: mentions,
-    tasks: tasks
-  };
-  if (dndStart !== null && dndEnd !== null) {
-    msg.dnd_start = dndStart;
-    msg.dnd_end = dndEnd;
-  }
+  var pending = null;
+  try { pending = JSON.parse(localStorage.getItem('hos_notify_pending')); } catch (e) { pending = null; }
+  if (!pending || typeof pending !== 'object') return;
+  var msg = { type: 'update_notification_prefs' };
+  Object.keys(pending).forEach(function (k) { msg[k] = pending[k]; });
+  localStorage.removeItem('hos_notify_pending');
   ws.send(JSON.stringify(msg));
 }
 

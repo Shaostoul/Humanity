@@ -332,6 +332,10 @@ pub struct Screens {
     /// every count-unchanged move (`update_poses`), so a post dragged in the
     /// editor pans its screen the same frame.
     pub camera_posts: Vec<(String, CameraPose)>,
+    /// The pages the screens framed this tick show (`frame_surfaces`), each once: what the
+    /// next frame's page data reads to know a wall screen draws a page ([`page_drawn`]). Empty
+    /// while a page covers the world (lib.rs frames no screen then, and clears it).
+    pub framed_pages: Vec<GuiPage>,
 }
 
 /// The camera posts among `placements`: (instance id, lens pose). Pure, so
@@ -721,6 +725,7 @@ pub(crate) fn update(state: &mut EngineState) {
 /// their last image.
 pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     if state.screens.surfaces.is_empty() {
+        state.screens.framed_pages.clear();
         return;
     }
     let cam = state.camera.effective_position();
@@ -806,13 +811,14 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
 
     // Disjoint borrows of EngineState: the surfaces, the renderer's device
     // and queue, the theme and the shared GuiState.
-    // A screen framed this tick that shows the Inventory page needs the Garden data, which is
-    // built only on a frame that draws that page (engine/garden_mirror.rs).
-    if chosen.iter().any(|&si| {
-        state.screens.surfaces.get(si).is_some_and(|s| matches!(s.core.source, crate::gui::screen_surface::ScreenSource::Page(crate::gui::GuiPage::Inventory)))
-    }) {
+    // The pages the screens framed this tick show. A screen showing the Inventory page needs the
+    // Garden data, built only on a frame that draws that page (engine/garden_mirror.rs); the
+    // Quests chain window stays open while one shows Quests (lib.rs, the quest mirror, next frame).
+    let framed = pages_of(chosen.iter().filter_map(|&si| state.screens.surfaces.get(si)).map(|s| &s.core.source));
+    if framed.contains(&GuiPage::Inventory) {
         crate::engine::garden_mirror::build_for_this_frame(state);
     }
+    state.screens.framed_pages = framed;
     let EngineState { screens, renderer, theme, gui_state, .. } = state;
     let Screens { surfaces, quads, .. } = screens;
     // A page on a wall screen is not one the player opened (2026-10-04): the
@@ -836,12 +842,51 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     });
 }
 
+/// The pages that `sources` show, in order, each once.
+pub(crate) fn pages_of<'a>(sources: impl Iterator<Item = &'a ScreenSource>) -> Vec<GuiPage> {
+    let mut pages = Vec::new();
+    for s in sources {
+        if let ScreenSource::Page(p) = s {
+            if !pages.contains(p) {
+                pages.push(*p);
+            }
+        }
+    }
+    pages
+}
+
+/// Is `page` drawn this frame: the main screen's open page, or the page of an in-world screen
+/// framed this tick (`framed`, `Screens::framed_pages`)? What keeps the Quests chain window open
+/// on a wall screen (lib.rs, the quest mirror), the way garden_mirror.rs builds the Garden data for
+/// an Inventory screen.
+pub(crate) fn page_drawn(main: GuiPage, framed: &[GuiPage], page: GuiPage) -> bool {
+    main == page || framed.contains(&page)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn close(a: Vec3, b: Vec3) -> bool {
         (a - b).length() < 1.0e-4
+    }
+
+    /// A page is drawn on the main screen or on a wall screen framed this tick, and only then
+    /// (2026-10-30): the Quests chain window, cleared on every frame its page was not drawn, could
+    /// never open on a wall screen, because the main screen's page is None in the world.
+    ///
+    /// Seen red 2026-10-30 with `page_drawn` reading the main screen only: "a wall screen framed
+    /// this tick shows Quests".
+    #[test]
+    fn a_page_on_a_framed_wall_screen_is_drawn() {
+        let framed = pages_of(
+            [ScreenSource::Page(GuiPage::Quests), ScreenSource::Video("v".into()), ScreenSource::Page(GuiPage::Quests), ScreenSource::Page(GuiPage::Inventory)].iter(),
+        );
+        assert_eq!(framed, vec![GuiPage::Quests, GuiPage::Inventory], "each page once, and only pages");
+        assert!(page_drawn(GuiPage::Quests, &[], GuiPage::Quests), "the main screen's page");
+        assert!(page_drawn(GuiPage::None, &framed, GuiPage::Quests), "a wall screen framed this tick shows Quests");
+        assert!(!page_drawn(GuiPage::None, &[GuiPage::Inventory], GuiPage::Quests), "another page's screen");
+        assert!(!page_drawn(GuiPage::Chat, &[], GuiPage::Quests), "nowhere");
     }
 
     /// (a) THE FOUR CORNERS OF A YAW-ROTATED QUAD map to (0,0), (1,0), (0,1),
