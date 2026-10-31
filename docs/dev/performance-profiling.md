@@ -253,7 +253,22 @@ records no span after its acquire (`span_stop_recording`, the
 its passes (setup, commands, pollination, picking, harvest, crop_setup,
 pest_tally, weeds, crops, air, apply). Neither family is a Performance-page
 row: they are read from the JSON drop (`HUMANITY_FRAME_COSTS=1`) or the
-MCP `game_frame_costs` tool.
+MCP `game_frame_costs` tool. Nor are `cpu.garden.*` (the Inventory page's
+Garden data and its section's draw, measured through the Inventory wall
+screen, since a page open on the main screen pauses these numbers).
+
+**Worst frames (2026-10-30).** Beside the averages, the JSON drop carries
+`frame_ms_worst` and `cpu_worst_ms`: each id's largest single-frame value in
+the last 5 to 10 s. An average hides a job that costs 17 ms once a second;
+the worst does not. Read it on a quiet machine: the game runs below normal
+priority, and on a busy PC the OS pauses its thread mid-span, which shows as
+every span's worst jumping at once.
+
+**The reuse switch (2026-10-30, CLAUDE.md's reuse rule).** Dev > Performance,
+"Turn off all reuse" (`HUMANITY_NO_REUSE=1` for a rig): every in-memory reuse
+(the time-sliced Garden rows, the draw lists' memory, the request watcher)
+works everything out again every frame. When a bug might be stale data, turn
+it on: if the bug goes away, reuse is the cause.
 
 The `gpu.*` sum against `frame_ms` works the same way on the GPU side: the
 difference is the GPU's idle time plus passes nobody has scoped. As of

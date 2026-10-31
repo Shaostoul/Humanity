@@ -182,6 +182,53 @@ struct Store {
     has_frames: bool,
     /// Slot-pair refusals in the last world frame (see `Snapshot::gpu_untimed_passes`).
     gpu_untimed: u32,
+    /// Each CPU id's largest single frame, and the longest frame, in this window and the one
+    /// before (`note_worst`, `worst`).
+    worst_cur: Vec<Entry>,
+    worst_prev: Vec<Entry>,
+    frame_worst_cur: f32,
+    frame_worst_prev: f32,
+    worst_since: Option<Instant>,
+}
+
+/// How long one window of worst frames lasts. What is reported is the worst of this window and
+/// the one before, so a spike stays visible for 5 to 10 s.
+const WORST_WINDOW: Duration = Duration::from_secs(5);
+
+/// Remember the worst frames (docs/design/sim-frame-cost.md, Stutter, 2026-10-30). Every `cpu.*`
+/// value is an exponential average, which hides a job that costs 17 ms once a second: the average
+/// barely moves while the player feels a hitch every second. So beside each average the largest
+/// single-frame value is kept, over two windows of `WORST_WINDOW`. The clock is passed in so the
+/// test can step it.
+fn note_worst(s: &mut Store, now: Instant, frame_ms: Option<f32>, frame: &[Entry]) {
+    if s.worst_since.map_or(true, |t| now.saturating_duration_since(t) >= WORST_WINDOW) {
+        s.worst_prev = std::mem::take(&mut s.worst_cur);
+        s.frame_worst_prev = s.frame_worst_cur;
+        s.frame_worst_cur = 0.0;
+        s.worst_since = Some(now);
+    }
+    if let Some(ms) = frame_ms {
+        s.frame_worst_cur = s.frame_worst_cur.max(ms);
+    }
+    for e in frame {
+        match s.worst_cur.iter_mut().find(|w| w.id == e.id) {
+            Some(w) => w.value = w.value.max(e.value),
+            None => s.worst_cur.push(Entry { id: e.id, value: e.value }),
+        }
+    }
+}
+
+/// The longest frame (ms) and each CPU id's largest single-frame value in the last 5 to 10 s.
+pub fn worst() -> (f32, Vec<Entry>) {
+    let Ok(s) = store().lock() else { return (0.0, Vec::new()) };
+    let mut out: Vec<Entry> = s.worst_prev.iter().map(|e| Entry { id: e.id, value: e.value }).collect();
+    for e in &s.worst_cur {
+        match out.iter_mut().find(|w| w.id == e.id) {
+            Some(w) => w.value = w.value.max(e.value),
+            None => out.push(Entry { id: e.id, value: e.value }),
+        }
+    }
+    (s.frame_worst_cur.max(s.frame_worst_prev), out)
 }
 
 fn store() -> &'static Mutex<Store> {
@@ -456,9 +503,11 @@ pub fn begin_frame() {
                 };
             }
         }
+        let frame_ms = s.last_frame_start.map(|prev| now.duration_since(prev).as_secs_f32() * 1000.0).filter(|ms| *ms > 0.0 && *ms < 1000.0);
         s.last_frame_start = Some(now);
         s.has_frames = true;
         let accum = std::mem::take(&mut s.cpu_accum);
+        note_worst(&mut s, now, frame_ms, &accum);
         // Stages that did not run this frame decay toward zero, otherwise a
         // one-off cost (a single patch upload) would stick in the pie forever.
         let ids: Vec<&'static str> = s.cpu.iter().map(|e| e.id).collect();
@@ -538,6 +587,7 @@ pub fn dump_json() {
 /// file and the dev MCP's `game_frame_costs` (engine/mcp, 2026-10-22).
 pub fn snapshot_json() -> serde_json::Value {
     let s = snapshot();
+    let (worst_frame, worst_cpu) = worst();
     let col = |list: &[Entry]| -> serde_json::Value {
         serde_json::Value::Object(
             list.iter()
@@ -560,6 +610,10 @@ pub fn snapshot_json() -> serde_json::Value {
         // pass was timed). Non-zero means the `gpu_ms` column is missing
         // passes and MAX_TIMED_PASSES needs raising.
         "gpu_untimed_passes": s.gpu_untimed_passes,
+        // The worst single frame in the last 5 to 10 s, beside the averages above (Stutter,
+        // sim-frame-cost.md): a span whose worst is far above its average is a periodic spike.
+        "frame_ms_worst": worst_frame,
+        "cpu_worst_ms": col(&worst_cpu),
     })
 }
 
@@ -1331,6 +1385,33 @@ mod tests {
         assert!(a + b <= whole + 0.01, "the stretches never add up to more than the whole: {a} + {b} > {whole}");
         assert!(acc("cpu.span.test_c").is_none(), "a span closed while not recording was recorded");
         reset_for_test();
+    }
+
+    /// THE WORST FRAME IS KEPT BESIDE THE AVERAGE (Stutter, 2026-10-30): one 17 ms frame among
+    /// 1 ms ones stays the reported worst for this window and the next, then is forgotten.
+    /// Proven able to fail: with `note_worst` keeping the last value instead of the largest, the
+    /// "a spike is the worst" assertion fires.
+    #[test]
+    fn the_worst_frame_is_kept_for_two_windows_then_forgotten() {
+        let _g = serial();
+        reset_for_test();
+        let t0 = Instant::now();
+        let mut s = Store::default();
+        let f = |v: f64| vec![Entry { id: "cpu.span.test", value: v }];
+        note_worst(&mut s, t0, Some(16.0), &f(1.0));
+        note_worst(&mut s, t0 + Duration::from_millis(100), Some(33.0), &f(17.0));
+        note_worst(&mut s, t0 + Duration::from_millis(200), Some(16.0), &f(1.0));
+        let w = |s: &Store| {
+            let a = s.worst_cur.iter().chain(s.worst_prev.iter()).filter(|e| e.id == "cpu.span.test").map(|e| e.value).fold(0.0, f64::max);
+            (s.frame_worst_cur.max(s.frame_worst_prev), a)
+        };
+        assert_eq!(w(&s), (33.0, 17.0), "a spike is the worst, not the last frame");
+        // The next window still shows it (worst of this window and the one before).
+        note_worst(&mut s, t0 + WORST_WINDOW + Duration::from_millis(1), Some(16.0), &f(1.0));
+        assert_eq!(w(&s), (33.0, 17.0), "still shown one window later");
+        // Two windows on, it has gone.
+        note_worst(&mut s, t0 + WORST_WINDOW * 2 + Duration::from_millis(2), Some(16.0), &f(1.0));
+        assert_eq!(w(&s), (16.0, 1.0), "forgotten two windows later");
     }
 
     /// A stage that stops running must decay to zero instead of sticking in

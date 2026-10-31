@@ -117,6 +117,23 @@ mirror_player 12590-12796, garden_mirror 12797-12945, mirror_world 12946-13292, 
 14749-14790, world_passes 14791-15333 (sub-span point_lights 14885-~15040), ui_run 15336-15816,
 audio 15818-15973, ui_paint 15975-16083, tail 16085-16148.
 
+**The Garden view, part by part (quiet machine, camera on the Inventory wall screen):** building
+the data 8.86 ms (the crop rows 5.91, the per-area part 0.94, the five views 1.6 together), the
+page's Garden section drawing itself 4.68 ms (`cpu.garden.*`). Done the same evening: the rows are
+**time-sliced** (`garden_mirror::SLICES`, every 8th crop's row a frame in rotation, every row at
+once when the page was not drawn in the last half second or the reuse switch is off), and the page
+**groups the crops in one pass** and reads each crop's outlook from the one map instead of copying
+it (each of the 91 groups walked all 1,981 crops). Measured only on a busy machine so far (every
+unchanged stage read about 2.25 times its quiet value): rows about 2.3 ms and the section about
+3.4 ms in quiet terms. Less than slicing alone should give: confirm on a quiet run, and find what
+in the rows is per frame rather than per row.
+
+**A worst frame on a loaded machine is mostly the OS, not the code.** With the game below normal
+priority (the share guard) on a busy PC, nearly every span showed a worst of 5-20 ms in the same
+samples: the thread was paused mid-span. So the worst-frame readings need a quiet machine, and the
+next instrument step is to time each span in the thread's own CPU time as well as clock time
+(`QueryThreadCycleTime` on Windows), so a span's worst is the code's and a pause shows as the gap.
+
 ## Stutter: spread every spike across frames (operator, 2026-10-30)
 
 The operator, on time-slicing the Garden data: "We should consider everywhere we should implement
@@ -125,9 +142,11 @@ avoid stuttering." A frame that runs long is felt as a hitch even when the avera
 slower hardware the same spike is bigger.
 
 1. **Measure the worst frame, not only the average.** Every `cpu.*` id and span is an exponential
-   average, which hides a 17 ms job that runs once a second. `frame_costs` keeps, beside each
-   average, the largest value in the last few seconds; the JSON drop and `game_frame_costs` report
-   both, and a span whose worst is far above its average is a periodic spike.
+   average, which hides a 17 ms job that runs once a second. **Built 2026-10-30:** `frame_costs`
+   keeps, beside each average, the largest single-frame value over the last 5 to 10 s
+   (`note_worst`, `worst`), and the JSON drop and `game_frame_costs` report both (`cpu_worst_ms`,
+   `frame_ms_worst`); a span whose worst is far above its average is a periodic spike. Read it on
+   a quiet machine (see above), until the spans also count thread CPU time.
 2. **The known periodic or bursty work to check first:** the autosave of the offline home every
    120 s (`save_load::periodic_save_due`, written on the main thread) and the ship-structure
    autosave; the plant mesh rebuilds (the log reports their worst frame); the shader-change poll
