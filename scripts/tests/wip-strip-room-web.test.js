@@ -163,6 +163,29 @@ test('every element fixed at the bottom of the window stands on the warning, or 
   );
 });
 
+// A page box sized to the window (`height: calc(100vh - <the menu>)`, the full-height app pages)
+// must leave the strip its room too: the strip's spacer goes after it in the page, so a box as tall
+// as the window less the menu makes the whole window scroll by the strip's height, a second
+// scrollbar over the page's own. Red first, 2026-10-31: Accord, Calendar, Inventory (2), Maps,
+// Notes (2), Profile and the Files item window's panes; Settings had been fixed in the seams pass.
+test('every page box as tall as the window leaves the warning its room', () => {
+  const wrong = [];
+  let seen = 0;
+  for (const file of files(WEB)) {
+    const src = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    for (const p of pieces(src)) {
+      const d = decls(p.body);
+      if (/^(fixed|sticky|absolute)$/.test(d.position || '')) continue; // the scan above, or inside its own box
+      const h = d.height;
+      if (h === undefined || !/\b100[dsl]?vh\s*-/.test(h)) continue;
+      seen++;
+      if (!h.includes('--hos-wip-h')) wrong.push(`${path.relative(WEB, file).replace(/\\/g, '/')}:${p.line} ${p.selector} { height: ${h} }`);
+    }
+  }
+  assert.ok(seen >= 5, 'the scan found only ' + seen + ' window-tall page boxes: is it still reading web/?');
+  assert.deepStrictEqual(wrong, [], 'these make the page scroll by the warning\'s height: subtract var(--hos-wip-h, 0px) in the calc()');
+});
+
 test('the scan still finds the footer, which stands on the strip', () => {
   // The control: a rule known to be bottom-anchored is found and passes for the right reason.
   const footer = scan().filter((r) => r.selector === '.site-footer');

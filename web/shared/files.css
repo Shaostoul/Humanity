@@ -195,9 +195,9 @@
 #files-root.files-root-panes { max-width: none; }
 .files-panes {
   display: grid; gap: 0; margin-bottom: var(--space-lg);
-  height: max(480px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl)));
+  height: max(480px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl) - var(--hos-wip-h, 0px)));
 }
-.files-panes-down { height: max(560px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl))); }
+.files-panes-down { height: max(560px, calc(100vh - var(--hos-nav-h, 48px) - var(--space-xl) - var(--hos-wip-h, 0px))); }
 .files-viewer-panes, .files-item-panes { display: contents; }
 .files-pane {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
@@ -290,5 +290,5 @@
 .files-ask-title { font-size: var(--text-lg); margin-bottom: var(--space-sm); }
 .files-ask-words { margin-bottom: var(--space-sm); }
 /* The item window over the chat (/files/<id>?window=item): its two panes fill the frame. */
-.files-panes-window { height: calc(100vh - 2 * var(--space-sm)); margin: 0; }
-.files-panes-window.files-panes-down { height: max(400px, calc(100vh - 2 * var(--space-sm))); }
+.files-panes-window { height: calc(100vh - 2 * var(--space-sm) - var(--hos-wip-h, 0px)); margin: 0; }
+.files-panes-window.files-panes-down { height: max(400px, calc(100vh - 2 * var(--space-sm) - var(--hos-wip-h, 0px))); }

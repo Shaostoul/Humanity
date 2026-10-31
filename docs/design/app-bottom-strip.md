@@ -81,7 +81,11 @@ and the Library; he is weighing an Overview page instead, or as well (section 5.
   Tasks drawer, the dialogs' backdrops and the toasts among them; the one other answer is a layer
   over the whole window above the strip (a full-screen viewer, the phone menu), which hides the
   warning while it is open. `scripts/tests/wip-strip-room-web.test.js` finds every such rule in
-  web/ and fails on one that does neither. **The desktop's twin:** egui anchors a window to the
+  web/ and fails on one that does neither. **A page box as tall as the window** (`height:
+  calc(100vh - <the menu>)`: Settings, Accord, Calendar, Inventory, Maps, Notes, Profile, the Files
+  panes) subtracts `var(--hos-wip-h, 0px)` too (2026-10-31), or the spacer after it makes the whole
+  window scroll by the strip's height over the page's own scrollbar; the same test fails on one
+  that does not. **The desktop's twin:** egui anchors a window to the
   whole screen, not to the room the bottom panels leave, so a window anchored to the bottom adds
   `bottom_strip::height(ctx)` to its offset (the first-minutes tour card, the toasts) and the
   themed dialogs are kept inside `bottom_strip::room_above(ctx)`; in the world, where the strip
