@@ -618,10 +618,10 @@ async function onDCMessage(event, peerKey) {
   // A contact request, or a DM from someone my "who can reach me" settings
   // refuse (step B): a request, name only, its text dropped, as for mail
   // (chat-privacy.js ingestContactRequest, reachScreenDm).
-  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) return;
+  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner, true)) return;
   // A report about a group (10j, chat-reports.js ingestGroupReport): never stored as a message.
   if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) return;
-  if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) return;
+  if (typeof reachScreenDm === 'function' && reachScreenDm(inner, true)) return;
   if (window.hosDmStore && hosDmStore.ready) {
     const isNew = await hosDmStore.insert(inner);
     if (!isNew) return; // already have it (relay copy arrived first)
@@ -633,7 +633,8 @@ async function onDCMessage(event, peerKey) {
   } else if (typeof notifyNewMessage === 'function') {
     // A file's marker (whose text holds the key that opens it) is shown by its name, never as it is.
     const preview = (typeof dmSafePreview === 'function') ? dmSafePreview(inner.text) : '';
-    notifyNewMessage(name, preview, true, { conversation: 'dm:' + peerKey });
+    const fromFriend = !!(window.hosDmStore && hosDmStore.ready && hosDmStore.isFriendPeer(peerKey));
+    notifyNewMessage(name, preview, true, { conversation: 'dm:' + peerKey, from_friend: fromFriend });
   }
   if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
 }

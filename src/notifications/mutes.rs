@@ -1,11 +1,14 @@
-//! Mutes: everything, a server, or one of a server's rooms, silenced for a while or until the
-//! person unmutes it (docs/design/notifications.md, section 5). Kept on this device.
+//! Mutes: everything, a server, one of a server's rooms, or a conversation with a person, silenced
+//! for a while or until the person unmutes it (docs/design/notifications.md, section 5). Kept on
+//! this device.
 //!
 //! A mute is a time: the Unix second it ends, or 0 for "until I unmute". An ended mute is the same
 //! as none, and `prune` drops it so the saved list stays short. A server is its normalised address
 //! (`chat::norm_server_url`), a room is `<server>|<room id>`, so the same room id on two servers is
 //! two rooms. Muting a server mutes its rooms' notices, never a direct message: a DM is a
-//! conversation with a person, and muting a person is rung 2.
+//! conversation with a person. A conversation (rung 2) is its Chat id, `dm:<their key>`, on every
+//! server, because it is the same person wherever their message comes through; it stops their
+//! direct messages and their contact requests, never a mention of you in a room.
 
 use std::collections::BTreeMap;
 
@@ -22,6 +25,8 @@ pub struct Mutes {
     pub servers: BTreeMap<String, i64>,
     /// `<server>|<room id>` -> until.
     pub rooms: BTreeMap<String, i64>,
+    /// A conversation with a person, `dm:<their key>` -> until.
+    pub people: BTreeMap<String, i64>,
 }
 
 /// Is a mute that ends at `until` (0: never) still on at `now`?
@@ -83,15 +88,30 @@ impl Mutes {
         self.rooms.remove(&Self::room_key(server, room));
     }
 
+    /// Until when the conversation `conversation` (`dm:<key>`) is muted, if it is at `now`.
+    pub fn person_muted(&self, conversation: &str, now: i64) -> Option<i64> {
+        self.people.get(conversation).copied().filter(|&u| active(u, now))
+    }
+
+    pub fn mute_person(&mut self, conversation: &str, now: i64, seconds: u64) {
+        self.people.insert(conversation.to_string(), ends(now, seconds));
+    }
+
+    pub fn unmute_person(&mut self, conversation: &str) {
+        self.people.remove(conversation);
+    }
+
     /// Drop every mute that has ended by `now`. True when anything was dropped (save then).
     pub fn prune(&mut self, now: i64) -> bool {
-        let before = (self.everything.is_some(), self.servers.len(), self.rooms.len());
+        let count = |m: &Mutes| (m.everything.is_some(), m.servers.len(), m.rooms.len(), m.people.len());
+        let before = count(self);
         if self.everything.is_some_and(|u| !active(u, now)) {
             self.everything = None;
         }
         self.servers.retain(|_, u| active(*u, now));
         self.rooms.retain(|_, u| active(*u, now));
-        before != (self.everything.is_some(), self.servers.len(), self.rooms.len())
+        self.people.retain(|_, u| active(*u, now));
+        before != count(self)
     }
 
     /// Nothing muted at all (ended mutes count as none).
@@ -99,5 +119,6 @@ impl Mutes {
         self.everything_muted(now).is_none()
             && !self.servers.values().any(|&u| active(u, now))
             && !self.rooms.values().any(|&u| active(u, now))
+            && !self.people.values().any(|&u| active(u, now))
     }
 }

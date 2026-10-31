@@ -1,6 +1,7 @@
 //! Mute server and Mute room (2026-10-30, docs/design/notifications.md, section 5): the items in
 //! the active server's cog menu, a saved server's right-click menu and a room's right-click menu,
-//! and the muted mark on a server's row.
+//! and the muted mark on a server's row. Rung 2 (2026-10-31): Mute conversation from a DM's
+//! right-click, and a room's level (every line, mentions and replies, nothing) from its own.
 //!
 //! A mute stops notices (the sound and the operating system's notice) from that server's rooms or
 //! that room, for 1 hour, 8 hours or until unmuted (the lengths are data:
@@ -11,7 +12,7 @@
 
 use egui::RichText;
 
-use crate::i18n::{t, tf};
+use crate::i18n::{t, t_dyn, tf};
 use crate::gui::pages::settings::notifications::{mute_choices, until_words};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;
@@ -67,6 +68,54 @@ pub(crate) fn room_items(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState,
                 state.settings.notifications.mutes.mute_room(&key, room, now, seconds);
                 state.settings_dirty = true;
             }
+        }
+    }
+}
+
+/// A conversation's items (rung 2), from a DM's right-click: "Muted until 14:00" and Unmute
+/// conversation, or Mute conversation and its lengths. `conversation` is its Chat id,
+/// `dm:<their key>`: the person's mute holds on every server (notifications/mutes.rs).
+pub(crate) fn person_items(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, conversation: &str) {
+    let now = now_secs();
+    match state.settings.notifications.mutes.person_muted(conversation, now) {
+        Some(until) => {
+            muted_line(ui, theme, until);
+            if ui.button(t("notifications.unmute_person")).hint("notifications.unmute_hint").clicked() {
+                state.settings.notifications.mutes.unmute_person(conversation);
+                state.settings_dirty = true;
+                ui.close_menu();
+            }
+        }
+        None => {
+            heading(ui, theme, t("notifications.mute_person"), "notifications.mute_person_hint");
+            if let Some(seconds) = mute_choices(ui) {
+                state.settings.notifications.mutes.mute_person(conversation, now, seconds);
+                state.settings_dirty = true;
+            }
+        }
+    }
+}
+
+/// Until when the conversation `conversation` is muted, if it is now (the DM row's muted mark).
+pub(crate) fn person_mute(state: &GuiState, conversation: &str) -> Option<i64> {
+    state.settings.notifications.mutes.person_muted(conversation, now_secs())
+}
+
+/// A room's level (rung 2), from its right-click: "Notify me about" and the data file's choices
+/// (every line, mentions and replies, nothing), the room's own marked.
+pub(crate) fn level_items(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, url: &str, room: &str) {
+    let key = norm_server_url(url);
+    let current = state.settings.notifications.room_level(&key, room);
+    heading(ui, theme, t("notifications.level_heading"), "notifications.level_heading_hint");
+    for choice in &crate::notifications::data::get().levels {
+        let picked = ui
+            .radio(current == choice.id, RichText::new(t_dyn(&choice.label)).color(theme.text_primary()))
+            .hint_dyn(&choice.hint)
+            .clicked();
+        if picked {
+            state.settings.notifications.set_room_level(&key, room, choice.id);
+            state.settings_dirty = true;
+            ui.close_menu();
         }
     }
 }

@@ -397,9 +397,11 @@ function chooseReachAudience(kind, audience) {
  * List someone under Requests: from a contact request whose pass checked
  * ({key, pass, ts}) or a DM my settings refuse ({key, ts}). Shown by the name
  * the member list has for that key, never a name they claimed. Returns true
- * when it is listed (a "nobody" setting lists nothing).
+ * when it is listed (a "nobody" setting lists nothing). `live`: it came in a
+ * live DM (dm_new, a direct connection), so a new one may notify; one found in
+ * a mailbox page never does (notifications rung 2: history never notifies).
  */
-function receiveContactRequest(req) {
+function receiveContactRequest(req, live) {
   const store = reachStore();
   if (!store || !req || !req.key || req.key === myKey) return false;
   if (store.isBlocked(req.key)) return false; // never listed (step C)
@@ -407,7 +409,8 @@ function receiveContactRequest(req) {
   const name = reachDisplayName(req.key);
   if (store.addContactRequest({ key: req.key, name, pass: req.pass || null, ts: Number(req.ts) || Date.now() })) {
     reachSay(`${name} sent you a contact request. Accept or ignore it under Requests in your DMs.`);
-    if (typeof notifyNewMessage === 'function') notifyNewMessage(name, 'Contact request', true);
+    // Its own kind (notifications rung 2): who, never what, through THE rule (chat-notify.js).
+    if (live && typeof notifyNewMessage === 'function') notifyNewMessage(name, '', true, { kind: 'contact_request', conversation: 'dm:' + req.key });
   }
   renderRequestsEverywhere();
   return true;
@@ -419,8 +422,9 @@ function receiveContactRequest(req) {
  * it. From someone else, its pass must have been given to me, on this server,
  * by the signed sender; one that does not check is dropped. My own, echoed
  * from another of my devices, records the pass I gave and that I follow them.
+ * `live`: as receiveContactRequest's.
  */
-async function ingestContactRequest(inner) {
+async function ingestContactRequest(inner, live) {
   if (!inner || !isContactRequestText(inner.text)) return false;
   const req = contactRequestParse(inner.text);
   const store = reachStore();
@@ -447,7 +451,7 @@ async function ingestContactRequest(inner) {
     return true;
   }
   if (!req || !await pqVerifyFriendCert(inner.from, myKey, req.pass)) return true;
-  receiveContactRequest({ key: inner.from, pass: req.pass, ts: inner.ts });
+  receiveContactRequest({ key: inner.from, pass: req.pass, ts: inner.ts }, live);
   return true;
 }
 
@@ -456,11 +460,12 @@ async function ingestContactRequest(inner) {
  * contact request, name only: its text is dropped, never stored or shown, so
  * a modified client gains nothing by skipping the flag (10c). Returns true
  * when it was screened out; the caller then neither stores nor shows it.
+ * `live`: as receiveContactRequest's.
  */
-function reachScreenDm(inner) {
+function reachScreenDm(inner, live) {
   if (!inner || !inner.from || inner.from === myKey) return false;
   if (reachAllowsFrom(inner.from, 'message')) return false;
-  receiveContactRequest({ key: inner.from, ts: inner.ts });
+  receiveContactRequest({ key: inner.from, ts: inner.ts }, live);
   return true;
 }
 

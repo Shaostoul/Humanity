@@ -44,6 +44,8 @@ pub(crate) fn synced_frame(state: &GuiState) -> Option<String> {
         "tasks": state.notif_tasks_enabled,
         "dnd_start": state.notif_dnd_start,
         "dnd_end": state.notif_dnd_end,
+        "quiet_friends": state.notif_quiet_friends,
+        "quiet_mentions": state.notif_quiet_mentions,
     })
     .to_string())
 }
@@ -228,6 +230,15 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
                         }
                     });
                 }
+                // The exceptions (rung 2, synced): what still comes through quiet hours.
+                changed |= with_hint(ui, "notifications.quiet_friends_hint", |ui| {
+                    widgets::toggle(ui, theme, t("notifications.quiet_friends"), &mut state.notif_quiet_friends)
+                });
+                widgets::setting_hint(ui, theme, hint, t("notifications.quiet_friends_hint"));
+                changed |= with_hint(ui, "notifications.quiet_mentions_hint", |ui| {
+                    widgets::toggle(ui, theme, t("notifications.quiet_mentions"), &mut state.notif_quiet_mentions)
+                });
+                widgets::setting_hint(ui, theme, hint, t("notifications.quiet_mentions_hint"));
             }
         });
     });
@@ -269,10 +280,21 @@ fn draw_muted(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, now: i64) 
     let live = |m: &std::collections::BTreeMap<String, i64>| -> Vec<(String, i64)> {
         m.iter().filter(|(_, u)| n::mutes::active(**u, now)).map(|(k, u)| (k.clone(), *u)).collect()
     };
-    let (servers, rooms) = (live(&mutes.servers), live(&mutes.rooms));
-    if servers.is_empty() && rooms.is_empty() {
+    let (servers, rooms, people) = (live(&mutes.servers), live(&mutes.rooms), live(&mutes.people));
+    if servers.is_empty() && rooms.is_empty() && people.is_empty() {
         ui.label(RichText::new(t("notifications.muted_none")).size(theme.font_size_small).color(theme.text_muted()));
-        return;
+    }
+    for (conversation, until) in people {
+        let key = conversation.strip_prefix("dm:").unwrap_or(&conversation);
+        let words = tf("notifications.muted_person", &[("name", &crate::engine::dm::dm_display_name(state, key))]);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(words).color(theme.text_primary()));
+            ui.label(RichText::new(until_words(until)).size(theme.font_size_small).color(theme.text_secondary()));
+            if widgets::Button::secondary(t("notifications.unmute")).hint("notifications.unmute_hint").show(ui, theme) {
+                state.settings.notifications.mutes.unmute_person(&conversation);
+                state.settings_dirty = true;
+            }
+        });
     }
     for (url, until) in servers {
         let name = server_name(state, &url);
@@ -297,6 +319,37 @@ fn draw_muted(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, now: i64) 
             }
         });
     }
+    draw_room_levels(ui, theme, state);
+}
+
+/// The words of a room level: its label, by the data file's `levels`.
+pub(crate) fn level_words(level: n::Level) -> &'static str {
+    n::data::get().levels.iter().find(|l| l.id == level).map(|l| t_dyn(&l.label)).unwrap_or("")
+}
+
+/// The rooms set to something other than mentions (every line, or nothing), each with Back to
+/// mentions: a room set to nothing is as quiet as one muted until unmuted, so it is listed here
+/// where the mutes are, never left to be found only from its right-click.
+fn draw_room_levels(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    if state.settings.notifications.room_levels.is_empty() {
+        return;
+    }
+    let hint = state.settings.hint_display;
+    ui.separator();
+    ui.label(RichText::new(t("notifications.levels_heading")).size(theme.font_size_small).color(theme.text_secondary()).strong());
+    let levels: Vec<(String, n::Level)> = state.settings.notifications.room_levels.iter().map(|(k, l)| (k.clone(), *l)).collect();
+    for (key, level) in levels {
+        let (url, room) = key.split_once('|').unwrap_or((key.as_str(), ""));
+        let words = tf("notifications.room_level_row", &[("room", &room), ("server", &server_name(state, url)), ("level", &level_words(level))]);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(words).color(theme.text_primary()));
+            if widgets::Button::secondary(t("notifications.level_reset")).hint("notifications.level_reset_hint").show(ui, theme) {
+                state.settings.notifications.set_room_level(url, room, n::Level::Mentions);
+                state.settings_dirty = true;
+            }
+        });
+    }
+    widgets::setting_hint(ui, theme, hint, t("notifications.level_reset_hint"));
 }
 
 #[cfg(test)]
@@ -327,5 +380,10 @@ mod tests {
         state.notif_dnd_end = None;
         let off: serde_json::Value = serde_json::from_str(&synced_frame(&state).unwrap()).unwrap();
         assert!(off.get("dnd_start").is_some_and(|v| v.is_null()), "{off}");
+        // The quiet-hours exceptions (rung 2) travel with the rest, so every server holds them.
+        // Seen red 2026-10-31 with `quiet_mentions` left out of the frame.
+        state.notif_quiet_mentions = true;
+        let ex: serde_json::Value = serde_json::from_str(&synced_frame(&state).unwrap()).unwrap();
+        assert_eq!((ex["quiet_friends"].as_bool(), ex["quiet_mentions"].as_bool()), (Some(false), Some(true)), "{ex}");
     }
 }

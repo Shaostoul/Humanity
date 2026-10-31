@@ -47,7 +47,6 @@
     'notif-mention': true,
     'notif-quests': true,
     'notif-cal': true,
-    'notif-sound': false,
     // What a notice shows (2026-10-30, docs/design/notifications.md): 'nothing' | 'name' |
     // 'name_and_text', as the desktop's Settings > Notifications. Who it is from by default.
     'notif-show': 'name',
@@ -90,13 +89,9 @@
     'video-quality': '720',
     // Security
     'auto-lock': '30',
-    // Presence
-    presence: 'online',
-    'status-text': '',
-    'quiet-hours': false,
-    'quiet-start': '22:00',
-    'quiet-end': '08:00',
-    'dnd-friends': true,
-    'dnd-mentions': false,
+    // (The Do Not Disturb section's presence, status, quiet hours and exceptions, and the
+    // "Notification Sound" switch, were removed with notifications rung 2, 2026-10-31: nothing read
+    // them. Quiet hours and their exceptions are the person's synced notification_prefs, kept on
+    // their server; docs/design/notifications.md.)
   };
 })();

@@ -770,6 +770,11 @@
       "date": "2026-10-31",
       "decision": "Crate cards merged: docs/crates/<crate>.md for all ten crates plus an index; a generated At a glance block (scripts/crate-cards.js, refreshed by just code-map and just brief) and hand-written rules, tests, open work and a requests mailbox; crate-cards.js --check in just lints holds the structure only. CLAUDE.md Router: work inside one crate, read its card.",
       "why": "The lint never compares numbers because every code edit moves them (a numbers check would fail every session). just brief now rewrites up to 11 tracked docs as the code moves, like code-map.md: commit them with it. A file belongs to the module that declares it (#[path]), which moved test-code references to 127."
+    },
+    {
+      "date": "2026-10-31",
+      "decision": "Notifications rung 2 part 1 merged: the in-app list (bell, count, panel; 100 entries in memory only, never on disk; text only when the person shows text) on both apps, mute a conversation, per-room level (every line / mentions / nothing), reply, contact-request and Commons-mention kinds, synced quiet-hours exceptions (relay notification_prefs gains quiet_friends, quiet_mentions by guarded ALTER). The website bell lives on the chat page only. A friend for the exception = mutual follow (DmStore::is_friend).",
+      "why": "The website's notices come only from an open chat tab and the list is that tab's memory, so a bell on other pages could never fill. Sealed sender means the server can never apply the friends exception to a DM push; that is the design's answer, not a gap to close. Part 2 (tray, close-to-tray, OS-notice click, in-world banner, taskbar flash) needs the game booted, so it waits for the Garden views agent's in-game measurements to finish (one instance machine-wide)."
     }
   ],
   "active_scopes_to_avoid": [

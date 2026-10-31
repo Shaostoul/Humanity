@@ -2140,6 +2140,11 @@ pub enum RelayMessage {
         dnd_start: Option<Option<String>>,
         #[serde(default, deserialize_with = "crate::relay::storage::sent_or_null", skip_serializing_if = "Option::is_none")]
         dnd_end: Option<Option<String>>,
+        /// The quiet-hours exceptions (notifications rung 2): absent keeps what is stored.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        quiet_friends: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        quiet_mentions: Option<bool>,
     },
 
     /// Server sends notification preferences to the requesting client.
@@ -2152,6 +2157,11 @@ pub enum RelayMessage {
         dnd_start: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         dnd_end: Option<String>,
+        /// The quiet-hours exceptions (rung 2), always sent: a client reads a missing one as off.
+        #[serde(default)]
+        quiet_friends: bool,
+        #[serde(default)]
+        quiet_mentions: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target: Option<String>,
     },
@@ -6112,8 +6122,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // (Listing buyer-seller threads removed 2026-08-23:
                             // marketplace contact rides sealed-sender DMs now.)
                             // ── Notification Preferences ──
-                            RelayMessage::UpdateNotificationPrefs { dm, mentions, tasks, dnd_start, dnd_end } => {
-                                handle_update_notification_prefs(&state_clone, &my_key_for_recv, dm, mentions, tasks, dnd_start, dnd_end).await;
+                            RelayMessage::UpdateNotificationPrefs { dm, mentions, tasks, dnd_start, dnd_end, quiet_friends, quiet_mentions } => {
+                                let change = crate::relay::storage::NotifPrefsChange { dm, mentions, tasks, dnd_start, dnd_end, quiet_friends, quiet_mentions };
+                                handle_update_notification_prefs(&state_clone, &my_key_for_recv, change).await;
                             }
                             RelayMessage::GetNotificationPrefs {} => {
                                 handle_get_notification_prefs(&state_clone, &my_key_for_recv).await;

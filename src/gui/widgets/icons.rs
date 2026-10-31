@@ -23,9 +23,9 @@ pub fn paint_moon(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.add(egui::Shape::line(points, Stroke::new((r * 0.55).max(1.5), color)));
 }
 
-/// A bell with a slash through it inside `rect` (2026-10-30): something whose notifications are
-/// muted (a server row in Chat, docs/design/notifications.md). Stroked, so it reads at 12 px.
-pub fn paint_bell_off(painter: &egui::Painter, rect: Rect, color: Color32) {
+/// A bell inside `rect` (rung 2, 2026-10-31): the header's notices (docs/design/notifications.md,
+/// the in-app list). Stroked, so it reads at 12 px; the same outline as [`paint_bell_off`].
+pub fn paint_bell(painter: &egui::Painter, rect: Rect, color: Color32) {
     let (l, t, w, h) = (rect.left(), rect.top(), rect.width(), rect.height());
     let p = |x: f32, y: f32| Pos2::new(l + w * x, t + h * y);
     let s = Stroke::new((w.min(h) * 0.11).max(1.0), color);
@@ -34,6 +34,15 @@ pub fn paint_bell_off(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.add(egui::Shape::line(body, s));
     painter.line_segment([p(0.10, 0.74), p(0.90, 0.74)], s);
     painter.circle_filled(p(0.50, 0.87), w.min(h) * 0.08, color);
+}
+
+/// A bell with a slash through it inside `rect` (2026-10-30): something whose notifications are
+/// muted (a server row in Chat, docs/design/notifications.md). Stroked, so it reads at 12 px.
+pub fn paint_bell_off(painter: &egui::Painter, rect: Rect, color: Color32) {
+    paint_bell(painter, rect, color);
+    let (l, t, w, h) = (rect.left(), rect.top(), rect.width(), rect.height());
+    let p = |x: f32, y: f32| Pos2::new(l + w * x, t + h * y);
+    let s = Stroke::new((w.min(h) * 0.11).max(1.0), color);
     // The slash: muted.
     painter.line_segment([p(0.08, 0.08), p(0.92, 0.94)], s);
 }

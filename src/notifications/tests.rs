@@ -49,19 +49,29 @@ fn mutes_of(v: &Value) -> Mutes {
             .map(|o| o.iter().map(|(k, u)| (k.clone(), u.as_i64().unwrap_or(0))).collect())
             .unwrap_or_default()
     };
-    Mutes { everything: opt_i(v, "everything"), servers: map("servers"), rooms: map("rooms") }
+    Mutes { everything: opt_i(v, "everything"), servers: map("servers"), rooms: map("rooms"), people: map("people") }
+}
+
+fn levels_of(v: &Value) -> std::collections::BTreeMap<String, super::Level> {
+    v.as_object()
+        .map(|o| o.iter().map(|(k, l)| (k.clone(), super::Level::from_id(l.as_str().unwrap_or("")))).collect())
+        .unwrap_or_default()
 }
 
 /// EVERY SHARED CASE, as the website answers it too. Seen red 2026-10-30 with the mute checks
 /// moved after quiet hours: "a muted server during quiet hours reports the mute" answered
-/// quiet_hours, not server_muted (the website's twin went red on the same case).
+/// quiet_hours, not server_muted (the website's twin went red on the same case). Rung 2
+/// (2026-10-31) seen red here with the conversation mute skipped: "a DM in a muted conversation"
+/// answered notify. The website's twin was seen red on these cases with each other new check
+/// broken in turn: the room level skipped, the exceptions ignored, the friends exception granted
+/// to anyone, and the list given only with the sound.
 #[test]
 fn every_shared_case_gets_the_same_answer() {
     let fx = fixture();
     let file = shipped();
     let base = &fx["base"];
     let cases = fx["cases"].as_array().expect("cases");
-    assert!(cases.len() >= 30, "the shared cases shrank to {}", cases.len());
+    assert!(cases.len() >= 70, "the shared cases shrank to {}", cases.len());
     for case in cases {
         let name = s(case, "name");
         let mut cand = base["candidate"].clone();
@@ -81,6 +91,7 @@ fn every_shared_case_gets_the_same_answer() {
             sender: s(&cand, "sender"),
             room_name: s(&cand, "room_name"),
             text: s(&cand, "text"),
+            from_friend: b(&cand, "from_friend"),
         };
         let qs = synced.get("quiet_start").and_then(Value::as_str).map(str::to_string);
         let qe = synced.get("quiet_end").and_then(Value::as_str).map(str::to_string);
@@ -90,6 +101,8 @@ fn every_shared_case_gets_the_same_answer() {
             tasks: b(&synced, "tasks"),
             quiet_start: qs.as_deref(),
             quiet_end: qe.as_deref(),
+            quiet_friends: b(&synced, "quiet_friends"),
+            quiet_mentions: b(&synced, "quiet_mentions"),
             loaded: b(&synced, "loaded"),
         };
         let lo = LocalSettings {
@@ -98,6 +111,7 @@ fn every_shared_case_gets_the_same_answer() {
             sound: b(&local, "sound"),
             sound_id: "sfx.chat_message".into(),
             mutes: mutes_of(&local["mutes"]),
+            room_levels: levels_of(&local["levels"]),
         };
         let at = Moment {
             now: opt_i(&moment, "now").unwrap(),
@@ -111,7 +125,62 @@ fn every_shared_case_gets_the_same_answer() {
         assert_eq!(got.why.code(), s(want, "why"), "{name}: why");
         assert_eq!(got.toast, b(want, "toast"), "{name}: the notice");
         assert_eq!(got.sound, b(want, "sound"), "{name}: the sound");
+        assert_eq!(got.list, b(want, "list"), "{name}: the in-app list");
     }
+}
+
+/// THE IN-APP LIST: a burst while the panel stays shut is one entry, opening the panel sees
+/// everything, the oldest go past 100, and what was said is kept only when the person's setting
+/// shows it. Seen red 2026-10-31 with the fold removed: "a burst is one entry" got two entries.
+#[test]
+fn the_in_app_list_folds_bursts_counts_unseen_and_keeps_text_only_by_choice() {
+    use super::list::{List, KEPT};
+    let mut l = List::default();
+    let ben = dm("meet me at noon");
+    l.add(&ben, Show::Name, 100);
+    l.add(&Candidate { sender: "Ben".into(), ..ben.clone() }, Show::Name, 160);
+    assert_eq!((l.len(), l.unseen()), (1, 1), "a burst is one entry");
+    assert_eq!(l.entries().next().unwrap().at, 160, "with the latest time");
+    assert!(l.entries().next().unwrap().text.is_none(), "who and when, never what, by default");
+    let cy = Candidate { conversation: "dm:k2".into(), sender: "Cy".into(), ..dm("hi") };
+    l.add(&cy, Show::NameAndText, 170);
+    assert_eq!(l.entries().next().unwrap().text.as_deref(), Some("hi"), "kept: the person shows the message");
+    assert_eq!(l.unseen(), 2);
+    l.mark_seen();
+    assert_eq!(l.unseen(), 0);
+    l.add(&ben, Show::Name, 200);
+    assert_eq!((l.len(), l.unseen()), (3, 1), "a seen entry is not folded into: a new one for the new message");
+    for i in 0..KEPT + 5 {
+        l.add(&Candidate { conversation: format!("dm:x{i}"), ..ben.clone() }, Show::Name, 300 + i as i64);
+    }
+    assert_eq!(l.len(), KEPT);
+    assert_eq!(l.unseen(), KEPT, "the count follows what was dropped");
+    l.clear();
+    assert!(l.is_empty() && l.unseen() == 0);
+}
+
+/// A conversation's mute is that person's, on every server, and leaves rooms alone; a room's level
+/// is kept only when it is not the default. Seen red 2026-10-31 with `prune` leaving ended
+/// conversation mutes ("ended").
+#[test]
+fn conversation_mutes_and_room_levels() {
+    let mut m = Mutes::default();
+    m.mute_person("dm:k1", 100, 3600);
+    assert_eq!(m.person_muted("dm:k1", 200), Some(3700));
+    assert!(m.person_muted("dm:k2", 200).is_none());
+    assert!(!m.is_empty_at(200));
+    assert!(m.prune(5000), "ended");
+    assert!(m.people.is_empty());
+    let mut s = LocalSettings::default();
+    assert_eq!(s.room_level("https://a.example", "general"), super::Level::Mentions, "every room starts at mentions");
+    s.set_room_level("https://a.example", "general", super::Level::All);
+    assert_eq!(s.room_level("https://a.example", "general"), super::Level::All);
+    assert_eq!(s.room_level("https://b.example", "general"), super::Level::Mentions, "the same room on another server");
+    s.set_room_level("https://a.example", "general", super::Level::Mentions);
+    assert!(s.room_levels.is_empty(), "the default is no entry");
+    let back: LocalSettings = serde_json::from_str(r#"{"room_levels":{"s|r":"nothing"},"mutes":{"people":{"dm:k":0}}}"#).unwrap();
+    assert_eq!(back.room_level("s", "r"), super::Level::Nothing);
+    assert_eq!(back.mutes.person_muted("dm:k", 1), Some(0));
 }
 
 /// Seen red 2026-10-30 with the boundary check removed: "@Benjamin hi" mentioned Ben.
@@ -251,17 +320,27 @@ fn mutes_end_and_are_pruned() {
 }
 
 /// The data file built into the exe parses, and every word it names is in English, so no notice and
-/// no Settings row ever shows a key. Seen red 2026-10-30 with one kind's `title_hidden` misspelt.
+/// no Settings row ever shows a key. Seen red 2026-10-30 with one kind's `title_hidden` misspelt,
+/// and 2026-10-31 with `reply` marked unbuilt.
 #[test]
 fn the_data_file_parses_and_every_word_it_names_is_in_english() {
     let file = shipped();
-    assert!(file.kinds.iter().filter(|k| k.built).count() >= 2, "DMs and mentions are built");
-    for id in ["dm", "mention"] {
+    assert!(file.kinds.iter().filter(|k| k.built).count() >= 5, "rung 2: DMs, mentions, replies, contact requests, every line");
+    for id in ["dm", "mention", "reply", "contact_request", "room_line"] {
         assert!(file.kind(id).is_some_and(|k| k.built), "{id} is built");
     }
+    // A room set to nothing never notifies: every room kind needs at least mentions.
+    for k in file.kinds.iter().filter(|k| k.scope == super::data::Scope::Room) {
+        assert!(k.level.unwrap_or_default() > super::Level::Nothing, "{} would notify in a room set to nothing", k.id);
+    }
+    let level_ids: Vec<super::Level> = file.levels.iter().map(|l| l.id).collect();
+    assert_eq!(level_ids, [super::Level::All, super::Level::Mentions, super::Level::Nothing], "the right-click's choices");
     let mut keys: Vec<&str> = Vec::new();
     for k in &file.kinds {
         keys.extend([k.label.as_str(), k.hint.as_str(), k.title.as_str(), k.title_hidden.as_str(), k.body_hidden.as_str()]);
+    }
+    for l in &file.levels {
+        keys.extend([l.label.as_str(), l.hint.as_str()]);
     }
     for m in &file.mute_for {
         keys.extend([m.label.as_str(), m.hint.as_str()]);

@@ -904,8 +904,9 @@ Web Push API with VAPID keys.
 - Server: `src/relay/storage/push.rs`, `src/relay/api.rs`
 
 ### Notification Preferences
-Per-user DM/mention/task switches and quiet hours, synced to the server (each server the person is
-signed in to), and honoured by the server's Web Push since 2026-10-30 (`Storage::wants_push`).
+Per-user DM/mention/task switches, quiet hours and (since 2026-10-31) the two quiet-hours
+exceptions, synced to the server (each server the person is signed in to), and honoured by the
+server's Web Push since 2026-10-30 (`Storage::wants_push`).
 - Web: `web/pages/settings-app.js` (the switches + quiet hours, written "22:00"); the chat's DM cog
   flips the synced DM switch (`web/chat/chat-ui.js` `openDmSettings`)
 - Native: Settings > Notifications, `src/gui/pages/settings/notifications.rs` (the whole set, every
@@ -931,14 +932,55 @@ unless the person chooses "Who it is from and the message".
 - Web: `web/chat/chat-notify.js` (the chat's use of the rule); Settings > Notifications "A notice
   shows" (`notif-show`)
 
-### Mute server, Mute room, Mute everything (2026-10-30)
+### Mute server, Mute room, Mute conversation, Mute everything (2026-10-30; rung 2 part 1 2026-10-31)
 1 hour, 8 hours or until unmuted (lengths in `data/notifications/notifications.json`). Kept on the
-device; a server's mute never silences a DM.
-- Native: the active server's cog menu, a saved server's right-click, a room's right-click
-  (`src/gui/pages/chat/mute_menu.rs`); the bell-with-a-slash mark on a muted server's row;
-  Settings > Notifications > Muted (Mute everything, Unmute)
-- Web: the bell on the server's row in the chat sidebar (`web/chat/chat-notify.js`)
-- Planned (rung 2): the tray icon's Mute everything menu, Mute room and the muted list on the web
+device; a server's mute never silences a DM; a conversation's mute (`dm:<key>`, on every server)
+stops that person's DMs and contact requests, never a mention of you in a room.
+- Native: the active server's cog menu, a saved server's right-click, a room's right-click (a
+  parked server's rooms too), a DM's right-click (`src/gui/pages/chat/mute_menu.rs`); the
+  bell-with-a-slash mark on a muted server's row and a muted DM's row; Settings > Notifications >
+  Muted (Mute everything, every server, room and conversation with Unmute, and the rooms set to
+  every line or nothing with Back to mentions)
+- Web: the bell on the server's row, and on each room's and DM's row (or a right-click on the row),
+  in the chat sidebar (`web/chat/chat-notify.js`); Settings > Notifications > Muted with Mute
+  everything and Unmute (`web/pages/settings-app.js` `renderMutedList`)
+- Planned (rung 2 part 2): the tray icon's Mute everything menu
+
+### Room levels: every line, mentions and replies, nothing (rung 2 part 1, 2026-10-31)
+How much a room notifies, per room on this device, mentions and replies by default; "every line"
+is the `room_line` kind (`data/notifications/notifications.json` `level`, `levels`).
+- Native: a room's right-click (`mute_menu::level_items`); `config.json`
+  `notifications.room_levels`
+- Web: a room's bell or right-click; `localStorage` `hos_notify_levels`
+
+### The in-app list: the bell and its panel (rung 2 part 1, 2026-10-31)
+The last 100 notices the rule let through (also with the window in front, and with desktop notices
+and sound off), the count of unseen ones on a bell, each opening its conversation; a burst folds
+into one entry; seen when the panel opens; memory only, never written to disk; the message kept
+only when "What a notice shows" shows it.
+- Native: the bell beside the help button in every page's header (`src/gui/notice_panel.rs`,
+  `src/gui/widgets/notice_bell.rs`, `icons::paint_bell`); the list `src/notifications/list.rs`
+- Web: the bell in the chat page's header (`web/chat/chat-notify.js`; `.notice-bell`,
+  `.notice-count`, `.notice-panel` in `web/chat/layout.css`)
+
+### More kinds: replies, contact requests, Commons lines (rung 2 part 1, 2026-10-31)
+A reply to a line of yours (`reply_to.from`), a contact request newly listed under Requests by a
+live DM (never a mailbox page), and a shared room's line from a linked server (`federated_chat`,
+live only, its author's `from_key` checked for blocks and for my own), through the same rule.
+- Native: `src/engine/notify.rs` (`room_line`, `federated_line`, `contact_request`), raised from
+  `engine/frame_ws_poll.rs`, `engine/bg_connections.rs`, `engine/mailbox.rs`
+- Web: `web/chat/chat-ui.js` `notifyNewMessage` and its `handleMessage` wrapper;
+  `web/chat/chat-privacy.js` (`live` through `ingestContactRequest` / `reachScreenDm`)
+
+### Quiet-hours exceptions (rung 2 part 1, 2026-10-31)
+A friend's DM (you follow each other) and mentions or replies may come through quiet hours, both
+off by default, synced on the person's server (`notification_prefs.quiet_friends`,
+`quiet_mentions`). The server can never apply the friends exception to a DM push (sealed sender):
+`NotifPrefs::push_comes_through_quiet_hours`.
+- Native: Settings > Notifications, under quiet hours (`src/gui/pages/settings/notifications.rs`)
+- Web: Settings > Notifications, under quiet hours (replaced the unread Do Not Disturb section and
+  the "Notification Sound" switch, both removed)
+- Server: `src/relay/storage/notification_prefs.rs`, the guarded ALTERs in `storage/mod.rs`
 
 ### Notification Actions
 Reply and Mark Read buttons on push notifications.

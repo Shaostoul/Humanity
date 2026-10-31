@@ -80,7 +80,8 @@ pub(crate) fn on_batch(gs: &mut GuiState, frame: &Value) {
 /// once this connection's own fetch is done (10o O1): before that the row may lie past rows the
 /// fetch has not reached yet, and moving past it would skip them. (Its own fetch brings it again;
 /// the store takes it once.) A message newly taken in is handed back as a notification candidate
-/// (engine/notify.rs; the rule decides, a DM of my own included, which it never notifies).
+/// (engine/notify.rs; the rule decides, a DM of my own included, which it never notifies), and so
+/// is a sender newly listed under Requests (rung 2). A mailbox page (`on_batch`) raises none.
 pub(crate) fn on_new(gs: &mut GuiState, frame: &Value) -> Option<crate::notifications::Candidate> {
     let mail_id = frame.get("id").and_then(Value::as_i64).unwrap_or(0);
     let raw = frame.get("content").and_then(Value::as_str).unwrap_or("");
@@ -89,9 +90,19 @@ pub(crate) fn on_new(gs: &mut GuiState, frame: &Value) -> Option<crate::notifica
     }
     let ding = match crate::engine::dm::open_verify_dm(raw, gs) {
         Ok(inner) => {
+            // A contact request (or a DM our own setting refused) is listed under Requests, never
+            // stored as a message: the one newly listed by this live DM is a candidate (rung 2).
+            crate::engine::dm::ensure_dm_store(gs);
+            let listed_before = crate::engine::notify::requested(gs.dm_store.as_ref(), &inner.from);
             let was_new = crate::engine::dm::ingest_dm(gs, &inner);
             let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
-            was_new.then(|| crate::engine::notify::dm(gs, &server, &inner))
+            if was_new {
+                Some(crate::engine::notify::dm(gs, &server, &inner))
+            } else if !listed_before && crate::engine::notify::requested(gs.dm_store.as_ref(), &inner.from) {
+                Some(crate::engine::notify::contact_request(gs, &server, &inner.from))
+            } else {
+                None
+            }
         }
         Err(e) => {
             // Not ours, tampered, or a spoofed sender: never shown. Once the fetch is done the

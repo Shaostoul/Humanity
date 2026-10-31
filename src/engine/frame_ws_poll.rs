@@ -201,12 +201,15 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 c.unread = true;
                             }
                         }
-                        // A mention (`@name`, 2026-10-30; was any line containing the name, v0.987)
-                        // goes to the notification rule: this arm only sees live broadcasts
-                        // (history arrives via REST), so an old mention never notifies again; the
-                        // rule drops my own, a muted room, quiet hours (engine/notify.rs).
+                        // The line goes to the notification rule: a mention (`@name`, 2026-10-30;
+                        // was any line containing the name, v0.987), a reply to a line of mine, or
+                        // an ordinary line for a room set to every line (rung 2). This arm only
+                        // sees live broadcasts (history arrives via REST), so an old line never
+                        // notifies again; the rule drops my own, a muted room, the room's level,
+                        // quiet hours (engine/notify.rs).
                         let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
-                        if let Some(c) = crate::engine::notify::mention(&state.gui_state, &server, &state.gui_state.user_name, &channel, &sender_key, &sender_name, &content) {
+                        let reply_from = reply_to.as_ref().map(|r| r.sender_key.as_str());
+                        if let Some(c) = crate::engine::notify::room_line(&state.gui_state, &server, &state.gui_state.user_name, &channel, &sender_key, &sender_name, &content, reply_from) {
                             crate::engine::notify::deliver(state, c);
                         }
                         state.gui_state.chat_messages.push(
@@ -805,6 +808,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         state.gui_state.notif_tasks_enabled = prefs.tasks;
                         state.gui_state.notif_dnd_start = prefs.dnd_start;
                         state.gui_state.notif_dnd_end = prefs.dnd_end;
+                        state.gui_state.notif_quiet_friends = prefs.quiet_friends;
+                        state.gui_state.notif_quiet_mentions = prefs.quiet_mentions;
                         state.gui_state.notif_prefs_loaded = true;
                     }
                     // Sealed-sender DMs, live and fetched (engine/mailbox.rs): only this
@@ -1143,6 +1148,14 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                     && m.content == content
                             });
                             if !duplicate {
+                                // A shared room's line to the notification rule (rung 2): a
+                                // mention of me, or every line in a room set to it; live only
+                                // (engine/notify.rs `federated_line`).
+                                let server = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
+                                let now_ms = (crate::notifications::now_secs().max(0) as u64) * 1000;
+                                if let Some(c) = crate::engine::notify::federated_line(&state.gui_state, &server, &state.gui_state.user_name, &val, now_ms) {
+                                    crate::engine::notify::deliver(state, c);
+                                }
                                 let ts_str = {
                                     let secs = ts / 1000;
                                     let h = (secs / 3600) % 24;

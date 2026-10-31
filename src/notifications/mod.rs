@@ -9,15 +9,18 @@
 //! - [`data`]: the kinds of notice, the mute lengths and the sounds, read from
 //!   `data/notifications/notifications.json` (infinite-of-x: a new kind is a row there).
 //! - [`settings`]: what this device keeps (`config.json` `notifications`): desktop notices on or
-//!   off, what a notice shows, the sound, and the mutes.
-//! - [`mutes`]: everything, a server, or a room, muted for a while or until unmuted.
+//!   off, what a notice shows, the sound, the mutes, and each room's level.
+//! - [`mutes`]: everything, a server, a room, or a conversation, muted for a while or until unmuted.
 //! - [`quiet`]: quiet hours (synced through the server's `notification_prefs`), by the device's clock.
 //! - [`toast`]: the operating system's notice, on its own worker thread (Windows, Linux, macOS).
+//! - [`list`]: the in-app list behind the header's bell (rung 2), in memory for the run only.
 //!
-//! The engine hands a live message to it in `src/engine/notify.rs`; nothing here runs per frame.
+//! The engine hands a live message to it in `src/engine/notify.rs`; nothing here runs per frame
+//! except the bell reading the list's unseen count.
 
 pub mod data;
 pub mod decide;
+pub mod list;
 pub mod mutes;
 pub mod quiet;
 pub mod settings;
@@ -26,12 +29,13 @@ pub mod toast;
 #[cfg(test)]
 mod tests;
 
+pub use data::Level;
 pub use decide::{decide, is_mention, Candidate, Moment, Outcome, Synced, Why};
 pub use mutes::Mutes;
 pub use settings::{LocalSettings, Show};
 
 /// What the notification system keeps for the run only (never saved): when each conversation last
-/// had a notice (the 5-second burst guard), and what Settings asked for this frame.
+/// had a notice (the 5-second burst guard), the in-app list, and what Settings asked for this frame.
 #[derive(Debug, Default)]
 pub struct Runtime {
     /// Conversation key -> unix seconds of its last notice.
@@ -40,6 +44,10 @@ pub struct Runtime {
     pub test_requested: bool,
     /// Settings > Notifications > Play: the sound to play once, by its id in the data file.
     pub preview_sound: Option<String>,
+    /// The in-app list (rung 2): the last notices, behind the header's bell. Never saved.
+    pub list: list::List,
+    /// The bell's panel is open.
+    pub panel_open: bool,
 }
 
 /// Seconds since the Unix epoch, now.

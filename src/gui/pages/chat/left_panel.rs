@@ -516,6 +516,11 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             egui::FontId::proportional(theme.body_size),
                             name_color,
                         );
+                        // A muted conversation (rung 2) shows the server row's muted mark at its end.
+                        if let Some(until) = super::mute_menu::person_mute(state, &dm_channel) {
+                            let at = egui::pos2(full_rect.right() - 10.0, cy);
+                            super::mute_menu::paint_muted_mark(ui, at, theme.text_muted(), egui::Id::new(("dm_muted_mark", &dm.user_key)), until);
+                        }
 
                         // Last-message preview line: muted, single line,
                         // elided to fit the row width. Newlines flattened.
@@ -576,6 +581,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                             ui.close_menu();
                         }
+                        // Mute conversation (rung 2, chat/mute_menu.rs): the person, on every server.
+                        ui.separator();
+                        super::mute_menu::person_items(ui, theme, state, &dm_channel);
                     });
                 }
             });
@@ -1163,6 +1171,13 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                         theme.accent(),
                                     );
                                 }
+                                // Mute room and its level (rung 2): a parked server's room has the
+                                // active one's right-click, keyed by this server (chat/mute_menu.rs).
+                                label.context_menu(|ui| {
+                                    super::mute_menu::room_items(ui, theme, state, &server.url, &ch_id);
+                                    ui.separator();
+                                    super::mute_menu::level_items(ui, theme, state, &server.url, &ch_id);
+                                });
                                 if label.clicked() && state.private_key_bytes.is_some() {
                                     if ch_commons {
                                         open_commons_room(state, &ch_id);
@@ -1840,6 +1855,9 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             ui.separator();
                             let url = state.server_url.clone();
                             super::mute_menu::room_items(ui, theme, state, &url, &ch.id);
+                            // The room's level (rung 2): every line, mentions and replies, nothing.
+                            ui.separator();
+                            super::mute_menu::level_items(ui, theme, state, &url, &ch.id);
                         });
 
                         // Voice roster (v0.481): who is currently connected to this

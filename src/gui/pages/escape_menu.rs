@@ -32,6 +32,9 @@ struct NavItem {
 /// backwards-compatible config deserialization but ignored.
 pub fn draw_nav_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     draw_nav_bar_one_tier(ctx, theme, state);
+    // The notices bell (notifications rung 2), anchored beside the help button: every page with
+    // this header has it (gui/notice_panel.rs).
+    crate::gui::notice_panel::draw(ctx, theme, state);
 }
 
 /// Single-row RGB nav bar. Red identity / green contextual / blue
@@ -65,7 +68,12 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             // exactly as wide as before (proved with an absurd 326 px reserve that moved
             // nothing). The child ui has to be given the narrower width when it is
             // ALLOCATED, which is what allocate_ui does.
-            let help_reserve = crate::gui::pages::keymap::HELP_TOGGLE_SIZE + 10.0;
+            // Since notifications rung 2 (2026-10-31) the notices bell sits beside it, anchored
+            // the same way (gui/notice_panel.rs), so the reserve holds both.
+            let help_reserve = crate::gui::pages::keymap::HELP_TOGGLE_SIZE
+                + crate::gui::notice_panel::BELL_SIZE
+                + crate::gui::notice_panel::BELL_GAP
+                + 10.0;
             let nav_width = (ui.available_width() - help_reserve).max(120.0);
             ui.allocate_ui(Vec2::new(nav_width, 0.0), |ui| {
             // horizontal_WRAPPED (v0.859): buttons that overflow the window width wrap

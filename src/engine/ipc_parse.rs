@@ -146,6 +146,10 @@ pub(crate) struct NotifPrefsPayload {
     pub(crate) tasks: bool,
     pub(crate) dnd_start: Option<String>,
     pub(crate) dnd_end: Option<String>,
+    /// The quiet-hours exceptions (rung 2): off when missing, the server's own default, because an
+    /// exception lets MORE through quiet hours, so its safe default is off.
+    pub(crate) quiet_friends: bool,
+    pub(crate) quiet_mentions: bool,
 }
 
 pub(crate) fn parse_notification_prefs(val: &serde_json::Value) -> NotifPrefsPayload {
@@ -155,6 +159,8 @@ pub(crate) fn parse_notification_prefs(val: &serde_json::Value) -> NotifPrefsPay
         tasks: val.get("tasks").and_then(|v| v.as_bool()).unwrap_or(true),
         dnd_start: val.get("dnd_start").and_then(|v| v.as_str()).map(|s| s.to_string()),
         dnd_end: val.get("dnd_end").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        quiet_friends: val.get("quiet_friends").and_then(|v| v.as_bool()).unwrap_or(false),
+        quiet_mentions: val.get("quiet_mentions").and_then(|v| v.as_bool()).unwrap_or(false),
     }
 }
 
@@ -271,6 +277,19 @@ mod notification_prefs_tests {
         assert!(p2.dm);
         assert!(p2.mentions);
         assert!(p2.tasks);
+    }
+
+    /// The quiet-hours exceptions (rung 2, 2026-10-31) fail CLOSED: an exception lets more through
+    /// quiet hours, so a missing or malformed one is off. Seen red 2026-10-31 with `quiet_friends`
+    /// read `unwrap_or(true)`.
+    #[test]
+    fn quiet_hours_exceptions_are_off_unless_the_server_says_on() {
+        let p = parse_notification_prefs(&serde_json::json!({}));
+        assert!(!p.quiet_friends && !p.quiet_mentions);
+        let p = parse_notification_prefs(&serde_json::json!({"quiet_friends": "yes", "quiet_mentions": 1}));
+        assert!(!p.quiet_friends && !p.quiet_mentions);
+        let p = parse_notification_prefs(&serde_json::json!({"quiet_friends": true, "quiet_mentions": false}));
+        assert!(p.quiet_friends && !p.quiet_mentions);
     }
 }
 

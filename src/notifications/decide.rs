@@ -3,12 +3,13 @@
 //! One pure function, so every case is a lib test and the website's twin
 //! (`web/shared/notify-rules.js`) is held to the same cases
 //! (`scripts/tests/fixtures/notify-cases.json`). The checks run in a fixed order and the first
-//! that stops a notice names why ([`Why`]): a person's own message, a kind turned off, a mute,
-//! quiet hours, the conversation already on screen, a burst. Only what passes them all can make a
-//! sound or an operating-system notice, and the notice's words come from [`words`], which never
+//! that stops a notice names why ([`Why`]): a person's own message, a kind turned off, a mute, the
+//! room's level, quiet hours (unless an exception lets it through), the conversation already on
+//! screen, a burst. Only what passes them all can make a sound, an operating-system notice or an
+//! entry in the in-app list (rung 2), and the notice's words come from [`words`], which never
 //! shows what was said unless the person chose that.
 
-use super::data::{File, Scope};
+use super::data::{File, QuietException, Scope};
 use super::mutes::Mutes;
 use super::settings::{LocalSettings, Show};
 
@@ -40,6 +41,10 @@ pub struct Candidate {
     pub room_name: String,
     /// What was said (already made safe to show: a file marker is its name, never its key).
     pub text: String,
+    /// From a friend: the person and the sender follow each other (the client-held store, whose
+    /// follows travel with friendship passes; `DmStore::is_friend`). Decided on the device: the
+    /// server cannot know it for a DM (sealed sender).
+    pub from_friend: bool,
 }
 
 /// The person's synced switches (the server's `notification_prefs`), as last received.
@@ -50,6 +55,10 @@ pub struct Synced<'a> {
     pub tasks: bool,
     pub quiet_start: Option<&'a str>,
     pub quiet_end: Option<&'a str>,
+    /// Quiet-hours exception: a friend's direct message still notifies (rung 2, off by default).
+    pub quiet_friends: bool,
+    /// Quiet-hours exception: a mention or a reply still notifies (rung 2, off by default).
+    pub quiet_mentions: bool,
     /// The server's answer has arrived (the desktop asks at every sign-in). Until it has, quiet
     /// hours are unknown, so nothing notifies.
     pub loaded: bool,
@@ -63,6 +72,15 @@ impl Synced<'_> {
             Some("mentions") => self.mentions,
             Some("tasks") => self.tasks,
             _ => true,
+        }
+    }
+
+    /// Does the synced exception `e` let a notice from a friend (or not) through quiet hours?
+    pub fn excepts(&self, e: Option<QuietException>, from_friend: bool) -> bool {
+        match e {
+            Some(QuietException::Friends) => self.quiet_friends && from_friend,
+            Some(QuietException::Mentions) => self.quiet_mentions,
+            None => false,
         }
     }
 }
@@ -91,12 +109,16 @@ pub enum Why {
     NotLoaded,
     KindOff,
     AllMuted,
+    /// The conversation with that person is muted (rung 2).
+    PersonMuted,
     ServerMuted,
     RoomMuted,
+    /// The room is set below what the kind needs: an ordinary line in a room at mentions, or
+    /// anything in a room set to nothing (rung 2).
+    RoomLevel,
     QuietHours,
     OnScreen,
     TooSoon,
-    NothingOn,
 }
 
 impl Why {
@@ -108,12 +130,13 @@ impl Why {
             Why::NotLoaded => "not_loaded",
             Why::KindOff => "kind_off",
             Why::AllMuted => "all_muted",
+            Why::PersonMuted => "person_muted",
             Why::ServerMuted => "server_muted",
             Why::RoomMuted => "room_muted",
+            Why::RoomLevel => "room_level",
             Why::QuietHours => "quiet_hours",
             Why::OnScreen => "on_screen",
             Why::TooSoon => "too_soon",
-            Why::NothingOn => "nothing_on",
         }
     }
 }
@@ -126,11 +149,18 @@ pub struct Outcome {
     pub toast: bool,
     /// Play the sound.
     pub sound: bool,
+    /// Put an entry in the in-app list (the header's bell, rung 2). Whatever passes every check
+    /// is listed, also with the window in front and with desktop notices and sound both off: the
+    /// list is the one surface that never interrupts. What a check stops is not listed: a line
+    /// on screen needs no entry, and a line inside the burst guard belongs to the entry its
+    /// burst already made (`list::List` also folds a conversation's later notices into its entry
+    /// until the panel is opened).
+    pub list: bool,
 }
 
 impl Outcome {
     fn quiet(why: Why) -> Outcome {
-        Outcome { why, toast: false, sound: false }
+        Outcome { why, toast: false, sound: false, list: false }
     }
 }
 
@@ -151,8 +181,16 @@ pub fn decide(file: &File, c: &Candidate, synced: &Synced, local: &LocalSettings
     if let Some(why) = muted(&local.mutes, kind.scope, c, at.now) {
         return Outcome::quiet(why);
     }
+    if kind.scope == Scope::Room {
+        // Every room kind needs at least mentions (a lib test holds the data file to it), so a
+        // room set to nothing never notifies.
+        let set = c.room.as_deref().map(|r| local.room_level(&c.server, r)).unwrap_or_default();
+        if set < kind.level.unwrap_or_default() {
+            return Outcome::quiet(Why::RoomLevel);
+        }
+    }
     if let Some((start, end)) = super::quiet::window(synced.quiet_start, synced.quiet_end) {
-        if super::quiet::in_quiet(start, end, at.minute) {
+        if super::quiet::in_quiet(start, end, at.minute) && !synced.excepts(kind.quiet_exception, c.from_friend) {
             return Outcome::quiet(Why::QuietHours);
         }
     }
@@ -162,27 +200,22 @@ pub fn decide(file: &File, c: &Candidate, synced: &Synced, local: &LocalSettings
     if at.last_notice.is_some_and(|t| at.now - t < BURST_SECS && at.now >= t) {
         return Outcome::quiet(Why::TooSoon);
     }
-    let toast = local.desktop && !at.focused;
-    let sound = local.sound;
-    if !toast && !sound {
-        return Outcome::quiet(Why::NothingOn);
-    }
-    Outcome { why: Why::Notify, toast, sound }
+    Outcome { why: Why::Notify, toast: local.desktop && !at.focused, sound: local.sound, list: true }
 }
 
-/// The mute that stops `c`, if any: everything first, then (for a room) its server, then the room.
+/// The mute that stops `c`, if any: everything first, then a person's conversation, or (for a
+/// room) its server, then the room.
 fn muted(m: &Mutes, scope: Scope, c: &Candidate, now: i64) -> Option<Why> {
     if m.everything_muted(now).is_some() {
         return Some(Why::AllMuted);
     }
-    if scope != Scope::Room {
-        return None;
-    }
-    if m.server_muted(&c.server, now).is_some() {
-        return Some(Why::ServerMuted);
-    }
-    match &c.room {
-        Some(room) if m.room_muted(&c.server, room, now).is_some() => Some(Why::RoomMuted),
+    match scope {
+        Scope::Person if m.person_muted(&c.conversation, now).is_some() => Some(Why::PersonMuted),
+        Scope::Room if m.server_muted(&c.server, now).is_some() => Some(Why::ServerMuted),
+        Scope::Room => match &c.room {
+            Some(room) if m.room_muted(&c.server, room, now).is_some() => Some(Why::RoomMuted),
+            _ => None,
+        },
         _ => None,
     }
 }

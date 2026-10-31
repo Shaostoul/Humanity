@@ -993,22 +993,77 @@ fn settings_panel(
 }
 
 /// Settings > Notifications (2026-10-30, docs/design/notifications.md): this device's choices,
-/// the synced switches (here signed out, so their line says to sign in), and the muted list
-/// holding everything, a server and a room.
+/// the synced switches (here signed out, so their line says to sign in) with quiet hours and,
+/// since rung 2, their two exceptions, and the muted list holding everything, a server, a room, a
+/// conversation and a room set to every line (with Back to mentions).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_notification_settings() {
-    render_page_png("notification_settings", 960, 1400, |ctx, theme, state| {
+    render_page_png("notification_settings", 960, 1600, |ctx, theme, state| {
         let now = crate::notifications::now_secs();
-        let m = &mut state.settings.notifications.mutes;
-        if m.servers.is_empty() {
-            m.mute_everything(now, 3600);
-            m.mute_server("https://united-humanity.us", now, 0);
-            m.mute_room("https://united-humanity.us", "general", now, 8 * 3600);
+        let n = &mut state.settings.notifications;
+        if n.mutes.servers.is_empty() {
+            n.mutes.mute_everything(now, 3600);
+            n.mutes.mute_server("https://united-humanity.us", now, 0);
+            n.mutes.mute_room("https://united-humanity.us", "general", now, 8 * 3600);
+            n.mutes.mute_person("dm:ab12cd34ef56", now, 3600);
+            n.set_room_level("https://united-humanity.us", "builders", crate::notifications::Level::All);
         }
         state.notif_dnd_start = Some("22:00".into());
         state.notif_dnd_end = Some("07:00".into());
+        state.notif_quiet_friends = true;
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_notifications_content);
+    });
+}
+
+/// Notices seeded in the in-app list (rung 2): a DM, a mention, a reply and a contact request.
+fn seed_notices(state: &mut crate::gui::GuiState) {
+    if !state.notify.list.is_empty() {
+        return;
+    }
+    let now = crate::notifications::now_secs();
+    let srv = "https://united-humanity.us";
+    let c = |kind: &str, conversation: &str, room: Option<&str>, sender: &str, text: &str| crate::notifications::Candidate {
+        kind: kind.into(),
+        server: srv.into(),
+        room: room.map(str::to_string),
+        conversation: conversation.into(),
+        sender: sender.into(),
+        room_name: room.unwrap_or("").into(),
+        text: text.into(),
+        ..Default::default()
+    };
+    let show = crate::notifications::Show::Name;
+    state.notify.list.add(&c("contact_request", "dm:k5", None, "Cy", ""), show, now - 3600);
+    state.notify.list.add(&c("reply", "builders", Some("builders"), "Dana", "agreed"), show, now - 600);
+    state.notify.list.add(&c("mention", "general", Some("general"), "Ben", "hey @you"), show, now - 120);
+    state.notify.list.add(&c("dm", "dm:k1", None, "Ben", "meet at noon"), show, now - 30);
+    state.active_page = crate::gui::GuiPage::Chat;
+}
+
+/// The header with the notices bell (rung 2, gui/notice_panel.rs): four notices not opened yet,
+/// their count in the pill on the bell, beside the help button.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_notification_bell() {
+    render_page_png("notification_bell", 1280, 200, |ctx, theme, state| {
+        seed_notices(state);
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+    });
+}
+
+/// The bell's panel open (rung 2): the last notices, newest first, each saying the kind, who and
+/// where, and when; never what was said (the default "who it is from"); the count gone, because
+/// opening the panel sees them.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_notification_panel() {
+    render_page_png("notification_panel", 1280, 640, |ctx, theme, state| {
+        seed_notices(state);
+        state.notify.panel_open = true;
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
     });
 }
 
@@ -4645,7 +4700,7 @@ fn snapshot_help_button_closed() {
 
 /// The same button PINNED open: it must read "X" in the identical spot, with the
 /// panel below showing this screen's keys plus the prose topics paired with the
-/// page in data/help/topics.json (Chat has three).
+/// page in data/help/topics.json (Chat has four since the notifications topic, 2026-10-31).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_help_panel_open() {

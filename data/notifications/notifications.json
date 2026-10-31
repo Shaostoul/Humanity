@@ -1,16 +1,19 @@
 {
-  "_comment": "Every kind of notice, the lengths a server or room can be muted for, and the sounds a notice can play (docs/design/notifications.md). Read by the desktop app (src/notifications/data.rs) and the website (web/shared/notify-rules.js). A kind's words are keys in data/i18n/en.json. `built` says whether anything raises the kind yet; `server_flag` is the synced switch (notification_prefs) that turns it on or off; `scope` is person (a conversation: never muted by a server or room mute), room (a server's room: server and room mutes apply) or game. A mute of 0 seconds lasts until the person unmutes. A sound's id is its entry in data/sounds.toml; `path` is used when that entry is missing.",
+  "_comment": "Every kind of notice, the lengths a server or room can be muted for, and the sounds a notice can play (docs/design/notifications.md). Read by the desktop app (src/notifications/data.rs) and the website (web/shared/notify-rules.js). A kind's words are keys in data/i18n/en.json. `built` says whether anything raises the kind yet; `server_flag` is the synced switch (notification_prefs) that turns it on or off; `scope` is person (a conversation: never muted by a server or room mute; muting that conversation stops it), room (a server's room: server and room mutes apply) or game. A room kind's `level` is the least a room must be set to for it to notify (nothing < mentions < all; a room is at mentions unless the person sets it otherwise), so `room_line`, an ordinary line, notifies only in a room set to every line. `quiet_exception` names the synced quiet-hours exception that lets the kind through quiet hours: friends (from a friend: you follow each other) or mentions; none when absent. A mute of 0 seconds lasts until the person unmutes. `levels` are the choices a room's right-click offers, in order, each with its words. A sound's id is its entry in data/sounds.toml; `path` is used when that entry is missing.",
   "kinds": [
-    { "id": "dm", "built": true, "server_flag": "dm", "scope": "person",
+    { "id": "dm", "built": true, "server_flag": "dm", "scope": "person", "quiet_exception": "friends",
       "label": "notifications.kind_dm", "hint": "notifications.kind_dm_hint",
       "title": "notifications.dm_title", "title_hidden": "notifications.dm_title_hidden", "body_hidden": "notifications.body_hidden" },
-    { "id": "mention", "built": true, "server_flag": "mentions", "scope": "room",
+    { "id": "mention", "built": true, "server_flag": "mentions", "scope": "room", "level": "mentions", "quiet_exception": "mentions",
       "label": "notifications.kind_mention", "hint": "notifications.kind_mention_hint",
       "title": "notifications.mention_title", "title_hidden": "notifications.mention_title_hidden", "body_hidden": "notifications.body_hidden" },
-    { "id": "reply", "built": false, "server_flag": "mentions", "scope": "room",
+    { "id": "reply", "built": true, "server_flag": "mentions", "scope": "room", "level": "mentions", "quiet_exception": "mentions",
       "label": "notifications.kind_reply", "hint": "notifications.kind_reply_hint",
       "title": "notifications.reply_title", "title_hidden": "notifications.reply_title_hidden", "body_hidden": "notifications.body_hidden" },
-    { "id": "contact_request", "built": false, "server_flag": "dm", "scope": "person",
+    { "id": "room_line", "built": true, "server_flag": null, "scope": "room", "level": "all",
+      "label": "notifications.kind_room_line", "hint": "notifications.kind_room_line_hint",
+      "title": "notifications.room_line_title", "title_hidden": "notifications.room_line_title_hidden", "body_hidden": "notifications.body_hidden" },
+    { "id": "contact_request", "built": true, "server_flag": "dm", "scope": "person",
       "label": "notifications.kind_contact_request", "hint": "notifications.kind_contact_request_hint",
       "title": "notifications.contact_request_title", "title_hidden": "notifications.contact_request_title_hidden", "body_hidden": "notifications.body_hidden" },
     { "id": "task", "built": false, "server_flag": "tasks", "scope": "person",
@@ -22,6 +25,11 @@
     { "id": "game_event", "built": false, "server_flag": null, "scope": "game",
       "label": "notifications.kind_game_event", "hint": "notifications.kind_game_event_hint",
       "title": "notifications.game_event_title", "title_hidden": "notifications.game_event_title_hidden", "body_hidden": "notifications.body_hidden" }
+  ],
+  "levels": [
+    { "id": "all", "label": "notifications.level_all", "hint": "notifications.level_all_hint" },
+    { "id": "mentions", "label": "notifications.level_mentions", "hint": "notifications.level_mentions_hint" },
+    { "id": "nothing", "label": "notifications.level_nothing", "hint": "notifications.level_nothing_hint" }
   ],
   "mute_for": [
     { "id": "1h", "seconds": 3600, "label": "notifications.mute_1h", "hint": "notifications.mute_1h_hint" },

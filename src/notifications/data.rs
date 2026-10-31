@@ -1,5 +1,6 @@
-//! `data/notifications/notifications.json`: every kind of notice, the lengths something can be
-//! muted for, and the sounds a notice can play (docs/design/notifications.md, section 2). The
+//! `data/notifications/notifications.json`: every kind of notice, the levels a room can be set to,
+//! the lengths something can be muted for, and the sounds a notice can play
+//! (docs/design/notifications.md, section 2). The
 //! website reads the same file (`web/shared/notify-rules.js`).
 //!
 //! Read once for the run through `load_text_or_embedded`, so a missing or damaged copy in the data
@@ -8,7 +9,7 @@
 
 use std::sync::OnceLock;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 const REL: &str = "notifications/notifications.json";
 
@@ -24,6 +25,47 @@ pub enum Scope {
     Game,
 }
 
+/// How much a room may notify (rung 2, docs/design/notifications.md section 5), the person's
+/// choice per room from its right-click, kept on this device. Ordered: a room kind notifies only
+/// in a room set to at least the kind's own `level`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Level {
+    /// Nothing from this room notifies (its unread dot still shows).
+    Nothing,
+    /// Mentions and replies to you (every room's level until the person changes it).
+    #[default]
+    Mentions,
+    /// Every line said in it.
+    All,
+}
+
+impl Level {
+    /// The id as `config.json`, the data file and the website write it.
+    pub fn id(self) -> &'static str {
+        match self {
+            Level::Nothing => "nothing",
+            Level::Mentions => "mentions",
+            Level::All => "all",
+        }
+    }
+
+    /// The level for an id; anything unknown is the default.
+    pub fn from_id(id: &str) -> Level {
+        [Level::Nothing, Level::Mentions, Level::All].into_iter().find(|l| l.id() == id).unwrap_or_default()
+    }
+}
+
+/// Which synced quiet-hours exception lets a kind through quiet hours.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuietException {
+    /// From a friend (you follow each other), with "friends' direct messages" on.
+    Friends,
+    /// With "mentions" on.
+    Mentions,
+}
+
 /// One kind of notice.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Kind {
@@ -35,6 +77,12 @@ pub struct Kind {
     #[serde(default)]
     pub server_flag: Option<String>,
     pub scope: Scope,
+    /// A room kind: the least level its room must be set to (`None`: mentions).
+    #[serde(default)]
+    pub level: Option<Level>,
+    /// The quiet-hours exception that lets it through quiet hours, if any.
+    #[serde(default)]
+    pub quiet_exception: Option<QuietException>,
     pub label: String,
     pub hint: String,
     /// The title naming the sender (`{{name}}`, `{{room}}`).
@@ -65,11 +113,21 @@ pub struct Sound {
     pub label: String,
 }
 
+/// One choice a room's right-click offers for its level.
+#[derive(Debug, Clone, Deserialize)]
+pub struct LevelChoice {
+    pub id: Level,
+    pub label: String,
+    pub hint: String,
+}
+
 /// The whole file.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct File {
     #[serde(default)]
     pub kinds: Vec<Kind>,
+    #[serde(default)]
+    pub levels: Vec<LevelChoice>,
     #[serde(default)]
     pub mute_for: Vec<MuteFor>,
     #[serde(default)]

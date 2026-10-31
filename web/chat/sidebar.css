@@ -836,3 +836,25 @@
   }
   #channel-header .ch-name { font-size: var(--text-base); }
 }
+
+/* Mute room, the room's level and Mute conversation (notifications rung 2, chat-notify.js): a
+   bell at the end of a room's or a DM's row, shown on hover and focus, and always while muted
+   (the desktop's muted mark); the menu marks the room's level. */
+.srv-chan .row-mute,
+.dm-item .row-mute {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0;
+}
+.srv-chan:hover .row-mute,
+.dm-item:hover .row-mute,
+.row-mute:focus-visible,
+.row-mute.muted { opacity: 1; }
+.row-mute:hover,
+.row-mute:focus-visible { color: var(--text); background: var(--bg-hover); }
+.srv-mute-menu hr { border: none; border-top: 1px solid var(--border); margin: var(--space-xs) 0; width: 100%; }
+.srv-mute-menu button.checked { color: var(--accent); font-weight: 600; }

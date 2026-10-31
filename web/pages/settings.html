@@ -690,7 +690,6 @@
     <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')"><span class="s-ico" data-icon="eye"></span> Accessibility</div>
     <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
     <div class="s-nav" data-sec="security" onclick="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
-    <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')"><span class="s-ico" data-icon="minus"></span> Do Not Disturb</div>
     <div class="s-nav" data-sec="storage" onclick="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
     <div class="s-nav" data-sec="wallet" onclick="showSection('wallet')"><span class="s-ico" data-icon="key"></span> Wallet</div>
     <div class="s-nav" data-sec="vault" onclick="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
@@ -994,29 +993,47 @@
         </div>
       </div>
 
+      <!-- Quiet hours and their exceptions (synced: kept on the person's server, so every device
+           agrees; notifications rung 2 replaced the unread Do Not Disturb section with the two
+           exceptions here, docs/design/notifications.md). -->
       <div class="settings-group">
-        <div class="settings-group-title">Do Not Disturb</div>
+        <div class="settings-group-title" data-i18n="notifications.quiet">Quiet hours</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Quiet Hours</strong>
-            <span>Suppress push notifications during a scheduled time window</span>
+            <strong data-i18n="notifications.quiet">Quiet hours</strong>
+            <span data-i18n="notifications.quiet_hint">Between these hours nothing notifies you, by sound or by notice. The hours are your computer's own clock.</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-push-dnd" onchange="savePushDnd()"><span class="toggle-track"></span></label>
         </div>
         <div id="push-dnd-times" style="padding-left:var(--space-2xl);">
           <div class="setting-row">
             <div class="setting-label">
-              <strong>From</strong>
+              <strong data-i18n="notifications.quiet_from">From</strong>
             </div>
             <select class="setting-select" id="pref-dnd-start" onchange="savePushDnd()" style="min-width:110px;"></select>
           </div>
           <div class="setting-row">
             <div class="setting-label">
-              <strong>To</strong>
+              <strong data-i18n="notifications.quiet_to">To</strong>
             </div>
             <select class="setting-select" id="pref-dnd-end" onchange="savePushDnd()" style="min-width:110px;"></select>
           </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong data-i18n="notifications.quiet_friends">Friends' direct messages come through</strong>
+              <span data-i18n="notifications.quiet_friends_hint">During quiet hours a direct message from a friend (you follow each other) still notifies you. Off unless you turn it on. Your device decides it: your server never learns who sends you a direct message.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-quiet-friends" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong data-i18n="notifications.quiet_mentions">Mentions and replies come through</strong>
+              <span data-i18n="notifications.quiet_mentions_hint">During quiet hours a mention of you, or a reply to something you wrote, still notifies you. Off unless you turn it on.</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-quiet-mentions" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+          </div>
         </div>
+        <p class="section-desc" data-i18n="notifications.quiet_web_note">A push to this browser while no chat tab is open still comes at any hour: your server does not know your clock yet.</p>
       </div>
 
       <!-- What a notice shows (2026-10-30, docs/design/notifications.md): who it is from by default,
@@ -1038,15 +1055,16 @@
         <p class="section-desc" data-i18n="notifications.web_ios_note">On an iPhone or iPad, notices arrive only for a site added to the home screen: that is Apple's rule.</p>
       </div>
 
+      <!-- Muted (notifications rung 2, the desktop's Settings > Notifications > Muted): Mute
+           everything, every server, room and conversation muted in this browser with Unmute, and
+           the rooms set to every line or nothing with Back to mentions. Drawn by settings-app.js
+           (renderMutedList) from what the chat keeps (hos_notify_mutes, hos_notify_levels). The
+           chat's own sound menu is where a notice's sound is chosen; the unread "Notification
+           Sound" switch that sat here was removed. -->
       <div class="settings-group">
-        <div class="settings-group-title">In-App</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Notification Sound</strong>
-            <span>Play a sound when notifications arrive</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-sound" onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
+        <div class="settings-group-title" data-i18n="notifications.muted_heading">Muted</div>
+        <div id="notif-muted-list"></div>
+        <p class="section-desc" data-i18n="notifications.muted_web_note">Mutes and room levels are kept in this browser only.</p>
       </div>
     </section>
 
@@ -1723,76 +1741,6 @@
             <span>Friends you choose each keep a locked piece of your recovery phrase, and enough of them together can help you back in if you lose it. Choose them, help a friend back in, or ask yours for help on a new device.</span>
           </div>
           <a href="/recovery" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Recovery →</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Do Not Disturb -->
-    <section class="settings-section" id="sec-dnd">
-      <h1>Do Not Disturb</h1>
-      <p class="section-desc">Silence notifications and hide your online status. Set quiet hours so you aren't interrupted during sleep or focus time.</p>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Presence</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Status Mode</strong>
-            <span>Controls what others see about your availability</span>
-          </div>
-          <select class="setting-select" id="pref-presence" onchange="savePref()">
-            <option value="online">🟢 Online</option>
-            <option value="busy">🔴 Busy</option>
-            <option value="away">🟡 Away</option>
-            <option value="invisible">⚫ Invisible</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Custom Status</strong>
-            <span>A short message shown next to your name</span>
-          </div>
-          <input type="text" class="setting-input" id="pref-status-text" placeholder="e.g. In a meeting" maxlength="60" oninput="savePref()">
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Quiet Hours</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Enable Quiet Hours</strong>
-            <span>Mute all notifications during a scheduled time window</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-quiet-hours" onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Start Time</strong>
-          </div>
-          <input type="time" class="setting-input" id="pref-quiet-start" value="22:00" onchange="savePref()" style="min-width:120px;">
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>End Time</strong>
-          </div>
-          <input type="time" class="setting-input" id="pref-quiet-end" value="08:00" onchange="savePref()" style="min-width:120px;">
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <div class="settings-group-title">Exceptions</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Allow DMs from Friends</strong>
-            <span>Friends can still reach you even during quiet hours</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-dnd-friends" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Allow Mentions</strong>
-            <span>Still notify on @mentions during quiet hours</span>
-          </div>
-          <label class="toggle"><input type="checkbox" id="pref-dnd-mentions" onchange="savePref()"><span class="toggle-track"></span></label>
         </div>
       </div>
     </section>

@@ -15,6 +15,7 @@
  *   HosNotifyRules.isMention(text, name)              '@name', the whole name
  *   HosNotifyRules.parseClock / inQuiet / formatClock quiet hours
  *   HosNotifyRules.active / muteKey                   mutes
+ *   HosNotifyRules.roomLevel(levels, server, room)    a room's level (rung 2)
  */
 (function (root) {
   'use strict';
@@ -22,7 +23,7 @@
   var BURST_SECS = 5;
   var TITLE_CHARS = 80;
   var BODY_CHARS = 240;
-  var file = { kinds: [], mute_for: [], sounds: [] };
+  var file = { kinds: [], levels: [], mute_for: [], sounds: [] };
 
   function use(f) {
     file = f && typeof f === 'object' ? f : file;
@@ -99,6 +100,10 @@
   function muted(mutes, scope, c, now) {
     mutes = mutes || {};
     if (mutes.everything !== null && mutes.everything !== undefined && active(mutes.everything, now)) return 'all_muted';
+    if (scope === 'person') {
+      var p = (mutes.people || {})[c.conversation];
+      return p !== undefined && active(p, now) ? 'person_muted' : null;
+    }
     if (scope !== 'room') return null;
     var s = (mutes.servers || {})[c.server];
     if (s !== undefined && active(s, now)) return 'server_muted';
@@ -109,11 +114,31 @@
     return null;
   }
 
-  function quiet(why) {
-    return { why: why, toast: false, sound: false };
+  /** A room's level (rung 2): nothing < mentions < all; anything unknown is mentions. */
+  var LEVEL_RANK = { nothing: 0, mentions: 1, all: 2 };
+  function levelOf(id) {
+    return Object.prototype.hasOwnProperty.call(LEVEL_RANK, id) ? id : 'mentions';
   }
 
-  /** THE RULE, in the desktop's order. Times in Unix seconds. */
+  /** What `room` on `server` is set to, from `levels` (`<server>|<room>` -> id). */
+  function roomLevel(levels, server, room) {
+    return room ? levelOf((levels || {})[muteKey(server, room)]) : 'mentions';
+  }
+
+  /** Does the synced exception `e` let a notice through quiet hours? */
+  function excepts(synced, e, fromFriend) {
+    if (e === 'friends') return !!synced.quiet_friends && !!fromFriend;
+    if (e === 'mentions') return !!synced.quiet_mentions;
+    return false;
+  }
+
+  function quiet(why) {
+    return { why: why, toast: false, sound: false, list: false };
+  }
+
+  /** THE RULE, in the desktop's order. Times in Unix seconds. Whatever passes every check is
+   *  listed in the in-app list (`list`), also with the window in front and with the notice and
+   *  the sound both off; what a check stops is not. */
   function decide(c, synced, local, at) {
     if (c.from_me) return quiet('own_message');
     var k = kind(c.kind);
@@ -122,14 +147,15 @@
     if (!flagOn(synced, k.server_flag)) return quiet('kind_off');
     var m = muted(local.mutes, k.scope, c, at.now);
     if (m) return quiet(m);
+    if (k.scope === 'room') {
+      var set = LEVEL_RANK[roomLevel(local.levels, c.server, c.room)];
+      if (set < LEVEL_RANK[levelOf(k.level)]) return quiet('room_level');
+    }
     var w = quietWindow(synced.quiet_start, synced.quiet_end);
-    if (w && inQuiet(w[0], w[1], at.minute)) return quiet('quiet_hours');
+    if (w && inQuiet(w[0], w[1], at.minute) && !excepts(synced, k.quiet_exception, c.from_friend)) return quiet('quiet_hours');
     if (at.focused && at.on_screen) return quiet('on_screen');
     if (at.last_notice != null && at.now >= at.last_notice && at.now - at.last_notice < BURST_SECS) return quiet('too_soon');
-    var toast = !!local.desktop && !at.focused;
-    var sound = !!local.sound;
-    if (!toast && !sound) return quiet('nothing_on');
-    return { why: 'notify', toast: toast, sound: sound };
+    return { why: 'notify', toast: !!local.desktop && !at.focused, sound: !!local.sound, list: true };
   }
 
   /** Control characters and new lines become spaces, runs close up, cut to `max` characters. */
@@ -163,6 +189,7 @@
     parseClock: parseClock,
     formatClock: formatClock,
     inQuiet: inQuiet,
+    roomLevel: roomLevel,
     isMention: isMention,
     decide: decide,
     words: words,

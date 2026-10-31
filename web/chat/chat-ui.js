@@ -205,18 +205,23 @@ function previewSound(key) {
 function toggleSoundEnabled() {
   soundEnabled = document.getElementById('sound-enabled').checked;
   localStorage.setItem('humanity_sound_enabled', soundEnabled);
-  // Update bell icon.
-  document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
+  // Update the speaker icon (a speaker, since the notices bell sits beside it: notifications rung 2).
+  document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
 }
-// Set initial bell icon.
-document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
+// Set the initial speaker icon.
+document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
 
 // A live line or DM that may deserve a notice (2026-10-30, docs/design/notifications.md). The
 // title flashes for any line while the tab is behind; a sound or the browser's notice comes only
 // for a DM or an @mention, and only as THE rule allows (chat-notify.js, /shared/notify-rules.js,
 // the desktop's twin): the synced switches, quiet hours, a muted server, the conversation already
 // on screen. The notice says who it is from, never what was said, unless the person chose that in
-// Settings. `where`: {conversation: 'dm:<key>'} for a DM, {room: <channel id>} for a room line.
+// Settings. `where`: {conversation: 'dm:<key>', from_friend} for a DM, {room: <channel id>,
+// reply_from} for a room line, and `kind` to name one outright (a contact request). A room line
+// is a mention when it names me, else a reply when it answers a line of mine (`reply_from`, the
+// replied-to line's author), else an ordinary line, which the rule lets through only in a room
+// set to every line (notifications rung 2). Whatever the rule lets through also goes in the
+// header bell's list (chat-notify.js).
 function notifyNewMessage(author, content, isDm, where) {
   where = where || {};
   if (!windowFocused) {
@@ -224,7 +229,12 @@ function notifyNewMessage(author, content, isDm, where) {
     startTitleFlash();
   }
   if (!window.HosChatNotify || !window.HosNotifyRules) return;
-  if (!isDm && !HosNotifyRules.isMention(content, myName)) return;
+  let kind = where.kind || (isDm ? 'dm' : '');
+  if (!kind) {
+    if (HosNotifyRules.isMention(content, myName)) kind = 'mention';
+    else if (where.reply_from && where.reply_from === myKey) kind = 'reply';
+    else kind = 'room_line';
+  }
   const room = isDm ? null : (where.room || activeChannel || null);
   const conversation = isDm ? (where.conversation || 'dm:') : (room || '');
   const onScreen = isDm
@@ -232,7 +242,7 @@ function notifyNewMessage(author, content, isDm, where) {
     : (!activeDmPartner && !activeGroupId && room === activeChannel);
   const canShow = ('Notification' in window) && Notification.permission === 'granted';
   const d = HosChatNotify.decide(
-    { kind: isDm ? 'dm' : 'mention', from_me: false, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content },
+    { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend },
     { focused: windowFocused, on_screen: onScreen, desktop: canShow, sound: soundEnabled }
   );
   if (d.sound) playNotificationChime();
@@ -361,7 +371,19 @@ handleMessage = function(msg) {
     localStorage.setItem('humanity_last_seen', String(msg.timestamp));
     // Notify if from someone else.
     if (msg.from !== myKey) {
-      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel });
+      const replyFrom = msg.reply_to && typeof msg.reply_to.from === 'string' ? msg.reply_to.from : null;
+      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false, { room: msg.channel, reply_from: replyFrom });
+    }
+  } else if (msg.type === 'federated_chat' && window.HosChatNotify) {
+    // A shared room's line from a linked server (notifications rung 2): live only, never one a
+    // link re-sent while catching up (older than FEDERATED_LIVE_MS), never from someone I
+    // blocked (`from_key`, the author's key the relay carries since 2026-10-22).
+    const fromKey = typeof msg.from_key === 'string' ? msg.from_key : '';
+    const fresh = Number(msg.timestamp) > 0 && Date.now() - Number(msg.timestamp) <= HosChatNotify.FEDERATED_LIVE_MS;
+    const blocked = fromKey && typeof isBlockedKey === 'function' && isBlockedKey(fromKey);
+    if (fresh && !blocked && msg.content && fromKey !== myKey) {
+      const who = (msg.from_name || '') + (msg.server_name ? ' (' + msg.server_name + ')' : '');
+      notifyNewMessage(who, msg.content, false, { room: msg.channel || activeChannel });
     }
   }
 };
@@ -2089,7 +2111,10 @@ var federatedRetryMs = 30000;
       // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
       // hash; the hash is rendered as part of the label instead. .in-voice marks
       // the channel whose voice you are currently connected to.
-      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}${voiceJoined ? ' in-voice' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>${vpHtml}`;
+      // The room's bell (notifications rung 2, chat-notify.js): Mute room and its level, as the
+      // desktop's right-click; a right-click on the row opens the same menu.
+      const roomBell = window.HosChatNotify ? HosChatNotify.roomBellHtml(ch.id) : '';
+      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}${voiceJoined ? ' in-voice' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}${roomBell}</div>${vpHtml}`;
     }).join('');
 
     // Text channel create button (admin/mod only)

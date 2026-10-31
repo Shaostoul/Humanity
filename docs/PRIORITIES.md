@@ -215,6 +215,14 @@ In order:
     views (pH, pollination, picking, air, weeds, outlook: about 4.5 ms on the Inventory screen's
     turn) and the per-tile keys, both from per-area change signatures in the garden mirror; then a
     quiet re-run of the survey, in the game, on the main screen and a wall screen.
+13. **Notifications (operator, 2026-10-30: "let's get it made.")** (`docs/design/notifications.md`,
+    section 11). Rung 1 DONE 2026-10-30 (OS notices for DMs and mentions, the one decision in two
+    twins, Settings > Notifications, mute server and room). Rung 2 part 1 DONE 2026-10-31: the
+    in-app list (the bell, the count, the panel) on both apps, mute a conversation, the per-room
+    level, the reply, contact-request and Commons-mention kinds, the synced quiet-hours exceptions,
+    the website's Mute room and Muted list. Next: rung 2 part 2, which needs the game booted: the
+    tray icon with its Mute everything menu, close-to-tray, the icon's muted and unread states,
+    opening a conversation from an OS notice, the in-world banner, the taskbar flash.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

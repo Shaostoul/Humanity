@@ -28,10 +28,44 @@ fn block<F: std::future::Future>(f: F) -> F::Output {
 /// The message as a client sends it, through the relay's own parse and handler.
 fn send(state: &Arc<RelayState>, key: &str, frame: serde_json::Value) {
     let msg: RelayMessage = serde_json::from_value(frame).expect("update_notification_prefs parses");
-    let RelayMessage::UpdateNotificationPrefs { dm, mentions, tasks, dnd_start, dnd_end } = msg else {
+    let RelayMessage::UpdateNotificationPrefs { dm, mentions, tasks, dnd_start, dnd_end, quiet_friends, quiet_mentions } = msg else {
         panic!("not an update_notification_prefs");
     };
-    block(handle_update_notification_prefs(state, key, dm, mentions, tasks, dnd_start, dnd_end));
+    let change = crate::relay::storage::NotifPrefsChange { dm, mentions, tasks, dnd_start, dnd_end, quiet_friends, quiet_mentions };
+    block(handle_update_notification_prefs(state, key, change));
+}
+
+/// The last `notification_prefs_data` on the broadcast channel.
+fn last_answer(rx: &mut tokio::sync::broadcast::Receiver<RelayMessage>) -> Option<RelayMessage> {
+    let mut last = None;
+    while let Ok(m) = rx.try_recv() {
+        last = Some(m);
+    }
+    last
+}
+
+/// The quiet-hours exceptions (notifications rung 2, 2026-10-31) travel both ways: a client sends
+/// just the one it changed, every device is told both, and a change of something else keeps them.
+/// Seen red 2026-10-31 with the answer (`prefs_data`) sending `quiet_friends: false` whatever was
+/// stored: "a DM-only change keeps the friends exception" failed.
+#[test]
+fn the_quiet_hours_exceptions_travel_and_are_kept() {
+    let st = fresh_state();
+    let mut answers = st.broadcast_tx.subscribe();
+    send(&st, "k1", serde_json::json!({ "type": "update_notification_prefs", "quiet_friends": true }));
+    send(&st, "k1", serde_json::json!({ "type": "update_notification_prefs", "dm": false }));
+    match last_answer(&mut answers) {
+        Some(RelayMessage::NotificationPrefsData { dm, quiet_friends, quiet_mentions, .. }) => {
+            assert!(!dm);
+            assert!(quiet_friends, "a DM-only change keeps the friends exception");
+            assert!(!quiet_mentions, "off until set");
+        }
+        other => panic!("expected the stored prefs back, got {other:?}"),
+    }
+    // On the wire the answer always names both, so a client never guesses.
+    block(handle_get_notification_prefs(&st, "k2"));
+    let wire = serde_json::to_value(last_answer(&mut answers).expect("an answer")).unwrap();
+    assert_eq!((wire["quiet_friends"].as_bool(), wire["quiet_mentions"].as_bool()), (Some(false), Some(false)), "{wire}");
 }
 
 #[test]
@@ -52,12 +86,8 @@ fn a_change_touches_only_the_switches_it_names() {
     assert_eq!((p.dnd_start.as_deref(), p.dnd_end.as_deref()), (Some("22:00"), Some("07:00")), "and the quiet hours");
 
     // Every device of theirs is told the whole stored set, not the half that was sent.
-    let mut last = None;
-    while let Ok(m) = answers.try_recv() {
-        last = Some(m);
-    }
-    match last {
-        Some(RelayMessage::NotificationPrefsData { dm, mentions, tasks, dnd_start, dnd_end, target }) => {
+    match last_answer(&mut answers) {
+        Some(RelayMessage::NotificationPrefsData { dm, mentions, tasks, dnd_start, dnd_end, target, .. }) => {
             assert_eq!((dm, mentions, tasks), (false, false, true));
             assert_eq!((dnd_start.as_deref(), dnd_end.as_deref()), (Some("22:00"), Some("07:00")));
             assert_eq!(target.as_deref(), Some("k1"));

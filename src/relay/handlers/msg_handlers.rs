@@ -1808,13 +1808,8 @@ pub async fn handle_review_delete(
 pub async fn handle_update_notification_prefs(
     state: &Arc<RelayState>,
     my_key: &str,
-    dm: Option<bool>,
-    mentions: Option<bool>,
-    tasks: Option<bool>,
-    dnd_start: Option<Option<String>>,
-    dnd_end: Option<Option<String>>,
+    change: crate::relay::storage::NotifPrefsChange,
 ) {
-    let change = crate::relay::storage::NotifPrefsChange { dm, mentions, tasks, dnd_start, dnd_end };
     let p = match state.db.change_notification_prefs(my_key, &change) {
         Ok(p) => p,
         Err(e) => {
@@ -1824,33 +1819,41 @@ pub async fn handle_update_notification_prefs(
     };
     // The whole stored set back to every connection of this person, so each device holds what
     // the server holds, not the half that was sent.
-    let _ = state.broadcast_tx.send(RelayMessage::NotificationPrefsData {
-        dm: p.dm_enabled,
-        mentions: p.mentions_enabled,
-        tasks: p.tasks_enabled,
-        dnd_start: p.dnd_start,
-        dnd_end: p.dnd_end,
-        target: Some(my_key.to_string()),
-    });
+    let _ = state.broadcast_tx.send(prefs_data(my_key, Some(p)));
+}
+
+/// The whole stored set as `notification_prefs_data` for `my_key`'s connections; the defaults
+/// (every switch on, no quiet hours, no exceptions) when nothing is stored.
+fn prefs_data(my_key: &str, p: Option<crate::relay::storage::NotifPrefs>) -> RelayMessage {
+    match p {
+        Some(p) => RelayMessage::NotificationPrefsData {
+            dm: p.dm_enabled,
+            mentions: p.mentions_enabled,
+            tasks: p.tasks_enabled,
+            dnd_start: p.dnd_start,
+            dnd_end: p.dnd_end,
+            quiet_friends: p.quiet_friends,
+            quiet_mentions: p.quiet_mentions,
+            target: Some(my_key.to_string()),
+        },
+        None => RelayMessage::NotificationPrefsData {
+            dm: true,
+            mentions: true,
+            tasks: true,
+            dnd_start: None,
+            dnd_end: None,
+            quiet_friends: false,
+            quiet_mentions: false,
+            target: Some(my_key.to_string()),
+        },
+    }
 }
 
 pub async fn handle_get_notification_prefs(
     state: &Arc<RelayState>,
     my_key: &str,
 ) {
-    let prefs = state.db.get_notification_prefs(my_key);
-    let (dm, mentions, tasks, dnd_start, dnd_end) = match prefs {
-        Some(p) => (p.dm_enabled, p.mentions_enabled, p.tasks_enabled, p.dnd_start, p.dnd_end),
-        None => (true, true, true, None, None),
-    };
-    let _ = state.broadcast_tx.send(RelayMessage::NotificationPrefsData {
-        dm,
-        mentions,
-        tasks,
-        dnd_start,
-        dnd_end,
-        target: Some(my_key.to_string()),
-    });
+    let _ = state.broadcast_tx.send(prefs_data(my_key, state.db.get_notification_prefs(my_key)));
 }
 
 // ── Device handlers ──

@@ -1101,13 +1101,14 @@ async function handleDmNew(msg) {
   if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) return;
   // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
   // member list's name for the signed sender (chat-privacy.js), never rendered.
-  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) return;
+  // A live DM (`true`): a newly listed request may notify (notifications rung 2).
+  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner, true)) return;
   // A report about a group I created (10j): checked against my copy of the group and kept
   // under Reports about your groups (chat-reports.js), never rendered. Before the reach screen,
   // because a group's members need not be my friends.
   if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) return;
   // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
-  if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) return;
+  if (typeof reachScreenDm === 'function' && reachScreenDm(inner, true)) return;
   const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
   if (!isNew) return; // duplicate (echo of our own send, refetch, replay)
   const isFromMe = inner.from === myKey;
@@ -1122,7 +1123,9 @@ async function handleDmNew(msg) {
     if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
   }
   if (!isFromMe) {
-    notifyNewMessage(peerName, previewText, true, { conversation: 'dm:' + peer });
+    // A friend (we follow each other) is what the friends' quiet-hours exception lets through.
+    const fromFriend = !!(window.hosDmStore && hosDmStore.ready && hosDmStore.isFriendPeer(peer));
+    notifyNewMessage(peerName, previewText, true, { conversation: 'dm:' + peer, from_friend: fromFriend });
   }
 }
 

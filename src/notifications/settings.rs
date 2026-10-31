@@ -3,8 +3,11 @@
 //! notifications.md, section 7). The switches for which kinds notify and the quiet hours are the
 //! person's and live on their server (`notification_prefs`), not here.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
+use super::data::Level;
 use super::mutes::Mutes;
 
 /// How much a notice says. Safe by default (operator, 2026-10-09: "Security is definitely
@@ -53,12 +56,40 @@ pub struct LocalSettings {
     pub sound: bool,
     /// Which sound: an id from the data file's `sounds` (and `data/sounds.toml`).
     pub sound_id: String,
-    /// Everything, servers and rooms muted, and until when.
+    /// Everything, servers, rooms and conversations muted, and until when.
     pub mutes: Mutes,
+    /// Each room the person set to something other than mentions (rung 2), by
+    /// `<server>|<room id>` (the room mutes' key). Absent: mentions.
+    pub room_levels: BTreeMap<String, Level>,
 }
 
 impl Default for LocalSettings {
     fn default() -> Self {
-        Self { desktop: true, show: Show::Name, sound: true, sound_id: "sfx.chat_message".into(), mutes: Mutes::default() }
+        Self {
+            desktop: true,
+            show: Show::Name,
+            sound: true,
+            sound_id: "sfx.chat_message".into(),
+            mutes: Mutes::default(),
+            room_levels: BTreeMap::new(),
+        }
+    }
+}
+
+impl LocalSettings {
+    /// What `room` on `server` is set to (mentions unless the person chose otherwise).
+    pub fn room_level(&self, server: &str, room: &str) -> Level {
+        self.room_levels.get(&Mutes::room_key(server, room)).copied().unwrap_or_default()
+    }
+
+    /// Set `room` on `server` to `level`; the default is kept as no entry, so the saved list holds
+    /// only the rooms a person changed.
+    pub fn set_room_level(&mut self, server: &str, room: &str, level: Level) {
+        let key = Mutes::room_key(server, room);
+        if level == Level::default() {
+            self.room_levels.remove(&key);
+        } else {
+            self.room_levels.insert(key, level);
+        }
     }
 }

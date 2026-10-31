@@ -2206,7 +2206,8 @@ impl Storage {
                 ON push_subscriptions(public_key);"
         )?;
 
-        // Notification preferences per user (DM, mentions, tasks, DND schedule).
+        // Notification preferences per user (DM, mentions, tasks, DND schedule, and since
+        // notifications rung 2 the quiet-hours exceptions).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS notification_prefs (
                 public_key        TEXT PRIMARY KEY,
@@ -2214,9 +2215,25 @@ impl Storage {
                 mentions_enabled  INTEGER NOT NULL DEFAULT 1,
                 tasks_enabled     INTEGER NOT NULL DEFAULT 1,
                 dnd_start         TEXT DEFAULT NULL,
-                dnd_end           TEXT DEFAULT NULL
+                dnd_end           TEXT DEFAULT NULL,
+                quiet_friends     INTEGER NOT NULL DEFAULT 0,
+                quiet_mentions    INTEGER NOT NULL DEFAULT 0
             );"
         )?;
+        // Guarded ALTERs (notifications rung 2, 2026-10-31; docs/design/notifications.md): the
+        // quiet-hours exceptions, a friend's DM and a mention or reply still notifying during quiet
+        // hours, both off by default. A database from before them gains the columns here, right
+        // after the CREATE that a fresh one gets them from; no index, trigger or view reads them
+        // (BUG-046), and each DEFAULT is the CREATE TABLE's.
+        for (column, add) in [
+            ("quiet_friends", "ALTER TABLE notification_prefs ADD COLUMN quiet_friends INTEGER NOT NULL DEFAULT 0;"),
+            ("quiet_mentions", "ALTER TABLE notification_prefs ADD COLUMN quiet_mentions INTEGER NOT NULL DEFAULT 0;"),
+        ] {
+            if conn.prepare(&format!("SELECT {column} FROM notification_prefs LIMIT 0")).is_err() {
+                conn.execute_batch(add)?;
+                info!("Migration: added {column} (notification_prefs)");
+            }
+        }
 
         // Peer-to-peer trades with escrow.
         conn.execute_batch(

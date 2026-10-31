@@ -68,6 +68,9 @@ test('every word the data file names is in English', () => {
   const keys = [];
   for (const k of file.kinds) keys.push(k.label, k.hint, k.title, k.title_hidden, k.body_hidden);
   for (const m of file.mute_for) keys.push(m.label, m.hint);
+  for (const l of file.levels) keys.push(l.label, l.hint);
+  // A room set to nothing never notifies: every room kind needs at least mentions.
+  for (const k of file.kinds.filter((x) => x.scope === 'room')) assert.notStrictEqual(k.level, 'nothing', `${k.id} would notify in a room set to nothing`);
   for (const s of file.sounds) keys.push(s.label);
   for (const key of keys) assert.notStrictEqual(t(key), key, `${key} is missing from en.json`);
 });

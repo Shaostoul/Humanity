@@ -815,6 +815,9 @@ function loadPushPrefs() {
   var elDnd = document.getElementById('pref-push-dnd');
   var elDndStart = document.getElementById('pref-dnd-start');
   var elDndEnd = document.getElementById('pref-dnd-end');
+  // The quiet-hours exceptions (notifications rung 2): off unless the server said on.
+  var elQuietFriends = document.getElementById('pref-push-quiet-friends');
+  var elQuietMentions = document.getElementById('pref-push-quiet-mentions');
 
   if (elEnabled) elEnabled.checked = enabled;
   if (elDms) elDms.checked = dms;
@@ -823,6 +826,8 @@ function loadPushPrefs() {
   if (elDnd) elDnd.checked = dndEnabled;
   if (elDndStart) elDndStart.value = dndStart;
   if (elDndEnd) elDndEnd.value = dndEnd;
+  if (elQuietFriends) elQuietFriends.checked = localStorage.getItem('hos_quiet_friends') === 'true';
+  if (elQuietMentions) elQuietMentions.checked = localStorage.getItem('hos_quiet_mentions') === 'true';
 
   updatePushSubToggles(enabled);
   updateDndTimes(dndEnabled);
@@ -947,9 +952,16 @@ function queueNotifChange(change) {
   syncNotifPrefsToServer();
 }
 
-/** One of the three switches changed (`el` names which): shown here, queued for the server. */
+/** One of the synced switches changed (`el` names which: the three kinds, or since rung 2 the two
+ *  quiet-hours exceptions): shown here, queued for the server as that switch alone. */
 function savePushPref(el) {
-  var field = { 'pref-push-dms': ['dm', 'hos_notify_dms'], 'pref-push-mentions': ['mentions', 'hos_notify_mentions'], 'pref-push-tasks': ['tasks', 'hos_notify_tasks'] }[el && el.id];
+  var field = {
+    'pref-push-dms': ['dm', 'hos_notify_dms'],
+    'pref-push-mentions': ['mentions', 'hos_notify_mentions'],
+    'pref-push-tasks': ['tasks', 'hos_notify_tasks'],
+    'pref-push-quiet-friends': ['quiet_friends', 'hos_quiet_friends'],
+    'pref-push-quiet-mentions': ['quiet_mentions', 'hos_quiet_mentions']
+  }[el && el.id];
   if (!field) return;
   localStorage.setItem(field[1], el.checked ? 'true' : 'false');
   var change = {};
@@ -1015,8 +1027,173 @@ function handleNotifPrefsData(msg) {
     localStorage.removeItem('hos_dnd_start');
     localStorage.removeItem('hos_dnd_end');
   }
+  localStorage.setItem('hos_quiet_friends', msg.quiet_friends === true ? 'true' : 'false');
+  localStorage.setItem('hos_quiet_mentions', msg.quiet_mentions === true ? 'true' : 'false');
   loadPushPrefs();
 }
+
+// ── Muted (notifications rung 2): the desktop's Settings > Notifications > Muted, mirrored ──
+// What the chat keeps in this browser (chat-notify.js): hos_notify_mutes {everything, servers,
+// rooms, people} (a time: the Unix second it ends, 0 until unmuted) and hos_notify_levels
+// (`<server>|<room>` -> 'all' | 'nothing'). Every word by key; the lengths are the data file's.
+var notifFile = null;
+
+function notifT(key, vars) {
+  return window.i18n ? window.i18n.t(key, vars) : key;
+}
+
+function notifLoad(key) {
+  try { var v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+}
+
+function notifMutes() {
+  var m = notifLoad('hos_notify_mutes') || {};
+  return { everything: m.everything === undefined ? null : m.everything, servers: m.servers || {}, rooms: m.rooms || {}, people: m.people || {} };
+}
+
+function notifActive(until, now) {
+  return until !== null && until !== undefined && (until === 0 || until > now);
+}
+
+function notifUntil(until) {
+  if (until === 0) return notifT('notifications.muted_until_unmuted');
+  var d = new Date(until * 1000);
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  return notifT('notifications.muted_until', { time: pad(d.getHours()) + ':' + pad(d.getMinutes()) });
+}
+
+/** A muted conversation's name, as the chat kept it when it was muted (hos_notify_names), else the
+ *  start of the key. */
+function notifPersonName(conversation) {
+  var names = notifLoad('hos_notify_names') || {};
+  return names[conversation] || conversation.replace(/^dm:/, '').slice(0, 8);
+}
+
+/** One row: its words, until when, and its button. */
+function notifRow(list, words, until, buttonKey, hintKey, onClick) {
+  var row = document.createElement('div');
+  row.className = 'setting-row';
+  var label = document.createElement('div');
+  label.className = 'setting-label';
+  var strong = document.createElement('strong');
+  strong.textContent = words;
+  label.appendChild(strong);
+  if (until !== null) {
+    var span = document.createElement('span');
+    span.textContent = notifUntil(until);
+    label.appendChild(span);
+  }
+  row.appendChild(label);
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-secondary';
+  b.textContent = notifT(buttonKey);
+  if (window.i18n) window.i18n.hint(b, hintKey);
+  b.addEventListener('click', onClick);
+  row.appendChild(b);
+  list.appendChild(row);
+}
+
+function notifSaveMutes(m) {
+  localStorage.setItem('hos_notify_mutes', JSON.stringify(m));
+  renderMutedList();
+}
+
+function renderMutedList() {
+  var list = document.getElementById('notif-muted-list');
+  if (!list) return;
+  list.innerHTML = '';
+  var now = Math.floor(Date.now() / 1000);
+  var m = notifMutes();
+  // Mute everything, or what it is muted until.
+  if (notifActive(m.everything, now)) {
+    notifRow(list, notifT('notifications.muted_everything'), m.everything, 'notifications.unmute', 'notifications.unmute_hint', function () { m.everything = null; notifSaveMutes(m); });
+  } else {
+    var row = document.createElement('div');
+    row.className = 'setting-row';
+    var label = document.createElement('div');
+    label.className = 'setting-label';
+    var strong = document.createElement('strong');
+    strong.textContent = notifT('notifications.mute_everything');
+    label.appendChild(strong);
+    var span = document.createElement('span');
+    span.textContent = notifT('notifications.mute_everything_web_hint');
+    label.appendChild(span);
+    row.appendChild(label);
+    var sel = document.createElement('select');
+    sel.className = 'setting-select';
+    sel.setAttribute('aria-label', notifT('notifications.mute_everything'));
+    var none = document.createElement('option');
+    none.value = '';
+    none.textContent = notifT('notifications.mute_everything');
+    sel.appendChild(none);
+    ((notifFile && notifFile.mute_for) || []).forEach(function (len) {
+      var o = document.createElement('option');
+      o.value = String(len.seconds);
+      o.textContent = notifT(len.label);
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      if (sel.value === '') return;
+      var s = parseInt(sel.value, 10);
+      m.everything = s === 0 ? 0 : now + s;
+      notifSaveMutes(m);
+    });
+    row.appendChild(sel);
+    list.appendChild(row);
+  }
+  var any = false;
+  var origin = location.origin;
+  Object.keys(m.servers).forEach(function (srv) {
+    if (!notifActive(m.servers[srv], now)) return;
+    any = true;
+    notifRow(list, srv === origin ? location.host : srv, m.servers[srv], 'notifications.unmute', 'notifications.unmute_hint', function () { delete m.servers[srv]; notifSaveMutes(m); });
+  });
+  Object.keys(m.rooms).forEach(function (key) {
+    if (!notifActive(m.rooms[key], now)) return;
+    any = true;
+    var parts = key.split('|');
+    var words = notifT('notifications.muted_room', { room: parts[1] || '', server: parts[0] === origin ? location.host : parts[0] });
+    notifRow(list, words, m.rooms[key], 'notifications.unmute', 'notifications.unmute_hint', function () { delete m.rooms[key]; notifSaveMutes(m); });
+  });
+  Object.keys(m.people).forEach(function (conv) {
+    if (!notifActive(m.people[conv], now)) return;
+    any = true;
+    var words = notifT('notifications.muted_person', { name: notifPersonName(conv) });
+    notifRow(list, words, m.people[conv], 'notifications.unmute', 'notifications.unmute_hint', function () { delete m.people[conv]; notifSaveMutes(m); });
+  });
+  // The rooms set to every line or nothing, each with Back to mentions.
+  var levels = notifLoad('hos_notify_levels') || {};
+  Object.keys(levels).forEach(function (key) {
+    var choice = ((notifFile && notifFile.levels) || []).find(function (l) { return l.id === levels[key]; });
+    if (!choice) return;
+    any = true;
+    var parts = key.split('|');
+    var words = notifT('notifications.room_level_row', { room: parts[1] || '', server: parts[0] === origin ? location.host : parts[0], level: notifT(choice.label) });
+    notifRow(list, words, null, 'notifications.level_reset', 'notifications.level_reset_hint', function () {
+      delete levels[key];
+      localStorage.setItem('hos_notify_levels', JSON.stringify(levels));
+      renderMutedList();
+    });
+  });
+  if (!any) {
+    var p = document.createElement('p');
+    p.className = 'section-desc';
+    p.textContent = notifT('notifications.muted_none');
+    list.appendChild(p);
+  }
+}
+
+if (typeof fetch === 'function') {
+  fetch('/data/notifications/notifications.json', { cache: 'no-cache' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) { notifFile = j; renderMutedList(); })
+    .catch(function () { renderMutedList(); });
+}
+// The chat in another tab muted or unmuted something: show it.
+window.addEventListener('storage', function (e) {
+  if (e && (e.key === 'hos_notify_mutes' || e.key === 'hos_notify_levels')) renderMutedList();
+});
 
 // Listen for notification_prefs_data from the server via global WS
 (function() {

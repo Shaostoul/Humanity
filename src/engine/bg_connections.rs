@@ -457,7 +457,8 @@ pub(crate) fn bg_begin_fetch(gs: &mut GuiState, ci: usize) {
 /// folded into its parked sidebar. It moves that store's read position only once this
 /// connection's own fetch is done (10o O1), so a backlog is never skipped. A message newly taken
 /// in comes back as a notification candidate for the rule (engine/notify.rs): a person is a
-/// person, whichever relay carried them.
+/// person, whichever relay carried them. So does a sender newly listed under that server's
+/// Requests (a contact request, rung 2).
 pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -> Option<crate::notifications::Candidate> {
     let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
     let raw_env = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
@@ -467,12 +468,17 @@ pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -
     let moves = gs.connections.get(ci).is_some_and(|c| c.mailbox.is_read());
     let mut store = bg_dm_store(gs, ci)?;
     let mut fresh = None;
+    let mut newly_requested = None;
     match crate::engine::dm::open_verify_dm(raw_env, gs) {
         // Step B: a contact request, or a DM our settings there would refuse, goes to that
         // server's Requests and is never stored as a message (nor is a note to ourselves).
         Ok(inner) => {
+            let listed_before = crate::engine::notify::requested(Some(&store), &inner.from);
             if !bg_screen(gs, &mut store, &inner) && store.insert(&inner) {
                 fresh = Some(inner);
+            } else if !listed_before && crate::engine::notify::requested(Some(&store), &inner.from) {
+                // Newly listed under Requests by this live DM: a candidate (rung 2).
+                newly_requested = Some(inner.from);
             }
         }
         // Not ours, or spoofed: dropped. Once the fetch is done the read position still moves
@@ -483,11 +489,14 @@ pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -
         store.set_high_water(mail_id);
     }
     store.save();
+    let server = gs.connections.get(ci).map(|c| c.url.clone()).unwrap_or_default();
+    if let Some(from) = newly_requested {
+        return Some(crate::engine::notify::contact_request(gs, &server, &from));
+    }
     let inner = fresh?; // taken, or a duplicate (an echo, a refetch)
     let is_from_me = inner.from == gs.profile_public_key;
     bg_apply_dm(gs, ci, &inner, is_from_me);
     // A notification candidate (engine/notify.rs); the rule drops my own.
-    let server = gs.connections.get(ci).map(|c| c.url.clone()).unwrap_or_default();
     Some(crate::engine::notify::dm(gs, &server, &inner))
 }
 
@@ -687,9 +696,12 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             }
             let url = conn.url.clone();
             let my_name = conn.ws.as_ref().map(|w| w.user_name().to_string()).unwrap_or_default();
-            // A mention of me (by the name I signed in with here) in a live line (engine/notify.rs;
-            // the rule drops a muted server).
-            let notice = crate::engine::notify::mention(&state.gui_state, &url, &my_name, &channel, &sender_key, &sender_name, &content);
+            // A live line to the notification rule (engine/notify.rs): a mention of me (by the name
+            // I signed in with here), a reply to a line of mine (rung 2: the replied-to line's
+            // author, `reply_to.from`), or an ordinary line for a room set to every line; the rule
+            // drops a muted server.
+            let reply_from = val.get("reply_to").and_then(|r| r.get("from")).and_then(|f| f.as_str());
+            let notice = crate::engine::notify::room_line(&state.gui_state, &url, &my_name, &channel, &sender_key, &sender_name, &content, reply_from);
             let conn = &mut state.gui_state.connections[ci];
             conn.messages.push(crate::gui::ChatMessage {
                 sender_name,
@@ -737,6 +749,12 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     c.unread = true;
                 }
             }
+            // A shared room's line to the notification rule (rung 2), live only, by the name I
+            // signed in with here (engine/notify.rs `federated_line`).
+            let (url, my_name) = (conn.url.clone(), conn.ws.as_ref().map(|w| w.user_name().to_string()).unwrap_or_default());
+            let now_ms = (crate::notifications::now_secs().max(0) as u64) * 1000;
+            let notice = crate::engine::notify::federated_line(&state.gui_state, &url, &my_name, &val, now_ms);
+            let conn = &mut state.gui_state.connections[ci];
             conn.messages.push(crate::gui::ChatMessage {
                 sender_name: format!("{} ({})", from_name, server_name),
                 sender_key: server_id.clone(),
@@ -750,6 +768,9 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             });
             while conn.messages.len() > 200 {
                 conn.messages.remove(0);
+            }
+            if let Some(c) = notice {
+                crate::engine::notify::deliver(state, c);
             }
         }
         // Sealed-sender DMs on a parked server: only its own fetch pages count, and a live DM moves

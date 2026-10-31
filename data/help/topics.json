@@ -126,6 +126,16 @@
         "<strong>Start</strong>, or ticking any step, keeps your progress on this device only. Close the app and come back and you carry on where you left off; a timer keeps running while the app is closed.",
         "Every how-to lists its sources with the date each was read. One that can kill if done wrong shows as checked only after a person has read it and dated it."
       ]
+    },
+    "notifications": {
+      "title": "Notifications",
+      "body": [
+        "A notice tells you something happened while you were looking elsewhere: a direct message, a mention of you (@ and your name), a reply to something you wrote, or someone asking to reach you. By default a notice says who it is from, never what they said; Settings > Notifications > A notice shows changes that.",
+        "<strong>The bell</strong> at the top shows how many notices you have not opened yet. Click it to see the last 100, and click one to open its conversation. The list is kept until you close HumanityOS (or the browser tab) and is never saved.",
+        "<strong>Muting:</strong> right-click a room or a direct message (on the website, its bell) to mute it for 1 hour, 8 hours or until you unmute it. A server's menu mutes the whole server, and Settings > Notifications > Mute everything mutes all of it. Muting never hides a message or an unread dot. Everything you muted is listed in Settings with Unmute.",
+        "<strong>Each room</strong> notifies you about mentions and replies unless you change it: right-click it and choose Every line or Nothing.",
+        "<strong>Quiet hours</strong> silence everything between two hours of your own clock. Two exceptions can let through a friend's direct message (a friend is someone you follow who follows you) and mentions or replies. They are off unless you turn them on, and they are kept on your server so every device you use agrees."
+      ]
     }
   },
   "pages": {
@@ -135,7 +145,8 @@
     "/chat": [
       "chat-context-menu",
       "groups-vs-servers",
-      "identity"
+      "identity",
+      "notifications"
     ],
     "/identity": [
       "identity",
@@ -180,7 +191,8 @@
     ],
     "/settings": [
       "real-sim",
-      "identity"
+      "identity",
+      "notifications"
     ],
     "/how-to": [
       "how-to"

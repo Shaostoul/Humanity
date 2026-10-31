@@ -35,6 +35,10 @@ pub mod drop_files;
 /// 3D world (in-world screens, rung 1).
 #[cfg(feature = "native")]
 pub mod screen_surface;
+/// The header's notices (notifications rung 2, 2026-10-31): the bell with the count of notices not
+/// opened yet, and the panel of the last 100, each opening its conversation.
+#[cfg(feature = "native")]
+pub mod notice_panel;
 
 /// Install every font fallback chain on an egui context. Called for the main
 /// UI context at boot AND for every in-world screen surface context, so a
@@ -2409,6 +2413,10 @@ pub struct GuiState {
     pub notif_tasks_enabled: bool,
     pub notif_dnd_start: Option<String>,
     pub notif_dnd_end: Option<String>,
+    /// The quiet-hours exceptions (rung 2, synced like the rest): a friend's DM, and a mention or
+    /// reply, still notify during quiet hours. Off by default, as the server's columns.
+    pub notif_quiet_friends: bool,
+    pub notif_quiet_mentions: bool,
     pub notif_prefs_loaded: bool,
     /// The notification system's run-only state: each conversation's last notice (the burst
     /// guard) and what Settings asked for this frame (`crate::notifications::Runtime`).
@@ -3949,6 +3957,8 @@ impl Default for GuiState {
             notif_tasks_enabled: true,
             notif_dnd_start: None,
             notif_dnd_end: None,
+            notif_quiet_friends: false,
+            notif_quiet_mentions: false,
             notif_prefs_loaded: false,
             notify: crate::notifications::Runtime::default(),
             account_export_status: String::new(),

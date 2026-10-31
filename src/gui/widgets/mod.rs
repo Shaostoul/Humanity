@@ -88,6 +88,10 @@ pub use glossary_text::{definition_card, glossary_note, glossary_text, glossary_
 /// what decides its size and off with the Dev page's "Turn off all reuse". The Inventory page's
 /// Garden section is the first user. See `widgets/offscreen.rs`.
 pub mod offscreen;
+/// The notice bell (rung 2, 2026-10-31): a bell button with the count of notices not opened yet,
+/// the header's way into the in-app list (`gui/notice_panel.rs`); web twin `.notice-bell`.
+/// See `widgets/notice_bell.rs`.
+pub mod notice_bell;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
