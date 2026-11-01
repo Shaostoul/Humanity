@@ -270,7 +270,21 @@ In order:
     (2) one agent cleans to zero, mechanical first, then each never-called item looked at (delete
     it, or wire it up if it was meant to work; dev tooling stays), after the stutter and tray-fix
     agents land and before crate split rung 1; (3) a ratchet: `just verify` and CI's relay check
-    fail when a change adds a warning.
+    fail when a change adds a warning. The operator removed the variable and restarted on
+    2026-11-01; the cleanup agent is running.
+15. **Pipes, cables and hoses along splines, and the AR layer (operator, 2026-11-01: "We want to
+    make the process of laying pipes, cables, and whatever else as easy as possible.")** PLANNED
+    2026-11-01: `docs/design/spline-routing.md` (23 rungs), with dated findings for the "to code"
+    rules and for manual door releases (`docs/reference/findings/2026-11-01-*.md`). Real-world
+    behaviour first (rigid pipe by fittings, bendable by the bender's radius, flexible runs as a
+    settled rod between anchors), any run's material changeable in place, free placement with
+    snapping as a help, runs that feed the simulation (voltage drop, pressure, flow), features slid
+    along a run (sprinkler, drip emitter, tap, valve), anchors and vehicle cable ramps, tapping
+    into infrastructure (data-cable hacking, a powered door's emergency release panel), and one AR
+    layer owning every world-anchored overlay. Queued after crate split rung 1 (the orchestrator's
+    order; the operator may move it). Three questions for him in the design's section 19 (is the
+    AR layer a visor the character wears; copper-only drinking water now that material changes;
+    which way a powered door fails on power loss), each with a recommendation.
 
 **For the operator, when it suits him:** (the two servers' continuous backups: DONE 2026-10-25,
 both ways, restore drills passed, keys on the PC); run the federation live check after this release reaches

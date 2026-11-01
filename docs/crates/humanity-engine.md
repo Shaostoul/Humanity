@@ -18,10 +18,10 @@ edit re-checks the least.
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 94,556 lines in 130 files, 12,939 of them in 45 test files.
+- **Size:** 94,610 lines in 130 files, 12,939 of them in 45 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,296 of 1,300, `lib.rs` 16,386 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,640 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 31, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 594, systems 554, gui 520, ship 321, renderer 310, terrain 133, net 97, relay 11.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 601, systems 554, gui 519, ship 323, renderer 310, terrain 133, net 97, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 693 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):

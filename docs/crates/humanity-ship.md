@@ -19,7 +19,7 @@ shared ship's rules are the same on both sides.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `ship/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 3.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 36.
-- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 321, gui 159, relay 38, systems 26.
+- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 323, gui 159, relay 38, systems 26.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 370 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -35,8 +35,8 @@ just test-lib ship:: machines:: station:: --skip engine::crossing_tests::machine
 | `machines::MachineHome` | 19 | engine 14, gui 4, systems 1 |
 | `ship::room_types::RoomBounds` | 14 | gui 11, engine 2, systems 1 |
 | `ship::lock_types::LockState` | 13 | engine 8, gui 5 |
+| `machines::PlacedMachine` | 12 | engine 12 |
 | `machines::ConduitEnd` | 11 | gui 7, engine 4 |
-| `machines::PlacedMachine` | 10 | engine 10 |
 | `ship::ship_structure` | 10 | engine 8, gui 1, relay 1 |
 | `ship::structure::structure_type` | 10 | engine 5, gui 4, relay 1 |
 | `machines::MachinePower` | 9 | gui 6, systems 2, engine 1 |

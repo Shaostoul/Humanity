@@ -14,10 +14,10 @@ core, ship and terrain, draws nothing, and the server compiles it too.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `systems/`, `persistence.rs` + `persistence/`, `surface_walk.rs`, `surface_move.rs`
-- **Size:** 79,364 lines in 145 files, 12,941 of them in 35 test files.
+- **Size:** 79,368 lines in 145 files, 12,941 of them in 35 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `surface_walk.rs` 461 of 474.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 5.
-- **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 435, ship 26, terrain 7.
+- **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 437, ship 26, terrain 7.
 - **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 554, gui 157, relay 10.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 851 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
