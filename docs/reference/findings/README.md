@@ -353,3 +353,20 @@ what we will say about it.
   activity; the UK rules bind a business or trader; Washington's warranties need a sale for a
   price), and no text read settles that. Ends with the warning's words. Not legal advice; a lawyer
   should read it before 1.0.
+- [`2026-11-01-pipe-and-cable-routing-rules.md`](2026-11-01-pipe-and-cable-routing-rules.md),
+  the "to code" numbers for laying pipe, hose and cable: bend radii (the Copper Development
+  Association's copper table, the PEX guide's six times the diameter, PVC and CPVC by fittings
+  only, hose, gas tubing, NM-B and THHN data sheets, data and fibre, EMT benders, shipboard and
+  aircraft cable), support spacing (24 CFR 3280, the DoD's guide specifications, IPC and UPC 2009,
+  46 CFR, FAA, NASA), separation (communications 2 in from power under OSHA, nothing foreign over a
+  panel, no piping over switchboards, no shared holes or supports, hot pipes, wiring above fluid
+  lines), drain slope and through-wall rules. The NEC, the 2024 plumbing codes and the sold
+  standards were not read; no general cable-to-water-pipe distance was found. The data basis for
+  `docs/design/spline-routing.md`.
+- [`2026-11-01-manual-door-releases.md`](2026-11-01-manual-door-releases.md),
+  how a powered door, exit or hatch must open by hand when its power fails: passenger rail (49 CFR
+  238.112: no tool, both sides, a cover removable without a tool, luminescent marking), aircraft
+  (14 CFR 25.809 to 25.813), buses (FMVSS 217), ships (46 CFR 170.250's power and hand gear,
+  174.100, 116.435 and 116.500, the UK MCA), NASA's hatches (NASA-STD-3001 Vol. 2 Rev F), and lifts,
+  the exception (keys for trained people only, power off first; California bans the device). The
+  basis for the emergency release panel in `docs/design/spline-routing.md`, section 13.

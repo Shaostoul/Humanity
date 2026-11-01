@@ -1,5 +1,9 @@
 # Node-based conduits -- Stage 1 (implementation-ready, grounded 2026-06-27)
 
+> **2026-11-01:** the later stages below (hierarchy, bundled auto-routing, one rendering path,
+> validation, console verbs) are planned as part of [spline-routing.md](spline-routing.md), where
+> connections and conduit edges become runs and conduit nodes become features along them.
+
 > The operator wants pipes/conduits as a NODE GRAPH (main/sub/subsub lines; edit nodes, software
 > auto-routes the mesh). This is the additive Stage-1 plan that reuses the existing route_conduit.
 

@@ -3,6 +3,11 @@
 > Reusable since v0.568. Lives in `src/renderer/line.rs`. The operator asked us to keep this idea
 > handy because it's "consistently useful" -- this doc is the pointer so we reach for it instead of
 > reinventing a polygon strip every time.
+>
+> **Planned (2026-11-01): every world-anchored overlay, these lines included, moves into one "AR
+> layer"** with its own model, compositor, settings rows and render pass (wide anti-aliased
+> strokes, an X-ray depth mode, its own target composited last, so AR glasses are a different
+> camera and compositor). See [spline-routing.md](spline-routing.md), section 16.
 
 ## What it is
 

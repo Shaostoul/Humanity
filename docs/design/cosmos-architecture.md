@@ -673,6 +673,12 @@ sprite→mesh seamless-scale plan, the pill-style body labels with
 expand-to-card, the AR FPS-mode overlay plan, and the conjunction +
 eclipse detection plan.
 
+**2026-11-01: the AR overlays planned here (the surfaces table below, the
+Phase 4g orbit paths, the pills on an AR passthrough) are folded into one
+"AR layer"** that owns every world-anchored overlay, with the AR-glasses
+target as a different camera and compositor:
+[spline-routing.md](spline-routing.md), section 16.
+
 ### Universal sim_time clock: landed in v0.208.0
 
 The cosmos page owns a `sim_time_seconds` clock measured in **seconds

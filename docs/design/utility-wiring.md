@@ -4,6 +4,9 @@
 > (`src/utilities.rs`, `data/utilities/conduits.ron`). Stages 2-4 below are the wiring-in plan. Read
 > this before touching any cable / port / conduit code. Companion: `docs/design/sim-realism-roadmap.md`
 > (gap #2, #11, #15), `docs/design/conduits-node-graph.md` (the routing graph this sits on top of).
+> **Next layer (planned 2026-11-01):** [spline-routing.md](spline-routing.md), runs laid along
+> surfaces as curves, with materials and sizes as data, "to code" rules by profile, features and
+> anchors along a run, and the cable checks run on the real routed length at runtime.
 
 ## The rule
 

@@ -3,6 +3,12 @@
 > Stage 1 shipped v0.570. A data-driven lock system generalizing a door's single `locked: bool` into
 > a list of typed locks, building on the v0.567 control panel. This doc is the staged plan + the open
 > design forks so later stages build the right thing.
+>
+> **2026-11-01:** powered doors on real power and data runs, a release panel on each side, and
+> hacking a door controller through a tap on its data cable are planned in
+> [spline-routing.md](spline-routing.md), section 13 (rungs 17 and 18). The real rules for manual
+> releases, which bear on fork 1 below, are in
+> [the manual door releases finding](../reference/findings/2026-11-01-manual-door-releases.md).
 
 ## Model (shipped, Stage 1)
 
