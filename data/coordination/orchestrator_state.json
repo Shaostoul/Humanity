@@ -810,6 +810,16 @@
       "date": "2026-10-31",
       "decision": "Stutter survey 2 merged (9c8f76b9b): a quiet-machine survey and its three worst spikes spread. One builder for machine bodies at world load and in the editor (home_meshes::build_machine_bodies; first rebuild after a load 99.6 -> 24.9 ms; furniture textured from world load), fonts built once per process and borrowed by every egui context (gui::fonts::font_definitions), a page screen's first sight spread over its first turns (screen_surface::turn_plan). New instruments: frame_costs::note_spike (`spikes`), cpu.screen_first.*, cpu.home_rebuild.*, cpu.save.*. Worst frame per 5 s window 23.6/124.5 ms (median/max) -> 18.4/39.0.",
       "why": "Operator 2026-10-30: \"We want to avoid stuttering.\" Each fix obeys the reuse switch (fonts per context and the old double run with reuse off). The world load's own copy of the body builder was the v0.1324.1 two-paths inconsistency: one builder means the home looks the same before and after an edit. Not built: the autosave writer thread (every save reader and writer would wait on it; needs its own review)."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Calls do not pass quiet hours by default; only people the person adds to an always-allow list get through, and the quiet-hours control explains this (operator decision for notifications rung 3).",
+      "why": "Operator, verbatim: \"I like the default being calls don't go through on quiet hours unless I specifically add users to the always allow list. We should include that information in the quiet hours gui element thing.\" Passed to the rung 3 agent the same hour."
+    },
+    {
+      "date": "2026-11-01",
+      "decision": "Pipes, cables and similar runs to be laid along splines that snap to surfaces, within real \"to code\" limits, presented as augmented reality (the HUD layer); a full plan is being written (docs/design/spline-routing.md) before any build.",
+      "why": "Operator, verbatim: \"We want to make the process of laying pipes, cables, and whatever else as easy as possible. I like the idea of using splines for things with certain \\\"to code\\\" things. Like right now all our cables and pipes are just straight tubes and 90 degree corners. With splines we could have curves. I figure this simplified version of interacting with machines, pipes, cables, etc. would be a lot easier for people to digest. We could say it's augmented reality. What we design could literally be used to AR whenever I can afford AR glasses. This is how we can justify the constellation lines we added to the skybox and real star catalog. I guess we would say it's all part of the HUD.\" Prompted by a post showing a spline mesh deformer with surface snap."
     }
   ],
   "active_scopes_to_avoid": [
