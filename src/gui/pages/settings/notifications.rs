@@ -128,26 +128,42 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
         dirty |= with_hint(ui, "notifications.sound_hint", |ui| widgets::toggle(ui, theme, t("notifications.sound"), &mut s.sound));
         widgets::setting_hint(ui, theme, hint, t("notifications.sound_hint"));
 
+        // Sounds (rung 3): one row per kind that notifies, its sound or None, with Play.
         let file = n::data::get();
         let mut preview = None;
+        ui.label(RichText::new(t("notifications.sounds_heading")).color(theme.text_primary()));
+        widgets::setting_hint(ui, theme, hint, t("notifications.sounds_note"));
         ui.add_enabled_ui(s.sound, |ui| {
-            widgets::form_row(ui, theme, t("notifications.sound_pick"), |ui| {
-                let current = file.sound(&s.sound_id).map(|x| t_dyn(&x.label)).unwrap_or("");
-                egui::ComboBox::from_id_salt("notify_sound_combo")
-                    .selected_text(current)
-                    .show_ui(ui, |ui| {
-                        for snd in &file.sounds {
-                            if ui.selectable_value(&mut s.sound_id, snd.id.clone(), t_dyn(&snd.label)).hint("notifications.sound_pick_hint").changed() {
-                                dirty = true;
+            for kind in file.kinds.iter().filter(|k| k.built) {
+                let current = s.sound_of(file, &kind.id).map(str::to_string);
+                let shown = current.as_deref().and_then(|id| file.sounds.iter().find(|x| x.id == id)).map_or(t("notifications.sound_none"), |x| t_dyn(&x.label));
+                let mut picked: Option<String> = None;
+                widgets::form_row(ui, theme, t_dyn(&kind.label), |ui| {
+                    egui::ComboBox::from_id_salt(("notify_sound_combo", kind.id.as_str()))
+                        .selected_text(shown)
+                        .show_ui(ui, |ui| {
+                            for snd in &file.sounds {
+                                if ui.selectable_label(current.as_deref() == Some(snd.id.as_str()), t_dyn(&snd.label)).hint("notifications.sound_kind_hint").clicked() {
+                                    picked = Some(snd.id.clone());
+                                }
                             }
+                            if ui.selectable_label(current.is_none(), t("notifications.sound_none")).hint("notifications.sound_kind_hint").clicked() {
+                                picked = Some(n::settings::NO_SOUND.to_string());
+                            }
+                        })
+                        .response
+                        .hint("notifications.sound_kind_hint");
+                    ui.add_enabled_ui(current.is_some(), |ui| {
+                        if widgets::Button::secondary(t("notifications.sound_play")).hint("notifications.sound_play_hint").show(ui, theme) {
+                            preview = current.clone();
                         }
-                    })
-                    .response
-                    .hint("notifications.sound_pick_hint");
-                if widgets::Button::secondary(t("notifications.sound_play")).hint("notifications.sound_play_hint").show(ui, theme) {
-                    preview = Some(s.sound_id.clone());
+                    });
+                });
+                if let Some(id) = picked {
+                    s.set_sound(file, &kind.id, &id);
+                    dirty = true;
                 }
-            });
+            }
         });
         if preview.is_some() {
             state.notify.preview_sound = preview;
@@ -220,6 +236,10 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
                 }
             }
             widgets::setting_hint(ui, theme, hint, t("notifications.quiet_hint"));
+            // The operator, 2026-11-01: calls wait during quiet hours unless the person added the
+            // caller to the always-allow list, "and we should include that information in the quiet
+            // hours gui element": said here, always, in plain words.
+            ui.label(RichText::new(t("notifications.quiet_allow_note")).size(theme.font_size_small).color(theme.text_secondary()));
             if let Some((start, end)) = n::quiet::window(state.notif_dnd_start.as_deref(), state.notif_dnd_end.as_deref()) {
                 for (label, key, id, value, is_start) in [
                     (t("notifications.quiet_from"), "notifications.quiet_from_hint", "notify_quiet_from", start, true),
@@ -248,7 +268,9 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
                         }
                     });
                 }
-                // The exceptions (rung 2, synced): what still comes through quiet hours.
+                // What still comes through quiet hours, read as one list: the people always allowed
+                // (rung 3, kept on my devices), then the two exceptions (rung 2, synced).
+                draw_allow_list(ui, theme, state);
                 changed |= with_hint(ui, "notifications.quiet_friends_hint", |ui| {
                     widgets::toggle(ui, theme, t("notifications.quiet_friends"), &mut state.notif_quiet_friends)
                 });
@@ -264,9 +286,47 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
         send_synced(state);
     }
 
+    // ── Your home (rung 3: the game events, on this computer) ──
+    widgets::subsection_header(ui, theme, accent, t("notifications.events_heading"), "");
+    widgets::card(ui, theme, |ui| draw_events(ui, theme, state));
+
     // ── Muted ──
     widgets::subsection_header(ui, theme, accent, t("notifications.muted_heading"), "");
     widgets::card(ui, theme, |ui| draw_muted(ui, theme, state, now));
+}
+
+/// The always-allow list (rung 3): everyone on it, each with Remove, or "Nobody yet." Adding is in a
+/// conversation's menu (the note above says so).
+fn draw_allow_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.label(RichText::new(t("notifications.quiet_allow_heading")).color(theme.text_primary()));
+    let people: Vec<String> = state.settings.notifications.allow_list(&state.profile_public_key).map(|l| l.allowed().map(str::to_string).collect()).unwrap_or_default();
+    if people.is_empty() {
+        ui.label(RichText::new(t("notifications.quiet_allow_empty")).size(theme.font_size_small).color(theme.text_muted()));
+    }
+    for key in people {
+        let name = crate::engine::dm::dm_display_name(state, &key);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(name).color(theme.text_primary()));
+            if widgets::Button::secondary(t("notifications.quiet_allow_remove")).hint("notifications.quiet_allow_remove_hint").show(ui, theme) {
+                crate::engine::quiet_allow::set(state, &key, false);
+            }
+        });
+    }
+}
+
+/// "Your home" (rung 3): a switch per game event the simulation raises, on this computer.
+fn draw_events(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
+    let file = n::data::get();
+    widgets::setting_hint(ui, theme, hint, t("notifications.events_note"));
+    for e in file.game_events.iter().filter(|e| e.built) {
+        let mut on = state.settings.notifications.event_on(file, &e.id);
+        if with_hint(ui, e.hint.as_str(), |ui| widgets::toggle(ui, theme, t_dyn(&e.label), &mut on)) {
+            state.settings.notifications.set_event(file, &e.id, on);
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, t_dyn(&e.hint));
+    }
 }
 
 /// The muted list: Mute everything, then each muted server and room, each with Unmute.

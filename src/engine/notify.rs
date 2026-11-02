@@ -99,6 +99,9 @@ pub(crate) fn room_line(
         sender: sender.to_string(),
         room_name,
         text: crate::gui::pages::chat::reply::preview_of(content),
+        // A room's line is the room's: the always-allow list lifts quiet hours for a person's own
+        // conversation only (rung 3), so it is not asked here.
+        ..Default::default()
     })
 }
 
@@ -121,6 +124,11 @@ pub(crate) fn federated_line(gs: &GuiState, server: &str, my_name: &str, frame: 
     room_line(gs, server, my_name, room, from_key, &sender, content, None)
 }
 
+/// Is `key` on this identity's always-allow list (rung 3, `notifications::allow`)?
+fn always_allowed(gs: &GuiState, key: &str) -> bool {
+    gs.settings.notifications.always_allows(&gs.profile_public_key, key)
+}
+
 /// A DM candidate, for a DM newly taken in from `server`'s mailbox.
 pub(crate) fn dm(gs: &GuiState, server: &str, inner: &crate::net::dm_pq::DmInner) -> Candidate {
     let from_me = inner.from == gs.profile_public_key;
@@ -130,13 +138,70 @@ pub(crate) fn dm(gs: &GuiState, server: &str, inner: &crate::net::dm_pq::DmInner
         kind: "dm".into(),
         from_me,
         from_friend: !from_me && is_friend(gs, &server, &inner.from),
+        from_allowed: !from_me && always_allowed(gs, &inner.from),
         server,
         room: None,
         conversation: format!("dm:{peer}"),
         sender: crate::engine::dm::dm_display_name(gs, &inner.from),
         room_name: String::new(),
         text: crate::gui::pages::chat::reply::preview_of(&inner.text),
-        commons: false,
+        ..Default::default()
+    }
+}
+
+/// A call candidate (rung 3), for a ring that rings here (`call_relay::on_ring`: let through by
+/// "who can reach me", and the person idle). It says who, and nothing else: a call has no message.
+pub(crate) fn call(gs: &GuiState, from: &str, from_name: &str) -> Candidate {
+    let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
+    Candidate {
+        kind: "call".into(),
+        from_me: from == gs.profile_public_key,
+        from_friend: is_friend(gs, &server, from),
+        from_allowed: always_allowed(gs, from),
+        server,
+        room: None,
+        conversation: format!("dm:{from}"),
+        sender: from_name.to_string(),
+        ..Default::default()
+    }
+}
+
+/// A task candidate (rung 3), for a live `task_notice` from `server` (relay
+/// `handlers/task_notice.rs`): a task given to me, or one of mine changed. `None` for a frame with
+/// no task, or one whose change was made by someone I blocked. Its text is the task's title, shown
+/// only with "who and the message".
+pub(crate) fn task(gs: &GuiState, server: &str, frame: &serde_json::Value) -> Option<Candidate> {
+    let id = frame.get("task_id").and_then(|v| v.as_i64())?;
+    let s = |k: &str| frame.get(k).and_then(|v| v.as_str()).unwrap_or("");
+    let by_key = s("by_key");
+    if !by_key.is_empty() && crate::engine::block::is_blocked(gs, by_key) {
+        return None;
+    }
+    Some(Candidate {
+        kind: "task".into(),
+        from_me: !by_key.is_empty() && by_key == gs.profile_public_key,
+        server: crate::gui::pages::chat::norm_server_url(server),
+        room: None,
+        conversation: format!("task:{id}"),
+        sender: s("by_name").to_string(),
+        text: s("title").to_string(),
+        variant: if s("change") == "assigned" { "assigned".into() } else { String::new() },
+        ..Default::default()
+    })
+}
+
+/// A game-event candidate (rung 3) for one folded notice (`notifications::game`). Local: no
+/// server, nothing networked; `room_name` carries where the first event happened ("your home"
+/// for one with no place, a crop planted in no grow area).
+pub(crate) fn game(f: &n::game::Folded) -> Candidate {
+    let place = if f.first_where.is_empty() { crate::i18n::t("notifications.event_where_home").to_string() } else { f.first_where.clone() };
+    Candidate {
+        kind: "game_event".into(),
+        conversation: format!("game:{}", f.event),
+        room_name: place,
+        event: f.event.clone(),
+        count: f.count,
+        ..Default::default()
     }
 }
 
@@ -148,6 +213,7 @@ pub(crate) fn contact_request(gs: &GuiState, server: &str, from: &str) -> Candid
     Candidate {
         kind: "contact_request".into(),
         from_me: from == gs.profile_public_key,
+        from_allowed: always_allowed(gs, from),
         server: crate::gui::pages::chat::norm_server_url(server),
         room: None,
         conversation: format!("dm:{from}"),
@@ -221,30 +287,51 @@ pub(crate) fn act_on(state: &mut EngineState, c: Candidate, out: n::Outcome, now
     let file = n::data::get();
     let local = &state.gui_state.settings.notifications;
     let show = local.show;
-    let sound_id = local.sound_id.clone();
+    // This kind's own sound (rung 3); the rule already said whether a sound plays at all.
+    let sound_id = local.sound_of(file, &c.kind).map(str::to_string);
     // Broadcasting (Studio's Go Live): the frame goes to viewers, so no banner (clicks::cues).
     let broadcasting = state.live_publisher.is_some() || state.gui_state.studio.is_live;
     let window = n::clicks::Window { focused: state.window_focused, hidden: state.tray.hidden, in_world: hud_showing(state), broadcasting };
     let cues = n::clicks::cues(window);
+    let is_call = c.kind == "call";
     let (title, body) = n::decide::words(file, &c, show);
     let rt = &mut state.gui_state.notify;
     if out.list {
         rt.list.add(&c, show, now);
     }
-    note_notice(rt, &c, now);
-    if cues.banner {
+    // A kind without the burst guard (a ring) keeps no time for it, so a DM right after is its own.
+    if file.kind(&c.kind).is_none_or(|k| k.burst) {
+        note_notice(rt, &c, now);
+    }
+    // No banner for a call: the ringing screen is already over the world (rung 3).
+    if cues.banner && !is_call {
         // The banner's second line only when the notice shows the message: its "open HumanityOS
         // to read it" would be odd on HumanityOS's own screen.
         let line = if show == n::Show::NameAndText { body.clone() } else { String::new() };
         rt.banner = Some(n::clicks::Banner { title: title.clone(), body: line, at: std::time::Instant::now() });
     }
     let launch = if out.toast { rt.targets.token(n::list::Entry::of(&c, None, now)) } else { String::new() };
-    if out.sound {
-        play(state, &sound_id);
+    let sound = if out.sound { sound_id } else { None };
+    if let Some(id) = sound.as_deref() {
+        play(state, id);
+    }
+    let tag = n::toast::tag_for(&n::decide::burst_key(&c));
+    if is_call {
+        // The ring repeats while it rings, and its notice is withdrawn when it ends (pump_ringing).
+        let caller = c.conversation.strip_prefix("dm:").unwrap_or_default().to_string();
+        let at = std::time::Instant::now();
+        state.gui_state.notify.ringing = Some(n::Ringing {
+            key: caller,
+            tag: tag.clone(),
+            group: c.kind.clone(),
+            sound,
+            next_ring: at + RING_EVERY,
+            until: at + RING_FOR,
+        });
     }
     if out.toast {
-        let tag = n::toast::tag_for(&n::decide::burst_key(&c));
-        n::toast::show(n::toast::Toast { title, body, tag, group: c.kind.clone(), launch });
+        let expire_ms = if is_call { RING_FOR.as_millis() as u32 } else { n::toast::EXPIRE_MS };
+        n::toast::show(n::toast::Toast { title, body, tag, group: c.kind.clone(), launch, expire_ms });
     }
     // The taskbar button's flash, until the window is in front: a person's launch only (a rig's
     // window never flashes in the operator's taskbar), never while hidden (cues).
@@ -281,9 +368,16 @@ fn play(state: &mut EngineState, id: &str) {
     }
 }
 
+/// A ringing call's sound plays again this often (rung 3).
+pub(crate) const RING_EVERY: std::time::Duration = std::time::Duration::from_secs(3);
+/// And for at most this long, whatever happens: the caller gives up at 30 seconds, and the rest
+/// covers a hang-up that never arrives. Linux's call notice expires after it too.
+pub(crate) const RING_FOR: std::time::Duration = std::time::Duration::from_secs(45);
+
 /// Per frame: what Settings > Notifications asked for. A test notice goes straight to the
 /// operating system with made-up words (whatever the rule would say, so a person can see one),
-/// with the sound if sound is on; Play plays the chosen sound once.
+/// with a direct message's sound if sound is on; Play plays the chosen sound once. And (rung 3)
+/// a ringing call's sound and its withdrawal, and the game events the simulation raised.
 pub(crate) fn pump(state: &mut EngineState) {
     // The panel shuts on a page without the header (rung 2 part 1's leftover).
     crate::gui::notice_panel::keep_to_header(&mut state.gui_state);
@@ -297,16 +391,92 @@ pub(crate) fn pump(state: &mut EngineState) {
             tag: n::toast::tag_for("test"),
             group: "test".into(),
             launch,
+            expire_ms: n::toast::EXPIRE_MS,
         });
         let s = &state.gui_state.settings.notifications;
         if s.sound {
-            let id = s.sound_id.clone();
-            play(state, &id);
+            if let Some(id) = s.sound_of(n::data::get(), "dm").map(str::to_string) {
+                play(state, &id);
+            }
         }
     }
     if let Some(id) = state.gui_state.notify.preview_sound.take() {
         play(state, &id);
     }
+    pump_ringing(state);
+    pump_game_events(state);
+}
+
+/// A ringing call (rung 3): its sound again every [`RING_EVERY`] while the same caller still
+/// rings, and once the ring has ended however it ended (answered, declined, the caller's hang-up
+/// or give-up, a block, the window closing into the tray) or [`RING_FOR`] passed, the sound stops
+/// and the operating system's notice is withdrawn (a call has no banner). One comparison a frame.
+pub(crate) fn pump_ringing(state: &mut EngineState) {
+    let now = std::time::Instant::now();
+    match ring_step(&mut state.gui_state, now) {
+        RingStep::Ended(r) => {
+            n::toast::withdraw(&r.tag, &r.group);
+            log::info!("notifications: the ring ended, its notice withdrawn");
+        }
+        RingStep::Again(Some(id)) => play(state, &id),
+        RingStep::Again(None) | RingStep::Wait => {}
+    }
+}
+
+/// What a ringing call's notice does this frame.
+#[derive(Debug)]
+pub(crate) enum RingStep {
+    /// Nothing ringing, or not time to ring again.
+    Wait,
+    /// Ring again (its sound, when it has one).
+    Again(Option<String>),
+    /// The ring is over: withdraw this notice.
+    Ended(n::Ringing),
+}
+
+/// [`pump_ringing`]'s decision, on the GUI state alone (so a test can drive it): the ring is over
+/// once `call_incoming` no longer names the caller, which is what answering, declining, the
+/// caller's hang-up, a block and closing into the tray all do, or once [`RING_FOR`] has passed.
+pub(crate) fn ring_step(gs: &mut GuiState, now: std::time::Instant) -> RingStep {
+    let Some(r) = gs.notify.ringing.as_mut() else { return RingStep::Wait };
+    let still = gs.call_incoming.as_ref().is_some_and(|(k, _)| *k == r.key);
+    if !still || now >= r.until {
+        return gs.notify.ringing.take().map_or(RingStep::Wait, RingStep::Ended);
+    }
+    if now < r.next_ring {
+        return RingStep::Wait;
+    }
+    r.next_ring = now + RING_EVERY;
+    RingStep::Again(r.sound.clone())
+}
+
+/// The game events the simulation raised since the last frame (`systems::push_game_event`), into
+/// the folder, and the folded notices now due through THE rule (rung 3). One lock of the list a
+/// frame, as the sound list already has; the folder is looked at only when it holds something.
+fn pump_game_events(state: &mut EngineState) {
+    let now = now_f64();
+    let raised: Vec<(String, String)> = state
+        .data_store
+        .get::<std::sync::Mutex<Vec<(String, String)>>>(crate::systems::GAME_EVENTS_KEY)
+        .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
+        .unwrap_or_default();
+    let rt = &mut state.gui_state.notify;
+    for (event, place) in &raised {
+        rt.game.offer(event, place, now);
+    }
+    if rt.game.is_idle() {
+        return;
+    }
+    let file = n::data::get();
+    let due = rt.game.due(now, |e| file.game_event(e).map_or(600.0, |g| g.every_secs as f64));
+    for f in due {
+        deliver(state, game(&f));
+    }
+}
+
+/// Seconds since the epoch, with the fraction (the game folder's gather is two seconds).
+fn now_f64() -> f64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
 #[cfg(test)]
@@ -392,6 +562,55 @@ mod tests {
         let b2 = room_line(&g, "https://b.example", "Ann", "general", "k2", "Ben", "@ann look", None).unwrap();
         assert!(!a2.commons && !b2.commons);
         assert_ne!(n::decide::burst_key(&a2), n::decide::burst_key(&b2));
+    }
+
+    /// A ringing call's notice (rung 3) rings again every three seconds while the same caller
+    /// still rings, and ends, to be withdrawn, however the ring ends: answered or declined (the
+    /// ringing screen takes `call_incoming`), the caller's hang-up (frame_ws_poll clears it), a
+    /// block (`engine/block.rs` `forget_live` clears it too), another caller's ring in its place,
+    /// or the 45 seconds passing. Seen red 2026-11-01 with the caller check left out of
+    /// `ring_step` ("answered: the notice ends").
+    #[test]
+    fn a_ringing_call_rings_again_and_ends_however_the_ring_ends() {
+        let start = std::time::Instant::now();
+        let ringing = |g: &mut GuiState| {
+            g.call_incoming = Some(("ann".into(), "Ann".into()));
+            g.notify.ringing = Some(n::Ringing {
+                key: "ann".into(),
+                tag: "t".into(),
+                group: "call".into(),
+                sound: Some("sfx.notification".into()),
+                next_ring: start + RING_EVERY,
+                until: start + RING_FOR,
+            });
+        };
+        let mut g = gs();
+        ringing(&mut g);
+        assert!(matches!(ring_step(&mut g, start), RingStep::Wait), "not yet time");
+        assert!(matches!(ring_step(&mut g, start + RING_EVERY), RingStep::Again(Some(_))), "rings again");
+        assert!(matches!(ring_step(&mut g, start + RING_EVERY), RingStep::Wait), "once per three seconds");
+        g.call_incoming = None; // answered or declined (the ringing screen), or hung up
+        assert!(matches!(ring_step(&mut g, start + RING_EVERY), RingStep::Ended(_)), "answered: the notice ends");
+        assert!(g.notify.ringing.is_none() && matches!(ring_step(&mut g, start), RingStep::Wait));
+        ringing(&mut g);
+        g.call_incoming = Some(("cy".into(), "Cy".into()));
+        assert!(matches!(ring_step(&mut g, start), RingStep::Ended(_)), "another caller's ring in its place");
+        ringing(&mut g);
+        assert!(matches!(ring_step(&mut g, start + RING_FOR), RingStep::Ended(_)), "45 seconds at most");
+    }
+
+    /// A folded game notice says how many and where in the event's own words, "your home" for an
+    /// event with no place, and only that something needs you when the notice shows nothing.
+    /// Seen red 2026-11-01 with `game` passing an empty place through: "One crop is ripe in ."
+    #[test]
+    fn a_folded_game_notice_says_how_many_and_where() {
+        let file = n::data::get();
+        let many = game(&n::game::Folded { event: "crop_ripe".into(), count: 12, first_where: "Tower 1".into() });
+        assert_eq!(n::decide::words(file, &many, n::Show::Name), ("Crops ready to harvest".to_string(), "12 crops are ripe, the first in Tower 1.".to_string()));
+        let one = game(&n::game::Folded { event: "crop_ripe".into(), count: 1, first_where: String::new() });
+        assert_eq!(n::decide::words(file, &one, n::Show::Name).1, "One crop is ripe in your home.");
+        let hidden = n::decide::words(file, &many, n::Show::Nothing);
+        assert!(!hidden.0.contains("Crops") && !hidden.1.contains("Tower"), "only that something needs you: {hidden:?}");
     }
 
     fn kind_of(c: Option<Candidate>) -> String {

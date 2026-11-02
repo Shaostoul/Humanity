@@ -53,11 +53,19 @@ pub struct PlumbingSystem {
     /// that crosses lands. What they cannot hold or give (full or dry) is
     /// still spilled or unmet, as before.
     carry: std::collections::HashMap<Option<u32>, f64>,
+    /// The tanks were under [`WATER_LOW_SHARE`] of their capacity at the last tick, so the game
+    /// event `water_low` is raised once per crossing (notifications rung 3), not every tick.
+    was_low: bool,
 }
+
+/// The share of the tanks' capacity under which the person is told their water is running low
+/// (notifications rung 3, the `water_low` game event). A game choice: five times the 2% at which an
+/// empty cistern cuts the irrigation off (farming::outlook `WaterSupply`), so there is time to act.
+pub const WATER_LOW_SHARE: f32 = 0.10;
 
 impl PlumbingSystem {
     pub fn new() -> Self {
-        Self { status: WaterStatus::default(), log_cooldown: 0.0, carry: std::collections::HashMap::new() }
+        Self { status: WaterStatus::default(), log_cooldown: 0.0, carry: std::collections::HashMap::new(), was_low: false }
     }
 }
 
@@ -258,6 +266,14 @@ impl System for PlumbingSystem {
             }
         }
 
+        // Crossing under a tenth of the tanks: a game event for the person's notices, once per
+        // crossing (rising back above re-arms it). No tanks, no event.
+        let low = cap_all > 0.0 && stored_all < cap_all * WATER_LOW_SHARE;
+        if low && !self.was_low {
+            crate::systems::push_game_event(data, "water_low", "");
+        }
+        self.was_low = low;
+
         self.log_cooldown -= dt;
         if self.log_cooldown <= 0.0 {
             self.log_cooldown = 5.0;
@@ -279,6 +295,28 @@ mod tests {
 
     fn status(data: &DataStore) -> WaterStatus {
         *data.get::<std::sync::Mutex<WaterStatus>>("water_status").unwrap().lock().unwrap()
+    }
+
+    /// The tanks falling under a tenth is a game event for the person's notices (notifications rung
+    /// 3) once per crossing: not every tick they stay low, and again only after they rose back.
+    /// Seen red 2026-11-01 with `was_low` never set: every tick under a tenth raised another.
+    #[test]
+    fn water_running_low_is_one_game_event_per_crossing() {
+        let mut data = DataStore::new();
+        data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
+        data.insert(crate::systems::GAME_EVENTS_KEY, std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        let mut world = hecs::World::new();
+        let tank = world.spawn((WaterTank { liters: 50.0, capacity_l: 1000.0 }, PlumbingCircuit { island: 0 }));
+        let mut sys = PlumbingSystem::new();
+        let count = |data: &DataStore| data.get::<std::sync::Mutex<Vec<(String, String)>>>(crate::systems::GAME_EVENTS_KEY).unwrap().lock().unwrap().iter().filter(|(id, _)| id == "water_low").count();
+        sys.tick(&mut world, 1.0, &data);
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(count(&data), 1, "under a tenth: once, not every tick");
+        world.get::<&mut WaterTank>(tank).unwrap().liters = 500.0;
+        sys.tick(&mut world, 1.0, &data);
+        world.get::<&mut WaterTank>(tank).unwrap().liters = 50.0;
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(count(&data), 2, "again after the tanks rose back above it");
     }
 
     /// A powered producer fills the tank; cutting its power stops production so the tank drains -- the

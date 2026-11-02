@@ -999,8 +999,9 @@ fn settings_panel(
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_notification_settings() {
-    render_page_png("notification_settings", 960, 1600, |ctx, theme, state| {
+    render_page_png("notification_settings", 960, 2300, |ctx, theme, state| {
         let now = crate::notifications::now_secs();
+        state.profile_public_key = "me".into();
         let n = &mut state.settings.notifications;
         if n.mutes.servers.is_empty() {
             n.mutes.mute_everything(now, 3600);
@@ -1008,6 +1009,11 @@ fn snapshot_notification_settings() {
             n.mutes.mute_room("https://united-humanity.us", "general", now, 8 * 3600);
             n.mutes.mute_person("dm:ab12cd34ef56", now, 3600);
             n.set_room_level("https://united-humanity.us", "builders", crate::notifications::Level::All);
+            // Rung 3: a kind's sound set to none, a game event turned on, someone always allowed.
+            let file = crate::notifications::data::get();
+            n.set_sound(file, "room_line", crate::notifications::settings::NO_SOUND);
+            n.set_event(file, "hungry", true);
+            n.quiet_allow.entry("me".into()).or_default().apply("ab12cd34ef56", true, 1);
         }
         state.notif_dnd_start = Some("22:00".into());
         state.notif_dnd_end = Some("07:00".into());

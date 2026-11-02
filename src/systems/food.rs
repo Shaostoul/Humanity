@@ -1104,6 +1104,10 @@ impl System for FoodSystem {
             let ill_l = self.illnesses.water_l(effects, illness_mode, game_dt);
             let thirst = (f64::from(HYDRATION_DECAY_PER_SEC) * game_s + ill_l * f64::from(HYDRATION_PER_LITRE)) * drain;
             change_exactly(&mut vitals.hydration, &mut carry.hydration, -thirst, 0.0, f32::INFINITY);
+            // What this body felt before this tick, so a condition newly on is a game event for the
+            // person's notices (notifications rung 3; the player's body only, below).
+            let short_of_air = |fx: &StatusEffects| fx.has("hypoxia") || fx.has("suffocation");
+            let before = (effects.has("hungry"), effects.has("thirsty"), short_of_air(effects));
             if vitals.satiation < HUNGRY_THRESHOLD {
                 effects.apply("hungry", CONDITION_LINGER);
             } else {
@@ -1162,6 +1166,16 @@ impl System for FoodSystem {
             } else {
                 effects.remove("hypoxia");
                 effects.remove("suffocation");
+            }
+            // Newly hungry, thirsty or short of air: the player's body tells the notices (rung 3,
+            // `systems::push_game_event`; folded there, and off by default for the first two).
+            if ctrl.is_some() {
+                let now = (effects.has("hungry"), effects.has("thirsty"), short_of_air(effects));
+                for (was, is, id) in [(before.0, now.0, "hungry"), (before.1, now.1, "thirsty"), (before.2, now.2, "short_of_air")] {
+                    if is && !was {
+                        crate::systems::push_game_event(data, id, "");
+                    }
+                }
             }
 
             // Body heat (2026-09-27, systems::body_heat): the core temperature
@@ -1913,6 +1927,28 @@ mod nutrition_tests {
         let fx = world.get::<&StatusEffects>(player).unwrap();
         assert!(fx.has("refreshed"), "the nap refreshed the player");
         assert!(!fx.has("fatigued"), "and lifted the fatigue slowdown");
+    }
+
+    /// Short of air is a game event for the person's notices (notifications rung 3) ONCE, when the
+    /// player's body first goes short of oxygen, not every tick it stays so, and never for a body
+    /// that is not the player's. Seen red 2026-11-01 with the `ctrl` check taken out: the crew
+    /// member beside the player raised one too ("the player's body only").
+    #[test]
+    fn going_short_of_air_is_one_game_event_for_the_player() {
+        use crate::ecs::components::{Controllable, EnvironmentContext};
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        data.insert(crate::systems::GAME_EVENTS_KEY, std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        data.insert("environment_context", EnvironmentContext { sealed: false, oxygenated: false, pressure_kpa: 0.0, ..Default::default() });
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(4), vitals(80.0, 80.0), StatusEffects::default(), Health::default(), Controllable));
+        world.spawn((Inventory::new(4), vitals(80.0, 80.0), StatusEffects::default(), Health::default()));
+        for _ in 0..50 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let raised = data.get::<std::sync::Mutex<Vec<(String, String)>>>(crate::systems::GAME_EVENTS_KEY).unwrap().lock().unwrap().clone();
+        let air: Vec<_> = raised.iter().filter(|(id, _)| id == "short_of_air").collect();
+        assert_eq!(air.len(), 1, "the player's body only, once: {raised:?}");
     }
 
     /// Exposure to vacuum (an exposed, airless EnvironmentContext) drains

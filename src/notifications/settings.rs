@@ -52,10 +52,21 @@ pub struct LocalSettings {
     pub desktop: bool,
     /// What a notice shows.
     pub show: Show,
-    /// A short sound with a notice.
+    /// A short sound with a notice (the master switch: off, no kind makes a sound).
     pub sound: bool,
-    /// Which sound: an id from the data file's `sounds` (and `data/sounds.toml`).
-    pub sound_id: String,
+    /// Each kind's sound the person chose (rung 3), by kind id: an id from the data file's
+    /// `sounds` (and `data/sounds.toml`), or [`NO_SOUND`]. A kind absent here plays its own
+    /// default (the data file's `sound`). Replaced rung 1's single choice outright.
+    pub sounds: BTreeMap<String, String>,
+    /// Each game event the person turned on or off (rung 3), by event id; absent: the data file's
+    /// `on`.
+    pub events: BTreeMap<String, bool>,
+    /// The always-allow list (rung 3, `notifications::allow`), by the identity it belongs to: the
+    /// people whose calls and messages come through quiet hours.
+    pub quiet_allow: BTreeMap<String, super::allow::QuietAllow>,
+    /// Notes to oneself about the list made while no server was connected (their text and signed
+    /// time), sent on the next connection (`engine/quiet_allow.rs`).
+    pub quiet_allow_unsent: Vec<(String, u64)>,
     /// Everything, servers, rooms and conversations muted, and until when.
     pub mutes: Mutes,
     /// Each room the person set to something other than mentions (rung 2), by
@@ -76,7 +87,10 @@ impl Default for LocalSettings {
             desktop: true,
             show: Show::Name,
             sound: true,
-            sound_id: "sfx.chat_message".into(),
+            sounds: BTreeMap::new(),
+            events: BTreeMap::new(),
+            quiet_allow: BTreeMap::new(),
+            quiet_allow_unsent: Vec::new(),
             mutes: Mutes::default(),
             room_levels: BTreeMap::new(),
             tray: true,
@@ -85,7 +99,50 @@ impl Default for LocalSettings {
     }
 }
 
+/// A kind's sound set to nothing (Settings' "None").
+pub const NO_SOUND: &str = "none";
+
 impl LocalSettings {
+    /// The sound id kind `kind` plays: the person's choice, else the kind's default; `None` when it
+    /// is set to [`NO_SOUND`] (or has no sound at all). Whether sound is on is [`Self::sound`].
+    pub fn sound_of<'a>(&'a self, file: &'a super::data::File, kind: &str) -> Option<&'a str> {
+        let chosen = self.sounds.get(kind).map(String::as_str).or_else(|| file.kind(kind).map(|k| k.sound.as_str()));
+        chosen.filter(|s| !s.is_empty() && *s != NO_SOUND)
+    }
+
+    /// Set kind `kind`'s sound to `id` ([`NO_SOUND`] for none); its default is kept as no entry.
+    pub fn set_sound(&mut self, file: &super::data::File, kind: &str, id: &str) {
+        if file.kind(kind).is_some_and(|k| k.sound == id) {
+            self.sounds.remove(kind);
+        } else {
+            self.sounds.insert(kind.to_string(), id.to_string());
+        }
+    }
+
+    /// Is the game event `event` on (the person's choice, else the data file's default)?
+    pub fn event_on(&self, file: &super::data::File, event: &str) -> bool {
+        self.events.get(event).copied().unwrap_or_else(|| file.game_event(event).is_some_and(|e| e.on))
+    }
+
+    /// Turn the game event `event` on or off; its default is kept as no entry.
+    pub fn set_event(&mut self, file: &super::data::File, event: &str, on: bool) {
+        if file.game_event(event).is_some_and(|e| e.on == on) {
+            self.events.remove(event);
+        } else {
+            self.events.insert(event.to_string(), on);
+        }
+    }
+
+    /// The always-allow list of identity `me`.
+    pub fn allow_list(&self, me: &str) -> Option<&super::allow::QuietAllow> {
+        self.quiet_allow.get(me)
+    }
+
+    /// Is `key` on identity `me`'s always-allow list?
+    pub fn always_allows(&self, me: &str, key: &str) -> bool {
+        !me.is_empty() && self.allow_list(me).is_some_and(|l| l.allows(key))
+    }
+
     /// What `room` on `server` is set to (mentions unless the person chose otherwise).
     pub fn room_level(&self, server: &str, room: &str) -> Level {
         self.room_levels.get(&Mutes::room_key(server, room)).copied().unwrap_or_default()

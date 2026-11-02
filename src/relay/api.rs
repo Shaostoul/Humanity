@@ -929,6 +929,8 @@ pub async fn create_task(
         Ok(id) => {
             // Broadcast to WebSocket clients.
             if let Ok(Some(task)) = state.db.get_task(id) {
+                // Given to someone at its creation: they are told (notifications rung 3).
+                crate::relay::handlers::task_notice::after_change(&state, "bot_api", "bot", None, &task).await;
                 let td = crate::relay::relay::TaskData {
                     id: task.id, title: task.title, description: task.description,
                     status: task.status, priority: task.priority, assignee: task.assignee,
@@ -1010,6 +1012,9 @@ pub async fn update_task(
     let updated = state.db.get_task(task_id)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?
         .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, "Task disappeared after update.".into()))?;
+
+    // Its assignee told, when it was given to them or theirs changed (notifications rung 3).
+    crate::relay::handlers::task_notice::after_change(&state, "bot_api", "bot", Some(&existing), &updated).await;
 
     // Broadcast update to WebSocket clients.
     let counts = state.db.get_task_comment_counts().unwrap_or_default();

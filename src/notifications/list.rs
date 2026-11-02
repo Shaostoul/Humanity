@@ -45,6 +45,10 @@ pub struct Entry {
     pub seen: bool,
     /// A Commons room (`Candidate::commons`): one room whichever carrier brought it.
     pub commons: bool,
+    /// A game event's id, how many it stands for, and a kind's variant (rung 3, `Candidate`).
+    pub event: String,
+    pub count: u32,
+    pub variant: String,
 }
 
 impl Entry {
@@ -62,6 +66,9 @@ impl Entry {
             at: now,
             seen: false,
             commons: c.commons,
+            event: c.event.clone(),
+            count: c.count,
+            variant: c.variant.clone(),
         }
     }
 
@@ -77,6 +84,9 @@ impl Entry {
             room_name: self.room_name.clone(),
             text: self.text.clone().unwrap_or_default(),
             commons: self.commons,
+            event: self.event.clone(),
+            count: self.count,
+            variant: self.variant.clone(),
             ..Default::default()
         }
     }
@@ -103,6 +113,9 @@ impl List {
                 e.room_name = c.room_name.clone();
                 e.text = text;
                 e.at = now;
+                // A game event's later batch adds to the count; the newest variant names it.
+                e.count = e.count.saturating_add(c.count);
+                e.variant = c.variant.clone();
                 self.entries.push_front(e);
             }
             return;

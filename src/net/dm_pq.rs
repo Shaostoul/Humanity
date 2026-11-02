@@ -223,6 +223,11 @@ pub const CTL_CHOICE: &str = "[[hum:choice:v1]]";
 /// directly, so the DM's own signature covers it (net/household.rs `note_text`, `parse_note`).
 /// The desktop app keeps it; the website swallows it. Must match the web client exactly.
 pub const CTL_PERMIT: &str = "[[hum:permit:v1]]";
+/// The always-allow list (notifications rung 3, 2026-11-01): a note a person sends only to
+/// themselves, like a block note, saying one person's calls and messages come through their quiet
+/// hours or no longer do: `[[hum:quiet-allow:v1]]<key>/on` or `/off` (notifications/allow.rs). Must
+/// match the web client exactly (web/shared/notify-rules.js).
+pub const CTL_QUIET_ALLOW: &str = "[[hum:quiet-allow:v1]]";
 
 /// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
 /// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:

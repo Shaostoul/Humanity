@@ -36,6 +36,9 @@ pub mod shared_build;
 pub mod ship_stores;
 pub mod ship_world;
 pub mod sign_ups;
+/// A task given to someone, or a task of theirs changed: the `task_notice` and its push
+/// (notifications rung 3).
+pub mod task_notice;
 pub mod utils;
 
 pub use broadcast::*;

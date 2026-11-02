@@ -94,6 +94,21 @@ pub(crate) fn person_items(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
             }
         }
     }
+    // The always-allow list (rung 3, the operator's decision): their calls and messages come
+    // through quiet hours. Kept on my devices only (engine/quiet_allow.rs).
+    if let Some(key) = conversation.strip_prefix("dm:") {
+        ui.separator();
+        let on = crate::engine::quiet_allow::allows(state, key);
+        let (label, hint) = if on {
+            (t("notifications.unallow_person"), "notifications.unallow_person_hint")
+        } else {
+            (t("notifications.allow_person"), "notifications.allow_person_hint")
+        };
+        if ui.button(label).hint(hint).clicked() {
+            crate::engine::quiet_allow::set(state, key, !on);
+            ui.close_menu();
+        }
+    }
 }
 
 /// Until when the conversation `conversation` is muted, if it is now (the DM row's muted mark).

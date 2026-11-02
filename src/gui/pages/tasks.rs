@@ -493,6 +493,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let mut actions: Vec<ChainAction> = Vec::new();
     let chains = with_state(|ps| ps.chains.clone());
 
+    // A click on a task notice (notifications rung 3) opens that task once the board has it.
+    if let Some(id) = state.task_open_id {
+        if let Some(idx) = state.tasks.iter().position(|t| t.id == id) {
+            state.task_open_id = None;
+            with_state(|ps| {
+                ps.selected_task = Some(idx);
+                ps.editing = false;
+            });
+        }
+    }
+
     // Draw detail side panel if a task is selected
     with_state(|ps| {
         if let Some(sel_idx) = ps.selected_task {

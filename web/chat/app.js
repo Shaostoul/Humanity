@@ -1527,6 +1527,10 @@ async function handleMessage(msg) {
       // socket was accepted, and to a change from any of their devices (chat-notify.js).
       if (window.HosChatNotify) HosChatNotify.prefsData(msg);
       break;
+    case 'task_notice':
+      // A task given to me, or one of mine changed (notifications rung 3): THE rule decides.
+      if (window.HosChatNotify) HosChatNotify.onTaskNotice(msg, typeof windowFocused === 'undefined' ? !document.hidden : windowFocused, ('Notification' in window) && Notification.permission === 'granted');
+      break;
     case 'dm_purged': {
       // Confirmation of our own server-mailbox scrub.
       const n = Number(msg.count) || 0;

@@ -35,6 +35,9 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-01: `relay/relay.rs` 6_380 -> 6_340. Notifications rung 3's `task_notice` took it past
+///   its budget, so the Web Push send (`RelayState::send_push_notification`, 79 lines) moved out
+///   unchanged into its child module `relay/push_send.rs`.
 /// - 2026-10-24: `gui/pages/chat.rs` 4_750 -> 4_700 and `relay/relay.rs` 6_400 -> 6_380. The
 ///   chat lines' "Sending..." / "Not sent" state and the limit highlight took both past their
 ///   budgets, so a cluster each moved out unchanged: the timestamp formats and formatters into
@@ -482,7 +485,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/pages/maps/sky_events.rs", 465),
     ("src/gui/pages/maps/time_bar.rs", 250),
     ("src/gui/loaders.rs", 1_650),
-    ("src/relay/relay.rs", 6_380),
+    ("src/relay/relay.rs", 6_340),
     ("src/relay/files.rs", 1_650),
     ("web/pages/files-app.js", 2_500),
     ("src/relay/handlers/msg_handlers.rs", 4_660),

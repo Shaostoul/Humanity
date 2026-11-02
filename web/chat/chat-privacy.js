@@ -1402,6 +1402,9 @@ function applyBlockNote(note, ts) {
  */
 function blockScreenDm(inner) {
   if (!inner) return false;
+  // Notifications rung 3: a note to myself about the always-allow list is applied (chat-notify.js),
+  // never stored or shown; one from anyone else is dropped unread.
+  if (window.HosChatNotify && HosChatNotify.screenAllowNote(inner)) return true;
   // (Guarded: on the DM path a missing /shared/block.js must not stop mail.)
   if (typeof isBlockNoteText === 'function' && isBlockNoteText(inner.text)) {
     const note = blockNoteFromSelf(inner, myKey);

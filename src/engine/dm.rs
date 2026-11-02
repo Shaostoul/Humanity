@@ -235,6 +235,10 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
     if crate::engine::choice::screens_dm(gui_state, inner) {
         return false;
     }
+    // Notifications rung 3: a note to ourselves about the always-allow list is applied, never shown.
+    if crate::engine::quiet_allow::screens_dm(gui_state, inner) {
+        return false;
+    }
     if matches!(
         inner.text.as_str(),
         crate::net::dm_pq::CTL_FOLLOW | crate::net::dm_pq::CTL_UNFOLLOW | crate::net::dm_pq::CTL_FRIEND_CERT
@@ -744,6 +748,7 @@ pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
     // Step C: a block made on another server or device takes back what we gave here first, so
     // nothing below hands a blocked person a pass.
     crate::engine::block::sweep(gui_state);
+    crate::engine::quiet_allow::flush(gui_state); // always-allow notes made while no server was connected
     send_pending_withdrawals(gui_state);
     gui_state.pass_pacer.held = send_owed_passes(gui_state, std::time::Instant::now());
     crate::engine::reach::settle_requests(gui_state);

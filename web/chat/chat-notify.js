@@ -22,6 +22,11 @@
  * - Mute room and the room's level (rung 2): the bell on a room's row, or a
  *   right-click on it; Mute conversation: the bell on a DM's row, or a
  *   right-click on it. The same lengths, the same rule.
+ * - Rung 3: a task notice (onTaskNotice, the relay's task_notice), a call's
+ *   notice and its repeating ring (ring / ringEnded, from chat-voice-calls.js),
+ *   each kind's own sound (playSound, hos_notify_sounds), and the always-allow
+ *   list (allowed / setAllowed / screenAllowNote, hos_quiet_allow), carried to
+ *   my other devices as notes to myself.
  *
  * Every word by key from data/i18n/en.json.
  */
@@ -238,7 +243,10 @@
     if (!R) return { why: 'unknown_kind', toast: false, sound: false, list: false };
     var now = nowSecs();
     var d = new Date();
-    var local = { desktop: !!at.desktop, sound: !!at.sound, show: show(), mutes: loadMutes(), levels: loadLevels() };
+    // Rung 3: each kind's sound (Settings), and the always-allow list for a person's notice.
+    var sounds = loadSounds();
+    var local = { desktop: !!at.desktop, sound: !!at.sound, show: show(), mutes: loadMutes(), levels: loadLevels(), sounds: sounds, events: {} };
+    if (c.from_allowed === undefined && c.conversation && c.conversation.indexOf('dm:') === 0) c.from_allowed = allowed(c.conversation.slice(3));
     var out = R.decide(c, synced(), local, {
       now: now,
       minute: d.getHours() * 60 + d.getMinutes(),
@@ -247,10 +255,184 @@
       last_notice: lastNotice[c.conversation] === undefined ? null : lastNotice[c.conversation]
     });
     if (out.why !== 'notify') return out;
-    lastNotice[c.conversation] = now;
+    // A kind without the burst guard (a ring) keeps no time for it, so a DM right after is its own.
+    var k = R.kind(c.kind);
+    if (!k || k.burst !== false) lastNotice[c.conversation] = now;
     if (out.list) listAdd(c, local.show, now);
     var w = R.words(c, local.show, T);
-    return { why: out.why, toast: out.toast, sound: out.sound, list: out.list, title: w[0], body: w[1], tag: 'hos-' + tagFor(c.conversation) };
+    return { why: out.why, toast: out.toast, sound: out.sound, list: out.list, title: w[0], body: w[1], tag: 'hos-' + tagFor(c.conversation), sound_id: out.sound ? R.soundOf(sounds, c.kind) : null };
+  }
+
+  // ── Each kind's sound (rung 3): the data file's sounds, the files the desktop plays ──
+  var SOUNDS_KEY = 'hos_notify_sounds';
+
+  /** The kinds whose sound the person chose here, kind -> sound id or 'none'. */
+  function loadSounds() {
+    return loadJson(SOUNDS_KEY) || {};
+  }
+
+  /** Play the sound `id` (an entry of the data file's `sounds`) from /assets/, or the chat's own
+   *  chime where this browser cannot play the file. */
+  function playSound(id) {
+    var R = rules();
+    var s = R && id ? (R.file().sounds || []).find(function (x) { return x.id === id; }) : null;
+    var chime = function () { if (typeof playNotificationChime === 'function') playNotificationChime(); };
+    if (!s || typeof Audio !== 'function') { chime(); return; }
+    try {
+      var a = new Audio('/assets/' + s.path);
+      a.volume = 0.6;
+      var p = a.play();
+      if (p && typeof p.catch === 'function') p.catch(chime);
+    } catch (_) { chime(); }
+  }
+
+  // ── The always-allow list (rung 3; the desktop's notifications::allow and engine/quiet_allow) ──
+  // The people whose calls and messages come through quiet hours, nobody until the person adds
+  // them. Kept in this browser by identity (hos_quiet_allow: {me: {key: [on, signed ms]}}), and
+  // carried to my other devices as notes to myself, never told to a server.
+  var ALLOW_KEY = 'hos_quiet_allow';
+  var ALLOW_UNSENT_KEY = 'hos_quiet_allow_unsent';
+  var ALLOW_NAMES_KEY = 'hos_quiet_allow_names';
+
+  function me() {
+    return typeof myKey === 'string' ? myKey : '';
+  }
+
+  function allowPeople() {
+    var all = loadJson(ALLOW_KEY) || {};
+    return all[me()] || {};
+  }
+
+  function saveAllowPeople(people) {
+    var all = loadJson(ALLOW_KEY) || {};
+    all[me()] = people;
+    saveJson(ALLOW_KEY, all);
+  }
+
+  /** Is `key` on my always-allow list? */
+  function allowed(key) {
+    var e = allowPeople()[String(key || '').toLowerCase()];
+    return !!(e && e[0]);
+  }
+
+  /** Send the notes to myself that have not gone yet (one at a time, in order). */
+  var allowSending = Promise.resolve();
+  function flushAllowNotes() {
+    allowSending = allowSending.then(sendAllowNotes, sendAllowNotes);
+    return allowSending;
+  }
+
+  async function sendAllowNotes() {
+    var waiting = loadJson(ALLOW_UNSENT_KEY);
+    if (!Array.isArray(waiting) || !waiting.length) return;
+    if (!sock() || typeof pqBuildSelfNote !== 'function' || !me()) return;
+    // Only this identity's notes (the Settings page names whose list it changed); others wait.
+    var others = waiting.filter(function (n) { return n.owner && n.owner !== me(); });
+    var mine = waiting.filter(function (n) { return !n.owner || n.owner === me(); });
+    while (mine.length) {
+      var built = await pqBuildSelfNote(mine[0].text, mine[0].at);
+      if (!built || !sock()) break; // tried again on the next connection
+      sock().send(JSON.stringify(built.put));
+      mine.shift();
+      saveJson(ALLOW_UNSENT_KEY, others.concat(mine));
+    }
+  }
+
+  /** Put `key` on my list (`on`) or take them off: here at once, then a note to my other devices. */
+  function setAllowed(key, on, name) {
+    var R = rules();
+    key = String(key || '').toLowerCase();
+    if (!R || !key || !me() || key === me().toLowerCase()) return;
+    var at = Date.now();
+    var people = allowPeople();
+    R.allowApply(people, key, !!on, at);
+    saveAllowPeople(people);
+    var names = loadJson(ALLOW_NAMES_KEY) || {};
+    if (on) names[key] = name || key.slice(0, 8);
+    else delete names[key];
+    saveJson(ALLOW_NAMES_KEY, names);
+    var waiting = loadJson(ALLOW_UNSENT_KEY);
+    waiting = Array.isArray(waiting) ? waiting : [];
+    waiting.push({ owner: me(), text: R.allowNoteText(key, !!on), at: at });
+    saveJson(ALLOW_UNSENT_KEY, waiting);
+    flushAllowNotes();
+    if (typeof addNotice === 'function') addNotice(T(on ? 'notifications.allow_person' : 'notifications.unallow_person'), 'green', 4);
+    rerender();
+  }
+
+  /** An opened, signature-checked DM (chat-privacy.js blockScreenDm): true when it is a note about
+   *  the list, which is never stored or shown; one from me to me is applied, the newest winning. */
+  function screenAllowNote(inner) {
+    var R = rules();
+    if (!R || !inner || !R.isAllowNote(inner.text)) return false;
+    if (inner.from !== me() || inner.to !== me()) return true;
+    var n = R.allowNoteParse(inner.text);
+    if (n) {
+      var people = allowPeople();
+      R.allowApply(people, n.key, n.on, Number(inner.ts) || 0);
+      saveAllowPeople(people);
+    }
+    return true;
+  }
+
+  if (window.hos && typeof window.hos.on === 'function') window.hos.on('socket-identified', function () { flushAllowNotes(); });
+  // The Settings page (no socket) took someone off the list: send its note now.
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('storage', function (e) { if (e && e.key === ALLOW_UNSENT_KEY) flushAllowNotes(); });
+  }
+
+  // ── A ringing call (rung 3): THE rule's notice, its sound repeating while it rings ──
+  var RING_EVERY_MS = 3000;
+  var RING_FOR_MS = 45000;
+  var ringing = null;
+
+  /** A ring that rings here (chat-voice-calls.js, idle and not ignored). */
+  function ring(key, name, focused, canShow) {
+    ringEnded();
+    var conv = 'dm:' + key;
+    var d = decide({ kind: 'call', from_me: false, server: server(), room: null, conversation: conv, sender: name, room_name: '', text: '', from_friend: false, from_allowed: allowed(key) },
+      { focused: focused, on_screen: false, desktop: canShow, sound: typeof soundEnabled === 'undefined' ? true : !!soundEnabled });
+    if (d.why !== 'notify') return d;
+    var r = { key: key, notice: null, timer: null, until: Date.now() + RING_FOR_MS };
+    if (d.sound_id) {
+      playSound(d.sound_id);
+      r.timer = setInterval(function () {
+        if (Date.now() >= r.until) { ringEnded(); return; }
+        playSound(d.sound_id);
+      }, RING_EVERY_MS);
+    }
+    if (d.toast && canShow && typeof Notification === 'function') {
+      r.notice = new Notification(d.title, { body: d.body, icon: '/favicon.png', tag: d.tag, requireInteraction: false });
+      // A click answers nothing: it brings the tab forward, where the ringing screen is.
+      r.notice.onclick = function () { window.focus(); r.notice.close(); openEntry({ kind: 'call', conversation: conv, room: null, sender: name }); };
+    }
+    ringing = r;
+    return d;
+  }
+
+  /** The ring ended, however it ended: its sound stops and its notice is withdrawn. */
+  function ringEnded() {
+    if (!ringing) return;
+    if (ringing.timer) clearInterval(ringing.timer);
+    if (ringing.notice) { try { ringing.notice.close(); } catch (_) { /* gone already */ } }
+    ringing = null;
+  }
+
+  // ── A task given to me, or one of mine changed (rung 3): the relay's task_notice ──
+  function onTaskNotice(msg, focused, canShow) {
+    if (!msg || typeof msg.task_id !== 'number') return null;
+    var byKey = String(msg.by_key || '');
+    if (byKey && typeof isBlockedKey === 'function' && isBlockedKey(byKey)) return null;
+    var c = { kind: 'task', from_me: !!byKey && byKey === me(), server: server(), room: null, conversation: 'task:' + msg.task_id,
+      sender: String(msg.by_name || ''), room_name: '', text: String(msg.title || ''), from_friend: false, variant: msg.change === 'assigned' ? 'assigned' : '' };
+    var d = decide(c, { focused: focused, on_screen: false, desktop: canShow, sound: typeof soundEnabled === 'undefined' ? true : !!soundEnabled });
+    if (d.why !== 'notify') return d;
+    if (d.sound_id) playSound(d.sound_id);
+    if (d.toast && canShow && typeof Notification === 'function') {
+      var n = new Notification(d.title, { body: d.body, icon: '/favicon.png', tag: d.tag });
+      n.onclick = function () { window.focus(); n.close(); openEntry(c); };
+    }
+    return d;
   }
 
   /** A short tag per conversation (a later notice replaces the earlier one): a hash, never a name. */
@@ -277,12 +459,13 @@
         e.room_name = c.room_name;
         e.text = text;
         e.at = now;
+        e.variant = c.variant || '';
         list.unshift(e);
         refreshList();
         return;
       }
     }
-    list.unshift({ kind: c.kind, server: c.server, room: c.room || null, conversation: c.conversation, sender: c.sender, room_name: c.room_name || '', text: text, at: now, seen: panelOpen });
+    list.unshift({ kind: c.kind, server: c.server, room: c.room || null, conversation: c.conversation, sender: c.sender, room_name: c.room_name || '', text: text, at: now, seen: panelOpen, variant: c.variant || '' });
     if (!panelOpen) unseen++;
     while (list.length > LIST_KEPT) {
       var old = list.pop();
@@ -368,7 +551,7 @@
       row.type = 'button';
       row.className = 'notice-entry';
       if (window.i18n) window.i18n.hint(row, 'notifications.entry_hint');
-      var c = { kind: e.kind, sender: e.sender, room_name: e.room_name, text: e.text || '' };
+      var c = { kind: e.kind, sender: e.sender, room_name: e.room_name, text: e.text || '', variant: e.variant || '' };
       var title = document.createElement('span');
       title.className = 'notice-title';
       title.textContent = R.words(c, showChoice, T)[0];
@@ -390,6 +573,12 @@
 
   /** Open the conversation an entry came from: the DM, or the room (this tab is one server). */
   function openEntry(e) {
+    // A task (rung 3): the Tasks page, with that task open.
+    if (e.conversation.indexOf('task:') === 0) {
+      var id = parseInt(e.conversation.slice(5), 10);
+      if (id > 0) location.href = '/tasks?task=' + id;
+      return;
+    }
     if (e.conversation.indexOf('dm:') === 0) {
       var key = e.conversation.slice(3);
       if (key && typeof openDmConversation === 'function') openDmConversation(key, e.kind === 'dm' ? e.sender : key.slice(0, 8));
@@ -632,6 +821,13 @@
   function dmMenu(key) {
     return function (menu) {
       muteItems(menu, personMuted('dm:' + key), 'notifications.mute_person', 'notifications.unmute_person', 'notifications.unmute_hint', function (s) { setPersonMute(key, s); });
+      // The always-allow list (rung 3): their calls and messages come through quiet hours.
+      menu.appendChild(document.createElement('hr'));
+      var on = allowed(key);
+      item(menu, on ? 'notifications.unallow_person' : 'notifications.allow_person', on ? 'notifications.unallow_person_hint' : 'notifications.allow_person_hint', function () {
+        var c = (typeof dmConversations !== 'undefined' && Array.isArray(dmConversations) ? dmConversations : []).find(function (x) { return x.partner_key === key; });
+        setAllowed(key, !on, c && c.partner_name);
+      });
     };
   }
 
@@ -708,6 +904,15 @@
     closePanel: closePanel,
     // Open a notice's conversation (an entry's {kind, conversation, room, sender}): the panel's
     // rows and a click on the browser's own notice (chat-ui.js notifyNewMessage, rung 2 part 2).
-    openEntry: openEntry
+    openEntry: openEntry,
+    // Rung 3: each kind's sound, the always-allow list, a ringing call, a task notice.
+    playSound: playSound,
+    allowed: allowed,
+    setAllowed: setAllowed,
+    screenAllowNote: screenAllowNote,
+    flushAllowNotes: flushAllowNotes,
+    ring: ring,
+    ringEnded: ringEnded,
+    onTaskNotice: onTaskNotice
   };
 })();

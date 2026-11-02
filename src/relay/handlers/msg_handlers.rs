@@ -179,12 +179,37 @@ pub async fn handle_skill_endorsements_request(
 }
 
 // ── Raw JSON task handlers (from the raw JSON type match, not RelayMessage) ──
+//
+// WHO MAY CHANGE THE BOARD (BUG-221, 2026-11-01). `task_create`, `task_update` and `task_comment`
+// are matched as raw messages BEFORE the RelayMessage enum is tried (relay.rs), so the enum
+// handlers' role checks below never ran for them, and these three checked nothing: anyone signed
+// in could create a task or edit any task. Each now asks for exactly what its enum twin asks,
+// through the same two answers.
+
+/// May someone with `role` create, edit, move or delete a board task? A moderator or an admin.
+pub(crate) fn may_edit_tasks(role: &str) -> bool {
+    role == "admin" || role == "mod"
+}
+
+/// May someone with `role` comment on a board task? Verified, a donor, a moderator or an admin.
+pub(crate) fn may_comment_on_tasks(role: &str) -> bool {
+    may_edit_tasks(role) || role == "verified" || role == "donor"
+}
+
+/// Tell `my_key` (only) why the board refused them.
+fn refuse_board(state: &Arc<RelayState>, my_key: &str, message: &str) {
+    let _ = state.broadcast_tx.send(RelayMessage::Private { to: my_key.to_string(), message: message.to_string() });
+}
 
 pub async fn handle_raw_task_update(
     state: &Arc<RelayState>,
     my_key: &str,
     raw: &serde_json::Value,
 ) {
+    if !may_edit_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
+        refuse_board(state, my_key, "Only admins and mods can edit tasks.");
+        return;
+    }
     if let Some(task_id) = raw.get("task_id").and_then(|v| v.as_i64()) {
         let valid_statuses  = ["backlog", "in_progress", "testing", "done"];
         let valid_priorities = ["low", "medium", "high", "critical"];
@@ -210,6 +235,9 @@ pub async fn handle_raw_task_update(
                 let _ = state.db.update_task(task_id, title, &task.description, priority, assignee, &task.labels);
             }
             if let Ok(Some(updated)) = state.db.get_task(task_id) {
+                // Its assignee told, when it was given to them or theirs changed (notifications rung 3).
+                let by = crate::relay::handlers::task_notice::name_of(state, my_key).await;
+                crate::relay::handlers::task_notice::after_change(state, my_key, &by, Some(&task), &updated).await;
                 let cc = state.db.get_task_comment_counts().unwrap_or_default();
                 let td = TaskData {
                     id: updated.id, title: updated.title, description: updated.description,
@@ -231,6 +259,10 @@ pub async fn handle_raw_task_comment(
     my_key: &str,
     raw: &serde_json::Value,
 ) {
+    if !may_comment_on_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
+        refuse_board(state, my_key, "Only verified users can comment on tasks.");
+        return;
+    }
     if let (Some(task_id), Some(content)) = (
         raw.get("task_id").and_then(|v| v.as_i64()),
         raw.get("content").and_then(|v| v.as_str()),
@@ -241,7 +273,7 @@ pub async fn handle_raw_task_comment(
         }
         let author_name = {
             let peers = state.peers.read().await;
-            peers.get(my_key).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key[..8].to_string())
+            peers.get(my_key).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key.chars().take(8).collect())
         };
         if let Ok(cid) = state.db.add_task_comment(task_id, my_key, &author_name, &content) {
             let msg = serde_json::json!({
@@ -262,6 +294,10 @@ pub async fn handle_raw_task_create(
     my_key: &str,
     raw: &serde_json::Value,
 ) {
+    if !may_edit_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
+        refuse_board(state, my_key, "Only admins and mods can create tasks.");
+        return;
+    }
     let title = raw.get("title").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if title.is_empty() || title.len() > 200 {
         let private = RelayMessage::Private {
@@ -275,17 +311,27 @@ pub async fn handle_raw_task_create(
     let status  = raw.get("status").and_then(|v| v.as_str()).unwrap_or("backlog");
     let prio    = raw.get("priority").and_then(|v| v.as_str()).unwrap_or("medium");
     let labels  = raw.get("labels").and_then(|v| v.as_str()).unwrap_or("[]");
-    let creator_name = {
-        let peers = state.peers.read().await;
-        peers.get(my_key).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key[..8].to_string())
-    };
+    // Its name here, else the start of its key (by characters: a byte slice panicked on a key
+    // under eight bytes).
+    let creator_name = crate::relay::handlers::task_notice::name_of(state, my_key).await;
     let valid_statuses  = ["backlog", "in_progress", "testing", "done"];
     let valid_priorities = ["low", "medium", "high", "critical"];
     let status  = if valid_statuses.contains(&status)  { status  } else { "backlog" };
     let prio    = if valid_priorities.contains(&prio)  { prio    } else { "medium"  };
-    match state.db.create_task(&title, &desc, status, prio, None, &creator_name, labels) {
+    if desc.len() > 5000 {
+        refuse_board(state, my_key, "Task description too long (max 5000 chars).");
+        return;
+    }
+    // The assignee and the project the website's form sends (2026-11-01: this handler dropped
+    // both, so a task given to someone at its creation was given to nobody, and every task landed
+    // in the default project). An assignee is a name, as the form's 80 characters allow.
+    let assignee = raw.get("assignee").and_then(|v| v.as_str()).map(str::trim).filter(|a| !a.is_empty() && a.chars().count() <= 80);
+    let project = raw.get("project").and_then(|v| v.as_str()).map(str::trim).filter(|p| !p.is_empty()).unwrap_or("default");
+    match state.db.create_task_in_project(&title, &desc, status, prio, assignee, &creator_name, labels, project) {
         Ok(id) => {
             if let Ok(Some(task)) = state.db.get_task(id) {
+                // Given to someone at its creation: they are told (notifications rung 3).
+                crate::relay::handlers::task_notice::after_change(state, my_key, &creator_name, None, &task).await;
                 let td = TaskData {
                     id: task.id, title: task.title, description: task.description,
                     status: task.status, priority: task.priority, assignee: task.assignee,
@@ -850,8 +896,7 @@ pub async fn handle_task_create(
     labels: String,
     project: String,
 ) {
-    let role = state.db.get_role(my_key).unwrap_or_default();
-    if role != "admin" && role != "mod" {
+    if !may_edit_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: "Only admins and mods can create tasks.".to_string(),
@@ -879,6 +924,8 @@ pub async fn handle_task_create(
             match state.db.create_task_in_project(&title, &description, s, p, assignee.as_deref(), my_key, &labels, proj) {
                 Ok(id) => {
                     if let Ok(Some(task)) = state.db.get_task(id) {
+                        let by = crate::relay::handlers::task_notice::name_of(state, my_key).await;
+                        crate::relay::handlers::task_notice::after_change(state, my_key, &by, None, &task).await;
                         let td = TaskData {
                             id: task.id, title: task.title, description: task.description,
                             status: task.status, priority: task.priority, assignee: task.assignee,
@@ -908,8 +955,7 @@ pub async fn handle_task_update_msg(
     labels: String,
     project: String,
 ) {
-    let role = state.db.get_role(my_key).unwrap_or_default();
-    if role != "admin" && role != "mod" {
+    if !may_edit_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: "Only admins and mods can edit tasks.".to_string(),
@@ -919,9 +965,12 @@ pub async fn handle_task_update_msg(
         let valid_priorities = ["low", "medium", "high", "critical"];
         let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
         let proj = if project.is_empty() { "default" } else { &project };
+        let before = state.db.get_task(id).ok().flatten();
         match state.db.update_task_with_project(id, &title, &description, p, assignee.as_deref(), &labels, proj) {
             Ok(true) => {
                 if let Ok(Some(task)) = state.db.get_task(id) {
+                    let by = crate::relay::handlers::task_notice::name_of(state, my_key).await;
+                    crate::relay::handlers::task_notice::after_change(state, my_key, &by, before.as_ref(), &task).await;
                     let cc = state.db.get_task_comment_counts().unwrap_or_default();
                     let td = TaskData {
                         id: task.id, title: task.title, description: task.description,
@@ -951,8 +1000,7 @@ pub async fn handle_task_move(
     id: i64,
     status: String,
 ) {
-    let role = state.db.get_role(my_key).unwrap_or_default();
-    if role != "admin" && role != "mod" {
+    if !may_edit_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: "Only admins and mods can move tasks.".to_string(),
@@ -963,8 +1011,13 @@ pub async fn handle_task_move(
         if !valid_statuses.contains(&status.as_str()) {
             return;
         }
+        let before = state.db.get_task(id).ok().flatten();
         match state.db.move_task(id, &status) {
             Ok(true) => {
+                if let Ok(Some(after)) = state.db.get_task(id) {
+                    let by = crate::relay::handlers::task_notice::name_of(state, my_key).await;
+                    crate::relay::handlers::task_notice::after_change(state, my_key, &by, before.as_ref(), &after).await;
+                }
                 let _ = state.broadcast_tx.send(RelayMessage::TaskMoved { id, status });
             }
             Ok(false) => {
@@ -984,8 +1037,7 @@ pub async fn handle_task_delete(
     my_key: &str,
     id: i64,
 ) {
-    let role = state.db.get_role(my_key).unwrap_or_default();
-    if role != "admin" && role != "mod" {
+    if !may_edit_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: "Only admins and mods can delete tasks.".to_string(),
@@ -1014,9 +1066,7 @@ pub async fn handle_task_comment_msg(
     task_id: i64,
     content: String,
 ) {
-    let role = state.db.get_role(my_key).unwrap_or_default();
-    let can_comment = role == "admin" || role == "mod" || role == "verified" || role == "donor";
-    if !can_comment {
+    if !may_comment_on_tasks(&state.db.get_role(my_key).unwrap_or_default()) {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: "Only verified users can comment on tasks.".to_string(),

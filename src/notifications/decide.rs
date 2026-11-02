@@ -66,6 +66,17 @@ pub struct Candidate {
     /// A Commons room: `room` on this server is one room with another of my linked servers
     /// (`chat::in_commons`), so its notices are keyed by the room alone ([`burst_key`]).
     pub commons: bool,
+    /// The sender is on the person's always-allow list (rung 3, `notifications::allow`): their
+    /// calls and messages (the person kinds) come through quiet hours. Decided on the device; no
+    /// server knows the list.
+    pub from_allowed: bool,
+    /// A game event's id in the data file's `game_events` (rung 3); empty for every other kind.
+    pub event: String,
+    /// How many events a folded game notice stands for (rung 3, `notifications::game`).
+    pub count: u32,
+    /// Which of the kind's titles (rung 3: a task newly given to you is `assigned`); empty: the
+    /// kind's own.
+    pub variant: String,
 }
 
 /// The person's synced switches (the server's `notification_prefs`), as last received.
@@ -129,6 +140,9 @@ pub enum Why {
     UnknownKind,
     NotLoaded,
     KindOff,
+    /// A game event the person turned off on this device, or one off by default and not turned on
+    /// (rung 3).
+    EventOff,
     AllMuted,
     /// The conversation with that person is muted (rung 2).
     PersonMuted,
@@ -150,6 +164,7 @@ impl Why {
             Why::UnknownKind => "unknown_kind",
             Why::NotLoaded => "not_loaded",
             Why::KindOff => "kind_off",
+            Why::EventOff => "event_off",
             Why::AllMuted => "all_muted",
             Why::PersonMuted => "person_muted",
             Why::ServerMuted => "server_muted",
@@ -199,6 +214,15 @@ pub fn decide(file: &File, c: &Candidate, synced: &Synced, local: &LocalSettings
     if !synced.flag(kind.server_flag.as_deref()) {
         return Outcome::quiet(Why::KindOff);
     }
+    if kind.scope == Scope::Game {
+        // Each event is its own switch on this device (rung 3); one the file lacks is unknown.
+        if file.game_event(&c.event).is_none() {
+            return Outcome::quiet(Why::UnknownKind);
+        }
+        if !local.event_on(file, &c.event) {
+            return Outcome::quiet(Why::EventOff);
+        }
+    }
     if let Some(why) = muted(&local.mutes, kind.scope, c, at.now) {
         return Outcome::quiet(why);
     }
@@ -211,17 +235,22 @@ pub fn decide(file: &File, c: &Candidate, synced: &Synced, local: &LocalSettings
         }
     }
     if let Some((start, end)) = super::quiet::window(synced.quiet_start, synced.quiet_end) {
-        if super::quiet::in_quiet(start, end, at.minute) && !synced.excepts(kind.quiet_exception, c.from_friend) {
+        // The always-allow list (rung 3, the operator's decision) lets a person's calls and
+        // messages through: the person kinds, never a room's line.
+        let allowed = kind.scope == Scope::Person && c.from_allowed;
+        if super::quiet::in_quiet(start, end, at.minute) && !synced.excepts(kind.quiet_exception, c.from_friend) && !allowed {
             return Outcome::quiet(Why::QuietHours);
         }
     }
     if at.focused && at.on_screen {
         return Outcome::quiet(Why::OnScreen);
     }
-    if at.last_notice.is_some_and(|t| at.now - t < BURST_SECS && at.now >= t) {
+    if kind.burst && at.last_notice.is_some_and(|t| at.now - t < BURST_SECS && at.now >= t) {
         return Outcome::quiet(Why::TooSoon);
     }
-    Outcome { why: Why::Notify, toast: local.desktop && !at.focused, sound: local.sound, list: true }
+    // The sound: on, and the kind not set to none (rung 3, per-kind sound).
+    let sound = local.sound && local.sound_of(file, &kind.id).is_some();
+    Outcome { why: Why::Notify, toast: local.desktop && !at.focused, sound, list: true }
 }
 
 /// The mute that stops `c`, if any: everything first, then a person's conversation, or (for a
@@ -232,7 +261,7 @@ fn muted(m: &Mutes, scope: Scope, c: &Candidate, now: i64) -> Option<Why> {
     }
     match scope {
         Scope::Person if m.person_muted(&c.conversation, now).is_some() => Some(Why::PersonMuted),
-        Scope::Room if m.server_muted(&c.server, now).is_some() => Some(Why::ServerMuted),
+        Scope::Room | Scope::Server if m.server_muted(&c.server, now).is_some() => Some(Why::ServerMuted),
         Scope::Room => match &c.room {
             Some(room) if m.room_muted(&c.server, room, now).is_some() => Some(Why::RoomMuted),
             _ => None,
@@ -266,9 +295,17 @@ pub fn words(file: &File, c: &Candidate, show: Show) -> (String, String) {
         return (String::new(), String::new());
     };
     let t = crate::i18n::t_dyn;
+    // A game event (rung 3): the event's own words, unless the notice shows nothing.
+    if let (Some(e), false) = (file.game_event(&c.event), show == Show::Nothing) {
+        let count = c.count.max(1) as i64;
+        let place = clean(&c.room_name, TITLE_CHARS);
+        let body = crate::i18n::fill(t(&format!("{}.{}", e.body, if count == 1 { "one" } else { "other" })), &[("n", &count), ("where", &place)]);
+        return (clean(t(&e.title), TITLE_CHARS), clean(&body, BODY_CHARS));
+    }
     let name = clean(&c.sender, TITLE_CHARS);
     let room = clean(&c.room_name, TITLE_CHARS);
-    let named = || clean(&crate::i18n::fill(t(&kind.title), &[("name", &name), ("room", &room)]), TITLE_CHARS);
+    let title_key = kind.variants.get(&c.variant).unwrap_or(&kind.title);
+    let named = || clean(&crate::i18n::fill(t(title_key), &[("name", &name), ("room", &room)]), TITLE_CHARS);
     match show {
         Show::Nothing => (t(&kind.title_hidden).to_string(), t(&kind.body_hidden).to_string()),
         Show::Name => (named(), t(&kind.body_hidden).to_string()),

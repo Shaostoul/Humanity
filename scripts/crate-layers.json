@@ -156,7 +156,8 @@
         "engine/choice",
         "engine/put_answer",
         "engine/household",
-        "engine/low_impact"
+        "engine/low_impact",
+        "engine/quiet_allow"
       ],
       "uses": [
         "humanity-core",

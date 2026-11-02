@@ -64,6 +64,9 @@ pub struct NotifPrefs {
 pub enum PushKind {
     Dm,
     Mention,
+    /// A task given to the person, or a task of theirs changed (notifications rung 3,
+    /// handlers/task_notice.rs): the `tasks` switch, which until then did nothing.
+    Task,
 }
 
 impl NotifPrefs {
@@ -73,6 +76,7 @@ impl NotifPrefs {
         match kind {
             PushKind::Dm => self.dm_enabled,
             PushKind::Mention => self.mentions_enabled,
+            PushKind::Task => self.tasks_enabled,
         }
     }
 
@@ -85,7 +89,8 @@ impl NotifPrefs {
     pub fn push_comes_through_quiet_hours(&self, kind: PushKind) -> bool {
         match kind {
             PushKind::Mention => self.quiet_mentions,
-            PushKind::Dm => false,
+            // No quiet-hours exception lets a task through: a task can wait for the morning.
+            PushKind::Dm | PushKind::Task => false,
         }
     }
 }
@@ -186,6 +191,23 @@ mod tests {
         db.change_notification_prefs("k1", &all(true, false, None)).unwrap();
         assert!(db.wants_push("k1", PushKind::Dm) && !db.wants_push("k1", PushKind::Mention));
         assert!(db.wants_push("k2", PushKind::Dm), "another person's switches are theirs");
+    }
+
+    /// A task's push (notifications rung 3, 2026-11-01) follows the `tasks` switch and nothing
+    /// else, and never comes through quiet hours by an exception. Before rung 3 the switch was
+    /// stored and read by nothing. Seen red 2026-11-01 with `allows` answering
+    /// `mentions_enabled` for a task: "tasks off: no task push" failed while mentions were on.
+    #[test]
+    fn a_task_push_needs_the_tasks_switch() {
+        let db = Storage::open_temp("notification_prefs_tasks");
+        assert!(db.wants_push("k1", PushKind::Task), "nothing saved: on");
+        let p = db.change_notification_prefs("k1", &NotifPrefsChange { tasks: Some(false), ..Default::default() }).unwrap();
+        assert!(!db.wants_push("k1", PushKind::Task), "tasks off: no task push");
+        assert!(db.wants_push("k1", PushKind::Mention) && db.wants_push("k1", PushKind::Dm), "the other switches are their own");
+        let p = NotifPrefs { quiet_mentions: true, quiet_friends: true, tasks_enabled: true, ..p };
+        assert!(!p.push_comes_through_quiet_hours(PushKind::Task), "no exception lets a task through quiet hours");
+        db.change_notification_prefs("k1", &NotifPrefsChange { tasks: Some(true), mentions: Some(false), ..Default::default() }).unwrap();
+        assert!(db.wants_push("k1", PushKind::Task));
     }
 
     /// The quiet-hours exceptions (rung 2, 2026-10-31): off until set, kept when a change leaves

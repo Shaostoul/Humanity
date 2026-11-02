@@ -6,9 +6,10 @@ notification system, which 'Mute server' needs") with: "let's get it made."
 This is the whole plan, built in rungs (CLAUDE.md, "Plan the whole feature, build it in rungs").
 Rung 1 is built, and both parts of rung 2 (2026-10-31: the in-app list, the new mutes, levels,
 kinds and exceptions; then the tray icon, closing into it, a click on a notice opening its
-conversation, the in-world banner and the taskbar flash); section 11 says what each part and later
-rung adds and what it needs. Read this before adding a kind of notification, a control, or a
-platform.
+conversation, the in-world banner and the taskbar flash), and rung 3 (2026-11-01: task, call and
+game-event notices, the always-allow list for quiet hours, and a sound per kind); section 11 says
+what each part and later rung adds and what it needs. Read this before adding a kind of
+notification, a control, or a platform.
 
 ## 1. What there was before (checked 2026-10-30)
 
@@ -44,8 +45,15 @@ row there plus the place that raises it). Each kind names:
   hold the file to it);
 - `quiet_exception` (rung 2): the synced quiet-hours exception that lets the kind through quiet
   hours, `friends` (from a friend) or `mentions`; none when absent;
+- `burst` (rung 3; true unless false): whether the five-second burst guard applies (a ring's is
+  false); `sound` (rung 3): its default sound, an id among the file's `sounds`; `variants`
+  (rung 3): another title for a candidate's variant (a task newly given to you: `assigned`);
 - its words, as `data/i18n/` keys: the label, the hint, the title with the name, the title and
   body used when a notice shows nothing about the sender.
+
+Scope `server` (rung 3) is a server's own record, a task on its board: the server's mute applies,
+no room level and no conversation mute. Beside the kinds, `game_events` (rung 3) lists what the
+simulation raises, one row per event (section 11).
 
 | Kind | Flag | Scope | Level | Quiet exception | Rung |
 |---|---|---|---|---|---|
@@ -54,9 +62,12 @@ row there plus the place that raises it). Each kind names:
 | `reply`: a reply to a line of yours | mentions | room | mentions | mentions | 2 (built) |
 | `contact_request`: someone asks to reach you | dm | person | | | 2 (built) |
 | `room_line`: any line in a room you set to every line | none | room | all | | 2 (built) |
-| `task`: a task given to you or changed | tasks | person | | | 3 |
-| `call`: a call ringing | dm | person | | (rung 3 decides) | 3 |
-| `game_event`: something in your home worth knowing (a crop ready, air going bad) | none | game | | | 3 |
+| `task`: a task given to you or changed | tasks | server | | | 3 (built) |
+| `call`: a call ringing | dm | person | | none: only the always-allow list (the operator: section 11) | 3 (built) |
+| `game_event`: something in your home worth knowing (a crop ready, short of air) | none | game | | | 3 (built) |
+
+Every person kind (a DM, a contact request, a call) also comes through quiet hours from someone on
+the always-allow list (rung 3, section 11): that list names a person, not a kind.
 
 `room_line` is its own kind because the data file's shape calls for one: "every line" is an
 ordinary line, which has no synced switch (the mentions switch is about you being named, not
@@ -204,7 +215,9 @@ The checks, in order, each with the reason it reports:
    `relay/features.rs`). Under Push, a server whose owner turned Push off never answered, and
    neither app ever notified there (the seams pass found it). Push still decides whether that
    server SENDS a Web Push.
-4. `kind_off`: the kind's synced switch is off.
+4. `kind_off`: the kind's synced switch is off. Then (rung 3) for a game event, `event_off`: the
+   person turned that event off on this device, or it is off by default and not turned on; an
+   event the file lacks is `unknown_kind`.
 5. `all_muted`: everything is muted (Settings > Notifications > Mute everything, and the tray's
    Mute from rung 2's part 2), DMs included. Then `person_muted` (rung 2): a person kind (a DM, a
    contact request) in a conversation muted until later or until unmuted; or `server_muted`,
@@ -219,7 +232,9 @@ The checks, in order, each with the reason it reports:
    quiet-hours exception is on (rung 2): `friends` lets a DM from a friend through, `mentions` a
    mention or a reply. A window that ends before it starts runs past midnight; a window whose ends
    are equal is empty. An exception lifts quiet hours only: a mute still holds (mutes are checked
-   first), and so do the checks after it.
+   first), and so do the checks after it. Rung 3: a person kind (a DM, a contact request, a call)
+   from someone on the always-allow list (`Candidate::from_allowed`, decided on the device) comes
+   through too; nothing else lets a call through (the operator's decision, section 11).
 8. `on_screen`: the window has focus AND that conversation is the one showing (the Chat page or the
    in-world chat panel, on the same server; a shared room's Commons view counts).
 9. `too_soon`: a notice for the same conversation went out under 5 seconds ago (a burst of lines
@@ -231,9 +246,11 @@ The checks, in order, each with the reason it reports:
    and public.guide was two notices, two sounds and a bell count of 2 (the critic's review of part
    2, 2026-10-31). The website's twin keys by the conversation alone: a tab is one server, which
    never receives a second carrier's copy, so it needs neither.
+    Rung 3: a kind whose `burst` is false (a call) skips this check, and keeps no time for it.
 10. Otherwise it notifies: the OS notice when desktop notices are on AND the window is not focused
-    (a focused window gets the sound and the in-app list), the sound when sound is on, and the
-    in-app list always (rung 2, section 3: `list`).
+    (a focused window gets the sound and the in-app list), the sound when sound is on and the
+    kind's sound is not set to None (rung 3), and the in-app list always (rung 2, section 3:
+    `list`).
 
 **A friend** (the friends exception) is someone you follow who follows you: the client-held store's
 `DmStore::is_friend` (the website's `hosDmStore.isFriendPeer`), whose follows travel as sealed
@@ -288,8 +305,9 @@ setup hides never notifies. Where each kind is raised (rung 2):
 | Per-room level: every line / mentions / nothing | this device | mentions | the room's right-click; the rooms set otherwise listed in Settings > Muted, with Back to mentions | same | 2 part 1 (built) |
 | Quiet-hours exceptions: friends' DMs, mentions | server (synced) | off | Settings, under quiet hours | Settings, under quiet hours (the unread DnD section and the "Notification Sound" switch removed) | 2 part 1 (built) |
 | The in-app list: the bell, its count and the panel | (memory only) | | every page's header | the chat page's header | 2 part 1 (built) |
-| Per-kind sound | this device | | Settings | | 3 |
-| Game events, per event | this device | per event in data | Settings | | 3 |
+| Per-kind sound, or None | this device | the kind's own (data) | Settings > Notifications > Sounds, with Play | Settings > Notifications > Sounds, with Play (the chat's sound menu keeps on or off) | 3 (built) |
+| Game events, per event | this device | per event in data | Settings, "Your home" | n/a (the website has no game) | 3 (built) |
+| The always-allow list (calls and messages through quiet hours) | my devices (notes to myself), never a server | nobody | a DM's right-click; Settings lists it with Remove | a DM's bell or right-click; Settings lists it with Remove | 3 (built) |
 | Show HumanityOS in the notification area (the tray) | this device | on | Settings | n/a | 2 part 2 (built) |
 | Closing the window keeps HumanityOS running in the tray | this device | off (closing quits) | Settings | n/a | 2 part 2 (built) |
 
@@ -502,6 +520,16 @@ to the right click menu a button for mute that opens to the available options."
   - The website: `hos_notify_mutes` gains `people`; `hos_notify_levels` holds the levels; and
     `hos_notify_names` keeps a muted conversation's name beside its mute, for the Settings page's
     Muted list (that page has no DM list of its own), removed with the mute.
+  - Rung 3: each kind's sound (`config.json` `notifications.sounds`, the website's
+    `hos_notify_sounds`) and each game event's switch (`notifications.events`), only what differs
+    from the data file's default; they are the screen's and the speakers'.
+- **The always-allow list (rung 3): the person's, on their own devices, never on a server.** It
+  names who may wake them, a social edge the server must not hold (the 2026-08-24 follows removal
+  took the last one back), so it is not a `notification_prefs` column: it travels as notes to
+  oneself (section 11) and is kept by identity in `config.json` `notifications.quiet_allow` (and
+  `quiet_allow_unsent`, the notes waiting for a connection) and in the website's
+  `hos_quiet_allow` (`hos_quiet_allow_unsent`, `hos_quiet_allow_names` for the Settings page's
+  list).
 
 ## 8. Accessibility
 
@@ -539,6 +567,13 @@ to the right click menu a button for mute that opens to the available options."
   the icon is made. In the world the banner adds one card's layout while it shows.
 - **Hidden in the tray:** no frame, no GPU work, no world; four ticks a second of the network pump
   the frame already runs, and nothing else.
+- **Rung 3, per frame:** one lock of the game-event list (as the sound list already has) and a
+  look at the folder only when it holds something (at most 16 kinds), and one comparison for a
+  ringing call. Per game event: one push onto that list, at a transition, never every tick. On the
+  relay, per task change: the rows the handler already reads (one more read before an enum edit
+  or move), one name lookup, a send per recipient's socket, and a push only for a recipient with
+  none open. Network: one `task_notice` per recipient per change; game events never leave the
+  device.
 - **Network: no new polling, no new routes.** One `get_notification_prefs` per sign-in (before:
   one when a popup first opened), one `update_notification_prefs` per change to each connected
   server. The relay adds one primary-key read of `notification_prefs` per push it would send.
@@ -630,9 +665,200 @@ count, a click on a notice after the app has quit starting it (rung 5, with Repl
 through D-Bus (rung 5), and staying in a call while in the tray (section 5, "The tray": the voice
 pump in the hidden tick and an "in a call" tray state, both needed together).
 
-**Rung 3:** task, call and game-event kinds (the relay sends task events; the tasks switch finally
-does something; game events per event, from data, raised by the simulation's systems through the
-existing `sfx_events`-style channel); per-kind sound.
+**Rung 3 (planned and built 2026-11-01):** task, call and game-event kinds (the relay sends task
+events; the tasks switch finally does something; game events per event, from data, raised by the
+simulation's systems through the existing `sfx_events`-style channel); per-kind sound. The whole
+rung, decided before it was built (the call's quiet hours re-decided by the operator the same day),
+and built as written except where *As built* says:
+
+*Task: a task given to you, or a task of yours changed.*
+- **What the relay sends.** Every path that changes a board task (the chat's `task_create`,
+  `task_update` and `task_move`, the raw `task_update` the website's Tasks page sends, the bot
+  API's `POST` and `PATCH /api/tasks`) ends in one function, `relay/handlers/task_notice.rs`,
+  given the task as it was and as it is. Its pure core, `task_notice::change`, answers `assigned`
+  when the task's assignee is newly someone (set, or changed to another name; compared trimmed and
+  without case) and `changed` when the task keeps its assignee and its title, description, status
+  or priority changed. A comment, a delete and a move between projects are not notices in this
+  rung. The assignee is a name, the board's own field (a person types it), so the recipients are
+  the keys registered under that name on this server (`keys_for_name`, the registry the mention
+  push uses), never the person who made the change.
+- **On the wire:** `task_notice` to each recipient's own sockets (`target`, filtered in the send
+  loop like `notification_prefs_data`): the task's id and title, `change`, its status, and who
+  changed it (their name and key). Not signed: the board is this server's own record, and the
+  client already takes the task list from the same socket unsigned, so a signature would prove only
+  that the server sent it, which the socket already does. A signed actor would need the change
+  messages themselves signed by the actor's client, which they are not (a later rung, if tasks
+  ever federate). No table is added: the notice is worked out from the `project_tasks` row before
+  and after the change (CLAUDE.md, "The removed tables stay removed").
+- **The relay's Web Push** for a recipient with no socket open, when their `tasks` switch is on
+  (`PushKind::Task`, the switch that until now did nothing): "A task was given to you" or "A task
+  of yours changed", "Open HumanityOS to see it.", tagged per task, opening `/tasks`. Neither the
+  task's title nor who changed it: the push services carry it.
+- **Found on the way: the raw task handlers had no role check.** The chat's enum handlers ask for
+  a moderator or admin to create, edit or move a task, but `task_create`, `task_update` and
+  `task_comment` are matched as raw messages first, so those checks never ran and anyone signed in
+  could create a task or edit any task (title, status, priority, assignee). With this rung every
+  such edit would also ping its assignee, so the hole would become a way to page anyone. The raw
+  handlers now ask for exactly what the enum handlers do (create, edit, move: a moderator or
+  admin; a comment: verified, donor, moderator or admin). BUG-221.
+- **On the devices:** the desktop (the active server's socket, and each saved server's
+  background link) and the website's chat tab turn a `task_notice` into a `task` candidate: its
+  conversation `task:<id>` on that server, its sender who changed it, its text the task's title
+  (shown only with "who and the message"), mine when the change was mine (another of my devices).
+  A new scope, `server`: a server's mute stops it (a task board is a server's), no room level
+  applies, and a conversation mute does not (the conversation is the task). No quiet-hours
+  exception: a task can wait for the morning. A click, or opening its entry, goes to the Tasks
+  page on that server (the desktop switches server as a chat entry does) with the task open; the
+  website opens `/tasks?task=<id>`.
+
+*Call: a call ringing (the rung-2 table's "rung 3 decides").*
+- **Raised where the ring is taken,** only when it rings: the desktop's `call_relay::on_ring` once
+  the ring passed "who can reach me" and the person is idle; the website's `voice_call` ring when
+  idle and not ignored. A busy ring stays the missed-call line it is, with no notice.
+- **Quiet hours: the operator decided it (2026-11-01, verbatim):** "I like the default being calls
+  don't go through on quiet hours unless I specifically add users to the always allow list. We
+  should include that information in the quiet hours gui element thing." So a call does NOT come
+  through quiet hours, and no kind-wide exception lets one through (the `friends` exception stays
+  what it was, friends' direct messages only); the one way through is **the always-allow list**,
+  people the person adds themselves, nobody by default (below). (This replaces the plan's first
+  answer, written the same morning before the operator's: a friend's call with the friends
+  exception on.) What the rule holds back is the notice and the sound, never the call: with the
+  window open the ringing screen still shows, so a person at the screen can answer at any hour.
+- **The always-allow list** ("Always allow during quiet hours"): people, by their identity key,
+  whose calls AND direct messages come through quiet hours. Both, not calls alone, because the
+  list names a person rather than a kind: someone trusted enough to ring at 3 in the morning is
+  trusted to write then, and "always allow" read as "except their messages" would surprise. It
+  covers the person kinds (their DMs, their calls, a contact request from them); a mention of you
+  by them in a room stays the room's (the mentions exception covers it), and a mute still holds
+  (mutes are checked first, as with every exception).
+  - **Client-held, never on a server.** Who may wake you is a social edge as sensitive as a
+    friendship, so no server stores or learns the list (CLAUDE.md, "The removed tables stay
+    removed"). It travels between the person's own devices the house way, as notes to oneself, the
+    way the block list and the choice for each friend do: a sealed DM from me to me whose text is
+    exactly `[[hum:quiet-allow:v1]]<key>/on` or `/off` (`CTL_QUIET_ALLOW`, both twins, one test
+    vector), sent to my own mailbox on every server I am connected to, kept for the next
+    connection when none is. The note's signed time decides: per person the newest note wins
+    (`notifications::allow`), so a note delivered again, or two devices' changes arriving out of
+    order, settle the same on every device. Kept on the desktop in `config.json`
+    `notifications.quiet_allow`, by identity (beside the mutes, which name conversations the same
+    way; rung 4's encrypted local store takes both), on the website in `hos_quiet_allow`.
+  - **How a person adds someone:** the conversation's own menu, "Always allow during quiet hours"
+    (the desktop's DM right-click, the website's DM bell or right-click), the same place Mute
+    conversation is; Settings lists everyone on it under quiet hours, each with Remove.
+  - **Said in the quiet-hours control itself** (the operator's second sentence): the switch's own
+    hint is "Between these hours nothing notifies you and calls do not ring, except what you let
+    through below.", and under it, always shown: "Calls and notices wait until quiet hours end,
+    except from the people on your always-allow list. To add someone, open their conversation's
+    menu in Chat and choose Always allow during quiet hours." Below the hours come, as one list of
+    what may still come through: the people always allowed (calls and messages, each with Remove),
+    then "Friends' messages come through" (its hint says their calls still wait and points to the
+    list), then "Mentions and replies come through".
+- **Mutes:** Mute everything stops a call's notice and its ring; muting the conversation with
+  that person stops their calls' notices too (scope `person`, conversation `dm:<their key>`). The
+  ringing screen still shows.
+- **Its words:** "{{name}} is calling"; with "only that something arrived", "Someone is calling";
+  the body is always "Open HumanityOS to answer or decline it." (a call has no message to show).
+- **A click answers nothing.** It shows the window (from the tray too) and opens the DM with the
+  caller, where the ringing screen is drawn over the page with Accept and Decline. Nothing is sent
+  until the person presses one.
+- **No double ring.** The desktop's ringing screen made no sound at all, so the notice's sound is
+  the ring. On the website the ring's own chime, and the service worker's separate "Incoming call"
+  notice (which ignored quiet hours, mutes and what a notice shows), are replaced by the rule's
+  answer. In the world there is no banner for a call (the ringing screen is already over the world);
+  the taskbar flash stays.
+- **The ring repeats** while the call rings: the kind's sound every 3 seconds, for at most 45 (the
+  caller gives up at 30; the rest covers a hang-up that never arrives). One comparison a frame.
+- **Withdrawn when the ring ends,** however it ends (answered, declined, the caller's hang-up or
+  give-up, a block, the window closing into the tray): the desktop watches for the ring to go and
+  then stops the sound and withdraws the operating system's notice (a call has no banner). Windows
+  removes it from the screen and the notification centre (`ToastNotificationHistory`, by its tag
+  and group); Linux's `notify-send` cannot close a notice it showed, so a call's notice expires by
+  itself after the ring's 45 seconds (rung 5's D-Bus closes it); macOS's `osascript` cannot
+  withdraw one (rung 5). The website closes its browser notice on every way out of ringing.
+- **The burst guard is not for rings:** a kind's `burst` (data; true unless set) says whether the
+  five seconds apply. A call's is false: a ring is one event per call, so a DM two seconds before
+  it must not hold it back, and its repeats are the engine's, not new notices.
+
+*Game events, per event, from data.*
+- **The rows:** `game_events` in `data/notifications/notifications.json` (infinite-of-x: a new
+  event is a row plus the line of the system that raises it): its id, `built`, `on` (its default
+  on this device), `every_secs` (the fold's interval), the page a click opens, and its words by key
+  (a title; a body, one and many, with `{{n}}` and `{{where}}`, "your home" when an event has no
+  place).
+- **The channel:** `systems::push_game_event(data, id, where)`, beside `push_sfx_event`: a
+  DataStore list the engine drains each frame (`engine/notify.rs`), a no-op where it is not
+  registered (the relay, a lib test). Nothing is networked: an event is this device's.
+- **The starting set, each raised by real code at a transition:** `crop_ripe` (the farming tick, a
+  crop's stage reaching its last, ripe one; `where` its grow area), `water_low` (the plumbing tick,
+  the home's tanks falling under a tenth of their capacity, once per crossing), `short_of_air`
+  (the body's tick, the player's body only, `hypoxia` or `suffocation` newly on: blood oxygen under
+  half, in vacuum or air that cannot be breathed), `hungry` and `thirsty` (the same tick, newly on;
+  off by default, since the HUD shows them). The home's carbon dioxide and its power are not in it: no harm limit for the home's air
+  is in the data yet, and the fleet supply is unlimited in early development, so nothing could
+  honestly say either was running out.
+- **Folding and the rate (section 9):** `notifications::game::Folder`, pure. The first event of a
+  kind opens a two-second gather; at its end ONE notice carries the count and the first place
+  ("12 crops are ripe, the first in Tower 1"); after it nothing more of that kind for `every_secs`,
+  and what arrives meanwhile is counted into the next one. A farm of 2,000 crops ripening in one
+  tick is one notice. At most 16 kinds wait at once.
+- **The rule:** a new reason, `event_off`, after `kind_off`: an event the person turned off on this
+  device, or one off by default and not turned on. An event the file does not have is
+  `unknown_kind`. Scope `game`: no server, room or conversation mute applies, Mute everything does,
+  and quiet hours hold (no exception: a ripe crop at 3 in the morning can wait).
+- **Words:** "only that something arrived" says "Something in your home needs you"; otherwise the
+  event's own title and body. There is no sender, and nothing private in them.
+- **Settings:** a card "Your home" with a switch per event (`config.json` `notifications.events`,
+  only what differs from the default). The website has no game, so its Settings lists none.
+- **A click, or opening its entry,** opens the event's page (`opens`, a page id), or the world.
+
+*Per-kind sound.*
+- Each kind's `sound` in the data file, an id among the file's `sounds` (each an entry in
+  `data/sounds.toml`, files already in `assets/audio/ui/`). Settings > Notifications > Sounds: a row
+  per built kind, choosing one of them or "None", with Play, on both apps. The desktop keeps the
+  choices in `config.json` `notifications.sounds` (only what differs from the default); rung 1's
+  single sound choice (`sound_id`) is replaced outright. The website keeps them in
+  `hos_notify_sounds` and plays the same files (from `/assets/`), falling back to its synthesized
+  chime where the browser cannot play one; the chat's sound menu keeps "Play a sound" and its list
+  of synthesized sounds goes, pointing to Settings instead.
+- **In the rule:** `sound` is false when the kind's sound is "None" (both twins, shared cases). The
+  "Play a sound" switch stays the master.
+- No sound was downloaded or added: the three in the file (Message, Alert, Bright) plus the two
+  quieter interface sounds already shipped (`sfx.menu_open` as "Soft", `sfx.inventory_pickup` as
+  "Pop") are the choices.
+
+*Budgets (section 9).* Per frame: one lock of the game-event list (as the sound list already is),
+a look at the folder only when it holds something, one comparison for a ringing call. Per task
+change on the relay: the before and after rows the handler already reads, one name lookup, a send
+per recipient's socket, a push only for one with no socket. Network: one `task_notice` per
+recipient per change, no polling, no new route.
+
+*As built (2026-11-01), where it differs from or adds to the plan above:*
+- There is no banner for a call at all, so the ring's end has none to drop.
+- The raw `task_create` dropped the assignee and project the website's form sends (every task made
+  there was given to nobody, in the default project): it keeps them now, since "given to you at its
+  creation" is the commonest task notice.
+- `relay/relay.rs` was at its file-size budget, so the Web Push send moved out unchanged into its
+  child module `relay/push_send.rs` (the budget lowered to 6,340, `tests/file_size_ratchet.rs`).
+- The website's two service-worker notices in `chat-voice-calls.js` went: the ring's (it ignored
+  quiet hours, the mutes and what a notice shows) and a `private` frame's (the relay sends those as
+  `system`, so it never fired). A busy ring there is a missed-call line and no notice, as on the
+  desktop.
+- The desktop's Tasks page does not follow the board's live changes, so a click on a task notice
+  asks the server for the task list afresh and opens the task once it is there (`task_open_id`).
+- Where the desktop raises each: the task notice from the active server's socket
+  (`frame_ws_poll.rs`) and every saved server's link (`bg_connections.rs`); the call from the ring
+  (`call_relay::on_ring` returns whether it rang); the game events drained in `engine/notify.rs`
+  `pump` (frame and hidden tick alike), the ring's repeat and withdrawal in `pump_ringing`.
+
+*Tests* (each test's comment says how it was seen red, where it was): the new shared cases (a task
+through a muted server, a call held by quiet hours even from a friend with the friends exception
+on, a call and a DM through them from someone on the always-allow list, a mention from that person
+still held, a call two seconds after a DM, an event off by default and turned on, a kind whose
+sound is None), on both twins; `task_notice::change` and the recipients; the relay's push decision
+for tasks (`PushKind::Task`); the raw handlers' role check; the folder (2,000 events, one notice;
+the interval; the cap); the call notice withdrawn on answer, decline and end; the raisers (short
+of air once, for the player only; water low once per crossing); the per-kind sound and event
+switches round-tripping through `config.json`.
 
 **Rung 4:** sync: each server told its own mutes, so its Web Push honours them; quiet hours for
 pushes (the device's UTC offset kept with the preferences, or the service worker checking its own
@@ -677,6 +903,20 @@ notices grouped per conversation in the notification centre.
   `debug/tray_request.json`, reading `run.log`'s `tray:`, `window:` and `notifications:` lines;
   a person checks them by hand (Settings > Notifications, then close the window, right-click
   the icon beside the clock, click a notice).
+- Rung 3 (2026-11-01): the shared cases grew to 98 (tasks, calls, the always-allow list, game
+  events, a kind's sound); `notifications::allow` (the note's bytes, the newest note winning),
+  `notifications::game` (2,000 events one notice, the interval, the cap), the settings round trip
+  with sounds, events and the list, the data file's sounds and event words (`notifications/tests.rs`);
+  `engine/quiet_allow.rs` (only my own note writes the list); `engine/notify.rs`
+  `a_ringing_call_rings_again_and_ends_however_the_ring_ends` (the ring repeats and its notice is
+  withdrawn when answered, declined, hung up, replaced or timed out) and
+  `a_folded_game_notice_says_how_many_and_where`; the raisers, `systems/food.rs`
+  `going_short_of_air_is_one_game_event_for_the_player` and `systems/plumbing.rs`
+  `water_running_low_is_one_game_event_per_crossing`; the relay's
+  `handlers/task_notice_tests.rs` (what a change means, who is told, the board's role check,
+  BUG-221) and `storage/notification_prefs.rs` (`a_task_push_needs_the_tasks_switch`);
+  `node --test scripts/tests/notify-rung3-web.test.js` (the website's glue: the list and its notes,
+  a ring and its withdrawal, a task notice, a kind's sound).
 - `just verify-tray` (since the critic's review, 2026-10-31): the hidden-window chain in the
   running game, two boots, judged link by link (scripts/lib/tray-judge.js; `node --test
   scripts/tests/tray-judge.test.js`, in `just rig-tests`, breaks each link alone).

@@ -52,6 +52,10 @@ fn mutes_of(v: &Value) -> Mutes {
     Mutes { everything: opt_i(v, "everything"), servers: map("servers"), rooms: map("rooms"), people: map("people") }
 }
 
+fn strings_of(v: &Value) -> std::collections::BTreeMap<String, String> {
+    v.as_object().map(|o| o.iter().map(|(k, x)| (k.clone(), x.as_str().unwrap_or("").to_string())).collect()).unwrap_or_default()
+}
+
 fn levels_of(v: &Value) -> std::collections::BTreeMap<String, super::Level> {
     v.as_object()
         .map(|o| o.iter().map(|(k, l)| (k.clone(), super::Level::from_id(l.as_str().unwrap_or("")))).collect())
@@ -64,7 +68,12 @@ fn levels_of(v: &Value) -> std::collections::BTreeMap<String, super::Level> {
 /// (2026-10-31) seen red here with the conversation mute skipped: "a DM in a muted conversation"
 /// answered notify. The website's twin was seen red on these cases with each other new check
 /// broken in turn: the room level skipped, the exceptions ignored, the friends exception granted
-/// to anyone, and the list given only with the sound.
+/// to anyone, and the list given only with the sound. Rung 3 (2026-11-01): the website's rung-2
+/// twin answered 8 of the 26 new cases wrongly ("a task on a muted server", "a call from someone
+/// always allowed rings through quiet hours", "a call 2 seconds after a DM", "a game event off by
+/// default", "a kind whose sound is none", ...); here, seen red with the always-allow check left
+/// out of `decide` ("a call from someone always allowed rings through quiet hours" answered
+/// quiet_hours).
 #[test]
 fn every_shared_case_gets_the_same_answer() {
     let fx = fixture();
@@ -93,6 +102,10 @@ fn every_shared_case_gets_the_same_answer() {
             text: s(&cand, "text"),
             from_friend: b(&cand, "from_friend"),
             commons: false,
+            from_allowed: b(&cand, "from_allowed"),
+            event: s(&cand, "event"),
+            count: cand.get("count").and_then(Value::as_u64).unwrap_or(0) as u32,
+            variant: s(&cand, "variant"),
         };
         let qs = synced.get("quiet_start").and_then(Value::as_str).map(str::to_string);
         let qe = synced.get("quiet_end").and_then(Value::as_str).map(str::to_string);
@@ -110,9 +123,10 @@ fn every_shared_case_gets_the_same_answer() {
             desktop: b(&local, "desktop"),
             show: Show::from_id(&s(&local, "show")),
             sound: b(&local, "sound"),
-            sound_id: "sfx.chat_message".into(),
             mutes: mutes_of(&local["mutes"]),
             room_levels: levels_of(&local["levels"]),
+            sounds: strings_of(&local["sounds"]),
+            events: local["events"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_bool().unwrap_or(false))).collect()).unwrap_or_default(),
             ..Default::default()
         };
         let at = Moment {
@@ -265,6 +279,7 @@ fn a_toast_cannot_be_made_into_something_else() {
         tag: tag_for("dm:k1"),
         group: "dm".into(),
         launch: String::new(),
+        expire_ms: super::toast::EXPIRE_MS,
     };
     let xml = toast_xml(&t);
     assert!(!xml.contains("<actions>"), "{xml}");
@@ -355,7 +370,24 @@ fn the_data_file_parses_and_every_word_it_names_is_in_english() {
         assert!(crate::i18n::has(key), "data/notifications/notifications.json names {key}, which en.json lacks");
     }
     assert!(file.mute_for.iter().any(|m| m.seconds == 0), "until I unmute");
-    assert!(file.sound(&LocalSettings::default().sound_id).is_some_and(|s| s.id == "sfx.chat_message"), "the default sound is listed");
+    // Rung 3: every kind's default sound is one the file lists, and every game event's words exist.
+    for k in &file.kinds {
+        assert!(file.sounds.iter().any(|s| s.id == k.sound), "{}'s sound {} is listed", k.id, k.sound);
+        for v in k.variants.values() {
+            assert!(crate::i18n::has(v), "{}'s variant title {v} is in en.json", k.id);
+        }
+    }
+    assert!(!file.game_events.is_empty(), "the starting set of game events");
+    for e in &file.game_events {
+        for key in [e.label.as_str(), e.hint.as_str(), e.title.as_str()] {
+            assert!(crate::i18n::has(key), "{key} is in en.json");
+        }
+        for form in ["one", "other"] {
+            assert!(crate::i18n::has(&format!("{}.{form}", e.body)), "{}.{form} is in en.json", e.body);
+        }
+        assert!(e.every_secs > 0, "{} folds over an interval", e.id);
+        assert!(e.opens.is_empty() || crate::gui::dispatch::page_from_id(&e.opens).is_some(), "{} opens a page that exists", e.id);
+    }
     let disk = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/notifications/notifications.json")).unwrap();
     assert_eq!(disk, crate::embedded_data::get_embedded("notifications/notifications.json").unwrap(), "the exe's copy is the data folder's");
 }
@@ -367,10 +399,24 @@ fn the_data_file_parses_and_every_word_it_names_is_in_english() {
 fn local_settings_survive_config_json() {
     let old: LocalSettings = serde_json::from_str("{}").unwrap();
     assert_eq!(old, LocalSettings::default());
-    let mut s = LocalSettings { show: Show::NameAndText, desktop: false, sound_id: "sfx.notification".into(), ..Default::default() };
+    let mut s = LocalSettings { show: Show::NameAndText, desktop: false, ..Default::default() };
     s.mutes.mute_server("https://a.example", 10, 0);
+    // Rung 3: a kind's sound, a game event's switch and the always-allow list, kept the same way.
+    let file = shipped();
+    s.set_sound(&file, "dm", super::settings::NO_SOUND);
+    s.set_sound(&file, "call", "sfx.success");
+    s.set_event(&file, "hungry", true);
+    s.quiet_allow.entry("me".into()).or_default().apply("ann", true, 100);
     let back: LocalSettings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
     assert_eq!(back, s);
+    assert_eq!(back.sound_of(&file, "dm"), None, "none is no sound");
+    assert_eq!(back.sound_of(&file, "call"), Some("sfx.success"));
+    assert_eq!(back.sound_of(&file, "mention"), Some("sfx.chat_message"), "the kind's own by default");
+    assert!(back.event_on(&file, "hungry") && back.event_on(&file, "crop_ripe") && !back.event_on(&file, "thirsty"));
+    assert!(back.always_allows("me", "ANN") && !back.always_allows("someone else", "ann"), "a list is its identity's");
+    s.set_sound(&file, "call", "sfx.notification");
+    s.set_event(&file, "hungry", false);
+    assert!(!s.sounds.contains_key("call") && s.events.is_empty(), "a default is kept as no entry");
     assert_eq!(Show::from_id("whatever"), Show::Name, "an unknown choice is the safe default");
     // Rung 2, part 2: the tray icon on, closing into it off, so closing still quits.
     assert!(old.tray && !old.close_to_tray, "a config.json from before them: the icon shows, closing quits");
@@ -511,7 +557,7 @@ fn no_banner_on_a_broadcast_window() {
 /// A notice carries its click token, escaped, and Linux's click is an option before `--`.
 #[test]
 fn a_notice_carries_its_click_token() {
-    let t = Toast { title: "Ben".into(), body: "hi".into(), tag: tag_for("dm:k1"), group: "dm".into(), launch: "hos1.r.1\" onclick=\"x".into() };
+    let t = Toast { title: "Ben".into(), body: "hi".into(), tag: tag_for("dm:k1"), group: "dm".into(), launch: "hos1.r.1\" onclick=\"x".into(), expire_ms: super::toast::EXPIRE_MS };
     let xml = toast_xml(&t);
     assert!(xml.starts_with("<toast launch=\"hos1.r.1&quot; onclick=&quot;x\">"), "a token cannot add an attribute: {xml}");
     assert!(toast_xml(&Toast { launch: String::new(), ..t.clone() }).starts_with("<toast><visual>"));

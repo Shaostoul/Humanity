@@ -40,6 +40,9 @@ pub mod mailbox;
 /// Notifications (2026-10-30, docs/design/notifications.md): a live DM or mention handed to the
 /// rule with what only the engine knows (focus, what is on screen), and the sound and notice done.
 pub mod notify;
+/// The always-allow list: the people whose calls and messages come through quiet hours, and the
+/// notes to myself that carry it between my devices (notifications rung 3).
+pub mod quiet_allow;
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
 pub mod report;

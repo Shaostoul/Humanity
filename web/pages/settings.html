@@ -1001,10 +1001,13 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong data-i18n="notifications.quiet">Quiet hours</strong>
-            <span data-i18n="notifications.quiet_hint">Between these hours nothing notifies you, by sound or by notice. The hours are your computer's own clock.</span>
+            <span data-i18n="notifications.quiet_hint">Between these hours nothing notifies you and calls do not ring, except what you let through below. The hours are your computer's own clock.</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-push-dnd" onchange="savePushDnd()"><span class="toggle-track"></span></label>
         </div>
+        <!-- The operator, 2026-11-01: calls wait during quiet hours unless the caller is on the
+             always-allow list, said here in the quiet-hours control itself (notifications rung 3). -->
+        <p class="section-desc" data-i18n="notifications.quiet_allow_note">Calls and notices wait until quiet hours end, except from the people on your always-allow list. To add someone, open their conversation's menu in Chat and choose Always allow during quiet hours.</p>
         <div id="push-dnd-times" style="padding-left:var(--space-2xl);">
           <div class="setting-row">
             <div class="setting-label">
@@ -1018,10 +1021,19 @@
             </div>
             <select class="setting-select" id="pref-dnd-end" onchange="savePushDnd()" style="min-width:110px;"></select>
           </div>
+          <!-- What still comes through, read as one list: the people always allowed (rung 3, kept in
+               this browser and on my other devices, drawn by settings-app.js renderAllowList), then
+               the two exceptions (rung 2, synced). -->
           <div class="setting-row">
             <div class="setting-label">
-              <strong data-i18n="notifications.quiet_friends">Friends' direct messages come through</strong>
-              <span data-i18n="notifications.quiet_friends_hint">During quiet hours a direct message from a friend (you follow each other) still notifies you. Off unless you turn it on. Your device decides it: your server never learns who sends you a direct message.</span>
+              <strong data-i18n="notifications.quiet_allow_heading">Always allowed during quiet hours</strong>
+            </div>
+          </div>
+          <div id="quiet-allow-list"></div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong data-i18n="notifications.quiet_friends">Friends' messages come through</strong>
+              <span data-i18n="notifications.quiet_friends_hint">During quiet hours a direct message from a friend (you follow each other) still notifies you. Their calls still wait: for calls, add them to your always-allow list. Off unless you turn it on. Your device decides it: your server never learns who sends you a direct message.</span>
             </div>
             <label class="toggle"><input type="checkbox" id="pref-push-quiet-friends" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
@@ -1053,6 +1065,15 @@
           </select>
         </div>
         <p class="section-desc" data-i18n="notifications.web_ios_note">On an iPhone or iPad, notices arrive only for a site added to the home screen: that is Apple's rule.</p>
+      </div>
+
+      <!-- Each kind's sound (notifications rung 3, the desktop's Settings > Notifications > Sounds):
+           drawn by settings-app.js renderSoundRows from /data/notifications/notifications.json, kept
+           in hos_notify_sounds, played by the chat (chat-notify.js playSound). -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="notifications.sounds_heading">Sounds</div>
+        <p class="section-desc" data-i18n="notifications.sounds_note">The sound each kind of notice plays. None plays no sound for that kind. The sound switch turns every sound on or off.</p>
+        <div id="notif-sounds"></div>
       </div>
 
       <!-- Muted (notifications rung 2, the desktop's Settings > Notifications > Muted): Mute
@@ -2262,6 +2283,7 @@
 <script src="/shared/hold-confirm.js?v=1"></script>
 <!-- Files kept from messages: the encrypted copies the chat keeps of private files opened. -->
 <script src="/shared/kept-files.js?v=1"></script>
+<script src="/shared/notify-rules.js"></script>
 <script src="/pages/settings-app.js"></script>
 </body>
 </html>

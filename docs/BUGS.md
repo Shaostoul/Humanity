@@ -7017,3 +7017,28 @@ Main only: no tag contains it.
 - **Lesson.** Hiding a window is leaving: everything the drawn frame keeps alive (voice,
   capture, timers) must be stopped or moved into the hidden tick on purpose, never left to stop
   by itself when frames stop.
+
+## BUG-221: anyone signed in could create or edit any board task, which rung 3 would have made a way to page anyone (FIXED 2026-11-01, found 2026-11-01; the raw handlers date from the v0.6.0 refactor, 056aa0ee1)
+
+**Found by** notifications rung 3's plan (docs/design/notifications.md, section 11), reading the task
+routes before making a task's change notify its assignee. Not operator-reported.
+
+- **The hole.** The chat's enum handlers for `task_create`, `task_update` and `task_move` ask for a
+  moderator or an admin, but `src/relay/relay.rs` matches `task_create`, `task_update` and
+  `task_comment` as RAW messages first (`handle_raw_task_*` in
+  `src/relay/handlers/msg_handlers.rs`), so the enum checks never ran for them, and the raw
+  handlers checked nothing. Anyone with a signed-in socket could add a task or change any task's
+  title, status, priority and assignee; anyone could comment. The website's Tasks page sends
+  exactly these raw messages.
+- **Why it mattered now.** From rung 3 a task given to someone, or changed while it is theirs,
+  sends them a notice and a Web Push, so the hole would have let anyone page anyone, repeatedly.
+- **FIXED.** The raw handlers ask for what their enum twins ask, through one pair of answers
+  (`may_edit_tasks`: a moderator or an admin; `may_comment_on_tasks`: verified, a donor, a
+  moderator or an admin), used by the enum handlers too. The raw `task_create` also caps the
+  description as its twin does, and keeps the assignee and project the form sends (it dropped
+  both). Test `the_board_asks_for_a_role_and_a_given_task_tells_its_assignee`
+  (`src/relay/handlers/task_notice_tests.rs`), seen red with the role check taken out of
+  `handle_raw_task_update` ("no role: the task is unchanged").
+- **Lesson.** When a message type is matched in two places, the first match is the only one that
+  runs: a check on the second is dead code that reads as protection. Look for the raw match before
+  trusting an enum handler's guard.

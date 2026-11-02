@@ -255,9 +255,15 @@ In order:
     the tray (off by default; the world left and saved, no frame while hidden, the sockets read
     four times a second), a click on an OS notice opening its conversation (Windows' notice
     activator, Linux's `notify-send --action`, the web's `onclick`), the in-world banner and the
-    taskbar flash, and part 1's two leftovers. Next: rung 3 (task, call and game-event kinds,
-    per-kind sound); still later, recorded in the design: Windows' taskbar overlay badge, macOS's
-    menu-bar count, a click on a notice after the app has quit.
+    taskbar flash, and part 1's two leftovers. Rung 3 DONE 2026-11-01: task notices (the relay's
+    `task_notice` to the assignee, Web Push behind the `tasks` switch; on the way BUG-221, the raw
+    task handlers had no role check), call notices (the operator: calls wait during quiet hours
+    unless the caller is on the person's always-allow list, built client-held on both apps, notes
+    to oneself between devices), game events per event from data (crops ripe, water low, short of
+    air, hungry, thirsty; folded), and a sound per kind on both apps. Next: rung 4 (sync: each
+    server told its own mutes, quiet hours for pushes, the list in the encrypted local store);
+    still later, recorded in the design: Windows' taskbar overlay badge, macOS's menu-bar count, a
+    click on a notice after the app has quit, closing a Linux notice through D-Bus (rung 5).
 14. **Rust warnings to zero, then held there (operator, 2026-10-31: "Sounds like we have a
     reasonable path forward.")** The user environment's `RUSTFLAGS=-Awarnings` hid every warning
     on this PC (docs/ai/builds.md); main had about 1,070 warning lines: ~530 renamed egui and rand

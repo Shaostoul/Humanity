@@ -1394,6 +1394,8 @@ mod native_app {
                 "sfx_events",
                 std::sync::Mutex::new(Vec::<(String, String)>::new()),
             );
+            // Game events for the notices (notifications rung 3): systems::push_game_event.
+            data_store.insert(crate::systems::GAME_EVENTS_KEY, std::sync::Mutex::new(Vec::<(String, String)>::new()));
             system_runner.register(InteractionSystem::new());
             // The farm on its own clock (2026-10-31, docs/design/farm-clock.md rung 2): the one
             // FarmingSystem also sits in the DataStore, so what reads the garden outside the

@@ -17,13 +17,18 @@
 //! - [`tray`]: the notification-area icon's look, tooltip and menu (rung 2, part 2), pure.
 //! - [`clicks`]: a click on a notice back to its conversation, and the banner and taskbar flash
 //!   beside a notice (rung 2, part 2).
+//! - [`allow`]: the always-allow list, the people whose calls and messages come through quiet
+//!   hours, and the notes to oneself that carry it between devices (rung 3).
+//! - [`game`]: game events folded, at most one notice of each kind per its interval (rung 3).
 //!
 //! The engine hands a live message to it in `src/engine/notify.rs`; nothing here runs per frame
 //! except the bell reading the list's unseen count.
 
+pub mod allow;
 pub mod clicks;
 pub mod data;
 pub mod decide;
+pub mod game;
 pub mod list;
 pub mod mutes;
 pub mod quiet;
@@ -57,6 +62,26 @@ pub struct Runtime {
     pub targets: clicks::Targets,
     /// The in-world banner showing now, if any (rung 2, part 2).
     pub banner: Option<clicks::Banner>,
+    /// Game events waiting to become notices (rung 3).
+    pub game: game::Folder,
+    /// A call ringing with its notice up (rung 3): its sound repeats while it rings, and its notice
+    /// is withdrawn when the ring ends however it ends (`engine/notify.rs` `pump_ringing`).
+    pub ringing: Option<Ringing>,
+}
+
+/// A call whose notice is up (rung 3).
+#[derive(Debug, Clone)]
+pub struct Ringing {
+    /// The caller's key.
+    pub key: String,
+    /// The notice's tag and group, to withdraw it.
+    pub tag: String,
+    pub group: String,
+    /// Its sound, when it plays one (the kind's, `LocalSettings::sound_of`).
+    pub sound: Option<String>,
+    /// When the sound plays next, and when the ringing stops whatever happens.
+    pub next_ring: std::time::Instant,
+    pub until: std::time::Instant,
 }
 
 /// Seconds since the Unix epoch, now.

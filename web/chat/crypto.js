@@ -962,6 +962,9 @@ const CTL_PERMIT = '[[hum:permit:v1]]';
 // seals one. The note carrying the choice for each friend between my devices,
 // [[hum:choice:v1]]<friend key>/<may> (10n, 2026-10-10), is CTL_CHOICE in
 // /shared/friend-pass.js (with its builder and reader), sealed the same way.
+// The always-allow list's note to myself, [[hum:quiet-allow:v1]]<key>/on or /off
+// (notifications rung 3, 2026-11-01), is in /shared/notify-rules.js (allowNoteText, allowNoteParse),
+// applied by chat-notify.js screenAllowNote and sealed the same way.
 
 // Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b).
 // The issuer gives the grantee a pass naming this server's did:hum, a random

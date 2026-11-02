@@ -3239,6 +3239,11 @@ impl FarmingSystem {
                     if nxt > cur {
                         crop.growth_stage = new_stage.to_string();
                         log::debug!("Crop {} advanced to {}", crop.crop_def_id, crop.growth_stage);
+                        // Its last stage is ripe: a game event for the person's notices, folded
+                        // with the rest of its batch (notifications rung 3).
+                        if nxt + 1 == plant_stages.len() {
+                            crate::systems::push_game_event(data, "crop_ripe", area);
+                        }
                     }
                 }
             }

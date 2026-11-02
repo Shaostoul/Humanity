@@ -799,6 +799,9 @@ pub struct GuiState {
     pub task_new_description: String,
     pub task_new_priority: TaskPriority,
     pub task_new_assignee: String,
+    /// A task to open on the Tasks page once the board has it (a click on a task notice,
+    /// notifications rung 3): its id. The page takes it when that task is in `tasks`.
+    pub task_open_id: Option<u32>,
 
     // ── Profile state ──
     pub profile_name: String,
@@ -3296,6 +3299,7 @@ impl Default for GuiState {
             task_new_description: String::new(),
             task_new_priority: TaskPriority::Medium,
             task_new_assignee: String::new(),
+            task_open_id: None,
 
             // Profile defaults
             profile_name: String::new(),

@@ -1184,15 +1184,111 @@ function renderMutedList() {
   }
 }
 
+// ── Each kind's sound (notifications rung 3; the desktop's Settings > Notifications > Sounds) ──
+// One row per kind that notifies: the data file's sounds or None, with Play. Kept in
+// hos_notify_sounds (kind -> sound id or 'none'; the kind's own default is no entry), which the chat
+// reads (chat-notify.js); the files are the ones the desktop plays, from /assets/.
+function renderSoundRows() {
+  var box = document.getElementById('notif-sounds');
+  if (!box || !notifFile) return;
+  box.innerHTML = '';
+  var chosen = notifLoad('hos_notify_sounds') || {};
+  // Every kind that notifies here: the website has no game, so not the game's.
+  (notifFile.kinds || []).filter(function (k) { return k.built && k.scope !== 'game'; }).forEach(function (k) {
+    var current = typeof chosen[k.id] === 'string' ? chosen[k.id] : k.sound;
+    var row = document.createElement('div');
+    row.className = 'setting-row';
+    var label = document.createElement('div');
+    label.className = 'setting-label';
+    var strong = document.createElement('strong');
+    strong.textContent = notifT(k.label);
+    label.appendChild(strong);
+    row.appendChild(label);
+    var sel = document.createElement('select');
+    sel.className = 'setting-select';
+    sel.setAttribute('aria-label', notifT(k.label));
+    if (window.i18n) window.i18n.hint(sel, 'notifications.sound_kind_hint');
+    (notifFile.sounds || []).concat([{ id: 'none', label: 'notifications.sound_none' }]).forEach(function (s) {
+      var o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = notifT(s.label);
+      if (s.id === current) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () {
+      var all = notifLoad('hos_notify_sounds') || {};
+      if (sel.value === k.sound) delete all[k.id];
+      else all[k.id] = sel.value;
+      localStorage.setItem('hos_notify_sounds', JSON.stringify(all));
+      renderSoundRows();
+    });
+    row.appendChild(sel);
+    var play = document.createElement('button');
+    play.type = 'button';
+    play.className = 'btn btn-secondary';
+    play.textContent = notifT('notifications.sound_play');
+    if (window.i18n) window.i18n.hint(play, 'notifications.sound_play_hint');
+    play.disabled = current === 'none';
+    play.addEventListener('click', function () {
+      var s = (notifFile.sounds || []).find(function (x) { return x.id === current; });
+      if (!s || typeof Audio !== 'function') return;
+      try { var a = new Audio('/assets/' + s.path); a.volume = 0.6; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* this browser cannot play it */ }
+    });
+    row.appendChild(play);
+    box.appendChild(row);
+  });
+}
+
+// ── The always-allow list (notifications rung 3; the desktop's notifications::allow) ──
+// Everyone on it, each with Remove. Adding is in a conversation's menu in Chat. This page has no
+// socket, so a removal's note to my other devices waits in hos_quiet_allow_unsent for the chat to
+// send (chat-notify.js flushAllowNotes).
+function renderAllowList() {
+  var box = document.getElementById('quiet-allow-list');
+  if (!box) return;
+  box.innerHTML = '';
+  var all = notifLoad('hos_quiet_allow') || {};
+  var names = notifLoad('hos_quiet_allow_names') || {};
+  var any = false;
+  Object.keys(all).forEach(function (owner) {
+    var people = all[owner] || {};
+    Object.keys(people).forEach(function (key) {
+      if (!people[key] || !people[key][0]) return;
+      any = true;
+      notifRow(box, names[key] || key.slice(0, 8), null, 'notifications.quiet_allow_remove', 'notifications.quiet_allow_remove_hint', function () {
+        var R = window.HosNotifyRules;
+        if (!R) return;
+        var at = Date.now();
+        R.allowApply(people, key, false, at);
+        all[owner] = people;
+        localStorage.setItem('hos_quiet_allow', JSON.stringify(all));
+        var waiting = notifLoad('hos_quiet_allow_unsent');
+        waiting = Array.isArray(waiting) ? waiting : [];
+        waiting.push({ owner: owner, text: R.allowNoteText(key, false), at: at });
+        localStorage.setItem('hos_quiet_allow_unsent', JSON.stringify(waiting));
+        renderAllowList();
+      });
+    });
+  });
+  if (!any) {
+    var p = document.createElement('p');
+    p.className = 'section-desc';
+    p.textContent = notifT('notifications.quiet_allow_empty');
+    box.appendChild(p);
+  }
+}
+
 if (typeof fetch === 'function') {
   fetch('/data/notifications/notifications.json', { cache: 'no-cache' })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) { notifFile = j; renderMutedList(); })
+    .then(function (j) { notifFile = j; if (j && window.HosNotifyRules) window.HosNotifyRules.use(j); renderMutedList(); renderSoundRows(); })
     .catch(function () { renderMutedList(); });
 }
-// The chat in another tab muted or unmuted something: show it.
+renderAllowList();
+// The chat in another tab muted or unmuted something, or changed the always-allow list: show it.
 window.addEventListener('storage', function (e) {
   if (e && (e.key === 'hos_notify_mutes' || e.key === 'hos_notify_levels')) renderMutedList();
+  if (e && (e.key === 'hos_quiet_allow' || e.key === 'hos_quiet_allow_names')) renderAllowList();
 });
 
 // Listen for notification_prefs_data from the server via global WS

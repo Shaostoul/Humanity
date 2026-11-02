@@ -147,7 +147,10 @@ pub(crate) fn missed_call_line(name: &str) -> String {
 /// the way a blocked caller's ring does, and this person sees a missed-call line instead. An
 /// automatic "reject" used to go back, which told a caller who cannot see us online (hidden
 /// status, BUG-172) that we were there after all (BUG-177, 2026-10-10).
-pub(crate) fn on_ring(gs: &mut GuiState, from: String, from_name: String) {
+///
+/// True when it rings here (idle, and let through): the caller then raises the call's notice
+/// through THE rule (notifications rung 3, `engine/notify.rs` `call`).
+pub(crate) fn on_ring(gs: &mut GuiState, from: String, from_name: String) -> bool {
     // Our own "who can reach me" setting for calls (10c), checked here as well as on the relay:
     // a ring that an older or misconfigured server passes on anyway is ignored the way a blocked
     // caller's is (engine/block.rs), with nothing sent back and no line, so it rings out on their
@@ -157,13 +160,15 @@ pub(crate) fn on_ring(gs: &mut GuiState, from: String, from_name: String) {
     let shares = crate::engine::reach::LET_THROUGH_SHARES_GROUP;
     if gs.dm_store.as_ref().is_some_and(|s| !s.admits_from(crate::net::reach::ReachKind::Call, &from, shares)) {
         log::info!("call: a ring our call setting does not let through was ignored");
-        return;
+        return false;
     }
     let busy = gs.call_active.is_some() || gs.call_incoming.is_some() || gs.call_outgoing.is_some() || gs.voice_active_room.is_some();
     if busy {
         gs.pending_notices.push(missed_call_line(&from_name));
+        false
     } else {
         gs.call_incoming = Some((from, from_name));
+        true
     }
 }
 

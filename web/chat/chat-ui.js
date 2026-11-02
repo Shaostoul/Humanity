@@ -103,7 +103,8 @@ document.addEventListener('visibilitychange', () => {
 // ── Notification Sounds ──
 let audioCtx = null;
 let soundEnabled = localStorage.getItem('humanity_sound_enabled') !== 'false';
-let selectedSound = localStorage.getItem('humanity_sound') || 'chime';
+// The synthesized chime, where a browser cannot play a notice's own sound (chat-notify.js playSound).
+const selectedSound = 'chime';
 
 // Loaded from /data/sounds/presets.json at startup. Empty until fetch resolves;
 // playNotificationChime() returns silently if the preset isn't loaded yet.
@@ -179,28 +180,19 @@ function closeIdentityMenuOutside(e) {
     document.removeEventListener('click', closeIdentityMenuOutside);
   }
 }
+// The sound menu keeps the switch; which sound each kind of notice plays is chosen in Settings >
+// Notifications > Sounds (notifications rung 3, the desktop's twin), from the same files the
+// desktop plays. The synthesized chime below stays as the sound where a browser cannot play one.
 function renderSoundOptions() {
   const container = document.getElementById('sound-options');
-  container.innerHTML = Object.entries(SOUND_PRESETS).map(([key, preset]) => {
-    const checked = key === selectedSound ? 'checked' : '';
-    return `<label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:var(--space-md);cursor:pointer;padding:var(--space-xs) 0;">
-      <input type="radio" name="sound-choice" value="${key}" ${checked} onchange="selectSound('${key}')" style="accent-color:var(--accent);">
-      ${esc(preset.label)}
-      <button onclick="event.preventDefault();previewSound('${key}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;padding:0 var(--space-sm);">▶</button>
-    </label>`;
-  }).join('');
+  const link = document.createElement('a');
+  link.href = '/settings#notifications';
+  link.style.cssText = 'font-size:0.75rem;color:var(--text-muted);';
+  link.setAttribute('data-i18n', 'notifications.sounds_web_note');
+  link.textContent = window.i18n ? window.i18n.t('notifications.sounds_web_note') : 'Settings';
+  if (window.i18n && window.i18n.hint) window.i18n.hint(link, 'notifications.sound_kind_hint');
+  container.replaceChildren(link);
   document.getElementById('sound-enabled').checked = soundEnabled;
-}
-function selectSound(key) {
-  selectedSound = key;
-  localStorage.setItem('humanity_sound', key);
-  playNotificationChime();
-}
-function previewSound(key) {
-  const prev = selectedSound;
-  selectedSound = key;
-  playNotificationChime();
-  selectedSound = prev;
 }
 function toggleSoundEnabled() {
   soundEnabled = document.getElementById('sound-enabled').checked;
@@ -245,7 +237,8 @@ function notifyNewMessage(author, content, isDm, where) {
     { kind: kind, from_me: !!where.from_me, server: HosChatNotify.server(), room: room, conversation: conversation, sender: author, room_name: room || '', text: content, from_friend: !!where.from_friend },
     { focused: windowFocused, on_screen: onScreen, desktop: canShow, sound: soundEnabled }
   );
-  if (d.sound) playNotificationChime();
+  // The kind's own sound (rung 3: Settings > Notifications > Sounds), the chime where it cannot play.
+  if (d.sound) HosChatNotify.playSound(d.sound_id);
   if (d.toast && canShow) {
     const n = new Notification(d.title, { body: d.body, icon: '/favicon.png', tag: d.tag });
     // A click brings the tab forward and opens the conversation, the way the bell's list does

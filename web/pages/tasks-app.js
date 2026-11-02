@@ -45,7 +45,10 @@ function init() {
   buildScopeSelect();
   buildProjectColorPicker();
   buildProjectIconPicker();
-  loadTasks();
+  // A click on a task notice opens /tasks?task=<id> (notifications rung 3): that task opens.
+  const wanted = typeof URLSearchParams === 'function' && typeof location !== 'undefined'
+    ? parseInt(new URLSearchParams(location.search || '').get('task'), 10) : NaN;
+  loadTasks().then(() => { if (wanted > 0 && allTasks.some(t => t.id === wanted)) openDetail(wanted); });
   loadProjects();
   loadSuggestions();
   // Suggested cards are redrawn into the first column, so their clicks are

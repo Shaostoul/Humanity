@@ -40,6 +40,20 @@ pub struct Toast {
     /// What a click on it hands back (`clicks::Targets::token`): a token that names nothing. Empty:
     /// a click does nothing of ours.
     pub launch: String,
+    /// How long Linux's notification service shows it, in milliseconds ([`EXPIRE_MS`]; a call's
+    /// notice lasts its ring, rung 3, since `notify-send` cannot withdraw one it showed).
+    pub expire_ms: u32,
+}
+
+/// How long a notice stays on Linux unless it says otherwise.
+pub const EXPIRE_MS: u32 = 8000;
+
+/// What the worker is asked to do.
+enum Job {
+    Show(Toast),
+    /// Take a notice off the screen and out of the notification centre (rung 3: a call's, when the
+    /// ring ends), by its tag and group.
+    Withdraw { tag: String, group: String },
 }
 
 /// How many notices may wait for the worker before more are dropped.
@@ -48,26 +62,42 @@ const QUEUE: usize = 8;
 /// Hand `toast` to the worker. Never blocks; false when the worker could not be started or is
 /// behind (the notice is dropped and the reason logged once).
 pub fn show(toast: Toast) -> bool {
+    send(Job::Show(toast))
+}
+
+/// Withdraw the notice tagged `tag` in `group` (rung 3). Windows removes it from the screen and the
+/// notification centre; Linux's `notify-send` and macOS's `osascript` cannot (rung 5's D-Bus and
+/// `UNUserNotificationCenter` can), so there a call's notice lasts only its ring. Never blocks.
+pub fn withdraw(tag: &str, group: &str) -> bool {
+    send(Job::Withdraw { tag: tag.to_string(), group: group.to_string() })
+}
+
+fn send(job: Job) -> bool {
     let Some(tx) = worker() else { return false };
-    match tx.try_send(toast) {
+    match tx.try_send(job) {
         Ok(()) => true,
         Err(TrySendError::Full(_)) => {
-            log::debug!("notifications: the notice queue is full, one notice dropped");
+            log::debug!("notifications: the notice queue is full, one dropped");
             false
         }
         Err(TrySendError::Disconnected(_)) => false,
     }
 }
 
-fn worker() -> Option<&'static SyncSender<Toast>> {
-    static TX: OnceLock<Option<SyncSender<Toast>>> = OnceLock::new();
+fn worker() -> Option<&'static SyncSender<Job>> {
+    static TX: OnceLock<Option<SyncSender<Job>>> = OnceLock::new();
     TX.get_or_init(|| {
-        let (tx, rx) = sync_channel::<Toast>(QUEUE);
+        let (tx, rx) = sync_channel::<Job>(QUEUE);
         let spawned = std::thread::Builder::new().name("hos-notify".into()).spawn(move || {
             let mut backend = Backend::start();
-            for t in rx {
-                if let Err(e) = backend.show(&t) {
-                    log::warn!("notifications: the notice was not shown: {e}");
+            for job in rx {
+                match job {
+                    Job::Show(t) => {
+                        if let Err(e) = backend.show(&t) {
+                            log::warn!("notifications: the notice was not shown: {e}");
+                        }
+                    }
+                    Job::Withdraw { tag, group } => backend.withdraw(&tag, &group),
                 }
             }
         });
@@ -188,7 +218,7 @@ pub fn toast_xml(t: &Toast) -> String {
 pub fn linux_args(t: &Toast) -> Vec<String> {
     vec![
         format!("--app-name={APP_NAME}"),
-        "--expire-time=8000".to_string(),
+        format!("--expire-time={}", if t.expire_ms == 0 { EXPIRE_MS } else { t.expire_ms }),
         "--".to_string(),
         t.title.clone(),
         xml_escape(&t.body),
@@ -272,6 +302,21 @@ impl Backend {
         let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(AUMID))
             .map_err(|e| format!("CreateToastNotifierWithId: {e}"))?;
         notifier.Show(&toast).map_err(|e| format!("Show: {e}"))
+    }
+
+    /// Off the screen and out of the notification centre (rung 3: a call's notice when its ring
+    /// ends). Nothing to do before any notice was shown (the registration is what names us).
+    fn withdraw(&mut self, tag: &str, group: &str) {
+        use windows::core::HSTRING;
+        use windows::UI::Notifications::ToastNotificationManager;
+        if !self.registered {
+            return;
+        }
+        let removed = ToastNotificationManager::History()
+            .and_then(|h| h.RemoveGroupedTagWithId(&HSTRING::from(tag), &HSTRING::from(group), &HSTRING::from(AUMID)));
+        if let Err(e) = removed {
+            log::debug!("notifications: a notice could not be withdrawn: {e}");
+        }
     }
 }
 
@@ -478,6 +523,10 @@ impl Backend {
             .map_err(|e| format!("notify-send could not be started ({e}); install libnotify's notify-send"))?;
         status.success().then_some(()).ok_or_else(|| format!("notify-send ended with {status}"))
     }
+
+    /// `notify-send` and `osascript` cannot withdraw a notice they showed (rung 5's D-Bus and
+    /// `UNUserNotificationCenter` can): a call's notice expires after its ring instead (`expire_ms`).
+    fn withdraw(&mut self, _tag: &str, _group: &str) {}
 }
 
 #[cfg(target_os = "macos")]
@@ -499,6 +548,10 @@ impl Backend {
             .map_err(|e| format!("osascript could not be started ({e})"))?;
         status.success().then_some(()).ok_or_else(|| format!("osascript ended with {status}"))
     }
+
+    /// `notify-send` and `osascript` cannot withdraw a notice they showed (rung 5's D-Bus and
+    /// `UNUserNotificationCenter` can): a call's notice expires after its ring instead (`expire_ms`).
+    fn withdraw(&mut self, _tag: &str, _group: &str) {}
 }
 
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
@@ -513,4 +566,7 @@ impl Backend {
     fn show(&mut self, _t: &Toast) -> Result<(), String> {
         Err("this platform has no notices yet".into())
     }
+
+    /// No notices here, so none to withdraw.
+    fn withdraw(&mut self, _tag: &str, _group: &str) {}
 }

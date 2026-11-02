@@ -1012,6 +1012,41 @@ compass shows the notice's own words; with the window behind, the taskbar button
 - Web: the browser notice's `onclick` focuses the tab and opens the DM or room
   (`web/chat/chat-ui.js`, `chat-notify.js` `openEntry`)
 
+### Task, call and game-event notices; a sound per kind (rung 3, 2026-11-01)
+A task given to you or one of yours changed (the relay's `task_notice` to the assignee's keys,
+never the person who changed it; a Web Push behind the `tasks` switch, which until then did
+nothing), a call ringing (its sound repeating while it rings, withdrawn when the ring ends however
+it ends; no banner, the ringing screen is the call's own), and game events per event from data
+(crops ripe, water low, short of air, hungry, thirsty), folded so a farm of 2,000 crops ripening
+at once is one notice. Each kind's sound, or None, in Settings > Notifications > Sounds; each game
+event on or off in "Your home".
+- Relay: `src/relay/handlers/task_notice.rs` (`change`, `recipients`, `after_change`, from every
+  task path: raw and enum handlers, the bot API), `RelayMessage::TaskNotice`, `PushKind::Task`
+  (`storage/notification_prefs.rs`), the Web Push send in `src/relay/push_send.rs`
+- Native: `src/engine/notify.rs` (`task`, `call`, `game`, `pump_ringing`, `pump_game_events`),
+  `src/notifications/game.rs` (the fold), `src/notifications/toast.rs` (`withdraw`, Windows'
+  `ToastNotificationHistory`; Linux a call's notice lasts its ring), `systems::push_game_event`
+  (raised by `systems/farming/mod.rs`, `systems/plumbing.rs`, `systems/food.rs`), a click on a
+  task notice opening it on the Tasks page (`GuiState::task_open_id`)
+- Web: `web/chat/chat-notify.js` (`onTaskNotice`, `ring` / `ringEnded`, `playSound` from
+  `/assets/audio/ui/`), `web/chat/chat-voice-calls.js` (the ring through the rule, its old
+  service-worker notice removed), Settings > Notifications > Sounds (`web/pages/settings-app.js`
+  `renderSoundRows`, `hos_notify_sounds`), `/tasks?task=<id>` (`web/pages/tasks-app.js`)
+
+### The always-allow list for quiet hours (rung 3, 2026-11-01)
+The operator, 2026-11-01: "I like the default being calls don't go through on quiet hours unless I
+specifically add users to the always allow list." People added from a conversation's menu ("Always
+allow during quiet hours"), nobody by default, whose calls and messages come through quiet hours;
+said in the quiet-hours control itself; listed in Settings with Remove. Never on a server: it
+travels between the person's devices as notes to oneself (`[[hum:quiet-allow:v1]]<key>/on|off`),
+the newest note per person winning.
+- Native: `src/notifications/allow.rs` (the list and the note, pure), `src/engine/quiet_allow.rs`
+  (send, flush, screen), the DM right-click (`gui/pages/chat/mute_menu.rs`), Settings
+  (`gui/pages/settings/notifications.rs` `draw_allow_list`)
+- Web: `web/chat/chat-notify.js` (`allowed`, `setAllowed`, `screenAllowNote`, the DM bell's
+  menu), `web/shared/notify-rules.js` (`allowNoteText`, `allowNoteParse`, `allowApply`), Settings
+  (`web/pages/settings-app.js` `renderAllowList`)
+
 ### Notification Actions
 Reply and Mark Read buttons on push notifications.
 - Web: `web/shared/sw.js` (service worker)

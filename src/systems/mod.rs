@@ -103,6 +103,28 @@ pub mod ship_power;
 /// water, counted on the save (ship homes increment 6; the shared world's are the server's).
 pub mod ship_meals;
 
+/// DataStore key of the game events the simulation raises for the person's notices
+/// ([`push_game_event`]; notifications rung 3).
+pub const GAME_EVENTS_KEY: &str = "game_events";
+
+/// Raise a game event for the person's notices (notifications rung 3, docs/design/notifications.md
+/// section 11): `id` a row of `data/notifications/notifications.json`'s `game_events`, `place`
+/// where it happened (a grow area's name, or empty). Raised at a TRANSITION (a crop's stage
+/// reaching ripe, the tanks crossing a tenth), never every tick; the engine folds them, so a farm
+/// of 2,000 crops ripening at once is one notice (`notifications::game`). The `sfx_events` contract:
+/// the native client registers the list and drains it each frame (`engine/notify.rs`); on a
+/// headless relay or in a lib test nothing registers it and this does nothing. Nothing is networked.
+pub fn push_game_event(data: &crate::hot_reload::data_store::DataStore, id: &str, place: &str) {
+    if let Some(lock) = data.get::<std::sync::Mutex<Vec<(String, String)>>>(GAME_EVENTS_KEY) {
+        if let Ok(mut events) = lock.lock() {
+            // A bound, in case nothing drains it (a run with no frame): far past any one frame's.
+            if events.len() < 10_000 {
+                events.push((id.to_string(), place.to_string()));
+            }
+        }
+    }
+}
+
 /// Push a one-shot SFX request onto the shared `"sfx_events"` DataStore
 /// channel (v0.985): ECS systems (construction, crafting) have no engine
 /// state, so they emit (catalog id, fallback path) pairs here; the native

@@ -296,6 +296,7 @@ fn tell_still_running(state: &mut EngineState, voice_left: bool) {
         tag: n::toast::tag_for("tray"),
         group: "tray".into(),
         launch,
+        expire_ms: n::toast::EXPIRE_MS,
     });
 }
 

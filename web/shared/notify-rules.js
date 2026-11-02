@@ -16,6 +16,9 @@
  *   HosNotifyRules.parseClock / inQuiet / formatClock quiet hours
  *   HosNotifyRules.active / muteKey                   mutes
  *   HosNotifyRules.roomLevel(levels, server, room)    a room's level (rung 2)
+ *   HosNotifyRules.soundOf / eventOn / gameEvent      a kind's sound, a game event (rung 3)
+ *   HosNotifyRules.allowNoteText / allowNoteParse /   the always-allow list's note to oneself
+ *     isAllowNote / allowApply                        and its newest-wins merge (rung 3)
  */
 (function (root) {
   'use strict';
@@ -104,9 +107,11 @@
       var p = (mutes.people || {})[c.conversation];
       return p !== undefined && active(p, now) ? 'person_muted' : null;
     }
-    if (scope !== 'room') return null;
+    if (scope !== 'room' && scope !== 'server') return null;
     var s = (mutes.servers || {})[c.server];
     if (s !== undefined && active(s, now)) return 'server_muted';
+    // A server's own record (rung 3: a task) answers to its server's mute only.
+    if (scope === 'server') return null;
     if (c.room) {
       var r = (mutes.rooms || {})[muteKey(c.server, c.room)];
       if (r !== undefined && active(r, now)) return 'room_muted';
@@ -136,6 +141,65 @@
     return { why: why, toast: false, sound: false, list: false };
   }
 
+  function gameEvent(id) {
+    return (file.game_events || []).find(function (e) { return e.id === id; }) || null;
+  }
+
+  /** Is the game event `id` on: the person's choice (`events`), else the file's default (rung 3). */
+  function eventOn(events, id) {
+    var e = gameEvent(id);
+    if (!e) return false;
+    var v = (events || {})[id];
+    return typeof v === 'boolean' ? v : !!e.on;
+  }
+
+  var NO_SOUND = 'none';
+
+  /** The sound id kind `kindId` plays: the person's choice (`sounds`), else the kind's default;
+   *  null when it is set to none (rung 3, per-kind sound). */
+  function soundOf(sounds, kindId) {
+    var k = kind(kindId);
+    var v = (sounds || {})[kindId];
+    if (typeof v !== 'string') v = k ? k.sound : '';
+    return v && v !== NO_SOUND ? v : null;
+  }
+
+  // ── The always-allow list's note to oneself (rung 3; the desktop's notifications::allow) ──
+  var ALLOW_MARKER = '[[hum:quiet-allow:v1]]';
+
+  /** `[[hum:quiet-allow:v1]]<key>/on` or `/off`, the key in lower-case hex. */
+  function allowNoteText(key, on) {
+    return ALLOW_MARKER + String(key || '').toLowerCase() + '/' + (on ? 'on' : 'off');
+  }
+
+  /** {key, on}, or null for a text that is not a usable note. */
+  function allowNoteParse(text) {
+    if (typeof text !== 'string' || text.indexOf(ALLOW_MARKER) !== 0) return null;
+    var rest = text.slice(ALLOW_MARKER.length);
+    var slash = rest.indexOf('/');
+    if (slash < 0) return null;
+    var key = rest.slice(0, slash);
+    var state = rest.slice(slash + 1);
+    if (!key || key.length > 8192 || !/^[0-9a-f]+$/.test(key)) return null;
+    if (state !== 'on' && state !== 'off') return null;
+    return { key: key, on: state === 'on' };
+  }
+
+  function isAllowNote(text) {
+    return typeof text === 'string' && text.indexOf(ALLOW_MARKER) === 0;
+  }
+
+  /** Take a note into `people` ({key: [on, at]}): only one newer than what is held counts. True
+   *  when it changed who is on the list. */
+  function allowApply(people, key, on, at) {
+    key = String(key || '').toLowerCase();
+    var held = people[key];
+    if (held && held[1] >= at) return false;
+    var changed = !held || held[0] !== on;
+    people[key] = [on, at];
+    return changed;
+  }
+
   /** THE RULE, in the desktop's order. Times in Unix seconds. Whatever passes every check is
    *  listed in the in-app list (`list`), also with the window in front and with the notice and
    *  the sound both off; what a check stops is not. */
@@ -145,6 +209,10 @@
     if (!k) return quiet('unknown_kind');
     if (!synced.loaded) return quiet('not_loaded');
     if (!flagOn(synced, k.server_flag)) return quiet('kind_off');
+    if (k.scope === 'game') {
+      if (!gameEvent(c.event)) return quiet('unknown_kind');
+      if (!eventOn(local.events, c.event)) return quiet('event_off');
+    }
     var m = muted(local.mutes, k.scope, c, at.now);
     if (m) return quiet(m);
     if (k.scope === 'room') {
@@ -152,10 +220,14 @@
       if (set < LEVEL_RANK[levelOf(k.level)]) return quiet('room_level');
     }
     var w = quietWindow(synced.quiet_start, synced.quiet_end);
-    if (w && inQuiet(w[0], w[1], at.minute) && !excepts(synced, k.quiet_exception, c.from_friend)) return quiet('quiet_hours');
+    // The always-allow list lets a person's calls and messages through (rung 3, the operator's decision).
+    var allowed = k.scope === 'person' && !!c.from_allowed;
+    if (w && inQuiet(w[0], w[1], at.minute) && !excepts(synced, k.quiet_exception, c.from_friend) && !allowed) return quiet('quiet_hours');
     if (at.focused && at.on_screen) return quiet('on_screen');
-    if (at.last_notice != null && at.now >= at.last_notice && at.now - at.last_notice < BURST_SECS) return quiet('too_soon');
-    return { why: 'notify', toast: !!local.desktop && !at.focused, sound: !!local.sound, list: true };
+    var burst = k.burst !== false;
+    if (burst && at.last_notice != null && at.now >= at.last_notice && at.now - at.last_notice < BURST_SECS) return quiet('too_soon');
+    var sound = !!local.sound && soundOf(local.sounds, k.id) !== null;
+    return { why: 'notify', toast: !!local.desktop && !at.focused, sound: sound, list: true };
   }
 
   /** Control characters and new lines become spaces, runs close up, cut to `max` characters. */
@@ -169,8 +241,16 @@
   function words(c, show, t) {
     var k = kind(c.kind);
     if (!k) return ['', ''];
+    var e = gameEvent(c.event);
+    if (e && show !== 'nothing') {
+      // A game event's own words (rung 3). The website raises none: its twin, for parity.
+      var n = Math.max(1, c.count || 1);
+      var body = t(e.body + (n === 1 ? '.one' : '.other'), { n: n, where: clean(c.room_name, TITLE_CHARS) });
+      return [clean(t(e.title), TITLE_CHARS), clean(body, BODY_CHARS)];
+    }
+    var titleKey = (k.variants && c.variant && k.variants[c.variant]) || k.title;
     var named = function () {
-      return clean(t(k.title, { name: clean(c.sender, TITLE_CHARS), room: clean(c.room_name, TITLE_CHARS) }), TITLE_CHARS);
+      return clean(t(titleKey, { name: clean(c.sender, TITLE_CHARS), room: clean(c.room_name, TITLE_CHARS) }), TITLE_CHARS);
     };
     if (show === 'nothing') return [t(k.title_hidden), t(k.body_hidden)];
     if (show === 'name_and_text') {
@@ -194,6 +274,14 @@
     decide: decide,
     words: words,
     clean: clean,
+    gameEvent: gameEvent,
+    eventOn: eventOn,
+    soundOf: soundOf,
+    NO_SOUND: NO_SOUND,
+    allowNoteText: allowNoteText,
+    allowNoteParse: allowNoteParse,
+    isAllowNote: isAllowNote,
+    allowApply: allowApply,
     file: function () { return file; }
   };
   root.HosNotifyRules = api;

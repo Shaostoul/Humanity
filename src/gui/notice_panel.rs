@@ -145,7 +145,9 @@ fn entry_row(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, file: &n::data:
                         ui.label(RichText::new(body).size(theme.font_size_small).color(theme.text_secondary()));
                     }
                 }
-                ui.label(RichText::new(format!("{when} \u{00b7} {server}")).size(theme.font_size_small).color(theme.text_muted()));
+                // A game event (rung 3) came through no server.
+                let line = if server.is_empty() { when.clone() } else { format!("{when} \u{00b7} {server}") };
+                ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_muted()));
             })
         })
         .inner
@@ -173,6 +175,14 @@ fn server_label(state: &GuiState, url: &str) -> String {
 /// Open the conversation `e` came from: switch to its server when it is another one this device
 /// keeps, then the DM, the room, or the shared room's Commons view, on the Chat page.
 pub(crate) fn open_entry(state: &mut GuiState, e: &Entry) {
+    // A game event (rung 3) is this device's: its page, or the world.
+    if let Some(event) = e.conversation.strip_prefix("game:") {
+        let page = n::data::get().game_event(event).and_then(|g| crate::gui::dispatch::page_from_id(&g.opens)).unwrap_or(GuiPage::None);
+        if state.active_page != page {
+            state.push_nav_to(page);
+        }
+        return;
+    }
     let norm = crate::gui::pages::chat::norm_server_url;
     if norm(&state.server_url) != e.server {
         match state.chat_servers.iter().find(|s| norm(&s.url) == e.server).map(|s| (s.url.clone(), s.name.clone())) {
@@ -185,6 +195,18 @@ pub(crate) fn open_entry(state: &mut GuiState, e: &Entry) {
                 return;
             }
         }
+    }
+    // A task (rung 3): the Tasks page on its server, with the task open once the board has it,
+    // asked for afresh (the page does not follow the board's live changes).
+    if let Some(id) = e.conversation.strip_prefix("task:").and_then(|id| id.parse::<u32>().ok()) {
+        state.task_open_id = Some(id);
+        if let Some(c) = state.ws_client.as_ref().filter(|c| c.is_connected()) {
+            c.send(&serde_json::json!({ "type": "task_list" }).to_string());
+        }
+        if state.active_page != GuiPage::Tasks {
+            state.push_nav_to(GuiPage::Tasks);
+        }
+        return;
     }
     if let Some(peer) = e.conversation.strip_prefix("dm:") {
         crate::gui::pages::chat::open_dm_conversation(state, peer);

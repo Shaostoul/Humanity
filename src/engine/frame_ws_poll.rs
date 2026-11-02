@@ -1002,7 +1002,13 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             match action {
                                 // Rings here, or while busy rings out with a missed-call line
                                 // and no reply (BUG-177; engine/call_relay.rs `on_ring`).
-                                "ring" => crate::engine::call_relay::on_ring(&mut state.gui_state, from, from_name),
+                                // A ring that rings is a call notice through THE rule (rung 3).
+                                "ring" => {
+                                    let notice = crate::engine::notify::call(&state.gui_state, &from, &from_name);
+                                    if crate::engine::call_relay::on_ring(&mut state.gui_state, from, from_name) {
+                                        crate::engine::notify::deliver(state, notice);
+                                    }
+                                }
                                 "accept" => {
                                     // The peer accepted OUR outgoing call. Per
                                     // the web protocol (chat-voice-calls.js the
@@ -1332,6 +1338,13 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         state.gui_state.dm_fetch = Default::default();
                         state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
                         log::info!("Reconnecting as: {}", fallback);
+                    }
+                    // A task given to me, or one of mine changed (notifications rung 3).
+                    Some("task_notice") => {
+                        let server = state.gui_state.server_url.clone();
+                        if let Some(c) = crate::engine::notify::task(&state.gui_state, &server, &val) {
+                            crate::engine::notify::deliver(state, c);
+                        }
                     }
                     Some("task_list") => {
                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {

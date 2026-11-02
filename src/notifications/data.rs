@@ -21,6 +21,9 @@ pub enum Scope {
     Person,
     /// A server's room: its server's and its own mutes apply.
     Room,
+    /// A server's own record (rung 3: a task on its board): its server's mute applies, no room
+    /// level and no conversation mute (the conversation is the record).
+    Server,
     /// The simulation.
     Game,
 }
@@ -83,6 +86,16 @@ pub struct Kind {
     /// The quiet-hours exception that lets it through quiet hours, if any.
     #[serde(default)]
     pub quiet_exception: Option<QuietException>,
+    /// The five-second burst guard applies (rung 3: true unless the row says false; a call's ring
+    /// is one event per call, so a DM just before it never holds it back).
+    #[serde(default = "yes")]
+    pub burst: bool,
+    /// Its sound unless the person picks another or none (rung 3): an id in the file's `sounds`.
+    #[serde(default)]
+    pub sound: String,
+    /// Another title for a candidate's variant (rung 3: a task newly given to you, `assigned`).
+    #[serde(default)]
+    pub variants: std::collections::BTreeMap<String, String>,
     pub label: String,
     pub hint: String,
     /// The title naming the sender (`{{name}}`, `{{room}}`).
@@ -113,6 +126,30 @@ pub struct Sound {
     pub label: String,
 }
 
+/// Something in the person's home the simulation raises (rung 3, `systems::push_game_event`),
+/// one row each.
+#[derive(Debug, Clone, Deserialize)]
+pub struct GameEvent {
+    pub id: String,
+    /// Whether anything raises it yet.
+    #[serde(default)]
+    pub built: bool,
+    /// Its default on this device (the person turns it on or off in Settings).
+    #[serde(default)]
+    pub on: bool,
+    /// The fold: at most one notice of it per this many seconds (`notifications::game`).
+    pub every_secs: u64,
+    /// The page a click on its notice opens, by its id (`gui::dispatch::page_from_id`); empty: the
+    /// world.
+    #[serde(default)]
+    pub opens: String,
+    pub label: String,
+    pub hint: String,
+    pub title: String,
+    /// Read with the count (`.one`, `.other`; `{{n}}` and `{{where}}`).
+    pub body: String,
+}
+
 /// One choice a room's right-click offers for its level.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LevelChoice {
@@ -132,6 +169,13 @@ pub struct File {
     pub mute_for: Vec<MuteFor>,
     #[serde(default)]
     pub sounds: Vec<Sound>,
+    /// What the simulation can raise (rung 3).
+    #[serde(default)]
+    pub game_events: Vec<GameEvent>,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl File {
@@ -141,6 +185,11 @@ impl File {
 
     pub fn kind(&self, id: &str) -> Option<&Kind> {
         self.kinds.iter().find(|k| k.id == id)
+    }
+
+    /// The game event `id`, if the file has it.
+    pub fn game_event(&self, id: &str) -> Option<&GameEvent> {
+        self.game_events.iter().find(|e| e.id == id)
     }
 
     /// The sound for `id`, or the first one when `id` is not in the file (a hand-edited config).

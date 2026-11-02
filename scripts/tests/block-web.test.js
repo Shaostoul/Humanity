@@ -601,7 +601,10 @@ test("a ring from a blocked key sends nothing back, and their direct offer is no
   assert.deepEqual(sock.sent, [], "even while busy, no reject goes to them");
   await handle(ring(CY));
   assert.deepEqual(sock.sent, [], "while busy, nothing goes back to Cy either");
-  assert.equal(swNotes.length, 1, "and Cy's ring notifies");
+  // Notifications rung 3 (2026-11-01): a busy ring is a missed-call line and no notice (the
+  // desktop's on_ring), and an idle one's notice is THE rule's (chat-notify.js ring), not the old
+  // service-worker notice, which ignored quiet hours, the mutes and what a notice shows.
+  assert.equal(swNotes.length, 0, "and Cy's busy ring is a missed-call line, not a notice");
   vm.runInContext("callState = 'idle'; callPeerKey = null", ctx);
   await handle(ring(CY));
   assert.equal(vm.runInContext("callState", ctx), "ringing-in", "Cy's ring rings");

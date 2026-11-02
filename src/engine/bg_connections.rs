@@ -350,6 +350,10 @@ fn bg_screen(gs: &mut GuiState, store: &mut crate::net::dm_store::DmStore, inner
     if crate::engine::choice::screens_dm_parked(gs, store, inner) {
         return true;
     }
+    // Notifications rung 3: an always-allow note to ourselves (the list is the identity's).
+    if crate::engine::quiet_allow::screens_dm(gs, inner) {
+        return true;
+    }
     // Ship homes 5b: a household permit note is kept in, or listed as given in, that server's
     // store (engine/household.rs), never stored or shown as a message.
     if crate::engine::household::screens_dm_parked(gs, store, inner) {
@@ -781,6 +785,13 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             }
         }
         Some("dm_batch") => bg_dm_batch(&mut state.gui_state, ci, &val),
+        // A task given to me on this saved server, or one of mine changed (notifications rung 3).
+        Some("task_notice") => {
+            let url = state.gui_state.connections[ci].url.clone();
+            if let Some(c) = crate::engine::notify::task(&state.gui_state, &url, &val) {
+                crate::engine::notify::deliver(state, c);
+            }
+        }
         // Key cards asked of this link (2026-10-22): a card is good from any server, and each
         // is checked here before anything is sealed with it (engine/key_cards.rs).
         Some("key_cards") => crate::engine::key_cards::on_key_cards_frame(&mut state.gui_state, &val),
@@ -836,8 +847,8 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 }
             }
         }
-        // Admin, tasks, listings, voice, trades, game: active-server
-        // concerns; their pages refetch after a switch. Dropped by design.
+        // Admin, tasks (but for their notices, above), listings, voice, trades, game:
+        // active-server concerns; their pages refetch after a switch. Dropped by design.
         _ => {}
     }
 }
