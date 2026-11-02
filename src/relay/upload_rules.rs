@@ -316,7 +316,7 @@ pub(crate) fn safe_stem(filename: &str) -> String {
 pub(crate) fn finish_picture(picture: &str, data: Vec<u8>) -> Result<Vec<u8>, Refused> {
     picture_is_what_it_says(picture, &data)?;
     let original = data.len();
-    let stripped = crate::relay::core::strip_metadata::strip_image_metadata(picture, &data);
+    let stripped = humanity_protocol::strip_metadata::strip_image_metadata(picture, &data);
     if stripped.len() != original {
         tracing::info!(
             "Upload metadata strip: {} shed {} bytes of embedded metadata",
@@ -405,7 +405,7 @@ pub(crate) fn finish_picture_as(picture: &str, data: Vec<u8>, keep_metadata: boo
 /// to keep everything, so there is nothing to check, a file the strips could not read through
 /// included. BLOCKING (file reads and writes), so a route calls it in `spawn_blocking`.
 pub(crate) fn finish_file_as(path: &std::path::Path, keep_metadata: bool) -> Result<(), Refused> {
-    use crate::relay::core::{strip_heif_metadata as heif, strip_video_metadata as video};
+    use humanity_protocol::{strip_heif_metadata as heif, strip_video_metadata as video};
     if keep_metadata {
         return Ok(());
     }

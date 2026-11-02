@@ -43,7 +43,7 @@ use egui::FontFamily;
 /// Each fallback is independent: a machine with no CJK font still gets the
 /// arrow fix and whatever emoji it has.
 pub fn install_font_fallbacks(ctx: &egui::Context) {
-    ctx.set_fonts(font_definitions(crate::reuse::enabled()));
+    ctx.set_fonts(font_definitions(humanity_core::reuse::enabled()));
 }
 
 /// The definitions a context installs (stutter survey 2, 2026-10-31). Every in-world page screen
@@ -119,9 +119,7 @@ fn build_font_definitions() -> egui::FontDefinitions {
     // See docs/design/typography.md.
     fonts.font_data.insert(
         "NotoSans".to_owned(),
-        std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
-            "../../data/fonts/NotoSans-Regular.ttf"
-        ))),
+        std::sync::Arc::new(egui::FontData::from_static(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/fonts/NotoSans-Regular.ttf")))),
     );
     if let Some(proportional) = fonts.families.get_mut(&FontFamily::Proportional) {
         proportional.insert(0, "NotoSans".to_owned());

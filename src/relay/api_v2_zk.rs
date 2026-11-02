@@ -10,7 +10,7 @@
 //!    Issuer hashes claim fields into a tree, embeds root in the VC. Holder
 //!    later proves "this leaf is in this VC" without revealing other leaves.
 //!    PQ-secure, no trusted setup, real verification implemented in
-//!    `crate::relay::core::merkle_disclosure`. **WIRED** in
+//!    `humanity_protocol::merkle_disclosure`. **WIRED** in
 //!    `verify_merkle_disclosure` below.
 //!
 //! 2. **`stark_presentation_v1`** — full zk-STARK proofs with custom AIR per
@@ -31,8 +31,8 @@ use ciborium::Value;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::relay::core::encoding::from_canonical_bytes;
-use crate::relay::core::merkle_disclosure::{HASH_LEN, PathStep, verify_path};
+use humanity_protocol::encoding::from_canonical_bytes;
+use humanity_protocol::merkle_disclosure::{HASH_LEN, PathStep, verify_path};
 use crate::relay::relay::RelayState;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -202,7 +202,7 @@ fn verify_merkle_disclosure(
     }
 
     let path = decode_path(&path_bytes).ok_or_else(|| "malformed path bytes".to_string())?;
-    let leaf = crate::relay::core::merkle_disclosure::leaf_hash(&field_name, &field_value_cbor);
+    let leaf = humanity_protocol::merkle_disclosure::leaf_hash(&field_name, &field_value_cbor);
 
     if verify_path(&leaf, &path, &claimed_root) {
         Ok(format!(

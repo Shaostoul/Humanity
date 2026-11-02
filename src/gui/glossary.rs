@@ -118,22 +118,22 @@ pub fn install() -> &'static Glossary {
         // dir lacks glossary.json used to get a silently EMPTY Dictionary
         // page (operator 2026-07-28: "the glossary appears to have no
         // words in it"; the exe carried all 201 terms the whole time).
-        let path = crate::storage::data_dir().join("glossary.json");
+        let path = humanity_core::storage::data_dir().join("glossary.json");
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
-                crate::embedded_data::note_builtin_copy(
+                humanity_core::embedded_data::note_builtin_copy(
                     "glossary.json",
                     format_args!("{} could not be read ({e})", path.display()),
                 );
-                crate::embedded_data::GLOSSARY_JSON.as_bytes().to_vec()
+                humanity_core::embedded_data::GLOSSARY_JSON.as_bytes().to_vec()
             }
         };
         let parsed: GlossaryFile = match serde_json::from_slice(&bytes) {
             Ok(g) => g,
             Err(e) => {
-                crate::embedded_data::note_builtin_copy("glossary.json", format_args!("{} does not parse ({e})", path.display()));
-                match serde_json::from_str(crate::embedded_data::GLOSSARY_JSON) {
+                humanity_core::embedded_data::note_builtin_copy("glossary.json", format_args!("{} does not parse ({e})", path.display()));
+                match serde_json::from_str(humanity_core::embedded_data::GLOSSARY_JSON) {
                     Ok(g) => g,
                     Err(e2) => {
                         log::warn!("Embedded glossary also failed ({e2}); dictionary blank.");
@@ -167,7 +167,7 @@ mod tests {
     /// Dictionary page (v0.989).
     #[test]
     fn shipped_glossary_parses_with_terms() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/glossary.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/glossary.json");
         let bytes = std::fs::read(&path).expect("data/glossary.json readable");
         let parsed: super::GlossaryFile =
             serde_json::from_slice(&bytes).expect("glossary.json parses");
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn embedded_glossary_parses_with_terms() {
         let parsed: super::GlossaryFile =
-            serde_json::from_str(crate::embedded_data::GLOSSARY_JSON)
+            serde_json::from_str(humanity_core::embedded_data::GLOSSARY_JSON)
                 .expect("embedded GLOSSARY_JSON parses");
         assert!(parsed.terms.len() >= 150, "term count {}", parsed.terms.len());
     }

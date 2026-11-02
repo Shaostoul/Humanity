@@ -595,7 +595,7 @@ pub(crate) mod tests {
 
     /// The shipped homestead (data/homes/homestead.ron), as the game loads it.
     fn homestead() -> HomeStructure {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/homes/homestead.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/homes/homestead.ron");
         let text = std::fs::read_to_string(&path).expect("the homestead design");
         ron::from_str::<crate::ship::ship_structure::HomeDesign>(&text).expect("the homestead parses").body
     }

@@ -18,13 +18,13 @@ the relay rather than on top of it.
   - `feature = "native"`: `net/`
 - **Size:** 30,654 lines in 55 files, 3,854 of them in 13 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 44.
-- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 46, protocol 29.
+- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 46, protocol 31.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 333, engine 97.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 256 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib net:: --skip engine::frame_net:: --skip gui::pages::settings::recovery_net:: --skip terrain::planet::
+just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gui::pages::settings::recovery_net:: --skip terrain::planet::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):

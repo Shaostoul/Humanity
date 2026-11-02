@@ -108,9 +108,9 @@ mod tests {
     use super::*;
     use crate::net::dm_pq::{decrypt_attachment, encrypt_attachment};
 
-    fn sealed_file(tag: &str, plain: &[u8]) -> (crate::test_temp::TempPath, String, String, Vec<u8>) {
+    fn sealed_file(tag: &str, plain: &[u8]) -> (humanity_core::test_temp::TempPath, String, String, Vec<u8>) {
         let (ct, k, n) = encrypt_attachment(plain).expect("seal");
-        let path = crate::test_temp::file(tag, "enc");
+        let path = humanity_core::test_temp::file(tag, "enc");
         std::fs::write(&path, &ct).unwrap();
         (path, k, n, ct)
     }

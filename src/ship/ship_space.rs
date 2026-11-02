@@ -264,7 +264,7 @@ mod tests {
     use super::*;
 
     fn data() -> std::path::PathBuf {
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     fn shipped(plot: &str) -> ShipStructure {

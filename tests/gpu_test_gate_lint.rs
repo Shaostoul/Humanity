@@ -1,9 +1,9 @@
-//! Every test that opens a GPU device asks src/test_gpu.rs first (2026-11-01).
+//! Every test that opens a GPU device asks crates/humanity-core/src/test_gpu.rs first (2026-11-01).
 //!
 //! While one of the operator's GPU-heavy games runs, a test that opens a device can hang the
 //! whole lib-test run SILENTLY (two hours beside helldivers2.exe on 2026-11-01, no 60-second
-//! warning: src/test_gpu.rs says why). scripts/lib-tests.js then sets HUMANITY_TEST_GPU_BUSY,
-//! and `crate::test_gpu::may_use()` answers no, but only for a test that asks BEFORE it creates
+//! warning: crates/humanity-core/src/test_gpu.rs says why). scripts/lib-tests.js then sets HUMANITY_TEST_GPU_BUSY,
+//! and `humanity_core::test_gpu::may_use()` answers no, but only for a test that asks BEFORE it creates
 //! a `wgpu::Instance` (creating the instance already loads the driver). This lint finds every
 //! `Instance::default()` and `Instance::new(` in the Rust source and fails on one with no
 //! `test_gpu::may_use()` above it in the same function. The renderer's own device, the one
@@ -116,10 +116,10 @@ fn every_test_that_opens_a_gpu_device_asks_test_gpu_first() {
     let (unasked, _) = scan(repo);
     assert!(
         unasked.is_empty(),
-        "\n\nA wgpu instance is created with no `crate::test_gpu::may_use()` above it in the same function:\n  {}\n\n\
+        "\n\nA wgpu instance is created with no `humanity_core::test_gpu::may_use()` above it in the same function:\n  {}\n\n\
          While the operator's GPU game runs, a test that opens a device can hang the WHOLE lib-test run, \
-         silently (src/test_gpu.rs). Ask first, before the instance:\n\
-         \x20   if !crate::test_gpu::may_use() {{ return; }}   (or `return None;` in a device helper)\n\
+         silently (crates/humanity-core/src/test_gpu.rs). Ask first, before the instance:\n\
+         \x20   if !humanity_core::test_gpu::may_use() {{ return; }}   (or `return None;` in a device helper)\n\
          If this is production code (not a test), add its file to PRODUCTION in tests/gpu_test_gate_lint.rs \
          with the reason.\n",
         unasked.join("\n  ")
@@ -142,14 +142,14 @@ fn the_production_instances_are_exactly_the_listed_ones() {
 
 #[test]
 fn the_finder_sees_a_bare_instance_and_not_a_longer_name() {
-    let text = "fn a() {\n    let i = wgpu::Instance::default();\n}\nfn b() {\n    PatchInstance::new([0]);\n    // wgpu::Instance::new( in a comment\n}\nfn c() {\n    if !crate::test_gpu::may_use() {\n        return;\n    }\n    let i = wgpu::Instance::new(&d);\n}\n";
+    let text = "fn a() {\n    let i = wgpu::Instance::default();\n}\nfn b() {\n    PatchInstance::new([0]);\n    // wgpu::Instance::new( in a comment\n}\nfn c() {\n    if !humanity_core::test_gpu::may_use() {\n        return;\n    }\n    let i = wgpu::Instance::new(&d);\n}\n";
     let found = instance_lines(text);
     assert_eq!(found, vec![1, 11], "{found:?}");
     let lines: Vec<&str> = text.lines().collect();
     assert!(!asks_first(&lines, 1), "fn a never asks");
     assert!(asks_first(&lines, 11), "fn c asks first");
     // The question asked in the function ABOVE does not count for the next one.
-    let two = "fn a() {\n    if !crate::test_gpu::may_use() { return; }\n}\nfn b() {\n    let i = wgpu::Instance::default();\n}\n";
+    let two = "fn a() {\n    if !humanity_core::test_gpu::may_use() { return; }\n}\nfn b() {\n    let i = wgpu::Instance::default();\n}\n";
     let lines: Vec<&str> = two.lines().collect();
     assert!(!asks_first(&lines, 4));
 }

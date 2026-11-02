@@ -65,7 +65,7 @@ impl ToolRules {
 /// folder's is missing or this version cannot read it (BUG-163). Neither means
 /// no tool requirements, never a broken game.
 pub fn load(data_dir: &std::path::Path) -> ToolRules {
-    crate::embedded_data::load_data_or_embedded(data_dir, ToolRules::FILE, ToolRules::from_ron).unwrap_or_else(|e| {
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, ToolRules::FILE, ToolRules::from_ron).unwrap_or_else(|e| {
         log::warn!("{e}; crafting needs no tools this session");
         ToolRules::default()
     })
@@ -76,7 +76,7 @@ mod tests {
     use super::*;
 
     fn data(rel: &str) -> Vec<u8> {
-        std::fs::read(format!("{}/data/{rel}", env!("CARGO_MANIFEST_DIR"))).expect(rel)
+        std::fs::read(format!("{}/data/{rel}", env!("HUMANITY_REPO_ROOT"))).expect(rel)
     }
 
     fn rules() -> ToolRules {
@@ -132,7 +132,7 @@ mod tests {
     /// nobody can get.
     #[test]
     fn every_required_tool_can_be_had() {
-        use crate::data_parse::parse_csv;
+        use humanity_core::data_parse::parse_csv;
         #[derive(Deserialize)]
         struct Item {
             id: String,

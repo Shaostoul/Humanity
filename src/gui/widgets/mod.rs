@@ -1948,7 +1948,7 @@ pub fn detail_row_bold(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
 pub fn search_bar(ui: &mut Ui, theme: &Theme, value: &mut String, hint: &str) -> bool {
     let before = value.clone();
     ui.horizontal(|ui| {
-        ui.label(RichText::new(crate::i18n::t("common.search_label")).color(theme.text_secondary()).size(theme.body_size));
+        ui.label(RichText::new(humanity_core::i18n::t("common.search_label")).color(theme.text_secondary()).size(theme.body_size));
         let resp = ui.add(
             egui::TextEdit::singleline(value)
                 .desired_width(200.0)

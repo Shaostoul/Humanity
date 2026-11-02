@@ -1,10 +1,10 @@
 //! Tests for files_upload_step.rs: what the Files page uploads to Shared Files.
 
 use super::*;
-use crate::relay::core::describe_metadata::describe;
+use humanity_protocol::describe_metadata::describe;
 
 fn fixture(name: &str) -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe").join(name)
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe").join(name)
 }
 
 /// A photo goes up cleaned (and shared); kept by choice it goes exactly as it is with

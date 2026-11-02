@@ -109,7 +109,7 @@ pub(crate) struct WaterView<'a> {
 pub(crate) fn push_water_shells(
     state: &mut WaterShellState,
     view: WaterView,
-    b: &crate::cosmos::SolBody,
+    b: &humanity_core::cosmos::SolBody,
     d: &PlanetDef,
     om: &crate::terrain::ocean_mask::OceanMask,
     celestial_transparent: &mut Vec<RenderObject>,

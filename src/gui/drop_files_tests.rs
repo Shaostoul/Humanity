@@ -30,8 +30,8 @@ fn texts(out: &egui::FullOutput) -> String {
 
 /// Two files and a folder on disk, for the drops; the first value keeps the folder until the test
 /// ends (it is deleted when dropped).
-fn files(tag: &str) -> (crate::test_temp::TempPath, PathBuf, PathBuf, PathBuf) {
-    let dir = crate::test_temp::dir(tag);
+fn files(tag: &str) -> (humanity_core::test_temp::TempPath, PathBuf, PathBuf, PathBuf) {
+    let dir = humanity_core::test_temp::dir(tag);
     let (a, b, folder) = (dir.join("photo.jpg"), dir.join("notes.txt"), dir.join("a folder"));
     std::fs::write(&a, b"not really a jpeg").unwrap();
     std::fs::write(&b, b"some notes").unwrap();
@@ -143,7 +143,7 @@ fn while_files_are_dragged_the_window_says_where_they_will_go() {
 /// (only the page behind was drawn).
 #[test]
 fn a_file_dropped_on_the_chat_goes_to_the_open_conversation() {
-    let photo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe/jpeg-phone.jpg");
+    let photo = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe/jpeg-phone.jpg");
     let ctx = egui::Context::default();
     let theme = crate::gui::theme::load_theme();
     let mut state = GuiState::default();

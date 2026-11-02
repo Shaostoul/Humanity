@@ -31,6 +31,15 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Each workspace crate's src/ folder, crates/<name>/src (the crate split's rung 1, 2026-11-01): read
+/// with src/'s, or a file moved into a crate drops out of this check without a word.
+fn crate_src_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(root.join("crates"))
+        .map(|rd| rd.flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()).collect())
+        .unwrap_or_default();
+    out.sort();
+    out
+}
 /// Every .rs file under src/, recursively.
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else { return };
@@ -120,6 +129,9 @@ fn every_celestial_pass_call_honours_the_animation_clock_pin() {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
     rust_files(&repo.join("src"), &mut files);
+    for dir in crate_src_dirs(repo) {
+        rust_files(&dir, &mut files);
+    }
 
     let mut calls = 0usize;
     let mut violations = Vec::new();
@@ -166,6 +178,9 @@ fn every_foliage_wind_publish_goes_through_the_pin_helper() {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
     rust_files(&repo.join("src"), &mut files);
+    for dir in crate_src_dirs(repo) {
+        rust_files(&dir, &mut files);
+    }
 
     let mut writes = 0usize;
     let mut violations = Vec::new();

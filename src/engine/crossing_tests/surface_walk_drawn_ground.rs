@@ -20,7 +20,7 @@ use crate::engine::frame_lock::ground_radius_m;
 use crate::terrain::planet_chunks::{
     build_patch_mesh, patch_corners, patch_edge_arc_m, PatchId, PatchMesh, PATCH_TESS,
 };
-use crate::ecs::components::EYE_HEIGHT_M;
+use humanity_core::ecs::components::EYE_HEIGHT_M;
 use crate::terrain::drawn_surface::DrawnPatchSurface;
 use crate::terrain::ocean_mask::OceanMask;
 use crate::terrain::planet::PlanetDef;
@@ -33,7 +33,7 @@ use crate::terrain::planet_heightmap::PlanetHeightmap;
 /// `planet_chunks::tests::earth_like` carries surface_relief 0.011, 3.5x
 /// the shipped 0.003123, which would inflate every number below).
 fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
-    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
         .join("data")
         .join("planets");
     let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin"))

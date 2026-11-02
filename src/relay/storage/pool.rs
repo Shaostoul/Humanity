@@ -356,7 +356,7 @@ mod tests {
         let err = slow.err().expect("the product's build gives up on connections slower than its deadline");
         assert!(err.to_string().contains("failed to build SQLite read pool"), "the error names the pool: {err}");
 
-        let path = crate::test_temp::db("pool_product_build");
+        let path = humanity_core::test_temp::db("pool_product_build");
         let db = Storage::open(&path).expect("open (the schema, and a pool built the test way)");
         let pool = build_by_deadline(read_pool_builder(), read_manager(&path)).expect("the product's build opens a real database");
         for (which, p) in [("the product's build", &pool), ("Storage::open in a test build", &db.read_pool)] {

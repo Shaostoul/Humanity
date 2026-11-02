@@ -8,7 +8,7 @@
 //! `catalog` type, an `instance`, or a `connection` to the RON and it appears in the
 //! world, no Rust change.
 
-use crate::utilities::{
+use humanity_core::utilities::{
     check_cable, check_data_link, cheapest_cable_for, cheapest_data_link_for, conduit_type, data_medium,
     CableVerdict, DataVerdict, Port, PortDir, Utility,
 };
@@ -348,7 +348,7 @@ pub struct FuelBurn {
     /// there is no default, because the answer decides whether a sealed home
     /// loses its oxygen to the fire. See `ecs::components::CombustionAir` and
     /// docs/reference/findings/2026-10-20-stove-combustion-air.md.
-    pub combustion_air: crate::ecs::components::CombustionAir,
+    pub combustion_air: humanity_core::ecs::components::CombustionAir,
 }
 
 /// A heat pump's coefficient of performance at `source_c`, the temperature of
@@ -1470,9 +1470,9 @@ impl MachineHome {
                     .file_name()
                     .map(|f| format!("machines/{}", f.to_string_lossy()))
                     .unwrap_or_default();
-                match crate::embedded_data::get_embedded(&rel) {
+                match humanity_core::embedded_data::get_embedded(&rel) {
                     Some(s) => {
-                        crate::embedded_data::note_builtin_copy(&rel, format_args!("{} is absent", path.display()));
+                        humanity_core::embedded_data::note_builtin_copy(&rel, format_args!("{} is absent", path.display()));
                         s.to_string()
                     }
                     None => return None, // absent is fine, distributed builds may omit it
@@ -2081,7 +2081,7 @@ impl MachineHome {
     /// send out is shared the way what they draw is. The house's two toilets send the septic tank
     /// the household's flushing once, what its inlet takes, not twice. 0 for a machine not in
     /// the catalog.
-    pub fn port_flow_lpm_of(&self, inst: &MachineInstance, all: &[MachineInstance], utility: crate::utilities::Utility, dir: crate::utilities::PortDir) -> f32 {
+    pub fn port_flow_lpm_of(&self, inst: &MachineInstance, all: &[MachineInstance], utility: humanity_core::utilities::Utility, dir: humanity_core::utilities::PortDir) -> f32 {
         self.catalog.get(&inst.machine).map_or(0.0, |d| {
             d.derive_ports().iter().filter(|p| p.utility == utility && p.dir == dir).map(|p| p.flow_lpm).sum::<f32>() * self.household_share(inst, all)
         })
@@ -3034,7 +3034,7 @@ mod tests {
     #[cfg(feature = "native")]
     #[test]
     fn the_household_file_comes_from_the_start() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         for (start, household, file) in [
             ("homestead", "family", "home.ron"),
             ("homestead", "solo", "home_solo.ron"),
@@ -3100,7 +3100,7 @@ mod tests {
     #[test]
     fn parses_the_shipped_home_layout() {
         // Locate data/machines/home.ron relative to the crate root.
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -3152,7 +3152,7 @@ mod tests {
     /// machine, where it is, and the rect it should be in.
     #[test]
     fn every_placed_machine_stands_inside_the_room_it_names() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
             .expect("the shipped ship assembles");
         let home_zone = &ship.zones[ship.home_zone_index()];
@@ -3224,7 +3224,7 @@ mod tests {
             ("smelter", "iron ore has no other use, and ingots are what the home works with"),
             ("fuel_refinery", "crude oil has no other use than refining"),
         ];
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let mut automatic = 0usize;
         for file in ["home.ron", "home_solo.ron"] {
             let home = MachineHome::load(&root.join("data").join("machines").join(file))
@@ -3249,7 +3249,7 @@ mod tests {
     /// machine save (and the AI's edits) safe + loadable.
     #[test]
     fn save_round_trips_the_home_layout() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -3278,7 +3278,7 @@ mod tests {
     /// This is the player-can-place-a-machine capability (v0.519 home-design parity).
     #[test]
     fn added_machine_persists_to_room() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -3764,7 +3764,7 @@ mod tests {
         assert!(report.checks.iter().any(|c| c.name == "Energy balance" && c.detail.contains("< 7.8 consumed")), "{:?}", report.checks);
 
         // The shipped family home: the modes differ by its air handlers' measured average.
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
         let family = MachineHome::load(&path).expect("home.ron parses");
         let kwh = |basis: MeterBasis| family.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").unwrap().demand;
         let (s, r) = (kwh(MeterBasis { life_support_on_grid: false, recorded: None }), kwh(MeterBasis { life_support_on_grid: true, recorded: None }));
@@ -3847,7 +3847,7 @@ mod tests {
             let start = text[..end].rfind('~').expect("a ~figure before it");
             text[start + 1..end].trim().parse::<f32>().unwrap_or_else(|e| panic!("`{}`: {e}", &text[start + 1..end]))
         };
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let root = data.join("machines");
         for (file, people) in [("home.ron", 3usize), ("home_solo.ron", 1usize)] {
             let home = MachineHome::load(&root.join(file)).unwrap_or_else(|| panic!("{file} parses"));
@@ -3998,7 +3998,7 @@ mod tests {
         let wind_w = air40_average_watts(BREMERTON_MEAN_MPH * 0.44704) as f32;
         println!("a panel averages {panel_w:.2} W, the turbine {wind_w:.2} W ({:.1}% of 160 W)", wind_w / 160.0 * 100.0);
         assert!((4.2..4.7).contains(&wind_w), "the AIR 40 in a 2.37 m/s wind averages {wind_w} W");
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
             let home = MachineHome::load(&root.join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let made = |id: &str| home.catalog[id].average_supply_watts(4.5);
@@ -4101,10 +4101,10 @@ mod tests {
         const HOT_SHARE: [(&str, f32); 4] = [("shower", 0.662), ("kitchen_sink", 0.570), ("bath_sink", 0.570), ("washer", 0.200)];
         const PER_PERSON_L_DAY: f32 = 85.0; // drinking 5, kitchen 15, basin 5, shower 35, toilet 14, laundry 11
         const HOUSEHOLD: [&str; 6] = ["home_water_use", "kitchen_sink", "bath_sink", "shower", "toilet", "washer"];
-        let l_day = |def: &MachineDef, u: crate::utilities::Utility, dir: crate::utilities::PortDir| -> f32 {
+        let l_day = |def: &MachineDef, u: humanity_core::utilities::Utility, dir: humanity_core::utilities::PortDir| -> f32 {
             def.derive_ports().iter().filter(|p| p.utility == u && p.dir == dir).map(|p| p.flow_lpm).sum::<f32>() * 1440.0
         };
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for (file, people) in [("home.ron", 3usize), ("home_solo.ron", 1usize)] {
             let home = MachineHome::load(&root.join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let all = home.all_instances();
@@ -4118,18 +4118,18 @@ mod tests {
             }
             for (id, share) in HOT_SHARE {
                 let def = &home.catalog[id];
-                let (hot, cold) = (l_day(def, crate::utilities::Utility::HotWater, crate::utilities::PortDir::In), l_day(def, crate::utilities::Utility::Water, crate::utilities::PortDir::In));
+                let (hot, cold) = (l_day(def, humanity_core::utilities::Utility::HotWater, humanity_core::utilities::PortDir::In), l_day(def, humanity_core::utilities::Utility::Water, humanity_core::utilities::PortDir::In));
                 assert!(hot > 0.0 && cold > 0.0, "{file}: {id} takes a hot and a cold feed ({hot} and {cold} L a day)");
                 assert!((hot / (hot + cold) - share).abs() < 0.005, "{file}: {id} draws {:.1}% of its water hot, the measured share is {}%", hot / (hot + cold) * 100.0, share * 100.0);
             }
-            let fixtures_hot: f32 = HOT_SHARE.iter().map(|(id, _)| together(id) * l_day(&home.catalog[*id], crate::utilities::Utility::HotWater, crate::utilities::PortDir::In)).sum();
+            let fixtures_hot: f32 = HOT_SHARE.iter().map(|(id, _)| together(id) * l_day(&home.catalog[*id], humanity_core::utilities::Utility::HotWater, humanity_core::utilities::PortDir::In)).sum();
             let heater = &home.catalog["water_heater"];
-            let (made, taken) = (l_day(heater, crate::utilities::Utility::HotWater, crate::utilities::PortDir::Out), l_day(heater, crate::utilities::Utility::Water, crate::utilities::PortDir::In));
+            let (made, taken) = (l_day(heater, humanity_core::utilities::Utility::HotWater, humanity_core::utilities::PortDir::Out), l_day(heater, humanity_core::utilities::Utility::Water, humanity_core::utilities::PortDir::In));
             assert!((placed("water_heater") * made - fixtures_hot).abs() < 0.2, "{file}: the heater makes {made:.1} L a day hot, the fixtures draw {fixtures_hot:.1}");
             assert!((made - taken).abs() < 0.01, "{file}: the heater takes {taken:.1} L cold for {made:.1} hot");
             let household: f32 = HOUSEHOLD
                 .iter()
-                .map(|id| together(id) * (l_day(&home.catalog[*id], crate::utilities::Utility::Water, crate::utilities::PortDir::In) + l_day(&home.catalog[*id], crate::utilities::Utility::HotWater, crate::utilities::PortDir::In)))
+                .map(|id| together(id) * (l_day(&home.catalog[*id], humanity_core::utilities::Utility::Water, humanity_core::utilities::PortDir::In) + l_day(&home.catalog[*id], humanity_core::utilities::Utility::HotWater, humanity_core::utilities::PortDir::In)))
                 .sum();
             println!("{file}: household {household:.1} L a day, {fixtures_hot:.1} of it hot ({:.0}%)", fixtures_hot / household * 100.0);
             assert!((household - PER_PERSON_L_DAY * people as f32).abs() < 0.5, "{file}: the household draws {household:.1} L a day, {people} x {PER_PERSON_L_DAY}");
@@ -4237,7 +4237,7 @@ mod tests {
     #[test]
     fn shipped_catalogs_offer_a_placeable_grow_light() {
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("data")
                 .join("machines")
                 .join(file);
@@ -4263,7 +4263,7 @@ mod tests {
     #[test]
     fn shipped_grow_lights_light_crops_and_nothing_else_does() {
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("data")
                 .join("machines")
                 .join(file);
@@ -4294,7 +4294,7 @@ mod tests {
     #[test]
     fn shipped_exhaust_fan_ventilates_and_only_the_family_home_places_one() {
         for (file, placed) in [("home.ron", 1usize), ("home_solo.ron", 0)] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
                 // The humidity fan, and since 2026-09-27 the two CO2 fans.
@@ -4326,7 +4326,7 @@ mod tests {
     #[test]
     fn every_shipped_mushroom_rack_has_a_wired_co2_fan() {
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (id, m3_h, w, set) in [("tent_co2_fan", 384.0, 28.0, 900.0), ("room_co2_fan", 722.1, 70.0, 600.0)] {
                 let def = &home.catalog[id];
@@ -4367,7 +4367,7 @@ mod tests {
     #[test]
     fn every_shipped_mushroom_rack_has_a_wired_tent_humidifier() {
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
                 let humidifier = id == "humidifier" || id == "tent_humidifier";
@@ -4410,7 +4410,7 @@ mod tests {
     #[test]
     fn every_shipped_air_handler_is_cabled_and_piped_back_to_the_cistern() {
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (id, def) in &home.catalog {
                 assert_eq!(def.dehumidifies_m3_h > 0.0, id == "air_handler", "{file}: `{id}` dehumidifies only if it is the air handler");
@@ -4526,7 +4526,7 @@ mod tests {
     /// reference design, so its connections must all resolve).
     #[test]
     fn buildability_seed_home_is_sane() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -4612,7 +4612,7 @@ mod tests {
     /// first assertion (the Commons machines are missing).
     #[test]
     fn the_commons_machines_live_in_the_ship_file_and_merge_back_in() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let machines = data.join("machines");
         let commons_ids = ["mushhum_c1", "mushfan_c1", "aqua_c1", "composter_c1", "mush_c1", "apoth_c1", "apoth_c2", "market_c1", "market_c2", "market_c3"];
         let merged = MachineHome::load(&machines.join("home.ron")).expect("home.ron loads");
@@ -4687,7 +4687,7 @@ mod tests {
     /// "still there" assertion.
     #[test]
     fn the_ships_machines_are_read_only_outside_the_dev_mode() {
-        let machines = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let machines = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         let mut layout = MachineHome::load(&machines.join("home.ron")).expect("home.ron loads");
         layout.ship_part.locked = true;
         let has = |h: &MachineHome, id: &str| h.all_instances().iter().any(|i| i.id == id);
@@ -4732,7 +4732,7 @@ mod tests {
     /// again (the 1a code) fails the "fails 500 m away" assertion.
     #[test]
     fn a_run_between_zones_measures_in_ship_metres() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let layout = MachineHome::load(&data.join("machines").join("home.ron")).expect("home.ron loads");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("assembles");
         let zones = ship.zone_rects();
@@ -4767,7 +4767,7 @@ mod tests {
     /// again fails "the ship's node went back to the ship file".
     #[test]
     fn the_ships_loops_and_conduit_graph_round_trip_to_the_ship_file() {
-        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let src = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         let dir = std::env::temp_dir().join(format!(
             "hos_ship_conduits_{}",
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
@@ -4814,7 +4814,7 @@ mod tests {
     /// differently in ship.ron and home.ron".
     #[test]
     fn a_type_two_machine_files_define_is_defined_the_same() {
-        let machines = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let machines = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         let files = ["home.ron", "home_solo.ron", "cabin.ron", "ship.ron"];
         let parsed: Vec<(&str, MachineHome)> =
             files.iter().map(|f| (*f, MachineHome::load_file(&machines.join(f)).unwrap_or_else(|| panic!("{f} parses")))).collect();
@@ -4856,8 +4856,8 @@ mod tests {
     /// ship file (the code before lane 1A): "battery_7 -> mushhum_c1 went into ship.ron".
     #[test]
     fn a_household_wire_to_a_ship_row_stays_with_the_household() {
-        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
-        let dir = crate::test_temp::dir("household_wire");
+        let src = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
+        let dir = humanity_core::test_temp::dir("household_wire");
         for f in ["home.ron", "ship.ron", "cabin.ron"] {
             std::fs::copy(src.join(f), dir.join(f)).unwrap();
         }
@@ -4915,7 +4915,7 @@ mod tests {
         struct Stores {
             stores: Vec<Store>,
         }
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let stores: Stores = ron::from_str(&std::fs::read_to_string(data.join("food/ship_stores.ron")).unwrap()).expect("ship_stores.ron parses");
         assert!(stores.stores.len() >= 2, "the Commons' store and the South Commons'");
         let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(&data).expect("the ship file loads");
@@ -5036,7 +5036,7 @@ mod tests {
     /// the room-id-mismatch breakage -- placed count == all_instances count, nothing skipped).
     #[test]
     fn shipped_home_renders_all_machines_in_box_mode() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -5052,7 +5052,7 @@ mod tests {
     /// wgpu/the live ECS Drone state (which needs a real World + can't run in this pure data module).
     #[test]
     fn shipped_home_has_one_resolvable_drone_hangar() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -5070,7 +5070,7 @@ mod tests {
     /// exactly one category -- the data the footer placement palette renders.
     #[test]
     fn palette_groups_catalog_by_category() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -5091,7 +5091,7 @@ mod tests {
     /// a meaningless whole-file diff and breaking the home-design parity (clean round-trip) rule.
     #[test]
     fn save_is_deterministic() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -5118,7 +5118,7 @@ mod tests {
     /// the shipped home.ron).
     #[test]
     fn save_preserves_the_leading_design_header() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -5181,7 +5181,7 @@ mod tests {
         // Explicit ports win over the power-role inference.
         let mut explicit = test_def("box");
         explicit.ports =
-            vec![crate::utilities::Port::fluid_in(crate::utilities::Utility::Water, 14.0), crate::utilities::Port::elec_in(50.0)];
+            vec![humanity_core::utilities::Port::fluid_in(humanity_core::utilities::Utility::Water, 14.0), humanity_core::utilities::Port::elec_in(50.0)];
         assert_eq!(explicit.derive_ports().len(), 2, "explicit ports are used verbatim");
         assert_eq!(explicit.electrical_load_watts(), 50.0, "only the electrical IN port counts as load");
     }
@@ -5236,9 +5236,9 @@ mod tests {
     #[test]
     fn buildability_data_links_wired_and_wifi_pass_on_bandwidth_and_range() {
         let mut uplink = test_def("box");
-        uplink.ports = vec![crate::utilities::Port::data_out(1000.0)];
+        uplink.ports = vec![humanity_core::utilities::Port::data_out(1000.0)];
         let mut server = test_def("box");
-        server.ports = vec![crate::utilities::Port::data_in(100.0)];
+        server.ports = vec![humanity_core::utilities::Port::data_in(100.0)];
         let mut catalog = BTreeMap::new();
         catalog.insert("uplink".to_string(), uplink);
         catalog.insert("server".to_string(), server);
@@ -5277,7 +5277,7 @@ mod tests {
     /// The shipped seed home's data link (uplink -> server over Cat6) sizes OK (no FAIL).
     #[test]
     fn buildability_seed_home_data_links_are_sane() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
         let report = home.buildability_report(4.5, MeterBasis::default());
         if let Some(d) = report.checks.iter().find(|c| c.name == "Data links") {
@@ -5359,7 +5359,7 @@ mod tests {
     /// no power draw 384.0 L a day, more than the household's 255".
     #[test]
     fn seed_home_water_topology_is_sane() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
         let all = home.all_instances();
 
@@ -5394,10 +5394,10 @@ mod tests {
         // The toilets send the septic tank the household's flushing, once, what its inlet takes.
         // Seen red first (2026-10-21) with each toilet's black-water port summed at its def's whole
         // figure: "the toilets send 84.0 L a day into a septic whose inlet takes 42.0".
-        let waste = |id: &str, dir: crate::utilities::PortDir| -> f32 {
-            all.iter().filter(|i| i.machine == id).map(|i| home.port_flow_lpm_of(i, &all, crate::utilities::Utility::Waste, dir)).sum::<f32>() * 1440.0
+        let waste = |id: &str, dir: humanity_core::utilities::PortDir| -> f32 {
+            all.iter().filter(|i| i.machine == id).map(|i| home.port_flow_lpm_of(i, &all, humanity_core::utilities::Utility::Waste, dir)).sum::<f32>() * 1440.0
         };
-        let (sent, taken) = (waste("toilet", crate::utilities::PortDir::Out), waste("septic_tank", crate::utilities::PortDir::In));
+        let (sent, taken) = (waste("toilet", humanity_core::utilities::PortDir::Out), waste("septic_tank", humanity_core::utilities::PortDir::In));
         assert!((sent - taken).abs() < 0.05, "the toilets send {sent:.1} L a day into a septic whose inlet takes {taken:.1}");
         assert_eq!(all.iter().filter(|i| i.machine == "toilet").count(), 2, "the house has two toilets, so the share is what holds this");
 
@@ -5423,7 +5423,7 @@ mod tests {
     /// The shipped seed home is a fully-wired network: every load traces to a generator (no FAIL).
     #[test]
     fn buildability_seed_home_power_circuit_is_connected() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
         let report = home.buildability_report(4.5, MeterBasis::default());
         let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the seed has electrical machines");
@@ -5434,7 +5434,7 @@ mod tests {
     /// buildable, not just internally consistent).
     #[test]
     fn buildability_seed_home_conduits_are_sane() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -5451,7 +5451,7 @@ mod tests {
     /// typo'd machine id silently rendering nothing.
     #[test]
     fn home_solo_variant_parses_and_all_instances_resolve() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home_solo.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home_solo.ron");
         let home = MachineHome::load(&path).expect("home_solo.ron parses");
         let all = home.all_instances();
         assert!(!all.is_empty(), "solo home has placed machines");
@@ -5469,7 +5469,7 @@ mod tests {
     /// same "no magic transmission" guarantee the 3-person seed home holds.
     #[test]
     fn home_solo_variant_power_circuit_is_connected() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home_solo.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home_solo.ron");
         let home = MachineHome::load(&path).expect("home_solo.ron parses");
         let report = home.buildability_report(4.5, MeterBasis::default());
         let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the solo home has electrical machines");

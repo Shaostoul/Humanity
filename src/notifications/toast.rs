@@ -448,8 +448,8 @@ mod win_activate {
 /// (`None` before a storage place is chosen, or when it cannot be written).
 #[cfg(windows)]
 fn icon_file() -> Option<std::path::PathBuf> {
-    const ICON: &[u8] = include_bytes!("../../assets/icon.png");
-    let root = crate::storage::writable_data_dir()?.parent()?.to_path_buf();
+    const ICON: &[u8] = include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/icon.png"));
+    let root = humanity_core::storage::writable_data_dir()?.parent()?.to_path_buf();
     let path = root.join("notice-icon.png");
     let same = std::fs::read(&path).map(|b| b == ICON).unwrap_or(false);
     if !same && std::fs::write(&path, ICON).is_err() {
@@ -492,7 +492,7 @@ impl Backend {
         use std::sync::atomic::Ordering as O;
         if self.actions && CLICKS_ON.load(Ordering::SeqCst) && !t.launch.is_empty() && self.waiting.load(O::SeqCst) < LINUX_WAITING {
             let child = std::process::Command::new("notify-send")
-                .args(linux_args_with_click(t, crate::i18n::t("notifications.open_action")))
+                .args(linux_args_with_click(t, humanity_core::i18n::t("notifications.open_action")))
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())

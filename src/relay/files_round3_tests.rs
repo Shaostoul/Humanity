@@ -20,14 +20,14 @@ fn relay(tag: &str) -> Arc<RelayState> {
 
 /// The four folders of a test's own.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
 }
 
 fn dirs(tag: &str) -> Dirs {
-    let d = |what: &str| crate::test_temp::dir(&format!("{tag}_{what}"));
+    let d = |what: &str| humanity_core::test_temp::dir(&format!("{tag}_{what}"));
     Dirs { uploads: d("uploads"), members: d("members"), resume: d("resume"), waiting: d("waiting") }
 }
 

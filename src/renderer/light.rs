@@ -62,7 +62,7 @@ pub struct LightType {
 pub fn light_types() -> &'static [LightType] {
     static REG: std::sync::OnceLock<Vec<LightType>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/lighting/light_types.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/lighting/light_types.ron"));
         match ron::from_str::<Vec<LightType>>(SRC) {
             Ok(v) => v,
             Err(e) => {

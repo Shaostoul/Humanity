@@ -342,7 +342,7 @@ mod folder_size_tests {
     /// "past the limit it says nothing" got Some(3).
     #[test]
     fn a_folders_size() {
-        let dir = crate::test_temp::dir("folder_size");
+        let dir = humanity_core::test_temp::dir("folder_size");
         std::fs::create_dir_all(dir.join("a").join("b")).unwrap();
         std::fs::write(dir.join("one.bin"), [0u8; 3]).unwrap();
         std::fs::write(dir.join("a").join("two.bin"), [0u8; 40]).unwrap();

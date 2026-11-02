@@ -48,7 +48,7 @@
 //! ([`PlanetSite::render_pose`]).
 
 use super::{Construction, Structure};
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use glam::{DMat3, DQuat, DVec3, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 

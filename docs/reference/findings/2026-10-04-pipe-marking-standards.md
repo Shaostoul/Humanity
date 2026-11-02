@@ -840,7 +840,7 @@ not know which scheme is in use, even where one scheme allows colour alone
   "black cord" for a power cord. It has no callers: `home_meshes.rs` line
   1981 uses `connection_color` instead.
 - **The conduit registry cannot record plastic or steel pipe.**
-  `ConductorMaterial` ([`src/utilities.rs`](../../../src/utilities.rs) line
+  `ConductorMaterial` ([`src/utilities.rs`](../../../crates/humanity-core/src/utilities.rs) line
   118) offers Copper, Aluminum, Superconductor, Glass and Radio, and
   [`data/utilities/conduits.ron`](../../../data/utilities/conduits.ron) line
   40 records `pex_half` (`label: "PEX 1/2\" water"`) as `material: Copper`.

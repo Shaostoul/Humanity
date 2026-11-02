@@ -39,7 +39,7 @@
 //! the ship file only with ShipStructureEditing, and the home's origin never, because it comes
 //! from the plot. `validate` refuses overlapping plots, zones and corridor tubes.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::ship::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
 use crate::ship::home_structure::{HomeStructure, ShellCut, Zone};
 use glam::Vec3;
@@ -334,9 +334,9 @@ impl HomeDesign {
         let path = data_dir.join(&rel);
         let (text, on_disk) = match std::fs::read_to_string(&path) {
             Ok(t) => (t, true),
-            Err(e) => match crate::embedded_data::get_embedded(&rel) {
+            Err(e) => match humanity_core::embedded_data::get_embedded(&rel) {
                 Some(t) => {
-                    crate::embedded_data::note_builtin_copy(&rel, format_args!("{} could not be read ({e})", path.display()));
+                    humanity_core::embedded_data::note_builtin_copy(&rel, format_args!("{} could not be read ({e})", path.display()));
                     (t.to_string(), false)
                 }
                 None => return Err(format!("no home design {} on disk or built in", path.display())),
@@ -371,7 +371,7 @@ impl HomeDesign {
         static PARSED: std::sync::OnceLock<std::collections::HashMap<&'static str, HomeDesign>> = std::sync::OnceLock::new();
         PARSED
             .get_or_init(|| {
-                crate::embedded_data::SHIPPED_HOMES
+                humanity_core::embedded_data::SHIPPED_HOMES
                     .iter()
                     .filter_map(|(k, text)| ron::from_str::<HomeDesign>(text).ok().filter(|d| d.kind == *k).map(|d| (*k, d)))
                     .collect()
@@ -1608,8 +1608,8 @@ impl ShipStructure {
     /// built-in copy then fails instead of passing on data it was not given (BUG-133
     /// follow-up; it is on FALLBACK_SITES in scripts/lib/compiled-in.js).
     pub fn built_in_ship_file(why: &str) -> Result<ShipStructure, String> {
-        let text = crate::embedded_data::get_embedded(SHIP_FILE).ok_or("no ship file is built in")?;
-        crate::embedded_data::note_builtin_copy(SHIP_FILE, why);
+        let text = humanity_core::embedded_data::get_embedded(SHIP_FILE).ok_or("no ship file is built in")?;
+        humanity_core::embedded_data::note_builtin_copy(SHIP_FILE, why);
         let ship: ShipStructure = ron::from_str(text).map_err(|e| format!("the built-in ship file does not parse: {e}"))?;
         ship.validate().map_err(|e| format!("the built-in ship file is invalid: {e}"))?;
         Ok(ship)
@@ -2298,8 +2298,8 @@ mod tests {
 
     /// A unique temp path for a round-trip test, deleted with whatever the test made there
     /// when the guard is dropped (BUG-159). Nothing is created.
-    fn temp_path(name: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::path(&format!("ship_structure_{name}"))
+    fn temp_path(name: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::path(&format!("ship_structure_{name}"))
     }
 
     #[test]
@@ -2740,7 +2740,7 @@ mod tests {
     // ── Shipped-data migration locks (the corridor rework, world coords from the old system) ──
 
     fn data_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The ship the game runs: the ship file plus the SHIPPED homestead on its default plot, p1
@@ -2926,7 +2926,7 @@ mod tests {
         .into_iter()
         .map(|s| ((s.a.0 + o.x, s.a.1 + o.z), (s.b.0 + o.x, s.b.1 + o.z)))
         .collect();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let machines_file = crate::machines::MachineHome::load(&root.join("data").join("machines").join("home.ron"))
             .expect("home.ron parses");
         let home_ids: std::collections::HashSet<String> = machines_file
@@ -3352,14 +3352,14 @@ mod tests {
     /// header, `get_embedded`), never the checkout's data/homes/homestead.ron, the developer's
     /// own home (with one wall added there by an editor Save, `save_assembled_never_writes_the_
     /// shipped_home_default` failed "the player's own home has the new wall: left 29, right 28").
-    fn temp_data_dir(name: &str) -> crate::test_temp::TempPath {
+    fn temp_data_dir(name: &str) -> humanity_core::test_temp::TempPath {
         let dir = temp_path(name);
         let ship = dir.join(SHIP_FILE);
         std::fs::create_dir_all(ship.parent().unwrap()).unwrap();
         std::fs::copy(data_dir().join(SHIP_FILE), &ship).unwrap();
         let own = dir.join(HOME_DESIGNS_DIR).join("homestead.ron");
         std::fs::create_dir_all(own.parent().unwrap()).unwrap();
-        std::fs::write(&own, crate::embedded_data::get_embedded("homes/homestead.ron").expect("the own home is built in")).unwrap();
+        std::fs::write(&own, humanity_core::embedded_data::get_embedded("homes/homestead.ron").expect("the own home is built in")).unwrap();
         dir
     }
 
@@ -3374,7 +3374,7 @@ mod tests {
     /// homes/homestead.ron".
     #[test]
     fn save_assembled_never_writes_the_shipped_home_default() {
-        use crate::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
+        use humanity_core::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
         let dir = temp_data_dir("shipped_home_untouched");
         let shipped_rel = format!("{SHIPPED_HOMES_DIR}/homestead.ron");
         let shipped = dir.join(&shipped_rel);
@@ -3410,7 +3410,7 @@ mod tests {
     /// 7.1736 m2 (2.94 x 2.44 m), under the standard's 7.5".
     #[test]
     fn a_cabin_is_seven_and_a_half_square_metres() {
-        use crate::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
+        use humanity_core::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
         let cabin = HomeDesign::built_in("cabin").expect("the cabin is built in");
         let b = &cabin.body;
         let shell = b.shell_resolved_thickness();
@@ -3625,7 +3625,7 @@ mod plot_handout_tests {
     use super::*;
 
     fn data_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The shipped home design names its door, and the relay's arrival for that door on every
@@ -3732,7 +3732,7 @@ mod plot_handout_tests {
     /// ship, from the copies built into the exe.
     #[test]
     fn a_relay_with_no_data_folder_hands_out_the_same_plots() {
-        let empty = crate::test_temp::dir("no_data");
+        let empty = humanity_core::test_temp::dir("no_data");
         let built_in = ShipPlots::load(&empty).expect("the built-in copies load");
         let on_disk = ShipPlots::load(&data_dir()).expect("the data folder loads");
         assert_eq!(built_in, on_disk, "the exe's copy is the data folder's ship");
@@ -3977,7 +3977,7 @@ mod plot_handout_tests {
     /// was moved aside as ship_structure.invalid-<time>.ron (see logs/run.log)\")".
     #[test]
     fn a_relay_whose_ship_file_does_not_load_keeps_the_built_in_ship() {
-        let dir = crate::test_temp::path("bad_ship");
+        let dir = humanity_core::test_temp::path("bad_ship");
         let file = dir.join(SHIP_FILE);
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(&file, "( this is not a ship").unwrap();
@@ -4074,11 +4074,11 @@ mod storey_fields_tests {
     /// (`an_older_game_is_refused_as_another_ship`).
     #[test]
     fn the_storey_fields_move_no_shipped_file() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let pretty = || ron::ser::PrettyConfig::default().struct_names(false);
         let fnv = |text: String| format!("{:016x}", fnv1a64(text.as_bytes()));
         let ship = ShipStructure::load_ship_file(&data).expect("the ship file loads");
-        let built_in: ShipStructure = ron::from_str(crate::embedded_data::SHIP_STRUCTURE_RON).expect("the built-in ship parses");
+        let built_in: ShipStructure = ron::from_str(humanity_core::embedded_data::SHIP_STRUCTURE_RON).expect("the built-in ship parses");
         let mut now: Vec<(String, String)> = vec![
             ("ship_hash, data/blueprints/ship_structure.ron".into(), ship.ship_hash()),
             ("ship_hash, the ship built into the exe".into(), built_in.ship_hash()),
@@ -4126,7 +4126,7 @@ mod storey_fields_tests {
     /// p1: Err(\"the homestead design (55 x 89 x 6 m) does not fit plot 'p1' ((55.0, 3.0, 89.0))\")".
     #[test]
     fn a_two_storey_homestead_fits_its_plot() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_ship_file(&data).expect("the ship file loads");
         let mut design = HomeDesign::built_in("homestead").expect("the shipped homestead");
         let homesteads: Vec<&Plot> = ship.plots.iter().filter(|p| p.kind == "homestead").collect();

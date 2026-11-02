@@ -24,7 +24,7 @@ pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std:
 /// world entry) is put back on the new ones by instance id, as world entry does.
 pub(crate) fn respawn_home_power_entities(world: &mut hecs::World, home: &crate::machines::MachineHome, data_dir: &std::path::Path) {
     let carried = crate::systems::machine_levels::take_all(world);
-    let old: Vec<hecs::Entity> = world.query::<&crate::ecs::components::HomeMachine>().iter().map(|(e, _)| e).collect();
+    let old: Vec<hecs::Entity> = world.query::<&humanity_core::ecs::components::HomeMachine>().iter().map(|(e, _)| e).collect();
     for e in old {
         let _ = world.despawn(e);
     }
@@ -102,7 +102,7 @@ pub(crate) fn home_metabolic_kcal(home: &crate::machines::MachineHome) -> f32 {
 /// support: `home_metabolic_kcal`). `volume_m3` is THIS home's own (`own_home_air_m3`, ship homes
 /// increment 4: it was 14,000 m3 whatever the home); never below 1 m3.
 pub(crate) fn spawn_home_air_space(world: &mut hecs::World, metabolic_kcal_per_day: f32, volume_m3: f32) {
-    use crate::ecs::components::HomeMachine;
+    use humanity_core::ecs::components::HomeMachine;
     use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
     if world.query::<&HomeAir>().iter().next().is_some() {
         return; // already present
@@ -134,7 +134,7 @@ pub(crate) fn spawn_home_machine_entity(
     // load_world before the walk-up cards can ever render them).
     containers: Option<&crate::systems::inventory::containers::ContainerRegistry>,
 ) {
-    use crate::ecs::components::{
+    use humanity_core::ecs::components::{
         Battery, HomeMachine, PlumbingCircuit, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel,
         WaterConsumer, WaterProducer, WaterTank,
     };
@@ -158,16 +158,16 @@ pub(crate) fn spawn_home_machine_entity(
     // machine's live component state per frame. (v0.724)
     let _ = world.insert_one(
         e,
-        crate::ecs::components::MachineInstanceId(inst.id.clone()),
+        humanity_core::ecs::components::MachineInstanceId(inst.id.clone()),
     );
-    let _ = world.insert_one(e, crate::ecs::components::MachineType(inst.machine.clone()));
+    let _ = world.insert_one(e, humanity_core::ecs::components::MachineType(inst.machine.clone()));
     // Every machine entity carries its world pose (economy Phase 2 Stage 2,
     // v0.679): CraftingSystem captures it as the FACTORY PAD where a
     // vehicle-class craft output rolls out, and it anchors any future
     // per-machine spatial behavior.
     let _ = world.insert_one(
         e,
-        crate::ecs::components::Transform {
+        humanity_core::ecs::components::Transform {
             position: world_pos
                 .unwrap_or_else(|| Vec3::new(inst.offset.0, inst.offset.1, inst.offset.2)),
             rotation: Quat::from_rotation_y(inst.rotation.to_radians()),
@@ -207,7 +207,7 @@ pub(crate) fn spawn_home_machine_entity(
                             inst.id, inst.machine
                         );
                     }
-                    let _ = world.insert_one(e, crate::ecs::components::BurnsFuels(fuels.clone()));
+                    let _ = world.insert_one(e, humanity_core::ecs::components::BurnsFuels(fuels.clone()));
                 }
             }
             MachinePower::Consumer { watts, priority, idle_watts, .. } => {
@@ -218,7 +218,7 @@ pub(crate) fn spawn_home_machine_entity(
                 if let Some(idle) = idle_watts {
                     let _ = world.insert_one(
                         e,
-                        crate::ecs::components::StationLoad { active_watts: *watts, idle_watts: *idle },
+                        humanity_core::ecs::components::StationLoad { active_watts: *watts, idle_watts: *idle },
                     );
                 }
             }
@@ -258,11 +258,11 @@ pub(crate) fn spawn_home_machine_entity(
             // among every fixture of that kind each tick (2026-10-20, ship homes increment 7).
             if def.household_use {
                 let kind = format!("{}/{}", inst.zone, inst.machine);
-                let _ = world.insert_one(e, crate::ecs::components::HouseholdUse { household_lpm: dem, kind });
+                let _ = world.insert_one(e, humanity_core::ecs::components::HouseholdUse { household_lpm: dem, kind });
             }
         }
         if def.irrigates {
-            let _ = world.insert_one(e, crate::ecs::components::Irrigator);
+            let _ = world.insert_one(e, humanity_core::ecs::components::Irrigator);
         }
     }
     // Grow light (2026-09-26): FarmingSystem counts the indoor grow areas as
@@ -274,12 +274,12 @@ pub(crate) fn spawn_home_machine_entity(
             Some(MachinePower::Consumer { watts, .. }) => *watts,
             _ => 0.0,
         };
-        let _ = world.insert_one(e, crate::ecs::components::GrowLight { watts });
+        let _ = world.insert_one(e, humanity_core::ecs::components::GrowLight { watts });
     }
     // Bumblebee hive (2026-09-26): FarmingSystem pollinates the indoor grow
     // areas around this entity's Transform (farming::pollination).
     if def.pollinates_crops {
-        let _ = world.insert_one(e, crate::ecs::components::PollinatorHive);
+        let _ = world.insert_one(e, humanity_core::ecs::components::PollinatorHive);
     }
     // Exhaust fan (2026-09-26): FarmingSystem runs it to hold the humidity of
     // the grow room around this entity's Transform (farming::humidity), or,
@@ -292,7 +292,7 @@ pub(crate) fn spawn_home_machine_entity(
         };
         let _ = world.insert_one(
             e,
-            crate::ecs::components::Ventilator {
+            humanity_core::ecs::components::Ventilator {
                 airflow_m3_h: def.ventilation_m3_h,
                 watts,
                 co2_setpoint_ppm: def.co2_setpoint_ppm,
@@ -308,7 +308,7 @@ pub(crate) fn spawn_home_machine_entity(
             Some(MachinePower::Consumer { watts, .. }) => *watts,
             _ => 0.0,
         };
-        let _ = world.insert_one(e, crate::ecs::components::Humidifier { output_l_h: def.humidifies_l_h, watts });
+        let _ = world.insert_one(e, humanity_core::ecs::components::Humidifier { output_l_h: def.humidifies_l_h, watts });
     }
     // Air handler (2026-09-26, ship life support): FarmingSystem runs it to hold the humidity of the
     // air around this entity's Transform (a grow room's, or the home's own), condensing the water on a
@@ -319,7 +319,7 @@ pub(crate) fn spawn_home_machine_entity(
             Some(MachinePower::Consumer { watts, .. }) => *watts,
             _ => 0.0,
         };
-        let _ = world.insert_one(e, crate::ecs::components::AirHandler { airflow_m3_h: def.dehumidifies_m3_h, watts });
+        let _ = world.insert_one(e, humanity_core::ecs::components::AirHandler { airflow_m3_h: def.dehumidifies_m3_h, watts });
         // Its condensate line: a producer on its plumbing island (its water
         // port puts it on one), starting dry. Without a water connection it
         // has no island and its water goes nowhere, which the data tests forbid.
@@ -333,7 +333,7 @@ pub(crate) fn spawn_home_machine_entity(
             Some(MachinePower::Consumer { watts, .. }) => *watts,
             _ => 0.0,
         };
-        let _ = world.insert_one(e, crate::ecs::components::Co2Scrubber { rated_kg_day: def.scrubs_co2_kg_day, watts });
+        let _ = world.insert_one(e, humanity_core::ecs::components::Co2Scrubber { rated_kg_day: def.scrubs_co2_kg_day, watts });
     }
     // Space heater (2026-10-05, BUG-155): FarmingSystem's air step runs it on its thermostat to warm
     // the air around this entity's Transform (a grow room's or a fruiting tent's, else the home's
@@ -345,12 +345,12 @@ pub(crate) fn spawn_home_machine_entity(
         };
         let _ = world.insert_one(
             e,
-            crate::ecs::components::SpaceHeater { heat_w: def.heats_w, watts, setpoint_c: def.heat_setpoint_c },
+            humanity_core::ecs::components::SpaceHeater { heat_w: def.heats_w, watts, setpoint_c: def.heat_setpoint_c },
         );
         // A heat pump (2026-10-20): its heat is its draw times its coefficient of performance at
         // the temperature of the air it draws from, which the air step reads off this table.
         if !def.heat_cop.is_empty() {
-            let _ = world.insert_one(e, crate::ecs::components::HeatPump { cop_by_source_c: def.heat_cop.clone() });
+            let _ = world.insert_one(e, humanity_core::ecs::components::HeatPump { cop_by_source_c: def.heat_cop.clone() });
         }
         // A stove (2026-10-20): it runs on the fuel in its own box (its Container, below), and the
         // box takes and offers only the fuels it burns (`BurnsFuels`, containers::vessel_takes).
@@ -360,14 +360,14 @@ pub(crate) fn spawn_home_machine_entity(
             }
             let _ = world.insert_one(
                 e,
-                crate::ecs::components::FuelStove {
+                humanity_core::ecs::components::FuelStove {
                     kg_per_h: b.kg_per_h,
                     o2_kg_per_kg: b.o2_kg_per_kg,
                     burned_kg: 0.0,
                     combustion_air: b.combustion_air,
                 },
             );
-            let _ = world.insert_one(e, crate::ecs::components::BurnsFuels(b.fuels.clone()));
+            let _ = world.insert_one(e, humanity_core::ecs::components::BurnsFuels(b.fuels.clone()));
         }
     }
     // Economy automation (v0.663): a machine with an `auto_recipe` continuously
@@ -377,7 +377,7 @@ pub(crate) fn spawn_home_machine_entity(
     if let Some(recipe_id) = &def.auto_recipe {
         let _ = world.insert_one(
             e,
-            crate::ecs::components::AutoRefine { recipe_id: recipe_id.clone(), keep: def.auto_keep },
+            humanity_core::ecs::components::AutoRefine { recipe_id: recipe_id.clone(), keep: def.auto_keep },
         );
     }
     // Typed container (v0.728, "containers show contents"): the machine IS
@@ -416,9 +416,9 @@ mod tests {
     /// handler's water then had nowhere to go).
     #[test]
     fn shipped_air_handler_and_scrubber_spawn_what_the_air_step_reads() {
-        use crate::ecs::components::{AirHandler, Co2Scrubber, PlumbingCircuit, PowerConsumer, WaterProducer};
+        use humanity_core::ecs::components::{AirHandler, Co2Scrubber, PlumbingCircuit, PowerConsumer, WaterProducer};
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             let mut world = hecs::World::new();
             let empty = std::collections::HashMap::new();
@@ -454,9 +454,9 @@ mod tests {
     /// garden is lit. The irrigation machine next to it gets no GrowLight.
     #[test]
     fn shipped_grow_light_spawns_a_powered_grow_light() {
-        use crate::ecs::components::{GrowLight, MachineInstanceId, PowerConsumer};
+        use humanity_core::ecs::components::{GrowLight, MachineInstanceId, PowerConsumer};
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("data")
                 .join("machines")
                 .join(file);
@@ -496,9 +496,9 @@ mod tests {
     /// Ventilator (the fan then spawned as a plain 250 W load).
     #[test]
     fn shipped_exhaust_fan_spawns_a_ventilator() {
-        use crate::ecs::components::{MachineInstanceId, PowerConsumer, Transform, Ventilator};
+        use humanity_core::ecs::components::{MachineInstanceId, PowerConsumer, Transform, Ventilator};
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             let mut world = hecs::World::new();
             let empty = std::collections::HashMap::new();
@@ -529,9 +529,9 @@ mod tests {
     /// then spawned as a plain load).
     #[test]
     fn shipped_humidifier_spawns_a_humidifier() {
-        use crate::ecs::components::{Humidifier, MachineInstanceId, PowerConsumer, Transform};
+        use humanity_core::ecs::components::{Humidifier, MachineInstanceId, PowerConsumer, Transform};
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             for (machine, l_h, watts) in [("humidifier", 1.3, 100.0), ("tent_humidifier", 0.24, 24.0)] {
                 let mut world = hecs::World::new();
@@ -565,9 +565,9 @@ mod tests {
     /// hive then spawned nothing).
     #[test]
     fn shipped_bumblebee_hive_spawns_a_hive() {
-        use crate::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
+        use humanity_core::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
         for file in ["home.ron", "home_solo.ron"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+            let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
             let home = crate::systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{file} parses"));
             let hives: Vec<&String> = home.catalog.iter().filter(|(_, d)| d.pollinates_crops).map(|(id, _)| id).collect();
             assert_eq!(hives, vec!["bumblebee_hive"], "{file}: the hive and nothing else pollinates");
@@ -611,12 +611,12 @@ mod tests {
     /// and red against a rule that burns nothing (the fuel it names did not run it).
     #[test]
     fn the_shipped_generator_burns_its_own_fuel_and_not_paint() {
-        use crate::ecs::components::{BurnsFuels, PowerCircuit, PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::components::{BurnsFuels, PowerCircuit, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
         use crate::systems::electrical::{ElectricalSystem, PowerStatus};
         use crate::systems::inventory::containers::{store_offers, vessel_takes, Container, ContainerRegistry};
         use crate::systems::inventory::ItemRegistry;
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
         let items = ItemRegistry::from_csv(&read("items.csv")).expect("items.csv");
         let containers = ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
@@ -674,13 +674,13 @@ mod tests {
             let pack: std::collections::HashMap<String, u32> =
                 [("paint_0".to_string(), 3), ("diesel_0".to_string(), 4), ("gasoline_0".to_string(), 5)].into_iter().collect();
             let offered: Vec<String> = {
-                let takes = vessel_takes(&world, &crate::hot_reload::data_store::DataStore::new(), gen);
+                let takes = vessel_takes(&world, &humanity_core::hot_reload::data_store::DataStore::new(), gen);
                 let drum = world.get::<&Container>(gen).unwrap();
                 store_offers(&containers, Some(&items), &*drum, takes.as_ref(), &pack).into_iter().map(|(id, _, _)| id).collect()
             };
             assert_eq!(offered, vec!["gasoline_0".to_string()], "{file}: its drum offers its fuel, not Paint or Diesel");
 
-            let mut data = crate::hot_reload::data_store::DataStore::new();
+            let mut data = humanity_core::hot_reload::data_store::DataStore::new();
             data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
             data.insert("item_registry", items.clone());
             let mut sys = ElectricalSystem::new(&data_dir);
@@ -710,12 +710,12 @@ mod tests {
     /// (2026-10-20).
     #[test]
     fn the_diesel_generator_burns_diesel_and_nothing_else() {
-        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
         use crate::systems::electrical::{ElectricalSystem, PowerStatus};
         use crate::systems::inventory::containers::{store_offers, vessel_takes, Container, ContainerRegistry, VesselTakes};
         use crate::systems::inventory::ItemRegistry;
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
         let items = ItemRegistry::from_csv(&read("items.csv")).expect("items.csv");
         let containers = ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
@@ -764,7 +764,7 @@ mod tests {
                 .map(|(e, _)| e)
                 .next()
                 .unwrap_or_else(|| panic!("{file}: the diesel generator has its drum"));
-            let takes = vessel_takes(&world, &crate::hot_reload::data_store::DataStore::new(), gen);
+            let takes = vessel_takes(&world, &humanity_core::hot_reload::data_store::DataStore::new(), gen);
             assert_eq!(takes, Some(VesselTakes::Fuels(vec!["diesel_0".to_string()])), "{file}: its drum takes Diesel");
             let pack: std::collections::HashMap<String, u32> =
                 [("paint_0".to_string(), 3), ("gasoline_0".to_string(), 5), ("diesel_0".to_string(), 4)].into_iter().collect();
@@ -774,7 +774,7 @@ mod tests {
             };
             assert_eq!(offered, vec!["diesel_0".to_string()], "{file}: its drum offers Diesel, not Gasoline or Paint");
 
-            let mut data = crate::hot_reload::data_store::DataStore::new();
+            let mut data = humanity_core::hot_reload::data_store::DataStore::new();
             data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
             data.insert("item_registry", items.clone());
             let mut sys = ElectricalSystem::new(&data_dir);
@@ -815,12 +815,12 @@ mod tests {
     /// left: None, right: Some(Firewood(["wood_log_0"])).
     #[test]
     fn the_heat_pump_and_wood_stove_are_built_and_placed_and_the_stoves_box_takes_only_wood() {
-        use crate::ecs::components::{BurnsFuels, FuelStove, HeatPump, PowerConsumer, SpaceHeater};
+        use humanity_core::ecs::components::{BurnsFuels, FuelStove, HeatPump, PowerConsumer, SpaceHeater};
         use crate::systems::inventory::containers::{
             refused_note, store_offers, vessel_takes, Container, ContainerRegistry, StoreOutcome, VesselTakes,
         };
         use crate::systems::inventory::ItemRegistry;
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
         let items = ItemRegistry::from_csv(&read("items.csv")).expect("items.csv");
         let containers = ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
@@ -882,7 +882,7 @@ mod tests {
                 };
                 spawn_home_machine_entity(world, &inst, &home.catalog[machine], &empty, &empty, None, Some(&containers));
                 world
-                    .query::<&crate::ecs::components::MachineInstanceId>()
+                    .query::<&humanity_core::ecs::components::MachineInstanceId>()
                     .iter()
                     .find(|(_, m)| m.0 == inst.id)
                     .map(|(e, _)| e)
@@ -895,7 +895,7 @@ mod tests {
             assert!(world.get::<&FuelStove>(s).is_ok() && world.get::<&BurnsFuels>(s).is_ok(), "{file}: a stove");
             assert_eq!(world.get::<&SpaceHeater>(s).map(|h| h.watts).ok(), Some(0.0), "{file}: it draws nothing");
             assert!(world.get::<&PowerConsumer>(s).is_err(), "{file}: and is on no power island");
-            let data = crate::hot_reload::data_store::DataStore::new();
+            let data = humanity_core::hot_reload::data_store::DataStore::new();
             let takes = vessel_takes(&world, &data, s);
             assert_eq!(takes, Some(VesselTakes::Firewood(vec!["wood_log_0".to_string()])), "{file}: its box takes only Wood Logs");
             let pack: std::collections::HashMap<String, u32> = [

@@ -4,8 +4,8 @@
 //! test changed but its paths. From relay/core/pq_crypto.rs: the relay rebuilds the desktop app's DM
 //! words byte for byte (`dm_pq::build_signed_inner`).
 
-use crate::relay::core::pq_crypto::*;
-use crate::relay::core::pq_crypto::tests::key_hex_of;
+use humanity_protocol::pq_crypto::*;
+use humanity_protocol::pq_crypto::fixtures::key_hex_of;
 
 /// THE RELAY REBUILDS THE DESKTOP APP'S DM WORDS BYTE FOR BYTE: a payload made by the native
 /// builder itself (net::dm_pq `build_signed_inner`, padding and all) checks with the relay's

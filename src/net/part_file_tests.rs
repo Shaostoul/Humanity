@@ -14,7 +14,7 @@ use std::io::Write;
 /// "same.bin", one over another).
 #[test]
 fn two_writers_never_get_the_same_name() {
-    let dir = crate::test_temp::dir("part_same_name");
+    let dir = humanity_core::test_temp::dir("part_same_name");
     std::fs::create_dir_all(&dir).unwrap();
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(8));
     let handles: Vec<_> = (0..8u8)
@@ -45,7 +45,7 @@ fn two_writers_never_get_the_same_name() {
 /// (left: 1 / right: 0).
 #[test]
 fn an_unfinished_part_leaves_nothing() {
-    let dir = crate::test_temp::dir("part_unfinished");
+    let dir = humanity_core::test_temp::dir("part_unfinished");
     let mut part = Part::create(&dir).expect("a part");
     part.file().write_all(b"half of it").unwrap();
     let names: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
@@ -62,7 +62,7 @@ fn an_unfinished_part_leaves_nothing() {
 /// right: 1: the part being written went too).
 #[test]
 fn leftovers_are_swept_and_nothing_else() {
-    let dir = crate::test_temp::dir("part_sweep");
+    let dir = humanity_core::test_temp::dir("part_sweep");
     let mut live = Part::create(&dir).expect("a part");
     live.file().write_all(b"x").unwrap();
     let live_path = live.path().to_path_buf();

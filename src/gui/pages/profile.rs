@@ -208,8 +208,8 @@ fn draw_private_notes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// characters, as the server counts them) it is never cut and never sent (2026-10-24).
 pub(crate) fn bio_refusal(bio: &str) -> Option<String> {
     let n = bio.trim().chars().count();
-    let max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
-    (n > max).then(|| crate::i18n::tf("profile.bio_over_limit", &[("n", &n), ("limit", &max)]))
+    let max = humanity_protocol::profile_copy::BIO_MAX_CHARS;
+    (n > max).then(|| humanity_core::i18n::tf("profile.bio_over_limit", &[("n", &n), ("limit", &max)]))
 }
 
 fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -226,7 +226,7 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         // A soft limit (2026-10-24): what is past the server's limit shows in red on dark red with
         // its count, and Save says to shorten it, where char_limit cut a longer paste without a
         // word (widgets/over_limit.rs; the website's Profile page does the same).
-        let bio_max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
+        let bio_max = humanity_protocol::profile_copy::BIO_MAX_CHARS;
         let mut bio_layout = widgets::over_limit::layouter(theme, bio_max, false);
         ui.add(egui::TextEdit::multiline(&mut state.profile_network_bio)
             .layouter(&mut bio_layout)
@@ -586,7 +586,7 @@ mod tests {
     /// is one), and one at the limit is saved (2026-10-24, the soft limit that replaced char_limit).
     #[test]
     fn a_bio_past_the_limit_is_refused_with_why_and_one_at_it_saves() {
-        let max = crate::relay::core::profile_copy::BIO_MAX_CHARS;
+        let max = humanity_protocol::profile_copy::BIO_MAX_CHARS;
         let at_limit: String = "\u{1F600}".repeat(max);
         assert_eq!(super::bio_refusal(&at_limit), None, "{max} emoji are {max} characters");
         let why = super::bio_refusal(&format!("{at_limit}x")).expect("one past the limit is refused");

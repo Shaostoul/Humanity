@@ -20,14 +20,14 @@ fn relay(tag: &str) -> Arc<RelayState> {
 
 /// The four folders of a test's own.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
 }
 
 fn dirs(tag: &str) -> Dirs {
-    let d = |what: &str| crate::test_temp::dir(&format!("{tag}_{what}"));
+    let d = |what: &str| humanity_core::test_temp::dir(&format!("{tag}_{what}"));
     Dirs { uploads: d("uploads"), members: d("members"), resume: d("resume"), waiting: d("waiting") }
 }
 
@@ -77,7 +77,7 @@ fn picture<'a>(file: &'a str, bytes: &'a [u8]) -> Pub<'a> {
 
 /// The repository's own web/pages/files.html, the page the relay serves.
 fn files_html() -> String {
-    std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/pages/files.html")).expect("web/pages/files.html")
+    std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("web/pages/files.html")).expect("web/pages/files.html")
 }
 
 /// The page for `id` on [`SITE`]: status, headers and text.
@@ -351,7 +351,7 @@ async fn the_page_keeps_blob_pictures_in_its_csp() {
     // newer release (seen red 2026-10-12 on the live /files/2: the browser refused the fetch).
     let want = connect(crate::relay::csp_value()).map(|c| format!("{c} {}", super::SHELL_VERSION_CHECK));
     assert_eq!(connect(page_csp()), want, "the relay's connect-src and the shell's version check");
-    let shell = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/shared/shell.js")).unwrap();
+    let shell = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("web/shared/shell.js")).unwrap();
     assert!(shell.contains(&format!("fetch('{}/", super::SHELL_VERSION_CHECK)), "the shell still asks that address");
     assert_eq!(super::with_connect_source("connect-src 'self';", "https://a.example"), "connect-src 'self' https://a.example;");
     assert_eq!(super::with_connect_source("connect-src 'self' https://a.example;", "https://a.example"), "connect-src 'self' https://a.example;", "never twice");
@@ -390,7 +390,7 @@ async fn no_media_html_says_so_in_words() {
     assert_eq!((code, words.as_str()), (503, NO_FILES_HTML));
     assert!(NO_FILES_HTML.contains("files.html") && NO_FILES_HTML.contains("WEB_ROOT"));
 
-    let found = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web/pages/files.html");
+    let found = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("web/pages/files.html");
     assert_eq!(read_template(&[missing, found]).await, Some(files_html()), "the first that can be read");
     assert_eq!(template_paths().last().unwrap(), &PathBuf::from("web").join("pages").join("files.html"));
     assert_eq!(files_html().matches(OG_MARKER).count(), 1, "files.html carries its marker line once");
@@ -411,7 +411,7 @@ async fn no_media_html_says_so_in_words() {
 #[test]
 fn nginx_sends_item_pages_to_the_relay() {
     for (file, zone) in [("scripts/nginx/humanity.conf", "api_read_limit"), ("docs/admin/SELF-HOSTING.md", "general")] {
-        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file)).unwrap().replace("\r\n", "\n");
+        let text = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(file)).unwrap().replace("\r\n", "\n");
         let block_at = |at: usize| &text[at..at + text[at..].find("\n    }").unwrap()];
         let location = "location ~ ^/files/[0-9]+$ {";
         let at = text.find(location).unwrap_or_else(|| panic!("{file}: {location}"));

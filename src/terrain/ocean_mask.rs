@@ -191,7 +191,7 @@ mod tests {
         // sits below sea level but must NOT be ocean, while open water is.
         // Skips silently if the shipped file is absent (fresh checkout
         // before the build script has run).
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data/planets/earth_ocean_mask.bin");
         let Ok(mask) = OceanMask::load(&path) else { return };
         assert!(mask.is_ocean_latlon(30.0, -40.0), "mid-Atlantic must be ocean");

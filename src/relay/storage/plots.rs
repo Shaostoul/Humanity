@@ -34,7 +34,7 @@ use rusqlite::{params, OptionalExtension};
 /// because an account's erasure and export (storage/account.rs) find its rows by it too.
 pub fn plot_owner_id(key: &str) -> String {
     match hex::decode(key) {
-        Ok(bytes) if !bytes.is_empty() => crate::relay::core::did::did_for_pubkey(&bytes),
+        Ok(bytes) if !bytes.is_empty() => humanity_protocol::did::did_for_pubkey(&bytes),
         _ => format!("key:{key}"),
     }
 }

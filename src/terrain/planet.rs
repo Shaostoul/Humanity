@@ -620,7 +620,7 @@ mod tests {
     fn planet_defs_parse_from_ron_data_files() {
         // The shipped planet defs must keep deserializing as PlanetDef after
         // any schema change (all new fields are serde-defaulted).
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("planets");
         let mut parsed = 0;

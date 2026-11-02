@@ -9,7 +9,7 @@ use super::Sources;
 
 /// A Steam folder with two libraries.
 pub(crate) struct SteamFixture {
-    pub _scratch: crate::test_temp::TempPath,
+    pub _scratch: humanity_core::test_temp::TempPath,
     /// Steam's own folder (its first library).
     pub root: PathBuf,
     /// The second library, on "another drive", named in libraryfolders.vdf.
@@ -148,7 +148,7 @@ fn touch(path: &std::path::Path, unix: u64) {
 /// Steam's small copies) and three Workshop items; Old Lighthouse played 42 minutes, never
 /// started since (no last-played time), no achievements, no screenshots and no Workshop.
 pub(crate) fn steam(tag: &str) -> SteamFixture {
-    let scratch = crate::test_temp::dir(tag);
+    let scratch = humanity_core::test_temp::dir(tag);
     let root = scratch.join("Steam");
     let second = scratch.join("SteamLibrary");
     let esc = |p: &PathBuf| p.to_string_lossy().replace('\\', "\\\\");
@@ -273,7 +273,7 @@ pub(crate) fn steam(tag: &str) -> SteamFixture {
 
 /// An Epic manifests folder and the games' folders.
 pub(crate) struct EpicFixture {
-    pub _scratch: crate::test_temp::TempPath,
+    pub _scratch: humanity_core::test_temp::TempPath,
     pub manifests: PathBuf,
     /// Lantern Valley's folder.
     pub lantern: PathBuf,
@@ -303,7 +303,7 @@ fn item(display: &str, location: &PathBuf, exe: &str, ns: &str, catalog: &str, a
 /// Epic: Lantern Valley installed; Night Courier still installing; a piece of DLC for Lantern
 /// Valley and an Unreal Engine install, neither of them a game; and a file that is not JSON.
 pub(crate) fn epic(tag: &str) -> EpicFixture {
-    let scratch = crate::test_temp::dir(tag);
+    let scratch = humanity_core::test_temp::dir(tag);
     let manifests = scratch.join("Epic").join("EpicGamesLauncher").join("Data").join("Manifests");
     let lantern = scratch.join("Epic Games").join("LanternValley");
     let courier = scratch.join("Epic Games").join("NightCourier");
@@ -323,7 +323,7 @@ pub(crate) fn epic(tag: &str) -> EpicFixture {
 
 /// GOG's installed games and their folders.
 pub(crate) struct GogFixture {
-    pub _scratch: crate::test_temp::TempPath,
+    pub _scratch: humanity_core::test_temp::TempPath,
     pub installed: Vec<Installed>,
     /// Old Forge's folder.
     pub forge: PathBuf,
@@ -332,7 +332,7 @@ pub(crate) struct GogFixture {
 /// GOG: Old Forge, whose .info lists its manual first and its primary play task (a program in
 /// `bin` with a working directory and arguments) second; and Gone Valley, whose folder is not there.
 pub(crate) fn gog(tag: &str) -> GogFixture {
-    let scratch = crate::test_temp::dir(tag);
+    let scratch = humanity_core::test_temp::dir(tag);
     let forge = scratch.join("GOG Games").join("Old Forge");
     write(forge.join("bin").join("forge.exe"), "x");
     let info = serde_json::json!({

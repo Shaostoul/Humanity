@@ -8,9 +8,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::Age;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::Age;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Game seconds in a year of age: 365 days of 24 hours (the one clock,
 /// 2026-09-27). Age counts biological years, whatever the calendar says.

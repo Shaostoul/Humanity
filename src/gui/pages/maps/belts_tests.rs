@@ -15,7 +15,7 @@ fn the_shipped_belts_are_the_real_minor_planets_with_their_credit() {
     let set = belt_set();
     assert!(set.len() >= 19_000, "only {} belt orbits", set.len());
     assert!(set.credit.contains("Minor Planet Center"), "no MPC credit: {:?}", set.credit);
-    let header = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/maps/MPCORB-header.txt"));
+    let header = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/maps/MPCORB-header.txt"));
     let header = header.expect("data/maps/MPCORB-header.txt does not ship beside the belts");
     assert!(header.contains("Software programs may include this datafile"), "the header is not MPCORB's");
     let class = |id: &str| set.classes.iter().position(|c| c.id == id).unwrap() as u8;
@@ -43,7 +43,7 @@ fn the_trojans_swarm_sixty_degrees_from_jupiter() {
     let t = 843_782_400.0;
     let mut cache = BeltCache::default();
     cache.update(set, t, false);
-    let jupiter = crate::cosmos::body_world_position_3d_au(crate::cosmos::find_body("jupiter").unwrap(), t);
+    let jupiter = humanity_core::cosmos::body_world_position_3d_au(humanity_core::cosmos::find_body("jupiter").unwrap(), t);
     let tro = set.classes.iter().position(|c| c.id == "trojan").unwrap() as u8;
     let flat = |v: DVec3| DVec3::new(v.x, 0.0, v.z).normalize();
     let (mut near60, mut all, mut ahead, mut behind) = (0, 0, 0, 0);

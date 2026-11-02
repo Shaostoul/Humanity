@@ -142,7 +142,7 @@ pub fn score(skill_factor: f32, roll: f32) -> f32 {
 /// copy is new with it, so a data folder written before the grades existed has
 /// them too). Neither: no grades, and everything stays ungraded.
 pub fn load(data_dir: &std::path::Path) -> QualityLevels {
-    crate::embedded_data::load_data_or_embedded(data_dir, QualityLevels::FILE, QualityLevels::from_ron).unwrap_or_else(|e| {
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, QualityLevels::FILE, QualityLevels::from_ron).unwrap_or_else(|e| {
         log::warn!("{e}; crafted goods are ungraded this session");
         QualityLevels::default()
     })
@@ -153,7 +153,7 @@ mod tests {
     use super::*;
 
     fn levels() -> QualityLevels {
-        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/manufacturing.ron")).unwrap();
+        let bytes = std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/manufacturing.ron")).unwrap();
         QualityLevels::from_ron(&bytes).expect("manufacturing.ron quality_levels")
     }
 

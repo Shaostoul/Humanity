@@ -784,7 +784,7 @@ October 2026.
   `src/systems/inventory/containers.rs`), with the warning line built in
   `src/lib.rs`; the Take and Store buttons (`src/gui/pages/hud.rs`); the
   gases table (`data/chemistry/gases.csv`, listed only among the files
-  the game ships, `src/embedded_data.rs`).
+  the game ships, `crates/humanity-core/src/embedded_data.rs`).
 - [Fire Performance Fuels](/library#fire-performance-fuels),
   [Firewood](/library#firewood), [Heating a Home Safely](/library#heating-a-home-safely),
   [Making and Controlling Fire](/library#making-and-controlling-fire), [Keeping

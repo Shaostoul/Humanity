@@ -107,7 +107,7 @@ mod tests {
     use crate::ship::home_structure::{HomeStructure, PlacedStructure};
 
     fn data() -> std::path::PathBuf {
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The shipped homestead, its structures read through the same loader every home goes
@@ -152,7 +152,7 @@ mod tests {
     /// old home came out None).
     #[test]
     fn a_home_saved_with_index_pairs_loads() {
-        let old: HomeStructure = ron::from_str::<crate::ship::ship_structure::HomeDesign>(include_str!("../../tests/fixtures/homes/homestead_pairs_by_index.ron"))
+        let old: HomeStructure = ron::from_str::<crate::ship::ship_structure::HomeDesign>(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/homes/homestead_pairs_by_index.ron")))
             .expect("the home the previous code wrote still parses")
             .body;
         let now = shipped_home();

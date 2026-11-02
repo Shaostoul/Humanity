@@ -3,7 +3,7 @@
 Two kinds of reference material live here: operational runbooks/checklists for the
 live infrastructure, and a protocol/schema specification library for the federation
 object model and the farming data contracts. The specs describe designed contracts
-(some already implemented in `src/relay/core/`, some forward-looking RFCs); check
+(some already implemented in `crates/humanity-protocol/src/`, some forward-looking RFCs); check
 `CLAUDE.md`'s Cryptography table for what is actually shipped and activated today.
 
 ## Operations

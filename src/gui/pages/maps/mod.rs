@@ -4,7 +4,7 @@
 //! It was `gui/pages/cosmos.rs` (v0.203.0, Phase 3 of the cosmos architecture)
 //! until 2026-10-20, when Maps increment 0 (docs/design/maps-zoom-to-anything.md)
 //! renamed it to the page's own name and carved its 3,880 lines into this
-//! folder. `crate::cosmos` (`src/cosmos.rs`) keeps its name: it is the Sol
+//! folder. `humanity_core::cosmos` (`crates/humanity-core/src/cosmos.rs`) keeps its name: it is the Sol
 //! model the page and the game both read, not the page.
 //!
 //! Where things are:
@@ -76,7 +76,7 @@ pub(crate) use time_bar::set_clock_for_snapshot;
 /// copy only, so a data edit changed nothing on this page until a rebuild, and
 /// the source stamp, BUG-133, could not see that the binary was behind.)
 fn catalog_text(rel: &str) -> String {
-    crate::embedded_data::read_data_or_embedded(&crate::storage::data_dir(), rel).unwrap_or_default()
+    humanity_core::embedded_data::read_data_or_embedded(&humanity_core::storage::data_dir(), rel).unwrap_or_default()
 }
 
 // ─────────────────────── Spectral-class → color ─────────────────────────────

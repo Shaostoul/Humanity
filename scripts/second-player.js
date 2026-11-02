@@ -180,12 +180,12 @@ const NAME_RULE = /^[A-Za-z0-9_-]{1,24}$/;
 // operator kicked them, so the default name carries the prefix.
 const TEST_BOT_PREFIX = "TestBot";
 const DEFAULT_NAME = `${TEST_BOT_PREFIX}Walker`;
-// The domain strings: identical to web/chat/pq.js and src/relay/core/pq_crypto.rs.
+// The domain strings: identical to web/chat/pq.js and crates/humanity-protocol/src/pq_crypto.rs.
 const DIL_CONTEXT = "hum/dilithium3/v1";
 const KYBER_CONTEXT = "hum/kyber768/v1";
 // Ours alone: turns a --seed word (or the name) into a 32-byte master seed.
 const SEED_CONTEXT = "hum/second-player/seed/v1";
-// How the scripted player looks to others (src/player_look.rs): skin, hair,
+// How the scripted player looks to others (crates/humanity-core/src/player_look.rs): skin, hair,
 // height. Fixed, so a person learns to recognise it.
 const LOOK = { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height: 1.0 };
 const CHAT_CHANNEL = "general";
@@ -1592,7 +1592,7 @@ function makeRequests({ send, log, now = () => performance.now(), setTimer = set
   };
 }
 
-/** What a household permit's issuer signs: the relay's own words (src/relay/core/pq_crypto.rs
+/** What a household permit's issuer signs: the relay's own words (crates/humanity-protocol/src/pq_crypto.rs
  *  `plot_permit_preimage`, pinned by its test, which scripts/tests/second-player.test.js reads).
  *  `server` is the did:hum of the server the permit is given on (its /api/server-info
  *  `server_did`, `fetchServerDid`): every server hands out its plots in the ship file's order, so
@@ -1648,7 +1648,7 @@ function base58(bytes) {
   return out;
 }
 
-/** The did:hum a relay holds plots under for a Dilithium key (hex): src/relay/core/did.rs, base58
+/** The did:hum a relay holds plots under for a Dilithium key (hex): crates/humanity-protocol/src/did.rs, base58
  *  of the first 16 bytes of BLAKE3 of the key. What a household permit names its grantee by. */
 function didFor(noble, publicKeyHex) {
   return `did:hum:${base58(noble.blake3(new Uint8Array(Buffer.from(publicKeyHex, "hex"))).slice(0, 16))}`;

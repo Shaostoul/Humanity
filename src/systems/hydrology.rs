@@ -9,8 +9,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::time::{GameTime, Season};
 use crate::systems::weather::Weather;
 

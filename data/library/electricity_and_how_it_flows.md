@@ -567,7 +567,7 @@ nothing in it can shock you.
   below 120 volts. You can leave a run on "auto", which picks the cheapest
   cable in the catalogue that passes, the superconductor included (see
   below), or pin a cable and see whether it holds. The check is
-  `check_cable` in `src/utilities.rs`, called from `src/machines.rs`.
+  `check_cable` in `crates/humanity-core/src/utilities.rs`, called from `src/machines.rs`.
 - **The copper cables are real.** The catalogue in
   `data/utilities/conduits.ron` lists 14, 12 and 10 gauge copper at 15,
   20 and 30 amps for the home, an industrial 6 gauge at 55 amps, and a
@@ -611,7 +611,7 @@ report still says it chose copper. So a long, heavy run that no real
 wire could carry passes the check: 3,000 watts over 60 metres is one,
 where even the 6 gauge loses 3.2 percent, a warning (our arithmetic,
 following the game's rule). The picker is `cheapest_cable_for` in
-`src/utilities.rs`, and the button is in `src/gui/pages/construction.rs`.
+`crates/humanity-core/src/utilities.rs`, and the button is in `src/gui/pages/construction.rs`.
 
 ## You own this when
 
@@ -759,7 +759,7 @@ read in the eCFR's text in force on 1 October 2026.
 ### Inside this project
 
 - The cable check: `check_cable` and `cheapest_cable_for` in
-  `src/utilities.rs`, run by the Conduits check in `src/machines.rs`
+  `crates/humanity-core/src/utilities.rs`, run by the Conduits check in `src/machines.rs`
   (fixed 120 volts; the 80 percent, 3 percent and 5 percent limits) and
   shown in the Buildability section and the cable picker of the
   Construction page (`src/gui/pages/construction.rs`, which also holds

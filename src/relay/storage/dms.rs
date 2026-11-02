@@ -244,7 +244,7 @@ mod tests {
     /// `opens_a_pre_v0675_database_and_migrates_it` (BUG-046 discipline).
     #[test]
     fn opens_a_legacy_db_and_drops_the_dm_graph() {
-        let path = crate::test_temp::db("dms_legacy");
+        let path = humanity_core::test_temp::db("dms_legacy");
         // Build a pre-v2 database shape by hand: the legacy table + rows.
         {
             let conn = rusqlite::Connection::open(&path).unwrap();

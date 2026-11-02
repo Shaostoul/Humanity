@@ -390,7 +390,7 @@ pub fn direct_offer_reason(from: &str, facts: &OfferFacts) -> Option<OfferReason
 pub fn holds_friendship(i_follow: bool, their_cert: Option<&str>, server: &str, from: &str, my_key: &str) -> bool {
     i_follow
         && their_cert
-            .is_some_and(|c| crate::relay::core::pq_crypto::verify_friend_cert(server, from, my_key, c).is_ok())
+            .is_some_and(|c| humanity_protocol::pq_crypto::verify_friend_cert(server, from, my_key, c).is_ok())
 }
 
 /// Whether the loop should send STUN Binding Requests now. Asking a STUN server
@@ -998,7 +998,7 @@ impl WebrtcManager {
                 Ok(s) => s,
                 Err(e) => {
                     log::error!("WebRTC: failed to bind UDP socket: {e}");
-                    crate::debug::push_debug(format!("WebRTC UDP bind FAILED: {e}"));
+                    humanity_core::debug::push_debug(format!("WebRTC UDP bind FAILED: {e}"));
                     return;
                 }
             };
@@ -1006,7 +1006,7 @@ impl WebrtcManager {
                 Ok(a) => a,
                 Err(e) => {
                     log::error!("WebRTC: failed to read local addr: {e}");
-                    crate::debug::push_debug(format!("WebRTC local_addr FAILED: {e}"));
+                    humanity_core::debug::push_debug(format!("WebRTC local_addr FAILED: {e}"));
                     return;
                 }
             };
@@ -1018,7 +1018,7 @@ impl WebrtcManager {
                 "WebRTC: bound UDP {local_addr}, identity {}..",
                 &my_pubkey_hex[..my_pubkey_hex.len().min(16)]
             );
-            crate::debug::push_debug(format!("WebRTC bound UDP {local_addr}"));
+            humanity_core::debug::push_debug(format!("WebRTC bound UDP {local_addr}"));
 
             let mgr = WebrtcManager::new(my_pubkey_hex, udp, local_addr, rx_cmd, tx_event, tx_outbound, relay_base);
             mgr.run();
@@ -1169,7 +1169,7 @@ impl WebrtcManager {
             for key in dead {
                 self.peers.remove(&key);
                 let _ = self.tx_event.send(WebrtcEvent::Closed { peer: key.clone() });
-                crate::debug::push_debug(format!("WebRTC peer closed: {}", short(&key)));
+                humanity_core::debug::push_debug(format!("WebRTC peer closed: {}", short(&key)));
             }
 
             // ── C. How long this turn rests when no datagram is waiting: nothing right after a
@@ -1480,7 +1480,7 @@ impl WebrtcManager {
                             p.voice_announced = true;
                             let _ = self.tx_event.send(WebrtcEvent::VoiceConnected { peer: key.to_string() });
                             log::info!("WebRTC: voice CONNECTED with {}", short(key));
-                            crate::debug::push_debug(format!("Voice connected with {}", short(key)));
+                            humanity_core::debug::push_debug(format!("Voice connected with {}", short(key)));
                         }
                     }
                 }
@@ -1496,7 +1496,7 @@ impl WebrtcManager {
                     }
                 }
                 log::info!("WebRTC: channel open with {} (label '{label}')", short(key));
-                crate::debug::push_debug(format!("WebRTC channel OPEN with {}", short(key)));
+                humanity_core::debug::push_debug(format!("WebRTC channel OPEN with {}", short(key)));
             }
             Event::ChannelData(data) => {
                 // Inbound frame. We only deal in text for inc-1. `data` has
@@ -1754,7 +1754,7 @@ impl WebrtcManager {
             }
             None if !DIRECT_CONNECTIONS => {
                 log::info!("WebRTC: no direct connection to {}: calls hide this device's address", short(&peer));
-                crate::debug::push_debug(format!(
+                humanity_core::debug::push_debug(format!(
                     "P2P test to {}: direct connections are off while calls go through the server (step E)",
                     short(&peer)
                 ));
@@ -1836,7 +1836,7 @@ impl WebrtcManager {
                 Ok(v) => {
                     self.emit_voice_signal(&peer, room_id, "offer", v);
                     log::info!("WebRTC: voice offer -> {} (room {})", short(&peer), room_id);
-                    crate::debug::push_debug(format!("Voice offer -> {} room {}", short(&peer), room_id));
+                    humanity_core::debug::push_debug(format!("Voice offer -> {} room {}", short(&peer), room_id));
                 }
                 Err(e) => {
                     log::error!("WebRTC: failed to serialize voice offer: {e}");
@@ -1863,7 +1863,7 @@ impl WebrtcManager {
             self.replay_early_ice(&peer);
         }
         log::info!("WebRTC: sent dc_offer to {}", short(&peer));
-        crate::debug::push_debug(format!("WebRTC offer -> {}", short(&peer)));
+        humanity_core::debug::push_debug(format!("WebRTC offer -> {}", short(&peer)));
     }
 
     /// Send `text` to `peer` over its open DataChannel. Drops silently if the
@@ -1988,7 +1988,7 @@ impl WebrtcManager {
         self.peers.insert(from.clone(), conn);
         self.emit_signal(&from, "dc_answer", answer_json);
         log::info!("WebRTC: accepted offer from {}, sent answer", short(&from));
-        crate::debug::push_debug(format!("WebRTC answer -> {}", short(&from)));
+        humanity_core::debug::push_debug(format!("WebRTC answer -> {}", short(&from)));
     }
 
     /// We received an answer to an offer we sent earlier (we're the offerer).
@@ -2202,7 +2202,7 @@ impl WebrtcManager {
         self.emit_voice_signal(&from, &room_id, "answer", answer_val);
         self.replay_early_ice(&from);
         log::info!("WebRTC: voice answer -> {} (room {})", short(&from), room_id);
-        crate::debug::push_debug(format!("Voice answer -> {} room {}", short(&from), room_id));
+        humanity_core::debug::push_debug(format!("Voice answer -> {} room {}", short(&from), room_id));
     }
 
     /// We received the answer to a voice offer we sent.
@@ -2396,7 +2396,7 @@ impl WebrtcManager {
             }
         }
         self.last_stun_send = Some(now);
-        crate::debug::push_debug("WebRTC: STUN gathering (sent Binding Requests)");
+        humanity_core::debug::push_debug("WebRTC: STUN gathering (sent Binding Requests)");
     }
 
     /// Try to interpret an inbound datagram as a STUN Binding Response to one of
@@ -2439,7 +2439,7 @@ impl WebrtcManager {
         self.stun_pending.remove(&txid);
 
         log::info!("WebRTC: learned server-reflexive address {mapped} (via STUN {source})");
-        crate::debug::push_debug(format!("WebRTC srflx = {mapped}"));
+        humanity_core::debug::push_debug(format!("WebRTC srflx = {mapped}"));
 
         // First response wins. (Multiple STUN servers may reply; behind a
         // well-behaved NAT they should agree. We don't try to detect symmetric
@@ -2734,7 +2734,7 @@ impl WebrtcManager {
         if let Some(r) = self.relay.as_mut() {
             r.phase = RelayPhase::Turn(turn::TurnClient::new(server, username, password));
         }
-        crate::debug::push_debug(format!("WebRTC: reaching the call forwarder at {server}"));
+        humanity_core::debug::push_debug(format!("WebRTC: reaching the call forwarder at {server}"));
     }
 
     /// The app gave up waiting for `scope`'s credentials (it already told the
@@ -2817,7 +2817,7 @@ impl WebrtcManager {
             self.close_scope_peers_where(&scope, true);
         }
         log::info!("WebRTC: the {} cannot go through the server (lost: {lost})", scope.label());
-        crate::debug::push_debug(format!("WebRTC: {} cannot go through the server", scope.label()));
+        humanity_core::debug::push_debug(format!("WebRTC: {} cannot go through the server", scope.label()));
         let _ = self.tx_event.send(WebrtcEvent::RelayUnavailable { scope, lost });
     }
 
@@ -2887,7 +2887,7 @@ impl WebrtcManager {
         match outcome {
             Some(Ok(relayed)) => {
                 log::info!("WebRTC: the {} goes through the server at {relayed}", scope.label());
-                crate::debug::push_debug(format!("WebRTC: {} ready through the server", scope.label()));
+                humanity_core::debug::push_debug(format!("WebRTC: {} ready through the server", scope.label()));
                 let _ = self.tx_event.send(WebrtcEvent::RelayReady { scope: scope.clone() });
                 self.flush_deferred(&scope);
                 self.relay_ready_for_direct(&scope, relayed);
@@ -5207,7 +5207,7 @@ mod who_we_answer_tests {
     /// server is not a friendship here.
     #[test]
     fn friendship_needs_our_follow_and_their_certificate_naming_us() {
-        use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
+        use humanity_protocol::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
         let key_of = |seed: &[u8; 32]| hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(seed)).public_key());
         let (them_seed, me_seed, other_seed) = ([0x31u8; 32], [0x32u8; 32], [0x33u8; 32]);
         let (them, me, other) = (key_of(&them_seed), key_of(&me_seed), key_of(&other_seed));
@@ -5733,7 +5733,7 @@ mod relay_only_rig_tests {
 mod receive_loop_tests {
     #[test]
     fn the_call_loop_sleeps_and_never_receives_with_a_timeout() {
-        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/net/webrtc.rs")).unwrap();
+        let source = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/net/webrtc.rs")).unwrap();
         let code = |text: &str| text.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
         let start = source.find("    fn run(mut self) {").expect("the call manager's loop");
         let end = start + source[start..].find("    fn poll_peer(").expect("the loop ends before poll_peer");

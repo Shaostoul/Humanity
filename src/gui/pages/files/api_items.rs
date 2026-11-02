@@ -413,7 +413,7 @@ mod tests {
     use super::*;
 
     fn fixture() -> Value {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/files-round5-v1.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/files-round5-v1.json");
         serde_json::from_str(&std::fs::read_to_string(path).expect("the shared fixture is there")).expect("JSON")
     }
 

@@ -87,7 +87,7 @@ pub const COVERAGE_PATH_FILES: &[&str] = &["src/terrain/grass.rs", "src/terrain/
 /// the first draft of this did, and it pointed at a line grass.rs does not
 /// have).
 pub fn coverage_path_files() -> Vec<(&'static str, String)> {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     COVERAGE_PATH_FILES
         .iter()
         .map(|rel| {
@@ -1063,7 +1063,7 @@ mod tests {
         crate::terrain::planet_albedo::PlanetAlbedo,
         PlanetDef,
     ) {
-        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
         let hm = crate::terrain::planet_heightmap::PlanetHeightmap::load(
             &base.join("earth_heightmap.bin"),
         )

@@ -14,7 +14,7 @@
 #                                     humidity, yield and stages all drive the
 #                                     farming simulation from here.
 #   src/assets/                    -- AssetManager loads and hot-reloads it.
-#   src/embedded_data.rs           -- embedded at compile time so a bare exe works.
+#   crates/humanity-core/src/embedded_data.rs           -- embedded at compile time so a bare exe works.
 #   data/food/crop_nutrition.ron   -- one entry per FOOD row here, keyed on `id`,
 #                                     bridging yield to calories.
 #   data/curriculum/syllabus.json  -- the `bio_plants` and `grow_pests` topics

@@ -585,7 +585,7 @@ mod tests {
     use crate::renderer::cloud_noise;
 
     fn shader_source() -> String {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl"))
             .expect("read 40-clouds.wgsl")
     }

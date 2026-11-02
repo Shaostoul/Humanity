@@ -3,7 +3,8 @@
 // hundreds of files (operator, 2026-10-18: "a series of hyper efficient memory files for AI ... to
 // easily know everything that already exists without having to scan the source files").
 //
-// Writes docs/ai/code-map.md: every .rs file under src/ and every .js file under web/ (not the
+// Writes docs/ai/code-map.md: every .rs file under src/ and each crates/<name>/src/ (the workspace's
+// crates, since the crate split's rung 1, 2026-11-01), and every .js file under web/ (not the
 // generated app/web copy), each as
 //   `path` (lines): what its header comment says it is. Main items: a, b, c
 // where the header is the file's first `//!` line (Rust) or first comment line (JS), and the main
@@ -118,7 +119,12 @@ function entry(file, kind) {
 }
 
 function build() {
-  const rs = walk(path.join(REPO, 'src'), '.rs', []).map((f) => entry(f, 'rs'));
+  // src/ and each workspace crate's src/ (crates/<name>/src, since the crate split's rung 1,
+  // 2026-11-01): a map that walked src/ alone would have lost the core and the protocol.
+  const crateSrcs = fs.existsSync(path.join(REPO, 'crates'))
+    ? fs.readdirSync(path.join(REPO, 'crates'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(REPO, 'crates', e.name, 'src')).filter((d) => fs.existsSync(d)).sort()
+    : [];
+  const rs = [path.join(REPO, 'src'), ...crateSrcs].flatMap((d) => walk(d, '.rs', [])).map((f) => entry(f, 'rs'));
   const js = walk(path.join(REPO, 'web'), '.js', []).map((f) => entry(f, 'js'));
   const all = [...rs, ...js].sort((a, b) => (a.dir === b.dir ? a.line.localeCompare(b.line) : a.dir.localeCompare(b.dir)));
   const total = (list) => list.reduce((n, e) => n + e.lines, 0);
@@ -131,7 +137,7 @@ function build() {
     '> `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)',
     '> are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.',
     '',
-    `${rs.length} Rust files (${total(rs).toLocaleString('en-US')} lines) under \`src/\`; ${js.length} JavaScript files (${total(js).toLocaleString('en-US')} lines) under \`web/\`.`,
+    `${rs.length} Rust files (${total(rs).toLocaleString('en-US')} lines) under \`src/\` and \`crates/*/src/\`; ${js.length} JavaScript files (${total(js).toLocaleString('en-US')} lines) under \`web/\`.`,
     '',
   ];
   // The folders first, each in one line (its mod.rs's, or its own file's, header), small enough to

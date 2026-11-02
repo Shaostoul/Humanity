@@ -18,7 +18,7 @@
 
 use egui::RichText;
 
-use crate::cosmos::find_body;
+use humanity_core::cosmos::find_body;
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
 use crate::station::orbit::{self, PeriodSpec, StationDef};
@@ -86,7 +86,7 @@ pub fn row_detail(row: &StationRow) -> String {
 /// The Stations rows at the top of the body list.
 pub(super) fn draw_station_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Stations").size(theme.font_size_small).color(theme.accent()).strong());
-    let rows = state.maps.stations.get_or_insert_with(|| station_rows(&crate::storage::data_dir())).clone();
+    let rows = state.maps.stations.get_or_insert_with(|| station_rows(&humanity_core::storage::data_dir())).clone();
     if rows.is_empty() {
         ui.label(RichText::new("No stations in data/stations.").size(theme.font_size_small).color(theme.text_muted()));
     }

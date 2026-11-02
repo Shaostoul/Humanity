@@ -52,9 +52,9 @@ pub(crate) mod clock_tests;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::ecs::components::{CropInstance, CropSoil, Npk, DEFAULT_GROWTH_STAGES, STAGE_DEAD};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, CropSoil, Npk, DEFAULT_GROWTH_STAGES, STAGE_DEAD};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 // Crops grow on the one game clock (2026-09-27, decision-briefs.md Brief 6):
 // a crop takes its plants.csv `growth_days` of 24 game hours each, and the
@@ -246,7 +246,7 @@ impl PlantRegistry {
     /// before v0.323 the CSV was loaded then discarded, so FarmingSystem ran on
     /// default growth stages with no species data.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<PlantRow> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<PlantRow> = humanity_core::data_parse::parse_csv(data)?;
         let mut plants = HashMap::new();
         for row in rows {
             plants.insert(
@@ -411,7 +411,7 @@ mod plant_registry_csv_tests {
     /// in-game. Any future schema drift that starts eating rows fails HERE, loudly.
     #[test]
     fn shipped_plants_csv_parses_with_zero_dropped_rows() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("plants.csv");
         let text = std::fs::read_to_string(&path).expect("data/plants.csv reads");
         // Raw data-row count: non-comment, non-blank lines, minus the header line.
         let data_rows = text
@@ -455,7 +455,7 @@ mod plant_registry_csv_tests {
     /// alien-only fungi.
     #[test]
     fn shipped_plants_csv_has_real_edible_mushrooms() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("plants.csv");
         let bytes = std::fs::read(&path).expect("data/plants.csv reads");
         let reg = PlantRegistry::from_csv(&bytes).expect("data/plants.csv parses");
         for id in ["oyster_mushroom", "shiitake", "button_mushroom"] {
@@ -485,7 +485,7 @@ mod plant_registry_csv_tests {
         let old = PlantRegistry::from_csv(b"id,name,growth_days\nx,X,10\n").expect("parse");
         assert!(old.get("x").unwrap().needs_light, "a CSV without the column needs light");
 
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("plants.csv");
         let shipped = PlantRegistry::from_csv(&std::fs::read(&path).expect("plants.csv reads"))
             .expect("plants.csv parses");
         for id in ["oyster_mushroom", "shiitake", "button_mushroom"] {
@@ -984,7 +984,7 @@ pub struct FarmingSystem {
     /// The crops' breath and gas exchange by area as each area last advanced: what the air's
     /// own turn steps the rooms on (clock::Held).
     held: clock::Held,
-    /// The tests' stand-in for the Dev page's "Turn off all reuse" switch (crate::reuse), which
+    /// The tests' stand-in for the Dev page's "Turn off all reuse" switch (humanity_core::reuse), which
     /// is one switch for the whole process: a test that turned it off would change every other
     /// test running beside it. None (the game): the switch.
     pub(crate) reuse_override: Option<bool>,
@@ -1233,7 +1233,7 @@ impl System for FarmingSystem {
     /// all reuse" switch off, or a burn harming the crops a frame at a time, every area and the
     /// air advance every frame: one run of the body over the whole farm, the farm as it ran before.
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
-        let farm_t = crate::frame_costs::stage("cpu.farm.clock");
+        let farm_t = humanity_core::frame_costs::stage("cpu.farm.clock");
         // A crop's age is the clock minus its planted_at, so when the clock
         // jumps to follow a shared world's host (time::REBASE_SLOT, 2026-09-29)
         // every planted_at moves by the same amount and no crop ripens or
@@ -1263,12 +1263,12 @@ impl System for FarmingSystem {
         // The electrical sim reads it as the load now. (lighting::light_at's own rule.)
         let sun_up = crate::systems::solar::sun_factor(hour) > 0.0;
         let lamps_on = !sun_up && data.get::<lighting::LightingData>("garden_lighting").map_or(false, |d| d.lamps_on_at(hour));
-        for (_e, (gl, pc)) in world.query_mut::<(&crate::ecs::components::GrowLight, &mut crate::ecs::components::PowerConsumer)>() {
+        for (_e, (gl, pc)) in world.query_mut::<(&humanity_core::ecs::components::GrowLight, &mut humanity_core::ecs::components::PowerConsumer)>() {
             pc.draw_watts = if lamps_on { gl.watts } else { 0.0 };
         }
         // The interval, as a reader that is looking keeps it (at most a second while the Garden
         // page or the plant meshes show the garden), and what makes this frame advance everything.
-        let reuse = self.reuse_override.unwrap_or_else(crate::reuse::enabled);
+        let reuse = self.reuse_override.unwrap_or_else(humanity_core::reuse::enabled);
         let looking = self.clock.look_frames > 0;
         self.clock.look_frames = self.clock.look_frames.saturating_sub(1);
         let mut interval = clock::interval(data).unwrap_or(0.0);
@@ -1296,7 +1296,7 @@ impl System for FarmingSystem {
         if fresh_world {
             self.clock_started = true;
             let names: std::collections::BTreeSet<String> = world
-                .query::<&crate::ecs::components::SoilMemory>()
+                .query::<&humanity_core::ecs::components::SoilMemory>()
                 .iter()
                 .next()
                 .map(|(_, m)| m.pests.keys().chain(m.weeds.keys()).chain(m.ph.keys()).chain(m.organic.keys()).cloned().collect())
@@ -1438,7 +1438,7 @@ impl FarmingSystem {
     /// (`AreaClock::look_frames`) and the others keep the interval. A name the farm does not know
     /// (a machine with no crops) is passed over.
     pub fn settle_areas(&mut self, world: &mut hecs::World, data: &DataStore, names: &[String], within_s: f64) {
-        let _cost = crate::frame_costs::stage("cpu.farm.settle");
+        let _cost = humanity_core::frame_costs::stage("cpu.farm.settle");
         // A load handed over and not yet taken: the clock is the previous world's (the critic's F3).
         if clock::resume_pending(data) {
             return;
@@ -1464,7 +1464,7 @@ impl FarmingSystem {
     /// May what is kept for a round (the air's layout, the pollinators' reach) be kept? Not with
     /// the Dev page's "Turn off all reuse", nor in a test's reference run (`fresh_each_run`).
     fn keeps_round_data(&self) -> bool {
-        let reuse = self.reuse_override.unwrap_or_else(crate::reuse::enabled);
+        let reuse = self.reuse_override.unwrap_or_else(humanity_core::reuse::enabled);
         #[cfg(test)]
         let reuse = reuse && !self.fresh_each_run;
         reuse
@@ -1489,7 +1489,7 @@ impl FarmingSystem {
     }
 
     pub fn settle(&mut self, world: &mut hecs::World, data: &DataStore, within_s: f64) {
-        let _cost = crate::frame_costs::stage("cpu.farm.settle");
+        let _cost = humanity_core::frame_costs::stage("cpu.farm.settle");
         // A load handed over and not yet taken: the clock is the previous world's, and advancing the
         // loaded world by its debts would give it time that belonged to no world, which the tick
         // then owes it again (the critic's F3, 2026-10-31). The tick takes the hand-over first.
@@ -1535,7 +1535,7 @@ impl FarmingSystem {
         });
         // Where the tick's time goes, pass by pass (cpu.farm.*, children of cpu.system.farming,
         // never summed with it): each assignment closes the pass before it (2026-10-30).
-        let mut _farm_t = crate::frame_costs::stage("cpu.farm.setup");
+        let mut _farm_t = humanity_core::frame_costs::stage("cpu.farm.setup");
         let plant_registry = data.get::<PlantRegistry>("plant_registry");
         let g_harm_per_sec = burn_harm_per_s(data);
 
@@ -1792,7 +1792,7 @@ impl FarmingSystem {
             per_plant.scaled(f64::from(plants))
         };
 
-        _farm_t = crate::frame_costs::stage("cpu.farm.commands");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.commands");
         // The player's requests are taken only by the commands run (2026-10-31, farm-clock.md
         // rung 2): every other run leaves them waiting, so a command acts on what it touches only
         // after the tick brought that up to now (tick, touched).
@@ -1842,7 +1842,7 @@ impl FarmingSystem {
                         if c.tower_id.as_deref() == Some(tower_id.as_str())
                             && c.tower_slot == Some(slot_idx)
                         {
-                            if c.growth_stage.as_str() == crate::ecs::components::STAGE_DEAD {
+                            if c.growth_stage.as_str() == humanity_core::ecs::components::STAGE_DEAD {
                                 dead_in_slot.push(e);
                             } else {
                                 occupied = true;
@@ -1859,7 +1859,7 @@ impl FarmingSystem {
                         let mut had = false;
                         for (_e, (inv, _ctrl)) in world.query_mut::<(
                             &mut crate::systems::inventory::Inventory,
-                            &crate::ecs::components::Controllable,
+                            &humanity_core::ecs::components::Controllable,
                         )>() {
                             if inv.has_item(&seed_id, 1) {
                                 inv.remove_item(&seed_id, 1);
@@ -1981,7 +1981,7 @@ impl FarmingSystem {
                             if c.tower_id.as_deref() == Some(area_id.as_str())
                                 && c.tower_slot == Some(unit)
                             {
-                                if c.growth_stage.as_str() == crate::ecs::components::STAGE_DEAD {
+                                if c.growth_stage.as_str() == humanity_core::ecs::components::STAGE_DEAD {
                                     dead_in_slot.push(e);
                                 } else {
                                     occupied = true;
@@ -1997,7 +1997,7 @@ impl FarmingSystem {
                             let mut had = false;
                             for (_e, (inv, _ctrl)) in world.query_mut::<(
                                 &mut crate::systems::inventory::Inventory,
-                                &crate::ecs::components::Controllable,
+                                &humanity_core::ecs::components::Controllable,
                             )>() {
                                 if inv.has_item(&seed_id, 1) {
                                     inv.remove_item(&seed_id, 1);
@@ -2044,7 +2044,7 @@ impl FarmingSystem {
             if let Some(seed_ids) = stock_seeds {
                 for (_e, (inv, _ctrl)) in world.query_mut::<(
                     &mut crate::systems::inventory::Inventory,
-                    &crate::ecs::components::Controllable,
+                    &humanity_core::ecs::components::Controllable,
                 )>() {
                     let want = inv.max_slots + seed_ids.len();
                     inv.ensure_slots(want);
@@ -2117,7 +2117,7 @@ impl FarmingSystem {
                     let mut withheld: Option<(String, f64)> = None;
                     for (_e, (inv, _ctrl)) in world.query_mut::<(
                         &mut crate::systems::inventory::Inventory,
-                        &crate::ecs::components::Controllable,
+                        &humanity_core::ecs::components::Controllable,
                     )>() {
                         for dose in &order {
                             if !(creative || inv.has_item(&dose.item, 1)) {
@@ -2218,7 +2218,7 @@ impl FarmingSystem {
                 soil_ph::handle_request(world, data, ph_data, &mut self.ph_rt, &area, &amendment, creative, &mut need_n);
             }
         }
-        _farm_t = crate::frame_costs::stage("cpu.farm.pollination");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.pollination");
         // POLLINATION (2026-09-26, pollination.rs): the Hand-pollinate request
         // (the commands run's), the hives' colonies with the air (they serve
         // several areas, 2026-10-31), each of this run's indoor flowering
@@ -2251,7 +2251,7 @@ impl FarmingSystem {
             }
         }
 
-        _farm_t = crate::frame_costs::stage("cpu.farm.picking");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.picking");
         // PICKING (2026-09-26, picking.rs): the Clear request, each ripe
         // picked plant's window on the garden clock, and (Realistic mode) the
         // plants whose window ended. Each leaves its unit as a harvest does.
@@ -2271,7 +2271,7 @@ impl FarmingSystem {
             vacate_unit(world, e, plants_here, plant_registry, item_registry, demand_scale, legume_harvest_share);
         }
 
-        _farm_t = crate::frame_costs::stage("cpu.farm.harvest");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.harvest");
         // HARVEST: a fully-grown crop -> produce items into the player + despawn it.
         // Volume-gate surplus that doesn't fit the pack routes into a compatible
         // home vessel (the grain silo) instead of vanishing — collected here,
@@ -2355,7 +2355,7 @@ impl FarmingSystem {
                             item_registry.map(|r| r.max_stack_for(&yield_item)).unwrap_or(99);
                         for (_e, (inv, _ctrl)) in world.query_mut::<(
                             &mut crate::systems::inventory::Inventory,
-                            &crate::ecs::components::Controllable,
+                            &humanity_core::ecs::components::Controllable,
                         )>() {
                             // Volume-gated (Stage A slice 2): surplus that
                             // doesn't fit the pack routes to a home vessel
@@ -2522,7 +2522,7 @@ impl FarmingSystem {
         }
 
         // Collect entities to update (avoid borrow conflict with world)
-        _farm_t = crate::frame_costs::stage("cpu.farm.crop_setup");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.crop_setup");
         // A crop with no soil record yet (newly sown, spawned or loaded) gets the one the loop
         // makes for it, inserted after the loop; every other crop and record is changed in place
         // (F2 of docs/design/sim-frame-cost.md: until 2026-10-30 every crop was cloned, Strings
@@ -2586,18 +2586,18 @@ impl FarmingSystem {
         // world) and put back after it.
         let memory = soil::soil_memory_entity(world);
         let mut organic = world
-            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .get::<&mut humanity_core::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.organic))
             .unwrap_or_default();
         // Every area's pests, taken out the same way and put back after.
         let mut area_pests = world
-            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .get::<&mut humanity_core::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.pests))
             .unwrap_or_default();
         // Every grow room's air (humidity.rs), the same way, and the litres a
         // day each area's growing, watered crops breathe out this tick.
         let mut room_air = world
-            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .get::<&mut humanity_core::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.rooms))
             .unwrap_or_default();
         let mut breathed: HashMap<String, f64> = HashMap::new();
@@ -2605,7 +2605,7 @@ impl FarmingSystem {
         // sulfur and nitrifying ammonium react first, on garden days (the
         // crops' clock, not paused at night: soil chemistry goes on).
         let mut ph_units = world
-            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .get::<&mut humanity_core::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.ph))
             .unwrap_or_default();
         // The time away, once (offline progression; soil_ph::hand_away_secs):
@@ -2633,7 +2633,7 @@ impl FarmingSystem {
         }
         let mut ph_out: HashMap<String, soil_ph::OutOfWindow> = HashMap::new();
 
-        _farm_t = crate::frame_costs::stage("cpu.farm.pest_tally");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.pest_tally");
         // PESTS: step every grow area's pressure on the garden clock
         // (2026-09-26, pests.rs). First a tally of each area's living crops
         // (mature ones too: a ripe plant still feeds a pest until it is
@@ -2747,7 +2747,7 @@ impl FarmingSystem {
                 }
             }
         }
-        _farm_t = crate::frame_costs::stage("cpu.farm.weeds");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.weeds");
         // WEEDS (weeds.rs): every soil area's cover and seed bank, taken out and
         // stepped on the garden clock like the pests, and put back after the loop.
         let weed_days = game_dt / SECONDS_PER_DAY;
@@ -2757,7 +2757,7 @@ impl FarmingSystem {
         // (2026-09-26): it drinks, breathes out its water, takes stress and can
         // die, so an unwatered tomato stops bearing. A picked plant still
         // standing is a bearing one: it leaves its plot at its last share.
-        _farm_t = crate::frame_costs::stage("cpu.farm.crops");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.crops");
         let windows = data
             .get::<picking::HarvestWindows>(picking::DATA_KEY)
             .unwrap_or_else(|| picking::HarvestWindows::shipped());
@@ -3275,9 +3275,9 @@ impl FarmingSystem {
         // Since 2026-10-31 (rung 2) only when this run steps the air: with the
         // whole farm's, or on the air's own turn, on every area's breath as its
         // last advance worked it out.
-        _farm_t = crate::frame_costs::stage("cpu.farm.air");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.air");
         let mut home_air = world
-            .get::<&mut crate::ecs::components::SoilMemory>(memory)
+            .get::<&mut humanity_core::ecs::components::SoilMemory>(memory)
             .map(|mut m| std::mem::take(&mut m.home_air))
             .unwrap_or_default();
         if let Some(air_s) = scope.air_s {
@@ -3321,7 +3321,7 @@ impl FarmingSystem {
             // producer, which the plumbing sim applies on its own clock, the same
             // way it applies the irrigation's litres a day. A handler the air step
             // did not run (no power, or no life-support data) returns nothing.
-            for (e, (_h, p)) in world.query_mut::<(&crate::ecs::components::AirHandler, &mut crate::ecs::components::WaterProducer)>() {
+            for (e, (_h, p)) in world.query_mut::<(&humanity_core::ecs::components::AirHandler, &mut humanity_core::ecs::components::WaterProducer)>() {
                 p.lpm = (air_out.condensate_by_entity.get(&e).copied().unwrap_or(0.0) / 1440.0) as f32;
             }
             // The home's own air goes into its air space, where the atmosphere
@@ -3353,7 +3353,7 @@ impl FarmingSystem {
             }
         }
         // The banked organic N, the pests and the air go back where they live.
-        if let Ok(mut m) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
+        if let Ok(mut m) = world.get::<&mut humanity_core::ecs::components::SoilMemory>(memory) {
             m.organic = organic;
             m.pests = area_pests;
             m.ph = ph_units;
@@ -3406,7 +3406,7 @@ impl FarmingSystem {
 
         // A crop ticking for the first time gets its soil component here; everything else was
         // changed in place by the loop (F2).
-        _farm_t = crate::frame_costs::stage("cpu.farm.apply");
+        _farm_t = humanity_core::frame_costs::stage("cpu.farm.apply");
         for (entity, crop_soil) in new_soil {
             let _ = world.insert_one(entity, crop_soil);
         }
@@ -3418,9 +3418,9 @@ impl FarmingSystem {
 #[cfg(test)]
 pub(crate) mod gardening_tests {
     use super::*;
-    use crate::ecs::components::{Controllable, CropInstance};
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::components::{Controllable, CropInstance};
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
     /// The garden test helpers' `speed`: garden days per 1,200 real
@@ -3441,12 +3441,12 @@ pub(crate) mod gardening_tests {
     pub(crate) fn make_store() -> DataStore {
         let mut data = DataStore::new();
         let plants = PlantRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/plants.csv"
         )))
         .expect("plants.csv");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -3672,7 +3672,7 @@ pub(crate) mod gardening_tests {
         for (hour, watts) in [(20.0, 100.0_f32), (3.0, 0.0), (12.0, 0.0)] {
             set_clock(&data, 0, hour);
             sys.tick(&mut world, 0.001, &data);
-            let draw = world.get::<&crate::ecs::components::PowerConsumer>(light).unwrap().draw_watts;
+            let draw = world.get::<&humanity_core::ecs::components::PowerConsumer>(light).unwrap().draw_watts;
             assert_eq!(draw, watts, "at {hour}:00 the light draws {draw} W");
         }
     }
@@ -3982,7 +3982,7 @@ pub(crate) mod gardening_tests {
         assert_eq!(plant_id_from_seed("seed_sweet_potato_0").as_deref(), Some("sweet_potato"));
         assert_eq!(plant_id_from_seed("iron_ore_0"), None);
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -4001,12 +4001,12 @@ pub(crate) mod gardening_tests {
     #[test]
     fn every_shipped_plant_resolves_a_harvest_item() {
         let plants = PlantRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/plants.csv"
         )))
         .expect("plants.csv");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -4037,7 +4037,7 @@ pub(crate) mod gardening_tests {
     /// is now watered by default, see `unconfigured_grow_areas_are_watered_by_default`.)
     #[test]
     fn per_area_irrigation_keeps_configured_crops_watered() {
-        use crate::ecs::components::CropInstance;
+        use humanity_core::ecs::components::CropInstance;
         let mut data = make_store();
         // Configure the "nutrition" tower for full irrigation (water slider = 1.0),
         // and turn the "apothecary" tower's slider right down.
@@ -4048,7 +4048,7 @@ pub(crate) mod gardening_tests {
 
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,)); // the home's irrigation, running
+        world.spawn((humanity_core::ecs::components::Irrigator,)); // the home's irrigation, running
         let dry = |tower: &str| CropInstance {
             crop_def_id: "tomato".to_string(),
             growth_stage: "sprout".to_string(),
@@ -4112,11 +4112,11 @@ pub(crate) mod gardening_tests {
     /// needs watering by hand.
     #[test]
     fn unconfigured_grow_areas_are_watered_by_default() {
-        use crate::ecs::components::CropInstance;
+        use humanity_core::ecs::components::CropInstance;
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,)); // the home's irrigation, running
+        world.spawn((humanity_core::ecs::components::Irrigator,)); // the home's irrigation, running
         let crop = |tower: Option<&str>| CropInstance {
             crop_def_id: "tomato".to_string(),
             growth_stage: "sprout".to_string(),
@@ -4154,7 +4154,7 @@ pub(crate) mod gardening_tests {
     /// queues litres and is refused when the tanks are empty.
     #[test]
     fn the_garden_water_is_real() {
-        use crate::ecs::components::{CropInstance, Irrigator};
+        use humanity_core::ecs::components::{CropInstance, Irrigator};
         use crate::systems::plumbing::WaterStatus;
         let crop = |tower: &str, water: f32| CropInstance {
             crop_def_id: "tomato".to_string(),
@@ -4251,7 +4251,7 @@ pub(crate) mod gardening_tests {
     #[test]
     fn dry_cistern_stops_irrigation_and_wilts_crops() {
 
-        use crate::ecs::components::CropInstance;
+        use humanity_core::ecs::components::CropInstance;
         use crate::systems::plumbing::WaterStatus;
 
         let configured_crop = || CropInstance {
@@ -4274,7 +4274,7 @@ pub(crate) mod gardening_tests {
         full.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 7000.0, capacity_l: 8000.0, ..Default::default() }));
         let mut sys = FarmingSystem::new();
         let mut w_full = hecs::World::new();
-        w_full.spawn((crate::ecs::components::Irrigator,)); // the home's irrigation, running
+        w_full.spawn((humanity_core::ecs::components::Irrigator,)); // the home's irrigation, running
         let c_full = w_full.spawn((configured_crop(),));
         for _ in 0..5 { sys.tick(&mut w_full, 1.0, &full); }
         let wet = w_full.get::<&CropInstance>(c_full).unwrap().water_level;
@@ -4285,7 +4285,7 @@ pub(crate) mod gardening_tests {
         empty.insert("garden_irrigation", std::sync::Mutex::new(irr));
         empty.insert("water_status", std::sync::Mutex::new(WaterStatus { stored_l: 0.0, capacity_l: 8000.0, ..Default::default() }));
         let mut w_dry = hecs::World::new();
-        w_dry.spawn((crate::ecs::components::Irrigator,));
+        w_dry.spawn((humanity_core::ecs::components::Irrigator,));
         let c_dry = w_dry.spawn((configured_crop(),));
         for _ in 0..5 { sys.tick(&mut w_dry, 1.0, &empty); }
         let dry = w_dry.get::<&CropInstance>(c_dry).unwrap();
@@ -4312,7 +4312,7 @@ pub(crate) mod gardening_tests {
             let mut clock = time::TimeSystem::new();
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
-            world.spawn((crate::ecs::components::Irrigator,));
+            world.spawn((humanity_core::ecs::components::Irrigator,));
             clock.tick(&mut world, 0.0, &data); // to noon
             let e = world.spawn((fresh_crop(&data, "lettuce", Some("grain_field_1")),));
             for _ in 0..10 {
@@ -4569,7 +4569,7 @@ pub(crate) mod gardening_tests {
         let mut clock = time::TimeSystem::new();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn((humanity_core::ecs::components::Irrigator,));
         clock.tick(&mut world, 0.0, &data); // to noon
         let e = world.spawn((fresh_crop(&data, "lettuce", Some("grain_field_1")),));
         for _ in 0..5 {
@@ -4616,11 +4616,11 @@ pub(crate) mod gardening_tests {
     /// switched on or shed, hung 2 m over the test tower (make_store).
     fn grow_light(
         powered: bool,
-    ) -> (crate::ecs::components::GrowLight, crate::ecs::components::PowerConsumer, crate::ecs::components::Transform) {
+    ) -> (humanity_core::ecs::components::GrowLight, humanity_core::ecs::components::PowerConsumer, humanity_core::ecs::components::Transform) {
         (
-            crate::ecs::components::GrowLight { watts: 100.0 },
-            crate::ecs::components::PowerConsumer { draw_watts: 100.0, priority: 5, enabled: powered },
-            crate::ecs::components::Transform {
+            humanity_core::ecs::components::GrowLight { watts: 100.0 },
+            humanity_core::ecs::components::PowerConsumer { draw_watts: 100.0, priority: 5, enabled: powered },
+            humanity_core::ecs::components::Transform {
                 position: glam::Vec3::new(0.0, 2.0, 0.0),
                 rotation: glam::Quat::IDENTITY,
                 scale: glam::Vec3::ONE,
@@ -4656,7 +4656,7 @@ pub(crate) mod gardening_tests {
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,)); // watered, so only light differs
+        world.spawn((humanity_core::ecs::components::Irrigator,)); // watered, so only light differs
         set_clock(&data, 0, 18.5);
         let field = world.spawn((fresh_crop(&data, "tomato", Some("grain_field_1")),));
         let first = world.get::<&CropInstance>(field).unwrap().growth_stage.clone();
@@ -4698,7 +4698,7 @@ pub(crate) mod gardening_tests {
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn((humanity_core::ecs::components::Irrigator,));
         set_clock(&data, 0, 0.0);
         let crops = [
             world.spawn((fresh_crop(&data, "tomato", Some("grain_field_1")),)),
@@ -4724,7 +4724,7 @@ pub(crate) mod gardening_tests {
             let data = make_store();
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
-            world.spawn((crate::ecs::components::Irrigator,));
+            world.spawn((humanity_core::ecs::components::Irrigator,));
             if let Some(powered) = light {
                 world.spawn(grow_light(powered));
             }
@@ -4750,7 +4750,7 @@ pub(crate) mod gardening_tests {
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn((humanity_core::ecs::components::Irrigator,));
         set_clock(&data, 0, 9.0);
         let tower = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_3")),));
         run_seconds(&mut sys, &mut world, &data, 100);
@@ -4775,7 +4775,7 @@ pub(crate) mod gardening_tests {
         );
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn((humanity_core::ecs::components::Irrigator,));
         world.spawn(grow_light(true));
         set_clock(&data, 0, 19.0);
         let near = world.spawn((fresh_crop(&data, "lettuce", Some("ntower_3")),));
@@ -4797,7 +4797,7 @@ pub(crate) mod gardening_tests {
             let data = make_store();
             let mut sys = FarmingSystem::new();
             let mut world = hecs::World::new();
-            world.spawn((crate::ecs::components::Irrigator,));
+            world.spawn((humanity_core::ecs::components::Irrigator,));
             if lit {
                 world.spawn(grow_light(true));
             }
@@ -4831,7 +4831,7 @@ pub(crate) mod gardening_tests {
         let data = make_store();
         let mut sys = FarmingSystem::new();
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn((humanity_core::ecs::components::Irrigator,));
         set_clock(&data, 0, 19.0);
         let mushroom = world.spawn((fresh_crop(&data, "oyster_mushroom", Some("mushroom_rack")),));
         let lettuce = world.spawn((fresh_crop(&data, "lettuce", Some("mushroom_rack")),));

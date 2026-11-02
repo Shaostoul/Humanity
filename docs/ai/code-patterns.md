@@ -15,7 +15,7 @@ Every source file under `src/` and `web/` has a line in **`docs/ai/code-map.md`*
 | `src/media/system.rs` | Plays an MP4 (H.264/AAC and more) through Windows Media Foundation, its functions LOADED AT RUN TIME, never linked: a Windows "N" edition must still start |
 | `src/persistence.rs` + `src/engine/save_slot.rs` | `SaveSlot` + `slot_path`: your own home, or one save per server and identity (file layout: `docs/ai/storage.md`, the desktop's data folder). A server's save starts FRESH (only name, look and outfit cross); an erased account's save is set aside, never deleted |
 | `src/ship/starts.rs` + `data/homes/starts.ron` | The starts (Cabin, Apartment not offered yet, Homestead the default) as data, read by relay AND game; the `game_home_request` / `game_choose_home` / `game_home` wire shapes |
-| `src/relay/core/profile_copy.rs` | The profile copy other servers keep (BUG-191); web mirror `web/shared/profile-copy.js` |
+| `crates/humanity-protocol/src/profile_copy.rs` | The profile copy other servers keep (BUG-191); web mirror `web/shared/profile-copy.js` |
 | `src/gui/pages/where_you_live.rs` | "Choose where you live"; web mirror `web/chat/chat-home.js` |
 | `web/shared/shell.js` | The nav-injection IIFE, loaded near the top of every page, before the page's own scripts |
 | `data/star_systems/sol.json` | The 70 celestial bodies. `data/solar_system/` is only 3 planet RONs (earth, mars, sun) |
@@ -54,11 +54,11 @@ pqSignChatMessage("vault_sync\n" + timestamp)   // timestamp = Date.now()
 `deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey
 - Web client: 600,000 iterations
 - Native vault: 600,000 iterations (`PBKDF2_ITERATIONS_NEW`, v0.277.0; `_LEGACY` 100k is decrypt-only for old vaults)
-- Relay-stored secrets: Argon2id via `src/relay/core/kdf.rs` (replaces PBKDF2 for server-side)
+- Relay-stored secrets: Argon2id via `crates/humanity-protocol/src/kdf.rs` (replaces PBKDF2 for server-side)
 
 **Rate limiting**: Fibonacci backoff per public key in `src/relay/relay.rs`
 
-**Game System trait** (src/ecs/systems.rs):
+**Game System trait** (crates/humanity-core/src/ecs/systems.rs):
 ```rust
 trait System: Send + Sync {
     fn name(&self) -> &str;

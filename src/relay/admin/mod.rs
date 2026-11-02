@@ -48,7 +48,7 @@ pub mod members;
 mod tests;
 
 /// The registry, as built into this relay.
-pub const REGISTRY_JSON: &str = include_str!("../../../data/admin/actions.json");
+pub const REGISTRY_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/admin/actions.json"));
 
 /// The purpose every run signs starts with this.
 pub const RUN_PURPOSE_PREFIX: &str = "admin_action";

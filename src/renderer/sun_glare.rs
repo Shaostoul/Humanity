@@ -21,7 +21,7 @@
 
 use super::camera::Camera;
 use super::Renderer;
-use crate::frame_costs;
+use humanity_core::frame_costs;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 
@@ -115,7 +115,7 @@ impl SunVisPass {
     pub fn new(device: &wgpu::Device) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Sun Vis Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/sun_vis.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/sun_vis.wgsl")).into()),
         });
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Sun Vis BGL"),
@@ -421,7 +421,7 @@ mod tests {
     /// class): parse and validate it here, as ssao.rs does its own.
     #[test]
     fn sun_vis_shader_parses_and_validates() {
-        let src = include_str!("../../assets/shaders/sun_vis.wgsl");
+        let src = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/sun_vis.wgsl"));
         let module = wgpu::naga::front::wgsl::parse_str(src).unwrap_or_else(|e| panic!("sun_vis.wgsl failed to parse: {e}"));
         let mut validator = wgpu::naga::valid::Validator::new(
             wgpu::naga::valid::ValidationFlags::all(),

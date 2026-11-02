@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::construction::StationsWhere;
 
 /// DataStore key (bool): the player is where their own home's storage is,
@@ -152,13 +152,13 @@ pub fn not_here_reason(place: &StationsWhere, at_home: bool) -> Option<&'static 
 pub fn words(key: &'static str) -> &'static str {
     #[cfg(feature = "native")]
     {
-        crate::i18n::t(key)
+        humanity_core::i18n::t(key)
     }
     #[cfg(not(feature = "native"))]
     {
         static ENGLISH: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
         let english = ENGLISH.get_or_init(|| {
-            std::fs::read_to_string(crate::storage::data_dir().join("i18n").join("en.json"))
+            std::fs::read_to_string(humanity_core::storage::data_dir().join("i18n").join("en.json"))
                 .ok()
                 .and_then(|text| serde_json::from_str(&text).ok())
                 .unwrap_or(serde_json::Value::Null)

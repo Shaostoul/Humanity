@@ -6,7 +6,7 @@ use crate::gui::pages::maps::camera::tests::feed_at;
 use crate::ship::ship_structure::ShipStructure;
 
 fn shipped() -> (ShipStructure, Vec<RoomBounds>) {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles at p1");
     let rooms = crate::ship::room_types::RoomTypeRegistry::load(&data).room_bounds(&ship.generate_meshes().room_info);
     (ship, rooms)
@@ -171,7 +171,7 @@ fn web_ship_plan() -> serde_json::Value {
     serde_json::json!({
         "_generated": "By the app (src/gui/pages/maps/ship_view_tests.rs, `the_web_ship_plan_is_current`) from data/blueprints/ship_structure.ron, data/homes/ and data/rooms.ron. Do not edit by hand: run HUMANITY_WRITE_SHIP_PLAN=1 node scripts/lib-tests.js the_web_ship_plan_is_current to write it again after a change to the ship.",
         "ship": ship.id,
-        "name": crate::station::home(&crate::station::load_all(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"))).name,
+        "name": crate::station::home(&crate::station::load_all(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"))).name,
         "home_plot": ship.home_plot().map(|p| p.id.clone()),
         "levels": levels.iter().map(|l| serde_json::json!({ "ordinal": l.ordinal, "name": l.name(), "short": l.short_name(), "floor": r2(l.floor), "top": r2(l.top) })).collect::<Vec<_>>(),
         "bodies": bodies,
@@ -188,7 +188,7 @@ fn web_ship_plan() -> serde_json::Value {
 /// of the shipped ship (missing); write it again with HUMANITY_WRITE_SHIP_PLAN=1".
 #[test]
 fn the_web_ship_plan_is_current() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/ship_plan.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/maps/ship_plan.json");
     let want = serde_json::to_string(&web_ship_plan()).expect("the plan serialises") + "\n";
     if std::env::var("HUMANITY_WRITE_SHIP_PLAN").as_deref() == Ok("1") {
         std::fs::write(&path, &want).expect("write data/maps/ship_plan.json");

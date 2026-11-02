@@ -6,7 +6,7 @@
 // Add a new context block (matched by `context`) to give a specific page its own list; an
 // unmatched page falls back to "Menu".
 //
-// 2026-08-12: gameplay keys are REBINDABLE via Settings > Controls (src/input/bindings.rs);
+// 2026-08-12: gameplay keys are REBINDABLE via Settings > Controls (crates/humanity-core/src/input/bindings.rs);
 // the keys listed here are the DEFAULTS. Audit fixes the same day: "Cycle camera mode: Tab"
 // removed (dead; in-world Tab is consumed by the reveal peek before the camera ever sees it),
 // first/third person moved from F to V (F was double-firing as both the tool swing and the

@@ -661,7 +661,7 @@ mod tests {
     /// same fixture every grass and tree test runs against, because the whole
     /// point of these layers is that they stand where the real data says.
     fn real_earth() -> (PlanetHeightmap, PlanetAlbedo, PlanetDef) {
-        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
         let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin"))
             .expect("earth heightmap loads");
         let albedo =

@@ -51,7 +51,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// DataStore key of the record, `Mutex<DayEnergy>`.
 pub const KEY: &str = "machine_day_energy";
@@ -223,7 +223,7 @@ pub fn register(data: &mut DataStore) {
 /// decided who is shed, with the game seconds it ran (a no-op with no record
 /// registered).
 pub fn record_world(world: &hecs::World, data: &DataStore, secs: f64) {
-    use crate::ecs::components::{MachineInstanceId, MachineType, PowerConsumer};
+    use humanity_core::ecs::components::{MachineInstanceId, MachineType, PowerConsumer};
     if !(secs > 0.0) {
         return;
     }
@@ -252,7 +252,7 @@ pub fn revision(data: &DataStore) -> u64 {
 pub fn for_save(world: &hecs::World, data: &DataStore) -> DayEnergy {
     let mut rec = snapshot(data);
     let placed: std::collections::HashSet<String> =
-        world.query::<&crate::ecs::components::MachineInstanceId>().iter().map(|(_, id)| id.0.clone()).collect();
+        world.query::<&humanity_core::ecs::components::MachineInstanceId>().iter().map(|(_, id)| id.0.clone()).collect();
     if !placed.is_empty() {
         rec.machines.retain(|id, _| placed.contains(id));
     }

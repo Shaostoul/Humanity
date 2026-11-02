@@ -6,7 +6,7 @@
 // 90-day cull, the export and the erase) are in storage/reports_tests.rs.
 
 use super::*;
-use crate::relay::core::pq_crypto::{build_report_sig, derive_dilithium_seed, dm_inner_preimage, report_evidence_hash, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{build_report_sig, derive_dilithium_seed, dm_inner_preimage, report_evidence_hash, DilithiumKeypair};
 use crate::relay::relay::Peer;
 use crate::relay::storage::Storage;
 
@@ -514,7 +514,7 @@ fn warn_delete_post_and_dismiss() {
 /// reasons carry the sentence word for word (someone_in_danger)".
 #[test]
 fn the_shipped_report_reasons_load() {
-    let shipped = ReportReasons::parse(include_str!("../../../data/safety/report_reasons.json")).expect("the shipped file loads");
+    let shipped = ReportReasons::parse(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/safety/report_reasons.json"))).expect("the shipped file loads");
     let ids: Vec<&str> = shipped.0.iter().map(|r| r.id.as_str()).collect();
     // `copyright` (2026-10-12): a person whose work was put here without their permission
     // reports it in the app, the takedown route web/pages/rules.html describes.
@@ -525,7 +525,7 @@ fn the_shipped_report_reasons_load() {
     }
     assert_eq!(ReportReasons::load(), shipped, "the relay reads the file it ships");
 
-    let dir = crate::test_temp::dir("report_reasons");
+    let dir = humanity_core::test_temp::dir("report_reasons");
     assert_eq!(ReportReasons::load_file(&dir.join("missing.json")), shipped, "a missing file: the built-in copy");
     std::fs::write(dir.join("broken.json"), "[{\"id\":\"spam\"}]").unwrap();
     assert_eq!(ReportReasons::load_file(&dir.join("broken.json")), shipped, "a file that does not load: the built-in copy");

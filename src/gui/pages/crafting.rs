@@ -3,7 +3,7 @@
 
 use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke};
 use crate::gui::{GuiState, GuiRecipe};
-use crate::i18n::{t, tf};
+use humanity_core::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::systems::crafting::home_store::Draw;
@@ -335,14 +335,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             if filter_cat.as_deref() == Some(STRUCTURES_CATEGORY) {
                 // How placing works (2026-09-27, engine/build_place.rs), with
                 // the player's own keys.
-                let key = |a| crate::input::bindings::pretty_key_name(state.keybinds.pair(a).0);
+                let key = |a| humanity_core::input::bindings::pretty_key_name(state.keybinds.pair(a).0);
                 ui.label(
                     RichText::new(tf(
                         "crafting.build_help",
                         &[
-                            ("turn", &key(crate::input::bindings::GameAction::ToggleRoof)),
-                            ("build", &key(crate::input::bindings::GameAction::Interact)),
-                            ("remove", &key(crate::input::bindings::GameAction::AttackSwing)),
+                            ("turn", &key(humanity_core::input::bindings::GameAction::ToggleRoof)),
+                            ("build", &key(humanity_core::input::bindings::GameAction::Interact)),
+                            ("remove", &key(humanity_core::input::bindings::GameAction::AttackSwing)),
                         ],
                     ))
                     .size(theme.font_size_small)

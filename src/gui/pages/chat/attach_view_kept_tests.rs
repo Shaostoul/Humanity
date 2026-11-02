@@ -54,7 +54,7 @@ fn a_file_its_sender_could_not_check_says_so() {
 /// failed (the second open asked the server, which no longer had it).
 #[test]
 fn an_opened_file_still_opens_after_the_server_removed_it() {
-    let dir = crate::test_temp::dir("view_kept");
+    let dir = humanity_core::test_temp::dir("view_kept");
     let kept = KeptFiles::in_dir(dir.to_path_buf(), &[5u8; 32], 1 << 30);
     let picture = b"\x89PNG not really, but private".to_vec();
     let (att, ct) = sealed(&picture, "/uploads/p.enc", "p.png", "image/png");

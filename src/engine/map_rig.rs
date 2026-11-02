@@ -172,7 +172,7 @@ pub(crate) fn report_json(maps: &crate::gui::MapsState, want: Option<WorldLayerW
 
 /// How far the overview verb stands from the Sun: out past Jupiter, so the
 /// inner planets, the main belt, the Hildas and the trojans are all in view.
-const OVERVIEW_VERB_M: f64 = 11.0 * crate::cosmos::M_PER_AU;
+const OVERVIEW_VERB_M: f64 = 11.0 * humanity_core::cosmos::M_PER_AU;
 
 /// One rig request (`MapVerb`), applied to the page's state. Called by the
 /// feed (`map_feed::frame_update`) after its page-open handling, so a request

@@ -7,12 +7,12 @@ use std::sync::Arc;
 use std::time::Instant;
 use winit::window::Window;
 use crate::assets::AssetManager;
-use crate::ecs::GameWorld;
-use crate::ecs::systems::SystemRunner;
+use humanity_core::ecs::GameWorld;
+use humanity_core::ecs::systems::SystemRunner;
 use crate::gui::{GuiState};
 use crate::gui::theme::Theme;
-use crate::hot_reload::HotReloadCoordinator;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::HotReloadCoordinator;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::renderer::camera::{Camera, CameraController};
 use crate::renderer::{RenderObject, Renderer};
 use crate::ship::ship_structure::ShipStructure;
@@ -117,10 +117,10 @@ pub(crate) struct ConstructionGizmoGrab {
 pub(crate) struct EngineState {
     /// Game audio (v0.960, first CC0 sounds): None when the machine has no
     /// audio device (headless rig, some VMs) - play sites skip gracefully.
-    pub(crate) audio: Option<crate::audio::AudioManager>,
+    pub(crate) audio: Option<humanity_core::audio::AudioManager>,
     /// Data-driven sound catalog (data/sounds.toml, ids like
     /// "sfx.button_click" -> assets/audio paths).
-    pub(crate) sound_catalog: crate::audio::sounds::SoundCatalog,
+    pub(crate) sound_catalog: humanity_core::audio::sounds::SoundCatalog,
     /// Last (master, music, sfx, ui) volumes pushed into the audio engine, so
     /// the per-frame sync only touches kira when a slider actually moved. The
     /// 4th slot is the independent interface-sound bus (v0.1112).
@@ -500,7 +500,7 @@ pub(crate) struct EngineState {
     /// world gizmo position) for every machine's derived ports. Only the SELECTED machine's ports
     /// render + are grab-able, but building all is cheap. Drag a port onto another machine to wire
     /// them. Rebuilt with `machine_pick`.
-    pub(crate) port_pick: Vec<(String, usize, crate::utilities::Port, Vec3)>,
+    pub(crate) port_pick: Vec<(String, usize, humanity_core::utilities::Port, Vec3)>,
     /// Static wall/perimeter collision segments for the home (v0.556): the player (= the camera)
     /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
     /// from the home_structure on every structural edit + on world load. Doors collide live.
@@ -623,7 +623,7 @@ pub(crate) struct EngineState {
     /// First-person spawn position to drop the player at when leaving the showroom.
     pub(crate) fps_spawn: Vec3,
     /// Loaded character-select showroom backdrops. (v0.441)
-    pub(crate) showroom_backdrops: Vec<crate::showroom::Backdrop>,
+    pub(crate) showroom_backdrops: Vec<humanity_core::showroom::Backdrop>,
     /// The showroom ground disc (mesh, material), material rebuilt on backdrop change.
     pub(crate) showroom_ground: Option<(usize, usize)>,
     /// The showroom planet-body sphere mesh (v0.449): used instead of the flat disc when
@@ -632,7 +632,7 @@ pub(crate) struct EngineState {
     /// Last backdrop index the ground material was built for (usize::MAX = none yet).
     pub(crate) showroom_last_backdrop: usize,
     /// Cosmetic outfit catalog (data/cosmetics/cosmetics.csv). (v0.442)
-    pub(crate) cosmetics: Vec<crate::cosmetics::Cosmetic>,
+    pub(crate) cosmetics: Vec<humanity_core::cosmetics::Cosmetic>,
     /// First-person position to return to when leaving the showroom (the spawn for the
     /// initial character-select, or where you were standing when you opened the mirror /
     /// wardrobe from the wetroom / bedroom). (v0.442)
@@ -734,7 +734,7 @@ pub(crate) struct EngineState {
     /// (source machine id, utility, port direction, world start point). While Some, a rubber-band
     /// line follows the cursor; releasing over a machine that has a compatible (same-utility) port
     /// creates the connection. None when no port drag is in flight.
-    pub(crate) construction_port_drag: Option<(String, crate::utilities::Utility, crate::utilities::PortDir, Vec3)>,
+    pub(crate) construction_port_drag: Option<(String, humanity_core::utilities::Utility, humanity_core::utilities::PortDir, Vec3)>,
     /// Alignment-snap guides (v0.613): while dragging an object, if its X (or Z) lines up with
     /// another object's, the drag snaps to it and we stash the snapped coord here so the overlay can
     /// draw a guide line along that axis. None = no snap this frame. Cleared when no drag is active.
@@ -1135,7 +1135,7 @@ pub(crate) struct EngineState {
     pub(crate) world_loaded: bool,
     /// Boot-phase timer (dev tooling): accumulates named spans from
     /// `resumed()` + `load_world()` and emits a summary + debug/boot_timing.json.
-    pub(crate) boot_timer: crate::boot_timing::BootTimer,
+    pub(crate) boot_timer: humanity_core::boot_timing::BootTimer,
     /// Data directory path (resolved once at startup, used for deferred loading).
     pub(crate) data_dir: PathBuf,
     /// Whether a Ctrl/Cmd modifier key is currently held. Tracked from
@@ -1219,10 +1219,10 @@ pub(crate) struct DrawBufs {
 
 impl DrawBufs {
     /// One list, emptied, keeping its capacity; a new empty one while the Dev page's "turn off all
-    /// reuse" switch is off (crate::reuse).
+    /// reuse" switch is off (humanity_core::reuse).
     pub(crate) fn take<T>(v: &mut Vec<T>) -> Vec<T> {
         let mut v = std::mem::take(v);
-        if !crate::reuse::enabled() {
+        if !humanity_core::reuse::enabled() {
             return Vec::new();
         }
         v.clear();

@@ -132,7 +132,7 @@ pub(crate) fn render_camera(pose: &MapPose, me: &MapSelf, aspect: f32) -> Camera
     cam.surface_mode = true;
     cam.surface_up = up;
     cam.up = up;
-    let (yaw, pitch) = crate::camera_angles::surface_look_angles(up, fwd);
+    let (yaw, pitch) = humanity_core::camera_angles::surface_look_angles(up, fwd);
     cam.yaw = yaw;
     cam.pitch = pitch;
     cam.roll = 0.0;
@@ -206,7 +206,7 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
     }
     let size = if half { ((full.0 / 2).max(8), (full.1 / 2).max(8)) } else { full };
     let target = ensure_target(state, half, size);
-    let _cost = crate::frame_costs::stage("cpu.map_view");
+    let _cost = humanity_core::frame_costs::stage("cpu.map_view");
     let empty_objects: [RenderObject; 0] = [];
     let empty_lines: [LineVertex; 0] = [];
     // A level shown: no roof, no hull, nothing over the cut (engine/map_cut.rs).

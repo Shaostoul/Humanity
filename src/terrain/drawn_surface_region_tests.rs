@@ -41,7 +41,7 @@ use std::sync::OnceLock;
 /// fixture, whose surface relief is 3.5x the shipped one), with the loader's
 /// sea-level override: the planet the game draws.
 pub(crate) fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
-    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+    let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
     let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin")).expect("earth heightmap loads");
     let om = OceanMask::load(&base.join("earth_ocean_mask.bin")).expect("ocean mask loads");
     let text = std::fs::read_to_string(base.join("earth.ron")).expect("earth.ron reads");
@@ -58,7 +58,7 @@ pub(crate) fn silverdale_masks() -> Arc<Vec<RegionMask>> {
     static MASKS: OnceLock<Arc<Vec<RegionMask>>> = OnceLock::new();
     MASKS
         .get_or_init(|| {
-            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/maps/regions");
+            let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/maps/regions");
             let region = parse_region(&std::fs::read(dir.join("silverdale.bin")).expect("region ships"))
                 .expect("region parses");
             let dem = parse_dem(&std::fs::read(dir.join("silverdale.dem.bin")).expect("DEM ships"))

@@ -30,7 +30,7 @@ fn a_blocked_players_figure_and_name_are_not_drawn() {
     for (id, name, key) in [(7u32, "Cy", Some("cy")), (8, "Dee", Some("dee")), (9, "Player 9", None)] {
         let at = glam::Vec3::new(id as f32, 1.7, 0.0);
         world.spawn((
-            crate::ecs::components::Transform { position: at, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
+            humanity_core::ecs::components::Transform { position: at, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
             crate::net::sync::RemotePlayer {
                 player_id: id,
                 name: name.into(),
@@ -56,7 +56,7 @@ fn a_blocked_players_figure_and_name_are_not_drawn() {
     let here = crate::engine::net_route::copresence_names(&world, &|p| hides_player(&gs, p));
     assert_eq!(here, vec!["Dee".to_string(), "Player 9".to_string()], "the blocked player is not in the HUD's list");
 
-    let lib = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs")).unwrap();
+    let lib = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).unwrap();
     assert_eq!(
         lib.matches("crate::engine::block::hides_player(&state.gui_state").count(),
         3,

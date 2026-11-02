@@ -563,7 +563,7 @@ mod tests {
     /// present pass).
     #[test]
     fn the_shaders_carry_the_same_numbers() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/shaders");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("assets/shaders");
         let read = |f: &str| std::fs::read_to_string(root.join(f)).unwrap_or_else(|e| panic!("{f}: {e}"));
         let shared = read("pbr/80-fragment-shared.wgsl");
         let alpha = format!("vec3<f32>({:.4}, {:.4}, {:.4})", LIMB_ALPHA[0], LIMB_ALPHA[1], LIMB_ALPHA[2]);
@@ -624,7 +624,7 @@ mod tests {
         assert_eq!(aperture_from_setting_mm(5000.0), APERTURE_MAX_MM as f64 / 1000.0, "held at the widest");
         assert_eq!(aperture_from_setting_mm(f32::NAN), GLARE_APERTURE_M, "not a number: the default");
         assert!((glare_coeff(1, aperture_from_setting_mm(3.0)) / glare_coeff(1, GLARE_APERTURE_M) - 10.0).abs() < 1e-6, "a narrower aperture spreads the glare wider");
-        let lib = include_str!("../lib.rs").replace("\r\n", "\n");
+        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
         assert!(
             lib.contains("sun_disc::aperture_from_setting_mm(state.gui_state.settings.sun_aperture_mm)"),
             "src/lib.rs never hands the Settings aperture to the renderer"

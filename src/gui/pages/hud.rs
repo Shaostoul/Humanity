@@ -77,7 +77,7 @@ pub(crate) fn death_screen_lines(
 /// cause, what the death cost in the Death mode chosen (`death_screen_lines`).
 pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(cause) = state.player_death_cause.clone() else { return };
-    let key = crate::input::bindings::pretty_key_name(state.keybinds.pair(crate::input::bindings::GameAction::Interact).0);
+    let key = humanity_core::input::bindings::pretty_key_name(state.keybinds.pair(humanity_core::input::bindings::GameAction::Interact).0);
     let lines = death_screen_lines(state.death_pack.note.as_ref(), &state.death_pack.rules, &key);
     let screen = ctx.screen_rect();
     // Dim the world so the moment reads instantly (paint-only layer).
@@ -540,7 +540,7 @@ pub fn draw(
                     painter,
                     Pos2::new(screen.right() - 16.0, screen.bottom() - 96.0),
                     Align2::RIGHT_BOTTOM,
-                    crate::credits::OSM_NOTICE,
+                    humanity_core::credits::OSM_NOTICE,
                     11.0,
                     theme.text_muted(),
                 );
@@ -1100,7 +1100,7 @@ fn room_near(rooms: &[crate::ship::room_types::RoomBounds], eye: Vec3, reach: f3
 pub(crate) fn room_card_at<'a>(
     rooms: &'a [crate::ship::room_types::RoomBounds],
     ship: Option<&crate::ship::ship_structure::ShipStructure>,
-    keys: &crate::input::bindings::Keybinds,
+    keys: &humanity_core::input::bindings::Keybinds,
     eye: Vec3,
 ) -> Option<std::borrow::Cow<'a, crate::ship::room_types::RoomBounds>> {
     if let Some(card) = ship.and_then(|s| lift_card(s, rooms, keys, eye)) {
@@ -1123,10 +1123,10 @@ const LIFT_STOP_ROOM_M: f32 = 2.0;
 pub(crate) fn lift_card(
     ship: &crate::ship::ship_structure::ShipStructure,
     rooms: &[crate::ship::room_types::RoomBounds],
-    keys: &crate::input::bindings::Keybinds,
+    keys: &humanity_core::input::bindings::Keybinds,
     eye: Vec3,
 ) -> Option<crate::ship::room_types::RoomBounds> {
-    use crate::input::bindings::{pretty_key_name, GameAction};
+    use humanity_core::input::bindings::{pretty_key_name, GameAction};
     use crate::ship::home_structure::{storey_index, STOREY_EPS};
     for lift in crate::ship::lifts::lifts(ship) {
         let base = (lift.base.x, lift.base.y, lift.base.z);
@@ -1480,7 +1480,7 @@ pub(crate) fn movement_line(
     }
     // One source for the two words: the surface movement model's own.
     let word = if flying { MoveMode::DevFlight.hud_word() } else { MoveMode::Walk.hud_word() };
-    let mut label = format!("{word} {}", crate::dev_travel::format_multiplier(speed_mult));
+    let mut label = format!("{word} {}", humanity_core::dev_travel::format_multiplier(speed_mult));
     if !flying {
         // On a planet this is the real walking model (gravity, the ground
         // clamp, walls, footsteps), so say how to leave it. Off a planet the
@@ -2281,7 +2281,7 @@ mod room_card_tests {
     /// way".
     #[test]
     fn the_room_card_names_the_elevator_the_whole_ride() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
         let o = ship.zones[ship.home_zone_index()].origin_vec();
         let rooms: Vec<RoomBounds> = ship
@@ -2300,7 +2300,7 @@ mod room_card_tests {
                 fill: None,
             })
             .collect();
-        let keys = crate::input::bindings::Keybinds::default();
+        let keys = humanity_core::input::bindings::Keybinds::default();
         let card = |x: f32, y: f32, z: f32| super::room_card_at(&rooms, Some(&ship), &keys, o + Vec3::new(x, y, z));
         let name = |x: f32, y: f32, z: f32| card(x, y, z).map(|r| r.display_name.clone());
         for y in [4.7, 3.2, 5.6, 1.7] {
@@ -2327,7 +2327,7 @@ mod cut_away_label_tests {
 
     /// The shipped ship with the home on p1.
     fn shipped() -> crate::ship::ship_structure::ShipStructure {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles")
     }
 
@@ -2574,9 +2574,9 @@ mod crew_label_tests {
     #[test]
     fn wounds_and_illness_get_a_row_naming_what_helps() {
         use crate::config::HudVitals;
-        use crate::ecs::components::StatusEffects;
+        use humanity_core::ecs::components::StatusEffects;
         let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/status_effects.csv"
         )))
         .expect("status_effects.csv");

@@ -9,7 +9,7 @@
 //! beyond a single `Leaf(Empty)` discriminant. Mining removes individual voxels
 //! and marks the asteroid as modified for re-meshing.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use noise::{NoiseFn, Perlin};
 use serde::Deserialize;
 

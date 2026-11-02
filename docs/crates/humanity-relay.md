@@ -15,16 +15,16 @@ deploy takes.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "relay"`: `relay/`, `how_to/`
-- **Size:** 110,881 lines in 219 files, 18,519 of them in 55 test files.
+- **Size:** 110,880 lines in 219 files, 18,519 of them in 55 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `relay/relay.rs` 6,309 of 6,340, `relay/api.rs` 3,762 of 3,930, `relay/handlers/profile.rs` 620 of 650, `relay/files.rs` 1,568 of 1,650, `relay/handlers/msg_handlers.rs` 4,373 of 4,660, `relay/api_market.rs` 697 of 800, `relay/handlers/stream.rs` 437 of 550.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `relay` 3, `mesh` 1.
-- **May use** (the plan): core, protocol, ship, systems; through those, also terrain. **Uses today** (references in non-test code): protocol 94, ship 38, core 28, systems 10.
+- **May use** (the plan): core, protocol, ship, systems; through those, also terrain. **Uses today** (references in non-test code): protocol 95, ship 38, core 28, systems 10.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 104, engine 11.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 986 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib relay:: how_to:: --skip engine::call_relay:: --skip gui::crossing_tests::how_to:: --skip gui::pages::how_to:: --skip net::call_relay:: --skip relay::core::
+just test-lib --crate humanity-engine relay:: how_to:: --skip engine::call_relay:: --skip gui::crossing_tests::how_to:: --skip gui::pages::how_to:: --skip net::call_relay::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):

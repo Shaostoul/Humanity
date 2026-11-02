@@ -13,16 +13,16 @@
 //! or save carried an age.
 
 use super::*;
-use crate::ecs::components::{Health, StatusEffects, Vitals};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Health, StatusEffects, Vitals};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::containers::{Container, ContainerRegistry};
 use crate::systems::inventory::placed::PlacedItem;
 use crate::systems::inventory::{Inventory, ItemStack, TransferOp};
 use std::sync::Mutex;
 
 fn data_dir() -> &'static Path {
-    Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+    Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
 }
 
 /// The DataStore as lib.rs wires it for the FoodSystem, with the needs held still (the Vitals
@@ -30,7 +30,7 @@ fn data_dir() -> &'static Path {
 pub(crate) fn store() -> DataStore {
     let mut data = DataStore::new();
     let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
+        env!("HUMANITY_REPO_ROOT"),
         "/data/status_effects.csv"
     )))
     .expect("status_effects.csv");
@@ -55,7 +55,7 @@ pub(crate) fn store() -> DataStore {
 
 pub(crate) fn player(world: &mut hecs::World, inv: Inventory) -> hecs::Entity {
     world.spawn((
-        crate::ecs::components::Controllable,
+        humanity_core::ecs::components::Controllable,
         inv,
         Vitals::default(),
         StatusEffects::default(),
@@ -143,7 +143,7 @@ fn a_cold_store_ages_food_slower_as_the_data_says() {
     let pantry = vessel(&mut world, "pantry_cabinet_bin", "bread_0", 3);
     data.insert(
         "environment_context",
-        crate::ecs::components::EnvironmentContext { ambient_temp_c: 4.0, ..Default::default() },
+        humanity_core::ecs::components::EnvironmentContext { ambient_temp_c: 4.0, ..Default::default() },
     );
     sys.tick(&mut world, 3600.0, &data);
     let (frozen, cold) = (zone(&sys, "frozen"), zone(&sys, "cold"));

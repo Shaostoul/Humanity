@@ -387,7 +387,7 @@ pub(crate) fn draw_video_window(ctx: &egui::Context, theme: &Theme, video: &mut 
 
 /// The chat's video window gets its sound from the app's mixer (the engine calls this each frame
 /// it has a mixer).
-pub(crate) fn sync_video_sound(video: &mut Option<ChatVideo>, audio: &mut crate::audio::AudioManager) {
+pub(crate) fn sync_video_sound(video: &mut Option<ChatVideo>, audio: &mut humanity_core::audio::AudioManager) {
     if let Some(playing) = video.as_mut() {
         playing.view.sync_sound(audio);
     }

@@ -237,7 +237,7 @@ mod tests {
     /// the world runs at the saved 24x, left: 72.0, right: 24.0".
     #[test]
     fn a_restart_brings_the_shared_world_back_at_the_saved_speed() {
-        let path = crate::test_temp::db("world_clock_restart");
+        let path = humanity_core::test_temp::db("world_clock_restart");
         {
             // The relay before the restart: the admin's Apply saved 24x.
             let db = Storage::open(&path).expect("open test db");

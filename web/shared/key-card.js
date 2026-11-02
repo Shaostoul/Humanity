@@ -3,7 +3,7 @@
 // (ML-KEM-768) key signed by their own Dilithium3 (ML-DSA-65) identity, so the
 // app can check that a key it is about to seal something to really is that
 // person's, whatever server delivered it. The website's twin of the relay's
-// src/relay/core/key_card.rs, held to it byte for byte by
+// crates/humanity-protocol/src/key_card.rs, held to it byte for byte by
 // scripts/tests/key-card-web.test.js (which reads the pinned words out of that
 // file) and by the shared fixture scripts/tests/fixtures/key-card-v1.json (made
 // by the Rust builder, read by both apps' tests).

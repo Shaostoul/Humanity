@@ -4505,7 +4505,7 @@ pub(crate) mod tests {
     /// these ratios, this fails and the threshold gets re-measured.
     #[test]
     fn biome_gate_separates_vegetated_from_barren() {
-        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
         let hm = crate::terrain::planet_heightmap::PlanetHeightmap::load(
             &base.join("earth_heightmap.bin"),
         )
@@ -4559,7 +4559,7 @@ pub(crate) mod tests {
     /// forested places; any of them returning zero reproduces the bug.
     #[test]
     fn near_tree_harvest_finds_trees_in_real_forests() {
-        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
         let hm = crate::terrain::planet_heightmap::PlanetHeightmap::load(
             &base.join("earth_heightmap.bin"),
         )

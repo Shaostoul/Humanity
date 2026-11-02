@@ -12,23 +12,23 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
 ## At a glance (generated)
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
-- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
-  - no gate (every build): `input/`, `audio/`, `utilities.rs`, `physics/`, `debug.rs`, `platform.rs` + `platform/`, `turning.rs`, `reactions.rs`, `lod_registry.rs`, `boot_timing.rs`, `credits.rs`, `scenic_views.rs`, `showroom.rs`, `player_look.rs`, `cosmetics.rs`, `embedded_data.rs`, `data_parse.rs`, `vertex.rs`, `camera_angles.rs`, `frame_costs.rs`, `build_permission.rs`, `atomic_write.rs`, `weather_map.rs`, `civil_date.rs`, `ecs/`, `hot_reload/`, `storage.rs` + `storage/`, `cosmos.rs`, `dev_travel.rs`, `reuse.rs`
-  - `feature = "native"`: `mods/`, `auto_unlock.rs`, `play_journal.rs`, `raw_frame.rs`, `i18n.rs`
-  - test builds only: `test_temp.rs`, `test_log.rs`, `test_clock.rs`
-  - `all(test, feature = "native")`: `test_gpu.rs`
-- **Size:** 14,659 lines in 51 files, 946 of them in 5 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 26, `wasm` 4.
+- **Owns** all of `crates/humanity-core/`, a crate of its own since the crate split's rung 1 (`scripts/crate-layers.json` gives its `dir`); the modules its `lib.rs` declares, by the gate each compiles under:
+  - no gate (every build): `crates/humanity-core/src/ecs/`, `crates/humanity-core/src/physics/`, `crates/humanity-core/src/audio/`, `crates/humanity-core/src/input/`, `crates/humanity-core/src/data_parse.rs`, `crates/humanity-core/src/vertex.rs`, `crates/humanity-core/src/frame_costs.rs`, `crates/humanity-core/src/build_permission.rs`, `crates/humanity-core/src/atomic_write.rs`, `crates/humanity-core/src/weather_map.rs`, `crates/humanity-core/src/civil_date.rs`, `crates/humanity-core/src/embedded_data.rs`, `crates/humanity-core/src/platform.rs` + `crates/humanity-core/src/platform/`, `crates/humanity-core/src/showroom.rs`, `crates/humanity-core/src/utilities.rs`, `crates/humanity-core/src/cosmetics.rs`, `crates/humanity-core/src/cosmos.rs`, `crates/humanity-core/src/player_look.rs`, `crates/humanity-core/src/dev_travel.rs`, `crates/humanity-core/src/credits.rs`, `crates/humanity-core/src/camera_angles.rs`, `crates/humanity-core/src/turning.rs`, `crates/humanity-core/src/scenic_views.rs`, `crates/humanity-core/src/reactions.rs`, `crates/humanity-core/src/lod_registry.rs`, `crates/humanity-core/src/boot_timing.rs`, `crates/humanity-core/src/reuse.rs`, `crates/humanity-core/src/hot_reload/`, `crates/humanity-core/src/storage.rs` + `crates/humanity-core/src/storage/`, `crates/humanity-core/src/debug.rs`
+  - `feature = "native"`: `crates/humanity-core/src/play_journal.rs`, `crates/humanity-core/src/raw_frame.rs`, `crates/humanity-core/src/i18n.rs`, `crates/humanity-core/src/mods/`, `crates/humanity-core/src/auto_unlock.rs`
+  - `any(test, feature = "test-support")`: `crates/humanity-core/src/test_clock.rs`, `crates/humanity-core/src/test_temp.rs`, `crates/humanity-core/src/test_log.rs`
+  - `all(any(test, feature = "test-support"), feature = "native")`: `crates/humanity-core/src/test_gpu.rs`
+- **Size:** 14,811 lines in 52 files, 408 of them in 1 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 32, `test-support` 8, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
 - **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 601, systems 437, gui 350, renderer 61, net 46, ship 36, relay 28, terrain 4.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 171 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 171 tests, and this runs exactly them, checked against every test's name:
 
 ```
-just test-lib input:: audio:: utilities:: physics:: debug:: platform:: turning:: reactions:: lod_registry:: boot_timing:: credits:: scenic_views:: showroom:: mods:: player_look:: cosmetics:: auto_unlock:: embedded_data:: data_parse:: vertex:: camera_angles:: frame_costs:: play_journal:: raw_frame:: i18n:: build_permission:: atomic_write:: weather_map:: civil_date:: ecs:: hot_reload:: storage:: cosmos:: dev_travel:: test_temp:: test_log:: test_clock:: test_gpu:: reuse:: --skip engine::input:: --skip gui::pages::showroom:: --skip media::audio:: --skip relay::storage::
+just test-lib --crate humanity-core
 ```
 
-**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
+**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name, inside `humanity_core::`):
 
 | Item | References | From |
 |---|---:|---|
@@ -65,7 +65,7 @@ And 214 more items, 785 references (`node scripts/crate-cards.js --interface hum
   passes before a push. Source: [CLAUDE.md](../../CLAUDE.md), Known gotchas (the ungated
   `save_load` that kept the deploy red for 25 releases).
 - **No caches kept across runs; in-memory reuse only when it cannot go stale, and it asks
-  `reuse::enabled()`.** The switch itself lives here ([reuse.rs](../../src/reuse.rs): "Turn off all
+  `reuse::enabled()`.** The switch itself lives here ([reuse.rs](../../crates/humanity-core/src/reuse.rs): "Turn off all
   reuse" in the Dev tab's Performance section, `HUMANITY_NO_REUSE=1` for a rig). A new reuse that
   does not ask is a bug. Source: [CLAUDE.md](../../CLAUDE.md), "No caches kept across runs during development".
 - **Data, not code.** Anything that can exist more than once is a data file under `data/`, read
@@ -83,27 +83,33 @@ And 214 more items, 785 references (`node scripts/crate-cards.js --interface hum
 
 ## How to test it
 
-- **Its lib tests:** the `just test-lib` line in At a glance runs exactly core's (Windows needs
-  `just test-lib`, never a bare `cargo test --lib`: BUG-174). Since every crate uses core, a change
-  to a widely used item (the interface table) also wants `just verify`, the static gate over the
-  whole crate.
+- **Its lib tests:** `just test-lib --crate humanity-core`, the core's own test program (it is a
+  crate of its own since rung 1). Since every crate uses core, a change to a widely used item (the
+  interface table) also wants `just verify`, the static gate over the whole workspace, and
+  `just test-lib`, every member's tests.
+- **Its test helpers cross to other crates through `test-support`:** `test_temp`, `test_clock`,
+  `test_log`, `test_gpu`, the frame-cost store's `reset_for_test` and `test_lock`, and the
+  `fixtures` modules (`storage::fixtures`, `dev_travel::fixtures`) compile in this crate's own
+  tests and in a dependent's test build, which turns the feature on in its `[dev-dependencies]`;
+  never in a product build. A new helper another crate's tests need goes behind the same gate
+  (`#[cfg(any(test, feature = "test-support"))]`), in a `fixtures` module, never inside a test
+  module (whose private helpers would warn as unused in a non-test build).
 - **After editing anything under `data/`:** `just validate-data`, every data loader and data-wiring
   test (the parsers are here; the registries that use them are mostly in systems).
-- **The server build:** `just verify-relay-compiles` (core is ungated, so the relay build compiles
-  almost all of it).
+- **The server build:** `just verify-relay-compiles` (core is mostly ungated, so the relay build
+  compiles almost all of it), and `just verify-relay`, whose battery runs the core's tests too.
 - **`just lints`:** the layer ratchet, the word-source lint (`tests/i18n_lint.rs`) and the rest.
 - Nothing in core needs a booted game.
 
 ## Open work
 
-- **`crate::data_dir()` moves down to core at rung 1.** It lives in `lib.rs` (the engine) and about
-  50 files under the engine read it; the counting above does not see it because it names no planned
-  module. Source: [crate-split.md](../design/crate-split.md), rung 0, "Not counted".
-- **Rung 1 cuts core first,** with protocol: the Cargo workspace, then a cold build and a one-line
-  edit measured against 241 s and 56 s. Before that, the test-code references in At a glance move
-  with their tests, and `pub(crate)` items used across the new line become `pub`. Source:
-  [crate-split.md](../design/crate-split.md), "Order of work".
-- **A stale header:** [data_store.rs](../../src/hot_reload/data_store.rs) says the DataStore "wraps
+- **Cut in rung 1 (2026-11-01):** a crate of its own, `crates/humanity-core/`, with the build times
+  measured before and after in [crate-split.md](../design/crate-split.md) (rung 1). Callers name it
+  `humanity_core::...`. Its version is the workspace's (`[workspace.package]`): its own code reports
+  the app's version (boot timings, frame costs, the play journal, the refresh check), so a version
+  bump rebuilds it like every other member. Decoupling that is open work if a bump's rebuild ever
+  matters.
+- **A stale header:** [data_store.rs](../../crates/humanity-core/src/hot_reload/data_store.rs) says the DataStore "wraps
   AssetManager"; it is a plain map of parsed registries by key, and it cannot reach the asset
   manager (which is the renderer's). Found 2026-10-31 writing this card.
 

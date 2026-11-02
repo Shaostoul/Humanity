@@ -12,8 +12,8 @@ use crate::systems::ship_meals::MealRules;
 #[cfg(feature = "relay")]
 #[test]
 fn the_counters_rules_are_the_servers() {
-    let stores = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/food/ship_stores.ron"));
-    let ledger = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/ship/fleet_ledger.ron"));
+    let stores = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/food/ship_stores.ron"));
+    let ledger = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/fleet_ledger.ron"));
     let rules = MealRules::parse(stores, ledger);
     assert!(rules.is_ok(), "the counter reads the ledger's meal: {rules:?}");
     let rules = rules.unwrap();

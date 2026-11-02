@@ -81,8 +81,8 @@ pub const UPDATE_REACH_M: f32 = 60.0;
 /// The update shader: the sampling part the megashader also compiles, then
 /// the compute entries. One source of truth for how probes are read.
 pub const UPDATE_SHADER: &str = concat!(
-    include_str!("../../assets/shaders/pbr/85-room-gi.wgsl"),
-    include_str!("../../assets/shaders/room_probes_update.wgsl"),
+    include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/85-room-gi.wgsl")),
+    include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/room_probes_update.wgsl")),
 );
 
 pub(super) const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
@@ -773,7 +773,7 @@ impl Renderer {
     /// up in the hull frame when this frame has a sky-view table (None aboard
     /// a station in orbit, where the glass lid looks out at space).
     pub fn update_room_gi(&mut self, station_off: Vec3, eye: Vec3, sky_up: Option<Vec3>) {
-        let _cost = crate::frame_costs::stage("cpu.room_probes");
+        let _cost = humanity_core::frame_costs::stage("cpu.room_probes");
         let gi = &mut self.room_gi;
         let render_rooms: Vec<RoomBox> = gi.rooms.iter().map(|r| r.shifted(station_off)).collect();
         let (gmin, gmax) = render_rooms.iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), r| {
@@ -961,7 +961,7 @@ impl Renderer {
         };
         self.queue.write_buffer(&gi.params_buf, 0, bytemuck::bytes_of(&params));
         // The dev drop, once a second while frame costs are dumped.
-        if crate::frame_costs::dump_enabled() && gi.dumped_at.is_none_or(|t| t.elapsed().as_secs_f32() >= 1.0) {
+        if humanity_core::frame_costs::dump_enabled() && gi.dumped_at.is_none_or(|t| t.elapsed().as_secs_f32() >= 1.0) {
             gi.dumped_at = Some(std::time::Instant::now());
             let sun = Sun { dir: sun_dir, color: sc, intensity: si };
             let lights: Vec<Vec<super::light::RoomLight>> =
@@ -1166,7 +1166,7 @@ mod tests {
     /// A device, or None (then the test says so and passes).
     #[cfg(feature = "native")]
     fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-        if !crate::test_gpu::may_use() {
+        if !humanity_core::test_gpu::may_use() {
             return None;
         }
         let instance = wgpu::Instance::default();

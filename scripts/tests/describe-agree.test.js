@@ -2,7 +2,7 @@
 // (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 1):
 // "This photo says where it was taken and which camera took it." The web says it with
 // `HosStrip.describe` (web/shared/strip-metadata.js); the desktop with the Rust port of it,
-// src/relay/core/describe_metadata.rs. This holds them together two ways:
+// crates/humanity-protocol/src/describe_metadata.rs. This holds them together two ways:
 //
 // 1. The fixtures (tests/fixtures/describe/, written by scripts/make-describe-fixtures.js): every
 //    file there must get exactly the answer in expected.json from the web here, and from the Rust
@@ -71,7 +71,7 @@ test('the web gives every fixture the answer recorded for it', () => {
 });
 
 function harnessSource() {
-  const src = JSON.stringify(path.join(REPO, 'src', 'relay', 'core', 'describe_metadata.rs').replace(/\\/g, '/'));
+  const src = JSON.stringify(path.join(REPO, 'crates', 'humanity-protocol', 'src', 'describe_metadata.rs').replace(/\\/g, '/'));
   return `
 #[path = ${src}]
 mod describe_metadata;

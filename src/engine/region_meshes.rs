@@ -128,7 +128,7 @@ impl RegionMeshState {
             return;
         }
         self.loaded = true;
-        let dir = crate::storage::DATA_DIR
+        let dir = humanity_core::storage::DATA_DIR
             .get()
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"))
@@ -225,7 +225,7 @@ pub(crate) fn tick(
         let sea_r = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
         // Sibling .dem.bin files (real ~13 m elevation, v0.1153): keyed by
         // region name order, loaded once here.
-        let dem_dir = crate::storage::DATA_DIR
+        let dem_dir = humanity_core::storage::DATA_DIR
             .get()
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"))
@@ -409,7 +409,7 @@ pub(crate) fn tick(
                     "[Region] \"{name}\" resident: {} class meshes (tiles: {with_tiles}). Data (c) OpenStreetMap contributors, ODbL 1.0",
                     meshes.len()
                 );
-                crate::debug::push_debug(format!(
+                humanity_core::debug::push_debug(format!(
                     "Region \"{name}\" standing: OSM data (c) OpenStreetMap contributors (ODbL)"
                 ));
                 rm.active.push(ActiveRegion {

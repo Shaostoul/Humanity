@@ -72,8 +72,8 @@ pub struct PqIdentity {
 
 /// Derive the full-PQ identity from the 32-byte BIP39 seed.
 pub fn derive_pq_identity(seed32: &[u8]) -> Result<PqIdentity, String> {
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
-    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     let dm = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed32)?;
     Ok(PqIdentity {
         dilithium_hex: hex::encode(dil.public_key()),
@@ -84,8 +84,8 @@ pub fn derive_pq_identity(seed32: &[u8]) -> Result<PqIdentity, String> {
 /// Dilithium3 chat signature (hex) over `content\ntimestamp` — the EXACT
 /// preimage the web client signs and the relay verifies (Inc3).
 pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
-    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     hex::encode(dil.sign(format!("{content}\n{timestamp}").as_bytes()))
 }
 
@@ -94,9 +94,9 @@ pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
 /// `relay::core::object::ObjectBuilder::sign`. Same derivation as the chat
 /// identity: the merchant IS the chat identity, so an offering published
 /// in-app is owned by the same key the importer would use.
-pub fn pq_object_keypair(seed32: &[u8]) -> crate::relay::core::pq_crypto::DilithiumKeypair {
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
-    crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed)
+pub fn pq_object_keypair(seed32: &[u8]) -> humanity_protocol::pq_crypto::DilithiumKeypair {
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed)
 }
 
 /// Raw-bytes Dilithium3 signature (Vec<u8>, 3309 bytes). Used by Inc3b
@@ -104,8 +104,8 @@ pub fn pq_object_keypair(seed32: &[u8]) -> crate::relay::core::pq_crypto::Dilith
 /// string ("hum/identify/v1\n" + nonce + "\n" + pubkey) — not chat's
 /// `content\ntimestamp` shape. Caller base64-encodes for the wire.
 pub fn pq_sign_raw(seed32: &[u8], message: &[u8]) -> Vec<u8> {
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
-    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     dil.sign(message)
 }
 

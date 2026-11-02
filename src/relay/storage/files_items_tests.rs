@@ -55,7 +55,7 @@ fn count(db: &Storage, sql: &str) -> i64 {
 /// Unknown, extended_code: 1 }, msg: \"no such column: downloads\", ...".
 #[test]
 fn opens_a_v0_1489_media_database_and_migrates_it() {
-    let path = crate::test_temp::db("media_v1489");
+    let path = humanity_core::test_temp::db("media_v1489");
     {
         let conn = rusqlite::Connection::open(&path).expect("raw open");
         conn.execute_batch(

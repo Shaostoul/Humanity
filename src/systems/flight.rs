@@ -437,7 +437,7 @@ mod data_tests {
     /// because `load` fails SAFE by design.
     #[test]
     fn the_shipped_flight_data_parses_and_is_sane() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let d = FlightData::load(&dir);
         assert!(!d.drives.is_empty(), "data/ship/flight.ron did not parse (drives empty)");
 
@@ -461,7 +461,7 @@ mod data_tests {
     /// a crop, and in a time that reads as "during the burn".
     #[test]
     fn a_five_g_burn_really_does_kill_a_crop() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let d = FlightData::load(&dir);
         let plant = d.tolerance("plant").expect("plant tolerance missing");
 
@@ -483,7 +483,7 @@ mod data_tests {
     /// or the crops, the whole setting would be unplayable.
     #[test]
     fn ordinary_cruise_harms_nobody() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let d = FlightData::load(&dir);
         let torch = d.drive("fusion_torch").unwrap();
         let cruise = FlightState {

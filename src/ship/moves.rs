@@ -69,8 +69,8 @@ impl SharedWorldRules {
         match from_disk {
             Ok(rules) => rules,
             Err(why) => {
-                crate::embedded_data::note_builtin_copy("ship/shared_world.ron", why);
-                Self::parse(include_str!("../../data/ship/shared_world.ron"))
+                humanity_core::embedded_data::note_builtin_copy("ship/shared_world.ron", why);
+                Self::parse(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/shared_world.ron")))
                     .expect("the built-in data/ship/shared_world.ron parses (moves.rs tests)")
             }
         }
@@ -229,7 +229,7 @@ pub const STOREY_BAND_ABOVE_M: f32 = STOREY_M - STOREY_BAND_BELOW_M;
 /// and the relay holds for a player is the eye, the camera: the floor plus
 /// `ecs::components::EYE_HEIGHT_M` (1.7 m).
 pub fn feet_y(eye_y: f32) -> f32 {
-    eye_y - crate::ecs::components::EYE_HEIGHT_M as f32
+    eye_y - humanity_core::ecs::components::EYE_HEIGHT_M as f32
 }
 
 /// THE STOREY RULE: true when a thing whose point is at height `thing_y` stands on the storey of a
@@ -271,7 +271,7 @@ pub(crate) mod tests {
     use super::*;
 
     pub(crate) fn shipped() -> SharedWorldRules {
-        SharedWorldRules::parse(include_str!("../../data/ship/shared_world.ron")).expect("the shipped rules parse")
+        SharedWorldRules::parse(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/shared_world.ron"))).expect("the shipped rules parse")
     }
 
     /// The rules are read from DISK first: a data folder whose file says something else is what
@@ -282,9 +282,9 @@ pub(crate) mod tests {
     fn the_rules_are_read_from_disk_first() {
         let r = shipped();
         assert!(r.delivery.out_of_view_m > r.delivery.in_view_m);
-        let dir = crate::test_temp::dir("moves_rules");
+        let dir = humanity_core::test_temp::dir("moves_rules");
         std::fs::create_dir_all(dir.join("ship")).expect("a temp data folder");
-        let edited = include_str!("../../data/ship/shared_world.ron").replace("in_view_m: 250.0", "in_view_m: 123.0");
+        let edited = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/shared_world.ron")).replace("in_view_m: 250.0", "in_view_m: 123.0");
         std::fs::write(dir.join("ship").join("shared_world.ron"), edited).expect("write it");
         let got = SharedWorldRules::load(&dir).delivery.in_view_m;
         assert_eq!(got, 123.0, "the disk copy is read first: {got}");
@@ -298,7 +298,7 @@ pub(crate) mod tests {
     /// round. Seen red 2026-10-04 with `validate` returning Ok(()) at once: "a NaN speed loaded".
     #[test]
     fn rules_that_mean_nothing_are_refused() {
-        let text = include_str!("../../data/ship/shared_world.ron");
+        let text = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/shared_world.ron"));
         assert!(SharedWorldRules::parse(&text.replace("on_foot_mps: 25.0", "on_foot_mps: NaN")).is_err(), "a NaN speed loaded");
         assert!(SharedWorldRules::parse(&text.replace("on_foot_mps: 25.0", "on_foot_mps: -1.0")).is_err());
         assert!(SharedWorldRules::parse(&text.replace("slack_m: 1.0", "slack_m: inf")).is_err());

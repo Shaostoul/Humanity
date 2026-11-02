@@ -476,7 +476,7 @@ test("--forwarded-for takes an address and only an address", () => {
 const REPO = path.join(__dirname, "..", "..");
 const SHARED_RS = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "shared.rs"), "utf8");
 // The household permit's wire shape lives in the core since the crate split's rung 0 (2026-10-31).
-const PERMIT_RS = fs.readFileSync(path.join(REPO, "src", "build_permission.rs"), "utf8");
+const PERMIT_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-core", "src", "build_permission.rs"), "utf8");
 /** The field names of one variant of the wire enums in shared.rs, by its serde type string. */
 function contractFields(typeName) {
   const at = SHARED_RS.indexOf(`#[serde(rename = "${typeName}")]`);
@@ -611,7 +611,7 @@ test("sizes read from basic.ron", () => {
   assert.equal(tricky.get("a").name, "A (x)");
 });
 
-// THE PERMIT'S SIGNED WORDS ARE THE RELAY'S (src/relay/core/pq_crypto.rs `plot_permit_preimage`),
+// THE PERMIT'S SIGNED WORDS ARE THE RELAY'S (crates/humanity-protocol/src/pq_crypto.rs `plot_permit_preimage`),
 // read from the Rust test that pins them, so a change there fails here until this script follows.
 // A permit the walker mints verifies with the issuer's key over those words, names the server it
 // is good on (the relay's own did:hum, /api/server-info `server_did`), and its fields are the
@@ -628,7 +628,7 @@ test("sizes read from basic.ron", () => {
 //     actual: 'hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0',
 //     expected: 'hum/permit/v2\ndid:hum:srv\np3\ndid:hum:abc\n00112233445566778899aabbccddeeff\n0'
 test("permitPreimage equals the Rust KAT string", async () => {
-  const rust = fs.readFileSync(path.join(REPO, "src", "relay", "core", "pq_crypto.rs"), "utf8");
+  const rust = fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "pq_crypto.rs"), "utf8");
   const pins = [...rust.matchAll(/assert_eq!\(\s*plot_permit_preimage\(([^)]*)\)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)/g)];
   assert.ok(pins.length >= 1, "pq_crypto.rs pins plot_permit_preimage with a literal");
   const unescape = (s) => s.replace(/\\(.)/g, (_, c) => ({ n: "\n", t: "\t", r: "\r", "\\": "\\", '"': '"' })[c] ?? c);
@@ -1299,7 +1299,7 @@ const STARTS_RS = fs.readFileSync(path.join(REPO, "src", "ship", "starts.rs"), "
 const SHIP_STORES_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "ship_stores.rs"), "utf8");
 const MOVES_RS = fs.readFileSync(path.join(REPO, "src", "ship", "moves.rs"), "utf8");
 // The standing eye height is the body's, in the core, since the crate split's rung 0 (2026-10-31).
-const COMPONENTS_RS = fs.readFileSync(path.join(REPO, "src", "ecs", "components.rs"), "utf8");
+const COMPONENTS_RS = fs.readFileSync(path.join(REPO, "crates", "humanity-core", "src", "ecs", "components.rs"), "utf8");
 const FLEET_LEDGER_RS = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "fleet_ledger.rs"), "utf8");
 /** A `pub const NAME: &str = "..."` of starts.rs. */
 const startsConst = (name) => {

@@ -8,7 +8,7 @@ use crate::systems::inventory::Inventory;
 use std::sync::Mutex;
 
 fn data_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// A DataStore with the meter registered (startup's job, Wave 2A; the tests do it themselves)
@@ -30,7 +30,7 @@ fn world_with(pack: &[(&str, u32)]) -> (hecs::World, hecs::Entity) {
     for (id, n) in pack {
         inv.add_item(id, *n, 99);
     }
-    let p = world.spawn((inv, crate::ecs::components::Controllable));
+    let p = world.spawn((inv, humanity_core::ecs::components::Controllable));
     (world, p)
 }
 

@@ -325,7 +325,7 @@ fn a_shared_file_deleted_from_the_library_leaves_the_media_page() {
 /// data/media-waiting/_red.json".
 #[test]
 fn git_tracks_nothing_in_the_relays_file_folders() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     for dir in [UPLOADS_DIR, MEMBERS_DIR, RESUME_DIR, WAITING_DIR] {
         let out = std::process::Command::new("git").current_dir(root).args(["ls-files", "--", dir]).output().expect("git, to read what the repo tracks");
         assert!(out.status.success(), "git ls-files ran in {root:?}: {}", String::from_utf8_lossy(&out.stderr));

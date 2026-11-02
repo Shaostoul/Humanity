@@ -325,7 +325,7 @@ mod tests {
         // the next click keeps it.
         let mut changed = WorldSave::new_offline("Home", "homestead");
         changed.character_name = "Changed".to_string();
-        crate::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&changed).unwrap().as_bytes()).unwrap();
+        humanity_core::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&changed).unwrap().as_bytes()).unwrap();
         assert!(matches!(snapshot_home_now_at(&path, t + 3_000).unwrap(), SnapshotNow::Kept(_)));
         let slot = persistence::snapshots_root_for(&path).join("offline_home");
         assert_eq!(persistence::list_snapshots(&slot).len(), 2);

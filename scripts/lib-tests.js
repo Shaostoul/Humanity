@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Run the library's unit tests: `cargo test --features native --lib`, except on
-// Windows, where the test program is linked WITHOUT a debug file (BUG-174).
+// Run the workspace's library unit tests: every member's `cargo test --features native --lib`,
+// built by one cargo command (and, should the linker hit BUG-174's limit again on Windows, the
+// engine's test program linked once more WITHOUT a debug file).
 //
 // Usage:  node scripts/lib-tests.js [lib-tests options] [test-filter and test-program options]
 //         just test-lib [same]
 // e.g.    node scripts/lib-tests.js net::webrtc --nocapture
-// Everything that is not one of lib-tests' own options goes to the test program itself, the
+//         node scripts/lib-tests.js --crate humanity-protocol kdf::
+// Everything that is not one of lib-tests' own options goes to each test program itself, the
 // way the words after `--` do for `cargo test`: a name filter, --nocapture, --exact.
 //
 // lib-tests' own options (2026-10-23):
@@ -17,6 +19,21 @@
 //                          0 = never), naming the tests that were in flight (2026-11-01)
 //   --gpu-anyway           let the tests that open a GPU device run beside the operator's GPU
 //                          game (by default they stand down: point 4 below; beside it they may hang)
+//   --crate <name>         build and run only this workspace member's tests (repeatable; 2026-11-01).
+//                          A run with --crate is never a full run: never refused, never recorded.
+//
+// THE WORKSPACE (2026-11-01, the crate split's rung 1, docs/design/crate-split.md). Each member
+// of the workspace has a test program of its own: the core's tests are humanity_core-<hash>.exe,
+// the protocol's humanity_protocol-<hash>.exe, the rest still the engine's humanity_engine-<hash>.exe.
+// Until rung 1 there was one, found as the only test artifact cargo printed; a script that still
+// took "the" program would run a third of the suite and report it all green. So every member's
+// program is built and run (scripts/lib/lib-test-programs.js), in the order cargo lists the
+// members, each with the same arguments, and everything below holds per program: the marks, the
+// stall stop, a failure rerun alone in the program it came from, the GPU tests standing down (a
+// partial pass's GPU tests are asked of every program by exact name; only the one holding them
+// runs any). The summary adds them up, and a member whose program cargo did not build fails the
+// run. A test's name is its path inside its own crate: the protocol's tests lost their
+// `relay::core::` prefix in the move (`kdf::tests::...`); the core's kept theirs.
 //
 // WHY (2026-10-09): Microsoft's linker refuses to write the library test
 // program's debug file (PDB) with "LNK1318: Unexpected PDB error; LIMIT (12)",
@@ -31,9 +48,13 @@
 // The cost: a panicking test's stack trace shows addresses instead of function
 // names. A failing assertion still names its file and line (that comes from the
 // panic location, not the debug file). Release builds keep their PDB.
-//
-// Use this, not a bare `cargo test --features native --lib`, on Windows: the
-// bare form links with /DEBUG again and fails the same way.
+// SINCE RUNG 1 (2026-11-01) every member's program is built by ONE `cargo test --no-run`, and the
+// engine's links WITH its debug file again: line-tables-only debug info (2026-10-24, builds.md)
+// already took the limit out of reach (a 459 MB PDB linked on 2026-11-01). Why not keep
+// `cargo rustc`: it takes one package, so the other members needed a second cargo build with a
+// feature unification of their own, which on 2026-11-01 compiled about 160 dependencies and the
+// core a second time. /DEBUG:NONE is now the fallback: when the link reports LNK1318, the engine's
+// program is built again that way, saying so.
 //
 // THE TEST-RUN POLICY (2026-10-23, the build-speed review; CLAUDE.md: "NEVER re-run a test
 // battery that already passed on unchanged code"). A rule only a reader follows, now a
@@ -60,7 +81,7 @@
 //   4. Before the run this script asks scripts/lib/machine-guard.js which of his GPU-heavy
 //      programs run (scripts/lib/operator-apps.json, and his own HumanityOS). When one does, the
 //      test program gets HUMANITY_TEST_GPU_BUSY, and every test that would open a device asks
-//      src/test_gpu.rs first and stands down, writing its name to target/lib-tests/gpu-skipped.txt
+//      crates/humanity-core/src/test_gpu.rs first and stands down, writing its name to target/lib-tests/gpu-skipped.txt
 //      (tests/gpu_test_gate_lint.rs holds every such test to asking). libtest counts a test that
 //      returned early as passed, so this script says loudly which did nothing and why, and
 //      records the pass WITHOUT them: asked again on the same tree once the game has closed, it
@@ -76,11 +97,15 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 const L = require("./lib/test-pass-ledger.js");
+const P = require("./lib/lib-test-programs.js");
 
 // HOS_LIB_TESTS_ROOT and HOS_LIB_TESTS_EXE are for scripts/tests/lib-tests-policy.test.js: another
-// checkout (a throwaway repository), and a test program to run instead of building ours.
+// checkout (a throwaway repository), and the test programs to run instead of building ours (one
+// path, or several joined by the platform's path delimiter, each run as one member's would be).
 const ROOT = process.env.HOS_LIB_TESTS_ROOT ? path.resolve(process.env.HOS_LIB_TESTS_ROOT) : path.join(__dirname, "..");
-const GIVEN_EXE = process.env.HOS_LIB_TESTS_EXE || null;
+const GIVEN_EXES = process.env.HOS_LIB_TESTS_EXE ? process.env.HOS_LIB_TESTS_EXE.split(path.delimiter).filter(Boolean) : null;
+// The member whose program is linked again without a debug file if LNK1318 comes back (the big one).
+const BIG = "humanity-engine";
 const PASS_FILE = path.join(ROOT, "target", "lib-tests", "last-full-pass.json");
 const FLAKY_LEDGER = path.join(ROOT, "data", "coordination", "flaky-tests.jsonl");
 const GPU_SKIPPED_FILE = path.join(ROOT, "target", "lib-tests", "gpu-skipped.txt");
@@ -89,13 +114,21 @@ const DEFAULT_STALL_MIN = 15;
 
 // Our options out, the test program's in.
 const argv = process.argv.slice(2);
-const opts = { force: false, verbose: false, runTimeoutMin: null, stallMin: DEFAULT_STALL_MIN, gpuAnyway: false };
+const opts = { force: false, verbose: false, runTimeoutMin: null, stallMin: DEFAULT_STALL_MIN, gpuAnyway: false, crates: [] };
 const passthrough = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--force") opts.force = true;
   else if (a === "--verbose") opts.verbose = true;
   else if (a === "--gpu-anyway") opts.gpuAnyway = true;
+  else if (a === "--crate") {
+    const c = argv[++i];
+    if (!c) {
+      console.error("lib-tests: --crate needs a workspace member's name (humanity-core, humanity-protocol, humanity-engine)");
+      process.exit(2);
+    }
+    opts.crates.push(c);
+  }
   else if (a === "--run-timeout-min") {
     opts.runTimeoutMin = Number(argv[++i]);
     if (!(opts.runTimeoutMin > 0)) {
@@ -110,7 +143,7 @@ for (let i = 0; i < argv.length; i++) {
     }
   } else passthrough.push(a);
 }
-const full = L.isFullRun(passthrough);
+const full = L.isFullRun(passthrough) && !opts.crates.length;
 // The test program's own -q or --format: its output is shown as it is and not read for names.
 const ownFormat = passthrough.some((a) => a === "-q" || a === "--quiet" || a.startsWith("--format"));
 const compact = !opts.verbose && !ownFormat;
@@ -172,48 +205,83 @@ if (full) {
   }
 }
 if (busy.length) {
-  console.log(`lib-tests: ${busy.join(", ")} is running: every test that opens a GPU device stands down (src/test_gpu.rs), and is named after the run. --gpu-anyway runs them beside it (they may hang the run).`);
+  console.log(`lib-tests: ${busy.join(", ")} is running: every test that opens a GPU device stands down (crates/humanity-core/src/test_gpu.rs), and is named after the run. --gpu-anyway runs them beside it (they may hang the run).`);
 }
 // What the test program is asked to run: the GPU tests a partial pass left, or what was asked for.
 const runArgs = partialPass ? [...partialPass.gpu_skipped, "--exact", ...L.nonSelecting(passthrough)] : passthrough;
 
 // 2. The build slot's wrapper, when this machine has one, must be current before cargo runs it.
-if (!GIVEN_EXE) spawnSync(process.execPath, [path.join(__dirname, "build-slot.js"), "ensure"], { cwd: ROOT, stdio: "inherit" });
+if (!GIVEN_EXES) spawnSync(process.execPath, [path.join(__dirname, "build-slot.js"), "ensure"], { cwd: ROOT, stdio: "inherit" });
 
-// 3. Build the test program.
-function buildTestProgram() {
-  if (GIVEN_EXE) return GIVEN_EXE;
-  const args =
-    process.platform === "win32"
-      ? // The library compiled with --test, linked without a PDB (BUG-174).
-        ["rustc", "--features", "native", "--lib", "--profile", "test", "--message-format=json-render-diagnostics", "--", "-C", "link-arg=/DEBUG:NONE"]
-      : ["test", "--features", "native", "--lib", "--no-run", "--message-format=json-render-diagnostics"];
+// 3. Build the test programs, one per workspace member: [{ name, exe }], in cargo's order.
+/** The workspace's members with a library (cargo metadata), the --crate ones if any were named. */
+function members() {
+  const r = spawnSync("cargo", ["metadata", "--no-deps", "--format-version", "1"], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 });
+  if (r.status !== 0) {
+    console.error(`lib-tests: cargo metadata failed:\n${r.stderr}`);
+    process.exit(1);
+  }
+  const all = P.membersOf(JSON.parse(r.stdout));
+  for (const c of opts.crates) {
+    if (!all.includes(c)) {
+      console.error(`lib-tests: "${c}" is not a member of the workspace (${all.join(", ")})`);
+      process.exit(2);
+    }
+  }
+  return opts.crates.length ? all.filter((m) => opts.crates.includes(m)) : all;
+}
+
+/** One cargo build (--message-format=json): the test programs its messages name, by package (Map).
+ * The compiler's diagnostics are shown as rustc renders them. A failed build exits, unless
+ * `soft`: then { exes, status, lnk1318 } comes back, lnk1318 saying the linker hit BUG-174's limit. */
+function cargoBuild(args, { soft = false } = {}) {
   const build = spawnSync("cargo", args, { cwd: ROOT, stdio: ["ignore", "pipe", "inherit"], encoding: "utf8", maxBuffer: 1 << 30 });
   if (build.error) {
     console.error("lib-tests:", build.error.message);
     process.exit(1);
   }
-  // Cargo's own messages go to stdout as JSON; the program is the artifact with an executable.
-  // Anything else on stdout (the build slot's lines) is passed on to the reader.
-  let exe = null;
-  for (const line of (build.stdout || "").split("\n")) {
-    if (!line.startsWith("{")) {
-      if (line.trim()) console.log(line);
-      continue;
-    }
+  // Cargo's own messages go to stdout as JSON; anything else there (the build slot's lines) is
+  // passed on to the reader.
+  const lines = (build.stdout || "").split("\n");
+  const { exes, other } = P.testPrograms(lines);
+  for (const l of other) console.log(l);
+  let lnk1318 = false;
+  for (const l of lines) {
+    if (!l.startsWith('{"reason":"compiler-message"')) continue;
     try {
-      const m = JSON.parse(line);
-      if (m.reason === "compiler-artifact" && m.executable && m.profile && m.profile.test) exe = m.executable;
+      const m = JSON.parse(l).message;
+      if (m && m.rendered) process.stderr.write(m.rendered);
+      if (m && /LNK1318/.test(m.rendered || m.message || "")) lnk1318 = true;
     } catch {
       /* not a cargo message */
     }
   }
-  if (build.status !== 0) process.exit(build.status === null ? 1 : build.status);
-  if (!exe) {
-    console.error("lib-tests: cargo built nothing runnable (no test program in its messages)");
+  if (build.status !== 0 && !soft) process.exit(build.status === null ? 1 : build.status);
+  return soft ? { exes, status: build.status, lnk1318 } : exes;
+}
+
+function buildTestPrograms() {
+  if (GIVEN_EXES) return GIVEN_EXES.map((exe, i) => ({ name: GIVEN_EXES.length > 1 ? `program ${i + 1}` : "the library", exe }));
+  const want = members();
+  const json = "--message-format=json";
+  // Every member's program in ONE cargo build: one feature unification, so the core is compiled
+  // once per edit and the members' programs compile side by side.
+  const one = cargoBuild(["test", ...want.flatMap((m) => ["-p", m]), "--features", "native", "--lib", "--no-run", json], { soft: true });
+  const exes = new Map(one.exes);
+  if (one.status !== 0) {
+    if (!(one.lnk1318 && process.platform === "win32" && want.includes(BIG))) process.exit(one.status === null ? 1 : one.status);
+    // BUG-174's limit came back: the engine's program again, linked without its debug file.
+    console.log(`lib-tests: the linker hit LNK1318 (BUG-174) on ${BIG}'s test program; building it again without a debug file (/DEBUG:NONE)`);
+    const small = want.filter((m) => m !== BIG && !exes.has(m));
+    if (small.length) for (const [k, v] of cargoBuild(["test", ...small.flatMap((m) => ["-p", m]), "--features", "native", "--lib", "--no-run", json])) exes.set(k, v);
+    for (const [k, v] of cargoBuild(["rustc", "-p", BIG, "--features", "native", "--lib", "--profile", "test", json, "--", "-C", "link-arg=/DEBUG:NONE"])) exes.set(k, v);
+  }
+  const missing = want.filter((m) => !exes.has(m));
+  if (missing.length) {
+    console.error(`lib-tests: cargo built no test program for ${missing.join(", ")} (its messages named ${[...exes.keys()].join(", ") || "none"})`);
     process.exit(1);
   }
-  return exe;
+  return want.map((name) => ({ name, exe: exes.get(name) }));
 }
 
 // The lines libtest prints per test (its pretty format): a result, and the 60-second warning.
@@ -384,7 +452,7 @@ function hangReport(exe, args, res, why) {
     for (const n of res.warned) console.error(`  ${n}`);
   }
   console.error("A test thread that reports its result and then cannot exit stops ALL of libtest's output, its 60-second warnings included (scripts/lib-tests.js, point 5).");
-  if (busy.length) console.error(`${busy.join(", ")} was running; the GPU tests stood down (src/test_gpu.rs), so look past them.`);
+  if (busy.length) console.error(`${busy.join(", ")} was running; the GPU tests stood down (crates/humanity-core/src/test_gpu.rs), so look past them.`);
   else console.error("If one of the operator's GPU games was running, this run did not know it (scripts/lib/operator-apps.json lists them).");
   console.error("Run the suspects alone, one at a time: node scripts/lib-tests.js <name> --exact --verbose");
 }
@@ -460,7 +528,7 @@ function gpuBanner(skipped) {
   if (!skipped.length) return;
   banner([
     `GPU TESTS NOT RUN: ${skipped.length} test(s) open a GPU device and stood down, because ${busy.join(", ")} is running`,
-    "(beside it a GPU test can hang the whole run, silently: src/test_gpu.rs):",
+    "(beside it a GPU test can hang the whole run, silently: crates/humanity-core/src/test_gpu.rs):",
     ...skipped.map((n) => `  ${n}`),
     "libtest counts them as passed; they did nothing.",
     full
@@ -469,63 +537,86 @@ function gpuBanner(skipped) {
   ]);
 }
 
-/** The summary to record: a partial pass's own, completed by the GPU tests it left. */
-function resultLine(res, extra = "") {
-  const own = summaryOf(res.out) || "(no summary)";
+/** The summary to record: every program's run as one line (scripts/lib/lib-test-programs.js), and a
+ * partial pass's own completed by the GPU tests it left. `runs`: [{ name, out }]. */
+function resultLine(runs, extra = "") {
+  const own = P.combinedSummary(runs.map((r) => ({ name: r.name, summary: summaryOf(r.out) }))) || "(no summary)";
   const line = partialPass ? `${partialPass.result || "(no summary)"}; then its ${partialPass.gpu_skipped.length} GPU test(s): ${own}` : own;
   return line + extra;
 }
 
 async function main() {
-  const exe = buildTestProgram();
+  const programs = buildTestPrograms();
   try {
     fs.mkdirSync(path.dirname(GPU_SKIPPED_FILE), { recursive: true });
     fs.writeFileSync(GPU_SKIPPED_FILE, "");
   } catch (e) {
     console.error(`lib-tests: could not clear ${GPU_SKIPPED_FILE} (${e.message})`);
   }
-  const first = await runProgram(exe, runArgs, opts.runTimeoutMin);
-  if (first.stalled || first.timedOut) {
-    hangReport(exe, runArgs, first, first.stalled ? `the test program printed nothing for ${opts.stallMin} minutes` : `the test RUN (not the build) went past ${opts.runTimeoutMin} minutes`);
-    process.exit(1);
+  // Every program, the same arguments, one after another.
+  const runs = [];
+  for (const p of programs) {
+    if (programs.length > 1) console.log(`lib-tests: ${p.name} (${path.basename(p.exe)})`);
+    const res = await runProgram(p.exe, runArgs, opts.runTimeoutMin);
+    runs.push({ ...p, ...res });
+    if (res.stalled || res.timedOut) {
+      const whose = programs.length > 1 ? `${p.name}'s` : "the";
+      hangReport(p.exe, runArgs, res, res.stalled ? `${whose} test program printed nothing for ${opts.stallMin} minutes` : `${whose} test RUN (not the build) went past ${opts.runTimeoutMin} minutes`);
+      process.exit(1);
+    }
   }
-  if (first.code === 0) {
+  const secs = runs.reduce((a, r) => a + r.secs, 0);
+  // The programs' counts added up (not for a run that prints no result line, such as --list).
+  if (programs.length > 1 && runs.some((r) => summaryOf(r.out))) console.log(`lib-tests: ${resultLine(runs)}`);
+  if (runs.every((r) => r.code === 0)) {
     const skipped = gpuSkipped();
     gpuBanner(skipped);
-    recordPass(resultLine(first), first.secs, partialPass ? partialPass.flaky || [] : [], skipped);
+    recordPass(resultLine(runs), secs, partialPass ? partialPass.flaky || [] : [], skipped);
     process.exit(0);
   }
-  const failed = L.parseFailures(first.out);
-  if (!failed.length) process.exit(first.code); // a crash or a build-time failure: nothing to rerun
+  // The failures, each with the program it came from. A program that failed without naming a
+  // failed test crashed or did not start: nothing to rerun.
+  const failed = [];
+  for (const r of runs) {
+    if (r.code === 0) continue;
+    const names = L.parseFailures(r.out);
+    if (!names.length) {
+      if (programs.length > 1) console.error(`lib-tests: ${r.name}'s test program exited ${r.code} without a list of failed tests`);
+      process.exit(r.code);
+    }
+    for (const name of names) failed.push({ run: r, name });
+  }
+  const firstCode = runs.find((r) => r.code !== 0).code;
   if (failed.length > MAX_RERUNS) {
     console.log(`lib-tests: ${failed.length} tests failed: more than ${MAX_RERUNS} is not a timing flake, so none is run again.`);
-    process.exit(first.code);
+    process.exit(firstCode);
   }
   console.log(`lib-tests: ${failed.length} test(s) failed; running each once more, alone, to tell a timing flake from a real failure:`);
   const flaky = [];
   const real = [];
-  for (const name of failed) {
-    console.log(`lib-tests: again, alone: ${name}`);
+  for (const { run, name } of failed) {
+    console.log(`lib-tests: again, alone: ${name}${programs.length > 1 ? ` (${run.name})` : ""}`);
     const args = [name, "--exact", ...rerunArgs(runArgs)];
-    const again = await runProgram(exe, args, opts.runTimeoutMin);
+    const again = await runProgram(run.exe, args, opts.runTimeoutMin);
     if (again.stalled || again.timedOut) {
-      hangReport(exe, args, again, `${name}, run again alone, ${again.stalled ? `printed nothing for ${opts.stallMin} minutes` : `went past ${opts.runTimeoutMin} minutes`}`);
+      hangReport(run.exe, args, again, `${name}, run again alone, ${again.stalled ? `printed nothing for ${opts.stallMin} minutes` : `went past ${opts.runTimeoutMin} minutes`}`);
       process.exit(1);
     }
     const ran = /running 1 test/.test(again.out);
-    if (again.code === 0 && ran) flaky.push(name);
+    if (again.code === 0 && ran) flaky.push({ run, name });
     else real.push(name);
   }
-  for (const name of flaky) {
+  for (const { run, name } of flaky) {
     const entry = {
       at: new Date().toISOString(),
       test: name,
-      first_failure: failureExcerpt(first.out, name),
+      first_failure: failureExcerpt(run.out, name),
       passed_alone: true,
       tree: identity ? identity.head_tree.slice(0, 12) : null,
       rustc: identity ? identity.rustc : null,
       full_run: full,
     };
+    if (programs.length > 1) entry.crate = run.name;
     try {
       fs.mkdirSync(path.dirname(FLAKY_LEDGER), { recursive: true });
       fs.appendFileSync(FLAKY_LEDGER, JSON.stringify(entry) + "\n");
@@ -536,7 +627,7 @@ async function main() {
   if (flaky.length) {
     banner([
       `FLAKY: ${flaky.length} test(s) failed in this run and PASSED when run again alone:`,
-      ...flaky.map((n) => `  ${n}`),
+      ...flaky.map((f) => `  ${f.name}`),
       "That is a test whose result depends on timing or on its neighbours, not on the code under test.",
       `Recorded in ${path.relative(ROOT, FLAKY_LEDGER)} (one line each, with the first failure's message).`,
       real.length ? "" : "The run counts as PASSED. Fix the flake when you can: the ledger says how often it bites.",
@@ -546,11 +637,11 @@ async function main() {
     gpuBanner(gpuSkipped());
     console.log(`REAL FAILURE: ${real.length} test(s) failed and failed again alone:`);
     for (const n of real) console.log(`  ${n}`);
-    process.exit(first.code || 1);
+    process.exit(firstCode || 1);
   }
   const skipped = gpuSkipped();
   gpuBanner(skipped);
-  recordPass(resultLine(first, `; ${flaky.length} flaky, passed alone`), first.secs, flaky, skipped);
+  recordPass(resultLine(runs, `; ${flaky.length} flaky, passed alone`), secs, flaky.map((f) => f.name), skipped);
   process.exit(0);
 }
 

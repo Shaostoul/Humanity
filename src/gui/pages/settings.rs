@@ -406,7 +406,7 @@ pub(crate) fn identity_on_device(state: &GuiState) -> IdentityOnDevice {
 /// without asking again. While the protected setup is on, its PIN comes first, as it does for an
 /// unlocked identity, so the order is the same either way: PIN, then passphrase.
 fn draw_locked_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::i18n::t;
+    use humanity_core::i18n::t;
     ui.label(RichText::new(t("settings.identity_locked")).color(theme.text_muted()).size(theme.font_size_small));
     ui.add_space(theme.spacing_xs);
     if let Some(lock) = crate::gui::pages::safety_protected::phrase_lock(state) {
@@ -527,7 +527,7 @@ mod erase_memory_note_tests {
 }
 
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::i18n::t;
+    use humanity_core::i18n::t;
     let accent = section_accent(SettingsCategory::Account, theme);
 
     // ── Your data: export + erase (sovereignty, 2026-08-23) ──
@@ -1043,7 +1043,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         } else if state.private_key_bytes.is_some() {
             // In memory and never encrypted, so never saved (from_gui_state writes no plain key,
             // and the keychain is read at launch only beside an encrypted one): say so plainly.
-            ui.label(RichText::new(crate::i18n::t("settings.key_not_kept"))
+            ui.label(RichText::new(humanity_core::i18n::t("settings.key_not_kept"))
                 .color(theme.warning()).size(theme.font_size_small));
             ui.add_space(theme.spacing_sm);
             if widgets::primary_button(ui, theme, "Set Passphrase") {
@@ -1069,7 +1069,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.add_space(theme.spacing_sm);
 
         let current = state.auto_unlock_mode;
-        use crate::auto_unlock::AutoUnlockMode;
+        use humanity_core::auto_unlock::AutoUnlockMode;
 
         // Mode 1: Always prompt
         let mut sel_always = current == AutoUnlockMode::AlwaysPrompt;
@@ -1079,8 +1079,8 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             // thinks they revoked.
             let identity = state.profile_public_key.clone();
             if !identity.is_empty() {
-                let _ = crate::auto_unlock::keychain_clear(crate::auto_unlock::KeychainSlot::Seed, &identity);
-                let _ = crate::auto_unlock::keychain_clear(crate::auto_unlock::KeychainSlot::DeviceKey, &identity);
+                let _ = humanity_core::auto_unlock::keychain_clear(humanity_core::auto_unlock::KeychainSlot::Seed, &identity);
+                let _ = humanity_core::auto_unlock::keychain_clear(humanity_core::auto_unlock::KeychainSlot::DeviceKey, &identity);
             }
             state.pin_encrypted_seed.clear();
             state.pin_salt.clear();
@@ -1104,16 +1104,16 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 if kb.len() == 32 && !state.profile_public_key.is_empty() {
                     let mut seed = [0u8; 32];
                     seed.copy_from_slice(kb);
-                    match crate::auto_unlock::keychain_stash(
-                        crate::auto_unlock::KeychainSlot::Seed,
+                    match humanity_core::auto_unlock::keychain_stash(
+                        humanity_core::auto_unlock::KeychainSlot::Seed,
                         &state.profile_public_key,
                         &seed,
                     ) {
                         Ok(()) => {
                             // Clear KeychainPin remnants if user switched
                             // from KeychainPin → Keychain
-                            let _ = crate::auto_unlock::keychain_clear(
-                                crate::auto_unlock::KeychainSlot::DeviceKey,
+                            let _ = humanity_core::auto_unlock::keychain_clear(
+                                humanity_core::auto_unlock::KeychainSlot::DeviceKey,
                                 &state.profile_public_key,
                             );
                             state.pin_encrypted_seed.clear();
@@ -1342,7 +1342,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     // Words by key and a hint on every control (the ELI5 mandate, 2026-10-22):
     // each control's hover hint is its own description line, so one plain
     // sentence explains it inline (Full), behind the (?) (Hover), and on hover.
-    use crate::i18n::t;
+    use humanity_core::i18n::t;
     use crate::gui::widgets::{with_hint, Hint};
     widgets::subsection_header(ui, theme, accent, t("settings.basics"), "");
     widgets::card(ui, theme, |ui| {
@@ -1978,7 +1978,7 @@ fn u8_radio_picker(
 /// whole). Returns true when the choice changed. A new translation file appears
 /// here with no code change.
 fn language_picker(ui: &mut egui::Ui, theme: &Theme, value: &mut String) -> bool {
-    use crate::i18n;
+    use humanity_core::i18n;
     use crate::gui::widgets::Hint;
     let label_for = |code: &str, name: &str| -> String {
         if code == "en" {
@@ -2024,7 +2024,7 @@ fn hint_display_picker(
     theme: &Theme,
     value: &mut crate::gui::HintDisplay,
 ) -> bool {
-    use crate::i18n::t;
+    use humanity_core::i18n::t;
     use crate::gui::HintDisplay;
     let mut changed = false;
     widgets::settings_row(ui, theme, t("settings.hints"), |ui| {
@@ -3119,7 +3119,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 names.join(", ")
             )).color(theme.warning()).size(theme.font_size_small));
         }
-        let tree_label = crate::lod_registry::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
+        let tree_label = humanity_core::lod_registry::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
         if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=400.0, crate::config::TREE_MODEL_MAX_M, 2.0) {
             state.settings_dirty = true;
         }
@@ -3239,7 +3239,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "How finely the water surface is meshed near you: 17 = ~5 m wave vertices, 20 = ~0.6 m (every ripple is real geometry). Only the closest water refines, so the open ocean costs the same at any setting.");
-        for cat in crate::lod_registry::categories() {
+        for cat in humanity_core::lod_registry::categories() {
             if cat.id == "tree" || cat.id == "water" {
                 continue; // live sliders above own these
             }
@@ -3861,7 +3861,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
-        let interact = crate::input::bindings::pretty_key_name(state.keybinds.pair(crate::input::bindings::GameAction::Interact).0);
+        let interact = humanity_core::input::bindings::pretty_key_name(state.keybinds.pair(humanity_core::input::bindings::GameAction::Interact).0);
         widgets::setting_hint(ui, theme, hint, &death_hint(&state.death_pack.rules, &interact));
         // Mining drone (first-hour audit S5, 2026-10-12, systems::mining; the dual-mode house
         // rule): what its battery and its wear ask of the home. The hint's numbers are read
@@ -4040,7 +4040,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 }
 
 pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::input::bindings as kb;
+    use humanity_core::input::bindings as kb;
     let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Range max 1.0 keeps the slider in the usable band AND selects the widget's
@@ -4675,20 +4675,20 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         // saves, identity, or modding data.
         ui.label(RichText::new("Storage").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        let (mode_name, mode_note) = match crate::storage::mode() {
-            crate::storage::StorageMode::Portable => (
+        let (mode_name, mode_note) = match humanity_core::storage::mode() {
+            humanity_core::storage::StorageMode::Portable => (
                 "Portable",
                 "Everything lives beside the app (USB-drive friendly). Delete portable.txt next to the exe and restart to switch to per-user storage.",
             ),
-            crate::storage::StorageMode::Installed => (
+            humanity_core::storage::StorageMode::Installed => (
                 "Per-user",
                 "Your files live in your user folder, so they survive app updates and moves.",
             ),
-            crate::storage::StorageMode::LegacyBesideExe => (
+            humanity_core::storage::StorageMode::LegacyBesideExe => (
                 "Beside the app (legacy)",
                 "A data folder sits next to the exe from an earlier setup; files stay there so nothing moves out from under you.",
             ),
-            crate::storage::StorageMode::Undecided => (
+            humanity_core::storage::StorageMode::Undecided => (
                 "Not chosen yet",
                 "The first-boot storage chooser runs before any files are written.",
             ),
@@ -4700,7 +4700,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
                 .color(theme.text_muted()),
         );
         ui.add_space(theme.spacing_sm);
-        if let Some(p) = crate::storage::writable_data_dir() {
+        if let Some(p) = humanity_core::storage::writable_data_dir() {
             storage_path_row(ui, theme, "Game data (modding)", &p);
         }
         storage_path_row(ui, theme, "Saves", &crate::persistence::saves_dir());
@@ -4718,17 +4718,17 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         // session state. The flag is session-memory; a restart clears it.
         let migrated_id = egui::Id::new("storage_migrated_this_session");
         let migrated = ui.data_mut(|d| d.get_temp::<bool>(migrated_id).unwrap_or(false));
-        let target: Option<(&str, &str)> = match crate::storage::mode() {
-            crate::storage::StorageMode::Installed
-            | crate::storage::StorageMode::LegacyBesideExe => Some((
+        let target: Option<(&str, &str)> = match humanity_core::storage::mode() {
+            humanity_core::storage::StorageMode::Installed
+            | humanity_core::storage::StorageMode::LegacyBesideExe => Some((
                 "Switch to portable storage",
                 "Copies your files (identity, saves, game data, logs) next to the app so the folder travels between machines. Your current files stay where they are as a backup.",
             )),
-            crate::storage::StorageMode::Portable => Some((
+            humanity_core::storage::StorageMode::Portable => Some((
                 "Switch to per-user storage",
                 "Copies your files into your user folder so they survive app moves. The app-side copies stay as a backup.",
             )),
-            crate::storage::StorageMode::Undecided => None,
+            humanity_core::storage::StorageMode::Undecided => None,
         };
         if migrated {
             ui.add_space(theme.spacing_sm);
@@ -4746,11 +4746,11 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
                 );
                 ui.horizontal(|ui| {
                     if widgets::primary_button(ui, theme, "Yes, move my files") {
-                        let result = match crate::storage::mode() {
-                            crate::storage::StorageMode::Portable => {
-                                crate::storage::migrate_to_per_user()
+                        let result = match humanity_core::storage::mode() {
+                            humanity_core::storage::StorageMode::Portable => {
+                                humanity_core::storage::migrate_to_per_user()
                             }
-                            _ => crate::storage::migrate_to_portable(),
+                            _ => humanity_core::storage::migrate_to_portable(),
                         };
                         let line = match result {
                             Ok(msg) => {
@@ -4963,7 +4963,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     // Read the restart target from restart_target.txt (written
                     // before the binary swap) to get the correct exe path.
                     let target = crate::updater::read_restart_target(&state.updater.exe_path);
-                    crate::debug::push_debug(format!("Updater: restart target = {}", target.display()));
+                    humanity_core::debug::push_debug(format!("Updater: restart target = {}", target.display()));
                     log::info!("Restarting from: {}", target.display());
 
                     #[cfg(target_os = "windows")]
@@ -4973,7 +4973,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         // where the old process hasn't fully released the exe.
                         match crate::updater::create_restart_script(&target, state.updater.relaunch_behind) {
                             Ok(bat) => {
-                                crate::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
+                                humanity_core::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
                                 use std::os::windows::process::CommandExt;
                                 let _ = std::process::Command::new("cmd")
                                     .args(["/C", &bat.to_string_lossy()])
@@ -4982,7 +4982,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                             }
                             Err(e) => {
                                 // Fallback: try direct spawn if batch script fails
-                                crate::debug::push_debug(format!("Updater: batch script failed ({}), trying direct spawn", e));
+                                humanity_core::debug::push_debug(format!("Updater: batch script failed ({}), trying direct spawn", e));
                                 log::warn!("Updater: batch script failed: {}", e);
                                 let _ = std::process::Command::new(&target).spawn();
                             }

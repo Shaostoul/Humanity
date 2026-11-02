@@ -13,8 +13,8 @@
 // and kept only for a key with the shape people's keys have (3,904 hex characters).
 
 use super::*;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
-use crate::relay::core::profile_copy::{is_withdrawal, next_copy_time, public_copy, sign_copy, verify_copy, withdrawal, PublicCopy};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::profile_copy::{is_withdrawal, next_copy_time, public_copy, sign_copy, verify_copy, withdrawal, PublicCopy};
 use crate::relay::relay::{FederatedConnection, Peer, RelayState};
 use crate::relay::storage::{now_millis, Storage};
 use serde_json::{json, Value};

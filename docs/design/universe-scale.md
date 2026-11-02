@@ -7,7 +7,7 @@ pieces ship incrementally.
 ## The goals
 
 - **Real scale + real distances.** Earth's real radius, the Sun's real size + distance, real
-  inter-star distances. The `src/cosmos` module already computes true Keplerian positions and
+  inter-star distances. The `crates/humanity-core/src/cosmos` module already computes true Keplerian positions and
   real distances; the gap is RENDERING across that enormous dynamic range, not the data.
 - **Planet generator for ANY size, without killing computers.** A planet generator (the
   icosphere planet in `src/terrain/planet.rs` already does distance LOD) that scales from a

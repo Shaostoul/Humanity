@@ -133,7 +133,7 @@ impl BloomPass {
         // Load bloom shader
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Bloom Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/bloom.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/bloom.wgsl")).into()),
         });
 
         let threshold_pipeline = create_fullscreen_pipeline(

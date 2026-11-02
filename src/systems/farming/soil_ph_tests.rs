@@ -11,9 +11,9 @@ use std::sync::Mutex;
 use super::gardening_tests::make_store;
 use super::soil_ph::{self, SoilPhData, NITRIFICATION};
 use super::*;
-use crate::ecs::components::{Controllable, CropInstance, CropSoil, Irrigator, Npk, SoilMemory, UnitPh};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, CropInstance, CropSoil, Irrigator, Npk, SoilMemory, UnitPh};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
 /// Game seconds in a garden day (farming's SECONDS_PER_DAY, 24 hours).
@@ -482,7 +482,7 @@ fn reactions_are_exact_however_the_time_is_sliced() {
 #[test]
 fn the_shipped_ph_data_names_real_items_and_matches_its_table() {
     let ph = shipped();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let items = ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap();
     let plants = PlantRegistry::from_csv(&std::fs::read(root.join("data/plants.csv")).unwrap()).unwrap();
     let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("data/recipes.csv")).unwrap())
@@ -534,7 +534,7 @@ fn the_shipped_ph_data_names_real_items_and_matches_its_table() {
 #[test]
 fn every_shipped_grow_area_lands_in_its_medium() {
     let ph = shipped();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let expected = |machine: &str| -> Option<&'static str> {
         if machine.starts_with("aeroponic_tower") {
             Some("aeroponic")
@@ -607,7 +607,7 @@ fn a_placed_plot_buffers_over_its_real_floor_area() {
 #[test]
 fn a_hand_planted_crop_is_not_held_to_soil_ph() {
     let ph = shipped();
-    let plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")).as_slice()).unwrap();
+    let plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv")).as_slice()).unwrap();
     let blueberry = plants.get("blueberry").cloned();
     let units = soil_ph::PhUnits::default();
     assert_eq!(soil_ph::crop_ph(&units, &ph, "", None), None, "no unit, no pH");

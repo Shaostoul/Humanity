@@ -755,7 +755,7 @@ mod tests {
         theme.apply_to_egui(&ctx);
         // No opening animation: headless frames carry no time, so a header would stay half open.
         ctx.style_mut(|s| s.animation_time = 0.0);
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut state = GuiState::default();
         state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
 
@@ -808,7 +808,7 @@ mod tests {
         crate::gui::fonts::install_font_fallbacks(&ctx);
         let theme = crate::gui::theme::load_theme();
         theme.apply_to_egui(&ctx);
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut state = GuiState::default();
         state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
         let ship = state.ship_structure.as_ref().unwrap();
@@ -841,7 +841,7 @@ mod tests {
     /// Dev mode was let edit the ship's machines".
     #[test]
     fn the_ships_machines_are_read_only_in_a_shared_world_even_in_dev() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut state = GuiState::default();
         state.settings.play_mode = crate::config::PlayMode::Dev;
         state.home_machines = crate::systems::grow_machines::load_home(&data.join("machines").join("home.ron"));

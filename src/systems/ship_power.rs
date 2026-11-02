@@ -31,10 +31,10 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// The shipped data file, so a fresh install has the reactor.
-pub const SHIP_POWER_RON: &str = include_str!("../../data/ship_power.ron");
+pub const SHIP_POWER_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship_power.ron"));
 /// DataStore key of the reactor data (`ShipPowerData`).
 pub const DATA_KEY: &str = "ship_power";
 /// DataStore key of the ledger, `Mutex<ShipSupplyLedger>`.
@@ -72,7 +72,7 @@ impl ShipPowerData {
 
     /// The data directory's copy, or the shipped one.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("ship_power.ron");
+        let path = humanity_core::storage::data_dir().join("ship_power.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -83,7 +83,7 @@ impl ShipPowerData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("ship_power.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("ship_power.ron", why);
         Self::parse(SHIP_POWER_RON).expect("the shipped data/ship_power.ron parses")
     }
 }
@@ -189,9 +189,9 @@ pub fn spawn_feed_taps(world: &mut hecs::World, home: &str, islands: impl IntoIt
     seen.dedup();
     for island in seen {
         world.spawn((
-            crate::ecs::components::HomeMachine,
+            humanity_core::ecs::components::HomeMachine,
             ShipFeed { home: home.to_string() },
-            crate::ecs::components::PowerCircuit { island },
+            humanity_core::ecs::components::PowerCircuit { island },
         ));
     }
 }
@@ -199,7 +199,7 @@ pub fn spawn_feed_taps(world: &mut hecs::World, home: &str, islands: impl IntoIt
 /// The feed taps in the world, by island (None = entities with no circuit).
 pub fn taps(world: &hecs::World) -> HashMap<Option<u32>, String> {
     world
-        .query::<(&ShipFeed, Option<&crate::ecs::components::PowerCircuit>)>()
+        .query::<(&ShipFeed, Option<&humanity_core::ecs::components::PowerCircuit>)>()
         .iter()
         .map(|(_, (f, pc))| (pc.map(|p| p.island), f.home.clone()))
         .collect()

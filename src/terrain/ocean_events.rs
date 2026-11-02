@@ -964,7 +964,7 @@ mod tests {
     /// forgets this file fails the build immediately.
     #[test]
     fn wgsl_twin_pins_the_adopted_constants() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/shaders/pbr/00-bindings-vertex.wgsl");
+        let path = concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/00-bindings-vertex.wgsl");
         let src = std::fs::read_to_string(path).expect("read 00-bindings-vertex.wgsl");
         let start = src.find("fn ocean_event_p2").expect("ocean_event block missing from WGSL");
         let end = src.find("fn water_disp_height").expect("water_disp_height anchor");

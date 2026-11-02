@@ -59,14 +59,14 @@ impl Look {
     /// The menu's shape and words. It changes only when the mute does (or the language), so the
     /// engine rebuilds it only then.
     pub fn menu(&self, file: &File) -> Vec<MenuLine> {
-        let t = crate::i18n::t;
+        let t = humanity_core::i18n::t;
         let item = |id: &str, text: &str, enabled: bool| MenuLine::Item { id: id.to_string(), text: text.to_string(), enabled };
         let mute = match self.muted {
             Some(until) => vec![item(MUTED_LINE, &muted_line(until), false), item(UNMUTE, t("notifications.unmute"), true)],
             None => file
                 .mute_for
                 .iter()
-                .map(|m| item(&format!("{MUTE_PREFIX}{}", m.id), crate::i18n::t_dyn(&m.label), true))
+                .map(|m| item(&format!("{MUTE_PREFIX}{}", m.id), humanity_core::i18n::t_dyn(&m.label), true))
                 .collect(),
         };
         vec![
@@ -86,7 +86,7 @@ impl Look {
 
 /// "Muted until 14:00", or "Muted until you unmute it".
 pub fn muted_line(until: i64) -> String {
-    crate::i18n::tf("notifications.tray_muted", &[("until", &crate::gui::pages::settings::notifications::until_words(until))])
+    humanity_core::i18n::tf("notifications.tray_muted", &[("until", &crate::gui::pages::settings::notifications::until_words(until))])
 }
 
 /// One line of the tray's menu.

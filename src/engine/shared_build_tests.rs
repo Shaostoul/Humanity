@@ -8,11 +8,11 @@ use glam::Quat;
 use std::sync::Mutex;
 
 fn data_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 fn registry() -> BlueprintRegistry {
-    BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap()
+    BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap()
 }
 
 /// The shipped ship with the home on `plot`.
@@ -65,12 +65,12 @@ impl Game {
     fn at(plot: &str) -> Game {
         let mut data = DataStore::new();
         data.insert("blueprint_registry", registry());
-        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap());
+        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap());
         data.insert("inventory_transfer_ops", Mutex::new(Vec::<TransferOp>::new()));
         data.insert(shared::OUT_CHANNEL, OutQueue::default());
         data.insert("build_request", Mutex::new(Vec::<BuildRequest>::new()));
         let mut world = hecs::World::new();
-        world.spawn((Inventory::new(16), crate::ecs::components::Controllable));
+        world.spawn((Inventory::new(16), humanity_core::ecs::components::Controllable));
         let mut gui = GuiState::default();
         gui.ship_structure = Some(ship(plot));
         gui.copresence_active = true;
@@ -505,7 +505,7 @@ fn my_piece_is_confirmed_by_its_req_id_and_by_a_snapshot() {
 /// (20, 0), right: (20, 8)".
 #[test]
 fn our_take_down_gives_the_materials_back_once_and_what_the_pack_cannot_hold_lands_in_storage() {
-    use crate::ecs::systems::System;
+    use humanity_core::ecs::systems::System;
     use crate::systems::inventory::InventorySystem;
     let mut g = Game::at("p1");
     g.data.insert("inventory_transfer_returns", Mutex::new(Vec::<(String, u32)>::new()));
@@ -1179,7 +1179,7 @@ fn what_waits_for_another_server_holds_nothing_up_here() {
 use crate::engine::household::{self as household_glue, PlotPermit};
 use crate::engine::household_world::{open_for, set_open};
 use crate::net::household::{HeldPermit, Household, Judged, PermitKey, Verdict};
-use crate::build_permission::Permit;
+use humanity_core::build_permission::Permit;
 
 const DAY: u64 = 86_400;
 

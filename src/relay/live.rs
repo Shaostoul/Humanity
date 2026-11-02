@@ -485,8 +485,8 @@ mod tests {
         let db = crate::relay::storage::Storage::open_temp("live");
 
         let seed = [7u8; 32];
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
         db.register_name("streamer", &pubkey).expect("register name");
 
@@ -610,8 +610,8 @@ mod tests {
         let db = crate::relay::storage::Storage::open_temp("live_end");
 
         let seed = [11u8; 32];
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
         db.register_name("streamer", &pubkey).expect("register name");
 
@@ -714,8 +714,8 @@ mod tests {
 
         // A valid signature from a key nobody has registered a name for.
         let seed = [9u8; 32];
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -751,8 +751,8 @@ mod tests {
         let db = crate::relay::storage::Storage::open_temp("live_forge");
 
         let seed = [7u8; 32];
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
         // The name IS registered -- only the signature is wrong.
         db.register_name("streamer", &pubkey).expect("register name");

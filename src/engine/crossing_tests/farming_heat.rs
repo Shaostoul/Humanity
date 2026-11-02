@@ -3,9 +3,9 @@
 //! (`save_load`). Helpers they share with the tests that stayed are that file's.
 
 use std::sync::Mutex;
-use crate::ecs::components::PowerConsumer;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::PowerConsumer;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
 use crate::systems::farming::heat_tests::*;
 use crate::systems::farming::humidity::{self, AirMap, GrowRoom};
@@ -47,7 +47,7 @@ use crate::systems::farming::*;
 fn the_time_away_charges_each_machine_the_day_it_drew() {
     use crate::machines::MachineInstance;
     use crate::machines::day_energy;
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let tent = crate::systems::grow_machines::load_grow_media(&root.join("data"))
         .into_iter()
         .find_map(|m| m.enclosure)
@@ -80,8 +80,8 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
     }
     // A supply on their island (0, the spawn's with no wiring) that carries both.
     world.spawn((
-        crate::ecs::components::PowerGenerator { output_watts: 10_000.0, fuel_per_second: 0.0, active: true },
-        crate::ecs::components::PowerCircuit { island: 0 },
+        humanity_core::ecs::components::PowerGenerator { output_watts: 10_000.0, fuel_per_second: 0.0, active: true },
+        humanity_core::ecs::components::PowerCircuit { island: 0 },
     ));
     let mut sys = FarmingSystem::new();
     let mut power = crate::systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
@@ -152,7 +152,7 @@ fn the_time_away_charges_each_machine_the_day_it_drew() {
 #[cfg(feature = "native")]
 #[test]
 fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     // The quest's step.
     let quests: Vec<crate::systems::quests::QuestDef> =
         ron::from_str(&std::fs::read_to_string(root.join("data/quests/farming.ron")).unwrap()).expect("farming.ron parses");
@@ -211,14 +211,14 @@ fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {
 
 /// The shipped catalog `file`'s machine `id`.
 fn shipped(file: &str, id: &str) -> crate::machines::MachineDef {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let home = crate::systems::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
     home.catalog.get(id).unwrap_or_else(|| panic!("{file} catalogs `{id}`")).clone()
 }
 
 /// The shipped container registry, which gives the stove its box.
 fn shipped_containers() -> crate::systems::inventory::containers::ContainerRegistry {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let read = |rel: &str| std::fs::read(root.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
     crate::systems::inventory::containers::ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
         .expect("container types")
@@ -251,7 +251,7 @@ fn spawn_def(world: &mut hecs::World, def: &crate::machines::MachineDef, machine
     let reg = shipped_containers();
     crate::engine::home_spawn::spawn_home_machine_entity(world, &inst, def, &empty, &empty, None, Some(&reg));
     world
-        .query::<&crate::ecs::components::MachineInstanceId>()
+        .query::<&humanity_core::ecs::components::MachineInstanceId>()
         .iter()
         .find(|(_, m)| m.0 == id)
         .map(|(e, _)| e)
@@ -273,7 +273,7 @@ fn load_logs(world: &mut hecs::World, data: &DataStore, stove: hecs::Entity, n: 
 /// one at the front.
 fn wood_kg(world: &hecs::World, stove: hecs::Entity) -> f64 {
     let c = world.get::<&crate::systems::inventory::containers::Container>(stove).unwrap();
-    let s = world.get::<&crate::ecs::components::FuelStove>(stove).unwrap();
+    let s = world.get::<&humanity_core::ecs::components::FuelStove>(stove).unwrap();
     let log = if c.current_content_item.as_deref() == Some("wood_log_0") { 8.0 } else { 0.0 };
     f64::from(c.current_qty) * log - s.burned_kg
 }
@@ -358,7 +358,7 @@ fn a_heat_pump_delivers_its_cop_times_its_draw_and_is_charged_only_its_draw() {
     let saved = crate::machines::day_energy::snapshot(&rec);
     let pump_day = saved.day_of("heat_pump_t", "heat_pump").map(|d| d.average_w());
     assert!(pump_day.is_some_and(|w| (w - 620.0).abs() < 1e-6), "its day is its draw: {pump_day:?}");
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let without = crate::systems::crafting::away::day_power_balance(&home, &Default::default());
     home.instances.push(crate::machines::MachineInstance {
@@ -476,8 +476,8 @@ fn a_wood_stove_burns_the_same_wood_at_30_and_240_frames_a_second() {
 /// kind of combustion air, after the same hour (`burn_a_log_in_a_sealed_home`).
 #[cfg(feature = "native")]
 struct SealedHomes {
-    plain: crate::ecs::components::HomeAirState,
-    stoved: crate::ecs::components::HomeAirState,
+    plain: humanity_core::ecs::components::HomeAirState,
+    stoved: humanity_core::ecs::components::HomeAirState,
     /// The wood the stove burned, kg.
     burned: f64,
     /// The Garden panel's home lines, joined by " / ".
@@ -493,7 +493,7 @@ struct SealedHomes {
 /// ticks, six game minutes each). The stove burns flat out: the home loses
 /// 3,447 W a degree, so 13,040 W never brings it to 24 C.
 #[cfg(feature = "native")]
-fn burn_a_log_in_a_sealed_home(air: crate::ecs::components::CombustionAir) -> SealedHomes {
+fn burn_a_log_in_a_sealed_home(air: humanity_core::ecs::components::CombustionAir) -> SealedHomes {
     use crate::systems::life_support::{LifeSupportData, DATA_KEY, LIFE_SUPPORT_RON};
     use crate::systems::ship_power::{ShipSupplyLedger, LEDGER_KEY, OXYGEN, PLAYER_HOME};
     let mut def = shipped("home.ron", "wood_stove");
@@ -549,7 +549,7 @@ fn stove_rates() -> (f64, f64) {
 #[cfg(feature = "native")]
 #[test]
 fn the_shipped_stove_takes_none_of_the_homes_oxygen_its_air_comes_from_outside() {
-    use crate::ecs::components::CombustionAir;
+    use humanity_core::ecs::components::CombustionAir;
     let def = shipped("home.ron", "wood_stove");
     assert_eq!(def.burns_fuel.as_ref().map(|b| b.combustion_air), Some(CombustionAir::Outside), "home.ron's stove has its kit");
     let solo = shipped("home_solo.ron", "wood_stove");
@@ -603,7 +603,7 @@ fn the_shipped_stove_takes_none_of_the_homes_oxygen_its_air_comes_from_outside()
 #[cfg(feature = "native")]
 #[test]
 fn a_stove_with_no_kit_still_burns_the_homes_oxygen_at_the_rate_it_always_did() {
-    let h = burn_a_log_in_a_sealed_home(crate::ecs::components::CombustionAir::Room);
+    let h = burn_a_log_in_a_sealed_home(humanity_core::ecs::components::CombustionAir::Room);
     let (rate, o2_per_kg) = stove_rates();
     assert!((h.burned - rate).abs() < 1e-9, "flat out, an hour burned {} kg", h.burned);
     let lost = h.plain.o2_g_m3 - h.stoved.o2_g_m3;
@@ -645,7 +645,7 @@ fn a_stove_with_no_kit_still_burns_the_homes_oxygen_at_the_rate_it_always_did() 
 #[cfg(feature = "native")]
 #[test]
 fn the_garden_panel_says_where_a_stoves_air_comes_from() {
-    use crate::ecs::components::CombustionAir;
+    use humanity_core::ecs::components::CombustionAir;
     let outside = burn_a_log_in_a_sealed_home(CombustionAir::Outside);
     assert!(
         outside.panel.contains("Home air: stove flat out, 13,040 W of heat from 4.1 kg of wood an hour and its air from outside through its kit, the air at"),

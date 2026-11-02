@@ -339,7 +339,7 @@ fn a_private_picture_over_16_mb_is_a_card_with_save() {
 fn save_writes_through_part_files_the_exit_deletes() {
     let body = b"long ride notes ".repeat(64);
     let (att, ct) = sealed(&body, "/uploads/p.enc", "notes.txt", "text/plain");
-    let dir = crate::test_temp::dir("attach_save_parts");
+    let dir = humanity_core::test_temp::dir("attach_save_parts");
     let (k, n) = (att.k.clone(), att.n.clone());
     let saved = save_file("u", &k, &n, "notes.txt", &dir, None, |_, _, f| {
         let entries: Vec<std::path::PathBuf> = std::fs::read_dir(&*dir).unwrap().flatten().map(|e| e.path()).collect();

@@ -7,12 +7,12 @@ use crate::engine::home_plot::{add_join_fields, join_step, JoinGate, JoinStep};
 use crate::ship::starts::{HeldHome, HomeAnswer};
 
 fn data_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The DataStore a load reads, as the save half's tests build it.
-fn data_store() -> crate::hot_reload::data_store::DataStore {
-    let mut data = crate::hot_reload::data_store::DataStore::new();
+fn data_store() -> humanity_core::hot_reload::data_store::DataStore {
+    let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
     crate::systems::crafting::register(&mut data);
     crate::systems::livestock::register(&mut data);
@@ -38,7 +38,7 @@ fn plot_of(ship: &ShipStructure) -> Option<String> {
 #[test]
 fn a_server_home_is_the_shipped_design_never_the_disk_file() {
     let repo = data_dir();
-    let dir = crate::test_temp::path("server_home_shipped_design");
+    let dir = humanity_core::test_temp::path("server_home_shipped_design");
     let ship_file = dir.join("blueprints").join("ship_structure.ron");
     std::fs::create_dir_all(ship_file.parent().unwrap()).unwrap();
     std::fs::copy(repo.join("blueprints").join("ship_structure.ron"), &ship_file).unwrap();
@@ -114,7 +114,7 @@ fn a_cabin_save_builds_a_cabin_on_its_plot_and_a_homestead_save_a_homestead() {
 fn switching_servers_swaps_saves_before_the_join() {
     let data_dir = data_dir();
     let starts = Starts::load(&data_dir);
-    let saves = crate::test_temp::dir("switching_servers");
+    let saves = humanity_core::test_temp::dir("switching_servers");
     let mut data = data_store();
     let mut gui = GuiState::default();
     gui.profile_public_key = "AB".repeat(32);
@@ -173,7 +173,7 @@ fn switching_servers_swaps_saves_before_the_join() {
 fn the_look_crosses_at_every_entry() {
     let data_dir = data_dir();
     let starts = Starts::load(&data_dir);
-    let saves = crate::test_temp::dir("look_crosses");
+    let saves = humanity_core::test_temp::dir("look_crosses");
     let slot = server("https://a.example");
     // An earlier visit: the server's save with the look the character had then, and its own water.
     let mut then = Look { name: "Old".into(), ..Default::default() };
@@ -182,20 +182,20 @@ fn the_look_crosses_at_every_entry() {
     // Now, at home: a new name, a new height and a jacket.
     let mut world = hecs::World::new();
     let player = crate::save_load::spawn_fresh_player(&mut world, &data_dir, "homestead");
-    world.get::<&mut crate::ecs::components::Name>(player).unwrap().0 = "Ann".into();
-    world.get::<&mut crate::ecs::components::Appearance>(player).unwrap().height_scale = 1.2;
-    world.get::<&mut crate::ecs::components::Outfit>(player).unwrap().equipped.insert("chest".into(), "work_jacket".into());
+    world.get::<&mut humanity_core::ecs::components::Name>(player).unwrap().0 = "Ann".into();
+    world.get::<&mut humanity_core::ecs::components::Appearance>(player).unwrap().height_scale = 1.2;
+    world.get::<&mut humanity_core::ecs::components::Outfit>(player).unwrap().equipped.insert("chest".into(), "work_jacket".into());
     let now = Look::of_world(&world);
     let mut data = data_store();
     let mut gui = GuiState::default();
     let taken = take_up_before_home(&mut world, &mut data, &mut gui, &saves, &data_dir, &starts, &slot, None, None, &now).unwrap();
     assert!(!taken.fresh, "the earlier visit's save");
     take_up_after_home(&mut world, &data, &mut gui, &taken, &now);
-    let name = world.get::<&crate::ecs::components::Name>(player).unwrap().0.clone();
-    let height = world.get::<&crate::ecs::components::Appearance>(player).unwrap().height_scale;
+    let name = world.get::<&humanity_core::ecs::components::Name>(player).unwrap().0.clone();
+    let height = world.get::<&humanity_core::ecs::components::Appearance>(player).unwrap().height_scale;
     assert_eq!((name.as_str(), height), ("Ann", 1.2), "the server's save brought back its old look: {name:?} at height {height}");
     assert_eq!(
-        world.get::<&crate::ecs::components::Outfit>(player).unwrap().equipped.get("chest").map(String::as_str),
+        world.get::<&humanity_core::ecs::components::Outfit>(player).unwrap().equipped.get("chest").map(String::as_str),
         Some("work_jacket")
     );
     assert_eq!((gui.character_name.as_str(), gui.appearance.height_scale), ("Ann", 1.2), "the editing copies wear it too");
@@ -263,7 +263,7 @@ fn a_home_chosen_as_a_guest_joins_again_to_take_it() {
 #[test]
 fn a_cabin_chosen_from_home_is_the_servers_fresh_save_on_its_plot() {
     let data_dir = data_dir();
-    let saves = crate::test_temp::dir("chosen_from_home");
+    let saves = humanity_core::test_temp::dir("chosen_from_home");
     let slot = server("https://a.example");
     let file = ShipStructure::load_ship_file(&data_dir).unwrap();
     let choice = Choice { start: "cabin".into(), household: "solo".into(), place: place_on(Some(&file), "c2") };

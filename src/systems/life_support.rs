@@ -55,11 +55,11 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::farming::humidity::HumidityData;
 
 /// The shipped copy, so a bare exe with no data folder still has the model.
-pub const LIFE_SUPPORT_RON: &str = include_str!("../../data/life_support.ron");
+pub const LIFE_SUPPORT_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/life_support.ron"));
 
 /// DataStore key of the loaded `LifeSupportData` (lib.rs registers it).
 pub const DATA_KEY: &str = "life_support";
@@ -166,7 +166,7 @@ impl LifeSupportData {
     /// that is missing or does not parse. The shipped copy always parses: a
     /// test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("life_support.ron");
+        let path = humanity_core::storage::data_dir().join("life_support.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -177,7 +177,7 @@ impl LifeSupportData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("life_support.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("life_support.ron", why);
         Self::parse(LIFE_SUPPORT_RON).expect("the shipped data/life_support.ron parses")
     }
 
@@ -549,7 +549,7 @@ pub fn step_home(
     world: &mut hecs::World,
     hd: &HumidityData,
     ld: &LifeSupportData,
-    state: &mut crate::ecs::components::HomeAirState,
+    state: &mut humanity_core::ecs::components::HomeAirState,
     inp: &HomeInputs,
     handlers: &[Unit],
     scrubbers: &[Unit],
@@ -605,7 +605,7 @@ pub fn step_home(
     // Station-supplied one the ship's reactor feeds the island, metered, so
     // the draw is real and nothing is shed (systems::ship_power).
     for u in handlers {
-        if let Ok(mut pc) = world.get::<&mut crate::ecs::components::PowerConsumer>(u.entity) {
+        if let Ok(mut pc) = world.get::<&mut humanity_core::ecs::components::PowerConsumer>(u.entity) {
             let share = if u.powered { share_v } else { share_v_req };
             pc.draw_watts = (u.watts * ld.fan_power_share(share)) as f32;
         }
@@ -633,7 +633,7 @@ pub fn step_home(
     // its setpoint a shed scrubber asks for its full 860 W, and as a
     // priority-1 load it is fed before the optional ones.
     for u in scrubbers {
-        if let Ok(mut pc) = world.get::<&mut crate::ecs::components::PowerConsumer>(u.entity) {
+        if let Ok(mut pc) = world.get::<&mut humanity_core::ecs::components::PowerConsumer>(u.entity) {
             let share = if u.powered { share_c } else { share_c_req };
             pc.draw_watts = (u.watts * share) as f32;
         }
@@ -731,7 +731,7 @@ mod tests {
         assert_eq!(e("basil"), d.default_exchange());
         let m = d.default_exchange();
         assert!(m.co2_g_per_l > 9.0 && m.co2_g_per_l < 14.0 && m.kept_l_per_l > 0.04 && m.kept_l_per_l < 0.08, "{m:?}");
-        let csv = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv")).unwrap();
+        let csv = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("plants.csv")).unwrap();
         let ids: Vec<&str> = csv.lines().filter(|l| !l.starts_with('#')).skip(1).filter_map(|l| l.split(',').next()).collect();
         for row in &d.crops {
             for p in &row.plants {

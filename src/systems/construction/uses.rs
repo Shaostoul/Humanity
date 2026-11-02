@@ -39,7 +39,7 @@ use super::{doorway, BlueprintRegistry, Construction, DoorOpen, Structure};
 #[cfg(test)]
 use super::placement;
 use crate::ship::sight::ReachBlockers;
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use glam::Vec3;
 
 /// What using a finished structure does.
@@ -413,7 +413,7 @@ pub fn shelter_at(world: &hecs::World, feet: Vec3, frame: Option<&PlanetSite>) -
     // Every piece at roof height over this chest, as its box.
     let roofs: Vec<(hecs::Entity, (Vec3, Vec3))> = pieces
         .iter()
-        .map(|(e, tf)| (*e, crate::ecs::components::world_aabb(tf)))
+        .map(|(e, tf)| (*e, humanity_core::ecs::components::world_aabb(tf)))
         .filter(|(_e, b)| (SHELTER_HEADROOM_M..=SHELTER_ROOF_REACH_M).contains(&(b.0.y - chest.y)))
         .collect();
     let boxes: Vec<(Vec3, Vec3)> = roofs.iter().map(|(_e, b)| *b).collect();
@@ -514,7 +514,7 @@ mod tests {
     use glam::Quat;
 
     fn shipped() -> BlueprintRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("blueprints")
             .join("basic.ron");
@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn e_and_take_down_reach_through_a_doorway_not_a_wall_or_a_floor() {
         use crate::ship::ship_structure::ShipStructure;
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
         assert_eq!(ship.zones[ship.home_zone_index()].origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");
         let walls = crate::ship::wall_collision::ship_wall_segments(&ship);

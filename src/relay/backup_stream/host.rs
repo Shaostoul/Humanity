@@ -203,7 +203,7 @@ async fn authorize(state: &RelayState, headers: &HeaderMap, op: &str, name: &str
     let (pk, words) = (sender.public_key.clone(), preimage(op, name, body, ms));
     let ok = tokio::task::spawn_blocking(move || {
         let (Ok(pk), Ok(sig)) = (hex::decode(&pk), hex::decode(&sig)) else { return false };
-        crate::relay::core::pq_crypto::verify_dilithium(&pk, words.as_bytes(), &sig).is_ok()
+        humanity_protocol::pq_crypto::verify_dilithium(&pk, words.as_bytes(), &sig).is_ok()
     })
     .await
     .unwrap_or(false);

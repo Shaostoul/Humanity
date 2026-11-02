@@ -365,7 +365,7 @@ mod tests {
     fn the_shipped_ship_yields_sane_room_boxes() {
         // Parsed directly (never `load`, which quarantines a file it rejects), then assembled
         // the way the game does it: the homestead design on the ship's default plot.
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
         // The SHIPPED design (data/homes/shipped/), never the checkout's data/homes/homestead.ron,
@@ -401,7 +401,7 @@ mod tests {
     /// the shipped homestead on the default plot p1, `generate_meshes`,
     /// `room_boxes`), with each room's id.
     fn shipped_rooms() -> (Vec<RoomInfo>, Vec<RoomBox>) {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
         let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
         let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");
@@ -478,7 +478,7 @@ mod tests {
         let walk = [("home", centre(&home_room)), ("commons", centre(&commons_hall)), ("home again", centre(&home_room))];
         // The shipped lights: every room's own, as the renderer gives them.
         let ship = {
-            let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+            let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
             let text = std::fs::read_to_string(data.join("blueprints/ship_structure.ron")).expect("the shipped ship file");
             let ship_file: ShipStructure = ron::from_str(&text).expect("it parses");
             let design = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped home design");

@@ -11,9 +11,9 @@
 //! renewable_product column. Adding a species = a CSV row; placing it at the
 //! homestead = a RON row. No code changes.
 
-use crate::ecs::components::{Creature, Harvestable, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Creature, Harvestable, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use glam::{Quat, Vec3};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -140,7 +140,7 @@ pub struct CreatureRegistry {
 
 impl CreatureRegistry {
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<CreatureDef> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<CreatureDef> = humanity_core::data_parse::parse_csv(data)?;
         let mut defs = HashMap::new();
         for row in rows {
             defs.insert(row.id.clone(), row);
@@ -233,7 +233,7 @@ pub fn spawn_creature_at(
     pos: Vec3,
     tint: [f32; 3],
 ) -> hecs::Entity {
-    use crate::ecs::components::{AIBehavior, Health, LootTable, Name, Velocity};
+    use humanity_core::ecs::components::{AIBehavior, Health, LootTable, Name, Velocity};
     let hp = def.health_base.max(1.0);
     let e = world.spawn((
         Creature {
@@ -449,7 +449,7 @@ pub fn register(store: &mut DataStore) {
 /// last collected from), for the save. Dead animals are left out.
 pub fn herd_timers(world: &hecs::World) -> Vec<(String, f32)> {
     let mut out: Vec<(String, f32)> = world
-        .query::<(&HerdSlot, &Harvestable, Option<&crate::ecs::components::Dead>)>()
+        .query::<(&HerdSlot, &Harvestable, Option<&humanity_core::ecs::components::Dead>)>()
         .iter()
         .filter(|(_, (_, _, dead))| dead.is_none())
         .map(|(_, (slot, h, _))| (slot.0.clone(), h.time_since_harvest))
@@ -586,7 +586,7 @@ impl System for LivestockSystem {
         // the care tick above, by how well they are fed and watered.
         for (_e, (h, dead, cared)) in world.query_mut::<(
             &mut Harvestable,
-            Option<&crate::ecs::components::Dead>,
+            Option<&humanity_core::ecs::components::Dead>,
             Option<&crate::systems::animal_care::AnimalCare>,
         )>() {
             if dead.is_some() || cared.is_some() {
@@ -601,9 +601,9 @@ impl System for LivestockSystem {
         // (v0.762): a living hunt-class creature nearby spooks the herd.
         let threats: Vec<Vec3> = world
             .query::<(
-                &crate::ecs::components::AIBehavior,
+                &humanity_core::ecs::components::AIBehavior,
                 &Transform,
-                Option<&crate::ecs::components::Dead>,
+                Option<&humanity_core::ecs::components::Dead>,
             )>()
             .iter()
             .filter(|(_, (ai, _, dead))| {
@@ -624,8 +624,8 @@ impl System for LivestockSystem {
         for (_e, (c, tf, dead, ai)) in world.query_mut::<(
             &Creature,
             &mut Transform,
-            Option<&crate::ecs::components::Dead>,
-            Option<&crate::ecs::components::AIBehavior>,
+            Option<&humanity_core::ecs::components::Dead>,
+            Option<&humanity_core::ecs::components::AIBehavior>,
         )>() {
             if dead.is_some() || ai.is_some() {
                 continue;
@@ -667,21 +667,21 @@ mod tests {
     use super::*;
 
     fn shipped_registry() -> CreatureRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("creatures.csv");
         CreatureRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
     }
 
     fn shipped_items() -> crate::systems::inventory::ItemRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("items.csv");
         crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
     }
 
     fn shipped_spawn_list() -> LivestockSpawnList {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("entities")
             .join("livestock.ron");
@@ -695,7 +695,7 @@ mod tests {
     /// Renewable-yield species also carry a ready Harvestable.
     #[test]
     fn dev_spawn_matches_placed_bundles() {
-        use crate::ecs::components::{AIBehavior, Harvestable};
+        use humanity_core::ecs::components::{AIBehavior, Harvestable};
         let reg = shipped_registry();
         let items = shipped_items();
         let mut world = hecs::World::new();
@@ -723,7 +723,7 @@ mod tests {
     /// collection works from the first encounter.
     #[test]
     fn forage_flora_spawns_rooted_and_collectable() {
-        use crate::ecs::components::{AIBehavior, Harvestable};
+        use humanity_core::ecs::components::{AIBehavior, Harvestable};
         let reg = shipped_registry();
         let items = shipped_items();
         let mut world = hecs::World::new();
@@ -768,7 +768,7 @@ mod tests {
     /// fits / left: PackFull { item: \"wood_log_0\", unit_l: 26.1, free_l: 47.5 }".
     #[test]
     fn a_yield_too_big_for_the_pack_is_taken_in_part() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let items = shipped_items();
@@ -903,7 +903,7 @@ mod tests {
         let list = shipped_spawn_list();
         assert!(!list.animals.is_empty(), "starter livestock exist");
 
-        let home_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let home_path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("machines")
             .join("home.ron");
@@ -987,7 +987,7 @@ mod tests {
     /// directly AWAY at double speed; a dead predator spooks nobody. (v0.762)
     #[test]
     fn livestock_flee_living_predators() {
-        use crate::ecs::components::AIBehavior;
+        use humanity_core::ecs::components::AIBehavior;
 
         let mut world = hecs::World::new();
         let data = DataStore::new();
@@ -1012,7 +1012,7 @@ mod tests {
                 target: None,
             },
             Transform { position: Vec3::new(5.0, 0.0, 0.0), ..Default::default() },
-            crate::ecs::components::Dead::default(),
+            humanity_core::ecs::components::Dead::default(),
         ));
         // Dead wolf first: the hen ambles normally (no westward panic).
         let mut sys = LivestockSystem::new();
@@ -1021,7 +1021,7 @@ mod tests {
         assert!(calm_x > -0.06, "a dead predator spooks nobody (x = {calm_x})");
 
         // Revive the wolf: the hen bolts west (away), faster than the amble.
-        world.remove_one::<crate::ecs::components::Dead>(wolf).unwrap();
+        world.remove_one::<humanity_core::ecs::components::Dead>(wolf).unwrap();
         for _ in 0..10 {
             sys.tick(&mut world, 0.1, &data);
         }
@@ -1038,7 +1038,7 @@ mod tests {
     /// red with the regrowth back on raw dt (the hen 1 s along, not 120 s).
     #[test]
     fn yields_ripen_on_the_game_clock() {
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::systems::System;
         let mut data = DataStore::new();
         let mut gt = crate::systems::time::GameTime::default();
         gt.time_scale = 120.0;
@@ -1070,7 +1070,7 @@ mod tests {
         herd_hen(&mut world, "chicken#0", 100.0);
         herd_hen(&mut world, "chicken#1", 300.0);
         let dead = herd_hen(&mut world, "chicken#2", 0.0);
-        world.insert_one(dead, crate::ecs::components::Dead::default()).unwrap();
+        world.insert_one(dead, humanity_core::ecs::components::Dead::default()).unwrap();
         let saved = herd_timers(&world);
         assert_eq!(saved, vec![("chicken#0".to_string(), 100.0), ("chicken#1".to_string(), 300.0)], "the dead left out");
 

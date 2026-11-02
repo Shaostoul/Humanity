@@ -74,7 +74,7 @@ the editor teaches correct wiring before the runtime starts enforcing it.
 **Single best FIRST increment — exactly the design's Stage 1, scoped to the minimum
 that adds real ports + a copper power cable with a rating check:**
 
-1. New `src/utilities.rs` (pure serde/data, NO `#[cfg(native)]` gate so it compiles
+1. New `crates/humanity-core/src/utilities.rs` (pure serde/data, NO `#[cfg(native)]` gate so it compiles
    under `relay` — verify with `cargo check --features relay --no-default-features`):
    `Utility`, `PortDir`, `Port`, `ElecSpec`, `ConduitType`, `ConductorMaterial`,
    `Grade`, the `OnceLock`+`include_str!` loader (clone `src/ship/structure.rs:86`),

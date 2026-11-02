@@ -12,7 +12,7 @@
 use egui::{Align2, Frame, Margin, RichText, CornerRadius, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
-use crate::i18n::{t, t_marked};
+use humanity_core::i18n::{t, t_marked};
 use crate::gui::widgets::{self, with_hint, SectionNavItem};
 use super::{civilization, governance, identity, donate};
 
@@ -21,7 +21,7 @@ use super::{civilization, governance, identity, donate};
 /// drift. A stable CC0 document; editing docs/accord/humanity_accord.md and
 /// rebuilding updates the in-app copy. (Operator 2026-06-06: "a button that takes
 /// users directly to the Humanity Accord inside the app.")
-const ACCORD_TEXT: &str = include_str!("../../../docs/accord/humanity_accord.md");
+const ACCORD_TEXT: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/docs/accord/humanity_accord.md"));
 
 /// In-app document viewer state (a simple modal). Lives in a thread_local like
 /// the other page-local UI state, so it needs no GuiState plumbing. The planned

@@ -1,5 +1,5 @@
 // Recovery through trusted people, the website's half (2026-10-21): web/shared/recovery.js against
-// the Rust side (src/relay/core/recovery.rs) and the vendored noble bundle the website ships.
+// the Rust side (crates/humanity-protocol/src/recovery.rs) and the vendored noble bundle the website ships.
 // The design: docs/design/recovery-through-trusted-people.md.
 //
 // Run: node --test scripts/tests/recovery-web.test.js   (in `just rig-tests`)

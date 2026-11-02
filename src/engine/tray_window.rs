@@ -221,10 +221,10 @@ pub(crate) fn quiet_for_tray(gs: &mut crate::gui::GuiState) -> crate::gui::pages
     let left = crate::gui::pages::chat::leave_all_voice(gs);
     if left.voice {
         log::info!("voice: the call or voice room was left and the microphone closed (the window went to the tray)");
-        gs.pending_notices.push(crate::i18n::t("notifications.tray_left_voice").to_string());
+        gs.pending_notices.push(humanity_core::i18n::t("notifications.tray_left_voice").to_string());
     }
     if let Some(name) = left.missed_ring.as_deref() {
-        gs.pending_notices.push(crate::i18n::tf("notifications.tray_missed_call", &[("name", &name)]));
+        gs.pending_notices.push(humanity_core::i18n::tf("notifications.tray_missed_call", &[("name", &name)]));
     }
     left
 }
@@ -287,12 +287,12 @@ fn tell_still_running(state: &mut EngineState, voice_left: bool) {
         return;
     }
     log::info!("window: a notice says HumanityOS is still running in the tray{}", if voice_left { " and the call or voice room was left" } else { "" });
-    let t = crate::i18n::t;
+    let t = humanity_core::i18n::t;
     let launch = state.gui_state.notify.targets.window_token();
     let body = if voice_left { "notifications.tray_still_running_body_voice" } else { "notifications.tray_still_running_body" };
     n::toast::show(n::toast::Toast {
         title: t("notifications.tray_still_running_title").to_string(),
-        body: crate::i18n::t_dyn(body).to_string(),
+        body: humanity_core::i18n::t_dyn(body).to_string(),
         tag: n::toast::tag_for("tray"),
         group: "tray".into(),
         launch,
@@ -442,7 +442,7 @@ mod tests {
         let frames: Vec<serde_json::Value> = sent.try_iter().map(|s| serde_json::from_str(&s).unwrap()).collect();
         assert!(frames.iter().any(|f| f["type"] == "voice_room" && f["action"] == "leave" && f["room_id"] == "12"), "the server is told: {frames:?}");
         assert!(frames.iter().any(|f| f["type"] == "voice_call" && f["action"] == "hangup" && f["to"] == "peer"), "the peer is told: {frames:?}");
-        assert_eq!(gs.pending_notices, vec![crate::i18n::t("notifications.tray_left_voice").to_string()]);
+        assert_eq!(gs.pending_notices, vec![humanity_core::i18n::t("notifications.tray_left_voice").to_string()]);
 
         // An outgoing ring is cancelled; an incoming one rings out with nothing sent back.
         let (mut gs, sent) = voice_gs();
@@ -469,7 +469,7 @@ mod tests {
     /// without asking voice_wanted".
     #[test]
     fn the_hidden_tick_never_starts_or_feeds_voice() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}")).replace("\r\n", "\n");
         for rel in ["src/engine/tray_window.rs", "src/engine/frame_net.rs", "src/engine/tray.rs"] {
             let src = read(rel);

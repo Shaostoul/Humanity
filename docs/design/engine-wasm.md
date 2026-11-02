@@ -58,7 +58,7 @@ The shared `src/` code has zero platform-specific imports. All platform differen
 ## Platform Abstraction Layer
 
 ```rust
-// src/platform.rs
+// crates/humanity-core/src/platform.rs
 
 #[cfg(target_arch = "wasm32")]
 mod web;

@@ -25,7 +25,7 @@ both it compiles once and stays built.
 - **Its lib tests:** 255 tests, and this runs exactly them, checked against every test's name:
 
 ```
-just test-lib terrain::
+just test-lib --crate humanity-engine terrain::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
@@ -72,7 +72,7 @@ And 74 more items, 106 references (`node scripts/crate-cards.js --interface huma
   Source: [infinite-of-x.md](../design/infinite-of-x.md).
 - **Map data from OpenStreetMap carries its attribution** (`credits::OSM_NOTICE`, "Map data (c)
   OpenStreetMap contributors (ODbL)"): it is a licence obligation, not a courtesy. Source:
-  [credits.rs](../../src/credits.rs) and `data/credits.ron`.
+  [credits.rs](../../crates/humanity-core/src/credits.rs) and `data/credits.ron`.
 - **What it builds reaches pixels, so prove it there:** a change to patches, water or plants is
   checked by booting and looking, never by a static check alone. Source:
   [renderer.md](../ai/renderer.md), "Verify by booting and entering the world".

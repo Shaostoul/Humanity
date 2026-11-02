@@ -156,7 +156,7 @@ src/media/mod.rs    MediaError, MediaInfo, probe(), VideoFrame, VideoPlayer,
 src/media/video.rs  Av1Decoder (the only place rav1d's C-shaped API is called),
                     YUV to RGBA conversion, decode_video() for tests and bench
 src/media/audio.rs  OpusHead parsing, OpusTrack: a kira streaming Decoder
-src/audio/mod.rs    AudioManager::play_stream(): hands a streaming sound to kira
+crates/humanity-core/src/audio/mod.rs    AudioManager::play_stream(): hands a streaming sound to kira
 ```
 
 ```rust

@@ -128,9 +128,9 @@ test("an exit the rig asked for is not treated as a hand-off", async () => {
 });
 
 test("builtinDataLines finds the marker the game writes, and the marker matches the Rust const", () => {
-  const rust = fs.readFileSync(path.join(REPO, "src", "embedded_data.rs"), "utf8");
+  const rust = fs.readFileSync(path.join(REPO, "crates", "humanity-core", "src", "embedded_data.rs"), "utf8");
   const m = rust.match(/pub const BUILTIN_COPY_MARKER: &str = "([^"]+)";/);
-  assert.ok(m, "src/embedded_data.rs defines BUILTIN_COPY_MARKER");
+  assert.ok(m, "crates/humanity-core/src/embedded_data.rs defines BUILTIN_COPY_MARKER");
   assert.strictEqual(GL.BUILTIN_COPY_MARKER, m[1], "the rigs look for exactly what the game writes");
   assert.ok(/log::warn!\(\s*"\{BUILTIN_COPY_MARKER\}/.test(rust), "note_builtin_copy writes the marker at the start of its line");
   const log = [

@@ -9,15 +9,15 @@ use super::gardening_tests::make_store;
 use super::soil;
 use super::units::{self, plants_in_plot, plot_harvest_kg, PLOT_AREA_KEY};
 use super::*;
-use crate::ecs::components::{Controllable, CropInstance, CropSoil, Irrigator};
-use crate::ecs::systems::System;
+use humanity_core::ecs::components::{Controllable, CropInstance, CropSoil, Irrigator};
+use humanity_core::ecs::systems::System;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
 fn shipped() -> (PlantRegistry, ItemRegistry) {
-    let plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
+    let plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv")))
         .expect("plants.csv");
     let items =
-        ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).expect("items.csv");
+        ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).expect("items.csv");
     (plants, items)
 }
 
@@ -276,8 +276,8 @@ const NOT_SOURCED_YET: [&str; 4] = ["mint", "rosemary", "aloe_vera", "st_johns_w
 #[test]
 fn shipped_spacing_and_yields_are_sourced_and_physical() {
     let (plants, items) = shipped();
-    let csv = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv"));
-    let ron_text = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/garden/yields.ron"));
+    let csv = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv"));
+    let ron_text = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/yields.ron"));
     let file: YieldFile = ron::from_str(ron_text).expect("data/garden/yields.ron parses");
     let records: HashMap<&str, &YieldRecord> = file.crops.iter().map(|r| (r.plant.as_str(), r)).collect();
     assert_eq!(records.len(), file.crops.len(), "one record a crop");
@@ -350,8 +350,8 @@ fn shipped_spacing_and_yields_are_sourced_and_physical() {
     assert!(filled.len() >= 50, "only {} crops carry a spacing", filled.len());
 
     // Every crop the home actually plants is sourced, or named as not yet.
-    let showcase = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/world/showcase.ron"));
-    let towers = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/towers/aeroponic_configs.ron"));
+    let showcase = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/world/showcase.ron"));
+    let towers = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/towers/aeroponic_configs.ron"));
     let bed_block = showcase.split("bed_crops:").nth(1).and_then(|s| s.split('}').next()).expect("bed_crops");
     let quoted_second = |l: &str| l.split('"').nth(3).map(str::to_string);
     let mut home: Vec<String> = bed_block.lines().filter_map(quoted_second).collect();

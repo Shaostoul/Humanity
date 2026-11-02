@@ -152,7 +152,7 @@ pub fn parse_warnings(bytes: &[u8]) -> Result<Warnings, String> {
 /// Load the warnings from the data folder (`data/safety/warnings.json`), or the copy built into
 /// the exe when the folder's copy is missing or this version cannot read it.
 pub fn load_warnings(data_dir: &std::path::Path) -> Result<Warnings, String> {
-    crate::embedded_data::load_data_or_embedded(data_dir, WARNINGS_FILE, parse_warnings)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, WARNINGS_FILE, parse_warnings)
 }
 
 /// 10g's normalising: lower-case `text` (standard Unicode lower-casing), turn every run of
@@ -238,7 +238,7 @@ mod tests {
 
     /// The shipped file, read from the tree (the same bytes the exe builds in).
     fn shipped() -> Warnings {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join(WARNINGS_FILE);
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join(WARNINGS_FILE);
         parse_warnings(&std::fs::read(&path).expect("data/safety/warnings.json")).expect("the shipped warnings parse")
     }
 
@@ -256,7 +256,7 @@ mod tests {
     /// gave ["money"], because the combining mark became a separator).
     #[test]
     fn the_shared_cases_hold_against_the_shipped_file() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let cases: serde_json::Value = serde_json::from_slice(
             &std::fs::read(root.join("scripts/tests/fixtures/warning-cases.json")).expect("the shared cases"),
         )
@@ -264,7 +264,7 @@ mod tests {
         let cases = cases["cases"].as_array().expect("a cases list");
         assert!(cases.len() >= 10, "the shared cases file lost its cases");
         let shipped = shipped();
-        let built_in = parse_warnings(crate::embedded_data::WARNINGS_JSON.as_bytes()).expect("the built-in copy parses");
+        let built_in = parse_warnings(humanity_core::embedded_data::WARNINGS_JSON.as_bytes()).expect("the built-in copy parses");
         for case in cases {
             let text = case["text"].as_str().expect("text");
             let from = match case["from"].as_str() {

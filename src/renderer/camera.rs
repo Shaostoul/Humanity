@@ -317,7 +317,7 @@ impl Camera {
     /// world-Y basis (yaw about world Y, pitch about world X).
     pub fn forward(&self) -> Vec3 {
         if self.surface_mode {
-            return crate::camera_angles::surface_forward(self.surface_up, self.yaw, self.pitch);
+            return humanity_core::camera_angles::surface_forward(self.surface_up, self.yaw, self.pitch);
         }
         Vec3::new(
             self.yaw.sin() * self.pitch.cos(),
@@ -350,7 +350,7 @@ impl Camera {
             self.surface_up = up;
             self.up = up;
             if fwd.dot(up).abs() < 0.999 {
-                let (yaw, pitch) = crate::camera_angles::surface_look_angles(up, fwd);
+                let (yaw, pitch) = humanity_core::camera_angles::surface_look_angles(up, fwd);
                 self.yaw = yaw;
                 self.pitch = pitch;
             }
@@ -359,7 +359,7 @@ impl Camera {
             self.surface_mode = true;
             self.surface_up = up;
             self.up = up;
-            let (yaw, pitch) = crate::camera_angles::surface_look_angles(up, fwd);
+            let (yaw, pitch) = humanity_core::camera_angles::surface_look_angles(up, fwd);
             self.yaw = yaw;
             self.pitch = pitch;
         }
@@ -377,12 +377,12 @@ impl Camera {
         let fwd = rot * self.forward();
         if self.surface_mode {
             if fwd.dot(self.up).abs() < 0.999 {
-                let (yaw, pitch) = crate::camera_angles::surface_look_angles(self.up, fwd);
+                let (yaw, pitch) = humanity_core::camera_angles::surface_look_angles(self.up, fwd);
                 self.yaw = yaw;
                 self.pitch = pitch;
             }
         } else {
-            let (yaw, pitch) = crate::camera_angles::world_look_angles(fwd);
+            let (yaw, pitch) = humanity_core::camera_angles::world_look_angles(fwd);
             self.yaw = yaw;
             self.pitch = pitch;
         }
@@ -398,7 +398,7 @@ impl Camera {
         let fwd = self.forward(); // surface basis
         self.surface_mode = false;
         self.up = Vec3::Y;
-        let (yaw, pitch) = crate::camera_angles::world_look_angles(fwd);
+        let (yaw, pitch) = humanity_core::camera_angles::world_look_angles(fwd);
         self.yaw = yaw;
         self.pitch = pitch;
     }
@@ -766,7 +766,7 @@ pub struct CameraController {
     pub surface_translation_owned: bool,
     /// The player's falls (2026-10-20, `systems::falls`): the landings both walks report,
     /// and whether each can hurt. lib.rs takes one a frame (`take_landing`).
-    falls: crate::physics::landing::FallWatch,
+    falls: humanity_core::physics::landing::FallWatch,
     /// Where this walk left the body's height last frame, to tell a fall from a placement:
     /// anything else that moves the body (a teleport, driving, the rig's camera hold) makes
     /// the landing after it hurt nobody.
@@ -842,7 +842,7 @@ impl CameraController {
             roll_left: false,
             roll_right: false,
             surface_translation_owned: true,
-            falls: crate::physics::landing::FallWatch::default(),
+            falls: humanity_core::physics::landing::FallWatch::default(),
             body_y: None,
             fall_top: None,
             surface_r: None,
@@ -903,8 +903,8 @@ impl CameraController {
     /// Context stays inside the controller: Jump doubles as fly-up, Sprint
     /// as fly-down, ShoulderSwap banks left while flying (v0.890), Interact
     /// banks right while flying. Non-camera actions are ignored.
-    pub fn apply_action(&mut self, action: crate::input::bindings::GameAction, pressed: bool) {
-        use crate::input::bindings::GameAction as A;
+    pub fn apply_action(&mut self, action: humanity_core::input::bindings::GameAction, pressed: bool) {
+        use humanity_core::input::bindings::GameAction as A;
         match action {
             A::MoveForward => self.forward = pressed,
             A::MoveBack => self.backward = pressed,
@@ -1551,7 +1551,7 @@ impl CameraController {
             // cent at 30 frames a second), and a body standing still lands at 0 however long a
             // frame lasts. Nothing aboard pushes a body up or down in the air but gravity: dev
             // flight is exempt, and a ladder starts the count again (`systems::falls`).
-            let impact = crate::physics::landing::landing_speed(
+            let impact = humanity_core::physics::landing::landing_speed(
                 0.0,
                 f64::from(top - self.ground_y),
                 f64::from(self.interior_gravity),
@@ -1838,7 +1838,7 @@ mod liftoff_tests {
 #[cfg(test)]
 mod camera_body_tests {
     use super::*;
-    use crate::input::bindings::GameAction as A;
+    use humanity_core::input::bindings::GameAction as A;
 
     /// One frame of the controller, as lib.rs runs it.
     fn frame(ctl: &mut CameraController, cam: &mut Camera, dt: f32) {

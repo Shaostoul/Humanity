@@ -312,7 +312,7 @@ pub(crate) fn publish_home_stock(state: &mut crate::engine::state::EngineState) 
 /// DataStore as "home_stock" for the systems to draw on, and returned.
 pub(crate) fn publish_stock(
     world: &hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     placed: &[crate::systems::inventory::placed::PlacedItem],
 ) -> std::collections::HashMap<String, u32> {
     let away = crate::systems::construction::uses::planet_store_paths(world);
@@ -334,7 +334,7 @@ pub(crate) fn take_consumed_home_stock(
 /// [`take_consumed_home_stock`] on its parts.
 pub(crate) fn take_stock(
     world: &hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
     before: &std::collections::HashMap<String, u32>,
 ) {
@@ -365,7 +365,7 @@ pub(crate) fn take_stock(
 /// channel for the frame's `receive_machine_outputs`, which takes it once.
 pub(crate) fn settle_farm(
     world: &mut hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
     home_stock: &mut std::collections::HashMap<String, u32>,
     within_s: f64,
@@ -377,7 +377,7 @@ pub(crate) fn settle_farm(
 /// sight, 2026-10-31), in the same home-storage window.
 pub(crate) fn settle_farm_areas(
     world: &mut hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
     home_stock: &mut std::collections::HashMap<String, u32>,
     areas: &[String],
@@ -388,14 +388,14 @@ pub(crate) fn settle_farm_areas(
 
 fn settle_farm_of(
     world: &mut hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
     home_stock: &mut std::collections::HashMap<String, u32>,
     areas: Option<&[String]>,
     within_s: f64,
 ) {
     use crate::systems::farming;
-    let settle = |world: &mut hecs::World, data: &crate::hot_reload::data_store::DataStore| match areas {
+    let settle = |world: &mut hecs::World, data: &humanity_core::hot_reload::data_store::DataStore| match areas {
         None => farming::settle(world, data, within_s),
         Some(a) => farming::settle_areas(world, data, a, within_s),
     };
@@ -562,8 +562,8 @@ pub(crate) fn push_render_objects(state: &mut crate::engine::state::EngineState,
                 .collect()
         })
         .unwrap_or_default();
-    let gauges: Vec<(String, crate::ecs::components::Transform, f32, bool)> = {
-        use crate::ecs::components::{MachineInstanceId, Transform, WaterTank};
+    let gauges: Vec<(String, humanity_core::ecs::components::Transform, f32, bool)> = {
+        use humanity_core::ecs::components::{MachineInstanceId, Transform, WaterTank};
         use crate::systems::inventory::containers::Container;
         let w = &state.game_world.world;
         let level = |have: f32, cap: f32| if cap > 0.0 { (have / cap).clamp(0.0, 1.0) } else { 0.0 };
@@ -686,7 +686,7 @@ mod tests {
     /// and the seeded Barn is (so the default home's barn has crates).
     #[test]
     fn only_the_barn_stock_fills_the_barn() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let places = crate::gui::load_places(&root);
         let pool = crate::gui::flatten_placed_items(&places);
         let rooms = vec!["Barn".to_string()];
@@ -720,7 +720,7 @@ mod tests {
     #[test]
     fn the_starting_barn_holds_coal_for_the_first_ingot() {
         use crate::systems::quests::objectives::QuestObjective;
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let home = crate::systems::grow_machines::load_home(&crate::persistence::live_save::active_home_machines_path(&root)).expect("home.ron");
         let recipe_id = home.catalog.get("smelter").and_then(|d| d.auto_recipe.clone()).expect("the smelter runs a recipe");
         let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("recipes.csv")).unwrap()).unwrap();
@@ -804,8 +804,8 @@ mod settle_farm_tests {
     use std::sync::{Arc, Mutex};
 
     use super::{publish_stock, settle_farm, take_stock};
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
     use crate::systems::farming::{self, FarmingSystem};
     use crate::systems::inventory::placed::PlacedItem;
 

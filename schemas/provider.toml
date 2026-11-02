@@ -12,7 +12,7 @@
 # and a directory that excludes the food bank excludes half the mission.
 #
 # File format: canonical CBOR map carried as the `payload` of a signed object
-#              (src/relay/core/object.rs, docs/network/object_format.md)
+#              (crates/humanity-protocol/src/object.rs, docs/network/object_format.md)
 # Object type: provider_v1
 # payload_schema_version: 1
 # Hot-reloadable: No. This is not a data file shipped next to the exe; it is
@@ -38,7 +38,7 @@ author = """
 `author_public_key` (1952-byte Dilithium3 key) IS the publisher. Whoever holds
 that key controls this provider entry. There is no separate owner field, no
 account, and no password. The DID form of the same key is
-`did:hum:<base58(BLAKE3(pubkey)[..16])>` (src/relay/core/did.rs)."""
+`did:hum:<base58(BLAKE3(pubkey)[..16])>` (crates/humanity-protocol/src/did.rs)."""
 references = """
 Envelope `references` is an array of object_id strings. A provider REVISION
 puts the root provider object_id here (see `[identity]` below). A group-backed
@@ -802,6 +802,6 @@ not to the provider object, and the platform records no exchanges today
 would let a provider sign its own five stars."""
 key_rotation = """
 KNOWN LIMITATION: a provider's identity is its author key, and today the DID
-changes when the key rotates (src/relay/core/did.rs). Until stable DIDs land,
+changes when the key rotates (crates/humanity-protocol/src/did.rs). Until stable DIDs land,
 a rotation means republishing the root and re-pointing offerings. Do not build
 anything that assumes a provider survives a rotation."""

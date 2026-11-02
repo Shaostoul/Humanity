@@ -12,9 +12,9 @@ use std::path::Path;
 use rand::Rng;
 use serde::Deserialize;
 
-use crate::ecs::components::Genome;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::Genome;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Default mutation chance per allele if not specified per-trait. Tunable.
 const DEFAULT_MUTATION_RATE: f32 = 0.001;

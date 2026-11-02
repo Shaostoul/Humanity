@@ -31,9 +31,9 @@ use std::time::{Duration, Instant};
 /// Frame tags. Must match `src/relay/live.rs` and `web/pages/live.html`.
 pub(crate) const TAG_KEYFRAME: u8 = 1;
 
-// The frame the render thread hands over (`RawFrame`) is the core's, `crate::raw_frame`, since the
+// The frame the render thread hands over (`RawFrame`) is the core's, `humanity_core::raw_frame`, since the
 // crate split's rung 0: the renderer's stream capture makes them, and may not reach the network.
-use crate::raw_frame::RawFrame;
+use humanity_core::raw_frame::RawFrame;
 
 /// What the operator configured in Studio.
 #[derive(Clone)]

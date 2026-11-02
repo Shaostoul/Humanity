@@ -211,7 +211,7 @@ mod tests {
     /// (left: None, right: Some(31)), two folders then found and neither taken.
     #[test]
     fn no_login_record() {
-        let root = crate::test_temp::dir("steam_user_no_login");
+        let root = humanity_core::test_temp::dir("steam_user_no_login");
         std::fs::create_dir_all(root.join("userdata").join("0")).unwrap();
         std::fs::create_dir_all(root.join("userdata").join("31").join("config")).unwrap();
         assert_eq!(account(&root, None).map(|a| a.id), Some(31), "folder 0 is not an account");

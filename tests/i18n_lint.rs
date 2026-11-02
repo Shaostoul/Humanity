@@ -569,6 +569,16 @@ fn counts_as_ui_text(frames: &[Frame]) -> bool {
 
 // ── The files scanned ───────────────────────────────────────────────────────
 
+/// Each workspace crate's src/ folder, crates/<name>/src (the crate split's rung 1, 2026-11-01): read
+/// with src/'s, or a file moved into a crate drops out of this check without a word.
+fn crate_src_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(root.join("crates"))
+        .map(|rd| rd.flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()).collect())
+        .unwrap_or_default();
+    out.sort();
+    out
+}
+
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else { return };
     let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
@@ -695,7 +705,7 @@ fn native_ui_literals_only_shrink() {
         over.is_empty(),
         "\n\nWORDS WRITTEN INTO UI CODE, past the file's budget:\n{}\n\n\
          Put the words in data/i18n/en.json under the page's own key and ask for them \
-         by key: `ui.label(t(\"page.key\"))` (crate::i18n). A brand name or a \
+         by key: `ui.label(t(\"page.key\"))` (humanity_core::i18n). A brand name or a \
          symbol that is the same in every language takes `// i18n-exempt: <reason>` \
          on its line. Do not raise the budget.\n",
         over.join("\n")
@@ -852,7 +862,7 @@ fn parse_value(c: &[char], i: &mut usize) -> Result<Json, String> {
     }
 }
 
-/// Flatten to dotted keys, strings only (the shape `src/i18n.rs` reads).
+/// Flatten to dotted keys, strings only (the shape `crates/humanity-core/src/i18n.rs` reads).
 fn flatten(prefix: &str, v: &Json, out: &mut BTreeMap<String, String>) {
     match v {
         Json::Obj(m) => {
@@ -940,6 +950,10 @@ fn every_key_the_code_asks_for_is_in_english() {
     let en = language_file("en");
     let mut all = Vec::new();
     walk(&repo().join("src"), &mut all);
+    // The word source itself (i18n.rs) is the core's since rung 1 of the crate split.
+    for dir in crate_src_dirs(&repo()) {
+        walk(&dir, &mut all);
+    }
     let mut missing = Vec::new();
     for p in &all {
         let src = read(p);

@@ -12,12 +12,12 @@ use super::gardening_tests::make_store;
 use super::humidity::{self, GrowRoom, HumidityData, HUMIDITY_RON};
 use super::lighting::GrowPlot;
 use super::*;
-use crate::ecs::components::{
+use humanity_core::ecs::components::{
     AirHandler, Co2Scrubber, CropInstance, HomeAirState, Irrigator, PlumbingCircuit, PowerConsumer, SoilMemory, Transform,
     WaterConsumer, WaterProducer, WaterTank,
 };
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
 use crate::systems::life_support::{self, LifeSupportData, LIFE_SUPPORT_RON};
 use crate::systems::plumbing::{PlumbingSystem, WaterStatus};
@@ -332,7 +332,7 @@ fn station_supplied_life_support_changes_only_who_pays() {
 /// powered unit's draw.
 #[test]
 fn the_air_handlers_keep_their_power_through_a_short_night() {
-    use crate::ecs::components::PowerGenerator;
+    use humanity_core::ecs::components::PowerGenerator;
     use crate::systems::electrical::{ElectricalSystem, PowerStatus};
     let (mut data, mut world, _) = greenhouse(1000.0);
     data.insert("power_status", Mutex::new(PowerStatus::default()));
@@ -372,7 +372,7 @@ fn the_air_handlers_keep_their_power_through_a_short_night() {
 /// the carbon dioxide climbed past 3,000 ppm).
 #[test]
 fn a_short_island_keeps_the_scrubber_before_an_optional_load() {
-    use crate::ecs::components::PowerGenerator;
+    use humanity_core::ecs::components::PowerGenerator;
     use crate::systems::electrical::{ElectricalSystem, PowerStatus};
     let (ld, d) = (life(), air());
     let mut data = store(Vec::new(), Vec::new());
@@ -496,7 +496,7 @@ fn mushroom_room(plant: &str, shelves: u32) -> (DataStore, hecs::World) {
     for i in 0..6 {
         let e = machine(&mut world, [1.5 + 1.4 * i as f32, 0.0, 5.0]);
         world
-            .insert(e, (crate::ecs::components::Humidifier { output_l_h: 0.24, watts: 24.0 }, PowerConsumer { draw_watts: 24.0, priority: 4, enabled: true }))
+            .insert(e, (humanity_core::ecs::components::Humidifier { output_l_h: 0.24, watts: 24.0 }, PowerConsumer { draw_watts: 24.0, priority: 4, enabled: true }))
             .unwrap();
     }
     (data, world)
@@ -507,7 +507,7 @@ fn mushroom_room(plant: &str, shelves: u32) -> (DataStore, hecs::World) {
 /// CLOUDLINE S6 high on the room's wall (722.1 m3/h, 70 W, at 600 ppm), as
 /// home.ron places them. Returns (the tent fans, the room fan).
 fn co2_fans(world: &mut hecs::World) -> (Vec<hecs::Entity>, hecs::Entity) {
-    use crate::ecs::components::Ventilator;
+    use humanity_core::ecs::components::Ventilator;
     let tents = (0..6)
         .map(|i| {
             let e = machine(world, [1.5 + 1.4 * i as f32, 1.6, 5.0]);
@@ -526,7 +526,7 @@ fn co2_fans(world: &mut hecs::World) -> (Vec<hecs::Entity>, hecs::Entity) {
 
 /// `mushroom_room` without the humidifiers.
 fn mushroom_room_bare(plant: &str, shelves: u32) -> (DataStore, hecs::World) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let media = crate::systems::grow_machines::load_grow_media(&root);
     let tent = media.iter().find(|m| m.matches("mushroom_rack")).and_then(|m| m.enclosure.clone()).unwrap();
     let rooms = vec![GrowRoom { id: "room-m".into(), name: "Mushroom room".into(), min: [0.0, 0.0, 0.0], max: [10.0, 3.0, 10.0], ..Default::default() }];
@@ -847,7 +847,7 @@ mod shipped {
     /// room's "256.5 m3 (room-mushroom)".
     #[test]
     fn no_guide_or_data_comment_quotes_a_shipped_rooms_volume() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let data_dir = root.join("data");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
         let room_types = crate::ship::room_types::RoomTypeRegistry::load(&data_dir);

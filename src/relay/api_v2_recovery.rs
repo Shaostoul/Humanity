@@ -32,8 +32,8 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::recovery::{NOT_ME_PURPOSE, WITHDRAW_PURPOSE, account_id_ok, normalize_code};
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::recovery::{NOT_ME_PURPOSE, WITHDRAW_PURPOSE, account_id_ok, normalize_code};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::RecoveryRefusal;
 

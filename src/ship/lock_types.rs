@@ -74,7 +74,7 @@ impl LockState {
 pub fn lock_types() -> &'static [LockType] {
     static REG: std::sync::OnceLock<Vec<LockType>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/lock_types.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/lock_types.ron"));
         match ron::from_str::<Vec<LockType>>(SRC) {
             Ok(v) => v,
             Err(e) => {

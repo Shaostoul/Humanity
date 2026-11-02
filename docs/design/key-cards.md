@@ -1,7 +1,7 @@
 # Key cards
 
 **Status: built 2026-10-22** (operator, 2026-10-22: "Let's do this however you believe best").
-The card itself: `src/relay/core/key_card.rs` and its website twin `web/shared/key-card.js`, held
+The card itself: `crates/humanity-protocol/src/key_card.rs` and its website twin `web/shared/key-card.js`, held
 to the same bytes by the shared fixture `scripts/tests/fixtures/key-card-v1.json`. The relay:
 `src/relay/storage/key_cards.rs` and `src/relay/handlers/key_cards.rs`. The desktop app:
 `src/engine/key_cards.rs` and `src/net/key_pins.rs`. The website: `web/chat/chat-key-cards.js`

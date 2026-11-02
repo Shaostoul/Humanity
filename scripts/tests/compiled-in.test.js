@@ -73,8 +73,8 @@ test("every FINGERPRINT_INPUTS entry in build.rs exists (build.rs skips a missin
 // ── The rules, on a small tree ───────────────────────────────────────────────
 const BUILD_RS = 'const FINGERPRINT_INPUTS: &[&str] = &["src", "Cargo.toml", "assets/icon.png"];\nfn main() {}\n';
 const EMBEDDED = `
-pub const A_CSV: &str = include_str!("../data/a.csv");
-pub const B_RON: &str = include_str!("../data/b.ron");
+pub const A_CSV: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/a.csv"));
+pub const B_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/b.ron"));
 pub fn get_embedded(path: &str) -> Option<&'static str> {
     match path {
         "a.csv" => Some(A_CSV),
@@ -120,7 +120,7 @@ pub fn load_d() -> String {
     })
 }
 /// Compiled-in only: nothing here ever looks at the disk.
-pub fn table_e() -> &'static str { include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/e.ron")) }
+pub fn table_e() -> &'static str { include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/e.ron")) }
 /// The embedded table's own const, read directly with no disk read.
 pub fn b_now() -> &'static str {
     crate::embedded_data::note_builtin_copy("b.ron", "always");
@@ -144,7 +144,7 @@ function analyse(extra = {}, opts = {}) {
     "build.rs": BUILD_RS,
     "Cargo.toml": "[package]\n",
     "src/lib.rs": LIB,
-    "src/embedded_data.rs": EMBEDDED,
+    "crates/humanity-core/src/embedded_data.rs": EMBEDDED,
     "src/fixture_tests.rs": FIXTURE_TESTS,
     "assets/icon.png": "png",
     ...extra,
@@ -207,7 +207,7 @@ test("RULES: read_data_or_embedded that consults the table BEFORE the disk voids
     "get_embedded(rel).map(|s| s.to_string()).or_else(|| std::fs::read_to_string(data_dir.join(rel)).ok())\n"
   );
   assert.ok(backwards.includes("or_else(|| std::fs"), "the fixture rewrite took");
-  const a = analyse({ "src/embedded_data.rs": backwards });
+  const a = analyse({ "crates/humanity-core/src/embedded_data.rs": backwards });
   assert.ok(a.problems.some((p) => /read_data_or_embedded does not read the disk before/.test(p)), a.problems.join("\n"));
   assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
 });
@@ -233,7 +233,7 @@ pub fn load_data_or_embedded<T>(data_dir: &std::path::Path, rel: &str, build: im
 `;
 
 test("RULES: a second reader of the table that reads the disk first and says so keeps the class", () => {
-  const a = analyse({ "src/embedded_data.rs": EMBEDDED + SECOND_READER });
+  const a = analyse({ "crates/humanity-core/src/embedded_data.rs": EMBEDDED + SECOND_READER });
   assert.strictEqual(cls(a, "data/a.csv"), "data-disk-first");
   assert.ok(!a.problems.some((p) => /load_data_or_embedded/.test(p)), a.problems.join("\n"));
 });
@@ -244,7 +244,7 @@ test("RULES: a second reader of the table that consults it BEFORE the disk voids
     "let _first = get_embedded(rel);\n    let why = match std::fs::read(data_dir.join(rel)) {"
   );
   assert.ok(backwards.includes("let _first = get_embedded(rel);"), "the fixture rewrite took");
-  const a = analyse({ "src/embedded_data.rs": EMBEDDED + backwards });
+  const a = analyse({ "crates/humanity-core/src/embedded_data.rs": EMBEDDED + backwards });
   assert.ok(a.problems.some((p) => /load_data_or_embedded does not read the disk before/.test(p)), a.problems.join("\n"));
   assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
 });
@@ -252,7 +252,7 @@ test("RULES: a second reader of the table that consults it BEFORE the disk voids
 test("RULES: a second reader of the table that never says it served the built-in copy is a problem", () => {
   const silent = SECOND_READER.replace("note_builtin_copy(rel, &why);", "let _ = &why;");
   assert.ok(silent.includes("let _ = &why;"), "the fixture rewrite took");
-  const a = analyse({ "src/embedded_data.rs": EMBEDDED + silent });
+  const a = analyse({ "crates/humanity-core/src/embedded_data.rs": EMBEDDED + silent });
   assert.ok(a.problems.some((p) => /load_data_or_embedded never calls note_builtin_copy/.test(p)), a.problems.join("\n"));
   assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
 });
@@ -260,6 +260,23 @@ test("RULES: a second reader of the table that never says it served the built-in
 test("RULES: a test cfg shape the check does not know is reported, not guessed", () => {
   const a = analyse({ "src/odd_cfg.rs": '#[cfg(any(test, doc))]\nconst X: &str = include_str!("../data/x.ron");\n' });
   assert.ok(a.problems.some((p) => /odd_cfg\.rs:1: a test cfg this check does not understand/.test(p)), a.problems.join("\n"));
+});
+
+// The crate split's rung 1 (2026-11-01): a crate's test helpers other crates' tests reach sit under
+// `any(test, feature = "test-support")`, a feature only [dev-dependencies] turn on, so their includes
+// are test-only; the same shape with any other feature is not, and is reported. Seen red on purpose
+// first: before compiled-in.js knew the shape, the real tree's 11 test-support gates were each "a
+// test cfg this check does not understand".
+test("RULES: a test-support gate is test code; the same shape with another feature is reported", () => {
+  const a = analyse({
+    "src/fixture_a.rs": '#[cfg(any(test, feature = "test-support"))]\npub mod fixtures {\n    pub const X: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ts_a.ron"));\n}\n',
+    "src/fixture_b.rs": '#[cfg(all(any(test, feature = "test-support"), feature = "native"))]\npub mod gpu {\n    pub const Y: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ts_b.ron"));\n}\n',
+    "src/fixture_c.rs": '#[cfg(any(test, feature = "native"))]\npub const Z: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ts_c.ron"));\n',
+  });
+  assert.strictEqual(cls(a, "data/ts_a.ron"), "test-only");
+  assert.strictEqual(cls(a, "data/ts_b.ron"), "test-only");
+  assert.ok(a.problems.some((p) => /fixture_c\.rs:1: a test cfg this check does not understand/.test(p)), a.problems.join("\n"));
+  assert.ok(!a.problems.some((p) => /fixture_[ab]\.rs/.test(p)), a.problems.join("\n"));
 });
 
 // ── Critic review 2 (2026-10-03): shapes the first version could not see ──────
@@ -419,7 +436,7 @@ test("RULES: read_data_or_embedded that never says it served the built-in copy i
     "get_embedded(rel).map(|s| { let _ = e; s.to_string() })"
   );
   assert.ok(silent.includes("let _ = e;"), "the fixture rewrite took");
-  const a = analyse({ "src/embedded_data.rs": silent });
+  const a = analyse({ "crates/humanity-core/src/embedded_data.rs": silent });
   assert.ok(a.problems.some((p) => /read_data_or_embedded never calls note_builtin_copy/.test(p)), a.problems.join("\n"));
   assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
 });

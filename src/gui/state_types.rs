@@ -632,9 +632,9 @@ pub enum WalletNetwork {
 impl WalletNetwork {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Mainnet => crate::i18n::t("wallet.network_mainnet"),
-            Self::Devnet => crate::i18n::t("wallet.network_devnet"),
-            Self::Testnet => crate::i18n::t("wallet.network_testnet"),
+            Self::Mainnet => humanity_core::i18n::t("wallet.network_mainnet"),
+            Self::Devnet => humanity_core::i18n::t("wallet.network_devnet"),
+            Self::Testnet => humanity_core::i18n::t("wallet.network_testnet"),
         }
     }
 }
@@ -728,7 +728,7 @@ pub struct BuildPlacing {
     /// Where it would be built this frame, None when it cannot be placed
     /// from here (not in first person, driving, open space, flying). E
     /// builds exactly this pose (the build request carries it).
-    pub ghost: Option<crate::ecs::components::Transform>,
+    pub ghost: Option<humanity_core::ecs::components::Transform>,
     /// The frame `ghost` is in: None aboard (the home frame), else the build
     /// site on a planet's ground (2026-09-27, BUG-102).
     pub site: Option<crate::systems::construction::PlanetSite>,

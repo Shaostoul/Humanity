@@ -146,7 +146,7 @@ pub(crate) fn draw_near_trees(
     state: &mut NearTreeState,
     view: NearTreeView,
     cs: &chunks::ChunkState,
-    b: &crate::cosmos::SolBody,
+    b: &humanity_core::cosmos::SolBody,
     d: &PlanetDef,
     celestial_objects: &mut Vec<RenderObject>,
 ) {
@@ -264,7 +264,7 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
             })
             .collect();
         let _cost_tree_harvest =
-            crate::frame_costs::stage("cpu.near_tree_harvest");
+            humanity_core::frame_costs::stage("cpu.near_tree_harvest");
         // v0.1097, the 13 m floating-trees fix:
         // bases interpolate the DRAWN mesh at
         // this depth (computed above the gate

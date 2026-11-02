@@ -42,7 +42,7 @@ use std::sync::OnceLock;
 /// (`just play`, `just launch`, a double-click) are foreground and keep
 /// their sound, and a person who clicks into a background window gets it
 /// then (`open_audio_on_click`).
-pub fn launch_audio() -> Option<crate::audio::AudioManager> {
+pub fn launch_audio() -> Option<humanity_core::audio::AudioManager> {
     if launch_in_background() {
         log::info!("[Audio] off: this instance was launched in the background by a script (a click into its window turns sound on)");
         return None;
@@ -54,7 +54,7 @@ pub fn launch_audio() -> Option<crate::audio::AudioManager> {
 /// terminal, not only an agent), so it is theirs now: open the audio device
 /// it skipped at launch (BUG-097, critic review). An agent's rig is never
 /// clicked into and stays silent. Called on that first click only.
-pub fn open_audio_on_click(audio: &mut Option<crate::audio::AudioManager>) {
+pub fn open_audio_on_click(audio: &mut Option<humanity_core::audio::AudioManager>) {
     if audio.is_none() && launch_in_background() {
         *audio = open_audio();
         if audio.is_some() {
@@ -63,8 +63,8 @@ pub fn open_audio_on_click(audio: &mut Option<crate::audio::AudioManager>) {
     }
 }
 
-fn open_audio() -> Option<crate::audio::AudioManager> {
-    match crate::audio::AudioManager::try_new() {
+fn open_audio() -> Option<humanity_core::audio::AudioManager> {
+    match humanity_core::audio::AudioManager::try_new() {
         Ok(a) => Some(a),
         Err(e) => {
             log::warn!("[Audio] disabled: {e}");

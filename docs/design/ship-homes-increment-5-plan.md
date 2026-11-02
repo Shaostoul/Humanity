@@ -58,7 +58,7 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 - Pre-migration fixture with an old `roles` table: tests/fixtures/relay/relay_v0_1456.sql (roles at :250); the pattern test src/relay/handlers/fleet_ledger_tests.rs:338-385.
 
 ### 1.6 The friendship-note pattern
-- src/relay/core/pq_crypto.rs:233-291: `FRIEND_CERT_DOMAIN` :260, `friend_cert_preimage` :263-265, `build_friend_cert` :272-277, `verify_friend_cert` :281-291 ("MINT AND CHECK LIVE TOGETHER", :250-257), KAT test :535-560, `verify_dilithium` :109-131.
+- crates/humanity-protocol/src/pq_crypto.rs:233-291: `FRIEND_CERT_DOMAIN` :260, `friend_cert_preimage` :263-265, `build_friend_cert` :272-277, `verify_friend_cert` :281-291 ("MINT AND CHECK LIVE TOGETHER", :250-257), KAT test :535-560, `verify_dilithium` :109-131.
 - Delivery: sealed control DM. src/net/dm_pq.rs:174-177 (minting moved out), `DmInner.cert` :180-200, `CTL_*` :202-205; src/engine/dm.rs control filter :147-153, `ingest_control` :198-244, `send_dm_control` :249-287, `send_friend_cert` :290-306; src/net/dm_store.rs is per identity AND server (`load(seed, identity_hex, server_url)` :105), certs :275-288. Web only swallows the three known controls: app/web/chat/crypto.js:783-809, app/web/chat/chat-social.js:459 (an unknown `[[hum:...]]` would render as text).
 
 ### 1.7 The engine-module template (copy the fleet ledger)
@@ -73,7 +73,7 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 ### 1.9 Constraints that shape the waves
 - Line budgets (tests/file_size_ratchet.rs:376-417), measured today: src/lib.rs 16,439/16,700; src/relay/relay.rs 6,359/6,400 (41 free); src/relay/handlers/msg_handlers.rs 4,630/4,660 (30 free); src/engine/frame_ws_poll.rs 1,784/1,800 (not touched); src/gui/mod.rs 4,710/4,800 (not touched); src/gui/pages/construction.rs 4,018/4,250. All new logic goes in new files; hot files get one-line calls.
 - BUG-046: new table in its own batch with every column in its CREATE; new column on an existing table by guarded ALTER after the main batch, ALTER before the seed, no index over it.
-- BUG-133: any embedded fallback calls `embedded_data::note_builtin_copy` after a disk read (`read_data_or_embedded`, src/embedded_data.rs:390-427), or the rigs fail `no_builtin_data`.
+- BUG-133: any embedded fallback calls `embedded_data::note_builtin_copy` after a disk read (`read_data_or_embedded`, crates/humanity-core/src/embedded_data.rs:390-427), or the rigs fail `no_builtin_data`.
 - BUG-159: new tests use `Storage::open_temp(tag)` (storage/mod.rs:2393) / `crate::test_temp`, never `std::env::temp_dir()`.
 - Account: every table erased must be exported and left-rows-checked (src/relay/storage/account.rs grabs :97-108, dels :257-264, `erase_left_rows` :297-322, pinned by `the_left_rows_check_reads_every_table_the_erase_answers_for`); tests/account_sql_lint.rs requires the table's CREATE in storage/mod.rs.
 
@@ -92,7 +92,7 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 | shared-building.md: four arms in `route_game_message` (net_route.rs:19-201) | House pattern is a hook first (net_route.rs:14-17) | `engine::shared_build::on_game_message` hook + `on_welcome` in the welcome arm |
 | shared-building.md: throwaway relay "runs from a temp directory with no data/blueprints" | Since 2026-10-03 it mirrors the tree's data/ | Disk first, embedded fallback with `note_builtin_copy` |
 | shared-building.md line refs (relay.rs 283/460/3538-3588, lib.rs 6795-6905/6862-6874, settings.rs 3386-3400, features.rs 552-554, ipc.rs 2956-3060, mod.rs 537-547, state.rs 769-771, Justfile 551/569-582) | Moved | relay.rs 283/428-432/3548-3595; lib.rs 6705-6831; settings.rs 3452-3467; features.rs 284-290; ipc.rs 3418-3659; construction mod.rs 550-581; state.rs 778-807; Justfile rig-tests ~597, verify-copresence 654-655 |
-| ship-homes §7 inc 5 files: "src/net/dm_pq.rs (permit building, beside build_friend_cert)" | `build_friend_cert` moved to src/relay/core/pq_crypto.rs:272 on 2026-09-19 (dm_pq.rs:174-177) | Mint and verify permits in pq_crypto.rs; dm_pq.rs only gets a control constant (permit delivery wave) |
+| ship-homes §7 inc 5 files: "src/net/dm_pq.rs (permit building, beside build_friend_cert)" | `build_friend_cert` moved to crates/humanity-protocol/src/pq_crypto.rs:272 on 2026-09-19 (dm_pq.rs:174-177) | Mint and verify permits in pq_crypto.rs; dm_pq.rs only gets a control constant (permit delivery wave) |
 | ship-homes inc 5: "src/config.rs (158-170)"; "src/relay/storage/mod.rs (roles, 1229-1245)"; game-modes.md:59 "storage/mod.rs:1229" | ShipStructureEditing config.rs:159-162, `play_mode_allows` :176-190; roles :1331-1446 | As listed |
 | ship-homes §4 rule 5: "Today it does: Dev is the default (config.rs:130-131)" | Normal is the default since v0.1461.0; rigs pin Dev | Still needed: the operator's own config and every rig run Dev |
 | ship-homes §4 rule 6, §7 1a: Normal player can move the hangar; E-key pieces bounded to own plot "(Dev exempt)" | Fixed/built in 1a (build_place.rs:155-161, 204-231) | Increment 5 removes the Dev exemption while joined |
@@ -175,7 +175,7 @@ Budget after all waves: relay.rs about 6,366/6,400; msg_handlers.rs about 4,642/
 Each test below is red on the code before its wave; for new functions the red statement names the guarded line whose removal fails it, as every test in this repo records.
 
 ### Wave 0: the contract (one builder, merges first)
-Files: NEW src/systems/construction/shared.rs; src/systems/construction/mod.rs (`pub mod shared;`, `Blueprint.shared` with serde default, `BuildRequest.shared_frame` + `.shared(frame)`); data/blueprints/basic.ron (`shared: true` on wood_foundation, stone_foundation, wood_wall, stone_wall, metal_wall, wood_wall_window, roof; lines 6-17); NEW src/ship/build_frames.rs + src/ship/mod.rs; src/relay/core/pq_crypto.rs (`PLOT_PERMIT_DOMAIN`, `plot_permit_preimage`, `build_plot_permit`, `verify_plot_permit` beside the friend cert); CLAUDE.md Cryptography table (one "Plot permits" row, required in the same commit).
+Files: NEW src/systems/construction/shared.rs; src/systems/construction/mod.rs (`pub mod shared;`, `Blueprint.shared` with serde default, `BuildRequest.shared_frame` + `.shared(frame)`); data/blueprints/basic.ron (`shared: true` on wood_foundation, stone_foundation, wood_wall, stone_wall, metal_wall, wood_wall_window, roof; lines 6-17); NEW src/ship/build_frames.rs + src/ship/mod.rs; crates/humanity-protocol/src/pq_crypto.rs (`PLOT_PERMIT_DOMAIN`, `plot_permit_preimage`, `build_plot_permit`, `verify_plot_permit` beside the friend cert); CLAUDE.md Cryptography table (one "Plot permits" row, required in the same commit).
 Delivers: SharedPiece, wire structs, SharedBuildIntent + channel name, `validate_pose`, `same_box`, `box_inside_frame`, caps, reason/why codes and their sentences, frames and conversions, permit mint/verify.
 Tests:
 - `every_shareable_pose_the_placer_makes_passes_validate_pose` (each shared blueprint x 4 turns x grid points, empty and stacked): red with the yaw check inverted.

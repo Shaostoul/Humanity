@@ -26,7 +26,7 @@ use crate::gui::pages::maps::{MapCamera, MapView, StationRow, UpcomingSkyEvent};
 /// section 8, "Two truths").
 ///
 /// Every position is in the engine's world frame: metres, Earth's centre at
-/// the origin, Y up, the ecliptic in XZ (the frame `crate::cosmos` and the
+/// the origin, Y up, the ecliptic in XZ (the frame `humanity_core::cosmos` and the
 /// frame loop place every body in).
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapSelf {

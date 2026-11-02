@@ -32,7 +32,7 @@ use crate::engine::state::EngineState;
 use crate::gui::pages::fleet_ledger::{self, CounterAsk};
 use crate::ship::moves::INTERACT_REACH_M;
 use crate::gui::GuiState;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::ship_meals::{self, MealRules, Served};
 
 /// The machine type a serving counter is (data/machines/ship.ron's catalog, increment 6 lane 1A).

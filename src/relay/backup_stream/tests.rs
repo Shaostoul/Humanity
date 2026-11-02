@@ -18,17 +18,17 @@ struct Rig {
     rs: RunState,
     data: PathBuf,
     dest: PathBuf,
-    _dir: crate::test_temp::TempPath,
+    _dir: humanity_core::test_temp::TempPath,
 }
 
 impl Rig {
     fn new(tag: &str) -> Self {
-        let dir = crate::test_temp::dir(tag);
+        let dir = humanity_core::test_temp::dir(tag);
         let dest = dir.join("dest");
         Self::in_dir(dir, dest)
     }
 
-    fn in_dir(dir: crate::test_temp::TempPath, dest: PathBuf) -> Self {
+    fn in_dir(dir: humanity_core::test_temp::TempPath, dest: PathBuf) -> Self {
         let data = dir.join("data");
         std::fs::create_dir_all(&data).unwrap();
         if load_config(&data).is_none() {
@@ -331,11 +331,11 @@ async fn a_checkpoint_the_backup_did_not_make_starts_a_new_generation() {
 /// last copy\") / right: None".
 #[tokio::test]
 async fn a_restart_continues_the_same_generation() {
-    let dir = crate::test_temp::dir("bs_restart");
+    let dir = humanity_core::test_temp::dir("bs_restart");
     let dest = dir.join("dest");
     let data = dir.join("data");
     let (gen, digest) = {
-        let mut rig = Rig::in_dir(crate::test_temp::dir("bs_restart_a"), dest.clone());
+        let mut rig = Rig::in_dir(humanity_core::test_temp::dir("bs_restart_a"), dest.clone());
         rig.pass().await;
         write_rows(&rig.db, 0, 30);
         rig.pass().await;
@@ -510,7 +510,7 @@ async fn another_humanityos_server_keeps_the_backups_and_lets_only_the_sender_in
     let state = crate::relay::serve_relay(keeper, listener).await;
 
     // The sending server, with the keeping server as its destination.
-    let dir = crate::test_temp::dir("bs_sender");
+    let dir = humanity_core::test_temp::dir("bs_sender");
     let data = dir.join("data");
     std::fs::create_dir_all(&data).unwrap();
     let mut cfg = config_with_sender(&data);
@@ -556,7 +556,7 @@ async fn another_humanityos_server_keeps_the_backups_and_lets_only_the_sender_in
     assert!(stranger.list().await.is_err());
     let client = reqwest::Client::new();
     let ms = capture::now_ms();
-    let kp = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&cfg.sender_seed_bytes().unwrap()));
+    let kp = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&cfg.sender_seed_bytes().unwrap()));
     let sig = hex::encode(kp.sign(peer::preimage("put", "replayed", b"abc", ms).as_bytes()));
     let send = |body: &'static [u8], name: &str| {
         client.put(format!("{url}/api/backup-host/o/{name}")).header(peer::H_FROM, &fp).header(peer::H_TIME, ms.to_string()).header(peer::H_SIG, &sig).body(body).send()

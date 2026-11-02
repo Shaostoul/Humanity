@@ -210,29 +210,29 @@ fn run_connection(
     tx_to_game: mpsc::Sender<String>,
 ) {
     log::info!("WsClient: connecting to {}", url);
-    crate::debug::push_debug(format!("WS connecting to {}", url));
+    humanity_core::debug::push_debug(format!("WS connecting to {}", url));
 
     let connect_result = tungstenite::connect(&url);
     let (mut socket, _response) = match connect_result {
         Ok(pair) => pair,
         Err(e) => {
             log::error!("WsClient: connection failed: {}", e);
-            crate::debug::push_debug(format!("WS connection FAILED: {}", e));
+            humanity_core::debug::push_debug(format!("WS connection FAILED: {}", e));
             let _ = tx_to_game.send("__DISCONNECTED__".to_string());
             return;
         }
     };
 
     log::info!("WsClient: connected to {}", url);
-    crate::debug::push_debug(format!("WS connected to {}", url));
+    humanity_core::debug::push_debug(format!("WS connected to {}", url));
     let _ = tx_to_game.send("__CONNECTED__".to_string());
 
     // Send identify (matches the relay's RelayMessage::Identify).
     let identify_json = identify_frame(&pubkey, &name, &key_card_json, sign_up_again).to_string();
-    crate::debug::push_debug(format!("WS >>> {}", identify_json));
+    humanity_core::debug::push_debug(format!("WS >>> {}", identify_json));
     if let Err(e) = socket.send(tungstenite::Message::Text(identify_json)) {
         log::error!("WsClient: failed to send identify: {}", e);
-        crate::debug::push_debug(format!("WS identify FAILED: {}", e));
+        humanity_core::debug::push_debug(format!("WS identify FAILED: {}", e));
         let _ = tx_to_game.send("__DISCONNECTED__".to_string());
         return;
     }

@@ -35,7 +35,7 @@
 //! builder. Here, under both, the renderer's trees and card bake and the engine's crops and
 //! fungi build with it as before, and terrain stays beneath the renderer.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::terrain::planet_surface::pack_color_to_uv;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -1132,7 +1132,7 @@ mod tests {
     #[test]
     fn registry_parses_the_shipped_ron() {
         let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/plants_visual.ron"),
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/plants_visual.ron"),
         )
         .expect("data/plants_visual.ron exists");
         let reg = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");

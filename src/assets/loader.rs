@@ -1,7 +1,7 @@
 //! Asset loader — type identification and raw byte loading.
 //!
 //! The data files' parsers (CSV, TOML, RON, JSON) lived here until the crate split's rung 0
-//! (2026-10-31) moved them down to the core as `crate::data_parse`, so the simulation and the
+//! (2026-10-31) moved them down to the core as `humanity_core::data_parse`, so the simulation and the
 //! ship stop reaching into the renderer's half to read a data file. What stays is the asset
 //! manager's own business: which kind of asset a file is, and reading its bytes.
 

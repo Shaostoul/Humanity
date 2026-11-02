@@ -3,7 +3,7 @@
 
 use glam::DVec3;
 
-use crate::cosmos::{body_world_position_3d_au, find_body, M_PER_AU};
+use humanity_core::cosmos::{body_world_position_3d_au, find_body, M_PER_AU};
 use crate::gui::state_types::MapSelf;
 
 use super::camera::MapAnchor;
@@ -114,7 +114,7 @@ impl<'a> MapScene<'a> {
     }
 
     /// A body's radius as drawn, metres: its own, or its diagram size.
-    pub fn radius_m(&self, body: &crate::cosmos::SolBody) -> f64 {
+    pub fn radius_m(&self, body: &humanity_core::cosmos::SolBody) -> f64 {
         if self.diagram {
             diagram::display_radius_m(body.radius_km)
         } else {

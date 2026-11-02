@@ -21,7 +21,7 @@
 //!   page-wide part once a frame with [`style_key`] (text sizes, the font's own measurements, the
 //!   spacing, pixels per point). A changed key lays the block out again in the same frame, so a
 //!   stale size is never used.
-//! - SWITCHED. With the Dev page's "Turn off all reuse" (`crate::reuse`) off, nothing is skipped
+//! - SWITCHED. With the Dev page's "Turn off all reuse" (`humanity_core::reuse`) off, nothing is skipped
 //!   and nothing is remembered: every block is laid out every frame, exactly as before.
 //!
 //! Also never skipped: a sizing pass (egui measuring a window at its smallest), and any frame in
@@ -65,7 +65,7 @@ pub fn enabled() -> bool {
     if let Some(on) = TEST_OVERRIDE.with(|c| c.get()) {
         return on;
     }
-    crate::reuse::enabled()
+    humanity_core::reuse::enabled()
 }
 
 /// May blocks in `ui` be skipped THIS frame? Not in a sizing pass (widths are at their smallest

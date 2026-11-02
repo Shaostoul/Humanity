@@ -2,10 +2,10 @@
 //! the attach step's look agrees with the clean, and a big file is cleaned in a copy, never itself.
 
 use super::*;
-use crate::relay::core::describe_metadata::describe;
+use humanity_protocol::describe_metadata::describe;
 
 fn fixture(name: &str) -> Vec<u8> {
-    std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe").join(name)).expect("the fixture is there")
+    std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe").join(name)).expect("the fixture is there")
 }
 
 /// Pictures and videos that say where they were taken come out saying nothing; a video keeps its
@@ -31,8 +31,8 @@ fn a_phone_photo_and_a_phone_video_leave_saying_nothing() {
 /// the HEIF strip handed nothing to strip: the assertion "{c:?}" failed (not changed, unchecked).
 #[test]
 fn a_heic_photo_is_cleaned_in_place() {
-    let built = crate::relay::core::strip_heif_metadata::build::iphone_heic();
-    let place = crate::relay::core::strip_heif_metadata::build::PLACE;
+    let built = humanity_protocol::strip_heif_metadata::build::iphone_heic();
+    let place = humanity_protocol::strip_heif_metadata::build::PLACE;
     let has = |b: &[u8]| b.windows(place.len()).any(|w| w == place);
     assert!(has(&built.bytes), "test setup");
     let (after, c) = clean_bytes(built.bytes.clone(), "IMG_0005.HEIC");
@@ -68,7 +68,7 @@ fn what_could_not_be_checked() {
 /// Seen red 2026-10-11 with the look calling a GIF unchecked: "gif.gif".
 #[test]
 fn the_look_from_disk_agrees_with_the_clean() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe");
+    let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe");
     let mut n = 0;
     for e in std::fs::read_dir(&dir).unwrap().flatten() {
         let p = e.path();
@@ -91,7 +91,7 @@ fn the_look_from_disk_agrees_with_the_clean() {
 /// "the person's own file is never written".
 #[test]
 fn a_big_file_is_cleaned_in_a_copy_and_its_own_file_is_never_written() {
-    let work = crate::test_temp::dir("clean_copy");
+    let work = humanity_core::test_temp::dir("clean_copy");
     let out = work.join("cleaned");
     let own = work.join("IMG_0003.MOV");
     let before = fixture("mov-apple.mov");

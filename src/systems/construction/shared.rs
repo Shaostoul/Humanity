@@ -47,10 +47,10 @@
 //! - the limits: caps, pacing, tolerances.
 
 use super::placement::{quarter_turn, GRID_M, LEVEL_TOLERANCE_M};
-use crate::ecs::components::world_aabb;
+use humanity_core::ecs::components::world_aabb;
 use super::{Blueprint, BlueprintRegistry};
-use crate::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
-use crate::ecs::components::Transform;
+use humanity_core::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
+use humanity_core::ecs::components::Transform;
 use crate::ship::build_frames::{BuildFrame, EDGE_SLACK_M, MAX_LOCAL_Y_M, MIN_LOCAL_Y_M};
 use glam::{Quat, Vec3};
 use serde::{Deserialize, Serialize};
@@ -84,7 +84,7 @@ pub const MAX_FRAME_LEN: usize = 64;
 pub const MAX_BLUEPRINT_ID_LEN: usize = 64;
 
 // The longest a household permit may run (`PERMIT_MAX_DAYS`), the permit itself (`Permit`) and
-// the codes a refused build names (`Why`) are `crate::build_permission`'s since the crate split's
+// the codes a refused build names (`Why`) are `humanity_core::build_permission`'s since the crate split's
 // rung 0: the permit book on the app's network side speaks them too.
 
 // ── Pace ──────────────────────────────────────────────────────────────────
@@ -800,13 +800,13 @@ mod tests {
     use crate::ship::ship_structure::ShipStructure;
 
     fn shipped() -> BlueprintRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("blueprints").join("basic.ron");
         BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
     }
 
     /// The relay's frames of the shipped ship.
     fn frames() -> BuildFrames {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         BuildFrames::of_ship(&ShipStructure::ship_for_relay(&data).expect("the ship file loads"))
     }
 

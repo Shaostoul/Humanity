@@ -4,10 +4,10 @@
 //! If the ray hits an entity with an `Interactable` component within range, that entity
 //! becomes the current target and a prompt string is written to DataStore for the HUD.
 
-use crate::ecs::components::{Interactable, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
-use crate::input::InputState;
+use humanity_core::ecs::components::{Interactable, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
+use humanity_core::input::InputState;
 use glam::Vec3;
 use std::sync::Mutex;
 

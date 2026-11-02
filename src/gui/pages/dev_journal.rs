@@ -4,7 +4,7 @@
 //! moment, Open the folder, and Clear the journal (asking first).
 //!
 //! The files are read on a worker thread at most every two seconds while this section is on
-//! screen (src/play_journal.rs writes them); the draw only shows the last reading. The kinds
+//! screen (crates/humanity-core/src/play_journal.rs writes them); the draw only shows the last reading. The kinds
 //! come from data/dev/journal_kinds.json, their words from data/i18n/en.json
 //! (`dev_journal.kind_<id>`), so a new kind is a data row, a words key and a record() call.
 //! The website has no game to journal: its Dev Workbench lists Journal as the desktop app's.
@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use egui::{RichText, ScrollArea};
 
-use crate::i18n::{t, t_dyn, tf};
+use humanity_core::i18n::{t, t_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
@@ -135,7 +135,7 @@ fn refresh(ctx: &egui::Context, dir: &Path) -> Snapshot {
         let dir = dir.to_path_buf();
         let ctx = ctx.clone();
         std::thread::spawn(move || {
-            let json = std::fs::read_to_string(crate::storage::data_dir().join("dev").join("journal_kinds.json")).unwrap_or_default();
+            let json = std::fs::read_to_string(humanity_core::storage::data_dir().join("dev").join("journal_kinds.json")).unwrap_or_default();
             let snap = read_snapshot(&dir, &listed_kinds(&json));
             if let Ok(mut r) = reader().lock() {
                 r.snapshot = snap;
@@ -167,7 +167,7 @@ pub enum Act {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let dir = crate::play_journal::dir().map(Path::to_path_buf);
+    let dir = humanity_core::play_journal::dir().map(Path::to_path_buf);
     let snap = dir.as_deref().map(|d| refresh(ctx, d)).unwrap_or_default();
     let mut act = None;
     egui::CentralPanel::default()
@@ -178,7 +178,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             });
         });
     match act {
-        Some(Act::Mark) => state.play_mark_request = Some(crate::play_journal::MarkAsk::by_hand()),
+        Some(Act::Mark) => state.play_mark_request = Some(humanity_core::play_journal::MarkAsk::by_hand()),
         Some(Act::OpenFolder) => {
             if let Some(d) = dir.as_deref() {
                 open_with_system(d);

@@ -111,7 +111,7 @@
 
 use super::site::PlanetSite;
 use super::{doorway, uses, Blueprint, BlueprintRegistry, DoorOpen, Structure};
-use crate::ecs::components::{Controllable, Transform};
+use humanity_core::ecs::components::{Controllable, Transform};
 use crate::systems::inventory::{Inventory, ItemRegistry};
 use glam::{DVec3, Vec3};
 use serde::Deserialize;
@@ -393,7 +393,7 @@ fn box_between(a: Vec3, b: Vec3, tf: &Transform) -> bool {
     // A millimetre: an end on a box's face counts as on the box.
     const EDGE_M: f32 = 1.0e-3;
     // Nowhere near the line (the boxes around each do not meet): no ray test.
-    let (lo, hi) = crate::ecs::components::world_aabb(tf);
+    let (lo, hi) = humanity_core::ecs::components::world_aabb(tf);
     if hi.cmplt(a.min(b)).any() || lo.cmpgt(a.max(b)).any() {
         return false;
     }
@@ -418,11 +418,11 @@ mod tests {
     const STONE: &str = "stone_raw_0";
 
     fn shipped() -> BlueprintRegistry {
-        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap()
+        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap()
     }
 
     fn items() -> ItemRegistry {
-        ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap()
+        ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap()
     }
 
     fn earth_site() -> PlanetSite {

@@ -32,7 +32,7 @@
 //! arena is full, the caller falls back to the classic per-mesh path for that
 //! patch (graceful degradation, logged -- never a crash).
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 // The ranges a patch is given (the patch cache keeps one per batched patch; terrain's since the
 // crate split's rung 0).
 use crate::terrain::planet_chunks::PatchSlot;

@@ -3,7 +3,7 @@
 //! The privacy map keeps some fields for friends; `accepts_files` is nobody, friends or anyone.
 //! The signed copy other servers keep is storage/signed_profiles.rs.
 use super::Storage;
-use crate::relay::core::profile_copy::kept_for_friends;
+use humanity_protocol::profile_copy::kept_for_friends;
 use rusqlite::params;
 use std::collections::HashMap;
 
@@ -296,7 +296,7 @@ mod tests {
     /// column: accepts_files".
     #[test]
     fn an_older_database_gains_accepts_files_with_the_default() {
-        let path = crate::test_temp::db("accepts_files_mig");
+        let path = humanity_core::test_temp::db("accepts_files_mig");
         {
             let conn = rusqlite::Connection::open(&*path).expect("raw open");
             conn.execute_batch(

@@ -2,7 +2,7 @@
 //! the engine (`save_load`).
 
 use crate::systems::food::*;
-use crate::ecs::components::StatusEffects;
+use humanity_core::ecs::components::StatusEffects;
 use crate::systems::food::wounds_tests::certain;
 use crate::systems::food::wounds_tests::data_dir;
 use crate::systems::food::wounds_tests::effects;
@@ -30,9 +30,9 @@ fn wounds_and_their_care_come_back_with_a_save() {
                 p,
                 (
                     crate::systems::skills::PlayerSkills::new(),
-                    crate::ecs::components::Name("Astra".into()),
-                    crate::ecs::components::Appearance::default(),
-                    crate::ecs::components::Outfit::default(),
+                    humanity_core::ecs::components::Name("Astra".into()),
+                    humanity_core::ecs::components::Appearance::default(),
+                    humanity_core::ecs::components::Outfit::default(),
                 ),
             )
             .unwrap();

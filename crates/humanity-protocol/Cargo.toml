@@ -1,0 +1,49 @@
+# humanity-protocol (docs/crates/humanity-protocol.md): what the app and the server both speak: keys,
+# signatures, sealed messages, signed objects, encodings. Small, security-critical, reviewed on its own,
+# and compiled beside the core rather than after it (its code uses no crate of ours; its tests use the
+# core's helpers). Cut out of the one crate as `relay::core` in the crate split's rung 1 (2026-11-01,
+# docs/design/crate-split.md). Every algorithm named here: docs/reference/cryptography.md.
+[package]
+name = "humanity-protocol"
+version.workspace = true
+edition.workspace = true
+publish = false
+# Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
+build = "../repo_root.rs"
+
+[features]
+# The same default as the root package, so `cargo test -p humanity-protocol` tests what the app builds.
+default = ["native"]
+# The desktop vault's key derivation (kdf::pbkdf2_sha256): the server derives no vault key.
+native = ["dep:pbkdf2", "dep:sha2"]
+# The fixtures other crates' tests share (the profile copy's cases, the HEIF test pictures, a key by
+# seed byte). A crate's #[cfg(test)] items are never compiled into another crate's tests, so a
+# dependent turns this on in its [dev-dependencies] only; no product build carries it.
+test-support = []
+
+[dependencies]
+aes-gcm = { workspace = true }
+argon2 = { workspace = true }
+base64 = { workspace = true }
+blahaj = { workspace = true }
+blake3 = { workspace = true }
+bs58 = { workspace = true }
+ciborium = { workspace = true }
+ed25519-dalek = { workspace = true }
+getrandom = { workspace = true }
+hex = { workspace = true }
+image = { workspace = true }
+ml-dsa = { workspace = true }
+ml-kem = { workspace = true }
+pbkdf2 = { workspace = true, optional = true }
+rand_core_06 = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+# The core's test helpers (test_temp) and the permit ceiling its plot-permit test pins.
+humanity-core = { path = "../humanity-core", default-features = false, features = ["test-support"] }

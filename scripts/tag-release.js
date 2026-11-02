@@ -50,18 +50,31 @@ const { spawnSync } = require('child_process');
 
 const VERSION_SHAPE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-/** The [package] version in a Cargo.toml's text, or null. */
-function packageVersion(toml) {
-  const text = String(toml).replace(/\r\n/g, '\n');
-  const start = text.search(/^\[package\]\s*$/m);
+/** The `version = "..."` line of one table (`[package]`, `[workspace.package]`) in a Cargo.toml's
+ * text: the version, `{ workspace: true }` for `version.workspace = true`, or null. */
+function tableVersion(text, table) {
+  const start = text.search(new RegExp(`^\\[${table.replace('.', '\\.')}\\]\\s*$`, 'm'));
   if (start < 0) return null;
-  const rest = text.slice(start).split('\n').slice(1);
-  for (const line of rest) {
+  for (const line of text.slice(start).split('\n').slice(1)) {
     if (/^\s*\[/.test(line)) break; // the next table
     const m = /^\s*version\s*=\s*"([^"]*)"\s*(#.*)?$/.exec(line);
     if (m) return m[1];
+    if (/^\s*version\s*\.\s*workspace\s*=\s*true\s*(#.*)?$/.test(line) || /^\s*version\s*=\s*\{\s*workspace\s*=\s*true\s*\}/.test(line)) return { workspace: true };
   }
   return null;
+}
+
+/** The [package] version in a Cargo.toml's text, or null. Since the crate split's rung 1
+ * (2026-11-01) the package takes it from the workspace (`version.workspace = true`), so it is
+ * [workspace.package]'s, the one version every member carries. */
+function packageVersion(toml) {
+  const text = String(toml).replace(/\r\n/g, '\n');
+  const v = tableVersion(text, 'package');
+  if (v && typeof v === 'object') {
+    const w = tableVersion(text, 'workspace.package');
+    return typeof w === 'string' ? w : null;
+  }
+  return v;
 }
 
 function defaultRun(cmd, args, opts = {}) {

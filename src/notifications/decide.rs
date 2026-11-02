@@ -294,18 +294,18 @@ pub fn words(file: &File, c: &Candidate, show: Show) -> (String, String) {
     let Some(kind) = file.kind(&c.kind) else {
         return (String::new(), String::new());
     };
-    let t = crate::i18n::t_dyn;
+    let t = humanity_core::i18n::t_dyn;
     // A game event (rung 3): the event's own words, unless the notice shows nothing.
     if let (Some(e), false) = (file.game_event(&c.event), show == Show::Nothing) {
         let count = c.count.max(1) as i64;
         let place = clean(&c.room_name, TITLE_CHARS);
-        let body = crate::i18n::fill(t(&format!("{}.{}", e.body, if count == 1 { "one" } else { "other" })), &[("n", &count), ("where", &place)]);
+        let body = humanity_core::i18n::fill(t(&format!("{}.{}", e.body, if count == 1 { "one" } else { "other" })), &[("n", &count), ("where", &place)]);
         return (clean(t(&e.title), TITLE_CHARS), clean(&body, BODY_CHARS));
     }
     let name = clean(&c.sender, TITLE_CHARS);
     let room = clean(&c.room_name, TITLE_CHARS);
     let title_key = kind.variants.get(&c.variant).unwrap_or(&kind.title);
-    let named = || clean(&crate::i18n::fill(t(title_key), &[("name", &name), ("room", &room)]), TITLE_CHARS);
+    let named = || clean(&humanity_core::i18n::fill(t(title_key), &[("name", &name), ("room", &room)]), TITLE_CHARS);
     match show {
         Show::Nothing => (t(&kind.title_hidden).to_string(), t(&kind.body_hidden).to_string()),
         Show::Name => (named(), t(&kind.body_hidden).to_string()),

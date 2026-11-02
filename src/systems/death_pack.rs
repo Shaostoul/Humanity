@@ -36,7 +36,7 @@ use std::path::Path;
 use glam::{DVec3, Vec3};
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::Controllable;
+use humanity_core::ecs::components::Controllable;
 use crate::systems::inventory::{Inventory, ItemRegistry, ItemStack};
 
 /// The rules file, relative to the data directory. Loaded once, into the GUI's share
@@ -111,14 +111,14 @@ impl DeathRules {
     /// it without a rebuild), else the copy built into the exe. A disk copy that does not
     /// parse is said in the log and the built-in copy is used instead, never a crash.
     pub fn load(data_dir: &Path) -> Self {
-        if let Some(text) = crate::embedded_data::read_data_or_embedded(data_dir, "world/death.ron") {
+        if let Some(text) = humanity_core::embedded_data::read_data_or_embedded(data_dir, "world/death.ron") {
             match Self::from_ron(&text) {
                 Ok(rules) => return rules,
                 Err(e) => log::warn!("data/world/death.ron did not parse: {e}"),
             }
         }
-        crate::embedded_data::note_builtin_copy("world/death.ron", "the file on disk is missing or did not parse");
-        let built_in = crate::embedded_data::get_embedded("world/death.ron").unwrap_or_default();
+        humanity_core::embedded_data::note_builtin_copy("world/death.ron", "the file on disk is missing or did not parse");
+        let built_in = humanity_core::embedded_data::get_embedded("world/death.ron").unwrap_or_default();
         Self::from_ron(built_in).expect("the built-in data/world/death.ron parses (pinned by a test)")
     }
 
@@ -138,7 +138,7 @@ impl Default for DeathRules {
     /// default exists only so `GuiState` can be built before the engine loads them; it reads
     /// the same file, so no number is written here.
     fn default() -> Self {
-        Self::load(&crate::storage::data_dir())
+        Self::load(&humanity_core::storage::data_dir())
     }
 }
 

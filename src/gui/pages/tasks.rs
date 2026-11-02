@@ -38,7 +38,7 @@ use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::{GuiPage, GuiState, TaskPriority, TaskStatus, GuiTask};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::i18n::{t, tf};
+use humanity_core::i18n::{t, tf};
 use crate::gui::widgets::{with_hint, Hint};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -81,7 +81,7 @@ impl Default for TaskPageState {
             edit_status: TaskStatus::Todo,
             edit_priority: TaskPriority::Medium,
             show_suggestions: true,
-            chains: Rc::new(load_chains(&crate::storage::data_dir())),
+            chains: Rc::new(load_chains(&humanity_core::storage::data_dir())),
             open_step: HashMap::new(),
         }
     }
@@ -1075,7 +1075,7 @@ mod tests {
     use super::*;
 
     fn chains() -> Vec<Chain> {
-        load_chains(Path::new(env!("CARGO_MANIFEST_DIR")).join("data").as_path())
+        load_chains(Path::new(env!("HUMANITY_REPO_ROOT")).join("data").as_path())
     }
 
     fn task(chain: Option<&str>) -> GuiTask {
@@ -1110,7 +1110,7 @@ mod tests {
     #[test]
     fn step_how_tos_are_written_how_tos() {
         let index: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("data/how_to/index.json")).unwrap(),
+            &std::fs::read_to_string(Path::new(env!("HUMANITY_REPO_ROOT")).join("data/how_to/index.json")).unwrap(),
         )
         .unwrap();
         let written: std::collections::HashSet<String> = index["how_tos"]

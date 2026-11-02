@@ -400,7 +400,7 @@ mod tests {
     use super::*;
 
     fn recipe() -> Assembly {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         load(&dir, "stud_wall_2x6").expect("shipped stud_wall_2x6.ron parses")
     }
 

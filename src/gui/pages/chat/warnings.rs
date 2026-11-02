@@ -184,7 +184,7 @@ mod tests {
     fn the_in_game_line_names_the_warnings() {
         let mut gs = GuiState::default();
         gs.profile_public_key = "me".into();
-        gs.warnings.list = Some(crate::net::warnings::parse_warnings(crate::embedded_data::WARNINGS_JSON.as_bytes()).unwrap());
+        gs.warnings.list = Some(crate::net::warnings::parse_warnings(humanity_core::embedded_data::WARNINGS_JSON.as_bytes()).unwrap());
         let m = |text: &str| ChatMessage { sender_key: "dana".into(), content: text.into(), channel: "dm:dana".into(), ..Default::default() };
         assert_eq!(compact_line(&gs, &m("Buy me a gift card")).as_deref(), Some("Warning: Asking for money. Open the Chat page to read it."));
         assert_eq!(

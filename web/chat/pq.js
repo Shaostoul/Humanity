@@ -11,7 +11,7 @@
  *   keypair = ML-DSA-65.keygen(seed32)
  *
  * Verified byte-for-byte against the Rust relay
- * (src/relay/core/pq_crypto.rs::dilithium_cross_language_kat), if the
+ * (crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat), if the
  * KAT in scripts/pq-kat.mjs / that Rust test ever fails, DO NOT ship:
  * a mismatch makes every client PQ pubkey unverifiable by the relay.
  *

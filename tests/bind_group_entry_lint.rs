@@ -1235,6 +1235,15 @@ fn check(srcs: &[Src]) -> Report {
     r
 }
 
+/// Each workspace crate's src/ folder, crates/<name>/src (the crate split's rung 1, 2026-11-01): read
+/// with src/'s, or a file moved into a crate drops out of this check without a word.
+fn crate_src_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(root.join("crates"))
+        .map(|rd| rd.flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()).collect())
+        .unwrap_or_default();
+    out.sort();
+    out
+}
 fn collect_rs(dir: &Path, root: &Path, out: &mut Vec<Src>) {
     let Ok(rd) = std::fs::read_dir(dir) else { return };
     let mut entries: Vec<_> = rd.flatten().map(|e| e.path()).collect();
@@ -1291,6 +1300,9 @@ fn every_create_bind_group_matches_its_layout() {
     let t0 = std::time::Instant::now();
     let mut srcs = Vec::new();
     collect_rs(&root.join("src"), &root, &mut srcs);
+    for dir in crate_src_dirs(&root) {
+        collect_rs(&dir, &root, &mut srcs);
+    }
     if std::env::var("BGL_DEBUG").is_ok() {
         println!("TIME read {} files: {:?}", srcs.len(), t0.elapsed());
         let t = std::time::Instant::now();

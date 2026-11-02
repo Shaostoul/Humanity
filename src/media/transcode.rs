@@ -138,13 +138,13 @@ pub fn parse_ingest_rules(text: &str) -> IngestRules {
 pub fn ingest_rules() -> &'static IngestRules {
     static RULES: OnceLock<IngestRules> = OnceLock::new();
     RULES.get_or_init(|| {
-        let on_disk = crate::storage::data_dir().join("media").join("ingest.json");
+        let on_disk = humanity_core::storage::data_dir().join("media").join("ingest.json");
         let text = std::fs::read_to_string(&on_disk).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy(
+            humanity_core::embedded_data::note_builtin_copy(
                 "media/ingest.json",
                 format_args!("{} could not be read ({e})", on_disk.display()),
             );
-            crate::embedded_data::MEDIA_INGEST_JSON.to_string()
+            humanity_core::embedded_data::MEDIA_INGEST_JSON.to_string()
         });
         parse_ingest_rules(&text)
     })
@@ -753,11 +753,11 @@ mod tests {
     use std::time::Duration;
 
     fn fixtures() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media")
+        PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests").join("fixtures").join("media")
     }
 
-    fn scratch(name: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("transcode_{name}"))
+    fn scratch(name: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("transcode_{name}"))
     }
 
     /// The MP4 fixture (H.264 + AAC) is refused by the player's own probe, and
@@ -896,7 +896,7 @@ mod tests {
 
     #[test]
     fn ingest_rules_parse_extensions_and_platform_candidates() {
-        let r = parse_ingest_rules(crate::embedded_data::MEDIA_INGEST_JSON);
+        let r = parse_ingest_rules(humanity_core::embedded_data::MEDIA_INGEST_JSON);
         for ext in ["webm", "mkv", "mp4", "mov", "m4v", "avi", "mpg", "mpeg", "wmv", "flv", "ogv", "ts", "vob", "m2v", "vro"] {
             assert!(r.video_extensions.iter().any(|e| e == ext), "missing {ext}");
         }

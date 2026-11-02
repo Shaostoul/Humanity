@@ -131,7 +131,7 @@ impl StreamConfig {
 
     /// The backup sending key's public half, hex: what another server lists to keep these backups.
     pub fn sending_key(&self) -> Option<String> {
-        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+        use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
         let seed = self.sender_seed_bytes()?;
         Some(hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key()))
     }

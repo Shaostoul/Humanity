@@ -177,8 +177,8 @@ fn a_relaunch_after_a_server_or_no_pairing_keeps_the_shared_world() {
 #[test]
 fn a_relaunch_on_a_server_pairing_loads_that_servers_save() {
     use crate::persistence::{save_world, slot_path, SaveSlot, WorldSave};
-    let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-    let saves = crate::test_temp::dir("relaunch_server_save");
+    let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let saves = humanity_core::test_temp::dir("relaunch_server_save");
     let mut state = GuiState::default();
     state.onboarding_complete = true;
     state.profile_public_key = "AB".repeat(32);

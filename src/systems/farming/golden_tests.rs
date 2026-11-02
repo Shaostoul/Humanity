@@ -25,12 +25,12 @@ use super::gardening_tests::{make_store, set_garden_speed};
 use super::humidity::{self, GrowRoom, HumidityData, HUMIDITY_RON};
 use super::lighting::GrowPlot;
 use super::*;
-use crate::ecs::components::{
+use humanity_core::ecs::components::{
     AirHandler, CropInstance, CropSoil, Irrigator, PlumbingCircuit, PowerConsumer, SoilMemory, Transform, WaterConsumer,
     WaterProducer, WaterTank,
 };
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
 use crate::systems::life_support::{self, LifeSupportData, LIFE_SUPPORT_RON};
 use crate::systems::plumbing::WaterStatus;
@@ -223,7 +223,7 @@ fn the_garden_ends_in_the_same_state_every_run_and_in_the_recorded_one() {
     assert!(a.rooms_tracked >= 2, "both grow rooms' air was tracked: {}", a.rooms_tracked);
 
     let digest = blake3::hash(a.state.as_bytes()).to_hex().to_string();
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN);
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(GOLDEN);
     let line = format!("blake3 {digest} crops {} ticks {TICKS} speed {GARDEN_SPEED}", a.sown);
     if std::env::var("HUMANITY_WRITE_GOLDEN").is_ok_and(|v| v == "1") {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -267,6 +267,6 @@ fn a_frame_longer_than_the_interval_runs_the_whole_farm_as_one() {
     assert_eq!(default.state.len(), every_frame.state.len());
     assert!(default.state == every_frame.state, "the whole farm in one run ended differently from no interval at all");
     let digest = blake3::hash(default.state.as_bytes()).to_hex().to_string();
-    let recorded = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN)).expect("the golden");
+    let recorded = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(GOLDEN)).expect("the golden");
     assert!(recorded.contains(&digest), "the default interval's digest {digest} is not the recorded one: {recorded}");
 }

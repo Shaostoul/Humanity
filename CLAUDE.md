@@ -322,10 +322,15 @@ that he did not make.
 
 ## Architecture
 
-One Rust crate (`src/`) compiles into `HumanityOS.exe`: one `Cargo.toml` at the repo root, no
-workspace, no sub-crates. v0.90.0 merged `server/` into `src/relay/` and `native/` into `src/`, and
-removed `crates/`. **An agent that reports edits under `native/src/`, `server/src/` or `crates/` was
-working in a stale worktree: never trust that report; redo the work against `src/`.** Feature
+A Cargo workspace compiles into `HumanityOS.exe` (since 2026-11-01, rung 1 of the crate split,
+`docs/design/crate-split.md`): the root package `humanity-engine` (`src/`: the app, the server mode,
+the binary) and the crates cut out of it so far, `crates/humanity-core/` and
+`crates/humanity-protocol/` (the root `Cargo.toml`'s `[workspace] members` is the list; a card each
+in `docs/crates/`). Code names a moved module by its crate (`humanity_core::storage::data_dir()`),
+and the repo root only as `env!("HUMANITY_REPO_ROOT")` (`tests/repo_root_lint.rs`). v0.90.0 merged
+`server/` into `src/relay/` and `native/` into `src/`. **An agent that reports edits under
+`native/src/`, `server/src/`, or a `crates/` folder the workspace does not list, was working in a
+stale worktree: never trust that report; redo the work against the current layout.** Feature
 flags: `native` (the full desktop app, the default), `relay` (the headless server, built
 `--features relay --no-default-features`, no GPU deps; the deploy builds it on GitHub, not the VPS) and `wasm`. `HumanityOS --headless` is the
 server-only mode the VPS runs. The web frontend (`web/`) is plain HTML/JS served by nginx.
@@ -333,7 +338,7 @@ server-only mode the VPS runs. The web frontend (`web/`) is plain HTML/JS served
 **Where code lives: the Folders section of `docs/ai/code-map.md`**, then its line per file
 (`just code-map` rewrites it). What the map does not say:
 - `src/lib.rs` is engine init and the main loop, and the repo's merge funnel (about 16k lines): the fewer reasons to touch it, the fewer collisions. `src/engine/` is THE FRAME, the files the main loop is made of (`world_load`, `home_meshes`, `screens`, `ipc` = the dev IPC, `frame_*`, `launch_focus`, `editor`): most recent gameplay work lands there.
-- The map covers the source files under `src/` and `web/` only. The HTML pages are in `docs/PAGES.md`; `data/` is the hot-reloadable game data shipped next to the exe (CSV, TOML, RON, JSON; mods are edits there), `schemas/` its TOML schema definitions, `assets/` the shared media (icons, shaders, models, textures, audio); every dev recipe is in the `Justfile` (`just --list`).
+- The map covers the source files under `src/`, `crates/*/src/` and `web/` only. The HTML pages are in `docs/PAGES.md`; `data/` is the hot-reloadable game data shipped next to the exe (CSV, TOML, RON, JSON; mods are edits there), `schemas/` its TOML schema definitions, `assets/` the shared media (icons, shaders, models, textures, audio); every dev recipe is in the `Justfile` (`just --list`).
 
 Identity: no home servers, no sign-up, no passwords stored on any server; signed profiles replicate
 across all federated servers; a BIP39 24-word recovery phrase backs it up.
@@ -361,9 +366,9 @@ just mine <paths>     # stage ONLY your files
 just ship "message"   # commit what YOU staged + push (the push deploys)
 just verify           # native + relay checks (warnings counted, budget 0), lib tests, the lints: before pushing Rust
 just lints            # the std-only lints on their own
-just test-lib [filter]  # the lib tests (a bare `cargo test --lib` fails on Windows: LNK1318 below)
+just test-lib [filter]  # every workspace member's lib tests (`--crate <name>` for one; a bare `cargo test --lib` fails on Windows: LNK1318 below)
 just build-slot-status  # who is compiling, who waits for memory (the build slot, below)
-just verify-relay     # RUN the relay test battery (~200 s): after changing src/relay/, or shared code the server also compiles (src/systems/ and the like: its tests run there too)
+just verify-relay     # RUN the relay test battery (~200 s): after changing src/relay/, crates/, or shared code the server also compiles (src/systems/ and the like: its tests run there too)
 just verify-runtime   # BOOTS the release exe and enters the world: after renderer or shader work
 just validate-data    # one-shot data-loader check (~0.2 s): after editing data/
 just snapshot <name>  # render one egui page to tests/snapshots/<name>.png; `just snapshots` renders all.
@@ -392,7 +397,7 @@ the guard: add the case to `scripts/tests/tool-guard.test.js` and fix it, never 
 - **Commit anything beyond one trivial line with `git commit -F <file>`; NEVER `-m`, not even a `@'...'@` here-string** (release notes: `--notes-file`). PS 5.1 re-quoting splits the message: the commit silently FAILS while a `git tag` or `gh release create` after it still runs, on the WRONG commit (`v0.415.0`, `v0.421.1`). Tagging and strays: `docs/ai/release.md`.
 - **`just clean-worktrees` is OPERATOR/ORCHESTRATOR ONLY: a dispatched subagent never runs it.** Before the 2026-07-01 hardening it destroyed agents' unmerged work three times in one day, commits and branches included. Re-sync a stale worktree of YOUR OWN with `git fetch origin main && git reset --hard origin/main` inside it, NEVER in the shared checkout. Detail: `docs/ai/orchestrator.md`, section 7.
 - **Before pushing any Rust change, also run `cargo check --features relay --no-default-features`.** CI deploys the relay feature set, so an ungated native-only module breaks the deploy invisibly (an ungated `save_load` kept Deploy-to-VPS red for 25 releases, v0.381 to v0.414). Any new `src/` module touching GUI, renderer, persistence or save state gets the `#[cfg(feature = "native")]` gate. `just install-hooks` puts the check in pre-commit (operator: install it once). Stage untracked `.rs`/`.ron`/`.csv` files by name too: local builds pass with them, CI's fresh checkout fails.
-- **Windows `LNK1318: Unexpected PDB error; LIMIT (12)` when linking tests is an ENVIRONMENT limit, not a code error** (release builds and Linux CI are unaffected; BUG-174). A bare `cargo test --features native --lib` FAILS: use **`just test-lib [filter] [--nocapture]`** (links with `/DEBUG:NONE`; `just verify`, `validate-data` and the snapshot recipes use it). Integration tests (`cargo test --test <X>`) link the whole native bin; the std-only lints dodge that through `just lints`, or one by hand: `CARGO_MANIFEST_DIR='C:\Humanity' rustc --test --edition 2021 -A warnings tests/emdash_lint.rs -o t.exe && ./t.exe` (the tests read `CARGO_MANIFEST_DIR` at COMPILE time). For a bin-dependent test, `taskkill //F //IM mspdbsrv.exe` and retry; if it persists, it is the limit.
+- **Windows `LNK1318: Unexpected PDB error; LIMIT (12)` when linking tests is an ENVIRONMENT limit, not a code error** (release builds and Linux CI are unaffected; BUG-174). Use **`just test-lib [filter] [--nocapture]`**, not a bare `cargo test --lib`: it builds every workspace member's test program in one cargo build, and should LNK1318 come back it links the engine's again with `/DEBUG:NONE` (`just verify`, `validate-data` and the snapshot recipes use it). Integration tests (`cargo test --test <X>`) link the whole native bin; the std-only lints dodge that through `just lints`, or one by hand: `CARGO_MANIFEST_DIR='C:\Humanity' rustc --test --edition 2021 -A warnings tests/emdash_lint.rs -o t.exe && ./t.exe` (the tests read `CARGO_MANIFEST_DIR` at COMPILE time). For a bin-dependent test, `taskkill //F //IM mspdbsrv.exe` and retry; if it persists, it is the limit.
 - **Compiles of our crate take turns for memory (the build slot, 2026-10-23).** `just build-slot` (run once per machine, in `C:\Humanity`) makes every cargo command in every checkout run our crate's compiles through `.cargo\hos-build-slot.exe`: it waits for free physical memory, retries a compile that died of memory, and says so in the build's output. Never write a "build when free" wait loop of your own, never run two cargo commands of yours at once, and never delete `.cargo\config.toml` to get around it (every checkout would rebuild our crate whole); `HUMANITY_BUILD_SLOT=off` skips the wait for one command. `just test-lib` refuses to repeat a FULL run on a tree that already passed it (`--force` runs it), and reruns one to five failures alone: one that passes is logged FLAKY (`data/coordination/flaky-tests.jsonl`), not a failure. Rigs wait for memory and other games, not for builds. Detail: `docs/ai/builds.md`.
 - **Verify every renderer, pipeline, bind-group or shader change by BOOTING the release exe AND ENTERING THE WORLD: `just verify-runtime`.** Static checks missed both an unbootable device-limit rejection (v0.782 to v0.784) and a world-entry panic (ten releases). When the operator reports a boot failure, read `%APPDATA%/HumanityOS/logs/run.log` and `crash.log` FIRST. Detail: `docs/ai/renderer.md`.
 - **f32 at planet scale is a defect class.** On the CPU keep planet positions AND unit directions in f64 (`DVec3`) all the way to a terrain or data sampler (an f32 unit vector quantizes ground position at ~0.4-0.8 m), and check the whole chain, callers included; on the GPU keep magnitudes small near the camera. Detail and the worked example: `docs/ai/renderer.md`.

@@ -27,7 +27,7 @@ The reference implementation is normative for:
 The reference implementation must live in the Humanity repository as source code, not as a build artifact.
 
 Recommended path (single-crate layout, post-v0.90, there is no `crates/` dir):
-- a module under `src/relay/core/` (alongside the existing `encoding.rs` / `object.rs`
+- a module under `crates/humanity-protocol/src/` (alongside the existing `encoding.rs` / `object.rs`
   canonical-bytes + signing code), exposed via a small `--reference` CLI subcommand,
   or a dedicated example under `examples/`.
 

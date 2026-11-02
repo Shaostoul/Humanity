@@ -17,8 +17,8 @@ fn block<F: std::future::Future>(f: F) -> F::Output {
 /// A real Dilithium identity: (BIP39 seed, public key hex).
 fn identity(seed_byte: u8) -> (Vec<u8>, String) {
     let seed = vec![seed_byte; 32];
-    let dil = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-    (seed, hex::encode(crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil).public_key()))
+    let dil = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+    (seed, hex::encode(humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil).public_key()))
 }
 
 fn envelope() -> String {
@@ -131,8 +131,8 @@ fn a_pass_from_another_server_or_for_someone_else_counts_as_none() {
         let other = Storage::open_temp("passes_other");
         let server = other.server_did().unwrap();
         assert_ne!(server, st.db.server_did().unwrap(), "two servers, two identities");
-        let serial = crate::relay::core::pq_crypto::new_friend_cert_serial().unwrap();
-        crate::relay::core::pq_crypto::build_friend_cert(&bob_seed, &server, &bob, &alice, &serial, &["message"]).unwrap()
+        let serial = humanity_protocol::pq_crypto::new_friend_cert_serial().unwrap();
+        humanity_protocol::pq_crypto::build_friend_cert(&bob_seed, &server, &bob, &alice, &serial, &["message"]).unwrap()
     };
     assert!(friend_pass(&st, &bob, &alice, Some(&elsewhere)).is_none(), "a pass given on another server");
     assert!(friend_pass(&st, &bob, &alice, None).is_none());
@@ -252,7 +252,7 @@ fn rings_and_offers_read_the_pass_and_never_forward_it() {
 /// withdrawal this run cannot keep is not confirmed: [\"8ac2d454..\"]" (the serial answered).
 #[test]
 fn a_server_that_cannot_keep_withdrawals_fails_safe() {
-    let dir = crate::test_temp::dir("passes_damaged_secret");
+    let dir = humanity_core::test_temp::dir("passes_damaged_secret");
     std::fs::write(dir.join(crate::relay::storage::erased_accounts::KEY_FILE), b"0123456789").unwrap();
     let st = Arc::new(RelayState::new(Storage::open(&dir.join("relay.db")).expect("opens with a damaged secret")));
     assert!(!st.db.erase_memory_kept(), "precondition: this run cannot keep its secret");

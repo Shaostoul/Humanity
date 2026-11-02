@@ -4,7 +4,7 @@
 //! `farming::humidity_tests` and `farming::heat_tests`.
 
 use crate::machines::day_energy::*;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::machines::{DaySource, MachineDef, MachineHome, MachineInstance, MachinePower, MeterBasis};
 
 /// A day's need is only what it drew and asked for over the LAST 24 whole
@@ -87,8 +87,8 @@ fn a_new_machine_under_an_old_id_starts_afresh() {
 /// (the record stayed empty): "the fan's day: None".
 #[test]
 fn the_power_tick_records_what_each_machine_drew() {
-    use crate::ecs::components::{MachineInstanceId, MachineType, PowerConsumer, PowerGenerator};
-    use crate::ecs::systems::System;
+    use humanity_core::ecs::components::{MachineInstanceId, MachineType, PowerConsumer, PowerGenerator};
+    use humanity_core::ecs::systems::System;
     let mut data = DataStore::new();
     register(&mut data);
     data.insert("power_status", std::sync::Mutex::new(crate::systems::electrical::PowerStatus::default()));

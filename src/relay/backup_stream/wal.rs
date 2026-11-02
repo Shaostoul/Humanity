@@ -223,8 +223,8 @@ mod tests {
 
     /// A database in WAL mode with SQLite's own automatic checkpoint off, so every frame it
     /// writes stays in the log for the test to read.
-    fn wal_db(tag: &str) -> (crate::test_temp::TempPath, Connection) {
-        let dir = crate::test_temp::dir(tag);
+    fn wal_db(tag: &str) -> (humanity_core::test_temp::TempPath, Connection) {
+        let dir = humanity_core::test_temp::dir(tag);
         let conn = Connection::open(dir.join("t.db")).unwrap();
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT);")
             .unwrap();

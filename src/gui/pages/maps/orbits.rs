@@ -172,7 +172,7 @@ pub fn add_polyline(mesh: &mut Mesh, pts: &[(Pos2, f32)], colour: Color32, width
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cosmos::{eccentric_anomaly_at, find_body, orbit_point_au, M_PER_AU};
+    use humanity_core::cosmos::{eccentric_anomaly_at, find_body, orbit_point_au, M_PER_AU};
     use crate::gui::pages::maps::camera::{MapCamera, MapScene};
 
     fn overview(t: f64) -> MapProjector {

@@ -20,6 +20,15 @@
 // A test that reaches up moves to the crate it reaches, or reaches through the crate under it
 // (docs/design/crate-split.md).
 //
+// THE REAL BOUNDARIES (2026-11-01, rung 1). Once a crate is cut (crates/<name>/, the plan's `dir`),
+// the compiler holds its code to the dependencies its Cargo.toml lists, so the plan must agree with the
+// manifests, or a crate could be given a dependency the plan forbids while every reading here stayed
+// green. So the check also reads the workspace: every member of the root Cargo.toml's [workspace] is a
+// cut crate of the plan (or the root package), every cut crate is a member, and a member's dependency
+// on another member (normal or dev) is one the plan lets it make. References by a cut crate's name
+// (`humanity_core::storage::data_dir()`) are read like `crate::` paths into it (crate-graph.js), and
+// a cut crate in whose folder nothing was read fails the check (a reading of nothing).
+//
 //   node scripts/check-crate-layers.js            the check (in `just lints`)
 //   node scripts/check-crate-layers.js --write    set every budget, code and tests, to today's count
 
@@ -43,13 +52,96 @@ function judge(counts, budgets) {
   return { over, fresh, under };
 }
 
-/** The key a test budget is judged by: "src/<file>: <from> -> <to>". */
+/** The key a budget is judged by: "<file from the repo root>: <from> -> <to>" ("src/x.rs", "crates/humanity-core/src/x.rs"). */
 const SEP = ': ';
 
-/** Per-file counts (analyse's codeByFile or testByFile, files src/-relative) as judge's flat counts. */
+/** Per-file counts (analyse's codeByFile or testByFile, files repo-relative) as judge's flat counts. */
 function flatByFile(byFile) {
   const out = {};
-  for (const [rel, m] of byFile) for (const [edge, n] of m) out[`src/${rel}${SEP}${edge}`] = n;
+  for (const [file, m] of byFile) for (const [edge, n] of m) out[`${file}${SEP}${edge}`] = n;
+  return out;
+}
+
+/** A manifest's dependency tables (pure, tested): { members: [..] or null, deps: [{ table, name, path }] }:
+ * `members` from [workspace], and each dependency given by `path = "..."` in [dependencies],
+ * [dev-dependencies], [build-dependencies] and their `target.'...'.` forms (the only way one member
+ * names another), in an inline table or in its own `[dependencies.x]` table. */
+function manifestDeps(toml) {
+  const lines = String(toml).replace(/\r\n/g, '\n').split('\n');
+  let table = '';
+  let members = null;
+  const deps = [];
+  const tables = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const h = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(l);
+    if (h) { table = h[1].trim(); continue; }
+    if (table === 'workspace') {
+      const m = /^\s*members\s*=\s*\[(.*)$/.exec(l);
+      if (m) {
+        let body = m[1];
+        while (!body.includes(']') && i + 1 < lines.length) body += lines[++i];
+        members = [...body.slice(0, body.indexOf(']')).matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+      }
+      continue;
+    }
+    // A dependency's own table: [dependencies.x], [target.'cfg(..)'.dev-dependencies.x].
+    const own = /(?:^|\.)(dependencies|dev-dependencies|build-dependencies)\.([A-Za-z0-9_-]+)$/.exec(table);
+    if (own) {
+      const p = /^\s*path\s*=\s*"([^"]+)"/.exec(l);
+      const pkg = /^\s*package\s*=\s*"([^"]+)"/.exec(l);
+      const e = tables.get(table) || { table: own[1], name: own[2], path: null };
+      if (p) e.path = p[1];
+      if (pkg) e.name = pkg[1];
+      tables.set(table, e);
+      continue;
+    }
+    const kind = /(?:^|\.)(dependencies|dev-dependencies|build-dependencies)$/.exec(table);
+    if (!kind) continue;
+    const d = /^\s*([A-Za-z0-9_-]+)\s*=\s*\{(.*)\}\s*(?:#.*)?$/.exec(l);
+    if (!d) continue;
+    const p = /\bpath\s*=\s*"([^"]+)"/.exec(d[2]);
+    const pkg = /\bpackage\s*=\s*"([^"]+)"/.exec(d[2]);
+    if (p) deps.push({ table: kind[1], name: pkg ? pkg[1] : d[1], path: p[1] });
+  }
+  for (const e of tables.values()) if (e.path) deps.push(e);
+  return { members, deps };
+}
+
+/** The plan against the workspace on disk (pure over its inputs, tested): the problems, as lines.
+ * `plan`: crate-layers.json; `rootToml`: the root Cargo.toml's text; `readToml(dir)`: a member's
+ * Cargo.toml text (null if missing); `rootCrate`: the plan crate at the top of the root package. */
+function boundaryProblems(plan, rootToml, readToml, rootCrate = 'humanity-engine') {
+  const out = [];
+  const { members, deps: rootDeps } = manifestDeps(rootToml);
+  const cut = plan.crates.filter((c) => c.dir);
+  const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+  for (const c of plan.crates) if (c.dir && c.paths && c.paths.length) out.push(`${c.name} is cut (dir ${c.dir}) but still lists paths under src/: its files are in its dir now`);
+  if (!members) {
+    if (cut.length) out.push(`the plan has cut crates (${cut.map((c) => c.name).join(', ')}) but the root Cargo.toml has no [workspace] members`);
+    return out;
+  }
+  const memberDirs = members.map(norm).filter((m) => m !== '.' && m !== '');
+  for (const c of cut) if (!memberDirs.includes(norm(c.dir))) out.push(`${c.name}'s dir, ${c.dir}, is not a member of the root Cargo.toml's [workspace]`);
+  for (const m of memberDirs) if (!cut.some((c) => norm(c.dir) === m)) out.push(`the workspace member ${m} is not a crate the plan cut (give its plan entry "dir": "${m}")`);
+  // Who may depend on whom: the plan's `uses` and what they use (a crate may reach through).
+  const direct = new Map(plan.crates.map((x) => [x.name, x.uses]));
+  const reach = (n, seen = new Set()) => { for (const u of direct.get(n) || []) if (!seen.has(u)) { seen.add(u); reach(u, seen); } return seen; };
+  const names = new Set(plan.crates.map((x) => x.name));
+  const check = (from, deps) => {
+    for (const d of deps) {
+      if (!names.has(d.name) || d.name === from) continue; // not one of ours (vendor/rav1d)
+      if (!reach(from).has(d.name)) out.push(`${from}'s Cargo.toml depends on ${d.name} ([${d.table}]), which the plan does not let ${from} use`);
+    }
+  };
+  check(rootCrate, rootDeps);
+  for (const c of cut) {
+    const text = readToml(c.dir);
+    if (text == null) { out.push(`${c.name}: no Cargo.toml in ${c.dir}`); continue; }
+    const name = /^\s*name\s*=\s*"([^"]+)"/m.exec(String(text));
+    if (!name || name[1] !== c.name) out.push(`${c.dir}/Cargo.toml names its package "${name ? name[1] : '?'}", the plan "${c.name}"`);
+    check(c.name, manifestDeps(text).deps);
+  }
   return out;
 }
 
@@ -73,14 +165,14 @@ function nestByFile(flat) {
 }
 
 function counts() {
-  const { edges, codeByFile, testByFile, unowned } = analyse({ tests: true });
-  return { code: flatByFile(codeByFile), edges, tests: flatByFile(testByFile), unowned };
+  const { edges, codeByFile, testByFile, unowned, files, cut } = analyse({ tests: true });
+  return { code: flatByFile(codeByFile), edges, tests: flatByFile(testByFile), unowned, files, cut };
 }
 
 function main() {
   const raw = fs.readFileSync(PLAN_PATH, 'utf8');
   const plan = JSON.parse(raw);
-  const { code, edges, tests, unowned } = counts();
+  const { code, edges, tests, unowned, files: read, cut } = counts();
   if (process.argv.includes('--write')) {
     plan.budgets = nestByFile(code);
     plan.testBudgets = nestByFile(tests);
@@ -93,6 +185,17 @@ function main() {
   const total = Object.values(code).reduce((a, b) => a + b, 0);
   const testTotal = Object.values(tests).reduce((a, b) => a + b, 0);
   let failed = false;
+  const repo = path.join(__dirname, '..');
+  const readToml = (dir) => { try { return fs.readFileSync(path.join(repo, dir, 'Cargo.toml'), 'utf8'); } catch { return null; } };
+  for (const p of boundaryProblems(plan, fs.readFileSync(path.join(repo, 'Cargo.toml'), 'utf8'), readToml)) {
+    failed = true;
+    console.log(`crate layers: FAILED: the plan and the workspace disagree: ${p}`);
+  }
+  // A cut crate whose folder the reading found nothing in is a reading of nothing.
+  const counted = (name) => read.filter((f) => f.crate === name).length;
+  for (const c of cut) {
+    if (!counted(c.name)) { failed = true; console.log(`crate layers: FAILED: no .rs file read under ${c.dir}/src: the counting would pass on nothing`); }
+  }
   if (unowned.size) {
     failed = true;
     console.log(`crate layers: FAILED: top-level modules no crate claims (add them to scripts/crate-layers.json): ${[...unowned].join(', ')}`);
@@ -124,9 +227,10 @@ function main() {
   }
   if (failed) process.exit(1);
   const files = (flat) => new Set(Object.keys(flat).map((k) => k.slice(0, k.indexOf(SEP)))).size;
-  console.log(`>> lint ok: crate layers (${total} wrong-way references in code in ${files(code)} files, ${testTotal} in test code in ${files(tests)} files, each held to its file's budget; none new)`);
+  const cutSummary = cut.map((c) => `${c.name.replace('humanity-', '')} (${counted(c.name)} files)`).join(', ');
+  console.log(`>> lint ok: crate layers (${total} wrong-way references in code in ${files(code)} files, ${testTotal} in test code in ${files(tests)} files, each held to its file's budget; none new; the cut crates ${cutSummary || 'none'} agree with the workspace)`);
 }
 
 if (require.main === module) main();
 
-module.exports = { judge, flatByFile, flatBudgets, nestByFile };
+module.exports = { judge, flatByFile, flatBudgets, nestByFile, manifestDeps, boundaryProblems };

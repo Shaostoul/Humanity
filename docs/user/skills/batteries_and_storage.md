@@ -546,7 +546,7 @@ The homes in this project run on real battery banks, and since 27 September
 2026 those banks carry the night.
 
 - **The battery.** A bank is a `Battery` component
-  (`src/ecs/components.rs`) with four numbers: the energy it holds, its
+  (`crates/humanity-core/src/ecs/components.rs`) with four numbers: the energy it holds, its
   capacity, and the fastest it can charge and discharge. Both shipped homes use
   the same bank, 4 kWh with 2 kW each way (`data/machines/home.ron` and
   `home_solo.ron`): the family home has eight of them (32 kWh), the one-person
@@ -725,7 +725,7 @@ taken from them is restated here in our own words.
 
 - `src/systems/electrical.rs`: the power balance, load shedding, the
   batteries carrying the night, and the backstop generator.
-- `src/ecs/components.rs` (`Battery`), and the battery banks in
+- `crates/humanity-core/src/ecs/components.rs` (`Battery`), and the battery banks in
   `data/machines/home.ron` and `data/machines/home_solo.ron`.
 - `src/machines.rs`: the Buildability night check and the power meter;
   `src/gui/pages/homes.rs`: the Live power card.

@@ -2,7 +2,7 @@
 //! the simulation's walk clamp (`surface_walk`) on the ground the terrain draws. The Silverdale
 //! fixtures stay with terrain's tests (`drawn_surface::region_tests`), which share them.
 
-use crate::ecs::components::EYE_HEIGHT_M;
+use humanity_core::ecs::components::EYE_HEIGHT_M;
 use crate::surface_walk::{rest_radius, walk_ground_radius, DRAWN_CLEARANCE_M};
 use crate::terrain::drawn_surface::region_tests::{near_stand, probe_grid, real_earth, silverdale_masks, Meshes};
 use crate::terrain::planet_chunks::{drawn_elevation_normalized, DetailNoise, ElevationSource};

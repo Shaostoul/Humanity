@@ -3,8 +3,8 @@
 //! Skill definitions loaded from `data/skills/skills.csv`.
 
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -86,7 +86,7 @@ impl SkillRegistry {
     /// the runtime calls to populate `DataStore["skill_registry"]`; without it the
     /// SkillSystem would find no defs and every XP award would silently no-op.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let defs: Vec<SkillDef> = crate::data_parse::parse_csv(data)?;
+        let defs: Vec<SkillDef> = humanity_core::data_parse::parse_csv(data)?;
         let mut skills = HashMap::new();
         for def in defs {
             skills.insert(def.id.clone(), def);
@@ -238,7 +238,7 @@ mod skill_tests {
     use super::*;
 
     fn skills_csv() -> &'static [u8] {
-        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/skills/skills.csv"))
+        include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/skills.csv"))
     }
 
     #[test]
@@ -296,7 +296,7 @@ mod skill_tests {
     fn every_recipe_skill_is_a_real_skill() {
         let skills = SkillRegistry::from_csv(skills_csv()).unwrap();
         let recipes = crate::systems::crafting::RecipeRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/recipes.csv"
         )))
         .expect("recipes.csv parses");

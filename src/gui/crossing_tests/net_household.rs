@@ -2,20 +2,20 @@
 //! a plot's owner (`relay::storage::plot_owner_id`).
 
 use crate::net::household::*;
-use crate::build_permission::Permit;
+use humanity_core::build_permission::Permit;
 use crate::net::dm_pq::CTL_PERMIT;
 use crate::net::household::tests::DAY;
 use crate::net::household::tests::NOW;
 use crate::net::household::tests::SERIAL;
 use crate::net::household::tests::SERVER;
 use crate::net::household::tests::key;
-use crate::relay::core::pq_crypto::DilithiumKeypair;
-use crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN;
-use crate::relay::core::pq_crypto::build_plot_permit;
-use crate::relay::core::pq_crypto::derive_dilithium_seed;
-use crate::relay::core::pq_crypto::plot_permit_preimage;
+use humanity_protocol::pq_crypto::DilithiumKeypair;
+use humanity_protocol::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN;
+use humanity_protocol::pq_crypto::build_plot_permit;
+use humanity_protocol::pq_crypto::derive_dilithium_seed;
+use humanity_protocol::pq_crypto::plot_permit_preimage;
 use crate::relay::storage::plot_owner_id;
-use crate::build_permission::Why;
+use humanity_core::build_permission::Why;
 use crate::net::household::tests::given;
 use std::collections::BTreeSet;
 

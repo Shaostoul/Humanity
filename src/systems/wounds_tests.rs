@@ -12,9 +12,9 @@
 //! on 2026-10-12, and what it said.
 
 use super::*;
-use crate::ecs::components::{Controllable, Dead, Fire, Health, StatusEffects, Transform, Vitals};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Dead, Fire, Health, StatusEffects, Transform, Vitals};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::combat::damage::{DamageEvent, DamageType};
 use crate::systems::illness::{Mode, MODE_KEY};
 use crate::systems::inventory::Inventory;
@@ -24,7 +24,7 @@ use crate::systems::falls::{player_landed, Falls};
 use std::sync::Mutex;
 
 pub(crate) fn data_dir() -> &'static Path {
-    Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+    Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
 }
 
 fn read(rel: &str) -> String {
@@ -394,7 +394,7 @@ fn a_weak_fire_takes_its_share_exactly_at_any_frame_rate() {
 /// 3.5 s and burn were already exact at both rates (S8); with the fix every case is exact.
 #[test]
 fn the_same_seconds_in_a_fire_do_the_same_harm_at_30_and_240_frames_a_second() {
-    use crate::ecs::components::FireSuppressor;
+    use humanity_core::ecs::components::FireSuppressor;
     let w = shipped();
     for fps in [30u32, 240] {
         let dt = 1.0 / fps as f32;

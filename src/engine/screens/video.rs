@@ -884,7 +884,7 @@ impl VideoProvider {
     /// `open_with` against the game's resolved data dir (the production path).
     pub fn ensure_open(&mut self, display_px: (u32, u32)) {
         if !self.open_attempted {
-            self.open_with(&crate::storage::data_dir(), display_px);
+            self.open_with(&humanity_core::storage::data_dir(), display_px);
         }
     }
 
@@ -1037,7 +1037,7 @@ impl VideoProvider {
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
             .filter(|d| d.is_dir())
             .or_else(|| home.map(|h| h.join("Videos")).filter(|d| d.is_dir()));
-        let media_dir = crate::storage::data_dir().join("media");
+        let media_dir = humanity_core::storage::data_dir().join("media");
         self.picker = Some(
             FilePickerState::new(&exts, 0)
                 .starting_in(start)
@@ -1485,11 +1485,11 @@ mod tests {
     const MP4: &str = "tests/fixtures/media/moving-box-h264-aac.mp4";
 
     fn data_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data")
+        PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
-    fn scratch(name: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("video_{name}"))
+    fn scratch(name: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("video_{name}"))
     }
 
     /// Every piece of text egui laid out in a run, joined; how a test reads
@@ -1621,7 +1621,7 @@ mod tests {
     /// file in neither resolves to nothing (never to a made-up path).
     #[test]
     fn media_paths_resolve_data_dir_first_then_repo_root() {
-        let root = crate::test_temp::dir("video_paths");
+        let root = humanity_core::test_temp::dir("video_paths");
         let data = root.join("data");
         std::fs::create_dir_all(data.join("media")).unwrap();
         std::fs::create_dir_all(root.join("media")).unwrap();
@@ -2293,7 +2293,7 @@ mod tests {
         // own decoders are off on this thread.
         crate::media::system_decoders_off_on_this_thread();
         let cache = scratch("mp4");
-        let mp4 = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(MP4);
+        let mp4 = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join(MP4);
         let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());
         p.display_px = Some((1280, 720));
         p.open_path(&mp4);
@@ -2355,7 +2355,7 @@ mod tests {
         }
         let cache = scratch("disc");
         // The folder ABOVE VIDEO_TS, which is what a disc drive looks like.
-        let disc = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media");
+        let disc = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests").join("fixtures").join("media");
         let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());
         p.display_px = Some((1280, 720));
         p.open_path(&disc);
@@ -2411,7 +2411,7 @@ mod tests {
         let protected = scratch("protecteddisc");
         let video_ts = protected.join(crate::media::dvd::VIDEO_TS);
         std::fs::create_dir_all(&video_ts).unwrap();
-        let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let src = PathBuf::from(env!("HUMANITY_REPO_ROOT"))
             .join("tests/fixtures/media/VIDEO_TS/VTS_01_1.VOB");
         let mut bytes = std::fs::read(&src).unwrap();
         let mut i = 0usize;
@@ -2481,7 +2481,7 @@ mod tests {
     /// the two suites only prove the same thing while the files match.
     #[test]
     fn the_demo_clip_is_the_test_fixture_byte_for_byte() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let root = PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let demo = root.join("data/media/demo_colour_bar.webm");
         let fixture = root.join("tests/fixtures/media/colour-bar-av1-opus.webm");
         let a = std::fs::read(&demo).unwrap_or_else(|e| panic!("{}: {e}", demo.display()));
@@ -2515,7 +2515,7 @@ mod tests {
     #[test]
     #[ignore = "needs an audio output device; run: cargo test --features native --lib -- --ignored --nocapture engine::screens::video::tests::sound_attaches"]
     fn sound_attaches_once_at_the_listener_mix_when_a_device_exists() {
-        let mut audio = match crate::audio::AudioManager::try_new() {
+        let mut audio = match humanity_core::audio::AudioManager::try_new() {
             Ok(a) => a,
             Err(e) => {
                 println!("skipped: no audio device ({e})");
@@ -2526,7 +2526,7 @@ mod tests {
         audio.set_sfx_volume(0.1);
         let mut p = VideoProvider::new(DEMO);
         // The screen 35 m straight ahead of the starting listener.
-        fn world<'a>(listener: [f32; 3], audio: &'a mut crate::audio::AudioManager) -> ScreenWorld<'a> {
+        fn world<'a>(listener: [f32; 3], audio: &'a mut humanity_core::audio::AudioManager) -> ScreenWorld<'a> {
             ScreenWorld {
                 screen_centre: [0.0, 1.0, -35.0],
                 listener_pos: listener,

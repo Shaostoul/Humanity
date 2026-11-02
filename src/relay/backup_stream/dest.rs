@@ -419,7 +419,7 @@ mod tests {
     /// whole objects are listed / left: [.., Listed { name: \"g/seg-b.part-1234\", size: 14 }]".
     #[tokio::test]
     async fn a_folder_destination_never_shows_a_torn_object() {
-        let dir = crate::test_temp::dir("bs_folder");
+        let dir = humanity_core::test_temp::dir("bs_folder");
         let d = Destination::Folder(FolderDest::new(dir.to_path_buf()));
         d.put("g/seg-a", b"first".to_vec()).await.unwrap();
         d.put("g/seg-a", b"second".to_vec()).await.unwrap();

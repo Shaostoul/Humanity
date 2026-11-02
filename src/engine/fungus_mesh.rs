@@ -41,7 +41,7 @@ use std::f32::consts::TAU;
 use glam::{Quat, Vec3};
 
 use crate::engine::plant_layout::{plot_plants, SHELF_POST_R};
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::terrain::plant_mesh::{
     BagCut, FruitHabit, FungusFruit, FungusSubstrate, FungusVisualDef, Organ, PlantMeshBuilder,
 };
@@ -1209,7 +1209,7 @@ mod tests {
 
     /// The shipped fungi, so the tests draw what the game draws.
     fn shipped() -> PlantVisualRegistry {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let text = std::fs::read_to_string(root.join("data/plants_visual.ron")).expect("plants_visual.ron");
         PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses")
     }

@@ -374,8 +374,8 @@ fn demo_state() -> GuiState {
 pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
-        // Not while the operator's GPU game runs: the page is then not written (src/test_gpu.rs).
-        if !crate::test_gpu::may_use() {
+        // Not while the operator's GPU game runs: the page is then not written (crates/humanity-core/src/test_gpu.rs).
+        if !humanity_core::test_gpu::may_use() {
             return;
         }
         let instance = wgpu::Instance::default();
@@ -719,7 +719,7 @@ fn web_view_link_click_queues_navigation_to_the_resolved_url() {
     // href the click must yield is the RESOLVED one, not the fixture's
     // relative "nearby.html".
     let page = crate::web_reader::parse_html(
-        include_str!("../../tests/fixtures/web/article.html"),
+        include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/web/article.html")),
         "https://example.com/docs/page.html",
         &Default::default(),
     );
@@ -1233,7 +1233,7 @@ fn protected_fixture(state: &mut GuiState, on: bool) {
     use crate::net::dm_store::SentPass;
     use crate::net::reach::{ContactRequest, ReachSettings};
     state.profile_public_key = "me".to_string();
-    let preset = crate::net::protected::parse_presets(crate::embedded_data::SAFETY_PRESETS_JSON.as_bytes()).expect("the built-in presets");
+    let preset = crate::net::protected::parse_presets(humanity_core::embedded_data::SAFETY_PRESETS_JSON.as_bytes()).expect("the built-in presets");
     if on {
         let quick = crate::net::protected::PinVerifier::with_salt("1234", &[1u8; 16], 1_000);
         state.protected.setup = crate::net::protected::ProtectedSetup::applied(&preset, quick, "me", vec!["ann".into(), "ben".into()]);
@@ -1572,7 +1572,7 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
             state.profile_public_key = "me".to_string();
             state.reports.reasons = snapshot_report_reasons();
             state.reports.outside_help = Some(
-                crate::net::outside_help::parse(crate::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped outside help"),
+                crate::net::outside_help::parse(humanity_core::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped outside help"),
             );
             state.reports.dialog = Some(ReportDialog {
                 target: "dana".into(),
@@ -1838,8 +1838,8 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     // a licence notice that silently stops drawing is a compliance failure, not
     // a cosmetic one, and a snapshot is how that gets noticed.
     render_page_png("credits_settings", 960, 1400, |ctx, theme, state| {
-        state.credits = crate::credits::Credits::load(std::path::Path::new(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/data"),
+        state.credits = humanity_core::credits::Credits::load(std::path::Path::new(
+            concat!(env!("HUMANITY_REPO_ROOT"), "/data"),
         ));
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_credits_content);
     });
@@ -2147,7 +2147,7 @@ fn snapshot_files_admin() {
 fn snapshot_files_your_folders() {
     use crate::gui::pages::files::{self as media, from_here, tests as fixture};
     use crate::gui::widgets::file_picker_memory as memory;
-    let scratch = crate::test_temp::dir("snapshot_your_folders");
+    let scratch = humanity_core::test_temp::dir("snapshot_your_folders");
     let root = scratch.join("Media");
     std::fs::create_dir_all(root.join("trips")).unwrap();
     for (i, name) in ["dawn.png", "garden.png"].iter().enumerate() {
@@ -2216,7 +2216,7 @@ fn snapshot_files_shared_files() {
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_files_app_folder() {
     use crate::gui::pages::files::{self as media, app_folder, tests as fixture};
-    let scratch = crate::test_temp::dir("snapshot_app_folder");
+    let scratch = humanity_core::test_temp::dir("snapshot_app_folder");
     let root = scratch.join("HumanityOS");
     for d in ["data/quests", "assets/icons", "mods"] {
         std::fs::create_dir_all(root.join(d)).unwrap();
@@ -2265,7 +2265,7 @@ fn snapshot_files_how() {
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_files_app_folder_guide() {
     use crate::gui::pages::files::{self as media, app_folder, tests as fixture};
-    let scratch = crate::test_temp::dir("snapshot_app_folder_guide");
+    let scratch = humanity_core::test_temp::dir("snapshot_app_folder_guide");
     let root = scratch.join("HumanityOS");
     let library = root.join("data").join("library");
     for d in ["assets", "mods"] {
@@ -2305,7 +2305,7 @@ fn snapshot_files_app_folder_guide() {
 struct AppsSnapshot {
     games: crate::games::fixtures::AllFixture,
     programs: crate::gui::pages::apps::programs_tests::Fixture,
-    _scratch: crate::test_temp::TempPath,
+    _scratch: humanity_core::test_temp::TempPath,
     added: Vec<crate::games::AddedApp>,
 }
 
@@ -2313,7 +2313,7 @@ fn apps_snapshot(tag: &str) -> AppsSnapshot {
     use crate::games::AddedApp;
     let games = crate::games::fixtures::all(&format!("{tag}_games"));
     let programs = crate::gui::pages::apps::programs_tests::fixture(&format!("{tag}_programs"));
-    let scratch = crate::test_temp::dir(&format!("{tag}_added"));
+    let scratch = humanity_core::test_temp::dir(&format!("{tag}_added"));
     let df = scratch.join("Dwarf Fortress").join("Dwarf Fortress.exe");
     std::fs::create_dir_all(df.parent().unwrap()).unwrap();
     std::fs::write(&df, "x").unwrap();
@@ -3053,7 +3053,7 @@ fn snapshot_nav_bar_icon_only() {
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_file_picker() {
     use crate::gui::widgets::file_browser::{file_picker_modal, list_dir, FilePickerState};
-    let dir = crate::test_temp::dir("snapshot_picker");
+    let dir = humanity_core::test_temp::dir("snapshot_picker");
     std::fs::create_dir_all(dir.join("photos")).unwrap();
     for (name, size) in [("bottleweight-top.stl", 121_000usize), ("Community Bottle Cutter - Middle.stl", 145_000), ("Fun Size - Base - Back.stl", 1_000_000), ("filament-shaper.glb", 300_000), ("assembly-notes.pdf", 302_000)] {
         std::fs::write(dir.join(name), vec![0u8; size]).unwrap();
@@ -3080,7 +3080,7 @@ fn snapshot_file_picker() {
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_file_picker_pictures() {
     use crate::gui::widgets::file_browser::{file_picker_modal, list_dir, FilePickerState};
-    let dir = crate::test_temp::dir("snapshot_picker_pictures");
+    let dir = humanity_core::test_temp::dir("snapshot_picker_pictures");
     std::fs::create_dir_all(dir.join("trips")).unwrap();
     for (i, name) in ["dawn.png", "noon.png", "dusk.png", "night.png"].iter().enumerate() {
         let tone = [40u8, 120, 200, 90][i];
@@ -3110,7 +3110,7 @@ fn snapshot_file_picker_pictures() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_files_upload_window() {
-    let dir = crate::test_temp::dir("snapshot_upload_window");
+    let dir = humanity_core::test_temp::dir("snapshot_upload_window");
     let file = dir.join("bracket.stl");
     std::fs::write(&file, b"solid bracket
 endsolid bracket
@@ -3143,7 +3143,7 @@ endsolid bracket
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_model_viewer() {
-    let bytes = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/model-cube.glb")).expect("the cube fixture");
+    let bytes = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/model-cube.glb")).expect("the cube fixture");
     let model = crate::gui::model_view::load::load("model-cube.glb", &bytes).expect("reads");
     let viewer = std::cell::RefCell::new(crate::gui::model_view::Viewer::with_model("model-cube.glb", model));
     render_page_png("model_viewer", 900, 640, |ctx, theme, _state| {
@@ -3344,7 +3344,7 @@ fn snapshot_chat_warning() {
         if state.chat_active_channel != "dm:dana0" {
             state.profile_public_key = "me".into();
             state.warnings.list = Some(
-                crate::net::warnings::parse_warnings(crate::embedded_data::WARNINGS_JSON.as_bytes()).expect("the shipped warnings"),
+                crate::net::warnings::parse_warnings(humanity_core::embedded_data::WARNINGS_JSON.as_bytes()).expect("the shipped warnings"),
             );
             let dm = |text: &str, ts: u64, at: &str| ChatMessage {
                 sender_name: "Dana".into(),
@@ -3448,7 +3448,7 @@ fn snapshot_maps_system_overview() {
     crate::gui::pages::maps::set_clock_for_snapshot(Some(843_782_400.0));
     render_page_png("maps_system_overview", 1280, 900, |ctx, theme, state| {
         if state.maps.layers_on.is_empty() {
-            state.maps.camera = crate::gui::pages::maps::MapCamera::overview(11.0 * crate::cosmos::M_PER_AU);
+            state.maps.camera = crate::gui::pages::maps::MapCamera::overview(11.0 * humanity_core::cosmos::M_PER_AU);
             // The Sun-Jupiter L4 and L5 markers, to show the trojans are there.
             state.maps.layers_on.insert("lagrange".into(), true);
         }
@@ -4439,7 +4439,7 @@ page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_performance() {
-    use crate::frame_costs as fc;
+    use humanity_core::frame_costs as fc;
     render_page_png("performance", 1280, 1200, |ctx, theme, state| {
         fc::set_gpu_timing(true);
         fc::begin_frame();
@@ -4490,7 +4490,7 @@ fn snapshot_performance() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_performance_narrow() {
-    use crate::frame_costs as fc;
+    use humanity_core::frame_costs as fc;
     render_page_png("performance_narrow", 560, 2000, |ctx, theme, state| {
         fc::set_gpu_timing(true);
         for _ in 0..40 {

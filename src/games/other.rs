@@ -54,7 +54,7 @@ mod tests {
     /// "a program gone from its folder says so" (left: Ready, right: ProgramGone).
     #[test]
     fn an_added_game() {
-        let dir = crate::test_temp::dir("added_game");
+        let dir = humanity_core::test_temp::dir("added_game");
         let exe = dir.join("Dwarf Fortress.exe");
         std::fs::write(&exe, "x").unwrap();
         assert_eq!(name_from_file(&exe), "Dwarf Fortress");

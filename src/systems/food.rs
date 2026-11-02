@@ -16,8 +16,8 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// One nutrition profile from `data/food_system.ron` (by food category). Only the
 /// fields the nutrition loop consumes are modeled; the rest (macros, vitamins,
@@ -117,7 +117,7 @@ impl ItemProfiles {
     /// loads. With neither the list is empty, which means nothing is edible:
     /// loud in the log, never a crash.
     pub fn load(data_dir: &Path) -> Self {
-        crate::embedded_data::load_data_or_embedded(data_dir, Self::FILE, crate::data_parse::parse_ron).unwrap_or_else(|e| {
+        humanity_core::embedded_data::load_data_or_embedded(data_dir, Self::FILE, humanity_core::data_parse::parse_ron).unwrap_or_else(|e| {
             log::warn!("{e}; nothing is edible until it is fixed");
             Self::default()
         })
@@ -139,10 +139,10 @@ impl ItemProfiles {
 pub fn consume_kinds() -> &'static HashMap<String, bool> {
     static KINDS: std::sync::OnceLock<HashMap<String, bool>> = std::sync::OnceLock::new();
     KINDS.get_or_init(|| {
-        let dir = crate::storage::data_dir();
+        let dir = humanity_core::storage::data_dir();
         let list = ItemProfiles::load(&dir);
         let data: Option<FoodData> =
-            crate::embedded_data::load_data_or_embedded(&dir, "food_system.ron", crate::data_parse::parse_ron)
+            humanity_core::embedded_data::load_data_or_embedded(&dir, "food_system.ron", humanity_core::data_parse::parse_ron)
                 .map_err(|e| log::warn!("{e}; no item offers Eat or Drink"))
                 .ok();
         let mut out = HashMap::new();
@@ -530,7 +530,7 @@ impl FoodSystem {
         // install keeps its nutrition/cooking data, and so does a data folder
         // whose copy this version cannot read (BUG-163).
         let data: FoodData =
-            crate::embedded_data::load_data_or_embedded(data_dir, "food_system.ron", crate::data_parse::parse_ron)
+            humanity_core::embedded_data::load_data_or_embedded(data_dir, "food_system.ron", humanity_core::data_parse::parse_ron)
                 .unwrap_or_else(|e| {
                     log::warn!("{e}; no food data this session");
                     FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }
@@ -669,7 +669,7 @@ impl FoodSystem {
         returns: Option<(&str, u32)>,
         data: &DataStore,
     ) -> bool {
-        use crate::ecs::components::{StatusEffects, Vitals};
+        use humanity_core::ecs::components::{StatusEffects, Vitals};
         use crate::systems::inventory::Inventory;
 
         let Some(profile) = self.profile_for(item_id) else {
@@ -806,7 +806,7 @@ impl FoodSystem {
         registry: Option<&crate::systems::status_effects::StatusEffectRegistry>,
         data: &DataStore,
     ) {
-        use crate::ecs::components::{Dead, Health, StatusEffects};
+        use humanity_core::ecs::components::{Dead, Health, StatusEffects};
         use crate::systems::inventory::Inventory;
 
         let Some(t) = self.treatments.get(item_id) else {
@@ -845,7 +845,7 @@ impl System for FoodSystem {
     }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
-        use crate::ecs::components::{Health, Name, StatusEffects, Vitals};
+        use humanity_core::ecs::components::{Health, Name, StatusEffects, Vitals};
         use crate::systems::inventory::{Inventory, ItemRegistry};
         use crate::systems::status_effects::StatusEffectRegistry;
         // THE BODY ON THE ONE CLOCK (2026-09-27, decision-briefs.md Brief 6).
@@ -949,7 +949,7 @@ impl System for FoodSystem {
         // in the main loop (engine::survival_env). Absent = safe defaults: a
         // sealed, comfortable room.
         let env = data
-            .get::<crate::ecs::components::EnvironmentContext>("environment_context")
+            .get::<humanity_core::ecs::components::EnvironmentContext>("environment_context")
             .cloned()
             .unwrap_or_default();
         let (env_oxygenated, env_g_load) = (env.oxygenated, env.g_load);
@@ -957,7 +957,7 @@ impl System for FoodSystem {
         let heat_mode = crate::systems::body_heat::Mode::from_store(data);
         // Asleep in a bed the body makes the least heat (ASHRAE: 0.7 met).
         let activity_met =
-            if self.asleep.is_some() { crate::ecs::components::MET_SLEEPING } else { env.activity_met };
+            if self.asleep.is_some() { humanity_core::ecs::components::MET_SLEEPING } else { env.activity_met };
         // The crew g-tolerance row, if flight data loaded at all. Absent = the
         // drive is not modelled here, so nobody is crushed by a missing file.
         let g_tolerance = data
@@ -973,7 +973,7 @@ impl System for FoodSystem {
         // Urine collects in the sealed tank while the player lives, on the
         // same real clock the waste meter rises on (see URINE_ITEM).
         let player_alive = world
-            .query::<(&Vitals, &crate::ecs::components::Controllable, Option<&crate::ecs::components::Dead>)>()
+            .query::<(&Vitals, &humanity_core::ecs::components::Controllable, Option<&humanity_core::ecs::components::Dead>)>()
             .iter()
             .any(|(_, (_, _, dead))| dead.is_none());
         if player_alive {
@@ -1061,9 +1061,9 @@ impl System for FoodSystem {
             &mut Vitals,
             &mut StatusEffects,
             Option<&mut Health>,
-            Option<&crate::ecs::components::Controllable>,
-            Option<&crate::ecs::components::Dead>,
-            Option<&crate::ecs::components::Outfit>,
+            Option<&humanity_core::ecs::components::Controllable>,
+            Option<&humanity_core::ecs::components::Dead>,
+            Option<&humanity_core::ecs::components::Outfit>,
             Option<&mut crate::systems::wounds::Injuries>,
         )>() {
             heat_seen.push(e);
@@ -1357,7 +1357,7 @@ impl System for FoodSystem {
         if let Some((entity, cause)) = player_died {
             // The Dead marker carries the cause, which the save keeps with the body
             // (first-hour audit S1, 2026-10-04).
-            let _ = world.insert_one(entity, crate::ecs::components::Dead { cause: cause.clone(), ..Default::default() });
+            let _ = world.insert_one(entity, humanity_core::ecs::components::Dead { cause: cause.clone(), ..Default::default() });
             if let Some(slot) = data.get::<std::sync::Mutex<Option<String>>>("player_death") {
                 if let Ok(mut s) = slot.lock() {
                     *s = Some(cause.clone());
@@ -1398,7 +1398,7 @@ impl System for FoodSystem {
             .iter()
             .next()
             .map(|(_e, (_, space))| space.atmosphere.temperature_k - 273.15)
-            .unwrap_or(crate::ecs::components::EnvironmentContext::default().ambient_temp_c);
+            .unwrap_or(humanity_core::ecs::components::EnvironmentContext::default().ambient_temp_c);
         let at_home = self.data.spoilage_multiplier_at(home_c);
         // A vessel ages its food in the zone it keeps (a freezer chest's
         // "frozen", data/containers/types.csv `keeps_zone`), else in the home's air.
@@ -1428,15 +1428,15 @@ impl System for FoodSystem {
 #[cfg(test)]
 mod nutrition_tests {
     use super::*;
-    use crate::ecs::components::{Health, StatusEffects, Vitals};
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::components::{Health, StatusEffects, Vitals};
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
     use crate::systems::inventory::Inventory;
     use crate::systems::status_effects::StatusEffectRegistry;
     use std::path::Path;
 
     fn data_dir() -> &'static Path {
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+        Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
     }
 
     /// DataStore with the status-effect registry + the consume_request channel,
@@ -1444,7 +1444,7 @@ mod nutrition_tests {
     fn make_store() -> DataStore {
         let mut data = DataStore::new();
         let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/status_effects.csv"
         )))
         .expect("status_effects.csv");
@@ -1562,11 +1562,11 @@ mod nutrition_tests {
     /// clothing and the two cores are the same.
     #[test]
     fn a_winter_coat_keeps_the_core_warm() {
-        use crate::ecs::components::{EnvironmentContext, Outfit};
+        use humanity_core::ecs::components::{EnvironmentContext, Outfit};
         let mut sys = FoodSystem::new(data_dir());
         let mut data = make_store();
         let equip = crate::systems::economy::EquipmentRegistry::from_csv(include_bytes!(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/data/equipment.csv")
+            concat!(env!("HUMANITY_REPO_ROOT"), "/data/equipment.csv")
         ))
         .expect("equipment.csv");
         data.insert("equipment_registry", equip);
@@ -1609,7 +1609,7 @@ mod nutrition_tests {
     /// the first assertion.
     #[test]
     fn sweat_costs_water() {
-        use crate::ecs::components::EnvironmentContext;
+        use humanity_core::ecs::components::EnvironmentContext;
         let hour_walking_at = |air_c: f32| {
             let mut sys = FoodSystem::new(data_dir());
             let mut data = make_store();
@@ -1621,7 +1621,7 @@ mod nutrition_tests {
                     ambient_temp_c: air_c,
                     relative_humidity: 0.3,
                     wind_m_s: 1.0,
-                    activity_met: crate::ecs::components::MET_WALKING,
+                    activity_met: humanity_core::ecs::components::MET_WALKING,
                     ..Default::default()
                 },
             );
@@ -1689,7 +1689,7 @@ mod nutrition_tests {
     /// slot for the death screen. Dead entities stop decaying (no double death).
     #[test]
     fn player_death_inserts_dead_and_records_the_cause() {
-        use crate::ecs::components::{Controllable, Dead};
+        use humanity_core::ecs::components::{Controllable, Dead};
         let mut sys = FoodSystem::new(data_dir());
         let data = make_store();
         let mut world = hecs::World::new();
@@ -1936,7 +1936,7 @@ mod nutrition_tests {
     /// member beside the player raised one too ("the player's body only").
     #[test]
     fn going_short_of_air_is_one_game_event_for_the_player() {
-        use crate::ecs::components::{Controllable, EnvironmentContext};
+        use humanity_core::ecs::components::{Controllable, EnvironmentContext};
         let mut sys = FoodSystem::new(data_dir());
         let mut data = make_store();
         data.insert(crate::systems::GAME_EVENTS_KEY, std::sync::Mutex::new(Vec::<(String, String)>::new()));
@@ -1960,7 +1960,7 @@ mod nutrition_tests {
     /// test used to assert.
     #[test]
     fn exposure_drains_oxygen_and_recovers_when_sealed() {
-        use crate::ecs::components::EnvironmentContext;
+        use humanity_core::ecs::components::EnvironmentContext;
         let mut sys = FoodSystem::new(data_dir());
         let mut data = make_store();
         data.insert(
@@ -2021,7 +2021,7 @@ mod nutrition_tests {
     /// constants it ran on would have killed the player about 47 s later.
     #[test]
     fn outside_at_15c_a_walking_person_lasts_hours() {
-        use crate::ecs::components::EnvironmentContext;
+        use humanity_core::ecs::components::EnvironmentContext;
         use crate::systems::body_heat;
         for mode in [body_heat::Mode::Realistic, body_heat::Mode::Forgiving] {
             let mut sys = FoodSystem::new(data_dir());
@@ -2035,7 +2035,7 @@ mod nutrition_tests {
                     ambient_temp_c: 15.0,
                     relative_humidity: 0.6,
                     wind_m_s: 0.0,
-                    activity_met: crate::ecs::components::MET_WALKING,
+                    activity_met: humanity_core::ecs::components::MET_WALKING,
                     ..Default::default()
                 },
             );
@@ -2104,7 +2104,7 @@ mod nutrition_tests {
             vitals(80.0, 80.0),
             StatusEffects::default(),
             Health::default(),
-            crate::ecs::components::Controllable,
+            humanity_core::ecs::components::Controllable,
         ));
         let compost = |sys: &mut FoodSystem, world: &mut hecs::World| {
             *data.get::<std::sync::Mutex<bool>>("compost_request").unwrap().lock().unwrap() = true;
@@ -2129,7 +2129,7 @@ mod nutrition_tests {
     #[test]
     fn a_full_pack_still_gets_the_empty_bottle_back() {
         let mut data = make_store();
-        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/fluids.ron")).unwrap();
+        let bytes = std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/containers/fluids.ron")).unwrap();
         data.insert("fluid_table", crate::systems::fluids::FluidTable::from_ron(&bytes).unwrap());
         let mut sys = FoodSystem::new(data_dir());
         let mut world = hecs::World::new();
@@ -2150,7 +2150,7 @@ mod nutrition_tests {
     #[test]
     fn drinking_a_bottle_hands_the_empty_bottle_back() {
         let mut data = make_store();
-        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/fluids.ron")).unwrap();
+        let bytes = std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/containers/fluids.ron")).unwrap();
         data.insert("fluid_table", crate::systems::fluids::FluidTable::from_ron(&bytes).unwrap());
         let mut sys = FoodSystem::new(data_dir());
         let mut world = hecs::World::new();
@@ -2225,7 +2225,7 @@ mod nutrition_tests {
 
     fn items_csv() -> Vec<ItemRow> {
         let bytes = std::fs::read(data_dir().join("items.csv")).expect("read data/items.csv");
-        crate::data_parse::parse_csv(&bytes).expect("parse data/items.csv")
+        humanity_core::data_parse::parse_csv(&bytes).expect("parse data/items.csv")
     }
 
     /// A fresh world holding one player who carries a single `item_id`.
@@ -2383,7 +2383,7 @@ mod nutrition_tests {
         let sys = FoodSystem::new(data_dir());
         let list = ItemProfiles::load(data_dir());
         let bytes = std::fs::read(data_dir().join("recipes.csv")).expect("read data/recipes.csv");
-        let recipes: Vec<RecipeRow> = crate::data_parse::parse_csv(&bytes).expect("parse recipes.csv");
+        let recipes: Vec<RecipeRow> = humanity_core::data_parse::parse_csv(&bytes).expect("parse recipes.csv");
         let mut undecided = Vec::new();
         for r in recipes.iter().filter(|r| r.category == "cooking") {
             for out in r.outputs.split('|') {
@@ -2666,20 +2666,20 @@ mod nutrition_tests {
 #[cfg(test)]
 mod g_load_wiring_tests {
     use super::*;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::hot_reload::data_store::DataStore;
     use crate::systems::status_effects::StatusEffectRegistry;
 
     // Local copies rather than widening nutrition_tests' visibility: these
     // tests are about the g-load wiring and should not make another module's
     // internals public just to borrow a fixture.
     fn data_dir() -> &'static Path {
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+        Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
     }
 
     fn make_store() -> DataStore {
         let mut data = DataStore::new();
         let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/status_effects.csv"
         )))
         .expect("status_effects.csv");
@@ -2707,11 +2707,11 @@ mod g_load_wiring_tests {
             waste_max: 100.0,
         }
     }
-    use crate::ecs::components::{EnvironmentContext, Health, StatusEffects, Vitals};
+    use humanity_core::ecs::components::{EnvironmentContext, Health, StatusEffects, Vitals};
     use crate::systems::flight::{felt_gravity, FlightData, FlightState};
 
     fn flight_data() -> FlightData {
-        FlightData::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"))
+        FlightData::load(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"))
     }
 
     /// Put the player in an environment at a given felt gravity and run one

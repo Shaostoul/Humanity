@@ -6,7 +6,7 @@ use super::*;
 use crate::ship::ship_structure::{HomeDesign, OpenPlots};
 
 fn data_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The shipped ship with the home on `plot`.

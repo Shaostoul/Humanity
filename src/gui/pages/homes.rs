@@ -25,7 +25,7 @@
 
 use egui::{Frame, RichText, ScrollArea};
 use crate::gui::{GuiState, HomesteadDesign, DesignRoom, TowerConfig, TowerCompat};
-use crate::i18n::{t, tf};
+use humanity_core::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cards};
 use std::cell::RefCell;
@@ -143,12 +143,12 @@ pub fn load_cannot_close(data_dir: &std::path::Path) -> CannotCloseData {
     }
 }
 
-/// Load-once cache. Same pattern as laws/glossary: `crate::storage::data_dir()` is the
+/// Load-once cache. Same pattern as laws/glossary: `humanity_core::storage::data_dir()` is the
 /// CWD-independent resolved data dir in the installed app, and falls back to
 /// "data" under tests/snapshots (which run from the repo root).
 fn cannot_close() -> &'static CannotCloseData {
     static CACHE: std::sync::OnceLock<CannotCloseData> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| load_cannot_close(&crate::storage::data_dir()))
+    CACHE.get_or_init(|| load_cannot_close(&humanity_core::storage::data_dir()))
 }
 
 /// One required component of the ideal closed-loop homestead (e.g. 4x
@@ -220,7 +220,7 @@ pub struct HomeOutline {
 /// (BUG-163). When neither loads the data is empty (the panel hides; the page
 /// still works).
 pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
-    crate::embedded_data::load_data_or_embedded(data_dir, "home_outline.json", crate::data_parse::parse_json::<HomeOutline>)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, "home_outline.json", humanity_core::data_parse::parse_json::<HomeOutline>)
         .unwrap_or_else(|e| {
             log::warn!("{e}; the home outline panel is hidden");
             HomeOutline::default()
@@ -229,7 +229,7 @@ pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
 
 fn home_outline() -> &'static HomeOutline {
     static CACHE: std::sync::OnceLock<HomeOutline> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| load_home_outline(&crate::storage::data_dir()))
+    CACHE.get_or_init(|| load_home_outline(&humanity_core::storage::data_dir()))
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
@@ -896,7 +896,7 @@ fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
             .map(|(_, q)| *q)
             .sum();
         if n > 0 {
-            out.push((crate::i18n::t_dyn(key), n));
+            out.push((humanity_core::i18n::t_dyn(key), n));
         }
     }
     out

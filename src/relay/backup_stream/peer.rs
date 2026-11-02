@@ -12,7 +12,7 @@
 use sha2::{Digest, Sha256};
 
 use super::names::Listed;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
 /// Request headers. The signature is about 6,600 hex characters: a header, never the address
 /// (a URL that long is refused by nginx, the admin-stats lesson of v0.851).

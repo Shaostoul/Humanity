@@ -175,7 +175,7 @@ pub struct ScreenWorld<'a> {
     /// The camera's right-hand direction (unit length), for stereo panning.
     pub listener_right: [f32; 3],
     /// `None` on a machine with no audio device; sound then plays nowhere.
-    pub audio: Option<&'a mut crate::audio::AudioManager>,
+    pub audio: Option<&'a mut humanity_core::audio::AudioManager>,
 }
 
 /// Content that is not a plain page: a live stream, a camera, a clip, a web
@@ -1155,14 +1155,14 @@ impl ScreenSurface {
         // screen, CPU side. Several screens a frame sum under the one id;
         // pairs with the pass's `gpu.screen_ui` for the no-timestamp
         // fallback rule.
-        let _cost = crate::frame_costs::stage("cpu.screen_ui");
+        let _cost = humanity_core::frame_costs::stage("cpu.screen_ui");
         theme.apply_to_egui(&self.core.ctx);
         // The first frame's two runs (the warm-up) come on two turns, the first painting nothing
         // (`turn_plan`, stutter survey 2); with the Dev page's "Turn off all reuse", or a dev-IPC
         // lookup waiting on this screen, both on one frame as before. A pending `find` is answered
         // by EVERY run and the last answer wins, so after the warm-up the reported rect is the
         // settled one.
-        let spread = self.spread_first && crate::reuse::enabled() && !self.core.find_pending();
+        let spread = self.spread_first && humanity_core::reuse::enabled() && !self.core.find_pending();
         let (runs, paint) = match turn_plan(self.core.runs(), true, false, spread) {
             Turn::Paint { runs } => (runs, true),
             Turn::WarmUp | Turn::ReadyData => (1, false),
@@ -1207,7 +1207,7 @@ impl ScreenSurface {
             return;
         }
         let t_paint = std::time::Instant::now();
-        let _first_paint = first.then(|| crate::frame_costs::stage("cpu.screen_first.paint"));
+        let _first_paint = first.then(|| humanity_core::frame_costs::stage("cpu.screen_first.paint"));
         let (w, h) = self.core.size();
         let ppp = 1.0_f32;
         let clipped = self.core.ctx.tessellate(out.shapes, ppp);
@@ -1259,9 +1259,9 @@ impl ScreenSurface {
     fn note_first_turn(&self, what: &str, t0: std::time::Instant, runs: &[(f64, f64)], paint: Option<std::time::Duration>, atlas_px: usize) {
         let whole = t0.elapsed();
         let ms = |v: f64| std::time::Duration::from_secs_f64(v.max(0.0) / 1000.0);
-        crate::frame_costs::record_cpu("cpu.screen_first", whole);
-        crate::frame_costs::record_cpu("cpu.screen_first.runs", ms(runs.iter().map(|r| r.0).sum()));
-        crate::frame_costs::record_cpu("cpu.screen_first.textures", ms(runs.iter().map(|r| r.1).sum()));
+        humanity_core::frame_costs::record_cpu("cpu.screen_first", whole);
+        humanity_core::frame_costs::record_cpu("cpu.screen_first.runs", ms(runs.iter().map(|r| r.0).sum()));
+        humanity_core::frame_costs::record_cpu("cpu.screen_first.textures", ms(runs.iter().map(|r| r.1).sum()));
         let each: Vec<String> = runs.iter().enumerate().map(|(i, (r, t))| format!("run {} {r:.1} (its textures {t:.1})", i + 1)).collect();
         let paint = paint.map_or(String::new(), |p| format!(", paint {:.1}", p.as_secs_f64() * 1000.0));
         log::info!(

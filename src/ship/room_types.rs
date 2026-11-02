@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn parses_rooms_and_joins_actions() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let reg = RoomTypeRegistry::load(&dir);
         // The shipped rooms.ron should parse and contain the homestead rooms.
         assert!(!reg.types.is_empty(), "rooms.ron should parse with entries");
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn a_zone_room_type_joins_to_its_rooms_ron_actions_and_an_unknown_one_yields_none() {
         use crate::ship::home_structure::{HomeStructure, Zone};
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let reg = RoomTypeRegistry::load(&dir);
         let mut h: HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 3.0)").expect("parses");
         let zone = |id: &str, room_type: Option<&str>| Zone {
@@ -315,7 +315,7 @@ mod tests {
     /// anonymous room shows its id.
     #[test]
     fn function_for_resolves_the_room_type_and_falls_back_to_label_then_id() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let reg = RoomTypeRegistry::load(&dir);
         let room = |id: &str, room_type: Option<&str>, label: &str| RoomInfo {
             id: id.to_string(),
@@ -353,7 +353,7 @@ mod tests {
     /// an action's `page` in data/rooms/room_actions.ron, and this fails naming the page.
     #[test]
     fn the_shipped_home_has_one_appearance_room_and_one_wardrobe_room() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let reg = RoomTypeRegistry::load(&root.join("data"));
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
             .expect("the shipped ship assembles");

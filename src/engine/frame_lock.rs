@@ -114,7 +114,7 @@ pub(crate) fn current_planet_spin(state: &EngineState) -> f64 {
         // game day of any length (the one clock, 2026-09-27).
         .map(|gt| gt.day_fraction() * 24.0)
         .unwrap_or(12.0);
-    crate::dev_travel::planet_spin_from_time(hour, sun_azimuth(state))
+    humanity_core::dev_travel::planet_spin_from_time(hour, sun_azimuth(state))
 }
 
 /// The world-frame sun's azimuth, `atan2(-z, x)`: the one number both the
@@ -272,7 +272,7 @@ pub(crate) fn above_air(state: &EngineState) -> f32 {
                 .planet_defs
                 .get(b)
                 .map(|d| d.radius)
-                .or_else(|| crate::cosmos::find_body(b).map(|cb| cb.radius_km * 1000.0))
+                .or_else(|| humanity_core::cosmos::find_body(b).map(|cb| cb.radius_km * 1000.0))
                 .unwrap_or(6_371_000.0);
             let band_k = (radius / 6_371_000.0).clamp(0.001, 4.0);
             crate::renderer::key_lights::camera_sun_release(
@@ -298,17 +298,17 @@ pub(crate) fn sun_occlusion_factor(state: &EngineState) -> f32 {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
         - 946_728_000.0;
-    let earth_helio = crate::cosmos::find_body("earth")
-        .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+    let earth_helio = humanity_core::cosmos::find_body("earth")
+        .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
         .unwrap_or(glam::DVec3::ZERO);
     let mut vis = 1.0_f32;
-    for body in crate::cosmos::sol_bodies() {
+    for body in humanity_core::cosmos::sol_bodies() {
         if body.body_type == "star" {
             continue;
         }
-        let center = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+        let center = (humanity_core::cosmos::body_world_position_3d_au(body, sim_t)
             - earth_helio)
-            * crate::cosmos::M_PER_AU;
+            * humanity_core::cosmos::M_PER_AU;
         vis *= crate::renderer::godrays::segment_sphere_visibility(
             cam,
             state.sun_world_pos,
@@ -474,8 +474,8 @@ pub(crate) fn sun_cloud_alpha(state: &EngineState) -> f32 {
         dir0.y,
         c * dir0.z - s * dir0.x,
     );
-    let w = crate::weather_map::WEATHER_MAP_W as usize;
-    let h = crate::weather_map::WEATHER_MAP_H as usize;
+    let w = humanity_core::weather_map::WEATHER_MAP_W as usize;
+    let h = humanity_core::weather_map::WEATHER_MAP_H as usize;
     // Same equirect mapping as the sky shader's cloud_weather.
     let lon = (-dir.z).atan2(dir.x);
     let lat = dir.y.clamp(-1.0, 1.0).asin();
@@ -556,7 +556,7 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
     // Catalog mean temperature; the <= 0.0 absent-field sentinel is
     // normalized inside the pure function.
     let catalog_mean_k = body_id
-        .and_then(crate::cosmos::find_body)
+        .and_then(humanity_core::cosmos::find_body)
         .map(|b| b.mean_temperature_k as f32);
     let env = crate::systems::body_environment::environment_for_frame_lock(
         body_id,
@@ -593,7 +593,7 @@ pub(crate) fn publish_planet_tuner_readout(state: &mut EngineState) {
     t.readout.body_id = body_id.clone();
     t.readout.body_name = def
         .map(|d| d.name.clone())
-        .or_else(|| crate::cosmos::find_body(&body_id).map(|b| b.name.clone()))
+        .or_else(|| humanity_core::cosmos::find_body(&body_id).map(|b| b.name.clone()))
         .unwrap_or_else(|| body_id.clone());
     t.readout.has_def = def.is_some();
     t.readout.altitude_m = altitude_m;
@@ -659,22 +659,22 @@ pub(crate) fn save_location_bookmark(state: &mut EngineState) {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
         - 946_728_000.0;
-    let earth_helio_au = crate::cosmos::find_body("earth")
-        .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+    let earth_helio_au = humanity_core::cosmos::find_body("earth")
+        .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
         .unwrap_or(glam::DVec3::ZERO);
     // Frame-locked: store body-local pose (spin-independent). Free space:
     // store the absolute pose with body = null.
     let locked_body = state
         .frame_lock_body
         .as_deref()
-        .and_then(crate::cosmos::find_body);
+        .and_then(humanity_core::cosmos::find_body);
     let (body_json, anchor, fwd_store) = if let Some(body) = locked_body {
-        let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+        let body_rel_earth = (humanity_core::cosmos::body_world_position_3d_au(body, sim_t)
             - earth_helio_au)
-            * crate::cosmos::M_PER_AU;
+            * humanity_core::cosmos::M_PER_AU;
         // The body's own turn: the pose is stored on ITS ground (2026-10-21).
         let rot = crate::engine::planet_build::body_world_rot(&body.id, state.current_spin, sim_t);
-        let anchor = crate::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage);
+        let anchor = humanity_core::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage);
         let fwd_local = rot.inverse() * fwd_world;
         (serde_json::json!(body.id.clone()), anchor, fwd_local)
     } else {
@@ -783,19 +783,19 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
         - 946_728_000.0;
-    let earth_helio_au = crate::cosmos::find_body("earth")
-        .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+    let earth_helio_au = humanity_core::cosmos::find_body("earth")
+        .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
         .unwrap_or(glam::DVec3::ZERO);
     let body_id = bm.get("body").and_then(|b| b.as_str()).map(|s| s.to_string());
     // Re-spin the stored local pose into the CURRENT world frame.
     let (vantage, fwd_world, lock) = if let Some(bid) = body_id.as_deref() {
-        let Some(body) = crate::cosmos::find_body(bid) else {
+        let Some(body) = humanity_core::cosmos::find_body(bid) else {
             fail(format!("bookmark {want} references unknown body {bid}"));
             return true;
         };
-        let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+        let body_rel_earth = (humanity_core::cosmos::body_world_position_3d_au(body, sim_t)
             - earth_helio_au)
-            * crate::cosmos::M_PER_AU;
+            * humanity_core::cosmos::M_PER_AU;
         let rot = crate::engine::planet_build::body_world_rot(bid, state.current_spin, sim_t);
         (
             body_rel_earth + rot * anchor,
@@ -830,7 +830,7 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
         - glam::DVec3::new(cam_local.x as f64, cam_local.y as f64, cam_local.z as f64);
     state.camera.clear_surface();
     state.camera.roll = 0.0;
-    let (yaw, pitch) = crate::dev_travel::look_angles(fwd_world);
+    let (yaw, pitch) = humanity_core::dev_travel::look_angles(fwd_world);
     state.camera.yaw = yaw;
     state.camera.pitch = pitch;
     state.gui_state.dev_fly_mode = true;
@@ -838,7 +838,7 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
     state.gui_state.dev_travel_away = true;
     if let Some((bid, body_rel_earth, rot)) = lock {
         state.frame_lock_anchor =
-            crate::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage);
+            humanity_core::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage);
         state.frame_lock_last_rot = rot;
         state.frame_lock_body = Some(bid);
     } else {

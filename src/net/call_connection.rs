@@ -195,7 +195,7 @@ mod tests {
     use super::*;
 
     fn file() -> Words {
-        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(DATA_FILE)).expect("the data file");
+        let text = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(DATA_FILE)).expect("the data file");
         Words::parse(&text).expect("the data file reads")
     }
 

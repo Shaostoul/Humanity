@@ -3369,7 +3369,7 @@ solar eclipse (FIXED).** Each check below was seen failing first.
   `argument_perihelion_precession_years: 5.997` (signed periods: + the angle
   grows, - it shrinks, absent = held), `catalog_version` 5. Any body may carry
   them; nothing in the code names the Moon.
-- The model (`src/cosmos.rs`): `orbit_angles_deg_at` turns the node and the
+- The model (`crates/humanity-core/src/cosmos.rs`): `orbit_angles_deg_at` turns the node and the
   argument of periapsis at those rates; `mean_anomaly_deg_at` runs the mean
   anomaly at 360 / period less both rates, because the period in the data is
   the sidereal one (the mean longitude's), so the anomaly runs at the
@@ -3989,7 +3989,7 @@ loop or a wait passes an absolute two-minute backstop. The fleet ledger test's f
 another kind: its rate limit reads a clock the test moves, while its waits for the
 relay's answers keep their 5 s of wall-clock time (`next_game_of`, `wait_until`), so
 that test is not free of the wall clock.
-- `src/test_clock.rs`: `ManualClock`, a clock a test moves by hand. Test builds only.
+- `crates/humanity-core/src/test_clock.rs`: `ManualClock`, a clock a test moves by hand. Test builds only.
 - Media (`src/media/mod.rs`, `src/media/tests.rs`): the player's `Clock` reads a test's
   manual clock when it has one (`VideoPlayer::use_manual_clock`, `#[cfg(test)]`; the
   product reads `Instant::now()` exactly as before). The seek tests hold the clock at
@@ -4446,7 +4446,7 @@ relay a test starts holds its database in its tasks, which the test's runtime dr
 after the test body (and anything in it) is gone.
 
 **Fix:**
-- `src/test_temp.rs` (test builds only): `db(tag)`, `file(tag, ext)`, `path(tag)` and
+- `crates/humanity-core/src/test_temp.rs` (test builds only): `db(tag)`, `file(tag, ext)`, `path(tag)` and
   `dir(tag)` hand out `hum_<tag>_<pid>_<nanos>_<n>` paths in the temp folder as a guard
   (`TempPath`, derefs to `Path`) that deletes the file with its `-wal`, `-shm` and
   `-journal`, or the folder, when it is dropped, also while a failed assertion unwinds the
@@ -4925,7 +4925,7 @@ never overwritten.** The decision (`docs/design/ship-homes-increment-6-plan.md` 
 6, adopted as recommended while the operator was away): refresh a data file only when it still
 equals the copy the game last wrote there; keep an edited one, and say so in Settings > Data.
 Increment 6 changes the ship file, and an install that kept its old one would be refused by an
-updated server as "a different ship". Built in `src/storage/refresh.rs`
+updated server as "a different ship". Built in `crates/humanity-core/src/storage/refresh.rs`
 (`docs/design/data-folder-updates.md`, "Part 2, as built", has the detail and where the build
 differs from the design):
 - every write of a shipped file into the data folder (the first run, a refresh, "Use the game's
@@ -4964,7 +4964,7 @@ follows a new default can move rooms under them; and the "other ship" sentence i
 kept or left-alone one).
 
 Part 2's tests, each seen red against a deliberate break (break and failure text in each doc
-comment): the eight in `src/storage/refresh_tests.rs` (a stamped folder keeps an edit and takes
+comment): the eight in `crates/humanity-core/src/storage/refresh_tests.rs` (a stamped folder keeps an edit and takes
 the rest; a build of the same version with other data refreshes; an unstamped folder of one
 moment is refreshed whole and a later edit and an older copied-in file are kept; one with no
 first-run moment keeps everything; a source tree, a rig's junction, a junction to a plain folder
@@ -5044,7 +5044,7 @@ the rounding is far below the change, which is how it went unseen (the illness t
 
 **Fix (2026-10-05): every per-frame change to the body is worked out in f64, and nothing
 f32 rounding holds back is lost** (`src/systems/food.rs`, the EXACT AT ANY FRAME RATE note).
-- An effect's time left is an f64 (`ActiveEffect::remaining`, `src/ecs/components.rs`);
+- An effect's time left is an f64 (`ActiveEffect::remaining`, `crates/humanity-core/src/ecs/components.rs`);
   `StatusEffects::apply` takes any duration that converts to f64, `tick_with` takes each
   frame's step off the f64, and `StatusEffects::remaining` reads it. A save written with the
   f32 loads unchanged (test below); the HUD's effect list converts it back
@@ -5142,7 +5142,7 @@ same, because the facing it sends is the camera's yaw.
   which the rig waits on, stays true through that turn). The line it walks is unchanged, so
   the routes the rig plans through the doors are walked exactly. The stride rule stays: a step
   is at most 0.1 s of walking and of turning.
-- The turn is `src/turning.rs`, new: the quickest turn that never goes faster than its rate and
+- The turn is `crates/humanity-core/src/turning.rs`, new: the quickest turn that never goes faster than its rate and
   changes speed by no more than its acceleration, slowing in time to stop exactly on the
   heading (braking counted in whole frames, so no frame rate swings it past), and following a
   heading that moves from whatever speed it has. The camera turns with `LOOK`: at most 150
@@ -5169,7 +5169,7 @@ along -z and 23 degrees down), all three seen red on main (0f8b30944):
 - `the_rig_turns_no_faster_than_a_person`: "frame 1 turned the camera at 5400 degrees a
   second; a person turns at most 150".
 - `a_long_frame_never_makes_a_long_stride` guards the stride rule (green before too).
-- `src/turning.rs`: the turn keeps its limits and lands on its heading at 240, 60 and 30 frames
+- `crates/humanity-core/src/turning.rs`: the turn keeps its limits and lands on its heading at 240, 60 and 30 frames
   a second and at the 0.1 s cap, goes the short way round, follows a heading that moves, and
   caps a long frame.
 - `scripts/tests/copresence-judge.test.js` "walks: a route faces along its legs and turns to
@@ -5932,16 +5932,16 @@ person's own.
 ## BUG-190: a phone video keeps where it was filmed (FIXED v0.1485.0, found 2026-10-11)
 
 The relay strips location and camera data from pictures before they are stored
-(`src/relay/core/strip_metadata.rs`), but videos are stored as they arrive. Phone cameras write the
+(`crates/humanity-protocol/src/strip_metadata.rs`), but videos are stored as they arrive. Phone cameras write the
 recording's location into an MP4's metadata (Apple's `com.apple.quicktime.location.ISO6709` key in
 `moov/meta`, the `©xyz` atom in `moov/udta` on Android and others, the 3GPP `loci` box, XMP in a
 `uuid` box), so a phone video sent to a public channel, Shared Files or the Media page publishes
 where it was filmed. Found while writing the resumable-upload spec (docs/design/files-showcase.md).
-Fixed: an in-place strip (src/relay/core/strip_video_metadata.rs) zeroes those boxes, syncs, then renames them
+Fixed: an in-place strip (crates/humanity-protocol/src/strip_video_metadata.rs) zeroes those boxes, syncs, then renames them
 `free`, the same size (no re-encode, nothing moves, so the sample offsets stay right), in both upload
 routes (upload_rules.rs `finish_video`, later `finish_file_as`); a video whose boxes cannot be read through
 is refused on public shelves. HEIC and AVIF photos, which kept their GPS the same way, are cleaned in place
-too (src/relay/core/strip_heif_metadata.rs). Not covered: location recorded inside the video stream itself
+too (crates/humanity-protocol/src/strip_heif_metadata.rs). Not covered: location recorded inside the video stream itself
 (GoPro, DJI, some dashcams).
 
 ## BUG-191: profiles never replicate between servers, because nothing signs them (FIXED v0.1490.0, 2026-10-12; found 2026-10-11)
@@ -5965,7 +5965,7 @@ after the newest one they have seen (`max(now, last + 1)`, as the friendship cho
 
 **Fixed 2026-10-12** (plan and as built: `docs/design/bug-191-profile-copies-plan.md`). The copy
 other servers keep is now signed by the person's own apps, never by a server:
-- The contract is `src/relay/core/profile_copy.rs`: the public copy (every field the person keeps for
+- The contract is `crates/humanity-protocol/src/profile_copy.rs`: the public copy (every field the person keeps for
   friends blanked), the pinned words signed, the limits, and `next_copy_time` (after the newest copy
   seen for that server, so a fast clock wins nothing). A shared fixture
   (`scripts/tests/fixtures/profile-copy-v1.json`) holds the desktop app and the website to the same
@@ -7078,7 +7078,7 @@ he noticed the "2+ hour task".
   never returns: plain libtest printed two of five results and then nothing for 80 s, no warning.
 - **FIXED.** (1) Before a run, `scripts/lib-tests.js` asks `scripts/lib/machine-guard.js` which of
   the operator's GPU-heavy programs run; when one does, every test that would open a device asks
-  `crate::test_gpu::may_use()` (src/test_gpu.rs) first, before creating a `wgpu::Instance`, and
+  `humanity_core::test_gpu::may_use()` (crates/humanity-core/src/test_gpu.rs) first, before creating a `wgpu::Instance`, and
   returns early; the script names them in a GPU TESTS NOT RUN banner and records the pass without
   them, so the next full run on the same tree, once the game has closed, runs just those.
   `tests/gpu_test_gate_lint.rs` (in `just lints` and CI) holds every instance in test code to

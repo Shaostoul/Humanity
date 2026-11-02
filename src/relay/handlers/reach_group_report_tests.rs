@@ -54,7 +54,7 @@ fn refusal(to: &Person) -> Vec<String> {
 /// A signed P2P group object about `gid` by `by`, with `payload` (the shapes of
 /// storage/groups_p2p.rs), put into the relay as a client would publish it.
 fn publish(st: &Arc<RelayState>, by: &Person, object_type: &str, gid: &str, payload: Vec<(ciborium::Value, ciborium::Value)>) {
-    use crate::relay::core::object::ObjectBuilder;
+    use humanity_protocol::object::ObjectBuilder;
     let object = ObjectBuilder::new(object_type)
         .reference(gid)
         .created_at(1009)

@@ -12,9 +12,9 @@ use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, DilithiumKeypair, KyberKeypair};
-use crate::relay::core::recovery::{self as proto, OneTimeAsk, ServedPiece, TrustedPerson};
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, DilithiumKeypair, KyberKeypair};
+use humanity_protocol::recovery::{self as proto, OneTimeAsk, ServedPiece, TrustedPerson};
 
 /// One friend who could keep a piece: their key, account id, name and Kyber768 key (base64)
 /// when one is pinned from a key card this app checked (engine/key_cards.rs; never a key a server
@@ -223,7 +223,7 @@ pub fn load_my_setup(base: &str, secret: &[u8]) -> Result<MySetup, String> {
 /// naming them; core/key_card.rs). A server's word alone is never sealed to: a card that does not
 /// check out is the same as none. A friend whose key changed is refused until it is accepted.
 pub fn with_keys(base: &str, mut people: Vec<Friend>) -> Result<Vec<TrustedPerson>, String> {
-    use crate::relay::core::key_card::{self, Refusal};
+    use humanity_protocol::key_card::{self, Refusal};
     let mut out = Vec::new();
     for f in people.iter_mut() {
         if f.key_changed {

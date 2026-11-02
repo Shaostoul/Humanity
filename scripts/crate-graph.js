@@ -264,36 +264,45 @@ function pathsIn(src, { root = 'crate', parentOf = null } = {}) {
   return refs;
 }
 
-/** The plan's reading of src/: lines per crate, the wrong-way edges ("from -> to" -> Map("module: item" -> count)),
+/** The plan's reading of the code: lines per crate, the wrong-way edges ("from -> to" -> Map("module: item" -> count)),
  * and the top-level modules no crate claims. Shared with scripts/check-crate-layers.js (the ratchet).
  * Also, for the crate cards (scripts/crate-cards.js, 2026-10-31): `crossing`, EVERY reference from one
- * crate into another, allowed or not ("from -> to" -> Map(the path as written after `crate::` -> count)),
- * counted exactly as the edges are; `files` ({ rel, crate, lines, test, raw, code }); and the plan's
- * lookups (`crateOf`, `may`, `isTestFile`).
+ * crate into another, allowed or not ("from -> to" -> Map(the path as written after `crate::` or the
+ * crate's own name -> count)), counted exactly as the edges are; `files` ({ path, rel, pkg, mod, crate,
+ * lines, test, raw, code, all }); and the plan's lookups (`crateOf`, `may`, `isTestFile`, `cut`).
  * `{ tests: true }` also reads the TEST code in the same pass (test files, and the test-gated items of
- * the others) into `testEdges`, the wrong-way references rung 1 must move first
+ * the others) into `testEdges`, the wrong-way references rung 1 had to move first
  * (docs/design/crate-split.md, rung 0's "Not counted"). There a `super::` counts only in a test file:
  * inside an inline `mod tests { }` it names the file's own module, which the file's path alone cannot
  * tell from its parent, and that module is the code under test, in the same crate. With tests it also
- * gives `testByFile`, the same references by the file they sit in (src/-relative -> Map(edge -> count)),
- * which the ratchet holds file by file (scripts/check-crate-layers.js).
+ * gives `testByFile`, the same references by the file they sit in (repo-relative path -> Map(edge ->
+ * count)), which the ratchet holds file by file (scripts/check-crate-layers.js).
  * A path that names one of the crate root's own items (`rootItems`: `crate::data_dir()`) is a reference
  * into the crate that owns lib.rs. With or without tests, `codeByFile` is the code's references by file
  * (the ratchet holds code file by file too).
  * A binary's root (main.rs, from Cargo.toml: `cargoTargets`) is read through the library's name: its
  * `humanity_engine::x` is the library's `crate::x`, a reference from the crate the plan files it in.
- * `opts.src`, `opts.plan` and `opts.cargo` read another tree (scripts/tests/check-crate-layers.test.js
- * builds one): the src/ folder, the plan as an object, Cargo.toml's text. */
+ *
+ * THE CUT CRATES (2026-11-01, the crate split's rung 1). A crate the plan gives a `dir`
+ * ("crates/humanity-core") is a package of its own: its files are every .rs under <dir>/src/ and are
+ * that crate's by where they sit (it lists no `paths`), its `crate::` and `super::` name itself, and
+ * every file anywhere names it by its library name (`humanity_core::storage::data_dir()`, the name with
+ * `-` as `_`), which is read here exactly as a `crate::` path into it would be. A module path (`mod`)
+ * is relative to the file's own package, as rustc and libtest name it.
+ * `opts.repo`, `opts.src`, `opts.plan` and `opts.cargo` read another tree (scripts/tests/check-crate-layers.test.js
+ * builds one): the repo folder (a cut crate's `dir` is under it), the root package's src/ folder (default
+ * <repo>/src), the plan as an object, the root Cargo.toml's text. */
 function analyse(opts = {}) {
   const withTests = !!opts.tests;
   const fs = require('fs');
   const path = require('path');
-  const ROOT = opts.src || path.join(__dirname, '..', 'src');
+  const REPO = opts.repo || (opts.src ? path.dirname(opts.src) : path.join(__dirname, '..'));
+  const ROOT = opts.src || path.join(REPO, 'src');
   const PLAN = opts.plan || JSON.parse(fs.readFileSync(path.join(__dirname, 'crate-layers.json'), 'utf8'));
-  const CARGO = cargoTargets(opts.cargo != null ? opts.cargo : fs.readFileSync(path.join(__dirname, '..', 'Cargo.toml'), 'utf8'));
+  const CARGO = cargoTargets(opts.cargo != null ? opts.cargo : fs.readFileSync(path.join(REPO, 'Cargo.toml'), 'utf8'));
   // path -> crate, and each crate's transitive set of crates it may use.
   const owner = new Map();
-  for (const c of PLAN.crates) for (const p of c.paths) owner.set(p.replace(/\.rs$/, ''), c.name);
+  for (const c of PLAN.crates) for (const p of c.paths || []) owner.set(p.replace(/\.rs$/, ''), c.name);
   const direct = new Map(PLAN.crates.map((c) => [c.name, c.uses]));
   const may = new Map();
   const reach = (n, seen = new Set()) => {
@@ -301,7 +310,10 @@ function analyse(opts = {}) {
     return seen;
   };
   for (const c of PLAN.crates) may.set(c.name, reach(c.name));
-  // The crate that owns a module path ("engine/protected/x"): its most specific listed prefix.
+  // The crates already cut: their package's src/ and their library's name.
+  const cut = PLAN.crates.filter((c) => c.dir).map((c) => ({ name: c.name, dir: c.dir.replace(/\\/g, '/').replace(/\/$/, ''), lib: c.name.replace(/-/g, '_'), src: path.join(REPO, c.dir, 'src') }));
+  const libCrate = new Map(cut.map((c) => [c.lib, c.name]));
+  // The crate that owns a module path of the ROOT package ("engine/protected/x"): its most specific listed prefix.
   const crateOf = (mod) => {
     const parts = mod.split('/');
     for (let k = parts.length; k > 0; k--) {
@@ -311,113 +323,135 @@ function analyse(opts = {}) {
     return null;
   };
   function walk(dir, out) {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    let list = [];
+    try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of list) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p, out);
       else if (e.name.endsWith('.rs')) out.push(p);
     }
   }
-  const files = [];
-  walk(ROOT, files);
-  // Every file read once, its non-test code worked out, and the test-only module files it declares
-  // noted: a declared test file is test code, and so is every file under its folder.
-  const parsed = [];
-  const testFiles = new Set();
-  const testDirs = [];
-  // A file a `#[path = "..."] mod x;` names belongs to the module that declares it, wherever it
-  // sits (2026-10-31, the crate cards): engine/household.rs declares engine/household_tests.rs as
-  // its `tests`, so that file is `engine::household::tests`, the GUI's, not a file of the engine
-  // folder's. file -> { by: the declaring file, name }.
-  const declaredBy = new Map();
-  for (const f of files) {
-    const rel = path.relative(ROOT, f).replace(/\\/g, '/');
-    if (rel === 'build.rs') continue;
-    const raw = fs.readFileSync(f, 'utf8');
-    const { code, testMods, all } = nonTestCode(raw);
-    for (const t of testMods) {
-      for (const p of declaredFiles(rel, t)) {
-        testFiles.add(p);
-        testDirs.push(p.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '') + '/');
-      }
-    }
-    for (const d of pathDecls(raw, all)) {
-      const target = declaredFiles(rel, d)[0];
-      if (!declaredBy.has(target)) declaredBy.set(target, { by: rel, name: d.name });
-    }
-    parsed.push({ rel, raw, code, all });
-  }
-  const isTestFile = (rel) =>
-    /_tests?\.rs$|(^|\/)tests?(\.rs$|\/)/.test(rel) || testFiles.has(rel) || testDirs.some((d) => rel.startsWith(d));
-  // A file's module path: a/b.rs -> a/b, a/b/mod.rs -> a/b, and a `#[path]` file its declarer's
-  // path and the name it was declared by (lib.rs's children sit at the top).
-  const modulePath = (rel, depth = 0) => {
-    const d = declaredBy.get(rel);
-    if (d && depth < 16) {
-      const base = /^(lib|main)\.rs$/.test(d.by) ? '' : modulePath(d.by, depth + 1);
-      return base ? `${base}/${d.name}` : d.name;
-    }
-    return rel.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '');
-  };
+  // The packages: the root one (its crates by the plan's paths), then each cut crate.
+  const packages = [{ pkg: null, src: ROOT, prefix: 'src/', lib: CARGO.lib, bins: CARGO.bins }];
+  for (const c of cut) packages.push({ pkg: c.name, src: c.src, prefix: `${c.dir}/src/`, lib: c.lib, bins: [] });
   const lines = new Map();
   const edges = new Map(); // "from -> to" -> Map("module: item" -> count)
   const crossing = new Map(); // "from -> to" -> Map("path::as::written" -> count), allowed ones too
   const testEdges = new Map(); // as `edges`, in test code (only with { tests: true })
-  const testByFile = new Map(); // rel -> Map("from -> to" -> count), the test references by file
-  const testList = []; // each of them: { rel, edge, line, item }, for `--tests`
+  const testByFile = new Map(); // repo path -> Map("from -> to" -> count), the test references by file
+  const testList = []; // each of them: { path, rel, edge, line, item }, for `--tests`
   const codeByFile = new Map(); // as testByFile, for the code
-  // The crate root's own items (lib.rs), and the crate the plan gives lib.rs.
-  const libFile = parsed.find((f) => f.rel === 'lib.rs');
-  const roots = libFile ? rootItems(libFile.code) : new Set();
-  const rootCrate = crateOf('lib');
   const fileList = [];
-  let unowned = new Set();
-  for (const { rel, raw, code, all } of parsed) {
-    const mod = modulePath(rel);
-    const from = crateOf(mod);
-    if (!from) { unowned.add(mod.split('/')[0]); continue; }
-    const n = raw.split('\n').length;
-    lines.set(from, (lines.get(from) || 0) + n);
-    const test = isTestFile(rel);
-    fileList.push({ rel, mod, crate: from, lines: n, test, raw, code, all });
-    // `super::` resolves against this file's module: a/b/c.rs's super is a/b (mod.rs's is a's).
-    const selfPath = mod.split('/');
-    const parentOf = (n) => selfPath.slice(0, Math.max(0, selfPath.length - n));
-    // One reading of the code (never a test file's), and with { tests: true } one of the tests.
-    // A binary's root reaches the library by its name, and has no parent for a `super::`.
-    const bin = CARGO.bins.includes(rel);
-    const root = bin ? CARGO.lib : 'crate';
-    const readings = [];
-    if (!test) readings.push({ src: code, supers: !bin, into: edges, cross: crossing, byFile: codeByFile, list: null });
-    if (withTests) readings.push({ src: test ? all : testOnlyCode(all, code), supers: test && !bin, into: testEdges, cross: null, byFile: testByFile, list: testList });
-    for (const { src, supers, into, cross, byFile, list } of readings) {
-      const refs = pathsIn(src, { root, parentOf: supers ? parentOf : null });
-      for (const segs of refs) {
-        const lower = [];
-        for (const s of segs) { if (!/^[a-z_0-9]+$/.test(s)) break; lower.push(s); }
-        const to = crateOf(lower.join('/')) || (roots.has(segs[0]) && !crateOf(segs[0]) ? rootCrate : null);
-        if (!to || to === from) continue;
-        const k = `${from} -> ${to}`;
-        if (cross) {
-          const c = cross.get(k) || new Map();
-          const target = segs.join('::');
-          c.set(target, (c.get(target) || 0) + 1);
-          cross.set(k, c);
+  const unowned = new Set();
+  const testFileOf = new Map(); // pkg key -> (rel -> is a test file)
+  for (const P of packages) {
+    const files = [];
+    walk(P.src, files);
+    // Every file read once, its non-test code worked out, and the test-only module files it declares
+    // noted: a declared test file is test code, and so is every file under its folder.
+    const parsed = [];
+    const testFiles = new Set();
+    const testDirs = [];
+    // A file a `#[path = "..."] mod x;` names belongs to the module that declares it, wherever it
+    // sits (2026-10-31, the crate cards): engine/household.rs declares engine/household_tests.rs as
+    // its `tests`, so that file is `engine::household::tests`, the GUI's, not a file of the engine
+    // folder's. file -> { by: the declaring file, name }.
+    const declaredBy = new Map();
+    for (const f of files) {
+      const rel = path.relative(P.src, f).replace(/\\/g, '/');
+      if (rel === 'build.rs') continue;
+      const raw = fs.readFileSync(f, 'utf8');
+      const { code, testMods, all } = nonTestCode(raw);
+      for (const t of testMods) {
+        for (const p of declaredFiles(rel, t)) {
+          testFiles.add(p);
+          testDirs.push(p.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '') + '/');
         }
-        if (may.get(from).has(to)) continue;
-        const m = into.get(k) || new Map();
-        const item = `${selfPath[0]}: ${segs.join('::')}`;
-        m.set(item, (m.get(item) || 0) + 1);
-        into.set(k, m);
-        if (byFile) {
-          const f = byFile.get(rel) || new Map();
-          f.set(k, (f.get(k) || 0) + 1);
-          byFile.set(rel, f);
-          if (list) list.push({ rel, edge: k, line: src.slice(0, segs.at).split('\n').length, item: segs.join('::') });
+      }
+      for (const d of pathDecls(raw, all)) {
+        const target = declaredFiles(rel, d)[0];
+        if (!declaredBy.has(target)) declaredBy.set(target, { by: rel, name: d.name });
+      }
+      parsed.push({ rel, raw, code, all });
+    }
+    const isTestFile = (rel) =>
+      /_tests?\.rs$|(^|\/)tests?(\.rs$|\/)/.test(rel) || testFiles.has(rel) || testDirs.some((d) => rel.startsWith(d));
+    testFileOf.set(P.pkg || '', isTestFile);
+    // A file's module path: a/b.rs -> a/b, a/b/mod.rs -> a/b, and a `#[path]` file its declarer's
+    // path and the name it was declared by (lib.rs's children sit at the top).
+    const modulePath = (rel, depth = 0) => {
+      const d = declaredBy.get(rel);
+      if (d && depth < 16) {
+        const base = /^(lib|main)\.rs$/.test(d.by) ? '' : modulePath(d.by, depth + 1);
+        return base ? `${base}/${d.name}` : d.name;
+      }
+      return rel.replace(/\/mod\.rs$/, '').replace(/\.rs$/, '');
+    };
+    // The crate root's own items (lib.rs), and the crate the plan gives lib.rs (the root package's).
+    const libFile = parsed.find((f) => f.rel === 'lib.rs');
+    const roots = P.pkg || !libFile ? new Set() : rootItems(libFile.code);
+    const rootCrate = P.pkg || crateOf('lib');
+    for (const { rel, raw, code, all } of parsed) {
+      const mod = modulePath(rel);
+      const from = P.pkg || crateOf(mod);
+      const repoPath = P.prefix + rel;
+      if (!from) { unowned.add(mod.split('/')[0]); continue; }
+      const n = raw.split('\n').length;
+      lines.set(from, (lines.get(from) || 0) + n);
+      const test = isTestFile(rel);
+      fileList.push({ path: repoPath, rel, pkg: P.pkg, mod, crate: from, lines: n, test, raw, code, all });
+      // `super::` resolves against this file's module: a/b/c.rs's super is a/b (mod.rs's is a's).
+      const selfPath = mod.split('/');
+      const parentOf = (k) => selfPath.slice(0, Math.max(0, selfPath.length - k));
+      // One reading of the code (never a test file's), and with { tests: true } one of the tests.
+      // A binary's root reaches the library by its name, and has no parent for a `super::`.
+      const bin = P.bins.includes(rel);
+      const readings = [];
+      if (!test) readings.push({ src: code, supers: !bin, into: edges, cross: crossing, byFile: codeByFile, list: null });
+      if (withTests) readings.push({ src: test ? all : testOnlyCode(all, code), supers: test && !bin, into: testEdges, cross: null, byFile: testByFile, list: testList });
+      for (const { src, supers, into, cross, byFile, list } of readings) {
+        // Each path with the crate it names: this package's own (through `crate::` or `super::`; in a
+        // binary through the library's name), or a cut crate (through its library's name).
+        const refs = [];
+        for (const segs of pathsIn(src, { root: bin ? P.lib : 'crate', parentOf: supers ? parentOf : null })) refs.push({ segs, own: true });
+        for (const c of cut) {
+          if (c.name === P.pkg) continue;
+          for (const segs of pathsIn(src, { root: c.lib })) refs.push({ segs, own: false, to: c.name });
+        }
+        for (const { segs, own, to: named } of refs) {
+          let to;
+          if (!own) to = named;
+          else if (P.pkg) to = P.pkg;
+          else {
+            const lower = [];
+            for (const s of segs) { if (!/^[a-z_0-9]+$/.test(s)) break; lower.push(s); }
+            to = crateOf(lower.join('/')) || (roots.has(segs[0]) && !crateOf(segs[0]) ? rootCrate : null);
+          }
+          if (!to || to === from) continue;
+          const k = `${from} -> ${to}`;
+          if (cross) {
+            const c = cross.get(k) || new Map();
+            const target = segs.join('::');
+            c.set(target, (c.get(target) || 0) + 1);
+            cross.set(k, c);
+          }
+          if (may.get(from).has(to)) continue;
+          const m = into.get(k) || new Map();
+          const item = `${selfPath[0]}: ${segs.join('::')}`;
+          m.set(item, (m.get(item) || 0) + 1);
+          into.set(k, m);
+          if (byFile) {
+            const f = byFile.get(repoPath) || new Map();
+            f.set(k, (f.get(k) || 0) + 1);
+            byFile.set(repoPath, f);
+            if (list) list.push({ path: repoPath, rel, edge: k, line: src.slice(0, segs.at).split('\n').length, item: segs.join('::') });
+          }
         }
       }
     }
   }
-  return { PLAN, lines, edges, unowned, crossing, testEdges, testByFile, testList, codeByFile, files: fileList, crateOf, may, isTestFile };
+  const isTestFile = (rel, pkg = null) => testFileOf.get(pkg || '')(rel);
+  return { PLAN, lines, edges, unowned, crossing, testEdges, testByFile, testList, codeByFile, files: fileList, crateOf, may, isTestFile, cut, libCrate };
 }
 
 /** Test code that reaches another crate's TEST-ONLY module (pure over `analyse({ tests: true })`):
@@ -425,31 +459,36 @@ function analyse(opts = {}) {
  * inline `#[cfg(test)] mod x { }`. Within one crate this compiles; once that crate is cut its test
  * items are not built into a dependent's tests, so each is a helper to put behind a test-support
  * feature of the crate that owns it (2026-10-31: 412, 305 of them the core's test_temp, test_clock
- * and test_log). */
+ * and test_log; rung 1 put the core's and the protocol's behind `test-support`, 2026-11-01). A
+ * module is keyed by its package and its path in it (a cut crate's paths are its own). */
 function fixtureCrossings(a) {
-  const testMods = new Map();
+  const testMods = new Map(); // `${pkg}|${mod}` -> crate
+  const key = (pkg, mod) => `${pkg || ''}|${mod}`;
   for (const f of a.files) {
-    if (f.test) testMods.set(f.mod, f.crate);
-    for (const m of f.all.matchAll(/#\[\s*cfg\s*\(\s*(?:test|all\s*\([^\]]*\btest\b[^\]]*\))\s*\)\s*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_0-9]+)\s*\{/g)) testMods.set(`${f.mod}/${m[1]}`, f.crate);
+    if (f.test) testMods.set(key(f.pkg, f.mod), f.crate);
+    for (const m of f.all.matchAll(/#\[\s*cfg\s*\(\s*(?:test|all\s*\([^\]]*\btest\b[^\]]*\))\s*\)\s*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_0-9]+)\s*\{/g)) testMods.set(key(f.pkg, `${f.mod}/${m[1]}`), f.crate);
   }
   const by = new Map();
+  const libs = a.libCrate || new Map();
   for (const f of a.files) {
     const src = f.test ? f.all : testOnlyCode(f.all, f.code);
     const self = f.mod.split('/');
     const parentOf = (n) => self.slice(0, Math.max(0, self.length - n));
-    for (const segs of pathsIn(src, { parentOf: f.test ? parentOf : null })) {
+    const refs = pathsIn(src, { parentOf: f.test ? parentOf : null }).map((segs) => ({ segs, pkg: f.pkg }));
+    for (const [lib, crate] of libs) if (crate !== f.pkg) for (const segs of pathsIn(src, { root: lib })) refs.push({ segs, pkg: crate });
+    for (const { segs, pkg } of refs) {
       const lower = [];
       for (const x of segs) { if (!/^[a-z_0-9]+$/.test(x)) break; lower.push(x); }
       for (let k = lower.length; k > 0; k--) {
         const mod = lower.slice(0, k).join('/');
-        const owner = testMods.get(mod);
+        const owner = testMods.get(key(pkg, mod));
         if (!owner) continue;
         if (owner !== f.crate) {
-          const key = `${f.crate}|${owner}|${mod}`;
-          const e = by.get(key) || { from: f.crate, owner, module: mod.replace(/\//g, '::'), n: 0, files: new Set() };
+          const id = `${f.crate}|${owner}|${mod}`;
+          const e = by.get(id) || { from: f.crate, owner, module: mod.replace(/\//g, '::'), n: 0, files: new Set() };
           e.n++;
-          e.files.add(f.rel);
-          by.set(key, e);
+          e.files.add(f.path);
+          by.set(id, e);
         }
         break;
       }
@@ -490,8 +529,8 @@ if (require.main === module && ["--edges", "--crates", "--tests", "--fixtures"].
   }
   if (process.argv.includes("--tests")) {
     const short = (e) => e.replace(/humanity-/g, '');
-    const rows = [...testList].sort((a, b) => a.edge.localeCompare(b.edge) || a.rel.localeCompare(b.rel) || a.line - b.line);
-    for (const r of rows) console.log(`${short(r.edge).padEnd(22)} src/${r.rel}:${r.line}  ${r.item}`);
+    const rows = [...testList].sort((a, b) => a.edge.localeCompare(b.edge) || a.path.localeCompare(b.path) || a.line - b.line);
+    for (const r of rows) console.log(`${short(r.edge).padEnd(22)} ${r.path}:${r.line}  ${r.item}`);
     const by = new Map();
     for (const r of rows) by.set(short(r.edge), (by.get(short(r.edge)) || 0) + 1);
     console.log(`\n${rows.length} wrong-way references in test code${by.size ? ': ' + [...by.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') : ''}`);

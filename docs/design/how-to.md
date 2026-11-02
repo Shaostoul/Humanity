@@ -707,7 +707,7 @@ Decided now so the first slice is built for the scale it will reach.
 |---|---|---|
 | Shipped how-tos | ~400 after increment 4 (386 from recipes), ~1,000 within a year, designed for 10,000 | one file each, one index |
 | One how-to | typically 2 to 8 KB; the checker warns at 16 KB ("this is turning into a Library guide") and refuses 64 KB | why and background belong in the Library |
-| Native load | at 1,000 files (~5 MB), read and parsed on a background thread at start: under 300 ms on the operator's PC, 0 ms on the frame thread. Past 3,000, the index first (one file) and bodies on open (under 2 ms each) | measured in the startup timings (`src/boot_timing.rs`) when built |
+| Native load | at 1,000 files (~5 MB), read and parsed on a background thread at start: under 300 ms on the operator's PC, 0 ms on the frame thread. Past 3,000, the index first (one file) and bodies on open (under 2 ms each) | measured in the startup timings (`crates/humanity-core/src/boot_timing.rs`) when built |
 | Native memory | under 10 MB for 1,000 parsed how-tos; past 3,000, the index plus the 200 most recently opened | an LRU |
 | Frame cost, page open | under 1 ms at 1,000 rows (rows drawn only when visible); search runs when the text changes, never per frame, under 5 ms per keystroke at 1,000, on a worker beyond | the snapshot and the frame cost rig |
 | Frame cost, page closed | one timer check per second, under 0.01 ms | no work per frame |
@@ -793,7 +793,7 @@ shows, not what the data is.
    how-tos; a golden test proves the registry built from how-tos equals the one built from the
    CSV, field by field, **before** the CSV is deleted; the recipe lints read how-tos; the Crafting
    page and `web/pages/crafting.html` read how-tos; recipes.csv, recipes.json and
-   `data/crafting/` are deleted, and the embedded fallback (`src/embedded_data.rs`) carries the
+   `data/crafting/` are deleted, and the embedded fallback (`crates/humanity-core/src/embedded_data.rs`) carries the
    index, which holds every `makes`, so a bare exe can still craft. Each how-to's id may be its
    recipe's id, which keeps the golden test simple; keeping old saves' crafts in progress loading
    is not a requirement (operator, 2026-10-23: "We're not really concerned about backwards

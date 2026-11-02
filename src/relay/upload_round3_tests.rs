@@ -34,15 +34,15 @@ async fn uploader(state: &RelayState, key: &str, token: &str, change: impl FnOnc
 
 /// The folders of a test's own, and where a file streams as it arrives.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
-    part: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
+    part: humanity_core::test_temp::TempPath,
 }
 
 fn dirs(tag: &str) -> Dirs {
-    let d = |what: &str| crate::test_temp::dir(&format!("{tag}_{what}"));
+    let d = |what: &str| humanity_core::test_temp::dir(&format!("{tag}_{what}"));
     Dirs { uploads: d("uploads"), members: d("members"), resume: d("resume"), waiting: d("waiting"), part: d("part") }
 }
 

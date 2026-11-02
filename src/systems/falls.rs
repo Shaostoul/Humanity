@@ -91,7 +91,7 @@ impl Falls {
     /// version cannot read it (BUG-163). With neither, no fall hurts: loud in the log, never a
     /// crash.
     pub fn load(data_dir: &Path) -> Self {
-        crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+        humanity_core::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
             log::warn!("{e}; no fall hurts until it is fixed");
             Self::default()
         })
@@ -174,7 +174,7 @@ impl Falls {
 /// meters), whose next body pass makes it the fall's injury. A dead body takes nothing (the
 /// food system drops what waits on it).
 pub fn player_landed(world: &mut hecs::World, impact_m_s: f32) {
-    use crate::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
+    use humanity_core::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
     let body = world
         .query::<(&Controllable, &Vitals, &StatusEffects, Option<&Dead>)>()
         .iter()

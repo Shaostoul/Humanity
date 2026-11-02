@@ -12,7 +12,7 @@
 
 use egui::RichText;
 
-use crate::i18n::{t, t_dyn, tf};
+use humanity_core::i18n::{t, t_dyn, tf};
 use crate::gui::pages::settings::notifications::{mute_choices, until_words};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;

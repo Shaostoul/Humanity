@@ -711,7 +711,7 @@ the public domain. Web pages were read on 3 October 2026.
   measured in `tangent_basis` in `src/surface_walk.rs`, built from the
   world's vertical axis. A body's magnetic field strength:
   `magnetic_field_t` in `data/star_systems/sol.json`, read by
-  `src/cosmos.rs`.
+  `crates/humanity-core/src/cosmos.rs`.
 - The Compass item and its recipe: `compass_0` in `data/items.csv` and
   `craft_compass` in `data/recipes.csv`. Crafting it is step 1 of the
   "Initial Survey" quest (`Craft(recipe_id: "craft_compass")` in

@@ -69,14 +69,14 @@
 
 use super::game_interest::send_to;
 use super::game_state::{plot_owner_id, GameEntity, GameWorld};
-use crate::ecs::components::Transform;
-use crate::relay::core::pq_crypto::{verify_plot_permit, PlotPermitError};
+use humanity_core::ecs::components::Transform;
+use humanity_protocol::pq_crypto::{verify_plot_permit, PlotPermitError};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::{NewPiece, Storage, StoredPiece};
 use crate::ship::build_frames::{plot_frame_id, BuildFrame, BuildFrames, FrameKind};
 use crate::ship::ship_structure::ShipStructure;
 use crate::systems::construction::shared::{self, Action, FromRelay, Ranks, Reason, Refusal, ToRelay};
-use crate::build_permission::{Permit, Why};
+use humanity_core::build_permission::{Permit, Why};
 use crate::systems::construction::BlueprintRegistry;
 use glam::{Quat, Vec3};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -226,14 +226,14 @@ impl PieceBook {
 /// that served a built-in copy). Empty, with an error, if neither parses: every build is then
 /// refused as `unknown_blueprint`.
 fn load_blueprints(data: &std::path::Path) -> BlueprintRegistry {
-    let read = crate::embedded_data::read_data_or_embedded(data, "blueprints/basic.ron")
+    let read = humanity_core::embedded_data::read_data_or_embedded(data, "blueprints/basic.ron")
         .ok_or_else(|| "it is neither on disk nor built in".to_string())
         .and_then(|text| BlueprintRegistry::from_ron(text.as_bytes()));
     match read {
         Ok(reg) => reg,
         Err(e) => {
-            crate::embedded_data::note_builtin_copy("blueprints/basic.ron", format_args!("data/blueprints/basic.ron does not load ({e})"));
-            BlueprintRegistry::from_ron(crate::embedded_data::BLUEPRINT_BASIC_RON.as_bytes()).unwrap_or_else(|e| {
+            humanity_core::embedded_data::note_builtin_copy("blueprints/basic.ron", format_args!("data/blueprints/basic.ron does not load ({e})"));
+            BlueprintRegistry::from_ron(humanity_core::embedded_data::BLUEPRINT_BASIC_RON.as_bytes()).unwrap_or_else(|e| {
                 tracing::error!("Game: the built-in blueprints do not parse either ({e}); nothing can be built in the shared world");
                 BlueprintRegistry::new()
             })
@@ -839,7 +839,7 @@ fn read_request(raw: &serde_json::Value) -> Result<ToRelay, Refusal> {
     let fits = |p: &Permit| {
         p.issuer.len() <= PERMIT_ISSUER_MAX_LEN
             && p.sig.len() <= PERMIT_SIG_MAX_LEN
-            && [&p.server, &p.plot, &p.grantee, &p.serial].iter().all(|s| s.len() <= crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
+            && [&p.server, &p.plot, &p.grantee, &p.serial].iter().all(|s| s.len() <= humanity_protocol::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
     };
     let permit_ok = |p: &Option<Permit>| p.as_ref().is_none_or(fits);
     match &msg {
@@ -1091,7 +1091,7 @@ async fn permit_check(state: &Arc<RelayState>, key: &str, raw: &serde_json::Valu
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .chars()
-        .take(crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
+        .take(humanity_protocol::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN)
         .collect();
     let say = |plot: &str, verdict: Result<(), Refusal>| {
         match &verdict {

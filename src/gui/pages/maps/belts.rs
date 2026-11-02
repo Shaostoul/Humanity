@@ -27,7 +27,7 @@ use egui::{Color32, Vec2};
 use glam::DVec3;
 use serde::Deserialize;
 
-use crate::cosmos::{world_from_ecliptic, M_PER_AU};
+use humanity_core::cosmos::{world_from_ecliptic, M_PER_AU};
 
 use super::camera::{MapProjector, MapScene};
 
@@ -144,7 +144,7 @@ fn parse(text: &str) -> Result<BeltSet, String> {
 /// (and said so in the log) when neither can be read.
 pub fn belt_set() -> &'static BeltSet {
     static B: OnceLock<BeltSet> = OnceLock::new();
-    B.get_or_init(|| match crate::embedded_data::load_text_or_embedded(&crate::storage::data_dir(), "maps/belts.json", parse) {
+    B.get_or_init(|| match humanity_core::embedded_data::load_text_or_embedded(&humanity_core::storage::data_dir(), "maps/belts.json", parse) {
         Ok(set) => {
             log::info!("Maps: {} belt orbits ({})", set.len(), set.credit);
             set
@@ -237,7 +237,7 @@ impl BeltCache {
 
 fn position_au(o: &BeltOrbit, t: f64) -> DVec3 {
     let m = (o.m0 + o.n_per_s * (t - o.epoch_s)).rem_euclid(std::f64::consts::TAU);
-    let ea = crate::cosmos::kepler_solve(m, o.e);
+    let ea = humanity_core::cosmos::kepler_solve(m, o.e);
     o.p * (o.a * (ea.cos() - o.e)) + o.q * (o.b * ea.sin())
 }
 

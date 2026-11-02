@@ -7,7 +7,7 @@
 use super::*;
 use crate::net::dm_store::{DmStore, SentPass};
 use crate::net::reach::{FriendTicks, ReachKind};
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, parse_friend_cert, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, parse_friend_cert, DilithiumKeypair};
 use serde_json::{json, Value};
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};

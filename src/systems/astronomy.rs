@@ -11,9 +11,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::Telescope;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::Telescope;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Top-level RON schema for `data/astronomy_tools.ron`.
 #[derive(Debug, Deserialize)]

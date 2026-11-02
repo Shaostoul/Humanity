@@ -63,7 +63,7 @@ fn the_shipped_ledger_file_prices_every_kind_the_relay_records() {
     assert_eq!(data.meal_item(), Some("ration_basic_0"), "a meal is a Basic Ration");
 
     // A missing file and a broken one both fall back to the built-in copy.
-    let dir = crate::test_temp::dir("fleet_file");
+    let dir = humanity_core::test_temp::dir("fleet_file");
     let missing = LedgerData::load_file(&dir.join("nope.ron"));
     assert_eq!(missing.kinds.len(), data.file.kinds.len(), "a missing file serves the built-in copy");
     let broken = dir.join("broken.ron");
@@ -328,7 +328,7 @@ fn one_player_cannot_see_another_players_ledger() {
 /// "after a restart the fleet runs as saved / left: Unlimited / right: Stocked".
 #[test]
 fn the_ledger_and_the_setting_survive_a_restart() {
-    let path = crate::test_temp::db("fleet_h_restart");
+    let path = humanity_core::test_temp::db("fleet_h_restart");
     let db = Storage::open(&path).expect("open test db");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
@@ -367,10 +367,10 @@ fn the_ledger_and_the_setting_survive_a_restart() {
 /// Unknown, extended_code: 1 }, msg: \"no such column: fleet_supply_mode\", ...".
 #[test]
 fn a_database_from_the_previous_code_opens_with_its_world() {
-    let path = crate::test_temp::db("fleet_prev");
+    let path = humanity_core::test_temp::db("fleet_prev");
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch(include_str!("../../../tests/fixtures/relay/relay_v0_1456.sql")).expect("the previous code's database loads from its dump");
+        conn.execute_batch(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/relay_v0_1456.sql"))).expect("the previous code's database loads from its dump");
         let has: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name = 'fleet_ledger')", [], |r| r.get(0)).unwrap();
         assert!(!has, "the fixture is from before the fleet ledger");
     }
@@ -679,7 +679,7 @@ fn the_give_limit_reads_the_test_clock_not_the_wall() {
     use std::time::Duration;
     let db = temp_db("limit_clock");
     let state = Arc::new(RelayState::new(db));
-    let clock = crate::test_clock::ManualClock::new();
+    let clock = humanity_core::test_clock::ManualClock::new();
     assert!(state.perception_clock.set(clock.clone()).is_ok());
 
     assert!(perception_rate_allows(&state, "k", "fleet_give"), "the first give is let through");

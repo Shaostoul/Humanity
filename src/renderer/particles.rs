@@ -565,7 +565,7 @@ pub fn build_particle_pipelines(
 ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Particle Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/particles.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/particles.wgsl")).into()),
     });
     let frame_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("Particle Frame BGL"),
@@ -688,7 +688,7 @@ mod tests {
     #[test]
     fn shipped_defs_parse_streak_and_vertices_carry_it() {
         let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/particles.ron"),
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/particles.ron"),
         )
         .expect("particles.ron readable");
         let map: std::collections::HashMap<String, EmitterDefRon> =

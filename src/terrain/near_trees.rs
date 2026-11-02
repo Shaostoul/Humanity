@@ -512,7 +512,7 @@ pub(crate) fn frame_loop_source() -> String {
         "src/engine/frame_shells.rs",
         "src/engine/frame_net.rs",
     ];
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     FILES
         .iter()
         .map(|rel| {
@@ -1130,7 +1130,7 @@ mod near_tree_order_tests {
 
     fn real_earth() -> (PlanetHeightmap, PlanetAlbedo, PlanetDef) {
         let base =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
         let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin"))
             .expect("earth heightmap loads");
         let albedo =
@@ -1483,7 +1483,7 @@ mod tree_stream_agreement_tests {
 
     fn real_earth() -> (PlanetHeightmap, PlanetAlbedo, PlanetDef) {
         let base =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
         let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin"))
             .expect("earth heightmap loads");
         let albedo =
@@ -2051,7 +2051,7 @@ mod tree_stream_agreement_tests {
     #[test]
     fn the_agnostic_default_is_the_shipped_default() {
         let cfg = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("config.rs"),
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src").join("config.rs"),
         )
         .expect("config.rs reads");
         let at = cfg
@@ -2078,7 +2078,7 @@ mod tree_stream_agreement_tests {
     fn only_one_function_reads_the_published_density() {
         // Split so this scanner does not match its own source line.
         let needle = concat!("TREE_DENSITY_BITS", ".load");
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src");
         let mut readers: Vec<String> = Vec::new();
         let mut stack = vec![root];
         while let Some(dir) = stack.pop() {
@@ -2105,7 +2105,7 @@ mod tree_stream_agreement_tests {
              a stream that can disagree with the other one about which trees exist."
         );
         let near = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("src")
                 .join("terrain")
                 .join("near_trees.rs"),

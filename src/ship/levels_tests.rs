@@ -6,14 +6,14 @@ use crate::ship::fibonacci::HomesteadMeshes;
 use crate::ship::home_structure::FloorSlab;
 
 fn shipped() -> ShipStructure {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles at p1")
 }
 
 /// Every vertex of every family of `m`, with its normal.
 fn all_vertices(m: &HomesteadMeshes) -> Vec<(Vec3, Vec3)> {
     let mut out = Vec::new();
-    let mut take = |vs: &[crate::vertex::Vertex]| {
+    let mut take = |vs: &[humanity_core::vertex::Vertex]| {
         out.extend(vs.iter().map(|v| (Vec3::from(v.position), Vec3::from(v.normal))));
     };
     for f in &m.floors {

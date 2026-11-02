@@ -5,7 +5,7 @@
  * Asserts that the VENDORED bundle the chat client actually ships
  * (web/shared/vendor/noble-pq.bundle.js) reproduces the exact same
  * Dilithium3 derivation as the Rust relay
- * (src/relay/core/pq_crypto.rs::dilithium_cross_language_kat). If this
+ * (crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat). If this
  * fails, a chat-derived PQ identity would be unverifiable by the relay
  * — DO NOT SHIP. Run: `node scripts/pq-kat.mjs` (or `just pq-kat`).
  *
@@ -95,7 +95,7 @@ try {
   if (hx(sharedSecret) !== hx(ss2)) fail('ml_kem768 encapsulate/decapsulate shared-secret mismatch');
 
   // ── Friendship pass v2 (2026-10-09, blocking-and-safe-mode.md 10b) ──
-  // A pass MINTED BY RUST from the KAT seeds (src/relay/core/pq_kat_friend_pass.json,
+  // A pass MINTED BY RUST from the KAT seeds (crates/humanity-protocol/src/pq_kat_friend_pass.json,
   // which pq_crypto.rs friend_cert_kat_fixture_matches_the_builder proves the Rust
   // builder reproduces) must read and verify here: its JSON through the web's own
   // parser, its words through the web's own builder (web/shared/friend-pass.js, what
@@ -106,7 +106,7 @@ try {
   {
     const require = createRequire(import.meta.url);
     const fp = require(join(REPO, 'web', 'shared', 'friend-pass.js'));
-    const fx = JSON.parse(readFileSync(join(REPO, 'src', 'relay', 'core', 'pq_kat_friend_pass.json'), 'utf8'));
+    const fx = JSON.parse(readFileSync(join(REPO, 'crates', 'humanity-protocol', 'src', 'pq_kat_friend_pass.json'), 'utf8'));
     const keyOf = (byte) => m.ml_dsa65.keygen(
       m.blake3.create({ context: ctx, dkLen: 32 }).update(new Uint8Array(32).fill(byte)).digest()).publicKey;
     const issuerPk = keyOf(fx.issuer_master_byte);

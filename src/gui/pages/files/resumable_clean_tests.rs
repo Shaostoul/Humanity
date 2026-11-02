@@ -3,12 +3,12 @@
 
 use super::tests::{run_on, Fake, TOKEN};
 use super::*;
-use crate::relay::core::describe_metadata::describe;
+use humanity_protocol::describe_metadata::describe;
 use std::sync::Arc;
 
-fn plan_for(fixture: &str, name: &str, clean: bool) -> (crate::test_temp::TempPath, Plan, Vec<u8>) {
-    let bytes = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe").join(fixture)).unwrap();
-    let path = crate::test_temp::file(&format!("media_clean_{name}"), "bin");
+fn plan_for(fixture: &str, name: &str, clean: bool) -> (humanity_core::test_temp::TempPath, Plan, Vec<u8>) {
+    let bytes = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe").join(fixture)).unwrap();
+    let path = humanity_core::test_temp::file(&format!("media_clean_{name}"), "bin");
     std::fs::write(&path, &bytes).unwrap();
     let plan = Plan { path: path.to_path_buf(), name: name.into(), size: bytes.len() as u64, content_type: "video/quicktime".into(), resume: None, file_changed: false, clean, keep_metadata: !clean };
     (path, plan, bytes)

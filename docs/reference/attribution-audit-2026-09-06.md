@@ -284,7 +284,7 @@ Scope 8k moon texture (CC-BY 4.0, based on NASA imagery) by
 scripts/build-planet-albedo.js' (and mars.ron:24 for Mars). data/credits.ron
 holds exactly five ids, openstreetmap, nasa_gibs, nasa_blue_marble, athyg,
 esa_gaia, I read the whole file. The test that should catch it,
-src/credits.rs:110 `every_required_attribution_names_a_surface`, iterates
+crates/humanity-core/src/credits.rs:110 `every_required_attribution_names_a_surface`, iterates
 `c.sources` only.
 
 ### 10. AWS Open Data 'Terrain Tiles' (Mapzen / Tilezen terrarium PNG tiles), the .dem.bin elevation companions
@@ -332,7 +332,7 @@ believe the machinery is stronger than it is.
 **Where it goes:** Correct the sentence in LICENSES.md:8-10 to say what the test does check, or
 strengthen the test to grep the named surfaces.
 
-**Evidence:** LICENSES.md:8-10 verbatim. Against it, I read src/credits.rs: the four tests
+**Evidence:** LICENSES.md:8-10 verbatim. Against it, I read crates/humanity-core/src/credits.rs: the four tests
 are `shipped_credits_file_parses` (:83), `osm_notice_matches_data` (:95, a
 string-vs-string comparison), `every_required_attribution_names_a_surface`
 (:110, two non-empty asserts at :113 and :118), and
@@ -431,7 +431,7 @@ data/chemistry/elements.csv:1 is
 'atomic_number,symbol,name,category,atomic_mass...'. The nine RON files each
 have a header comment that documents units only, e.g. data/hvac.ron:5 '//
 output_btu = thermal output in BTU/hr (1 BTU/hr ~ 0.293 watts thermal).' The
-JSONs' only code reference is a bare embed, src/embedded_data.rs:41-46.
+JSONs' only code reference is a bare embed, crates/humanity-core/src/embedded_data.rs:41-46.
 Contrast that proves it is a gap and not a house style: data/plants.csv:31 '#
 Sources: USDA Plant Hardiness, FAO crop water requirements, Purdue/Cornell
 extension data'.
@@ -524,9 +524,9 @@ that user: data/stars-athyg.bin and data/stars-gaia25m.bin are untracked in
 git and are in-app downloads from a GitHub release asset
 (scripts/build-athyg-bin.js:10-13; scripts/build-gaia-bin.js:8-12). (c) The
 only ODbL-grade obligation (OpenStreetMap's rendered Produced Work) does not
-read credits.ron at all -- it uses `const OSM_NOTICE` (src/credits.rs:72) at
+read credits.ron at all -- it uses `const OSM_NOTICE` (crates/humanity-core/src/credits.rs:72) at
 src/gui/pages/cosmos.rs:2089 and src/gui/pages/hud.rs:451, by explicit design
-(src/credits.rs:66-70). Two smaller REAL issues surfaced while refuting, worth
+(crates/humanity-core/src/credits.rs:66-70). Two smaller REAL issues surfaced while refuting, worth
 filing separately at low severity: 1. credits.ron's `shown_in: ["Credits"]`
 for athyg and esa_gaia is UNDER-recorded: it omits the in-app Library, which
 is where those notices actually reach a pre-world-entry user. The file's own
@@ -685,7 +685,7 @@ data/library/index.json:4-12 ships CREDITS.md as the Library's "Credits and
 Thanks" doc, and data/library/CREDITS.md:73,:75 contain the New Horizons and
 USGS lines. What is actually true is narrower: neither has a row in
 data/credits.ron, so neither appears in the Settings > Credits panel
-(src/gui/pages/settings.rs:3842, fed by src/credits.rs:44-57) -- the same
+(src/gui/pages/settings.rs:3842, fed by crates/humanity-core/src/credits.rs:44-57) -- the same
 pre-existing, already-declared drift that also affects NOAA ETOPO, Solar
 System Scope, Poly Haven and ambientCG. The claimed USGS wrinkle is wrong:
 CREDITS.md:75-76 already reads "(reference + future bakes)", which exactly
@@ -757,7 +757,7 @@ consequence. || Do not report this as an attribution gap. Corrected statement:
 supply CC0 assets that live in the git repo at assets/models/ and
 assets/audio/, but reach no user in any release artifact, build-desktop.yml:90-93 (desktop bundle) and :261-268 (data bundle) both copy
 only data/, assets/icons/ and assets/shaders/, nothing is embedded in the exe
-(src/embedded_data.rs is include_str! only), and no runtime downloader exists.
+(crates/humanity-core/src/embedded_data.rs is include_str! only), and no runtime downloader exists.
 The engine's own comments document the consequence
 (src/renderer/tree_mesh.rs:9, billboard_bake.rs:515,
 near_tree_models.rs:59-60, data/vegetation/trees.ron:10), and the 25 Kenney
@@ -796,7 +796,7 @@ field. No origin or licence is recorded anywhere. This is distinguishable from
 the rest of the unsourced tables below, which are numeric facts.
 
 Refuted because: Corrected statement: data/constellations.json - the only
-constellation file compiled into the binary (src/embedded_data.rs:43) and
+constellation file compiled into the binary (crates/humanity-core/src/embedded_data.rs:43) and
 rendered (src/renderer/stars.rs:2277, src/gui/pages/cosmos.rs:242) - is NOT an
 unattributed third-party import. Its origin is recorded in this repo's git
 history as in-project authorship: extracted from the project's own
@@ -820,7 +820,7 @@ data/README.md, scripts/ and the Justfile, and the file itself carries no
 metadata beyond its ogr-style name/crs header. || The finding as written is
 wrong on its central factual premise and should not be reported. Corrected
 statement: `data/constellations.json` (the file embedded at
-src/embedded_data.rs:43 and parsed at src/renderer/stars.rs:2277) is NOT the
+crates/humanity-core/src/embedded_data.rs:43 and parsed at src/renderer/stars.rs:2277) is NOT the
 FeatureCollection quoted in the evidence. It contains zero coordinates and
 zero GeoJSON structures; it is a hand-authored array of star-name pairs plus
 myth/season/keyStars/objects/funFact prose, whose figures were authored
@@ -841,7 +841,7 @@ nonetheless shipped in every release archive
 to DELETE the unused file, not to add a credits row for it. Downgrade from
 COURTESY finding to an optional housekeeping note. || The claimed gap does not
 hold as written. Corrected statement: data/constellations.json, the file
-embedded at src/embedded_data.rs:43 and parsed at src/renderer/stars.rs:2277
+embedded at crates/humanity-core/src/embedded_data.rs:43 and parsed at src/renderer/stars.rs:2277
 to draw the constellation figures, is NOT an imported third-party dataset and
 has NO attribution gap. Its figures were authored in-house at commit 1f399b3a
 (v0.783.0, "complete classical stick figures authored for all 86
@@ -851,7 +851,7 @@ today), building on content extracted from the operator's own index.html at
 star-name endpoints, prose) is authored educational content, not a GIS export.
 No credits.ron row or LICENSES.md entry is warranted.
 data/constellations.geojson is a separate file and a different question. It is
-NOT embedded (grep -c geojson src/embedded_data.rs = 0) and has never been
+NOT embedded (grep -c geojson crates/humanity-core/src/embedded_data.rs = 0) and has never been
 referenced by any code in the repo's history (git log -S over src/ web/
 scripts/ is empty; no consumer in src/, web/, scripts/, or data/). Its only
 mention anywhere is the untracked, auto-generated m.json. It is nonetheless
@@ -887,7 +887,7 @@ covers "Every crate author in Cargo.toml", and both generated files
 AND the BIP39 / trezor python-mnemonic origin. The crate's own english.rs
 carries no notice to preserve. No change is warranted; adding a
 data/credits.ron row would misuse a file scoped to sources with real
-obligations (src/credits.rs:106-124 enforces that attribution_required rows
+obligations (crates/humanity-core/src/credits.rs:106-124 enforces that attribution_required rows
 name a live render surface). Unrelated and still true: the pre-existing drift
 flagged in the prompt -- NOAA ETOPO, Solar System Scope, NASA New Horizons,
 USGS, Poly Haven and ambientCG in CREDITS.md with no credits.ron row -- is
@@ -1088,7 +1088,7 @@ with three IETF IPR declaration URLs. That paragraph is part of the notice, and 
 
 **Gap 4(3) is understated rather than overstated, and I verified it.** The HUD guard at `src/lib.rs:18381-18384` is `active_page == GuiPage::None && show_hud && !showroom_active && !construction_active`. So the OSM notice at `src/gui/pages/hud.rs:451` is suppressed in the showroom and the construction editor as claimed, and additionally is conditioned on `gui_state.show_hud` (`src/gui/mod.rs:2587`, defaulted true at `:4993`). That flag currently has no toggle anywhere in `src/`, so it is not a live hole today, but the obligation is one boolean away from being user-dismissible.
 
-**Gap 11 is accurate as written.** `src/credits.rs:106-140` confirms it: `every_required_attribution_names_a_surface` asserts only `!s.shown_in.is_empty()` and `!s.notice.trim().is_empty()`, and `osm_names_both_drawing_surfaces` only checks that the joined free text contains "maps" and "in-world". Nothing opens a renderer file.
+**Gap 11 is accurate as written.** `crates/humanity-core/src/credits.rs:106-140` confirms it: `every_required_attribution_names_a_surface` asserts only `!s.shown_in.is_empty()` and `!s.notice.trim().is_empty()`, and `osm_names_both_drawing_surfaces` only checks that the joined free text contains "maps" and "in-world". Nothing opens a renderer file.
 
 ## 4. Is the project's CC0 claim compatible with every incoming source
 

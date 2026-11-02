@@ -17,7 +17,7 @@ without him describing it.
 ## What it is
 
 - **Events by kind**, one small file each, in a `journal` folder beside the logs
-  (`crate::storage::portable_logs_dir()`'s parent, so the operator's install and every rig's
+  (`humanity_core::storage::portable_logs_dir()`'s parent, so the operator's install and every rig's
   sandbox each have their own): `journal/<kind>.jsonl`, one JSON line per event:
   `{"t": <unix ms>, "frame": <n>, "what": "<short words>", ...fields}`.
 - **Kinds** (each a row in `data/dev/journal_kinds.json`, infinite-of-x: a new kind is a data row
@@ -72,7 +72,7 @@ without him describing it.
    rig sandbox (verify-runtime --keep-open), `{"action": "mark"}` dropped in, and `marks/1.png` (the
    frame, Earth and the HUD, 0.8 MB), the mark's line, and 24 `log` events (the sandbox's
    deliberately unreachable server) read back through `dev_play_marks` and `dev_play_journal`.
-   **The store and the Mark key**: `src/play_journal.rs` (the queue, the writer thread, the
+   **The store and the Mark key**: `crates/humanity-core/src/play_journal.rs` (the queue, the writer thread, the
    caps, the kinds read from `data/dev/journal_kinds.json`), the `log` and `panic` kinds (the
    logger and the panic hook feed it), `GameAction::MarkMoment` with its screenshot, and the
    bridge's `dev_play_journal` / `dev_play_marks`. Tests: the cap drops the oldest half; a mark's

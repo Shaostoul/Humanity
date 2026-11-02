@@ -110,6 +110,11 @@ test('reads the [package] version, not a dependency table version', () => {
   assert.strictEqual(packageVersion(toml('0.1518.0')), '0.1518.0');
   assert.strictEqual(packageVersion('[dependencies.serde]\nversion = "1.0.0"\n[package]\nname = "x"\n'), null);
   assert.strictEqual(packageVersion('[package]\r\nname = "x"\r\nversion = "2.0.1"\r\n'), '2.0.1');
+  // The workspace (the crate split's rung 1, 2026-11-01): the package takes the workspace's version.
+  const ws = '[workspace]\nmembers = [".", "crates/a"]\n\n[workspace.package]\nversion = "0.1547.0"\nedition = "2021"\n\n[workspace.dependencies]\nserde = { version = "1" }\n\n[package]\nname = "humanity-engine"\nversion.workspace = true\n';
+  assert.strictEqual(packageVersion(ws), '0.1547.0');
+  assert.strictEqual(packageVersion(ws.replace('[workspace.package]\nversion = "0.1547.0"\n', '[workspace.package]\n')), null, 'a workspace version that is missing is no number');
+  assert.strictEqual(packageVersion('[package]\nname = "x"\nversion = { workspace = true }\n[workspace.package]\nversion = "3.1.4"\n'), '3.1.4');
 });
 
 test('the happy path tags HEAD v<version> and pushes only that tag', () => {

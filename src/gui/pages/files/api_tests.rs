@@ -264,7 +264,7 @@ fn the_words_say_what_they_mean() {
     assert_eq!(size_words(150 * MB), "150 MB");
     // Every shared case, the website's too (2026-10-17). Seen red the same day with the
     // half-to-even rounding of {:.1}: "1310720 bytes" (left: "1.2 MB", right: "1.3 MB").
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/size-words-cases.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/size-words-cases.json");
     let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     let cases = v["cases"].as_array().expect("the shared cases");
     assert!(cases.len() >= 15);

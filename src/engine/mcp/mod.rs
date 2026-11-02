@@ -219,7 +219,7 @@ fn new_token() -> Result<String, String> {
 }
 
 fn start(state: &EngineState) {
-    let portable = crate::storage::mode() == crate::storage::StorageMode::Portable;
+    let portable = humanity_core::storage::mode() == humanity_core::storage::StorageMode::Portable;
     let switch = std::env::var(ENV_SWITCH).ok();
     match decide(switch.as_deref(), portable, &state.gui_state.server_url) {
         Start::Off => {}
@@ -242,7 +242,7 @@ fn launch() -> Result<String, String> {
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let token = new_token()?;
     let game_dir = std::env::current_dir().map_err(|e| format!("no working folder: {e}"))?;
-    let logs_dir = crate::storage::portable_logs_dir();
+    let logs_dir = humanity_core::storage::portable_logs_dir();
     let link: Arc<dyn link::GameLink> = Arc::new(link::LiveLink::new(game_dir.clone(), logs_dir.clone()));
     let host: Arc<dyn protocol::ToolHost + Send + Sync> = Arc::new(tools::GameTools::new(link));
     // Before the listener serves: a call must find the funnel's door open.

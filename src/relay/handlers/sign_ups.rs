@@ -329,7 +329,7 @@ mod tests {
     /// ..., \"teardown: info!(\\\"Peer disconnected: {my_key}\\\")\"]".
     #[test]
     fn sign_up_logs_never_name_the_key() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap().replace("\r\n", "\n");
         let own = read("src/relay/handlers/sign_ups.rs");
         let own = &own[..own.find("#[cfg(test)]").unwrap()];
@@ -462,7 +462,7 @@ mod tests {
     /// erase in the same step".
     #[test]
     fn every_identify_write_checks_the_erase_and_a_refusal_closes_before_binding() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let src = std::fs::read_to_string(root.join("src/relay/relay.rs")).unwrap().replace("\r\n", "\n");
         assert!(!src.contains("state.db.redeem_link_code(code"), "relay.rs redeems a link code without checking the erase in the same step");
         // The refusal: from the call to the arm (or block) that answers it, to its closing brace.
@@ -498,7 +498,7 @@ mod tests {
     /// assign_home".
     #[test]
     fn the_game_join_checks_the_erase_again_under_the_world_lock() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let src = std::fs::read_to_string(root.join("src/relay/handlers/msg_handlers.rs")).unwrap().replace("\r\n", "\n");
         let join = &src[src.find("pub async fn handle_game_join").unwrap()..];
         let lock = join.find("let mut world = state.game_world.write().await;").expect("the join takes the write lock");
@@ -525,7 +525,7 @@ mod tests {
     /// c0c04fc39): "relay.rs registers a name without checking the erase in the same step".
     #[test]
     fn the_identify_path_registers_only_through_the_checked_steps() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let src = std::fs::read_to_string(root.join("src/relay/relay.rs")).unwrap().replace("\r\n", "\n");
         assert!(!src.contains("state.db.register_name(name, &public_key)"), "relay.rs registers a name without checking the erase in the same step");
         assert!(!src.contains("state.db.join_server(&public_key"), "relay.rs makes a member row without checking the erase in the same step");

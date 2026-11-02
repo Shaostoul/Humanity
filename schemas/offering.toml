@@ -13,7 +13,7 @@
 #   category browse = filter by category
 #
 # File format: canonical CBOR map carried as the `payload` of a signed object
-#              (src/relay/core/object.rs, docs/network/object_format.md)
+#              (crates/humanity-protocol/src/object.rs, docs/network/object_format.md)
 # Object type: offering_v1
 # payload_schema_version: 1
 # Hot-reloadable: No. This is not a data file shipped next to the exe; it is

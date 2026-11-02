@@ -43,7 +43,7 @@ We will add a new sound by copying an existing entry and changing it. Copying so
 
 ## Seeing it in the game
 
-The game reads the sound catalog **once, when it starts**. In technical terms: `src/lib.rs` calls `SoundCatalog::load("data")` (search for the symbol; line numbers drift) at engine startup, which parses `data/sounds.toml` into a lookup table of dotted IDs (the code for this lives in `src/audio/sounds.rs`).
+The game reads the sound catalog **once, when it starts**. In technical terms: `src/lib.rs` calls `SoundCatalog::load("data")` (search for the symbol; line numbers drift) at engine startup, which parses `data/sounds.toml` into a lookup table of dotted IDs (the code for this lives in `crates/humanity-core/src/audio/sounds.rs`).
 
 So after you add or change an entry, **fully close and restart the game** to hear the change. The comment at the top of `data/sounds.toml` says "Hot-reloadable via FileWatcher", meaning changes would apply while the game runs. That is aspirational: nothing in the code reloads the catalog yet, so a restart is required.
 
@@ -69,4 +69,4 @@ Every field you can put in a sound entry, in plain words:
 - `variations` : optional list of alternate audio files. Each time the sound plays, the game picks one at random, so repeated sounds (like footsteps) do not sound robotic.
 - `tags` : optional list of descriptive words. They help organize and find sounds; they do not change how the sound plays.
 
-One note for the curious: there is a file called `schemas/sound.toml` in the repository, but it is out of date. It describes an older CSV-based sound format with fields (like `pitch` and `priority`) and folder paths that no longer exist. The real, authoritative list of fields is the `SoundEntry` structure in `src/audio/sounds.rs`, which is exactly what this guide documents.
+One note for the curious: there is a file called `schemas/sound.toml` in the repository, but it is out of date. It describes an older CSV-based sound format with fields (like `pitch` and `priority`) and folder paths that no longer exist. The real, authoritative list of fields is the `SoundEntry` structure in `crates/humanity-core/src/audio/sounds.rs`, which is exactly what this guide documents.

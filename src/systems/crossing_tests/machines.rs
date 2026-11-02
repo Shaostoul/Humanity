@@ -45,7 +45,7 @@
 #[test]
 fn every_shipped_home_has_what_the_starter_quests_need() {
     use crate::systems::quests::{QuestObjective, QuestRegistry};
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let quests = QuestRegistry::from_ron_dir(&root.join("data").join("quests"));
     let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("data").join("recipes.csv")).unwrap())
         .expect("recipes.csv parses");

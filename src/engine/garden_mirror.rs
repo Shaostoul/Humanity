@@ -48,7 +48,7 @@
 //! every open group every frame.
 //!
 //! The reuse rule (CLAUDE.md): everything kept here is tagged with the versions and stamps above,
-//! and with the Dev page's "Turn off all reuse" (crate::reuse) every area is built again every
+//! and with the Dev page's "Turn off all reuse" (humanity_core::reuse) every area is built again every
 //! build, exactly as before. Without the farm's versions channel (a store nobody registered it in)
 //! nothing is kept either.
 //!
@@ -64,11 +64,11 @@ use std::hash::Hasher;
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::ecs::components::{CropInstance, CropSoil, SoilMemory};
+use humanity_core::ecs::components::{CropInstance, CropSoil, SoilMemory};
 use crate::engine::state::EngineState;
 use crate::gui::widgets::offscreen::KeyHasher;
 use crate::gui::{GardenPests, GuiAreaPests, GuiCrop};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::farming::{self, pests::CoverRow, pollination::AreaFlags, weeds::WeedAreaRow};
 use crate::systems::inventory::ItemRegistry;
 
@@ -186,7 +186,7 @@ fn build_once(state: &mut EngineState, wall: bool) {
         &mut state.gui_state.home_stock,
         crate::systems::farming::clock::LOOK_FRESH_S,
     );
-    let reuse = crate::reuse::enabled();
+    let reuse = humanity_core::reuse::enabled();
     ROWS.with(|r| {
         build(
             &state.game_world.world,
@@ -236,10 +236,10 @@ pub(crate) fn build(
 ) {
     use crate::systems::farming::{humidity, lighting, outlook, picking, pollination, soil as sl, soil_ph, weeds};
     // Its cost, on the Performance page's "Data for the open pages" row (budget_systems.ron).
-    let _cost = crate::frame_costs::stage("cpu.page_data.garden");
+    let _cost = humanity_core::frame_costs::stage("cpu.page_data.garden");
     // Its parts (cpu.garden.*, children of cpu.page_data.garden, never summed with it): each
     // assignment closes the part before it.
-    let mut _part = crate::frame_costs::stage("cpu.garden.setup");
+    let mut _part = humanity_core::frame_costs::stage("cpu.garden.setup");
     rows.builds += 1;
     let builds = rows.builds;
 
@@ -372,7 +372,7 @@ pub(crate) fn build(
         h.write_u8(picking::realistic(data) as u8);
         h.write_u32(severity.to_bits());
         h.write_u32(time_scale.to_bits());
-        h.write(crate::i18n::language().as_bytes());
+        h.write(humanity_core::i18n::language().as_bytes());
         h.write_u64(memory.map_or(0, |(e, _)| e.to_bits().get()));
         h.write_u8(supply.water_available as u8);
         h.write_u8(supply.irrigation_on as u8);
@@ -414,19 +414,19 @@ pub(crate) fn build(
         let light_data = data.get::<lighting::LightingData>("garden_lighting");
         let plot_areas = data.get(farming::units::PLOT_AREA_KEY);
         let ents: Vec<hecs::Entity> = todo.iter().flat_map(|i| rows.areas[*i].crops.iter().copied()).collect();
-        _part = crate::frame_costs::stage("cpu.garden.ph_view");
+        _part = humanity_core::frame_costs::stage("cpu.garden.ph_view");
         let ph_view = soil_ph::GardenView::new(data, world);
-        _part = crate::frame_costs::stage("cpu.garden.pollination_view");
+        _part = humanity_core::frame_costs::stage("cpu.garden.pollination_view");
         let pollination = pol_ctx.as_ref().map(|c| pollination::GuiView::for_crops(world, c, &ents)).unwrap_or_default();
-        _part = crate::frame_costs::stage("cpu.garden.picking_view");
+        _part = humanity_core::frame_costs::stage("cpu.garden.picking_view");
         let picking = picking::GuiView::for_crops(world, data, &ents);
-        _part = crate::frame_costs::stage("cpu.garden.weed_view");
+        _part = humanity_core::frame_costs::stage("cpu.garden.weed_view");
         let weed_view = weeds::GuiView::context(world, data);
         let kept_weeds: HashSet<&str> = weed_view.kept_areas().collect();
         // Each crop's wait and water, for the Garden card (first-hour F11, systems/farming/outlook.rs).
-        _part = crate::frame_costs::stage("cpu.garden.outlook_view");
+        _part = humanity_core::frame_costs::stage("cpu.garden.outlook_view");
         let outlook_view = outlook::OutlookView::new(world, data);
-        _part = crate::frame_costs::stage("cpu.garden.crop_rows");
+        _part = humanity_core::frame_costs::stage("cpu.garden.crop_rows");
         for &i in &todo {
             let a = &mut rows.areas[i];
             let mut valid_until = f64::INFINITY;
@@ -444,12 +444,12 @@ pub(crate) fn build(
                 let store = soil.map_or_else(|| sl::fresh_store(need), |s| s.store);
                 let (supply_share, scarce) = sl::sufficiency(&store, &need);
                 let def = plant_reg.and_then(|r| r.get(&crop.crop_def_id));
-                let per_kg = def.zip(nutrient_scale).map_or(crate::ecs::components::Npk::default(), |(d, s)| sl::removal_per_kg(d, s));
+                let per_kg = def.zip(nutrient_scale).map_or(humanity_core::ecs::components::Npk::default(), |(d, s)| sl::removal_per_kg(d, s));
                 let phc = ph_view.crop(crop, def); // soil pH for the crop card
                 let name = def.map(|d| d.name.clone()).unwrap_or_else(|| crop.crop_def_id.clone());
                 let stages: Vec<&str> =
-                    def.map(|d| d.stages()).unwrap_or_else(|| crate::ecs::components::DEFAULT_GROWTH_STAGES.iter().copied().collect());
-                let dead = crop.growth_stage.as_str() == crate::ecs::components::STAGE_DEAD;
+                    def.map(|d| d.stages()).unwrap_or_else(|| humanity_core::ecs::components::DEFAULT_GROWTH_STAGES.iter().copied().collect());
+                let dead = crop.growth_stage.as_str() == humanity_core::ecs::components::STAGE_DEAD;
                 let last = stages.last().copied().unwrap_or("");
                 let mature = !dead && crop.growth_stage.as_str() == last;
                 let progress = if dead {
@@ -545,7 +545,7 @@ pub(crate) fn build(
     }
 
     // ── The light's and the air's words, for every area (see the module notes). ──
-    _part = crate::frame_costs::stage("cpu.garden.air_view");
+    _part = humanity_core::frame_costs::stage("cpu.garden.air_view");
     let plant_reg = data.get::<farming::PlantRegistry>("plant_registry");
     let lit = lighting::light_now(world, data);
     let tags: Vec<String> = {
@@ -605,7 +605,7 @@ pub(crate) fn build(
     }
 
     // ── The lists the page shows by area, sorted by area. ──
-    _part = crate::frame_costs::stage("cpu.garden.areas");
+    _part = humanity_core::frame_costs::stage("cpu.garden.areas");
     if relaid || !todo.is_empty() || !reuse {
         let sorted = || rows.sorted.iter().map(|i| &rows.areas[*i]);
         out.areas = sorted().filter_map(|a| a.pests.clone()).collect();

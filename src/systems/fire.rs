@@ -32,9 +32,9 @@ use std::path::Path;
 use rand::Rng;
 use serde::Deserialize;
 
-use crate::ecs::components::{Fire, FireSuppressor, Flammable, Health, StatusEffects, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Fire, FireSuppressor, Flammable, Health, StatusEffects, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Fuel burned per second at intensity = 1.0.
 const FUEL_BURN_RATE: f64 = 1.0;

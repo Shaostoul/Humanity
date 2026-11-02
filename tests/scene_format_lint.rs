@@ -63,8 +63,17 @@ const MARKER: &str = "display-format:";
 /// The file that owns the present pass.
 const PRESENT_FILE: &str = "src/renderer/scene_target.rs";
 
-/// Every `.rs` file under `src/`, except the relay (a headless server that
-/// never draws anything).
+/// Each workspace crate's src/ folder, crates/<name>/src (the crate split's rung 1, 2026-11-01): read
+/// with src/'s, or a file moved into a crate drops out of this check without a word.
+fn crate_src_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(root.join("crates"))
+        .map(|rd| rd.flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()).collect())
+        .unwrap_or_default();
+    out.sort();
+    out
+}
+/// Every `.rs` file under `src/` and each crate's `src/`, except the relay (a headless server
+/// that never draws anything).
 fn rust_sources() -> Vec<PathBuf> {
     fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         let Ok(rd) = fs::read_dir(dir) else { return };
@@ -82,6 +91,9 @@ fn rust_sources() -> Vec<PathBuf> {
     }
     let mut out = Vec::new();
     walk(&repo().join("src"), &mut out);
+    for dir in crate_src_dirs(repo()) {
+        walk(&dir, &mut out);
+    }
     out.sort();
     out
 }

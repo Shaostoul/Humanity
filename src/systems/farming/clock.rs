@@ -24,7 +24,7 @@
 //!   it acts (the tick, `FarmingSystem::tick`); the save brings every area and the air to now
 //!   (`farming::settle(.., 0.0)`); the Garden page and the plant meshes keep what they show within
 //!   [`LOOK_FRESH_S`] of now, and while they look, the rotation runs at no more than that.
-//! - **The reuse switch** (crate::reuse, the Dev page's "Turn off all reuse"): an area not yet
+//! - **The reuse switch** (humanity_core::reuse, the Dev page's "Turn off all reuse"): an area not yet
 //!   advanced to now is state kept stale on purpose, so with reuse off every area and the air
 //!   advance every frame, as before this rung.
 //!
@@ -41,8 +41,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
-use crate::ecs::components::CropInstance;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::CropInstance;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// The DataStore channel the Settings choice reaches the farm by (`Mutex<f64>`): game seconds
 /// between two advances of each area, 0 for every frame. Absent (a headless test, a store nobody

@@ -14,7 +14,7 @@
 //! taking a wall down.
 
 use super::{Blueprint, Doorway, Window};
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use glam::Vec3;
 
 /// What a part of a doorway piece is.
@@ -104,7 +104,7 @@ pub fn parts(tf: &Transform, d: &Doorway, open: bool) -> Vec<(Transform, Part)> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::world_aabb;
+    use humanity_core::ecs::components::world_aabb;
     use glam::Quat;
 
     fn wall() -> Transform {

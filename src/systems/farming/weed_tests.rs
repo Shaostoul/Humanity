@@ -7,9 +7,9 @@
 use super::gardening_tests::make_store;
 use super::weeds::{self, WeedData};
 use super::*;
-use crate::ecs::components::{AreaWeeds, Controllable, CropInstance, CropSoil, Irrigator, Npk, SoilMemory};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AreaWeeds, Controllable, CropInstance, CropSoil, Irrigator, Npk, SoilMemory};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 /// A well-watered crop of `plant` in unit `slot` of `area`, `days` garden
@@ -319,7 +319,7 @@ fn off_mode_turns_weeds_off() {
 #[test]
 fn the_shipped_weed_data_parses_and_names_real_items() {
     let d = WeedData::shipped();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let plants = PlantRegistry::from_csv(&std::fs::read(root.join("data/plants.csv")).unwrap()).unwrap();
     let items = crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap();
     for row in &d.crops {

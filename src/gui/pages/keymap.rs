@@ -2,7 +2,7 @@
 //! in, so the keys listed are the ones that actually do something where you are (no world
 //! hotkeys while a menu is open). Data-driven from `data/keymaps.ron`; the input handlers stay
 //! the source of truth, so the list is description, not binding. Display-only (not editable);
-//! actual REBINDING lives in Settings > Controls (src/input/bindings.rs, 2026-08-12), and this
+//! actual REBINDING lives in Settings > Controls (crates/humanity-core/src/input/bindings.rs, 2026-08-12), and this
 //! overlay lists the DEFAULT keys, so it reads stale for a user who has rebound. Making it
 //! render the live map is tracked follow-up work.
 
@@ -299,7 +299,7 @@ mod tests {
     /// gate is the only thing standing between a stray comma and that.
     #[test]
     fn shipped_keymaps_parse_and_cover_the_world_context() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let text = std::fs::read_to_string(dir.join("keymaps.ron")).expect("keymaps.ron reads");
         let maps: Vec<KeymapContext> =
             ron::from_str(&text).expect("data/keymaps.ron must parse as Vec<KeymapContext>");

@@ -586,7 +586,7 @@ fn the_loop_sleeps_and_never_receives_with_a_timeout() {
     assert_eq!(idle_sleep(Duration::from_secs(60), None), IDLE_WAIT, "at most 20 ms");
     assert_eq!(idle_sleep(Duration::from_secs(60), Some(ms(3))), ms(3), "never past the Rtc's deadline");
     assert_eq!(idle_sleep(Duration::from_secs(60), Some(ms(0))), ms(1), "but at least a millisecond");
-    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/net/file_link.rs")).unwrap();
+    let source = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/net/file_link.rs")).unwrap();
     let code: String = source.lines().filter(|l| !l.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
     assert!(!code.contains("set_read_timeout"), "the link never receives with a timeout");
     assert!(code.contains("set_nonblocking(true)"), "its socket is nonblocking");

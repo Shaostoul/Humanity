@@ -163,7 +163,7 @@ fn octet_stream_is_judged_by_its_extension() {
 
 // ── HEIC and AVIF photos (2026-10-11): cleaned in place, kept as plain files ──
 
-use crate::relay::core::strip_heif_metadata::build::{
+use humanity_protocol::strip_heif_metadata::build::{
     bx, exif_bytes, filler, ftyp_avif, ftyp_heic, heif, iphone_heic, Built, Item, Kind, Place, Tables, PLACE,
 };
 
@@ -233,7 +233,7 @@ fn a_heic_or_avif_photo_is_a_plain_file_never_a_picture() {
 #[test]
 fn finish_file_as_cleans_a_heic_and_refuses_what_it_cannot_read() {
     let photo = iphone_heic();
-    let path = crate::test_temp::file("rules_heic_finish", "heic");
+    let path = humanity_core::test_temp::file("rules_heic_finish", "heic");
     std::fs::write(&path, &photo.bytes).unwrap();
     let cleaned = finish_file_as(&path, false);
     assert!(cleaned.is_ok(), "a well-formed HEIC is cleaned and kept: {cleaned:?}");
@@ -279,10 +279,10 @@ async fn a_heic_upload_is_stored_without_where_it_was_taken() {
     let state = relay("rules_heic_upload");
     uploader(&state, "ann", "tok", |_| {}).await;
     let (uploads, members, resume, waiting) = (
-        crate::test_temp::dir("rules_heic_uploads"),
-        crate::test_temp::dir("rules_heic_members"),
-        crate::test_temp::dir("rules_heic_resume"),
-        crate::test_temp::dir("rules_heic_waiting"),
+        humanity_core::test_temp::dir("rules_heic_uploads"),
+        humanity_core::test_temp::dir("rules_heic_members"),
+        humanity_core::test_temp::dir("rules_heic_resume"),
+        humanity_core::test_temp::dir("rules_heic_waiting"),
     );
     let folders = || Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
     let send = |name: &str, ct: &str, bytes: &[u8], keep: bool| {

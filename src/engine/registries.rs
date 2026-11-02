@@ -5,8 +5,8 @@
 //! this version can read it, else the copy built into the exe.
 use std::path::Path;
 
-use crate::embedded_data::load_data_or_embedded;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::embedded_data::load_data_or_embedded;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::skills::SkillRegistry;
 use crate::systems::quests::QuestRegistry;
 
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn the_loaded_trading_post_caps_a_grade_by_its_parts() {
         let mut store = DataStore::new();
-        load_data_registries(&mut store, &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
+        load_data_registries(&mut store, &std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"));
         let goods = store
             .get::<crate::systems::economy::TradeGoodsRegistry>("trade_goods_registry")
             .expect("the trade goods load");
@@ -279,14 +279,14 @@ mod tests {
 
     // ── A data folder older than the game (BUG-163) ──
 
-    use crate::embedded_data::STATUS_EFFECTS_CSV;
+    use humanity_core::embedded_data::STATUS_EFFECTS_CSV;
     use crate::systems::status_effects::StatusEffectRegistry;
 
     /// A data folder holding only `files` (path under data/, text), loaded the way the game
     /// loads its own, with every warning logged while it loaded. The folder is named `data`, as
     /// an installed game's is. The guard deletes it when the test ends.
-    fn load_from(files: &[(&str, &str)]) -> (DataStore, Vec<String>, crate::test_temp::TempPath) {
-        let root = crate::test_temp::dir("data_folder");
+    fn load_from(files: &[(&str, &str)]) -> (DataStore, Vec<String>, humanity_core::test_temp::TempPath) {
+        let root = humanity_core::test_temp::dir("data_folder");
         let data = root.join("data");
         for (rel, text) in files {
             let path = data.join(rel);
@@ -294,7 +294,7 @@ mod tests {
             std::fs::write(&path, text).expect("write the file");
         }
         let mut store = DataStore::new();
-        let ((), lines) = crate::test_log::capture(|| load_data_registries(&mut store, &data));
+        let ((), lines) = humanity_core::test_log::capture(|| load_data_registries(&mut store, &data));
         (store, lines, root)
     }
 
@@ -441,9 +441,9 @@ mod tests {
     ///   WARN: CSV parse warning (skipping row): line 158 (junk_ability), column mana_cost: invalid float literal
     #[test]
     fn the_shipped_data_folder_loads_every_registry_without_a_warning() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut store = DataStore::new();
-        let ((), lines) = crate::test_log::capture(|| load_data_registries(&mut store, &data));
+        let ((), lines) = humanity_core::test_log::capture(|| load_data_registries(&mut store, &data));
         assert!(lines.is_empty(), "loading the shipped data folder warned:\n{}", lines.join("\n"));
     }
 }

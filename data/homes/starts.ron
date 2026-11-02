@@ -3,7 +3,7 @@
 // docs/design/ship-homes-and-logistics.md section 1.2b). Read by the relay (which plot kind a
 // player who asks for this start is given) and by the game (which design it builds, which
 // household file it loads, what a new character carries), both through src/ship/starts.rs,
-// disk first, else the copy built into the exe (src/embedded_data.rs STARTS_RON).
+// disk first, else the copy built into the exe (crates/humanity-core/src/embedded_data.rs STARTS_RON).
 //
 // A start is how much space you hold and how much looking after it needs. It never changes how
 // deep the world runs or how hard it is: that is the play mode (docs/design/engagement-modes.md).

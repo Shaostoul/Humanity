@@ -146,7 +146,7 @@ trusted for it. It goes to the servers linked with the one the person uses.
 
 ### What the copy holds
 
-The copy is the profile as anyone may see it (`src/relay/core/profile_copy.rs` `public_copy`; the
+The copy is the profile as anyone may see it (`crates/humanity-protocol/src/profile_copy.rs` `public_copy`; the
 website's twin is `web/shared/profile-copy.js`):
 
 - name, bio, avatar, banner and links, always;

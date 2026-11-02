@@ -2,8 +2,9 @@
 //
 // The A/Bs of the build-speed review: debug info in dev and test builds (ab-debug.js), Rust's
 // own linker against link.exe (linker-ab.js), where a test build of our crate spends its time
-// (time-passes.js), the relay gate of `just verify` (relay-gate.js) and a fresh checkout's first
-// build seeded from a warm target (seed-ab.js). Each writes its numbers to target\build-ab\.
+// (time-passes.js), the relay gate of `just verify` (relay-gate.js), a fresh checkout's first
+// build seeded from a warm target (seed-ab.js), and each rung of the crate split before and after
+// (split-measure.js, 2026-11-01). Each writes its numbers to target\build-ab\.
 //
 // RUN THEM WHEN THE MACHINE HAS ROOM. On 2026-10-23 they could not be run: fourteen compiles of
 // our crate from twelve worktrees held about 102 GB of commit with 0.6 GB of physical memory

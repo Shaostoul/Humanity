@@ -23,8 +23,8 @@ use crate::net::group_e2ee::{
     random_epoch_key, GroupMemberKey,
 };
 use crate::net::identity::derive_pq_identity;
-use crate::relay::core::object::ObjectBuilder;
-use crate::relay::core::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
+use humanity_protocol::object::ObjectBuilder;
+use humanity_protocol::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
 
 /// Author fingerprint: first 16 bytes of BLAKE3(dilithium pubkey), hex.
 /// Matches `crate::relay::storage::signed_objects::author_fingerprint`.
@@ -113,7 +113,7 @@ pub fn decode_invite_ticket(s: &str) -> Result<(String, String, String, Vec<u8>)
 // (`pq-object.js`); together they let native participate in the P2P-group flow
 // (docs/design/p2p-groups.md).
 
-use crate::relay::core::encoding::{cbor_bytes, cbor_int, cbor_map, cbor_text};
+use humanity_protocol::encoding::{cbor_bytes, cbor_int, cbor_map, cbor_text};
 
 fn now_millis() -> u64 {
     std::time::SystemTime::now()
@@ -298,7 +298,7 @@ pub fn submit_group_msg_v1(
 /// WebRTC mesh push so a peer receives byte-identical bytes to what the relay
 /// stores. Kept separate from `submit_signed_object` so callers that want the
 /// JSON without POSTing (the mesh broadcast) can reuse it.
-fn object_to_submission_json(obj: &crate::relay::core::object::Object) -> String {
+fn object_to_submission_json(obj: &humanity_protocol::object::Object) -> String {
     let mut submission = serde_json::json!({
         "protocol_version": obj.protocol_version,
         "object_type": obj.object_type,
@@ -400,7 +400,7 @@ pub struct VerifiedSubmission {
 /// tampered object cannot pass. The object_id is recomputed here, not trusted
 /// from the sender.
 pub fn verify_submission_json(submission_json: &str) -> Option<VerifiedSubmission> {
-    use crate::relay::core::object::{Object, PAYLOAD_ENCODING_PLAINTEXT, PROTOCOL_VERSION};
+    use humanity_protocol::object::{Object, PAYLOAD_ENCODING_PLAINTEXT, PROTOCOL_VERSION};
 
     let v: serde_json::Value = serde_json::from_str(submission_json).ok()?;
 
@@ -790,7 +790,7 @@ pub fn fetch_group_members(
 /// The roster's members with the Kyber key of each one's checked key card (see
 /// `fetch_group_members`). A card that does not check out, or names somebody else, gives none.
 pub(crate) fn group_members_of(members: &[serde_json::Value]) -> Vec<(String, Option<String>)> {
-    use crate::relay::core::key_card;
+    use humanity_protocol::key_card;
     let mut out = Vec::with_capacity(members.len());
     for m in members {
         let pubkey = m.get("pubkey").and_then(|x| x.as_str()).unwrap_or("").to_string();

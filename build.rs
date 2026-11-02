@@ -16,7 +16,7 @@ use std::path::Path;
 /// a missing entry is skipped on both sides.
 ///
 /// data/ as a whole is deliberately absent: the game reads data/ from disk
-/// first (the embedded copies in src/embedded_data.rs and the loaders' own
+/// first (the embedded copies in crates/humanity-core/src/embedded_data.rs and the loaders' own
 /// include_str! fallbacks only serve a bare exe) and the probe rig junctions
 /// data/ live, so a data edit needs no rebuild. Shaders are here because the
 /// first pipeline compile uses the include_str! copies. Cargo.lock is here
@@ -60,6 +60,10 @@ use std::path::Path;
 const FINGERPRINT_INPUTS: &[&str] = &[
     "src",
     "assets/shaders",
+    // The workspace's crates (the crate split's rung 1, 2026-11-01): the core and the protocol
+    // are compiled into the binary as surely as src/ is, so a stamp without them would call a
+    // binary current after an edit to either.
+    "crates",
     "Cargo.toml",
     "Cargo.lock",
     "build.rs",
@@ -92,6 +96,13 @@ const FINGERPRINT_INPUTS: &[&str] = &[
 ];
 
 fn main() {
+    // The repo root, named ONE way in the Rust source: env!("HUMANITY_REPO_ROOT") (the crate
+    // split's rung 1, 2026-11-01; tests/repo_root_lint.rs holds it). In a workspace each member's
+    // CARGO_MANIFEST_DIR is its own folder; this package's IS the repo root, and every crate under
+    // crates/ sets the same variable through crates/repo_root.rs.
+    let root = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
+    println!("cargo:rustc-env=HUMANITY_REPO_ROOT={root}");
+
     // Set BUILD_VERSION for the relay module (git hash + timestamp). Display
     // only (/api/stats, /api/server-info, the admin System panel). Since the
     // rerun-if-changed lines below, it refreshes when a compiled-in source

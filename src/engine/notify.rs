@@ -194,7 +194,7 @@ pub(crate) fn task(gs: &GuiState, server: &str, frame: &serde_json::Value) -> Op
 /// server, nothing networked; `room_name` carries where the first event happened ("your home"
 /// for one with no place, a crop planted in no grow area).
 pub(crate) fn game(f: &n::game::Folded) -> Candidate {
-    let place = if f.first_where.is_empty() { crate::i18n::t("notifications.event_where_home").to_string() } else { f.first_where.clone() };
+    let place = if f.first_where.is_empty() { humanity_core::i18n::t("notifications.event_where_home").to_string() } else { f.first_where.clone() };
     Candidate {
         kind: "game_event".into(),
         conversation: format!("game:{}", f.event),
@@ -382,7 +382,7 @@ pub(crate) fn pump(state: &mut EngineState) {
     // The panel shuts on a page without the header (rung 2 part 1's leftover).
     crate::gui::notice_panel::keep_to_header(&mut state.gui_state);
     if std::mem::take(&mut state.gui_state.notify.test_requested) {
-        let t = crate::i18n::t;
+        let t = humanity_core::i18n::t;
         // A click on it shows the window (it leads to no conversation).
         let launch = state.gui_state.notify.targets.window_token();
         n::toast::show(n::toast::Toast {

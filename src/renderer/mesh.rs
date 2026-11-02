@@ -1,13 +1,13 @@
 //! Mesh primitives — vertex/index buffers for renderable geometry.
 //!
-//! The vertex itself is plain data and lives in the core (`crate::vertex::Vertex`, since the
+//! The vertex itself is plain data and lives in the core (`humanity_core::vertex::Vertex`, since the
 //! crate split's rung 0); what stays here is its GPU side: the buffer layouts that describe it
 //! and the per-instance record to wgpu, and the buffers.
 
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 
 /// wgpu vertex buffer layout of a `Vertex`, matching the PBR-lite shader. A free function
 /// rather than a method because `Vertex` is the core's type and this layout is the renderer's

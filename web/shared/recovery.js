@@ -1,4 +1,4 @@
-// recovery.js: Recovery through trusted people, the website's twin of src/relay/core/recovery.rs
+// recovery.js: Recovery through trusted people, the website's twin of crates/humanity-protocol/src/recovery.rs
 // (2026-10-21). The design: docs/design/recovery-through-trusted-people.md.
 //
 // Every byte layout and word here is the Rust side's. scripts/tests/fixtures/recovery-v1.json

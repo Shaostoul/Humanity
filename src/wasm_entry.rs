@@ -10,11 +10,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use glam::{Quat, Vec3};
-use crate::ecs::GameWorld;
-use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
-use crate::ecs::systems::SystemRunner;
-use crate::hot_reload::data_store::DataStore;
-use crate::input::InputState;
+use humanity_core::ecs::GameWorld;
+use humanity_core::ecs::components::{Controllable, Health, Name, Transform, Velocity};
+use humanity_core::ecs::systems::SystemRunner;
+use humanity_core::hot_reload::data_store::DataStore;
+use humanity_core::input::InputState;
 use crate::renderer::camera::{Camera, CameraController, CameraMode};
 use crate::renderer::mesh::Mesh;
 use crate::renderer::{RenderObject, Renderer};

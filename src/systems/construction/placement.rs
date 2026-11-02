@@ -32,7 +32,7 @@
 use super::shared::SharedPiece;
 use super::site::{in_frame, PlanetSite};
 use super::{Blueprint, BlueprintRegistry, Construction, Mount, Structure};
-use crate::ecs::components::{world_aabb, Transform};
+use humanity_core::ecs::components::{world_aabb, Transform};
 use glam::{Quat, Vec3};
 
 /// The placement grid, metres. Walls are 4 m long, so a 4 m room lines up.
@@ -344,7 +344,7 @@ mod tests {
     use super::*;
 
     fn shipped() -> BlueprintRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("blueprints").join("basic.ron");
         BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
     }
 

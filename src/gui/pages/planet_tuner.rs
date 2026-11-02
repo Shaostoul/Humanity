@@ -190,7 +190,7 @@ fn apply_fields(text: &str, fields: &[(&str, String)]) -> Result<String, String>
 /// Read the body's RON file, apply the rewrites, write it back. One read,
 /// one validated write; any failure leaves the file untouched.
 fn write_fields(body_id: &str, fields: &[(&str, String)]) -> Result<usize, String> {
-    let path = crate::storage::data_dir().join("planets").join(format!("{body_id}.ron"));
+    let path = humanity_core::storage::data_dir().join("planets").join(format!("{body_id}.ron"));
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("read {}: {e}", path.display()))?;
     let out = apply_fields(&text, fields)?;
@@ -315,7 +315,7 @@ fn draw_readout(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     let r = &state.planet_tuner.readout;
     // Pressure + magnetic field live in the cosmos catalog, not PlanetDef;
     // the scout's pattern: read them straight from the page.
-    let catalog = crate::cosmos::find_body(&r.body_id);
+    let catalog = humanity_core::cosmos::find_body(&r.body_id);
     widgets::card_with_header(ui, theme, &format!("Standing on {}", r.body_name), |ui| {
         widgets::detail_row(ui, theme, "Gravity here", &format!("{:.2} m/s\u{00b2} ({:.2} g)", r.g_at_player, r.g_at_player / 9.81));
         widgets::detail_row(ui, theme, "Altitude (above nominal surface)", &format!("{:.0} m", r.altitude_m));
@@ -599,7 +599,7 @@ mod tests {
     use super::*;
 
     fn mars_text() -> String {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         std::fs::read_to_string(root.join("data/planets/mars.ron")).expect("mars.ron readable")
     }
 

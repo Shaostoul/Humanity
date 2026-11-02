@@ -354,7 +354,7 @@ The remaining server-held data classes and length/transport leaks, closed:
 - **The copy of your profile that linked servers keep shows only what anyone
   may see, and going unlisted withdraws it (2026-10-12, BUG-191).** Your own
   app signs the copy when the server asks, and a server keeps one only when
-  that signature checks (`src/relay/core/profile_copy.rs`,
+  that signature checks (`crates/humanity-protocol/src/profile_copy.rs`,
   `src/relay/handlers/profile.rs`). Pronouns, location and website are blank
   in it when you keep them for friends; name, bio, avatar, banner and links
   are public by design. Going unlisted (the Private and Balanced tiers, or

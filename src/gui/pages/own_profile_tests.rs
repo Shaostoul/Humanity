@@ -226,7 +226,7 @@ fn a_save_the_server_does_not_take_says_so() {
 
 // ── The copy other servers keep (BUG-191, 2026-10-12, plan 3.10) ──
 
-use crate::relay::core::profile_copy::{self, PublicCopy};
+use humanity_protocol::profile_copy::{self, PublicCopy};
 
 /// The shared fixture both apps read, written by the relay's own builder.
 const COPY_FIXTURE: &str = "scripts/tests/fixtures/profile-copy-v1.json";
@@ -346,7 +346,7 @@ fn a_copy_that_asks_is_signed_once_for_its_own_server() {
 /// socket_name;` in `take_own_copy_at`): "case 0: the signature, byte for byte" failed.
 #[test]
 fn the_desktop_signs_the_fixtures_copies_byte_for_byte() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(COPY_FIXTURE);
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(COPY_FIXTURE);
     let fx: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).expect("the fixture is there")).expect("JSON");
     let seed = vec![fx["signer_master_byte"].as_u64().expect("the seed byte") as u8; 32];
     let key = fx["public_key"].as_str().expect("the key").to_string();

@@ -49,7 +49,7 @@ pub(crate) fn ensure_preset(gs: &mut GuiState) -> bool {
     if gs.protected.preset_failed {
         return false;
     }
-    match crate::net::protected::load_preset(&crate::storage::data_dir()) {
+    match crate::net::protected::load_preset(&humanity_core::storage::data_dir()) {
         Ok(preset) => {
             gs.protected.preset = Some(preset);
             true

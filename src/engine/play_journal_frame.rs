@@ -3,12 +3,12 @@
 //! the frame, with that frame's picture through the renderer's own capture; and the frame watcher
 //! reads the page, the world, the room, a death, a fall and the connection each frame and records
 //! what changed. The store, the kinds and the rules of what counts as a change are the core's
-//! (src/play_journal.rs), where every crate can record; these two work on the engine's state, so
+//! (crates/humanity-core/src/play_journal.rs), where every crate can record; these two work on the engine's state, so
 //! they are the engine's (the crate split's rung 0, part B, 2026-10-31). Permanent dev tooling.
 
 use std::sync::Mutex;
 
-use crate::play_journal::{changes, dir, flush, next_mark_number, prune_marks, record, Now, Seen, MARKS_KEPT};
+use humanity_core::play_journal::{changes, dir, flush, next_mark_number, prune_marks, record, Now, Seen, MARKS_KEPT};
 
 /// At most one `frame` event this often, so a slow stretch is one line, not hundreds.
 const HITCH_EVERY: std::time::Duration = std::time::Duration::from_secs(2);
@@ -25,7 +25,7 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     };
     let now = state.egui_ctx.input(|i| i.time);
     let Some(dir) = dir() else {
-        state.gui_state.toast(crate::i18n::t("dev.journal_not_running"), crate::gui::ToastKind::Error, now);
+        state.gui_state.toast(humanity_core::i18n::t("dev.journal_not_running"), crate::gui::ToastKind::Error, now);
         return;
     };
     let n = next_mark_number(dir);
@@ -57,7 +57,7 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     prune_marks(dir, MARKS_KEPT);
     // Only a mark by hand says so: a rig's note would stand in the picture it judges.
     if ask.picture && ask.label.is_empty() {
-        state.gui_state.toast(crate::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
+        state.gui_state.toast(humanity_core::i18n::tf("dev.journal_marked", &[("n", &n)]), crate::gui::ToastKind::Info, now);
     }
 }
 

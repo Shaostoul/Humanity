@@ -16,8 +16,8 @@ use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
 use super::Storage;
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::object::Object;
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::object::Object;
 
 /// Maximum vote weight for any single voter. Accord power-asymmetry mitigation.
 pub const MAX_VOTE_WEIGHT: f64 = 0.95;
@@ -53,7 +53,7 @@ pub struct ProposalTally {
 
 /// Read a CBOR text field from a payload.
 fn read_text(object: &Object, field: &str) -> Option<String> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&object.payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let ciborium::Value::Text(name) = k {
@@ -70,7 +70,7 @@ fn read_text(object: &Object, field: &str) -> Option<String> {
 
 /// Read a CBOR integer field from a payload.
 fn read_int(object: &Object, field: &str) -> Option<i64> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&object.payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let ciborium::Value::Text(name) = k {
@@ -676,9 +676,9 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text};
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
         Storage::open_temp("gov_test")
@@ -1174,7 +1174,7 @@ mod tests {
     /// requires that startup survives and the new paths work.
     #[test]
     fn opens_a_pre_revote_database_and_migrates_it() {
-        let path = crate::test_temp::db("gov_mig");
+        let path = humanity_core::test_temp::db("gov_mig");
 
         {
             let conn = rusqlite::Connection::open(&path).expect("raw open");

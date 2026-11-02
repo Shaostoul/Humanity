@@ -2,7 +2,7 @@
 //! applied and caught up (`save_load`), and a router spawned the way the engine spawns it
 //! (`engine::home_spawn`).
 
-use crate::ecs::systems::System;
+use humanity_core::ecs::systems::System;
 use crate::systems::farming::*;
 use crate::systems::farming::gardening_tests::*;
 
@@ -15,7 +15,7 @@ use crate::systems::farming::gardening_tests::*;
 #[cfg(feature = "native")]
 #[test]
 fn time_away_grows_the_garden_only_with_offline_progression_on() {
-    use crate::ecs::components::CropInstance;
+    use humanity_core::ecs::components::CropInstance;
 
     let run = |offline_on: bool| -> usize {
         let data = make_store();
@@ -79,7 +79,7 @@ fn time_away_grows_the_garden_only_with_offline_progression_on() {
 #[cfg(feature = "native")]
 #[test]
 fn powered_wifi_router_leaves_crop_health_unchanged() {
-    use crate::ecs::components::{CropInstance, MachineInstanceId, PowerConsumer};
+    use humanity_core::ecs::components::{CropInstance, MachineInstanceId, PowerConsumer};
     let well_watered = || CropInstance {
         crop_def_id: "tomato".to_string(),
         growth_stage: "sprout".to_string(),
@@ -91,7 +91,7 @@ fn powered_wifi_router_leaves_crop_health_unchanged() {
         health_seconds: 0.0,
         growing_seconds: 0.0,
     };
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home.ron");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join("home.ron");
     let home = crate::systems::grow_machines::load_home(&path).expect("home.ron parses");
     let router = home.catalog.get("wifi_router").expect("home.ron catalogs the wifi_router");
     let inst = crate::machines::MachineInstance {

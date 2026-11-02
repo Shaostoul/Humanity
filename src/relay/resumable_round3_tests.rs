@@ -242,7 +242,7 @@ async fn the_resumable_routes_take_the_token_in_a_header() {
     let both = SessionQuery { token: Some("someone_else".into()), offset: None };
     assert_eq!(session_token(&headers, &both).as_deref(), Some("tok_ann"), "the header wins");
 
-    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/resumable.rs")).unwrap().replace("\r\n", "\n");
+    let src = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/relay/resumable.rs")).unwrap().replace("\r\n", "\n");
     for route in ["pub async fn start(", "pub async fn status(", "pub async fn cancel(", "pub async fn piece("] {
         let at = src.find(route).unwrap_or_else(|| panic!("{route}"));
         let body = &src[at..at + src[at..].find("\n}\n").unwrap()];
@@ -259,7 +259,7 @@ async fn the_resumable_routes_take_the_token_in_a_header() {
 #[test]
 fn nginx_answers_a_refused_rate_with_429_in_the_upload_locations() {
     for file in ["scripts/nginx/humanity.conf", "docs/admin/SELF-HOSTING.md"] {
-        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file)).unwrap().replace("\r\n", "\n");
+        let text = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(file)).unwrap().replace("\r\n", "\n");
         for location in ["location /api/upload {", "location /api/upload/resumable {"] {
             let at = text.find(location).unwrap_or_else(|| panic!("{file}: {location}"));
             let block = &text[at..at + text[at..].find("\n    }").unwrap()];

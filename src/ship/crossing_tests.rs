@@ -4,8 +4,8 @@
 //! changed but its paths. From storage.rs: a fresh install writes its own home without the shipped
 //! header.
 
-use crate::storage::extract_embedded_to;
-use crate::storage::tests::tmp;
+use humanity_core::storage::extract_embedded_to;
+use humanity_core::storage::fixtures::tmp;
 
 /// A FRESH INSTALL'S OWN HOME does not claim to be the shipped default (the final review of
 /// ship homes increment 2). The first run writes data/homes/homestead.ron, the

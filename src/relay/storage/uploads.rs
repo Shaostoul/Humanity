@@ -250,7 +250,7 @@ mod shared_library_tests {
     /// with exit status 3. Fresh-DB tests (all the ones above) cannot see this.
     #[test]
     fn opens_a_pre_v0675_database_and_migrates_it() {
-        let path = crate::test_temp::db("uploads_mig");
+        let path = humanity_core::test_temp::db("uploads_mig");
 
         // Build the OLD table shape + a pre-existing row, like the live DB.
         {

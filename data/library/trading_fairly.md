@@ -603,7 +603,7 @@ public domain. Web pages were read on 3 October 2026.
   `src/gui/trade_types.rs` and `src/relay/storage/trading.rs` (any
   change to an offer clears both confirmations).
 - The starting balance of 10,000 credits until a birth date is known:
-  the `Wallet` in `src/ecs/components.rs`. The "Start every session from
+  the `Wallet` in `crates/humanity-core/src/ecs/components.rs`. The "Start every session from
   the default home" setting: `src/config.rs` and `src/save_load.rs`.
 - [Firewood](/library#firewood), whose section on units cites NIST Handbook
   130 for the cord and the ban on informal firewood terms, and a state

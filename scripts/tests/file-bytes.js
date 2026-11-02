@@ -1,7 +1,7 @@
 // Test files built byte by byte (2026-10-11): phone photos and videos with where they were taken
 // in them, a HEIC photo, and the cuts of a video. Not a test itself (its name does not end in
 // .test.js). The builders are scripts/tests/strip-metadata.test.js's own, which are the relay's
-// Rust tests' (src/relay/core/strip_metadata.rs, strip_video_metadata.rs), copied line for line,
+// Rust tests' (crates/humanity-protocol/src/strip_metadata.rs, strip_video_metadata.rs), copied line for line,
 // so the files the upload tests send are the files the strip is held to. Used by
 // upload-clean-web.test.js, files-web-files.test.js and private-files-web.test.js.
 

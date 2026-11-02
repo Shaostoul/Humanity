@@ -821,7 +821,7 @@ mod cloud_light_tests {
     /// wgsl_reference_constants_stay_in_sync in cloud_reference.rs).
     #[test]
     fn wgsl_cloud_light_constants_stay_in_sync() {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl"))
             .expect("read 40-clouds.wgsl");
         let pairs: [(&str, f64); 12] = [
@@ -856,7 +856,7 @@ mod cloud_light_tests {
     /// helper against itself and cannot see the shader at all.
     #[test]
     fn wgsl_light_cache_point_spells_the_same_lattice_formula() {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl"))
             .expect("read 40-clouds.wgsl");
         let start = src
@@ -2298,7 +2298,7 @@ mod cloud_profile_tests {
     /// two can never drift silently.
     #[test]
     fn wgsl_cloud_profile_constants_stay_in_sync() {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl")).expect("read 40-clouds.wgsl");
         let pairs: [(&str, f64); 34] = [
             ("CLOUD_FR_CALIB_ROWS", CLOUD_FR_CALIB_ROWS as f64),

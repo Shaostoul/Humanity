@@ -470,7 +470,7 @@ impl Storage {
     /// rule, and the new state keys are deliberately distinct so an old Ed25519
     /// secret can never be mistaken for a PQ seed.
     pub fn get_or_create_server_keypair(&self) -> Result<(String, String), rusqlite::Error> {
-        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+        use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
         if let Some(seed_hex) = self.get_state("server_pq_seed")? {
             if let Some(pk) = self.get_state("server_pq_public_key")? {
@@ -485,7 +485,7 @@ impl Storage {
         self.set_state("server_pq_seed", &seed_hex)?;
         tracing::info!(
             "Generated server Dilithium3 identity: {}",
-            crate::relay::core::did::did_for_pubkey(&kp.public_key())
+            humanity_protocol::did::did_for_pubkey(&kp.public_key())
         );
         Ok((pk_hex, seed_hex))
     }
@@ -499,7 +499,7 @@ impl Storage {
     pub fn server_did(&self) -> Result<String, rusqlite::Error> {
         let (pk_hex, _) = self.get_or_create_server_keypair()?;
         let pk = hex::decode(&pk_hex).unwrap_or_default();
-        Ok(crate::relay::core::did::did_for_pubkey(&pk))
+        Ok(humanity_protocol::did::did_for_pubkey(&pk))
     }
 
     // ── Channel Category methods ──
@@ -622,8 +622,8 @@ impl Storage {
 mod local_only_room_tests {
     use crate::relay::storage::Storage;
 
-    fn temp_db(tag: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::db(&format!("local_only_{tag}"))
+    fn temp_db(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::db(&format!("local_only_{tag}"))
     }
 
     #[test]

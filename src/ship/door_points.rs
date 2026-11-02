@@ -190,7 +190,7 @@ mod tests {
     use super::*;
 
     fn on(plot: &str) -> ShipStructure {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         ShipStructure::load_and_assemble_shipped(&data, Some(plot)).expect("the shipped ship assembles")
     }
 
@@ -284,7 +284,7 @@ mod tests {
         let ours = serde_json::to_value(door_points(&on("p1"))).unwrap();
         // Through text, so f32 values compare as the decimals they print as.
         let mut ours: serde_json::Value = serde_json::from_str(&ours.to_string()).unwrap();
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/door-points-p1.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/door-points-p1.json");
         let mut fixture: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         ours.as_object_mut().unwrap().remove("ship_hash");
         fixture.as_object_mut().unwrap().remove("ship_hash");
@@ -318,7 +318,7 @@ mod tests {
             rows("places"),
             rows("doors"),
         );
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/door-points-p1.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/door-points-p1.json");
         std::fs::write(&path, text).unwrap();
         println!("wrote {}", path.display());
     }

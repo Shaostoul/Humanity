@@ -189,7 +189,7 @@ fn overlay_entry() -> Option<&'static (Map<String, Value>, bool)> {
     OVERLAY
         .get_or_init(|| {
             let spec = spec()?;
-            let path = crate::storage::data_dir().join("gui").join("graphics_presets.json");
+            let path = humanity_core::storage::data_dir().join("gui").join("graphics_presets.json");
             let preset = std::fs::read_to_string(&path).ok().and_then(|t| preset_values(&t));
             if preset.is_none() {
                 log::warn!(
@@ -372,7 +372,7 @@ mod tests {
     /// judgement (copresence's 30 fps, its full window) would be made on the wrong game.
     #[test]
     fn every_rigs_value_is_one_the_engine_reads() {
-        let js = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/scripts/lib/rig-needs.js")).expect("rig-needs.js");
+        let js = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/scripts/lib/rig-needs.js")).expect("rig-needs.js");
         let mut n = 0;
         for line in js.lines() {
             if let Some(rest) = line.trim().strip_prefix("lowImpact: \"") {
@@ -426,7 +426,7 @@ mod tests {
     fn the_minimum_preset_names_only_real_config_settings() {
         // RED if the preset is renamed, loses its rig_only mark, or names a key config.rs does not
         // have (a typo would silently leave that setting at full cost: serde ignores it).
-        let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/gui/graphics_presets.json")).expect("presets file");
+        let text = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gui/graphics_presets.json")).expect("presets file");
         let values = preset_values(&text).expect("the minimum preset");
         assert!(values.len() >= 10, "the minimum preset is nearly empty: {values:?}");
         let all: Value = serde_json::from_str(&text).unwrap();
@@ -442,7 +442,7 @@ mod tests {
         }
         // The rigs' showcase pin releases (scripts/lib/showcase-pins.js) that would put a cost back
         // are all held, or a sweep would undo low impact at its second vantage.
-        let pins = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/scripts/lib/showcase-pins.js")).expect("showcase-pins.js");
+        let pins = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/scripts/lib/showcase-pins.js")).expect("showcase-pins.js");
         for k in ["aurora", "room_gi", "sun_shadows", "bounced_light_detail", "sun_glare", "godrays"] {
             assert!(pins.contains(&format!("  {k}: ")), "showcase-pins.js no longer releases {k:?}: update HELD_PINS and this list together");
             assert!(HELD_PINS.contains(&k), "the rigs release the {k:?} pin between vantages and low impact does not hold it");

@@ -173,7 +173,7 @@ pub(crate) fn stamp_fields(moves: &mut ClientMoves, driving: Option<String>) -> 
 pub(crate) fn stamp(state: &mut EngineState, msg: &mut serde_json::Value) {
     let driving = state
         .driving_vehicle
-        .and_then(|veh| state.game_world.world.get::<&crate::ecs::components::Vehicle>(veh).ok().map(|v| v.item_id.clone()));
+        .and_then(|veh| state.game_world.world.get::<&humanity_core::ecs::components::Vehicle>(veh).ok().map(|v| v.item_id.clone()));
     let (moved, applied) = stamp_fields(&mut state.moves, driving);
     if let Some(m) = moved {
         msg["moved"] = m;
@@ -265,7 +265,7 @@ pub(crate) fn walk_tick(state: &mut EngineState, dt: f32) {
     let Some(mut w) = state.moves.walk else { return };
     let now = WalkPose { at: state.camera.position, yaw: state.camera.yaw, pitch: state.camera.pitch };
     let (pose, over) = walk_step(&mut w, now, dt);
-    for (_e, (t, _c)) in state.game_world.world.query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>() {
+    for (_e, (t, _c)) in state.game_world.world.query_mut::<(&mut humanity_core::ecs::components::Transform, &humanity_core::ecs::components::Controllable)>() {
         t.position = pose.at;
     }
     state.camera.position = pose.at;
@@ -311,7 +311,7 @@ fn pace(off: f32) -> f32 {
 /// The step is capped at 0.1 s (the stride rule): a long frame never makes a long stride or a
 /// long turn.
 pub(crate) fn walk_step(w: &mut ScriptedWalk, now: WalkPose, dt: f32) -> (WalkPose, bool) {
-    use crate::turning::{shortest, Turn, LOOK};
+    use humanity_core::turning::{shortest, Turn, LOOK};
     let dt = if dt.is_finite() { dt.clamp(0.0, 0.1) } else { 0.0 };
     let mut yaw = Turn { angle: now.yaw, rate: w.yaw_rate };
     let mut pitch = Turn { angle: now.pitch, rate: w.pitch_rate };
@@ -601,7 +601,7 @@ mod tests {
         let (end, over) = *frames.last().expect("frames");
         assert!(over, "the walk never ended");
         assert_eq!(end.at, THERE);
-        assert!(crate::turning::shortest(end.yaw, 0.0).abs() < 1e-5, "it ended looking along yaw {}, not the asked 0", end.yaw);
+        assert!(humanity_core::turning::shortest(end.yaw, 0.0).abs() < 1e-5, "it ended looking along yaw {}, not the asked 0", end.yaw);
         assert!((end.pitch - -0.4).abs() < 1e-5, "it ended looking {} rad up, not the asked -0.4", end.pitch);
         let first = frames.iter().position(|(p, _)| p.at == THERE).expect("it never reached the point");
         let (p, over) = frames[first];
@@ -625,10 +625,10 @@ mod tests {
     /// second; a person turns at most 150".
     #[test]
     fn the_rig_turns_no_faster_than_a_person() {
-        let look = crate::turning::LOOK;
+        let look = humanity_core::turning::LOOK;
         let mut prev = START;
         for (i, (p, _)) in walk_frames().iter().enumerate() {
-            let yaw_rate = crate::turning::shortest(prev.yaw, p.yaw).abs() / DT;
+            let yaw_rate = humanity_core::turning::shortest(prev.yaw, p.yaw).abs() / DT;
             let pitch_rate = (p.pitch - prev.pitch).abs() / DT;
             for (what, rate) in [("the camera", yaw_rate), ("the camera up or down", pitch_rate)] {
                 assert!(rate <= look.rate * 1.0001, "frame {} turned {what} at {:.0} degrees a second; a person turns at most {:.0}", i + 1, rate.to_degrees(), look.rate.to_degrees());

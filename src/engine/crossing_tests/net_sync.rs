@@ -1,9 +1,9 @@
 //! From net/sync.rs's tests: a crew figure walks, turns and stops the way the engine poses it
 //! (`net_route::crew_figure_parts`).
 
-use crate::ecs::systems::System;
+use humanity_core::ecs::systems::System;
 use crate::net::sync::*;
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use crate::net::protocol::NetMessage;
 use crate::net::sync::NPC_LOCAL_STANDING_Y;
 use crate::net::sync::tests::CREW_MPS;
@@ -18,7 +18,7 @@ use glam::Vec3;
 /// began and the way the DRAWN figure's face looks across the floor (+z of the figure
 /// `engine::net_route::crew_figure_parts` builds, which the game draws).
 fn crew_walk(legs: &[(Vec3, f32)]) -> Vec<(f32, Vec3)> {
-    let data = crate::hot_reload::data_store::DataStore::new();
+    let data = humanity_core::hot_reload::data_store::DataStore::new();
     let mut sys = NetSyncSystem::new();
     let mut world = hecs::World::new();
     let update = |p: Vec3| NetMessage::NpcUpdate { entity_id: 9, name: "Cook Ana".to_string(), position: [p.x, p.y, p.z], activity: "Walking".to_string(), working: false };
@@ -75,7 +75,7 @@ fn a_crew_figure_faces_the_way_it_walks() {
 fn a_crew_figure_turns_round_smoothly() {
     let frames = crew_walk(&[(Vec3::X, 2.0), (Vec3::NEG_X, 2.0)]);
     let dt = 1.0 / 60.0;
-    let limit = crate::turning::BODY.rate.to_degrees();
+    let limit = humanity_core::turning::BODY.rate.to_degrees();
     let (fastest, when) = frames.windows(2).map(|w| (degrees(w[0].1, w[1].1) / dt, w[1].0)).fold((0.0f32, 0.0f32), |a, b| if b.0 > a.0 { b } else { a });
     assert!(fastest <= limit * 1.001, "{when:.2} s in the figure turned at {fastest:.0} degrees a second; a person turns on the spot at {limit:.0}");
     for (t, face) in &frames {

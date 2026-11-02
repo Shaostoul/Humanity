@@ -656,7 +656,7 @@ One module, `src/systems/closed_loop/` (data.rs, report.rs, aggregate.rs): serde
 `schemas/closed_loop.toml` field for field, `ron::from_str` on each file the way
 `data/life_support.ron` is loaded, a loader test that refuses any unknown source id, any figure
 without a read date or a check, and any research option without a readiness level, and the eight
-files added to `src/embedded_data.rs` so a release carries them.
+files added to `crates/humanity-core/src/embedded_data.rs` so a release carries them.
 
 ---
 
@@ -973,7 +973,7 @@ made between the stars is new matter, which is the raw chemistry entry's point m
 In order; each is a rung of the whole plan above, not a throwaway.
 
 1. **The loader** (`src/systems/closed_loop/data.rs`): serde structs per `schemas/closed_loop.toml`;
-   the eight files into `src/embedded_data.rs`; `every_closed_loop_figure_is_sourced`, seen red on a
+   the eight files into `crates/humanity-core/src/embedded_data.rs`; `every_closed_loop_figure_is_sourced`, seen red on a
    deliberate break. Relay-gated `#[cfg(feature = "native")]` only if it touches native-only code (it
    should not).
 2. **The report** (`report.rs`): the per-loop table, dual units, never one number, every fraction

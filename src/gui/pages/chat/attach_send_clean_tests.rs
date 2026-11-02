@@ -4,10 +4,10 @@
 
 use super::*;
 use crate::net::dm_pq::{decrypt_attachment, file_marker_unchecked, parse_file_marker};
-use crate::relay::core::describe_metadata::describe;
+use humanity_protocol::describe_metadata::describe;
 
 fn fixture(name: &str) -> Vec<u8> {
-    std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe").join(name)).unwrap()
+    std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe").join(name)).unwrap()
 }
 
 fn job(to: &str, name: &str, bytes: Vec<u8>) -> AttachJob {

@@ -6,7 +6,7 @@
 //! temporary database, and nothing is written outside a temporary folder.
 
 use super::*;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use crate::relay::storage::files::GENERAL_CATEGORY_ID;
 
 const MIB: i64 = 1024 * 1024;
@@ -39,12 +39,12 @@ fn relay(tag: &str) -> Arc<RelayState> {
 /// fourth the one a Media upload waits in until it is published (R6).
 pub(super) fn temp_folders(
     tag: &str,
-) -> (crate::test_temp::TempPath, crate::test_temp::TempPath, crate::test_temp::TempPath, crate::test_temp::TempPath) {
+) -> (humanity_core::test_temp::TempPath, humanity_core::test_temp::TempPath, humanity_core::test_temp::TempPath, humanity_core::test_temp::TempPath) {
     (
-        crate::test_temp::dir(&format!("{tag}_uploads")),
-        crate::test_temp::dir(&format!("{tag}_members")),
-        crate::test_temp::dir(&format!("{tag}_resume")),
-        crate::test_temp::dir(&format!("{tag}_waiting")),
+        humanity_core::test_temp::dir(&format!("{tag}_uploads")),
+        humanity_core::test_temp::dir(&format!("{tag}_members")),
+        humanity_core::test_temp::dir(&format!("{tag}_resume")),
+        humanity_core::test_temp::dir(&format!("{tag}_waiting")),
     )
 }
 
@@ -391,13 +391,13 @@ async fn a_media_write_needs_a_fresh_signature() {
 /// "data/files/labels.json parses: \"not a labels file: missing field `label` at line 8 column 1\"".
 #[test]
 fn the_shipped_labels_file_parses() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/files/labels.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/files/labels.json");
     let text = std::fs::read_to_string(&path).expect("data/files/labels.json is shipped");
     let shipped = parse_labels(&text).unwrap_or_else(|e| panic!("data/files/labels.json parses: {e:?}"));
     let ids: Vec<&str> = shipped.iter().map(|l| l.id.as_str()).collect();
     assert_eq!(ids, vec!["spoiler", "flashing", "graphic"]);
     assert!(shipped.iter().all(|l| !l.desc.is_empty()), "every label says what it is for");
-    let missing = crate::test_temp::path("media_no_labels");
+    let missing = humanity_core::test_temp::path("media_no_labels");
     assert_eq!(load_labels(&missing), shipped, "a missing file falls back to the built-in copy");
 
     assert!(parse_labels(r#"{"labels":[{"id":"spoiler","label":"A"},{"id":"spoiler","label":"B"}]}"#).unwrap_err().contains("twice"));

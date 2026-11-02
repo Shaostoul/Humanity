@@ -157,8 +157,8 @@ pub(crate) fn open_details(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
 }
 
 /// A program to add, in a scratch folder: "Dwarf Fortress.exe".
-pub(crate) fn a_program(tag: &str) -> (crate::test_temp::TempPath, PathBuf) {
-    let dir = crate::test_temp::dir(tag);
+pub(crate) fn a_program(tag: &str) -> (humanity_core::test_temp::TempPath, PathBuf) {
+    let dir = humanity_core::test_temp::dir(tag);
     let exe = dir.join("Dwarf Fortress.exe");
     std::fs::write(&exe, "x").unwrap();
     (dir, exe)
@@ -166,7 +166,7 @@ pub(crate) fn a_program(tag: &str) -> (crate::test_temp::TempPath, PathBuf) {
 
 /// The whole page: the games' fixture stores, an added program, the shipped catalog (with the
 /// programs' fixture records) and the shipped list of HumanityOS's own tools.
-fn whole_page(tag: &str) -> (fixtures::AllFixture, programs_tests::Fixture, crate::test_temp::TempPath, GuiState) {
+fn whole_page(tag: &str) -> (fixtures::AllFixture, programs_tests::Fixture, humanity_core::test_temp::TempPath, GuiState) {
     let fx = fixtures::all(tag);
     let pfx = programs_tests::fixture(&format!("{tag}_programs"));
     let (dir, exe) = a_program(&format!("{tag}_added"));

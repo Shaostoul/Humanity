@@ -22,7 +22,7 @@
 use egui::epaint::Mesh;
 use egui::{Align2, Color32, Pos2, Rect, RichText, Sense, Shape, Vec2};
 
-use crate::cosmos::{body_world_position_3d_au, eccentric_anomaly_at, find_body, orbit_axes_au, sol_bodies, SolBody, M_PER_AU};
+use humanity_core::cosmos::{body_world_position_3d_au, eccentric_anomaly_at, find_body, orbit_axes_au, sol_bodies, SolBody, M_PER_AU};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::label_placer::{LabelPlacer, LABEL_GAP};
 use crate::gui::GuiState;
@@ -84,7 +84,7 @@ pub(super) fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
     let available = ui.available_size();
     let (rect, response) = ui.allocate_exact_size(available, Sense::click_and_drag());
     let paint = ui.painter_at(rect);
-    let _cost = crate::frame_costs::stage("cpu.maps_symbology");
+    let _cost = humanity_core::frame_costs::stage("cpu.maps_symbology");
     let started = std::time::Instant::now();
     controls::note_canvas(ui, rect, state);
     let me = state.maps.me.clone();

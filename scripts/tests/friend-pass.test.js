@@ -7,7 +7,7 @@
 //
 // Why it matters: a pass is signed by one client and checked by the relay, so the words the web
 // client signs (web/shared/friend-pass.js, used by web/chat/crypto.js) must be byte for byte the
-// relay's (src/relay/core/pq_crypto.rs `friend_cert_preimage`). Until v2 the web side built its
+// relay's (crates/humanity-protocol/src/pq_crypto.rs `friend_cert_preimage`). Until v2 the web side built its
 // string inline in crypto.js and nothing compared the two. This test reads the Rust test's PINNED
 // preimage literal out of pq_crypto.rs and the protocol constants beside it, and holds the web
 // builder to them; a change on either side fails here until the other follows. The signature path
@@ -27,7 +27,7 @@ const path = require("node:path");
 
 const REPO = path.join(__dirname, "..", "..");
 const fp = require(path.join(REPO, "web", "shared", "friend-pass.js"));
-const RUST = fs.readFileSync(path.join(REPO, "src", "relay", "core", "pq_crypto.rs"), "utf8");
+const RUST = fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "pq_crypto.rs"), "utf8");
 
 const unescape = (s) => s.replace(/\\(.)/g, (_, c) => ({ n: "\n", t: "\t", r: "\r", "\\": "\\", '"': '"' })[c] ?? c);
 
@@ -69,7 +69,7 @@ test("may has one spelling, as the relay reads it", () => {
 });
 
 test("the parser refuses what the relay refuses, and reads a pass the relay minted", () => {
-  const fixture = JSON.parse(fs.readFileSync(path.join(REPO, "src", "relay", "core", "pq_kat_friend_pass.json"), "utf8"));
+  const fixture = JSON.parse(fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "pq_kat_friend_pass.json"), "utf8"));
   const pass = fp.friendPassParse(fixture.cert);
   assert.ok(pass, "the Rust-minted pass parses");
   assert.equal(pass.serial, fixture.serial);

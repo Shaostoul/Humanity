@@ -19,7 +19,7 @@ use super::runs::{Outcome, Run, RunStore};
 use super::view::{self, View};
 
 fn repo() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(env!("HUMANITY_REPO_ROOT"))
 }
 
 fn data() -> PathBuf {
@@ -316,7 +316,7 @@ pub(crate) fn a_stale_review_hash_fails_on_a_broken_file() {
     assert!(stale.iter().any(|f| f.code == Code::ReviewHashStale), "one word changed: {stale:?}");
 
     // At run time, in a data folder a person edited, it is still shown, marked as changed.
-    let dir = crate::test_temp::dir("how_to_stale");
+    let dir = humanity_core::test_temp::dir("how_to_stale");
     let root = dir.path().join("data");
     copy_tree(&data().join("how_to"), &root.join("how_to"));
     for f in ["items.csv", "recipes.csv"] {
@@ -359,7 +359,7 @@ pub(crate) fn a_run_survives_its_steps_being_reordered_and_edited() {
     assert!(total < h.steps.len(), "the washable branch is hidden after choosing throw-away");
 
     // Saved, and read back as after a restart.
-    let dir = crate::test_temp::dir("how_to_runs");
+    let dir = humanity_core::test_temp::dir("how_to_runs");
     let store = RunStore::new(dir.path().join("runs"));
     store.save(&run).unwrap();
     let back = store.list();

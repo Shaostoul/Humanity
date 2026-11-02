@@ -14,12 +14,12 @@ use super::humidity::{self, GrowRoom, HumidityData, HUMIDITY_RON};
 use super::lighting::GrowPlot;
 use super::pests::{self, PestData};
 use super::*;
-use crate::ecs::components::{
+use humanity_core::ecs::components::{
     Controllable, CropInstance, Humidifier, Irrigator, PestPressure, PowerConsumer, RoomAir, SoilMemory, Transform,
     Ventilator,
 };
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 /// A well-watered crop of `plant` in unit `slot` of grow area `area`, at its
@@ -635,7 +635,7 @@ fn a_humidifiers_power_scales_with_its_output() {
 /// a dry cistern).
 #[test]
 fn a_humidifier_draws_its_water_from_the_tanks_and_stops_when_they_are_dry() {
-    use crate::ecs::components::{WaterConsumer, WaterTank};
+    use humanity_core::ecs::components::{WaterConsumer, WaterTank};
     use crate::systems::plumbing::{PlumbingSystem, WaterStatus};
     let mut data = store(0.5, 1.0, 0.0);
     data.insert("irrigation_demand_lpm", Mutex::new(0.0_f32));
@@ -712,7 +712,7 @@ fn mushrooms_below_their_range_lose_more_than_a_green_crop_out_of_its_range() {
 /// A fruiting tent, as the shipped grow medium gives it: the mushroom rack
 /// medium's enclosure (grow_media.ron), so the tests read the shipped tent.
 fn shipped_tent() -> crate::systems::grow_machines::Enclosure {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let media = crate::systems::grow_machines::load_grow_media(&root);
     let m = media.iter().find(|m| m.matches("mushroom_rack")).expect("a mushroom rack medium");
     m.enclosure.clone().expect("the mushroom rack fruits in a tent")
@@ -846,12 +846,12 @@ fn a_tent_starts_from_its_rooms_air_and_saves_like_a_room() {
 fn the_shipped_homes_keep_every_racks_tent_in_range() {
     use crate::machines::MachinePower;
     let settle = |file: &str, powered: bool| -> (Vec<f64>, f64, f64, f64, usize, bool) {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let home = crate::systems::grow_machines::load_home(&root.join("data").join("machines").join(file)).expect("home parses");
         // The SHIPPED home design (data/homes/shipped/homestead.ron, never the checkout's
         // data/homes/homestead.ron, the developer's own home): its rooms are home-local, the
         // frame the home's machine offsets are in.
-        let blueprint = crate::embedded_data::shipped_home_design("homestead").expect("the homestead is built in");
+        let blueprint = humanity_core::embedded_data::shipped_home_design("homestead").expect("the homestead is built in");
         let block = &blueprint[blueprint.find("id: \"room-mushroom\"").expect("the home design has the mushroom room")..];
         let triple = |key: &str| -> [f32; 3] {
             let s = &block[block.find(key).unwrap() + key.len()..];

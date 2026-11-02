@@ -154,9 +154,9 @@ pub fn load_licences(path: &std::path::Path) -> LicencesFile {
         Err(e) => Err(format!("{shown} could not be read ({e})")),
     };
     from_disk.unwrap_or_else(|why| {
-        crate::embedded_data::note_builtin_copy("files/licences.json", why);
+        humanity_core::embedded_data::note_builtin_copy("files/licences.json", why);
         // Declared after the disk read, so the compiled-in check sees this file read disk first.
-        const BUILT_IN: &str = include_str!("../../data/files/licences.json");
+        const BUILT_IN: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/files/licences.json"));
         parse_licences(BUILT_IN).unwrap_or_else(|e| {
             tracing::error!("The built-in files/licences.json does not parse either ({e}); only \"All rights reserved\" is offered");
             bare_minimum()
@@ -175,7 +175,7 @@ pub fn licences_path(data: &std::path::Path) -> std::path::PathBuf {
 /// "data" for the headless relay).
 pub fn licences() -> &'static LicencesFile {
     static LICENCES: std::sync::OnceLock<LicencesFile> = std::sync::OnceLock::new();
-    LICENCES.get_or_init(|| load_licences(&licences_path(&crate::storage::data_dir())))
+    LICENCES.get_or_init(|| load_licences(&licences_path(&humanity_core::storage::data_dir())))
 }
 
 /// What is said when a licence is chosen that this server does not offer.
@@ -251,7 +251,7 @@ mod tests {
     use super::*;
 
     fn shipped_text() -> String {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/files/licences.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/files/licences.json");
         std::fs::read_to_string(&path).expect("data/files/licences.json is shipped")
     }
 
@@ -266,10 +266,10 @@ mod tests {
     /// the built-in copy" failed (the built-in spoiler, flashing and graphic, no only_here).
     #[test]
     fn the_labels_and_licences_are_read_from_the_files_folder() {
-        let data = crate::test_temp::dir("relay_files_folder");
+        let data = humanity_core::test_temp::dir("relay_files_folder");
         std::fs::create_dir_all(data.join("files")).unwrap();
 
-        let labels = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/files/labels.json");
+        let labels = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/files/labels.json");
         let changed = std::fs::read_to_string(labels).unwrap().replacen(
             "\"labels\": [",
             "\"labels\": [\n    { \"id\": \"only_here\", \"label\": \"Only here\", \"desc\": \"In the test's data folder alone\" },",
@@ -336,7 +336,7 @@ mod tests {
         assert!(with(&|v| v["default"] = json!("cc_by_9")).unwrap_err().contains("default"));
         assert!(with(&|v| v["licences"][1]["url"] = json!("https://example.org/by")).unwrap_err().contains("creativecommons.org"));
         assert!(with(&|v| v["hosting"]["text"] = json!(" ")).unwrap_err().contains("hosting"));
-        let missing = crate::test_temp::dir("licences_missing");
+        let missing = humanity_core::test_temp::dir("licences_missing");
         assert_eq!(load_licences(&missing.join("licences.json")), shipped, "an unreadable file falls back to the built-in copy");
     }
 
@@ -351,7 +351,7 @@ mod tests {
     /// exist".
     #[test]
     fn the_licence_words_name_their_source() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let exists = |p: &str| root.join(p).is_file();
         let shipped = parse_licences(&shipped_text()).expect("the shipped file parses");
         if let Some(problem) = shipped.words_source_problem(exists) {
@@ -382,7 +382,7 @@ mod tests {
     /// of web/pages/rules.html is not the hosting paragraph of data/files/licences.json".
     #[test]
     fn the_rules_page_carries_the_hosting_paragraph() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let rules = std::fs::read_to_string(root.join("web/pages/rules.html")).expect("web/pages/rules.html is readable");
         // The page wraps its lines; compare with every run of white space made one space.
         let flat = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");

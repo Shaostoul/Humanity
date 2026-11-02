@@ -346,7 +346,7 @@ fn garden_section_timings() {
 /// zero-padded or out-of-range array cell, an unknown id).
 #[test]
 fn machine_types_match_every_placed_machine() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines");
+    let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/machines");
     let mut homes = 0;
     for entry in std::fs::read_dir(&dir).expect("data/machines") {
         let path = entry.expect("entry").path();
@@ -378,7 +378,7 @@ fn machine_types_match_every_placed_machine() {
 /// design, and past the end there is none; a bed plans its crop in every unit.
 #[test]
 fn slot_specs_read_by_index_match_the_flattened_plantings() {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let towers = crate::gui::load_tower_configs(&data);
     assert!(!towers.is_empty(), "the shipped tower designs load");
     for t in &towers {

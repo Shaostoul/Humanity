@@ -5,7 +5,7 @@ use crate::ship::starts::*;
 use std::path::{Path, PathBuf};
 
 fn data_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The repo's starts file as the game reads it from disk, held to the rules (as in

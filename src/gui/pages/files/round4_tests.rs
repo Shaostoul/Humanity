@@ -62,7 +62,7 @@ fn carry_on_finishes_from_the_servers_copy_whatever_the_local_file() {
     let ctx = egui::Context::default();
     let mut state = page_state(demo_answer(), true);
     state.upload_token = Some((SERVER.to_string(), TOKEN.to_string()));
-    let path = crate::test_temp::file("media_r4_gone", "webm");
+    let path = humanity_core::test_temp::file("media_r4_gone", "webm");
     let bytes: Vec<u8> = (0..20_000u32).map(|i| (i % 241) as u8).collect();
     std::fs::write(&path, &bytes).unwrap();
     let id = "00112233445566778899aabbccddeeff";
@@ -239,7 +239,7 @@ fn an_unfinished_upload_stays_listed_until_the_server_confirms_its_cancel() {
 
 /// The page on a loopback server at `base`, signed in with an identity unlocked (a signature to
 /// publish with), and an upload of `tag` through the simulated server gone to be published.
-fn publishing_upload(ctx: &egui::Context, base: &str, tag: &str) -> (GuiState, u64, crate::test_temp::TempPath) {
+fn publishing_upload(ctx: &egui::Context, base: &str, tag: &str) -> (GuiState, u64, humanity_core::test_temp::TempPath) {
     let mut state = page_state(demo_answer(), true);
     state.server_url = base.to_string();
     sync_server(&mut state);
@@ -406,7 +406,7 @@ fn files_chosen_with_the_first_are_added_to_the_item_once_it_is_published() {
     state.upload_token = Some((base.to_string(), TOKEN.to_string()));
     state.private_key_bytes = Some(vec![7u8; 32]);
     let (_f, mut form) = picked("r5_more", 10_000, "With pictures");
-    let extra = crate::test_temp::dir("r5_more_extra");
+    let extra = humanity_core::test_temp::dir("r5_more_extra");
     std::fs::write(extra.join("front.png"), [1u8; 300]).unwrap();
     std::fs::write(extra.join("back.png"), [2u8; 400]).unwrap();
     form.more = vec![

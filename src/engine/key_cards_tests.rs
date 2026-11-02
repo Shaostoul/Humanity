@@ -6,8 +6,8 @@
 // server sends.
 
 use super::*;
-use crate::relay::core::key_card::{card_json, card_text, sign_card, sign_card_with, KeyCard, Refusal};
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, DilithiumKeypair, KyberKeypair};
+use humanity_protocol::key_card::{card_json, card_text, sign_card, sign_card_with, KeyCard, Refusal};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, DilithiumKeypair, KyberKeypair};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde_json::json;
 
@@ -73,7 +73,7 @@ fn a_server_swapped_key_is_refused() {
 fn a_valid_card_is_accepted_from_any_server() {
     let mut gs = app(33);
     let fixture: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/key-card-v1.json")).unwrap(),
+        &std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/key-card-v1.json")).unwrap(),
     )
     .unwrap();
     on_key_cards_frame(&mut gs, &answer(&[fixture["card"].clone()]));
@@ -128,9 +128,9 @@ fn a_changed_key_raises_the_change_notice() {
 fn our_own_card_rides_every_sign_in() {
     let gs = app(37);
     let frame = crate::net::ws_client::identify_frame(&gs.profile_public_key, "Me", &gs.own_key_card, false);
-    let card = crate::relay::core::key_card::parse_card(&frame["key_card"]).expect("the identify carries our card");
-    assert!(crate::relay::core::key_card::card_for(&card, &gs.profile_public_key));
-    assert_eq!(crate::relay::core::key_card::kyber_bytes(&card), Some(kyber_of(37)));
+    let card = humanity_protocol::key_card::parse_card(&frame["key_card"]).expect("the identify carries our card");
+    assert!(humanity_protocol::key_card::card_for(&card, &gs.profile_public_key));
+    assert_eq!(humanity_protocol::key_card::kyber_bytes(&card), Some(kyber_of(37)));
 }
 
 /// THE OPEN CONVERSATION ASKS FOR ITS CARD AT ONCE, in a `key_card_request`, once a minute at
@@ -165,7 +165,7 @@ fn the_open_conversation_asks_for_its_card() {
 /// here before anything is sealed to a server's word.
 #[test]
 fn no_app_code_reads_a_bare_kyber_key() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src");
     let mut hits = Vec::new();
     for dir in ["engine", "gui", "net"] {
         let mut stack = vec![root.join(dir)];

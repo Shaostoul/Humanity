@@ -1,5 +1,5 @@
 // The web Maps page's orbit model (web/shared/sol-orbits.js), the web twin of
-// src/cosmos.rs and the Maps page's belts (Maps increment 2), fed the real
+// crates/humanity-core/src/cosmos.rs and the Maps page's belts (Maps increment 2), fed the real
 // data files from disk. Pure node, no browser: runs in `just rig-tests`.
 //
 // Run:  just rig-tests

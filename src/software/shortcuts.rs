@@ -203,7 +203,7 @@ mod tests {
     /// folders down).
     #[test]
     fn a_start_menu_shortcut_reads_back_as_written() {
-        let dir = crate::test_temp::dir("sw_shortcut");
+        let dir = humanity_core::test_temp::dir("sw_shortcut");
         let program = dir.join("Apps").join("DaVinci").join("Resolve.exe");
         std::fs::create_dir_all(program.parent().unwrap()).unwrap();
         std::fs::write(&program, "x").unwrap();

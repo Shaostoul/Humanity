@@ -53,7 +53,7 @@ use serde_json::Value;
 
 use crate::gui::pages::files::in_messages::ServerProfile;
 use crate::gui::GuiState;
-use crate::relay::core::profile_copy;
+use humanity_protocol::profile_copy;
 
 /// The least time between two profile updates to one server (the relay allows one per 30 seconds).
 pub(crate) const SEND_GAP: Duration = Duration::from_secs(31);

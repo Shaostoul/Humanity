@@ -300,7 +300,7 @@ mod sound_tests;
 
 /// The page's video gets its sound from the app's mixer (the widget's `sync_sound`); the engine
 /// calls this each frame it has a mixer.
-pub(crate) fn sync_sound(opened: &mut Opened, audio: &mut crate::audio::AudioManager) {
+pub(crate) fn sync_sound(opened: &mut Opened, audio: &mut humanity_core::audio::AudioManager) {
     opened.video.sync_sound(audio);
     opened.sound.sync_sound(audio);
 }

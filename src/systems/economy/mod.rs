@@ -14,8 +14,8 @@
 pub mod fleet;
 pub mod parts;
 
-use crate::hot_reload::data_store::DataStore;
-use crate::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -73,7 +73,7 @@ impl TradeGoodsRegistry {
         items: &crate::systems::inventory::ItemRegistry,
         recipes: &crate::systems::crafting::RecipeRegistry,
     ) -> Self {
-        let fluids = crate::systems::fluids::FluidTable::load(&crate::storage::data_dir());
+        let fluids = crate::systems::fluids::FluidTable::load(&humanity_core::storage::data_dir());
         self.with_parts_prices_and_tap(items, recipes, &parts::tap_water(&fluids))
     }
 
@@ -177,7 +177,7 @@ pub struct EquipmentRegistry {
 
 impl EquipmentRegistry {
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<EquipmentDef> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<EquipmentDef> = humanity_core::data_parse::parse_csv(data)?;
         let mut defs = HashMap::new();
         for row in rows {
             defs.insert(row.id.clone(), row);
@@ -432,7 +432,7 @@ impl System for EconomySystem {
         if self.passive_timer >= day_seconds {
             self.passive_timer -= day_seconds;
             let income = self.passive_income_per_day as i64;
-            for (_e, wallet) in world.query_mut::<&mut crate::ecs::components::Wallet>() {
+            for (_e, wallet) in world.query_mut::<&mut humanity_core::ecs::components::Wallet>() {
                 wallet.credits += income;
             }
             log::debug!("Passive income: +{income} CR");
@@ -460,19 +460,19 @@ mod tests {
     }
 
     fn shipped_goods() -> TradeGoodsRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/trade_goods.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/trade_goods.ron");
         TradeGoodsRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
     }
 
     /// data/items.csv through ItemRegistry, the runtime's own loader.
     fn shipped_items() -> crate::systems::inventory::ItemRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/items.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/items.csv");
         crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
     }
 
     /// data/recipes.csv through RecipeRegistry::from_csv, the runtime's own loader.
     fn shipped_recipes() -> crate::systems::crafting::RecipeRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/recipes.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/recipes.csv");
         crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
     }
 
@@ -502,7 +502,7 @@ mod tests {
         recipes: &'a crate::systems::crafting::RecipeRegistry,
     ) -> (Vec<&'a crate::systems::crafting::Recipe>, HashMap<String, f64>) {
         use crate::systems::fluids::FluidTable;
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join(FluidTable::FILE);
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join(FluidTable::FILE);
         let tap = parts::tap_water(&FluidTable::from_ron(&std::fs::read(path).unwrap()).unwrap());
         let walk = parts::cheapest_costs(items, goods, recipes, &tap, &|id: &str| vendor_pays(goods, id));
         assert!(walk.settled, "item costs never settle: a cycle of recipes makes goods from nothing");
@@ -535,7 +535,7 @@ mod tests {
     ///   "bamboo_0", "sulfur_0", "saltpeter_0", "tin_ore_0", ... "oil_fish_0"]
     #[test]
     fn every_shipped_trade_good_is_an_item() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let items = crate::systems::inventory::ItemRegistry::from_csv(
             &std::fs::read(root.join("data/items.csv")).unwrap(),
         )
@@ -648,8 +648,8 @@ mod tests {
             #[serde(default)]
             category: String,
         }
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/items.csv");
-        let rows: Vec<Row> = crate::data_parse::parse_csv(&std::fs::read(path).unwrap()).unwrap();
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/items.csv");
+        let rows: Vec<Row> = humanity_core::data_parse::parse_csv(&std::fs::read(path).unwrap()).unwrap();
         rows.into_iter().filter(|r| r.category == "vehicle").map(|r| r.id).collect()
     }
 
@@ -770,7 +770,7 @@ mod tests {
         use crate::systems::inventory::Inventory;
         let goods = shipped_goods().with_parts_prices(&shipped_items(), &shipped_recipes());
         let levels = crate::systems::crafting::quality::QualityLevels::from_ron(
-            &std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/manufacturing.ron")).unwrap(),
+            &std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/manufacturing.ron")).unwrap(),
         )
         .unwrap();
         let base = goods.vendor_buy_price("hammer_0").expect("the vendor buys hammers");
@@ -841,7 +841,7 @@ mod tests {
     /// add total works for carry capacity.
     #[test]
     fn equipment_registry_parses_and_folds_stats() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/equipment.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/equipment.csv");
         let reg = EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
         assert!(reg.defs.len() >= 12, "shipped gear set, got {}", reg.defs.len());
         let coat = reg.get("coat_winter_0").expect("winter coat is gear");
@@ -867,7 +867,7 @@ mod tests {
     /// resistances into the Armor map, capped so no outfit is immune.
     #[test]
     fn armor_from_worn_sums_and_caps() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/equipment.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/equipment.csv");
         let reg = EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
 
         // Combat helmet + work boots: kinetic 0.45 + 0.15 = 0.60.
@@ -894,8 +894,8 @@ mod tests {
     /// every Wallet ("nobody is ever stuck at zero").
     #[test]
     fn passive_income_pays_the_wallet_each_game_day() {
-        use crate::ecs::components::Wallet;
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::components::Wallet;
+        use humanity_core::ecs::systems::System;
         let mut world = hecs::World::new();
         let e = world.spawn((Wallet { credits: 0 },));
         let data = DataStore::new();

@@ -401,7 +401,7 @@ mod tests {
         assert!(icon.width <= ICON_MAX && icon.height <= ICON_MAX && icon.width >= 32, "no larger than kept, and not tiny: {icon:?}");
         assert_eq!(icon.rgba.len(), (icon.width * icon.height * 4) as usize);
         assert!(icon.rgba.chunks_exact(4).any(|p| p[3] > 0), "it has pixels you can see");
-        let fake = crate::test_temp::dir("art_fake_exe");
+        let fake = humanity_core::test_temp::dir("art_fake_exe");
         std::fs::write(fake.join("game.exe"), "not a program").unwrap();
         assert_eq!(program_icon(&fake.join("game.exe")), None);
         assert_eq!(program(Store::Steam, Some(&explorer)), Art::default(), "a Steam game's pictures are Steam's, not its program's");

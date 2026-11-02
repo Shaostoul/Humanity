@@ -268,7 +268,7 @@ fn the_chat_rows_and_the_strip_switch_the_same_way() {
     assert_eq!(by_row.active_server(), OTHER, "the row did not switch");
     assert_eq!(after_switch(&by_strip), after_switch(&by_row), "the strip and Chat's row switched differently");
 
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let panel = std::fs::read_to_string(root.join("src/gui/pages/chat/left_panel.rs")).expect("read left_panel.rs");
     assert_eq!(
         panel.matches("state.switch_to_server(&server.url, &server.name);").count(),

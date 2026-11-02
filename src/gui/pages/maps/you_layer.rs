@@ -156,7 +156,7 @@ pub(super) fn draw_you(
         paint.circle_filled(at, 4.0, accent);
         paint.circle_stroke(at, 9.0, Stroke::new(1.6_f32, accent));
     }
-    let radius = crate::cosmos::find_body(&me.parent).map(|b| b.radius_km * 1000.0).unwrap_or(0.0);
+    let radius = humanity_core::cosmos::find_body(&me.parent).map(|b| b.radius_km * 1000.0).unwrap_or(0.0);
     let (name, line2) = ship_label(me, radius);
     let lift = if big { (length_px * 0.5).min(proj.rect.height() * 0.4) + 6.0 } else { 14.0 };
     let g1 = paint.layout_no_wrap(name.clone(), FontId::proportional(13.0), accent);

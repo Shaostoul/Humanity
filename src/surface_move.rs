@@ -51,7 +51,7 @@
 use glam::DVec3;
 
 use crate::surface_walk::{rest_radius, settle_radius, vertical_step, TERMINAL_FALL_MPS};
-use crate::ecs::components::EYE_HEIGHT_M;
+use humanity_core::ecs::components::EYE_HEIGHT_M;
 
 /// Which control law the surface frame-lock runs this frame.
 ///
@@ -314,7 +314,7 @@ pub fn radial_step(
             // The glue catches a fall within half a metre of the floor: a
             // landing, with that last half metre still to fall.
             if v_in < 0.0 {
-                impact_m_s = crate::physics::landing::landing_speed(v_in, r_in - rest, g_accel);
+                impact_m_s = humanity_core::physics::landing::landing_speed(v_in, r_in - rest, g_accel);
             }
             v_r = 0.0;
             r = settle_radius(r, rest, dt, settle_rate);
@@ -323,7 +323,7 @@ pub fn radial_step(
             let thrust = if thrusting { climb_rate * radial_wish } else { 0.0 };
             let vs = vertical_step(r, v_r, rest, g_accel, dt, thrust, TERMINAL_FALL_MPS);
             if vs.grounded && v_in < 0.0 {
-                impact_m_s = if thrusting { -v_in } else { crate::physics::landing::landing_speed(v_in, r_in - rest, g_accel) };
+                impact_m_s = if thrusting { -v_in } else { humanity_core::physics::landing::landing_speed(v_in, r_in - rest, g_accel) };
             }
             r = vs.r;
             v_r = vs.v_r;

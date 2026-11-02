@@ -146,7 +146,7 @@ mod tests {
     /// relay.rs still hands the message to that handler.
     #[test]
     fn the_relay_runs_the_pass_at_start_on_its_timer_and_after_a_settings_change() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let mod_rs = std::fs::read_to_string(root.join("src/relay/mod.rs")).unwrap();
         let start = mod_rs.find("pub async fn run_relay()").expect("run_relay");
         let body = &mod_rs[start..];

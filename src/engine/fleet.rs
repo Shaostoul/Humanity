@@ -75,7 +75,7 @@ fn return_id(give_id: &str) -> String {
 
 /// The player: the first entity with a backpack and player control (the one trades settle into).
 fn player(world: &hecs::World) -> Option<hecs::Entity> {
-    world.query::<(&Inventory, &crate::ecs::components::Controllable)>().iter().next().map(|(e, _)| e)
+    world.query::<(&Inventory, &humanity_core::ecs::components::Controllable)>().iter().next().map(|(e, _)| e)
 }
 
 /// The player, with a TradeSettlements beside the backpack (made when missing).

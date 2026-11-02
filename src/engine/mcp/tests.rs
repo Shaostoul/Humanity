@@ -33,7 +33,7 @@ type Answer = Box<dyn Fn(&FakeGame, &str, &Value) + Send + Sync>;
 /// Plays the game's part on a temp folder: records each request handed in and answers it the way
 /// the handler would (a done file, a picture, a log line), through `answer`.
 struct FakeGame {
-    dir: crate::test_temp::TempPath,
+    dir: humanity_core::test_temp::TempPath,
     requests: Mutex<Vec<(String, Value)>>,
     server_local: bool,
     answer: Answer,
@@ -41,7 +41,7 @@ struct FakeGame {
 
 impl FakeGame {
     fn new(answer: Answer) -> Arc<FakeGame> {
-        let dir = crate::test_temp::dir("mcp_game");
+        let dir = humanity_core::test_temp::dir("mcp_game");
         std::fs::create_dir_all(dir.join("debug")).unwrap();
         std::fs::create_dir_all(dir.join("logs")).unwrap();
         std::fs::write(dir.join("logs").join("run.log"), "[t INFO  boot] ===== HumanityOS starting =====\n").unwrap();
@@ -512,8 +512,8 @@ fn the_live_link_goes_through_the_ipc_funnel_and_waits_a_frame() {
 /// request would otherwise leave a tool waiting on a file nobody reads.
 #[test]
 fn the_tools_name_the_requests_the_game_polls() {
-    let ipc = include_str!("../ipc.rs");
-    let map_rig = include_str!("../map_rig.rs");
+    let ipc = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/engine/ipc.rs"));
+    let map_rig = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/engine/map_rig.rs"));
     let mut names = vec![
         "screenshot_request.json",
         "screenshot_done.json",

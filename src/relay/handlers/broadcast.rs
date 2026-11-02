@@ -114,7 +114,7 @@ pub fn verify_dilithium_signature(dilithium_pub_hex: &str, content: &str, timest
     let Ok(pk) = hex::decode(dilithium_pub_hex) else { return false };
     let Ok(sig) = hex::decode(sig_hex) else { return false };
     let message = format!("{}\n{}", content, timestamp);
-    crate::relay::core::pq_crypto::verify_dilithium(&pk, message.as_bytes(), &sig).is_ok()
+    humanity_protocol::pq_crypto::verify_dilithium(&pk, message.as_bytes(), &sig).is_ok()
 }
 
 /// Generic Dilithium3 verify for raw message bytes + base64 sig.
@@ -127,13 +127,13 @@ pub fn verify_dilithium_b64(dilithium_pub_hex: &str, message: &[u8], sig_b64: &s
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     let Ok(pk) = hex::decode(dilithium_pub_hex) else { return false };
     let Ok(sig) = B64.decode(sig_b64.trim()) else { return false };
-    crate::relay::core::pq_crypto::verify_dilithium(&pk, message, &sig).is_ok()
+    humanity_protocol::pq_crypto::verify_dilithium(&pk, message, &sig).is_ok()
 }
 
 #[cfg(test)]
 mod inc3b_tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
 
     /// Round-trip: sign a domain-separated identify preimage with a

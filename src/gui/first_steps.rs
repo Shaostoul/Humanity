@@ -11,7 +11,7 @@
 //! named are the player's own binds (Settings > Controls); Alt and F1 are fixed keys.
 
 use crate::gui::{GuiPage, GuiState, LauncherWhere};
-use crate::input::bindings::{pretty_key_name, GameAction, Keybinds};
+use humanity_core::input::bindings::{pretty_key_name, GameAction, Keybinds};
 
 /// The key an action is bound to, as the player reads it ("I", "E"): its first key, else its
 /// second; an action with neither says where to set one.
@@ -74,7 +74,7 @@ mod tests {
     use super::controls_hint;
     use crate::config::AppConfig;
     use crate::gui::{GuiPage, GuiState};
-    use crate::input::bindings::{GameAction, Keybinds};
+    use humanity_core::input::bindings::{GameAction, Keybinds};
 
     /// A player standing in the loaded world after onboarding, nothing over it.
     fn in_world() -> GuiState {

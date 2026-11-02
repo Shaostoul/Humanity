@@ -6,9 +6,10 @@ disagree, CLAUDE.md wins.
 
 ## Project one-liner
 
-HumanityOS is a single Rust crate (`src/`) that compiles into one binary, plus a plain
-HTML/JS web frontend (`web/`) that mirrors it. Feature flags (`native`, `relay`, `wasm`)
-decide what's included, there is no Cargo workspace and no sub-crates. Mission: end
+HumanityOS is a Rust workspace (`src/`, the root package, and the crates cut out of it so
+far under `crates/`: the crate split, `docs/design/crate-split.md`) that compiles into one
+binary, plus a plain HTML/JS web frontend (`web/`) that mirrors it. Feature flags (`native`,
+`relay`, `wasm`) decide what's included. Mission: end
 poverty and unite humanity, for billions of eventual users, humans and AI both as
 first-class citizens.
 

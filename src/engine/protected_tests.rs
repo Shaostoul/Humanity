@@ -6,7 +6,7 @@ use super::*;
 use crate::net::dm_store::{DmStore, SentPass};
 use crate::net::protected::{PinTry, Preset};
 use crate::net::reach::{Audience, ContactRequest, ReachKind};
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use std::io::{Read, Write};
 
 const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
@@ -590,7 +590,7 @@ fn warnings_show_under_friends_messages_too() {
     crate::config::keep_saves_off_disk();
     let (seed, me) = identity(169);
     let (mut gs, _sent) = app(&me, &seed, "protected-warnings");
-    gs.warnings.list = Some(crate::net::warnings::parse_warnings(crate::embedded_data::WARNINGS_JSON.as_bytes()).unwrap());
+    gs.warnings.list = Some(crate::net::warnings::parse_warnings(humanity_core::embedded_data::WARNINGS_JSON.as_bytes()).unwrap());
     gs.settings.warnings_on_messages = true;
     {
         let store = gs.dm_store.as_mut().unwrap();
@@ -911,7 +911,7 @@ fn the_phrase_lock_and_the_section_say_only_the_presets_words() {
     assert_eq!(lock.button, labels.show_phrase, "the preset's button");
     assert!(!lock.line.is_empty() && labels.phrase_needs_pin.starts_with(&lock.line), "and the preset's own words for its line: {:?}", lock.line);
     assert_eq!(labels.show_phrase, "Show the recovery phrase");
-    let settings_src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gui/pages/settings.rs")).unwrap();
+    let settings_src = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/gui/pages/settings.rs")).unwrap();
     // The phrase asks it twice (an unlocked identity, and a locked one since BUG-213), the QR once.
     assert_eq!(settings_src.matches("safety_protected::phrase_lock(state)").count(), 3, "the phrase, locked and unlocked, and the QR each ask it");
     assert!(!settings_src.contains("\"Show device-link QR\")"), "no locked button typed into Settings");
@@ -954,7 +954,7 @@ fn the_status_and_routes_lines_are_the_files() {
     let (seed, me) = identity(183);
     let (mut gs, _sent) = app(&me, &seed, "protected-lines");
     protect(&mut gs, "7391", &[]);
-    let file = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/gui/safety_presets.json")).unwrap();
+    let file = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/gui/safety_presets.json")).unwrap();
     let on_disk = crate::net::protected::parse_presets(&file).unwrap();
     assert!(on_disk.status_line.contains("direct messages") && on_disk.status_line.contains("starting a group"), "the corrected words");
     let ctx = egui::Context::default();

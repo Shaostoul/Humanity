@@ -88,7 +88,7 @@ impl GpuParticles {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Particle Sim"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("../../assets/shaders/particle_sim.wgsl").into(),
+                include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/particle_sim.wgsl")).into(),
             ),
         });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn sim_params_matches_shader_block() {
         assert_eq!(std::mem::size_of::<SimParams>(), 8 * 16);
-        let src = include_str!("../../assets/shaders/particle_sim.wgsl");
+        let src = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/particle_sim.wgsl"));
         for field in [
             "origin_radius",
             "dir_spread",
@@ -303,7 +303,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<ParticleVertexData>() % 4, 0);
         let floats = std::mem::size_of::<ParticleVertexData>() / 4;
         assert_eq!(floats, 13, "ParticleVertexData grew: update VERT_FLOATS in particle_sim.wgsl AND the 13 packed writes, then this test");
-        let src = include_str!("../../assets/shaders/particle_sim.wgsl");
+        let src = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/particle_sim.wgsl"));
         assert!(
             src.contains("const VERT_FLOATS: u32 = 13u;"),
             "shader VERT_FLOATS must match size_of::<ParticleVertexData>()/4 = {floats}"
@@ -345,7 +345,7 @@ mod device_tests {
     #[test]
     #[ignore]
     fn compute_pipeline_builds_on_a_real_device() {
-        if !crate::test_gpu::may_use() {
+        if !humanity_core::test_gpu::may_use() {
             return;
         }
         let instance = wgpu::Instance::default();

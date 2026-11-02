@@ -133,7 +133,7 @@ pub struct Words<'a> {
 
 /// The words as the game has them: steps through `step_text`, items and skills by their
 /// registries' names, falling back to the id (the way `completion_notice` names them).
-pub fn with_store_words<R>(data: &crate::hot_reload::data_store::DataStore, f: impl FnOnce(&Words) -> R) -> R {
+pub fn with_store_words<R>(data: &humanity_core::hot_reload::data_store::DataStore, f: impl FnOnce(&Words) -> R) -> R {
     let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
     let skills = data.get::<crate::systems::skills::SkillRegistry>("skill_registry");
     let step = |d: &str| super::step_text(d, data);
@@ -376,7 +376,7 @@ mod tests {
     /// Toolsmith and the habitat's four branches).
     #[test]
     fn the_shipped_opening_never_spoils_a_step_ahead() {
-        let reg = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/quests"));
+        let reg = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/quests"));
         let first = reg.get("gs_first_steps").expect("the shipped opening");
         assert!(first.steps.len() >= 2);
         for at in 0..first.steps.len() {
@@ -403,7 +403,7 @@ mod tests {
     /// another, while what comes after each stays hidden.
     #[test]
     fn branches_are_shown_side_by_side_and_their_followers_stay_hidden() {
-        let reg = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/quests"));
+        let reg = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/quests"));
         let branches: Vec<&QuestDef> = reg.quests.values().filter(|q| q.prerequisite.as_deref() == Some("tutorial_first_habitat")).collect();
         assert!(branches.len() >= 2, "the habitat has branches");
         let tracker = QuestTracker {

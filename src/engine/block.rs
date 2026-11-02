@@ -139,7 +139,7 @@ pub(crate) fn own_echo_for_blocked(store: &mut DmStore, inner: &DmInner) -> bool
     } else {
         return false;
     };
-    if let Some(Ok((given, _))) = pass.as_deref().map(crate::relay::core::pq_crypto::parse_friend_cert) {
+    if let Some(Ok((given, _))) = pass.as_deref().map(humanity_protocol::pq_crypto::parse_friend_cert) {
         store.record_pass_sent(&inner.to, crate::net::dm_store::SentPass { serial: given.serial, may: given.may.wire() });
     }
     enforce_on_store(store, &inner.to);
@@ -424,7 +424,7 @@ pub(crate) fn to_my_mailboxes(gs: &GuiState, text: &str) -> usize {
 pub(crate) mod tests {
     use super::*;
     use crate::net::dm_store::SentPass;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
     const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 
@@ -538,7 +538,7 @@ pub(crate) mod tests {
 
         assert!(!crate::engine::dm::ingest_dm(&mut gs, &inner(&ben, &me, 3, crate::net::dm_pq::CTL_FOLLOW)));
         assert!(!gs.dm_store.as_ref().unwrap().is_follower(&ben), "a follow notice from them is dropped");
-        let pass = crate::relay::core::pq_crypto::build_friend_cert(&ben_seed, SERVER, &ben, &me, &"c1".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let pass = humanity_protocol::pq_crypto::build_friend_cert(&ben_seed, SERVER, &ben, &me, &"c1".repeat(16), &humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let mut gift = inner(&ben, &me, 4, crate::net::dm_pq::CTL_FRIEND_CERT);
         gift.cert = Some(pass);
         crate::engine::dm::ingest_dm(&mut gs, &gift);
@@ -558,7 +558,7 @@ pub(crate) mod tests {
         let mut gs = app(&me, &seed, "block-request");
         block(&mut gs, &ann);
         gs.pending_notices.clear();
-        let pass = crate::relay::core::pq_crypto::build_friend_cert(&ann_seed, SERVER, &ann, &me, &"d1".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let pass = humanity_protocol::pq_crypto::build_friend_cert(&ann_seed, SERVER, &ann, &me, &"d1".repeat(16), &humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let request = inner(&ann, &me, 7, &crate::net::reach::contact_request_text("Ann", &pass));
         assert!(!crate::engine::dm::ingest_dm(&mut gs, &request));
         assert!(gs.dm_store.as_ref().unwrap().requests().is_empty(), "a blocked key's contact request is never listed");
@@ -687,7 +687,7 @@ pub(crate) mod tests {
         let (_g, gus) = identity(152);
         let mut gs = app(&me, &seed, "block-echo");
         block(&mut gs, &gus);
-        let pass = crate::relay::core::pq_crypto::build_friend_cert(&seed, SERVER, &me, &gus, &"a7".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let pass = humanity_protocol::pq_crypto::build_friend_cert(&seed, SERVER, &me, &gus, &"a7".repeat(16), &humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let mut echo = inner(&me, &gus, 20, CTL_FRIEND_CERT);
         echo.cert = Some(pass);
         assert!(!crate::engine::dm::ingest_dm(&mut gs, &echo));

@@ -185,7 +185,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
             let handle =
                 crate::net::webrtc::WebrtcManager::start(my_key, relay_base);
             state.gui_state.webrtc = Some(handle);
-            crate::debug::push_debug("WebRTC P2P manager started");
+            humanity_core::debug::push_debug("WebRTC P2P manager started");
         }
 
         // Per-frame pump: relay outbound webrtc_signal JSON to
@@ -211,7 +211,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
             for ev in events {
                 match ev {
                     crate::net::webrtc::WebrtcEvent::ChannelOpen { peer } => {
-                        crate::debug::push_debug(format!(
+                        humanity_core::debug::push_debug(format!(
                             "WebRTC: channel OPEN with {}", short(&peer)
                         ));
                         // On open, fire the dev test frame if the
@@ -220,7 +220,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
                             if let Some(ref w) = state.gui_state.webrtc {
                                 w.send_text(peer.clone(), "native p2p test".to_string());
                             }
-                            crate::debug::push_debug(format!(
+                            humanity_core::debug::push_debug(format!(
                                 "WebRTC: sent test frame to {}", short(&peer)
                             ));
                         }
@@ -238,7 +238,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
                             &mut state.gui_state, &peer, &text,
                         );
                         if !consumed {
-                            crate::debug::push_debug(format!(
+                            humanity_core::debug::push_debug(format!(
                                 "WebRTC: frame from {}: {}", short(&peer), text
                             ));
                         }
@@ -246,7 +246,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
                     crate::net::webrtc::WebrtcEvent::VoiceConnected { peer } => {
                         // Phase C/D: a voice peer's transport is up. Track it
                         // so the session pumps our mic Opus to it.
-                        crate::debug::push_debug(format!(
+                        humanity_core::debug::push_debug(format!(
                             "Voice: CONNECTED with {}", short(&peer)
                         ));
                         state.gui_state.voice_connected_peers.insert(peer);
@@ -264,7 +264,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
                         crate::net::voice::push_remote_opus(peer.clone(), opus.clone());
                         state.gui_state.voice_rx_frames = state.gui_state.voice_rx_frames.wrapping_add(1);
                         if state.gui_state.voice_rx_frames % 100 == 1 {
-                            crate::debug::push_debug(format!(
+                            humanity_core::debug::push_debug(format!(
                                 "Voice: receiving audio from {} ({} frames)",
                                 short(&peer), state.gui_state.voice_rx_frames
                             ));
@@ -282,7 +282,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
                         {
                             state.gui_state.call_active = None;
                         }
-                        crate::debug::push_debug(format!(
+                        humanity_core::debug::push_debug(format!(
                             "WebRTC: channel CLOSED with {}", short(&peer)
                         ));
                     }

@@ -18,7 +18,7 @@ Date: 2026-10-12. Read against main at cd6cc01d3. Sources: docs/BUGS.md BUG-191,
   - Why not sign inside `profile_update`: the app would have to repeat the relay's clean-up of the bio and the trims byte for byte. Also, a device linked by a link code has its own key, so it has to re-sign when someone makes a field friends-only on another device, which needs the relay to ask anyway. One path does both.
 - **The time on a copy:** `max(now, signed_at + 1, last signed here + 1)`, the friendship choice notes' rule (src/net/dm_store.rs:726-734, web/chat/chat-dm-store.js:585-593).
 - **Agreeing byte for byte.** There is one function per side:
-  - Rust: `relay::core::profile_copy`, used by the relay and the desktop;
+  - Rust: `humanity_protocol::profile_copy`, used by the relay and the desktop;
   - web: web/shared/profile-copy.js;
   - both are pinned by a new scripts/tests/fixtures/profile-copy-v1.json that the Rust builder makes (ML-DSA signing in Rust is deterministic, as for file-offer-v1.json).
   - The signed words stay `profile_v1\n...` (federation.rs:30-53). The one new rule: no line break in any field but the bio, so the words split only one way.
@@ -139,7 +139,7 @@ Date: 2026-10-12. Read against main at cd6cc01d3. Sources: docs/BUGS.md BUG-191,
 ### 1.8 Precedents to follow
 - **Shared fixture:**
   - scripts/tests/fixtures/file-offer-v1.json;
-  - held to the builder by `file_pass_fixture_matches_the_builder` (src/relay/core/pq_crypto.rs:1569-1593);
+  - held to the builder by `file_pass_fixture_matches_the_builder` (crates/humanity-protocol/src/pq_crypto.rs:1569-1593);
   - read by both apps' tests.
 - **Pinned preimage read by the web test:** scripts/tests/friend-pass.test.js (reads `assert_eq!(friend_cert_preimage(...), "...")` and the consts out of pq_crypto.rs).
 - **Recovery-phrase guard list:** scripts/tests/warnings-web.test.js:870-897. A `profile_sign` frame carries no text a person typed, so it is not added.
@@ -179,7 +179,7 @@ Date: 2026-10-12. Read against main at cd6cc01d3. Sources: docs/BUGS.md BUG-191,
 ## 3. The design
 
 ### 3.1 What leaves the server: the public copy (THE privacy rule)
-`relay::core::profile_copy` (new, compiled in the relay and the desktop, since `native` includes `relay`):
+`humanity_protocol::profile_copy` (new, compiled in the relay and the desktop, since `native` includes `relay`):
 
 ```rust
 pub const FIELDS_FOR_FRIENDS: [&str; 3] = ["pronouns", "location", "website"];
@@ -398,7 +398,7 @@ Add `src/relay/handlers/profile.rs` to the ratchet at 650 (Wave 0).
 
 ### Wave 0: the contract and the room (one builder, merges first)
 **Files:**
-- NEW src/relay/core/profile_copy.rs and core/mod.rs: everything in 3.1 to 3.4 (`PublicCopy`, the map rule, `public_copy`, `withdrawal`, `copy_text`, `sign_copy`, `verify_copy`, `within_limits`, `sign_wanted`, `exposes`, `next_copy_time`, `BIO_MAX_CHARS`, `MAX_AHEAD_MS`).
+- NEW crates/humanity-protocol/src/profile_copy.rs and core/mod.rs: everything in 3.1 to 3.4 (`PublicCopy`, the map rule, `public_copy`, `withdrawal`, `copy_text`, `sign_copy`, `verify_copy`, `within_limits`, `sign_wanted`, `exposes`, `next_copy_time`, `BIO_MAX_CHARS`, `MAX_AHEAD_MS`).
 - NEW scripts/tests/fixtures/profile-copy-v1.json, written by an `#[ignore]` test from signer byte 7. Four cases:
   1. listed, location kept for friends, pronouns marked "public", a Greek bio with a line break, links `{"github":"ann","discord":"ann#1"}` in that order, `signed_at` ahead of `now`;
   2. unlisted;
@@ -571,7 +571,7 @@ Tests:
 - Catch-up sends at most the 1,000 most recently signed copies.
 
 ### Critical Files for Implementation
-- C:\Humanity\src\relay\core\profile_copy.rs (new: the public copy, the words, limits, asks, dating)
+- C:\Humanity\crates\humanity-protocol\src\profile_copy.rs (new: the public copy, the words, limits, asks, dating)
 - C:\Humanity\src\relay\handlers\profile.rs (new, moved from msg_handlers.rs:309-682: the save's asks, `handle_profile_sign`)
 - C:\Humanity\src\relay\handlers\federation.rs (receive with limits, pass on, catch-up)
 - C:\Humanity\src\relay\storage\signed_profiles.rs (keep rules, withdrawal, catch-up query)

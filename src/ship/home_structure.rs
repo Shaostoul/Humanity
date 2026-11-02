@@ -18,7 +18,7 @@
 //! existing `HomesteadMeshes` form so it renders through the same path. Wiring it into the live world
 //! + the node-placement editor + room subdivision are later stages.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::ship::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
@@ -818,7 +818,7 @@ pub struct WallMaterial {
 pub fn wall_materials() -> &'static [WallMaterial] {
     static REG: std::sync::OnceLock<Vec<WallMaterial>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/wall_materials.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/wall_materials.ron"));
         match ron::from_str::<Vec<WallMaterial>>(SRC) {
             Ok(v) => v,
             Err(e) => {
@@ -3246,11 +3246,11 @@ mod tests {
         let console = crate::ship::structure::zone_type("console_room").expect("the console room is a zone type");
         assert_eq!(console.label, "Console room");
 
-        let reg = crate::ship::room_types::RoomTypeRegistry::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
+        let reg = crate::ship::room_types::RoomTypeRegistry::load(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"));
         assert!(reg.types.contains_key("console_room"), "rooms.ron has the console_room entry");
         // The assembled ship (ship file + the homestead on its default plot), and the districts
         // that moved up to ship level in increment 1a.
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None)
             .expect("the shipped ship assembles");
         for d in &ship.districts {
@@ -3397,7 +3397,7 @@ mod tests {
     /// data/homes/homestead.ron, the developer's own home), as the game sees it once assembled on the
     /// ship's default plot (increment 1a of docs/design/ship-homes-and-logistics.md).
     fn shipped_home_body() -> HomeStructure {
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None)
             .expect("the shipped ship assembles");
         ship.zones[ship.home_zone_index()].body.clone()
@@ -3715,7 +3715,7 @@ mod storey_tests {
     #[test]
     fn no_slab_rooms_are_what_they_were() {
         use crate::ship::ship_structure::{HomeDesign, ShipStructure};
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut bodies: Vec<(String, HomeStructure)> = Vec::new();
         for kind in ["homestead", "cabin"] {
             bodies.push((format!("shipped {kind}"), HomeDesign::built_in(kind).expect("the shipped design is built in").body));

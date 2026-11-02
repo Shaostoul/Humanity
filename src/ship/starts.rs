@@ -127,7 +127,7 @@ impl Starts {
     /// built-in copy with, so a file that parses but breaks a rule is set aside like one that
     /// does not parse.
     pub fn parse(bytes: &[u8]) -> Result<Starts, String> {
-        let starts: Starts = crate::data_parse::parse_ron(bytes)?;
+        let starts: Starts = humanity_core::data_parse::parse_ron(bytes)?;
         starts.validate()?;
         Ok(starts)
     }
@@ -138,7 +138,7 @@ impl Starts {
     /// and nothing in the game or the relay can place a player without starts, so that stops here
     /// with the reason rather than going on with none.
     pub fn load(data_dir: &Path) -> Starts {
-        crate::embedded_data::load_data_or_embedded(data_dir, STARTS_FILE, Self::parse)
+        humanity_core::embedded_data::load_data_or_embedded(data_dir, STARTS_FILE, Self::parse)
             .unwrap_or_else(|e| panic!("{e}: this build has no starts to give anyone a home"))
     }
 
@@ -381,7 +381,7 @@ mod tests {
     /// empty list: "the homestead's opening is listed" failed.
     #[test]
     fn each_start_names_its_own_opening() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let openings = opening_quests(&data);
         let of = |start: &str| openings.iter().find(|(s, _)| s == start).map(|(_, q)| q.as_str());
         assert_eq!(of("homestead"), Some("gs_first_steps"), "the homestead's opening is listed");
@@ -391,7 +391,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn data_dir() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The repo's starts file as the game reads it from disk, held to the rules.
@@ -441,10 +441,10 @@ mod tests {
     /// starts built into the exe are not data/homes/starts.ron" failed.
     #[test]
     fn the_built_in_starts_are_the_file() {
-        let built_in = Starts::parse(crate::embedded_data::STARTS_RON.as_bytes()).expect("the built-in starts parse and keep the rules");
+        let built_in = Starts::parse(humanity_core::embedded_data::STARTS_RON.as_bytes()).expect("the built-in starts parse and keep the rules");
         assert_eq!(built_in, the_file(), "the starts built into the exe are not data/homes/starts.ron");
         // And a data folder without the file gets the built-in copy (logged).
-        let empty = crate::test_temp::dir("starts_empty");
+        let empty = humanity_core::test_temp::dir("starts_empty");
         assert_eq!(Starts::load(&empty), built_in);
     }
 

@@ -183,7 +183,7 @@ fn read_manifest(path: &Path, file_id: &str, steamapps: &Path) -> Option<Game> {
 /// folders shown read as Windows paths.
 #[cfg(windows)]
 pub fn root_on_this_computer() -> Option<PathBuf> {
-    let key = crate::platform::registry::open(crate::platform::registry::Root::CurrentUser, r"Software\Valve\Steam")?;
+    let key = humanity_core::platform::registry::open(humanity_core::platform::registry::Root::CurrentUser, r"Software\Valve\Steam")?;
     let path = key.string("SteamPath")?;
     let path = PathBuf::from(path.trim().replace('/', "\\"));
     path.is_dir().then_some(path)
@@ -194,7 +194,7 @@ pub fn root_on_this_computer() -> Option<PathBuf> {
 /// when nobody is signed in. `None` when Steam is not running.
 #[cfg(windows)]
 pub fn active_user_on_this_computer() -> Option<u32> {
-    let key = crate::platform::registry::open(crate::platform::registry::Root::CurrentUser, r"Software\Valve\Steam\ActiveProcess")?;
+    let key = humanity_core::platform::registry::open(humanity_core::platform::registry::Root::CurrentUser, r"Software\Valve\Steam\ActiveProcess")?;
     key.dword("ActiveUser").filter(|id| *id != 0)
 }
 
@@ -300,8 +300,8 @@ mod tests {
     /// REDISTRIBUTABLES` alone): "neither is read" (appmanifest_5.acf's "Wrong" was listed).
     #[test]
     fn the_old_format_and_odd_manifests() {
-        let root = crate::test_temp::dir("steam_old_format");
-        let other = crate::test_temp::dir("steam_old_format_lib");
+        let root = humanity_core::test_temp::dir("steam_old_format");
+        let other = humanity_core::test_temp::dir("steam_old_format_lib");
         std::fs::create_dir_all(root.join("steamapps")).unwrap();
         let escaped = other.to_string_lossy().replace('\\', "\\\\");
         std::fs::write(root.join("steamapps").join("libraryfolders.vdf"), format!("\"LibraryFolders\"\n{{\n\t\"TimeNextStatsReport\"\t\t\"1700000000\"\n\t\"1\"\t\t\"{escaped}\"\n}}\n")).unwrap();

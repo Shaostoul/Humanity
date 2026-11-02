@@ -14,7 +14,7 @@ rather than as their own module, promote to a shared module if duplication becom
 real problem:
 
 - **Math**: units, formulas, conversions, vectors, interpolation
-- **Physics**: kinematics, dynamics, trajectories, orbital calculations (`src/physics/`, rapier3d)
+- **Physics**: kinematics, dynamics, trajectories, orbital calculations (`crates/humanity-core/src/physics/`, rapier3d)
 - **Materials**: properties, constraints, process behavior (`data/chemistry/`, `data/materials.csv`)
 - **Progression**: skill levels, mastery, prerequisites (`src/systems/skills.rs`, `data/skills/skills.csv`)
 

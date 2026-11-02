@@ -308,10 +308,10 @@ fn item_name(items: Option<&crate::systems::inventory::ItemRegistry>, item: &str
 /// the same frame). Pure on the world and the data store.
 pub(crate) fn give_back(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     item: &str,
 ) -> GaveBack {
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::Inventory;
     let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
     let max_stack = items.map(|r| r.max_stack_for(item)).unwrap_or(99);
@@ -386,9 +386,9 @@ mod tests {
     /// A throwaway data dir holding the tree's ship file and machine files and the SHIPPED
     /// homestead design (never the developer's own data/homes/homestead.ron, which an editor
     /// Save rewrites).
-    fn data_dir(tag: &str) -> crate::test_temp::TempPath {
-        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let dir = crate::test_temp::path(&format!("own_home_{tag}"));
+    fn data_dir(tag: &str) -> humanity_core::test_temp::TempPath {
+        let repo = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        let dir = humanity_core::test_temp::path(&format!("own_home_{tag}"));
         for rel in ["blueprints/ship_structure.ron", "machines/home.ron", "machines/ship.ron"] {
             let to = dir.join(rel);
             std::fs::create_dir_all(to.parent().unwrap()).unwrap();
@@ -480,7 +480,7 @@ mod tests {
         // The save, written and read back.
         let save_path = dir.join("saves").join("offline_home.json");
         let world = hecs::World::new();
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         crate::save_load::save_home_at(&save_path, &world, &[], &data, true, gui.own_home.as_ref());
         let back = crate::persistence::load_world(&save_path).expect("the save reads back");
         assert!(back.home.is_some(), "the save holds the home");
@@ -615,9 +615,9 @@ mod tests {
     /// Where a payment goes back: the backpack when it fits, else the home's storage channel.
     #[test]
     fn a_payment_goes_back_to_the_backpack_else_to_storage() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
         let mut world = hecs::World::new();
         let player = world.spawn((Inventory::new(4), Controllable));

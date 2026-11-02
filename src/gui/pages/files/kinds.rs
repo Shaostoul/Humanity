@@ -40,14 +40,14 @@ pub fn parse_kinds(text: &str) -> Result<Vec<Kind>, String> {
 pub fn kinds() -> &'static [Kind] {
     static KINDS: std::sync::OnceLock<Vec<Kind>> = std::sync::OnceLock::new();
     KINDS.get_or_init(|| {
-        let path = crate::storage::data_dir().join(KINDS_FILE);
+        let path = humanity_core::storage::data_dir().join(KINDS_FILE);
         match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| parse_kinds(&t)) {
             Ok(k) => k,
             Err(why) => {
                 // The copy built into the exe, used when the data folder's copy cannot be, and
                 // said so the way every data file says it (the compiled-in check holds this).
-                crate::embedded_data::note_builtin_copy("files/kinds.json", format!("{} could not be used ({why})", path.display()));
-                const BUILT_IN: &str = include_str!("../../../../data/files/kinds.json");
+                humanity_core::embedded_data::note_builtin_copy("files/kinds.json", format!("{} could not be used ({why})", path.display()));
+                const BUILT_IN: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/files/kinds.json"));
                 parse_kinds(BUILT_IN).unwrap_or_default()
             }
         }
@@ -86,7 +86,7 @@ mod tests {
     /// \"video\", \"models\", \"file\"] / right: [\"picture\", \"video\", \"model\", \"file\"]".
     #[test]
     fn the_kinds_are_the_relays_kinds() {
-        let ours: Vec<String> = parse_kinds(include_str!("../../../../data/files/kinds.json")).expect("the built-in kinds parse").into_iter().map(|k| k.id).collect();
+        let ours: Vec<String> = parse_kinds(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/files/kinds.json"))).expect("the built-in kinds parse").into_iter().map(|k| k.id).collect();
         let relay: Vec<String> = crate::relay::storage::files::KINDS.iter().map(|k| k.to_string()).collect();
         assert_eq!(ours, relay);
         assert!(parse_kinds(r#"{"kinds": []}"#).is_err(), "an empty list is refused");

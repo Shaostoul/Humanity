@@ -31,7 +31,7 @@ use serde::Deserialize;
 const SUNRISE_H: f64 = 6.0;
 
 /// The shipped copy, so a data folder without the file still runs.
-pub const LIGHTING_RON: &str = include_str!("../../../data/garden/lighting.ron");
+pub const LIGHTING_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/lighting.ron"));
 
 /// The grow-light numbers (data/garden/lighting.ron, every one cited there).
 #[derive(Debug, Clone, Deserialize)]
@@ -65,7 +65,7 @@ impl LightingData {
     }
 
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("lighting.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("lighting.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -76,7 +76,7 @@ impl LightingData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("garden/lighting.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("garden/lighting.ron", why);
         Self::parse(LIGHTING_RON).expect("the shipped data/garden/lighting.ron parses")
     }
 
@@ -152,9 +152,9 @@ impl GrowPlot {
 pub fn powered_lights(world: &hecs::World) -> Vec<([f32; 3], f64)> {
     let mut lights: Vec<([f32; 3], f64)> = world
         .query::<(
-            &crate::ecs::components::GrowLight,
-            &crate::ecs::components::PowerConsumer,
-            &crate::ecs::components::Transform,
+            &humanity_core::ecs::components::GrowLight,
+            &humanity_core::ecs::components::PowerConsumer,
+            &humanity_core::ecs::components::Transform,
         )>()
         .iter()
         .filter(|(_, (gl, pc, _))| pc.enabled && gl.watts > 0.0)
@@ -235,7 +235,7 @@ pub struct LightNow {
 /// The light at `hour`: the sun, the grow lights' timer, and each area's
 /// cover for its crops' light need. What the farming tick and the Garden
 /// panel both read.
-pub fn light_at(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore, hour: f32) -> LightNow {
+pub fn light_at(world: &hecs::World, data: &humanity_core::hot_reload::data_store::DataStore, hour: f32) -> LightNow {
     let sun_up = crate::systems::solar::sun_factor(hour) > 0.0;
     let ld = data.get::<LightingData>("garden_lighting");
     let lamps_on = !sun_up && ld.map_or(false, |d| d.lamps_on_at(hour));
@@ -247,7 +247,7 @@ pub fn light_at(world: &hecs::World, data: &crate::hot_reload::data_store::DataS
 /// what `light_at` gives after dark, and what the farming tick uses for the lit part of a step
 /// that ends after the lamps go off (2026-10-30, step_path::light_spans). Empty with no lighting
 /// data or no plots.
-pub fn lamp_cover(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore) -> HashMap<String, f64> {
+pub fn lamp_cover(world: &hecs::World, data: &humanity_core::hot_reload::data_store::DataStore) -> HashMap<String, f64> {
     match (data.get::<Vec<GrowPlot>>("grow_plots"), data.get::<LightingData>("garden_lighting")) {
         (Some(plots), Some(d)) => {
             let need = area_needs(world, data.get::<super::PlantRegistry>("plant_registry"), d);
@@ -259,7 +259,7 @@ pub fn lamp_cover(world: &hecs::World, data: &crate::hot_reload::data_store::Dat
 
 /// `light_at` for the clock's hour now at the home's longitude (no clock =
 /// noon, the tick's default).
-pub fn light_now(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore) -> LightNow {
+pub fn light_now(world: &hecs::World, data: &humanity_core::hot_reload::data_store::DataStore) -> LightNow {
     let lon = crate::systems::time::home_longitude_deg(data);
     let hour = data
         .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
@@ -278,8 +278,8 @@ pub fn area_needs(
     d: &LightingData,
 ) -> HashMap<String, f64> {
     let mut need: HashMap<String, f64> = HashMap::new();
-    for (_, c) in world.query::<&crate::ecs::components::CropInstance>().iter() {
-        if c.growth_stage == crate::ecs::components::STAGE_DEAD {
+    for (_, c) in world.query::<&humanity_core::ecs::components::CropInstance>().iter() {
+        if c.growth_stage == humanity_core::ecs::components::STAGE_DEAD {
             continue;
         }
         let Some(area) = c.tower_id.as_deref() else { continue };
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn the_light_need_word_says_where_the_number_comes_from() {
         let d = shipped();
-        let csv = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv"));
+        let csv = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv"));
         let plants = super::super::PlantRegistry::from_csv(csv.as_bytes()).expect("plants.csv");
         assert_eq!(light_need_word(plants.get("tomato"), &d), "25 mol/m2 a day (15 to 30)");
         assert!(light_need_word(plants.get("carrot"), &d).starts_with("not sourced"));
@@ -470,7 +470,7 @@ mod tests {
     /// setting tomato's dli_min to 35 (above its target).
     #[test]
     fn shipped_dli_columns_are_read_and_ordered() {
-        let csv = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv"));
+        let csv = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv"));
         let plants = super::super::PlantRegistry::from_csv(csv.as_bytes()).expect("plants.csv");
         let mut header: Vec<&str> = Vec::new();
         let mut targets = 0;

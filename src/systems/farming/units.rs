@@ -27,7 +27,7 @@
 
 use std::collections::HashMap;
 
-use crate::ecs::components::CropInstance;
+use humanity_core::ecs::components::CropInstance;
 use crate::systems::inventory::ItemRegistry;
 
 use super::{PlantDef, PlantRegistry};

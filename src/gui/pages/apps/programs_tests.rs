@@ -40,7 +40,7 @@ fn program(dir: &Path, rel: &str) -> PathBuf {
 /// GIMP 3 in its own folder, Notepad++ known to App Paths, DaVinci Resolve with no folder recorded
 /// (and, here, no Start-menu shortcut), and Blender installed by Steam.
 pub(crate) struct Fixture {
-    pub _dir: crate::test_temp::TempPath,
+    pub _dir: humanity_core::test_temp::TempPath,
     pub sources: software::Sources,
     pub gimp_folder: PathBuf,
     pub gimp: PathBuf,
@@ -48,7 +48,7 @@ pub(crate) struct Fixture {
 }
 
 pub(crate) fn fixture(tag: &str) -> Fixture {
-    let dir = crate::test_temp::dir(tag);
+    let dir = humanity_core::test_temp::dir(tag);
     let gimp_folder = dir.join("GIMP 3");
     let gimp = program(&gimp_folder, "bin/gimp-3.exe");
     let notepad = program(&dir, "Notepad++/notepad++.exe");

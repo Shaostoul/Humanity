@@ -24,7 +24,7 @@
 //
 // Run after adding a body, a map or an albedo:   node scripts/build-body-colors.js
 // It bumps nothing; bump `catalog_version` by hand when a release must override
-// stale installed copies (src/cosmos.rs `load_sol_json`).
+// stale installed copies (crates/humanity-core/src/cosmos.rs `load_sol_json`).
 
 "use strict";
 const fs = require("fs");

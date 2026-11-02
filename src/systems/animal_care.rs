@@ -37,8 +37,8 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{AIBehavior, Creature, Dead, Harvestable, Name};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AIBehavior, Creature, Dead, Harvestable, Name};
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::ItemRegistry;
 use crate::systems::livestock::HerdSlot;
 
@@ -152,7 +152,7 @@ impl CareData {
 
     /// The file as the game loads it: the data folder's copy, else the built-in one.
     pub fn load(data_dir: &std::path::Path) -> Self {
-        crate::embedded_data::load_data_or_embedded(data_dir, FILE, Self::from_ron).unwrap_or_else(|e| {
+        humanity_core::embedded_data::load_data_or_embedded(data_dir, FILE, Self::from_ron).unwrap_or_else(|e| {
             log::warn!("{e}; farm animals need nothing");
             Self::default()
         })
@@ -959,7 +959,7 @@ pub fn herd_rows(world: &hecs::World, data: &DataStore) -> Vec<HerdRow> {
 /// read from the data it describes, so the two cannot drift.
 pub fn mode_hint() -> String {
     static SHIPPED: std::sync::OnceLock<CareData> = std::sync::OnceLock::new();
-    hint_text(SHIPPED.get_or_init(|| CareData::load(&crate::storage::data_dir())))
+    hint_text(SHIPPED.get_or_init(|| CareData::load(&humanity_core::storage::data_dir())))
 }
 
 fn hint_text(cd: &CareData) -> String {

@@ -7,7 +7,7 @@
 use super::*;
 use crate::net::dm_pq::{DmInner, CTL_FRIEND_CERT};
 use crate::net::reach::{intended_may, intended_may_wire};
-use crate::relay::core::pq_crypto::build_friend_cert;
+use humanity_protocol::pq_crypto::build_friend_cert;
 
 /// What each frame was, in order: their copy of a pass put ("theirs"), our self-copy ("ours"), a
 /// choice note to our own mailbox ("note", 10n; told apart from a self-copy by opening it with our

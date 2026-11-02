@@ -427,7 +427,7 @@ fn make(state: &mut EngineState) {
     match built.build() {
         Ok(icon) => {
             log::info!("tray: the icon shows in the notification area");
-            state.tray.icon = Some(Shown { icon, base, look, lang: crate::i18n::language() });
+            state.tray.icon = Some(Shown { icon, base, look, lang: humanity_core::i18n::language() });
         }
         Err(e) => {
             state.tray.failed = true;
@@ -440,7 +440,7 @@ fn make(state: &mut EngineState) {
 fn refresh(state: &mut EngineState) {
     let Some(shown) = state.tray.icon.as_ref() else { return };
     let look = Look::of(&state.gui_state.settings.notifications.mutes, state.gui_state.notify.list.unseen(), n::now_secs());
-    let lang = crate::i18n::language();
+    let lang = humanity_core::i18n::language();
     if look == shown.look && std::ptr::eq(lang, shown.lang) {
         return;
     }
@@ -470,7 +470,7 @@ fn colours(state: &EngineState) -> n::tray::MarkColours {
 
 /// The app's icon (the exe's own copy, the window's icon) at the tray's size.
 fn base_picture() -> Vec<u8> {
-    const ICON: &[u8] = include_bytes!("../../assets/icon.png");
+    const ICON: &[u8] = include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/icon.png"));
     let px = n::tray::ICON_PX;
     match image::load_from_memory(ICON) {
         Ok(img) => image::imageops::thumbnail(&img.to_rgba8(), px, px).into_raw(),

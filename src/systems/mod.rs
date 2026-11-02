@@ -114,7 +114,7 @@ pub const GAME_EVENTS_KEY: &str = "game_events";
 /// of 2,000 crops ripening at once is one notice (`notifications::game`). The `sfx_events` contract:
 /// the native client registers the list and drains it each frame (`engine/notify.rs`); on a
 /// headless relay or in a lib test nothing registers it and this does nothing. Nothing is networked.
-pub fn push_game_event(data: &crate::hot_reload::data_store::DataStore, id: &str, place: &str) {
+pub fn push_game_event(data: &humanity_core::hot_reload::data_store::DataStore, id: &str, place: &str) {
     if let Some(lock) = data.get::<std::sync::Mutex<Vec<(String, String)>>>(GAME_EVENTS_KEY) {
         if let Ok(mut events) = lock.lock() {
             // A bound, in case nothing drains it (a run with no frame): far past any one frame's.
@@ -134,7 +134,7 @@ pub fn push_game_event(data: &crate::hot_reload::data_store::DataStore, id: &str
 /// simply never registered and this no-ops - the same degradation contract
 /// as `quests::push_quest_event`.
 pub fn push_sfx_event(
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     id: &str,
     fallback: &str,
 ) {

@@ -75,7 +75,7 @@ pub(crate) fn publish_stations(state: &mut EngineState) {
     // Electric stations here with no power, for the Crafting page.
     let mut unpowered = std::collections::HashSet::new();
     if let Some(frame) = here.frame() {
-        for (_e, mt) in world.query::<&crate::ecs::components::MachineType>().iter() {
+        for (_e, mt) in world.query::<&humanity_core::ecs::components::MachineType>().iter() {
             if crate::systems::crafting::CraftingSystem::station_unpowered_at(world, &mt.0, frame).is_some() {
                 unpowered.insert(mt.0.clone());
             }
@@ -120,7 +120,7 @@ pub(crate) fn station_types_here(
     // Where the put-away home is kept: a piece standing over it was built in
     // that home and went away with it (home_plot::carry_built_pieces).
     let kept = ship.filter(|_| away).and_then(crate::engine::home_plot::home_box);
-    let aboard = |pose: Option<&crate::ecs::components::Transform>| match (kept, pose) {
+    let aboard = |pose: Option<&humanity_core::ecs::components::Transform>| match (kept, pose) {
         (Some(b), Some(t)) => !crate::engine::home_plot::over_plot(t.position, b),
         _ => true,
     };
@@ -140,13 +140,13 @@ pub(crate) fn station_types_here(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::Transform;
+    use humanity_core::ecs::components::Transform;
     use crate::ship::ship_structure::{ShipStructure, HOME_AWAY_ORIGIN, HOME_ZONE_ID};
     use crate::systems::construction::{Structure, StationsWhere};
     use glam::Vec3;
 
     fn shipped_blueprints() -> BlueprintRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/blueprints/basic.ron");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/blueprints/basic.ron");
         BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
     }
 
@@ -163,7 +163,7 @@ mod tests {
     /// machines and pieces were stations wherever the home stood).
     #[test]
     fn a_put_away_home_serves_as_no_station() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).unwrap();
         let away = ship.put_home_away().unwrap();
         let reg = shipped_blueprints();
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn a_shut_home_door_stops_e_and_take_down() {
         use crate::systems::construction::uses::{first_in_view, looked_at};
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).unwrap();
         assert_eq!(ship.zones[ship.home_zone_index()].origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");
         let walls = crate::ship::wall_collision::ship_wall_segments(&ship);
@@ -236,7 +236,7 @@ mod tests {
         // Wired: E and F get the doors the walk sweeps against.
         let here = include_str!("built_uses.rs").replace("\r\n", "\n");
         assert!(here.contains("doors: &state.shut_doors"), "reach_blockers does not hand E and F the shut doors");
-        let lib = include_str!("../lib.rs").replace("\r\n", "\n");
+        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
         assert!(lib.contains("crate::engine::built_uses::refresh_shut_doors(state)"), "lib.rs does not refresh the shut doors each frame");
         assert!(lib.contains("let mut doors = state.shut_doors.clone();"), "the walk does not sweep against the shut doors E and F read");
     }
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn the_bedrooms_bed_sleeps_you_as_a_built_bed_does() {
         use std::sync::Mutex;
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
             let home = crate::systems::grow_machines::load_home(&dir.join(file)).expect("the home parses");
             let mut sleepers: Vec<&str> = home
@@ -283,7 +283,7 @@ mod tests {
         assert_eq!(bed.prompt(false), uses::StructureUse::Sleep.prompt("Bed"), "the crosshair says what a built bed's says");
 
         // E at it asks for the night in the Bed, as a built bed does.
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert(crate::systems::sleep::REQUEST_SLOT, Mutex::new(None::<String>));
         assert!(use_machine_label(&data, &bed), "E at the bed is used, not opened");
         let asked = data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().clone();
@@ -405,7 +405,7 @@ pub(crate) fn use_machine(state: &mut EngineState) -> bool {
 /// it, by the name its label shows, through the request a built bed makes
 /// (`systems::sleep::request`), so everything after is the built bed's (the clock runs fast
 /// through the night, the shared world refuses it).
-pub(crate) fn use_machine_label(data: &crate::hot_reload::data_store::DataStore, label: &crate::gui::MachineLabel) -> bool {
+pub(crate) fn use_machine_label(data: &humanity_core::hot_reload::data_store::DataStore, label: &crate::gui::MachineLabel) -> bool {
     match label.on_use {
         Some(uses::StructureUse::Sleep) => {
             crate::systems::sleep::request(data, &label.name);
@@ -456,7 +456,7 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
             // Opening a page mid-walk swallows the key releases: clear held
             // movement in both movers, as the NPC talk card does.
             state.controller.stop_movement();
-            state.data_store.insert("input_state", crate::input::InputState::default());
+            state.data_store.insert("input_state", humanity_core::input::InputState::default());
             state.gui_state.pending_toasts.push((
                 format!("The {name} is under You & your places: drag items onto it to store them."),
                 crate::gui::ToastKind::Info,

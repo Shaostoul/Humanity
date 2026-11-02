@@ -18,9 +18,9 @@ pub mod shared;
 
 pub use site::PlanetSite;
 
-use crate::ecs::components::Transform;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::Transform;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 #[cfg(test)]
 use glam::Vec3;
 use serde::Deserialize;
@@ -275,7 +275,7 @@ pub struct DoorOpen;
 /// own island (`ship_power::site_island`), which no reactor reaches, and
 /// which the site's electric stations then join (`site_power_island`).
 pub fn wire_built_generators(world: &mut hecs::World, registry: &BlueprintRegistry) {
-    use crate::ecs::components::{PowerCircuit, PowerGenerator, SolarPanel};
+    use humanity_core::ecs::components::{PowerCircuit, PowerGenerator, SolarPanel};
     use crate::machines::MachinePower;
     let todo: Vec<(hecs::Entity, MachinePower, Option<PlanetSite>)> = world
         .query::<hecs::Without<(&Structure, Option<&PlanetSite>), &PowerGenerator>>()
@@ -390,7 +390,7 @@ impl BuildRequest {
 /// station with no power (`CraftingSystem::station_unpowered_at`), and it is
 /// wired the tick its site gains power.
 pub fn wire_built_stations(world: &mut hecs::World, registry: &BlueprintRegistry) {
-    use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+    use humanity_core::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
     let electric = |s: &Structure| {
         let bp = registry.get(&s.blueprint_id)?;
         let station = bp.stations.first()?.clone();
@@ -431,7 +431,7 @@ pub fn wire_built_stations(world: &mut hecs::World, registry: &BlueprintRegistry
 /// stands in `site`, or None when nothing there makes power (the home's
 /// generators are in orbit and never count).
 pub fn site_power_island(world: &hecs::World, site: &PlanetSite) -> Option<u32> {
-    use crate::ecs::components::{PowerCircuit, PowerGenerator};
+    use humanity_core::ecs::components::{PowerCircuit, PowerGenerator};
     let mut q = world.query::<(&PowerGenerator, &PowerCircuit, &PlanetSite)>();
     let found = q.iter().find(|(_e, (_, _, s))| *s == site).map(|(_e, (_, pc, _))| pc.island);
     found
@@ -700,7 +700,7 @@ pub fn begin_build(world: &mut hecs::World, data: &DataStore, req: BuildRequest)
             .unwrap_or(0)
     };
     let player = world
-        .query::<(&crate::systems::inventory::Inventory, &crate::ecs::components::Controllable)>()
+        .query::<(&crate::systems::inventory::Inventory, &humanity_core::ecs::components::Controllable)>()
         .iter()
         .next()
         .map(|(e, _)| e);
@@ -923,7 +923,7 @@ mod tests {
     /// shipped file, not just a synthetic fixture.
     #[test]
     fn from_ron_parses_the_real_shipped_blueprint_catalog() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("blueprints")
             .join("basic.ron");
@@ -954,7 +954,7 @@ mod tests {
     #[test]
     fn every_blueprint_material_is_a_real_item() {
         let items = crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -999,8 +999,8 @@ mod tests {
     /// a workbench (no power role) gets nothing.
     #[test]
     fn a_built_stove_joins_the_home_power_and_a_workbench_does_not() {
-        use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+        use humanity_core::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("blueprints").join("basic.ron");
         let reg = BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap();
         let mut world = hecs::World::new();
         world.spawn((PowerGenerator { output_watts: 50.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 1 }));
@@ -1029,7 +1029,7 @@ mod tests {
     /// stove on the home's island 2 and the first assertion fails.
     #[test]
     fn a_stove_built_on_a_planet_is_not_on_the_homes_grid() {
-        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+        use humanity_core::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
         use crate::systems::crafting::CraftingSystem;
         let reg = shipped_registry();
         let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) };
@@ -1067,7 +1067,7 @@ mod tests {
     /// planet wall from orbit and the scaffold-count assertion fails.
     #[test]
     fn a_planet_build_takes_what_the_player_carries() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let wall = reg.get("wood_wall").unwrap().clone();
@@ -1111,7 +1111,7 @@ mod tests {
     /// home's storage" (left: 1, right: 0).
     #[test]
     fn a_guest_builds_from_what_they_carry() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::crafting::home_store::HOME_STORAGE_HERE;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
@@ -1167,7 +1167,7 @@ mod tests {
     /// Three Wood Walls, open to the south, round the cell at the origin of
     /// `site`, and a builder carrying enough for everything built here.
     fn hut(reg: &BlueprintRegistry, site: &PlanetSite) -> (hecs::World, hecs::Entity) {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let mut world = hecs::World::new();
         let mut pack = Inventory::new(16);
@@ -1258,7 +1258,7 @@ mod tests {
     }
 
     fn shipped_registry() -> BlueprintRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("blueprints")
             .join("basic.ron");
@@ -1280,7 +1280,7 @@ mod tests {
     /// build_<id> quest event the authored construction quests wait on.
     #[test]
     fn build_request_consumes_materials_and_completes() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
 
         let reg = shipped_registry();
@@ -1329,7 +1329,7 @@ mod tests {
     /// (nothing spawns, nothing is consumed).
     #[test]
     fn build_refused_without_materials() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
 
         let data = build_store(
@@ -1362,7 +1362,7 @@ mod tests {
     /// wall's planks, and the scaffold-count assertion fails.
     #[test]
     fn a_duplicate_build_is_refused_and_costs_nothing() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let wall = reg.get("wood_wall").unwrap().clone();
@@ -1405,7 +1405,7 @@ mod tests {
     /// and the position assertion fails.
     #[test]
     fn the_build_lands_exactly_at_the_ghosts_pose() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let wall = reg.get("wood_wall").unwrap().clone();
@@ -1480,7 +1480,7 @@ mod tests {
     /// right: 0".
     #[test]
     fn a_shared_build_spends_once_pushes_an_intent_and_spawns_nothing() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let wall = reg.get("wood_wall").unwrap().clone();
@@ -1531,7 +1531,7 @@ mod tests {
     /// a chest the server could never keep: left: (12, 10), right: (20, 10)".
     #[test]
     fn a_shared_request_for_a_piece_that_is_not_shareable_spends_nothing() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let chest = reg.get("storage_chest").unwrap().clone();
@@ -1627,7 +1627,7 @@ mod tests {
     /// "a shared roof over a campfire is refused: \"Building Wood Roof...\"".
     #[test]
     fn a_build_kept_by_the_server_meets_the_fire_rules_too() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::inventory::Inventory;
         let reg = shipped_registry();
         let mut world = hecs::World::new();

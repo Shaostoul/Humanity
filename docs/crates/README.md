@@ -4,26 +4,28 @@ One page for each of the ten crates the crate split plans (`docs/design/crate-sp
 agent working inside one crate reads one page instead of catching up on the whole repo. The
 operator, 2026-10-30: "Sounds like something we gotta do."
 
-The crates do not exist as separate Cargo packages yet: today all of `src/` is one crate, and
-`scripts/crate-layers.json` says which crate each part of it will go to. Rung 1 of the split cuts
-the first two into `crates/<name>/`; these cards are documents, and they live here, in
-`docs/crates/`, whatever happens to the code.
+Two of them are Cargo packages of their own since rung 1 of the split (2026-11-01):
+`crates/humanity-core/` and `crates/humanity-protocol/`, members of the workspace the root
+`Cargo.toml` declares. The other eight are still parts of the root package, `src/`, and
+`scripts/crate-layers.json` says which crate each part will go to (a cut crate gives its `dir`
+there instead). These cards are documents, and they live here, in `docs/crates/`, whatever
+happens to the code.
 
 ## The cards
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 | Card | Lines | May use | What it is for | Requests |
 |---|---:|---|---|---:|
-| [humanity-core](humanity-core.md) | 14,659 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
-| [humanity-protocol](humanity-protocol.md) | 12,512 | core | What the app and the server must agree on, byte for byte. | 0 |
+| [humanity-core](humanity-core.md) | 14,811 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
+| [humanity-protocol](humanity-protocol.md) | 12,539 | core | What the app and the server must agree on, byte for byte. | 0 |
 | [humanity-ship](humanity-ship.md) | 31,581 | core | The home and the ship as places a person stands in. | 0 |
 | [humanity-terrain](humanity-terrain.md) | 25,569 | core | Planets as shapes and numbers. | 0 |
-| [humanity-systems](humanity-systems.md) | 79,464 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
-| [humanity-relay](humanity-relay.md) | 110,881 | core, protocol, ship, systems | The server: the relay the VPS runs as `HumanityOS --headless`. | 0 |
+| [humanity-systems](humanity-systems.md) | 79,445 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
+| [humanity-relay](humanity-relay.md) | 110,880 | core, protocol, ship, systems | The server: the relay the VPS runs as `HumanityOS --headless`. | 0 |
 | [humanity-net](humanity-net.md) | 30,654 | core, protocol | The app's side of the network: the WebSocket client to a server (`ws_client`, `client`), the shared world's state as it arrives (`sync`, `protocol`), sealed direct messages and their history on this device (`dm_pq`, `dm_store`), P2P groups (`group_e2ee`), voice and calls (`voice`, `webrtc`, `call_relay`), device-to-device files (`file_link`, `file_offer`, `file_transfer`), the live stream and the live weather, and the recovery-phrase identity (`identity`). | 0 |
 | [humanity-renderer](humanity-renderer.md) | 65,912 | core, terrain | The GPU side: everything that uploads and draws. | 0 |
-| [humanity-gui](humanity-gui.md) | 194,291 | core, protocol, ship, terrain, systems, relay, net, renderer | Everything a person sees and touches in the desktop app's pages: every page and widget (`gui/`, with `GuiState`, the state every page reads, in `gui/mod.rs`), the settings that save them (`config`, which also holds the identity vault), notifications, and the pages' backends: the Games and Apps readers (`games`, `software`), the media player (`media`), the readable web (`web_reader`) and the updater that Settings > Updates drives, with the signed-release check it verifies every download by (`release_update`, which the binary's signing commands use too; the relay's until 2026-10-31, but native-only and never called by the server). | 0 |
-| [humanity-engine](humanity-engine.md) | 94,854 | core, protocol, ship, terrain, systems, relay, net, renderer, gui | THE FRAME: the main loop, and everything that wires the other crates into one running app. | 0 |
+| [humanity-gui](humanity-gui.md) | 194,294 | core, protocol, ship, terrain, systems, relay, net, renderer | Everything a person sees and touches in the desktop app's pages: every page and widget (`gui/`, with `GuiState`, the state every page reads, in `gui/mod.rs`), the settings that save them (`config`, which also holds the identity vault), notifications, and the pages' backends: the Games and Apps readers (`games`, `software`), the media player (`media`), the readable web (`web_reader`) and the updater that Settings > Updates drives, with the signed-release check it verifies every download by (`release_update`, which the binary's signing commands use too; the relay's until 2026-10-31, but native-only and never called by the server). | 0 |
+| [humanity-engine](humanity-engine.md) | 94,762 | core, protocol, ship, terrain, systems, relay, net, renderer, gui | THE FRAME: the main loop, and everything that wires the other crates into one running app. | 0 |
 <!-- end generated -->
 
 Crates are named short inside the cards: `core` is `humanity-core`, `gui` is `humanity-gui`.

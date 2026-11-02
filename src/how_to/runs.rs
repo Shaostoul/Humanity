@@ -223,7 +223,7 @@ impl RunStore {
     pub fn save(&self, run: &Run) -> Result<(), String> {
         std::fs::create_dir_all(&self.dir).map_err(|e| format!("could not make {}: {e}", self.dir.display()))?;
         let bytes = serde_json::to_vec_pretty(run).map_err(|e| e.to_string())?;
-        crate::atomic_write::write_atomic(&self.path_of(&run.run), &bytes)
+        humanity_core::atomic_write::write_atomic(&self.path_of(&run.run), &bytes)
     }
 
     fn path_of(&self, run: &str) -> PathBuf {

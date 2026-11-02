@@ -21,7 +21,7 @@ use egui::{Context, RichText};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Hint};
 use crate::gui::{GuiPage, GuiState};
-use crate::i18n::t;
+use humanity_core::i18n::t;
 use crate::notifications::{self as n, list::Entry};
 
 /// The bell is the help button's size, beside it.

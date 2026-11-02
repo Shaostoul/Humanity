@@ -272,7 +272,7 @@ mod tests {
     use super::*;
 
     fn shipped() -> HelpRegistry {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         load_help_registry(&dir)
     }
 

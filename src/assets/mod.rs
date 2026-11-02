@@ -18,7 +18,7 @@ use std::path::PathBuf;
 #[cfg(feature = "native")]
 use serde::de::DeserializeOwned;
 
-use crate::embedded_data;
+use humanity_core::embedded_data;
 
 /// CPU-side mesh data decoded from a glTF file — plain vertex/index arrays,
 /// no GPU resources, so it can be produced without a wgpu device (unit tests,
@@ -26,7 +26,7 @@ use crate::embedded_data;
 /// `crate::renderer::mesh::Mesh::from_vertices(device, &vertices, &indices)`.
 #[cfg(feature = "native")]
 pub struct GltfCpuMesh {
-    pub vertices: Vec<crate::vertex::Vertex>,
+    pub vertices: Vec<humanity_core::vertex::Vertex>,
     pub indices: Vec<u32>,
 }
 
@@ -140,7 +140,7 @@ impl AssetManager {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let records: Vec<T> = crate::data_parse::parse_csv(&bytes)?;
+            let records: Vec<T> = humanity_core::data_parse::parse_csv(&bytes)?;
             log::info!("Loaded {} records from {}", records.len(), relative_path);
             self.cache.insert(relative_path.to_string(), Box::new(records));
         }
@@ -160,7 +160,7 @@ impl AssetManager {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let value: T = crate::data_parse::parse_toml(&bytes)?;
+            let value: T = humanity_core::data_parse::parse_toml(&bytes)?;
             log::info!("Loaded TOML: {}", relative_path);
             self.cache.insert(relative_path.to_string(), Box::new(value));
         }
@@ -180,7 +180,7 @@ impl AssetManager {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-            let value: T = crate::data_parse::parse_ron(&bytes)?;
+            let value: T = humanity_core::data_parse::parse_ron(&bytes)?;
             log::info!("Loaded RON: {}", relative_path);
             self.cache.insert(relative_path.to_string(), Box::new(value));
         }
@@ -287,8 +287,8 @@ impl AssetManager {
         } else {
             generate_planar_uvs(&positions)
         };
-        let vertices: Vec<crate::vertex::Vertex> = positions.iter().enumerate().map(|(i, pos)| {
-            crate::vertex::Vertex {
+        let vertices: Vec<humanity_core::vertex::Vertex> = positions.iter().enumerate().map(|(i, pos)| {
+            humanity_core::vertex::Vertex {
                 position: *pos,
                 normal: normals.get(i).copied().unwrap_or([0.0, 1.0, 0.0]),
                 uv: uvs.get(i).copied().unwrap_or([0.0, 0.0]),
@@ -482,7 +482,7 @@ impl AssetManager {
         let records: Vec<T> = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match crate::data_parse::parse_csv(&bytes) {
+                    match humanity_core::data_parse::parse_csv(&bytes) {
                         Ok(r) => {
                             log::info!("Loaded {} records from disk: {}", r.len(), relative_path);
                             r
@@ -527,7 +527,7 @@ impl AssetManager {
         let value: T = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match crate::data_parse::parse_toml(&bytes) {
+                    match humanity_core::data_parse::parse_toml(&bytes) {
                         Ok(v) => {
                             log::info!("Loaded TOML from disk: {relative_path}");
                             v
@@ -572,7 +572,7 @@ impl AssetManager {
         let value: T = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match crate::data_parse::parse_ron(&bytes) {
+                    match humanity_core::data_parse::parse_ron(&bytes) {
                         Ok(v) => {
                             log::info!("Loaded RON from disk: {relative_path}");
                             v
@@ -617,7 +617,7 @@ impl AssetManager {
         let value: T = if path.exists() {
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    match crate::data_parse::parse_json(&bytes) {
+                    match humanity_core::data_parse::parse_json(&bytes) {
                         Ok(v) => {
                             log::info!("Loaded JSON from disk: {relative_path}");
                             v
@@ -662,7 +662,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        crate::data_parse::parse_csv(text.as_bytes())
+        humanity_core::data_parse::parse_csv(text.as_bytes())
     }
 
     #[cfg(feature = "native")]
@@ -672,7 +672,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        crate::data_parse::parse_toml(text.as_bytes())
+        humanity_core::data_parse::parse_toml(text.as_bytes())
     }
 
     #[cfg(feature = "native")]
@@ -682,7 +682,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        crate::data_parse::parse_ron(text.as_bytes())
+        humanity_core::data_parse::parse_ron(text.as_bytes())
     }
 
     #[cfg(feature = "native")]
@@ -692,7 +692,7 @@ impl AssetManager {
         // The caller's disk copy was missing, unreadable or did not parse (it logged
         // which): say that this run serves the built-in copy (BUG-133).
         embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
-        crate::data_parse::parse_json(text.as_bytes())
+        humanity_core::data_parse::parse_json(text.as_bytes())
     }
 
     /// Invalidate a cached entry (called by hot-reload on file change).
@@ -920,7 +920,7 @@ mod gltf_texture_tests {
     /// checkout at runtime.
     #[test]
     fn loads_grass_variant_mesh_and_texture() {
-        let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo_root = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let manager = AssetManager::new(repo_root.join("data"));
         let (mesh, texture) = manager
             .parse_gltf_mesh_with_texture("assets/models/plants/grass_medium_02/grass_medium_02_v1.gltf")
@@ -1027,7 +1027,7 @@ mod crop_palette_tests {
     /// fails on the same 75, so the luminance gate holds on its own.
     #[test]
     fn every_crop_palette_reaches_the_shader_as_plant_colour() {
-        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let manager = AssetManager::new(repo.join("data"));
         let plants = repo.join("assets/models/plants");
         let mut checked = 0usize;
@@ -1129,7 +1129,7 @@ mod crop_palette_tests {
     /// cabinetbeddrawertable, 6 vertices.
     #[test]
     fn no_converted_model_has_a_vertex_on_a_cut_out_texel() {
-        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let manager = AssetManager::new(repo.join("data"));
         let models = converted_models(&repo);
         // 102 crop models and 15 furniture models; far fewer means the walk
@@ -1247,7 +1247,7 @@ mod crop_palette_tests {
 
         // A real conifer leaf card: its transparency comes from its own
         // alpha channel and arrives as authored.
-        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let manager = AssetManager::new(repo.join("data"));
         let (_, fir) = manager
             .parse_gltf_mesh_with_texture("assets/models/plants/fir_sapling/fir_sapling_v1.gltf")
@@ -1290,7 +1290,7 @@ mod crop_palette_tests {
     /// fails with 68 triangles in the 8 pumpkin and watermelon models.
     #[test]
     fn no_converted_model_has_a_triangle_wound_against_its_normal() {
-        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let manager = AssetManager::new(repo.join("data"));
         let models = converted_models(&repo);
         assert!(models.len() >= 115, "only {} converted models found", models.len());
@@ -1336,7 +1336,7 @@ mod crop_palette_tests {
 #[cfg(all(test, feature = "native"))]
 mod model_scale_tests {
     use super::*;
-    use crate::vertex::Vertex;
+    use humanity_core::vertex::Vertex;
 
     fn mesh_of_height(h: f32) -> GltfCpuMesh {
         // A unit-square column standing on y = 0, like the furniture pack.

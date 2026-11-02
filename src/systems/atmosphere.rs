@@ -8,9 +8,9 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::Health;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::Health;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 // ── Data types ─────────────────────────────────────────────
 
@@ -534,8 +534,8 @@ mod tests {
     /// Live air card. An Earth-like sealed home reads ~21% O2 and breathable.
     #[test]
     fn publishes_home_air_status() {
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("air_status", std::sync::Mutex::new(AirStatus::default()));
         let mut world = hecs::World::new();
@@ -593,7 +593,7 @@ mod tests {
     /// unbreathable CO2; standing on Earth restores full breathable air.
     #[test]
     fn body_environment_sets_outside_atmosphere() {
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::systems::System;
         use crate::systems::body_environment::BodyEnvironment;
         let mut sys = AtmosphereSystem::new();
         let mut world = hecs::World::new();

@@ -452,12 +452,12 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             // for the peer's offer — both presses on both machines
                             // are harmless).
                             webrtc.offer_to(peer_key.clone());
-                            crate::debug::push_debug(format!(
+                            humanity_core::debug::push_debug(format!(
                                 "WebRTC: P2P test initiated to {}",
                                 if peer_key.len() > 12 { &peer_key[..12] } else { &peer_key }
                             ));
                         } else {
-                            crate::debug::push_debug("WebRTC: manager not ready (connect to a server first)");
+                            humanity_core::debug::push_debug("WebRTC: manager not ready (connect to a server first)");
                         }
                     }
                 } else {

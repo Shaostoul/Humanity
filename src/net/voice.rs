@@ -3,7 +3,7 @@
 //! network). Pure Rust: cpal (WASAPI on Windows) + unsafe-libopus (libopus
 //! transpiled to Rust, no C toolchain). Later phases add the WebRTC media
 //! transport (str0m), the voice mesh join, and the per-peer controls. This
-//! subsystem is separate from src/audio (kira game SFX); WASAPI shared mode
+//! subsystem is separate from crates/humanity-core/src/audio (kira game SFX); WASAPI shared mode
 //! mixes the two output streams for us.
 #![cfg(feature = "native")]
 
@@ -295,7 +295,7 @@ pub fn start_mic_test(input_name: String, output_name: String) {
         if let Err(e) = run_loopback(&input_name, &output_name) {
             log::warn!("Mic test failed: {e}");
             set_status(&format!("Failed: {e}"));
-            crate::debug::push_debug(format!("Mic test failed: {e}"));
+            humanity_core::debug::push_debug(format!("Mic test failed: {e}"));
         }
         MIC_RUNNING.store(false, Ordering::SeqCst);
         MIC_PEAK_BITS.store(0, Ordering::Relaxed);
@@ -793,7 +793,7 @@ pub fn start_voice_session(input_name: String, output_name: String) {
         if let Err(e) = run_voice_session(&input_name, &output_name) {
             log::warn!("Voice session failed: {e}");
             set_voice_status(&format!("Voice failed: {e}"));
-            crate::debug::push_debug(format!("Voice session failed: {e}"));
+            humanity_core::debug::push_debug(format!("Voice session failed: {e}"));
         }
         VOICE_SESSION_RUNNING.store(false, Ordering::SeqCst);
         VOICE_TRANSMITTING.store(false, Ordering::Relaxed);

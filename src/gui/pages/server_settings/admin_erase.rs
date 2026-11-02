@@ -265,7 +265,7 @@ mod tests {
         click(&ctx, &theme, &mut state, "Dismiss");
         assert!(state.admin_erase.receipt.is_none(), "Dismiss kept the receipt");
 
-        let pump = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/engine/frame_ws_poll.rs"))
+        let pump = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/engine/frame_ws_poll.rs"))
             .expect("read the message pump");
         assert!(
             pump.contains("crate::net::admin_erase::on_frame(&mut state.gui_state.admin_erase, &val)"),

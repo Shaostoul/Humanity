@@ -10,8 +10,8 @@ pub mod placed;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Default max stack size when item definition doesn't specify one.
 const DEFAULT_MAX_STACK: u32 = 99;
@@ -696,7 +696,7 @@ impl ItemRegistry {
     /// `DataStore["item_registry"]` — before v0.323 the CSV was loaded then
     /// discarded, so item-name/stack/mass lookups silently fell back to defaults.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<ItemRow> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<ItemRow> = humanity_core::data_parse::parse_csv(data)?;
         let mut items = HashMap::new();
         for row in rows {
             let max_stack = row.stack_size.max(1);
@@ -847,7 +847,7 @@ mod item_registry_csv_tests {
             }
         }
 
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut files = Vec::new();
         collect_csvs(&data_dir, &mut files);
 
@@ -866,7 +866,7 @@ mod item_registry_csv_tests {
                 .to_string_lossy()
                 .replace('\\', "/");
 
-            // Mirror crate::data_parse::parse_csv: '#' comment lines are
+            // Mirror humanity_core::data_parse::parse_csv: '#' comment lines are
             // stripped BEFORE the csv reader sees the file, so the first
             // surviving non-blank line is the header row.
             let mut rows = text
@@ -1037,9 +1037,9 @@ mod grade_tests {
 #[cfg(test)]
 mod transfer_tests {
     use super::*;
-    use crate::ecs::components::Controllable;
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::components::Controllable;
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
 
     /// Backpack <-> container transfer: the GUI pushes (item_id, qty, is_add) into the
     /// inventory_transfer_ops channel; InventorySystem applies them to the player's
@@ -1218,7 +1218,7 @@ mod transfer_tests {
     #[test]
     fn the_carry_bonus_is_recorded_and_the_limit_follows_gravity() {
         use crate::systems::encumbrance as enc;
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/equipment.csv");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/equipment.csv");
         let equipment =
             crate::systems::economy::EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
         let mut data = DataStore::new();
@@ -1230,7 +1230,7 @@ mod transfer_tests {
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(8);
         inv.add_item("iron_ore_0", 31, 50);
-        let mut outfit = crate::ecs::components::Outfit::default();
+        let mut outfit = humanity_core::ecs::components::Outfit::default();
         outfit.equipped.insert("back".into(), "backpack_large_0".into());
         let player = world.spawn((inv, outfit, Controllable));
         let mut sys = InventorySystem::new();
@@ -1316,7 +1316,7 @@ impl System for InventorySystem {
                 slot.lock().map(|mut g| std::mem::take(&mut *g)).unwrap_or_default();
             if !xfers.is_empty() {
                 if let Some((_e, (inv, _))) = world
-                    .query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>()
+                    .query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable)>()
                     .into_iter()
                     .next()
                 {
@@ -1337,7 +1337,7 @@ impl System for InventorySystem {
         // each trade's moves and record it settled IN THE SAME STEP, so a save
         // never holds a trade marked settled whose items have not moved.
         for (_e, (inv, _c, ts)) in
-            world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable, &mut TradeSettlements)>()
+            world.query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable, &mut TradeSettlements)>()
         {
             for (trade_id, moves) in std::mem::take(&mut ts.pending) {
                 for op in &moves {
@@ -1409,7 +1409,7 @@ impl System for InventorySystem {
         use crate::systems::encumbrance as enc;
         let local_g = data.get::<f32>(enc::LOCAL_G_KEY).copied().unwrap_or(enc::ONE_G_M_S2);
         for (_entity, (inventory, outfit)) in world
-            .query_mut::<(&mut Inventory, Option<&crate::ecs::components::Outfit>)>()
+            .query_mut::<(&mut Inventory, Option<&humanity_core::ecs::components::Outfit>)>()
         {
             let mut total_weight: f32 = 0.0;
             let mut total_volume: f32 = 0.0;

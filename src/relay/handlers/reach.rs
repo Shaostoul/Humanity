@@ -71,7 +71,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::relay::core::pq_crypto::{verify_file_pass, FilePass, FriendPass};
+use humanity_protocol::pq_crypto::{verify_file_pass, FilePass, FriendPass};
 use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::relay::{RelayMessage, RelayState};
 

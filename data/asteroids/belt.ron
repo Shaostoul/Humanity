@@ -1,7 +1,7 @@
 // HumanityOS ASTEROID BELT: the asteroids a NEW world starts with, for the mining loop (the
 // drone flies to one, mines its finite ore and brings it home; DroneSystem removes an asteroid
 // once it is mined out). Read by src/save_load.rs `fresh_asteroids`, disk first, else the copy
-// built into the exe (src/embedded_data.rs ASTEROID_BELT_RON).
+// built into the exe (crates/humanity-core/src/embedded_data.rs ASTEROID_BELT_RON).
 //
 // Where they are used: every world that starts fresh, your own home's first launch and every
 // server save made fresh for you (ship homes increment 6: a server world starts every player

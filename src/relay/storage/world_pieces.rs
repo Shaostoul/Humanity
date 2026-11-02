@@ -252,7 +252,7 @@ mod tests {
     /// taken-down piece's number is never given again / left: 2 / right: more than 2".
     #[test]
     fn pieces_round_trip_and_ids_are_never_reused() {
-        let path = crate::test_temp::db("world_pieces_ids");
+        let path = humanity_core::test_temp::db("world_pieces_ids");
         let first_wall = wall("mothership-1", "plot:p1", "did:hum:ann");
         let second_wall = NewPiece { position: [50.5, 0.1, 36.0], ..first_wall.clone() };
         let (first, second) = {
@@ -322,10 +322,10 @@ mod tests {
     /// Some(\"table roles has no column named can_edit_ship\"))" (the seed's INSERT names it).
     #[test]
     fn a_database_from_before_the_pieces_opens_and_admin_has_the_ship_rank() {
-        let path = crate::test_temp::db("world_pieces_prev");
+        let path = humanity_core::test_temp::db("world_pieces_prev");
         {
             let conn = rusqlite::Connection::open(&path).unwrap();
-            conn.execute_batch(include_str!("../../../tests/fixtures/relay/relay_v0_1456.sql")).expect("the previous code's database loads from its dump");
+            conn.execute_batch(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/relay_v0_1456.sql"))).expect("the previous code's database loads from its dump");
             let has: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name = 'world_pieces')", [], |r| r.get(0)).unwrap();
             assert!(!has, "the fixture is from before the pieces");
             assert!(conn.prepare("SELECT can_edit_ship FROM roles LIMIT 0").is_err(), "and before the rank");

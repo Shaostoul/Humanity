@@ -2883,7 +2883,7 @@ mod tests {
 
     pub(super) fn registry() -> TreeRegistry {
         let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/vegetation/trees.ron"),
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/vegetation/trees.ron"),
         )
         .expect("data/vegetation/trees.ron exists");
         TreeRegistry::from_ron(&text).expect("trees.ron parses")
@@ -4589,7 +4589,7 @@ mod tests {
     /// so it is caught here instead, by reading the call sites.
     #[test]
     fn no_furniture_or_decoration_site_opts_into_wind() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         for rel in ["src/engine/home_meshes.rs", "src/engine/world_load.rs"] {
             let src = std::fs::read_to_string(root.join(rel)).expect(rel);
             let lines: Vec<&str> = src.lines().map(|l| l.trim()).collect();
@@ -5003,7 +5003,7 @@ mod tests {
     #[test]
     #[ignore]
     fn dump_fork_png() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("debug");
         std::fs::create_dir_all(&dir).expect("debug dir");
         let r = registry();
         for t in r.trees.iter().map(as_procedural) {
@@ -5165,7 +5165,7 @@ mod tests {
         use crate::renderer::billboard_bake::{
             cpu_cluster_sprite, CLUSTER_BAKE_PX, CLUSTER_SPRITE_PX,
         };
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("debug");
         std::fs::create_dir_all(&dir).expect("debug dir");
         let r = registry();
         let lent = borrowed_cluster_def();
@@ -5256,7 +5256,7 @@ mod tests {
     #[test]
     #[ignore]
     fn dump_bark_png() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("debug");
         std::fs::create_dir_all(&dir).expect("debug dir");
         for t in registry().trees.iter() {
             let base = bake_bark_rgba(t);

@@ -33,9 +33,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::ecs::components::BurnsFuels;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::BurnsFuels;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 // ===========================================================================
 // Data-file schemas
@@ -228,7 +228,7 @@ pub struct ContentClass {
 /// any); Err = why it was not cleaned, for the player.
 pub fn clean_container(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     e: hecs::Entity,
 ) -> Result<(f32, Option<String>), String> {
     use crate::systems::inventory::{Inventory, ItemRegistry};
@@ -246,7 +246,7 @@ pub fn clean_container(
         reg.content_classes.get(&class).and_then(|c| c.cleaning_agent.clone())
     });
     let player = world
-        .query::<(&Inventory, &crate::ecs::components::Controllable)>()
+        .query::<(&Inventory, &humanity_core::ecs::components::Controllable)>()
         .iter()
         .next()
         .map(|(p, _)| p);
@@ -356,13 +356,13 @@ pub fn feed_items(
 pub fn vessel_takes(world: &hecs::World, data: &DataStore, machine: hecs::Entity) -> Option<VesselTakes> {
     if let Ok(f) = world.get::<&BurnsFuels>(machine) {
         // A stove's box (2026-10-20) or a generator's drum.
-        return Some(if world.get::<&crate::ecs::components::FuelStove>(machine).is_ok() {
+        return Some(if world.get::<&humanity_core::ecs::components::FuelStove>(machine).is_ok() {
             VesselTakes::Firewood(f.0.clone())
         } else {
             VesselTakes::Fuels(f.0.clone())
         });
     }
-    let recipe_id = world.get::<&crate::ecs::components::AutoRefine>(machine).ok()?.recipe_id.clone();
+    let recipe_id = world.get::<&humanity_core::ecs::components::AutoRefine>(machine).ok()?.recipe_id.clone();
     let vessel_type = world.get::<&Container>(machine).ok()?.container_type_id.clone();
     let recipe = data
         .get::<crate::systems::crafting::RecipeRegistry>("recipe_registry")
@@ -721,7 +721,7 @@ impl ContainerRegistry {
     /// file's copy by itself (BUG-163: the data folder's when this version can
     /// read it, else the one built into the exe).
     pub fn types_from_csv(types_csv: &[u8]) -> Result<HashMap<String, ContainerType>, String> {
-        let rows: Vec<ContainerTypeRow> = crate::data_parse::parse_csv(types_csv)?;
+        let rows: Vec<ContainerTypeRow> = humanity_core::data_parse::parse_csv(types_csv)?;
         Ok(rows
             .into_iter()
             .map(|row| {
@@ -734,7 +734,7 @@ impl ContainerRegistry {
     /// The content classes of `data/containers/content_classes.ron` alone (see
     /// `types_from_csv`).
     pub fn classes_from_ron(classes_ron: &[u8]) -> Result<HashMap<String, ContentClass>, String> {
-        let classes: Vec<ContentClass> = crate::data_parse::parse_ron(classes_ron)?;
+        let classes: Vec<ContentClass> = humanity_core::data_parse::parse_ron(classes_ron)?;
         Ok(classes.into_iter().map(|c| (c.id.clone(), c)).collect())
     }
 
@@ -841,21 +841,21 @@ impl ContainerRegistry {
     /// The contact materials of `data/containers/materials.csv` alone (see
     /// `types_from_csv`).
     pub fn materials_from_csv(materials_csv: &[u8]) -> Result<HashMap<String, Material>, String> {
-        let mats: Vec<Material> = crate::data_parse::parse_csv(materials_csv)?;
+        let mats: Vec<Material> = humanity_core::data_parse::parse_csv(materials_csv)?;
         Ok(mats.into_iter().map(|m| (m.id.clone(), m)).collect())
     }
 
     /// The content traits of `data/containers/content_traits.ron` alone: by food
     /// profile, and by content class (see `types_from_csv`).
     pub fn traits_from_ron(traits_ron: &[u8]) -> Result<ContentTraits, String> {
-        let traits: ContentTraitsFile = crate::data_parse::parse_ron(traits_ron)?;
+        let traits: ContentTraitsFile = humanity_core::data_parse::parse_ron(traits_ron)?;
         Ok((traits.profiles, traits.classes))
     }
 
     /// Item -> food profile, from `data/food/item_profiles.ron` alone (see
     /// `types_from_csv`).
     pub fn profiles_from_ron(item_profiles_ron: &[u8]) -> Result<HashMap<String, String>, String> {
-        let profiles: ItemProfilesFile = crate::data_parse::parse_ron(item_profiles_ron)?;
+        let profiles: ItemProfilesFile = humanity_core::data_parse::parse_ron(item_profiles_ron)?;
         Ok(profiles.items.into_iter().collect())
     }
 
@@ -1175,8 +1175,8 @@ mod tests {
     /// Load the registry from the actual repo data files so the tests also
     /// exercise the real CSV/RON content (test (d): the registry loads).
     fn load_registry() -> ContainerRegistry {
-        // CARGO_MANIFEST_DIR points at the crate root; data/ lives beside it.
-        let root = env!("CARGO_MANIFEST_DIR");
+        // HUMANITY_REPO_ROOT is the repo root; data/ is in it.
+        let root = env!("HUMANITY_REPO_ROOT");
         let types =
             std::fs::read(format!("{root}/data/containers/types.csv")).expect("read types.csv");
         let classes = std::fs::read(format!("{root}/data/containers/content_classes.ron"))
@@ -1388,15 +1388,15 @@ mod tests {
     /// that held only water is rinsed with water alone.
     #[test]
     fn a_food_residue_needs_soap_and_water_does_not() {
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::hot_reload::data_store::DataStore;
         use crate::systems::inventory::{Inventory, ItemRegistry};
         let reg = load_registry();
         let mut data = DataStore::new();
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         data.insert("item_registry", ItemRegistry::from_csv(&std::fs::read(format!("{root}/data/items.csv")).unwrap()).unwrap());
         data.insert("container_registry", reg.clone());
         let mut world = hecs::World::new();
-        let player = world.spawn((Inventory::new(8), crate::ecs::components::Controllable));
+        let player = world.spawn((Inventory::new(8), humanity_core::ecs::components::Controllable));
         let mut tank = Container::from_type(reg.container_type("dairy_food_tank").unwrap());
         reg.try_store(&mut tank, "milk_0", "food", 1.0, 2);
         tank.current_qty = 0;
@@ -1471,7 +1471,7 @@ mod tests {
     /// A food vessel made of a non-food-grade material refuses all food.
     #[test]
     fn a_non_food_grade_vessel_refuses_food() {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let types = b"id,name,base_material,capacity_liters,pressure_rating_atm,max_temp_c,min_temp_c,accepted_content_classes,description,direct_contact\n\
             steel_bin,Steel Bin,carbon_steel,50.0,1.0,60.0,-20.0,food|dry_goods,test,true\n";
         let read = |rel: &str| std::fs::read(format!("{root}/data/{rel}")).expect(rel);
@@ -1567,7 +1567,7 @@ mod tests {
     }
 
     fn shipped_items() -> crate::systems::inventory::ItemRegistry {
-        let csv = std::fs::read(format!("{}/data/items.csv", env!("CARGO_MANIFEST_DIR"))).expect("data/items.csv");
+        let csv = std::fs::read(format!("{}/data/items.csv", env!("HUMANITY_REPO_ROOT"))).expect("data/items.csv");
         crate::systems::inventory::ItemRegistry::from_csv(&csv).expect("item registry")
     }
 
@@ -1590,7 +1590,7 @@ mod tests {
     /// crude oil Refine Crude Oil runs on" (Paint too, past the four buttons).
     #[test]
     fn the_refinerys_drum_takes_only_the_crude_oil_its_recipe_runs_on() {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let reg = load_registry();
         let items = shipped_items();
         let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(format!("{root}/data/recipes.csv")).expect("recipes.csv"))
@@ -1606,7 +1606,7 @@ mod tests {
         data.insert("item_registry", items.clone());
         let mut world = hecs::World::new();
         let refinery = world.spawn((
-            crate::ecs::components::AutoRefine { recipe_id, keep: None },
+            humanity_core::ecs::components::AutoRefine { recipe_id, keep: None },
             Container::from_type(reg.container_type(&drum_type).expect("its drum type")),
         ));
         let takes = vessel_takes(&world, &data, refinery);

@@ -20,7 +20,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{MachineInstanceId, WaterTank};
+use humanity_core::ecs::components::{MachineInstanceId, WaterTank};
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
 /// One carryable vessel: the empty item, the same vessel full, what it holds
@@ -58,7 +58,7 @@ impl FluidTable {
     /// A file that does not parse gives an empty table, as the loader then
     /// registers none: no tap water and no vessels.
     pub fn load(data_dir: &std::path::Path) -> Self {
-        match crate::embedded_data::read_data_or_embedded(data_dir, Self::FILE).map(|s| Self::from_ron(s.as_bytes())) {
+        match humanity_core::embedded_data::read_data_or_embedded(data_dir, Self::FILE).map(|s| Self::from_ron(s.as_bytes())) {
             Some(Ok(t)) => t,
             Some(Err(e)) => {
                 log::warn!("{e}");
@@ -122,7 +122,7 @@ pub struct FluidAction {
 
 fn carried(world: &hecs::World, item: &str) -> u32 {
     world
-        .query::<(&Inventory, &crate::ecs::components::Controllable)>()
+        .query::<(&Inventory, &humanity_core::ecs::components::Controllable)>()
         .iter()
         .next()
         .map(|(_, (inv, _))| inv.count_item(item))
@@ -217,7 +217,7 @@ pub fn apply_action(
     let take_vol = reg.map(|r| r.volume_for(&take)).unwrap_or(0.0);
     let take_stack = reg.map(|r| r.max_stack_for(&take)).unwrap_or(99);
     let mut done = 0u32;
-    for (_e, (inv, _c)) in world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>() {
+    for (_e, (inv, _c)) in world.query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable)>() {
         // A swap, not an add (2026-09-26): the vessels going out free their
         // volume before the ones coming in are counted, so a pack with room
         // for the swap is not refused.
@@ -256,16 +256,16 @@ pub fn apply_action(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
 
     fn table() -> FluidTable {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let bytes = std::fs::read(format!("{root}/data/{}", FluidTable::FILE)).expect("fluids.ron");
         FluidTable::from_ron(&bytes).expect("parse fluids.ron")
     }
 
     fn registry() -> ItemRegistry {
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         ItemRegistry::from_csv(&std::fs::read(format!("{root}/data/items.csv")).unwrap()).unwrap()
     }
 

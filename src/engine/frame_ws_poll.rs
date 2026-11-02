@@ -71,7 +71,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
         // optimistically (see LinkState in ws_client.rs).
         if ws.is_dropped() {
             if !ws_dropped {
-                crate::debug::push_debug("WS connection lost");
+                humanity_core::debug::push_debug("WS connection lost");
             }
             ws_dropped = true;
         }
@@ -84,7 +84,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
             // Network overlay (v0.482): count every received frame.
             state.gui_state.ws_msgs_in = state.gui_state.ws_msgs_in.saturating_add(1);
             // Log raw message to debug console (truncate long messages)
-            crate::debug::push_debug(format!("WS <<< {}", clip(&raw, 300)));
+            humanity_core::debug::push_debug(format!("WS <<< {}", clip(&raw, 300)));
             if let Some(val) = serde_json::from_str::<serde_json::Value>(&raw).ok().filter(|v| !crate::engine::block::screens_out(&state.gui_state, v)) { // a blocked key's post, typing, reaction, ring or offer goes no further (step C)
                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
                 log::debug!("WS recv: type={}", msg_type);
@@ -233,7 +233,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     Some("peer_list") => {
                         let peer_count = val.get("peers").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
                         log::info!("peer_list received: {} peers", peer_count);
-                        crate::debug::push_debug(format!("Identified OK, {} peers online", peer_count));
+                        humanity_core::debug::push_debug(format!("Identified OK, {} peers online", peer_count));
                         state.gui_state.chat_users.clear();
                         crate::gui::pages::chat::note_upload_limit(&mut state.gui_state, &val); // this person's own upload limit here
                         state.gui_state.ws_status = "Connected".to_string();
@@ -526,7 +526,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             // on every connect and can run to many KB, all of
                             // which used to land in run.log.
                             log::info!("Relay system message: {}", clip(msg, 160));
-                            crate::debug::push_debug(format!("System: {}", clip(msg, 160)));
+                            humanity_core::debug::push_debug(format!("System: {}", clip(msg, 160)));
                             // Relay throttled this connection (per-IP identify rate
                             // limit). Mirror the web client: back the reconnect off
                             // PAST the 60s window. Without this the native looped every
@@ -716,7 +716,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                     // so we capture the correct incumbent set.
                                     if me_present {
                                         state.gui_state.voice_incumbents_captured = true;
-                                        crate::debug::push_debug(format!(
+                                        humanity_core::debug::push_debug(format!(
                                             "Voice: in room {}, dialing {} incumbent(s)", room_id, incumbents.len()
                                         ));
                                         if let Some(ref webrtc) = state.gui_state.webrtc {
@@ -753,7 +753,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     }
                     Some("sync_data") | Some("sync_ack") | Some("vault_sync") => {
                         // Vault sync messages - handle silently, don't display in chat
-                        crate::debug::push_debug("Vault sync message received (hidden)");
+                        humanity_core::debug::push_debug("Vault sync message received (hidden)");
                     }
                     // (follow_list/follow_update arms removed 2026-08-24:
                     // the social graph is client-side; sealed control
@@ -1292,7 +1292,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     Some("name_taken") => {
                         let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("Name taken");
                         log::warn!("Name taken: {}. Disconnecting and reconnecting with unique name.", msg);
-                        crate::debug::push_debug(format!("Name taken, reconnecting: {}", msg));
+                        humanity_core::debug::push_debug(format!("Name taken, reconnecting: {}", msg));
 
                         // Generate a fallback name: "DesktopUser_XXXX"
                         let suffix: u16 = (std::time::SystemTime::now()
@@ -1453,7 +1453,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     Some("private") => {
                         // Private server-to-user message (rate limit, errors, command responses)
                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
-                            crate::debug::push_debug(format!("Private: {}", msg));
+                            humanity_core::debug::push_debug(format!("Private: {}", msg));
                             // Multiplayer (v0.472): the game_welcome (our player id +
                             // world snapshot) arrives as a private __game__ message.
                             if let Some(payload) = msg.strip_prefix("__game__:") {
@@ -1495,7 +1495,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     _ => {
                         // Log unhandled message types to debug console
                         let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
-                        if !crate::engine::report::on_frame(&mut state.gui_state, &val) && !crate::engine::call_relay::on_frame(&mut state.gui_state, &val) && !crate::net::admin_erase::on_frame(&mut state.gui_state.admin_erase, &val) && !crate::engine::friend_code::on_frame(&mut state.gui_state, &val) && !crate::engine::put_answer::on_frame(&mut state.gui_state, &val) { crate::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs); call_credentials: step E (engine/call_relay.rs); admin_erase_done: 10i (net/admin_erase.rs); friend_code_*: engine/friend_code.rs; dm_put_ok, dm_put_refused: 10l (engine/put_answer.rs)
+                        if !crate::engine::report::on_frame(&mut state.gui_state, &val) && !crate::engine::call_relay::on_frame(&mut state.gui_state, &val) && !crate::net::admin_erase::on_frame(&mut state.gui_state.admin_erase, &val) && !crate::engine::friend_code::on_frame(&mut state.gui_state, &val) && !crate::engine::put_answer::on_frame(&mut state.gui_state, &val) { humanity_core::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs); call_credentials: step E (engine/call_relay.rs); admin_erase_done: 10i (net/admin_erase.rs); friend_code_*: engine/friend_code.rs; dm_put_ok, dm_put_refused: 10l (engine/put_answer.rs)
                     }
                 }
             }

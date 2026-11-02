@@ -501,9 +501,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         py: f32,
     }
 
-    /// A device, or None while the operator's GPU game runs (src/test_gpu.rs).
+    /// A device, or None while the operator's GPU game runs (crates/humanity-core/src/test_gpu.rs).
     fn device() -> Option<(wgpu::Device, wgpu::Queue, String)> {
-        if !crate::test_gpu::may_use() {
+        if !humanity_core::test_gpu::may_use() {
             return None;
         }
         let dxc = std::env::var("HUMANITY_DXC_DIR").ok().map(std::path::PathBuf::from).filter(|d| {

@@ -106,7 +106,7 @@ fn the_proxys_own_address_has_ten_times_the_allowance() {
 /// (the table in the 2026-10-22 report came from it).
 #[test]
 fn every_route_has_a_class_and_no_api_route_is_static() {
-    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/mod.rs")).unwrap();
+    let src = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/relay/mod.rs")).unwrap();
     let body = &src[src.find("pub fn build_router").expect("build_router")..];
     let mut seen = 0;
     for chunk in body.split(".route(").skip(1) {
@@ -220,7 +220,7 @@ async fn sign_up_refused(base: &str, seed: u8, forwarded: &str) -> bool {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use futures::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message as WsMsg};
-    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&[seed; 32]));
+    let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&[seed; 32]));
     let pubkey = hex::encode(dil.public_key());
     let mut request = format!("{}/ws", base.replacen("http", "ws", 1)).into_client_request().unwrap();
     request.headers_mut().insert("x-forwarded-for", forwarded.parse().unwrap());

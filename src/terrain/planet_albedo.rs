@@ -409,7 +409,7 @@ mod tests {
     /// (the sampler's output domain).
     #[test]
     fn shipped_earth_albedo_has_real_colors() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("planets")
             .join("earth_albedo.bin");

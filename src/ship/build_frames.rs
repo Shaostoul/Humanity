@@ -35,9 +35,9 @@
 //! corner sits on whole metres, so moving a grid-aligned pose between ship and frame metres is
 //! exact.
 
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use crate::ship::ship_structure::{ShipStructure, HOME_ZONE_ID};
-use crate::ecs::components::world_aabb;
+use humanity_core::ecs::components::world_aabb;
 use glam::Vec3;
 use serde::Serialize;
 
@@ -233,7 +233,7 @@ mod tests {
     use super::*;
 
     fn data_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// A FIGURE ABOVE A PLOT'S TOP IS NOT ON IT (ship homes increment 7): a frame holds a point

@@ -11,7 +11,7 @@
 use rusqlite::{params, OptionalExtension};
 
 use super::Storage;
-use crate::relay::core::key_card::{keep_rule, KeyCard, Keep, CARD_VERSION};
+use humanity_protocol::key_card::{keep_rule, KeyCard, Keep, CARD_VERSION};
 
 /// The most cards a server sends a linked server when their link comes up (the catch-up): the
 /// newest, as for profile copies (`signed_profiles::CATCH_UP_COPIES_MAX`).
@@ -108,7 +108,7 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::key_card::MAX_AHEAD_MS;
+    use humanity_protocol::key_card::MAX_AHEAD_MS;
 
     fn card(key: &str, kyber: &str, at: u64) -> KeyCard {
         KeyCard { v: CARD_VERSION, key: key.into(), kyber: kyber.into(), at, sig: format!("sig-{kyber}-{at}") }

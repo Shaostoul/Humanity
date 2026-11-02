@@ -3,7 +3,7 @@
 //!
 //! The data folder holds the game's data files (items, plants, recipes, the ship, the home
 //! designs) where a player or a mod can edit them, and since 2026-10-12 every update brings the
-//! files nobody edited up to date and keeps every edited one (src/storage/refresh.rs). This block
+//! files nobody edited up to date and keeps every edited one (crates/humanity-core/src/storage/refresh.rs). This block
 //! says so in the app, so nobody needs the log or a terminal to learn it (the GUI-first rule):
 //! - which version's files the folder holds, or why the game leaves it alone (a source tree, a
 //!   rig's linked folder);
@@ -18,7 +18,7 @@ use egui::RichText;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::HintDisplay;
-use crate::storage::refresh::{self, View};
+use humanity_core::storage::refresh::{self, View};
 
 /// What a press in the block asked for (acted on after drawing).
 #[derive(Debug, Clone, PartialEq)]
@@ -30,7 +30,7 @@ enum Asked {
 /// The block, drawn inside Settings > Data's card. Nothing when there is no data folder yet.
 pub(super) fn draw_data_folder(ui: &mut egui::Ui, theme: &Theme, hint: HintDisplay) {
     let Some(view) = refresh::view() else { return };
-    let not_used = crate::embedded_data::builtin_copies_this_run();
+    let not_used = humanity_core::embedded_data::builtin_copies_this_run();
     let result_id = egui::Id::new("data_folder_result");
     ui.add_space(theme.spacing_lg);
     match draw_view(ui, theme, hint, &view, &not_used) {
@@ -152,7 +152,7 @@ fn show_file(path: &std::path::Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::refresh::{NotWritten, Report};
+    use humanity_core::storage::refresh::{NotWritten, Report};
 
     /// The words drawn for `view`, and what a press would ask for (none: nothing is pressed).
     fn drawn(view: &View, not_used: &[(String, String)]) -> Vec<String> {

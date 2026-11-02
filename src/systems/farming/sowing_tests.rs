@@ -13,8 +13,8 @@ use super::lighting::GrowPlot;
 use super::outlook::{self, CropOutlook, WaterSupply};
 use super::sowing;
 use super::*;
-use crate::ecs::components::{Controllable, CropInstance, Irrigator, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, CropInstance, Irrigator, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::grow_machines::Takes;
 use crate::systems::inventory::Inventory;
 
@@ -53,7 +53,7 @@ fn home() -> DataStore {
 
 /// Stand at (x, z) on the deck at height 0: the camera is the eye, 1.7 m up.
 fn stand(data: &mut DataStore, x: f32, z: f32) {
-    data.insert("camera_position", Vec3::new(x, crate::ecs::components::EYE_HEIGHT_M as f32, z));
+    data.insert("camera_position", Vec3::new(x, humanity_core::ecs::components::EYE_HEIGHT_M as f32, z));
 }
 
 fn player(world: &mut hecs::World, seeds: &[(&str, u32)]) -> hecs::Entity {
@@ -158,7 +158,7 @@ fn nothing_in_reach_plants_nothing_and_names_the_nearest() {
             .to_string()]
     );
     // Right above the bed, one deck up.
-    data.insert("camera_position", Vec3::new(10.0, 5.0 + crate::ecs::components::EYE_HEIGHT_M as f32, -1.5));
+    data.insert("camera_position", Vec3::new(10.0, 5.0 + humanity_core::ecs::components::EYE_HEIGHT_M as f32, -1.5));
     plant(&mut sys, &mut world, &data, "seed_lettuce_0");
     assert_eq!(world.query::<&CropInstance>().iter().count(), 0, "nothing sown from another deck");
     assert_eq!(
@@ -209,7 +209,7 @@ fn each_seed_goes_only_where_its_kind_grows() {
 /// rack read as taking plants.
 #[test]
 fn the_shipped_media_say_what_each_machine_takes() {
-    let media = crate::systems::grow_machines::load_grow_media(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
+    let media = crate::systems::grow_machines::load_grow_media(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"));
     let takes = |ty: &str| media.iter().find(|m| m.matches(ty)).map(|m| m.takes);
     assert_eq!(takes("mushroom_rack"), Some(Takes::Fungi));
     assert_eq!(takes("aquaponic_tank"), Some(Takes::NoSeeds));
@@ -397,7 +397,7 @@ fn planting_says_when_it_ripens_in_real_time() {
 #[test]
 fn choose_without_a_position_and_with_no_place() {
     let data = home();
-    let media = crate::systems::grow_machines::load_grow_media(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
+    let media = crate::systems::grow_machines::load_grow_media(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"));
     let places = sowing::places(
         data.get::<Vec<GrowPlot>>("grow_plots").unwrap(),
         data.get::<HashMap<String, Vec<(String, u32)>>>("grow_instances"),

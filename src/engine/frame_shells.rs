@@ -50,7 +50,7 @@
 //!   the `*` the reads are exactly what the inline code did.
 
 use crate::gui::GuiState;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 // The live weather record the deck reads its coverage from. In lib.rs it
 // arrived through `mod native_app`'s `use crate::systems::weather::Weather`.
 use crate::systems::weather::Weather;
@@ -148,7 +148,7 @@ pub(crate) struct ShellView {
 pub(crate) fn push_planet_shells(
     state: &mut ShellState,
     view: ShellView,
-    b: &crate::cosmos::SolBody,
+    b: &humanity_core::cosmos::SolBody,
     d: &PlanetDef,
     celestial_transparent: &mut Vec<RenderObject>,
 ) {

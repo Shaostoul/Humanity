@@ -213,7 +213,7 @@ mod tests {
         ] {
             assert!(ipc.contains(wired), "src/engine/ipc.rs never has {wired}");
         }
-        let hud = include_str!("../gui/pages/hud.rs").replace("\r\n", "\n");
+        let hud = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pages/hud.rs")).replace("\r\n", "\n");
         assert!(
             hud.contains("let current_room_info = room_card_at(&state.room_bounds, state.ship_structure.as_ref(), &state.keybinds, cam_pos);"),
             "the HUD's room card no longer picks its place with room_card_at, so the probe would report a pick the HUD does not make"

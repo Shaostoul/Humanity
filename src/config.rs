@@ -915,9 +915,9 @@ pub struct AppConfig {
     /// Game keybind overrides (Settings > Controls, 2026-08-12). Only actions
     /// that differ from their defaults are stored, so a future default change
     /// reaches everyone who has not overridden that action. Empty = all
-    /// defaults. See `src/input/bindings.rs` for the action table.
+    /// defaults. See `crates/humanity-core/src/input/bindings.rs` for the action table.
     #[serde(default)]
-    pub keybind_overrides: Vec<crate::input::bindings::KeybindOverride>,
+    pub keybind_overrides: Vec<humanity_core::input::bindings::KeybindOverride>,
 
     /// Chat timestamp display format (operator-configurable). One of
     /// TimestampFormat::as_str() — "hour_min" (default) … "full". Empty/unknown
@@ -966,7 +966,7 @@ pub struct AppConfig {
     /// `serde(default)` → `AlwaysPrompt` for pre-v0.278 configs.
     #[cfg(feature = "native")]
     #[serde(default)]
-    pub auto_unlock_mode: crate::auto_unlock::AutoUnlockMode,
+    pub auto_unlock_mode: humanity_core::auto_unlock::AutoUnlockMode,
 
     /// PIN-encrypted seed blob (KeychainPin mode only). Encrypted with
     /// AES-256-GCM using a key derived from `PIN ‖ device_key` via
@@ -1236,7 +1236,7 @@ pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String
     getrandom::getrandom(&mut salt).map_err(|e| format!("RNG failed: {}", e))?;
 
     // Derive 32-byte AES key via PBKDF2-SHA256
-    let derived_key = crate::relay::core::kdf::pbkdf2_sha256(passphrase.as_bytes(), &salt, PBKDF2_ITERATIONS_NEW);
+    let derived_key = humanity_protocol::kdf::pbkdf2_sha256(passphrase.as_bytes(), &salt, PBKDF2_ITERATIONS_NEW);
 
     // Generate random 12-byte IV
     let mut iv = [0u8; 12];
@@ -1291,7 +1291,7 @@ pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str, iterat
     // for vaults written by absurdly-old or fuzzed binaries.
     let iters = iterations.max(PBKDF2_ITERATIONS_LEGACY);
 
-    let derived_key = crate::relay::core::kdf::pbkdf2_sha256(passphrase.as_bytes(), &salt_bytes, iters);
+    let derived_key = humanity_protocol::kdf::pbkdf2_sha256(passphrase.as_bytes(), &salt_bytes, iters);
 
     // AES-256-GCM decrypt
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&derived_key));
@@ -1339,7 +1339,7 @@ impl AppConfig {
         // Portable mode (v0.707): the whole install, INCLUDING the encrypted
         // identity in config.json, lives beside the exe so an external-drive
         // folder travels between machines as one unit.
-        if let Some(p) = crate::storage::portable_config_path() {
+        if let Some(p) = humanity_core::storage::portable_config_path() {
             return p;
         }
         // Use %APPDATA%/HumanityOS/config.json for a stable location
@@ -1476,7 +1476,7 @@ impl AppConfig {
             None => serde_json::to_string_pretty(self),
         };
         if let Ok(json) = text {
-            match crate::atomic_write::write_atomic(path, json.as_bytes()) {
+            match humanity_core::atomic_write::write_atomic(path, json.as_bytes()) {
                 Ok(_) => log::info!("Saved config to {}", path.display()),
                 Err(e) => log::warn!("Failed to save config to {}: {}", path.display(), e),
             }
@@ -1761,10 +1761,10 @@ impl AppConfig {
         state.settings.hint_display = self.hint_display;
         // The language: a code no file provides (a translation removed since)
         // falls back to English rather than leaving the choice pointing nowhere.
-        state.settings.language = if crate::i18n::set_language(&self.language) {
+        state.settings.language = if humanity_core::i18n::set_language(&self.language) {
             self.language.clone()
         } else {
-            crate::i18n::set_language("en");
+            humanity_core::i18n::set_language("en");
             "en".to_string()
         };
         // Rehydrate the saved-server list (identity only; channels and
@@ -2000,7 +2000,7 @@ impl AppConfig {
         state.voice_vad_threshold = self.voice_vad_threshold;
         // Game keybinds: defaults plus the user's stored overrides. Rebuilt
         // from defaults first so a removed override falls back cleanly.
-        state.keybinds = crate::input::bindings::Keybinds::default();
+        state.keybinds = humanity_core::input::bindings::Keybinds::default();
         state.keybinds.apply_overrides(&self.keybind_overrides);
         // Timestamp display format → the app-wide formatter (process global).
         crate::gui::pages::chat::set_timestamp_format(
@@ -2095,7 +2095,7 @@ impl AppConfig {
             // v0.278.0 auto-unlock: honor the user's mode choice on startup.
             // Default (AlwaysPrompt) preserves the pre-v0.278 behavior — no
             // modal, user clicks Unlock when they need signing.
-            use crate::auto_unlock::{AutoUnlockMode, KeychainSlot};
+            use humanity_core::auto_unlock::{AutoUnlockMode, KeychainSlot};
             match self.auto_unlock_mode {
                 AutoUnlockMode::Keychain => {
                     // Try silent load. The `profile_public_key` is the
@@ -2109,7 +2109,7 @@ impl AppConfig {
                     if identity.is_empty() {
                         log::warn!("Auto-unlock (Keychain): no public_key_hex in config; skipping silent unlock");
                     } else {
-                        match crate::auto_unlock::keychain_load(KeychainSlot::Seed, identity) {
+                        match humanity_core::auto_unlock::keychain_load(KeychainSlot::Seed, identity) {
                             Ok(Some(seed)) => {
                                 state.private_key_bytes = Some(seed.to_vec());
                                 state.apply_pq_identity();

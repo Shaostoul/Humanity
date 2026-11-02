@@ -11,7 +11,7 @@ static WORDS: OnceLock<HashMap<String, String>> = OnceLock::new();
 /// The words, read once: the data folder's file, else the copy built into the exe.
 fn words() -> &'static HashMap<String, String> {
     WORDS.get_or_init(|| {
-        let text = crate::embedded_data::read_data_or_embedded(&crate::storage::data_dir(), "how_to/words.json").unwrap_or_default();
+        let text = humanity_core::embedded_data::read_data_or_embedded(&humanity_core::storage::data_dir(), "how_to/words.json").unwrap_or_default();
         parse(&text)
     })
 }

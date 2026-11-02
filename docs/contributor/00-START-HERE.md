@@ -4,9 +4,11 @@ If this is your first day in this repo, start here.
 
 ## 1) What this project is
 
-HumanityOS is a single Rust crate at `src/` that compiles into one binary, plus a
-plain HTML/JS web frontend (`web/`) that mirrors it. Feature flags (`native`, `relay`,
-`wasm`) decide what's included, there is no Cargo workspace and no sub-crates. It is
+HumanityOS is a Rust workspace that compiles into one binary: the root package at `src/` and
+the crates cut out of it so far under `crates/` (the crate split, `docs/design/crate-split.md`:
+ten crates decided on 2026-10-30, the first two cut on 2026-11-01), plus a plain HTML/JS web
+frontend (`web/`) that mirrors it. Feature flags (`native`, `relay`, `wasm`) decide what's
+included. It is
 both a real-world learning/coordination platform and an educational game, the two
 share the same underlying survival/production/skill systems rather than being
 separate products.
@@ -15,8 +17,9 @@ separate products.
 > (this file, `01-VISION.md`, `03-MODULE-MAP.md`) described an aspirational
 > multi-crate architecture (`module-firearms`, `module-water-systems`, etc., each its
 > own crate with dependency-isolation rules). That was never built and, per the
-> operator (2026-06-30), is not the current direction, single crate is ideal now,
-> splitting it up is a "figure out later, maybe never" question. Feature domains
+> operator (2026-06-30), was not the direction then. (The split into ten crates by layer,
+> decided 2026-10-30, `docs/design/crate-split.md`, is a different thing: it cuts along the
+> dependency layers to make builds faster, not into per-feature modules.) Feature domains
 > (farming, crafting, combat, electrical, ...) live as modules INSIDE `src/systems/`
 > and `src/relay/storage/`, not as separate crates. If you see a doc, comment, or AI
 > agent still framing this as multi-crate, that description is stale.
@@ -25,8 +28,8 @@ Read next: `../../CLAUDE.md` for the real architecture, file map, and build comm
 
 ## 2) Ground rules
 
-- Keep modules small and composable inside the single crate, not literal crate
-  boundaries with their own dependency graphs.
+- Keep modules small and composable inside their crate; the crate boundaries are the ten
+  of `scripts/crate-layers.json`, not one per feature.
 - Prefer plain Markdown docs and readable Rust over clever abstractions.
 - Every folder should be understandable in a basic editor (Notepad++, terminal,
   Obsidian).

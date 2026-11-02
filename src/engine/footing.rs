@@ -601,10 +601,10 @@ pub fn ladder_at(ship: &ShipStructure, at: Vec3) -> Option<(f32, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::bindings::GameAction as A;
+    use humanity_core::input::bindings::GameAction as A;
     use crate::renderer::camera::{Camera, CameraController, SPRINT_FACTOR, STEP_DOWN_M, WALK_SPEED_MPS, WALK_SUBSTEP_M};
     use crate::ship::ship_structure::ShipZone;
-    use crate::physics::landing::drop_height_m;
+    use humanity_core::physics::landing::drop_height_m;
 
     /// The homestead's gravity (data/game.csv `gravity_m_s2`).
     const G: f32 = 9.81;
@@ -1193,9 +1193,9 @@ pub(crate) mod test_aboard {
 mod storey_tests {
     use super::test_aboard::*;
     use super::*;
-    use crate::input::bindings::GameAction as A;
+    use humanity_core::input::bindings::GameAction as A;
     use crate::renderer::camera::{Camera, CameraController, HEAD_ABOVE_EYE_M, WALK_SPEED_MPS};
-    use crate::physics::landing::drop_height_m;
+    use humanity_core::physics::landing::drop_height_m;
 
     const EYE: f32 = EYE_HEIGHT_M;
     const DT: f32 = 1.0 / 60.0;

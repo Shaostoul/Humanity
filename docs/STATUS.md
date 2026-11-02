@@ -54,10 +54,13 @@ Several rows further down were written before major migrations and are now
 **factually wrong about HOW a feature works** (the feature exists, but the
 described mechanism is stale). The current ground truth:
 
-- **Single crate, not a workspace.** Everything compiles from `src/` at the repo
-  root into one `HumanityOS.exe`. The server/relay is `src/relay/`. Feature flags
-  (`native`, `relay`, `wasm`) select what's built. The pre-v0.90 `server/`,
-  `native/`, and `crates/` directories **no longer exist**. (See `CLAUDE.md`.)
+- **A Cargo workspace, one binary.** Since 2026-11-01 (the crate split's rung 1,
+  `docs/design/crate-split.md`) the root package `humanity-engine` (`src/`) and the crates
+  cut out of it so far, `crates/humanity-core/` and `crates/humanity-protocol/`, compile into
+  one `HumanityOS.exe`. The server/relay is `src/relay/`. Feature flags (`native`, `relay`,
+  `wasm`) select what's built. The pre-v0.90 `server/` and `native/` directories **no longer
+  exist**, and neither do the old `crates/` ones: today's `crates/` holds only the workspace's
+  members. (See `CLAUDE.md`.)
 - **Chat identity is Dilithium3 / ML-DSA-65, not Ed25519.** Since the post-quantum
   cutover (v0.262.x–v0.264.x), the chat identity = a Dilithium3 keypair derived
   from the BIP39 seed. Ed25519's **only** remaining roles are the seed source and
@@ -82,9 +85,9 @@ purely additive (existing chat untouched). See
 
 | Layer | Status | Release | Implementation |
 |-------|--------|---------|----------------|
-| **Post-quantum crypto core** | ✅ | v0.98.0 | ML-DSA-65 (Dilithium3) signing, ML-KEM-768 (Kyber768) KEM, Argon2id KDF, BLAKE3 hashing. `src/relay/core/pq_crypto.rs`, `kdf.rs`. 14 PQ + 7 KDF tests. |
+| **Post-quantum crypto core** | ✅ | v0.98.0 | ML-DSA-65 (Dilithium3) signing, ML-KEM-768 (Kyber768) KEM, Argon2id KDF, BLAKE3 hashing. `crates/humanity-protocol/src/pq_crypto.rs`, `kdf.rs`. 14 PQ + 7 KDF tests. |
 | **Signed-object substrate** | ✅ | v0.98.0 | Generic `signed_objects` table backs every higher-level domain. Auto-indexes VCs, governance, AI status, recovery, disputes on insert. `src/relay/storage/signed_objects.rs`. `POST/GET/LIST/COUNT /api/v2/objects`. |
-| **DID resolver** | ✅ | v0.100.0 | `did:hum:<base58(BLAKE3(pubkey)[..16])>`. Resolves to current Dilithium3 pubkey + first/last seen + activity count. `src/relay/core/did.rs`, `src/relay/storage/dids.rs`. `GET /api/v2/did/{did}`. |
+| **DID resolver** | ✅ | v0.100.0 | `did:hum:<base58(BLAKE3(pubkey)[..16])>`. Resolves to current Dilithium3 pubkey + first/last seen + activity count. `crates/humanity-protocol/src/did.rs`, `src/relay/storage/dids.rs`. `GET /api/v2/did/{did}`. |
 | **Verifiable Credentials** | ✅ | v0.101.0 | 12 indexed schema types (vouch, verified_human, member, role, account_age, skill_endorsement, graduation, employment, controlled_by, juror, trust_score, ai_consent, attested_session, liveness). Issuer-auth-checked revocation, subject-auth-checked withdrawal. `src/relay/storage/credentials.rs`. `GET /api/v2/credentials`. |
 | **Multi-layer trust score** | ✅ | v0.102.0 | 0..1 normalized total + 6 sub-scores (vcs, vouching_graph, activity_diversity, age, economic_stake, reputation). 5-min cache. Inputs always exposed (Accord transparency). Tunable weights at `data/identity/trust_weights.ron`. `src/relay/storage/trust_score.rs`. `GET /api/v2/trust/{did}`. |
 | **Governance** | ✅ | v0.103.0 | 9 proposal types in `data/governance/proposal_types.ron` (5 local, 4 civilization scope). Vote weight = trust score capped at 0.95 (Accord power-asymmetry mitigation). One vote per voter per proposal. AI agents excluded from voting. Deterministic tally. `src/relay/storage/governance.rs`. `GET /api/v2/proposals`. |
@@ -147,10 +150,10 @@ the user-facing theme.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Unified binary | ✅ | Single crate at `src/`; former `server/`/`native/`/`crates/` folded in (v0.90.0). Server relay = `src/relay/`. One binary: `HumanityOS.exe` |
+| Unified binary | ✅ | One workspace, one binary, `HumanityOS.exe`: the root package at `src/` and, since the crate split's rung 1 (2026-11-01), `crates/humanity-core/` and `crates/humanity-protocol/`; former `server/`/`native/`/`crates/` folded in (v0.90.0). Server relay = `src/relay/` |
 | Headless mode | ✅ | `HumanityOS --headless` for server-only (VPS, Raspberry Pi) |
 | Default build | ✅ | Includes relay + renderer + game. Feature flags: `native`, `relay`, `wasm` |
-| Zero sub-crates | ✅ | 17 unused crates deleted, zero workspace complexity |
+| The crate split | 🟡 | Ten crates decided (operator, 2026-10-30, `docs/design/crate-split.md`); rung 0 (no reference points up the plan) and rung 1 (the workspace, core and protocol cut out) done, rungs 2 to 4 planned. The 17 unused crates of before v0.90 stay deleted |
 | Config location | ✅ | `%APPDATA%/HumanityOS/` (stable across exe versions) |
 | Versioned exe archives | ✅ | `v{version}_HumanityOS.exe` in repo root, auto-purge keeps last 5 |
 | Auto version bump | ✅ | `just build-game` bumps version automatically |
@@ -394,7 +397,7 @@ is not built yet.
 | SQLite via rusqlite | ✅ | relay.db at /opt/Humanity/data/ on VPS |
 | REST API | ✅ | 30+ endpoints (messages, tasks, projects, listings, reviews, members, etc.) |
 | Federation Phase 1+2 | ✅ | Server registry, discovery, S2S WebSocket |
-| Signed profile replication | ✅ | Working since v0.1490.0 (BUG-191, 2026-10-12). The copy of a profile that other servers keep is signed by the person's own app when the server asks, and holds only what anyone may see (fields kept for friends blank; every field blank, a withdrawal, when unlisted). The server checks and keeps it in `signed_profiles` and sends `profile_gossip` to every linked server; a receiver holds it to the save's limits, keeps it only when newer, and passes on its own accounts' copies; each side sends its accounts' copies when a link comes up. Your own erase withdraws it on linked servers; an admin's erase cannot. `src/relay/core/profile_copy.rs`, `src/relay/handlers/profile.rs`, `src/relay/handlers/federation.rs`, desktop `src/gui/pages/own_profile.rs`, web `web/shared/profile-copy.js` + `web/chat/chat-profile.js`. The table and the gossip existed since v0.27.0, but until 2026-10-12 no app signed a copy and every linked server refused unsigned ones, so this row's earlier ✅ was wrong. |
+| Signed profile replication | ✅ | Working since v0.1490.0 (BUG-191, 2026-10-12). The copy of a profile that other servers keep is signed by the person's own app when the server asks, and holds only what anyone may see (fields kept for friends blank; every field blank, a withdrawal, when unlisted). The server checks and keeps it in `signed_profiles` and sends `profile_gossip` to every linked server; a receiver holds it to the save's limits, keeps it only when newer, and passes on its own accounts' copies; each side sends its accounts' copies when a link comes up. Your own erase withdraws it on linked servers; an admin's erase cannot. `crates/humanity-protocol/src/profile_copy.rs`, `src/relay/handlers/profile.rs`, `src/relay/handlers/federation.rs`, desktop `src/gui/pages/own_profile.rs`, web `web/shared/profile-copy.js` + `web/chat/chat-profile.js`. The table and the gossip existed since v0.27.0, but until 2026-10-12 no app signed a copy and every linked server refused unsigned ones, so this row's earlier ✅ was wrong. |
 | Federated message persistence | ✅ | Messages persisted with origin_server tag, survive restarts (v0.27.0) |
 | Profile lookup API | ✅ | GET /api/profile/{key} for public key lookup (v0.27.0). Since v0.1490.0 it answers not found for a withdrawn copy and for a key whose account here is unlisted here, and leaves out the fields a local account keeps for friends. It is the only reader of copies from other servers: no app shows one yet. |
 | GitHub webhook | ✅ | Deploy bot announces in chat |

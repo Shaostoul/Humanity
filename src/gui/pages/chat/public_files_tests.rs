@@ -42,7 +42,7 @@ fn card_frame(ctx: &egui::Context, cache: &ImageCache, card: &Card) -> Vec<Strin
 /// Seen red 2026-10-17 with the prefix left on: "1760000000000_WH40K_Marriah_Carey.mp4".
 #[test]
 fn a_file_is_shown_by_the_name_it_was_sent_with() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/file-card-names.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/file-card-names.json");
     let cases: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     let cases = cases["cases"].as_array().unwrap();
     assert!(cases.len() >= 6);
@@ -98,7 +98,7 @@ fn the_card_says_what_a_risky_file_is() {
     let texts = card_frame(&ctx, &cache, &clip).join("\n");
     assert!(!texts.contains('\u{26a0}'), "a video by its name: no word of caution: {texts}");
 
-    let dir = crate::test_temp::dir("public_file_disguised");
+    let dir = humanity_core::test_temp::dir("public_file_disguised");
     let saved = dir.join("clip.mp4");
     std::fs::write(&saved, [0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]).unwrap();
     cache.set_saved_for_test(&clip.key(), saved.clone());
@@ -140,7 +140,7 @@ fn a_file_on_another_website_is_not_contacted_before_a_click() {
 /// address's last part: "WH40K_Marriah_Carey.mp4" was saved as "1760000000000_WH40K_Marriah_Carey.mp4".
 #[test]
 fn download_saves_under_the_name_it_was_sent_with_and_a_failed_one_leaves_nothing() {
-    let dir = crate::test_temp::dir("public_file_save");
+    let dir = humanity_core::test_temp::dir("public_file_save");
     let card = Card::of("/uploads/1760000000000_WH40K_Marriah_Carey.mp4", SERVER);
     let bytes = b"\x1a\x45\xdf\xa3 a video's bytes".to_vec();
     let fetch = |want: &[u8]| {
@@ -214,8 +214,8 @@ fn play_here_plays_a_video_posted_in_chat_in_its_own_window() {
         println!("skipped: this copy of Windows has no Media Foundation");
         return;
     }
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
-    let dir = crate::test_temp::dir("chat_play_here");
+    let fixture = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
+    let dir = humanity_core::test_temp::dir("chat_play_here");
     std::fs::create_dir_all(&dir).unwrap();
     let copy = dir.join("clip.video");
     std::fs::copy(&fixture, &copy).unwrap();

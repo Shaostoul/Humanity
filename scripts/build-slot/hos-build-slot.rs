@@ -174,6 +174,11 @@ fn classify(args: &[String]) -> Option<Unit> {
         "humanity_engine" => "lib",
         "HumanityOS" => "bin",
         "build_script_build" => "buildscript",
+        // The workspace's other crates (the crate split, rung 1, 2026-11-01): each a kind of its
+        // own, named by the crate (`core-check-native`, `protocol-test-native`), so the ledger
+        // learns the core's peak apart from the engine's and from the lints'. Until it has, the
+        // seed is the one for "other" (seed_peak_mb).
+        n if n.starts_with("humanity_") => n.trim_start_matches("humanity_"),
         _ => "other",
     };
     let features = if native {
@@ -1372,6 +1377,11 @@ mod tests {
         assert_eq!(classify(&bs).unwrap().kind, "buildscript-build-none");
         let lint = a("--crate-name emdash_lint tests\\emdash_lint.rs --emit=dep-info,link --test --cfg feature=\"native\"");
         assert_eq!(classify(&lint).unwrap().kind, "other-test-native");
+        // The workspace's crates (rung 1 of the crate split): a kind each, named by the crate.
+        let core = a("--crate-name humanity_core --edition=2021 crates\\humanity-core\\src\\lib.rs --crate-type lib --emit=dep-info,metadata -C embed-bitcode=no --cfg feature=\"native\"");
+        assert_eq!(classify(&core).unwrap().kind, "core-check-native");
+        let protocol = a("--crate-name humanity_protocol --edition=2021 crates\\humanity-protocol\\src\\lib.rs --emit=dep-info,link --test --cfg feature=\"test-support\"");
+        assert_eq!(classify(&protocol).unwrap().kind, "protocol-test-none");
     }
 
     #[test]

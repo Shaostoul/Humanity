@@ -257,7 +257,7 @@ fn pass_window(expiry: u64, now: u64, slack: u64) -> Result<(), PassError> {
 /// `seed`. Refused when a check would refuse it (the minting allows no clock slack).
 pub fn mint_file_pass(seed: &[u8], server: &str, issuer: &str, grantee: &str, id: &str, expiry: u64, now: u64) -> Result<FilePass, PassError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
     if ![server, issuer, grantee].into_iter().all(pass_field_ok) || !is_id(id) {
         return Err(PassError::Malformed);
     }
@@ -279,7 +279,7 @@ pub fn verify_file_pass(issuer_hex: &str, server: &str, grantee: &str, pass: &Fi
     pass_window(pass.expiry, now, FILE_PASS_CLOCK_SLACK_SECS)?;
     let Ok(issuer_pk) = hex::decode(issuer_hex.trim()) else { return Err(PassError::BadSignature) };
     let Ok(sig) = B64.decode(pass.sig.trim()) else { return Err(PassError::BadSignature) };
-    crate::relay::core::pq_crypto::verify_dilithium(&issuer_pk, file_pass_preimage(server, issuer_hex, grantee, &pass.id, pass.expiry).as_bytes(), &sig)
+    humanity_protocol::pq_crypto::verify_dilithium(&issuer_pk, file_pass_preimage(server, issuer_hex, grantee, &pass.id, pass.expiry).as_bytes(), &sig)
         .map_err(|_| PassError::BadSignature)
 }
 

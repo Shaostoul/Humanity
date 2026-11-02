@@ -135,8 +135,8 @@ const FILE: &str = "safety/file_risks.json";
 fn data() -> &'static Data {
     static DATA: OnceLock<Data> = OnceLock::new();
     DATA.get_or_init(|| {
-        crate::embedded_data::load_data_or_embedded(&crate::storage::data_dir(), FILE, |bytes| serde_json::from_slice::<Data>(bytes).map_err(|e| e.to_string())).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy(FILE, format_args!("neither copy could be read ({e}); no file gets a word of caution"));
+        humanity_core::embedded_data::load_data_or_embedded(&humanity_core::storage::data_dir(), FILE, |bytes| serde_json::from_slice::<Data>(bytes).map_err(|e| e.to_string())).unwrap_or_else(|e| {
+            humanity_core::embedded_data::note_builtin_copy(FILE, format_args!("neither copy could be read ({e}); no file gets a word of caution"));
             Data::default()
         })
     })
@@ -317,7 +317,7 @@ mod tests {
     /// `file_type`'s disguise check left out: "\"holiday.png\" over 4d5a90000300: its badge".
     #[test]
     fn every_shared_case_gets_the_same_word_as_on_the_website() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/file-risk-cases.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/file-risk-cases.json");
         let cases: Cases = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert!(cases.cases.len() >= 15);
         for c in cases.cases {
@@ -340,7 +340,7 @@ mod tests {
     /// followed by U+200F, in the test above, got no word (left: None, right: Some("program")).
     #[test]
     fn a_name_cannot_hide_its_ending_behind_direction_marks() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/file-risk-cases.json");
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/file-risk-cases.json");
         let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         let pairs = v["plain_names"].as_array().expect("the shared plain_names");
         assert!(pairs.len() >= 5);
@@ -396,7 +396,7 @@ mod tests {
     /// A file on this computer is read for its first bytes.
     #[test]
     fn a_file_on_disk_is_read_for_its_first_bytes() {
-        let dir = crate::test_temp::dir("file_risk_disk");
+        let dir = humanity_core::test_temp::dir("file_risk_disk");
         let p = dir.join("cat.png");
         std::fs::write(&p, [0x4d, 0x5a, 0x90, 0x00, 0x03]).unwrap();
         assert!(assess_file("cat.png", &p).is_some_and(|c| c.disguised && c.kind == "program"));

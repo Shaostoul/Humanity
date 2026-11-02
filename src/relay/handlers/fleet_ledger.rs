@@ -210,14 +210,14 @@ impl LedgerData {
     pub fn load_file(path: &std::path::Path) -> LedgerFile {
         let shown = path.display().to_string();
         let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{shown} could not be read ({e})"));
-            include_str!("../../../data/ship/fleet_ledger.ron").to_string()
+            humanity_core::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{shown} could not be read ({e})"));
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/fleet_ledger.ron")).to_string()
         });
         match LedgerFile::parse(&text) {
             Ok(f) => f,
             Err(e) => {
-                crate::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{shown} does not parse ({e})"));
-                LedgerFile::parse(include_str!("../../../data/ship/fleet_ledger.ron")).unwrap_or_else(|e| {
+                humanity_core::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{shown} does not parse ({e})"));
+                LedgerFile::parse(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/fleet_ledger.ron"))).unwrap_or_else(|e| {
                     tracing::error!("The built-in fleet_ledger.ron does not parse either ({e}); the fleet ledger records nothing");
                     LedgerFile::default()
                 })
@@ -229,7 +229,7 @@ impl LedgerData {
     /// copy when the file is missing or this version cannot read it, BUG-163).
     fn load_goods() -> HashMap<String, Good> {
         let data = std::path::Path::new("data");
-        match crate::embedded_data::load_data_or_embedded(data, "trade_goods.ron", crate::systems::economy::TradeGoodsRegistry::from_ron) {
+        match humanity_core::embedded_data::load_data_or_embedded(data, "trade_goods.ron", crate::systems::economy::TradeGoodsRegistry::from_ron) {
             Ok(reg) => reg.goods.into_iter().map(|(id, g)| (id, Good { name: g.name, base_value: f64::from(g.base_value) })).collect(),
             Err(e) => {
                 tracing::error!("{e}; the fleet has no prices, so it takes no gives");

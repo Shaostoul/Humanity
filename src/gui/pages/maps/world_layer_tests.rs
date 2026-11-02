@@ -21,7 +21,7 @@ fn the_whole_world_to_near_space_the_star_sky_beyond() {
     assert_eq!(world_layer_want(&maps), WorldLayerWant::Draw, "at the ship");
     maps.camera.set_distance(1.0e9);
     assert_eq!(world_layer_want(&maps), WorldLayerWant::Draw, "a million km out is near space: the whole world");
-    maps.camera = MapCamera::overview(11.0 * crate::cosmos::M_PER_AU);
+    maps.camera = MapCamera::overview(11.0 * humanity_core::cosmos::M_PER_AU);
     let far = world_layer_want(&maps);
     assert!(far == WorldLayerWant::TooFar && far.draws_sky(), "11 AU out the world layer draws no star sky ({far:?})");
     maps.camera.open_on_me(Some(&me));

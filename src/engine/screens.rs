@@ -32,7 +32,7 @@ use crate::gui::screen_surface::{turn_plan, LoadState, ScreenProvider, ScreenSou
 use crate::gui::GuiPage;
 use crate::machines::{CameraPose, PlacedMachine};
 use crate::renderer::mesh::Mesh;
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::renderer::RenderObject;
 use glam::{Quat, Vec3};
 
@@ -872,7 +872,7 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
         .copied()
         .filter(|&si| state.screens.surfaces.get(si).is_some_and(|s| !every_frame(si, s)))
         .collect();
-    let turns = page_turns(&waiting, &state.screens.page_drawn_at, PAGE_FRAMES_PER_TICK, crate::reuse::enabled());
+    let turns = page_turns(&waiting, &state.screens.page_drawn_at, PAGE_FRAMES_PER_TICK, humanity_core::reuse::enabled());
     let drawn: Vec<usize> = chosen.iter().copied().filter(|si| !waiting.contains(si) || turns.contains(si)).collect();
     for &si in &drawn {
         state.screens.page_drawn_at[si] = Some(tick);
@@ -886,7 +886,7 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     // A page screen's first sight is spread over its first turns (stutter survey 2, 2026-10-31,
     // `screen_surface::turn_plan`): the turn that builds its page's own data (above) draws nothing
     // more, the next runs the page's warm-up, the one after paints. Not for the dev IPC's target.
-    let spread = crate::reuse::enabled();
+    let spread = humanity_core::reuse::enabled();
     let readying: Vec<usize> = drawn
         .iter()
         .copied()

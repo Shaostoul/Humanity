@@ -66,7 +66,7 @@
 
 use serde::Deserialize;
 
-use crate::ecs::components::Npk;
+use humanity_core::ecs::components::Npk;
 
 use super::PlantDef;
 
@@ -91,28 +91,9 @@ impl Nutrient {
     }
 }
 
-impl Npk {
-    pub const ZERO: Npk = Npk { n: 0.0, p2o5: 0.0, k2o: 0.0 };
-
-    pub fn new(n: f64, p2o5: f64, k2o: f64) -> Self {
-        Self { n, p2o5, k2o }
-    }
-
-    /// Each nutrient times `k`.
-    pub fn scaled(self, k: f64) -> Self {
-        Self::new(self.n * k, self.p2o5 * k, self.k2o * k)
-    }
-
-    /// Nutrient by nutrient sum.
-    pub fn plus(self, o: Npk) -> Self {
-        Self::new(self.n + o.n, self.p2o5 + o.p2o5, self.k2o + o.k2o)
-    }
-
-    /// Nutrient by nutrient product: an index vector times a per-index scale.
-    pub fn times(self, o: Npk) -> Self {
-        Self::new(self.n * o.n, self.p2o5 * o.p2o5, self.k2o * o.k2o)
-    }
-}
+// Npk's arithmetic (ZERO, new, scaled, plus, times) is the core's, beside the type
+// (humanity_core::ecs::components): a crate may define methods only on its own types (the crate
+// split, rung 1, 2026-11-01).
 
 // -- Tuning. Each is a game choice, said as such, not a measured number. -----
 
@@ -171,7 +152,7 @@ pub const NUTRIENT_DECLINE_RATE: f32 = 100.0 / (20.0 * 3600.0);
 // -- Data: data/garden/nutrients.ron -------------------------------------------
 
 /// The shipped copy, so a bare exe with no data folder still has the model.
-pub const NUTRIENTS_RON: &str = include_str!("../../../data/garden/nutrients.ron");
+pub const NUTRIENTS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/nutrients.ron"));
 
 /// What data/garden/nutrients.ron holds. Its comments carry every source.
 #[derive(Debug, Clone, Deserialize)]
@@ -329,7 +310,7 @@ impl NutrientData {
     /// if that is missing or does not parse. The shipped copy always parses:
     /// a test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("nutrients.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("nutrients.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -340,7 +321,7 @@ impl NutrientData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("garden/nutrients.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("garden/nutrients.ron", why);
         Self::parse(NUTRIENTS_RON).expect("the shipped data/garden/nutrients.ron parses")
     }
 
@@ -537,7 +518,7 @@ pub const COHORT_MERGE_DAYS: f64 = 30.0;
 /// new cohort aged 0, or into the youngest cohort if it is under
 /// `COHORT_MERGE_DAYS` old. The merged age is the mass-weighted mean, so a
 /// big new application pulls the cohort's age toward zero.
-pub fn bank_organic(pool: &mut Vec<crate::ecs::components::OrganicCohort>, grams: f64) {
+pub fn bank_organic(pool: &mut Vec<humanity_core::ecs::components::OrganicCohort>, grams: f64) {
     if !(grams > 0.0) {
         return;
     }
@@ -549,7 +530,7 @@ pub fn bank_organic(pool: &mut Vec<crate::ecs::components::OrganicCohort>, grams
             return;
         }
     }
-    pool.push(crate::ecs::components::OrganicCohort { age_days: 0.0, n: grams });
+    pool.push(humanity_core::ecs::components::OrganicCohort { age_days: 0.0, n: grams });
 }
 
 /// The yearly percent for organic N of this age: year 1 is `yearly_pct[0]`,
@@ -574,7 +555,7 @@ fn yearly_rate(yearly_pct: &[f64], age_days: f64) -> f64 {
 /// the offline catch-up's one big step gets the same answer as many small
 /// ones. Cohorts old enough to sit on the last (flat) rate merge into one.
 pub fn release_organic(
-    pool: &mut Vec<crate::ecs::components::OrganicCohort>,
+    pool: &mut Vec<humanity_core::ecs::components::OrganicCohort>,
     days: f64,
     yearly_pct: &[f64],
 ) -> f64 {
@@ -621,14 +602,14 @@ pub fn release_organic(
     if !settled.is_empty() {
         let n: f64 = settled.iter().map(|c| c.n).sum();
         let age = settled.iter().map(|c| c.age_days).fold(0.0, f64::max);
-        pool.push(crate::ecs::components::OrganicCohort { age_days: age, n });
+        pool.push(humanity_core::ecs::components::OrganicCohort { age_days: age, n });
     }
     pool.extend(rest);
     released
 }
 
 /// Grams of organic N still banked in a unit's pool.
-pub fn organic_total(pool: &[crate::ecs::components::OrganicCohort]) -> f64 {
+pub fn organic_total(pool: &[humanity_core::ecs::components::OrganicCohort]) -> f64 {
     pool.iter().map(|c| c.n).sum()
 }
 
@@ -703,17 +684,17 @@ pub fn draw(store: &mut Npk, want: Npk) -> Npk {
 
 /// The world's one `SoilMemory`, spawned the first time it is needed.
 pub fn soil_memory_entity(world: &mut hecs::World) -> hecs::Entity {
-    if let Some((e, _)) = world.query::<&crate::ecs::components::SoilMemory>().iter().next() {
+    if let Some((e, _)) = world.query::<&humanity_core::ecs::components::SoilMemory>().iter().next() {
         return e;
     }
-    world.spawn((crate::ecs::components::SoilMemory::default(),))
+    world.spawn((humanity_core::ecs::components::SoilMemory::default(),))
 }
 
 /// Remember what is left in unit `slot` of grow area `area` once its crop is
 /// gone (harvested, or cleared away dead), for the next crop sown there.
 pub fn remember(world: &mut hecs::World, area: &str, slot: u32, store: Npk) {
     let e = soil_memory_entity(world);
-    if let Ok(mut mem) = world.get::<&mut crate::ecs::components::SoilMemory>(e) {
+    if let Ok(mut mem) = world.get::<&mut humanity_core::ecs::components::SoilMemory>(e) {
         mem.units.entry(area.to_string()).or_default().insert(slot, store);
     }
 }
@@ -721,8 +702,8 @@ pub fn remember(world: &mut hecs::World, area: &str, slot: u32, store: Npk) {
 /// Take what a unit was left with, if anything is remembered for it. Taken,
 /// not copied: from here on the soil rides on the new crop.
 pub fn recall(world: &mut hecs::World, area: &str, slot: u32) -> Option<Npk> {
-    let e = world.query::<&crate::ecs::components::SoilMemory>().iter().next().map(|(e, _)| e)?;
-    let mut mem = world.get::<&mut crate::ecs::components::SoilMemory>(e).ok()?;
+    let e = world.query::<&humanity_core::ecs::components::SoilMemory>().iter().next().map(|(e, _)| e)?;
+    let mut mem = world.get::<&mut humanity_core::ecs::components::SoilMemory>(e).ok()?;
     mem.units.get_mut(area).and_then(|slots| slots.remove(&slot))
 }
 
@@ -733,7 +714,7 @@ pub fn bank_organic_in(world: &mut hecs::World, area: &str, slot: u32, grams: f6
         return;
     }
     let e = soil_memory_entity(world);
-    if let Ok(mut mem) = world.get::<&mut crate::ecs::components::SoilMemory>(e) {
+    if let Ok(mut mem) = world.get::<&mut humanity_core::ecs::components::SoilMemory>(e) {
         let pool = mem.organic.entry(area.to_string()).or_default().entry(slot).or_default();
         bank_organic(pool, grams);
     }
@@ -748,12 +729,12 @@ mod tests {
     fn shipped() -> (NutrientData, PlantRegistry, ItemRegistry) {
         let data = NutrientData::parse(NUTRIENTS_RON).expect("shipped nutrients.ron parses");
         let plants = PlantRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/plants.csv"
         )))
         .expect("plants.csv");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -1066,9 +1047,9 @@ mod tests {
 
     #[test]
     fn shipped_removal_columns_are_read_and_plausible() {
-        let csv = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv"));
+        let csv = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv"));
         let plants = PlantRegistry::from_csv(csv.as_bytes()).expect("plants.csv");
-        let nutrition = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/food/crop_nutrition.ron"));
+        let nutrition = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/food/crop_nutrition.ron"));
         let protein: std::collections::HashMap<&str, f64> = nutrition
             .lines()
             .filter_map(|l| {

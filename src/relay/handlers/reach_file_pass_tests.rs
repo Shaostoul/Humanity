@@ -7,7 +7,7 @@
 // so the step B tests above stay readable.
 
 use super::*;
-use crate::relay::core::pq_crypto::{build_file_pass, file_pass_preimage};
+use humanity_protocol::pq_crypto::{build_file_pass, file_pass_preimage};
 
 /// Now, Unix seconds: `file_pass_of` checks on the relay's own clock.
 fn unix_now() -> u64 {

@@ -17,7 +17,7 @@
 //! import and its tests run headless.
 
 use crate::gui::GuiState;
-use crate::input::bindings::{reserved_reason, BindOutcome};
+use humanity_core::input::bindings::{reserved_reason, BindOutcome};
 
 /// Apply one keyboard event to an armed capture. Returns true when the event
 /// was CONSUMED (a capture was armed and this was a press): the caller must
@@ -79,7 +79,7 @@ pub fn handle_keybind_capture(gui: &mut GuiState, key_name: &str, pressed: bool)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::bindings::GameAction;
+    use humanity_core::input::bindings::GameAction;
 
     fn armed(action: GameAction, secondary: bool) -> GuiState {
         let mut gui = GuiState::default();

@@ -126,9 +126,9 @@ pub fn load_labels(path: &std::path::Path) -> Vec<FilesLabel> {
         Err(e) => Err(format!("{shown} could not be read ({e})")),
     };
     from_disk.unwrap_or_else(|why| {
-        crate::embedded_data::note_builtin_copy("files/labels.json", why);
+        humanity_core::embedded_data::note_builtin_copy("files/labels.json", why);
         // Declared after the disk read, so the compiled-in check sees this file read disk first.
-        const BUILT_IN: &str = include_str!("../../data/files/labels.json");
+        const BUILT_IN: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/files/labels.json"));
         parse_labels(BUILT_IN).unwrap_or_else(|e| {
             tracing::error!("The built-in files/labels.json does not parse either ({e}); no content label is accepted");
             Vec::new()
@@ -147,7 +147,7 @@ pub fn labels_path(data: &std::path::Path) -> std::path::PathBuf {
 /// "data" for the headless relay), at start (relay/mod.rs `run_relay`).
 pub fn labels() -> &'static [FilesLabel] {
     static LABELS: std::sync::OnceLock<Vec<FilesLabel>> = std::sync::OnceLock::new();
-    LABELS.get_or_init(|| load_labels(&labels_path(&crate::storage::data_dir())))
+    LABELS.get_or_init(|| load_labels(&labels_path(&humanity_core::storage::data_dir())))
 }
 
 /// The labels someone chose, checked against `known` and joined as they are stored: ids in the
@@ -418,7 +418,7 @@ fn allowance_for(db: &Storage, u: &NewUpload, now: i64) -> Result<(), Refused> {
 fn date_words(ms: i64) -> String {
     const MONTHS: [&str; 12] =
         ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    let (y, m, d) = crate::civil_date::epoch_days_to_ymd(ms.div_euclid(24 * 60 * 60 * 1000));
+    let (y, m, d) = humanity_core::civil_date::epoch_days_to_ymd(ms.div_euclid(24 * 60 * 60 * 1000));
     format!("{d} {} {y}", MONTHS[(m as usize).clamp(1, 12) - 1])
 }
 

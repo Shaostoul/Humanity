@@ -3,9 +3,9 @@
 // POST /api/v2/objects). Each test was seen failing once; what it saw red is at the test.
 
 use super::*;
-use crate::relay::core::object::ObjectBuilder;
-use crate::relay::core::pq_crypto::{DilithiumKeypair, KyberKeypair, derive_dilithium_seed, derive_kyber_seed};
-use crate::relay::core::recovery::{
+use humanity_protocol::object::ObjectBuilder;
+use humanity_protocol::pq_crypto::{DilithiumKeypair, KyberKeypair, derive_dilithium_seed, derive_kyber_seed};
+use humanity_protocol::recovery::{
     self as proto, OneTimeAsk, ServedPiece, TrustedPerson, build_setup, open_answer, open_piece, seal_answer, served_piece,
 };
 

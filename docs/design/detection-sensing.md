@@ -59,7 +59,7 @@ stealth at MMO scale without a physics bill. Likely a hybrid: analytic point-to-
 ## How it connects to what exists
 
 - The RF source is the data medium's `rf_emission` (`data/utilities/conduits.ron`, `ConduitType` in
-  `src/utilities.rs`): Wi-Fi emits, Cat6 and fibre do not. The v0.620 `RfEmitter` component, which put
+  `crates/humanity-core/src/utilities.rs`): Wi-Fi emits, Cat6 and fibre do not. The v0.620 `RfEmitter` component, which put
   a powered router's RF on an ECS entity, was removed on 2026-09-27 together with the Wi-Fi crop harm it
   served (`docs/reference/findings/2026-09-27-wifi-and-plants.md`); a sensing layer adds its own
   signature component when it is built, reading the medium's `rf_emission`.

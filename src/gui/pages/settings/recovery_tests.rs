@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::gui::theme::load_theme;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
 fn ctx_and_theme() -> (egui::Context, Theme) {
     let ctx = egui::Context::default();
@@ -130,7 +130,7 @@ fn trusted_people_are_chosen_from_friends() {
     assert!(!keys.contains(&ben.as_str()), "someone who does not follow back is not offered");
     let a = list.iter().find(|f| f.key == ann).unwrap();
     assert_eq!(a.kyber_b64.as_deref(), Some("a-key"));
-    assert_eq!(a.did, crate::relay::core::did::did_for_pubkey(&hex::decode(&ann).unwrap()));
+    assert_eq!(a.did, humanity_protocol::did::did_for_pubkey(&hex::decode(&ann).unwrap()));
     assert!(list.iter().find(|f| f.key == cy).unwrap().kyber_b64.is_none());
 }
 
@@ -161,11 +161,11 @@ fn loopback_relay(tag: &str) -> (String, tokio::runtime::Runtime) {
 
 fn friend_of(secret: &[u8; 32], name: &str) -> Friend {
     let dil = DilithiumKeypair::from_seed(&derive_dilithium_seed(secret));
-    let kyber = crate::relay::core::pq_crypto::KyberKeypair::from_seed(&crate::relay::core::pq_crypto::derive_kyber_seed(secret)).unwrap();
+    let kyber = humanity_protocol::pq_crypto::KyberKeypair::from_seed(&humanity_protocol::pq_crypto::derive_kyber_seed(secret)).unwrap();
     use base64::Engine;
     Friend {
         key: hex::encode(dil.public_key()),
-        did: crate::relay::core::did::did_for_pubkey(&dil.public_key()),
+        did: humanity_protocol::did::did_for_pubkey(&dil.public_key()),
         name: name.into(),
         kyber_b64: Some(base64::engine::general_purpose::STANDARD.encode(kyber.public_key())),
         key_changed: false,

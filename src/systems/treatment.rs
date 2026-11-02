@@ -23,8 +23,8 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{Health, StatusEffects};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Health, StatusEffects};
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::status_effects::StatusEffectRegistry;
 
 /// The DataStore channel a Use click rides from the inventory to the food system.
@@ -67,7 +67,7 @@ impl Treatments {
     /// neither there are no treatments, so no item shows a Use button: loud in the log, never
     /// a crash.
     pub fn load(data_dir: &Path) -> Self {
-        crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+        humanity_core::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
             log::warn!("{e}; no medical item can be used until it is fixed");
             Self::default()
         })
@@ -89,7 +89,7 @@ impl Treatments {
 pub fn has_use(item_id: &str) -> bool {
     static ITEMS: std::sync::OnceLock<HashSet<String>> = std::sync::OnceLock::new();
     ITEMS
-        .get_or_init(|| Treatments::load(&crate::storage::data_dir()).treatments.into_iter().map(|t| t.item).collect())
+        .get_or_init(|| Treatments::load(&humanity_core::storage::data_dir()).treatments.into_iter().map(|t| t.item).collect())
         .contains(item_id)
 }
 
@@ -166,12 +166,12 @@ mod tests {
     use super::*;
 
     fn shipped() -> Treatments {
-        Treatments::from_ron(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/medical/treatments.ron")).unwrap())
+        Treatments::from_ron(&std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/medical/treatments.ron")).unwrap())
             .expect("treatments.ron parses")
     }
 
     fn registry() -> StatusEffectRegistry {
-        StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/status_effects.csv")))
+        StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/status_effects.csv")))
             .expect("status_effects.csv")
     }
 
@@ -195,7 +195,7 @@ mod tests {
         let mut h = Health { current: 40.0, max: 100.0 };
         let mut fx = StatusEffects::default();
         fx.apply("bleeding", 30.0);
-        let wounds = crate::systems::wounds::Wounds::load(&crate::storage::data_dir());
+        let wounds = crate::systems::wounds::Wounds::load(&humanity_core::storage::data_dir());
         let out = apply(kit, &mut h, &mut fx, Some(&reg), &wounds);
         assert!(out.used && !fx.has("bleeding"));
         assert_eq!(h.current, 40.0 + kit.heals);

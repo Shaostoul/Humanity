@@ -6,10 +6,10 @@ use crate::ship::ship_structure::ShipStructure;
 use crate::systems::construction::placement::placement_pose;
 use crate::systems::construction::BlueprintRegistry;
 use glam::{Quat, Vec3};
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 
 fn data_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 fn assembled(plot: &str) -> ShipStructure {
@@ -17,7 +17,7 @@ fn assembled(plot: &str) -> ShipStructure {
 }
 
 fn shipped_blueprints() -> BlueprintRegistry {
-    BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap()
+    BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap()
 }
 
 /// THE SHIPPED SHIP'S FRAMES, the same from every side. The relay's ship file, the game's

@@ -29,20 +29,20 @@
 //! its body heat model made.
 
 use super::*;
-use crate::ecs::components::{Controllable, Health, StatusEffects, Vitals};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Health, StatusEffects, Vitals};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::illness::{Mode, MODE_KEY};
 use crate::systems::inventory::Inventory;
 use crate::systems::status_effects::StatusEffectRegistry;
 use std::sync::Mutex;
 
 fn data_dir() -> &'static Path {
-    Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+    Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
 }
 
 fn registry() -> StatusEffectRegistry {
-    StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/status_effects.csv")))
+    StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/status_effects.csv")))
         .expect("status_effects.csv")
 }
 

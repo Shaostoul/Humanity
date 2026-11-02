@@ -112,7 +112,7 @@ pub fn mouse_look_allowed(gui: &GuiState, alt_held: bool) -> bool {
 pub(crate) fn apply_game_action(
     controller: &mut crate::renderer::camera::CameraController,
     probe_hold: &mut Option<(glam::Vec3, std::time::Instant)>,
-    act: crate::input::bindings::GameAction,
+    act: humanity_core::input::bindings::GameAction,
     pressed: bool,
 ) {
     controller.apply_action(act, pressed);
@@ -265,7 +265,7 @@ mod tests {
     /// second hand-kept list.
     #[test]
     fn every_cloud_dev_field_is_readable_by_name() {
-        let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/mod.rs"))
+        let src = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/mod.rs"))
             .expect("read src/gui/mod.rs");
         let gui = GuiState::default();
         let mut names: Vec<&str> = vec!["show_cloud_dev_panel"];

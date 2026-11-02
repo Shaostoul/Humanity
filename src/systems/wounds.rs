@@ -55,7 +55,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::StatusEffects;
+use humanity_core::ecs::components::StatusEffects;
 use crate::systems::illness::{duration_words, Illnesses, Mode};
 use crate::systems::status_effects::StatusEffectRegistry;
 
@@ -266,7 +266,7 @@ impl Wounds {
     /// version cannot read it (BUG-163). With neither, no wounds and no healing: loud in the log,
     /// never a crash. The falls (`falls::Falls::FILE`) are read beside it, the same way.
     pub fn load(data_dir: &Path) -> Self {
-        let mut w = crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+        let mut w = humanity_core::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
             log::warn!("{e}; nothing leaves a wound and nothing heals by itself until it is fixed");
             Self::default()
         });
@@ -648,8 +648,8 @@ pub fn illness_lines(ill: &Illnesses, effects: &StatusEffects, registry: Option<
 fn shipped() -> &'static (Wounds, Illnesses, Option<StatusEffectRegistry>) {
     static SHIPPED: std::sync::OnceLock<(Wounds, Illnesses, Option<StatusEffectRegistry>)> = std::sync::OnceLock::new();
     SHIPPED.get_or_init(|| {
-        let dir = crate::storage::data_dir();
-        let effects = crate::embedded_data::load_data_or_embedded(&dir, "status_effects.csv", StatusEffectRegistry::from_csv)
+        let dir = humanity_core::storage::data_dir();
+        let effects = humanity_core::embedded_data::load_data_or_embedded(&dir, "status_effects.csv", StatusEffectRegistry::from_csv)
             .map_err(|e| log::warn!("{e}; the injury hint has no courses to name"))
             .ok();
         (Wounds::load(&dir), Illnesses::load(&dir), effects)
@@ -710,7 +710,7 @@ fn hint_text(w: &Wounds, reg: Option<&StatusEffectRegistry>) -> String {
 /// The hint's sentence on falls, with falls.ron's speeds as the heights they come from in
 /// Earth's gravity. None without fall data.
 fn fall_hint(f: &crate::systems::falls::Falls, reg: Option<&StatusEffectRegistry>) -> Option<String> {
-    use crate::physics::landing::drop_height_m;
+    use humanity_core::physics::landing::drop_height_m;
     const EARTH_G: f32 = 9.81;
     if f.steps.is_empty() {
         return None;

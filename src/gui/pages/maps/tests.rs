@@ -3,7 +3,7 @@
 //! star map. Moved out of `gui/pages/cosmos.rs` in Maps increment 0
 //! (2026-10-20); the bodies are unchanged.
 
-use crate::cosmos::{body_world_position_3d_au, find_body};
+use humanity_core::cosmos::{body_world_position_3d_au, find_body};
 
 use super::galaxy_view::parse_stars_map;
 use super::sky_events::{format_geo, subpoint_lat_lon_deg};
@@ -135,7 +135,7 @@ fn format_geo_quadrants() {
 /// ordering), not just plausible bytes.
 #[test]
 fn shipped_stars_map_bin_is_real() {
-    let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/stars-map.bin"))
+    let bytes = std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/stars-map.bin"))
         .expect("data/stars-map.bin ships with the repo");
     let stars = parse_stars_map(&bytes).expect("parses");
     assert!(stars.len() > 100_000, "full HYG catalog, got {}", stars.len());
@@ -239,7 +239,7 @@ fn the_overview_looks_down_from_ecliptic_north_and_orbits_turn_counter_clockwise
         let cross = a.x * b.y - a.y * b.x;
         assert!(cross < 0.0, "{id} goes round the Sun clockwise on the overview (a x b = {cross:.1})");
     }
-    let above = (pose.eye - sun0).y / crate::cosmos::M_PER_AU;
+    let above = (pose.eye - sun0).y / humanity_core::cosmos::M_PER_AU;
     assert!(above > 0.0, "the overview's eye is {:.1} AU BELOW the ecliptic", -above);
 }
 
@@ -259,7 +259,7 @@ fn the_overview_draws_the_belts_the_trails_the_bodies_and_the_names() {
     let theme = crate::gui::theme::load_theme();
     theme.apply_to_egui(&ctx);
     let mut state = crate::gui::GuiState::default();
-    state.maps.camera = super::MapCamera::overview(11.0 * crate::cosmos::M_PER_AU);
+    state.maps.camera = super::MapCamera::overview(11.0 * humanity_core::cosmos::M_PER_AU);
     let input = || egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0))),
         ..Default::default()
@@ -312,7 +312,7 @@ fn reference_rings_lie_in_the_equatorial_plane() {
 /// child (along its motion -0.874)".
 #[test]
 fn lagrange_l4_leads_and_l5_trails_on_every_date() {
-    use crate::cosmos::{body_world_position_3d_au, find_body};
+    use humanity_core::cosmos::{body_world_position_3d_au, find_body};
     for (parent, child) in [("sun", "earth"), ("earth", "moon"), ("sun", "jupiter")] {
         let (p, c) = (find_body(parent).unwrap(), find_body(child).unwrap());
         for day in (0..360).step_by(15) {

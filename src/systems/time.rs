@@ -6,8 +6,8 @@
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// In-game season derived from day count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -632,8 +632,8 @@ impl TimeSystem {
 #[cfg(test)]
 mod game_time_export_tests {
     use super::*;
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
 
     /// THE HOST'S CLOCK WINS IN A SHARED WORLD (operator, 2026-09-29). A
     /// player on day 100 at time speed 72 joins a world whose host is on day

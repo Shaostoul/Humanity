@@ -312,7 +312,7 @@ pub(crate) fn showcase_gate(
     if !(play_mode.allows(crate::config::Capability::FreeResources) && creative) {
         return Err("free resources are off (Normal mode, or the Creative toggle), so the garden is the player's to plant");
     }
-    if world.query::<&crate::ecs::components::CropInstance>().iter().next().is_some() {
+    if world.query::<&humanity_core::ecs::components::CropInstance>().iter().next().is_some() {
         return Err("crops already present");
     }
     Ok(())
@@ -352,7 +352,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         diag("no machine anchors recorded yet");
         return;
     }
-    let Ok(text) = std::fs::read_to_string(crate::storage::data_dir().join("world/showcase.ron"))
+    let Ok(text) = std::fs::read_to_string(humanity_core::storage::data_dir().join("world/showcase.ron"))
     else {
         diag("data/world/showcase.ron missing");
         return;
@@ -376,13 +376,13 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         .and_then(|m| m.lock().ok())
         .map(|gt| gt.elapsed_seconds)
         .unwrap_or(0.0);
-    let tower_cfgs = crate::gui::load_tower_configs(&crate::storage::data_dir());
+    let tower_cfgs = crate::gui::load_tower_configs(&humanity_core::storage::data_dir());
     // A garden day: 24 hours of the one game clock (farming's day, 2026-09-27).
     const DAY: f64 = crate::systems::time::EARTH_DAY_S;
 
     // Collect the spawn list first (no world borrow while iterating data).
-    let mut to_spawn: Vec<crate::ecs::components::CropInstance> = Vec::new();
-    let stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
+    let mut to_spawn: Vec<humanity_core::ecs::components::CropInstance> = Vec::new();
+    let stagger = |list: &mut Vec<humanity_core::ecs::components::CropInstance>,
                        plant_id: &str,
                        grow_id: &str,
                        slot: u32,
@@ -391,7 +391,7 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
         let stages = def.stages();
         // Its stage and its age on the game clock, which agree: there is no
         // separate growth speed (the one clock, 2026-09-27).
-        list.push(crate::ecs::components::CropInstance {
+        list.push(humanity_core::ecs::components::CropInstance {
             crop_def_id: plant_id.to_string(),
             growth_stage: crate::systems::farming::stage_from_progress(frac, &stages).to_string(),
             planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64,
@@ -616,8 +616,8 @@ impl RequestWatch {
 /// running, the file is in that folder, and it has not been announced: the reader then skips the
 /// file system entirely. A path anywhere else (the tests' own folders) is always checked.
 fn request_may_exist(path: &std::path::Path, now: std::time::Instant) -> bool {
-    // With every reuse off (the Dev page's switch, crate::reuse), every file is checked every frame.
-    if !crate::reuse::enabled() {
+    // With every reuse off (the Dev page's switch, humanity_core::reuse), every file is checked every frame.
+    if !humanity_core::reuse::enabled() {
         return true;
     }
     if !path.is_relative() || path.parent() != Some(std::path::Path::new(REQUEST_DIR)) {
@@ -1815,8 +1815,8 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
                 .game_world
                 .world
                 .query_mut::<(
-                    &mut crate::ecs::components::Transform,
-                    &crate::ecs::components::Controllable,
+                    &mut humanity_core::ecs::components::Transform,
+                    &humanity_core::ecs::components::Controllable,
                 )>()
             {
                 t.position = Vec3::new(v[0], v[1], v[2]);
@@ -2420,7 +2420,7 @@ pub(crate) fn render_view_onto_kept(
         // / `cpu.stars` for the screenshot (see `who` above). The CPU stage
         // is the submission twin the no-timestamp fallback reads.
         let (sky_gpu, sky_cpu) = who.sky_ids();
-        let _cost = crate::frame_costs::stage(sky_cpu);
+        let _cost = humanity_core::frame_costs::stage(sky_cpu);
         let stars = passes != ViewPasses::Plan; // a plan tile clears to black, no sky
         if let Some(ref star_r) = state.star_renderer.as_ref().filter(|_| stars) {
             star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), fades);
@@ -3202,7 +3202,7 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
         // Optional "label" (a rig's vantage id) and "picture" (default true); a rig sends
         // {"action": "mark", "label": "<vantage>", "picture": false} (rung 4).
         "mark" => {
-            state.gui_state.play_mark_request = Some(crate::play_journal::MarkAsk {
+            state.gui_state.play_mark_request = Some(humanity_core::play_journal::MarkAsk {
                 label: v.get("label").and_then(|l| l.as_str()).unwrap_or("").chars().take(80).collect(),
                 picture: v.get("picture").and_then(|p| p.as_bool()).unwrap_or(true),
             });
@@ -3451,7 +3451,7 @@ pub(crate) fn advance_station_park(state: &mut EngineState) {
         // the first capture without this faced empty sky).
         let to_sun = state.sun_world_pos - state.ship_world_pos;
         let dir = crate::station::to_hull(state.station_ride, state.station_world_rot, to_sun);
-        let (yaw, pitch) = crate::dev_travel::look_angles(dir);
+        let (yaw, pitch) = humanity_core::dev_travel::look_angles(dir);
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
         park.requested_yaw_pitch = (yaw, pitch);
@@ -3644,7 +3644,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         let position = station_park_render_pos(home_pos, state.ship_world_pos, state.station_world_pos);
         state.camera.position = position;
         state.camera.clear_surface();
-        let (yaw, pitch) = yaw_pitch.unwrap_or_else(|| crate::dev_travel::look_angles(look));
+        let (yaw, pitch) = yaw_pitch.unwrap_or_else(|| humanity_core::dev_travel::look_angles(look));
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
         if yaw_pitch.is_some() {
@@ -3653,7 +3653,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             for (_e, (t, _c)) in state
                 .game_world
                 .world
-                .query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+                .query_mut::<(&mut humanity_core::ecs::components::Transform, &humanity_core::ecs::components::Controllable)>()
             {
                 t.position = position;
             }
@@ -3710,7 +3710,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         let path = state.asset_manager.data_dir().join("scenic_views.ron");
         match std::fs::read_to_string(&path)
             .map_err(|e| e.to_string())
-            .and_then(|t| crate::scenic_views::ScenicViews::from_ron(&t))
+            .and_then(|t| humanity_core::scenic_views::ScenicViews::from_ron(&t))
         {
             Ok(views) => match views.find(name) {
                 Some(view) => Some(view.clone()),
@@ -3775,7 +3775,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             }
         }
     }
-    let Some(body) = crate::cosmos::find_body(&body_id) else {
+    let Some(body) = humanity_core::cosmos::find_body(&body_id) else {
         fail(format!("unknown body id {body_id}"));
         return;
     };
@@ -3786,13 +3786,13 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
         - 946_728_000.0;
-    let earth_helio_au = crate::cosmos::find_body("earth")
-        .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+    let earth_helio_au = humanity_core::cosmos::find_body("earth")
+        .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
         .unwrap_or(glam::DVec3::ZERO);
-    let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+    let body_rel_earth = (humanity_core::cosmos::body_world_position_3d_au(body, sim_t)
         - earth_helio_au)
-        * crate::cosmos::M_PER_AU;
-    let sun_rel_earth = -earth_helio_au * crate::cosmos::M_PER_AU;
+        * humanity_core::cosmos::M_PER_AU;
+    let sun_rel_earth = -earth_helio_au * humanity_core::cosmos::M_PER_AU;
     let radius_m = body.radius_km * 1000.0;
     // dir_out = the outward direction from the body centre to the camera.
     // Scenic (lat/lon): the surface radial at that coordinate, rotated into
@@ -3805,7 +3805,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             * glam::DVec3::new(d.x as f64, d.y as f64, d.z as f64);
         world.normalize_or_zero()
     } else {
-        let base = crate::dev_travel::teleport_viewpoint(
+        let base = humanity_core::dev_travel::teleport_viewpoint(
             body_rel_earth,
             sun_rel_earth,
             radius_m,
@@ -3901,8 +3901,8 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     let aim_at = match aim_name {
         None => None,
         Some("sun") => Some(state.sun_world_pos),
-        Some(id) => match crate::cosmos::find_body(id) {
-            Some(target) => Some((crate::cosmos::body_world_position_3d_au(target, sim_t) - earth_helio_au) * crate::cosmos::M_PER_AU),
+        Some(id) => match humanity_core::cosmos::find_body(id) {
+            Some(target) => Some((humanity_core::cosmos::body_world_position_3d_au(target, sim_t) - earth_helio_au) * humanity_core::cosmos::M_PER_AU),
             None => {
                 fail(format!("aim: unknown body id {id}"));
                 return;
@@ -3920,7 +3920,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
         state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
         state.camera.clear_surface();
-        let (yaw, pitch) = crate::dev_travel::look_angles(aim);
+        let (yaw, pitch) = humanity_core::dev_travel::look_angles(aim);
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
         state.gui_state.dev_fly_mode = true;
@@ -3943,7 +3943,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
                 state.camera.position.y as f64,
                 state.camera.position.z as f64,
             );
-            state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+            state.frame_lock_anchor = humanity_core::dev_travel::frame_lock_capture(
                 body_rel_earth,
                 rot,
                 vantage + cam_local,
@@ -3989,7 +3989,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // re-engage surface mode next frame and PRESERVE this exact look
     // direction across the basis change (set_surface_up transition).
     state.camera.clear_surface();
-    let (yaw, pitch) = crate::dev_travel::look_angles(aim);
+    let (yaw, pitch) = humanity_core::dev_travel::look_angles(aim);
     state.camera.yaw = yaw;
     state.camera.pitch = pitch;
     state.gui_state.dev_fly_mode = true;
@@ -4016,7 +4016,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             state.camera.position.z as f64,
         );
         state.frame_lock_anchor =
-            crate::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage + cam_local);
+            humanity_core::dev_travel::frame_lock_capture(body_rel_earth, rot, vantage + cam_local);
         state.frame_lock_last_rot = rot;
         state.frame_lock_body = Some(body_id.clone());
         // Dev teleport: re-place the weather system here. The anchor is sticky by
@@ -4116,8 +4116,8 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
         );
         return;
     }
-    if crate::storage::mode() == crate::storage::StorageMode::Undecided {
-        crate::storage::choose_installed();
+    if humanity_core::storage::mode() == humanity_core::storage::StorageMode::Undecided {
+        humanity_core::storage::choose_installed();
     }
     if state.gui_state.private_key_bytes.is_none() {
         // Reuse this test folder's identity across reruns: the relay caps
@@ -4264,7 +4264,7 @@ pub(crate) fn parse_remote_players_request(text: &str) -> Result<f64, String> {
 pub(crate) fn remote_players_json(world: &hecs::World) -> Vec<serde_json::Value> {
     let mut out: Vec<serde_json::Value> = world
         .query::<(
-            &crate::ecs::components::Transform,
+            &humanity_core::ecs::components::Transform,
             &crate::net::sync::RemotePlayer,
             Option<&crate::net::sync::SnapshotBuffer>,
         )>()
@@ -4290,7 +4290,7 @@ pub(crate) fn remote_players_json(world: &hecs::World) -> Vec<serde_json::Value>
 /// (scripts/lib/copresence-judge.js `judgeCrew`).
 pub(crate) fn remote_crew_json(world: &hecs::World) -> Vec<serde_json::Value> {
     let mut out: Vec<serde_json::Value> = world
-        .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
+        .query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
         .iter()
         .map(|(_e, (t, n))| {
             serde_json::json!({
@@ -4539,7 +4539,7 @@ fn save_file_json(path: &std::path::Path) -> serde_json::Value {
 pub(crate) fn home_session_core(
     gs: &GuiState,
     world: &hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     saves_dir: &std::path::Path,
 ) -> serde_json::Value {
     use crate::persistence::SaveSlot;
@@ -4719,7 +4719,7 @@ mod station_park_tests {
 #[cfg(test)]
 mod remote_player_recorder_tests {
     use super::*;
-    use crate::ecs::components::Transform;
+    use humanity_core::ecs::components::Transform;
     use crate::net::sync::{RemotePlayer, SnapshotBuffer};
     use glam::Quat;
 
@@ -4798,7 +4798,7 @@ mod remote_player_recorder_tests {
                 greetings: Vec::new(),
                 last_position: drawn,
                 target_position: target,
-                facing: crate::turning::Turn::default(),
+                facing: humanity_core::turning::Turn::default(),
                 heading: 0.0,
                 interpolation_t: 0.5,
             },
@@ -4836,8 +4836,8 @@ mod request_take_tests {
     use std::time::{Duration, Instant};
 
     /// A scratch folder with a `debug/` in it, deleted when the guard drops (BUG-159).
-    fn scratch(tag: &str) -> crate::test_temp::TempPath {
-        let d = crate::test_temp::dir(&format!("request_take_{tag}"));
+    fn scratch(tag: &str) -> humanity_core::test_temp::TempPath {
+        let d = humanity_core::test_temp::dir(&format!("request_take_{tag}"));
         std::fs::create_dir_all(d.join("debug")).unwrap();
         d
     }
@@ -5390,7 +5390,7 @@ mod showcase_gate_tests {
         assert!(showcase_gate(&empty, PlayMode::Dev, false).is_err(), "Dev testing real consumption plants nothing free");
 
         let mut growing = hecs::World::new();
-        growing.spawn((crate::ecs::components::CropInstance {
+        growing.spawn((humanity_core::ecs::components::CropInstance {
             crop_def_id: "wheat".into(),
             growth_stage: "seed".into(),
             planted_at: 0.0,
@@ -5415,7 +5415,7 @@ mod console_verb_tests {
 
     /// A Dev session, the rigs' play mode, on the shipped ship from p1, the editor's zone the home.
     fn dev_session() -> crate::gui::GuiState {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut gui = crate::gui::GuiState::default();
         gui.settings.play_mode = PlayMode::Dev;
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
@@ -5552,8 +5552,8 @@ mod shared_build_ipc_tests {
     /// frame): "the recorder never writes \"shared\": shared".
     #[test]
     fn the_recorder_reports_shared_pieces() {
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let frames = BuildFrames::of_ship(&crate::ship::ship_structure::ShipStructure::ship_for_relay(&dir).unwrap());
         let commons = frames.get("zone:commons").unwrap();
         let t = 1_759_500_000.0;
@@ -5612,7 +5612,7 @@ mod household_ipc_tests {
     use crate::net::household::{GivenPermit, GivenState, HeldPermit, Household, Judged, PermitKey, Verdict};
     use crate::ship::door_panels::{neighbour_panel_placements, ship_panel_placements, PanelPlacement};
     use crate::ship::ship_structure::{OpenPlots, ShipStructure};
-    use crate::build_permission::Permit;
+    use humanity_core::build_permission::Permit;
     use std::collections::BTreeSet;
 
     /// The body of `fn name` in this file, up to the first line that is a lone `}`.
@@ -5670,7 +5670,7 @@ mod household_ipc_tests {
     /// JSON): "the recorder never writes \"household\": crate::engine::household_world::probe_json(state)".
     #[test]
     fn the_probe_reports_the_household() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut ship = ShipStructure::load_and_assemble_shipped(&dir, Some("p2")).unwrap();
         let p1: BTreeSet<String> = BTreeSet::from(["p1".to_string()]);
         ship.open = OpenPlots { plots: p1.clone(), lit: Some("p1".into()) };
@@ -5833,7 +5833,7 @@ mod home_session_ipc_tests {
     /// done JSON): "the recorder never writes \"home_session\": home_session_json(state)".
     #[test]
     fn the_probe_reports_the_home_session() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let starts = Starts::load(&dir);
         let cabin = starts.get("cabin").expect("the cabin start").clone();
         let ship = crate::engine::save_slot::assemble_start(ShipStructure::load_ship_file(&dir).unwrap(), "c2", &cabin, None, None, false, true)
@@ -5859,7 +5859,7 @@ mod home_session_ipc_tests {
         // The character, fresh from the Cabin start.
         let mut world = hecs::World::new();
         crate::save_load::spawn_player_of_start(&mut world, &cabin);
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         crate::save_load::put_ship_meals(&mut data, &ShipMeals { taken: 1, next_at_game_s: 3600.0, water_l: 1.0 });
 
         let mut gs = GuiState::default();
@@ -5914,7 +5914,7 @@ mod home_session_ipc_tests {
         let kit: serde_json::Map<String, serde_json::Value> = cabin.kit.iter().map(|(id, n)| (id.clone(), serde_json::json!(n))).collect();
         assert_eq!(v["backpack"], serde_json::Value::Object(kit), "the cabin kit, summed by id");
         assert_eq!(v["skills"], 0);
-        assert_eq!(v["credits"], crate::ecs::components::Wallet::default().credits);
+        assert_eq!(v["credits"], humanity_core::ecs::components::Wallet::default().credits);
         assert_eq!(v["quests"]["active"], serde_json::json!([{ "id": "gs_first_steps_cabin", "step": 0 }]));
         assert_eq!(v["quests"]["completed"], serde_json::json!([]));
         assert_eq!(v["look"]["name"], "Player");

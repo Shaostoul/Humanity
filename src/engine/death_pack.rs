@@ -85,14 +85,14 @@ pub(crate) fn after_tick(state: &mut EngineState, dt: f32) {
 pub(crate) fn dev_die(state: &mut EngineState, cause: &str) -> String {
     let world = &mut state.game_world.world;
     let Some(p) = dp::player(world) else { return "no player to die".to_string() };
-    if world.get::<&crate::ecs::components::Dead>(p).is_ok() {
+    if world.get::<&humanity_core::ecs::components::Dead>(p).is_ok() {
         return "already dead".to_string();
     }
-    if let Ok(mut h) = world.get::<&mut crate::ecs::components::Health>(p) {
+    if let Ok(mut h) = world.get::<&mut humanity_core::ecs::components::Health>(p) {
         h.current = 0.0;
     }
     let cause = if cause.trim().is_empty() { "injuries" } else { cause.trim() };
-    let _ = world.insert_one(p, crate::ecs::components::Dead { cause: cause.to_string(), ..Default::default() });
+    let _ = world.insert_one(p, humanity_core::ecs::components::Dead { cause: cause.to_string(), ..Default::default() });
     if let Some(slot) = state.data_store.get::<std::sync::Mutex<Option<String>>>("player_death") {
         if let Ok(mut s) = slot.lock() {
             *s = Some(cause.to_string());
@@ -194,7 +194,7 @@ pub(crate) fn room_words(name: &str) -> String {
 
 /// A body's name ("Earth"), from the solar system's data; its id when it has none.
 fn body_name(id: &str) -> String {
-    crate::cosmos::find_body(id).map_or_else(|| id.to_string(), |b| b.name.clone())
+    humanity_core::cosmos::find_body(id).map_or_else(|| id.to_string(), |b| b.name.clone())
 }
 
 /// The pack in reach in front of the player, and how many items it holds; None while
@@ -267,7 +267,7 @@ pub(crate) fn faces(eye: DVec3, look: DVec3, target: DVec3, reach: f64, facing_c
 /// Once a frame, with the other walk-up prompts: the crosshair prompt at a pack in reach.
 pub(crate) fn frame(state: &mut EngineState) {
     let prompt = target(state).map(|(_, n)| {
-        let key = crate::input::bindings::pretty_key_name(state.gui_state.keybinds.pair(crate::input::bindings::GameAction::Interact).0);
+        let key = humanity_core::input::bindings::pretty_key_name(state.gui_state.keybinds.pair(humanity_core::input::bindings::GameAction::Interact).0);
         format!("[{key}] Take back your pack ({})", items_words(n))
     });
     state.gui_state.death_pack.prompt = prompt.unwrap_or_default();

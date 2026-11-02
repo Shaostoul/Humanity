@@ -4,7 +4,7 @@
 //! its service) onto the panel. The rules live in systems::mining.
 
 use crate::gui::GuiState;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Once a frame, before the systems tick (lib.rs).
 pub(crate) fn bridge(state: &mut crate::engine::state::EngineState) {

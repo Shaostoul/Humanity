@@ -5,7 +5,7 @@
 // off) is in features.rs.
 
 use super::*;
-use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, new_friend_cert_serial, DilithiumKeypair, KYBER_CIPHERTEXT_LEN};
+use humanity_protocol::pq_crypto::{build_friend_cert, derive_dilithium_seed, new_friend_cert_serial, DilithiumKeypair, KYBER_CIPHERTEXT_LEN};
 use crate::relay::handlers::msg_handlers::{handle_dm_put, handle_trade_request, handle_voice_call, handle_webrtc_signal};
 use crate::relay::relay::{Peer, VoiceRoom};
 use crate::relay::storage::Storage;
@@ -155,7 +155,7 @@ fn try_reach(st: &Arc<RelayState>, kind: Kind, sender: &str, target: &str, cert:
 /// Put `members` in one P2P group that `creator` starts: the group, then each member's own
 /// request to join and the creator's admit (the consenting path, storage/groups_p2p.rs).
 fn group(st: &Arc<RelayState>, creator: &Person, members: &[&Person], name: &str) -> String {
-    use crate::relay::core::object::ObjectBuilder;
+    use humanity_protocol::object::ObjectBuilder;
     use ciborium::Value;
     let text = |k: &str, v: &str| (Value::Text(k.into()), Value::Text(v.into()));
     let g = ObjectBuilder::new("group_v1")
@@ -278,7 +278,7 @@ fn a_person_with_no_saved_settings_gets_the_safe_defaults() {
     assert!(!try_reach(&st, Kind::Call, &friend.key, &target.key, Some(&default_pass)).0, "a friend whose pass does not allow calls cannot call by default");
     assert!(try_reach(&st, Kind::Call, &close.key, &target.key, Some(&close_pass)).0, "someone they chose can call");
     // A withdrawn pass is no pass: back to the stranger's answer.
-    let serial = crate::relay::core::pq_crypto::parse_friend_cert(&close_pass).unwrap().0.serial;
+    let serial = humanity_protocol::pq_crypto::parse_friend_cert(&close_pass).unwrap().0.serial;
     st.db.withdraw_friend_cert(&target.key, &serial, 20_000).unwrap();
     let (delivered, back) = try_reach(&st, Kind::Message, &close.key, &target.key, Some(&close_pass));
     assert!(!delivered && back == vec![format!("reach_refused message {}", target.key)], "a withdrawn pass: {back:?}");
@@ -306,7 +306,7 @@ fn groups_lets_in_people_who_share_a_p2p_group_and_no_one_else() {
         assert!(!try_reach(&st, kind, &outsider.key, &target.key, None).0, "someone in another group cannot {kind:?}");
     }
     // The group mate is removed: from then on a stranger.
-    use crate::relay::core::object::ObjectBuilder;
+    use humanity_protocol::object::ObjectBuilder;
     use ciborium::Value;
     let removal = ObjectBuilder::new("group_member_v1")
         .reference(&gid)

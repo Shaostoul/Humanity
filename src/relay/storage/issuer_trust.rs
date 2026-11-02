@@ -18,8 +18,8 @@ use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
 use super::Storage;
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::object::Object;
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::object::Object;
 
 /// Default neutral trust for an issuer we've just observed. Symmetric (not
 /// trusting nor distrusting) so disputes and good behavior have equal weight.
@@ -41,7 +41,7 @@ pub struct IssuerTrustRow {
 
 /// Read a CBOR text payload field.
 fn read_text(object: &Object, field: &str) -> Option<String> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&object.payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let ciborium::Value::Text(name) = k {
@@ -216,9 +216,9 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::encoding::{cbor_map, cbor_text};
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::encoding::{cbor_map, cbor_text};
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
         Storage::open_temp("itrust_test")

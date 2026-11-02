@@ -247,7 +247,7 @@ impl TreeRegistry {
 /// The shipped species list, compiled in so a build with no `data/` directory
 /// still grows trees. The on-disk copy wins when present, which keeps the file
 /// editable in a dev checkout.
-const EMBEDDED_TREES: &str = include_str!("../../data/vegetation/trees.ron");
+const EMBEDDED_TREES: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/vegetation/trees.ron"));
 
 static REGISTRY: std::sync::OnceLock<TreeRegistry> = std::sync::OnceLock::new();
 
@@ -269,7 +269,7 @@ pub fn registry() -> &'static TreeRegistry {
             },
             Err(e) => format!("data/vegetation/trees.ron could not be read ({e})"),
         };
-        crate::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
         TreeRegistry::from_ron(EMBEDDED_TREES).unwrap_or_default()
     })
 }

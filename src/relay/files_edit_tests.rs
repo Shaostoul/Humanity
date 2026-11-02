@@ -8,7 +8,7 @@
 //! temporary database, and nothing is written outside a temporary folder.
 
 use super::*;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use crate::relay::files::{file_from, publish_core, remove_core, visibility_core, PublishBody, RemoveTarget, TokenQuery, UPLOAD_TOKEN_HEADER};
 use crate::relay::files_licences::{parse_licences, NOT_FOR_GAME, NOT_OFFERED};
 use crate::relay::storage::files::{shown_name_for, FilesItem, ITEM_FILES_MAX, MEDIA_SHELF, OUT_OF_DATE};
@@ -41,14 +41,14 @@ fn relay(tag: &str) -> Arc<RelayState> {
 
 /// The four folders of a test's own.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
 }
 
 fn dirs(tag: &str) -> Dirs {
-    let d = |what: &str| crate::test_temp::dir(&format!("{tag}_{what}"));
+    let d = |what: &str| humanity_core::test_temp::dir(&format!("{tag}_{what}"));
     Dirs { uploads: d("uploads"), members: d("members"), resume: d("resume"), waiting: d("waiting") }
 }
 
@@ -105,7 +105,7 @@ fn take_off(db: &Storage, d: &Dirs, key: &str, item: &FilesItem, file: i64, name
 /// The data folder's licences file as it ships, with its Creative Commons warning written (so the
 /// CC licences are offered whatever the copy says today).
 fn offered() -> LicencesFile {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/files/licences.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/files/licences.json");
     let mut file = parse_licences(&std::fs::read_to_string(path).unwrap()).unwrap();
     if file.cc_warning.trim().is_empty() {
         file.cc_warning = "A Creative Commons licence cannot be taken back for copies already taken.".into();

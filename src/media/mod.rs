@@ -381,7 +381,7 @@ struct Clock {
     /// decoder worked, and the test failed with nothing wrong in the player.
     /// Never present in the product, which reads `Instant::now()`.
     #[cfg(test)]
-    manual: Option<Arc<crate::test_clock::ManualClock>>,
+    manual: Option<Arc<humanity_core::test_clock::ManualClock>>,
 }
 
 impl Clock {
@@ -880,7 +880,7 @@ impl VideoPlayer {
     /// starts in the player's current state (paused unless `play()` already
     /// ran). A file with no audio track attaches nothing and plays silent on
     /// the wall clock. Call once; a second call replaces the sound.
-    pub fn attach_audio(&mut self, manager: &mut crate::audio::AudioManager) -> Result<(), MediaError> {
+    pub fn attach_audio(&mut self, manager: &mut humanity_core::audio::AudioManager) -> Result<(), MediaError> {
         let volume = manager.master_volume();
         self.attach_audio_with(manager, AudioAttach { volume, ..AudioAttach::default() })
     }
@@ -911,7 +911,7 @@ impl VideoPlayer {
     /// is audible as a click every time a screen enters range.
     pub fn attach_audio_with(
         &mut self,
-        manager: &mut crate::audio::AudioManager,
+        manager: &mut humanity_core::audio::AudioManager,
         opts: AudioAttach,
     ) -> Result<(), MediaError> {
         if self.info.audio_track.is_none() {
@@ -1149,7 +1149,7 @@ impl VideoPlayer {
     /// worked, not one that ran on for as long as a busy machine took. The
     /// position does not move at the switch.
     #[cfg(test)]
-    pub(crate) fn use_manual_clock(&mut self, time: &Arc<crate::test_clock::ManualClock>) {
+    pub(crate) fn use_manual_clock(&mut self, time: &Arc<humanity_core::test_clock::ManualClock>) {
         let position = self.clock.raw();
         self.clock.manual = Some(time.clone());
         self.clock.base = position;

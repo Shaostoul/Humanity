@@ -137,7 +137,7 @@ mod tests {
         let games = read(&fx.manifests);
         assert_eq!(games[0].details.size, Some(8_589_934_592), "its size");
         assert_eq!(games[0].details.version.as_deref(), Some("2.4.1-CL-118"));
-        let bare = crate::test_temp::dir("epic_details_bare");
+        let bare = humanity_core::test_temp::dir("epic_details_bare");
         std::fs::create_dir_all(bare.join("game")).unwrap();
         let item = serde_json::json!({ "AppName": "Bare", "DisplayName": "Bare", "InstallLocation": bare.join("game").to_string_lossy(), "AppCategories": ["games"] });
         std::fs::write(bare.join("x.item"), item.to_string()).unwrap();

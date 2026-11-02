@@ -6,7 +6,7 @@ use crate::gui::pages::maps::tile_grid::keys_covering;
 use crate::ship::levels::{level_cuts, ship_levels};
 
 fn shipped() -> ShipStructure {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles at p1")
 }
 

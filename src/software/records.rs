@@ -152,7 +152,7 @@ pub fn this_computer(store_families: &[String]) -> Records {
 #[cfg(windows)]
 mod windows_read {
     use super::{clean_path, AppPath, Hive, Records, Uninstall};
-    use crate::platform::registry::{self, Root, View};
+    use humanity_core::platform::registry::{self, Root, View};
 
     const UNINSTALL: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
     const APP_PATHS: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths";

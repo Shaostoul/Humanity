@@ -9,7 +9,7 @@
 use super::*;
 use crate::relay::storage::files::MEDIA_SHELF;
 use crate::relay::storage::{ServerSettings, Storage};
-use crate::test_temp::TempPath;
+use humanity_core::test_temp::TempPath;
 use std::path::PathBuf;
 
 const MIB: u64 = 1024 * 1024;
@@ -27,10 +27,10 @@ struct Rig {
 fn rig(tag: &str) -> Rig {
     Rig {
         state: Arc::new(RelayState::new(Storage::open_temp(tag))),
-        uploads: crate::test_temp::dir(&format!("{tag}_uploads")),
-        members: crate::test_temp::dir(&format!("{tag}_members")),
-        resume: crate::test_temp::dir(&format!("{tag}_resume")),
-        waiting: crate::test_temp::dir(&format!("{tag}_waiting")),
+        uploads: humanity_core::test_temp::dir(&format!("{tag}_uploads")),
+        members: humanity_core::test_temp::dir(&format!("{tag}_members")),
+        resume: humanity_core::test_temp::dir(&format!("{tag}_resume")),
+        waiting: humanity_core::test_temp::dir(&format!("{tag}_waiting")),
     }
 }
 
@@ -570,7 +570,7 @@ async fn an_account_erase_removes_sessions() {
 /// upload_sessions\"))".
 #[test]
 fn an_older_database_gains_the_sessions_table() {
-    let path = crate::test_temp::db("resume_older_db");
+    let path = humanity_core::test_temp::db("resume_older_db");
     {
         let db = Storage::open(&path).expect("open");
         db.with_conn(|c| c.execute_batch("DROP TABLE IF EXISTS upload_sessions;")).unwrap();
@@ -607,7 +607,7 @@ fn an_older_database_gains_the_sessions_table() {
 /// runs in run_relay".
 #[test]
 fn the_relay_wires_the_routes_the_start_up_check_and_the_piece_limit() {
-    let mod_rs = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/mod.rs")).unwrap();
+    let mod_rs = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/relay/mod.rs")).unwrap();
     assert!(mod_rs.contains(r#".route("/api/upload/resumable", post(resumable::start))"#), "the start route");
     assert!(
         mod_rs.contains(r#".route("/api/upload/resumable/{id}", get(resumable::status).patch(resumable::piece).delete(resumable::cancel).layer(axum::extract::DefaultBodyLimit::max(resumable::PIECE_BODY_LIMIT)))"#),
@@ -688,7 +688,7 @@ async fn a_videos_location_is_removed_at_finish() {
 #[test]
 fn the_single_request_strips_videos_too() {
     // Line endings normalised: a Windows checkout has CRLF.
-    let api = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/api.rs")).unwrap().replace("\r\n", "\n");
+    let api = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/relay/api.rs")).unwrap().replace("\r\n", "\n");
     // The handler's work is `upload_file_in` (R3-1: with folders a test can name).
     let start = api.find("pub(crate) async fn upload_file_in(").expect("upload_file_in");
     let body = &api[start..start + api[start..].find("\n}\n").unwrap()];

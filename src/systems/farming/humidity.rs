@@ -86,10 +86,10 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{
+use humanity_core::ecs::components::{
     CropInstance, HomeAirState, Humidifier, PowerConsumer, RoomAir, SoilMemory, Transform, Ventilator, STAGE_DEAD,
 };
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::life_support::{self, LifeSupportData};
 
 use super::lighting::GrowPlot;
@@ -97,7 +97,7 @@ use super::pests::{Condition, PestData};
 use super::PlantDef;
 
 /// The shipped copy, so a bare exe with no data folder still has the model.
-pub const HUMIDITY_RON: &str = include_str!("../../../data/garden/humidity.ron");
+pub const HUMIDITY_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/humidity.ron"));
 
 /// DataStore key of the loaded `HumidityData` (lib.rs registers it).
 pub const DATA_KEY: &str = "garden_humidity";
@@ -175,7 +175,7 @@ impl HumidityData {
     /// if that is missing or does not parse. The shipped copy always parses:
     /// a test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("humidity.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("humidity.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -186,7 +186,7 @@ impl HumidityData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("garden/humidity.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("garden/humidity.ron", why);
         Self::parse(HUMIDITY_RON).expect("the shipped data/garden/humidity.ron parses")
     }
 
@@ -926,7 +926,7 @@ fn room_humidifiers(world: &hecs::World, map: &AirMap) -> Vec<(hecs::Entity, usi
 /// None for the home's own air. Each unit's capacity is its full airflow (m3
 /// an hour) or its rated carbon dioxide (kg a day).
 fn life_units(world: &hecs::World, map: &AirMap) -> (Vec<life_support::Unit>, Vec<life_support::Unit>) {
-    use crate::ecs::components::{AirHandler, Co2Scrubber};
+    use humanity_core::ecs::components::{AirHandler, Co2Scrubber};
     let handlers = world
         .query::<(&AirHandler, &Transform, Option<&PowerConsumer>)>()
         .iter()

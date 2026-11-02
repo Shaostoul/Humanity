@@ -6,7 +6,7 @@ release bundle; the in-app **Settings > Credits** page shows the same list to
 players, generated from `data/credits.ron`.
 
 If you add a data source, add a row to `data/credits.ron` in the same commit. A
-unit test (`src/credits.rs`) fails if a source marked `attribution_required`
+unit test (`crates/humanity-core/src/credits.rs`) fails if a source marked `attribution_required`
 does not name a surface where its notice is actually shown.
 
 ## OpenStreetMap - the one with real obligations

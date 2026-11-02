@@ -13,7 +13,7 @@
 //! 1 AU from the origin (`camera_tests.rs`, the f64-stability test).
 //!
 //! The frame is the ENGINE's world frame: metres, Earth's centre at the
-//! origin, Y up, the ecliptic in XZ, which is how `crate::cosmos` and the
+//! origin, Y up, the ecliptic in XZ, which is how `humanity_core::cosmos` and the
 //! frame loop place every body. The ship's pose, the Sun and Earth's spin come
 //! from the engine through `MapSelf` (`engine/map_feed.rs`) and are never
 //! recomputed here ("Two truths", section 8 of the design).
@@ -36,7 +36,7 @@
 
 use glam::{DQuat, DVec3};
 
-use crate::cosmos::M_PER_AU;
+use humanity_core::cosmos::M_PER_AU;
 use crate::gui::state_types::MapSelf;
 
 /// The closest the camera comes to its anchor, metres.

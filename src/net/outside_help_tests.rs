@@ -8,12 +8,12 @@ use super::*;
 
 /// The real file, read the way the app reads it.
 fn real() -> OutsideHelp {
-    parse(crate::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped file parses")
+    parse(humanity_core::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped file parses")
 }
 
 /// The real file as plain JSON, for the expected values: a test never types a number.
 fn raw() -> Value {
-    serde_json::from_str(crate::embedded_data::OUTSIDE_HELP_JSON).expect("the shipped file is JSON")
+    serde_json::from_str(humanity_core::embedded_data::OUTSIDE_HELP_JSON).expect("the shipped file is JSON")
 }
 
 /// The real file with one change, read the way the app reads it.
@@ -41,7 +41,7 @@ fn s(v: &Value) -> String {
 #[test]
 fn the_block_shows_for_exactly_the_two_danger_reasons() {
     let help = real();
-    let reasons = crate::net::report::parse_reasons(crate::embedded_data::REPORT_REASONS_JSON.as_bytes()).expect("the shipped reasons");
+    let reasons = crate::net::report::parse_reasons(humanity_core::embedded_data::REPORT_REASONS_JSON.as_bytes()).expect("the shipped reasons");
     for id in SHOWN_FOR {
         assert!(reasons.iter().any(|r| r.id == id), "{id} is a reason in data/safety/report_reasons.json");
     }

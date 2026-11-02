@@ -429,7 +429,7 @@ pub(crate) fn join_group_with_ticket(state: &mut GuiState, ticket: &str) {
     match crate::net::api_v2::join_group_by_ticket(&server_url, &seed, ticket) {
         Ok((group_id, name)) => {
             log::info!("Joined P2P group: {} ({})", name, group_id);
-            crate::debug::push_debug(format!("Joined P2P group '{}'", name));
+            humanity_core::debug::push_debug(format!("Joined P2P group '{}'", name));
             state.join_group_status.clear();
             state.join_group_result = Some(if name.is_empty() { "(unnamed)".to_string() } else { name });
             // Refresh so the joined group appears in the left-panel list once the user clicks Done.

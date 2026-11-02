@@ -10,7 +10,7 @@ use super::*;
 use crate::net::api_v2::P2pGroupInfo;
 use crate::net::dm_pq;
 use crate::net::group_report::{CheckOutcome, Report};
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
 /// The group in these tests (its id is never checked against a signature here; the net tests do
 /// that with real objects).

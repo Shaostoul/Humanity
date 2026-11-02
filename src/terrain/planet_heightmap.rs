@@ -539,7 +539,7 @@ mod tests {
     /// cannot pass all three).
     #[test]
     fn shipped_earth_heightmap_has_real_features() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("planets")
             .join("earth_heightmap.bin");

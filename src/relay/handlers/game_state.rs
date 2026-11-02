@@ -118,8 +118,8 @@ fn crew_defs() -> &'static [CrewDef] {
     static REG: std::sync::OnceLock<Vec<CrewDef>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
         let text = std::fs::read_to_string("data/npc/crew.ron").unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy("npc/crew.ron", format_args!("data/npc/crew.ron could not be read ({e})"));
-            include_str!("../../../data/npc/crew.ron").to_string()
+            humanity_core::embedded_data::note_builtin_copy("npc/crew.ron", format_args!("data/npc/crew.ron could not be read ({e})"));
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/npc/crew.ron")).to_string()
         });
         match ron::from_str(&text) {
             Ok(v) => v,
@@ -308,11 +308,11 @@ fn room_equipment_defs() -> &'static [RoomEquipmentDef] {
     static REG: std::sync::OnceLock<Vec<RoomEquipmentDef>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
         let text = std::fs::read_to_string("data/ships/room_equipment.ron").unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy(
+            humanity_core::embedded_data::note_builtin_copy(
                 "ships/room_equipment.ron",
                 format_args!("data/ships/room_equipment.ron could not be read ({e})"),
             );
-            include_str!("../../../data/ships/room_equipment.ron").to_string()
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ships/room_equipment.ron")).to_string()
         });
         match ron::from_str(&text) {
             Ok(v) => v,
@@ -611,14 +611,14 @@ impl GameWorld {
         // compiled-in check (scripts/lib/compiled-in.js) counts a read as disk-first by that.
         let path = file.display().to_string();
         let contents = std::fs::read_to_string(file).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} could not be read ({e})"));
-            include_str!("../../../data/npc/chores.ron").to_string()
+            humanity_core::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} could not be read ({e})"));
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/npc/chores.ron")).to_string()
         });
         let chores: Vec<ChoreDef> = match ron::from_str(&contents) {
             Ok(v) => v,
             Err(e) => {
-                crate::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} does not parse ({e})"));
-                ron::from_str(include_str!("../../../data/npc/chores.ron")).unwrap_or_else(|e| {
+                humanity_core::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} does not parse ({e})"));
+                ron::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/npc/chores.ron"))).unwrap_or_else(|e| {
                     tracing::error!("The built-in chores do not parse either ({e}); the crew will wander instead of doing chores");
                     Vec::new()
                 })
@@ -2408,9 +2408,9 @@ mod tests {
     #[test]
     fn crew_and_equipment_registries_parse_and_cover_the_ship() {
         let crew: Vec<CrewDef> =
-            ron::from_str(include_str!("../../../data/npc/crew.ron")).expect("crew.ron parses");
+            ron::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/npc/crew.ron"))).expect("crew.ron parses");
         let equip: Vec<RoomEquipmentDef> =
-            ron::from_str(include_str!("../../../data/ships/room_equipment.ron"))
+            ron::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ships/room_equipment.ron")))
                 .expect("room_equipment.ron parses");
         let world = GameWorld::new();
         assert!(crew.len() >= 5, "the ship has its crew: {}", crew.len());

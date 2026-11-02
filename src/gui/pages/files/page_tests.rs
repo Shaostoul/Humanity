@@ -294,7 +294,7 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     state.files.mine = Some(Mine { used_bytes: 600 * 1024, in_progress_bytes: 300 * 1024, share_bytes: 1024 * 1024, budget_left_bytes: 1 << 40, ..Default::default() });
     // A stand-in of zeros, so not named as a picture: a ".png" that is not one could not be checked
     // for hidden location and is not sent to Media at all (2026-10-11).
-    let file = crate::test_temp::file("media_over_share", "dat");
+    let file = humanity_core::test_temp::file("media_over_share", "dat");
     std::fs::write(&file, vec![0u8; 300 * 1024]).unwrap();
 
     add::picked(&mut state, &file);
@@ -576,7 +576,7 @@ fn cancel_stops_the_upload() {
     let (ctx, _theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     state.private_key_bytes = Some(vec![7u8; 32]);
-    let file = crate::test_temp::file("media_cancel", "webm");
+    let file = humanity_core::test_temp::file("media_cancel", "webm");
     std::fs::write(&file, vec![5u8; 40_000]).unwrap();
     let form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "clip.webm".into(), len: 40_000 });
     let fake = resumable::tests::Fake::new(8192);
@@ -615,7 +615,7 @@ fn cancel_stops_the_upload() {
 fn an_upload_a_restart_cut_off_is_offered_again() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
-    let file = crate::test_temp::file("media_resume_page", "webm");
+    let file = humanity_core::test_temp::file("media_resume_page", "webm");
     let bytes: Vec<u8> = (0..20_000u32).map(|i| (i % 253) as u8).collect();
     std::fs::write(&file, &bytes).unwrap();
     state.upload_token = Some((SERVER.to_string(), resumable::tests::TOKEN.to_string()));
@@ -694,7 +694,7 @@ fn add_to_media_is_in_three_parts_the_file_first_with_its_type() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     state.files.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
-    let file = crate::test_temp::file("media_add_parts", "stl");
+    let file = humanity_core::test_temp::file("media_add_parts", "stl");
     std::fs::write(&file, b"solid wedge\nendsolid wedge\n").unwrap();
     let mut form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "wedge.stl".into(), len: 27 });
     // A further file, on its own row with its type (the website's rows, 2026-10-17).
@@ -739,7 +739,7 @@ fn post_in_chat_is_a_tick_then_the_channel_greyed_while_off() {
     assert_eq!(ids, vec!["random", "printing", "general"], "the open channel, the favourite, the rest; no read-only channel");
     assert!(choices[0].1.contains("open in the chat") && choices[1].1.starts_with('\u{2b50}'));
 
-    let file = crate::test_temp::file("media_post_row", "stl");
+    let file = humanity_core::test_temp::file("media_post_row", "stl");
     std::fs::write(&file, b"solid w\nendsolid w\n").unwrap();
     let form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "w.stl".into(), len: 19 });
     let look = crate::net::file_clean::look_file(&file, "w.stl").map_err(|e| e.to_string());
@@ -806,7 +806,7 @@ fn a_channel_no_longer_offered_is_not_swapped_for_another() {
     let mut state = page_state(demo_answer(), true);
     state.files.mine = Some(Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
     state.chat_channels.push(crate::gui::ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
-    let file = crate::test_temp::file("media_post_gone", "stl");
+    let file = humanity_core::test_temp::file("media_post_gone", "stl");
     std::fs::write(&file, b"solid w
 endsolid w
 ").unwrap();

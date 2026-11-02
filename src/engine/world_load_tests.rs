@@ -3,12 +3,12 @@
 //! (`home_content`), and taken away for one that does not.
 
 use super::*;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::ship::starts::Starts;
 use std::collections::HashMap;
 
 fn repo_data() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The registries the herd and the wilds are spawned from, as the world load has them
@@ -60,7 +60,7 @@ fn a_cabin_home_spawns_none_of_the_homesteads_world() {
     // A cabin's: the same spawns take every one of them away and put none back.
     let herd = spawn_herd(&mut world, &data, &anchors, cabin.contains(&HomeContent::Herd));
     let wilds = spawn_wilds(&mut world, &data, false, cabin.contains(&HomeContent::WildSpawns));
-    let creatures = world.query::<&crate::ecs::components::Creature>().iter().count();
+    let creatures = world.query::<&humanity_core::ecs::components::Creature>().iter().count();
     assert_eq!(
         (herd, wilds, creatures),
         (0, 0, 0),

@@ -29,8 +29,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use super::dm_pq::CTL_PERMIT;
-use crate::relay::core::pq_crypto::{friend_cert_serial_ok, verify_plot_permit, PlotPermitError, PLOT_PERMIT_FIELD_MAX_LEN};
-use crate::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
+use humanity_protocol::pq_crypto::{friend_cert_serial_ok, verify_plot_permit, PlotPermitError, PLOT_PERMIT_FIELD_MAX_LEN};
+use humanity_core::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
 
 /// Permits held (from friends) kept per server at most. Past it, the earliest-ended go first.
 pub const HELD_MAX: usize = 64;
@@ -402,7 +402,7 @@ const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "Jun
 
 /// A Unix time as the page writes a date: "10 November 2026" (UTC).
 pub fn date_words(unix_s: u64) -> String {
-    let (y, m, d) = crate::civil_date::epoch_days_to_ymd((unix_s / 86_400) as i64);
+    let (y, m, d) = humanity_core::civil_date::epoch_days_to_ymd((unix_s / 86_400) as i64);
     format!("{d} {} {y}", MONTHS[(m as usize).clamp(1, 12) - 1])
 }
 
@@ -454,7 +454,7 @@ impl Lengths {
 
 /// The lengths from `data_dir` (data/ship/household.ron), else the copy built into the exe.
 pub fn load_lengths(data_dir: &std::path::Path) -> Lengths {
-    crate::embedded_data::load_data_or_embedded(data_dir, LENGTHS_FILE, Lengths::parse).unwrap_or_else(|e| {
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, LENGTHS_FILE, Lengths::parse).unwrap_or_else(|e| {
         // Not reached: the built-in copy is held to the rules by a test. One length, the most
         // often given, rather than none.
         log::error!("Household: {e}; permits are offered for 30 days only");
@@ -465,7 +465,7 @@ pub fn load_lengths(data_dir: &std::path::Path) -> Lengths {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
     /// "Now" for these tests, Unix seconds.
     pub(crate) const NOW: u64 = 1_760_000_000;
@@ -540,10 +540,10 @@ pub(crate) mod tests {
     /// folder's copy: a length of 120 days is not 1 to 90: no permit runs longer than 90 days".
     #[test]
     fn the_lengths_are_data_and_none_runs_past_90_days() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let disk = Lengths::parse(&std::fs::read(data.join(LENGTHS_FILE)).expect("the data file"))
             .unwrap_or_else(|e| panic!("the data folder's copy: {e}"));
-        let built_in = Lengths::parse(crate::embedded_data::get_embedded(LENGTHS_FILE).expect("built in").as_bytes())
+        let built_in = Lengths::parse(humanity_core::embedded_data::get_embedded(LENGTHS_FILE).expect("built in").as_bytes())
             .unwrap_or_else(|e| panic!("the built-in copy: {e}"));
         assert_eq!(disk, built_in, "the built-in copy is the data folder's");
         assert!(disk.lengths_days.iter().all(|d| (1..=PERMIT_MAX_DAYS).contains(d)), "{:?}", disk.lengths_days);
@@ -551,7 +551,7 @@ pub(crate) mod tests {
         assert!(disk.lengths_days.contains(&disk.default_days), "the default is one of them");
         assert_eq!(load_lengths(&data), disk, "loaded from the data folder");
 
-        let dir = crate::test_temp::dir("household_lengths");
+        let dir = humanity_core::test_temp::dir("household_lengths");
         let text = std::fs::read_to_string(data.join(LENGTHS_FILE)).unwrap();
         let longer = text.replacen("lengths_days: [", "lengths_days: [120, ", 1);
         assert_ne!(longer, text, "the copy really has a 120-day length");

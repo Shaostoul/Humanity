@@ -11,7 +11,7 @@
 //! 2026-10-20) and this is the page-sized sibling of the F2 performance
 //! overlay, so it needs no new top-level page and no `GuiPage` variant.
 //!
-//! WHERE THE NUMBERS COME FROM: `crate::frame_costs`, a process-global store
+//! WHERE THE NUMBERS COME FROM: `humanity_core::frame_costs`, a process-global store
 //! the renderer writes each frame (GPU timestamp queries resolved a frame late,
 //! CPU stage timers, tracked allocations, process working set). The page only
 //! reads, formats, and calls `frame_costs::watch()` so the expensive inventory
@@ -26,10 +26,10 @@ use egui::{RichText, ScrollArea};
 use serde::Deserialize;
 
 use crate::gui::theme::Theme;
-use crate::i18n::t;
+use humanity_core::i18n::t;
 use crate::gui::widgets::{self, pie::{fmt_bytes, fmt_ms, PieSlice, PieSpec}, with_hint};
 use crate::gui::GuiState;
-use crate::frame_costs::{self, GpuTiming, Snapshot};
+use humanity_core::frame_costs::{self, GpuTiming, Snapshot};
 
 /// One row of `data/performance/budget_systems.ron`.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -63,7 +63,7 @@ pub const CATEGORIES: [(&str, &str); 4] = [
 pub fn systems() -> &'static [BudgetSystem] {
     static REG: std::sync::OnceLock<Vec<BudgetSystem>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../../data/performance/budget_systems.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/performance/budget_systems.ron"));
         match ron::from_str::<Vec<BudgetSystem>>(SRC) {
             Ok(v) if !v.is_empty() => v,
             Ok(_) | Err(_) => {
@@ -355,10 +355,10 @@ pub fn draw_content(ui: &mut egui::Ui, theme: &Theme) {
     );
     ui.add_space(theme.spacing_sm);
 
-    // The one "turn off all reuse" switch (CLAUDE.md's reuse rule, 2026-10-30; crate::reuse).
-    let mut off = !crate::reuse::enabled();
+    // The one "turn off all reuse" switch (CLAUDE.md's reuse rule, 2026-10-30; humanity_core::reuse).
+    let mut off = !humanity_core::reuse::enabled();
     if with_hint(ui, "performance.no_reuse_hint", |ui| widgets::toggle(ui, theme, t("performance.no_reuse"), &mut off)) {
-        crate::reuse::set_enabled(!off);
+        humanity_core::reuse::set_enabled(!off);
     }
     ui.add_space(theme.spacing_sm);
 
@@ -663,9 +663,14 @@ mod tests {
 
     /// The set of ids the engine records, read from the source tree.
     fn recorded_ids() -> std::collections::BTreeSet<String> {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let mut files = Vec::new();
         rust_sources(&root.join("src"), &mut files);
+        // The workspace's crates too (the crate split's rung 1): the cost store, frame_costs.rs,
+        // is the core's, and it records ram.resident and ram.committed_extra itself.
+        for c in std::fs::read_dir(root.join("crates")).map(|rd| rd.flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()).collect::<Vec<_>>()).unwrap_or_default() {
+            rust_sources(&c, &mut files);
+        }
         assert!(files.len() > 100, "the source walk found only {} files", files.len());
         let mut ids = std::collections::BTreeSet::new();
         for f in files {
@@ -692,7 +697,7 @@ mod tests {
                     || s.starts_with(ECS_FAMILY_PREFIX);
                 assert!(
                     known,
-                    "row {} names measurement {:?}, which nothing in src/ records and \
+                    "row {} names measurement {:?}, which nothing in src/ or crates/ records and \
                      which is not on the pending list",
                     r.id, s
                 );
@@ -741,7 +746,7 @@ mod tests {
         for (id, why) in REMAINDER_IDS {
             assert!(
                 recorded.contains(*id),
-                "REMAINDER_IDS lists {id:?} ({why}), but nothing in src/ records it any more"
+                "REMAINDER_IDS lists {id:?} ({why}), but nothing in src/ or crates/ records it any more"
             );
         }
         // The two lists must not overlap: an id is a row or a remainder.

@@ -26,10 +26,10 @@ use std::sync::Arc;
 
 /// The relay's four folders, of this test's own.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
 }
 
 impl Dirs {
@@ -54,7 +54,7 @@ struct Relay {
 fn relay(tag: &str) -> Relay {
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let state = Arc::new(RelayState::new(Storage::open_temp(tag)));
-    let d = |what: &str| crate::test_temp::dir(&format!("{tag}_{what}"));
+    let d = |what: &str| humanity_core::test_temp::dir(&format!("{tag}_{what}"));
     let dirs = Arc::new(Dirs { uploads: d("uploads"), members: d("members"), resume: d("resume"), waiting: d("waiting") });
     for p in [&dirs.uploads, &dirs.members, &dirs.resume, &dirs.waiting] {
         std::fs::create_dir_all(p).unwrap();
@@ -221,7 +221,7 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     until(&ctx, &theme, &mut state, "the view is counted", |_| r.state.db.media_item(id).unwrap().unwrap().views == 1);
 
     // 2. A file for it: up through the relay's resumable routes, then added to the item.
-    let zip = crate::test_temp::file("desk_r5_zip", "zip");
+    let zip = humanity_core::test_temp::file("desk_r5_zip", "zip");
     std::fs::write(&zip, bytes(3000)).unwrap();
     let to = |role| AttachTo { id, filename: item.stored.clone(), role };
     uploading::start_attach(&mut state, &zip, "textures.zip", 3000, to(FileRole::File)).expect("it starts");
@@ -236,7 +236,7 @@ fn an_item_edited_and_given_files_on_the_real_relay() {
     assert_eq!(r.state.db.media_item(id).unwrap().unwrap().downloads, 1, "counted once");
 
     // 3. A cover: a real picture, as the relay checks it.
-    let png = crate::test_temp::file("desk_r5_cover", "png");
+    let png = humanity_core::test_temp::file("desk_r5_cover", "png");
     let mut picture = std::io::Cursor::new(Vec::new());
     image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(8, 8, image::Rgba([200, 120, 40, 255]))).write_to(&mut picture, image::ImageFormat::Png).unwrap();
     let picture = picture.into_inner();

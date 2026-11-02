@@ -159,7 +159,7 @@ mod tests {
     /// Mothership".
     #[test]
     fn shipped_home_station_parses_and_is_synchronous() {
-        let p = Path::new(env!("CARGO_MANIFEST_DIR"))
+        let p = Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("stations")
             .join("home.ron");
@@ -193,7 +193,7 @@ mod tests {
     /// degrees from Earth's north".
     #[test]
     fn aboard_the_compass_points_to_earths_north_not_along_the_orbit() {
-        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("stations").join("home.ron");
+        let p = Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("stations").join("home.ron");
         let def: StationDef = ron::from_str(&std::fs::read_to_string(&p).expect("home.ron")).expect("home.ron parses");
         let day = 24.0 * 3600.0; // the default game day (the simulation's EARTH_DAY_S, which this crate sits under)
         for sun_az_deg in [0.0_f64, 90.0, 200.0] {
@@ -203,7 +203,7 @@ mod tests {
                 let (pos, vel) = orbit::propagate(&o, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, t, day);
                 let rot = orbit::attitude(&def.attitude, pos, vel);
                 let yaw = compass_north_yaw(false, true, rot).expect("aboard an equatorial home there is a north");
-                let look = render_to_world_rot(true, rot) * crate::dev_travel::look_dir(yaw, 0.0);
+                let look = render_to_world_rot(true, rot) * humanity_core::dev_travel::look_dir(yaw, 0.0);
                 let off = look.dot(glam::DVec3::Y).clamp(-1.0, 1.0).acos().to_degrees();
                 assert!(off < 0.1, "aboard at sun azimuth {sun_az_deg}, hour {hour}: the compass N points {off:.1} degrees from Earth's north");
             }

@@ -1,7 +1,74 @@
-[package]
-name = "humanity-engine"
+# The workspace (the crate split, docs/design/crate-split.md; rung 1, 2026-11-01): this root package,
+# humanity-engine (the app, the server mode and the binary), and the crates cut out of it so far, each in
+# crates/<name>/ with a one-page card in docs/crates/. The plan for all ten is scripts/crate-layers.json.
+[workspace]
+members = [".", "crates/humanity-core", "crates/humanity-protocol"]
+# vendor/rav1d is a patched dependency ([patch.crates-io] below), not one of ours.
+exclude = ["vendor"]
+resolver = "2"
+
+# The one version every member carries, the app's: `just bump` and the release scripts read and write
+# it here (the first `version = ` line of this file). The core's own code reports it too (the boot
+# timings, the frame costs, the play journal, the refresh check), so the members share it.
+[workspace.package]
 version = "0.1547.0"
 edition = "2021"
+
+# Every dependency more than one member uses, with its version and features in ONE place: a member names
+# it `{ workspace = true }` (and `optional = true` where a feature turns it on). Why each one is here: the
+# comments beside it in [dependencies] below, and in the crates' own Cargo.toml.
+[workspace.dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+hecs = "0.10"
+rapier3d = "0.22"
+glam = { version = "0.29", features = ["serde"] }
+kira = { version = "0.9" }
+image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+toml = "0.8"
+csv = "1.3"
+serde_json = "1"
+log = "0.4"
+thiserror = "2"
+getrandom = "0.2"
+notify = { version = "7" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "signal"] }
+egui = { version = "0.31" }
+memory-stats = { version = "1" }
+keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = { version = "0.4" }
+aes-gcm = { version = "0.10" }
+pbkdf2 = { version = "0.12", features = ["simple"] }
+sha2 = { version = "0.10" }
+base64 = { version = "0.22" }
+bs58 = { version = "0.5" }
+web-sys = { version = "0.3", features = [
+    "Document", "Window", "Element", "HtmlCanvasElement",
+    "KeyboardEvent", "MouseEvent", "WheelEvent", "PointerEvent",
+    "Performance", "console",
+    "Request", "RequestInit", "RequestMode", "Response",
+    "Headers",
+] }
+js-sys = { version = "0.3" }
+wasm-bindgen = { version = "0.2" }
+wasm-bindgen-futures = { version = "0.4" }
+rusqlite = { version = "0.34", features = ["bundled", "backup"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+ciborium = { version = "0.2" }
+blake3 = { version = "1" }
+rand_core_06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
+ml-dsa = { version = "=0.1.1" }
+ml-kem = { version = "=0.3.3", features = ["getrandom"] }
+argon2 = { version = "0.6.0-rc.8" }
+blahaj = { version = "0.7" }
+windows = { version = "0.62", features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell", "UI_Notifications", "Data_Xml_Dom", "Win32_UI_Notifications"] }
+
+[package]
+name = "humanity-engine"
+version.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "HumanityOS"
@@ -15,31 +82,35 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
-relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
+    "humanity-core/wasm",
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
     "dep:console_error_panic_hook", "dep:console_log",
     "getrandom/js",
 ]
 
 [dependencies]
+# Ours (the crate split): the core always (the wasm build too), the protocol with the server's code.
+humanity-core = { path = "crates/humanity-core", default-features = false }
+humanity-protocol = { path = "crates/humanity-protocol", default-features = false, optional = true }
 # Data parallelism (v0.1067). The particle update + vertex-collect loop is
 # embarrassingly parallel and was MEASURED at 17-20 ns per particle per frame
 # on one core, which put the practical ceiling near 50k particles at 120 fps.
 rayon = "1"
 # Rendering
 wgpu = "24"
-bytemuck = { version = "1", features = ["derive"] }
+bytemuck = { workspace = true }
 # ECS
-hecs = "0.10"
+hecs = { workspace = true }
 # Physics
-rapier3d = "0.22"
+rapier3d = { workspace = true }
 # Math
-glam = { version = "0.29", features = ["serde"] }
+glam = { workspace = true }
 # Audio
-kira = { version = "0.9", optional = true }
+kira = { workspace = true, optional = true }
 # The decoders kira already carries (MP3, Ogg Vorbis, FLAC, WAV), used directly to read a whole
 # sound once on a worker for the Media page's waveform and spectrum (2026-10-19,
 # gui/widgets/sound_view.rs). The same crate and features kira enables: nothing new is built.
@@ -50,29 +121,29 @@ gltf = "1.4"
 # JPEG; the "avif" in chat.rs and protected.rs is a file type an attachment may have), and the
 # encoder pulled in ravif and rav1e, about 26 crates, for both feature sets. Reading AVIF was never
 # on (that needs the separate avif-native feature).
-image = { version = "0.25", default-features = false, features = ["rayon", "bmp", "dds", "exr", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
+image = { workspace = true }
 # Serialization
-serde = { version = "1", features = ["derive"] }
-ron = "0.8"
-toml = "0.8"
-csv = "1.3"
-serde_json = "1"
+serde = { workspace = true }
+ron = { workspace = true }
+toml = { workspace = true }
+csv = { workspace = true }
+serde_json = { workspace = true }
 # Logging
-log = "0.4"
+log = { workspace = true }
 # Procedural generation
 noise = "0.9"
 rand = "0.9"
-thiserror = "2"
+thiserror = { workspace = true }
 # getrandom needs "js" feature on wasm32 (activated by `wasm` feature flag above)
-getrandom = "0.2"
+getrandom = { workspace = true }
 
 # === Platform: Native ===
 winit = { version = "0.30", optional = true }
-notify = { version = "7", optional = true }
+notify = { workspace = true, optional = true }
 pollster = { version = "0.4", optional = true }
 env_logger = { version = "0.11", optional = true }
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "signal"], optional = true }
-egui = { version = "0.31", optional = true }
+tokio = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
 egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
 tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
@@ -85,7 +156,7 @@ ureq = { version = "2", optional = true }
 html5ever = { version = "=0.40.1", optional = true }
 # Process RSS for the F4 System diagnostics overlay (v0.482). Tiny, cross-platform
 # (GetProcessMemoryInfo on Windows, /proc on Linux); native-only.
-memory-stats = { version = "1", optional = true }
+memory-stats = { workspace = true, optional = true }
 # Cross-platform clipboard access for image paste (Ctrl+V from print-screen
 # captures) — v0.232. Already a transitive dep via egui; declaring directly
 # so we can call get_image() on the clipboard. native feature only.
@@ -95,25 +166,25 @@ arboard = { version = "3", optional = true, default-features = false, features =
 # v0.278.0 auto-unlock feature so users can opt into silent startup without
 # typing their full BIP39-derived passphrase every launch. native feature
 # only — relay/wasm builds don't carry an interactive identity.
-keyring = { version = "3", optional = true, default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
+keyring = { workspace = true, optional = true }
 bip39 = { version = "2", optional = true }
 # QR generation for the native "Link a device" identity display (v0.837): encodes
 # the same 64-char-key backup JSON the web importer accepts, so a phone camera can
 # scan a native identity. Matrix-only (no image/svg renderers) to stay lean;
 # native feature only. We paint the modules into an egui texture ourselves.
 qrcode = { version = "0.14", optional = true, default-features = false }
-ed25519-dalek = { version = "2", optional = true, features = ["rand_core"] }
-hex = { version = "0.4", optional = true }
-aes-gcm = { version = "0.10", optional = true }
+ed25519-dalek = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+aes-gcm = { workspace = true, optional = true }
 # AES-GCM's two halves, the same versions aes-gcm itself uses (no new crate): a private file's
 # Save decrypts a megabyte at a time, checking the tag (GHASH) over the whole file before a byte
 # of it is written (CTR), so a file of up to 1 GB is never held in memory (net/dm_file_stream.rs).
 ctr = { version = "0.9", optional = true }
 ghash = { version = "0.5", optional = true, default-features = false }
-pbkdf2 ={ version = "0.12", optional = true, features = ["simple"] }
-sha2 = { version = "0.10", optional = true }
-base64 = { version = "0.22", optional = true }
-bs58 = { version = "0.5", optional = true }
+pbkdf2 = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+bs58 = { workspace = true, optional = true }
 p256 = { version = "0.13", optional = true, features = ["ecdh", "pkcs8"] }
 # === Native WebRTC DataChannel P2P (sans-IO; no tokio reactor needed) ===
 # str0m is a sans-IO WebRTC implementation: it never touches the network or a
@@ -192,16 +263,10 @@ libc = { version = "0.2", optional = true }
 tray-icon = { version = "0.26", optional = true, default-features = false, features = ["ksni"] }
 
 # === Platform: WASM ===
-web-sys = { version = "0.3", optional = true, features = [
-    "Document", "Window", "Element", "HtmlCanvasElement",
-    "KeyboardEvent", "MouseEvent", "WheelEvent", "PointerEvent",
-    "Performance", "console",
-    "Request", "RequestInit", "RequestMode", "Response",
-    "Headers",
-] }
-js-sys = { version = "0.3", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 console_log = { version = "0.2", optional = true }
 
@@ -210,7 +275,7 @@ axum = { version = "0.8", optional = true, features = ["ws", "multipart"] }
 tower-http = { version = "0.6", optional = true, features = ["cors", "fs"] }
 # `backup`: SQLite's online backup API, the continuous backup's snapshots (2026-10-22,
 # src/relay/backup_stream/capture.rs). A compile switch inside rusqlite, no new crate.
-rusqlite = { version = "0.34", optional = true, features = ["bundled", "backup"] }
+rusqlite = { workspace = true, optional = true }
 # Connection pool for the relay's SQLite store (R3 concurrency work). r2d2 is a
 # generic pool; r2d2_sqlite adapts rusqlite into it. Gives the relay a pool of
 # concurrent READ connections (WAL allows many readers) alongside the single
@@ -230,7 +295,7 @@ r2d2 = { version = "0.8", optional = true }
 r2d2_sqlite = { version = "=0.27.0", optional = true, features = ["bundled"] }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter"] }
-reqwest = { version = "0.12", optional = true, default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, optional = true }
 hmac = { version = "0.12", optional = true }
 web-push-native = { version = "0.4", optional = true }
 base64ct = { version = "1", optional = true, features = ["alloc"] }
@@ -240,12 +305,12 @@ regex = { version = "1", optional = true }
 url = { version = "2", optional = true }
 uuid = { version = "1", optional = true, features = ["v4"] }
 tokio-tungstenite = { version = "0.26", optional = true, features = ["rustls-tls-webpki-roots"] }
-ciborium = { version = "0.2", optional = true }
-blake3 = { version = "1", optional = true }
+ciborium = { workspace = true, optional = true }
+blake3 = { workspace = true, optional = true }
 # Deflate for the continuous backup's objects, compressed before they are sealed (2026-10-22,
 # src/relay/backup_stream/seal.rs). Already in the build through image and png: no new crate.
 miniz_oxide = { version = "0.8", optional = true }
-rand_core_06 = { package = "rand_core", version = "0.6", optional = true, features = ["getrandom"] }
+rand_core_06 = { workspace = true, optional = true }
 
 # === Post-quantum cryptography (Phase 0 baseline; see plan decision 4) ===
 # ML-DSA-65 (Dilithium3) for object signing, ML-KEM-768 (Kyber768) for KEM,
@@ -261,15 +326,15 @@ rand_core_06 = { package = "rand_core", version = "0.6", optional = true, featur
 # JS libraries must produce the same bytes, so moving them (and the family) is always its own
 # piece of work with those tests and docs/reference/cryptography.md, never a side effect of a
 # routine crate update (docs/SOP.md "Keeping components up to date").
-ml-dsa = { version = "=0.1.1", optional = true }
-ml-kem = { version = "=0.3.3", optional = true, features = ["getrandom"] }
-argon2 = { version = "0.6.0-rc.8", optional = true }
+ml-dsa = { workspace = true, optional = true }
+ml-kem = { workspace = true, optional = true }
+argon2 = { workspace = true, optional = true }
 # Shamir secret sharing over GF(256), for Recovery through trusted people
-# (src/relay/core/recovery.rs). MIT, by Distrust: the fork RustSec names as the fix
+# (crates/humanity-protocol/src/recovery.rs). MIT, by Distrust: the fork RustSec names as the fix
 # for RUSTSEC-2024-0398 (sharks drew polynomial coefficients from 1..=255, a bias
 # Cure53 found; blahaj draws them from 0..=255). Small and readable: the whole
 # arithmetic is its src/math.rs and src/field.rs, about 330 lines.
-blahaj = { version = "0.7", optional = true }
+blahaj = { workspace = true, optional = true }
 
 # === LoRa mesh transport (Phase 7b — feature `mesh`) ===
 # Cross-platform pure-Rust serial port access. The LoRa radio modules we
@@ -291,7 +356,7 @@ serialport = { version = "4.9", optional = true }
 # saving included, through Windows' own SystemTimeToTzSpecificLocalTime, so the app shows times
 # in local time as the website does (src/gui/pages/chat/timestamps.rs). No time library.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", optional = true, features = ["ApplicationModel", "ApplicationModel_Core", "Management_Deployment", "Win32_Foundation", "Win32_Media_MediaFoundation", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_Time", "Win32_System_Variant", "Win32_UI_Shell", "UI_Notifications", "Data_Xml_Dom", "Win32_UI_Notifications"] }
+windows = { workspace = true, optional = true }
 # UI_Notifications + Data_Xml_Dom (2026-10-30): the operating system's notice for a DM or a mention
 # (src/notifications/toast.rs, docs/design/notifications.md); the same crate, no new dependency.
 # Win32_UI_Notifications and windows-core (2026-10-31, rung 2 part 2): a click on a notice reaches
@@ -400,6 +465,11 @@ rav1d = { path = "vendor/rav1d" }
 
 
 [dev-dependencies]
+# The core's and the protocol's test helpers (test_temp, test_clock, test_log and the shared fixtures),
+# compiled into THIS package's test builds only: a crate's #[cfg(test)] items never reach another
+# crate's tests, so they sit behind each crate's `test-support` feature (the crate split, rung 1).
+humanity-core = { path = "crates/humanity-core", default-features = false, features = ["test-support"] }
+humanity-protocol = { path = "crates/humanity-protocol", default-features = false, features = ["test-support"] }
 # GeoTIFF reading for the terrain data build tools (examples/ only, never in
 # the shipped binary): decodes the NOAA ETOPO 2022 float32 elevation tiles.
 tiff = "0.9"

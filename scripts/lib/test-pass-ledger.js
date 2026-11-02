@@ -4,7 +4,7 @@
 // THE TREE. A full lib-test pass is recorded against an identity of the whole checkout, not
 // just of the compiled-in sources (scripts/lib/src-fingerprint.js): the lib tests also READ the
 // tree at run time (data/ about 280 times, and tests/, scripts/, web/, assets/ and docs/; grep
-// CARGO_MANIFEST_DIR under src/), so a data-only edit can turn a test red with no source
+// HUMANITY_REPO_ROOT under src/ and crates/), so a data-only edit can turn a test red with no source
 // change. The identity is:
 //   - the commit's tree (`git rev-parse HEAD^{tree}`)
 //   - every changed or untracked file git reports, with the SHA-256 of its content (CRLF read

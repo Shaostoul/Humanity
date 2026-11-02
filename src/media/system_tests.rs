@@ -12,7 +12,7 @@ use kira::sound::streaming::Decoder as _;
 use std::time::{Duration, Instant};
 
 fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media").join("moving-box-h264-aac.mp4")
+    PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests").join("fixtures").join("media").join("moving-box-h264-aac.mp4")
 }
 
 /// True (and says so) when this computer has no Media Foundation to test.
@@ -159,7 +159,7 @@ fn an_mp4_plays_directly_with_no_conversion() {
     if skip() {
         return;
     }
-    let cache = crate::test_temp::dir("system_ingest");
+    let cache = humanity_core::test_temp::dir("system_ingest");
     match begin_ingest(&fixture(), "", &cache) {
         Ingest::Direct(p) => assert_eq!(p, fixture()),
         Ingest::Transcoding { .. } | Ingest::Cached(_) => panic!("played directly, not converted"),
@@ -178,7 +178,7 @@ fn the_mp4s_sound_plays_through_kira_and_leads_the_picture() {
     if skip() {
         return;
     }
-    let mut audio = match crate::audio::AudioManager::try_new() {
+    let mut audio = match humanity_core::audio::AudioManager::try_new() {
         Ok(a) => a,
         Err(e) => {
             println!("skipped: no audio device ({e})");
@@ -205,7 +205,7 @@ fn the_mp4s_sound_plays_through_kira_and_leads_the_picture() {
 }
 
 fn fixture_named(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media").join(name)
+    PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests").join("fixtures").join("media").join(name)
 }
 
 /// A PICTURE WHOSE WIDTH IS NOT A MULTIPLE OF 16 IS NOT SKEWED (a review, 2026-10-18): the 426-wide
@@ -278,7 +278,7 @@ fn a_video_whose_sound_windows_cannot_play_says_so() {
     assert_eq!(info.sound_lost.as_deref(), Some("Opus"), "the lost sound is named");
     assert!(crate::gui::widgets::video_view::sound_lost_words("Opus").contains("Opus"));
     // A setting naming a file that is not ffmpeg: the conversion cannot start, so it plays silent.
-    let d = crate::test_temp::dir("system_sound_lost");
+    let d = humanity_core::test_temp::dir("system_sound_lost");
     let fake = d.join("ffmpeg.exe");
     std::fs::write(&fake, b"echo").unwrap();
     match begin_ingest(&path, &fake.display().to_string(), &d.join("cache")) {

@@ -123,7 +123,7 @@ impl GroundMaterialDef {
 /// is present (so the file is genuinely editable/moddable next to the exe);
 /// this is what a stripped install falls back to. ONE source of truth: both
 /// paths read the same RON text.
-const EMBEDDED_TABLE: &str = include_str!("../../data/ground/materials.ron");
+const EMBEDDED_TABLE: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ground/materials.ron"));
 
 /// Layer index of the procedural ocean wave tile. Fixed at 8 by history: the
 /// original quartet occupies colour 0..3 / normal 4..7 and the ocean was
@@ -146,18 +146,18 @@ pub fn material_table() -> GroundMaterialTable {
     let text = match &disk {
         Ok(t) => t.as_str(),
         Err(why) => {
-            crate::embedded_data::note_builtin_copy("ground/materials.ron", why);
+            humanity_core::embedded_data::note_builtin_copy("ground/materials.ron", why);
             EMBEDDED_TABLE
         }
     };
     match ron::from_str::<GroundMaterialTable>(text) {
         Ok(t) if !t.materials.is_empty() => t,
         Ok(_) => {
-            crate::embedded_data::note_builtin_copy("ground/materials.ron", "it lists no materials");
+            humanity_core::embedded_data::note_builtin_copy("ground/materials.ron", "it lists no materials");
             ron::from_str(EMBEDDED_TABLE).expect("embedded ground material table must parse")
         }
         Err(e) => {
-            crate::embedded_data::note_builtin_copy("ground/materials.ron", format_args!("it does not parse ({e})"));
+            humanity_core::embedded_data::note_builtin_copy("ground/materials.ron", format_args!("it does not parse ({e})"));
             ron::from_str(EMBEDDED_TABLE).expect("embedded ground material table must parse")
         }
     }
@@ -1411,7 +1411,7 @@ mod tests {
     const LITTER: usize = 4;
 
     fn repo_file(rel: &str) -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(rel)
     }
 
     /// Earth's def, straight off disk. Panics loudly rather than skipping: a
@@ -1927,7 +1927,7 @@ mod tests {
     #[test]
     #[ignore]
     fn dump_ground_layers_to_png() {
-        let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        let out = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("debug");
         std::fs::create_dir_all(&out).expect("debug/ must be creatable");
         let dir = find_ground_dir();
         let table = material_table();

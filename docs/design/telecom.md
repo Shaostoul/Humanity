@@ -9,12 +9,12 @@
 > wireless-RF caution are gone. See section (a) below. Stage 1 shipped a LEANER field set than
 > the fuller proposal below -- `ConduitType` gained `bandwidth_mbps`, `range_m`, `latency_ms`, `wireless`,
 > `rf_emission` (all `#[serde(default)]`) + `ConductorMaterial::{Glass, Radio}`, plus `check_data_link` /
-> `cheapest_data_link_for` / `data_media` in `src/utilities.rs`, and three media in `conduits.ron`
+> `cheapest_data_link_for` / `data_media` in `crates/humanity-core/src/utilities.rs`, and three media in `conduits.ron`
 > (`eth_cat6`, `fiber_om4`, `wifi_6`). The fuller proposal's `class: DataClass` + `interference` + `secure`
 > fields and the 21-media catalog (coax, single-mode fibre, Bluetooth, Zigbee, LoRa, cellular, satellite,
 > PLC, Li-Fi) land in later stages. Extends the power/water/air wiring system -- read
 > `docs/design/utility-wiring.md` FIRST; this doc assumes it. Data is `Utility::Data`, already in the
-> closed enum (`src/utilities.rs`), routed through the SAME `conduits.ron` registry + machine ports +
+> closed enum (`crates/humanity-core/src/utilities.rs`), routed through the SAME `conduits.ron` registry + machine ports +
 > buildability checks. Companions: `docs/design/conduits-node-graph.md` (the routing graph),
 > `docs/design/sim-realism-roadmap.md` (the realism gaps this closes). The teaching goal: real
 > telecom -- bandwidth, range, latency, RF emission, interference, security -- so a player learns to
@@ -34,7 +34,7 @@ real signal: a **detection signature** an enemy can sense (and a sensor you carr
 Wired/optical media are quiet -- pick wired to stay dark. (RF does not harm plants in this game: that
 consequence was removed on 2026-09-27, see section (a).)
 
-## Data model (`src/utilities.rs`)
+## Data model (`crates/humanity-core/src/utilities.rs`)
 
 `Utility::Data` already exists (closed enum). The media are `ConduitType` rows; the new fields below
 are ADDITIVE + `#[serde(default)]` so every existing electrical/water row in `conduits.ron` parses

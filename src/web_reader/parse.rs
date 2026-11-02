@@ -786,7 +786,7 @@ mod tests {
     }
 
     // ── Fixture: a small article with every block type ──
-    const ARTICLE: &str = include_str!("../../tests/fixtures/web/article.html");
+    const ARTICLE: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/web/article.html"));
 
     #[test]
     fn headings_paragraphs_and_title_come_through_in_order() {
@@ -925,7 +925,7 @@ mod tests {
 
     #[test]
     fn a_page_of_only_nav_and_footer_is_empty_with_a_clear_notice() {
-        const CHROME: &str = include_str!("../../tests/fixtures/web/chrome_only.html");
+        const CHROME: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/web/chrome_only.html"));
         let p = page(CHROME);
         assert!(p.blocks.is_empty(), "nothing readable should remain: {:?}", p.blocks);
         let notice = p.notice.expect("an explanation for the empty page");

@@ -94,13 +94,13 @@ impl MealRules {
     /// same files). Both built-in copies are tested to read.
     pub fn load(data_dir: &Path) -> MealRules {
         // Disk first; a missing file is the built-in copy, which read_data_or_embedded logs.
-        let read = |rel: &str| crate::embedded_data::read_data_or_embedded(data_dir, rel).unwrap_or_default();
+        let read = |rel: &str| humanity_core::embedded_data::read_data_or_embedded(data_dir, rel).unwrap_or_default();
         let (stores, ledger) = (read(STORES_FILE), read(LEDGER_FILE));
         Self::parse(&stores, &ledger).unwrap_or_else(|e| {
             // This version cannot read the folder's copies: both built-in ones, said in the log.
-            crate::embedded_data::note_builtin_copy("food/ship_stores.ron", format_args!("{e}"));
-            crate::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{e}"));
-            Self::parse(crate::embedded_data::SHIP_STORES_RON, crate::embedded_data::FLEET_LEDGER_RON)
+            humanity_core::embedded_data::note_builtin_copy("food/ship_stores.ron", format_args!("{e}"));
+            humanity_core::embedded_data::note_builtin_copy("ship/fleet_ledger.ron", format_args!("{e}"));
+            Self::parse(humanity_core::embedded_data::SHIP_STORES_RON, humanity_core::embedded_data::FLEET_LEDGER_RON)
                 .expect("the built-in ship_stores.ron and fleet_ledger.ron read (tested)")
         })
     }
@@ -108,7 +108,7 @@ impl MealRules {
     /// The rules as this exe was built with them (tests: the built-in copies read).
     #[cfg(test)]
     pub fn built_in() -> MealRules {
-        Self::parse(crate::embedded_data::SHIP_STORES_RON, crate::embedded_data::FLEET_LEDGER_RON)
+        Self::parse(humanity_core::embedded_data::SHIP_STORES_RON, humanity_core::embedded_data::FLEET_LEDGER_RON)
             .expect("the built-in ship_stores.ron and fleet_ledger.ron read (tested)")
     }
 }
@@ -194,7 +194,7 @@ pub fn litres_text(l: f64) -> String {
 /// ones are counted, and any that do not fit full go back empty, so nothing is dropped.
 pub fn fill_vessels(table: &FluidTable, world: &mut hecs::World, reg: Option<&ItemRegistry>) -> Filled {
     let mut out = Filled::default();
-    let Some((_, (inv, _))) = world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>().into_iter().next() else {
+    let Some((_, (inv, _))) = world.query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable)>().into_iter().next() else {
         return out;
     };
     for f in table.fillables.iter().filter(|f| f.fluid == "water") {

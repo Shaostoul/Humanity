@@ -9,7 +9,7 @@ use axum::response::Response;
 use axum::Json;
 
 use super::*;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use crate::relay::storage::Storage;
 
 struct Person {

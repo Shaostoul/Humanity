@@ -303,7 +303,7 @@ mod tests {
     /// them are kept" and the app's not.
     #[test]
     fn the_confirm_says_what_it_does_and_does_not_do() {
-        let spec = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/design/blocking-and-safe-mode.md")).expect("the spec");
+        let spec = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("docs/design/blocking-and-safe-mode.md")).expect("the spec");
         let ten_i = &spec[spec.find("## 10i.").expect("10i")..spec.find("## 10j.").expect("10j")];
         let flat = ten_i.split_whitespace().collect::<Vec<_>>().join(" ");
         let start = flat.find("\"This deletes everything").expect("the confirm's sentence in 10i") + 1;

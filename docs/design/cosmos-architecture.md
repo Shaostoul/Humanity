@@ -6,7 +6,7 @@ a ship to a fleet crossing interstellar distances.
 
 **Status:** Proposal (2026-05-09)
 **Affects:** `src/gui/pages/maps.rs`, `src/gui/pages/inventory.rs`,
-`src/ecs/`, `src/systems/`, `src/renderer/floating_origin.rs`,
+`crates/humanity-core/src/ecs/`, `src/systems/`, `src/renderer/floating_origin.rs`,
 `src/relay/handlers/game_state.rs`, `data/star_systems/`, `data/galaxy/`,
 `data/ships/`
 **Supersedes:** the Sol-hardcoded `data/solar_system/bodies.json` schema.
@@ -1696,7 +1696,7 @@ Phase 1 status (2026-05-09):
 - `docs/design/infinite-of-x.md`, design rule this whole doc is in service of
 - `src/renderer/floating_origin.rs`, existing floating origin
 - `src/ship/`, ship layout parser (Fibonacci spiral generator)
-- `src/ecs/`, hecs ECS where the position component will live
+- `crates/humanity-core/src/ecs/`, hecs ECS where the position component will live
 - `data/solar_system/bodies.json`, current single-system data, slated for
   restructure in Phase 1
 

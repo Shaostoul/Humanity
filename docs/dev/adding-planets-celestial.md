@@ -9,9 +9,9 @@ content-adding workflow.
 
 **Layer 1 - the catalog: `data/star_systems/sol.json`** (69 bodies as of
 2026-07-20: 1 star, 4 terrestrials, 40 moons, 2 gas giants, 2 ice giants,
-5 dwarf planets, 10 asteroids, 5 comets). Loaded by `src/cosmos.rs`
+5 dwarf planets, 10 asteroids, 5 comets). Loaded by `crates/humanity-core/src/cosmos.rs`
 (`sol_bodies()`, one Kepler propagator drives all orbits) and embedded at
-compile time (`src/embedded_data.rs`). Each body entry:
+compile time (`crates/humanity-core/src/embedded_data.rs`). Each body entry:
 
 - `id`, `name`, `type` (`star | terrestrial | moon | gas_giant | ice_giant |
   dwarf_planet | asteroid | comet`), `parent` (orbit center id)

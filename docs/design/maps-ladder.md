@@ -124,5 +124,5 @@ Solar System | Galaxy | Night Sky (+ Planet when rung 3 lands). The
 module is `src/gui/pages/maps/` (one file per view), the state is
 `GuiState::maps`, the types are `MapView` and `MapCamera`, the System view's
 snapshot is `maps_system`, and the "cosmos" config string is gone.
-`crate::cosmos` (`src/cosmos.rs`) keeps its name because it is the Sol
+`crate::cosmos` (`crates/humanity-core/src/cosmos.rs`) keeps its name because it is the Sol
 model the page and the game both read, not the page.

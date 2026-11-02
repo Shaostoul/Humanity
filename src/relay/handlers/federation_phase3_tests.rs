@@ -17,7 +17,7 @@ use futures::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message as WsMsg;
 
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use crate::relay::handlers::federation;
 use crate::relay::handlers::federation_flow::{FlowLimits, KindLimit};
 use crate::relay::handlers::federation_log;
@@ -240,10 +240,10 @@ async fn everything_reaches_the_other_server() {
     send(&mut psock, json!({ "type": "profile_update", "socials": "{}", "bio": "Keeps bees.", "privacy": "{}" })).await;
     let own = frame_where(&mut psock, "her own copy, asking to be signed", |f| f["type"] == "profile_data" && f["sign_now"] == true).await;
     let s = |k: &str| own[k].as_str().unwrap_or("").to_string();
-    let copy = crate::relay::core::profile_copy::public_copy(&s("name"), &s("bio"), &s("avatar_url"), &s("banner_url"), &s("socials"), &s("pronouns"), &s("location"), &s("website"), &s("privacy"));
+    let copy = humanity_protocol::profile_copy::public_copy(&s("name"), &s("bio"), &s("avatar_url"), &s("banner_url"), &s("socials"), &s("pronouns"), &s("location"), &s("website"), &s("privacy"));
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-    let at = crate::relay::core::profile_copy::next_copy_time(now, own["signed_at"].as_u64().unwrap_or(0), 0);
-    let signature = crate::relay::core::profile_copy::sign_copy(&[41; 32], &ann, &copy, at);
+    let at = humanity_protocol::profile_copy::next_copy_time(now, own["signed_at"].as_u64().unwrap_or(0), 0);
+    let signature = humanity_protocol::profile_copy::sign_copy(&[41; 32], &ann, &copy, at);
     send(&mut psock, json!({ "type": "profile_sign", "at": at, "signature": signature })).await;
     took(within("B keeps Ann's profile", || b.state.db.get_signed_profile(&ann).ok().flatten().is_some_and(|p| p.bio == "Keeps bees.")).await);
 
@@ -316,8 +316,8 @@ async fn a_pause_and_a_flood() {
     // And Ann's key card, kept on A as her sign-in keeps it (handlers/key_cards.rs), so it goes
     // into A's numbered log while B has A paused.
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-    let card = crate::relay::core::key_card::sign_card(&[51; 32], now).unwrap();
-    let kept = crate::relay::handlers::key_cards::keep_from_sign_in(&a.state, &ann, crate::relay::core::key_card::card_json(&card)).await;
+    let card = humanity_protocol::key_card::sign_card(&[51; 32], now).unwrap();
+    let kept = crate::relay::handlers::key_cards::keep_from_sign_in(&a.state, &ann, humanity_protocol::key_card::card_json(&card)).await;
     assert!(kept.is_some_and(|k| k.stored()), "A keeps Ann's card");
     tokio::time::sleep(Duration::from_millis(1_000)).await;
     assert!(paused_at.elapsed() < Duration::from_secs(3), "test setup: still inside the pause");

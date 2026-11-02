@@ -15,14 +15,14 @@ use axum::{
     response::IntoResponse,
 };
 
-use crate::relay::core::solana_rpc::{LAMPORTS_PER_SOL, SolanaRpcClient};
+use humanity_protocol::solana_rpc::{LAMPORTS_PER_SOL, SolanaRpcClient};
 
 /// `GET /api/v2/solana/balance/{address}`
 pub async fn get_solana_balance(Path(address): Path<String>) -> impl IntoResponse {
     // Choose endpoint via env var (defaults to mainnet-beta). Set
     // SOLANA_RPC_URL=https://api.devnet.solana.com for devnet testing.
     let rpc_url = std::env::var("SOLANA_RPC_URL")
-        .unwrap_or_else(|_| crate::relay::core::solana_rpc::MAINNET_BETA_URL.to_string());
+        .unwrap_or_else(|_| humanity_protocol::solana_rpc::MAINNET_BETA_URL.to_string());
     let client = SolanaRpcClient::new(rpc_url);
 
     match client.get_balance(&address).await {

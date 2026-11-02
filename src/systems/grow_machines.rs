@@ -160,7 +160,7 @@ pub fn load_grow_media(data_dir: &Path) -> Vec<GrowMedium> {
     struct File {
         media: Vec<GrowMedium>,
     }
-    match crate::embedded_data::load_data_or_embedded(data_dir, "garden/grow_media.ron", crate::data_parse::parse_ron::<File>) {
+    match humanity_core::embedded_data::load_data_or_embedded(data_dir, "garden/grow_media.ron", humanity_core::data_parse::parse_ron::<File>) {
         Ok(f) => f.media,
         Err(e) => {
             log::warn!("{e}; no grow media");
@@ -226,7 +226,7 @@ fn load_tower_cups(data_dir: &Path) -> Vec<TowerCups> {
         #[serde(default)]
         towers: Vec<TowerCups>,
     }
-    crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::data_parse::parse_ron::<File>)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", humanity_core::data_parse::parse_ron::<File>)
         .map(|f| f.towers)
         .unwrap_or_default()
 }
@@ -265,8 +265,8 @@ impl GrowFoodModel {
     pub fn load(data_dir: &Path) -> Option<Self> {
         let nutrition = CropNutrition::load(&data_dir.join("food").join("crop_nutrition.ron")).ok()?;
         // The same rule the game's registries load by (BUG-163).
-        let plants = crate::embedded_data::load_data_or_embedded(data_dir, "plants.csv", PlantRegistry::from_csv).ok()?;
-        let items = crate::embedded_data::load_data_or_embedded(data_dir, "items.csv", ItemRegistry::from_csv).ok()?;
+        let plants = humanity_core::embedded_data::load_data_or_embedded(data_dir, "plants.csv", PlantRegistry::from_csv).ok()?;
+        let items = humanity_core::embedded_data::load_data_or_embedded(data_dir, "items.csv", ItemRegistry::from_csv).ok()?;
         Some(Self {
             media: load_grow_media(data_dir),
             showcase: load_showcase(data_dir).unwrap_or_default(),
@@ -348,7 +348,7 @@ mod tests {
     use crate::machines::food_value;
 
     fn data_dir() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     fn home(file: &str) -> MachineHome {
@@ -515,7 +515,7 @@ mod tests {
                 }
             }
         }
-        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let src = Path::new(env!("HUMANITY_REPO_ROOT")).join("src");
         let mut files = Vec::new();
         walk(&src, &mut files);
         let mut bare = Vec::new();

@@ -6,7 +6,7 @@
 
 use crate::ship::wall_collision::*;
 use crate::engine::footing::test_aboard::{body_at, live_frame, Aboard, EAST, NORTH};
-use crate::input::bindings::GameAction as A;
+use humanity_core::input::bindings::GameAction as A;
 use crate::renderer::camera::HEAD_ABOVE_EYE_M;
 use crate::ship::ship_structure::{ShipStructure, ShipZone};
 use glam::Vec3;

@@ -217,7 +217,7 @@ In order:
     gets a per-frame budget. With it, the reuse rule's Dev page switch ("turn off all reuse",
     CLAUDE.md, refined the same day). DONE 2026-10-30: the worst frame per span (5 s windows)
     and each thread's own CPU time on the Performance page, the "Turn off all reuse" switch
-    (`src/reuse.rs`, `HUMANITY_NO_REUSE=1`), and the Garden mirror's rows in 8 slices. Survey 1
+    (`crates/humanity-core/src/reuse.rs`, `HUMANITY_NO_REUSE=1`), and the Garden mirror's rows in 8 slices. Survey 1
     DONE 2026-10-31 (sim-frame-cost.md, a busy machine): the wall screens were the biggest (5 to 11
     ms of every frame while four page screens were in view), now taking turns one a frame (2.4 to
     2.9 ms); the autosave 2.3 to 3.2 ms every 120 s; plant mesh rebuilds up to 4.3 ms. The Garden
@@ -537,7 +537,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   are the "Report duties" item above. Reports never carry a way to open a reported file, and
   admins are never shown files or links.
 - **Signing in where cameras can see (raised 2026-10-09; the operator's PIN was once watched
-  and money was stolen).** Found: the desktop "Quick PIN" unlock (`src/auto_unlock.rs`,
+  and money was stolen).** Found: the desktop "Quick PIN" unlock (`crates/humanity-core/src/auto_unlock.rs`,
   KeychainPin) has no limit on wrong guesses, and the guessing can be done offline by anyone who
   has the computer's signed-in Windows account (the device key sits in the OS keychain beside the
   blob), so a 4 to 6 digit PIN protects little there. Recommended, ranked: (1) sign in on a new

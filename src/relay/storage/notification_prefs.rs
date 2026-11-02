@@ -237,7 +237,7 @@ mod tests {
     /// column the old table lacks.
     #[test]
     fn opens_a_pre_rung_2_database_and_migrates_it() {
-        let path = crate::test_temp::db("notif_prefs_mig");
+        let path = humanity_core::test_temp::db("notif_prefs_mig");
         {
             let conn = rusqlite::Connection::open(&path).expect("raw open");
             conn.execute_batch(

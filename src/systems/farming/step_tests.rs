@@ -53,9 +53,9 @@ use std::sync::Mutex;
 
 use super::golden_tests::{store as golden_store, world as golden_world};
 use super::*;
-use crate::ecs::components::{CropInstance, CropSoil, GrowLight, PowerConsumer, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, CropSoil, GrowLight, PowerConsumer, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Where the clock starts: 05:20:34.5 on day 0, so the first hour-long step spans the sunrise.
 pub(super) const START_S: f64 = 5.0 * 3600.0 + 1234.5;
@@ -176,7 +176,7 @@ pub(crate) fn ended(world: &hecs::World) -> Ended {
         .collect();
     crops.sort_by_key(|(id, _)| *id);
     let memory: Vec<serde_json::Value> =
-        world.query::<&crate::ecs::components::SoilMemory>().iter().map(|(_, m)| serde_json::to_value(m).unwrap()).collect();
+        world.query::<&humanity_core::ecs::components::SoilMemory>().iter().map(|(_, m)| serde_json::to_value(m).unwrap()).collect();
     (crops.into_iter().map(|(_, c)| c).collect(), canonical(serde_json::Value::Array(memory)))
 }
 
@@ -283,9 +283,9 @@ pub(crate) fn compare(base: &Ended, other: &Ended) -> (Vec<String>, BTreeMap<Str
 /// What a run did, so a pass is not a pass of an inert garden: crops that died, that changed
 /// stage, and living crops below 99 health.
 pub(super) fn activity(r: &Ended, start: &[String]) -> (usize, usize, usize) {
-    let dead = r.0.iter().filter(|c| c.stage == crate::ecs::components::STAGE_DEAD).count();
-    let moved = r.0.iter().zip(start).filter(|(c, s)| c.stage != **s && c.stage != crate::ecs::components::STAGE_DEAD).count();
-    let below = r.0.iter().filter(|c| c.health < 99.0 && c.stage != crate::ecs::components::STAGE_DEAD).count();
+    let dead = r.0.iter().filter(|c| c.stage == humanity_core::ecs::components::STAGE_DEAD).count();
+    let moved = r.0.iter().zip(start).filter(|(c, s)| c.stage != **s && c.stage != humanity_core::ecs::components::STAGE_DEAD).count();
+    let below = r.0.iter().filter(|c| c.health < 99.0 && c.stage != humanity_core::ecs::components::STAGE_DEAD).count();
     (dead, moved, below)
 }
 

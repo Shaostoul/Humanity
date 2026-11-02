@@ -310,7 +310,7 @@ impl SoundView {
 
     /// The sound's place in the app's mixer: handed over once Play is asked for, then kept at the
     /// master volume, or silent while muted.
-    pub fn sync_sound(&mut self, audio: &mut crate::audio::AudioManager) {
+    pub fn sync_sound(&mut self, audio: &mut humanity_core::audio::AudioManager) {
         let volume = if self.muted { 0.0 } else { audio.master_volume() };
         if self.handle.is_none() && self.want_play {
             if let Some(data) = self.pending.take() {
@@ -456,7 +456,7 @@ pub(crate) mod tests {
     /// The fixture: one second of 440 Hz at 0.9 of full scale, then one of 2000 Hz at 0.25, a
     /// mono WAV at 8000 samples a second (made by a short script, 2026-10-19).
     pub(crate) fn fixture() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/two-tones-440-then-2000.wav")
+        PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/two-tones-440-then-2000.wav")
     }
 
     /// THE WAVEFORM'S PEAKS AND SPECTRUM ARE THE SOUND'S OWN (2026-10-19): the fixture read by the
@@ -495,7 +495,7 @@ pub(crate) mod tests {
     /// (`analyse` of the copy on each draw): "read once" (left: 103, right: 1).
     #[test]
     fn nothing_is_read_or_decoded_while_it_is_shown() {
-        let copy = crate::test_temp::file("sound_view_once", "wav");
+        let copy = humanity_core::test_temp::file("sound_view_once", "wav");
         std::fs::copy(fixture(), &copy).unwrap();
         let path = copy.to_path_buf();
         let fetches = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -549,7 +549,7 @@ pub(crate) mod tests {
     #[test]
     #[ignore = "needs an audio output device; run: node scripts/lib-tests.js sound_view::tests::a_sound_plays --ignored --nocapture"]
     fn a_sound_plays_through_the_mixer_goes_where_sent_and_stops_at_its_end() {
-        let mut audio = match crate::audio::AudioManager::try_new() {
+        let mut audio = match humanity_core::audio::AudioManager::try_new() {
             Ok(a) => a,
             Err(e) => {
                 println!("skipped: no audio device ({e})");
@@ -557,7 +557,7 @@ pub(crate) mod tests {
             }
         };
         audio.set_master_volume(0.0001);
-        let copy = crate::test_temp::file("sound_view_mixer", "wav");
+        let copy = humanity_core::test_temp::file("sound_view_mixer", "wav");
         std::fs::copy(fixture(), &copy).unwrap();
         let path = copy.to_path_buf();
         let ctx = egui::Context::default();

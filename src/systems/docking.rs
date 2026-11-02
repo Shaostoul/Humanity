@@ -16,9 +16,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::AirlockChamber;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::AirlockChamber;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Top-level RON schema for `data/docking.ron`.
 #[derive(Debug, Deserialize)]
@@ -112,7 +112,7 @@ mod tests {
     /// list the shipped file writes must arrive.
     #[test]
     fn the_shipped_docking_file_fills_every_list() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let s = DockingSystem::new(&dir);
         assert!(!s.data.ports.is_empty(), "data/docking.ron's ports arrive");
         assert!(!s.data.airlocks.is_empty(), "data/docking.ron's airlocks arrive");

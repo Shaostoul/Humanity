@@ -3,7 +3,7 @@
 //! names the deliberate break it was seen failing against.
 
 use super::*;
-use crate::ecs::components::Battery;
+use humanity_core::ecs::components::Battery;
 use crate::systems::electrical::ElectricalSystem;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -11,18 +11,18 @@ use std::sync::Mutex;
 type Order = Option<(String, Vec<(String, u32)>)>;
 
 fn data_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The drone as shipped (data/mining/drone.ron).
 fn shipped() -> DroneSpec {
-    DroneSpec::from_ron(include_str!("../../data/mining/drone.ron")).expect("the shipped drone data parses")
+    DroneSpec::from_ron(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/mining/drone.ron"))).expect("the shipped drone data parses")
 }
 
 /// A DataStore with the drone's data registered, in Realistic or Simplified, holding `unit`.
 fn store(spec: DroneSpec, realistic: bool, unit: DroneUnit) -> DataStore {
     let mut data = DataStore::new();
-    let items = ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).expect("items.csv");
+    let items = ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).expect("items.csv");
     data.insert("item_registry", items);
     data.insert("commission_drone", Mutex::new(Order::None));
     data.insert("auto_mine_order", Mutex::new(Order::None));
@@ -308,7 +308,7 @@ fn a_service_takes_its_parts_from_the_backpack_then_home_storage() {
 fn the_shipped_drone_data_carries_every_hold_and_its_parts_can_be_made() {
     let spec = shipped();
     assert_eq!(DroneSpec::load(&data_dir()), Some(spec.clone()), "the data folder's copy loads");
-    let items_csv = include_str!("../../data/items.csv");
+    let items_csv = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"));
     let (ore, kg) = items_csv
         .lines()
         .filter(|l| !l.starts_with('#'))
@@ -322,7 +322,7 @@ fn the_shipped_drone_data_carries_every_hold_and_its_parts_can_be_made() {
     assert!(hold <= spec.payload_kg, "the drone lifts the heaviest hold: {hold} kg of {ore} > {}", spec.payload_kg);
     let items = ItemRegistry::from_csv(items_csv.as_bytes()).unwrap();
     let recipes = crate::systems::crafting::RecipeRegistry::from_csv(include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
+        env!("HUMANITY_REPO_ROOT"),
         "/data/recipes.csv"
     )))
     .unwrap();

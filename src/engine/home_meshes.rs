@@ -148,7 +148,7 @@ pub(crate) fn assign_slots(
 /// materials with the glass floor slabs after them; the trim; the windows; the mirrors; the glass
 /// roofs' ceilings; the opaque roofs' ceilings. A combined family needs one mesh, or none when empty.
 pub(crate) fn shell_family_needs(m: &crate::ship::fibonacci::HomesteadMeshes) -> [usize; 8] {
-    let one = |b: &(Vec<crate::vertex::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
+    let one = |b: &(Vec<humanity_core::vertex::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
     let glass = m.floors.iter().filter(|f| !is_opaque_floor(f.2)).count();
     [
         m.floors.len() - glass,
@@ -172,7 +172,7 @@ fn is_opaque_floor(rgba: [f32; 4]) -> bool {
 /// A one-triangle stand-in mesh, every corner at the origin so nothing is drawn: what a slot holds
 /// while nothing uses it, so the mesh it held is freed at once.
 fn stand_in_mesh(device: &wgpu::Device) -> Mesh {
-    let v = crate::vertex::Vertex { position: [0.0; 3], normal: [0.0, 1.0, 0.0], uv: [0.0; 2] };
+    let v = humanity_core::vertex::Vertex { position: [0.0; 3], normal: [0.0, 1.0, 0.0], uv: [0.0; 2] };
     Mesh::from_vertices(device, &[v; 3], &[0, 1, 2])
 }
 
@@ -189,7 +189,7 @@ fn park_slot(r: &mut crate::renderer::Renderer, (mi, _): Slot) {
 }
 
 /// Fill `slot` with a mesh of `verts`/`indices` drawn in `look`.
-fn fill_slot(r: &mut crate::renderer::Renderer, (mi, ma): Slot, verts: &[crate::vertex::Vertex], indices: &[u32], look: Look) {
+fn fill_slot(r: &mut crate::renderer::Renderer, (mi, ma): Slot, verts: &[humanity_core::vertex::Vertex], indices: &[u32], look: Look) {
     let mesh = Mesh::from_vertices(&r.device, verts, indices);
     r.replace_mesh(mi, mesh);
     let (rgba, metallic, roughness, ty, emissive) = look;
@@ -197,7 +197,7 @@ fn fill_slot(r: &mut crate::renderer::Renderer, (mi, ma): Slot, verts: &[crate::
 }
 
 /// A combined family's one slot (`slots` holds it, or nothing when the family is empty), filled.
-fn fill_one(r: &mut crate::renderer::Renderer, slots: &[Slot], mesh: &(Vec<crate::vertex::Vertex>, Vec<u32>), look: Look) -> Option<Slot> {
+fn fill_one(r: &mut crate::renderer::Renderer, slots: &[Slot], mesh: &(Vec<humanity_core::vertex::Vertex>, Vec<u32>), look: Look) -> Option<Slot> {
     let slot = *slots.first()?;
     fill_slot(r, slot, &mesh.0, &mesh.1, look);
     Some(slot)
@@ -463,7 +463,7 @@ impl RebuildParts {
     fn part(&mut self, id: &'static str) {
         let now = std::time::Instant::now();
         let d = now.duration_since(self.last);
-        crate::frame_costs::record_cpu(id, d);
+        humanity_core::frame_costs::record_cpu(id, d);
         self.done.push((id, d.as_secs_f64() * 1000.0));
         self.last = now;
     }
@@ -472,7 +472,7 @@ impl RebuildParts {
     /// `cpu.home_rebuild`.
     fn finish(&self) -> String {
         let whole = self.t0.elapsed();
-        crate::frame_costs::record_cpu("cpu.home_rebuild", whole);
+        humanity_core::frame_costs::record_cpu("cpu.home_rebuild", whole);
         let each: Vec<String> = self.done.iter().map(|(id, ms)| format!("{} {ms:.1}", id.rsplit('.').next().unwrap_or(id))).collect();
         format!("{:.1} ms ({})", whole.as_secs_f64() * 1000.0, each.join(", "))
     }
@@ -756,7 +756,7 @@ pub(crate) fn port_gizmo_pos(p: &crate::machines::PlacedMachine, i: usize, n: us
 /// Transform of survivors so behaviors anchored to the machine's pose
 /// (the assembler's factory pad) follow a move. Idempotent + cheap.
 pub(crate) fn sync_machine_entities(state: &mut EngineState, placements: &[crate::machines::PlacedMachine]) {
-    use crate::ecs::components::{MachineInstanceId, Transform};
+    use humanity_core::ecs::components::{MachineInstanceId, Transform};
     let Some(home) = state.gui_state.home_machines.as_ref() else { return };
     let all = home.all_instances();
     let power_islands = home.electrical_islands(&all);
@@ -1094,7 +1094,7 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[crate:
 pub(crate) fn publish_grow_plots(state: &mut EngineState) {
     use crate::systems::farming::lighting::GrowPlot;
     use std::collections::HashMap;
-    let tower_cfgs = crate::gui::load_tower_configs(&crate::storage::data_dir());
+    let tower_cfgs = crate::gui::load_tower_configs(&humanity_core::storage::data_dir());
     let mut plots: Vec<GrowPlot> = Vec::new();
     let mut instances: HashMap<String, Vec<(String, u32)>> = HashMap::new();
     let mut plot_area: HashMap<String, f32> = HashMap::new();
@@ -1220,7 +1220,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     for (_e, c) in state
         .game_world
         .world
-        .query::<&crate::ecs::components::CropInstance>()
+        .query::<&humanity_core::ecs::components::CropInstance>()
         .iter()
     {
         c.crop_def_id.hash(&mut h);
@@ -1240,7 +1240,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     // The pass's main-thread milliseconds show on the Performance page
     // (cpu.plant_rebuild, in the vegetation slice); the worker's do not
     // cost the frame and are summarised in run.log by `note_plant_rebuild`.
-    let _cost = crate::frame_costs::stage("cpu.plant_rebuild");
+    let _cost = humanity_core::frame_costs::stage("cpu.plant_rebuild");
     let t0 = std::time::Instant::now();
     let mut pass = std::mem::take(&mut state.garden_draw.plants);
     if changed {
@@ -1354,7 +1354,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
         for (_e, c) in state
             .game_world
             .world
-            .query::<&crate::ecs::components::CropInstance>()
+            .query::<&humanity_core::ecs::components::CropInstance>()
             .iter()
         {
             let def = plant_reg.and_then(|r| r.get(&c.crop_def_id));
@@ -1362,7 +1362,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
                 let names: Vec<String> = def
                     .map(|d| d.stages().iter().map(|s| s.to_string()).collect())
                     .unwrap_or_else(|| {
-                        crate::ecs::components::DEFAULT_GROWTH_STAGES
+                        humanity_core::ecs::components::DEFAULT_GROWTH_STAGES
                             .iter()
                             .map(|s| s.to_string())
                             .collect()
@@ -1386,14 +1386,14 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
     let vis_hash = inputs.vis_hash;
     let tower_cfgs = inputs.towers.clone();
     let default_stages: Vec<String> =
-        crate::ecs::components::DEFAULT_GROWTH_STAGES.iter().map(|s| s.to_string()).collect();
+        humanity_core::ecs::components::DEFAULT_GROWTH_STAGES.iter().map(|s| s.to_string()).collect();
 
     // Group crops by tower config id / grow machine instance id.
     let mut by_tower: HashMap<String, Vec<(String, String, u32, f32)>> = HashMap::new();
     for (_e, c) in state
         .game_world
         .world
-        .query::<&crate::ecs::components::CropInstance>()
+        .query::<&humanity_core::ecs::components::CropInstance>()
         .iter()
     {
         let (Some(tid), Some(slot)) = (c.tower_id.clone(), c.tower_slot) else { continue };
@@ -1521,7 +1521,7 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
             .map(|(def_id, stage, slot, health)| {
                 // Stage index -> growth t (same bucketing the GUI shows).
                 let stages: &Vec<String> = stage_map.get(def_id).unwrap_or(&default_stages);
-                let dead = stage.as_str() == crate::ecs::components::STAGE_DEAD;
+                let dead = stage.as_str() == humanity_core::ecs::components::STAGE_DEAD;
                 let t = if dead {
                     0.6
                 } else {
@@ -1914,7 +1914,7 @@ impl PlantPass {
     fn inputs(&mut self, forced: bool) -> &PlanInputs {
         // Timed from the stamps on: `inputs_ms` is the plan's file work.
         let t0 = std::time::Instant::now();
-        let dir = crate::storage::data_dir();
+        let dir = humanity_core::storage::data_dir();
         let stamps = [file_stamp(&dir.join("plants_visual.ron")), file_stamp(&dir.join("towers/aeroponic_configs.ron"))];
         if forced || self.inputs.as_ref().map_or(true, |i| i.stamps != stamps) {
             self.inputs = Some(read_plan_inputs(&dir, stamps));
@@ -2362,7 +2362,7 @@ pub(crate) fn conduit_runs(
     ship: Option<&ShipStructure>,
     home: &crate::machines::MachineHome,
     placements: &[crate::machines::PlacedMachine],
-    port_pick: &[(String, usize, crate::utilities::Port, Vec3)],
+    port_pick: &[(String, usize, humanity_core::utilities::Port, Vec3)],
 ) -> Vec<ConduitRun> {
     use std::collections::HashMap;
     let node_bounds = match ship {
@@ -2599,7 +2599,7 @@ pub(crate) fn port_picks(
     home: &crate::machines::MachineHome,
     placements: &[crate::machines::PlacedMachine],
     ship: Option<&ShipStructure>,
-) -> Vec<(String, usize, crate::utilities::Port, Vec3)> {
+) -> Vec<(String, usize, humanity_core::utilities::Port, Vec3)> {
     let type_by_id: std::collections::HashMap<String, String> = home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
     let mut pp = Vec::new();
     for p in placements {
@@ -3258,18 +3258,18 @@ pub(crate) fn render_door_panels(
     // own eye height; another player's position is the eye their game sends), an animal's position
     // is where it stands.
     let camera_actor = state.aboard_station.then_some(state.camera.position - Vec3::Y * state.controller.eye_height());
-    let remote_eye = crate::ecs::components::EYE_HEIGHT_M as f32;
+    let remote_eye = humanity_core::ecs::components::EYE_HEIGHT_M as f32;
     let others: Vec<Vec3> = state
         .game_world
         .world
-        .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
+        .query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
         .iter()
         .map(|(_e, (t, _))| t.position - Vec3::Y * remote_eye)
         .collect();
     let animals: Vec<Vec3> = state
         .game_world
         .world
-        .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Creature)>()
+        .query::<(&humanity_core::ecs::components::Transform, &humanity_core::ecs::components::Creature)>()
         .iter()
         .map(|(_e, (t, _))| t.position)
         .collect();

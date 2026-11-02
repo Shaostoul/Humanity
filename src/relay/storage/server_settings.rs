@@ -752,7 +752,7 @@ mod tests {
     /// extended_code: 1 }, msg: \"no such column: world_time_scale\", ...".
     #[test]
     fn a_server_from_before_the_world_clock_upgrades_to_real_time() {
-        let path = crate::test_temp::db("srvset_clock");
+        let path = humanity_core::test_temp::db("srvset_clock");
         {
             let db = Storage::open(&path).expect("open");
             let mut s = db.get_server_settings().expect("get");
@@ -857,7 +857,7 @@ mod tests {
     /// extended_code: 1 }, msg: \"no such column: media_visibility\", ...".
     #[test]
     fn a_server_from_before_the_media_page_gains_its_settings() {
-        let path = crate::test_temp::db("srvset_media");
+        let path = humanity_core::test_temp::db("srvset_media");
         {
             let db = Storage::open(&path).expect("open");
             let mut s = db.get_server_settings().expect("get");
@@ -892,7 +892,7 @@ mod tests {
     /// the guarded ALTER runs the real migration path.
     #[test]
     fn upgrade_from_pre_p2p_server_settings_schema_does_not_panic() {
-        let path = crate::test_temp::db("srvset_upg");
+        let path = humanity_core::test_temp::db("srvset_upg");
 
         // 1. Fresh DB, then simulate an operator who tuned settings
         //    BEFORE this migration existed.

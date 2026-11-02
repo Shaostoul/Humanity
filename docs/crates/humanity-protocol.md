@@ -2,8 +2,9 @@
 
 ## What it is for
 
-What the app and the server must agree on, byte for byte. It is today's `src/relay/core/`: the
-identity and its signatures, sealing to a person's key, canonical CBOR and the BLAKE3 ids of
+What the app and the server must agree on, byte for byte. A crate of its own since rung 1 of the
+crate split (2026-11-01, `crates/humanity-protocol/`; it was `src/relay/core/`): the identity and
+its signatures, sealing to a person's key, canonical CBOR and the BLAKE3 ids of
 signed objects, the signed objects themselves (key cards, moderation, market payloads, profile
 copies, recovery through trusted people), the key derivations, and the privacy work done on a file
 before it leaves a device (stripping and describing its hidden metadata). It is small and
@@ -13,40 +14,40 @@ side (net) and the server (relay) compile side by side.
 ## At a glance (generated)
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
-- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
-  - `feature = "relay"`: `relay/core/`
-- **Size:** 12,512 lines in 25 files, 1,076 of them in 4 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 1.
+- **Owns** all of `crates/humanity-protocol/`, a crate of its own since the crate split's rung 1 (`scripts/crate-layers.json` gives its `dir`); the modules its `lib.rs` declares, by the gate each compiles under:
+  - no gate (every build): `crates/humanity-protocol/src/describe_metadata.rs`, `crates/humanity-protocol/src/did.rs`, `crates/humanity-protocol/src/encoding.rs`, `crates/humanity-protocol/src/error.rs`, `crates/humanity-protocol/src/hash.rs`, `crates/humanity-protocol/src/identity.rs`, `crates/humanity-protocol/src/kdf.rs`, `crates/humanity-protocol/src/key_card.rs`, `crates/humanity-protocol/src/market_payloads.rs`, `crates/humanity-protocol/src/moderation.rs`, `crates/humanity-protocol/src/merkle_disclosure.rs`, `crates/humanity-protocol/src/object.rs`, `crates/humanity-protocol/src/pq_crypto.rs`, `crates/humanity-protocol/src/profile_copy.rs`, `crates/humanity-protocol/src/recovery.rs`, `crates/humanity-protocol/src/signing.rs`, `crates/humanity-protocol/src/solana_rpc.rs`, `crates/humanity-protocol/src/strip_heif_metadata.rs`, `crates/humanity-protocol/src/strip_metadata.rs`, `crates/humanity-protocol/src/strip_video_metadata.rs`
+- **Size:** 12,539 lines in 26 files, 975 of them in 4 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 3, `native` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 94, gui 48, net 29.
+- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 95, gui 48, net 31.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 159 tests, and this runs exactly them, checked against every test's name:
 
 ```
-just test-lib relay::core::
+just test-lib --crate humanity-protocol
 ```
 
-**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
+**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name, inside `humanity_protocol::`):
 
 | Item | References | From |
 |---|---:|---|
-| `relay::core::did::did_for_pubkey` | 17 | relay 13, gui 4 |
-| `relay::core::object::Object` | 16 | relay 11, gui 4, net 1 |
-| `relay::core::pq_crypto` | 15 | relay 9, net 4, gui 2 |
-| `relay::core::encoding::from_canonical_bytes` | 13 | relay 12, gui 1 |
-| `relay::core::pq_crypto::DilithiumKeypair` | 9 | net 5, gui 4 |
-| `relay::core::encoding` | 6 | gui 2, net 2, relay 2 |
-| `relay::core::key_card` | 6 | gui 2, net 2, relay 2 |
-| `relay::core::pq_crypto::derive_dilithium_seed` | 6 | net 4, gui 2 |
-| `relay::core::object::ObjectBuilder` | 5 | gui 3, net 2 |
-| `relay::core::pq_crypto::verify_dilithium` | 5 | relay 3, gui 1, net 1 |
-| `relay::core::profile_copy` | 5 | relay 4, gui 1 |
-| `relay::core::did` | 4 | relay 4 |
-| `relay::core::kdf::pbkdf2_sha256` | 4 | gui 2, net 2 |
-| `relay::core::recovery` | 4 | gui 2, relay 2 |
-| `relay::core::did::fingerprint_to_hex` | 3 | relay 3 |
+| `did::did_for_pubkey` | 17 | relay 13, gui 4 |
+| `object::Object` | 16 | relay 11, gui 4, net 1 |
+| `pq_crypto` | 15 | relay 9, net 4, gui 2 |
+| `encoding::from_canonical_bytes` | 13 | relay 12, gui 1 |
+| `pq_crypto::DilithiumKeypair` | 9 | net 5, gui 4 |
+| `encoding` | 6 | gui 2, net 2, relay 2 |
+| `key_card` | 6 | gui 2, net 2, relay 2 |
+| `pq_crypto::derive_dilithium_seed` | 6 | net 4, gui 2 |
+| `object::ObjectBuilder` | 5 | gui 3, net 2 |
+| `pq_crypto::verify_dilithium` | 5 | relay 3, gui 1, net 1 |
+| `profile_copy` | 5 | relay 4, gui 1 |
+| `did` | 4 | relay 4 |
+| `kdf::pbkdf2_sha256` | 4 | gui 2, net 2 |
+| `recovery` | 4 | gui 2, relay 2 |
+| `did::fingerprint_to_hex` | 3 | relay 3 |
 
-And 35 more items, 53 references (`node scripts/crate-cards.js --interface humanity-protocol` lists them all).
+And 37 more items, 56 references (`node scripts/crate-cards.js --interface humanity-protocol` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -73,12 +74,16 @@ And 35 more items, 53 references (`node scripts/crate-cards.js --interface human
   servers on the old and new builds refuse each other until both run the new one, so the release
   is followed by the federation live check ([federation-live-check.md](../admin/federation-live-check.md)).
   Source: [CLAUDE.md](../../CLAUDE.md), "No backwards-compatibility debt before launch".
-- **It may use only core** (the ratchet in `just lints`), and it compiles only with the `relay`
-  feature, which `native` turns on (`Cargo.toml`), so every change here reaches both builds.
+- **It may use only core** (the ratchet in `just lints`, which also holds its Cargo.toml to the
+  plan), and its code uses none: only its tests use the core's helpers, through a dev-dependency,
+  so it compiles beside the core rather than after it. The root package depends on it under the
+  `relay` feature, which `native` turns on, so every change here reaches both builds. Its own
+  `native` feature carries the desktop vault's key derivation (`kdf::pbkdf2_sha256`).
 
 ## How to test it
 
-- **Its lib tests:** the `just test-lib` line in At a glance.
+- **Its lib tests:** `just test-lib --crate humanity-protocol`, its own test program. A test's
+  name is its path in this crate: `kdf::tests::...`, no longer `relay::core::kdf::tests::...`.
 - **The server build's battery:** `just verify-relay` (about 200 s; the relay feature set's own lib
   tests, these among them), and `just verify-relay-compiles` before a push.
 - **The four known-answer tests** above, whenever their encoder or signed words change.
@@ -93,9 +98,10 @@ And 35 more items, 53 references (`node scripts/crate-cards.js --interface human
 
 ## Open work
 
-- **Rung 1 cuts protocol with core,** the first two crates of the workspace. Its test code's
-  wrong-way references (At a glance) move first, and its `pub(crate)` items used across the line
-  become `pub`. Source: [crate-split.md](../design/crate-split.md), "Order of work".
+- **Cut in rung 1 (2026-11-01),** with core: callers name it `humanity_protocol::...`. The fixtures
+  other crates' tests share (`profile_copy::fixtures`, `strip_heif_metadata::build`,
+  `pq_crypto::fixtures`) sit behind its `test-support` feature. Source:
+  [crate-split.md](../design/crate-split.md), rung 1.
 - **STARK selective disclosure:** the circuit design is deferred. The hash-based half ships here
   (`merkle_disclosure.rs`, Merkle paths over BLAKE3), verified by the relay's `api_v2_zk.rs`, which
   also holds the STARK scaffold. Source: [PRIORITIES.md](../PRIORITIES.md), TIER 4, item 2.

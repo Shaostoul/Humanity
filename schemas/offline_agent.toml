@@ -75,7 +75,7 @@
 #     - Current health, hunger, thirst, energy status
 #
 # Connection to game systems:
-#   ECS (src/ecs/) -- OfflineAgent is a component. The offline
+#   ECS (crates/humanity-core/src/ecs/) -- OfflineAgent is a component. The offline
 #     simulation system ticks agents via the System trait.
 #   AI system (src/systems/ai/) -- reuses NPC behavior trees for
 #     offline agents. The agent uses the same decision-making as NPCs but

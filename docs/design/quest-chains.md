@@ -617,7 +617,7 @@ nothing to drink (H7). Rewards: XP shelter_building 15.
 ### 2.4 Air in a sealed home
 
 *Ship homes and the sealed homestead. The home already simulates its air (the model in
-`src/systems/atmosphere.rs`, its state `HomeAirState` in `src/ecs/components.rs`; the CO2
+`src/systems/atmosphere.rs`, its state `HomeAirState` in `crates/humanity-core/src/ecs/components.rs`; the CO2
 percentage reaches the Home page as `air_co2_pct`), and a planted homestead's crops already hold it
 near 465 ppm with the scrubber idle (the air loop's note in `data/machines/home_solo.ron`). So these
 steps are easy in a home whose garden grows, and the lesson is what holds the air there: they are

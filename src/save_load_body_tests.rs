@@ -6,14 +6,14 @@
 //! into a monolith.
 
 use super::*;
-use crate::ecs::components::{Dead, Health, StatusEffects, Vitals};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Dead, Health, StatusEffects, Vitals};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::food::FoodSystem;
 use std::sync::Mutex;
 
 fn data_dir() -> &'static std::path::Path {
-    std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+    std::path::Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
 }
 
 /// The DataStore the FoodSystem reads, as lib.rs wires it, with the needs held still (the
@@ -21,7 +21,7 @@ fn data_dir() -> &'static std::path::Path {
 fn food_store() -> DataStore {
     let mut data = DataStore::new();
     let reg = crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
+        env!("HUMANITY_REPO_ROOT"),
         "/data/status_effects.csv"
     )))
     .expect("status_effects.csv");
@@ -41,9 +41,9 @@ fn player(world: &mut hecs::World, health: Health, vitals: Vitals, effects: Stat
         Controllable,
         Inventory::new(16),
         PlayerSkills::new(),
-        crate::ecs::components::Name("Astra".to_string()),
-        crate::ecs::components::Appearance::default(),
-        crate::ecs::components::Outfit::default(),
+        humanity_core::ecs::components::Name("Astra".to_string()),
+        humanity_core::ecs::components::Appearance::default(),
+        humanity_core::ecs::components::Outfit::default(),
         health,
         vitals,
         effects,

@@ -6,9 +6,9 @@ use std::sync::Mutex;
 
 use super::away::{self, AwayWork};
 use super::{CraftSave, CraftingSystem, RecipeRegistry};
-use crate::ecs::components::{AutoRefine, Controllable, MachineInstanceId, MachineType, PowerConsumer, StationLoad};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AutoRefine, Controllable, MachineInstanceId, MachineType, PowerConsumer, StationLoad};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
 const HEADER: &str = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n";
@@ -279,7 +279,7 @@ fn the_time_away_waits_for_the_machines() {
 #[test]
 fn the_shipped_homes_have_no_power_to_spare_while_away() {
     for file in ["home.ron", "home_solo.ron"] {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines").join(file);
         let home = crate::systems::grow_machines::load_home(&path).expect("parses");
         let [station, realistic] = away::day_power_balance(&home, &Default::default());
         assert!(

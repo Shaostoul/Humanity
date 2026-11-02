@@ -1,5 +1,5 @@
 {
-  "about": "Safety presets (docs/design/blocking-and-safe-mode.md 10h, 2026-10-10). Read by both clients: the desktop app embeds this file (src/embedded_data.rs), the web chat fetches /data/gui/safety_presets.json. The words follow the dated finding docs/reference/findings/2026-10-10-childrens-online-safety-rules.md (section 6): never 'kid safe', 'child safe', 'compliant' or 'certified', and nothing here says the app or anyone in it is safe. If a sentence stops being true of the build that ships, it comes off the screen the same day.",
+  "about": "Safety presets (docs/design/blocking-and-safe-mode.md 10h, 2026-10-10). Read by both clients: the desktop app embeds this file (crates/humanity-core/src/embedded_data.rs), the web chat fetches /data/gui/safety_presets.json. The words follow the dated finding docs/reference/findings/2026-10-10-childrens-online-safety-rules.md (section 6): never 'kid safe', 'child safe', 'compliant' or 'certified', and nothing here says the app or anyone in it is safe. If a sentence stops being true of the build that ships, it comes off the screen the same day.",
   "presets": [
     {
       "id": "protected",

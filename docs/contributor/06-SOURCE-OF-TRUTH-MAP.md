@@ -27,12 +27,13 @@ See also: `docs/website/README.md`.
 
 ## 2) Current implementation snapshot (reality check)
 
-### Rust crate (single unified binary, post-v0.90)
+### Rust workspace (one unified binary, post-v0.90)
 
-- `src/`, one crate, all features behind flags. `src/relay/` is the
-  axum relay server (was `server/`); the rest is the game engine +
-  systems. Build modes: `HumanityOS` (native desktop) /
-  `HumanityOS --headless` (relay). No workspace, no sub-crates.
+- `src/`, the root package, all features behind flags, and the crates cut
+  out of it so far, `crates/humanity-core/` and `crates/humanity-protocol/`
+  (the crate split, `docs/design/crate-split.md`). `src/relay/` is the axum
+  relay server (was `server/`); the rest is the game engine + systems. Build
+  modes: `HumanityOS` (native desktop) / `HumanityOS --headless` (relay).
 
 ### Other implemented runtime surfaces
 - `web/chat/` (web client served by relay)
@@ -66,7 +67,7 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
   - `docs/design/canonical_encoding_and_hashing.md`
   - `docs/network/object_format.md`
 - Implementation now:
-  - `src/relay/core/{encoding,hashing,identity,signing}.rs` (+ `pq_crypto.rs`, `did.rs`, `kdf.rs`)
+  - `crates/humanity-protocol/src/{encoding,hashing,identity,signing}.rs` (+ `pq_crypto.rs`, `did.rs`, `kdf.rs`)
 - Status:
   - **Documented: strong**
   - **Implemented: strong (core foundation)**
@@ -110,7 +111,7 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
   - `docs/design/engine/`
 - Implementation now:
   - `web/activities/` has web assets/pages
-  - `src/` contains the Rust game engine and systems (single crate)
+  - `src/` and `crates/` contain the Rust game engine and systems (one workspace)
 - Status:
   - **Documented: medium-strong**
   - **Implemented: engine substantial, content early.** The renderer, terrain,
@@ -152,16 +153,18 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
 
 ## 5) Next execution step (recommended)
 
-> Updated 2026-05-15: the v0.90 unified-binary restructure eliminated
-> the workspace and all sub-crates. There is no `humanity-core` crate
-> and new domains must NOT be split into separate crates. Add a domain
-> as a **module** inside the single `src/` crate.
+> Updated 2026-11-01: the v0.90 restructure removed the old workspace and
+> its sub-crates; the crate split (decided 2026-10-30, `docs/design/crate-split.md`)
+> brought back a workspace of ten crates BY LAYER, the first two, `humanity-core`
+> and `humanity-protocol`, cut on 2026-11-01. New domains are still not crates of
+> their own: add a domain as a **module** inside the crate its layer belongs to
+> (`scripts/crate-layers.json`).
 
 Add one pilot domain module (example: `src/systems/orbital.rs` or
 `src/systems/carpentry.rs`) that:
 
-- reuses shared primitives from `src/relay/core/` (crypto/encoding) and
-  the ECS in `src/ecs/` where appropriate,
+- reuses shared primitives from `crates/humanity-protocol/src/` (crypto/encoding) and
+  the ECS in `crates/humanity-core/src/ecs/` where appropriate,
 - has clear inputs/outputs and `#[cfg(test)]` unit tests,
 - maps directly to one existing `docs/design/systems/*` doc,
 - registers with the `SystemRunner` if it ticks per-frame,

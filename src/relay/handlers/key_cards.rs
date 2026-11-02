@@ -24,7 +24,7 @@ use axum::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::federation::key_in_log;
-use crate::relay::core::key_card::{self, KeyCard, Keep, REQUEST_MAX};
+use humanity_protocol::key_card::{self, KeyCard, Keep, REQUEST_MAX};
 use crate::relay::relay::{FederatedConnection, RelayMessage, RelayState};
 
 /// The cards in one `key_cards` answer, behind an `Arc`: every socket's task receives its own

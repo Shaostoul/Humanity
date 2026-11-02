@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn both_sockets_hand_the_erase_receipt_here() {
         let read = |rel: &str| {
-            std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel))
+            std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(rel))
                 .unwrap_or_else(|e| panic!("read {rel}: {e}"))
         };
         let active = r#"Some("account_erased") => crate::engine::account_erase::on_active_server(state, &val),"#;

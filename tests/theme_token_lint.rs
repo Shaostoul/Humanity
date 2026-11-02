@@ -46,7 +46,7 @@ use std::path::{Path, PathBuf};
 ///    `// theme-exempt: <reason>` on the same line.
 /// 5. Remove the file from this list.
 const LEGACY_OFFENDERS: &[&str] = &[
-    // (src/debug.rs removed 2026-07-16: it is outside SCAN_DIRS so this entry was
+    // (crates/humanity-core/src/debug.rs removed 2026-07-16: it is outside SCAN_DIRS so this entry was
     // inert; its F12-console literals are now theme-exempt annotated in place anyway.)
     // gui/mod.rs migrated 2026-09-19 and REMOVED from this list. Its last
     // unexempted literal was the fallback guild colour in
@@ -94,7 +94,7 @@ const LEGACY_OFFENDERS: &[&str] = &[
 ];
 
 /// Directories scanned for violations. Anything outside these trees
-/// (e.g. `src/relay/`, `src/ecs/`, `src/systems/`) doesn't render UI
+/// (e.g. `src/relay/`, `crates/humanity-core/src/ecs/`, `src/systems/`) doesn't render UI
 /// and is exempt.
 const SCAN_DIRS: &[&str] = &["src/gui", "src/renderer"];
 

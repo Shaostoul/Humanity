@@ -17,7 +17,7 @@
 //! owns the geometry.
 //!
 //! The camera's aim in that tangent frame (the basis, the forward a yaw and
-//! pitch give, and the angles back from a direction) is `crate::camera_angles`,
+//! pitch give, and the angles back from a direction) is `humanity_core::camera_angles`,
 //! in the core since the crate split's rung 0: the renderer's camera aims with
 //! it, and the renderer may not reach into the simulation.
 
@@ -33,7 +33,7 @@ use crate::terrain::terrain_tiles::TerrainTiles;
 // stand/walk clamp rests the camera at above the sampled ground radius. The
 // body's, `ecs::components::EYE_HEIGHT_M`, since the crate split's rung 0.
 #[cfg(test)]
-use crate::ecs::components::EYE_HEIGHT_M;
+use humanity_core::ecs::components::EYE_HEIGHT_M;
 
 /// Clearance above the ground when the only reference available is the
 /// elevation FIELD (v0.889, and since v0.1108 the FALLBACK ONLY).

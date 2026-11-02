@@ -19,9 +19,9 @@
 //! yourself, the mess hall that serves your cabin, a meal there, the
 //! recreation room, your cabin's door.
 
-use crate::ecs::systems::System;
+use humanity_core::ecs::systems::System;
 use crate::systems::quests::*;
-use crate::ecs::components::{AsteroidBody, Controllable, StatusEffects, Transform, Vitals, Wallet};
+use humanity_core::ecs::components::{AsteroidBody, Controllable, StatusEffects, Transform, Vitals, Wallet};
 use crate::ship::ship_structure::{HomeDesign, ShipStructure};
 use crate::ship::starts::Starts;
 use crate::systems::construction::{placement, BlueprintRegistry, BuildRequest, ConstructionSystem};
@@ -34,14 +34,14 @@ use crate::systems::skills::SkillRegistry;
 use glam::Vec3;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 use crate::systems::quests::PLANT_EVENT;
 use crate::systems::quests::counted;
 use std::collections::HashMap;
 
 fn data_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 fn read(rel: &str) -> Vec<u8> {
@@ -509,7 +509,7 @@ fn planting_counts_every_way_the_player_sows_and_nothing_else() {
     *data.get::<Mutex<Option<(String, String)>>>("showcase_tower_request").unwrap().lock().unwrap() =
         Some(("apothecary".into(), "basil".into()));
     run(&mut world);
-    assert!(world.query::<&crate::ecs::components::CropInstance>().iter().count() > 50, "the showcase filled its tower");
+    assert!(world.query::<&humanity_core::ecs::components::CropInstance>().iter().count() > 50, "the showcase filled its tower");
     assert_eq!(planted(&world, "q_any"), 5, "the showcase's crops are not counted");
     // A Plant step naming a crop counts only that crop.
     assert_eq!(
@@ -1135,7 +1135,7 @@ fn every_step_of_every_shipped_quest_fits_the_hud_line() {
 /// mess_hall nearest c1's door".
 #[test]
 fn every_step_of_the_opening_names_what_the_game_shows() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = Path::new(env!("HUMANITY_REPO_ROOT"));
     let src = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
     let inventory = src("src/gui/pages/inventory.rs");
     let crafting = src("src/gui/pages/crafting.rs");
@@ -1300,9 +1300,9 @@ fn a_player_who_finished_the_old_first_steps_is_not_sent_back() {
         .insert(
             player,
             (
-                crate::ecs::components::Name("Returning".into()),
-                crate::ecs::components::Appearance::default(),
-                crate::ecs::components::Outfit::default(),
+                humanity_core::ecs::components::Name("Returning".into()),
+                humanity_core::ecs::components::Appearance::default(),
+                humanity_core::ecs::components::Outfit::default(),
             ),
         )
         .unwrap();

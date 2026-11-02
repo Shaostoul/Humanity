@@ -14,7 +14,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::relay::core::did::{Fingerprint, fingerprint_to_hex};
+use humanity_protocol::did::{Fingerprint, fingerprint_to_hex};
 use crate::relay::relay::RelayState;
 use crate::relay::storage::DidResolution;
 
@@ -83,7 +83,7 @@ pub async fn resolve_did(
 }
 
 // Re-export for convenience: helpers callers may want.
-pub use crate::relay::core::did::{did_for_pubkey as compute_did_for_pubkey};
+pub use humanity_protocol::did::{did_for_pubkey as compute_did_for_pubkey};
 // (the use just makes the symbol visible in `api_v2_did::compute_did_for_pubkey`)
 #[allow(dead_code)]
 fn _import_anchor(fp: Fingerprint) -> String {

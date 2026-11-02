@@ -1,5 +1,5 @@
 //! A how-to's hash: BLAKE3 of its canonical CBOR without its `review` block, the same encoding and
-//! hash the signed objects use (src/relay/core/encoding.rs, docs/design/how-to.md "Sources and
+//! hash the signed objects use (crates/humanity-protocol/src/encoding.rs, docs/design/how-to.md "Sources and
 //! review"). A review records this hash, so the review binds to the exact words it checked: change
 //! a word and the hash no longer matches (gate review_hash_stale).
 //!
@@ -18,7 +18,7 @@ pub fn canonical_bytes(how_to: &Json) -> Result<Vec<u8>, String> {
         map.remove("review");
     }
     let cbor = to_cbor(&v)?;
-    crate::relay::core::encoding::to_canonical_bytes(&cbor).map_err(|e| e.to_string())
+    humanity_protocol::encoding::to_canonical_bytes(&cbor).map_err(|e| e.to_string())
 }
 
 /// BLAKE3 of [`canonical_bytes`], lower-case hex.

@@ -2,7 +2,7 @@
 // failing once against the break named in its doc comment.
 
 use super::*;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
 const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 const ID: &str = "00112233445566778899aabbccddeeff";
@@ -64,7 +64,7 @@ fn the_offer_note_and_pass_words_are_the_spec_s() {
 /// against the fixture's preimage.
 #[test]
 fn the_shared_fixture_is_what_this_app_builds() {
-    let fx: serde_json::Value = serde_json::from_str(include_str!("../../scripts/tests/fixtures/file-offer-v1.json")).unwrap();
+    let fx: serde_json::Value = serde_json::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/scripts/tests/fixtures/file-offer-v1.json"))).unwrap();
     let s = |k: &str| fx[k].as_str().unwrap().to_string();
     let n = |k: &str| fx[k].as_u64().unwrap();
     let (issuer_seed, issuer) = identity(n("issuer_master_byte") as u8);

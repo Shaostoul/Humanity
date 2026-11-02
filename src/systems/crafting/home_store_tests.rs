@@ -6,9 +6,9 @@ use std::sync::Mutex;
 
 use super::home_store::{HAND_MADE_TO_STORAGE, HOME_STORAGE_HERE};
 use super::{CraftingSystem, RecipeRegistry};
-use crate::ecs::components::{Controllable, Vehicle};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Vehicle};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::construction::StationsWhere;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
@@ -16,7 +16,7 @@ use crate::systems::inventory::{Inventory, ItemRegistry};
 /// under the player's control, and home storage holding `stock`.
 fn real_home(stock: &[(&str, u32)]) -> (DataStore, hecs::World, hecs::Entity) {
     let mut data = DataStore::new();
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/data/");
+    let root = concat!(env!("HUMANITY_REPO_ROOT"), "/data/");
     let read = |f: &str| std::fs::read(format!("{root}{f}")).unwrap();
     data.insert("recipe_registry", RecipeRegistry::from_csv(&read("recipes.csv")).unwrap());
     data.insert("item_registry", ItemRegistry::from_csv(&read("items.csv")).unwrap());

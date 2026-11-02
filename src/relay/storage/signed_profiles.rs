@@ -10,7 +10,7 @@
 use rusqlite::{params, OptionalExtension};
 
 use super::Storage;
-use crate::relay::core::profile_copy::{is_withdrawal, PublicCopy, MAX_AHEAD_MS};
+use humanity_protocol::profile_copy::{is_withdrawal, PublicCopy, MAX_AHEAD_MS};
 
 /// The most copies a server sends a peer when their link comes up (the catch-up): the newest.
 pub const CATCH_UP_COPIES_MAX: usize = 1_000;
@@ -174,7 +174,7 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::profile_copy::withdrawal;
+    use humanity_protocol::profile_copy::withdrawal;
 
     fn copy_of(name: &str, location: &str) -> PublicCopy {
         PublicCopy {
@@ -281,7 +281,7 @@ mod tests {
     /// is gone" failed.
     #[test]
     fn unsigned_copies_from_before_are_dropped_at_open() {
-        let path = crate::test_temp::db("sp_old_unsigned");
+        let path = humanity_core::test_temp::db("sp_old_unsigned");
         {
             let conn = rusqlite::Connection::open(&path).expect("raw open");
             conn.execute_batch(

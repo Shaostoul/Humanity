@@ -25,10 +25,10 @@ use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
 use super::Storage;
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::object::Object;
-use crate::relay::core::pq_crypto::KYBER_EK_LEN;
-use crate::relay::core::recovery::{
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::object::Object;
+use humanity_protocol::pq_crypto::KYBER_EK_LEN;
+use humanity_protocol::recovery::{
     ANSWER_LEN, ASK_MS, SHARE_OBJECT_TYPE, SharePayload, TOKEN_LEN, account_id_ok, ask_code, close_hash, object_json,
     token_hash,
 };

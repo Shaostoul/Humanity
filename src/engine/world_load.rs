@@ -4,7 +4,7 @@
 //! `refresh_home_content` builds those again when the home changes under a running world.
 use glam::Vec3;
 use std::time::Instant;
-use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
+use humanity_core::ecs::components::{Controllable, Health, Name, Transform, Velocity};
 use crate::engine::home_meshes::{apply_homestead_meshes, home_lights, rebuild_connection_objects, rebuild_door_panels, rebuild_hull};
 use crate::engine::home_spawn::{spawn_home_air_space, spawn_home_machine_entity};
 use crate::engine::net_route::reload_planet_defs;
@@ -22,8 +22,8 @@ use crate::systems::inventory::ItemRegistry;
 pub(crate) fn place_avatar(
     state: &mut EngineState,
     base: Vec3,
-    app: &crate::ecs::components::Appearance,
-    colors: &crate::cosmetics::OutfitColors,
+    app: &humanity_core::ecs::components::Appearance,
+    colors: &humanity_core::cosmetics::OutfitColors,
 ) {
     let s = app.height_scale.clamp(0.5, 2.0);
     let skin = [app.skin_tone[0], app.skin_tone[1], app.skin_tone[2], 1.0];
@@ -296,7 +296,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 let old: Vec<hecs::Entity> = state
                     .game_world
                     .world
-                    .query::<&crate::ecs::components::HomeMachine>()
+                    .query::<&humanity_core::ecs::components::HomeMachine>()
                     .iter()
                     .map(|(e, _)| e)
                     .collect();
@@ -520,7 +520,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // Now the orbit is data (data/stations/home.ron), it is propagated on the
     // GAME clock, and the same elements are used here and every frame after.
     {
-        state.gui_state.credits = crate::credits::Credits::load(&state.data_dir);
+        state.gui_state.credits = humanity_core::credits::Credits::load(&state.data_dir);
         let defs = crate::station::load_all(&state.data_dir);
         state.station_def = crate::station::home(&defs);
         let (pos, vel) = crate::station::orbit::propagate(
@@ -601,7 +601,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // Was thick tube meshes (operator: "tubes are just too thick …
     // we wouldn't need all the verts … like a single edge"). Now we
     // just cache each body's TRUE Keplerian ellipse points
-    // (crate::cosmos::sample_orbit_points → same math the Maps page
+    // (humanity_core::cosmos::sample_orbit_points → same math the Maps page
     // draws) in PARENT-frame metres. Per frame they're offset to the
     // parent's Earth-relative position and drawn as a 1-px LineList
     // that the depth buffer occludes behind planets. 96 samples is
@@ -617,7 +617,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
         - 946_728_000.0; // Unix secs at J2000.0 epoch
-    for b in crate::cosmos::sol_bodies() {
+    for b in humanity_core::cosmos::sol_bodies() {
         // Cache EVERY orbiting body's ring, tagged planet/moon so the Sky
         // settings filter at draw time (v0.786). Direct sun-orbiters =
         // planets/dwarfs; everything else = a moon around its planet.
@@ -626,7 +626,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
         // "luna".) Sun has no orbit (sample empty) → skipped naturally.
         let Some(parent) = b.parent.clone() else { continue };
         let kind = if parent == "sun" { "planet" } else { "moon" };
-        let pts_au = crate::cosmos::sample_orbit_points(b, 96, ring_sim_t);
+        let pts_au = humanity_core::cosmos::sample_orbit_points(b, 96, ring_sim_t);
         if pts_au.len() < 3 { continue; }
         // Keep the vertices in f64 (v0.791): they are ~1.5e11 m and the
         // per-frame offset is the same magnitude with the opposite sign,
@@ -634,7 +634,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
         // body -- one of the two reasons Earth sat visibly off its ring.
         let pts_m: Vec<glam::DVec3> = pts_au
             .iter()
-            .map(|p| *p * crate::cosmos::M_PER_AU)
+            .map(|p| *p * humanity_core::cosmos::M_PER_AU)
             .collect();
         state.solar_orbit_paths.push((pts_m, parent, kind.to_string(), b.id.clone()));
     }
@@ -709,9 +709,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
             .game_world
             .world
             .query::<(
-                &crate::ecs::components::Name,
-                &crate::ecs::components::Appearance,
-                &crate::ecs::components::Outfit,
+                &humanity_core::ecs::components::Name,
+                &humanity_core::ecs::components::Appearance,
+                &humanity_core::ecs::components::Outfit,
                 &Controllable,
             )>()
             .iter()
@@ -719,7 +719,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             .map(|(_, (n, a, o, _))| (n.0.clone(), a.clone(), o.clone()))
             .unwrap_or_else(|| ("Wanderer".to_string(), Default::default(), Default::default()));
         state.gui_state.character_name = cname;
-        state.cosmetics = crate::cosmetics::load_cosmetics(&state.data_dir);
+        state.cosmetics = humanity_core::cosmetics::load_cosmetics(&state.data_dir);
         state.gui_state.cosmetics_list = state
             .cosmetics
             .iter()
@@ -731,13 +731,13 @@ pub(crate) fn load_world(state: &mut EngineState) {
         state.fps_spawn = state.camera.position; // the first-person spawn set above
         state.showroom_return_pos = state.camera.position;
         state.avatar_obj_start = state.placeholder_objects.len();
-        let colors = crate::cosmetics::resolve_outfit_colors(&outfit, &state.cosmetics);
+        let colors = humanity_core::cosmetics::resolve_outfit_colors(&outfit, &state.cosmetics);
         place_avatar(state, base, &app, &colors);
 
         // Showroom SCENE ASSETS (backdrops, ground disc, body sphere) are loaded on
         // every world-load -- cheap, and needed so the wetroom mirror + bedroom
         // wardrobe can open the showroom later even when Play did not open the picker.
-        state.showroom_backdrops = crate::showroom::load_backdrops(&state.data_dir);
+        state.showroom_backdrops = humanity_core::showroom::load_backdrops(&state.data_dir);
         state.gui_state.showroom_backdrop_names =
             state.showroom_backdrops.iter().map(|b| b.name.clone()).collect();
         state.gui_state.showroom_backdrop = 0;
@@ -796,7 +796,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
 /// the world and the data store; returns how many animals it spawned.
 pub(crate) fn spawn_herd(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     machine_world_pos: &std::collections::HashMap<String, Vec3>,
     carries: bool,
 ) -> usize {
@@ -806,7 +806,7 @@ pub(crate) fn spawn_herd(
     // new herd the same way: the save's, else the previous herd's
     // (systems::animal_care, 2026-10-12).
     crate::systems::animal_care::hold_current(world, data);
-    let old: Vec<hecs::Entity> = world.query::<&crate::ecs::components::Creature>()
+    let old: Vec<hecs::Entity> = world.query::<&humanity_core::ecs::components::Creature>()
         .iter()
         .map(|(e, _)| e)
         .collect();
@@ -853,7 +853,7 @@ pub(crate) fn spawn_herd(
                     .find(|(s, _)| *s == slot)
                     .map_or(product.regrow_s, |(_, t)| t.clamp(0.0, product.regrow_s));
                 bundles.push((
-                    crate::ecs::components::Creature {
+                    humanity_core::ecs::components::Creature {
                         def_id: def.id.clone(),
                         anchor,
                         range: p.spread,
@@ -867,7 +867,7 @@ pub(crate) fn spawn_herd(
                         ..Default::default()
                     },
                     Name(def.name.clone()),
-                    crate::ecs::components::Harvestable {
+                    humanity_core::ecs::components::Harvestable {
                         resource: product.item.clone(),
                         amount: product.amount as f32,
                         regrow_time: product.regrow_s,
@@ -881,7 +881,7 @@ pub(crate) fn spawn_herd(
                         current: def.health_base.max(1.0),
                         max: def.health_base.max(1.0),
                     },
-                    crate::ecs::components::LootTable {
+                    humanity_core::ecs::components::LootTable {
                         entries: def.loot_entries(items),
                     },
                 ));
@@ -909,13 +909,13 @@ pub(crate) fn spawn_herd(
 /// first. Pure on the world and the data store; returns how many it spawned.
 pub(crate) fn spawn_wilds(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     hostile_wildlife: bool,
     carries: bool,
 ) -> usize {
     let old: Vec<hecs::Entity> = world.query::<(
-            &crate::ecs::components::Creature,
-            &crate::ecs::components::AIBehavior,
+            &humanity_core::ecs::components::Creature,
+            &humanity_core::ecs::components::AIBehavior,
         )>()
         .iter()
         .map(|(e, _)| e)
@@ -954,7 +954,7 @@ pub(crate) fn spawn_wilds(
                 let r = s.radius * (0.4 + 0.6 * (i as f32 + 1.0) / s.count.max(1) as f32);
                 let pos = center + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
                 bundles.push(((
-                    crate::ecs::components::Creature {
+                    humanity_core::ecs::components::Creature {
                         def_id: def.id.clone(),
                         anchor: center,
                         range: s.radius,
@@ -972,10 +972,10 @@ pub(crate) fn spawn_wilds(
                         current: def.health_base.max(1.0),
                         max: def.health_base.max(1.0),
                     },
-                    crate::ecs::components::LootTable {
+                    humanity_core::ecs::components::LootTable {
                         entries: def.loot_entries(items),
                     },
-                    crate::ecs::components::AIBehavior {
+                    humanity_core::ecs::components::AIBehavior {
                         behavior_type: crate::systems::livestock::behavior_type_for(def)
                             .to_string(),
                         state: "idle".to_string(),
@@ -995,7 +995,7 @@ pub(crate) fn spawn_wilds(
         if let Some(p) = renewable {
             let _ = world.insert_one(
                 e,
-                crate::ecs::components::Harvestable {
+                humanity_core::ecs::components::Harvestable {
                     resource: p.item,
                     amount: p.amount as f32,
                     regrow_time: p.regrow_s,
@@ -1149,7 +1149,7 @@ pub(crate) fn place_decorations(state: &mut EngineState, machine_world_pos: &std
 }
 
 /// ── Solar system hologram (map-sync increment C, v0.262.13) ──
-/// Driven by the CANONICAL crate::cosmos model at the live date,
+/// Driven by the CANONICAL humanity_core::cosmos model at the live date,
 /// so the tabletop matches the Maps page + the FPS sky exactly.
 /// Was the drifted solar_system.ron placed at fake golden angles
 /// (operator: "isn't working — still showing an old

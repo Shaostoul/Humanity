@@ -7,8 +7,8 @@ use super::*;
 use crate::gui::screen_surface::find_text_in_shapes;
 use crate::net::dm_store::DmStore;
 use crate::net::household::{GivenPermit, GivenState, HeldPermit, Judged, PermitKey, PermitPut};
-use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
-use crate::build_permission::Permit;
+use humanity_protocol::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
+use humanity_core::build_permission::Permit;
 use serde_json::Value;
 use std::sync::mpsc::Receiver;
 
@@ -552,13 +552,13 @@ fn take_back_asks_first() {
 /// THE LENGTHS COME FROM THE DATA FILE (plan 3.2 and 3.9): with a data folder whose
 /// ship/household.ron offers 3 and 14 days, 14 picked first, the card offers exactly those two,
 /// and Give a permit asks about a permit running 14 days from now.
-/// Seen red 2026-10-12 with `draw_card_from` reading the lengths from `crate::storage::data_dir()` instead of
+/// Seen red 2026-10-12 with `draw_card_from` reading the lengths from `humanity_core::storage::data_dir()` instead of
 /// its own folder: "the card offers the data file's lengths: missing [\"3 days\", \"14 days\"]"
 /// failed.
 #[test]
 fn the_lengths_come_from_the_data_file() {
     let (ctx, theme) = ctx_and_theme();
-    let dir = crate::test_temp::dir("household_page_lengths");
+    let dir = humanity_core::test_temp::dir("household_page_lengths");
     std::fs::create_dir_all(dir.join("ship")).unwrap();
     std::fs::write(dir.join(hh::LENGTHS_FILE), "(lengths_days: [3, 14], default_days: 14, ended_kept_days: 30)").unwrap();
     let (mut gs, sent) = on_p2(&[238; 32], "me-key", "lengths");

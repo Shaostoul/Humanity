@@ -4,7 +4,7 @@
 //! eclipse is overhead.
 //! Moved out of `gui/pages/cosmos.rs` in Maps increment 0 (2026-10-20).
 
-use crate::cosmos::{body_world_position_3d_au, find_body, KM_PER_AU};
+use humanity_core::cosmos::{body_world_position_3d_au, find_body, KM_PER_AU};
 
 // ─────────────────────── Sky events: conjunctions + eclipses (Phase 4d-tri, v0.210.0) ──
 
@@ -427,7 +427,7 @@ pub(super) fn subpoint_lat_lon_deg(
     if len <= 0.0 {
         return (0.0, 0.0);
     }
-    let e = crate::cosmos::ecliptic_from_world(d / len); // Earth -> target
+    let e = humanity_core::cosmos::ecliptic_from_world(d / len); // Earth -> target
     let t_cy = sim_time_seconds / 86_400.0 / 36_525.0;
     let precession = (PRECESSION_ARCSEC.0 * t_cy + PRECESSION_ARCSEC.1 * t_cy * t_cy) / 3600.0;
     let lambda = e.y.atan2(e.x) + precession.to_radians();

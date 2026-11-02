@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::relay::core::profile_copy::{self, public_copy, PublicCopy, BIO_MAX_CHARS, MAX_AHEAD_MS};
+use humanity_protocol::profile_copy::{self, public_copy, PublicCopy, BIO_MAX_CHARS, MAX_AHEAD_MS};
 use crate::relay::handlers::federation::{gossip_profile, key_in_log};
 use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::relay::{RelayMessage, RelayState};

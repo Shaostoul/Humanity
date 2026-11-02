@@ -8,9 +8,9 @@
 
 use std::collections::VecDeque;
 
-use crate::ecs::components::Transform;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::Transform;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use glam::{Quat, Vec3};
 use super::protocol::NetMessage;
 
@@ -25,7 +25,7 @@ pub struct RemotePlayer {
     pub player_id: u32,
     pub name: String,
     /// How they look, when their client sent it (2026-09-29).
-    pub look: Option<crate::player_look::PlayerLook>,
+    pub look: Option<humanity_core::player_look::PlayerLook>,
     /// Their identity key, when the relay sent it (2026-10-10): someone we blocked is not drawn
     /// and their name is not shown (engine/block.rs `hides_player`). None until their join or a
     /// snapshot names it (a lazy spawn from a position update knows only the number).
@@ -78,10 +78,10 @@ pub struct RemoteNpc {
     pub target_position: Vec3,
     /// The way the figure faces, as a turn about +y (its face, +z, looks along (sin a, 0, cos a);
     /// the transform's rotation is `Quat::from_rotation_y(a)`), turning the way a person turns
-    /// (`crate::turning::BODY`). Worked out on this screen from the figure's own drawn motion and
+    /// (`humanity_core::turning::BODY`). Worked out on this screen from the figure's own drawn motion and
     /// never sent: facing is cosmetic, and the relay sends where a crew member is, not which way
     /// it looks (BUG-166).
-    pub facing: crate::turning::Turn,
+    pub facing: humanity_core::turning::Turn,
     /// The way it last walked, the same kind of angle: the facing turns toward it, and keeps it
     /// once the figure stands still.
     pub heading: f32,
@@ -1141,7 +1141,7 @@ impl System for NetSyncSystem {
                                 last_position: pos,
                                 target_position: pos,
                                 // Facing +z, the transform's identity, until it walks somewhere.
-                                facing: crate::turning::Turn::default(),
+                                facing: humanity_core::turning::Turn::default(),
                                 heading: 0.0,
                                 interpolation_t: 1.0,
                             },
@@ -1198,7 +1198,7 @@ impl System for NetSyncSystem {
                                 last_position: pos,
                                 target_position: pos,
                                 // Facing +z, the transform's identity, until it walks somewhere.
-                                facing: crate::turning::Turn::default(),
+                                facing: humanity_core::turning::Turn::default(),
                                 heading: 0.0,
                                 interpolation_t: 1.0,
                             },
@@ -1286,7 +1286,7 @@ impl System for NetSyncSystem {
                 let t = smooth_step(npc.interpolation_t);
                 transform.position = npc.last_position.lerp(npc.target_position, t);
             }
-            npc.facing.toward(npc.heading, dt, crate::turning::BODY);
+            npc.facing.toward(npc.heading, dt, humanity_core::turning::BODY);
             transform.rotation = Quat::from_rotation_y(npc.facing.angle);
         }
     }
@@ -1302,7 +1302,7 @@ fn smooth_step(t: f32) -> f32 {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::ecs::systems::System;
+    use humanity_core::ecs::systems::System;
 
     /// The lazy-spawn name race from the two-instance co-presence proof
     /// (v0.796): a position update arriving BEFORE the join/welcome spawns
@@ -1312,7 +1312,7 @@ pub(crate) mod tests {
     fn a_late_join_message_fixes_a_lazy_spawned_placeholder_name() {
         let mut sys = NetSyncSystem::new();
         let mut world = hecs::World::new();
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         sys.queue_messages(vec![
             NetMessage::Welcome { player_id: 1, world_snapshot: Vec::new() },
             // 15 Hz position stream outruns the one-shot join broadcast.
@@ -1332,7 +1332,7 @@ pub(crate) mod tests {
             .collect();
         assert_eq!(placeholder, vec!["Player 42".to_string()], "lazy-spawn placeholder");
 
-        let look = crate::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05 };
+        let look = humanity_core::player_look::PlayerLook { skin: [0.7, 0.5, 0.4], hair: [0.1, 0.1, 0.1], height: 1.05 };
         sys.queue_messages(vec![NetMessage::PlayerJoined {
             player_id: 42,
             name: "Test Pilot A".to_string(),
@@ -1349,7 +1349,7 @@ pub(crate) mod tests {
         assert_eq!(named.len(), 1, "no duplicate spawn from the late join");
         assert_eq!(named[0].0, "Test Pilot A", "the real name replaced the placeholder");
         // And the look arrived with the join (2026-09-29).
-        let looks: Vec<Option<crate::player_look::PlayerLook>> =
+        let looks: Vec<Option<humanity_core::player_look::PlayerLook>> =
             world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.look).collect();
         assert_eq!(looks, vec![Some(look)], "the look replaced the placeholder's none");
         // And the key, which Block needs to leave a figure undrawn (2026-10-10).
@@ -1481,7 +1481,7 @@ pub(crate) mod tests {
     fn play_from(deliveries: &[Delivery], start: f64, seconds: f64) -> Vec<Frame> {
         let mut sys = NetSyncSystem::new();
         let mut world = hecs::World::new();
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         let mut next = 0;
         let mut frames = Vec::new();
         let count = (seconds / FRAME_DT as f64).ceil() as usize;
@@ -1855,7 +1855,7 @@ pub(crate) mod tests {
         let (stream, _) = sender_walk(&frame_times(60.0, 8.0, 4));
         let mut sys = NetSyncSystem::new();
         let mut world = hecs::World::new();
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         let (mut t, mut next) = (0.0_f64, 0);
         let mut frames = Vec::new();
         while t < 6.0 {
@@ -2149,7 +2149,7 @@ pub(crate) mod tests {
             activity: "Walking to hydroponics".to_string(),
             working: false,
         };
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
 
         for (label, msgs) in [
             ("profile first", vec![profile(7), update(7)]),
@@ -2191,7 +2191,7 @@ pub(crate) mod tests {
     /// update sent before it went" (left: [(5, "Player 5")], right: []).
     #[test]
     fn an_update_after_going_out_of_view_draws_no_ghost() {
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         let mut sys = NetSyncSystem::new();
         let mut world = hecs::World::new();
         let update = |p: [f32; 3]| NetMessage::PositionUpdate { player_id: 5, position: p, rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0 };

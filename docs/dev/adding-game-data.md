@@ -21,7 +21,7 @@ any new content category.
 `data/README.md` has the full directory map (76+ entries). Loading goes
 through `AssetManager` (`src/assets/mod.rs`): `load_csv`, `load_ron`,
 `load_toml`, each cached by path, plus `load_*_or_embedded` variants that fall
-back to compile-time copies (`src/embedded_data.rs`) so a bare exe still runs
+back to compile-time copies (`crates/humanity-core/src/embedded_data.rs`) so a bare exe still runs
 offline. CSV parsing skips `#` comment lines, which is why every CSV opens
 with a documented column legend, keep that convention.
 

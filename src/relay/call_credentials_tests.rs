@@ -167,7 +167,7 @@ fn malformed_requests_no_forwarder_and_too_many_are_refused() {
 /// before the restart: left: None, right: Some(401)".
 #[test]
 fn credentials_stop_working_after_the_relay_restarts() {
-    let db = Arc::new(crate::test_temp::db("callcreds_restart"));
+    let db = Arc::new(humanity_core::test_temp::db("callcreds_restart"));
     let before = Arc::new(RelayState::new(Storage::open_sharing(&db)));
     before.calls.set_listening("127.0.0.1", 3478);
     seat(&before, "lounge", &["alice_key"]);
@@ -219,7 +219,7 @@ fn nonces_are_bound_to_the_address_and_expire() {
 
 /// A real identity: its BIP39 seed and its Dilithium3 public key, hex.
 fn person(seed_byte: u8) -> (Vec<u8>, String) {
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
     let seed = vec![seed_byte; 32];
     let key = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key());
     (seed, key)
@@ -228,7 +228,7 @@ fn person(seed_byte: u8) -> (Vec<u8>, String) {
 /// The file pass `issuer` (seed, key) gives `grantee` on this relay for transfer `id`, ending at
 /// `expiry`, signed by hand (so a run-out or overlong one can be made too).
 fn file_pass(state: &RelayState, issuer: &(Vec<u8>, String), grantee: &str, id: &str, expiry: u64) -> serde_json::Value {
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, file_pass_preimage, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, file_pass_preimage, DilithiumKeypair};
     use base64::Engine;
     let server = state.db.server_did().unwrap();
     let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer.0));

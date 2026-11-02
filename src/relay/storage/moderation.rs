@@ -38,9 +38,9 @@
 use rusqlite::params;
 
 use super::Storage;
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::encoding::from_canonical_bytes;
-use crate::relay::core::object::Object;
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::encoding::from_canonical_bytes;
+use humanity_protocol::object::Object;
 
 /// Which authority allowed an action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -412,10 +412,10 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::moderation::{
+    use humanity_protocol::moderation::{
         build_mod_action_v1, build_space_policy_v1, ModAction, SpacePolicy,
     };
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
     fn db() -> Storage {
         Storage::open_temp("modapply")
@@ -863,9 +863,9 @@ mod tests {
     /// a permanent sanction out of an action whose own record says it lapses.
     #[test]
     fn an_unreadable_expiry_is_refused_rather_than_treated_as_none() {
-        use crate::relay::core::encoding::{cbor_map, cbor_text};
-        use crate::relay::core::object::ObjectBuilder;
-        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+        use humanity_protocol::encoding::{cbor_map, cbor_text};
+        use humanity_protocol::object::ObjectBuilder;
+        use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
         let db = db();
         let space = db.server_did().unwrap();

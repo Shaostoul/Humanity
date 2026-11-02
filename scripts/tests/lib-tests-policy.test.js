@@ -220,3 +220,91 @@ test("what counts as the full suite, and the failures list", () => {
   assert.deepStrictEqual(L.parseFailures("test result: ok. 3 passed"), []);
   assert.deepStrictEqual(L.parsePorcelainZ(" M a.txt\0?? b/c.txt\0R  new.txt\0old.txt\0"), ["a.txt", "b/c.txt", "new.txt"]);
 });
+
+// THE WORKSPACE (2026-11-01, the crate split's rung 1): one test program per member. What would make
+// it a check that cannot fail: a run that takes "the" program and runs one member's tests, a summary
+// that reports one program's count as the whole, or a failure rerun in the wrong program (where its
+// name finds nothing, which reads as "it passed alone"). Two copies of the tiny suite stand in for
+// two members' programs.
+const P = require("../lib/lib-test-programs.js");
+
+function twoPrograms(dir) {
+  const exe = suiteExe();
+  const a = path.join(dir, "first-member.exe");
+  const b = path.join(dir, "second-member.exe");
+  fs.copyFileSync(exe, a);
+  fs.copyFileSync(exe, b);
+  return [a, b].join(path.delimiter);
+}
+
+test("every member's program runs; the counts are added up; the pass is recorded once", () => {
+  const root = repo();
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "hum_lib_tests_bin_"));
+  try {
+    const r = run(root, twoPrograms(bin));
+    assert.strictEqual(r.status, 0, r.out);
+    assert.match(r.out, /lib-tests: program 1 \(first-member\.exe\)/);
+    assert.match(r.out, /lib-tests: program 2 \(second-member\.exe\)/);
+    assert.strictEqual(runs(root).filter((x) => x === "always_ok").length, 2, "both programs ran");
+    // The tiny suite has five tests, and all five pass in each program: the line adds them up.
+    assert.match(r.out, /lib-tests: test result: ok\. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out \(program 1 5, program 2 5\)/);
+    const rec = JSON.parse(fs.readFileSync(path.join(root, "target", "lib-tests", "last-full-pass.json"), "utf8"));
+    assert.match(rec.result, /10 passed.*\(program 1 5, program 2 5\)/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+test("a failure in one member's program is rerun in that program, and fails the run", () => {
+  const root = repo();
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "hum_lib_tests_bin_"));
+  try {
+    const r = run(root, twoPrograms(bin), [], { TINY_REAL_FAIL_IN: "second-member" });
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.match(r.out, /lib-tests: again, alone: always_fails \(program 2\)/);
+    assert.match(r.out, /REAL FAILURE: 1 test\(s\) failed and failed again alone:\s+always_fails/);
+    // Once in each program, then once more alone, in the second.
+    assert.strictEqual(runs(root).filter((x) => x === "always_fails").length, 3);
+    assert.ok(!fs.existsSync(path.join(root, "target", "lib-tests", "last-full-pass.json")));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+test("the workspace's members, each package's test program, and one summary line for several", () => {
+  const meta = {
+    workspace_members: ["path+file:///r#humanity-engine@0.1.0", "path+file:///r/crates/humanity-core#0.1.0", "path+file:///r/tools#tool@0.1.0"],
+    packages: [
+      { id: "path+file:///r#humanity-engine@0.1.0", name: "humanity-engine", targets: [{ kind: ["lib"] }, { kind: ["bin"] }] },
+      { id: "path+file:///r/crates/humanity-core#0.1.0", name: "humanity-core", targets: [{ kind: ["lib"] }] },
+      { id: "path+file:///r/tools#tool@0.1.0", name: "tool", targets: [{ kind: ["bin"] }] },
+    ],
+  };
+  assert.deepStrictEqual(P.membersOf(meta), ["humanity-engine", "humanity-core"], "a member with no library has no lib tests");
+  assert.strictEqual(P.packageName("path+file:///C:/x/crates/humanity-core#0.1547.0"), "humanity-core");
+  assert.strictEqual(P.packageName("path+file:///C:/x#humanity-engine@0.1547.0"), "humanity-engine");
+  assert.strictEqual(P.packageName("humanity-protocol 0.1547.0 (path+file:///C:/x/crates/humanity-protocol)"), "humanity-protocol");
+  const art = (id, exe, kind = ["lib"], test = true) => JSON.stringify({ reason: "compiler-artifact", package_id: id, target: { kind }, profile: { test }, executable: exe });
+  const { exes, other } = P.testPrograms([
+    art("path+file:///r/crates/humanity-core#0.1.0", "core.exe"),
+    art("path+file:///r#humanity-engine@0.1.0", "engine.exe"),
+    art("path+file:///r#humanity-engine@0.1.0", "HumanityOS.exe", ["bin"], false),
+    art("path+file:///r#humanity-engine@0.1.0", "it.exe", ["test"]),
+    "[build-slot 22:00:00] humanity_core (core-test-native): room for 3.0 GB; compiling.",
+  ]);
+  assert.deepStrictEqual([...exes], [["humanity-core", "core.exe"], ["humanity-engine", "engine.exe"]], "only libraries' test programs");
+  assert.deepStrictEqual(other, ["[build-slot 22:00:00] humanity_core (core-test-native): room for 3.0 GB; compiling."]);
+  assert.strictEqual(
+    P.combinedSummary([
+      { name: "humanity-core", summary: "test result: ok. 10 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.00s" },
+      { name: "humanity-engine", summary: "test result: FAILED. 20 passed; 2 failed; 3 ignored; 0 measured; 0 filtered out; finished in 9.00s" },
+    ]),
+    "test result: FAILED. 30 passed; 2 failed; 4 ignored; 0 measured; 0 filtered out (humanity-core 10, humanity-engine 20)",
+  );
+  assert.strictEqual(P.combinedSummary([{ name: "a", summary: "test result: ok. 1 passed" }]), "test result: ok. 1 passed");
+  assert.match(P.combinedSummary([{ name: "a", summary: "test result: ok. 1 passed" }, { name: "b", summary: null }]), /^test result: FAILED\..*b: no result line/);
+});

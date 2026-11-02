@@ -4,11 +4,11 @@
 //! handles jumping (with ground detection via downward raycast), and syncs
 //! the ECS `Transform` from the physics body position each tick.
 
-use crate::ecs::components::{Controllable, PhysicsBody, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
-use crate::input::InputState;
-use crate::physics::PhysicsWorld;
+use humanity_core::ecs::components::{Controllable, PhysicsBody, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
+use humanity_core::input::InputState;
+use humanity_core::physics::PhysicsWorld;
 use glam::Vec3;
 
 /// Movement tuning constants (will be data-driven via config/physics.toml later).
@@ -133,7 +133,7 @@ impl System for PlayerControllerSystem {
         // well-known interior-mutable slot.
         //
         // For now, we use the existing velocity component as the output channel.
-        if let Ok(mut vel_comp) = world.get::<&mut crate::ecs::components::Velocity>(entity) {
+        if let Ok(mut vel_comp) = world.get::<&mut humanity_core::ecs::components::Velocity>(entity) {
             vel_comp.linear = new_vel;
         }
     }

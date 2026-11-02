@@ -4,7 +4,7 @@
 //! became one Files page; the operator, 2026-10-19: "If we just start at the root HumanityOS folder
 //! for file browsing then we automatically have 'data' files and we even have mods at the top too."
 //!
-//! The folder is found the way the app finds its data (`crate::storage::data_dir()`, `data` beside the app
+//! The folder is found the way the app finds its data (`humanity_core::storage::data_dir()`, `data` beside the app
 //! unless set otherwise) and is the one above it when that one holds the app's `assets/` too; a
 //! copy installed to the person's own folder (`%APPDATA%\HumanityOS`, where their settings, saves
 //! and messages live) starts at its data folder instead ([`app_folder_for`]). In the three panes: on the left, under the
@@ -91,7 +91,7 @@ pub struct AppFolder {
 
 /// The app's own folder, as this run found its data ([`app_folder_for`]).
 pub fn root_folder() -> PathBuf {
-    let data = crate::storage::data_dir();
+    let data = humanity_core::storage::data_dir();
     let data = if data.is_absolute() { data } else { std::env::current_dir().unwrap_or_default().join(data) };
     app_folder_for(&data, &own_files_folders())
 }
@@ -100,9 +100,9 @@ pub fn root_folder() -> PathBuf {
 /// messages, the local server's keys, logs), which this place never shows: the per-user folder
 /// (`%APPDATA%\HumanityOS` on Windows) and, for a portable copy, the program's own folder.
 pub fn own_files_folders() -> Vec<PathBuf> {
-    let mut out: Vec<PathBuf> = crate::storage::os_root().into_iter().collect();
-    if crate::storage::mode() == crate::storage::StorageMode::Portable {
-        out.push(crate::storage::exe_dir());
+    let mut out: Vec<PathBuf> = humanity_core::storage::os_root().into_iter().collect();
+    if humanity_core::storage::mode() == humanity_core::storage::StorageMode::Portable {
+        out.push(humanity_core::storage::exe_dir());
     }
     out
 }
@@ -132,7 +132,7 @@ pub fn app_folder_for(data: &Path, own: &[PathBuf]) -> PathBuf {
 
 /// The Library's own folder: `library` in the app's data folder, where the guides it reads are.
 pub fn library_folder() -> PathBuf {
-    let data = crate::storage::data_dir();
+    let data = humanity_core::storage::data_dir();
     let data = if data.is_absolute() { data } else { std::env::current_dir().unwrap_or_default().join(data) };
     data.join("library")
 }
@@ -439,7 +439,7 @@ mod tests {
     /// own files changes how it works, so a save is never the only copy.
     #[test]
     fn save_keeps_the_previous_version_and_put_back_brings_it_back() {
-        let dir = crate::test_temp::dir("app_folder_save");
+        let dir = humanity_core::test_temp::dir("app_folder_save");
         let file = dir.join("plants.csv");
         std::fs::write(&file, "id,name\n1,bean\n").unwrap();
         assert!(put_back(&file).is_err(), "no previous version before the first save");
@@ -454,7 +454,7 @@ mod tests {
     /// A FILE THAT IS NOT TEXT, OR TOO LARGE, IS DESCRIBED, NOT OPENED.
     #[test]
     fn a_file_that_is_not_text_is_not_opened() {
-        let dir = crate::test_temp::dir("app_folder_text");
+        let dir = humanity_core::test_temp::dir("app_folder_text");
         let bin = dir.join("icon.png");
         std::fs::write(&bin, [0x89u8, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00]).unwrap();
         assert!(read_text(&bin).unwrap_err().contains("not text"));
@@ -478,7 +478,7 @@ mod tests {
     fn a_library_guide_is_found_and_opens_in_the_library() {
         crate::config::keep_saves_off_disk();
         let mut state = GuiState::default();
-        state.library = crate::gui::load_library(&crate::storage::data_dir()).sections;
+        state.library = crate::gui::load_library(&humanity_core::storage::data_dir()).sections;
         let dir = library_folder();
         let guide = guide_of(&dir.join(GUIDE_FILE), &dir, &state.library).expect("a guide the Library has");
         assert_eq!((guide.slug.as_str(), guide.title.as_str()), ("starting-seeds", "Starting Seeds"));
@@ -525,7 +525,7 @@ mod tests {
     fn on_the_library_folder() -> (egui::Context, Theme, GuiState) {
         let (ctx, theme) = super::super::tests::ctx_and_theme();
         let mut state = super::super::tests::page_state(super::super::tests::demo_answer(), true);
-        state.library = crate::gui::load_library(&crate::storage::data_dir()).sections;
+        state.library = crate::gui::load_library(&humanity_core::storage::data_dir()).sections;
         state.files.place = super::super::Place::AppFolder;
         state.files.app_folder.root = Some(library_folder());
         state.active_page = crate::gui::GuiPage::Files;
@@ -571,7 +571,7 @@ mod tests {
 
         // A file that is not a guide (here in a scratch folder): none of them, and a double-click
         // stays.
-        let scratch = crate::test_temp::dir("app_folder_not_a_guide");
+        let scratch = humanity_core::test_temp::dir("app_folder_not_a_guide");
         std::fs::write(scratch.join("notes.txt"), "a note\n").unwrap();
         state.active_page = crate::gui::GuiPage::Files;
         state.files.app_folder.root = Some(scratch.to_path_buf());
@@ -600,7 +600,7 @@ mod tests {
     /// HumanityOS, right: ...AppData\HumanityOS\data).
     #[test]
     fn the_folder_is_the_apps_own_never_the_persons_files() {
-        let t = crate::test_temp::dir("app_folder_where");
+        let t = humanity_core::test_temp::dir("app_folder_where");
         let mk = |p: &Path| std::fs::create_dir_all(p).unwrap();
         // The person's own folder, as an installed copy fills it.
         let own = t.join("AppData").join("HumanityOS");
@@ -637,8 +637,8 @@ mod tests {
     #[test]
     fn the_folder_is_the_one_above_data_and_folders_come_first() {
         let root = root_folder();
-        assert!(root.join("data").is_dir() || crate::storage::data_dir().is_absolute(), "the app's folder holds data/: {root:?}");
-        let dir = crate::test_temp::dir("app_folder_order");
+        assert!(root.join("data").is_dir() || humanity_core::storage::data_dir().is_absolute(), "the app's folder holds data/: {root:?}");
+        let dir = humanity_core::test_temp::dir("app_folder_order");
         std::fs::create_dir_all(dir.join("zeta")).unwrap();
         std::fs::write(dir.join("alpha.txt"), "a").unwrap();
         let names: Vec<String> = read_folder(&dir).into_iter().map(|e| e.name).collect();

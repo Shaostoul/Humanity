@@ -85,7 +85,7 @@ pub fn parse_reasons(bytes: &[u8]) -> Result<Vec<ReportReason>, String> {
 
 /// Load the reasons from the data folder (`data/safety/report_reasons.json`).
 pub fn load_reasons(data_dir: &std::path::Path) -> Result<Vec<ReportReason>, String> {
-    crate::embedded_data::load_data_or_embedded(data_dir, REASONS_FILE, parse_reasons)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, REASONS_FILE, parse_reasons)
 }
 
 /// Where the report was made from (10e's `context`).
@@ -646,7 +646,7 @@ impl ReportUi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, verify_dilithium, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, verify_dilithium, DilithiumKeypair};
 
     /// The evidence the pins below are built from: one DM item and one post, values chosen to
     /// be short and readable.
@@ -662,7 +662,7 @@ mod tests {
     /// BLAKE3 of PINNED_EVIDENCE_JSON, lowercase hex.
     const PINNED_EVIDENCE_HASH: &str = "292959951358502afa69ae5c8d25d7b099a419814ae552c83edceff50de4e35d";
     /// THE report preimage (10e), copied from the relay's pin
-    /// (`report_preimage_and_evidence_hash_are_pinned` in src/relay/core/pq_crypto.rs, which the
+    /// (`report_preimage_and_evidence_hash_are_pinned` in crates/humanity-protocol/src/pq_crypto.rs, which the
     /// web client's Node test also reads): the relay team pins the same string, so if either
     /// side changes these words its pin goes red. The hash in it is BLAKE3's published value
     /// for no input.
@@ -831,7 +831,7 @@ mod tests {
         assert!(parse_reasons(b"[]").is_err());
         assert!(parse_reasons(b"not json").is_err());
         // The loader reads `safety/report_reasons.json` under the data folder it is given.
-        let dir = crate::test_temp::dir("report-reasons");
+        let dir = humanity_core::test_temp::dir("report-reasons");
         std::fs::create_dir_all(dir.path().join("safety")).unwrap();
         std::fs::write(dir.path().join(REASONS_FILE), list).unwrap();
         assert_eq!(load_reasons(dir.path()).unwrap().len(), 2);

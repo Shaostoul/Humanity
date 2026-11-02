@@ -18,8 +18,8 @@ fn on_the_tab() -> GuiState {
 }
 
 /// A folder holding a sub-folder (with one of its own), a picture, a video, a text file and a model.
-fn folder(tag: &str) -> crate::test_temp::TempPath {
-    let dir = crate::test_temp::dir(tag);
+fn folder(tag: &str) -> humanity_core::test_temp::TempPath {
+    let dir = humanity_core::test_temp::dir(tag);
     std::fs::create_dir_all(dir.join("trips").join("day one")).unwrap();
     image::RgbaImage::from_fn(64, 40, |x, _| image::Rgba([(x * 3) as u8, 90, 160, 255])).save(dir.join("dawn.png")).unwrap();
     std::fs::write(dir.join("clip.mp4"), vec![0u8; 3000]).unwrap();
@@ -61,7 +61,7 @@ fn tap(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
 fn a_folder_is_added_and_removed_and_survives_a_restart() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = on_the_tab();
-    let root = crate::test_temp::dir("yf_add");
+    let root = humanity_core::test_temp::dir("yf_add");
     assert!(shows(&settled(&ctx, &theme, &mut state), NONE_YET), "with none yet, it says how to add one");
 
     tap(&ctx, &theme, &mut state, ADD_FOLDER);
@@ -156,7 +156,7 @@ fn the_three_views_show_a_folders_files_with_their_types() {
 fn two_files_ticked_and_put_on_media_open_add_to_media() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = on_the_tab();
-    let root = crate::test_temp::dir("yf_put");
+    let root = humanity_core::test_temp::dir("yf_put");
     std::fs::write(root.join("first.webm"), vec![1u8; 4000]).unwrap();
     std::fs::write(root.join("second.stl"), b"solid s\nendsolid s\n").unwrap();
     add_folder(&mut state, &root);
@@ -205,7 +205,7 @@ fn a_file_put_on_media_from_here_is_marked_until_it_changes() {
     state.files.requested = true;
     state.upload_token = Some((base.clone(), crate::gui::pages::files::resumable::tests::TOKEN.to_string()));
     state.private_key_bytes = Some(vec![7u8; 32]);
-    let root = crate::test_temp::dir("yf_marks");
+    let root = humanity_core::test_temp::dir("yf_marks");
     let file = root.join("dusk.webm");
     std::fs::write(&file, (0..20_000).map(|i| (i % 251) as u8).collect::<Vec<u8>>()).unwrap();
     std::fs::write(root.join("other.webm"), vec![3u8; 500]).unwrap();
@@ -254,7 +254,7 @@ fn a_file_put_on_media_from_here_is_marked_until_it_changes() {
 fn a_folder_that_is_not_there_says_so() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = on_the_tab();
-    let parent = crate::test_temp::dir("yf_missing");
+    let parent = humanity_core::test_temp::dir("yf_missing");
     let gone = parent.join("unplugged_drive_folder");
     state.settings.files_folders = vec![gone.clone()];
     let out = settled(&ctx, &theme, &mut state);
@@ -276,7 +276,7 @@ fn a_folder_that_is_not_there_says_so() {
 fn a_double_click_on_a_folder_opens_it_and_ticks_nothing() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = on_the_tab();
-    let root = crate::test_temp::dir("yf_double");
+    let root = humanity_core::test_temp::dir("yf_double");
     let inner = root.join("a folder with a long name, to land on");
     std::fs::create_dir_all(&inner).unwrap();
     std::fs::write(inner.join("inside, under the pointer.txt"), b"words").unwrap();

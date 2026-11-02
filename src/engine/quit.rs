@@ -62,7 +62,7 @@ mod tests {
     /// `log::error!("Out of GPU memory");`)".
     #[test]
     fn every_way_out_of_the_game_saves_first() {
-        let lib = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs"))
+        let lib = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/lib.rs"))
             .expect("read src/lib.rs");
         let lines: Vec<&str> = lib.lines().collect();
         let mut exits = 0;

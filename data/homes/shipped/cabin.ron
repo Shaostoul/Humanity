@@ -1,8 +1,8 @@
 // THE SHIPPED DEFAULT of the cabin (ship homes increment 6). Compiled into the exe
-// (src/embedded_data.rs `shipped_home_design`) and never written by the game: a neighbour's
+// (crates/humanity-core/src/embedded_data.rs `shipped_home_design`) and never written by the game: a neighbour's
 // cabin is drawn as it (src/ship/neighbours.rs), and a game with no data/homes/cabin.ron of its
 // own starts its cabin from it. YOUR cabin is data/homes/cabin.ron, which every editor Save
-// rewrites; it starts as a copy of this file WITHOUT this paragraph (src/embedded_data.rs
+// rewrites; it starts as a copy of this file WITHOUT this paragraph (crates/humanity-core/src/embedded_data.rs
 // `own_home_text` drops everything from the first line down to the bare // below).
 // To change the cabin every newcomer gets, edit this file (keeping this paragraph on top) and
 // rebuild: it is in build.rs FINGERPRINT_INPUTS, so a rig refuses an exe built before the edit.

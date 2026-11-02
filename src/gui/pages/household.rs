@@ -34,7 +34,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button};
 use crate::gui::GuiState;
 use crate::net::household::{self as hh, Lengths, Verdict};
-use crate::build_permission::Why;
+use humanity_core::build_permission::Why;
 
 // ── The words ────────────────────────────────────────────────────────────────────────────────────
 
@@ -181,7 +181,7 @@ enum Act {
 /// operator: "We should join the two areas"), so the card's own scroll, capped at 360 points so
 /// the rest of the page stayed in view (plan 3.9), went with the page's still top.
 pub fn draw_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    draw_card_from(ui, theme, state, &crate::storage::data_dir());
+    draw_card_from(ui, theme, state, &humanity_core::storage::data_dir());
 }
 
 /// [`draw_card`] with the lengths read from `data_dir` (a test's own folder).

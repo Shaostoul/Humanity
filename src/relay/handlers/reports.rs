@@ -74,7 +74,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::relay::core::pq_crypto::{report_evidence_hash, verify_dm_inner, verify_report_sig};
+use humanity_protocol::pq_crypto::{report_evidence_hash, verify_dm_inner, verify_report_sig};
 use crate::relay::handlers::msg_handlers::{handle_mod_action, mod_action_refusal};
 use crate::relay::relay::{RelayMessage, RelayState};
 use crate::relay::storage::reports::{NewReport, ReportRow};
@@ -174,14 +174,14 @@ impl ReportReasons {
     pub fn load_file(path: &std::path::Path) -> ReportReasons {
         let shown = path.display().to_string();
         let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy("safety/report_reasons.json", format_args!("{shown} could not be read ({e})"));
-            include_str!("../../../data/safety/report_reasons.json").to_string()
+            humanity_core::embedded_data::note_builtin_copy("safety/report_reasons.json", format_args!("{shown} could not be read ({e})"));
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/safety/report_reasons.json")).to_string()
         });
         match Self::parse(&text) {
             Ok(reasons) => reasons,
             Err(e) => {
-                crate::embedded_data::note_builtin_copy("safety/report_reasons.json", format_args!("{shown} does not load ({e})"));
-                Self::parse(include_str!("../../../data/safety/report_reasons.json")).unwrap_or_else(|e| {
+                humanity_core::embedded_data::note_builtin_copy("safety/report_reasons.json", format_args!("{shown} does not load ({e})"));
+                Self::parse(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/safety/report_reasons.json"))).unwrap_or_else(|e| {
                     tracing::error!("Reports: the built-in report_reasons.json does not load either ({e}); every report will be refused");
                     ReportReasons::default()
                 })

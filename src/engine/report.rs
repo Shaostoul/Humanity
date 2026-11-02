@@ -33,7 +33,7 @@ pub(crate) fn ensure_reasons(gs: &mut GuiState) {
     if !gs.reports.reasons.is_empty() {
         return;
     }
-    match report::load_reasons(&crate::storage::data_dir()) {
+    match report::load_reasons(&humanity_core::storage::data_dir()) {
         Ok(reasons) => {
             gs.reports.reasons = reasons;
             gs.reports.reasons_error = None;
@@ -52,7 +52,7 @@ pub(crate) fn ensure_outside_help(gs: &mut GuiState) {
     if gs.reports.outside_help.is_some() {
         return;
     }
-    match outside_help::load(&crate::storage::data_dir()) {
+    match outside_help::load(&humanity_core::storage::data_dir()) {
         Ok(help) => gs.reports.outside_help = Some(help),
         Err(e) => log::warn!("{e}"),
     }
@@ -69,7 +69,7 @@ pub(crate) fn open_for_message(gs: &mut GuiState, msg: &crate::gui::ChatMessage)
     }
     // A group message whose author the roster has not resolved yet carries their fingerprint in
     // place of their key (chat/p2p_groups.rs), and a report must name a key.
-    let full_key = msg.sender_key.len() == 2 * crate::relay::core::pq_crypto::DILITHIUM_PK_LEN
+    let full_key = msg.sender_key.len() == 2 * humanity_protocol::pq_crypto::DILITHIUM_PK_LEN
         && msg.sender_key.bytes().all(|b| b.is_ascii_hexdigit());
     if msg.channel.starts_with("p2pgroup:") && !full_key {
         gs.pending_notices.push("This group member is not known yet, so they cannot be reported from here. Try again in a moment.".to_string());
@@ -288,7 +288,7 @@ mod tests {
     use super::*;
     use crate::net::dm_pq;
     use crate::net::dm_store::DmStore;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, verify_dilithium, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, verify_dilithium, DilithiumKeypair};
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
 
     fn identity(n: u8) -> (Vec<u8>, String) {
@@ -412,7 +412,7 @@ mod tests {
         let (seed, me) = identity(55);
         let (_, dana) = identity(56);
         let mut gs = app(&me, &seed, "report-country");
-        let help = outside_help::parse(crate::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped file");
+        let help = outside_help::parse(humanity_core::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped file");
         let listed = help.countries[0].clone();
         gs.settings.outside_help_country = listed.code.clone();
         open_for_person(&mut gs, &dana);

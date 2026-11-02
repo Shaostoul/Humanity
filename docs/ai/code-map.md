@@ -6,14 +6,22 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1157 Rust files (660,377 lines) under `src/`; 128 JavaScript files (78,409 lines) under `web/`.
+1159 Rust files (660,447 lines) under `src/` and `crates/*/src/`; 128 JavaScript files (78,409 lines) under `web/`.
 
 ## Folders
 
-- `src/` (47 files)
+- `crates/humanity-core/src/` (34 files)
+- `crates/humanity-core/src/audio/` (3 files): Audio manager powered by kira.
+- `crates/humanity-core/src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
+- `crates/humanity-core/src/hot_reload/` (3 files): Hot-reload coordinator, watches data files and reports which changed.
+- `crates/humanity-core/src/input/` (2 files): Input types shared across the engine.
+- `crates/humanity-core/src/mods/` (1 files): Mod support framework for HumanityOS
+- `crates/humanity-core/src/physics/` (2 files): Physics, Rapier3d world setup and stepping.
+- `crates/humanity-core/src/platform/` (1 files): Platform abstraction for native vs WASM.
+- `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
+- `crates/humanity-protocol/src/` (26 files)
+- `src/` (14 files)
 - `src/assets/` (3 files): Asset manager, loads and caches game data with hot-reload support.
-- `src/audio/` (3 files): Audio manager powered by kira.
-- `src/ecs/` (4 files): ECS, thin wrapper around hecs::World with system scheduling.
 - `src/engine/` (112 files): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `src/engine/crossing_tests/` (26 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE ENGINE (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed be...
 - `src/engine/mcp/` (6 files): The dev MCP endpoint (2026-10-22): the running game serves the Model Context Protocol on 127.0.0.1, so an AI session drives and inspects...
@@ -35,21 +43,15 @@
 - `src/gui/pages/settings/` (7 files): Settings panel with sidebar navigation and category content panels.
 - `src/gui/state_types/` (3 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
 - `src/gui/widgets/` (46 files): Reusable egui widgets styled by the HumanityOS theme.
-- `src/hot_reload/` (3 files): Hot-reload coordinator, watches data files and reports which changed.
 - `src/how_to/` (9 files): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
-- `src/input/` (2 files): Input types shared across the engine.
 - `src/machines/` (1 files): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427).
 - `src/media/` (8 files): Purpose-built media player core (in-world screens ladder, rung 5).
-- `src/mods/` (1 files): Mod support framework for HumanityOS
 - `src/net/` (55 files): Multiplayer networking: WebSocket client and ECS state synchronization.
 - `src/notifications/` (13 files): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan;...
 - `src/persistence/` (1 files): World persistence, save/load game state to JSON files.
-- `src/physics/` (2 files): Physics, Rapier3d world setup and stepping.
-- `src/platform/` (1 files): Platform abstraction for native vs WASM.
 - `src/relay/` (63 files): Humanity Network relay server.
 - `src/relay/admin/` (5 files): The admin action registry, and the two endpoints an app or an AI uses it through (2026-10-22; docs/design/in-app-ops.md, "North star: the...
 - `src/relay/backup_stream/` (12 files): Continuous backup of the relay's database (2026-10-22, PRIORITIES Tier 2 item 12).
-- `src/relay/core/` (25 files): Core types for the Humanity Network: - Canonical CBOR encoding/decoding - BLAKE3 hashing (object_id, block_id) - Post-quantum signing (ML...
 - `src/relay/crossing_tests/` (3 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE SERVER (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed be...
 - `src/relay/handlers/` (50 files): Handler submodules for the relay server.
 - `src/relay/storage/` (75 files): SQLite persistence for relay message history and peers.
@@ -59,7 +61,6 @@
 - `src/ship/` (32 files): Ship interior system, layout parsing and room mesh generation.
 - `src/software/` (7 files): The readers of the Apps page's "Other programs" (2026-10-19; the operator: "What if we make the tools page like the games page?
 - `src/station/` (3 files): Crewed stations: the player's homestead as a real orbiting, pointed object.
-- `src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
 - `src/systems/` (63 files): HumanityOS Game Systems
 - `src/systems/ai/` (3 files): AI system, behavior state machine for NPCs and creatures.
 - `src/systems/combat/` (3 files): Combat system, damage processing, hit detection, death, status effects.
@@ -81,7 +82,7 @@
 
 ## Files
 
-## src/
+## crates/humanity-core/src/
 
 - `atomic_write.rs` (68): Writing a file so a crash at any moment leaves either the whole old file or the whole new one: the bytes go to a temp file beside it (`<name>.tmp`), are flushed to the disk, and the temp file is re... Main items: staging_path, stage_write, write_atomic.
 - `auto_unlock.rs` (408): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
@@ -89,44 +90,116 @@
 - `build_permission.rs` (115): Who may build where, as the wire says it: a household permit (`Permit`, a plot holder's signed leave for one person to build on their plot, on one server, until a date), the longest one may run (`P... Main items: Permit, Why, PERMIT_MAX_DAYS.
 - `camera_angles.rs` (181): Which way a camera looks: the tangent frame on a planet's surface (up is the local radial, so the horizon is level wherever you stand), the forward a yaw and pitch give in it, and the yaw and pitch... Main items: tangent_basis, surface_forward, surface_look_angles, world_look_angles.
 - `civil_date.rs` (25): Calendar dates from day counts: the civil (proleptic Gregorian) date of a count of days since 1970-01-01, by Howard Hinnant's days-from-civil algorithm. Main items: epoch_days_to_ymd.
-- `config.rs` (3059): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+16 more).
 - `cosmetics.rs` (101): Cosmetic outfit catalog (v0.442): craftable/tradeable clothing items that tint the avatar's body slots. Main items: Cosmetic, OutfitColors, load_cosmetics, resolve_outfit_colors.
 - `cosmos.rs` (1642): Canonical Sol-system model (v0.262.8, extracted from the Maps page, then `gui/pages/cosmos.rs`, now `gui/pages/maps/`, so it is the SINGLE source of truth). Main items: SolBody, RotationElements, RotationTerm, rotation_angles_deg, iau_orientation, body_orientation, grey_at_albedo, sol_bodies (+16 more).
 - `credits.rs` (146): Third-party attributions, loaded from `data/credits.ron`. Main items: CreditSource, Credits, OSM_NOTICE.
 - `data_parse.rs` (231): The data files' parsers: CSV, TOML, RON and JSON bytes into the types that read them. Main items: refusing_rows, parse_csv, parse_toml, parse_ron, parse_json.
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
-- `dev_travel.rs` (361): Dev travel math (v0.791.x, Dev > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
+- `dev_travel.rs` (368): Dev travel math (v0.791.x, Dev > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
 - `embedded_data.rs` (907): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+139 more).
-- `frame_costs.rs` (1284): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, Spike, StageTimer, gpu_id_has_cpu_twin, spikes, thread_times (+33 more).
+- `frame_costs.rs` (1286): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, Spike, StageTimer, gpu_id_has_cpu_twin, spikes, thread_times (+33 more).
 - `i18n.rs` (446): Every word a person reads in the app, by key, from `data/i18n/<language>.json` (the ELI5 mandate, docs/PRIORITIES.md TIER 3). Main items: Segment, plain, segments, t, t_dyn, t_marked, t_marked_dyn, has (+7 more).
-- `lib.rs` (16391): HumanityOS Game Engine Main items: drone_dock_visible, run.
+- `lib.rs` (106): humanity-core: the bottom of the stack, which every other crate of the workspace uses (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-core.md).
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
-- `machines.rs` (5538): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+43 more).
-- `main.rs` (243): HumanityOS, One binary to rule them all.
-- `persistence.rs` (1679): World persistence, save/load game state to JSON files. Main items: WorldSave, SavedHome, BodySave, ShipPlace, ShipMeals, SaveSlot, VehicleSave, ConstructionSave (+27 more).
 - `platform.rs` (88): Platform abstraction for native vs WASM. Main items: log_info, current_time_secs, current_time_secs, load_asset_bytes_sync, load_asset_bytes_async.
 - `play_journal.rs` (476): The play journal (docs/design/play-journal.md, rung 1): what happened while the game ran, by kind, in small capped files a Claude session reads through the dev MCP (`dev_play_journal`, `dev_play_ma... Main items: MarkAsk, Seen, Now, dir_for, start, dir, record, event_line (+13 more).
 - `player_look.rs` (90): How another player looks, in a shared world (2026-09-29, Tier D). Main items: PlayerLook, HEIGHT_MIN, HEIGHT_MAX.
 - `raw_frame.rs` (19): A frame of pixels read back from the GPU for the live stream. Main items: RawFrame.
 - `reactions.rs` (121): Reaction emoji palette registry: the data-driven source of truth for which emoji can be used as message reactions, loaded from `data/reactions.json` (compile-time embedded, mirroring the `lock_type... Main items: normalize, top, all, is_allowed.
-- `release_update.rs` (710): Signed-release verification + signing (the supply-chain root of trust). Main items: SigningPubkeys, ManifestArtifact, ReleaseManifest, ManifestSignature, VerifyOutcome, embedded_pubkeys, sha256_hex, verify_manifest_bytes (+11 more).
 - `reuse.rs` (73): The one "turn off all reuse" switch (CLAUDE.md, the reuse rule, refined 2026-10-30). Main items: enabled, set_enabled.
-- `save_load.rs` (3454): Offline save/load lifecycle (v0.381) -- homes increment 3. Main items: HomeFrame, LoadedHomeBox, Resumed, frame_for_save, record_home_frame, register_ship_meals, ship_meals, put_ship_meals (+29 more).
 - `scenic_views.rs` (116): Scenic views (v0.825): curated named viewpoints on planet surfaces, the data foundation for the camera-hub arc (task #77). Main items: ScenicView, ScenicViews.
 - `showroom.rs` (56): Character-select showroom data (v0.441): the backdrops you can preview your avatar against. Main items: Backdrop, load_backdrops.
-- `storage.rs` (514): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files. Main items: StorageMode, data_dir, exe_dir, os_root, mode, choose_installed, choose_portable, portable_config_path (+9 more).
-- `surface_move.rs` (668): THE PLAYER'S MOVEMENT MODEL on a planetary surface (v0.1109): which of the two control laws is running this frame, and the radial (vertical) motion each one produces. Main items: MoveMode, RadialStep, split_wish, carry_gated_radial, carry_walk_factor, radial_step, rest_height, walk_rest (+5 more).
-- `surface_walk.rs` (463): Planetary surface FPS math (task #76 increment 1) - pure helpers for the surface-oriented camera and the stand/walk ground clamp. Main items: VerticalStep, walk_ground_radius, rest_radius, clamp_above_ground, settle_radius, vertical_step, LOD_CLEARANCE_M, DRAWN_CLEARANCE_M (+5 more).
+- `storage.rs` (522): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files. Main items: StorageMode, data_dir, exe_dir, os_root, mode, choose_installed, choose_portable, portable_config_path (+9 more).
 - `test_clock.rs` (65): A clock that a test moves by hand (BUG-152). Main items: ManualClock.
-- `test_gpu.rs` (87): May a test use the GPU right now? Main items: may_use, BUSY_VAR, SKIPPED_VAR.
+- `test_gpu.rs` (89): May a test use the GPU right now? Main items: may_use, BUSY_VAR, SKIPPED_VAR.
 - `test_log.rs` (83): The warnings a test's own code writes to the log, read back (BUG-163). Main items: capture.
-- `test_temp.rs` (303): Temporary files and folders for tests that delete themselves (BUG-159). Main items: TempPath, db, file, path, dir, retry_left_open, PREFIX.
+- `test_temp.rs` (305): Temporary files and folders for tests that delete themselves (BUG-159). Main items: TempPath, db, file, path, dir, retry_left_open, PREFIX.
 - `turning.rs` (213): HOW A PERSON TURNS (BUG-165 and BUG-166, 2026-10-05): toward a heading at no more than a stated rate, speeding up into the turn and slowing out of it, so a turn never snaps and never swings past wh... Main items: TurnLimits, Turn, shortest, LOOK, BODY, MAX_STEP_S.
-- `updater.rs` (874): Auto-updater: checks GitHub Releases for new versions, notifies user, downloads and replaces binary. Main items: UpdateChannel, UpdateState, ReleaseInfo, ReleaseAsset, Updater, create_restart_script, read_restart_target.
 - `utilities.rs` (460): Utility wiring -- connection ports + cables/conduit with REAL specs (v0.604). Main items: Utility, PortDir, Port, ConductorMaterial, Grade, ConduitType, CableVerdict, CableCheck (+11 more).
 - `vertex.rs` (22): The one mesh vertex: position, normal and UV, the shape every CPU-side mesh builder writes (the ship's structure and hull, the terrain's patches and asteroids, the plant and tree generators, the as... Main items: Vertex.
-- `wasm_entry.rs` (432): WASM entry point, initializes the engine in the browser. Main items: main.
 - `weather_map.rs` (15): The live weather map's size (v0.874): an equirectangular grid of 1440 x 720 cells, a quarter of a degree each. Main items: WEATHER_MAP_W, WEATHER_MAP_H.
+
+## crates/humanity-core/src/audio/
+
+- `mod.rs` (252): Audio manager powered by kira. Main items: AudioManager, AudioManager.
+- `sounds.rs` (255): Sound catalog -- data-driven sound definitions loaded from data/sounds.toml. Main items: SoundEntry, SoundCatalog, SurfaceType, UI_CLICK, UI_HOVER, UI_OPEN, UI_CLOSE, FOOTSTEP_GRASS (+20 more).
+- `spatial.rs` (21): Spatial audio, 3D sound positioning (stub for Steam Audio integration). Main items: SpatialSource.
+
+## crates/humanity-core/src/ecs/
+
+- `components.rs` (1816): Core ECS components shared across all game systems. Main items: Transform, Velocity, PhysicsBody, Renderable, Name, Health, Vitals, EnvironmentContext (+91 more).
+- `cosmos.rs` (498): Cosmos position model, Phase 2 of the cosmos architecture (v0.202.0). Main items: VesselId, PocketId, ContainerRef, PositionInUniverse, VesselMeta, VesselRegistry, SystemPositions, world_position_ly (+4 more).
+- `mod.rs` (19): ECS, thin wrapper around hecs::World with system scheduling. Main items: GameWorld.
+- `systems.rs` (183): System runner, executes registered systems each frame. Main items: System, SystemRunner.
+
+## crates/humanity-core/src/hot_reload/
+
+- `data_store.rs` (96): In-memory data store, type-erased cache for game data loaded from files. Main items: DataStore.
+- `mod.rs` (64): Hot-reload coordinator, watches data files and reports which changed. Main items: HotReloadCoordinator.
+- `watcher.rs` (74): File watcher, monitors the data directory for changes via notify. Main items: FileWatcher.
+
+## crates/humanity-core/src/input/
+
+- `bindings.rs` (596): Rebindable game keybinds (Settings > Controls, 2026-08-12). Main items: GameAction, ActionInfo, KeybindOverride, BindOutcome, Keybinds, reserved_reason, pretty_key_name, ACTIONS (+3 more).
+- `mod.rs` (38): Input types shared across the engine. Main items: InputState, InputManager.
+
+## crates/humanity-core/src/mods/
+
+- `mod.rs` (195): Mod support framework for HumanityOS Main items: ModManifest, ModLoader.
+
+## crates/humanity-core/src/physics/
+
+- `landing.rs` (85): How hard a body meets the floor, and the watch that decides whether a landing is a fall that can hurt (falls, 2026-10-20). Main items: FallWatch, drop_height_m, landing_speed, LANDING_M_S.
+- `mod.rs` (170): Physics, Rapier3d world setup and stepping. Main items: PhysicsWorld.
+
+## crates/humanity-core/src/platform/
+
+- `registry.rs` (205): Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing here can create, change or delete a key or a value. Main items: Root, View, Key, open, open_view.
+
+## crates/humanity-core/src/storage/
+
+- `refresh.rs` (606): Keeping an installed data folder current after an update (BUG-163 part 2, built 2026-10-12; design: docs/design/data-folder-updates.md). Main items: Stamp, Report, NotWritten, Outcome, View, hash, shipped_fingerprint, why_left_alone (+13 more).
+- tests: `refresh_tests.rs`
+
+## crates/humanity-protocol/src/
+
+- `describe_metadata.rs` (1750): What a picture's or a video's hidden information says, in plain words (2026-10-11, docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 1). Main items: Detail, Description, claimed_kind, sniff_kind, describe, describe_file, PICTURE_READ_MAX.
+- `did.rs` (207): Decentralized Identifier (DID) layer for HumanityOS. Main items: Fingerprint, fingerprint_of, fingerprint_to_did, did_for_pubkey, fingerprint_to_hex, parse_did_hum, did_to_author_fp_hex, split_did (+2 more).
+- `encoding.rs` (181): Canonical CBOR encoding and decoding. Main items: to_canonical_bytes, from_canonical_bytes, cbor_map, cbor_int, cbor_bytes, cbor_text.
+- `error.rs` (41): Error types for the protocol core (`relay/core`, the crate split's planned humanity-protocol). Main items: Error, Result.
+- `hash.rs` (89): BLAKE3 hashing for object and block identifiers. Main items: Hash, block_id, HASH_LEN.
+- `identity.rs` (73): Identity key management. Main items: Keypair.
+- `kdf.rs` (204): Argon2id-based key derivation function. Main items: KdfParams, derive_key, derive_key_with_params, pbkdf2_sha256, SALT_LEN, DERIVED_KEY_LEN.
+- `key_card.rs` (296): Key cards (2026-10-22, docs/design/key-cards.md): a small object, signed by a person's own Dilithium3 (ML-DSA-65) identity key, that says which Kyber768 (ML-KEM-768) key to seal things to for them. Main items: KeyCard, Keep, Seen, Refusal, card_text, sign_card, sign_card_with, is_key_text (+17 more).
+- `lib.rs` (60): What the app and the server both speak.
+- `market_payloads.rs` (947): Payload validators for the Market's signed-object kinds (v0.1140): `provider_v1` (schemas/provider.toml) and `offering_v1` (schemas/offering.toml). Main items: shared_categories, validate_provider_v1, validate_offering_v1, PROVIDER_KINDS, CONTACT_CHANNELS, LOCATION_MODES, PRICE_MODES, PRICE_UNITS (+7 more).
+- `merkle_disclosure.rs` (244): Merkle-tree selective disclosure (Phase 6b PR 2). Main items: PathStep, leaf_hash, build_root, build_path, verify_path, HASH_LEN.
+- `moderation.rs` (472): Signed moderation objects: `mod_action_v1` and `space_policy_v1`. Main items: ModError, ModAction, SpacePolicy, mod_action_payload, build_mod_action_v1, space_policy_payload, build_space_policy_v1, payload_bytes (+2 more).
+- `object.rs` (453): The Humanity Network object model (post-quantum). Main items: Object, ObjectBuilder, PROTOCOL_VERSION, PAYLOAD_ENCODING_PLAINTEXT, PAYLOAD_ENCODING_ENCRYPTED.
+- `pq_crypto.rs` (1716): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
+- `profile_copy_fixtures.rs` (109): Child of profile_copy.rs (#[path], so `use super::*` reaches everything it has): the shared fixture both apps read (BUG-191), moved out of profile_copy_tests.rs for the relay's tests that read it (... Main items: FxCase, fx_cases, fx_key, copy_of_frame, FIXTURE, FX_SIGNER, FX_NOW_MS, FX_TIMES.
+- `profile_copy.rs` (325): The copy of a person's profile that other servers keep (BUG-191, 2026-10-12, docs/design/bug-191-profile-copies-plan.md sections 3.1 to 3.4): what it may hold, the words its owner's app signs, the... Main items: PublicCopy, unlisted, kept_for_friends, withdrawal, is_withdrawal, public_copy, copy_text, sign_copy (+20 more).
+- `recovery.rs` (673): Recovery through trusted people: the protocol the relay and both apps share (2026-10-21). Main items: SharePayload, TrustedPerson, NoteToSelf, ServedPiece, OpenedPiece, OneTimeAsk, piece_aad, note_aad (+49 more).
+- `signing.rs` (79): Ed25519 signing and verification. Main items: sign, verify.
+- `solana_rpc.rs` (181): Solana JSON-RPC client (Phase 6a, read-only balance lookup). Main items: SolanaRpcClient, MAINNET_BETA_URL, DEVNET_URL, LAMPORTS_PER_SOL.
+- `strip_heif_metadata.rs` (1848): HEIF and AVIF still picture metadata removal, in place (privacy hardening, 2026-10-11). Main items: HeifKind, HeifStrip, is_heif_still, strip_heif_metadata_in_place, strip_heif_metadata_in_buffer, HEIF_BRANDS.
+- `strip_metadata.rs` (290): Lossless image-metadata stripping (privacy hardening, 2026-08-23). Main items: strip_image_metadata.
+- `strip_video_metadata.rs` (1326): Video metadata removal, in place (privacy hardening, 2026-10-11). Main items: VideoKind, NeutralisedBox, VideoStrip, is_mp4_family, strip_video_metadata_in_place, strip_video_metadata_in_buffer, XMP_UUID.
+- tests: `describe_metadata_tests.rs`, `key_card_tests.rs`, `profile_copy_tests.rs`, `recovery_tests.rs`
+
+## src/
+
+- `config.rs` (3059): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+16 more).
+- `lib.rs` (16299): HumanityOS Game Engine Main items: drone_dock_visible, run.
+- `machines.rs` (5538): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+43 more).
+- `main.rs` (243): HumanityOS, One binary to rule them all.
+- `persistence.rs` (1679): World persistence, save/load game state to JSON files. Main items: WorldSave, SavedHome, BodySave, ShipPlace, ShipMeals, SaveSlot, VehicleSave, ConstructionSave (+27 more).
+- `release_update.rs` (710): Signed-release verification + signing (the supply-chain root of trust). Main items: SigningPubkeys, ManifestArtifact, ReleaseManifest, ManifestSignature, VerifyOutcome, embedded_pubkeys, sha256_hex, verify_manifest_bytes (+11 more).
+- `save_load.rs` (3454): Offline save/load lifecycle (v0.381) -- homes increment 3. Main items: HomeFrame, LoadedHomeBox, Resumed, frame_for_save, record_home_frame, register_ship_meals, ship_meals, put_ship_meals (+29 more).
+- `surface_move.rs` (668): THE PLAYER'S MOVEMENT MODEL on a planetary surface (v0.1109): which of the two control laws is running this frame, and the radial (vertical) motion each one produces. Main items: MoveMode, RadialStep, split_wish, carry_gated_radial, carry_walk_factor, radial_step, rest_height, walk_rest (+5 more).
+- `surface_walk.rs` (463): Planetary surface FPS math (task #76 increment 1) - pure helpers for the surface-oriented camera and the stand/walk ground clamp. Main items: VerticalStep, walk_ground_radius, rest_radius, clamp_above_ground, settle_radius, vertical_step, LOD_CLEARANCE_M, DRAWN_CLEARANCE_M (+5 more).
+- `updater.rs` (874): Auto-updater: checks GitHub Releases for new versions, notifies user, downloads and replaces binary. Main items: UpdateChannel, UpdateState, ReleaseInfo, ReleaseAsset, Updater, create_restart_script, read_restart_target.
+- `wasm_entry.rs` (432): WASM entry point, initializes the engine in the browser. Main items: main.
 - tests: `save_load_body_tests.rs`, `save_load_farm_tests.rs`, `save_load_slot_tests.rs`
 
 ## src/assets/
@@ -134,19 +207,6 @@
 - `loader.rs` (40): Asset loader, type identification and raw byte loading. Main items: AssetType, asset_type_from_ext, load_asset_bytes.
 - `mod.rs` (1389): Asset manager, loads and caches game data with hot-reload support. Main items: GltfCpuMesh, AssetManager.
 - `ron_edit.rs` (1429): Comment-preserving targeted-field RON value rewriter. Main items: RonEditError, FieldSpan, set_top_level_field, set_or_append_top_level_field, append_top_level_field, get_top_level_field_span, top_level_fields.
-
-## src/audio/
-
-- `mod.rs` (252): Audio manager powered by kira. Main items: AudioManager, AudioManager.
-- `sounds.rs` (255): Sound catalog -- data-driven sound definitions loaded from data/sounds.toml. Main items: SoundEntry, SoundCatalog, SurfaceType, UI_CLICK, UI_HOVER, UI_OPEN, UI_CLOSE, FOOTSTEP_GRASS (+20 more).
-- `spatial.rs` (21): Spatial audio, 3D sound positioning (stub for Steam Audio integration). Main items: SpatialSource.
-
-## src/ecs/
-
-- `components.rs` (1791): Core ECS components shared across all game systems. Main items: Transform, Velocity, PhysicsBody, Renderable, Name, Health, Vitals, EnvironmentContext (+91 more).
-- `cosmos.rs` (498): Cosmos position model, Phase 2 of the cosmos architecture (v0.202.0). Main items: VesselId, PocketId, ContainerRef, PositionInUniverse, VesselMeta, VesselRegistry, SystemPositions, world_position_ly (+4 more).
-- `mod.rs` (19): ECS, thin wrapper around hecs::World with system scheduling. Main items: GameWorld.
-- `systems.rs` (183): System runner, executes registered systems each frame. Main items: System, SystemRunner.
 
 ## src/engine/
 
@@ -310,7 +370,7 @@
 - `drop_files.rs` (264): Files dragged from the computer's file manager onto the window (operator, 2026-10-17: "Can we add drag and drop functionality like dragging a file on windows 10 file explorer into the humanityOS wi... Main items: Level, begin_frame, register, refuse, take_for_picker, hovering, words_now, finish (+5 more).
 - `first_minutes.rs` (340): The first five minutes (the ELI5 mandate, docs/PRIORITIES.md TIER 3, 2026-10-22): a short guided tour for a new person, on the desktop app and the website alike, in plain words. Main items: FirstMinutes, Step, Place, steps, step_done, draw.
 - `first_steps.rs` (172): A new player's first steps in the world (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Friction 1: nothing teaches the game). Main items: controls_hint.
-- `fonts.rs` (397): Font fallback chains for the native app. Main items: install_font_fallbacks.
+- `fonts.rs` (395): Font fallback chains for the native app. Main items: install_font_fallbacks.
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
 - `laws.rs` (321): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
 - `loaders.rs` (1611): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+54 more).
@@ -396,7 +456,7 @@
 - `mod.rs` (120): GUI pages composing widgets into full screens.
 - `notes.rs` (331): Notes page, full notes app with sidebar list, text editor, toolbar with bold/italic markers, word count, auto-save indicator, delete with confirmation. Main items: draw.
 - `own_profile.rs` (396): This person's own profile on each server they use (2026-10-11, BUG-193, BUG-194, BUG-196). Main items: OwnProfile, current_server, names_socket, own_copy, keep_copy, take_own_copy, take_own_copy_at, sign_frame (+11 more).
-- `performance.rs` (962): Performance page (resource budgets increment 1 - MEASURE). Main items: BudgetSystem, systems, token_color, row_value, row_measurable, untimed_note, build_spec, draw (+4 more).
+- `performance.rs` (967): Performance page (resource budgets increment 1 - MEASURE). Main items: BudgetSystem, systems, token_color, row_value, row_measurable, untimed_note, build_spec, draw (+4 more).
 - `placeholder.rs` (37): Placeholder page for features not yet built in egui. Main items: draw.
 - `planet_tuner.rs` (680): Planet Tuner: live per-planet physics editing (artificial-planet ladder item 3, docs/design/artificial-planet.md). Main items: PlanetTunerReadout, PlanetTunerState, fmt_curve, draw.
 - `privacy.rs` (298): Privacy tiers (operator direction, 2026-08-23): every user chooses exactly how private to be, ONCE, up front, and the default is maximum privacy. Main items: PrivacyTier, load_tiers, apply_tier, draw_privacy_tier_modal, draw_privacy_content, send_presence_flag.
@@ -624,15 +684,9 @@
 - `web_view.rs` (857): The web view: draws a readable [`Page`] in egui with clickable links, back/forward history, an editable URL row, and an "open in system browser" escape hatch for pages the readable web cannot show. Main items: ViewStatus, WebViewResponse, WebViewState.
 - tests: `file_views_tests.rs`, `phrase_cover_tests.rs`
 
-## src/hot_reload/
-
-- `data_store.rs` (96): In-memory data store, type-erased cache for game data loaded from files. Main items: DataStore.
-- `mod.rs` (64): Hot-reload coordinator, watches data files and reports which changed. Main items: HotReloadCoordinator.
-- `watcher.rs` (74): File watcher, monitors the data directory for changes via notify. Main items: FileWatcher.
-
 ## src/how_to/
 
-- `canonical.rs` (82): A how-to's hash: BLAKE3 of its canonical CBOR without its `review` block, the same encoding and hash the signed objects use (src/relay/core/encoding.rs, docs/design/how-to.md "Sources and review"). Main items: canonical_bytes, hash.
+- `canonical.rs` (82): A how-to's hash: BLAKE3 of its canonical CBOR without its `review` block, the same encoding and hash the signed objects use (crates/humanity-protocol/src/encoding.rs, docs/design/how-to.md "Sources... Main items: canonical_bytes, hash.
 - `check.rs` (782): The how-to checker: what a how-to file must be before it is shown (docs/design/how-to.md; the gates are listed in schemas/how_to.toml). Main items: Severity, Code, Finding, Context, check_file, refusals, is_date, MAX_BYTES (+2 more).
 - `library.rs` (393): Loading the how-tos from a data folder: the category tree, the planned list, and every `data/how_to/<top category>/<id>.json`, each checked (check.rs) before it is shown. Main items: Loaded, Refused, Library, Locale, Pages, how_to_files, tops_of, context_from.
 - `mod.rs` (31): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
@@ -641,11 +695,6 @@
 - `time.rs` (54): UTC times for runs, as text a person can read in the file: YYYY-MM-DDTHH:MM:SSZ. Main items: iso, compact, day, ms_from_iso.
 - `view.rs` (101): What the page shows of a how-to and a run, as plain rules the native page and the tests share. Main items: View, visible_steps, shown, current_step, position, progress, removed_steps, matches (+2 more).
 - tests: `tests.rs`
-
-## src/input/
-
-- `bindings.rs` (596): Rebindable game keybinds (Settings > Controls, 2026-08-12). Main items: GameAction, ActionInfo, KeybindOverride, BindOutcome, Keybinds, reserved_reason, pretty_key_name, ACTIONS (+3 more).
-- `mod.rs` (38): Input types shared across the engine. Main items: InputState, InputManager.
 
 ## src/machines/
 
@@ -660,10 +709,6 @@
 - `transcode.rs` (1045): Transcode on ingest (in-world screens ladder; docs/design/media-player.md, "Container and codecs" and "Transcode on ingest"). Main items: IngestRules, Av1Encoder, ProgressLine, TranscodeJob, Ingest, expand_env, parse_ingest_rules, ingest_rules (+21 more).
 - `video.rs` (380): AV1 decoding through rav1d (the memory-safe Rust port of dav1d), built without its assembly so no C compiler or nasm is needed, and the YUV to RGBA conversion that turns its pictures into texture-r... Main items: Av1Decoder, ColorMatrix, choose_matrix, decode_video.
 - tests: `system_tests.rs`, `tests.rs`
-
-## src/mods/
-
-- `mod.rs` (195): Mod support framework for HumanityOS Main items: ModManifest, ModLoader.
 
 ## src/net/
 
@@ -731,15 +776,6 @@
 
 - `live_save.rs` (335): WHICH SAVE IS LIVE, AND WHAT WAITS FOR WHICH SAVE (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md 3.6): the session's state of the save files, on the one main thread. Main items: ActiveHome, SnapshotNow, Choice, active_home, active_home_machines_path, set_active_home, active_home_path, restored_save_waiting (+12 more).
 
-## src/physics/
-
-- `landing.rs` (85): How hard a body meets the floor, and the watch that decides whether a landing is a fall that can hurt (falls, 2026-10-20). Main items: FallWatch, drop_height_m, landing_speed, LANDING_M_S.
-- `mod.rs` (170): Physics, Rapier3d world setup and stepping. Main items: PhysicsWorld.
-
-## src/platform/
-
-- `registry.rs` (205): Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing here can create, change or delete a key or a value. Main items: Root, View, Key, open, open_view.
-
 ## src/relay/
 
 - `api_market.rs` (698): THE MARKETPLACE's HTTP surface: what is for sale, what it looks like, what people said about the seller, and the standing buy and sell orders. Main items: ListingsQuery, ListingsResponse, ListingEntry, ListingImageEntry, CreateListingRequest, ReviewsQuery, CreateReviewRequest, OrderBookQuery (+20 more).
@@ -772,7 +808,7 @@
 - `governance_revotes.rs` (961): Scheduled re-votes: the part that OPENS a re-vote when its review date arrives. Main items: RevoteSweep, question_entries, question_bytes, question_digest, is_auto_opened, auto_opened_note, build_scheduled_revote, open_due_revotes (+9 more).
 - `ip_limit.rs` (354): Per-address limits on every HTTP route (2026-10-22, Tier 1 security residual 1). Main items: Class, Allowance, Verdict, IpLimits, edge, too_many, OVERFLOW, DEFAULT_CAP.
 - `live.rs` (817): Live video fanout (v0.853.0). Main items: LiveStream, LiveRegistry, pub_handler, sub_handler, list_handler.
-- `mod.rs` (1698): Humanity Network relay server. Main items: allowed_origins, hidden_upload_path, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay, run_relay (+4 more).
+- `mod.rs` (1697): Humanity Network relay server. Main items: allowed_origins, hidden_upload_path, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay, run_relay (+4 more).
 - `push_send.rs` (91): Web Push to a person's devices with no socket open: `RelayState::send_push_notification`, moved out of relay.rs unchanged (2026-11-01, notifications rung 3, to keep relay.rs within its file-size bu...
 - `relay.rs` (6310): Core relay logic: connection management and message routing. Main items: Peer, WebhookConfig, RelayState, ChannelInfo, CategoryInfo, LinkPreview, ReplyRef, DeviceInfo (+31 more).
 - `resumable.rs` (804): Resumable uploads, the relay half (2026-10-11; docs/design/files-showcase.md, "Resumable uploads, exact"). Main items: Refused, SessionQuery, StartBody, session_token, start_core, start, status_core, status (+9 more).
@@ -805,31 +841,6 @@
 - `seal.rs` (420): Sealing what the continuous backup sends (2026-10-22): compressed, then encrypted with a key derived from the relay's existing backup key (`data/backup.key`), so every copy that leaves the machine... Main items: Kind, W, R, LogPoint, Segment, Manifest, object_key, key_fingerprint (+5 more).
 - `wal.rs` (308): Reading SQLite's write-ahead log straight from its file (continuous backup, 2026-10-22). Main items: WalHeader, Frame, ReadOut, checksum, parse_header, read_header, read_committed, WAL_HEADER_LEN (+1 more).
 - tests: `tests.rs`
-
-## src/relay/core/
-
-- `describe_metadata.rs` (1750): What a picture's or a video's hidden information says, in plain words (2026-10-11, docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", part 1). Main items: Detail, Description, claimed_kind, sniff_kind, describe, describe_file, PICTURE_READ_MAX.
-- `did.rs` (207): Decentralized Identifier (DID) layer for HumanityOS. Main items: Fingerprint, fingerprint_of, fingerprint_to_did, did_for_pubkey, fingerprint_to_hex, parse_did_hum, did_to_author_fp_hex, split_did (+2 more).
-- `encoding.rs` (181): Canonical CBOR encoding and decoding. Main items: to_canonical_bytes, from_canonical_bytes, cbor_map, cbor_int, cbor_bytes, cbor_text.
-- `error.rs` (41): Error types for the protocol core (`relay/core`, the crate split's planned humanity-protocol). Main items: Error, Result.
-- `hash.rs` (89): BLAKE3 hashing for object and block identifiers. Main items: Hash, block_id, HASH_LEN.
-- `identity.rs` (73): Identity key management. Main items: Keypair.
-- `kdf.rs` (204): Argon2id-based key derivation function. Main items: KdfParams, derive_key, derive_key_with_params, pbkdf2_sha256, SALT_LEN, DERIVED_KEY_LEN.
-- `key_card.rs` (296): Key cards (2026-10-22, docs/design/key-cards.md): a small object, signed by a person's own Dilithium3 (ML-DSA-65) identity key, that says which Kyber768 (ML-KEM-768) key to seal things to for them. Main items: KeyCard, Keep, Seen, Refusal, card_text, sign_card, sign_card_with, is_key_text (+17 more).
-- `market_payloads.rs` (947): Payload validators for the Market's signed-object kinds (v0.1140): `provider_v1` (schemas/provider.toml) and `offering_v1` (schemas/offering.toml). Main items: shared_categories, validate_provider_v1, validate_offering_v1, PROVIDER_KINDS, CONTACT_CHANNELS, LOCATION_MODES, PRICE_MODES, PRICE_UNITS (+7 more).
-- `merkle_disclosure.rs` (244): Merkle-tree selective disclosure (Phase 6b PR 2). Main items: PathStep, leaf_hash, build_root, build_path, verify_path, HASH_LEN.
-- `mod.rs` (55): Core types for the Humanity Network: - Canonical CBOR encoding/decoding - BLAKE3 hashing (object_id, block_id) - Post-quantum signing (ML-DSA-65 / Dilithium3) and KEM (ML-KEM-768 / Kyber768) - Argo...
-- `moderation.rs` (472): Signed moderation objects: `mod_action_v1` and `space_policy_v1`. Main items: ModError, ModAction, SpacePolicy, mod_action_payload, build_mod_action_v1, space_policy_payload, build_space_policy_v1, payload_bytes (+2 more).
-- `object.rs` (453): The Humanity Network object model (post-quantum). Main items: Object, ObjectBuilder, PROTOCOL_VERSION, PAYLOAD_ENCODING_PLAINTEXT, PAYLOAD_ENCODING_ENCRYPTED.
-- `pq_crypto.rs` (1708): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
-- `profile_copy.rs` (321): The copy of a person's profile that other servers keep (BUG-191, 2026-10-12, docs/design/bug-191-profile-copies-plan.md sections 3.1 to 3.4): what it may hold, the words its owner's app signs, the... Main items: PublicCopy, unlisted, kept_for_friends, withdrawal, is_withdrawal, public_copy, copy_text, sign_copy (+20 more).
-- `recovery.rs` (673): Recovery through trusted people: the protocol the relay and both apps share (2026-10-21). Main items: SharePayload, TrustedPerson, NoteToSelf, ServedPiece, OpenedPiece, OneTimeAsk, piece_aad, note_aad (+49 more).
-- `signing.rs` (79): Ed25519 signing and verification. Main items: sign, verify.
-- `solana_rpc.rs` (181): Solana JSON-RPC client (Phase 6a, read-only balance lookup). Main items: SolanaRpcClient, MAINNET_BETA_URL, DEVNET_URL, LAMPORTS_PER_SOL.
-- `strip_heif_metadata.rs` (1846): HEIF and AVIF still picture metadata removal, in place (privacy hardening, 2026-10-11). Main items: HeifKind, HeifStrip, is_heif_still, strip_heif_metadata_in_place, strip_heif_metadata_in_buffer, HEIF_BRANDS.
-- `strip_metadata.rs` (290): Lossless image-metadata stripping (privacy hardening, 2026-08-23). Main items: strip_image_metadata.
-- `strip_video_metadata.rs` (1326): Video metadata removal, in place (privacy hardening, 2026-10-11). Main items: VideoKind, NeutralisedBox, VideoStrip, is_mp4_family, strip_video_metadata_in_place, strip_video_metadata_in_buffer, XMP_UUID.
-- tests: `describe_metadata_tests.rs`, `key_card_tests.rs`, `profile_copy_tests.rs`, `recovery_tests.rs`
 
 ## src/relay/crossing_tests/
 
@@ -1068,11 +1079,6 @@
 - `orbit.rs` (474): Orbital state for crewed stations: where the homestead IS, and which way it is POINTING, as a pure function of the game clock. Main items: PeriodSpec, OrbitDef, AttitudeMode, StationDef, sim_seconds, semi_major_axis_m, axis_from_period, period_from_axis (+6 more).
 - `station_keeping.rs` (398): Station-keeping: what it costs to stay where you parked, and what happens when you stop paying. Main items: BallisticCoefficient, atmospheric_density, decay_rate_m_per_s, time_to_reentry_s, collinear_efold_time, triangular_points_stable, drag_makeup_dv_per_year, MU_EARTH (+2 more).
 
-## src/storage/
-
-- `refresh.rs` (606): Keeping an installed data folder current after an update (BUG-163 part 2, built 2026-10-12; design: docs/design/data-folder-updates.md). Main items: Stamp, Report, NotWritten, Outcome, View, hash, shipped_fingerprint, why_left_alone (+13 more).
-- tests: `refresh_tests.rs`
-
 ## src/systems/
 
 - `abilities.rs` (820): Abilities system (v0.753, closure ladder rung 8 / progression doc Part 2). Main items: BuildSpot, AbilityDef, AbilityRegistry, AbilitySystem, BUILD_SPOT_SLOT.
@@ -1195,7 +1201,7 @@
 - `picking.rs` (749): Crops picked over a season, not harvested once (2026-09-26, gardening depth). Main items: Harvest, CropHarvest, HarvestWindows, Plan, Taken, Leaving, Picking, PickRow (+23 more).
 - `pollination.rs` (1938): Pollination decides how much fruit and seed a crop sets (2026-09-26, gardening depth). Main items: Request, PollinatedBy, CropPollinationDef, DeviceDef, PollinationData, Colony, Help, Pollination (+23 more).
 - `soil_ph.rs` (872): Soil pH (2026-09-26, gardening depth: the next rung of the soil model). Main items: PhUnits, SoilPhData, PhMedium, SoilDef, FertilizerAcidity, Amendment, YieldRow, PhRuntime (+27 more).
-- `soil.rs` (1200): Plant nutrients as N, P2O5 and K2O (2026-09-26, gardening depth rung 3). Main items: Nutrient, NutrientData, OrganicRelease, DemandAnchor, FertilizerDef, FertilizerDose, expected_harvest_kg, season_need (+29 more).
+- `soil.rs` (1181): Plant nutrients as N, P2O5 and K2O (2026-09-26, gardening depth rung 3). Main items: Nutrient, NutrientData, OrganicRelease, DemandAnchor, FertilizerDef, FertilizerDose, expected_harvest_kg, season_need (+29 more).
 - `sowing.rs` (368): Sowing a seed from the backpack (2026-10-12, first-hour audit F11). Main items: Place, Spot, Refusal, seed_takes, places, choose, refusal_words, planted_words (+2 more).
 - `step_path.rs` (664): A crop's path through one step, solved exactly (2026-10-30, docs/design/farm-clock.md rung 1). Main items: SownThisTick, Light, LightSpan, WaterPath, CropPathIn, CropPath, light_spans, sun_spans (+2 more).
 - `units.rs` (104): How many plants a grow unit holds, and so what it harvests (2026-09-26). Main items: plants_in_plot, plot_area, crop_plants, harvest_item_kg, plot_harvest_kg, PLOT_AREA_KEY.
@@ -1390,7 +1396,7 @@
 - `protected.js` (672): ── protected.js ────────────────────────────────────────────────────────── Main items: protectedPresetFrom, protectedLabel, protectedRulesFrom, protectedReachFrame, protectedPresetStrings, protectedAvoidHits, protectedPinOk, bytesToB64 (+40 more).
 - `qrcode.js` (2298): --------------------------------------------------------------------- Main items: qrPolynomial.
 - `reach.js` (301): ── reach.js ────────────────────────────────────────────────────────────── Main items: reachExplain, reachSettingsFrom, reachSetFrame, reachAllows, reachTicksFromMay, reachMayFromTicks, reachGrantsBeyond, reachListWords (+4 more).
-- `recovery.js` (419): recovery.js: Recovery through trusted people, the website's twin of src/relay/core/recovery.rs Main items: concat, hex, unhex, b64, unb64, randomBytes, shapeOk, split (+33 more).
+- `recovery.js` (419): recovery.js: Recovery through trusted people, the website's twin of crates/humanity-protocol/src/recovery.rs Main items: concat, hex, unhex, b64, unb64, randomBytes, shapeOk, split (+33 more).
 - `relay-session.js` (252): ── relay-session.js ────────────────────────────────────────────────────── Main items: identifyPreimage, bytesToB64, createRelaySession.
 - `report.js` (507): ── report.js ───────────────────────────────────────────────────────────── Main items: reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportFilesFoundBadge, reportFilesHref, reportKeyNorm, reportPreimage, reportEvidenceJson (+21 more).
 - `server-strip.js` (413): ── server-strip.js ─────────────────────────────────────────────────────── Main items: stripLabel, linkedOrigin, samePagePath, switchLinks, protectedHidesServers, mountServerStrip.

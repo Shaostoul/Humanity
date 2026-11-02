@@ -9,9 +9,9 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{Health, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Health, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 // ── Disaster types ─────────────────────────────────────────
 
@@ -330,7 +330,7 @@ impl System for DisasterSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::hot_reload::data_store::DataStore;
 
     #[test]
     fn test_disaster_defaults() {

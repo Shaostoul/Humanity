@@ -172,7 +172,7 @@ fn number_text(v: f64) -> String {
 /// once). None when the file or the row is missing: the explanation then
 /// names the day alone.
 fn example_crop_growth_days() -> Option<f64> {
-    let file = std::fs::File::open(crate::storage::data_dir().join("plants.csv")).ok()?;
+    let file = std::fs::File::open(humanity_core::storage::data_dir().join("plants.csv")).ok()?;
     crop_growth_days(std::io::BufReader::new(file), EXAMPLE_CROP)
 }
 

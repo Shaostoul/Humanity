@@ -48,13 +48,13 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{CropInstance, CropSoil, SoilMemory, UnitPh, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, CropSoil, SoilMemory, UnitPh, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 
 use super::PlantDef;
 
 /// The shipped copy, so a bare exe with no data folder still has the model.
-pub const SOIL_PH_RON: &str = include_str!("../../../data/garden/soil_ph.ron");
+pub const SOIL_PH_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/soil_ph.ron"));
 
 /// Soil pH is on unless Settings turns it off. Absent channel (headless
 /// tests, early boot) reads as this, so a test that never publishes it sees
@@ -192,7 +192,7 @@ impl SoilPhData {
     /// if that is missing or does not parse. The shipped copy always parses:
     /// a test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("soil_ph.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("soil_ph.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -203,7 +203,7 @@ impl SoilPhData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("garden/soil_ph.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("garden/soil_ph.ron", why);
         Self::parse(SOIL_PH_RON).expect("the shipped data/garden/soil_ph.ron parses")
     }
 
@@ -664,7 +664,7 @@ pub(super) fn handle_request(
         if bags > 0 {
             for (_e, (inv, _ctrl)) in world.query_mut::<(
                 &mut crate::systems::inventory::Inventory,
-                &crate::ecs::components::Controllable,
+                &humanity_core::ecs::components::Controllable,
             )>() {
                 have = inv.count_item(&am.item);
                 if have >= bags {

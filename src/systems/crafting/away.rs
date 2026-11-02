@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::{ActiveCraft, CraftingSystem, Recipe, RecipeRegistry};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
 /// DataStore key for the time away handed to the machines.
@@ -129,7 +129,7 @@ pub fn take(data: &DataStore) -> Option<AwayWork> {
 /// Are the home's automated machines in the world yet? They spawn with the
 /// home (the menu spawns them without their bodies, world entry with them).
 pub fn machines_present(world: &hecs::World) -> bool {
-    world.query::<&crate::ecs::components::AutoRefine>().iter().next().is_some()
+    world.query::<&humanity_core::ecs::components::AutoRefine>().iter().next().is_some()
 }
 
 /// What the machines did while the player was away.
@@ -342,7 +342,7 @@ impl CraftingSystem {
         kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
         fluids: Option<&crate::systems::fluids::FluidTable>,
     ) -> AwayReport {
-        use crate::ecs::components::{AutoRefine, MachineInstanceId, MachineType, PowerConsumer, StationLoad, Transform};
+        use humanity_core::ecs::components::{AutoRefine, MachineInstanceId, MachineType, PowerConsumer, StationLoad, Transform};
         let mut report = AwayReport::default();
         let window = work.secs;
         if !(window > 0.0) {

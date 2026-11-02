@@ -6,8 +6,8 @@
 // refused there too.
 
 use super::*;
-use crate::relay::core::key_card::{card_for, card_json, sign_card, sign_card_with, verify_card, KeyCard, Keep};
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, DilithiumKeypair, KyberKeypair};
+use humanity_protocol::key_card::{card_for, card_json, sign_card, sign_card_with, verify_card, KeyCard, Keep};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, derive_kyber_seed, DilithiumKeypair, KyberKeypair};
 use crate::relay::storage::{now_millis, Storage};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde_json::{json, Value};
@@ -71,7 +71,7 @@ fn the_relay_rejects_a_card_signed_by_the_wrong_key() {
     let mut told = st.broadcast_tx.subscribe();
     let ann = key_of(7);
     let good = card_of(7);
-    let by_bo = KeyCard { sig: B64.encode(dil(9).sign(crate::relay::core::key_card::card_text(&good.key, &good.kyber, good.at).as_bytes())), ..good.clone() };
+    let by_bo = KeyCard { sig: B64.encode(dil(9).sign(humanity_protocol::key_card::card_text(&good.key, &good.kyber, good.at).as_bytes())), ..good.clone() };
     let bos_own = card_of(9);
     let swapped = KeyCard { kyber: B64.encode(kyber_of(9)), ..good.clone() };
 

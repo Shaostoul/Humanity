@@ -126,7 +126,7 @@ pub mod home_probe;
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;
 /// The play journal's frame half (2026-10-24): a mark's picture through the renderer, and what the
-/// frame watcher sees each frame. The store is the core's src/play_journal.rs.
+/// frame watcher sees each frame. The store is the core's crates/humanity-core/src/play_journal.rs.
 pub mod play_journal_frame;
 /// Leaving the app: the save every way out runs first (first-hour audit 2026-10-04, Blocker 5).
 pub mod quit;

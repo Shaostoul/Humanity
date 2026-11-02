@@ -56,9 +56,9 @@
 
 use ciborium::Value;
 
-use crate::relay::core::encoding::{from_canonical_bytes, to_canonical_bytes};
-use crate::relay::core::hash::Hash;
-use crate::relay::core::object::{Object, ObjectBuilder};
+use humanity_protocol::encoding::{from_canonical_bytes, to_canonical_bytes};
+use humanity_protocol::hash::Hash;
+use humanity_protocol::object::{Object, ObjectBuilder};
 use crate::relay::storage::Storage;
 
 /// Payload fields that are SCHEDULING or MACHINE metadata, not the question.
@@ -208,8 +208,8 @@ pub fn build_scheduled_revote(
     parent_id: &str,
     now_ms: i64,
 ) -> Result<Object, String> {
-    use crate::relay::core::encoding::{cbor_int, cbor_text};
-    use crate::relay::core::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
+    use humanity_protocol::encoding::{cbor_int, cbor_text};
+    use humanity_protocol::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
 
     // The index row gives us the original voting window; the stored object gives
     // us the question and the space it belongs to.
@@ -420,8 +420,8 @@ pub async fn scheduled_revote_loop(state: std::sync::Arc<crate::relay::relay::Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text};
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
     use rusqlite::params;
 
     fn test_storage() -> Storage {
@@ -798,7 +798,7 @@ mod tests {
     /// scheduler does. Used to hand-build the successors a compromised or buggy
     /// server would produce, and check the relay refuses them.
     fn server_signed_proposal(db: &Storage, fields: Vec<(&str, Value)>) -> Object {
-        use crate::relay::core::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
+        use humanity_protocol::pq_crypto::{DilithiumKeypair, derive_dilithium_seed};
         let (_, seed_hex) = db.get_or_create_server_keypair().unwrap();
         let seed = hex::decode(seed_hex).unwrap();
         let keypair = DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed));

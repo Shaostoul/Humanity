@@ -152,7 +152,7 @@
    },
    {
     "what": "FireSystem: Fire, Flammable and FireSuppressor components; fuel burn, random spread and health damage. data/fire_system.ron is read into untyped values that are never used. Nothing is drawn.",
-    "where": "src/systems/fire.rs:1-169 (unused data at 30-36); src/ecs/components.rs:505-535; data/fire_system.ron; deferred in tests/engine_wiring_lint.rs:71",
+    "where": "src/systems/fire.rs:1-169 (unused data at 30-36); crates/humanity-core/src/ecs/components.rs:505-535; data/fire_system.ron; deferred in tests/engine_wiring_lint.rs:71",
     "state": "stub (unregistered, never ticks)"
    },
    {
@@ -187,7 +187,7 @@
    },
    {
     "what": "Sound entries sfx.explosion and ambient.campfire_crackle. The referenced .ogg files do not exist (assets/audio/sfx holds 15 clips, none for fire or explosions, and there is no ambient folder). The audio code has no speed-of-sound delay.",
-    "where": "data/sounds.toml:118-126, 389-396; assets/audio/sfx/; src/audio/",
+    "where": "data/sounds.toml:118-126, 389-396; assets/audio/sfx/; crates/humanity-core/src/audio/",
     "state": "design-only"
    },
    {
@@ -209,7 +209,7 @@
    "The GPU pool handles one emitter, respawns dead slots at the current origin, and draws alpha only (particles_gpu.rs:26-30; overlay_draw.rs:323). GPU flames would need an emitter table, a dead-slot list with atomics for bursts and trails, and an additive/emissive draw.",
    "EmberGen-class fire (the realistic-first route) does not exist in any form: no 3D fluid grid, advection, pressure solve, vorticity or combustion step (fuel + O2 -> heat + smoke + CO2/H2O). Parts that do exist: compute pipelines proven on a real device (particles_gpu.rs:345-391), 3D textures (cloud_noise.rs), and a volumetric ray-march with frame-to-frame accumulation (40-clouds.wgsl:4758, cloud_resolve.rs). A spinning prop's flame would need a simulation box that travels with the wick, or sparse bricks. The affordable shape is probably a hybrid: GPU particles or a ribbon for the flame at the wick, plus a coarse grid for smoke.",
    "Combustion chemistry is not connected. FireSystem does not consume O2 or add CO2, CO, water vapour or soot to the room gas tracking in atmosphere.rs. The chemistry data has kerosene, CO2 and CO rows but no heat of combustion, flame temperature, soot yield or flash point columns (data/chemistry/compounds.csv header). The fields in fire_system.ron are never read.",
-   "Asteroid impact has no visuals at all. DisasterSystem is unregistered and its vfx_id is never read. The 'explosion' emitter is 300 sprites at 3-8 m/s, firecracker scale (particles.ron:181-197). Also missing: a fireball volume, a shock ring, a pressure wave, ejecta or debris physics (the rapier wrapper in src/physics/mod.rs is unused for this), runtime craters, a sound delay by distance, and the explosion.ogg file. The ocean tsunami field is the only impact-related visual that exists."
+   "Asteroid impact has no visuals at all. DisasterSystem is unregistered and its vfx_id is never read. The 'explosion' emitter is 300 sprites at 3-8 m/s, firecracker scale (particles.ron:181-197). Also missing: a fireball volume, a shock ring, a pressure wave, ejecta or debris physics (the rapier wrapper in crates/humanity-core/src/physics/mod.rs is unused for this), runtime craters, a sound delay by distance, and the explosion.ogg file. The ocean tsunami field is the only impact-related visual that exists."
   ],
   "notes": [
    "The docs overstate or misstate the particle system:\n- docs/FEATURES.md:1334-1338 and 2402-2404, and docs/STATUS.md:333, claim 12 emitters including steam, ember and lightning, and point at particle.wgsl. There are actually 15 definitions, with no steam, ember or lightning, and the live shader is particles.wgsl.\n- data/particles.ron:2 and particles.rs:4 claim hot reload, but the file is loaded once at boot (lib.rs:1699), and the particle shader is compiled in with include_str! (particles.rs:568), outside the shader hot-reload.\n- docs/contributor/ENGINE_REFERENCE.md:409 still lists the particle system as unbuilt.\n- particles.rs:1 calls itself a GPU particle system, but the simulation runs on the CPU.",
@@ -223,7 +223,7 @@
  },
  {
   "key": "models-items",
-  "summary": "The game can load 3D models, but they only work for machines, furniture and plants. Items and anything held in the hands have no models at all. There are no flow-arts props in the game data. The one real asset is a sourced Library guide on building a fire staff.\n\n**How models load.** One glTF loader in src/assets/mod.rs does all of it: `decode_first_primitive` at 261-297, the textured variant at 320-390 and the cached `load_gltf` at 399-432, using `gltf = \"1.4\"` (Cargo.toml:44). It reads only the FIRST mesh's FIRST primitive and ignores node transforms. It decodes only the base-colour texture, so the normal and roughness maps that ship with the photoscans are never used. The vertex type (src/renderer/mesh.rs:9-13) holds only position, normal and UV, with no tangents, bone joints/weights or vertex colours.\n\n**Which objects can have a model:**\n- A machine or furniture row can declare `model: Some(path)` in data/machines/home.ron (field defined at src/machines.rs:116-123). This shipped in v0.734 (c9163b42), and textured models followed in v0.993 (68e09967).\n- Models are scaled to the height declared in `size` (v0.1324, 3bafa7c8 and b1aa6f34).\n- Decorations, crop growth-stage models and tree species are also data-driven.\n- Procedural geometry exists: primitive builders (mesh.rs:171-685, including tube and polytube) and a large spline-lofted tree and plant generator (tree_mesh.rs, 6354 lines; plant_mesh.rs, 895 lines).\n- Since 9f7910e9 (2026-09-19) the release zip includes assets/models (188 MB) and assets/textures (build-desktop.yml:90-111, 284-291).\n\n**Items have no model link.** Neither data/items.csv (columns at line 16) nor `ItemDef` (src/systems/inventory/mod.rs:277-295) has a model field. data/equipment.csv adds damage and reach numbers for items worn in the single \"hands\" slot (data/inventory/equipment_slots.json). The F-key melee swing reads those numbers (src/lib.rs:11865-11907) but nothing appears on screen.\n\n**No held items, player body or animation:**\n- First person has no hands or held item.\n- Third person orbits an empty point (src/renderer/camera.rs:1147-1180); no mesh for the local player was found.\n- Remote players and NPCs are a box plus a sphere (src/lib.rs:9044-9099). The avatar on the character-select podium is built from boxes (src/engine/world_load.rs:14-63).\n- There is no skeletal animation and no glTF animation import (docs/PRIORITIES.md:1083, docs/design/multi-agent-workflow.md:108-117). The only object animation is rigid door panels (src/systems/door_anim.rs).\n- The Rapier joint sets exist (src/physics/mod.rs:19-20), but nothing creates a joint, so there is no rope or chain simulation for poi or meteors.\n\n**Flow-arts items: none.** No staff for spinning, poi, fire axe, darts or meteors, fans, hoops, wick, dip can, fire-blanket item, or naphtha / white-gas / lamp-oil fuel item. Nearest existing items:\n- `staff_0`, an oak blunt weapon (items.csv:107, crafted by recipes.csv:88)\n- `torch_handheld_0` (items.csv:466), `lantern_oil_0` (467), `candle_0` (464), `campfire_kit_0` (494)\n- `fire_extinguisher_0` (346), `fuel_refined_0` (228), `rope_0` (235)\n- `chain` and `bearing` components (components.csv:20 and 18)\n\nThe fire blanket exists only as a suppression-system row (data/fire_system.ron:258-276).\n\n**The fire staff guide.** data/library/fire_staff_materials.md (664 lines, a copy of docs/user/making/fire_staff_materials.md; commits 972582da, 113e4395, 1a6382f3, 2773ef75) is sourced from NASA, NIOSH, CAMEO and DuPont data. It covers:\n- shaft alloys\n- wick blends\n- heat breaks\n- a fuel table with flash points, burn times, soot and radiant heat (lines 340-356)\n- safety kit\n- real 1:1 dimensions: 19 mm shaft, 140-150 cm length, 700-850 g, 7-9 minute burn (lines 446-460)\n\nThe curriculum lesson materials_fire_staff (data/curriculum/syllabus.json:1332-1350) links it to the metalworking and fire_making skills.\n\n**Skills.** data/skills/skills.csv has 20 skills. fire_making (line 4) has no gameplay use: no recipe or system awards it. There is no performance, dance or flow skill. data/creative_arts.ron has a dance_performance row but refers to skills (\"music\", \"art\") that are not in skills.csv.\n\n**Materials and fuel data.** The chemistry CSVs are embedded in the build (src/embedded_data.rs:19-23) but nothing in the game uses them:\n- **compounds.csv:** kerosene, ethanol, methanol, isopropanol, octane, propane and butane are present. Naphtha, white gas and lamp oil are missing. There are no columns for flash point, heat of combustion, soot, combustion products or flame temperature.\n- **gases.csv:** 48 gases including CO and CO2. Water vapour is missing.\n- **alloys.csv:** 6061 and 7075 aluminium and Ti-6Al-4V.\n- **materials.csv:** kevlar, fiberglass, carbon fiber and wax. Nomex is missing, and there are no thermal-limit columns.\n\nFireSystem (src/systems/fire.rs) is compiled but not registered, and it ignores fire_system.ron.",
+  "summary": "The game can load 3D models, but they only work for machines, furniture and plants. Items and anything held in the hands have no models at all. There are no flow-arts props in the game data. The one real asset is a sourced Library guide on building a fire staff.\n\n**How models load.** One glTF loader in src/assets/mod.rs does all of it: `decode_first_primitive` at 261-297, the textured variant at 320-390 and the cached `load_gltf` at 399-432, using `gltf = \"1.4\"` (Cargo.toml:44). It reads only the FIRST mesh's FIRST primitive and ignores node transforms. It decodes only the base-colour texture, so the normal and roughness maps that ship with the photoscans are never used. The vertex type (src/renderer/mesh.rs:9-13) holds only position, normal and UV, with no tangents, bone joints/weights or vertex colours.\n\n**Which objects can have a model:**\n- A machine or furniture row can declare `model: Some(path)` in data/machines/home.ron (field defined at src/machines.rs:116-123). This shipped in v0.734 (c9163b42), and textured models followed in v0.993 (68e09967).\n- Models are scaled to the height declared in `size` (v0.1324, 3bafa7c8 and b1aa6f34).\n- Decorations, crop growth-stage models and tree species are also data-driven.\n- Procedural geometry exists: primitive builders (mesh.rs:171-685, including tube and polytube) and a large spline-lofted tree and plant generator (tree_mesh.rs, 6354 lines; plant_mesh.rs, 895 lines).\n- Since 9f7910e9 (2026-09-19) the release zip includes assets/models (188 MB) and assets/textures (build-desktop.yml:90-111, 284-291).\n\n**Items have no model link.** Neither data/items.csv (columns at line 16) nor `ItemDef` (src/systems/inventory/mod.rs:277-295) has a model field. data/equipment.csv adds damage and reach numbers for items worn in the single \"hands\" slot (data/inventory/equipment_slots.json). The F-key melee swing reads those numbers (src/lib.rs:11865-11907) but nothing appears on screen.\n\n**No held items, player body or animation:**\n- First person has no hands or held item.\n- Third person orbits an empty point (src/renderer/camera.rs:1147-1180); no mesh for the local player was found.\n- Remote players and NPCs are a box plus a sphere (src/lib.rs:9044-9099). The avatar on the character-select podium is built from boxes (src/engine/world_load.rs:14-63).\n- There is no skeletal animation and no glTF animation import (docs/PRIORITIES.md:1083, docs/design/multi-agent-workflow.md:108-117). The only object animation is rigid door panels (src/systems/door_anim.rs).\n- The Rapier joint sets exist (crates/humanity-core/src/physics/mod.rs:19-20), but nothing creates a joint, so there is no rope or chain simulation for poi or meteors.\n\n**Flow-arts items: none.** No staff for spinning, poi, fire axe, darts or meteors, fans, hoops, wick, dip can, fire-blanket item, or naphtha / white-gas / lamp-oil fuel item. Nearest existing items:\n- `staff_0`, an oak blunt weapon (items.csv:107, crafted by recipes.csv:88)\n- `torch_handheld_0` (items.csv:466), `lantern_oil_0` (467), `candle_0` (464), `campfire_kit_0` (494)\n- `fire_extinguisher_0` (346), `fuel_refined_0` (228), `rope_0` (235)\n- `chain` and `bearing` components (components.csv:20 and 18)\n\nThe fire blanket exists only as a suppression-system row (data/fire_system.ron:258-276).\n\n**The fire staff guide.** data/library/fire_staff_materials.md (664 lines, a copy of docs/user/making/fire_staff_materials.md; commits 972582da, 113e4395, 1a6382f3, 2773ef75) is sourced from NASA, NIOSH, CAMEO and DuPont data. It covers:\n- shaft alloys\n- wick blends\n- heat breaks\n- a fuel table with flash points, burn times, soot and radiant heat (lines 340-356)\n- safety kit\n- real 1:1 dimensions: 19 mm shaft, 140-150 cm length, 700-850 g, 7-9 minute burn (lines 446-460)\n\nThe curriculum lesson materials_fire_staff (data/curriculum/syllabus.json:1332-1350) links it to the metalworking and fire_making skills.\n\n**Skills.** data/skills/skills.csv has 20 skills. fire_making (line 4) has no gameplay use: no recipe or system awards it. There is no performance, dance or flow skill. data/creative_arts.ron has a dance_performance row but refers to skills (\"music\", \"art\") that are not in skills.csv.\n\n**Materials and fuel data.** The chemistry CSVs are embedded in the build (crates/humanity-core/src/embedded_data.rs:19-23) but nothing in the game uses them:\n- **compounds.csv:** kerosene, ethanol, methanol, isopropanol, octane, propane and butane are present. Naphtha, white gas and lamp oil are missing. There are no columns for flash point, heat of combustion, soot, combustion products or flame temperature.\n- **gases.csv:** 48 gases including CO and CO2. Water vapour is missing.\n- **alloys.csv:** 6061 and 7075 aluminium and Ti-6Al-4V.\n- **materials.csv:** kevlar, fiberglass, carbon fiber and wax. Nomex is missing, and there are no thermal-limit columns.\n\nFireSystem (src/systems/fire.rs) is compiled but not registered, and it ignores fire_system.ron.",
   "exists": [
    {
     "what": "glTF/GLB loader: first mesh's first primitive only, node transforms ignored, flat normals / planar UVs made up when missing; the cached load_gltf path and the uncached per-instance parse paths",
@@ -332,7 +332,7 @@
    },
    {
     "what": "Rapier joint sets present in the physics wrapper, but no joint is ever created (no rope/chain/tether simulation)",
-    "where": "src/physics/mod.rs:19-20, 37-38",
+    "where": "crates/humanity-core/src/physics/mod.rs:19-20, 37-38",
     "state": "stub"
    },
    {
@@ -372,7 +372,7 @@
    },
    {
     "what": "Chemistry CSVs: 118 elements, 74 alloys (aluminum_6061 855 K, aluminum_7075 908 K, ti_6al_4v), 166 compounds (fuel/hydrocarbon rows: kerosene, hydrazine, biodiesel, DME, nitromethane, methane, propane, butane, octane, ethanol, methanol, isopropanol), 47 gases (incl. CO, CO2, NO2, formaldehyde; with flammable/LEL/UEL/toxic/asphyxiant/auto-ignition), 78 toxins; embedded in the build but no gameplay consumer found",
-    "where": "data/chemistry/*.csv (compounds.csv:141-145 fuels); src/embedded_data.rs:19-23, 173-177",
+    "where": "data/chemistry/*.csv (compounds.csv:141-145 fuels); crates/humanity-core/src/embedded_data.rs:19-23, 173-177",
     "state": "partial"
    },
    {
@@ -423,7 +423,7 @@
   "exists": [
    {
     "what": "FireSystem: fuel countdown in unitless intensity, random spread to Flammable entities within ignition_dist, suppressors lower intensity, 1 HP/s at full intensity within 1.5 m. No oxygen, temperature, fuel type, smoke or gas. No unit tests.",
-    "where": "src/systems/fire.rs:1-169 (constants 20-27, tick 72-168); components Fire/Flammable/FireSuppressor at src/ecs/components.rs:508-537; added in commit 5ffea893 (v0.142.0, 2026-05-01)",
+    "where": "src/systems/fire.rs:1-169 (constants 20-27, tick 72-168); components Fire/Flammable/FireSuppressor at crates/humanity-core/src/ecs/components.rs:508-537; added in commit 5ffea893 (v0.142.0, 2026-05-01)",
     "state": "stub: never registered (absent from src/lib.rs:1055-1327); no code attaches Fire, Flammable or FireSuppressor"
    },
    {
@@ -443,12 +443,12 @@
    },
    {
     "what": "Link from atmosphere to player: home AirStatus.breathable becomes EnvironmentContext.oxygenated, which drives the blood-oxygen drain, then hypoxia, suffocation and death",
-    "where": "src/lib.rs:5741-5777; src/ecs/components.rs:147-175 (EnvironmentContext: sealed, oxygenated, ambient_temp_c, g_load; no toxicity or smoke field); src/systems/food.rs:519-540",
+    "where": "src/lib.rs:5741-5777; crates/humanity-core/src/ecs/components.rs:147-175 (EnvironmentContext: sealed, oxygenated, ambient_temp_c, g_load; no toxicity or smoke field); src/systems/food.rs:519-540",
     "state": "working (O2 only; CO, smoke and toxicity never reach the player)"
    },
    {
     "what": "Player Vitals: satiation, hydration, energy, oxygen, body_temp_c, waste. Body temperature drifts toward ambient when exposed, causing hypothermia or heat exhaustion; outfit heat_resist/cold_resist scale the damage; status-effect damage and healing over time; death with a named cause",
-    "where": "src/ecs/components.rs:79-140; src/systems/food.rs:105-118 (constants), 441-640 (decay, conditions, effect tick, death)",
+    "where": "crates/humanity-core/src/ecs/components.rs:79-140; src/systems/food.rs:105-118 (constants), 441-640 (decay, conditions, effect tick, death)",
     "state": "working"
    },
    {
@@ -458,12 +458,12 @@
    },
    {
     "what": "MedicalSystem (per-condition severity, time remaining, HP per second) and medical.ron with burn_degree_1/2/3 (symptoms, treatments, progression to infection, recovery time), hypothermia, heatstroke and more",
-    "where": "src/systems/medical.rs:1-104 (commit e2dfb6f4, v0.143.0); data/medical.ron:105-139 (burns); ActiveCondition at src/ecs/components.rs:593-617",
+    "where": "src/systems/medical.rs:1-104 (commit e2dfb6f4, v0.143.0); data/medical.ron:105-139 (burns); ActiveCondition at crates/humanity-core/src/ecs/components.rs:593-617",
     "state": "stub: not registered; medical.ron loaded as untyped ron::Value; no caller of apply_condition"
    },
    {
     "what": "HvacSystem: a second, separate room model (RoomEnvironment temp_c, humidity, co2_ppm) with occupant CO2 and venting",
-    "where": "src/systems/hvac.rs:1-144; src/ecs/components.rs:480-506",
+    "where": "src/systems/hvac.rs:1-144; crates/humanity-core/src/ecs/components.rs:480-506",
     "state": "stub: not registered; duplicates the atmosphere CO2 model in different units (ppm here, percent there)"
    },
    {
@@ -473,7 +473,7 @@
    },
    {
     "what": "Chemistry data useful for fumes: gases.csv with lower/upper explosive limits, toxicity, asphyxiant flag and auto-ignition temperature (includes CO, CO2, propane, butane, formaldehyde); compounds.csv with kerosene, ethanol, methanol, isopropanol and propane rows (flammable/toxic flags only, no flash point, heat of combustion or soot yield); toxins.csv (benzene, formaldehyde)",
-    "where": "data/chemistry/gases.csv; data/chemistry/compounds.csv; data/chemistry/toxins.csv; embedded at src/embedded_data.rs:19-23",
+    "where": "data/chemistry/gases.csv; data/chemistry/compounds.csv; data/chemistry/toxins.csv; embedded at crates/humanity-core/src/embedded_data.rs:19-23",
     "state": "design-only: embedded but read by no simulation code"
    },
    {
@@ -537,7 +537,7 @@
    "docs/design/gameplay-loop-map.md:235-247 calls FireSystem, MedicalSystem and DisasterSystem 'Dormant but complete'. For FireSystem that overstates it: the code runs, but it ignores its own data file, oxygen, temperature and products. The same doc (lines 240-247) puts fire, disease and disasters as the LAST rung of the risk-layer closure ladder, as homestead threats that the habitat systems defend against.",
    "The quickest real carrier for a lit prop is to reuse what is live rather than revive fire.rs as it stands. That means: a fuel data table built from the Library guide's sourced numbers; a per-wick component (fuel mass, burn rate, soot factor) ticked by a registered system; each wick adding a moving point light and spawning the existing fire, smoke and sparks emitters; combustion products written into the existing AtmosphereSystem composition map; a toxicity or CO field added to EnvironmentContext so the FoodSystem vitals pass can apply the existing toxic_atmosphere, poisoned, burning and overheated rows; and heat exposure mapped to the medical.ron burn degrees once MedicalSystem is registered.",
    "The live status-effect tick (food.rs:601-626) already turns damage_per_tick and tick_interval_s into per-second drains and records the death cause. Any new condition row (for example smoke_inhalation or carbon_monoxide) needs only a CSV row plus one effects.apply() call; no new tick code is required.",
-   "src/reactions.rs and data/reactions.json are the chat emoji reaction palette, not chemical reactions. Don't confuse them with combustion.",
+   "crates/humanity-core/src/reactions.rs and data/reactions.json are the chat emoji reaction palette, not chemical reactions. Don't confuse them with combustion.",
    "When fire content is authored, docs/user/making/fire_staff_materials.md is the sourced, dated reference to seed data from (flash-point ranges from NIOSH and CAMEO; burn times explicitly labelled community figures; soot drives radiant heat). Per CLAUDE.md, carry those source labels into the data rather than restating figures from memory, and give the toxic-gas thresholds in atmosphere.rs (CO 50 ppm and so on) the same sourced treatment."
   ]
  },

@@ -944,7 +944,7 @@ mod tests {
         // engine loads), so retuning Earth's relief or shell without
         // rethinking the cloud height fails here instead of z-fighting on
         // screen. The atmosphere expression mirrors lib.rs / shell_packing.
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("planets")
             .join("earth.ron");
@@ -2265,7 +2265,7 @@ mod carve_width_fit {
             assert!(*e < 0.05, "level {l} soft-carve MAE {e} >= 0.05 - the hinge no longer models the bake");
         }
         // LOCK the WGSL table to the fit.
-        let root = env!("CARGO_MANIFEST_DIR");
+        let root = env!("HUMANITY_REPO_ROOT");
         let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl"))
             .expect("read 40-clouds.wgsl");
         for (l, fw) in fitted.iter().enumerate() {

@@ -11,7 +11,7 @@ use crate::ship::ship_structure::*;
 #[test]
 fn shipped_lights_draw_real_watts() {
     // The ship the game runs (the ship file + the homestead on its default plot).
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let s = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
     let watts = s.lighting_watts(|id| {
         crate::renderer::light::light_type(id).map(|t| t.watts).unwrap_or(0.0)

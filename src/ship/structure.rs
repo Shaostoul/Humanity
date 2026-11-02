@@ -14,7 +14,7 @@
 //! PLACEABLE and VISIBLE with distinguishable geometry, plus a bounds gizmo. FUNCTION (walking up
 //! the stairs, riding the elevator, teleporting) is wired in v0.584 -- the `kind` tag is the hook.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use glam::Vec3;
 use serde::Deserialize;
 
@@ -159,7 +159,7 @@ pub struct StructureType {
 pub fn structure_types() -> &'static [StructureType] {
     static REG: std::sync::OnceLock<Vec<StructureType>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/structure_types.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/structure_types.ron"));
         match ron::from_str::<Vec<StructureType>>(SRC) {
             Ok(v) => v,
             Err(e) => {
@@ -195,7 +195,7 @@ pub struct ZoneType {
 pub fn zone_types() -> &'static [ZoneType] {
     static REG: std::sync::OnceLock<Vec<ZoneType>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/zone_types.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/zone_types.ron"));
         match ron::from_str::<Vec<ZoneType>>(SRC) {
             Ok(v) => v,
             Err(e) => {
@@ -249,7 +249,7 @@ fn default_true_filler() -> bool {
 pub fn zone_fillers() -> &'static [ZoneFiller] {
     static REG: std::sync::OnceLock<Vec<ZoneFiller>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/zone_filler.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/zone_filler.ron"));
         match ron::from_str::<Vec<ZoneFiller>>(SRC) {
             Ok(v) => v,
             Err(e) => {
@@ -417,7 +417,7 @@ pub struct ExtrusionProfile {
 pub fn extrusion_profiles() -> &'static [ExtrusionProfile] {
     static REG: std::sync::OnceLock<Vec<ExtrusionProfile>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/extrusion_profiles.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/extrusion_profiles.ron"));
         match ron::from_str::<Vec<ExtrusionProfile>>(SRC) {
             Ok(v) => v,
             Err(e) => {
@@ -469,7 +469,7 @@ pub struct RoadType {
 pub fn road_types() -> &'static [RoadType] {
     static REG: std::sync::OnceLock<Vec<RoadType>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../data/blueprints/road_types.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/road_types.ron"));
         match ron::from_str::<Vec<RoadType>>(SRC) {
             Ok(v) => v,
             Err(e) => {

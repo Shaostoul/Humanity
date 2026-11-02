@@ -3,9 +3,9 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use crate::ecs::components::{Irrigator, PowerConsumer};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Irrigator, PowerConsumer};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::farming::humidity::{self, GrowRoom};
 use crate::systems::farming::humidity_tests::*;
 use crate::systems::farming::*;
@@ -36,13 +36,13 @@ use crate::systems::farming::*;
 #[cfg(feature = "native")]
 #[test]
 fn a_room_resized_changes_its_fans_day_on_the_meter() {
-    use crate::ecs::components::{PowerCircuit, PowerGenerator};
+    use humanity_core::ecs::components::{PowerCircuit, PowerGenerator};
     use crate::machines::{DaySource, MachineInstance, MachinePower, MeterBasis};
     let mut data = store(0.5, 1.0, 0.0);
     data.insert(units::PLOT_AREA_KEY, HashMap::from([("bed_a".to_string(), 1.0_f32)]));
     crate::machines::day_energy::register(&mut data);
     data.insert("power_status", Mutex::new(crate::systems::electrical::PowerStatus::default()));
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let mut home = crate::systems::grow_machines::load_home(&root.join("data/machines/home.ron")).expect("home.ron parses");
     let fan_def = home.catalog["exhaust_fan"].clone();
     let Some(MachinePower::Consumer { average_watts: Some(estimate), .. }) = fan_def.power else { panic!("the shipped fan carries its data's day") };
@@ -56,7 +56,7 @@ fn a_room_resized_changes_its_fans_day_on_the_meter() {
     crate::engine::home_spawn::spawn_home_machine_entity(&mut world, &inst, &fan_def, &empty, &empty, None, None);
     home.instances.push(inst);
     world.spawn((PowerGenerator { output_watts: 10_000.0, fuel_per_second: 0.0, active: true }, PowerCircuit { island: 0 }));
-    let fan = world.query::<(&crate::ecs::components::MachineInstanceId, &PowerConsumer)>().iter().find(|(_, (id, _))| id.0 == "fan_t").map(|(e, _)| e).unwrap();
+    let fan = world.query::<(&humanity_core::ecs::components::MachineInstanceId, &PowerConsumer)>().iter().find(|(_, (id, _))| id.0 == "fan_t").map(|(e, _)| e).unwrap();
     let mut power = crate::systems::electrical::ElectricalSystem::new(std::path::Path::new("data"));
     let mut sys = FarmingSystem::new();
     // Two game days, a tick 2 s at the store's 72x (144 game s, 25 to the hour), and the mean

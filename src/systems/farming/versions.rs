@@ -45,7 +45,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// The DataStore channel (`Mutex<Versions>`), registered with the farm clock's (`clock::register`).
 pub const KEY: &str = "garden_versions";

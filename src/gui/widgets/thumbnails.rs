@@ -208,7 +208,7 @@ mod tests {
     /// with `shrink` returning the picture at full size: "no larger than asked".
     #[test]
     fn a_picture_is_shrunk_on_a_worker_and_a_broken_one_fails() {
-        let dir = crate::test_temp::dir("thumbs");
+        let dir = humanity_core::test_temp::dir("thumbs");
         let png = dir.join("wide.png");
         image::RgbaImage::from_fn(400, 200, |x, _| image::Rgba([(x % 255) as u8, 90, 160, 255])).save(&png).unwrap();
         let bad = dir.join("broken.png");
@@ -244,7 +244,7 @@ mod tests {
             println!("skipped: this copy of Windows has no Media Foundation");
             return;
         }
-        let mp4 = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
+        let mp4 = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
         assert!(is_previewable("clip.MP4") && !is_previewable("model.glb"));
         let shrunk = shrink(&mp4, 128);
         let (w, h, rgba) = shrunk.expect("the video's frame is read");

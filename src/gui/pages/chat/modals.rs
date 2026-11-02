@@ -855,7 +855,7 @@ pub(crate) fn create_p2p_group(state: &mut GuiState) {
                     state.create_group_ticket = Some(ticket);
                     state.create_group_status.clear();
                     log::info!("P2P group created ({}), first invite minted", group_id);
-                    crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
+                    humanity_core::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
                     // Refresh the projection cache so the new group
                     // appears in the left panel when the modal closes.
                     refresh_p2p_groups(state);

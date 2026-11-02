@@ -313,8 +313,8 @@ mod tests {
 
     /// A folder of its own for a test that opens its database more than once: the guard is
     /// declared before the storages, so it is dropped after them.
-    fn fresh_dir(tag: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("erased_{tag}"))
+    fn fresh_dir(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("erased_{tag}"))
     }
 
     /// Write an entry with a chosen day (the tests' clock) under a window of `ttl` days, as

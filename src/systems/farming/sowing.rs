@@ -45,8 +45,8 @@ use std::collections::{HashMap, HashSet};
 
 use glam::Vec3;
 
-use crate::ecs::components::{CropInstance, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::grow_machines::{GrowMedium, Takes};
 
 use super::lighting::GrowPlot;
@@ -258,10 +258,10 @@ fn near_words(distance_m: Option<f32>) -> String {
 /// place (a headless world), else not known.
 fn feet(world: &hecs::World, data: &DataStore) -> Option<Vec3> {
     if let Some(eye) = data.get::<Vec3>("camera_position") {
-        return Some(*eye - Vec3::Y * crate::ecs::components::EYE_HEIGHT_M as f32);
+        return Some(*eye - Vec3::Y * humanity_core::ecs::components::EYE_HEIGHT_M as f32);
     }
     world
-        .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+        .query::<(&humanity_core::ecs::components::Transform, &humanity_core::ecs::components::Controllable)>()
         .iter()
         .next()
         .map(|(_, (t, _))| t.position)
@@ -284,7 +284,7 @@ pub(super) fn sow_from_backpack(
         super::push_notice(data, format!("Nothing planted: the garden has no growing data for {seed_id}."));
         return;
     };
-    let media = crate::systems::grow_machines::load_grow_media(&crate::storage::data_dir());
+    let media = crate::systems::grow_machines::load_grow_media(&humanity_core::storage::data_dir());
     let plots: &[GrowPlot] = data.get::<Vec<GrowPlot>>("grow_plots").map(Vec::as_slice).unwrap_or(&[]);
     let here = places(plots, data.get::<HashMap<String, Vec<(String, u32)>>>("grow_instances"), &media);
     let taken: HashSet<(String, u32)> = world
@@ -303,7 +303,7 @@ pub(super) fn sow_from_backpack(
     if !creative {
         let mut had = false;
         for (_e, (inv, _c)) in
-            world.query_mut::<(&mut crate::systems::inventory::Inventory, &crate::ecs::components::Controllable)>()
+            world.query_mut::<(&mut crate::systems::inventory::Inventory, &humanity_core::ecs::components::Controllable)>()
         {
             if inv.has_item(seed_id, 1) {
                 inv.remove_item(seed_id, 1);

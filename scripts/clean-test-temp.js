@@ -7,7 +7,7 @@
  * the temp folder (`hum_<what>_<pid>_<time>.db`, or a folder) and nothing
  * deleted it afterwards. By then the folder held 186,523 `hum_*` entries,
  * 81,026 of them SQLite databases, and every full test run added 740. The tests
- * now delete what they make (src/test_temp.rs). This recipe is the one-time
+ * now delete what they make (crates/humanity-core/src/test_temp.rs). This recipe is the one-time
  * sweep of the pile, and the clean-up after a run that was killed before its
  * tests could delete their own files.
  *

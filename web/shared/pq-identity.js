@@ -225,7 +225,7 @@
   }
 
   // Domain separators MUST match server-side derivation in
-  // src/relay/core/pq_crypto.rs so the same BIP39 seed produces identical keys
+  // crates/humanity-protocol/src/pq_crypto.rs so the same BIP39 seed produces identical keys
   // on both sides.
   const DOMAIN_DILITHIUM = 'hum/dilithium3/v1';
   const DOMAIN_KYBER = 'hum/kyber768/v1';

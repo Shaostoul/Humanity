@@ -107,8 +107,8 @@ impl Provisions {
     /// leaves no stores, loudly.
     pub fn load() -> Provisions {
         let text = std::fs::read_to_string("data/food/ship_stores.ron").unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy("food/ship_stores.ron", format_args!("data/food/ship_stores.ron could not be read ({e})"));
-            include_str!("../../../data/food/ship_stores.ron").to_string()
+            humanity_core::embedded_data::note_builtin_copy("food/ship_stores.ron", format_args!("data/food/ship_stores.ron could not be read ({e})"));
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/food/ship_stores.ron")).to_string()
         });
         Self::parse(&text).unwrap_or_else(|e| {
             tracing::error!("ship_stores.ron does not parse ({e}); the ship has no food stores and the crew never eat");
@@ -554,7 +554,7 @@ mod tests {
     /// starting stock, on no plot.
     #[test]
     fn the_shipped_stores_file_parses_and_its_store_stands_in_the_mess_hall() {
-        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/food/ship_stores.ron")).unwrap();
+        let text = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/food/ship_stores.ron")).unwrap();
         let p = Provisions::parse(&text).expect("ship_stores.ron parses");
         assert!(!p.stores.is_empty());
         let world = GameWorld::new();

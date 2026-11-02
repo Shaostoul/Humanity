@@ -903,7 +903,7 @@ documents were read on 4 October 2026.
   `data/containers/types.csv`; the milk recipes in `data/recipes.csv`.
   Wool as `wool_0` in `data/trade_goods.ron`, with no recipe using it.
 - The swing and its damage (`src/lib.rs`, `src/systems/combat/mod.rs`),
-  the default F key (`src/input/bindings.rs`).
+  the default F key (`crates/humanity-core/src/input/bindings.rs`).
 - The game clock and its default Realistic speed (`DEFAULT_TIME_SPEED` in
   `src/systems/time.rs`); the Play mode setting and free materials
   (`PlayMode` and `play_mode_allows` in `src/config.rs`; the Creative

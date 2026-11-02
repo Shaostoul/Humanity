@@ -7,9 +7,9 @@
 use super::gardening_tests::make_store;
 use super::soil::{self, NUTRIENT_HEALTH_FLOOR};
 use super::*;
-use crate::ecs::components::{Controllable, CropInstance, CropSoil, Irrigator, Npk};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, CropInstance, CropSoil, Irrigator, Npk};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 /// A well-watered crop of `plant` in unit 0 of grow area `area`, planted
@@ -179,7 +179,7 @@ fn fertilizing_adds_a_bags_nutrients_at_the_cited_ratio_and_nothing_else() {
 fn nutrient_draw_scales_with_the_plants_csv_demand() {
     let mut data = make_store();
     // The twin: the tomato row with its removal columns doubled.
-    let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
+    let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv")))
         .expect("plants.csv");
     let mut twin = plants.get("tomato").unwrap().clone();
     twin.id = "hungry_tomato".to_string();
@@ -398,9 +398,9 @@ fn set_elapsed(data: &DataStore, secs: f64) {
         .elapsed_seconds = secs;
 }
 
-fn soil_memory(world: &hecs::World) -> crate::ecs::components::SoilMemory {
+fn soil_memory(world: &hecs::World) -> humanity_core::ecs::components::SoilMemory {
     world
-        .query::<&crate::ecs::components::SoilMemory>()
+        .query::<&humanity_core::ecs::components::SoilMemory>()
         .iter()
         .next()
         .map(|(_, m)| m.clone())
@@ -514,7 +514,7 @@ fn stored_urine_by_hand_feeds_a_crop_but_not_within_a_month_of_its_harvest() {
 fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
     let mut data = make_store();
     data.insert("creative_mode", std::sync::Mutex::new(true));
-    let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/plants.csv")))
+    let mut plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv")))
         .expect("plants.csv");
     let mut twin = plants.get("soybean").unwrap().clone();
     twin.id = "soybean_nonfixing".to_string();
@@ -605,7 +605,7 @@ fn a_legume_draws_less_and_leaves_its_fixed_nitrogen_for_the_next_crop() {
 /// in the Barn).
 #[test]
 fn the_households_urine_feeds_the_garden_through_the_compost_action() {
-    use crate::ecs::components::{Health, StatusEffects, Vitals};
+    use humanity_core::ecs::components::{Health, StatusEffects, Vitals};
     let mut data = make_store();
     data.insert("compost_request", std::sync::Mutex::new(false));
     data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
@@ -613,7 +613,7 @@ fn the_households_urine_feeds_the_garden_through_the_compost_action() {
     // Time speed 1: the body's days are real days (the one clock, 2026-09-27).
     data.get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
     let mut food = crate::systems::food::FoodSystem::new(std::path::Path::new(concat!(
-        env!("CARGO_MANIFEST_DIR"),
+        env!("HUMANITY_REPO_ROOT"),
         "/data"
     )));
     let mut world = hecs::World::new();

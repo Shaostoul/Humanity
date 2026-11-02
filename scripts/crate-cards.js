@@ -200,11 +200,12 @@ function pathGates(p, isTestFile, read) {
   return { gates: [...new Set(gates)] };
 }
 
-/** A plan path as a reader finds it under src/: a file, a folder, or both. */
-function shownPath(p, isDir, isFile) {
-  if (p.endsWith('.rs')) return `\`${p}\``;
-  const forms = [isFile(`${p}.rs`) && `\`${p}.rs\``, isDir(p) && `\`${p}/\``].filter(Boolean);
-  return forms.length ? forms.join(' + ') : `\`${p}\` (not on disk)`;
+/** A plan path as a reader finds it under src/ (or a cut crate's own src/, `prefix` shown before it):
+ * a file, a folder, or both. */
+function shownPath(p, isDir, isFile, prefix = '') {
+  if (p.endsWith('.rs')) return `\`${prefix}${p}\``;
+  const forms = [isFile(`${p}.rs`) && `\`${prefix}${p}.rs\``, isDir(p) && `\`${prefix}${p}/\``].filter(Boolean);
+  return forms.length ? forms.join(' + ') : `\`${prefix}${p}\` (not on disk)`;
 }
 
 /** The features each crate's non-test `#[cfg]` attributes name, counted: Map(feature -> n). */
@@ -228,6 +229,14 @@ function featureGates(files) {
  * would run the GUI's `engine::protected::` tests too). `overlap`: other crates' modules a skip
  * cannot drop without dropping this crate's own (none today). lib.rs and main.rs give no filter. */
 function testLine(c, a, names) {
+  // A cut crate (2026-11-01, rung 1) has a test program of its own: the line is exact by construction.
+  if (c.dir) {
+    const own = names.filter(([, k]) => k === c.name).length;
+    return { line: `just test-lib --crate ${c.name}`, tests: own, extra: [], missed: [], empty: false, skips: 0 };
+  }
+  // The rest are crates of the root package: its program only, and only its tests' names.
+  names = names.filter(([, k]) => !a.cut.some((x) => x.name === k));
+  a = { ...a, files: a.files.filter((f) => !f.pkg) };
   const name = (mod) => mod.replace(/\//g, '::') + '::';
   const mine = [...new Set(a.files.filter((f) => f.crate === c.name).map((f) => name(f.mod)))];
   // A filter names a module of this crate (a plan path that is a `#[path]` file, such as
@@ -251,19 +260,20 @@ function testLine(c, a, names) {
   }
   const extra = [...names].filter(([n, k]) => k !== c.name && runs(n)).map(([n]) => n);
   const missed = own.filter((n) => !runs(n));
-  return { line: `just test-lib ${filters.join(' ')}${skips.map((s) => ` --skip ${s}`).join('')}`, tests: own.length, extra, missed, empty: !filters.length, skips: skips.length };
+  return { line: `just test-lib --crate humanity-engine ${filters.join(' ')}${skips.map((s) => ` --skip ${s}`).join('')}`, tests: own.length, extra, missed, empty: !filters.length, skips: skips.length };
 }
 
-/** Every lib test's full name, as libtest prints it (`module::path::inline_mod::fn_name`), with its
- * crate: from each file's module path, the inline `mod x { }` blocks around the `#[test]`, and the
+/** Every lib test's full name, as libtest prints it (`module::path::inline_mod::fn_name`, inside its
+ * own package: a cut crate's tests are named from its own root), with its crate: from each file's module path, the inline `mod x { }` blocks around the `#[test]`, and the
  * function after it. A `macro_rules!` whose body holds a `#[test]` makes one test per use in its
  * file, named by the use's first argument (`page_snapshot!(snapshot_calendar, ...)` in
- * gui/ui_snapshots.rs). main.rs is the binary's, not the library's. Map(name -> crate). */
+ * gui/ui_snapshots.rs). main.rs is the binary's, not the library's. [[name, crate], ...]: a list, not a
+ * map, since two crates' programs may each hold a test of the same name. */
 function testNames(a) {
   const TEST_ATTR = /#\[\s*(?:tokio::)?test\s*(?:\([^\]]*\))?\s*\]/;
-  const out = new Map();
+  const out = [];
   for (const f of a.files) {
-    if (f.rel === 'main.rs') continue;
+    if (f.rel === 'main.rs' && !f.pkg) continue;
     const base = f.rel === 'lib.rs' ? [] : f.mod.split('/');
     // The test-making macros this file defines.
     const makers = new Set();
@@ -280,10 +290,10 @@ function testNames(a) {
       if (m[0] === '{') depth++;
       else if (m[0] === '}') { depth--; while (stack.length && stack[stack.length - 1].depth > depth) stack.pop(); }
       else if (m[1]) { depth++; stack.push({ name: m[1], depth }); }
-      else if (m[2]) { if (makers.has(m[2])) out.set([...base, ...stack.map((s) => s.name), m[3]].join('::'), f.crate); }
+      else if (m[2]) { if (makers.has(m[2])) out.push([[...base, ...stack.map((s) => s.name), m[3]].join('::'), f.crate]); }
       else {
         const fn = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/.exec(f.all.slice(m.index + m[0].length, m.index + m[0].length + 600));
-        if (fn) out.set([...base, ...stack.map((s) => s.name), fn[1]].join('::'), f.crate);
+        if (fn) out.push([[...base, ...stack.map((s) => s.name), fn[1]].join('::'), f.crate]);
       }
     }
   }
@@ -291,12 +301,12 @@ function testNames(a) {
 }
 
 /** The line budgets the size ratchet holds (tests/file_size_ratchet.rs, in `just lints`):
- * Map("src/x.rs" -> budget), read from its `("src/...", 1_234)` rows. */
+ * Map("src/x.rs" or "crates/<name>/src/x.rs" -> budget), read from its `("src/...", 1_234)` rows. */
 function lineBudgets() {
   const out = new Map();
   let text = '';
   try { text = fs.readFileSync(path.join(REPO, 'tests', 'file_size_ratchet.rs'), 'utf8'); } catch { return out; }
-  for (const m of text.matchAll(/\(\s*"(src\/[^"]+\.rs)"\s*,\s*([\d_]+)\s*\)/g)) out.set(m[1], Number(m[2].replace(/_/g, '')));
+  for (const m of text.matchAll(/\(\s*"((?:crates\/[^"\/]+\/)?src\/[^"]+\.rs)"\s*,\s*([\d_]+)\s*\)/g)) out.set(m[1], Number(m[2].replace(/_/g, '')));
   return out;
 }
 
@@ -305,24 +315,34 @@ function facts(plan, a) {
   const budgets = lineBudgets();
   const testIndex = testNames(a);
   const names = plan.crates.map((c) => c.name);
-  const read = (rel) => { try { return fs.readFileSync(path.join(SRC, rel), 'utf8'); } catch { return null; } };
-  const isDir = (rel) => { try { return fs.statSync(path.join(SRC, rel)).isDirectory(); } catch { return false; } };
-  const isFile = (rel) => { try { return fs.statSync(path.join(SRC, rel)).isFile(); } catch { return false; } };
+  const reader = (src) => ({
+    read: (rel) => { try { return fs.readFileSync(path.join(src, rel), 'utf8'); } catch { return null; } },
+    isDir: (rel) => { try { return fs.statSync(path.join(src, rel)).isDirectory(); } catch { return false; } },
+    isFile: (rel) => { try { return fs.statSync(path.join(src, rel)).isFile(); } catch { return false; } },
+  });
   const out = new Map();
   for (const c of plan.crates) {
     const files = a.files.filter((f) => f.crate === c.name);
     const tests = files.filter((f) => f.test);
+    // A cut crate's paths are the modules its own lib.rs declares, shown under its own src/.
+    const src = c.dir ? path.join(REPO, c.dir, 'src') : SRC;
+    const { read, isDir, isFile } = reader(src);
+    const { declaredGates } = require('./crate-graph.js');
+    const paths = c.dir ? [...declaredGates(read('lib.rs') || '').keys()] : c.paths;
+    const shownPrefix = c.dir ? `${c.dir.replace(/\/$/, '')}/src/` : '';
+    const isTest = c.dir ? (rel) => a.isTestFile(rel, c.name) : (rel) => a.isTestFile(rel);
     out.set(c.name, {
       crate: c,
       lines: sum(files.map((f) => f.lines)),
       files: files.length,
       testLines: sum(tests.map((f) => f.lines)),
       testFiles: tests.length,
-      paths: c.paths.map((p) => ({ shown: shownPath(p, isDir, isFile), gate: gateLabel(pathGates(p, a.isTestFile, read)) })),
+      paths: paths.map((p) => ({ shown: shownPath(p, isDir, isFile, shownPrefix), gate: gateLabel(pathGates(p, isTest, read)) })),
+      cut: c.dir || null,
       features: featureGates(files),
       run: testLine(c, a, testIndex),
       // The ratchet counts a file's lines as Rust's `lines()` does (no last empty line); so does this.
-      budgeted: files.filter((f) => budgets.has(`src/${f.rel}`)).map((f) => ({ rel: f.rel, now: f.raw.split(/\r?\n/).length - (/\n$/.test(f.raw) ? 1 : 0), budget: budgets.get(`src/${f.rel}`) })),
+      budgeted: files.filter((f) => budgets.has(f.path)).map((f) => ({ rel: f.pkg ? f.path : f.rel, now: f.raw.split(/\r?\n/).length - (/\n$/.test(f.raw) ? 1 : 0), budget: budgets.get(f.path) })),
       mayUse: c.uses,
       mayAlso: [...a.may.get(c.name)].filter((n) => !c.uses.includes(n)),
       mayBeUsedBy: names.filter((n) => a.may.get(n).has(c.name)),
@@ -358,7 +378,9 @@ function facts(plan, a) {
 /** The generated block of one card, as lines. */
 function cardBlock(f) {
   const L = [];
-  L.push('- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:');
+  L.push(f.cut
+    ? `- **Owns** all of \`${f.cut}/\`, a crate of its own since the crate split's rung 1 (\`scripts/crate-layers.json\` gives its \`dir\`); the modules its \`lib.rs\` declares, by the gate each compiles under:`
+    : '- **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:');
   const groups = new Map();
   for (const p of f.paths) groups.set(p.gate, [...(groups.get(p.gate) || []), p.shown]);
   for (const [gate, ps] of groups) L.push(`  - ${gate}: ${ps.join(', ')}`);
@@ -390,7 +412,7 @@ function cardBlock(f) {
   if (!items.length) {
     L.push('**Interface:** no other crate references anything in it.');
   } else {
-    L.push('**Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):', '');
+    L.push(`**Interface: the items other crates reference, most first** (non-test code; a \`use a::{x, y}\` group counts once, as \`a\`; an item is a path up to its first capitalised name${f.cut ? `, inside \`${f.crate.name.replace(/-/g, '_')}::\`` : ''}):`, '');
     L.push('| Item | References | From |', '|---|---:|---|');
     for (const [item, n] of items.slice(0, INTERFACE_MAX)) L.push(`| \`${item}\` | ${fmt(n)} | ${counts(f.iface.get(item).from)} |`);
     const rest = items.slice(INTERFACE_MAX);

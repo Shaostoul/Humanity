@@ -9,9 +9,9 @@
 //! longer a hardcoded string, it moves with the sun. Reads the hour from the `game_time`
 //! Mutex in the DataStore (the same shared-state pattern `TimeSystem` writes to).
 
-use crate::ecs::components::{PowerGenerator, SolarPanel};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{PowerGenerator, SolarPanel};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::time::GameTime;
 
 /// Fraction of nameplate solar output at a given hour (0.0 at night, 1.0 at noon).
@@ -103,7 +103,7 @@ mod tests {
     /// first assertion.
     #[test]
     fn clouds_dim_a_panel_on_the_ground() {
-        use crate::ecs::components::{PowerGenerator, SolarPanel};
+        use humanity_core::ecs::components::{PowerGenerator, SolarPanel};
         use crate::systems::body_environment::BodyEnvironment;
         use crate::systems::construction::PlanetSite;
         use crate::systems::weather::{Weather, WeatherCondition};
@@ -138,7 +138,7 @@ mod tests {
     /// assertion.
     #[test]
     fn a_panel_sees_the_sun_where_it_stands() {
-        use crate::ecs::components::{PowerGenerator, SolarPanel};
+        use humanity_core::ecs::components::{PowerGenerator, SolarPanel};
         use crate::systems::construction::PlanetSite;
         use glam::DVec3;
         let mut data = DataStore::new();

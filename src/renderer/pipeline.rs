@@ -3436,7 +3436,7 @@ mod permutation_tests {
     /// restored.
     #[test]
     fn every_megashader_pso_builder_asks_the_registry() {
-        let me = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/renderer/pipeline.rs"))
+        let me = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/renderer/pipeline.rs"))
             .expect("pipeline.rs readable");
         // The scan window: the whole `impl Pipeline` block, cloud helpers
         // included, up to the registry banner (which keeps this test

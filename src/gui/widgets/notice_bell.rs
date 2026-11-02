@@ -65,10 +65,10 @@ fn paint_count(ui: &Ui, theme: &Theme, bell: Rect, text: &str) {
 
 /// The words a screen reader gets for the bell: its name, and how many are waiting.
 pub fn label_for(unseen: usize) -> String {
-    let name = crate::i18n::t("notifications.bell");
+    let name = humanity_core::i18n::t("notifications.bell");
     match count_text(unseen) {
         None => name.to_string(),
-        Some(n) => format!("{name}: {}", crate::i18n::tf("notifications.bell_count", &[("count", &n)])),
+        Some(n) => format!("{name}: {}", humanity_core::i18n::tf("notifications.bell_count", &[("count", &n)])),
     }
 }
 

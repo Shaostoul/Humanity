@@ -6,7 +6,7 @@
 //! Layout loaded from `data/blueprints/homestead_layout.ron` (data-driven)
 //! or computed procedurally from room list + layout style.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use glam::Vec3;
 use std::path::Path;
 
@@ -1771,7 +1771,7 @@ mod tests {
     /// silently falls back to the hardcoded layout and the mirror/windows/no-walls vanish.
     #[test]
     fn shipped_ron_parses_with_construction_walls() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let layout = load_homestead_layout(&dir).expect("homestead_layout.ron must parse");
 
         // Standard dimensions present (one source of truth for door/window/trim sizes).
@@ -1806,7 +1806,7 @@ mod tests {
     /// +X, so a positive offset moves the handle's X and leaves Z on the wall line.
     #[test]
     fn opening_handles_track_wall_offset() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut layout = load_homestead_layout(&dir).expect("layout parses");
         let positions = resolve_positions(&layout);
 
@@ -1835,7 +1835,7 @@ mod tests {
     /// proving the special walls actually emit geometry (mirror, windows, trim, ceiling).
     #[test]
     fn generation_emits_construction_meshes() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let layout = load_homestead_layout(&dir).expect("layout parses");
         let m = generate_from_layout(&layout);
         assert!(!m.walls.0.is_empty(), "walls generated");
@@ -1851,7 +1851,7 @@ mod tests {
     /// NOT touch the shipped file -- serializes in memory only.
     #[test]
     fn layout_serializes_and_round_trips() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut layout = load_homestead_layout(&dir).expect("layout parses");
         // A non-zero slide-gizmo offset must survive the round-trip (v0.468).
         if let Some(b) = layout.rooms.iter_mut().find(|r| r.id == "bedroom") {
@@ -2034,7 +2034,7 @@ mod tests {
     /// 12 untouched rooms byte-stable, so the existing round-trip tests stay green).
     #[test]
     fn empty_openings_not_serialized() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let layout = load_homestead_layout(&dir).expect("layout parses");
         let body = ron::ser::to_string(&layout).expect("serialize");
         assert!(!body.contains("openings:"), "no room emits an empty openings list");
@@ -2044,7 +2044,7 @@ mod tests {
     /// objects + demotes those faces to Solid, and geometry is preserved (glass still emitted).
     #[test]
     fn legacy_window_promotes_to_opening() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let mut layout = load_homestead_layout(&dir).expect("layout parses");
         let n = promote_walls_to_openings(&mut layout);
         assert!(n >= 2, "at least the bedroom's 2 windows promoted (got {n})");

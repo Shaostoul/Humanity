@@ -24,8 +24,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::relay::core::describe_metadata::{self, Description};
-use crate::relay::core::{strip_heif_metadata as heif, strip_metadata as pictures, strip_video_metadata as video};
+use humanity_protocol::describe_metadata::{self, Description};
+use humanity_protocol::{strip_heif_metadata as heif, strip_metadata as pictures, strip_video_metadata as video};
 
 /// What the attach step shows about a file.
 #[derive(Debug, Clone, PartialEq)]

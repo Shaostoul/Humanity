@@ -385,7 +385,7 @@ fn garden_medium_editor(
 /// source stamp, BUG-133, could not see that the binary was behind.)
 fn items_csv() -> &'static str {
     static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    TEXT.get_or_init(|| crate::embedded_data::read_data_or_embedded(&crate::storage::data_dir(), "items.csv").unwrap_or_default())
+    TEXT.get_or_init(|| humanity_core::embedded_data::read_data_or_embedded(&humanity_core::storage::data_dir(), "items.csv").unwrap_or_default())
 }
 
 /// Parse item data from items.csv to get details for a given item_id.
@@ -1518,7 +1518,7 @@ pub(crate) fn draw_garden_section(
     act: &mut GardenActions,
 ) {
     // The section's own draw (cpu.garden.page, 2026-10-30): measured on a wall screen.
-    let _garden_draw = crate::frame_costs::stage("cpu.garden.page");
+    let _garden_draw = humanity_core::frame_costs::stage("cpu.garden.page");
     ui.horizontal_wrapped(|ui| {
         // Dev: grant the starter seed set (one of each tower variety), so
         // survival-mode planting is testable now. Creative ignores seeds.

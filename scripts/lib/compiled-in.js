@@ -77,17 +77,17 @@ const REPO = path.resolve(__dirname, "..", "..");
 // differently from a rebuild; if that is not true, put the file in
 // FINGERPRINT_INPUTS instead.
 const ALLOWLIST = {
-  // The app's words (src/i18n.rs, 2026-10-22). Each language is its built-in copy with the
+  // The app's words (crates/humanity-core/src/i18n.rs, 2026-10-22). Each language is its built-in copy with the
   // file on disk laid OVER it, so a disk file from an older install never takes a word away; the
   // loader notes the built-in copy when a language's disk file is missing or does not parse. Words
   // change nothing a rig judges (rendering, world, gameplay), and a rig's data/ is the tree's, so
   // every word it shows comes from disk anyway: the only difference from a rebuild is a key removed
   // since the build, which this exe would still show in the old words.
-  "data/i18n/en.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/es.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/fr.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/ja.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
-  "data/i18n/zh.json": "words only, laid under the disk copy (src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/en.json": "words only, laid under the disk copy (crates/humanity-core/src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/es.json": "words only, laid under the disk copy (crates/humanity-core/src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/fr.json": "words only, laid under the disk copy (crates/humanity-core/src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/ja.json": "words only, laid under the disk copy (crates/humanity-core/src/i18n.rs load); a rig reads the tree's data/i18n",
+  "data/i18n/zh.json": "words only, laid under the disk copy (crates/humanity-core/src/i18n.rs load); a rig reads the tree's data/i18n",
   // The first five minutes' tour steps (src/gui/first_minutes.rs, 2026-10-23): the disk file
   // first, the built-in copy only when it is missing or does not parse (noted in the log). The
   // tour card draws over pages, never over the 3D world a rig judges.
@@ -103,11 +103,11 @@ const ALLOWLIST = {
 // analysis refuses one that does not), so whichever caller reaches it, the run's log
 // says the built-in copy was served and a rig refuses the run.
 const FALLBACK_SITES = {
-  "src/storage.rs::extract_embedded_to":
+  "crates/humanity-core/src/storage.rs::extract_embedded_to":
     "first-run extraction (called by extract_data_if_needed, and by tests into a temp dir): writes every built-in copy out to a data dir that does not exist yet, with the stamp of what it wrote (storage/refresh.rs write_fresh), then notes it once; a rig's data dir always exists (a junction to the tree's data/), so a rig never reaches it",
-  "src/storage/refresh.rs::refresh_on_start":
+  "crates/humanity-core/src/storage/refresh.rs::refresh_on_start":
     "the data folder refresh on start (BUG-163 part 2, called by extract_data_if_needed for a folder that exists): writes a built-in copy only over a file that still holds what the game last wrote there, or where the file is absent, never over an edited one, and notes it once when it wrote any; it never touches a source tree's data/ or a folder reached through a link (why_left_alone), which every rig's is, so a rig never has a file written",
-  "src/storage/refresh.rs::use_the_games_copy":
+  "crates/humanity-core/src/storage/refresh.rs::use_the_games_copy":
     "Settings > Data's \"Use the game's copy\" for one kept file, pressed by the player: moves their file aside and writes the built-in copy in its place, then notes it; refused in a source tree or a linked folder (why_left_alone)",
   "src/assets/mod.rs::parse_embedded_csv":
     "private; called only by AssetManager::load_csv_or_embedded, after the disk file is absent, unreadable or does not parse",
@@ -274,15 +274,23 @@ function itemEnd(code, from) {
   return { end: code.length, open: -1 };
 }
 
-// `#[cfg(test)]`, `#[cfg(all(test, ...))]` (the two forms src/ uses) and `#[test]`.
+// `#[cfg(test)]`, `#[cfg(all(test, ...))]` (the two forms src/ uses) and `#[test]`; and since the
+// crate split's rung 1 (2026-11-01) the test helpers another crate's tests reach,
+// `#[cfg(any(test, feature = "test-support"))]` and `#[cfg(all(any(test, feature = "test-support"), ...))]`:
+// test-support is turned on only by a dependent's [dev-dependencies], so no product build has it.
+// (In the code-only text a string's inside is blanked, so the feature's name is checked on the
+// text with comments removed: `isTestSupport`.)
 // Any OTHER cfg mentioning test (not via `not(`) is reported, never guessed at.
-const TEST_ATTR = /#\[\s*(?:test|cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\))\s*\]/g;
-const KNOWN_TEST_CFG = /^#\[\s*(?:cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\))\s*\]$/;
+const TEST_SUPPORT = String.raw`any\s*\(\s*test\s*,\s*feature\s*=\s*"[^"]*"\s*\)`;
+const TEST_ATTR = new RegExp(String.raw`#\[\s*(?:test|cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\)|cfg\s*\(\s*${TEST_SUPPORT}\s*\)|cfg\s*\(\s*all\s*\(\s*${TEST_SUPPORT}\s*,[^\]]*\)\s*\))\s*\]`, "g");
+const KNOWN_TEST_CFG = new RegExp(String.raw`^#\[\s*(?:cfg\s*\(\s*test\s*\)|cfg\s*\(\s*all\s*\(\s*test\s*,[^\]]*\)\s*\)|cfg\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-support"\s*\)\s*\)|cfg\s*\(\s*all\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-support"\s*\)\s*,[^\]]*\)\s*\))\s*\]$`);
+/** Is this attribute (comments removed, strings intact) of the `any(test, feature = ...)` shape? */
+const isTestSupportShape = (t) => /\bany\s*\(\s*test\s*,\s*feature\s*=/.test(t);
 const ANY_TEST_CFG = /#\[\s*cfg\s*\((?![^\]]*\bnot\s*\()[^\]]*\btest\b[^\]]*\]/g;
 
 // A disk read in a fn body: the shape of every "disk copy, else embedded" loader.
 const DISK_READ = /\b(?:std::)?fs::read(?:_to_string)?\s*\(|\bread_data_or_embedded\s*\(|\bFile::open\s*\(|\.exists\s*\(\s*\)/;
-// The run-time line a fallback writes (src/embedded_data.rs note_builtin_copy).
+// The run-time line a fallback writes (crates/humanity-core/src/embedded_data.rs note_builtin_copy).
 const NOTE_FN = "note_builtin_copy";
 const NOTE_CALL = /\bnote_builtin_copy\s*\(/g;
 
@@ -320,6 +328,9 @@ function parseFile(root, rel) {
   const testRanges = [];
   const testChildren = [];
   for (const m of codeOnly.matchAll(TEST_ATTR)) {
+    // A feature other than test-support under `any(test, ...)` is not test code: oddCfg names it.
+    const text = noComments.slice(m.index, m.index + m[0].length);
+    if (isTestSupportShape(text) && !KNOWN_TEST_CFG.test(text)) continue;
     const { end, open } = itemEnd(codeOnly, m.index + m[0].length);
     testRanges.push([m.index, end]);
     if (open < 0) {
@@ -447,8 +458,11 @@ function resolveTarget(rel, arg) {
   if (/^"(?:[^"\\]|\\.)*"$/.test(compact)) {
     return { target: path.posix.normalize(`${path.posix.dirname(rel)}/${lits[0]}`), how: "a path relative to the file" };
   }
-  if (/^concat!\(env!\("CARGO_MANIFEST_DIR"\),("(?:[^"\\]|\\.)*",?)+\)$/.test(compact) && lits.length >= 2) {
-    return { target: path.posix.normalize(lits.slice(1).join("").replace(/^\/+/, "")), how: "CARGO_MANIFEST_DIR" };
+  // The repo root's one name in the source (the crate split's rung 1, 2026-11-01): every member's
+  // build script sets HUMANITY_REPO_ROOT; CARGO_MANIFEST_DIR is each member's own folder, and
+  // tests/repo_root_lint.rs refuses it there, so it is not read here either.
+  if (/^concat!\(env!\("HUMANITY_REPO_ROOT"\),("(?:[^"\\]|\\.)*",?)+\)$/.test(compact) && lits.length >= 2) {
+    return { target: path.posix.normalize(lits.slice(1).join("").replace(/^\/+/, "")), how: "HUMANITY_REPO_ROOT" };
   }
   if (/^concat!\(env!\("OUT_DIR"\),("(?:[^"\\]|\\.)*",?)+\)$/.test(compact) && lits.length >= 2) {
     return { target: `OUT_DIR/${lits.slice(1).join("").replace(/^\/+/, "")}`, how: "OUT_DIR" };
@@ -456,7 +470,9 @@ function resolveTarget(rel, arg) {
   return { problem: `cannot resolve the include argument ${JSON.stringify(arg)} (teach resolveTarget the form)` };
 }
 
-/** Every .rs file under src/, repo-relative with '/' separators. */
+/** Every .rs file under src/ and under each workspace crate's src/ (crates/<name>/src, the crate
+ *  split's rung 1, 2026-11-01: the core's embedded_data.rs and every loader moved with it would
+ *  otherwise drop out of the check), repo-relative with '/' separators. */
 function rustFiles(root) {
   const out = [];
   const walk = (rel) => {
@@ -467,10 +483,18 @@ function rustFiles(root) {
     }
   };
   walk("src");
+  let crates = [];
+  try {
+    crates = fs.readdirSync(path.join(root, "crates"), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    /* no workspace crates in this tree (a test's) */
+  }
+  for (const c of crates.sort()) if (fs.existsSync(path.join(root, "crates", c, "src"))) walk(`crates/${c}/src`);
   return out.sort();
 }
 
-const ED = "src/embedded_data.rs";
+/** The core's table of built-in copies (the one file every embedded-only read goes through). */
+const ED = "crates/humanity-core/src/embedded_data.rs";
 
 /**
  * The whole analysis. Returns {

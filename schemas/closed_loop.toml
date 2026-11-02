@@ -33,7 +33,7 @@
 # data/life_support.ron is loaded by src/systems/life_support.rs. A loader test
 # fails when any `source` id is not in sources.ron, when any figure lacks a
 # `read` date or a `check`, and when a research option lacks a readiness level.
-# These files must also join the embedded-data list (src/embedded_data.rs) so
+# These files must also join the embedded-data list (crates/humanity-core/src/embedded_data.rs) so
 # the release carries them.
 #
 # UNITS

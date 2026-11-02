@@ -47,7 +47,7 @@
 //! player's OWN home into every slot of a residential district and laid walkway connectors between
 //! the slots; increment 1a switched it off because the clones overlapped the Commons).
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::ship::fibonacci::HomesteadMeshes;
 use crate::ship::home_structure::{PlacedLight, ShellCut};
 use crate::ship::ship_structure::{
@@ -372,7 +372,7 @@ mod tests {
     use glam::Vec3;
 
     fn data_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The game's ship with its home on `plot`: the shipped homestead, never the checkout's
@@ -471,14 +471,14 @@ mod tests {
     #[test]
     fn a_neighbour_is_the_shipped_design_not_my_own_edits() {
         let built_in = HomeDesign::built_in("homestead").expect("the homestead design is built in");
-        let shipped_rel = format!("{}/homestead.ron", crate::embedded_data::SHIPPED_HOMES_DIR);
+        let shipped_rel = format!("{}/homestead.ron", humanity_core::embedded_data::SHIPPED_HOMES_DIR);
         let shipped_text = std::fs::read_to_string(data_dir().join(&shipped_rel)).expect("the shipped file");
         let shipped: HomeDesign = ron::from_str(&shipped_text).expect("the shipped file parses");
         let ron_of = |d: &HomeDesign| ron::ser::to_string(d).unwrap();
         assert_eq!(ron_of(&built_in), ron_of(&shipped), "the built-in copy is data/{shipped_rel}");
 
         // My own home, edited: one wall more, saved to a data folder of my own.
-        let dir = crate::test_temp::dir("neighbour_own");
+        let dir = humanity_core::test_temp::dir("neighbour_own");
         let ship_file = dir.join(crate::ship::ship_structure::SHIP_FILE);
         std::fs::create_dir_all(ship_file.parent().unwrap()).unwrap();
         std::fs::copy(data_dir().join(crate::ship::ship_structure::SHIP_FILE), &ship_file).unwrap();

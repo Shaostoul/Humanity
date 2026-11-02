@@ -332,7 +332,7 @@ rather than for it.
   system-font probe, which is the same pattern src/gui/fonts.rs:53-69
   already uses for emoji and costs nothing to redistribute. Today native
   renders Japanese and Chinese as tofu: I parsed all four bundled faces and
-  none contains U+4E00 or U+3042, while src/embedded_data.rs compiles
+  none contains U+4E00 or U+3042, while crates/humanity-core/src/embedded_data.rs compiles
   ja.json and zh.json into the binary. Extend platform_emoji_paths into a
   general platform_fallback_paths that also probes, per OS, the machine's
   CJK face (Windows YuGothR.ttc, msgothic.ttc, simsun.ttc; macOS Hiragino
@@ -498,7 +498,7 @@ rather than for it.
   compiled into the exe and none of the four contains U+4E00: Ubuntu-Light
   1194 codepoints, Hack-Regular 1548, NotoEmoji-Regular 887, emoji-icon-font
   654, and no CJK or kana in any of them. Plex Sans does not have it either
-  (891 codepoints). Meanwhile src/embedded_data.rs:116-117 compiles ja.json
+  (891 codepoints). Meanwhile crates/humanity-core/src/embedded_data.rs:116-117 compiles ja.json
   and zh.json into the binary and serves them at :264-265, so Japanese and
   Chinese UI strings ship today and are guaranteed tofu. The fix is to
   extend the existing platform_emoji_paths() at src/gui/fonts.rs:53 into a
@@ -702,7 +702,7 @@ rather than for it.
   would be a 130-fold increase over this entire proposal to serve a demand
   that does not exist: data/i18n/ja.json and zh.json are 37-string stubs,
   and native reads no i18n at all (they are embedded at
-  src/embedded_data.rs:113-117 and no GUI code loads them). On the web the
+  crates/humanity-core/src/embedded_data.rs:113-117 and no GUI code loads them). On the web the
   honest deferral is easier still, because unicode-range slicing means a
   Latin page downloads none of it. Revisit when native localisation actually
   ships, and when it does, load CJK lazily from data/ rather than
@@ -869,7 +869,7 @@ rather than for it.
   coverage agent: NotoSansJP-Regular.otf 4.53 MB plus NotoSansSC-Regular.otf
   8.33 MB, or 15.70 MB for one pan-CJK weight) and buys nothing today,
   because no GUI code reads data/i18n/ at all: the files are embedded at
-  src/embedded_data.rs:113-117 and consumed only by web/shared/i18n.js.
+  crates/humanity-core/src/embedded_data.rs:113-117 and consumed only by web/shared/i18n.js.
   Native localisation does not exist. When it does, the answer is the trick
   src/gui/fonts.rs already uses for emoji, read the OS CJK font off the
   user's machine and redistribute nothing, at 0 MB and 0 licence obligation.
@@ -1335,7 +1335,7 @@ places is a drift risk, and adding a token is a scope risk, and with exactly
 one face shipping the drift risk is near zero while the scope risk is
 not.\n\nCJK bytes: all four correctly refuse to bundle. 4.53 MB for JP plus
 8.33 MB for SC, against data/i18n/ja.json and zh.json that no GUI code reads
-(they are embedded at src/embedded_data.rs and consumed only by
+(they are embedded at crates/humanity-core/src/embedded_data.rs and consumed only by
 web/shared/i18n.js), is an obvious no. Three proposals then add a system-font
 CJK probe anyway. That is a good idea and it is a separate increment: it
 changes what a Japanese user sees, it needs its own platform path testing on
@@ -1346,7 +1346,7 @@ build-desktop.yml:91, assets/icons/ and assets/shaders/ are copied
 individually, and nothing else ships. There are zero font files tracked in git
 today and no licence text of any kind in the archive, while the exe already
 redistributes four faces through epaint_default_fonts. data/credits.ron has no
-font row and src/credits.rs:110 will fail the build if an attribution-required
+font row and crates/humanity-core/src/credits.rs:110 will fail the build if an attribution-required
 source names no surface. That gate turning red is the mechanism that makes the
 licence obligation real, and it costs about 4 KB and one RON row. That work is
 correct whatever typeface wins, and it is the part of this that is genuinely
@@ -1495,7 +1495,7 @@ The first evaluation implicitly required the PROPORTIONAL face to carry a
 slashed zero, and that single assumption promoted Atkinson, Lexica, Andika,
 Luciole, APHont and Tiresias, weakened IBM Plex, and eliminated Inter. It was
 the wrong test. DIDs and the Solana address are base58
-(`src/relay/core/did.rs`), whose alphabet omits 0, O, I and l by construction.
+(`crates/humanity-protocol/src/did.rs`), whose alphabet omits 0, O, I and l by construction.
 Public keys are lowercase Dilithium hex, so no O, I or l can occur. The BIP39
 wordlist (the `bip39` crate's, mirrored in `web/chat/bip39-english.js`) is pure lowercase a to z. The only
 surface carrying the full confusable set is the base64 invite ticket, and the

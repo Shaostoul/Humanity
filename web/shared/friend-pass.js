@@ -3,7 +3,7 @@
 // the words a pass signs and the shape it travels in, shared by the chat
 // client (web/chat/crypto.js mints and checks with it) and by Node, where
 // scripts/tests/friend-pass.test.js and scripts/pq-kat.mjs hold it to the
-// relay's own builder (src/relay/core/pq_crypto.rs `friend_cert_preimage`).
+// relay's own builder (crates/humanity-protocol/src/pq_crypto.rs `friend_cert_preimage`).
 //
 //   preimage = "hum/friend/v2\n{server}\n{issuer}\n{grantee}\n{serial}\n{may}"
 //   cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3>"}

@@ -27,8 +27,8 @@
 
 use std::collections::HashMap;
 
-use crate::ecs::components::{CropInstance, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 
 use super::{PlantDef, DEFAULT_AUTO_IRRIGATION, DEHYDRATION_RATE, HEALTH_DECAY_RATE, SECONDS_PER_DAY, WATER_STRESS_THRESHOLD};
 
@@ -55,9 +55,9 @@ impl WaterSupply {
     pub fn now(world: &hecs::World, data: &DataStore) -> Self {
         let irrigation_on = world
             .query::<(
-                &crate::ecs::components::Irrigator,
-                Option<&crate::ecs::components::WaterConsumer>,
-                Option<&crate::ecs::components::PowerConsumer>,
+                &humanity_core::ecs::components::Irrigator,
+                Option<&humanity_core::ecs::components::WaterConsumer>,
+                Option<&humanity_core::ecs::components::PowerConsumer>,
             )>()
             .iter()
             .any(|(_, (_, wc, pc))| {

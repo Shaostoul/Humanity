@@ -17,12 +17,12 @@ use egui::{RichText, ScrollArea};
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver};
 
-use crate::i18n::{t, tf};
+use humanity_core::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::Hint;
 use crate::gui::GuiState;
-use crate::relay::core::market_payloads as vocab;
+use humanity_protocol::market_payloads as vocab;
 
 use super::market_directory::DirProvider;
 
@@ -387,16 +387,16 @@ fn sign_and_submit(
     // The EXACT relay-side validators, run before anything leaves
     // this machine: same rules, same plain-language messages.
     if was_provider {
-        crate::relay::core::market_payloads::validate_provider_v1(&canon)?;
+        humanity_protocol::market_payloads::validate_provider_v1(&canon)?;
     } else {
-        crate::relay::core::market_payloads::validate_offering_v1(
+        humanity_protocol::market_payloads::validate_offering_v1(
             &canon,
             references,
-            crate::relay::core::market_payloads::shared_categories(),
+            humanity_protocol::market_payloads::shared_categories(),
         )?;
     }
     let keypair = crate::net::identity::pq_object_keypair(seed);
-    let mut builder = crate::relay::core::object::ObjectBuilder::new(object_type)
+    let mut builder = humanity_protocol::object::ObjectBuilder::new(object_type)
         .created_at(now_ms() as u64)
         .payload_raw(canon);
     for r in references {
@@ -891,8 +891,8 @@ pub fn draw(
                                 // Each day's short name by key (market.publish.day_monday ...),
                                 // falling back to the vocabulary's first three letters.
                                 let key = format!("market.publish.day_{d}");
-                                let short = if crate::i18n::has(&key) {
-                                    crate::i18n::t_dyn(&key)
+                                let short = if humanity_core::i18n::has(&key) {
+                                    humanity_core::i18n::t_dyn(&key)
                                 } else {
                                     &d[..3]
                                 };
@@ -979,13 +979,13 @@ mod tests {
         let ps = filled_state();
         let now = super::now_ms();
         let provider = provider_payload(&ps, None, now);
-        crate::relay::core::market_payloads::validate_provider_v1(&canon(&provider))
+        humanity_protocol::market_payloads::validate_provider_v1(&canon(&provider))
             .expect("provider payload valid");
 
         let root = "a".repeat(64);
         // Free good, default fields.
         let offering = offering_payload(&ps, &root, "real", now);
-        crate::relay::core::market_payloads::validate_offering_v1(
+        humanity_protocol::market_payloads::validate_offering_v1(
             &canon(&offering),
             &[root.clone()],
             None,
@@ -1005,7 +1005,7 @@ mod tests {
             vocab::SCHEDULE_KINDS.iter().position(|s| *s == "walk_in").unwrap();
         ps2.s_days[5] = true; // saturday
         let offering2 = offering_payload(&ps2, &root, "real", now);
-        crate::relay::core::market_payloads::validate_offering_v1(
+        humanity_protocol::market_payloads::validate_offering_v1(
             &canon(&offering2),
             &[root],
             None,
@@ -1057,7 +1057,7 @@ mod tests {
         let now = super::now_ms();
         let root = "b".repeat(64);
         let update = provider_payload(&ps, Some(&root), now);
-        crate::relay::core::market_payloads::validate_provider_v1(&canon(&update))
+        humanity_protocol::market_payloads::validate_provider_v1(&canon(&update))
             .expect("provider update valid");
 
         let mut ps2 = filled_state();
@@ -1066,7 +1066,7 @@ mod tests {
         ps2.o_amount = "5".to_string();
         ps2.o_currency = "CR".to_string(); // what the sim path forces
         let offering = offering_payload(&ps2, &root, "sim", now);
-        crate::relay::core::market_payloads::validate_offering_v1(
+        humanity_protocol::market_payloads::validate_offering_v1(
             &canon(&offering),
             &[root],
             None,

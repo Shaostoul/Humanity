@@ -145,8 +145,8 @@ async fn two_relays_handshake_chat_and_gossip() {
     // UNSIGNED one must be refused (the old code accepted empty signatures,
     // which let anyone overwrite any profile). Links are "{}": a copy's links
     // are always a JSON object (a blank stored value is read as "{}").
-    use humanity_engine::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
-    use humanity_engine::relay::core::profile_copy::{self, PublicCopy};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::profile_copy::{self, PublicCopy};
     let seed = [21u8; 32];
     let user_pk_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key());
     let ts = now_ms + 1;
@@ -203,7 +203,7 @@ async fn two_relays_handshake_chat_and_gossip() {
 // web/chat/chat-profile.js `signProfileCopy`): read the own copy that asks, sign the public copy
 // of exactly that with `core::profile_copy`, send `profile_sign`.
 
-use humanity_engine::relay::core::profile_copy::{
+use humanity_protocol::profile_copy::{
     is_withdrawal, next_copy_time, public_copy, sign_copy, verify_copy, withdrawal,
 };
 use humanity_engine::relay::storage::SignedProfileRecord;
@@ -217,7 +217,7 @@ fn now_ms() -> u64 {
 
 /// A person's key as their app has it: the Dilithium3 key of the seed `[seed; 32]`.
 fn key_of(seed: u8) -> String {
-    use humanity_engine::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
     hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[seed; 32])).public_key())
 }
 
@@ -249,7 +249,7 @@ async fn link(dialer: &Arc<RelayState>, dialed: &Arc<RelayState>, dialed_port: u
 async fn sign_in(port: u16, seed: u8, name: &str) -> Sock {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use futures::{SinkExt, StreamExt};
-    use humanity_engine::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
     use tokio_tungstenite::tungstenite::Message as WsMsg;
     let dil = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[seed; 32]));
     let pubkey = hex::encode(dil.public_key());

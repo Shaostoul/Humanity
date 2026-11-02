@@ -13,8 +13,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// A file of `len` bytes to upload, and the form that picked it.
-pub(crate) fn picked(tag: &str, len: usize, title: &str) -> (crate::test_temp::TempPath, add::Form) {
-    let file = crate::test_temp::file(tag, "webm");
+pub(crate) fn picked(tag: &str, len: usize, title: &str) -> (humanity_core::test_temp::TempPath, add::Form) {
+    let file = humanity_core::test_temp::file(tag, "webm");
     std::fs::write(&file, (0..len).map(|i| (i % 251) as u8).collect::<Vec<u8>>()).unwrap();
     let form = add::Form { title: title.into(), ..add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: format!("{tag}.webm"), len: len as u64 }) };
     (file, form)

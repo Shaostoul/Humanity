@@ -461,7 +461,7 @@ whole-box removal approach, no re-encode) is its own increment, ahead of the Med
 public.
 
 **As built (2026-10-11): the video strip exists, not yet wired into the uploads.** It lives in
-`src/relay/core/strip_video_metadata.rs`. One change from the plan above: boxes are not removed,
+`crates/humanity-protocol/src/strip_video_metadata.rs`. One change from the plan above: boxes are not removed,
 they are neutralised in place. Removing a box shifts every byte after it, and when the movie's
 index (`moov`) comes before the frames (`mdat`), the index's chunk offsets (`stco`/`co64`) would
 then point at the wrong bytes. So each metadata box keeps its size, its name is changed to `free`
@@ -1007,7 +1007,7 @@ are their own increments.
 ## HEIC and AVIF photos cleaned in place (relay, 2026-10-11)
 
 **As built.** The R7 refusal above is replaced for every HEIC or AVIF photo the relay can read
-through: its location is removed and the photo is stored. Code: `src/relay/core/strip_heif_metadata.rs`,
+through: its location is removed and the photo is stored. Code: `crates/humanity-protocol/src/strip_heif_metadata.rs`,
 called from upload_rules.rs `finish_file_as`, so both upload routes use it. Tests: the module's
 own twelve, and four in relay/upload_rules_tests.rs; each seen failing once against a deliberate
 break, the doc comments say how.
@@ -1714,7 +1714,7 @@ Rust strips, `strip_metadata`, `strip_video_metadata_in_buffer` or a temp copy f
 `strip_heif_metadata`); the web uses `web/shared/strip-metadata.js` (`HosStrip.stripFile`), which
 has no HEIF yet, so a HEIC on the web counts as "could not be checked" (part 2).
 - **The attach step shows what is in the file** before sending: `HosStrip.describe` on the web, and
-  a Rust `describe` the desktop gains (in src/relay/core/, beside the strips, so the relay and the
+  a Rust `describe` the desktop gains (in crates/humanity-protocol/src/, beside the strips, so the relay and the
   desktop share it), with the same words: "This photo says where it was taken and which camera took
   it.", "This video says where it was filmed.", or nothing when there is nothing. The two describes
   agree on the same test files (the web test compiles the Rust, as the strip test does).
@@ -2534,7 +2534,7 @@ failed):
 The desktop app's half of parts 1 to 4 above, built 2026-10-11 against the relay's `accepts_files`
 and the web's half (the two sections before this one), in one worktree.
 
-**The shared describe.** `src/relay/core/describe_metadata.rs` is a port of the web's
+**The shared describe.** `crates/humanity-protocol/src/describe_metadata.rs` is a port of the web's
 `HosStrip.describe`, function for function, beside the three strips (which are unchanged), so the
 desktop's attach step says the web's words. It uses the standard library only. JavaScript's text
 rules are reproduced where they matter: the browser's UTF-8 decoding (a byte-order mark dropped),
@@ -2651,7 +2651,7 @@ ago going first (opening one touches its time), and "Clear kept files". The web 
 IndexedDB with the DM store's key instead, a different mechanism to the same end.
 
 **Tests**, each seen failing once against a single break (the doc comment on each names the break
-and what it saw): `relay::core::describe_metadata` (3: the fixtures from memory and from disk, the
+and what it saw): `humanity_protocol::describe_metadata` (3: the fixtures from memory and from disk, the
 words, nothing left after the strips), `net::file_clean` (5), `net::files_policy` (6),
 `net::kept_files` (3), `net::dm_pq::marker_tests` (the shared fixture), `config::...files_in_messages`,
 `gui::pages::chat::attach_step` (4), `attach_send::clean_tests` (2), `attach_view::kept_tests` (2),
@@ -2667,7 +2667,7 @@ changed with the behaviour: `attach_send_tests.rs file_bytes` is now a real (cle
 The relay half of "Device-to-device big files: the shapes, exact", parts 1 and 2, built
 2026-10-11, plus the Roles editor rows for the new limit. What the two apps build against:
 
-**The file pass** (`src/relay/core/pq_crypto.rs`). The sender's app signs, with its Dilithium3
+**The file pass** (`crates/humanity-protocol/src/pq_crypto.rs`). The sender's app signs, with its Dilithium3
 identity key,
 
 ```text
@@ -2758,7 +2758,7 @@ note (`[[hum:offer:v1]]` then compact JSON, keys in the spec's order, the name e
   say "your daily amount through the server is used up", that is a follow-up.
 
 **Tests**, each seen failing once against a single break (the doc comment on each names the break
-and what it saw): `relay::core::pq_crypto::tests::file_pass_roundtrip_and_pinned_preimage` (the
+and what it saw): `humanity_protocol::pq_crypto::tests::file_pass_roundtrip_and_pinned_preimage` (the
 server left out of the words), `a_file_pass_longer_than_a_week_or_malformed_is_refused` (the
 week's ceiling removed), `file_pass_fixture_matches_the_builder` (the builder writing `expiry`
 before `id`); `relay::handlers::reach::tests::file_passes::a_direct_connection_offer_with_a_file_pass_only_from_its_grantee`

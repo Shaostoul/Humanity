@@ -5,7 +5,7 @@
  * (and, in time, all web-built signed objects).
  *
  * Asserts that web/shared/canonical-cbor.js reproduces, byte-for-byte, the
- * Rust encoder in src/relay/core/{encoding,object}.rs for a fixed group_v1
+ * Rust encoder in crates/humanity-protocol/src/{encoding,object}.rs for a fixed group_v1
  * input. The two GOLDEN constants below are duplicated from the Rust test
  * src/relay/storage/groups_p2p.rs::group_v1_canonical_kat on purpose — editing
  * the encoding must break BOTH or neither. If this fails, a web-built group

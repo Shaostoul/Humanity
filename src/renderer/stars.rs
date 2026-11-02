@@ -2697,7 +2697,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     /// enough to run by default.
     #[test]
     fn every_shipped_constellation_endpoint_resolves() {
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
+        let root = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data");
         // No silent skip on a missing file: a test that returns early when it
         // cannot find its input passes with the rule it guards deleted.
         let bin = std::fs::read(root.join("stars.bin"))
@@ -2732,7 +2732,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     #[test]
     #[ignore]
     fn real_stars_bin_matches_real_csv_full_catalog() {
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
+        let root = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data");
 
         let t0 = std::time::Instant::now();
         let bin_bytes = std::fs::read(root.join("stars.bin")).expect("data/stars.bin exists");
@@ -2883,7 +2883,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     /// STAR LIST IN SYNC with writeFixture() in that script.
     #[test]
     fn gaia_fixture_parses_packs_and_survives_the_cutoff() {
-        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let p = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"))
             .join("tests/fixtures/stars-gaia-fixture.bin");
         let bytes = std::fs::read(&p).expect(
             "fixture missing; regenerate with `node scripts/build-gaia-bin.js --fixture`",
@@ -3007,7 +3007,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     /// installs the ultra tier.
     #[test]
     fn load_prefers_ultra_and_adopts_standard_names() {
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let dir = std::env::temp_dir().join(format!("hos-star-ladder-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::copy(
@@ -3056,7 +3056,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     /// as shader_loader.rs's embedded_pbr_shader_parses_and_validates).
     #[test]
     fn star_shader_wgsl_parses_and_validates() {
-        let disk_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let disk_path = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"))
             .join("assets/shaders/stars.wgsl");
         let disk_src = std::fs::read_to_string(&disk_path).expect("stars.wgsl exists");
         for (label, src) in [("embedded", FALLBACK_STAR_SHADER), ("assets/shaders/stars.wgsl", disk_src.as_str())] {
@@ -3082,7 +3082,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     /// field accessor `sun_colour`".
     #[test]
     fn galaxy_glow_shader_wgsl_parses_and_validates() {
-        let disk_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let disk_path = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"))
             .join("assets/shaders/galaxy_glow.wgsl");
         let disk_src = std::fs::read_to_string(&disk_path).expect("galaxy_glow.wgsl exists");
         for (label, src) in [("embedded", FALLBACK_GLOW_SHADER), ("assets/shaders/galaxy_glow.wgsl", disk_src.as_str())] {
@@ -3487,7 +3487,7 @@ id,proper,mag,ci,x,y,z,bayer,con
     /// halo contract's mechanical tripwire).
     #[test]
     fn star_halo_shader_wgsl_parses_validates_and_matches_the_contract() {
-        let disk_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let disk_path = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"))
             .join("assets/shaders/star_halo.wgsl");
         let disk_src = std::fs::read_to_string(&disk_path).expect("star_halo.wgsl exists");
         // The Rust constants the shader literals must agree with.

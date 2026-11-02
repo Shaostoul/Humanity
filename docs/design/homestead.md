@@ -195,7 +195,7 @@ Pipes: `pex_half` branches, `copper_threequarter` trunk (both already in
 conduits.ron). Grey water: sinks/shower/washer drain to the composter, whose
 "+155 L/d greywater" reclaim already feeds irrigation in home.ron's loop math.
 Black water: toilet > septic_tank (new machine; content today ends there, which
-is honest). `Utility::HotWater` exists end-to-end in src/utilities.rs but has
+is honest). `Utility::HotWater` exists end-to-end in crates/humanity-core/src/utilities.rs but has
 zero producers or consumers today; this arc activates it with data only.
 
 ### 5.3 Air and heat

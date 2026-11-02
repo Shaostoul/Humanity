@@ -109,7 +109,7 @@
 
 use std::collections::HashMap;
 
-use crate::ecs::components::{BurnsFuels, CombustionAir, FuelStove, HeatPump, PowerConsumer, SpaceHeater, Transform};
+use humanity_core::ecs::components::{BurnsFuels, CombustionAir, FuelStove, HeatPump, PowerConsumer, SpaceHeater, Transform};
 use crate::systems::inventory::containers::Container;
 use crate::systems::inventory::ItemRegistry;
 use crate::systems::life_support;

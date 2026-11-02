@@ -109,7 +109,7 @@ pub struct MoveContext<'a> {
 
 /// How high over the plot's floor shutting the build editor stands a person: the eye height
 /// (lib.rs, the editor's close: the zone's floor plus 1.7 m, surface_walk::EYE_HEIGHT_M).
-const EDITOR_EYE_M: f32 = crate::ecs::components::EYE_HEIGHT_M as f32;
+const EDITOR_EYE_M: f32 = humanity_core::ecs::components::EYE_HEIGHT_M as f32;
 
 /// How far from that height an editor close may be, metres: rounding, never a deck or a flight.
 const EDITOR_FLOOR_TOLERANCE_M: f32 = 0.25;
@@ -462,7 +462,7 @@ mod tests {
     /// The shipped rules: 25 m/s on foot with a quarter's margin (the allowance builds at
     /// 31.25 m/s and keeps at most 1.5 s of it, 46.9 m), 20 m/s up or down, 1 m of slack.
     fn rules() -> MovingRules {
-        SharedWorldRules::parse(include_str!("../../../data/ship/shared_world.ron")).expect("the shipped rules").moving
+        SharedWorldRules::parse(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/ship/shared_world.ron"))).expect("the shipped rules").moving
     }
 
     fn ctx<'a>(r: &'a MovingRules, held: Vec3, to: Vec3) -> MoveContext<'a> {
@@ -489,7 +489,7 @@ mod tests {
     /// The box of a plot of the ship file (data/blueprints/ship_structure.ron): p1, a homestead
     /// plot, is 55 x 6 x 89 since ship homes increment 7 (two storeys); c1, a cabin's, 3 m tall.
     fn plot_box(id: &str) -> Aabb {
-        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").as_path()).expect("the ship file");
+        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").as_path()).expect("the ship file");
         ship.plots.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("plot {id} in the ship file")).aabb()
     }
 
@@ -812,7 +812,7 @@ mod tests {
     #[test]
     fn an_old_stored_world_loads_under_the_speed_check() {
         let db = crate::relay::storage::Storage::open_temp("movecheck_v10");
-        let blob = include_str!("../../../tests/fixtures/relay/ship_world_v10.json");
+        let blob = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/ship_world_v10.json"));
         let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
         db.save_game_world(GameWorld::PERSIST_KEY, blob, old["game_time"].as_f64().unwrap(), old["next_entity_id"].as_u64().unwrap()).expect("store it");
         let mut world = GameWorld::new();

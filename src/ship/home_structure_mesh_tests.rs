@@ -108,7 +108,7 @@ fn digest(lines: &[String]) -> (usize, usize, u64) {
 /// finding's 16 risers), and none of the storey work changes how a piece is drawn (a stair's
 /// handrails are a group of their own, `the_stairs_carry_handrails_at_the_findings_height`).
 fn frozen_bodies() -> Vec<(&'static str, HomeStructure, ShellCut)> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/homes");
+    let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/homes");
     let load = |name: &str| -> HomeStructure {
         let text = std::fs::read_to_string(dir.join(name)).unwrap_or_else(|e| panic!("{name}: {e}"));
         let design: crate::ship::ship_structure::HomeDesign = ron::from_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));

@@ -43,15 +43,15 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Default)]
 pub struct Look {
     pub name: String,
-    pub appearance: crate::ecs::components::Appearance,
-    pub outfit: crate::ecs::components::Outfit,
+    pub appearance: humanity_core::ecs::components::Appearance,
+    pub outfit: humanity_core::ecs::components::Outfit,
 }
 
 impl Look {
     /// The live character's look (the player entity's name, appearance and outfit); the default
     /// look for a world with no player.
     pub fn of_world(world: &hecs::World) -> Look {
-        use crate::ecs::components::{Appearance, Controllable, Name, Outfit};
+        use humanity_core::ecs::components::{Appearance, Controllable, Name, Outfit};
         let mut q = world.query::<(&Name, &Appearance, &Outfit, &Controllable)>();
         q.iter()
             .next()
@@ -67,7 +67,7 @@ impl Look {
     /// Put this look on the live character and on the editing copies the Appearance page and the
     /// avatar read (an empty name leaves the name as it is).
     pub fn put_on(&self, world: &mut hecs::World, gui: &mut crate::gui::GuiState) {
-        use crate::ecs::components::{Appearance, Controllable, Name, Outfit};
+        use humanity_core::ecs::components::{Appearance, Controllable, Name, Outfit};
         if let Some((_e, (n, a, o, _))) = world.query_mut::<(&mut Name, &mut Appearance, &mut Outfit, &Controllable)>().into_iter().next() {
             if !self.name.is_empty() {
                 n.0 = self.name.clone();
@@ -209,7 +209,7 @@ pub fn fresh_save(data_dir: &Path, starts: &Starts, start: &str, household: &str
     save.inventory_state = new.inventory_state;
     save.inventory_age = new.inventory_age;
     save.skills = Default::default();
-    save.credits = crate::ecs::components::Wallet::default().credits;
+    save.credits = humanity_core::ecs::components::Wallet::default().credits;
     // The start's opening and nothing done: Some, so a load replaces the quests of the world it
     // lands on.
     save.quests = Some(new.quests.unwrap_or_default());
@@ -290,7 +290,7 @@ pub(crate) fn write_active(state: &mut EngineState) -> Look {
         !state.gui_state.settings.fresh_world_each_launch,
         state.gui_state.own_home.as_ref(),
     );
-    crate::play_journal::record("world", "Saved the game", serde_json::json!({ "server": state.gui_state.server_url }));
+    humanity_core::play_journal::record("world", "Saved the game", serde_json::json!({ "server": state.gui_state.server_url }));
     look
 }
 
@@ -358,7 +358,7 @@ pub struct TakenUp {
 #[allow(clippy::too_many_arguments)]
 pub fn take_up_before_home(
     world: &mut hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     gui: &mut crate::gui::GuiState,
     saves_dir: &Path,
     data_dir: &Path,
@@ -380,7 +380,7 @@ pub fn take_up_before_home(
 /// and the rest of `save_load::settle_save_on_world`, then the look the character had put back on.
 pub fn take_up_after_home(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     gui: &mut crate::gui::GuiState,
     taken: &TakenUp,
     look: &Look,

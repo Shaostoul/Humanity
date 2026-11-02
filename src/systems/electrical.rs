@@ -36,9 +36,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{PowerConsumer, PowerGenerator};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{PowerConsumer, PowerGenerator};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Live power readout, published to the DataStore each tick (key `power_status`) so the
 /// GUI can show the home's running electrical balance. Watts.
@@ -160,7 +160,7 @@ impl System for ElectricalSystem {
     fn name(&self) -> &str { "ElectricalSystem" }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
-        use crate::ecs::components::{Battery, PowerCircuit};
+        use humanity_core::ecs::components::{Battery, PowerCircuit};
         use std::collections::HashMap;
 
         // Energy moves on the GAME clock (2026-09-27, the review of the sleep
@@ -223,7 +223,7 @@ impl System for ElectricalSystem {
                     &PowerGenerator,
                     Option<&crate::systems::inventory::containers::Container>,
                     Option<&PowerCircuit>,
-                    Option<&crate::ecs::components::BurnsFuels>,
+                    Option<&humanity_core::ecs::components::BurnsFuels>,
                 )>()
                 .iter()
             {
@@ -523,9 +523,9 @@ mod tests {
     #[test]
     fn tick_publishes_power_status_from_entities() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
 
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
@@ -553,9 +553,9 @@ mod tests {
     #[test]
     fn backstop_genset_runs_when_needed_and_burns_its_drum_dry() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         use crate::systems::inventory::containers::Container;
 
         let mut data = DataStore::new();
@@ -576,7 +576,7 @@ mod tests {
         let gen = world.spawn((
             PowerGenerator { output_watts: 2000.0, fuel_per_second: 1.0, active: false },
             drum,
-            crate::ecs::components::BurnsFuels(vec!["gasoline_0".to_string()]),
+            humanity_core::ecs::components::BurnsFuels(vec!["gasoline_0".to_string()]),
         ));
 
         let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
@@ -603,9 +603,9 @@ mod tests {
     #[test]
     fn backstop_genset_idles_when_batteries_are_healthy() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{Battery, PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{Battery, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         use crate::systems::inventory::containers::Container;
 
         let mut data = DataStore::new();
@@ -632,7 +632,7 @@ mod tests {
         let gen = world.spawn((
             PowerGenerator { output_watts: 2000.0, fuel_per_second: 1.0, active: false },
             drum,
-            crate::ecs::components::BurnsFuels(vec!["gasoline_0".to_string()]),
+            humanity_core::ecs::components::BurnsFuels(vec!["gasoline_0".to_string()]),
         ));
 
         let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
@@ -654,13 +654,13 @@ mod tests {
         item: &str,
         qty: u32,
         burns: Option<Vec<&str>>,
-    ) -> (hecs::World, hecs::Entity, crate::hot_reload::data_store::DataStore) {
+    ) -> (hecs::World, hecs::Entity, humanity_core::hot_reload::data_store::DataStore) {
         use super::PowerStatus;
-        use crate::ecs::components::{BurnsFuels, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::components::{BurnsFuels, PowerConsumer, PowerGenerator};
         use crate::systems::inventory::containers::Container;
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
-        let csv = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("items.csv"))
+        let csv = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("items.csv"))
             .expect("data/items.csv");
         let reg = crate::systems::inventory::ItemRegistry::from_csv(&csv).expect("item registry");
         assert_eq!(reg.class_for(item), "flammable", "{item} is in the class the old rule burned");
@@ -681,10 +681,10 @@ mod tests {
 
     /// What one tick of 2 s does on a `backstop_island`: (genset running,
     /// units left in its drum, the island's generation in watts).
-    fn after_two_seconds(world: &mut hecs::World, gen: hecs::Entity, data: &crate::hot_reload::data_store::DataStore) -> (bool, u32, f32) {
+    fn after_two_seconds(world: &mut hecs::World, gen: hecs::Entity, data: &humanity_core::hot_reload::data_store::DataStore) -> (bool, u32, f32) {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::PowerGenerator;
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::components::PowerGenerator;
+        use humanity_core::ecs::systems::System;
         use crate::systems::inventory::containers::Container;
         let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
         sys.tick(world, 2.0, data); // 2 L at 1 L/s: one whole unit, if it burns at all
@@ -740,12 +740,12 @@ mod tests {
     #[test]
     fn a_generator_burns_the_same_fuel_at_30_and_240_frames_a_second() {
         use super::ElectricalSystem;
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::systems::System;
         let rate = 2.6 / 3600.0; // L/s, the shipped gasoline set's 2.6 L an hour
         let game_s = 1200.0_f64;
         let burned = |fps: u32| -> f64 {
             let (mut world, gen, data) = backstop_island("gasoline_0", 50, Some(vec!["gasoline_0"]));
-            world.get::<&mut crate::ecs::components::PowerGenerator>(gen).unwrap().fuel_per_second = rate as f32;
+            world.get::<&mut humanity_core::ecs::components::PowerGenerator>(gen).unwrap().fuel_per_second = rate as f32;
             let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
             let dt = 1.0 / fps as f32;
             for _ in 0..(game_s as u32 * fps) {
@@ -785,9 +785,9 @@ mod tests {
     /// switch back on every other tick.
     fn a_shed_load_stays_shed() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{PowerCircuit, PowerConsumer};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{PowerCircuit, PowerConsumer};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut world = hecs::World::new();
@@ -804,9 +804,9 @@ mod tests {
     #[test]
     fn tick_gates_power_per_island() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
 
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
@@ -835,9 +835,9 @@ mod tests {
     #[test]
     fn a_short_island_sheds_its_optional_loads_first() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut world = hecs::World::new();
@@ -858,9 +858,9 @@ mod tests {
     #[test]
     fn a_load_drawing_nothing_is_never_shed() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{PowerCircuit, PowerConsumer, PowerGenerator};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut world = hecs::World::new();
@@ -888,9 +888,9 @@ mod tests {
         // seconds, about 166.7 Wh. Seen red with the tick back on raw dt: the
         // bank lost 1.4 Wh, so a slept night cost the batteries 1/120 of it.
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{Battery, PowerConsumer};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{Battery, PowerConsumer};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut gt = crate::systems::time::GameTime::default();
@@ -910,9 +910,9 @@ mod tests {
     #[test]
     fn batteries_carry_the_night_load() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{Battery, PowerConsumer};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{Battery, PowerConsumer};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut world = hecs::World::new();
@@ -938,9 +938,9 @@ mod tests {
     #[test]
     fn a_bank_at_its_limit_sheds_the_optional_loads_and_pays_only_for_the_rest() {
         use super::{ElectricalSystem, PowerStatus};
-        use crate::ecs::components::{Battery, PowerConsumer};
-        use crate::ecs::systems::System;
-        use crate::hot_reload::data_store::DataStore;
+        use humanity_core::ecs::components::{Battery, PowerConsumer};
+        use humanity_core::ecs::systems::System;
+        use humanity_core::hot_reload::data_store::DataStore;
         let mut data = DataStore::new();
         data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
         let mut world = hecs::World::new();

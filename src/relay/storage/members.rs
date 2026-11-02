@@ -406,7 +406,7 @@ pub(super) fn join_server_on(conn: &rusqlite::Connection, public_key: &str, name
     // hex of BLAKE3(pubkey)[..16], exactly what did:hum: encodes.
     let fp_hex = hex::decode(public_key)
         .ok()
-        .map(|pk| crate::relay::core::did::fingerprint_to_hex(&crate::relay::core::did::fingerprint_of(&pk)));
+        .map(|pk| humanity_protocol::did::fingerprint_to_hex(&humanity_protocol::did::fingerprint_of(&pk)));
     let changed = conn.execute(
         "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen, hide_presence, did_fp)
          VALUES (?1, ?2, 'member', datetime('now'), NULL, 1, ?3)",

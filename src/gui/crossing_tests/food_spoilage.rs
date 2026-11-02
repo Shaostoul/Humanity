@@ -1,7 +1,7 @@
 //! From systems/food_spoilage_tests.rs: moving food keeps its age, moved back to storage by the GUI
 //! (`gui::return_to_storage`).
 
-use crate::ecs::systems::System;
+use humanity_core::ecs::systems::System;
 use crate::systems::food::spoilage_tests::age_of;
 use crate::systems::food::spoilage_tests::barn;
 use crate::systems::food::spoilage_tests::player;

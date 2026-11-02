@@ -1069,7 +1069,7 @@ mod erased_account_tests {
     /// `set_aside_erased` line removed): "an erase on the active server left its save in place".
     #[test]
     fn an_erased_account_sets_its_server_save_aside() {
-        let saves = crate::test_temp::dir("erased_account_save_aside");
+        let saves = humanity_core::test_temp::dir("erased_account_save_aside");
         let save_of = |key: &str, url: &str| {
             let slot = crate::persistence::live_save::slot_for("", key, &crate::gui::pages::chat::norm_server_url(url), false);
             let path = crate::persistence::slot_path(&saves, &slot);
@@ -1213,7 +1213,7 @@ mod erased_account_tests {
     /// Connect button does not take the sign-up-again choice".
     #[test]
     fn only_the_chat_pages_connect_signs_up_again() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
         let panel = read("src/gui/pages/chat/left_panel.rs");
         assert!(panel.contains("let connect = if state.take_sign_up_again(&url) {"), "the Connect button does not take the sign-up-again choice");
@@ -1472,7 +1472,7 @@ mod no_server_tests {
     /// do not dial dial_address" (left: 0, right: 2).
     #[test]
     fn the_dialling_paths_ask_these_decisions() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
         // The frame's dialling paths live in its network pump since 2026-10-31 (moved out of
         // lib.rs so the window hidden in the tray dials and reads the same way); lib.rs is read

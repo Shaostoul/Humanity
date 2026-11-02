@@ -3,9 +3,9 @@
 //! space and the household's food energy).
 
 use std::collections::HashMap;
-use crate::ecs::components::{AirHandler, Co2Scrubber, CropInstance, PowerConsumer, SoilMemory};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AirHandler, Co2Scrubber, CropInstance, PowerConsumer, SoilMemory};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::atmosphere::EnclosedSpace;
 use crate::systems::farming::humidity;
 use crate::systems::farming::life_support_tests::*;
@@ -28,7 +28,7 @@ use crate::systems::life_support::{self, LifeSupportData};
 /// (2,970 m3) while the room the game published rose to the 6 m glass roof
 /// (5,607 m3), so these tests measured a home the game did not run.
 fn shipped_home(file: &str) -> (DataStore, hecs::World) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let data_dir = root.join("data");
     let home = crate::systems::grow_machines::load_home(&data_dir.join("machines").join(file)).expect("home parses");
     let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
@@ -134,7 +134,7 @@ fn settle_home(file: &str, tweak: impl Fn(&mut LifeSupportData)) -> HomeDay {
 /// `settle_home`, with `tweak_world` applied to the world after its first
 /// tick (when the air has its state): a machine's setpoint, the home's CO2.
 fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_world: impl Fn(&mut hecs::World)) -> HomeDay {
-    use crate::ecs::components::{Humidifier, MachineType, RoomAir, Ventilator};
+    use humanity_core::ecs::components::{Humidifier, MachineType, RoomAir, Ventilator};
     let (mut data, mut world) = shipped_home(file);
     let mut ld = life();
     tweak(&mut ld);
@@ -228,7 +228,7 @@ fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_worl
     }
     day.people_l = ld.breath(map.home_kcal).water_g_day / 1000.0;
     day.surface_l = home(&world).ledger.surface_l - surface0;
-    for (_, (mt, _)) in world.query::<(&crate::ecs::components::MachineType, &PowerConsumer)>().iter() {
+    for (_, (mt, _)) in world.query::<(&humanity_core::ecs::components::MachineType, &PowerConsumer)>().iter() {
         if let Some(e) = day.by_type.get_mut(&mt.0) {
             e.1 += 1;
         }
@@ -287,8 +287,8 @@ fn settle_home_with(file: &str, tweak: impl Fn(&mut LifeSupportData), tweak_worl
 fn the_shipped_homes_hold_their_air_and_return_their_water() {
     let ld = life();
     let d = air();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
-    let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
+    let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
     let home_rooms = ship.zones[ship.home_zone_index()].body.detect_rooms().len();
     for file in ["home.ron", "home_solo.ron"] {
@@ -364,7 +364,7 @@ fn print_the_shipped_homes_with_the_home_at_60_percent() {
 /// Set the CO2 fans' setpoints: the tents' and the mushroom room's.
 fn co2_setpoints(tent: f32, room: f32) -> impl Fn(&mut hecs::World) {
     move |w: &mut hecs::World| {
-        for (_, (mt, v)) in w.query_mut::<(&crate::ecs::components::MachineType, &mut crate::ecs::components::Ventilator)>() {
+        for (_, (mt, v)) in w.query_mut::<(&humanity_core::ecs::components::MachineType, &mut humanity_core::ecs::components::Ventilator)>() {
             match mt.0.as_str() {
                 "tent_co2_fan" => v.co2_setpoint_ppm = tent,
                 "room_co2_fan" => v.co2_setpoint_ppm = room,

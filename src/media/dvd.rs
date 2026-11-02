@@ -573,11 +573,11 @@ mod tests {
     }
 
     fn fixture_video_ts() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media").join("VIDEO_TS")
+        PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests").join("fixtures").join("media").join("VIDEO_TS")
     }
 
-    fn scratch(name: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("dvd_{name}"))
+    fn scratch(name: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("dvd_{name}"))
     }
 
     /// The names a disc uses, read the way the chooser reads them.

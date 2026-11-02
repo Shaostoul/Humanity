@@ -17,7 +17,7 @@
 // data/machines/ship.ron, the mess hall volume it stands in and the food store in front of it
 // (data/food/ship_stores.ron); the water bottles from data/containers/fluids.ron; the meal's good
 // from data/ship/fleet_ledger.ron; the opening's steps from data/quests/getting_started.ron; and a
-// new character's credits from src/ecs/components.rs (`impl Default for Wallet`).
+// new character's credits from crates/humanity-core/src/ecs/components.rs (`impl Default for Wallet`).
 //
 // THE RUN, in the plan's steps (verify-copresence.js runStartsOnce says how each record is made):
 //   1   SETUP: a throwaway relay (loopback only, the tree's data/ mirrored), ONE game in the
@@ -276,7 +276,7 @@ function readMealGood(text) {
   return m ? m[1] : null;
 }
 
-/** A new character's credits (src/ecs/components.rs, `impl Default for Wallet`), or null. */
+/** A new character's credits (crates/humanity-core/src/ecs/components.rs, `impl Default for Wallet`), or null. */
 function readDefaultCredits(rsText) {
   const m = /impl Default for Wallet \{[\s\S]*?\bcredits:\s*([\d_]+)/.exec(String(rsText || ""));
   return m ? Number(m[1].replace(/_/g, "")) : null;
@@ -310,7 +310,7 @@ const TREE_FILES = {
   fluids: "data/containers/fluids.ron",
   ledger: "data/ship/fleet_ledger.ron",
   quests: "data/quests/getting_started.ron",
-  wallet: "src/ecs/components.rs",
+  wallet: "crates/humanity-core/src/ecs/components.rs",
 };
 
 /**

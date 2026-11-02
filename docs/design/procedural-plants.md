@@ -71,7 +71,7 @@ Two further measured facts that matter:
 | Plant genetics | `data/genetics.ron` | AUTHORED BUT UNWIRED. 12 heritable plant traits, 5 genetic diseases each carrying a `visual_sign` string. |
 | Disease contagion engine | `src/systems/ecology.rs` | WRITTEN AND WORKING, unregistered, never touches crops (queries `Health` + `Transform`; crops have neither). |
 | Impostor baker | `src/renderer/billboard_bake.rs` | WORKING, generic over `BakePart`. Single side-on view, **not** an octahedral impostor baker. |
-| LOD registry | `data/lod/categories.ron` + `src/lod_registry.rs` | WORKING, grass/shrub/tree rows and Settings sliders already rendered. |
+| LOD registry | `data/lod/categories.ron` + `crates/humanity-core/src/lod_registry.rs` | WORKING, grass/shrub/tree rows and Settings sliders already rendered. |
 
 **Most of this system is already on disk and simply not connected.** The largest piece of work
 is not writing a simulation, it is parsing files we already ship and pointing an existing
@@ -713,7 +713,7 @@ would be validated after all the authoring work was sunk. Corrected:
    lines plus the cache.
 2. **Fix the type-12 terminator bug** (see above). Independent of everything else.
 3. **Data coverage.** Extend `data/plants_visual.ron` past its 19 recipes. Pure data, satisfies
-   infinite-of-X, no code change. Add `plants_visual.ron` to `src/embedded_data.rs` so shipped
+   infinite-of-X, no code change. Add `plants_visual.ron` to `crates/humanity-core/src/embedded_data.rs` so shipped
    builds stop silently degrading to generic rosettes, add `schemas/plant_visual.toml`, and add
    a `just validate-data` check.
 4. **Wire the authored sim schema.** Parse `data/entities/plants/*.ron` into a real stress-channel

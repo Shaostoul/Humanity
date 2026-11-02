@@ -67,7 +67,7 @@
     trade: Object.freeze(['trade']),
   });
   // The pass a friend keeps with all three ticks off. The pass format refuses
-  // an empty `may` (FriendMay::from_words in src/relay/core/pq_crypto.rs, and
+  // an empty `may` (FriendMay::from_words in crates/humanity-protocol/src/pq_crypto.rs, and
   // friendPassMay in /shared/friend-pass.js), and `invite` gives nothing the
   // relay enforces today, so it is the harmless word that keeps the pass valid.
   // Unticking everything does not end the friendship: under "Friends" this

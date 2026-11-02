@@ -55,11 +55,11 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{CropInstance, CropPicking, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, CropPicking, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// The shipped copy, so a bare exe with no data folder still has it.
-pub const HARVEST_WINDOWS_RON: &str = include_str!("../../../data/garden/harvest_windows.ron");
+pub const HARVEST_WINDOWS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/harvest_windows.ron"));
 
 /// DataStore key of the loaded data (registered by the main loop).
 pub const DATA_KEY: &str = "garden_harvest_windows";
@@ -144,7 +144,7 @@ impl HarvestWindows {
     /// if that is missing or does not parse. The shipped copy always parses:
     /// a test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("harvest_windows.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("harvest_windows.ron");
         if let Ok(text) = std::fs::read_to_string(&path) {
             match Self::parse(&text) {
                 Ok(d) => return d,
@@ -161,7 +161,7 @@ impl HarvestWindows {
         SHIPPED.get_or_init(|| {
             // Whoever asks gets the copy compiled into the exe: say so, once
             // (BUG-133; a rig refuses a run that served a built-in copy).
-            crate::embedded_data::note_builtin_copy(
+            humanity_core::embedded_data::note_builtin_copy(
                 "garden/harvest_windows.ron",
                 "HarvestWindows::shipped served the built-in table",
             );

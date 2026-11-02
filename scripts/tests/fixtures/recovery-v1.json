@@ -1,5 +1,5 @@
 {
-  "about": "Recovery through trusted people: what the Rust side (src/relay/core/recovery.rs) and the website (web/shared/recovery.js) each made, read by the other. Rewrite a half with HOS_WRITE_RECOVERY_FIXTURE=1: the Rust test recovery_fixture_write_rust_half, the web test scripts/tests/recovery-web.test.js. blahaj_field: the answers of blahaj 0.7.0 tests mul_works and div_works (src/field.rs, MIT, Distrust), GF256(LOG[i]) * and / GF256(EXP[i]) for i in 0..256.",
+  "about": "Recovery through trusted people: what the Rust side (crates/humanity-protocol/src/recovery.rs) and the website (web/shared/recovery.js) each made, read by the other. Rewrite a half with HOS_WRITE_RECOVERY_FIXTURE=1: the Rust test recovery_fixture_write_rust_half, the web test scripts/tests/recovery-web.test.js. blahaj_field: the answers of blahaj 0.7.0 tests mul_works and div_works (src/field.rs, MIT, Distrust), GF256(LOG[i]) * and / GF256(EXP[i]) for i in 0..256.",
   "blahaj_field": {
     "div": [
       0,

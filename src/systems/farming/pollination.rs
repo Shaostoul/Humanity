@@ -48,11 +48,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use serde::Deserialize;
 
 use super::lighting::GrowPlot;
-use crate::ecs::components::{CropInstance, CropPollination, HiveColony, SoilMemory, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{CropInstance, CropPollination, HiveColony, SoilMemory, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// The shipped copy, so a bare exe with no data folder still has it.
-pub const POLLINATION_RON: &str = include_str!("../../../data/garden/pollination.ron");
+pub const POLLINATION_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/pollination.ron"));
 
 /// DataStore key of the loaded data (registered by the main loop).
 pub const DATA_KEY: &str = "garden_pollination";
@@ -221,7 +221,7 @@ impl PollinationData {
     /// if that is missing or does not parse. The shipped copy always parses:
     /// a test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("pollination.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("pollination.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -232,7 +232,7 @@ impl PollinationData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("garden/pollination.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("garden/pollination.ron", why);
         Self::parse(POLLINATION_RON).expect("the shipped data/garden/pollination.ron parses")
     }
 
@@ -290,7 +290,7 @@ pub fn fruit_set(def: &CropPollinationDef, rec: Option<&CropPollination>, outdoo
 /// Every bumblebee hive: its machine instance id ("" for one without) and
 /// where it stands, sorted by id.
 pub fn hives(world: &hecs::World) -> Vec<(String, [f32; 3])> {
-    use crate::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
+    use humanity_core::ecs::components::{MachineInstanceId, PollinatorHive, Transform};
     let mut v: Vec<(String, [f32; 3])> = world
         .query::<(&PollinatorHive, &Transform, Option<&MachineInstanceId>)>()
         .iter()
@@ -408,7 +408,7 @@ impl Help {
         if d.devices.is_empty() {
             return help;
         }
-        use crate::ecs::components::{MachineType, PowerConsumer, Transform};
+        use humanity_core::ecs::components::{MachineType, PowerConsumer, Transform};
         for (_, (kind, t, power)) in world.query::<(&MachineType, &Transform, Option<&PowerConsumer>)>().iter() {
             let Some((i, _)) = d.device(&kind.0) else { continue };
             // A device works only while it has power: one the electrical sim
@@ -803,7 +803,7 @@ fn introduce_colony(world: &mut hecs::World, data: &DataStore, d: &PollinationDa
     if !creative {
         let mut took = false;
         for (_e, (inv, _ctrl)) in world
-            .query_mut::<(&mut crate::systems::inventory::Inventory, &crate::ecs::components::Controllable)>()
+            .query_mut::<(&mut crate::systems::inventory::Inventory, &humanity_core::ecs::components::Controllable)>()
         {
             if inv.count_item(&d.colony_item) >= 1 {
                 inv.remove_item(&d.colony_item, 1);
@@ -1189,8 +1189,8 @@ impl GuiView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::{Controllable, PollinatorHive, Transform};
-    use crate::ecs::systems::System;
+    use humanity_core::ecs::components::{Controllable, PollinatorHive, Transform};
+    use humanity_core::ecs::systems::System;
     use crate::systems::farming::gardening_tests::make_store;
     use crate::systems::farming::{FarmingSystem, PlantRegistry};
     use crate::systems::inventory::Inventory;
@@ -1200,7 +1200,7 @@ mod tests {
     /// game clock (2026-09-27), and these tests are about flowers, not thirst.
     fn watered_world() -> hecs::World {
         let mut world = hecs::World::new();
-        world.spawn((crate::ecs::components::Irrigator,));
+        world.spawn((humanity_core::ecs::components::Irrigator,));
         world
     }
 
@@ -1240,7 +1240,7 @@ mod tests {
         let e = world.spawn((
             PollinatorHive,
             Transform { position: glam::Vec3::from_array(pos), ..Default::default() },
-            crate::ecs::components::MachineInstanceId(id.to_string()),
+            humanity_core::ecs::components::MachineInstanceId(id.to_string()),
         ));
         if let Some(age_days) = colony {
             let m = crate::systems::farming::soil::soil_memory_entity(world);
@@ -1282,7 +1282,7 @@ mod tests {
     #[test]
     fn the_shipped_data_names_real_plants_and_their_stages() {
         let d = shipped();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let plants = PlantRegistry::from_csv(&std::fs::read(root.join("data/plants.csv")).unwrap()).unwrap();
         for c in &d.crops {
             let p = plants.get(&c.id).unwrap_or_else(|| panic!("'{}' is not in plants.csv", c.id));
@@ -1383,7 +1383,7 @@ mod tests {
         let mut pick = |world: &mut hecs::World, pollinated: f64| -> u32 {
             let bits: Vec<u64> = (0..600)
                 .map(|_| {
-                    let waited = crate::ecs::components::CropPicking { days_ripe: 1000.0, ..Default::default() };
+                    let waited = humanity_core::ecs::components::CropPicking { days_ripe: 1000.0, ..Default::default() };
                     world.spawn((crop("tomato", "ntower_3", &ripe), flowered(pollinated), waited)).to_bits().into()
                 })
                 .collect();
@@ -1748,7 +1748,7 @@ mod tests {
     fn the_colony_and_the_devices_are_real_things_to_buy_and_place() {
         let d = shipped();
         assert_eq!(d.colony_life_days, 70.0, "Koppert: remove hives the latest 10 weeks after introduction");
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let items = crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap();
         assert!(items.items.contains_key(&d.colony_item), "{} is an items.csv item", d.colony_item);
         let goods = crate::systems::economy::TradeGoodsRegistry::from_ron(&std::fs::read(root.join("data/trade_goods.ron")).unwrap()).unwrap();
@@ -1897,9 +1897,9 @@ mod tests {
         );
         let mut world = watered_world();
         let fan = world.spawn((
-            crate::ecs::components::MachineType("circulation_fan".into()),
+            humanity_core::ecs::components::MachineType("circulation_fan".into()),
             Transform { position: glam::Vec3::new(0.5, 0.0, 0.0), ..Default::default() },
-            crate::ecs::components::PowerConsumer { draw_watts: 11.0, priority: 4, enabled: true },
+            humanity_core::ecs::components::PowerConsumer { draw_watts: 11.0, priority: 4, enabled: true },
         ));
         let under = world.spawn((crop("strawberry", "ntower_0", "flower"),));
         let beyond = world.spawn((crop("strawberry", "ntower_5", "flower"),));
@@ -1918,14 +1918,14 @@ mod tests {
             "{said:?}"
         );
         // Unpowered: nothing. Ten more days at no help halve what it set.
-        world.get::<&mut crate::ecs::components::PowerConsumer>(fan).unwrap().enabled = false;
+        world.get::<&mut humanity_core::ecs::components::PowerConsumer>(fan).unwrap().enabled = false;
         step(&mut p, &mut world, &data, 10.0);
         let half = 0.21 + 0.79 * ((0.79 - 0.21) / 0.79) / 2.0;
         assert!((p.harvest_set(&world, &data, under) - half).abs() < 1e-6, "{}", p.harvest_set(&world, &data, under));
         // Only strawberries in the area: partly pollinated, the Hand-pollinate
         // button still offered for the rest.
         world.despawn(tomato).unwrap();
-        world.get::<&mut crate::ecs::components::PowerConsumer>(fan).unwrap().enabled = true;
+        world.get::<&mut humanity_core::ecs::components::PowerConsumer>(fan).unwrap().enabled = true;
         let view = GuiView::new(&world, &data);
         assert_eq!(view.area("ntower_0").unwrap().waiting, "Flowering, only partly pollinated");
         let d = shipped();

@@ -84,7 +84,7 @@
 //! leaving the shared world takes them down with the other players' figures
 //! (`forget_shared_entities`); the next welcome brings them back.
 
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use crate::engine::state::{ConstructionHistory, EditorSnapshot, EngineState};
 use crate::persistence::ShipPlace;
 use crate::ship::ship_structure::ShipStructure;
@@ -133,7 +133,7 @@ pub(crate) fn join_denied_sentence(reason: &str) -> Option<&'static str> {
 /// into the app). Pure.
 ///
 /// The review of increment 4, P6: an installed game writes the ship file into its data folder on
-/// its first run and never refreshes it (src/storage.rs `extract_data_if_needed`), the updater
+/// its first run and never refreshes it (crates/humanity-core/src/storage.rs `extract_data_if_needed`), the updater
 /// swaps only the exe, and the ship is read from the data folder first. So after an update that
 /// changes the ship, the game names the OLD ship, and every server running the new one refused
 /// it with "update whichever of the app and the server is older", which cannot help: both are
@@ -1122,7 +1122,7 @@ pub(crate) fn carry_saved_pieces(world: &mut hecs::World, saved: Option<[[f32; 3
             foreign.push((e, t.position));
         }
     }
-    for (e, (_v, t)) in world.query::<(&crate::ecs::components::Vehicle, &Transform)>().iter() {
+    for (e, (_v, t)) in world.query::<(&humanity_core::ecs::components::Vehicle, &Transform)>().iter() {
         if over_plot(t.position, home) && !over_plot(t.position, saved) {
             foreign.push((e, t.position));
         }
@@ -1176,7 +1176,7 @@ pub(crate) fn carry_saved_pieces_home(state: &mut EngineState, saved: Option<[[f
 /// on the world and the DataStore.
 pub(crate) fn carry_loaded_save(
     world: &mut hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     saved: Option<[[f32; 3]; 2]>,
     ship: Option<&ShipStructure>,
 ) -> (usize, usize, usize) {
@@ -1224,7 +1224,7 @@ pub(crate) fn carry_loaded_save_home(state: &mut EngineState) {
 /// and that session's saves recorded none). None when nothing was carried. Pure on the world.
 pub(crate) fn carry_loaded_box(
     world: &mut hecs::World,
-    data: &mut crate::hot_reload::data_store::DataStore,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
     home: Option<PlotBox>,
 ) -> Option<(usize, usize, usize)> {
     let b = data.get::<crate::save_load::LoadedHomeBox>(crate::save_load::LOADED_HOME_BOX_KEY).copied()?;
@@ -1301,9 +1301,9 @@ pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: 
     }
     let mut vehicles = 0;
     for (_e, (_v, t, route, mark)) in world.query_mut::<(
-        &crate::ecs::components::Vehicle,
+        &humanity_core::ecs::components::Vehicle,
         &mut Transform,
-        Option<&mut crate::ecs::components::VehicleRoute>,
+        Option<&mut humanity_core::ecs::components::VehicleRoute>,
         Option<&NotTheHomes>,
     )>() {
         if over_plot(t.position, from) && !stays(t, mark) {
@@ -1334,7 +1334,7 @@ pub(crate) fn built_positions(world: &hecs::World) -> (Vec<Vec3>, Vec<Vec3>) {
         .map(|(_, (t, _, _))| t.position)
         .collect();
     let vehicles = world
-        .query::<(&crate::ecs::components::Vehicle, &Transform)>()
+        .query::<(&humanity_core::ecs::components::Vehicle, &Transform)>()
         .iter()
         .map(|(_, (_, t))| t.position)
         .collect();
@@ -1351,7 +1351,7 @@ fn carry_anchored_things(state: &mut EngineState, shifts: &[MachineShift]) {
     for (_e, (c, t)) in state
         .game_world
         .world
-        .query_mut::<(&mut crate::ecs::components::Creature, &mut crate::ecs::components::Transform)>()
+        .query_mut::<(&mut humanity_core::ecs::components::Creature, &mut humanity_core::ecs::components::Transform)>()
     {
         let d = shift_of(shifts, c.anchor);
         if d != Vec3::ZERO {
@@ -1735,7 +1735,7 @@ pub(crate) struct Standing<'a> {
 /// the world.
 pub(crate) fn step_out_of_vehicles(world: &mut hecs::World, driving: &mut Option<hecs::Entity>, following: &mut Option<hecs::Entity>) {
     if let Some(veh) = driving.take() {
-        if let Ok(mut seat) = world.get::<&mut crate::ecs::components::VehicleSeat>(veh) {
+        if let Ok(mut seat) = world.get::<&mut humanity_core::ecs::components::VehicleSeat>(veh) {
             seat.occupant_key = None;
         }
     }
@@ -1753,7 +1753,7 @@ pub(crate) fn step_out_of_vehicles(world: &mut hecs::World, driving: &mut Option
 /// `editor_close_spot` judges the build spot against, moves. Pure on the world.
 pub(crate) fn stand_player_at(world: &mut hecs::World, s: Standing, at: Vec3) {
     step_out_of_vehicles(world, s.driving, s.following);
-    for (_e, (t, _c)) in world.query_mut::<(&mut Transform, &crate::ecs::components::Controllable)>() {
+    for (_e, (t, _c)) in world.query_mut::<(&mut Transform, &humanity_core::ecs::components::Controllable)>() {
         t.position = at;
     }
     if s.showroom_open {
@@ -1794,7 +1794,7 @@ pub(crate) fn home_things_json(state: &EngineState) -> serde_json::Value {
     let animals: Vec<serde_json::Value> = state
         .game_world
         .world
-        .query::<(&crate::ecs::components::Creature, &crate::systems::livestock::HerdSlot)>()
+        .query::<(&humanity_core::ecs::components::Creature, &crate::systems::livestock::HerdSlot)>()
         .iter()
         .map(|(_, (c, _))| v(c.anchor))
         .collect();
@@ -1816,7 +1816,7 @@ mod tests {
     use super::*;
 
     fn data_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The game as it boots: the home on the default plot, p1.
@@ -2195,7 +2195,7 @@ mod tests {
     /// rig looks for \"You are a visitor on this ship, with no plot of your own\"".
     #[test]
     fn the_rig_knows_the_guest_editor_sentence() {
-        let judge = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/lib/copresence-judge.js")).unwrap();
+        let judge = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/lib/copresence-judge.js")).unwrap();
         let start = judge
             .split("const GUEST_NO_EDITOR_START = \"")
             .nth(1)
@@ -2212,7 +2212,7 @@ mod tests {
     /// has no plot free": "the rig looks for \"This server has no plot free\"".
     #[test]
     fn the_rig_knows_the_guest_arrival_sentence() {
-        let judge = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/lib/copresence-judge.js")).unwrap();
+        let judge = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/lib/copresence-judge.js")).unwrap();
         let start = judge
             .split("const GUEST_ARRIVAL_START = \"")
             .nth(1)
@@ -2343,7 +2343,7 @@ mod tests {
 
     /// AN UPDATED APP WITH AN OLD SHIP FILE IN ITS DATA FOLDER IS TOLD WHICH FILE (the review of
     /// increment 4, P6). An installed game writes the ship file to its data folder on the first
-    /// run and never refreshes it (src/storage.rs `extract_data_if_needed`); the updater swaps
+    /// run and never refreshes it (crates/humanity-core/src/storage.rs `extract_data_if_needed`); the updater swaps
     /// only the exe, and the ship is read from the data folder first. So after an update that
     /// changes the ship, the game names the OLD ship and every server running the new one
     /// refuses it with "update whichever of the app and the server is older", which cannot help:
@@ -2494,14 +2494,14 @@ mod tests {
         use crate::systems::construction::{Construction, PlanetSite, Structure};
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         let built = |id: &str, uid: u32| Structure { blueprint_id: id.into(), health: 42.0, max_health: 100.0, provides: None, uid };
-        let vehicle = || crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() };
+        let vehicle = || humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() };
         let mut w = hecs::World::new();
         w.spawn((tf(20.0, 30.0), built("chest", 7)));
         w.spawn((tf(10.0, 12.0), Construction { blueprint_id: "wood_wall".into(), progress: 3.0, build_time: 10.0, builder_key: None }));
         w.spawn((
             tf(40.0, 70.0),
             vehicle(),
-            crate::ecs::components::VehicleRoute { dest: Vec3::new(45.0, 0.0, 80.0), speed_mps: 3.0, arrive_radius: 2.0 },
+            humanity_core::ecs::components::VehicleRoute { dest: Vec3::new(45.0, 0.0, 80.0), speed_mps: 3.0, arrive_radius: 2.0 },
         ));
         w.spawn((tf(80.0, 40.0), built("wood_wall", 8))); // the Commons, x 65..99
         w.spawn((tf(90.0, 50.0), vehicle()));
@@ -2538,7 +2538,7 @@ mod tests {
         assert_eq!(planet, Vec3::new(25.0, 0.0, 35.0), "a planet piece never moves with the home");
         // Vehicles: the home's goes, with its destination; the Commons one stays.
         let vehicles: Vec<(Vec3, Option<Vec3>)> = w
-            .query::<(&Transform, &crate::ecs::components::Vehicle, Option<&crate::ecs::components::VehicleRoute>)>()
+            .query::<(&Transform, &humanity_core::ecs::components::Vehicle, Option<&humanity_core::ecs::components::VehicleRoute>)>()
             .iter()
             .map(|(_, (t, _, r))| (t.position, r.map(|r| r.dest)))
             .collect();
@@ -2686,7 +2686,7 @@ mod tests {
         let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
-        let truck = || crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() };
+        let truck = || humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() };
         let mut live = built_world(); // built with the home on p1 ...
         carry_built_pieces(&mut live, p1, p2.0 - p1.0); // ... then a welcome moved it to p2
         live.spawn((tf(14.0, 85.0), truck())); // left standing on p1, someone else's plot now
@@ -2697,7 +2697,7 @@ mod tests {
             w.query::<(&Transform, &Structure)>().iter().find(|(_, (_, s))| s.blueprint_id == "chest").map(|(_, (t, _))| t.position).unwrap()
         };
         let trucks = |w: &hecs::World| -> Vec<Vec3> {
-            w.query::<(&Transform, &crate::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect()
+            w.query::<(&Transform, &humanity_core::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect()
         };
         assert_eq!(chest_at(&live), Vec3::new(20.0, 0.0, 129.0), "the chest is saved where it stands");
 
@@ -3236,18 +3236,18 @@ mod tests {
     fn rider_world() -> (hecs::World, hecs::Entity, hecs::Entity) {
         let tf = |p: Vec3| Transform { position: p, rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         let mut w = hecs::World::new();
-        w.spawn((tf(Vec3::new(30.0, 0.0, 30.0)), crate::ecs::components::Controllable));
+        w.spawn((tf(Vec3::new(30.0, 0.0, 30.0)), humanity_core::ecs::components::Controllable));
         let truck = w.spawn((
             tf(Vec3::new(30.0, 0.0, 30.0)),
-            crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() },
-            crate::ecs::components::VehicleSeat { occupant_key: Some("player".into()), seat_type: "pilot".into() },
+            humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() },
+            humanity_core::ecs::components::VehicleSeat { occupant_key: Some("player".into()), seat_type: "pilot".into() },
         ));
-        let bus = w.spawn((tf(Vec3::new(80.0, 0.0, 40.0)), crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() }));
+        let bus = w.spawn((tf(Vec3::new(80.0, 0.0, 40.0)), humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() }));
         (w, truck, bus)
     }
 
     fn body_at(w: &hecs::World) -> Vec3 {
-        w.query::<(&Transform, &crate::ecs::components::Controllable)>().iter().map(|(_, (t, _))| t.position).next().unwrap()
+        w.query::<(&Transform, &humanity_core::ecs::components::Controllable)>().iter().map(|(_, (t, _))| t.position).next().unwrap()
     }
 
     /// ROUND 4, finding 2: a welcome stands the player where the relay holds them while they
@@ -3269,7 +3269,7 @@ mod tests {
         stand_player_at(&mut w, standing, P2_DOOR);
         assert_eq!(driving, None, "the player still drives {driving:?}: the next frame puts the camera back in the cab");
         assert_eq!(following, None, "the follow cam still chases {following:?}: the next frame puts the camera back behind it");
-        let seat = w.get::<&crate::ecs::components::VehicleSeat>(truck).unwrap().occupant_key.clone();
+        let seat = w.get::<&humanity_core::ecs::components::VehicleSeat>(truck).unwrap().occupant_key.clone();
         assert_eq!(seat, None, "the truck's seat is free again");
         assert_eq!(body_at(&w), P2_DOOR);
         assert_eq!(camera, P2_DOOR);
@@ -3326,7 +3326,7 @@ mod tests {
     fn a_save_before_the_world_loads_is_carried_into_the_home_at_the_next_launch() {
         let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
         let w = chest_world(Vec3::new(20.0, 0.0, 129.0));
         let mut save = crate::save_load::extract_world_save(&w);
@@ -3350,7 +3350,7 @@ mod tests {
     fn a_session_on_the_legacy_layout_keeps_the_saved_box() {
         let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
         let mut w = chest_world(Vec3::new(20.0, 0.0, 129.0));
         assert_eq!(carry_loaded_box(&mut w, &mut data, None), None, "nothing to carry to");
@@ -3408,7 +3408,7 @@ mod tests {
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         let mut live = built_world();
         carry_built_pieces(&mut live, p1, p2.0 - p1.0); // the home on p2 ...
-        live.spawn((tf(14.0, 85.0), crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() })); // ... a truck left on p1
+        live.spawn((tf(14.0, 85.0), humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() })); // ... a truck left on p1
         let mut first = crate::save_load::extract_world_save(&live);
         crate::save_load::record_home_frame(&mut first, home_frame(&on_p2).as_ref());
         // The next launch: the home on p1, the save carried there, the truck marked.
@@ -3425,7 +3425,7 @@ mod tests {
         carry_built_pieces(&mut again, p1, p2.0 - p1.0);
         clear_not_the_homes(&mut again);
         let trucks: Vec<Vec3> =
-            again.query::<(&Transform, &crate::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect();
+            again.query::<(&Transform, &humanity_core::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect();
         assert!(trucks.contains(&Vec3::new(14.0, 0.0, 85.0)), "a truck left on p1 was adopted into the home on the launch after a save before the welcome: {trucks:?}");
         assert!(trucks.contains(&Vec3::new(40.0, 0.0, 169.0)), "the truck parked in the home went with it: {trucks:?}");
         // Once the home has moved, the mark has done its work: the next save carries none.
@@ -3571,7 +3571,7 @@ mod tests {
         let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
         // Server X: the home on p2, a truck parked on p1, outside it.
         let mut live = hecs::World::new();
-        live.spawn((tf(14.0, 85.0), crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() }));
+        live.spawn((tf(14.0, 85.0), humanity_core::ecs::components::Vehicle { item_id: "truck_pickup_0".into() }));
         let mut first = crate::save_load::extract_world_save(&live);
         crate::save_load::record_home_frame(&mut first, home_frame(&on_p2).as_ref());
         // The next launch: the home on p1, the save carried there, the truck marked.
@@ -3589,7 +3589,7 @@ mod tests {
         // A server that gives p2: the home moves, and what stands in it goes along.
         carry_built_pieces(&mut again, p1, p2.0 - p1.0);
         let trucks: Vec<Vec3> =
-            again.query::<(&Transform, &crate::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect();
+            again.query::<(&Transform, &humanity_core::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect();
         assert_eq!(
             trucks,
             vec![Vec3::new(14.0, 0.0, 184.0)],
@@ -3612,7 +3612,7 @@ mod tests {
     fn a_snapshot_restored_on_the_legacy_layout_is_the_box_later_saves_record() {
         let on_p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).unwrap();
         let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
         let mut w = chest_world(Vec3::new(20.0, 0.0, 30.0));
         assert_eq!(carry_loaded_save(&mut w, &mut data, Some(box_of(p1)), None), (0, 0, 0), "no home to carry to");
@@ -3651,7 +3651,7 @@ mod storey_tests {
     /// The shipped homestead assembled on p1 (55 x 6 x 89 at the ship's origin), as the only zone
     /// of a ship, with its rooms and footing as the game makes them; and p1's box.
     fn homestead_on_p1() -> (Aboard, crate::ship::ship_space::Aabb) {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
         let plot = ship.home_plot().expect("the home on p1").aabb();
         let home = ship.zones[ship.home_zone_index()].clone();

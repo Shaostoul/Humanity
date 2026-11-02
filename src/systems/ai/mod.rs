@@ -20,9 +20,9 @@ pub mod flow_field;
 use glam::Vec3;
 use rand::Rng;
 
-use crate::ecs::components::{AIBehavior, Controllable, Faction, Health, Transform, Velocity};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AIBehavior, Controllable, Faction, Health, Transform, Velocity};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// How close an entity must be to a target to count as "in range" (meters).
 const ATTACK_RANGE: f32 = 5.0;
@@ -83,7 +83,7 @@ impl System for AISystem {
                 Option<&Faction>,
                 Option<&AIBehavior>,
                 Option<&Controllable>,
-                Option<&crate::ecs::components::Name>,
+                Option<&humanity_core::ecs::components::Name>,
             )>()
             .iter()
             .map(|(entity, (tf, hp, faction, ai, player, name))| EntitySnapshot {
@@ -498,7 +498,7 @@ fn flee_direction(my_pos: Vec3, threat_pos: Vec3) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::Name;
+    use humanity_core::ecs::components::Name;
 
     /// THE hostile loop (v0.761): a predator wolf sees the player as prey,
     /// closes the distance under its own locomotion, and once in range its

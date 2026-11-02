@@ -5,13 +5,13 @@
  * encoding + Dilithium3 signing for a fixed vote_v1 input.
  *
  * Asserts, against the Rust goldens in
- * src/relay/core/object.rs::vote_v1_cross_language_kat (duplicated here on
+ * crates/humanity-protocol/src/object.rs::vote_v1_cross_language_kat (duplicated here on
  * purpose — editing the encoding must break BOTH or neither):
  *   1. payload bytes ({choice:"yes"} canonical CBOR) are byte-identical,
  *   2. the SIGNABLE bytes (canonical object with a zero-filled 3309-byte
  *      signature) are byte-identical (length + BLAKE3),
  *   3. the frozen deterministic RUST signature fixture
- *      (src/relay/core/pq_kat_vote_sig.hex) VERIFIES under noble over the
+ *      (crates/humanity-protocol/src/pq_kat_vote_sig.hex) VERIFIES under noble over the
  *      JS-computed signable bytes — a Dilithium verify binds the exact message
  *      bytes, so a pass is cryptographic proof of byte equality,
  *   4. splicing that Rust signature into the JS object reproduces the Rust
@@ -33,9 +33,9 @@ const REPO = join(fileURLToPath(import.meta.url), '..', '..');
 const CBOR = join(REPO, 'web', 'shared', 'canonical-cbor.js');
 const OBJ = join(REPO, 'web', 'shared', 'pq-object.js');
 const BUNDLE = join(REPO, 'web', 'shared', 'vendor', 'noble-pq.bundle.js');
-const RUST_SIG_FIXTURE = join(REPO, 'src', 'relay', 'core', 'pq_kat_vote_sig.hex');
+const RUST_SIG_FIXTURE = join(REPO, 'crates', 'humanity-protocol', 'src', 'pq_kat_vote_sig.hex');
 
-// GOLDEN — must equal src/relay/core/object.rs::VOTE_KAT_*.
+// GOLDEN — must equal crates/humanity-protocol/src/object.rs::VOTE_KAT_*.
 const KAT_PROPOSAL_ID =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const KAT_CREATED_AT = 1_751_328_000_000;
@@ -134,12 +134,12 @@ try {
     fail('submission payload_b64 does not decode to the golden payload');
   }
 
-  // 6) The frozen JS-built submission fixture (src/relay/core/
+  // 6) The frozen JS-built submission fixture (crates/humanity-protocol/src/
   // pq_kat_vote_submission.json — the reverse-direction Rust test
   // api_v2_objects.rs::js_built_vote_submission_verifies_through_the_wire_path
   // drives it through the relay's actual POST parse+verify path) must stay
   // valid: same identity, same signable bytes, noble-verifiable signature.
-  const FIXTURE = join(REPO, 'src', 'relay', 'core', 'pq_kat_vote_submission.json');
+  const FIXTURE = join(REPO, 'crates', 'humanity-protocol', 'src', 'pq_kat_vote_submission.json');
   const fixture = JSON.parse(readFileSync(FIXTURE, 'utf8'));
   const pqVerify = async (pub, msg, sig) => !!noble.ml_dsa65.verify(sig, msg, pub);
   const fx = await verifyObjectSubmission(fixture, { blake3, pqVerify });
@@ -151,7 +151,7 @@ try {
     fail('frozen vote submission fixture was built with a different identity');
   }
 
-  // Encoder unit vector from src/relay/core/encoding.rs::canonical_map_key_ordering:
+  // Encoder unit vector from crates/humanity-protocol/src/encoding.rs::canonical_map_key_ordering:
   // {z:1, a:2, bb:3} sorts a, z, bb (shorter encoded key first, then bytewise).
   const sortHex = hx(cborMap([
     [cborText('z'), new Uint8Array([0x01])],

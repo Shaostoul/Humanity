@@ -104,7 +104,7 @@ mod viewer;
 
 /// The open item's video or sound gets its sound from the app's mixer (`open::sync_sound`); the
 /// engine calls this each frame it has a mixer.
-pub(crate) fn sync_sound(state: &mut GuiState, audio: &mut crate::audio::AudioManager) {
+pub(crate) fn sync_sound(state: &mut GuiState, audio: &mut humanity_core::audio::AudioManager) {
     if let Some(opened) = state.files.open.as_mut() {
         open::sync_sound(opened, audio);
     }

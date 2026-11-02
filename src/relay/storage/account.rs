@@ -806,7 +806,7 @@ mod tests {
         let receipt = db.delete_account("5b22", "Ivy");
         assert!(!receipt.iter().any(|(l, _)| l.ends_with("_FAILED")), "{receipt:?}");
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-        let copy = crate::relay::core::profile_copy::PublicCopy {
+        let copy = humanity_protocol::profile_copy::PublicCopy {
             name: "Ivy".to_string(),
             bio: "from a peer server".to_string(),
             socials: "{}".to_string(),
@@ -850,10 +850,10 @@ mod tests {
     fn the_media_page_is_exported_and_erased_with_its_files() {
         use crate::relay::storage::files::{Folders, Publish};
         let db = test_storage();
-        let uploads = crate::test_temp::dir("account_media_uploads");
-        let members = crate::test_temp::dir("account_media_members");
-        let resume = crate::test_temp::dir("account_media_resume");
-        let waiting = crate::test_temp::dir("account_media_waiting");
+        let uploads = humanity_core::test_temp::dir("account_media_uploads");
+        let members = humanity_core::test_temp::dir("account_media_members");
+        let resume = humanity_core::test_temp::dir("account_media_resume");
+        let waiting = humanity_core::test_temp::dir("account_media_waiting");
         let folders = Folders { uploads: &uploads, members: &members, resume: &resume, waiting: &waiting };
         db.join_server("ann_key", "Ann").unwrap();
         db.join_server("bea_key", "Bea").unwrap();
@@ -913,7 +913,7 @@ mod tests {
         // Not read, with the reason: mail other people send keeps arriving after an erase; a
         // gossiped profile is written back by other servers where the key still has an account.
         const NOT_READ: [&str; 2] = ["dm_mailbox", "signed_profiles"];
-        let src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/relay/storage/account.rs")).unwrap();
+        let src = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/relay/storage/account.rs")).unwrap();
         let src = src.replace("\r\n", "\n"); // a Windows checkout
         let erase = &src[src.find("pub fn delete_account").unwrap()..src.find("pub fn erase_left_rows").unwrap()];
         let check = &src[src.find("pub fn erase_left_rows").unwrap()..];

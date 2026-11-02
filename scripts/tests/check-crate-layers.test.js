@@ -129,8 +129,8 @@ const { flatByFile, flatBudgets, nestByFile } = require('../check-crate-layers.j
 test('a test budget belongs to its file: another file on the same edge cannot spend it', () => {
   const budgets = flatBudgets({ 'src/systems/farming/heat_tests.rs': { 'humanity-systems -> humanity-engine': 6 } });
   const counts = flatByFile(new Map([
-    ['systems/farming/heat_tests.rs', new Map([['humanity-systems -> humanity-engine', 5]])],
-    ['systems/wounds_tests.rs', new Map([['humanity-systems -> humanity-engine', 1]])],
+    ['src/systems/farming/heat_tests.rs', new Map([['humanity-systems -> humanity-engine', 5]])],
+    ['src/systems/wounds_tests.rs', new Map([['humanity-systems -> humanity-engine', 1]])],
   ]));
   const r = judge(counts, budgets);
   assert.deepStrictEqual(r.fresh, [{ edge: 'src/systems/wounds_tests.rs: humanity-systems -> humanity-engine', n: 1 }]);
@@ -182,8 +182,8 @@ test('the counting reads a binary through the library, and test code file by fil
     assert.deepStrictEqual([...a.edges.get('low -> top')], [['main: top::go', 1]]);
     assert.deepStrictEqual([...a.crossing.get('top -> low')], [['low::x', 1]]);
     // The test in low.rs reaching up is held by its file.
-    assert.deepStrictEqual([...a.testByFile.get('low.rs')], [['low -> top', 1]]);
-    assert.deepStrictEqual(a.testList.map((r) => `${r.rel}:${r.line} ${r.item}`), ['low.rs:3 top::go']);
+    assert.deepStrictEqual([...a.testByFile.get('src/low.rs')], [['low -> top', 1]]);
+    assert.deepStrictEqual(a.testList.map((r) => `${r.path}:${r.line} ${r.item}`), ['src/low.rs:3 top::go']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -226,8 +226,8 @@ test('a path to a crate-root item, lower or upper case, is a reference into the 
     ] };
     const a = analyse({ src, plan, cargo: '[package]\nname = "x"\n' });
     assert.deepStrictEqual([...a.edges.get('low -> top')].sort(), [['low: DATA_DIR', 1], ['low: data_dir', 1], ['low: kept', 1]]);
-    assert.deepStrictEqual([...a.codeByFile.get('low.rs')], [['low -> top', 3]]);
-    assert.ok(!a.codeByFile.has('top.rs'), 'the crate that owns lib.rs reads its own root freely');
+    assert.deepStrictEqual([...a.codeByFile.get('src/low.rs')], [['low -> top', 3]]);
+    assert.ok(!a.codeByFile.has('src/top.rs'), 'the crate that owns lib.rs reads its own root freely');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -257,4 +257,90 @@ test('a test reaching another crate\'s test-only module is listed; its own crate
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// The cut crates (2026-11-01, rung 1): a crate the plan gives a `dir` is read from its own folder,
+// named by its library's name from anywhere, and the plan must agree with the workspace's manifests.
+const { manifestDeps, boundaryProblems } = require('../check-crate-layers.js');
+
+test('a cut crate is read in its own folder and by its name; a wrong-way use between cut crates is counted', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crate-graph-cut-'));
+  try {
+    const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), text); };
+    write('crates/x-low/src/lib.rs', 'pub mod a;\n');
+    write('crates/x-low/src/a.rs', 'pub fn f() { crate::a::g(); x_mid::b::h(); }\npub fn g() {}\n#[cfg(test)]\nmod tests { #[test] fn t() { super::g(); } }\n');
+    write('crates/x-mid/src/lib.rs', 'pub mod b;\n');
+    write('crates/x-mid/src/b.rs', 'pub fn h() { x_low::a::g(); crate::b::i(); }\npub fn i() {}\n');
+    write('src/lib.rs', 'pub mod top;\n');
+    write('src/top.rs', 'pub fn go() { x_low::a::f(); x_mid::b::h(); }\n');
+    const plan = { crates: [
+      { name: 'x-low', dir: 'crates/x-low', uses: [] },
+      { name: 'x-mid', dir: 'crates/x-mid', uses: ['x-low'] },
+      { name: 'x-top', paths: ['top', 'lib.rs'], uses: ['x-mid'] },
+    ] };
+    const a = analyse({ tests: true, repo: dir, plan, cargo: '[package]\nname = "x-top"\n' });
+    // Each file is its folder's crate, named by its path from the repo root.
+    assert.deepStrictEqual(a.files.map((f) => `${f.path} ${f.crate} ${f.mod}`).sort(), [
+      'crates/x-low/src/a.rs x-low a', 'crates/x-low/src/lib.rs x-low lib',
+      'crates/x-mid/src/b.rs x-mid b', 'crates/x-mid/src/lib.rs x-mid lib',
+      'src/lib.rs x-top lib', 'src/top.rs x-top top',
+    ]);
+    // The low crate naming the middle one points the wrong way, and is counted by its file.
+    assert.deepStrictEqual([...a.edges.get('x-low -> x-mid')], [['a: b::h', 1]]);
+    assert.deepStrictEqual([...a.codeByFile.get('crates/x-low/src/a.rs')], [['x-low -> x-mid', 1]]);
+    // Allowed uses by name are crossings, not edges; a crate's own crate:: is no crossing at all.
+    assert.deepStrictEqual([...a.crossing.get('x-top -> x-low')], [['a::f', 1]]);
+    assert.deepStrictEqual([...a.crossing.get('x-mid -> x-low')], [['a::g', 1]]);
+    assert.ok(!a.edges.has('x-mid -> x-low') && !a.edges.has('x-top -> x-low'));
+    assert.ok(!a.testByFile.size, 'the test in a.rs names only its own crate');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the plan must agree with the workspace: members, dirs and the dependencies between them', () => {
+  const root = '[workspace]\nmembers = [".", "crates/x-low",\n  "crates/x-mid"]\n\n[package]\nname = "x-top"\n\n[dependencies]\nx-low = { path = "crates/x-low" }\nrav1d = { path = "vendor/rav1d" }\n\n[dev-dependencies]\nx-mid = { path = "crates/x-mid", features = ["test-support"] }\n';
+  assert.deepStrictEqual(manifestDeps(root), {
+    members: ['.', 'crates/x-low', 'crates/x-mid'],
+    deps: [
+      { table: 'dependencies', name: 'x-low', path: 'crates/x-low' },
+      { table: 'dependencies', name: 'rav1d', path: 'vendor/rav1d' },
+      { table: 'dev-dependencies', name: 'x-mid', path: 'crates/x-mid' },
+    ],
+  });
+  const plan = { crates: [
+    { name: 'x-low', dir: 'crates/x-low', uses: [] },
+    { name: 'x-mid', dir: 'crates/x-mid', uses: ['x-low'] },
+    { name: 'x-top', paths: ['top', 'lib.rs'], uses: ['x-mid'] },
+  ] };
+  const tomls = {
+    'crates/x-low': '[package]\nname = "x-low"\n',
+    'crates/x-mid': '[package]\nname = "x-mid"\n[dependencies]\nx-low = { path = "../x-low", default-features = false }\n',
+  };
+  const read = (d) => (d in tomls ? tomls[d] : null);
+  assert.deepStrictEqual(boundaryProblems(plan, root, read, 'x-top'), []);
+  // Red: the low crate given a dependency on the middle one, which the plan forbids.
+  const bad = { ...tomls, 'crates/x-low': '[package]\nname = "x-low"\n[dependencies]\nx-mid = { path = "../x-mid" }\n' };
+  assert.deepStrictEqual(boundaryProblems(plan, root, (d) => (d in bad ? bad[d] : null), 'x-top'), [
+    "x-low's Cargo.toml depends on x-mid ([dependencies]), which the plan does not let x-low use",
+  ]);
+  // Red: the same in a dependency's own table ([dependencies.x] form), which an inline-only reader missed.
+  const tableForm = { ...tomls, 'crates/x-low': '[package]\nname = "x-low"\n\n[dev-dependencies.x-mid]\npath = "../x-mid"\nfeatures = ["test-support"]\n' };
+  assert.deepStrictEqual(boundaryProblems(plan, root, (d) => (d in tableForm ? tableForm[d] : null), 'x-top'), [
+    "x-low's Cargo.toml depends on x-mid ([dev-dependencies]), which the plan does not let x-low use",
+  ]);
+  // Red: a member the plan does not know, a cut crate that is not a member, a wrong package name.
+  const two = root.replace('"crates/x-low",\n  "crates/x-mid"', '"crates/x-mid", "crates/x-other"');
+  assert.deepStrictEqual(boundaryProblems(plan, two, read, 'x-top'), [
+    "x-low's dir, crates/x-low, is not a member of the root Cargo.toml's [workspace]",
+    'the workspace member crates/x-other is not a crate the plan cut (give its plan entry "dir": "crates/x-other")',
+  ]);
+  const renamed = { ...tomls, 'crates/x-low': '[package]\nname = "x-lower"\n' };
+  assert.deepStrictEqual(boundaryProblems(plan, root, (d) => (d in renamed ? renamed[d] : null), 'x-top'), ['crates/x-low/Cargo.toml names its package "x-lower", the plan "x-low"']);
+  // Red: a cut crate that still lists paths under src/.
+  const stale = { crates: plan.crates.map((c) => (c.name === 'x-low' ? { ...c, paths: ['low'] } : c)) };
+  assert.deepStrictEqual(boundaryProblems(stale, root, read, 'x-top'), ['x-low is cut (dir crates/x-low) but still lists paths under src/: its files are in its dir now']);
 });

@@ -11,8 +11,8 @@
 use rusqlite::{OptionalExtension, params};
 
 use super::Storage;
-use crate::relay::core::did::did_for_pubkey;
-use crate::relay::core::object::Object;
+use humanity_protocol::did::did_for_pubkey;
+use humanity_protocol::object::Object;
 
 /// One row of the VC fast-lookup index.
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ fn extract_payload_did_field(object: &Object, field_name: &str) -> Option<String
     if object.payload_encoding != "cbor_canonical_v1" {
         return None;
     }
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&object.payload).ok()?;
     let entries = match value {
         ciborium::Value::Map(e) => e,
         _ => return None,
@@ -82,7 +82,7 @@ fn extract_payload_int_field(object: &Object, field_name: &str) -> Option<i64> {
     if object.payload_encoding != "cbor_canonical_v1" {
         return None;
     }
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&object.payload).ok()?;
     let entries = match value {
         ciborium::Value::Map(e) => e,
         _ => return None,
@@ -271,9 +271,9 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text};
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
         Storage::open_temp("vc_test")

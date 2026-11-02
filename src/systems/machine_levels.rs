@@ -35,7 +35,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{AutoRefine, Battery, FuelStove, MachineInstanceId, WaterTank};
+use humanity_core::ecs::components::{AutoRefine, Battery, FuelStove, MachineInstanceId, WaterTank};
 use crate::systems::inventory::containers::Container;
 
 /// One home machine's stored levels. A field is None when the machine has no
@@ -333,7 +333,7 @@ mod tests {
     /// \"smelt_iron_graphite\"".
     #[test]
     fn a_machines_chosen_recipe_survives_a_save_and_world_entry() {
-        use crate::ecs::components::AutoRefine;
+        use humanity_core::ecs::components::AutoRefine;
         let spawn = |w: &mut hecs::World| {
             w.spawn((MachineInstanceId("smelter_1".into()), AutoRefine { recipe_id: "smelt_iron".into(), keep: None }));
             w.spawn((MachineInstanceId("workbench_1".into()), AutoRefine { recipe_id: "craft_hammer".into(), keep: Some(2) }));

@@ -33,9 +33,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{AsteroidBody, Controllable, Drone, DronePhase, PowerCircuit, PowerConsumer};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AsteroidBody, Controllable, Drone, DronePhase, PowerCircuit, PowerConsumer};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 use std::sync::Mutex;
 
@@ -130,7 +130,7 @@ impl DroneSpec {
     /// or this version cannot read it (`embedded_data::load_text_or_embedded`). None when
     /// neither loads: the drone then flies free, which the log says.
     pub fn load(data_dir: &std::path::Path) -> Option<Self> {
-        match crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron) {
+        match humanity_core::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron) {
             Ok(s) => Some(s),
             Err(e) => {
                 log::warn!("{e}; the mining drone flies free (no energy, no wear) until it is fixed");
@@ -242,7 +242,7 @@ impl DroneReadout {
 /// Register the drone's data, its state (a new drone), the panel's request and readout,
 /// and the mode (Simplified until the Settings value is published). lib.rs, at startup.
 pub fn register(data_store: &mut DataStore) {
-    let Some(spec) = DroneSpec::load(&crate::storage::data_dir()) else { return };
+    let Some(spec) = DroneSpec::load(&humanity_core::storage::data_dir()) else { return };
     data_store.insert(UNIT_KEY, Mutex::new(DroneUnit::new(&spec)));
     data_store.insert(SPEC_KEY, spec);
     data_store.insert(REQUEST_KEY, Mutex::new(Option::<DroneRequest>::None));
@@ -292,7 +292,7 @@ pub struct DroneCharger;
 /// from the data it describes, so the two cannot drift.
 pub fn mode_hint() -> String {
     static SHIPPED: std::sync::OnceLock<Option<DroneSpec>> = std::sync::OnceLock::new();
-    hint_text(SHIPPED.get_or_init(|| DroneSpec::load(&crate::storage::data_dir())).as_ref())
+    hint_text(SHIPPED.get_or_init(|| DroneSpec::load(&humanity_core::storage::data_dir())).as_ref())
 }
 
 /// The hint's words for `spec` (none: the drone flies free in both modes).
@@ -621,7 +621,7 @@ fn parts_words(parts: &[(String, u32)], item_registry: Option<&ItemRegistry>) ->
 /// `Some(None)` is the bucket of power entities without a circuit (tests, older spawns).
 fn dock_island(world: &hecs::World) -> Option<Option<u32>> {
     let mut by: std::collections::BTreeMap<Option<u32>, f32> = std::collections::BTreeMap::new();
-    for (_e, (b, pc)) in world.query::<(&crate::ecs::components::Battery, Option<&PowerCircuit>)>().iter() {
+    for (_e, (b, pc)) in world.query::<(&humanity_core::ecs::components::Battery, Option<&PowerCircuit>)>().iter() {
         *by.entry(pc.map(|p| p.island)).or_default() += b.capacity_wh.max(0.0);
     }
     let best = by.iter().fold(None::<(Option<u32>, f32)>, |acc, (k, v)| match acc {
@@ -1344,7 +1344,7 @@ mod drone_tests {
     fn make_store() -> DataStore {
         let mut data = DataStore::new();
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -1661,7 +1661,7 @@ mod drone_tests {
         inv.add_item("hammer_0", 1, 1);
         inv.add_item("bandage_0", 1, 1);
         assert_eq!(inv.slots.iter().filter(|s| s.is_none()).count(), 0, "no free slot");
-        let player = world.spawn((inv, crate::ecs::components::Controllable));
+        let player = world.spawn((inv, humanity_core::ecs::components::Controllable));
         world.spawn((AsteroidBody {
             id: "rock".to_string(),
             name: "rock".to_string(),

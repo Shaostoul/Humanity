@@ -87,7 +87,7 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   round trips run in every full run), and the same run passed in 232 s once the game closed.
   Before a run, scripts/lib-tests.js asks scripts/lib/machine-guard.js which of his GPU-heavy
   programs run (scripts/lib/operator-apps.json, or his own HumanityOS); when one does, every test
-  that would open a device asks `crate::test_gpu::may_use()` (src/test_gpu.rs) first and returns
+  that would open a device asks `humanity_core::test_gpu::may_use()` (crates/humanity-core/src/test_gpu.rs) first and returns
   early, and the script names them in a GPU TESTS NOT RUN banner (libtest counts them as passed).
   The pass is recorded without them: the next full run on the same tree, once the game has
   closed, runs just those and then records the full pass. `--gpu-anyway` runs them beside it
@@ -104,11 +104,11 @@ one no longer hides the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm
 
 ## The warnings ratchet (2026-11-01)
 
-Our crate has **zero** rustc warnings, natively and in the relay build, and a change that adds one
+Our crates have **zero** rustc warnings, natively and in the relay build, and a change that adds one
 fails `just verify` and CI. `scripts/warnings-ratchet.js native` (the first line of `just verify`)
 and `scripts/warnings-ratchet.js relay` (`just verify-relay-compiles`, and CI's relay step) run
-`cargo check --lib --bins --tests` for that feature set with `--message-format=json` added (not
-part of cargo's fingerprint, so nothing rebuilds), count the warnings in OUR crate only (each one
+`cargo check --workspace --lib --bins --tests` for that feature set with `--message-format=json` added (not
+part of cargo's fingerprint, so nothing rebuilds), count the warnings in OUR crates only, every workspace member's (each one
 once: the library and its test build repeat them; vendor/ and other path packages are printed but
 not counted), and compare with `scripts/warnings-budget.json` (0 and 0). Over the budget fails and
 lists the kinds; under it asks for the budget to come down. A warning is fixed, never budgeted.
@@ -134,6 +134,68 @@ touch, measured 2026-11-01 on a busy machine (the operator's game and another ag
 running): 55 s for the old `cargo check --features native`, 85 s for the new line. The release
 build is not counted (it is not part of `just verify`); it printed one warning, in the vendored
 rav1d, fixed the same day with upstream's own line.
+
+## The workspace (2026-11-01, the crate split's rung 1)
+
+The repo is a Cargo workspace since rung 1 of the crate split (`docs/design/crate-split.md`): the
+root package `humanity-engine` (`src/`: the app, the server mode and the binary) and the crates cut
+out of it so far, `crates/humanity-core/` and `crates/humanity-protocol/` (the root `Cargo.toml`'s
+`[workspace] members` is the list). What that changed for builds and tests:
+
+- **One version, one dependency list.** `[workspace.package]` holds the version every member
+  carries (the app's: the core's own code reports it), as the file's first `version = ` line, which
+  is where `just bump` and the release scripts read and write it. `[workspace.dependencies]` holds
+  the version and features of every dependency more than one member uses, so no member can turn on
+  a feature the root left off (the image crate's AVIF encoder, say).
+- **Every member's lib tests.** Each member has a test program of its own (`humanity_core-<hash>`,
+  `humanity_protocol-<hash>`, `humanity_engine-<hash>`). `scripts/lib-tests.js` builds them all in
+  ONE `cargo test --no-run` (one feature unification: the core is compiled once per edit, and the
+  programs compile side by side), runs each with the same arguments, adds up the counts, reruns a
+  failure in the program it came from, keeps the pass ledger, the stall stop and the GPU stand-down
+  per program, and fails when a member's program was not built (a script that took "the" program
+  would run a third of the suite and call it green). `--crate <name>` builds and runs one member's.
+  A test's name is its path in its own crate: the protocol's lost their `relay::core::` prefix.
+  lib-tests runs every program from the repo root, as before; plain `cargo test` (`just
+  verify-relay`) runs a member's in that member's folder, so a test that writes a path relative
+  to the working directory lands in `crates/<name>/` (the core's boot-timing test made an
+  untracked `crates/humanity-core/debug/` until its timer stopped writing under test). Tests
+  name files from `env!("HUMANITY_REPO_ROOT")` or a `test_temp` folder, never from the cwd.
+- **BUG-174 since then:** the engine's test program links WITH its debug file again (459 MB, it
+  linked on 2026-11-01: line-tables-only debug info took the limit out of reach on 2026-10-24).
+  Building the engine's program separately with `cargo rustc ... /DEBUG:NONE` meant a second cargo
+  build for the other members with a feature unification of its own, which compiled about 160
+  dependencies and the core a second time. That `cargo rustc` form is now the fallback, taken (and
+  said) only when the link reports LNK1318.
+- **The test helpers cross the boundary through `test-support`.** A crate's `#[cfg(test)]` items
+  are never compiled into another crate's tests, so the core's `test_temp`, `test_clock`,
+  `test_log`, `test_gpu`, the frame-cost store's reset and lock, and the `fixtures` modules (one
+  beside each test module other crates' tests share: `storage::fixtures`, `dev_travel::fixtures`,
+  `pq_crypto::fixtures`, `profile_copy::fixtures`, and the protocol's `strip_heif_metadata::build`)
+  sit behind each crate's `test-support` feature, which a dependent turns on in its
+  `[dev-dependencies]` only. Resolver 2 never unifies those into a product build.
+- **The repo root has one name in the source: `env!("HUMANITY_REPO_ROOT")`,** set by each member's
+  build script (the root's `build.rs`; `crates/repo_root.rs`, which every crate under `crates/`
+  shares). In a workspace `CARGO_MANIFEST_DIR` is each member's own folder, and a `../` include
+  path is relative to its file; `tests/repo_root_lint.rs` (in `just lints` and CI) fails on either.
+  Not an `[env]` entry in `.cargo/config.toml`: that file is machine-local and lives in the main
+  checkout only, so every worktree would have read the MAIN checkout's `data/` (silently, and
+  green), and CI has none. tests/ and examples/ keep `CARGO_MANIFEST_DIR` (the root package's own
+  targets; the std-only lints are compiled by rustc alone).
+- **The checks cover every member.** `scripts/warnings-ratchet.js` checks `--workspace` and counts
+  the warnings of every member's manifest (vendor/ is still printed, not counted); `just
+  verify-relay` is `cargo test --workspace --features relay --no-default-features --lib`, so the
+  battery runs the core's and the protocol's tests too; `just clippy` lints the workspace. A command
+  that names no package (`cargo check --features native`, the release builds) builds the root
+  package, which compiles the two crates as dependencies but not their tests.
+- **The build slot wraps every member** (cargo's `rustc-workspace-wrapper` applies to each one; the
+  slot's log shows `humanity_core` and `humanity_protocol` compiles admitted and timed since the
+  first build). Since rung 1 its source names a member's compiles by the crate (`core-check-native`,
+  `protocol-test-native`) so the ledger learns each one's peak apart from the engine's (`lib-...`)
+  once `just build-slot` installs it from the main checkout; until then they are "other-...", whose
+  learned peak (about 1.5 GB) is far above a core compile's (0.6 GB check).
+- **The source stamp includes `crates/`** (build.rs `FINGERPRINT_INPUTS`), so the freshness gate
+  every rig runs sees an edit to the core or the protocol; `scripts/lib/compiled-in.js` reads both
+  crates' includes.
 
 ## Rigs wait for memory, not for "no builds"
 
@@ -182,6 +244,15 @@ overrides it for one command.
   analysis that one crate cannot run in parallel, and a one-line edit still re-checks the whole
   crate (56 s). Splitting the crate is what would cut that; it reverses the 2026-06-30 one-crate
   decision, so it is the operator's call (PRIORITIES).
+
+## Measured 2026-11-01: the crate split's rung 1 (quiet machine, about 23 GB of RAM free)
+
+`node scripts/build-ab/split-measure.js <label> <core file> <engine file>` times `cargo check`
+and the lib test build, cold and after a one-line edit in the core and in the engine, from the
+build slot's own lines; run it on main and on the branch, the same evening. Rung 1 changed
+nothing worth the name: a one-line edit is 18 s of `cargo check` before and after, the test build
+53 s before and 55 s after (the engine's test program is now linked with its debug file, 2 s),
+cold 237 s and 242 s. The table and why: [crate-split.md](../design/crate-split.md), rung 1.
 
 ## Still to measure (scripted in scripts/build-ab/)
 

@@ -28,7 +28,7 @@ impl SsaoPass {
     pub fn new(device: &wgpu::Device, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("SSAO Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/ssao.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/ssao.wgsl")).into()),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -199,7 +199,7 @@ mod tests {
     /// as the star/halo shader tests in stars.rs.
     #[test]
     fn ssao_shader_parses_and_validates() {
-        let src = include_str!("../../assets/shaders/ssao.wgsl");
+        let src = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/ssao.wgsl"));
         let module = wgpu::naga::front::wgsl::parse_str(src)
             .unwrap_or_else(|e| panic!("ssao.wgsl failed to parse: {e}"));
         let mut validator = wgpu::naga::valid::Validator::new(

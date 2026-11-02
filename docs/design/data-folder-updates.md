@@ -38,7 +38,7 @@ player never edited should follow a new default.
 - On its first run an installed game writes every data file built into it into
   its data folder (`%APPDATA%\HumanityOS\data`, or `data\` beside the exe in
   portable mode): `storage::extract_data_if_needed` and `extract_embedded_to`
-  (`src/storage.rs`). That runs only while the folder does not exist, so it
+  (`crates/humanity-core/src/storage.rs`). That runs only while the folder does not exist, so it
   happens once.
 - An update replaces only the exe (`src/updater.rs`). Nothing ever rewrites the
   data folder again.
@@ -226,17 +226,17 @@ refused by an updated server as "a different ship". The code has one rule for
 every file; carving the homes out again would be a filter in `refresh`.
 
 Where it lives:
-- `src/storage/refresh.rs`: the stamp (`Stamp`, `data/.shipped.json`),
+- `crates/humanity-core/src/storage/refresh.rs`: the stamp (`Stamp`, `data/.shipped.json`),
   `refresh`, `write_fresh` (the first run), `why_left_alone`,
   `first_run_files`, `use_games_copy_in`, and for the running game
   `refresh_on_start`, `view` and `use_the_games_copy`.
-- `src/storage.rs` `extract_data_if_needed`, already called at start (the
+- `crates/humanity-core/src/storage.rs` `extract_data_if_needed`, already called at start (the
   `extract_data` boot phase in lib.rs, which needed no change): it writes a
   folder that does not exist (`extract_embedded_to`, now through `write_fresh`,
   which stamps it) or refreshes one that does (`refresh_on_start`).
 - `src/gui/pages/settings/data_folder.rs`: the Settings > Data block (one call
   in settings.rs).
-- `src/embedded_data.rs` `note_builtin_copy` remembers each file a run served
+- `crates/humanity-core/src/embedded_data.rs` `note_builtin_copy` remembers each file a run served
   from the built-in copy (`builtin_copies_this_run`), which the block lists.
 - `scripts/lib/compiled-in.js`: `refresh_on_start` and `use_the_games_copy`
   are reviewed `FALLBACK_SITES` (they write built-in copies out, and note it).
@@ -307,7 +307,7 @@ Known limits:
   folder is left alone; pointing it at Settings > Data is in-app-ops debt.
 
 Tests, each seen red against a deliberate break of the code it guards (the break
-and the failure text are in each doc comment): in `src/storage/refresh_tests.rs`,
+and the failure text are in each doc comment): in `crates/humanity-core/src/storage/refresh_tests.rs`,
 `a_stamped_folder_gets_the_new_copy_of_an_unedited_file_and_keeps_an_edited_one`,
 `a_build_of_the_same_version_with_different_data_refreshes_the_folder`,
 `an_unstamped_folder_written_at_one_time_is_refreshed_whole_and_a_later_edit_kept`,
@@ -323,7 +323,7 @@ and `embedded_data::tests::a_file_served_from_the_built_in_copy_is_listed_once_f
 
 ## The mod overlay (for option C)
 
-`src/mods/mod.rs` already has `ModLoader`: mods in `data/mods/<id>/` mirror the
+`crates/humanity-core/src/mods/mod.rs` already has `ModLoader`: mods in `data/mods/<id>/` mirror the
 data folder's paths, later mods override earlier ones (`data/mods/README.md`).
 Nothing calls it. Wiring it means every loader resolves a file through
 `ModLoader::resolve_path` before `load_data_or_embedded` reads it. With that in

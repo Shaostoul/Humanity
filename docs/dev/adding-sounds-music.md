@@ -11,8 +11,8 @@ connected:
 
 | Piece | File | Status |
 |-------|------|--------|
-| `AudioManager` (kira crate) | `src/audio/mod.rs` | Built, ZERO callers. Nothing constructs it. |
-| `SoundCatalog` (data-driven IDs) | `src/audio/sounds.rs` | Built, ZERO callers. `SoundCatalog::load` is never invoked. |
+| `AudioManager` (kira crate) | `crates/humanity-core/src/audio/mod.rs` | Built, ZERO callers. Nothing constructs it. |
+| `SoundCatalog` (data-driven IDs) | `crates/humanity-core/src/audio/sounds.rs` | Built, ZERO callers. `SoundCatalog::load` is never invoked. |
 | Sound catalog data | `data/sounds.toml` | Exists (ambient/sfx/music/ui entries), never loaded at runtime. |
 | Catalog schema | `schemas/sound.toml` | Exists. |
 | Audio files | `data/audio/` | Only a README. No .ogg files are committed (see below). |
@@ -22,7 +22,7 @@ connected:
 So the Settings > Audio sliders persist values that nothing reads yet. That is
 the gap this doc exists to close.
 
-## What AudioManager already does (`src/audio/mod.rs`)
+## What AudioManager already does (`crates/humanity-core/src/audio/mod.rs`)
 
 All native-gated (`#[cfg(feature = "native")]`, kira does not support WASM; the
 relay build gets a stub struct):
@@ -41,10 +41,10 @@ relay build gets a stub struct):
   live music retune is a small follow-up if wanted).
 - `play_spatial(path, source_pos, listener_pos)` - simple distance falloff
   (linear to 50 m, silent beyond) + stereo panning from the X offset. Real HRTF
-  or Steam Audio is a stub (`src/audio/spatial.rs`).
+  or Steam Audio is a stub (`crates/humanity-core/src/audio/spatial.rs`).
 - Sounds are cached by path in a `HashMap` after first load.
 
-## What SoundCatalog already does (`src/audio/sounds.rs`)
+## What SoundCatalog already does (`crates/humanity-core/src/audio/sounds.rs`)
 
 - `SoundCatalog::load(data_dir)` parses `data/sounds.toml` (two-level TOML:
   `[sfx.footstep_grass]`, `[ambient.rain]`, ...) into dotted-ID entries with
@@ -124,7 +124,7 @@ position needed, triggers constantly, instantly verifiable).
 
 1. Add `assets/audio/ui/click.ogg` (CC0, credit it in `CREDITS.md`).
 2. Fix the path convention mismatch (see above) in `data/sounds.toml` +
-   `src/audio/sounds.rs` fallbacks.
+   `crates/humanity-core/src/audio/sounds.rs` fallbacks.
 3. Add `audio: AudioManager` + `sound_catalog: SoundCatalog` to `EngineState`;
    soften `AudioManager::new` to non-panicking.
 4. Push Settings volumes into the manager at init + on settings change.

@@ -8,11 +8,11 @@
 use super::gardening_tests::make_store;
 use super::pests::{self, PestData};
 use super::*;
-use crate::ecs::components::{
+use humanity_core::ecs::components::{
     AreaPests, Controllable, CropInstance, CropSoil, Irrigator, Npk, PestPressure, SoilMemory,
 };
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 /// A well-watered crop of `plant` in unit `slot` of grow area `area`, at its
@@ -561,7 +561,7 @@ fn pests_survive_a_save_and_old_saves_load_with_none() {
 /// mass. Seen red by giving the recipe 2 L of water (4.8%).
 #[test]
 fn the_soap_spray_is_a_one_to_two_percent_solution() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let recipes = std::fs::read_to_string(root.join("data/recipes.csv")).unwrap();
     let row = recipes
         .lines()

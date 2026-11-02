@@ -361,7 +361,7 @@ fn trade_transfers(t: &GuiTrade, my_key: &str, known: impl Fn(&str) -> bool) -> 
 /// player control, the one the InventorySystem applies transfers to.
 fn player_entity(world: &hecs::World) -> Option<hecs::Entity> {
     world
-        .query::<(&Inventory, &crate::ecs::components::Controllable)>()
+        .query::<(&Inventory, &humanity_core::ecs::components::Controllable)>()
         .iter()
         .next()
         .map(|(e, _)| e)
@@ -1107,7 +1107,7 @@ pub(crate) mod trade_moves_tests {
     /// A world holding the player (a backpack under player control).
     fn world_with_player() -> (hecs::World, hecs::Entity) {
         let mut world = hecs::World::new();
-        let p = world.spawn((Inventory::new(16), crate::ecs::components::Controllable));
+        let p = world.spawn((Inventory::new(16), humanity_core::ecs::components::Controllable));
         (world, p)
     }
     /// Put `qty` of `id` in the player's own backpack, the one settling
@@ -1440,12 +1440,12 @@ pub(crate) mod trade_moves_tests {
     pub(crate) fn full_player() -> (hecs::World, hecs::Entity) {
         let mut world = hecs::World::new();
         let p = world.spawn((
-            crate::ecs::components::Controllable,
+            humanity_core::ecs::components::Controllable,
             Inventory::new(16),
             crate::systems::skills::PlayerSkills::new(),
-            crate::ecs::components::Name("Bob".to_string()),
-            crate::ecs::components::Appearance::default(),
-            crate::ecs::components::Outfit::default(),
+            humanity_core::ecs::components::Name("Bob".to_string()),
+            humanity_core::ecs::components::Appearance::default(),
+            humanity_core::ecs::components::Outfit::default(),
         ));
         (world, p)
     }
@@ -1464,8 +1464,8 @@ pub(crate) mod trade_moves_tests {
     /// InventorySystem applies queued trade moves), then the relay pump ends
     /// with `tick`.
     pub(crate) fn frames(n: usize, gs: &mut GuiState, world: &mut hecs::World, inv: &mut crate::systems::inventory::InventorySystem) {
-        use crate::ecs::systems::System;
-        let data = crate::hot_reload::data_store::DataStore::new();
+        use humanity_core::ecs::systems::System;
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         for _ in 0..n {
             inv.tick(world, 0.016, &data);
             tick(gs, world, |_: &str| true);

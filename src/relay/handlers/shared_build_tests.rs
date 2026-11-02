@@ -5,7 +5,7 @@
 //! before it passed; the failure text is in its comment.
 
 use super::*;
-use crate::relay::core::pq_crypto::{build_plot_permit, derive_dilithium_seed, plot_permit_preimage, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{build_plot_permit, derive_dilithium_seed, plot_permit_preimage, DilithiumKeypair};
 use crate::systems::construction::placement::quarter_turn;
 
 /// "Now" for these tests, Unix seconds (any time works: permits are judged against it).
@@ -513,7 +513,7 @@ fn one_piece_to_a_box() {
 /// never sends the checks".
 #[test]
 fn the_check_goes_out_with_the_time_sync() {
-    let src = include_str!("../mod.rs").replace("\r\n", "\n");
+    let src = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/relay/mod.rs")).replace("\r\n", "\n");
     let start = src.find("// Game TimeSync broadcast").expect("the time sync loop in relay/mod.rs");
     let end = src[start..].find("// Scheduled re-votes").map_or(src.len(), |e| start + e);
     let body = &src[start..end];

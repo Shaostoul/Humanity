@@ -530,7 +530,7 @@ mod tests {
         // row in data/server-config.json, so an owner reading the file sees the
         // complete set rather than having to know the enum.
         let raw = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/server-config.json"
         ))
         .expect("data/server-config.json must exist");
@@ -795,8 +795,8 @@ mod tests {
         use futures::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::Message as WsMsg;
 
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
 
         let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws"))
@@ -884,8 +884,8 @@ mod tests {
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         use tokio_tungstenite::tungstenite::Message as WsMsg;
 
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
         let mut request = format!("ws://127.0.0.1:{port}/ws").into_client_request().expect("a websocket request");
         if let Some(ip) = forwarded_for {
@@ -1734,7 +1734,7 @@ mod tests {
     /// relay keeps a share of the test's guard, so the file is deleted only after
     /// the last relay on it is gone (BUG-159).
     async fn relay_on(
-        path: &std::sync::Arc<crate::test_temp::TempPath>,
+        path: &std::sync::Arc<humanity_core::test_temp::TempPath>,
     ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, tokio::task::JoinHandle<()>) {
         let db = crate::relay::storage::Storage::open_sharing(path);
         let mut state = crate::relay::relay::RelayState::new(db);
@@ -1751,8 +1751,8 @@ mod tests {
 
     /// The test's guard for a plots database: every relay started on it keeps a
     /// share (`relay_on`, `Storage::open_sharing`), and the file goes with the last.
-    fn plots_db(tag: &str) -> std::sync::Arc<crate::test_temp::TempPath> {
-        std::sync::Arc::new(crate::test_temp::db(&format!("plots_{tag}")))
+    fn plots_db(tag: &str) -> std::sync::Arc<humanity_core::test_temp::TempPath> {
+        std::sync::Arc::new(humanity_core::test_temp::db(&format!("plots_{tag}")))
     }
 
     /// The ship hash this relay and the game both compute from data/.
@@ -2177,18 +2177,18 @@ mod tests {
     /// A relay on a fresh plots database whose ship has its cabins (the ship file's sixteen,
     /// since lane 1A), and whose 200 ms limit reads a clock the test moves (`home_ask` moves it
     /// past the limit before each ask).
-    async fn relay_with_cabins(tag: &str) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, tokio::task::JoinHandle<()>, std::sync::Arc<crate::test_clock::ManualClock>, std::sync::Arc<crate::test_temp::TempPath>) {
+    async fn relay_with_cabins(tag: &str) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, tokio::task::JoinHandle<()>, std::sync::Arc<humanity_core::test_clock::ManualClock>, std::sync::Arc<humanity_core::test_temp::TempPath>) {
         let path = plots_db(tag);
         let (state, port, server) = relay_on(&path).await;
         assert!(state.game_world.read().await.plot_ids_of_kind("cabin").len() >= 16, "the shipped ship has its cabins");
-        let clock = crate::test_clock::ManualClock::new();
+        let clock = humanity_core::test_clock::ManualClock::new();
         assert!(state.perception_clock.set(clock.clone()).is_ok(), "a new relay has no test clock yet");
         (state, port, server, clock, path)
     }
 
     /// Send a `game_home_request` (no `start`) or a `game_choose_home` (with one) past the 200 ms
     /// limit, and return the `game_home` answer.
-    async fn home_ask(sock: &mut TestSocket, clock: &crate::test_clock::ManualClock, start: Option<&str>) -> Value {
+    async fn home_ask(sock: &mut TestSocket, clock: &humanity_core::test_clock::ManualClock, start: Option<&str>) -> Value {
         clock.advance(std::time::Duration::from_millis(250));
         let msg = match start {
             Some(s) => serde_json::json!({ "type": "game_choose_home", "start": s }),
@@ -2484,7 +2484,7 @@ mod tests {
         use crate::relay::handlers::ship_stores::FleetSupply;
         let path = plots_db("fleet_ledger");
         let (state, port, server) = relay_on(&path).await;
-        let limit_clock = crate::test_clock::ManualClock::new();
+        let limit_clock = humanity_core::test_clock::ManualClock::new();
         assert!(state.perception_clock.set(limit_clock.clone()).is_ok(), "a new relay has no test clock yet");
         let after_the_limit = || limit_clock.advance(std::time::Duration::from_millis(250));
         let (mut admin, admin_key) = bind_socket(&state, port, [97u8; 32], Some("FleetAdmin"), 1).await;
@@ -3571,7 +3571,7 @@ mod tests {
     async fn identify_with(port: u16, seed: [u8; 32], name: &str, extra: Value) -> (TestSocket, String) {
         use base64::{engine::general_purpose::STANDARD as B64, Engine};
         use futures::StreamExt;
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&seed));
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&seed));
         let pubkey = hex::encode(dil.public_key());
         let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws")).await.expect("client connects to /ws");
         let mut identify = serde_json::json!({ "type": "identify", "public_key": pubkey, "display_name": name });
@@ -3872,9 +3872,9 @@ mod tests {
         let (state, port) = spawn_relay("off", off).await;
 
         let seed = [23u8; 32];
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
         let pubkey =
-            hex::encode(crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key());
+            hex::encode(humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key());
 
         let reply = identify_then_send(
             port,
@@ -3935,7 +3935,7 @@ mod tests {
     #[test]
     fn every_inbound_ws_type_is_classified_or_explicitly_always_on() {
         let src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("src").join("relay").join("relay.rs"),
         )
         .expect("relay.rs reads");
@@ -4024,7 +4024,7 @@ mod tests {
         let owner_seed = [95u8; 32];
         let (mut owner, owner_key) = bind_socket(&state, port, owner_seed, Some("Carded"), 1).await;
         let (mut asker, _) = bind_socket(&state, port, [96u8; 32], Some("Asker"), 1).await;
-        let card = crate::relay::core::key_card::sign_card(&owner_seed, 1_760_000_000_000).expect("a card signs");
+        let card = humanity_protocol::key_card::sign_card(&owner_seed, 1_760_000_000_000).expect("a card signs");
         assert_eq!(card.key, owner_key, "the card is the owner's");
         state.db.store_key_card(&card).expect("the card is kept");
         frames_until_quiet(&mut owner, 300).await;
@@ -4034,7 +4034,7 @@ mod tests {
         send_json(&mut asker, serde_json::json!({ "type": "key_card_request", "keys": [owner_key, nobody] })).await;
         let is_cards = |v: &Value| (v["type"] == "key_cards").then(|| v.clone());
         let answer = next_frame_with(&mut asker, is_cards).await.expect("key_card_request is answered with every feature off");
-        assert_eq!(answer["cards"], serde_json::json!([crate::relay::core::key_card::card_json(&card)]), "{answer}");
+        assert_eq!(answer["cards"], serde_json::json!([humanity_protocol::key_card::card_json(&card)]), "{answer}");
         assert_eq!(answer["missing"], serde_json::json!([nobody]), "{answer}");
         let seen = frames_until_quiet(&mut owner, 700).await;
         assert!(!seen.iter().any(|v| v["type"] == "key_cards"), "the card's owner was sent the asker's answer: {seen:?}");
@@ -4108,7 +4108,7 @@ mod tests {
 
         let evidence = serde_json::json!([{ "kind": "group_text", "from": reported_key, "ts": 1, "text": "rude" }]);
         let ts = 1_760_000_000_000u64;
-        let sig = crate::relay::core::pq_crypto::build_report_sig(&reporter_seed, &reporter_key, &reported_key, "harassment", &evidence.to_string(), ts);
+        let sig = humanity_protocol::pq_crypto::build_report_sig(&reporter_seed, &reporter_key, &reported_key, "harassment", &evidence.to_string(), ts);
         send_json(
             &mut reporter,
             serde_json::json!({ "type": "report_v2", "target": reported_key, "context": "group", "reason": "harassment", "note": "", "evidence": evidence, "ts": ts, "sig": sig }),
@@ -4149,14 +4149,14 @@ mod tests {
     const SHARED_BUILD_TYPES: [&str; 5] = ["game_built", "game_unbuilt", "game_pieces", "game_frame_out_of_view", "game_build_refused"];
 
     /// The relay's rate limit reads `clock` from now on.
-    fn limit_clock(state: &std::sync::Arc<crate::relay::relay::RelayState>) -> std::sync::Arc<crate::test_clock::ManualClock> {
-        let clock = crate::test_clock::ManualClock::new();
+    fn limit_clock(state: &std::sync::Arc<crate::relay::relay::RelayState>) -> std::sync::Arc<humanity_core::test_clock::ManualClock> {
+        let clock = humanity_core::test_clock::ManualClock::new();
         assert!(state.perception_clock.set(clock.clone()).is_ok(), "a new relay has no test clock yet");
         clock
     }
 
     /// 250 ms on the rate limit's clock: the next request of every kind is let through.
-    fn later(clock: &crate::test_clock::ManualClock) {
+    fn later(clock: &humanity_core::test_clock::ManualClock) {
         clock.advance(std::time::Duration::from_millis(250));
     }
 
@@ -4191,7 +4191,7 @@ mod tests {
     }
 
     /// `msg` carrying household permit `p`.
-    fn with_permit(mut msg: Value, p: &crate::build_permission::Permit) -> Value {
+    fn with_permit(mut msg: Value, p: &humanity_core::build_permission::Permit) -> Value {
         msg["permit"] = serde_json::to_value(p).expect("a permit serialises");
         msg
     }
@@ -4200,10 +4200,10 @@ mod tests {
     /// `grantee` (a did:hum) on `plot` of the server `server`, running out at `expiry`, minted at
     /// `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`), under a fresh serial
     /// (permit v2, ship homes 5b).
-    fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> crate::build_permission::Permit {
-        let serial = crate::relay::core::pq_crypto::new_friend_cert_serial().expect("randomness");
-        let sig = crate::relay::core::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, &serial, expiry, minted).expect("minted");
-        crate::build_permission::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
+    fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> humanity_core::build_permission::Permit {
+        let serial = humanity_protocol::pq_crypto::new_friend_cert_serial().expect("randomness");
+        let sig = humanity_protocol::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, &serial, expiry, minted).expect("minted");
+        humanity_core::build_permission::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), serial, expiry, sig }
     }
 
     /// The relay's clock, Unix seconds.
@@ -4288,7 +4288,7 @@ mod tests {
     /// The one sentence shared.rs keeps for a refusal, as a relay sends it.
     fn sentence(action: &str, piece: &str, reason: &str, why: Option<&str>) -> String {
         use crate::systems::construction::shared::{refusal_message, Action, Reason};
-        use crate::build_permission::Why;
+        use humanity_core::build_permission::Why;
         let action: Action = serde_json::from_value(serde_json::json!(action)).unwrap();
         let reason: Reason = serde_json::from_value(serde_json::json!(reason)).unwrap();
         let why: Option<Why> = why.map(|w| serde_json::from_value(serde_json::json!(w)).unwrap());
@@ -4472,12 +4472,12 @@ mod tests {
     /// The relay key (Dilithium3 public key, hex) of the person whose seed is `[n; 32]`, for one
     /// who never connects.
     fn key_of_seed(n: u8) -> String {
-        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+        use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
         hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[n; 32])).public_key())
     }
 
     /// A `game_permit_check` numbered `req_id` for permit `p`, as the game sends it.
-    fn permit_check_msg(req_id: u32, p: &crate::build_permission::Permit) -> Value {
+    fn permit_check_msg(req_id: u32, p: &humanity_core::build_permission::Permit) -> Value {
         serde_json::json!({ "type": "game_permit_check", "req_id": req_id, "permit": p })
     }
 
@@ -4492,7 +4492,7 @@ mod tests {
     /// The `game_permit_status` a permit that does not work is answered with: `why` and its words.
     fn permit_refused(req_id: u32, plot: &str, why: &str) -> Value {
         use crate::systems::construction::shared::{why_words, Action, Reason};
-        use crate::build_permission::Why;
+        use humanity_core::build_permission::Why;
         let w: Why = serde_json::from_value(serde_json::json!(why)).unwrap();
         let message = why_words(Action::Build, Reason::NotAllowed, Some(w));
         serde_json::json!({ "type": "game_permit_status", "req_id": req_id, "plot": plot, "ok": false, "why": why, "message": message })
@@ -5465,7 +5465,7 @@ mod tests {
         // A scratch file of this test's own under the working folder's data/, removed at the end.
         let rel = format!("data/_test_data_write_{}.txt", std::process::id());
         let content = "written by the test";
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&[7u8; 32]));
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&[7u8; 32]));
         let key = hex::encode(dil.public_key());
         let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
         let signed = |path: &str, signed_content: &str, ts: u64| {
@@ -5537,7 +5537,7 @@ mod tests {
         let claim_text = std::fs::read_to_string(claim).unwrap();
         let code = claim_text.split_whitespace().nth(4).unwrap_or("0123456789ABCDEF").to_string();
 
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&[8u8; 32]));
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&[8u8; 32]));
         let key = hex::encode(dil.public_key());
         let now = || std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
         let sign = |purpose: String, ts: u64| hex::encode(dil.sign(format!("{purpose}\n{ts}").as_bytes()));

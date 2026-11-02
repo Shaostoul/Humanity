@@ -31,7 +31,7 @@ pub(crate) fn set_voice_room(state: &mut GuiState, room_id: &str, joining: bool)
     }
     let action = if joining { "join" } else { "leave" };
     log::info!("Voice {} requested: {} (room_id {})", action, ch_name, ch_id);
-    crate::debug::push_debug(format!("Voice: {} for '{}' (id {})", action, ch_name, ch_id));
+    humanity_core::debug::push_debug(format!("Voice: {} for '{}' (id {})", action, ch_name, ch_id));
     // Phase C: track the active room so the roster handler dials the incumbents
     // (newcomer-offers rule). Reset the incumbent-capture flag on each join.
     if joining {

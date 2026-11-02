@@ -20,7 +20,7 @@ use crate::assets::*;
 /// model really was badly wrong as authored.
 #[test]
 fn every_modelled_machine_in_the_home_is_drawn_at_its_declared_height() {
-    let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repo_root = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
     let home = crate::systems::grow_machines::load_home(&repo_root.join("data/machines/home.ron"))
         .expect("the shipped home loads");
     let manager = AssetManager::new(repo_root.join("data"));

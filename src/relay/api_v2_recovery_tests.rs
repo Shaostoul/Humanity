@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::relay::api_v2_objects::{SignedObjectSubmission, post_object};
-use crate::relay::core::pq_crypto::{DilithiumKeypair, KyberKeypair, derive_dilithium_seed, derive_kyber_seed};
-use crate::relay::core::recovery::{
+use humanity_protocol::pq_crypto::{DilithiumKeypair, KyberKeypair, derive_dilithium_seed, derive_kyber_seed};
+use humanity_protocol::recovery::{
     self as proto, OneTimeAsk, TrustedPerson, build_setup, object_json, open_answer, open_piece, seal_answer, served_piece,
 };
 use crate::relay::storage::Storage;
@@ -34,7 +34,7 @@ async fn body(res: Response) -> (u16, serde_json::Value) {
     (code, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
 }
 
-async fn post(st: &Arc<RelayState>, o: &crate::relay::core::object::Object) -> (u16, serde_json::Value) {
+async fn post(st: &Arc<RelayState>, o: &humanity_protocol::object::Object) -> (u16, serde_json::Value) {
     let sub: SignedObjectSubmission = serde_json::from_value(object_json(o)).unwrap();
     body(post_object(State(st.clone()), Json(sub)).await.into_response()).await
 }
@@ -137,7 +137,7 @@ async fn the_object_door_refuses_what_is_not_a_good_piece() {
     assert_eq!(post(&st, &unsigned).await.0, 401, "an altered signature");
     let mut p = proto::SharePayload::parse(&objects[0].payload).unwrap();
     p.note.truncate(10);
-    let bad = crate::relay::core::object::ObjectBuilder::new(proto::SHARE_OBJECT_TYPE)
+    let bad = humanity_protocol::object::ObjectBuilder::new(proto::SHARE_OBJECT_TYPE)
         .created_at(now_ms())
         .payload_cbor(&p.to_cbor())
         .unwrap()

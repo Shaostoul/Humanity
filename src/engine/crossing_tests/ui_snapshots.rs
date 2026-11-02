@@ -123,7 +123,7 @@ fn snapshot_maps_earth_moon() {
 /// with the way you face.
 fn ship_view_state(state: &mut crate::gui::GuiState, plan: bool) {
     use crate::gui::pages::maps::camera::{MapAnchor, MapFrame};
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
     state.room_bounds = crate::ship::room_types::RoomTypeRegistry::load(&data).room_bounds(&ship.generate_meshes().room_info);
     let mut me = crate::gui::pages::maps::camera::tests::feed_at(3600.0, glam::DVec3::ZERO);

@@ -161,7 +161,7 @@ fn fixture_now() -> Value {
 #[test]
 #[ignore = "writes scripts/tests/fixtures/files-round5-v1.json; run: node scripts/lib-tests.js write_the_files_round5_fixture --ignored"]
 fn write_the_files_round5_fixture() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE);
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(FIXTURE);
     std::fs::write(&path, format!("{}\n", serde_json::to_string_pretty(&fixture_now()).unwrap())).expect("the fixture is written");
 }
 
@@ -176,7 +176,7 @@ fn write_the_files_round5_fixture() {
 /// intended change)" (the relay made `"featured": true` where the fixture says `"category"`).
 #[test]
 fn the_shared_fixture_is_what_the_relay_makes() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE);
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(FIXTURE);
     let text = std::fs::read_to_string(&path).expect("the fixture is there").replace("\r\n", "\n");
     let made = format!("{}\n", serde_json::to_string_pretty(&fixture_now()).unwrap());
     let fx: Value = serde_json::from_str(&text).expect("JSON");

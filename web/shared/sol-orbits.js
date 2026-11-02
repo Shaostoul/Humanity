@@ -1,6 +1,6 @@
 // The Sun's family for the web Maps page (Maps increment 2, "a solar system
 // that looks real", docs/design/maps-zoom-to-anything.md): the web twin of the
-// app's orbit model (src/cosmos.rs) and of the Maps page's symbols
+// app's orbit model (crates/humanity-core/src/cosmos.rs) and of the Maps page's symbols
 // (src/gui/pages/maps/bodies.rs, belts.rs). Keep the two in step.
 //
 // It reads the SAME data files the app does, served beside the site:

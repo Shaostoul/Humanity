@@ -138,12 +138,12 @@ pub fn quick_roots() -> Vec<(String, PathBuf)> {
             }
         }
     }
-    if let Some(data) = crate::storage::writable_data_dir() {
+    if let Some(data) = humanity_core::storage::writable_data_dir() {
         if data.is_dir() {
             roots.push(("Game data".to_string(), data));
         }
     }
-    let exe = crate::storage::exe_dir();
+    let exe = humanity_core::storage::exe_dir();
     if exe.is_dir() {
         roots.push(("App folder".to_string(), exe));
     }
@@ -232,7 +232,7 @@ impl FilePickerState {
                     .map(PathBuf::from)
                     .filter(|p| p.is_dir())
             })
-            .unwrap_or_else(|| crate::storage::exe_dir());
+            .unwrap_or_else(|| humanity_core::storage::exe_dir());
         Self {
             current_dir: start,
             selected: None,
@@ -756,8 +756,8 @@ mod tests {
         memory::same_folder(a, b)
     }
 
-    fn tmp(name: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("fb_test_{name}"))
+    fn tmp(name: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("fb_test_{name}"))
     }
 
     #[test]

@@ -126,7 +126,7 @@ impl SkyViewPass {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Sky-View LUT Shader"),
             source: wgpu::ShaderSource::Wgsl(
-                include_str!("../../assets/shaders/sky_view_lut.wgsl").into(),
+                include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/sky_view_lut.wgsl")).into(),
             ),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

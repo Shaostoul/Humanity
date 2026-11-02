@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 use super::Storage;
-use crate::relay::core::did::{Fingerprint, fingerprint_to_hex};
+use humanity_protocol::did::{Fingerprint, fingerprint_to_hex};
 
 /// 5-minute cache TTL for trust scores.
 const CACHE_TTL_MS: i64 = 5 * 60 * 1000;
@@ -68,7 +68,7 @@ impl Storage {
     /// Compute (or fetch from cache) the trust score for a DID.
     /// `force_recompute` skips the cache.
     pub fn get_trust_score(&self, did: &str, force_recompute: bool) -> Result<TrustScore, String> {
-        let fp = crate::relay::core::did::parse_did_hum(did)
+        let fp = humanity_protocol::did::parse_did_hum(did)
             .map_err(|e| format!("invalid did: {e}"))?;
         let fp_hex = fingerprint_to_hex(&fp);
         let now = super::now_millis() as i64;
@@ -292,7 +292,7 @@ impl Storage {
 
     /// Convenience: compute (with cache) for a fingerprint instead of DID string.
     pub fn get_trust_score_for_fp(&self, fp: &Fingerprint) -> Result<TrustScore, String> {
-        let did = crate::relay::core::did::fingerprint_to_did(fp);
+        let did = humanity_protocol::did::fingerprint_to_did(fp);
         self.get_trust_score(&did, false)
     }
 }
@@ -309,16 +309,16 @@ fn sigmoid(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::did::did_for_pubkey;
-    use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text};
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::did::did_for_pubkey;
+    use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
         Storage::open_temp("trust_test")
     }
 
-    fn make_vouch(issuer: &DilithiumKeypair, subject_did: &str, suffix: &str) -> crate::relay::core::object::Object {
+    fn make_vouch(issuer: &DilithiumKeypair, subject_did: &str, suffix: &str) -> humanity_protocol::object::Object {
         let payload = cbor_map(vec![
             ("subject_did", cbor_text(subject_did)),
             ("vouch_kind", cbor_text("identity")),

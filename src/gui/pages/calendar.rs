@@ -3,7 +3,7 @@
 
 use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::{GuiCalendarEvent, GuiState};
-use crate::i18n::{t, t_dyn, tf};
+use humanity_core::i18n::{t, t_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use std::cell::RefCell;

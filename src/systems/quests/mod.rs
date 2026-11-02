@@ -15,8 +15,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 pub use objectives::{QuestObjective, QuestStep};
@@ -66,14 +66,14 @@ impl QuestRegistry {
     /// skipped with a warning. A later file's quest replaces an earlier one of
     /// the same id.
     pub fn load(data_dir: &std::path::Path) -> Self {
-        let shipped: Vec<&str> = crate::embedded_data::EMBEDDED_KEYS
+        let shipped: Vec<&str> = humanity_core::embedded_data::EMBEDDED_KEYS
             .iter()
             .filter_map(|k| k.strip_prefix("quests/"))
             .collect();
         let mut quests = HashMap::new();
         for name in &shipped {
             let rel = format!("quests/{name}");
-            match crate::embedded_data::load_data_or_embedded(data_dir, &rel, crate::data_parse::parse_ron::<Vec<QuestDef>>) {
+            match humanity_core::embedded_data::load_data_or_embedded(data_dir, &rel, humanity_core::data_parse::parse_ron::<Vec<QuestDef>>) {
                 Ok(defs) => quests.extend(defs.into_iter().map(|d| (d.id.clone(), d))),
                 Err(e) => log::warn!("{e}; its quests are missing"),
             }
@@ -90,7 +90,7 @@ impl QuestRegistry {
         for path in own {
             match std::fs::read(&path)
                 .map_err(|e| e.to_string())
-                .and_then(|bytes| crate::data_parse::parse_ron::<Vec<QuestDef>>(&bytes))
+                .and_then(|bytes| humanity_core::data_parse::parse_ron::<Vec<QuestDef>>(&bytes))
             {
                 Ok(defs) => quests.extend(defs.into_iter().map(|d| (d.id.clone(), d))),
                 Err(e) => log::warn!("Quest file {} skipped: {e}", path.display()),
@@ -550,7 +550,7 @@ pub fn player_position(world: &hecs::World, data: &DataStore) -> Option<glam::Ve
         return Some(*p);
     }
     world
-        .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+        .query::<(&humanity_core::ecs::components::Transform, &humanity_core::ecs::components::Controllable)>()
         .iter()
         .next()
         .map(|(_, (tf, _))| tf.position)
@@ -1091,7 +1091,7 @@ mod quest_tests {
 
     #[test]
     fn from_ron_dir_loads_the_real_quests() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/quests");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/quests");
         let reg = QuestRegistry::from_ron_dir(&dir);
         assert!(reg.get("gs_first_steps").is_some(), "the getting-started chain loads");
         assert!(reg.quests.len() >= 4, "all quest files merged, got {}", reg.quests.len());
@@ -1105,7 +1105,7 @@ mod quest_tests {
     ///   the opening quest is missing when its file cannot be read
     #[test]
     fn a_shipped_quest_file_the_game_cannot_read_comes_from_its_built_in_copy() {
-        let root = crate::test_temp::dir("quests");
+        let root = humanity_core::test_temp::dir("quests");
         let data = root.join("data");
         let quests = data.join("quests");
         std::fs::create_dir_all(&quests).expect("make the folder");
@@ -1116,7 +1116,7 @@ mod quest_tests {
         let reg = QuestRegistry::load(&data);
         assert!(reg.get("gs_first_steps").is_some(), "the opening quest is missing when its file cannot be read");
         assert!(reg.get("my_quest").is_some(), "the modder's own quest is added");
-        let shipped = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/quests"));
+        let shipped = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/quests"));
         assert_eq!(reg.quests.len(), shipped.quests.len() + 1, "every shipped quest, and the modder's");
     }
 
@@ -1282,7 +1282,7 @@ mod quest_tests {
     /// from static data - the npc_talk_key convention is their contract.)
     #[test]
     fn shipped_quest_objective_ids_all_resolve() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let csv_ids = |rel: &str| -> std::collections::HashSet<String> {
             std::fs::read_to_string(root.join(rel))
                 .unwrap_or_else(|e| panic!("{rel} readable: {e}"))
@@ -1392,7 +1392,7 @@ mod quest_tests {
     /// nonexistent place could never advance and would fail here, not in play.
     #[test]
     fn shipped_travel_destinations_all_exist() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let dests = DestinationList::from_ron(
             &std::fs::read(root.join("data/entities/destinations.ron")).unwrap(),
         )
@@ -1533,7 +1533,7 @@ mod quest_tests {
 
         // The shipped starter quest's smelting step takes the graphite route
         // (since 2026-10-04 it is the sixth of the opening's eight steps).
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let shipped = QuestRegistry::from_ron_dir(&root.join("data/quests"));
         let smelt = shipped
             .get("gs_first_steps")
@@ -1623,9 +1623,9 @@ mod quest_tests {
     /// completes Initial Survey's Travel step" (left: 1, right: 2).
     #[test]
     fn walking_to_a_destination_completes_its_travel_step() {
-        use crate::ecs::components::{Controllable, Transform};
+        use humanity_core::ecs::components::{Controllable, Transform};
         use glam::Vec3;
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
         let travel = reg
             .get("exploration_first_survey")
@@ -1677,7 +1677,7 @@ mod quest_tests {
     #[test]
     fn quest_ore_comes_from_nodes_a_player_can_walk_to() {
         use crate::systems::livestock::{CreatureRegistry, WildSpawnList};
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let creatures = CreatureRegistry::from_csv(&std::fs::read(root.join("data/creatures.csv")).unwrap()).unwrap();
         let spawns = WildSpawnList::from_ron(&std::fs::read(root.join("data/entities/wild_spawns.ron")).unwrap()).unwrap();
         let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
@@ -1726,7 +1726,7 @@ mod quest_tests {
     /// The shipped quests, items and skills, and the event and notice
     /// channels the game registers.
     fn shipped_quest_data() -> DataStore {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let mut data = DataStore::new();
         data.insert("quest_registry", QuestRegistry::from_ron_dir(&root.join("data/quests")));
         data.insert(
@@ -1760,7 +1760,7 @@ mod quest_tests {
     /// drone, or stock it)".
     #[test]
     fn the_iron_step_says_where_to_get_iron_ore() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
         let q = reg.get("gs_first_steps").expect("First Steps ships");
         let iron = &q
@@ -1820,7 +1820,7 @@ mod quest_tests {
         );
         data.insert(
             "quest_destinations",
-            DestinationList::from_ron(&std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/entities/destinations.ron")).unwrap()).unwrap(),
+            DestinationList::from_ron(&std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/entities/destinations.ron")).unwrap()).unwrap(),
         );
         push_quest_event(&data, "build_storage_chest".to_string());
         sys.tick(&mut world, 0.0, &data);

@@ -97,7 +97,7 @@ fn read_game(entry: &Installed) -> Game {
 /// is not there (GOG has never installed anything here).
 #[cfg(windows)]
 pub fn installed_on_this_computer() -> Option<Vec<Installed>> {
-    use crate::platform::registry::{open, Root};
+    use humanity_core::platform::registry::{open, Root};
     let games = open(Root::LocalMachine, r"SOFTWARE\WOW6432Node\GOG.com\Games").or_else(|| open(Root::LocalMachine, r"SOFTWARE\GOG.com\Games"))?;
     let mut out = Vec::new();
     for id in games.subkeys() {
@@ -160,7 +160,7 @@ mod tests {
     /// left: ("Registry Name", Ready, true), right: ("Registry Name", ProgramGone, true).
     #[test]
     fn no_working_directory_and_no_info() {
-        let folder = crate::test_temp::dir("gog_no_wd");
+        let folder = humanity_core::test_temp::dir("gog_no_wd");
         let info = serde_json::json!({ "playTasks": [ { "isPrimary": true, "path": "game.exe", "type": "FileTask" } ] });
         assert_eq!(primary_task(&info, &folder), Some(PlayTask { exe: folder.join("game.exe"), args: String::new(), dir: folder.to_path_buf() }));
         let games = read(&[Installed { id: "77".into(), folder: folder.to_path_buf(), name: "Registry Name".into() }]);

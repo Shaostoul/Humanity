@@ -24,7 +24,7 @@ pub enum NetMessage {
         position: [f32; 3],
         /// How they look (2026-09-29); None from a client that never sent it.
         #[serde(skip)]
-        look: Option<crate::player_look::PlayerLook>,
+        look: Option<humanity_core::player_look::PlayerLook>,
         /// Their identity key (2026-10-10), for Block: a blocked key's figure and name are not
         /// drawn. None from a relay that does not send it.
         #[serde(skip)]

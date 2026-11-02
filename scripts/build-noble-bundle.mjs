@@ -11,7 +11,7 @@
  * This script pins exact versions, bundles with esbuild (no minify so
  * the output is auditable / diffable), asserts the cross-language
  * known-answer test (the SAME constants as
- * `src/relay/core/pq_crypto.rs::dilithium_cross_language_kat`), then
+ * `crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat`), then
  * writes `web/shared/vendor/noble-pq.bundle.js` with a provenance
  * header. If noble or RustCrypto ever change their ML-DSA output, the
  * KAT fails here AND in `cargo test` — neither can drift silently.
@@ -90,7 +90,7 @@ try {
     ` * KAT: BLAKE3-derive(hum/dilithium3/v1, 32x0x07) ->\n` +
     ` *      ${KAT_DIL_SEED}\n` +
     ` *      ml_dsa65.keygen(seed).publicKey blake3 = ${KAT_PK_BLAKE3}\n` +
-    ` *      (matches src/relay/core/pq_crypto.rs::dilithium_cross_language_kat)\n` +
+    ` *      (matches crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat)\n` +
     ` * sha256(body) = ${sha}\n` +
     ` */\n`;
   writeFileSync(OUT, header + code);

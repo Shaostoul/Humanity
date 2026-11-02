@@ -309,10 +309,10 @@ mod tests {
     /// "a 4% comet's icon is lit at 0.040, under 0.2".
     #[test]
     fn the_exposure_keeps_dark_bodies_visible_and_in_order() {
-        let comet = icon_lit_linear(crate::cosmos::grey_at_albedo(0.04));
+        let comet = icon_lit_linear(humanity_core::cosmos::grey_at_albedo(0.04));
         assert!(comet[0] >= 0.2, "a 4% comet's icon is lit at {:.3}, under 0.2", comet[0]);
         let moon = icon_lit_linear([0x9c, 0x99, 0x98]);
-        let enceladus = icon_lit_linear(crate::cosmos::grey_at_albedo(0.99));
+        let enceladus = icon_lit_linear(humanity_core::cosmos::grey_at_albedo(0.99));
         assert!(enceladus[0] > moon[0] && moon[0] > comet[0]);
         let mars = icon_lit_linear([0xb8, 0x5d, 0x41]);
         assert!(mars[0] > 2.0 * mars[1] && mars[0] > 2.0 * mars[2], "Mars lost its red: {mars:?}");

@@ -46,14 +46,14 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{AreaWeeds, CropInstance, Npk, OrganicCohort, SoilMemory, STAGE_DEAD};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AreaWeeds, CropInstance, Npk, OrganicCohort, SoilMemory, STAGE_DEAD};
+use humanity_core::hot_reload::data_store::DataStore;
 
 use super::soil_ph::SoilPhData;
 use super::PlantDef;
 
 /// The shipped copy, so a bare exe with no data folder still has weeds.
-pub const WEEDS_RON: &str = include_str!("../../../data/garden/weeds.ron");
+pub const WEEDS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/weeds.ron"));
 
 /// DataStore key of the loaded `WeedData` (lib.rs registers it at boot).
 pub const DATA_KEY: &str = "garden_weeds";
@@ -206,7 +206,7 @@ impl WeedData {
     /// that is missing or does not parse. The shipped copy always parses: a
     /// test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("weeds.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("weeds.ron");
         if let Ok(text) = std::fs::read_to_string(&path) {
             match Self::parse(&text) {
                 Ok(d) => return d,
@@ -219,7 +219,7 @@ impl WeedData {
     pub fn shipped() -> Self {
         // Whoever asks gets the copy compiled into the exe: say so (BUG-133; a rig
         // refuses a run that served a built-in copy). load() logs why it fell back.
-        crate::embedded_data::note_builtin_copy("garden/weeds.ron", "WeedData::shipped served the built-in table");
+        humanity_core::embedded_data::note_builtin_copy("garden/weeds.ron", "WeedData::shipped served the built-in table");
         Self::parse(WEEDS_RON).expect("the shipped data/garden/weeds.ron parses")
     }
 
@@ -525,7 +525,7 @@ impl Weeds {
         // What the backpack gives up: the hoe's wear, or the mulch.
         let mut spent = String::new();
         if !creative {
-            use crate::ecs::components::Controllable;
+            use humanity_core::ecs::components::Controllable;
             use crate::systems::inventory::Inventory;
             match control.kind {
                 WeedControlKind::Hoe => {

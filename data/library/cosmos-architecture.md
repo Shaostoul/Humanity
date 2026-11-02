@@ -6,7 +6,7 @@ a ship to a fleet crossing interstellar distances.
 
 **Status:** Proposal (2026-05-09)
 **Affects:** `src/gui/pages/maps.rs`, `src/gui/pages/inventory.rs`,
-`src/ecs/`, `src/systems/`, `src/renderer/floating_origin.rs`,
+`crates/humanity-core/src/ecs/`, `src/systems/`, `src/renderer/floating_origin.rs`,
 `src/relay/handlers/game_state.rs`, `data/star_systems/`, `data/galaxy/`,
 `data/ships/`
 **Supersedes:** the Sol-hardcoded `data/solar_system/bodies.json` schema.
@@ -672,6 +672,12 @@ This section lays out the sim_time / scrubber UX (shipped v0.208.0), the
 sprite→mesh seamless-scale plan, the pill-style body labels with
 expand-to-card, the AR FPS-mode overlay plan, and the conjunction +
 eclipse detection plan.
+
+**2026-11-01: the AR overlays planned here (the surfaces table below, the
+Phase 4g orbit paths, the pills on an AR passthrough) are folded into one
+"AR layer"** that owns every world-anchored overlay, with the AR-glasses
+target as a different camera and compositor:
+[spline-routing.md](https://github.com/Shaostoul/Humanity/blob/main/docs/design/spline-routing.md), section 16.
 
 ### Universal sim_time clock: landed in v0.208.0
 
@@ -1690,7 +1696,7 @@ Phase 1 status (2026-05-09):
 - `docs/design/infinite-of-x.md`, design rule this whole doc is in service of
 - `src/renderer/floating_origin.rs`, existing floating origin
 - `src/ship/`, ship layout parser (Fibonacci spiral generator)
-- `src/ecs/`, hecs ECS where the position component will live
+- `crates/humanity-core/src/ecs/`, hecs ECS where the position component will live
 - `data/solar_system/bodies.json`, current single-system data, slated for
   restructure in Phase 1
 

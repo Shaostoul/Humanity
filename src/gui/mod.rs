@@ -1734,8 +1734,8 @@ pub struct GuiState {
     /// One-line orbit summary published by the frame loop for the panel.
     pub station_readout: String,
     /// Third-party attributions from data/credits.ron, loaded once at startup.
-    /// Several are licence obligations - see src/credits.rs.
-    pub credits: crate::credits::Credits,
+    /// Several are licence obligations - see crates/humanity-core/src/credits.rs.
+    pub credits: humanity_core::credits::Credits,
     /// Names of the OpenStreetMap regions currently drawn in the world.
     ///
     /// Drives the in-world attribution line. ODbL treats a rendered view of
@@ -1786,17 +1786,17 @@ pub struct GuiState {
     /// The rebindable game keymap (Settings > Controls, 2026-08-12). Defaults
     /// plus the user's persisted overrides (config `keybind_overrides`);
     /// lib.rs resolves every gameplay key event through this.
-    pub keybinds: crate::input::bindings::Keybinds,
+    pub keybinds: humanity_core::input::bindings::Keybinds,
     /// Runtime: Some((action, secondary_slot)) while the Controls page waits
     /// for the next key press to become that bind. Esc cancels, Delete clears
     /// the slot. Not persisted.
-    pub keybind_capture: Option<(crate::input::bindings::GameAction, bool)>,
+    pub keybind_capture: Option<(humanity_core::input::bindings::GameAction, bool)>,
     /// Runtime: a bind attempt hit a key another action already holds. The
     /// Controls page shows a confirm (move the key or keep it). Fields:
     /// (action being bound, secondary slot, key name, current holder).
     /// Not persisted.
     pub keybind_conflict:
-        Option<(crate::input::bindings::GameAction, bool, String, crate::input::bindings::GameAction)>,
+        Option<(humanity_core::input::bindings::GameAction, bool, String, humanity_core::input::bindings::GameAction)>,
     /// Runtime: one-line status under the bind grid ("Function keys are
     /// reserved..."). Empty = nothing to say. Not persisted.
     pub keybind_status: String,
@@ -1863,7 +1863,7 @@ pub struct GuiState {
     pub screenshot_capture_request: Option<(u32, u32)>,
     /// F8 or the Dev page asked for a play-journal mark; taken at the end of the frame
     /// (engine/play_journal_frame.rs `take_mark`, 2026-10-24).
-    pub play_mark_request: Option<crate::play_journal::MarkAsk>,
+    pub play_mark_request: Option<humanity_core::play_journal::MarkAsk>,
     /// One-line outcome of the last capture ("Saved debug/screenshot_3.png (3840x2160)"
     /// or the error), shown under the Testing page's capture buttons.
     pub screenshot_last_result: Option<String>,
@@ -2064,12 +2064,12 @@ pub struct GuiState {
     pub showroom_confirm: bool,
     /// The avatar appearance being edited (the live preview source). Synced to the ECS
     /// player Appearance on confirm so it persists in the save.
-    pub appearance: crate::ecs::components::Appearance,
+    pub appearance: humanity_core::ecs::components::Appearance,
     /// Set when the appearance edits change; the main loop rebuilds the avatar mesh.
     pub appearance_dirty: bool,
     /// The equipped cosmetic outfit being edited in the wardrobe (synced to the ECS player
     /// on confirm). slot id -> cosmetic id.
-    pub outfit: crate::ecs::components::Outfit,
+    pub outfit: humanity_core::ecs::components::Outfit,
     /// Set when the outfit changes; the main loop rebuilds the avatar.
     pub outfit_dirty: bool,
     /// Which showroom panel is shown: 0 = the Play picker, 1 = appearance editor
@@ -2127,7 +2127,7 @@ pub struct GuiState {
     // ── v0.278.0 auto-unlock state ──
     /// User's chosen unlock mode: AlwaysPrompt / Keychain / KeychainPin.
     /// Default is AlwaysPrompt — opt-in is explicit.
-    pub auto_unlock_mode: crate::auto_unlock::AutoUnlockMode,
+    pub auto_unlock_mode: humanity_core::auto_unlock::AutoUnlockMode,
     /// AES-GCM blob of the seed encrypted with `PIN ‖ device_key`. Empty
     /// when KeychainPin mode is not set up. Persisted in AppConfig.
     pub pin_encrypted_seed: String,
@@ -3759,7 +3759,7 @@ impl Default for GuiState {
             station_roll_deg: 0.0,
             station_attitude_dirty: false,
             station_readout: String::new(),
-            credits: crate::credits::Credits::default(),
+            credits: humanity_core::credits::Credits::default(),
             osm_regions_drawn: Vec::new(),
             show_network_overlay: false,
             show_system_overlay: false,
@@ -3780,7 +3780,7 @@ impl Default for GuiState {
             voice_vad_threshold: 0.05,
             voice_ptt_held: false,
             voice_binding_key: false,
-            keybinds: crate::input::bindings::Keybinds::default(),
+            keybinds: humanity_core::input::bindings::Keybinds::default(),
             keybind_capture: None,
             keybind_conflict: None,
             keybind_status: String::new(),
@@ -3870,9 +3870,9 @@ impl Default for GuiState {
             showroom_backdrop: 0,
             showroom_backdrop_names: Vec::new(),
             showroom_confirm: false,
-            appearance: crate::ecs::components::Appearance::default(),
+            appearance: humanity_core::ecs::components::Appearance::default(),
             appearance_dirty: false,
-            outfit: crate::ecs::components::Outfit::default(),
+            outfit: humanity_core::ecs::components::Outfit::default(),
             outfit_dirty: false,
             showroom_mode: 0,
             showroom_return_to_picker: false,
@@ -3899,7 +3899,7 @@ impl Default for GuiState {
             section_locks: std::collections::HashMap::new(),
             // v0.278.0 auto-unlock — default is opt-out (always prompt).
             // A loaded config overwrites this with the user's stored choice.
-            auto_unlock_mode: crate::auto_unlock::AutoUnlockMode::AlwaysPrompt,
+            auto_unlock_mode: humanity_core::auto_unlock::AutoUnlockMode::AlwaysPrompt,
             pin_encrypted_seed: String::new(),
             pin_salt: String::new(),
             remember_on_device: false,
@@ -4653,7 +4653,7 @@ impl Default for SettingsState {
             terrain_patch_budget: 2048.0,
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
-            tree_model_distance: crate::lod_registry::category("tree").map(|c| c.model_m).unwrap_or(120.0),
+            tree_model_distance: humanity_core::lod_registry::category("tree").map(|c| c.model_m).unwrap_or(120.0),
             // v0.1109: defaults are the shipped engine constants, so exposing
             // these three changed nothing about how the world looks.
             near_tree_budget: crate::config::NEAR_TREE_BUDGET_DEFAULT,
@@ -4662,7 +4662,7 @@ impl Default for SettingsState {
             tree_density: 0.6,
             grass_density: 1.0,
             grass_detail: 0.6,
-            veg_tree_card_m: crate::lod_registry::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
+            veg_tree_card_m: humanity_core::lod_registry::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
             water_detail_depth: 20.0,
             sun_shadows: true,
             shadow_strength: 1.0,

@@ -59,7 +59,7 @@ use crate::net::dm_store::DmStore;
 use crate::net::household::{self as hh, Arrival, GivenPermit, GivenState, HeldPermit, Kept, PermitPut, Verdict};
 use crate::net::put_answers::{Answer, ANSWER_WAIT};
 use crate::relay::storage::plot_owner_id;
-use crate::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
+use humanity_core::build_permission::{Permit, Why, PERMIT_MAX_DAYS};
 
 /// Seconds in a day.
 const DAY: u64 = 86_400;
@@ -118,7 +118,7 @@ pub fn days_left(expiry: u64, now_s: u64) -> u64 {
 /// Save `store` after dropping permits that ended more than the kept days ago (plan 3.2: "on every
 /// save that touches permits"). The kept days are data (data/ship/household.ron).
 fn save_pruned(store: &mut DmStore) {
-    let kept = hh::load_lengths(&crate::storage::data_dir()).ended_kept_days;
+    let kept = hh::load_lengths(&humanity_core::storage::data_dir()).ended_kept_days;
     store.prune_permits(now_s(), kept);
     store.save();
 }
@@ -166,8 +166,8 @@ fn parse_take_back(text: &str) -> Option<Vec<TakenBackRow>> {
             && r.to.len() <= hh::ISSUER_MAX_LEN
             && r.to.bytes().all(|b| b.is_ascii_hexdigit())
             && !r.plot.is_empty()
-            && r.plot.len() <= crate::relay::core::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN
-            && crate::relay::core::pq_crypto::friend_cert_serial_ok(&r.serial)
+            && r.plot.len() <= humanity_protocol::pq_crypto::PLOT_PERMIT_FIELD_MAX_LEN
+            && humanity_protocol::pq_crypto::friend_cert_serial_ok(&r.serial)
     };
     (note.taken_back.iter().all(fits) && note.taken_back.len() <= ROWS_PER_NOTE).then_some(note.taken_back)
 }
@@ -350,9 +350,9 @@ fn give_until(gs: &mut GuiState, peer: &str, days: u64, expiry: u64) -> Result<(
     let at = now_ms();
     let now = at / 1000;
     let seed = gs.private_key_bytes.clone().unwrap_or_default();
-    let Some(serial) = crate::relay::core::pq_crypto::new_friend_cert_serial() else { return Err(NOT_MADE.into()) };
+    let Some(serial) = humanity_protocol::pq_crypto::new_friend_cert_serial() else { return Err(NOT_MADE.into()) };
     let grantee = plot_owner_id(peer);
-    let sig = crate::relay::core::pq_crypto::build_plot_permit(&seed, &server, &plot, &grantee, &serial, expiry, now).map_err(|e| {
+    let sig = humanity_protocol::pq_crypto::build_plot_permit(&seed, &server, &plot, &grantee, &serial, expiry, now).map_err(|e| {
         log::warn!("Household: a permit for {plot} was not made ({e:?})");
         NOT_MADE.to_string()
     })?;

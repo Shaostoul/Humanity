@@ -38,9 +38,9 @@ use crate::engine::planet_build;
 use crate::engine::shared_build::{self, Gate};
 use crate::engine::state::EngineState;
 use crate::gui::{BuildPlacing, GuiPage, GuiState};
-use crate::hot_reload::data_store::DataStore;
-use crate::input::bindings::{pretty_key_name, GameAction};
-use crate::ecs::components::Transform;
+use humanity_core::hot_reload::data_store::DataStore;
+use humanity_core::input::bindings::{pretty_key_name, GameAction};
+use humanity_core::ecs::components::Transform;
 use crate::ship::build_frames::{plot_frame_id, BuildFrames};
 use crate::ship::wall_collision::WallSegment;
 use crate::systems::construction::shared::{self as contract, Action, Reason, SharedPiece};
@@ -467,7 +467,7 @@ pub(crate) fn off_plot_reason(guest: bool) -> &'static str {
 /// (`construction::materials_short` with no home storage, the rule the
 /// ConstructionSystem applies to a planet build).
 fn carried_short(state: &EngineState, blueprint_id: &str) -> Option<(String, u32)> {
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::{Inventory, ItemRegistry};
     let bp = state.data_store.get::<BlueprintRegistry>("blueprint_registry")?.get(blueprint_id)?;
     let world = &state.game_world.world;
@@ -491,11 +491,11 @@ fn carried_short(state: &EngineState, blueprint_id: &str) -> Option<(String, u32
 /// window. (First-hour audit 2026-10-04, Friction 8.)
 pub(crate) fn build_refusal(
     world: &hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     blueprint_id: &str,
     on_planet: bool,
 ) -> Option<String> {
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::{Inventory, ItemRegistry};
     let bp = data.get::<BlueprintRegistry>("blueprint_registry")?.get(blueprint_id)?;
     let mut q = world.query::<(&Inventory, &Controllable)>();
@@ -699,7 +699,7 @@ pub(crate) fn kept_piece_back(world: &hecs::World, registry: Option<&BlueprintRe
 /// 2026-09-28 found it untested; the line also printed item ids).
 pub(crate) fn apply_take_down(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     e: hecs::Entity,
     name: &str,
     materials: &[(String, u32)],
@@ -776,8 +776,8 @@ pub(crate) fn built_piece_boxes(world: &hecs::World, registry: Option<&Blueprint
         }
         let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
         match parts {
-            Some(parts) => out.extend(parts.iter().map(|(p, _)| crate::ecs::components::world_aabb(p))),
-            None => out.push(crate::ecs::components::world_aabb(tf)),
+            Some(parts) => out.extend(parts.iter().map(|(p, _)| humanity_core::ecs::components::world_aabb(p))),
+            None => out.push(humanity_core::ecs::components::world_aabb(tf)),
         }
     }
     out
@@ -826,8 +826,8 @@ mod tests {
     #[test]
     fn a_piece_goes_aboard_only_inside_your_own_plot() {
         use crate::ship::ship_structure::ShipStructure;
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let world = hecs::World::new();
         let pose = |id: &str, x: f32, z: f32, turns: u8| {
             placement::placement_pose(reg.get(id).unwrap(), Vec3::new(x, 0.0, z), turns, &world, &reg, None)
@@ -868,11 +868,11 @@ mod tests {
     }
 
     /// The shipped blueprint catalog in a DataStore, as the build reads it.
-    fn catalog() -> crate::hot_reload::data_store::DataStore {
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+    fn catalog() -> humanity_core::hot_reload::data_store::DataStore {
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert(
             "blueprint_registry",
-            BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap(),
+            BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap(),
         );
         data
     }
@@ -896,7 +896,7 @@ mod tests {
     fn an_outdoors_piece_hears_its_outdoors_refusal_before_the_plot_rule() {
         use crate::ship::ship_structure::ShipStructure;
         use crate::systems::construction::{outdoors_refusal, NotOutdoors};
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let data = catalog();
         let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
         let p1 = ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).expect("assembles at p1");
@@ -933,7 +933,7 @@ mod tests {
     /// (your home)\"".
     #[test]
     fn a_campfire_cast_outside_your_plot_hears_the_outdoors_words() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::construction::{begin_build, NotOutdoors};
         use crate::systems::inventory::Inventory;
         let data = catalog();
@@ -972,7 +972,7 @@ mod tests {
     #[test]
     fn dev_in_a_shared_world_builds_only_on_its_own_plot() {
         use crate::ship::ship_structure::ShipStructure;
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let data = catalog();
         let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
         let at = |x: f32, z: f32| -> Result<planet_build::Ghost, planet_build::CannotBuild> {
@@ -1081,14 +1081,14 @@ mod tests {
     /// the crosshair): "a short wall is refused at the crosshair".
     #[test]
     fn a_short_build_is_refused_at_the_crosshair_by_name() {
-        use crate::ecs::components::Controllable;
+        use humanity_core::ecs::components::Controllable;
         use crate::systems::crafting::home_store::HOME_STORAGE_HERE;
         use crate::systems::inventory::{Inventory, ItemRegistry};
         use std::sync::Mutex;
-        let mut data = crate::hot_reload::data_store::DataStore::new();
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         data.insert("blueprint_registry", reg);
-        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap());
+        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap());
         let stock: std::collections::HashMap<String, u32> = [("wood_plank_0".to_string(), 1)].into_iter().collect();
         data.insert("home_stock", Mutex::new(stock));
         let mut world = hecs::World::new();
@@ -1141,7 +1141,7 @@ mod collision_tests {
     /// through the wall and fails the first assertion.
     #[test]
     fn a_built_wall_stops_the_player_and_a_roof_overhead_does_not() {
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let eye_h = 1.7;
         let start = Vec3::new(-2.0, eye_h, 0.0);
         let goal = Vec3::new(2.0, eye_h, 0.0);
@@ -1184,7 +1184,7 @@ mod collision_tests {
     /// of its parts fails the open-door walk.
     #[test]
     fn a_doorway_lets_you_through_only_when_the_door_is_open() {
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         assert!(reg.get("wood_wall_door").and_then(|b| b.doorway).is_some(), "the shipped doorway wall");
         let eye_h = 1.7;
         let mut world = hecs::World::new();
@@ -1224,7 +1224,7 @@ mod collision_tests {
     #[test]
     fn a_finished_piece_aboard_is_a_floor_within_a_step() {
         use crate::engine::footing::{ElevatorCars, Footing};
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let mut world = hecs::World::new();
         place(&mut world, &reg, "wood_foundation", 0.0, 0.0, 0);
         place(&mut world, &reg, "storage_chest", 6.0, 0.0, 0);
@@ -1286,10 +1286,10 @@ mod take_down_tests {
     #[test]
     fn a_take_down_removes_the_piece_and_queues_its_materials() {
         use crate::systems::inventory::TransferOp;
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let mut world = hecs::World::new();
         let wall = place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1, 1);
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("inventory_transfer_ops", std::sync::Mutex::new(Vec::<TransferOp>::new()));
         let materials = vec![("wood_plank_0".to_string(), 6)];
         let line = apply_take_down(&mut world, &data, wall, "Wood Wall", &materials);
@@ -1306,7 +1306,7 @@ mod take_down_tests {
     /// store check lets the full chest come down and fails the refusal.
     #[test]
     fn take_down_finds_the_piece_in_view_and_keeps_a_full_chest() {
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let mut world = hecs::World::new();
         let wall = place(&mut world, &reg, "wood_wall", 0.0, 0.0, 1, 1);
         let eye = Vec3::new(-2.0, 1.5, 0.0);
@@ -1337,8 +1337,8 @@ mod take_down_tests {
 mod shared_world_tests {
     //! E and F in a server's shared world (ship homes increment 5, 2026-10-05).
     use super::*;
-    use crate::ecs::components::Controllable;
-    use crate::ecs::systems::System;
+    use humanity_core::ecs::components::Controllable;
+    use humanity_core::ecs::systems::System;
     use crate::engine::shared_build::{on_message, tick_core, welcome, Ctx, SharedBuild};
     use crate::ship::ship_structure::ShipStructure;
     use crate::systems::construction::shared::{FromRelay, Piece};
@@ -1350,14 +1350,14 @@ mod shared_world_tests {
     const T: f64 = 1_759_500_000.0;
 
     fn registry() -> BlueprintRegistry {
-        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap()
+        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap()
     }
 
     /// The data E, the ConstructionSystem and the shared books read.
     fn store() -> DataStore {
         let mut data = DataStore::new();
         data.insert("blueprint_registry", registry());
-        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap());
+        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap());
         data.insert("build_request", Mutex::new(Vec::<BuildRequest>::new()));
         data.insert("build_status", Mutex::new(String::new()));
         data.insert("quest_events", Mutex::new(Vec::<String>::new()));
@@ -1369,7 +1369,7 @@ mod shared_world_tests {
     /// The home on p1, in a shared world.
     fn joined_at_p1() -> GuiState {
         let mut gui = GuiState::default();
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         gui.ship_structure = Some(ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("assembles at p1"));
         gui.copresence_active = true;
         gui

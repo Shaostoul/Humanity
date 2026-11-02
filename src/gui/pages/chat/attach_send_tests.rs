@@ -322,7 +322,7 @@ fn the_limits_belong_to_one_server_and_one_identity() {
 #[test]
 fn a_picked_file_is_read_by_the_worker_and_kept_to_one_copy() {
     let mut gs = viewing("dm:abc");
-    let path = crate::test_temp::file("attach_worker_read", "txt");
+    let path = humanity_core::test_temp::file("attach_worker_read", "txt");
     std::fs::write(&path, b"first version").unwrap();
     let job = attach_file_job(&mut gs, &path).expect("a job");
     assert_eq!(job.body, Body::File { path: path.to_path_buf(), len: 13 }, "the job holds the path, not the bytes");

@@ -12,7 +12,7 @@ const SEED: [u8; 32] = [7u8; 32];
 /// applies it) no longer gave the ciphertext, the first assertion on `get`.
 #[test]
 fn a_kept_file_comes_back_exactly_and_is_encrypted_at_rest() {
-    let dir = crate::test_temp::dir("kept_roundtrip");
+    let dir = humanity_core::test_temp::dir("kept_roundtrip");
     let kept = KeptFiles::in_dir(dir.to_path_buf(), &SEED, 1 << 20);
     let sealed: Vec<u8> = (0..5000u32).map(|i| (i * 31 % 251) as u8).collect();
     assert!(!kept.has("/uploads/a.enc", "k", "n"));
@@ -42,7 +42,7 @@ fn a_kept_file_comes_back_exactly_and_is_encrypted_at_rest() {
 /// first: "b was opened longest ago, so it went" failed.
 #[test]
 fn the_cap_keeps_the_most_recently_opened() {
-    let dir = crate::test_temp::dir("kept_cap");
+    let dir = humanity_core::test_temp::dir("kept_cap");
     let kept = KeptFiles::in_dir(dir.to_path_buf(), &SEED, 3 * 1016);
     let file = |c: u8| vec![c; 1000];
     assert!(!kept.put("/x", "k", "n", &vec![0u8; 4000]).unwrap(), "over the cap alone: not kept");
@@ -67,7 +67,7 @@ fn the_cap_keeps_the_most_recently_opened() {
 /// counting what it removed: (0, 182) against (2, 182).
 #[test]
 fn clear_empties_the_folder() {
-    let dir = crate::test_temp::dir("kept_clear");
+    let dir = humanity_core::test_temp::dir("kept_clear");
     let kept = KeptFiles::in_dir(dir.to_path_buf(), &SEED, 1 << 20);
     kept.put("/a", "k", "n", &[1u8; 100]).unwrap();
     kept.put("/b", "k", "n", &[2u8; 50]).unwrap();
@@ -83,7 +83,7 @@ fn clear_empties_the_folder() {
 /// Seen red 2026-10-11 with `leftovers` answering no files: "an old unfinished write is removed".
 #[test]
 fn unfinished_writes_are_removed() {
-    let dir = crate::test_temp::dir("kept_leftovers");
+    let dir = humanity_core::test_temp::dir("kept_leftovers");
     std::fs::create_dir_all(&*dir).unwrap();
     let old = dir.join("aaaa.tmp");
     let fresh = dir.join("bbbb.tmp");

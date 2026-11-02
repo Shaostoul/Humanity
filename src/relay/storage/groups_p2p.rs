@@ -7,7 +7,7 @@
 //!
 //! ## Object-format spec (the cross-language contract — web / native / relay)
 //!
-//! All three are `crate::relay::core::object::Object` (canonical CBOR + BLAKE3
+//! All three are `humanity_protocol::object::Object` (canonical CBOR + BLAKE3
 //! `object_id` + Dilithium3 signature). Build with `ObjectBuilder`; verify with
 //! `put_signed_object` (rejects bad signatures before anything is projected).
 //!
@@ -58,7 +58,7 @@ use rusqlite::{params, OptionalExtension};
 
 use super::{Storage, now_millis};
 use super::signed_objects::author_fingerprint;
-use crate::relay::core::object::Object;
+use humanity_protocol::object::Object;
 
 /// Read a CBOR text field from an object payload (matches the per-module helper
 /// pattern used across storage/*.rs).
@@ -69,7 +69,7 @@ fn read_text(object: &Object, field: &str) -> Option<String> {
 /// `read_text` over raw payload bytes, for objects read back out of
 /// `signed_objects` rather than handed in as an `Object`.
 fn payload_text(payload: &[u8], field: &str) -> Option<String> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let (ciborium::Value::Text(name), ciborium::Value::Text(s)) = (k, v) {
@@ -89,7 +89,7 @@ fn read_bytes(object: &Object, field: &str) -> Option<Vec<u8>> {
 
 /// `read_bytes` over raw payload bytes (see `payload_text`).
 fn payload_bytes(payload: &[u8], field: &str) -> Option<Vec<u8>> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let (ciborium::Value::Text(name), ciborium::Value::Bytes(b)) = (k, v) {
@@ -108,7 +108,7 @@ fn payload_bytes(payload: &[u8], field: &str) -> Option<Vec<u8>> {
 /// payload that cannot be read gives none.
 fn epoch_recipient_fps(payload: &[u8]) -> std::collections::BTreeSet<String> {
     let mut fps = std::collections::BTreeSet::new();
-    let Ok(ciborium::Value::Map(entries)) = crate::relay::core::encoding::from_canonical_bytes(payload) else {
+    let Ok(ciborium::Value::Map(entries)) = humanity_protocol::encoding::from_canonical_bytes(payload) else {
         return fps;
     };
     for (k, v) in entries {
@@ -132,7 +132,7 @@ fn epoch_recipient_fps(payload: &[u8]) -> std::collections::BTreeSet<String> {
 
 /// Read a CBOR unsigned-integer field from an object payload.
 fn read_uint(object: &Object, field: &str) -> Option<u64> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&object.payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let (ciborium::Value::Text(name), ciborium::Value::Integer(i)) = (k, v) {
@@ -876,8 +876,8 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
     use ciborium::Value;
 
     fn make_test_storage() -> Storage {
@@ -1045,9 +1045,9 @@ mod tests {
 
     #[test]
     fn group_v1_canonical_kat() {
-        use crate::relay::core::object::Object;
-        use crate::relay::core::encoding::{to_canonical_bytes, cbor_map, cbor_text};
-        use crate::relay::core::pq_crypto::{DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN};
+        use humanity_protocol::object::Object;
+        use humanity_protocol::encoding::{to_canonical_bytes, cbor_map, cbor_text};
+        use humanity_protocol::pq_crypto::{DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN};
 
         // Deterministic, language-neutral fixed input.
         let payload = to_canonical_bytes(&cbor_map(vec![("name", cbor_text("kat-group"))])).unwrap();
@@ -1085,9 +1085,9 @@ mod tests {
 
     #[test]
     fn group_v1_shared_history_canonical_kat() {
-        use crate::relay::core::object::Object;
-        use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text, to_canonical_bytes};
-        use crate::relay::core::pq_crypto::{DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN};
+        use humanity_protocol::object::Object;
+        use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text, to_canonical_bytes};
+        use humanity_protocol::pq_crypto::{DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN};
 
         let payload = to_canonical_bytes(&cbor_map(vec![
             ("name", cbor_text("kat-group")),

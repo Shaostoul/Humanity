@@ -28,7 +28,7 @@ use super::recovery_net::{self as net, Asking, CodeLookup, Found, Friend, LiveAs
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button};
 use crate::gui::GuiState;
-use crate::relay::core::recovery as proto;
+use humanity_protocol::recovery as proto;
 
 /// The subsection's title, as Settings draws it.
 pub const TITLE: &str = "Recovery through trusted people";
@@ -131,7 +131,7 @@ fn my_account(state: &GuiState) -> Option<(Vec<u8>, String)> {
     let secret = state.private_key_bytes.clone().filter(|s| s.len() == proto::SECRET_LEN)?;
     // The account id from the key already derived (drawn every frame: no key derivation here).
     let key = hex::decode(state.profile_public_key.trim()).ok().filter(|k| !k.is_empty())?;
-    Some((secret, crate::relay::core::did::did_for_pubkey(&key)))
+    Some((secret, humanity_protocol::did::did_for_pubkey(&key)))
 }
 
 /// My friends: people I follow who follow me back, from this device's message store, with the
@@ -148,7 +148,7 @@ pub fn friends(state: &GuiState) -> Vec<Friend> {
             let pinned = crate::engine::key_cards::pinned_for_recovery(state, key);
             Some(Friend {
                 key: key.clone(),
-                did: crate::relay::core::did::did_for_pubkey(&bytes),
+                did: humanity_protocol::did::did_for_pubkey(&bytes),
                 name: crate::engine::dm::dm_display_name(state, key),
                 kyber_b64: pinned.clone().ok().flatten(),
                 key_changed: pinned.is_err(),

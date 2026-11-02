@@ -484,7 +484,7 @@ fn unknown_start(starts: &crate::ship::starts::Starts, asked: Option<&str>) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_clock::ManualClock;
+    use humanity_core::test_clock::ManualClock;
     use std::time::Duration;
 
     /// A relay on a fresh database, its 200 ms limit on a clock the test moves (`ask` moves it past

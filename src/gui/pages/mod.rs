@@ -95,7 +95,7 @@ pub mod how_to;
 // Recovery through trusted people moved into Settings > Account with the
 // Platform tab's retirement (2026-10-20): pages/settings/recovery.rs.
 // The Maps page (was cosmos.rs until Maps increment 0, 2026-10-20): a folder,
-// one file per view. `crate::cosmos` is the Sol model, not this page.
+// one file per view. `humanity_core::cosmos` is the Sol model, not this page.
 pub mod maps;
 // v0.197.0: agents and ai_usage page modules removed. The multi-AI
 // orchestration infrastructure (data/coordination/* + relay

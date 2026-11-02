@@ -391,7 +391,7 @@ mod sky_body_tests {
     #[test]
     fn from_the_ground_at_night_the_moon_is_lit_by_the_sun_and_the_ground_is_not() {
         let earth: crate::terrain::planet::PlanetDef =
-            ron::from_str(crate::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses");
+            ron::from_str(humanity_core::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses");
         let ac = earth.atmosphere_color.expect("Earth has air");
         let (rp, h) = atmosphere::shell_packing(earth.atmosphere_scale, earth.scale_height_or_default(), earth.radius);
         // Standing on the ground: the frame clamps the camera's radius to the surface.
@@ -445,7 +445,7 @@ mod sky_body_tests {
     #[test]
     fn each_drawn_material_takes_the_sun_its_bodies_need() {
         let earth: crate::terrain::planet::PlanetDef =
-            ron::from_str(crate::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses");
+            ron::from_str(humanity_core::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses");
         let (rp, h) = atmosphere::shell_packing(earth.atmosphere_scale, earth.scale_height_or_default(), earth.radius);
         let air = CameraAir { cam_r: rp, rp, h, color: earth.atmosphere_color.unwrap(), up: DVec3::Y };
         let moon_dir = dir(25.0, 200.0);
@@ -485,7 +485,7 @@ mod sky_body_tests {
     #[test]
     fn the_shader_lights_a_sky_body_with_its_own_sun() {
         let read = |f: &str| {
-            std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/shaders/pbr").join(f))
+            std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("assets/shaders/pbr").join(f))
                 .unwrap_or_else(|e| panic!("{f}: {e}"))
         };
         let shared = read("80-fragment-shared.wgsl");
@@ -602,7 +602,7 @@ mod sky_dome_tests {
     }
 
     fn earth() -> crate::terrain::planet::PlanetDef {
-        ron::from_str(crate::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses")
+        ron::from_str(humanity_core::embedded_data::PLANET_EARTH_RON).expect("earth.ron parses")
     }
 
     fn lum(c: [f32; 3]) -> f32 {
@@ -820,7 +820,7 @@ mod sky_dome_tests {
     #[test]
     fn the_shaders_let_the_moon_through_and_light_other_bodies_shells() {
         let read = |f: &str| {
-            std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(f)).unwrap_or_else(|e| panic!("{f}: {e}"))
+            std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(f)).unwrap_or_else(|e| panic!("{f}: {e}"))
         };
         let atmo = read("assets/shaders/pbr/30-atmosphere.wgsl");
         assert!(atmo.contains("fn sky_disc_cover(rd: vec3<f32>, applies: bool) -> f32"), "30-atmosphere.wgsl has no sky_disc_cover");

@@ -16,9 +16,9 @@ fn block<F: std::future::Future>(f: F) -> F::Output {
 /// A real Dilithium identity, for the friendship certificate tests.
 fn identity(seed_byte: u8) -> (Vec<u8>, String) {
     let seed = vec![seed_byte; 32];
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
     let hex_pk = hex::encode(
-        crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key(),
+        humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key(),
     );
     (seed, hex_pk)
 }

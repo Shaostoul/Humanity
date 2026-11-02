@@ -5,7 +5,7 @@
 //
 // Run: node --test scripts/tests/profile-copy-web.test.js   (in `just rig-tests`)
 //
-// Pure node, nothing booted or connected. The relay's twin is src/relay/core/profile_copy.rs, and
+// Pure node, nothing booted or connected. The relay's twin is crates/humanity-protocol/src/profile_copy.rs, and
 // the shared fixture scripts/tests/fixtures/profile-copy-v1.json is made by that builder from the
 // seed [7; 32] (ML-DSA signing in Rust is deterministic). The words and the limits must agree byte
 // for byte, or the relay refuses every copy the website signs. So this test READS the Rust
@@ -31,8 +31,8 @@ const vm = require("node:vm");
 const REPO = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(REPO, "web");
 const PC = require(path.join(WEB, "shared", "profile-copy.js"));
-const RUST = fs.readFileSync(path.join(REPO, "src", "relay", "core", "profile_copy.rs"), "utf8");
-const PQ_RUST = fs.readFileSync(path.join(REPO, "src", "relay", "core", "pq_crypto.rs"), "utf8");
+const RUST = fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "profile_copy.rs"), "utf8");
+const PQ_RUST = fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "pq_crypto.rs"), "utf8");
 const FX = JSON.parse(fs.readFileSync(path.join(REPO, "scripts", "tests", "fixtures", "profile-copy-v1.json"), "utf8"));
 
 const enc = (s) => new TextEncoder().encode(s);

@@ -1,5 +1,5 @@
 // Files with hidden information in them, built byte by byte, for holding the desktop's Rust
-// `describe` (src/relay/core/describe_metadata.rs) to the web's `HosStrip.describe`
+// `describe` (crates/humanity-protocol/src/describe_metadata.rs) to the web's `HosStrip.describe`
 // (web/shared/strip-metadata.js): the attach step's "This photo says where it was taken and which
 // camera took it." must be the same sentence in both apps (docs/design/files-showcase.md, "Files
 // on the sender's device and in messages, exact", part 1).

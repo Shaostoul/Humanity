@@ -5,7 +5,7 @@ use super::*;
 use crate::net::files_policy::{AcceptFrom, FilesInMessages};
 
 fn fixture(name: &str) -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe").join(name)
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/describe").join(name)
 }
 
 fn look_of(name: &str) -> Result<Look, String> {
@@ -156,7 +156,7 @@ fn send_a_file_shows_the_file_with_its_type_then_what_is_hidden_in_it() {
 #[test]
 fn a_file_named_like_a_picture_that_is_a_program_is_red_before_it_goes() {
     let mut gs = app();
-    let fake = crate::test_temp::file("attach_step_disguised", "jpg");
+    let fake = humanity_core::test_temp::file("attach_step_disguised", "jpg");
     std::fs::write(&fake, [0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00]).unwrap();
     let job = attach_send::attach_file_job(&mut gs, &fake).expect("a job");
     open(&mut gs, job, &fake);

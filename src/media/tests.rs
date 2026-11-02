@@ -32,7 +32,7 @@ use kira::sound::PlaybackState;
 use super::audio::OpusTrack;
 use super::video::decode_video;
 use super::{probe, take_due_frame, AudioAttach, MediaError, VideoFrame, VideoPlayer};
-use crate::test_clock::ManualClock;
+use humanity_core::test_clock::ManualClock;
 
 const BAR: &str = "colour-bar-av1-opus.webm";
 const UNSUPPORTED: &str = "unsupported-vp8-vorbis.webm";
@@ -69,7 +69,7 @@ fn real_time_floor(frames_due: usize) -> usize {
 }
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(env!("HUMANITY_REPO_ROOT"))
         .join("tests")
         .join("fixtures")
         .join("media")
@@ -563,7 +563,7 @@ fn drop_joins_the_decode_thread() {
 #[test]
 #[ignore = "needs an audio output device; run: cargo test --features native --lib media::tests::audio_led -- --ignored --nocapture"]
 fn audio_led_clock_follows_kira_when_a_device_exists() {
-    let mut audio = match crate::audio::AudioManager::try_new() {
+    let mut audio = match humanity_core::audio::AudioManager::try_new() {
         Ok(a) => a,
         Err(e) => {
             println!("skipped: no audio device ({e})");
@@ -638,7 +638,7 @@ fn audio_led_clock_follows_kira_when_a_device_exists() {
 #[test]
 #[ignore = "needs an audio output device; run: cargo test --features native --lib -- --ignored --nocapture media::tests::looping_audio"]
 fn looping_audio_keeps_playing_past_the_end_when_a_device_exists() {
-    let mut audio = match crate::audio::AudioManager::try_new() {
+    let mut audio = match humanity_core::audio::AudioManager::try_new() {
         Ok(a) => a,
         Err(e) => {
             println!("skipped: no audio device ({e})");

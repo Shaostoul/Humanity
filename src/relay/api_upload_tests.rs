@@ -177,7 +177,7 @@ fn leftover_part_files_are_cleared_at_start() {
 /// src/relay/mod.rs is removed, and without it every upload over 2 MB fails again).
 #[test]
 fn the_upload_route_keeps_its_own_body_limit() {
-    let router = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/mod.rs")).unwrap();
+    let router = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/relay/mod.rs")).unwrap();
     assert!(
         router.contains(r#".route("/api/upload", post(api::upload_file).layer(axum::extract::DefaultBodyLimit::max(api::UPLOAD_BODY_LIMIT)))"#),
         "the /api/upload route carries DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)"

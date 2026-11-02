@@ -147,6 +147,13 @@ function scanProfile(profileDir) {
 /** The workspace's crate names in a checkout: the package's lib and bin, its tests/ and examples/. */
 function workspaceCrates(root) {
   const names = new Set(["humanity_engine", "HumanityOS", "build_script_build"]);
+  // The workspace's crates (the crate split's rung 1, 2026-11-01): crates/humanity-core builds
+  // humanity_core-<hash> artifacts, which carry the version in their hash like the engine's.
+  try {
+    for (const e of fs.readdirSync(path.join(root, "crates"), { withFileTypes: true })) {
+      if (e.isDirectory()) names.add(e.name.replace(/-/g, "_"));
+    }
+  } catch {}
   for (const sub of ["tests", "examples"]) {
     let list = [];
     try {

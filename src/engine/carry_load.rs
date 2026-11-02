@@ -20,7 +20,7 @@
 //!
 //! Lives here, not in lib.rs, for the monolith ratchet: lib.rs only calls it.
 
-use crate::ecs::components::Controllable;
+use humanity_core::ecs::components::Controllable;
 use crate::engine::state::EngineState;
 use crate::renderer::camera::CameraController;
 use crate::systems::encumbrance::{self as enc, CarryInput, CarryMode, CarryState};

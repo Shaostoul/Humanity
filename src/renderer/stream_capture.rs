@@ -22,7 +22,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::raw_frame::RawFrame;
+use humanity_core::raw_frame::RawFrame;
 
 /// A reusable async readback slot.
 pub struct StreamCapture {
@@ -232,7 +232,7 @@ mod tests {
     #[ignore = "needs a GPU adapter"]
     fn gpu_readback_returns_the_rendered_pixels_without_stalling() {
         pollster::block_on(async {
-            if !crate::test_gpu::may_use() {
+            if !humanity_core::test_gpu::may_use() {
                 return;
             }
             let instance = wgpu::Instance::default();

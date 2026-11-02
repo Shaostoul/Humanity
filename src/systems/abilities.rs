@@ -22,9 +22,9 @@
 //! health and build nothing. A build that is refused (aboard the ship, under
 //! a roof, too few materials, nowhere to stand) spends nothing.
 
-use crate::ecs::components::{Controllable, Health, Vitals};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Health, Vitals};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::construction::BuildRequest;
 use crate::systems::skills::PlayerSkills;
 use serde::Deserialize;
@@ -132,7 +132,7 @@ pub struct AbilityRegistry {
 
 impl AbilityRegistry {
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<AbilityDef> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<AbilityDef> = humanity_core::data_parse::parse_csv(data)?;
         let mut defs = HashMap::new();
         for row in rows {
             defs.insert(row.id.clone(), row);
@@ -270,7 +270,7 @@ impl AbilitySystem {
                 return format!("{} needs a target - face a creature", def.name);
             };
             if !world.contains(e)
-                || world.get::<&crate::ecs::components::Dead>(e).is_ok()
+                || world.get::<&humanity_core::ecs::components::Dead>(e).is_ok()
                 || world.get::<&Health>(e).is_err()
             {
                 return format!("{}: that target is gone", def.name);
@@ -279,13 +279,13 @@ impl AbilitySystem {
             // tolerance since the player Transform trails the camera.
             if def.range_m > 0.0 {
                 let caster_pos = world
-                    .query_mut::<(&crate::ecs::components::Transform, &Controllable)>()
+                    .query_mut::<(&humanity_core::ecs::components::Transform, &Controllable)>()
                     .into_iter()
                     .next()
                     .map(|(_e, (t, _c))| t.position);
                 if let (Some(cp), Ok(tt)) = (
                     caster_pos,
-                    world.get::<&crate::ecs::components::Transform>(e),
+                    world.get::<&humanity_core::ecs::components::Transform>(e),
                 ) {
                     if (tt.position - cp).length() > def.range_m + 2.0 {
                         return format!("{}: out of range ({:.0}m)", def.name, def.range_m);
@@ -293,7 +293,7 @@ impl AbilitySystem {
                 }
             }
             target_name = world
-                .get::<&crate::ecs::components::Name>(e)
+                .get::<&humanity_core::ecs::components::Name>(e)
                 .map(|n| n.0.clone())
                 .unwrap_or_else(|_| "the target".to_string());
             target_entity = Some(e);
@@ -413,10 +413,10 @@ impl AbilitySystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::{Controllable, Health, Vitals};
+    use humanity_core::ecs::components::{Controllable, Health, Vitals};
 
     fn shipped_registry() -> AbilityRegistry {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("abilities.csv");
         AbilityRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
@@ -440,7 +440,7 @@ mod tests {
         let cauterize = reg.get("cauterize").expect("cauterize exists");
         assert!(cauterize.self_castable(), "healing rows are live");
 
-        let skills_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let skills_path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("skills")
             .join("skills.csv");
@@ -473,7 +473,7 @@ mod tests {
             Vitals::default(),
             Health { current: 40.0, max: 100.0 },
             Controllable,
-            crate::ecs::components::Transform::default(),
+            humanity_core::ecs::components::Transform::default(),
         ));
         let mut data = DataStore::new();
         data.insert("ability_registry", shipped_registry());
@@ -583,7 +583,7 @@ mod tests {
     /// and range/dead gates refuse honestly.
     #[test]
     fn offensive_cast_queues_damage_at_a_target() {
-        use crate::ecs::components::{Name, Transform};
+        use humanity_core::ecs::components::{Name, Transform};
         use glam::Vec3;
 
         let (mut world, data) = cast_world();
@@ -623,7 +623,7 @@ mod tests {
         assert!(msg.contains("out of range"), "got: {msg}");
 
         // A dead target refuses.
-        world.insert_one(hen, crate::ecs::components::Dead::default()).unwrap();
+        world.insert_one(hen, humanity_core::ecs::components::Dead::default()).unwrap();
         let msg = sys.cast(&mut world, &data, "ember_shot", Some(hen.to_bits().into()));
         assert!(msg.contains("gone"), "got: {msg}");
     }
@@ -654,7 +654,7 @@ mod tests {
             inv.add_item(LOG, logs, 99);
         }
         world.insert_one(player, inv).unwrap();
-        let bp = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+        let bp = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("blueprints").join("basic.ron");
         data.insert(
             "blueprint_registry",
             crate::systems::construction::BlueprintRegistry::from_ron(&std::fs::read(bp).unwrap()).unwrap(),
@@ -664,7 +664,7 @@ mod tests {
         data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
         data.insert(
             "item_registry",
-            crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap(),
+            crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap(),
         );
         data.insert(
             "body_environment",
@@ -686,7 +686,7 @@ mod tests {
     /// `site` (None = aboard, in the home frame).
     fn put_spot(data: &DataStore, site: Option<crate::systems::construction::PlanetSite>) {
         use crate::systems::construction::BuildRequest;
-        let pose = crate::ecs::components::Transform {
+        let pose = humanity_core::ecs::components::Transform {
             position: glam::Vec3::new(0.0, 0.0, -2.0),
             rotation: glam::Quat::IDENTITY,
             scale: glam::Vec3::new(1.0, 0.6, 1.0),
@@ -728,7 +728,7 @@ mod tests {
     #[test]
     fn the_campfire_ability_builds_a_campfire_outdoors_from_the_pack() {
         use crate::systems::construction::{Construction, ConstructionSystem, PlanetSite, Structure};
-        use crate::ecs::components::Transform;
+        use humanity_core::ecs::components::Transform;
         let (mut world, data, player) = campfire_world(6, 3);
         put_spot(&data, Some(earth_site()));
         let mut sys = AbilitySystem::new();
@@ -801,7 +801,7 @@ mod tests {
 
         // Indoors on a planet: under a roof on three walls.
         let (mut world, data, player) = campfire_world(6, 3);
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let site = earth_site();
         for (id, x, z, turns) in [("wood_wall", 0.0, -4.0, 0), ("wood_wall", -2.0, -2.0, 1), ("wood_wall", 2.0, -2.0, 1), ("roof", 0.0, -2.0, 0)] {
             let bp = reg.get(id).unwrap();

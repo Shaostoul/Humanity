@@ -6,13 +6,13 @@
 //! A child of `engine::death_pack` (`use super::*`), in its own file so the module stays small.
 
 use super::*;
-use crate::ecs::components::{Appearance, Controllable, Health, Name, Outfit, StatusEffects, Vitals};
+use humanity_core::ecs::components::{Appearance, Controllable, Health, Name, Outfit, StatusEffects, Vitals};
 use crate::systems::death_pack::{DeathRules, TakeBack};
 use crate::systems::inventory::{Inventory, ItemRegistry, ItemStack};
 use crate::systems::skills::PlayerSkills;
 
 fn data_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The rules as shipped (data/world/death.ron).
@@ -300,7 +300,7 @@ fn the_pack_survives_a_save_and_a_load() {
     let spot = PackSpot { place: place.clone(), place_words: "on Earth".into(), landing: Landing::FromDeepWater { dist_m: 230.0 } };
     dp::on_death(&mut world, DeathMode::Realistic, Some(spot));
     dp::count_down(&mut world, 90.0, &rules());
-    world.insert_one(p, crate::ecs::components::Dead { cause: "hypothermia".into(), ..Default::default() }).unwrap();
+    world.insert_one(p, humanity_core::ecs::components::Dead { cause: "hypothermia".into(), ..Default::default() }).unwrap();
     let save = round_trip(&crate::save_load::extract_world_save(&world));
 
     let (mut fresh, _q) = player_world();
@@ -555,11 +555,11 @@ fn the_settings_hint_says_what_each_mode_does_with_the_files_time() {
 fn the_shipped_death_rules_parse() {
     let text = std::fs::read_to_string(data_dir().join("world/death.ron")).unwrap();
     let disk = DeathRules::from_ron(&text).expect("data/world/death.ron parses");
-    let built_in = DeathRules::from_ron(crate::embedded_data::WORLD_DEATH_RON).expect("the built-in copy parses");
+    let built_in = DeathRules::from_ron(humanity_core::embedded_data::WORLD_DEATH_RON).expect("the built-in copy parses");
     assert_eq!(disk, built_in, "the built-in copy is the file");
     assert_eq!(rules(), disk, "load reads it");
     assert!(disk.keep_minutes_of_play > disk.warn_minutes_left && disk.warn_minutes_left >= 0.0);
-    assert!(disk.reach_m > f64::from(crate::ecs::components::EYE_HEIGHT_M), "a pack at your feet is in reach");
+    assert!(disk.reach_m > f64::from(humanity_core::ecs::components::EYE_HEIGHT_M), "a pack at your feet is in reach");
     assert!(disk.facing_cos > 0.0 && disk.facing_cos < 1.0);
     assert!(disk.wall_clearance_m >= 0.0 && disk.room_slack_m >= 0.0 && disk.open_space_m > 0.0);
     assert!(disk.shore.ring_growth > 1.0 && disk.shore.bearings >= 4 && disk.shore.max_m > disk.shore.first_ring_m);

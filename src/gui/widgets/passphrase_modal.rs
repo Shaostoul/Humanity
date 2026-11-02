@@ -112,7 +112,7 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // The words say what a skip costs: the key stays in memory only, and the saved settings
         // never hold a key that is not encrypted (config.rs, from_gui_state), so a new identity
         // skipped here is gone when the app closes unless its words were written down.
-        if widgets::secondary_button(ui, theme, crate::i18n::t("passphrase.skip_not_kept")) {
+        if widgets::secondary_button(ui, theme, humanity_core::i18n::t("passphrase.skip_not_kept")) {
             // User skips: key stays in memory but is not persisted encrypted
             state.passphrase_needed = false;
             state.passphrase_input.clear();
@@ -273,13 +273,13 @@ pub(crate) fn apply_unlock_outcome(
                     seed_arr.copy_from_slice(&key_bytes);
                     let identity = state.profile_public_key.clone();
                     if !identity.is_empty() {
-                        match crate::auto_unlock::keychain_stash(
-                            crate::auto_unlock::KeychainSlot::Seed,
+                        match humanity_core::auto_unlock::keychain_stash(
+                            humanity_core::auto_unlock::KeychainSlot::Seed,
                             &identity,
                             &seed_arr,
                         ) {
                             Ok(()) => {
-                                state.auto_unlock_mode = crate::auto_unlock::AutoUnlockMode::Keychain;
+                                state.auto_unlock_mode = humanity_core::auto_unlock::AutoUnlockMode::Keychain;
                                 log::info!("Auto-unlock: seed stashed in OS keychain; mode -> Keychain");
                             }
                             Err(e) => {
@@ -425,8 +425,8 @@ fn load_device_key(state: &GuiState) -> Option<[u8; 32]> {
         log::warn!("PIN flow: no profile_public_key in state");
         return None;
     }
-    match crate::auto_unlock::keychain_load(
-        crate::auto_unlock::KeychainSlot::DeviceKey,
+    match humanity_core::auto_unlock::keychain_load(
+        humanity_core::auto_unlock::KeychainSlot::DeviceKey,
         &state.profile_public_key,
     ) {
         Ok(opt) => opt,
@@ -453,14 +453,14 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("PIN (digits only):").color(theme.text_secondary()));
     ui.add(egui::TextEdit::singleline(&mut state.pin_input)
         .password(true)
-        .char_limit(crate::auto_unlock::PIN_MAX_LEN)
+        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
         .desired_width(ui.available_width()));
 
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("Confirm PIN:").color(theme.text_secondary()));
     ui.add(egui::TextEdit::singleline(&mut state.pin_confirm)
         .password(true)
-        .char_limit(crate::auto_unlock::PIN_MAX_LEN)
+        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
         .desired_width(ui.available_width()));
 
     ui.add_space(theme.spacing_md);
@@ -475,7 +475,7 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.horizontal(|ui| {
         if widgets::primary_button(ui, theme, "Set PIN") {
             // Validation
-            if let Err(msg) = crate::auto_unlock::validate_pin(&state.pin_input) {
+            if let Err(msg) = humanity_core::auto_unlock::validate_pin(&state.pin_input) {
                 state.pin_status = msg;
                 return;
             }
@@ -502,12 +502,12 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
 
             // Generate fresh device_key, stash to keychain.
-            let device_key = match crate::auto_unlock::generate_device_key() {
+            let device_key = match humanity_core::auto_unlock::generate_device_key() {
                 Ok(k) => k,
                 Err(e) => { state.pin_status = format!("RNG failed: {}", e); return; }
             };
-            if let Err(e) = crate::auto_unlock::keychain_stash(
-                crate::auto_unlock::KeychainSlot::DeviceKey,
+            if let Err(e) = humanity_core::auto_unlock::keychain_stash(
+                humanity_core::auto_unlock::KeychainSlot::DeviceKey,
                 &state.profile_public_key,
                 &device_key,
             ) {
@@ -516,11 +516,11 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
 
             // Encrypt seed with PIN + device_key.
-            match crate::auto_unlock::encrypt_seed_with_pin(&seed_bytes, &state.pin_input, &device_key) {
+            match humanity_core::auto_unlock::encrypt_seed_with_pin(&seed_bytes, &state.pin_input, &device_key) {
                 Ok((enc, salt)) => {
                     state.pin_encrypted_seed = enc;
                     state.pin_salt = salt;
-                    state.auto_unlock_mode = crate::auto_unlock::AutoUnlockMode::KeychainPin;
+                    state.auto_unlock_mode = humanity_core::auto_unlock::AutoUnlockMode::KeychainPin;
                     state.passphrase_needed = false;
                     state.pin_input.clear();
                     state.pin_confirm.clear();
@@ -558,7 +558,7 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("PIN:").color(theme.text_secondary()));
     let response = ui.add(egui::TextEdit::singleline(&mut state.pin_input)
         .password(true)
-        .char_limit(crate::auto_unlock::PIN_MAX_LEN)
+        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
         .desired_width(ui.available_width()));
 
     ui.add_space(theme.spacing_md);
@@ -626,7 +626,7 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let pin = state.pin_input.clone();
                 let (tx, rx) = std::sync::mpsc::channel();
                 std::thread::spawn(move || {
-                    let result = crate::auto_unlock::decrypt_seed_with_pin(&enc, &salt, &pin, &device_key)
+                    let result = humanity_core::auto_unlock::decrypt_seed_with_pin(&enc, &salt, &pin, &device_key)
                         .map(|seed| seed.to_vec())
                         .map_err(|e| e.to_string());
                     let _ = tx.send(result);
@@ -654,21 +654,21 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Current PIN:").color(theme.text_secondary()));
     ui.add(egui::TextEdit::singleline(&mut state.pin_old_input)
         .password(true)
-        .char_limit(crate::auto_unlock::PIN_MAX_LEN)
+        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
         .desired_width(ui.available_width()));
 
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("New PIN:").color(theme.text_secondary()));
     ui.add(egui::TextEdit::singleline(&mut state.pin_input)
         .password(true)
-        .char_limit(crate::auto_unlock::PIN_MAX_LEN)
+        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
         .desired_width(ui.available_width()));
 
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("Confirm New PIN:").color(theme.text_secondary()));
     ui.add(egui::TextEdit::singleline(&mut state.pin_confirm)
         .password(true)
-        .char_limit(crate::auto_unlock::PIN_MAX_LEN)
+        .char_limit(humanity_core::auto_unlock::PIN_MAX_LEN)
         .desired_width(ui.available_width()));
 
     ui.add_space(theme.spacing_md);
@@ -684,7 +684,7 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.horizontal(|ui| {
         if widgets::primary_button(ui, theme, "Change PIN") {
-            if let Err(msg) = crate::auto_unlock::validate_pin(&state.pin_input) {
+            if let Err(msg) = humanity_core::auto_unlock::validate_pin(&state.pin_input) {
                 state.pin_status = msg;
                 return;
             }
@@ -700,7 +700,7 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             };
             // Verify old PIN by decrypting existing blob.
-            let seed = match crate::auto_unlock::decrypt_seed_with_pin(
+            let seed = match humanity_core::auto_unlock::decrypt_seed_with_pin(
                 &state.pin_encrypted_seed, &state.pin_salt,
                 &state.pin_old_input, &device_key,
             ) {
@@ -708,7 +708,7 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 Err(_) => { state.pin_status = "Current PIN is incorrect.".to_string(); return; }
             };
             // Re-encrypt with new PIN (same device_key — no churn in keychain).
-            match crate::auto_unlock::encrypt_seed_with_pin(&seed, &state.pin_input, &device_key) {
+            match humanity_core::auto_unlock::encrypt_seed_with_pin(&seed, &state.pin_input, &device_key) {
                 Ok((enc, salt)) => {
                     state.pin_encrypted_seed = enc;
                     state.pin_salt = salt;

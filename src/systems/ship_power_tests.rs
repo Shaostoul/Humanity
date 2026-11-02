@@ -1,8 +1,8 @@
 //! The ship's reactor feed (2026-09-27). Each test says how it was seen red.
 
 use super::*;
-use crate::ecs::components::{Battery, PowerCircuit, PowerConsumer, PowerGenerator};
-use crate::ecs::systems::System;
+use humanity_core::ecs::components::{Battery, PowerCircuit, PowerConsumer, PowerGenerator};
+use humanity_core::ecs::systems::System;
 use crate::systems::electrical::{ElectricalSystem, PowerStatus};
 use std::sync::Mutex;
 
@@ -120,7 +120,7 @@ fn own_solar_offsets_reactor_draw_one_for_one() {
         assert!((s.drawn_w - want_drawn).abs() < 1e-3 && (s.returned_w - want_back).abs() < 1e-3, "{own} W own: {s:?}");
     }
     // The buildable panel.
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("blueprints").join("basic.ron");
     let reg = BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap();
     let mut world = hecs::World::new();
     spawn_feed_taps(&mut world, PLAYER_HOME, [0]);
@@ -145,7 +145,7 @@ fn own_solar_offsets_reactor_draw_one_for_one() {
 fn a_planet_site_is_not_fed_by_the_ships_reactor() {
     use crate::systems::construction::{wire_built_generators, wire_built_stations, BlueprintRegistry, PlanetSite, Structure};
     let data = store(false);
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("blueprints").join("basic.ron");
     let reg = BlueprintRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap();
     let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) };
     let mut world = hecs::World::new();

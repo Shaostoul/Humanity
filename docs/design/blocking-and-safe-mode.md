@@ -186,7 +186,7 @@ in `web/chat/chat-ui.js`); native says nothing.
   `sendFriendCertTo`, `ingestDmControl` in `web/chat/chat-social.js`).
 - The certificate is a base64 Dilithium3 signature over
   `hum/friend/v1\n{issuer}\n{grantee}` (`friend_cert_preimage`,
-  `build_friend_cert`, `verify_friend_cert` in `src/relay/core/pq_crypto.rs`;
+  `build_friend_cert`, `verify_friend_cert` in `crates/humanity-protocol/src/pq_crypto.rs`;
   web `pqBuildFriendCert`, `pqVerifyFriendCert` in `crypto.js`). No serial,
   no end date, no server.
 - The relay checks it at `dm_put` (above) and at `handle_profile_request`
@@ -535,7 +535,7 @@ Cryptography table in CLAUDE.md says so.
 
 ### 5.4 Files and tests that change in the same commit
 
-- `src/relay/core/pq_crypto.rs`: `FRIEND_CERT_DOMAIN` becomes
+- `crates/humanity-protocol/src/pq_crypto.rs`: `FRIEND_CERT_DOMAIN` becomes
   `hum/friend/v2`; `friend_cert_preimage`, `build_friend_cert` (now takes
   server, serial, expiry, now and returns a Result), `verify_friend_cert`
   (takes the relay's facts and `now`); the pinned test
@@ -1186,7 +1186,7 @@ Call not (the same as a new pass, step A). The pass I give them carries exactly:
 - `call` when Call is ticked.
 
 A friend with all three unticked keeps a pass whose `may` is `invite` alone: the format refuses
-an empty `may` (`FriendMay::from_words` in `src/relay/core/pq_crypto.rs`), and `invite` gives
+an empty `may` (`FriendMay::from_words` in `crates/humanity-protocol/src/pq_crypto.rs`), and `invite` gives
 nothing the relay enforces today. Say so in a comment where it is built. Unticking does not end the friendship: it is still a mutual follow, and
 under "Friends" every friend still gets through.
 
@@ -1358,7 +1358,7 @@ per-country lines (section 8.3) can be shown. The data is `data/safety/outside_h
 `researched` (the date), `default` (for any country not listed: `emergency_text` instead of a
 number, and the INHOPE list for child reports), and `countries`, each `{code, name, emergency,
 also?, child_report (or null), note?, source}`. Both clients read it (native from
-`src/embedded_data.rs`, beside the other safety files; web from `/data/safety/outside_help.json`).
+`crates/humanity-core/src/embedded_data.rs`, beside the other safety files; web from `/data/safety/outside_help.json`).
 
 **When it shows.** In the report dialog, when the chosen reason is `child_danger` or
 `someone_in_danger`, under that reason's help text: a block titled "Help outside this server".
@@ -1556,7 +1556,7 @@ kids", "family safe", "safe space", "child-proof", "protects your child", "compl
 "for kids" or "for children". A test on each client holds the feature's strings to that list.
 
 **The preset is data:** `data/gui/safety_presets.json`, read by both clients (native embeds it
-in `src/embedded_data.rs`, web fetches `/data/gui/safety_presets.json`). One entry, `protected`,
+in `crates/humanity-core/src/embedded_data.rs`, web fetches `/data/gui/safety_presets.json`). One entry, `protected`,
 with: `reach` (`message: friends`, `call: chosen`, `trade: friends`), `warnings_on_friends: true`,
 `pictures_from_non_friends: "never"`, `public_rooms: "read_only_only"` (see below), the PIN
 rules, and EVERY word this feature puts on screen: `sentences` (the reading step: the finding's

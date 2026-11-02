@@ -163,14 +163,14 @@ pub fn load(path: &Path) -> Record {
 /// Write the record to `path`, whole or not at all (a temporary file, then a rename).
 pub fn save(path: &Path, record: &Record) -> std::io::Result<()> {
     let text = serde_json::to_string(record).map_err(std::io::Error::other)?;
-    crate::atomic_write::write_atomic(path, text.as_bytes()).map_err(std::io::Error::other)
+    humanity_core::atomic_write::write_atomic(path, text.as_bytes()).map_err(std::io::Error::other)
 }
 
 /// Where the record is kept: beside `config.json`, or nowhere while the storage choice is still
 /// undecided (nothing may be written yet).
 #[cfg(not(test))]
 fn store_path() -> Option<PathBuf> {
-    if crate::storage::mode() == crate::storage::StorageMode::Undecided {
+    if humanity_core::storage::mode() == humanity_core::storage::StorageMode::Undecided {
         return None;
     }
     Some(crate::config::AppConfig::config_path().with_file_name(FILE_NAME))
@@ -228,7 +228,7 @@ mod tests {
     /// not marked" found the old mark.
     #[test]
     fn the_record_marks_a_file_only_while_it_is_unchanged() {
-        let dir = crate::test_temp::dir("from_here_rows");
+        let dir = humanity_core::test_temp::dir("from_here_rows");
         let file = dir.join("dusk.mp4");
         std::fs::write(&file, b"0123456789").unwrap();
         let mut r = Record::default();

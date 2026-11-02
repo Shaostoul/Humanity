@@ -68,7 +68,7 @@ The material model already supports the operator's framing:
 
 The "fully enclosed homestead in a steel spaceship" is the **enclosure context**, not a different home:
 
-- The homestead is a **pressurized volume** (`EnclosedSpace.sealed`, `src/ecs/components.rs`) inside a steel hull; vacuum outside; `AtmosphereSystem` already models pressure/O₂ and the `DECOMPRESSION_DAMAGE` path on a breach.
+- The homestead is a **pressurized volume** (`EnclosedSpace.sealed`, `crates/humanity-core/src/ecs/components.rs`) inside a steel hull; vacuum outside; `AtmosphereSystem` already models pressure/O₂ and the `DECOMPRESSION_DAMAGE` path on a breach.
 - A wood-framed home (`material_type: wood`) is **anchored inside the ship's homestead bay** (`homestead_bounds`) — anchored to the steel hull rather than an Earth foundation.
 - **The systems are identical between Earth and ship.** A 12V pump, a 400W panel, a 8000L cistern behave the same; only what the home is bolted to differs (hull vs foundation) and whether the envelope must stay sealed. So we design the **real Earth-homestead systems** once, and the ship is a context flag (sealed envelope + hull anchor), not a fork.
 

@@ -15,9 +15,9 @@ use super::gardening_tests::make_store;
 use super::humidity::{self, AirMap, GrowRoom, HumidityData, HUMIDITY_RON};
 use super::lighting::GrowPlot;
 use super::*;
-use crate::ecs::components::{PowerConsumer, RoomAir, SoilMemory, SpaceHeater, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{PowerConsumer, RoomAir, SoilMemory, SpaceHeater, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
 
 pub(crate) fn air() -> HumidityData {
@@ -307,9 +307,9 @@ fn the_heat_step_keeps_every_joule() {
 
 /// A well-watered `plant` on unit `slot` of `area`, at its first stage: the
 /// Garden panel only has a line for an area with a living crop.
-pub(crate) fn crop(data: &DataStore, plant: &str, area: &str, slot: u32) -> crate::ecs::components::CropInstance {
+pub(crate) fn crop(data: &DataStore, plant: &str, area: &str, slot: u32) -> humanity_core::ecs::components::CropInstance {
     let stage = data.get::<PlantRegistry>("plant_registry").unwrap().get(plant).unwrap().first_stage().to_string();
-    crate::ecs::components::CropInstance {
+    humanity_core::ecs::components::CropInstance {
         crop_def_id: plant.to_string(),
         growth_stage: stage,
         planted_at: 0.0,

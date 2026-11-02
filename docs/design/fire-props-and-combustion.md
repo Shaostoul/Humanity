@@ -199,7 +199,7 @@ Only one GPU rig may run at a time.
   - Radiant and contact exposure map to the burn depths in data/medical/wounds.ron (`burns.steps`, today seconds of fire at full intensity).
   - A CO/smoke field on EnvironmentContext lets the existing status rows (toxic_atmosphere, poisoned, burning, overheated) apply through the live effect tick. Each needs only an `effects.apply()` call.
 - Also fix the status-ID mismatch: fire_system.ron uses `debuff_*` IDs that are not in status_effects.csv.
-- Files: new src/systems/wick.rs, src/ecs/components.rs, src/systems/atmosphere.rs, src/systems/food.rs, data/status_effects.csv, registration in src/lib.rs, tests/engine_wiring_lint.rs.
+- Files: new src/systems/wick.rs, crates/humanity-core/src/ecs/components.rs, src/systems/atmosphere.rs, src/systems/food.rs, data/status_effects.csv, registration in src/lib.rs, tests/engine_wiring_lint.rs.
 - Verify: lib tests. For example: a 25 mL kerosene soak burns out inside the fuel row's range; the grip of a 6061 shaft rises more slowly than the grip of a CP-Ti shaft only if the data says so; a closed-room spin raises CO and triggers toxic_atmosphere. Then `just snapshot` of the Inventory page and the Home air card.
 
 **F8. Close-up truth: wick material, char and motion.**

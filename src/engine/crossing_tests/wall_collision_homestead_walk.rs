@@ -8,7 +8,7 @@
 
 use crate::ship::wall_collision::*;
 use crate::engine::footing::test_aboard::{body_at, live_frame, Aboard, EAST, NORTH, SOUTH, WEST};
-use crate::input::bindings::GameAction as A;
+use humanity_core::input::bindings::GameAction as A;
 use crate::ship::ship_structure::ShipStructure;
 use glam::Vec3;
 
@@ -17,7 +17,7 @@ const EYE: f32 = EYE_HEIGHT_M;
 const UP: f32 = 3.0;
 
 fn shipped() -> ShipStructure {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let home = &ship.zones[ship.home_zone_index()];
     assert_eq!(home.origin, (0.0, 0.0, 0.0), "the home on p1 stands at the ship's origin");

@@ -25,7 +25,7 @@ fn report(db: &Storage, item: i64, now: i64) -> i64 {
 /// gave the table its columns / left: 0 / right: 12".
 #[test]
 fn a_database_from_before_takedowns_opens_and_gains_the_table() {
-    let path = crate::test_temp::db("takedowns_pre");
+    let path = humanity_core::test_temp::db("takedowns_pre");
     {
         let db = Storage::open(&path).expect("a fresh database");
         db.with_conn(|c| {

@@ -123,7 +123,7 @@ impl StatusEffectRegistry {
     /// Build the registry from raw `status_effects.csv` bytes (shared loader:
     /// skips `#` comments, header-mapped, row-resilient).
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<StatusEffectDef> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<StatusEffectDef> = humanity_core::data_parse::parse_csv(data)?;
         let mut effects = HashMap::new();
         for row in rows {
             effects.insert(row.id.clone(), row);
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn from_csv_parses_real_status_effects() {
         let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/status_effects.csv"
         )))
         .expect("status_effects.csv");
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn net_speed_multiplier_combines_effects() {
         let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/status_effects.csv"
         )))
         .expect("status_effects.csv");

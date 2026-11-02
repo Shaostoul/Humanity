@@ -11,7 +11,7 @@
 use rusqlite::{OptionalExtension, params};
 
 use super::Storage;
-use crate::relay::core::did::{Fingerprint, fingerprint_to_did};
+use humanity_protocol::did::{Fingerprint, fingerprint_to_did};
 
 /// Where a resolution came from. A membership hit is a real key with NO
 /// publication history, and saying so is the difference between "we know this
@@ -57,7 +57,7 @@ impl Storage {
     ///
     /// Returns `Ok(None)` if no objects from this DID have been seen.
     pub fn resolve_did_fp(&self, fp: &Fingerprint) -> Result<Option<DidResolution>, rusqlite::Error> {
-        let fp_hex = crate::relay::core::did::fingerprint_to_hex(fp);
+        let fp_hex = humanity_protocol::did::fingerprint_to_hex(fp);
 
         // Read-only: single aggregate query_row over signed_objects (DID →
         // current pubkey resolution, a signature-verification hot path). Read pool.
@@ -161,8 +161,8 @@ impl Storage {
         self.with_conn(|conn| {
             for pk_hex in &rows {
                 let Ok(pk) = hex::decode(pk_hex) else { continue };
-                let fp_hex = crate::relay::core::did::fingerprint_to_hex(
-                    &crate::relay::core::did::fingerprint_of(&pk),
+                let fp_hex = humanity_protocol::did::fingerprint_to_hex(
+                    &humanity_protocol::did::fingerprint_of(&pk),
                 );
                 conn.execute(
                     "UPDATE server_members SET did_fp = ?1 WHERE public_key = ?2",
@@ -177,7 +177,7 @@ impl Storage {
 
     /// Convenience: resolve from the canonical `did:hum:` string.
     pub fn resolve_did(&self, did: &str) -> Result<Option<DidResolution>, String> {
-        let fp = crate::relay::core::did::parse_did_hum(did)
+        let fp = humanity_protocol::did::parse_did_hum(did)
             .map_err(|e| format!("invalid did: {e}"))?;
         self.resolve_did_fp(&fp)
             .map_err(|e| format!("storage: {e}"))
@@ -187,10 +187,10 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::did::did_for_pubkey;
-    use crate::relay::core::encoding::{cbor_map, cbor_text};
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::did::did_for_pubkey;
+    use humanity_protocol::encoding::{cbor_map, cbor_text};
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
         Storage::open_temp("did_test")
@@ -316,7 +316,7 @@ mod tests {
     /// one builds the old shape on purpose.
     #[test]
     fn opens_a_pre_did_fp_database_and_migrates_it() {
-        let path = crate::test_temp::db("did_mig");
+        let path = humanity_core::test_temp::db("did_mig");
 
         let kp = DilithiumKeypair::generate().unwrap();
         let did = did_for_pubkey(&kp.public_key());

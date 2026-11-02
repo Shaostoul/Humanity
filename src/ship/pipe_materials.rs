@@ -138,7 +138,7 @@ impl PipeMaterials {
 
 /// The shipped file, the fallback when the data folder's copy is missing or does
 /// not parse.
-const SHIPPED_PIPE_MATERIALS: &str = include_str!("../../data/piping/pipe_materials.ron");
+const SHIPPED_PIPE_MATERIALS: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/piping/pipe_materials.ron"));
 
 /// The registry, loaded once: the data folder's copy first, the shipped copy if that
 /// is missing or does not parse (and the log says so, BUG-133).
@@ -148,16 +148,16 @@ pub fn pipe_materials() -> &'static PipeMaterials {
 }
 
 fn load_pipe_materials() -> PipeMaterials {
-    let path = crate::storage::data_dir().join("piping").join("pipe_materials.ron");
+    let path = humanity_core::storage::data_dir().join("piping").join("pipe_materials.ron");
     match std::fs::read_to_string(&path) {
         Ok(text) => match PipeMaterials::parse(&text) {
             Ok(m) => return m,
-            Err(e) => crate::embedded_data::note_builtin_copy(
+            Err(e) => humanity_core::embedded_data::note_builtin_copy(
                 "piping/pipe_materials.ron",
                 format_args!("{} does not parse ({e})", path.display()),
             ),
         },
-        Err(e) => crate::embedded_data::note_builtin_copy(
+        Err(e) => humanity_core::embedded_data::note_builtin_copy(
             "piping/pipe_materials.ron",
             format_args!("{} could not be read ({e})", path.display()),
         ),

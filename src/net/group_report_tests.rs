@@ -11,13 +11,13 @@ use super::*;
 use crate::net::api_v2;
 use crate::net::group_e2ee::{open_epoch_key, parse_group_epoch_key_payload, random_epoch_key};
 use crate::net::group_remove::{remove_member, GroupServer, RemoveError};
-use crate::relay::core::encoding::{cbor_map, cbor_text, from_canonical_bytes};
-use crate::relay::core::object::{Object, ObjectBuilder};
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::encoding::{cbor_map, cbor_text, from_canonical_bytes};
+use humanity_protocol::object::{Object, ObjectBuilder};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 
-const FIXTURE: &str = include_str!("../../scripts/tests/fixtures/group-report-marker.json");
-const SPEC: &str = include_str!("../../docs/design/blocking-and-safe-mode.md");
+const FIXTURE: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/scripts/tests/fixtures/group-report-marker.json"));
+const SPEC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/docs/design/blocking-and-safe-mode.md"));
 const FILE_TEXT: &str = "[[hum:file:v1]]eyJrZXkiOiJTRUNSRVQifQ==";
 const T0: u64 = 1_760_000_000_000;
 
@@ -404,7 +404,7 @@ fn kyber(seed: &[u8]) -> String {
 /// A member's key card as the roster serves it (key cards, 2026-10-22): the app takes a member's
 /// Kyber key only from a card that checks out as theirs.
 fn card(seed: &[u8]) -> Value {
-    crate::relay::core::key_card::card_json(&crate::relay::core::key_card::sign_card(seed, 1_760_000_000_000).unwrap())
+    humanity_protocol::key_card::card_json(&humanity_protocol::key_card::sign_card(seed, 1_760_000_000_000).unwrap())
 }
 
 /// "REMOVE THEM FROM THE GROUP" (10j, the web's order): a new group key for the next epoch,
@@ -623,7 +623,7 @@ fn a_shared_history_groups_fresh_key_never_reuses_a_number() {
     let (ben_seed, ben) = person(88);
     let (ann_seed, ann) = person(89);
     let (cy_seed, cy) = person(90);
-    let payload = cbor_map(vec![("name", cbor_text("Readers")), ("share_history", crate::relay::core::encoding::cbor_int(1))]);
+    let payload = cbor_map(vec![("name", cbor_text("Readers")), ("share_history", humanity_protocol::encoding::cbor_int(1))]);
     let builder = ObjectBuilder::new("group_v1").created_at(T0).payload_cbor(&payload).unwrap();
     let (gid, json) = api_v2::sign_submission(&ben_seed, builder).unwrap();
     let group = served(&gid, &json);

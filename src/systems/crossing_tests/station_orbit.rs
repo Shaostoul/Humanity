@@ -42,7 +42,7 @@ fn a_synchronous_station_hangs_over_its_longitude_on_every_date() {
             for hour in [0.0_f64, 5.5, 9.0, 12.0, 17.25, 20.15, 23.9] {
                 let t_game = (day * 24.0 + hour) * 3600.0;
                 let (pos, _) = propagate(&d, MU_EARTH, EARTH_ROT_S, sim_seconds(t_game, DAY), DAY);
-                let spin = crate::dev_travel::planet_spin_from_time(hour, sun_az);
+                let spin = humanity_core::dev_travel::planet_spin_from_time(hour, sun_az);
                 let fixed = DQuat::from_rotation_y(-spin) * pos;
                 let lon = (-fixed.z).atan2(fixed.x).to_degrees();
                 assert!(

@@ -26,9 +26,9 @@ use std::sync::Mutex;
 use super::golden_tests::store as golden_store;
 use super::{gardening_tests, step_tests};
 use super::*;
-use crate::ecs::components::{AirHandler, CropInstance, Irrigator, PlumbingCircuit, PowerConsumer, Transform, WaterConsumer, WaterProducer, WaterTank};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AirHandler, CropInstance, Irrigator, PlumbingCircuit, PowerConsumer, Transform, WaterConsumer, WaterProducer, WaterTank};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
 
 /// About the showcase's garden: 1,981 crops in 91 Garden groups (sim-frame-cost.md).
@@ -113,7 +113,7 @@ fn measure(interval_s: Option<f64>) -> (f64, f64, f64) {
         data.insert(super::clock::INTERVAL_KEY, Mutex::new(s));
     }
     let mut sys = FarmingSystem::new();
-    // The reuse switch on, whatever the process's (crate::reuse is one switch for every test).
+    // The reuse switch on, whatever the process's (humanity_core::reuse is one switch for every test).
     sys.reuse_override = Some(true);
     let dt = 1.0 / FPS;
     for _ in 0..FPS as usize {
@@ -483,7 +483,7 @@ fn harvest_between_turns(no_bring_up: bool) -> (bool, bool) {
     let growth_s = f64::from(def.growth_days) * SECONDS_PER_DAY;
     let stages = def.stages();
     let mut world = hecs::World::new();
-    world.spawn((crate::systems::inventory::Inventory::new(40), crate::ecs::components::Controllable));
+    world.spawn((crate::systems::inventory::Inventory::new(40), humanity_core::ecs::components::Controllable));
     // Under the sun the growth clock runs at two seconds a second: ripe 1,080 s from now, after
     // the bed's first turn (slot 1 of the hour's turns, which starts within its first 8 minutes).
     let t0 = 11.0 * 3600.0;
@@ -604,7 +604,7 @@ fn a_burn_harms_a_crop_once_a_frame_with_a_command_waiting() {
     let stages = def.stages();
     let growth_s = f64::from(def.growth_days) * SECONDS_PER_DAY;
     let mut world = hecs::World::new();
-    world.spawn((crate::systems::inventory::Inventory::new(40), crate::ecs::components::Controllable));
+    world.spawn((crate::systems::inventory::Inventory::new(40), humanity_core::ecs::components::Controllable));
     let crop = |area: &str| CropInstance {
         crop_def_id: "lettuce".to_string(),
         growth_stage: stages[1].to_string(),
@@ -689,7 +689,7 @@ fn a_reader_that_looks_at_some_areas_keeps_only_those_fresh() {
 /// "crop.health: 0.0013885498046875 at cherry_blossom in bed_a".
 #[test]
 fn what_is_kept_for_a_round_ends_where_working_it_out_every_run_ends() {
-    use crate::ecs::components::{MachineInstanceId, PollinatorHive};
+    use humanity_core::ecs::components::{MachineInstanceId, PollinatorHive};
     let run = |fresh: bool| {
         let (mut data, mut world) = step_tests::garden(true);
         super::pollination::register(&mut data);

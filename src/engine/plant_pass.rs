@@ -496,7 +496,7 @@ pub(crate) fn geometry_checksum(meshes: &[&PlantMeshBuilder]) -> u64 {
 mod tests {
     use super::*;
     use crate::engine::plant_layout::plot_rects;
-    use crate::vertex::Vertex;
+    use humanity_core::vertex::Vertex;
 
     fn visuals() -> PlantVisualRegistry {
         PlantVisualRegistry { plot_visual_cap: 128, plot_vertex_budget: 65_536, ..PlantVisualRegistry::default() }
@@ -640,7 +640,7 @@ mod tests {
     /// the way they did before `fungus_mesh`.
     #[test]
     fn plant_pass_mushroom_crops_draw_rigid_substrate_and_ask_for_no_model() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let text = std::fs::read_to_string(root.join("data/plants_visual.ron")).expect("plants_visual.ron");
         let vis = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");
         let rack = GroupJob {

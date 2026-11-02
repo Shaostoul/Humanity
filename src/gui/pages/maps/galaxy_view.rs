@@ -94,7 +94,7 @@ pub(super) fn parse_stars_map(bytes: &[u8]) -> Option<Vec<MapStar>> {
 /// corrupt (the galaxy view then falls back to the curated nearby list).
 fn map_stars() -> &'static [MapStar] {
     MAP_STARS.get_or_init(|| {
-        let dir = crate::storage::DATA_DIR
+        let dir = humanity_core::storage::DATA_DIR
             .get()
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"));
@@ -188,7 +188,7 @@ pub(super) fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 
     // Sol at center — the universal anchor.
     let sol_r = 4.0_f32.max(2.0 * zoom.min(2.0));
-    paint.circle_filled(center, sol_r, crate::cosmos::find_body("sun").map(|s| bodies::map_color32(s.map_color)).unwrap_or(egui::Color32::WHITE));
+    paint.circle_filled(center, sol_r, humanity_core::cosmos::find_body("sun").map(|s| bodies::map_color32(s.map_color)).unwrap_or(egui::Color32::WHITE));
     labels.reserve_exact(Rect::from_center_size(center, Vec2::splat(2.0 * sol_r)));
     let sol_label = paint.text(
         center + Vec2::new(8.0, 0.0),

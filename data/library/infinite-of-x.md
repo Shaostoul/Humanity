@@ -112,7 +112,7 @@ whether a non-programmer can add the second instance.
 
 Study these to understand the target architecture:
 
-- **Items**: `data/items.csv` → loaded via AssetManager; the components live in the single file `src/ecs/components.rs` (there is no `src/ecs/components/` directory).
+- **Items**: `data/items.csv` → loaded via AssetManager; the components live in the single file `crates/humanity-core/src/ecs/components.rs` (there is no `crates/humanity-core/src/ecs/components/` directory).
 - **Recipes**: `data/recipes.csv` → crafting system.
 - **Plants**: `data/plants.csv` → farming system.
 - **Planets**: `data/planets/*.ron` → terrain loader.

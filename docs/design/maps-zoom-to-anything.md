@@ -118,7 +118,7 @@ CARTO's CDN at run time while the native Planet view reads installed region file
 
 | Need | Already exists |
 |---|---|
-| Real body positions and orbits | `src/cosmos.rs` (`sol_bodies`, `body_world_position_3d_au`, `sample_orbit_points`), `data/star_systems/sol.json` (70 bodies) |
+| Real body positions and orbits | `crates/humanity-core/src/cosmos.rs` (`sol_bodies`, `body_world_position_3d_au`, `sample_orbit_points`), `data/star_systems/sol.json` (70 bodies) |
 | The ship's position and attitude | `station::orbit::{propagate, over_its_longitude, attitude}`, `data/stations/*.ron`, `state.station_world_pos/rot` |
 | The real Earth, Moon, Mars, Pluto | albedo bins in `data/planets/`, the celestial pass with atmosphere and clouds (`src/renderer/celestial.rs`), vantage `blue-marble-12000km` (30 fps floor) |
 | The real ship | `ShipStructure` zones, corridors and plots (`src/ship/ship_structure.rs`), the hull wrap (`src/ship/hull.rs`, `data/blueprints/hull_profile.ron`), rebuilt live on edits (`rebuild_hull`) |
@@ -420,7 +420,7 @@ after. Section 1's file and line references describe the page as it was before
 this increment.
 
 The page is called Maps; its code is called cosmos. The standing rule (CLAUDE.md, names,
-2026-10-19) is to rename now. `crate::cosmos` (`src/cosmos.rs`, the Sol model) keeps its
+2026-10-19) is to rename now. `crate::cosmos` (`crates/humanity-core/src/cosmos.rs`, the Sol model) keeps its
 name: it means the model, not the page.
 
 - `src/gui/pages/cosmos.rs` becomes `src/gui/pages/maps/` (`mod.rs`, `system_view.rs`,
@@ -596,8 +596,8 @@ measurements: "Increment 2 as built" at the end of this section).
   `src/gui/theme.rs` accessors and Settings rows (the theme lint and the editor
   coverage test both fail otherwise).
 
-Files: `src/cosmos.rs` and BUG-140's followers (`src/engine/frame_lock.rs`,
-`src/station/orbit.rs`, `src/renderer/hologram.rs`, `src/dev_travel.rs`), new
+Files: `crates/humanity-core/src/cosmos.rs` and BUG-140's followers (`src/engine/frame_lock.rs`,
+`src/station/orbit.rs`, `src/renderer/hologram.rs`, `crates/humanity-core/src/dev_travel.rs`), new
 `src/gui/pages/maps/bodies.rs`, `maps/orbits.rs`, `maps/belts.rs`,
 `src/gui/pages/maps/system_view.rs`, `data/star_systems/sol.json`, new
 `data/maps/layers.ron`, `reference_orbits.ron`, `lagrange_pairs.ron`,

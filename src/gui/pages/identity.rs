@@ -38,7 +38,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // nothing anywhere and works offline.
                 if !state.profile_public_key.is_empty() {
                     if let Ok(pk) = hex::decode(&state.profile_public_key) {
-                        let did = crate::relay::core::did::did_for_pubkey(&pk);
+                        let did = humanity_protocol::did::did_for_pubkey(&pk);
                         widgets::card(ui, theme, |ui| {
                             ui.label(
                                 RichText::new("YOUR DID")

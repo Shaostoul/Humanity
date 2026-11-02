@@ -780,7 +780,7 @@ mod tests {
     /// verify anything this module claims (same posture as
     /// renderer::ground_textures' earth_def test helper).
     fn earth_text() -> String {
-        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/planets/earth.ron");
+        let p = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/planets/earth.ron");
         std::fs::read_to_string(&p)
             .unwrap_or_else(|e| panic!("{} must be readable ({e})", p.display()))
     }
@@ -1369,7 +1369,7 @@ mod tests {
     /// ships, with no test edit to remember.
     #[test]
     fn all_shipped_planet_files_walk() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/planets");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/planets");
         let entries = std::fs::read_dir(&dir)
             .unwrap_or_else(|e| panic!("{} must be listable ({e})", dir.display()));
         let mut planet_count = 0usize;

@@ -49,7 +49,7 @@
 //!   gates pin it off so they read the scene, not the dither.
 
 use super::Renderer;
-use crate::frame_costs;
+use humanity_core::frame_costs;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
@@ -162,7 +162,7 @@ impl PresentPass {
     pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Present Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/present.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/present.wgsl")).into()),
         });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Present BGL"),

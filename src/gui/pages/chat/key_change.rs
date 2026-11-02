@@ -20,7 +20,7 @@ pub(super) fn draw_key_change_notice(ui: &mut egui::Ui, theme: &Theme, state: &m
             ui.set_min_width(ui.available_width());
             ui.label(RichText::new(notice).size(theme.font_size_body).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
-            accept = widgets::Button::primary(crate::relay::core::key_card::ACCEPT_LABEL)
+            accept = widgets::Button::primary(humanity_protocol::key_card::ACCEPT_LABEL)
                 .tooltip("Lock what you send them with their new key from now on")
                 .show(ui, theme);
         });

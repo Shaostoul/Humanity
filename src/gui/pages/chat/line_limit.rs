@@ -14,7 +14,7 @@
 
 use egui::{Color32, RichText, Vec2};
 
-use crate::i18n::{t, tf};
+use humanity_core::i18n::{t, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{ChatMessage, GuiState};
@@ -99,7 +99,7 @@ pub(crate) fn on_refused(state: &mut GuiState, server: &str, frame: &serde_json:
     let reason = frame.get("reason").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let limit = frame.get("limit").and_then(|v| v.as_u64());
     // The play journal's net kind: which server refused a line and why, never the line's words.
-    crate::play_journal::record("net", &format!("A chat line was refused: {reason}"), serde_json::json!({ "server": server, "reason": reason, "limit": limit }));
+    humanity_core::play_journal::record("net", &format!("A chat line was refused: {reason}"), serde_json::json!({ "server": server, "reason": reason, "limit": limit }));
     if reason == "too_long" {
         learn(state, server, limit);
     }

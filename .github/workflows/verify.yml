@@ -64,13 +64,13 @@ jobs:
       # whose entries differ from its layout (v0.1029-1038). admin_action_coverage (2026-10-22)
       # holds every admin route and chat command to the action registry; it only reads text
       # files with line endings normalised, so it runs the same on Linux, and so does
-      # gpu_test_gate_lint (2026-11-01: every test that opens a GPU device asks src/test_gpu.rs
+      # gpu_test_gate_lint (2026-11-01: every test that opens a GPU device asks crates/humanity-core/src/test_gpu.rs
       # first, so a run beside the operator's game cannot hang on it). The others in the
       # Justfile have not been run on Linux yet; add each here once it has.
       - name: GUI + engine + startup lints (standalone -- no native link)
         run: |
           export CARGO_MANIFEST_DIR="$(pwd)"
-          for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage gpu_test_gate_lint; do
+          for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage gpu_test_gate_lint repo_root_lint; do
             echo ">> lint: $t"
             rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test" && "/tmp/$t.test"
           done

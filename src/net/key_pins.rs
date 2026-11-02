@@ -1,6 +1,6 @@
 //! The key cards this app has checked and pinned (2026-10-22, docs/design/key-cards.md). No socket
 //! and no GUI, so every rule has a unit test; the half that acts on the app is
-//! src/engine/key_cards.rs, and the card itself is src/relay/core/key_card.rs.
+//! src/engine/key_cards.rs, and the card itself is crates/humanity-protocol/src/key_card.rs.
 //!
 //! WHAT A PIN IS. For each person, the Kyber768 key from the first good card this app saw for them
 //! (a card signed by their own identity key, checked here, whatever server delivered it) and that
@@ -26,7 +26,7 @@ use aes_gcm::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::relay::core::key_card::{compare, KeyCard, Seen};
+use humanity_protocol::key_card::{compare, KeyCard, Seen};
 
 /// BLAKE3 domain for the file's encryption key. Distinct from every other seed-derived key.
 const PINS_KEY_DOMAIN: &str = "hum/key-pins/v1";
@@ -210,7 +210,7 @@ impl KeyPins {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::key_card::KeyCard;
+    use humanity_protocol::key_card::KeyCard;
 
     fn card(person: &str, kyber: &str, at: u64) -> KeyCard {
         KeyCard { v: 1, key: person.into(), kyber: kyber.into(), at, sig: String::new() }

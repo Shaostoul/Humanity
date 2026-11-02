@@ -22,10 +22,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::{build, pick, Rows};
-use crate::ecs::components::{CropInstance, MachineInstanceId, PollinatorHive, Transform};
-use crate::ecs::systems::System;
+use humanity_core::ecs::components::{CropInstance, MachineInstanceId, PollinatorHive, Transform};
+use humanity_core::ecs::systems::System;
 use crate::gui::{GardenPests, GuiCrop};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::farming::{self, step_tests, FarmingSystem};
 
 /// The page's data as one text: every crop's row (its tile key included) and every per-area list,
@@ -322,7 +322,7 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     // own reading; then frames through the evening, the air on its own turn every second (moving
     // by less than a shown percent: see above), and the sun going down.
     {
-        let mut q = world.query::<&mut crate::ecs::components::SoilMemory>();
+        let mut q = world.query::<&mut humanity_core::ecs::components::SoilMemory>();
         let (_, m) = q.iter().next().expect("the soil memory");
         let room = m.rooms.get_mut("room-a").expect("the greenhouse's air is tracked");
         room.vapour_g_m3 *= 1.6;

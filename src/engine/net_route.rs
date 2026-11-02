@@ -88,7 +88,7 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
                 v.get("position").and_then(&arr3),
             ) {
                 let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("Player").to_string();
-                let look = v.get("appearance").and_then(crate::player_look::PlayerLook::from_json);
+                let look = v.get("appearance").and_then(humanity_core::player_look::PlayerLook::from_json);
                 let key = v.get("key").and_then(|k| k.as_str()).map(str::to_string);
                 state.net_sync.queue_messages(vec![NetMessage::PlayerJoined {
                     player_id: id as u32,
@@ -251,7 +251,7 @@ pub(crate) fn snapshot_entry_messages(e: &serde_json::Value, own_id: Option<u32>
         let look = e
             .get("components")
             .and_then(|c| c.get("appearance"))
-            .and_then(crate::player_look::PlayerLook::from_json);
+            .and_then(humanity_core::player_look::PlayerLook::from_json);
         let key = e.get("components").and_then(|c| c.get("key")).and_then(|k| k.as_str()).map(str::to_string);
         msgs.push(NetMessage::PlayerJoined {
             player_id: eid as u32,
@@ -376,7 +376,7 @@ pub(crate) fn position_update_from(v: &serde_json::Value, joined: bool) -> Optio
 /// was a fixed 1.0 m over their position).
 /// `station_off` is the same offset the scene pass puts on home content.
 pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3, hidden: &dyn Fn(&crate::net::sync::RemotePlayer) -> bool) -> Vec<crate::gui::CrewLabel> {
-    use crate::ecs::components::Transform;
+    use humanity_core::ecs::components::Transform;
     use crate::net::sync::{RemoteNpc, RemotePlayer};
     let mut labels = Vec::new();
     for (_e, (t, npc)) in world.query::<(&Transform, &RemoteNpc)>().iter() {
@@ -485,7 +485,7 @@ const CREW_POSITION_OVER_FEET_M: f32 = 1.0;
 /// top and back of the head, every size scaled by the height (a look's
 /// `height`, 1.0 without one). `face` turns the figure: it takes the figure's
 /// own +z (its face) to the way the person faces.
-pub(crate) fn figure_parts(feet: glam::Vec3, face: glam::Quat, look: Option<&crate::player_look::PlayerLook>) -> Vec<FigurePiece> {
+pub(crate) fn figure_parts(feet: glam::Vec3, face: glam::Quat, look: Option<&humanity_core::player_look::PlayerLook>) -> Vec<FigurePiece> {
     use glam::Vec3;
     let h = look.map_or(1.0, |l| l.height);
     let shoulder = FIGURE_SHOULDER_M * h;
@@ -532,8 +532,8 @@ pub(crate) fn player_face(sent: glam::Quat) -> glam::Quat {
 /// ignored the meshes' real sizes, so the 1.4 m body box ran 0.55 m ABOVE the
 /// eye, the skin-tone head and the hair sat inside it, and the feet floated
 /// 0.85 m over the floor.
-pub(crate) fn remote_figure_parts(eye: glam::Vec3, sent_rotation: glam::Quat, look: Option<&crate::player_look::PlayerLook>) -> Vec<FigurePiece> {
-    let feet = eye - glam::Vec3::new(0.0, crate::ecs::components::EYE_HEIGHT_M as f32, 0.0);
+pub(crate) fn remote_figure_parts(eye: glam::Vec3, sent_rotation: glam::Quat, look: Option<&humanity_core::player_look::PlayerLook>) -> Vec<FigurePiece> {
+    let feet = eye - glam::Vec3::new(0.0, humanity_core::ecs::components::EYE_HEIGHT_M as f32, 0.0);
     figure_parts(feet, player_face(sent_rotation), look)
 }
 
@@ -564,7 +564,7 @@ fn figure_top(parts: &[FigurePiece]) -> f32 {
 }
 
 /// The top of another player's figure, world Y.
-pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_look::PlayerLook>) -> f32 {
+pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&humanity_core::player_look::PlayerLook>) -> f32 {
     figure_top(&remote_figure_parts(eye, glam::Quat::IDENTITY, look))
 }
 
@@ -585,7 +585,7 @@ pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_loo
 /// 2026-10-03 co-presence screenshot), with the hair's crown hidden behind
 /// the head's far inside. BUG-128 turned `Mesh::sphere` itself the right way
 /// out, so the copy went; the test below still checks every triangle.
-pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<crate::vertex::Vertex>, Vec<u32>) {
+pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<humanity_core::vertex::Vertex>, Vec<u32>) {
     const STACKS: u32 = 16;
     const SLICES: u32 = 24;
     crate::renderer::mesh::Mesh::sphere_data(radius, STACKS, SLICES)
@@ -594,7 +594,7 @@ pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<crate::vertex::Vertex>,
 /// The material cache key for a look's colours: each channel in 64 steps, so
 /// players with the same look share materials and a cache never grows with
 /// every small difference.
-pub(crate) fn look_material_key(look: &crate::player_look::PlayerLook) -> [u8; 6] {
+pub(crate) fn look_material_key(look: &humanity_core::player_look::PlayerLook) -> [u8; 6] {
     let q = |c: f32| (c.clamp(0.0, 1.0) * 63.0).round() as u8;
     [q(look.skin[0]), q(look.skin[1]), q(look.skin[2]), q(look.hair[0]), q(look.hair[1]), q(look.hair[2])]
 }
@@ -693,7 +693,7 @@ pub(crate) struct PlanetDefBake {
 /// whenever its file changed, so every reload read the disk anyway.
 pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake> {
     let mut out = Vec::new();
-    for b in crate::cosmos::sol_bodies() {
+    for b in humanity_core::cosmos::sol_bodies() {
         let rel = format!("planets/{}.ron", b.id);
         let path = data_dir.join(&rel);
         if !path.exists() {
@@ -701,7 +701,7 @@ pub(crate) fn bake_planet_defs(data_dir: &std::path::Path) -> Vec<PlanetDefBake>
         }
         let parsed = std::fs::read(&path)
             .map_err(|e| format!("Failed to read {}: {e}", path.display()))
-            .and_then(|bytes| crate::data_parse::parse_ron::<PlanetDef>(&bytes));
+            .and_then(|bytes| humanity_core::data_parse::parse_ron::<PlanetDef>(&bytes));
         let mut def = match parsed {
             Ok(def) => def,
             Err(e) => {
@@ -1141,15 +1141,15 @@ mod tests {
         assert!(body.contains("crate::engine::shared_build::on_welcome(state, &v)"), "the welcome arm never tells engine::shared_build");
 
         // A game with its home on p1, in a shared world, welcomed.
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let size = reg.get("wood_wall").unwrap().size;
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("blueprint_registry", reg);
         data.insert("inventory_transfer_ops", Mutex::new(Vec::<crate::systems::inventory::TransferOp>::new()));
         data.insert(shared::OUT_CHANNEL, shared::OutQueue::default());
         let mut world = hecs::World::new();
         let mut gui = crate::gui::GuiState::default();
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         gui.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).unwrap());
         gui.copresence_active = true;
         let mut sb = SharedBuild::default();
@@ -1171,7 +1171,7 @@ mod tests {
         assert_eq!(ids, vec![2], "the list drew 1, the build put up 2, the take-down took 1 down");
 
         // A build of ours, sent, then refused: what it spent comes back.
-        let intent = SharedBuildIntent { frame: "plot:p1".into(), blueprint_id: "wood_wall".into(), pose: crate::ecs::components::Transform::default(), spent: Spent { pack: vec![("wood_plank_0".into(), 6)], storage: Vec::new() } };
+        let intent = SharedBuildIntent { frame: "plot:p1".into(), blueprint_id: "wood_wall".into(), pose: humanity_core::ecs::components::Transform::default(), spent: Spent { pack: vec![("wood_plank_0".into(), 6)], storage: Vec::new() } };
         data.get::<shared::OutQueue>(shared::OUT_CHANNEL).unwrap().lock().unwrap().push(intent);
         tick_core(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, 0.3, true, true);
         let req = sb.outbox.drain(..).next().and_then(|m| serde_json::from_str::<serde_json::Value>(&m).ok()).and_then(|v| v["req_id"].as_u64()).expect("the build went out") as u32;
@@ -1201,9 +1201,9 @@ mod tests {
     /// "out of view: taken off the screen" (left: [(5, "Ada")], right: []).
     #[test]
     fn a_player_comes_into_view_goes_out_and_comes_back() {
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::systems::System;
         use crate::net::sync::{NetSyncSystem, RemoteNpc, RemotePlayer};
-        let data = crate::hot_reload::data_store::DataStore::new();
+        let data = humanity_core::hot_reload::data_store::DataStore::new();
         let mut sys = NetSyncSystem::new();
         let mut world = hecs::World::new();
         let hear = |sys: &mut NetSyncSystem, world: &mut hecs::World, v: serde_json::Value| {
@@ -1249,12 +1249,12 @@ mod tests {
         use glam::Vec3;
         // The figure's feet assume the camera rests this high over the floor.
         let cam = crate::renderer::camera::CameraController::new(1.0, 1.0);
-        assert_eq!(cam.eye_height(), crate::ecs::components::EYE_HEIGHT_M as f32, "the camera's standing eye height");
+        assert_eq!(cam.eye_height(), humanity_core::ecs::components::EYE_HEIGHT_M as f32, "the camera's standing eye height");
         let eye = Vec3::new(0.0, 1.7 + 3.0, 0.0); // a player standing on a floor at y = 3
         let floor = 3.0;
         let plain = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
         assert_eq!(plain.iter().map(|p| p.part).collect::<Vec<_>>(), vec![FigurePart::Body, FigurePart::Head]);
-        let tall = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2 };
+        let tall = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: 1.2 };
         for (look, h) in [(None, 1.0), (Some(&tall), 1.2)] {
             let parts = remote_figure_parts(eye, glam::Quat::IDENTITY, look);
             let get = |part| *parts.iter().find(|p| p.part == part).unwrap();
@@ -1275,7 +1275,7 @@ mod tests {
         assert!(FIGURE_HEAD_MESH_R_M * hair.scale.x > FIGURE_HEAD_MESH_R_M * head.scale.x, "and is wider than it");
         assert!((remote_figure_top(eye, Some(&tall)) - hair_top).abs() < 1e-5, "the figure's top is the hair's");
         // Two players with the same colours share a cache key.
-        assert_eq!(look_material_key(&tall), look_material_key(&crate::player_look::PlayerLook { height: 0.9, ..tall }));
+        assert_eq!(look_material_key(&tall), look_material_key(&humanity_core::player_look::PlayerLook { height: 0.9, ..tall }));
     }
 
     /// What a ray sees first among a figure's head and hair, drawn the way the
@@ -1287,7 +1287,7 @@ mod tests {
     /// culled). The body box is left out: these rays are all at head height.
     fn first_seen(
         pieces: &[FigurePiece],
-        mesh: &(Vec<crate::vertex::Vertex>, Vec<u32>),
+        mesh: &(Vec<humanity_core::vertex::Vertex>, Vec<u32>),
         from: glam::Vec3,
         dir: glam::Vec3,
     ) -> Option<FigurePart> {
@@ -1380,7 +1380,7 @@ mod tests {
             let fwd = cam.forward_xz();
             let right = fwd.cross(Vec3::Y);
             for height in [1.0f32, 1.2] {
-                let look = crate::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height };
+                let look = humanity_core::player_look::PlayerLook { skin: [0.72, 0.53, 0.42], hair: [0.12, 0.08, 0.05], height };
                 let pieces = remote_figure_parts(Vec3::from(position), Quat::from_array(rotation), Some(&look));
                 let head = pieces.iter().find(|p| p.part == FigurePart::Head).unwrap().at;
                 let r = FIGURE_HEAD_MESH_R_M * height;
@@ -1448,8 +1448,8 @@ mod tests {
     /// 0.7 m up".
     #[test]
     fn crew_figures_stand_on_the_floor_head_on_shoulders() {
-        use crate::ecs::components::Transform;
-        use crate::ecs::systems::System;
+        use humanity_core::ecs::components::Transform;
+        use humanity_core::ecs::systems::System;
         use crate::net::protocol::NetMessage;
         use crate::net::sync::{NetSyncSystem, RemoteNpc};
         use glam::Vec3;
@@ -1462,7 +1462,7 @@ mod tests {
             activity: "Walking to hydroponics".into(),
             working: false,
         }]);
-        sys.tick(&mut world, 0.016, &crate::hot_reload::data_store::DataStore::new());
+        sys.tick(&mut world, 0.016, &humanity_core::hot_reload::data_store::DataStore::new());
         let (pos, rot) = world
             .query_mut::<(&Transform, &RemoteNpc)>()
             .into_iter()
@@ -1483,7 +1483,7 @@ mod tests {
             head.at.y - head_r
         );
         // The same figure a player without a look standing there gets.
-        let eye = Vec3::new(pos.x, floor + crate::ecs::components::EYE_HEIGHT_M as f32, pos.z);
+        let eye = Vec3::new(pos.x, floor + humanity_core::ecs::components::EYE_HEIGHT_M as f32, pos.z);
         let player = remote_figure_parts(eye, glam::Quat::IDENTITY, None);
         for (c, p) in crew.iter().zip(&player) {
             assert!((c.at - p.at).length() < 1e-4 && (c.scale - p.scale).length() < 1e-5, "the crew's {:?} is a player's: {c:?} vs {p:?}", c.part);
@@ -1578,7 +1578,7 @@ mod tests {
     /// labelling only the crew (as before) fails the second assertion.
     #[test]
     fn other_players_get_a_nameplate_like_the_crew() {
-        use crate::ecs::components::Transform;
+        use humanity_core::ecs::components::Transform;
         use crate::net::sync::{RemoteNpc, RemotePlayer};
         use glam::{Quat, Vec3};
         let mut world = hecs::World::new();
@@ -1595,7 +1595,7 @@ mod tests {
                 greetings: Vec::new(),
                 last_position: Vec3::ZERO,
                 target_position: Vec3::ZERO,
-                facing: crate::turning::Turn::default(),
+                facing: humanity_core::turning::Turn::default(),
                 heading: 0.0,
                 interpolation_t: 1.0,
             },
@@ -1616,7 +1616,7 @@ mod tests {
                 key: None,
             },
         ));
-        let tallest = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: crate::player_look::HEIGHT_MAX };
+        let tallest = humanity_core::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: humanity_core::player_look::HEIGHT_MAX };
         world.spawn((
             at(Vec3::new(-5.0, 1.7, 0.0)),
             RemotePlayer {

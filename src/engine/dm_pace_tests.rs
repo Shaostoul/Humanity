@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::net::dm_store::DmStore;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 use std::time::{Duration, Instant};
 
 const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";

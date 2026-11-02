@@ -5,7 +5,7 @@
 
 use egui::{RichText, ScrollArea, Sense, Vec2};
 
-use crate::cosmos::{find_body, sol_bodies, SolBody};
+use humanity_core::cosmos::{find_body, sol_bodies, SolBody};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;

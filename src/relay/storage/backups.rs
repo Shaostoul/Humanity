@@ -376,8 +376,8 @@ mod tests {
     /// under test, so none of them changes the process working directory:
     /// that is shared by every test thread, and changing it used to make
     /// any other test reading a relative path flaky while this one ran.
-    fn scratch(tag: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("backup_{tag}"))
+    fn scratch(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("backup_{tag}"))
     }
 
     /// The names in `dir` that a press of Back up now could have written.

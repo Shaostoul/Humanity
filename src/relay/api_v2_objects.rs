@@ -6,7 +6,7 @@
 //! - `GET  /api/v2/objects` — list objects with filters
 //! - `GET  /api/v2/objects/count` — count objects (optionally filtered by type)
 //!
-//! Object format on the wire: JSON. The fields mirror `crate::relay::core::object::Object`,
+//! Object format on the wire: JSON. The fields mirror `humanity_protocol::object::Object`,
 //! but binary fields (author_public_key, payload, signature) are base64-encoded for JSON
 //! transport.
 //!
@@ -42,7 +42,7 @@ use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::relay::core::object::Object;
+use humanity_protocol::object::Object;
 use crate::relay::relay::RelayState;
 use crate::relay::storage::{MAX_SIGNED_OBJECT_PAYLOAD, SignedObjectRecord};
 
@@ -352,7 +352,7 @@ pub async fn post_object(
     // Phase 3 PR 1: gossip newly-stored locally-submitted objects to peers.
     // Already-known objects (stored == false) are not re-gossiped. A piece of a recovery
     // setup never is: it stays on the server it was given to (storage/recovery.rs).
-    if stored && object.object_type != crate::relay::core::recovery::SHARE_OBJECT_TYPE {
+    if stored && object.object_type != humanity_protocol::recovery::SHARE_OBJECT_TYPE {
         let state_clone = state.clone();
         tokio::spawn(async move {
             crate::relay::handlers::federation::gossip_signed_object(
@@ -398,7 +398,7 @@ mod tests {
     /// governance vote 401s — DO NOT SHIP.
     #[test]
     fn js_built_vote_submission_verifies_through_the_wire_path() {
-        let json = include_str!("core/pq_kat_vote_submission.json");
+        let json = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/crates/humanity-protocol/src/pq_kat_vote_submission.json"));
         let sub: SignedObjectSubmission =
             serde_json::from_str(json).expect("fixture parses as SignedObjectSubmission");
         assert_eq!(sub.object_type, "vote_v1");
@@ -412,7 +412,7 @@ mod tests {
             .expect("JS-built vote submission must verify under the relay's Dilithium check");
 
         // The payload decodes to {choice: "yes"}.
-        let payload = crate::relay::core::encoding::from_canonical_bytes(&obj.payload)
+        let payload = humanity_protocol::encoding::from_canonical_bytes(&obj.payload)
             .expect("payload is canonical CBOR");
         let choice = match &payload {
             ciborium::Value::Map(entries) => entries.iter().find_map(|(k, v)| match (k, v) {
@@ -596,7 +596,7 @@ pub async fn group_member_keys(
         .map(|m| {
             let pubkey_hex: String = m.member_pubkey.iter().map(|b| format!("{b:02x}")).collect();
             // Cards are keyed by the Dilithium identity hex.
-            let card = state.db.get_key_card(&pubkey_hex).ok().flatten().map(|c| crate::relay::core::key_card::card_json(&c));
+            let card = state.db.get_key_card(&pubkey_hex).ok().flatten().map(|c| humanity_protocol::key_card::card_json(&c));
             serde_json::json!({ "pubkey": pubkey_hex, "key_card": card })
         })
         .collect();

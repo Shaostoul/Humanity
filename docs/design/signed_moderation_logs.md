@@ -256,7 +256,7 @@ provides.
 **Rungs 1 and 2 are SHIPPED. Rung 3 is next and nothing above it is started.**
 
 - **Rung 1, v0.1298.0.** `space_policy_v1` and `mod_action_v1` schemas and
-  builders in `src/relay/core/moderation.rs`, cross-checked by
+  builders in `crates/humanity-protocol/src/moderation.rs`, cross-checked by
   `scripts/mod-object-kat.mjs` (`just mod-kat`) the way `vote_v1` is by
   `just vote-kat`. A Dilithium verify over JS-computed bytes is the proof that
   the builders agree byte for byte.

@@ -475,13 +475,13 @@ fn markers_are_not_in_the_binary() {
 /// (first difference: Some(\"Cargo.lock\")); left: 1103; right: 0".
 #[test]
 fn the_tree_fingerprint_matches_build_rs() {
-    let inputs = delivery::read_inputs(&std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("build.rs")).unwrap()).unwrap();
+    let inputs = delivery::read_inputs(&std::fs::read_to_string(Path::new(env!("HUMANITY_REPO_ROOT")).join("build.rs")).unwrap()).unwrap();
     assert_eq!(&inputs[..2], ["src", "assets/shaders"]);
     assert!(delivery::read_inputs("const FINGERPRINT_INPUTS: &[&str] = &[src];").is_err(), "a list that is not string literals");
     assert!(delivery::read_inputs("nothing").is_err());
     let built = std::fs::read_to_string(concat!(env!("OUT_DIR"), "/hos_src_stamp.txt")).expect("build.rs's stamp");
     let stamp = delivery::parse_stamp(&built).expect("build.rs's stamp parses");
-    let tree = delivery::fingerprint_tree(Path::new(env!("CARGO_MANIFEST_DIR"))).expect("the tree");
+    let tree = delivery::fingerprint_tree(Path::new(env!("HUMANITY_REPO_ROOT"))).expect("the tree");
     let (differ, first) = delivery::code_diff(&stamp.files, &tree);
     assert_eq!(stamp.files.len(), tree.len(), "the same file list");
     assert_eq!(differ, 0, "the same hashes (first difference: {first:?})");
@@ -495,7 +495,7 @@ fn the_tree_fingerprint_matches_build_rs() {
 /// dev_claude.zz_not_in_en_json".
 #[test]
 fn every_key_is_in_en_json() {
-    let en: serde_json::Value = serde_json::from_str(include_str!("../../../../data/i18n/en.json")).unwrap();
+    let en: serde_json::Value = serde_json::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/i18n/en.json"))).unwrap();
     let section = en.get("dev_claude").expect("en.json has a dev_claude section");
     for key in KEYS {
         let v = section.get(*key).and_then(|v| v.as_str()).unwrap_or_else(|| panic!("en.json has dev_claude.{key}"));

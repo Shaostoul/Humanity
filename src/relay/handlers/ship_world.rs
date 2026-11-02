@@ -461,7 +461,7 @@ mod tests {
     use crate::ship::ship_structure::ShipStructure;
 
     fn data() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The shipped ship file, as the relay loads it.
@@ -470,7 +470,7 @@ mod tests {
     }
 
     /// A fresh database that deletes itself when the storage is dropped (BUG-159). A test
-    /// that reopens the file holds a `crate::test_temp::db` guard itself instead.
+    /// that reopens the file holds a `humanity_core::test_temp::db` guard itself instead.
     fn temp_db(tag: &str) -> crate::relay::storage::Storage {
         crate::relay::storage::Storage::open_temp(&format!("shipworld_{tag}"))
     }
@@ -818,9 +818,9 @@ mod tests {
     /// "entity 3 (engineer) still names the Pioneer's engineering".
     #[test]
     fn an_old_stored_world_upgrades_to_the_ship() {
-        let path = crate::test_temp::db("shipworld_upgrade");
+        let path = humanity_core::test_temp::db("shipworld_upgrade");
         let db = crate::relay::storage::Storage::open(&path).expect("open test db");
-        let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9.json");
+        let blob = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/pioneer_world_v9.json"));
         let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
         let old_time = old["game_time"].as_f64().unwrap();
         let old_next = old["next_entity_id"].as_u64().unwrap();
@@ -921,9 +921,9 @@ mod tests {
     /// back): "the xp they earned carried over / left: 0 / right: 100".
     #[test]
     fn an_old_stored_world_keeps_earned_progress() {
-        let path = crate::test_temp::db("shipworld_upgrade_progress");
+        let path = humanity_core::test_temp::db("shipworld_upgrade_progress");
         let db = crate::relay::storage::Storage::open(&path).expect("open test db");
-        let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9_progress.json");
+        let blob = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/pioneer_world_v9_progress.json"));
         let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
         let old_time = old["game_time"].as_f64().unwrap();
         assert!(old_time > 86_400.0, "the fixture's clock is past a day: {old_time}");
@@ -961,7 +961,7 @@ mod tests {
     #[test]
     fn an_upgrade_never_writes_older_progress_over_newer() {
         let db = temp_db("upgrade_newer");
-        let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9_progress.json");
+        let blob = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/tests/fixtures/relay/pioneer_world_v9_progress.json"));
         let old: serde_json::Value = serde_json::from_str(blob).unwrap();
         db.save_game_world(GameWorld::PREVIOUS_PERSIST_KEY, blob, old["game_time"].as_f64().unwrap(), old["next_entity_id"].as_u64().unwrap()).unwrap();
         let done = vec!["explore_ship".to_string(), "meet_the_crew".to_string()];
@@ -1117,7 +1117,7 @@ mod tests {
         world.chores.clear();
         world.load_chores_at(std::path::Path::new("no-such-folder/npc/chores.ron"));
         assert_eq!(world.chores.len(), shipped, "no chores without the file: {} of {shipped}", world.chores.len());
-        let bad = crate::test_temp::file("bad_chores", "ron");
+        let bad = humanity_core::test_temp::file("bad_chores", "ron");
         std::fs::write(&bad, "[ this is not ron").unwrap();
         world.chores.clear();
         world.load_chores_at(&bad);

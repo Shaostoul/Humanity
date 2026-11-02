@@ -219,7 +219,7 @@ pub struct Storage {
     /// is dropped. Declared last so it is dropped after the writer and the read pool have
     /// closed the file.
     #[cfg(test)]
-    pub(crate) temp: Option<std::sync::Arc<crate::test_temp::TempPath>>,
+    pub(crate) temp: Option<std::sync::Arc<humanity_core::test_temp::TempPath>>,
 }
 
 /// Shared timestamp helper used by multiple submodules.
@@ -2402,7 +2402,7 @@ impl Storage {
         // Phase 0 substrate: generic post-quantum signed objects.
         // Every higher-level domain (signed_profiles, vouches, VCs, governance proposals,
         // recovery shares, etc.) is a projection of this table.
-        // Format: see docs/network/object_format.md and src/relay/core/object.rs
+        // Format: see docs/network/object_format.md and crates/humanity-protocol/src/object.rs
         // Crypto: ML-DSA-65 (Dilithium3) — 1952-byte pubkey, 3309-byte signature.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS signed_objects (
@@ -2927,10 +2927,10 @@ impl Storage {
     /// (`hum_<tag>_<pid>_<nanos>_<n>.db`), deleted with its `-wal` and `-shm` files when this
     /// storage is dropped. The guard rides inside the storage, so a relay built on it keeps
     /// the files exactly as long as it keeps the database, whoever drops it last. A test that
-    /// reopens the same file holds a `crate::test_temp::db` guard itself and uses `open`.
+    /// reopens the same file holds a `humanity_core::test_temp::db` guard itself and uses `open`.
     #[cfg(test)]
     pub(crate) fn open_temp(tag: &str) -> Self {
-        Self::open_sharing(&std::sync::Arc::new(crate::test_temp::db(tag)))
+        Self::open_sharing(&std::sync::Arc::new(humanity_core::test_temp::db(tag)))
     }
 
     /// Tests only (BUG-159): a fresh `relay.db` in a new temp folder of its own, for a test
@@ -2938,7 +2938,7 @@ impl Storage {
     /// backups folder). The storage keeps the folder's guard, so the folder goes when it does.
     #[cfg(test)]
     pub(crate) fn open_temp_dir(tag: &str) -> Self {
-        let dir = crate::test_temp::dir(tag);
+        let dir = humanity_core::test_temp::dir(tag);
         let mut storage = Self::open(&dir.join("relay.db")).expect("open test db");
         storage.temp = Some(std::sync::Arc::new(dir));
         storage
@@ -2950,7 +2950,7 @@ impl Storage {
     /// file: the relay's tasks hold its storage past the end of the test body, until the
     /// runtime drops them, and the files must outlive the last of them.
     #[cfg(test)]
-    pub(crate) fn open_sharing(guard: &std::sync::Arc<crate::test_temp::TempPath>) -> Self {
+    pub(crate) fn open_sharing(guard: &std::sync::Arc<humanity_core::test_temp::TempPath>) -> Self {
         let mut storage = Self::open(guard).expect("open test db");
         storage.temp = Some(guard.clone());
         storage
@@ -3080,8 +3080,8 @@ mod resilient_open_tests {
     //! (Err) rather than silently wipe or run corrupt.
     use super::*;
 
-    fn tmp_dir(tag: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("resilient_{tag}"))
+    fn tmp_dir(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("resilient_{tag}"))
     }
 
     /// Create a real, healthy relay DB at `path` with one known message

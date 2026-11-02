@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::{CraftingSystem, RecipeRegistry};
-use crate::ecs::components::{AutoRefine, Controllable, MachineInstanceId};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{AutoRefine, Controllable, MachineInstanceId};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::{Inventory, ItemRegistry};
 
 /// The real recipes and items, home storage holding `stock`, the channel the
@@ -21,7 +21,7 @@ use crate::systems::inventory::{Inventory, ItemRegistry};
 /// 36-slot backpack under the player's control.
 fn home(stock: &[(&str, u32)]) -> (DataStore, hecs::World, hecs::Entity) {
     let mut data = DataStore::new();
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/data/");
+    let root = concat!(env!("HUMANITY_REPO_ROOT"), "/data/");
     let read = |f: &str| std::fs::read(format!("{root}{f}")).unwrap();
     data.insert("recipe_registry", RecipeRegistry::from_csv(&read("recipes.csv")).unwrap());
     data.insert("item_registry", ItemRegistry::from_csv(&read("items.csv")).unwrap());

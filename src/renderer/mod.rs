@@ -81,7 +81,7 @@ pub mod clouds;
 /// ready: the two cloud PSOs, off the startup path since 2026-10-18.
 pub mod deferred_build;
 /// The GPU side of the frame costs (resource budgets increment 1): the timestamp ring, the
-/// per-view pass ids and the VRAM walk, publishing into the core's `crate::frame_costs` store
+/// per-view pass ids and the VRAM walk, publishing into the core's `humanity_core::frame_costs` store
 /// (the two were `renderer::frame_costs` until the crate split's rung 0).
 pub mod gpu_costs;
 pub mod ground_textures;
@@ -158,7 +158,7 @@ use camera::Camera;
 use glam::{Mat4, Quat, Vec3};
 use mesh::Mesh;
 // The cost store every pass records into (the core's; children see it through `use super::*`).
-use crate::frame_costs;
+use humanity_core::frame_costs;
 use pipeline::{ObjectUniforms, Pipeline, ShaderClass};
 
 /// Max opaque/transparent objects drawn per frame (dynamic uniform buffer capacity + the per-pass
@@ -291,9 +291,9 @@ impl Material {
 
 /// Core renderer state wrapping wgpu device, queue, and surface.
 // The live weather map's size (`WEATHER_MAP_W`, `WEATHER_MAP_H`) is the core's,
-// `crate::weather_map`, since the crate split's rung 0: the fetcher (net::live_weather) fills a
+// `humanity_core::weather_map`, since the crate split's rung 0: the fetcher (net::live_weather) fills a
 // grid that size and the renderer uploads it.
-use crate::weather_map::{WEATHER_MAP_H, WEATHER_MAP_W};
+use humanity_core::weather_map::{WEATHER_MAP_H, WEATHER_MAP_W};
 /// Weather-map mip levels (increment 11b): 720 halves to 1 in 9 steps + the
 /// base = 10; wgpu floor-halves the non-square 1440x720 the same way.
 pub const WEATHER_MAP_MIPS: u32 = 10;
@@ -2315,7 +2315,7 @@ impl Renderer {
     /// classic per-patch Mesh (graceful, logged inside the arena).
     pub fn patch_arena_upload(
         &mut self,
-        vertices: &[crate::vertex::Vertex],
+        vertices: &[humanity_core::vertex::Vertex],
         indices: &[u32],
     ) -> Option<crate::terrain::planet_chunks::PatchSlot> {
         let _cost = frame_costs::stage("cpu.patch_upload");

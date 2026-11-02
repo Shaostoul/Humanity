@@ -567,7 +567,7 @@ mod tests {
         // Emptied 2026-10-10 when the relay and web halves of step E merged and
         // app/web was regenerated: no file may name a Google STUN host any more.
         const PENDING_OTHER_HALVES: &[&str] = &[];
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
         let mut files = Vec::new();
         for dir in ["src", "web", "app/web"] {
             collect(&root.join(dir), &mut files);

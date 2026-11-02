@@ -87,7 +87,7 @@ impl Rule {
     /// at the top of the page does not go with it.
     /// The words are the website's own (data/i18n/en.json `laws.checked_*`, `laws.never_checked`).
     pub fn provenance_line(&self) -> String {
-        use crate::i18n::{t, tf};
+        use humanity_core::i18n::{t, tf};
         match &self.verified {
             Some(v) if v.human_reviewed => tf("laws.checked_reviewed", &[("date", &v.on)]),
             Some(v) => tf("laws.checked_not_reviewed", &[("date", &v.on)]),
@@ -176,7 +176,7 @@ impl Laws {
 /// (the page shows a friendly note) so the app still works.
 pub fn install() -> &'static Laws {
     LAWS.get_or_init(|| {
-        let path = crate::storage::data_dir().join("laws").join("laws.json");
+        let path = humanity_core::storage::data_dir().join("laws").join("laws.json");
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
@@ -245,7 +245,7 @@ mod tests {
     fn shipped_dangerous_topics_are_all_classified() {
         // Read the shipped file directly rather than through install(), which
         // caches in a OnceLock and resolves data_dir() at runtime.
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("laws")
             .join("laws.json");

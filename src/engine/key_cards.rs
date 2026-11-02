@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use crate::gui::GuiState;
 use crate::net::key_pins::KeyPins;
-use crate::relay::core::key_card::{self, Refusal, Seen, REQUEST_MAX};
+use humanity_protocol::key_card::{self, Refusal, Seen, REQUEST_MAX};
 
 /// How long a card asked for may take before it is asked for again.
 const ASK_AGAIN: Duration = Duration::from_secs(60);

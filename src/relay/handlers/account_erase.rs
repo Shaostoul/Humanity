@@ -257,7 +257,7 @@ mod tests {
     /// carry_out with ErasedBy::Themselves".
     #[test]
     fn both_erases_go_through_the_same_steps() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let read = |p: &str| std::fs::read_to_string(root.join(p)).unwrap().replace("\r\n", "\n");
         let body = |text: &str, start: &str| -> String {
             let from = &text[text.find(start).unwrap_or_else(|| panic!("{start} not found"))..];

@@ -9,7 +9,7 @@ fn world_with_bread(n: u32) -> (hecs::World, hecs::Entity) {
     let mut world = hecs::World::new();
     let mut inv = Inventory::new(20);
     inv.add_item("bread_0", n, 50);
-    let p = world.spawn((inv, crate::ecs::components::Controllable));
+    let p = world.spawn((inv, humanity_core::ecs::components::Controllable));
     (world, p)
 }
 
@@ -40,8 +40,8 @@ fn answer(id: &str, ok: bool, error: &str) -> serde_json::Value {
 
 /// The InventorySystem's frame: it applies the queued moves (a refused give's items going back).
 fn inventory_frame(world: &mut hecs::World) {
-    use crate::ecs::systems::System;
-    crate::systems::inventory::InventorySystem::new().tick(world, 0.016, &crate::hot_reload::data_store::DataStore::new());
+    use humanity_core::ecs::systems::System;
+    crate::systems::inventory::InventorySystem::new().tick(world, 0.016, &humanity_core::hot_reload::data_store::DataStore::new());
 }
 
 /// A GIVE'S ITEMS ARE IN ONE PLACE AT A TIME (finding 1 of the 2026-10-04 review): asked, the

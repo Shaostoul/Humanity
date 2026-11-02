@@ -182,7 +182,7 @@ impl VideoView {
 
     /// The video's sound from the app's mixer: handed over once, then kept at the master volume,
     /// or silent while muted.
-    pub fn sync_sound(&mut self, audio: &mut crate::audio::AudioManager) {
+    pub fn sync_sound(&mut self, audio: &mut humanity_core::audio::AudioManager) {
         let Some(player) = self.player.as_mut() else { return };
         if player.info().audio_track.is_none() {
             return;

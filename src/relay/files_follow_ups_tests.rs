@@ -10,7 +10,7 @@
 //! temporary database, and nothing is written outside a temporary folder.
 
 use super::*;
-use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
 
 const MIB: i64 = 1024 * 1024;
 
@@ -39,18 +39,18 @@ fn relay(tag: &str) -> Arc<RelayState> {
 
 /// The four folders of a test's own.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
 }
 
 fn dirs(tag: &str) -> Dirs {
     Dirs {
-        uploads: crate::test_temp::dir(&format!("{tag}_uploads")),
-        members: crate::test_temp::dir(&format!("{tag}_members")),
-        resume: crate::test_temp::dir(&format!("{tag}_resume")),
-        waiting: crate::test_temp::dir(&format!("{tag}_waiting")),
+        uploads: humanity_core::test_temp::dir(&format!("{tag}_uploads")),
+        members: humanity_core::test_temp::dir(&format!("{tag}_members")),
+        resume: humanity_core::test_temp::dir(&format!("{tag}_resume")),
+        waiting: humanity_core::test_temp::dir(&format!("{tag}_waiting")),
     }
 }
 

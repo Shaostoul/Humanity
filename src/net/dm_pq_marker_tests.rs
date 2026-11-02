@@ -6,7 +6,7 @@
 
 use super::*;
 
-const FIXTURE: &str = include_str!("../../scripts/tests/fixtures/file-marker-unchecked.json");
+const FIXTURE: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/scripts/tests/fixtures/file-marker-unchecked.json"));
 
 /// This app builds exactly the fixture's bytes from each meta (with `"unchecked":true` last only for
 /// a file it could not check) and reads exactly the fixture's answers; a marker's other fields read

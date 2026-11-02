@@ -1,7 +1,7 @@
 # Recovery through trusted people
 
 **Status: built 2026-10-21** (desktop app: Settings > Account; website: /recovery). The code:
-`src/relay/core/recovery.rs` (the protocol, shared by the relay and the desktop app),
+`crates/humanity-protocol/src/recovery.rs` (the protocol, shared by the relay and the desktop app),
 `web/shared/recovery.js` (its website twin), `src/relay/storage/recovery.rs` and
 `src/relay/api_v2_recovery.rs` (what the server keeps and its routes),
 `src/gui/pages/settings/recovery.rs` + `recovery_net.rs` (desktop),

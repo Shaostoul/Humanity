@@ -10,7 +10,7 @@ use crate::terrain::plant_mesh::*;
 /// foot for button), and a block fits the half shelf a block is given.
 #[test]
 fn fungi_in_the_shipped_ron_match_the_crops_they_draw() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let text = std::fs::read_to_string(root.join("data/plants_visual.ron")).expect("plants_visual.ron");
     let reg = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");
     let csv = std::fs::read(root.join("data/plants.csv")).expect("data/plants.csv exists");
@@ -47,7 +47,7 @@ fn fungi_in_the_shipped_ron_match_the_crops_they_draw() {
 /// sets sat unused for two months.
 #[test]
 fn every_stage_model_mapping_names_a_real_plant_and_a_model_on_disk() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     let text = std::fs::read_to_string(root.join("data/plants_visual.ron"))
         .expect("data/plants_visual.ron exists");
     let reg = PlantVisualRegistry::from_ron(&text).expect("plants_visual.ron parses");

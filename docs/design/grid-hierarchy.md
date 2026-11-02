@@ -46,7 +46,7 @@ as a node every lower island reaches through its service entrance.
   visible, the way a real off-grid vs on-grid choice teaches itself.
 
 ## What it builds on (already shipped -- do NOT rebuild)
-- `src/utilities.rs` -- `Utility`, `Port`/`PortDir`, conduit/cable physics (ampacity, bore, bandwidth).
+- `crates/humanity-core/src/utilities.rs` -- `Utility`, `Port`/`PortDir`, conduit/cable physics (ampacity, bore, bandwidth).
 - Per-island runtime flow gating -- `PowerCircuit`/`PlumbingCircuit` + the balance systems (a tier IS an
   island; a grid-tie joins two islands).
 - The conduit NODE GRAPH (`docs/design/conduits-node-graph.md`) with `ConduitNode.tier` (0/1/2) -- the

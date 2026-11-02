@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::atomic_write::write_atomic;
+use humanity_core::atomic_write::write_atomic;
 
 /// Which save is live, the restore hold, and the choices waiting for a slot's fresh save: the
 /// session's state of the save files (ship homes increment 6; the crate split's rung 0, part B).
@@ -87,10 +87,10 @@ pub struct WorldSave {
     /// The player's avatar appearance (v0.440). serde-default so pre-v0.440 saves load
     /// unchanged (they get the default blockman).
     #[serde(default)]
-    pub appearance: crate::ecs::components::Appearance,
+    pub appearance: humanity_core::ecs::components::Appearance,
     /// The player's equipped cosmetic outfit (v0.440). serde-default for old saves.
     #[serde(default)]
-    pub outfit: crate::ecs::components::Outfit,
+    pub outfit: humanity_core::ecs::components::Outfit,
     /// The organize-layer container contents (v0.516): every item that lives in a
     /// container other than the live backpack, tagged with its container path. The
     /// backpack itself is `inventory` above. None means this save never wrote a
@@ -112,25 +112,25 @@ pub struct WorldSave {
     /// our changes persist"). serde-default so older saves load with none, and
     /// the showcase auto-seed then fills the grow surfaces instead.
     #[serde(default)]
-    pub crops: Vec<crate::ecs::components::CropInstance>,
+    pub crops: Vec<humanity_core::ecs::components::CropInstance>,
     /// Each saved crop's soil (2026-09-26, N-P-K), parallel to `crops`;
     /// None for a crop that had no soil record yet.
     #[serde(default)]
-    pub crop_soil: Vec<Option<crate::ecs::components::CropSoil>>,
+    pub crop_soil: Vec<Option<humanity_core::ecs::components::CropSoil>>,
     /// Each saved crop's pollination record (2026-09-26,
     /// farming::pollination), parallel to `crops`; None for a crop without
     /// one. serde-default so a save from before it loads with none.
     #[serde(default)]
-    pub crop_pollination: Vec<Option<crate::ecs::components::CropPollination>>,
+    pub crop_pollination: Vec<Option<humanity_core::ecs::components::CropPollination>>,
     /// Each saved crop's picking state (2026-09-26, farming::picking),
     /// parallel to `crops`; None for a crop without one (not yet ripe, or
     /// harvested once). serde-default so a save from before it loads with
     /// none, and a ripe picked crop then starts its window afresh.
     #[serde(default)]
-    pub crop_picking: Vec<Option<crate::ecs::components::CropPicking>>,
+    pub crop_picking: Vec<Option<humanity_core::ecs::components::CropPicking>>,
     /// What each emptied unit's soil still held, for the next crop sown there.
     #[serde(default)]
-    pub soil_memory: crate::ecs::components::SoilMemory,
+    pub soil_memory: humanity_core::ecs::components::SoilMemory,
     /// What each grow area and the air still owed on the farm's own clock when this was written
     /// (2026-10-31, farm-clock.md rung 2, the seam review's B): the garden is saved as it stands,
     /// each area at its own last turn, and the load owes each this again.
@@ -167,11 +167,11 @@ pub struct WorldSave {
     /// None = not recorded, keep the fresh set; Some = authoritative, and an
     /// asteroid missing from it was mined out.
     #[serde(default)]
-    pub asteroids: Option<Vec<crate::ecs::components::AsteroidBody>>,
+    pub asteroids: Option<Vec<humanity_core::ecs::components::AsteroidBody>>,
     /// The mining drone in flight, with its cargo (2026-09-27): the ore in its
     /// hold has already left the asteroid, so dropping it lost the ore.
     #[serde(default)]
-    pub drone: Option<crate::ecs::components::Drone>,
+    pub drone: Option<humanity_core::ecs::components::Drone>,
     /// The drone's standing order ("Keep mining"), (asteroid id, manifest).
     #[serde(default)]
     pub mining_order: Option<(String, Vec<(String, u32)>)>,
@@ -275,12 +275,12 @@ pub struct SavedHome {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BodySave {
     /// Health, now and at most.
-    pub health: crate::ecs::components::Health,
+    pub health: humanity_core::ecs::components::Health,
     /// Food, water, energy, blood oxygen, core temperature and the waste meter, with their maxima.
-    pub vitals: crate::ecs::components::Vitals,
+    pub vitals: humanity_core::ecs::components::Vitals,
     /// The status effects still running, each with the seconds it has left.
     #[serde(default)]
-    pub effects: crate::ecs::components::StatusEffects,
+    pub effects: humanity_core::ecs::components::StatusEffects,
     /// What killed them, when they were dead at the save: they come back to the death screen
     /// with it, and Respawn. None: alive.
     #[serde(default)]
@@ -522,7 +522,7 @@ fn unit_scale() -> [f32; 3] {
 /// Falls back to `./saves/` if the platform data directory cannot be determined.
 pub fn saves_dir() -> PathBuf {
     // Portable mode (v0.707): saves travel beside the exe.
-    if let Some(p) = crate::storage::portable_saves_dir() {
+    if let Some(p) = humanity_core::storage::portable_saves_dir() {
         return p;
     }
     // Try standard platform data dirs without adding a dependency.
@@ -576,12 +576,12 @@ pub fn saves_dir() -> PathBuf {
 /// truncates the file first: a crash at the wrong moment lost the home.
 pub fn save_world(path: &Path, save: &WorldSave) -> Result<(), String> {
     // Its two halves on the Performance page's clock (stutter survey 2, 2026-10-31).
-    let serialize = crate::frame_costs::stage("cpu.save.serialize");
+    let serialize = humanity_core::frame_costs::stage("cpu.save.serialize");
     let json = serde_json::to_string_pretty(save)
         .map_err(|e| format!("Failed to serialize world save: {e}"))?;
     drop(serialize);
 
-    let _disk = crate::frame_costs::stage("cpu.save.disk");
+    let _disk = humanity_core::frame_costs::stage("cpu.save.disk");
     write_save_bytes(path, json.as_bytes(), &snapshots_root_for(path), now_ms())?;
 
     log::info!("World saved to {}", path.display());
@@ -961,7 +961,7 @@ fn snapshot_save_protecting(
 }
 
 // The crash-safe write (stage to a temp file, flush, rename over: `write_atomic`) is the core's,
-// `crate::atomic_write`, since the crate split's rung 0: the settings, the protected setup's
+// `humanity_core::atomic_write`, since the crate split's rung 0: the settings, the protected setup's
 // file, the how-to runs and the GUI's own files write the same way.
 
 
@@ -1163,7 +1163,7 @@ mod tests {
     /// "a save from before the starts loads" failed with "missing field `start`".
     #[test]
     fn a_save_from_before_this_increment_loads_as_a_homestead_with_no_place() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/saves/offline_home_v1484.json");
+        let path = Path::new(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/saves/offline_home_v1484.json");
         let text = std::fs::read_to_string(&path).expect("the fixture is in the repo");
         assert!(text.contains("\"design\": \"fibonacci\"") && !text.contains("\"start\""), "the fixture is from before the starts");
         let save = load_world(&path).unwrap_or_else(|e| panic!("a save from before the starts loads: {e}"));
@@ -1500,7 +1500,7 @@ mod tests {
         let mut unfinished = test_save();
         unfinished.name = "Never finished".to_string();
         let full = serde_json::to_string_pretty(&unfinished).unwrap();
-        crate::atomic_write::stage_write(&save, &full.as_bytes()[..full.len() / 2]).unwrap();
+        humanity_core::atomic_write::stage_write(&save, &full.as_bytes()[..full.len() / 2]).unwrap();
 
         assert!(std::fs::read(&save).unwrap() == before, "the previous save is byte for byte intact");
         assert_eq!(load_world(&save).unwrap().name, "Before the crash");
@@ -1510,7 +1510,7 @@ mod tests {
         // The next save replaces the leftover temp file and lands whole.
         save_world(&save, &unfinished).unwrap();
         assert_eq!(load_world(&save).unwrap().name, "Never finished");
-        assert!(!crate::atomic_write::staging_path(&save).exists(), "no temp file is left behind");
+        assert!(!humanity_core::atomic_write::staging_path(&save).exists(), "no temp file is left behind");
         let _ = std::fs::remove_dir_all(&root);
     }
 

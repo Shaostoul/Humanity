@@ -548,7 +548,7 @@ pub(crate) fn count_available(
     storage: bool,
     item: &str,
 ) -> u32 {
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::Inventory;
     let pack: u32 = world
         .query::<(&Inventory, &Controllable)>()
@@ -575,7 +575,7 @@ pub(crate) fn take_one(
     storage: bool,
     item: &str,
 ) -> bool {
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::placed::{stock_counts, take_consumed};
     use crate::systems::inventory::Inventory;
     let player = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e);
@@ -981,7 +981,7 @@ pub(crate) fn try_pick_port(state: &mut EngineState) -> bool {
     let sz = state.window.inner_size();
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-    let mut best: Option<(f32, crate::utilities::Utility, crate::utilities::PortDir, Vec3)> = None;
+    let mut best: Option<(f32, humanity_core::utilities::Utility, humanity_core::utilities::PortDir, Vec3)> = None;
     for (mid, _idx, port, wp) in &state.port_pick {
         if mid != &sel {
             continue;
@@ -2174,12 +2174,12 @@ mod autosave_tests {
 #[cfg(test)]
 mod machine_cost_tests {
     use super::{machine_item, pay_for_machine};
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::placed::PlacedItem;
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
     fn items() -> ItemRegistry {
-        ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap()
+        ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap()
     }
 
     /// THE B EDITOR PLACES A MACHINE FROM ITS ITEM IN NORMAL MODE (first-hour audit 2026-10-04,

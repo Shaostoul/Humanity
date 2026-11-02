@@ -318,7 +318,7 @@ build-slot-check:
 
 # Delete what test runs left in the temp folder (BUG-159, 2026-10-05): the `hum_*`
 # files and folders nothing has touched for a day. The tests delete their own now
-# (src/test_temp.rs); this sweeps the old pile and whatever a killed run leaves.
+# (crates/humanity-core/src/test_temp.rs); this sweeps the old pile and whatever a killed run leaves.
 # Refuses while cargo, rustc or a test binary runs. Prints the count and the space.
 # --dry-run only reports; --dir <folder> sweeps another folder; --days <n> the age.
 clean-test-temp *args:
@@ -419,9 +419,10 @@ check:
     cargo check --features native
 
 # The library's unit tests, all or filtered: `just test-lib`, `just test-lib net::webrtc`,
-# `just test-lib dm_store --nocapture`. Use this rather than a bare
-# `cargo test --features native --lib`: on Windows the bare form fails to link
-# (LNK1318, BUG-174) and scripts/lib-tests.js links the test program without a debug file.
+# `just test-lib dm_store --nocapture`, `just test-lib --crate humanity-core`. Use this rather
+# than a bare `cargo test --features native --lib`: it builds and runs EVERY workspace member's
+# test program (the crate split, rung 1), and should the linker hit LNK1318 again (BUG-174) it
+# links the engine's program once more without a debug file.
 # The policy (2026-10-23): a full run on a tree that already passed it is refused (exit 0,
 # `--force` runs it); output is -q (`--verbose` for one line per test); one to five failures are
 # each run again alone, and one that passes alone is reported FLAKY, recorded in
@@ -509,9 +510,11 @@ verify-relay-compiles:
 # Worth doing after any change under src/relay/, and before a release, since
 # this is the binary the VPS runs.
 #
-# RUN the relay test battery (~200s): the server build's own 1,508 tests.
+# RUN the relay test battery (~200s): the server build's own lib tests, every workspace
+# member's (since the crate split's rung 1, 2026-11-01, the core's and the protocol's are
+# programs of their own: --workspace runs them too; 3,201 tests on 2026-11-01).
 verify-relay:
-    cargo test --features relay --no-default-features --lib
+    cargo test --workspace --features relay --no-default-features --lib
 
 # The BOOT half of verification, and the answer to "ten releases panicked on
 # world entry while verify stayed green". Boots target/release/HumanityOS.exe in
@@ -653,14 +656,15 @@ lints:
     # the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after (measured 2026-10-23).
     # ONE line holds every lint (2026-10-30): two sessions had each added a lint by copying the whole
     # line, so the other 19 ran twice in every `just lints`. Add a lint to the end of this line.
-    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint
+    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint repo_root_lint
     @node scripts/check-encoding.js --all > /dev/null && echo ">> lint ok: check-encoding --all" || { echo "LINT FAILED: check-encoding --all"; node scripts/check-encoding.js --all; exit 1; }
     # The How-to data (docs/design/how-to.md): every how-to through the checker, every gate seen red
     # on its fixture (tests/fixtures/how_to/broken.json), the index current. A second of node, no compile.
     node scripts/build-how-to.js --check
     # The crate split's ratchet (docs/design/crate-split.md, rung 0): no new wrong-way reference
     # under scripts/crate-layers.json while the rest are being moved (part B's, after rung 0's
-    # part A of 2026-10-31). A second of node.
+    # part A of 2026-10-31). Since rung 1 (2026-11-01) it also reads the cut crates (crates/<name>/src,
+    # named by their library name) and holds each member's Cargo.toml to the plan. A second of node.
     node scripts/check-crate-layers.js
     # The crate cards (docs/crates/, 2026-10-31): every crate in scripts/crate-layers.json has a
     # card, no card names a crate the plan does not, and each has its six headings and one generated
@@ -1196,7 +1200,7 @@ fmt:
 
 # Run clippy linter
 clippy:
-    cargo clippy --features native -- -D warnings
+    cargo clippy --workspace --features native -- -D warnings
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GAME — native desktop client (Rust/wgpu/egui)

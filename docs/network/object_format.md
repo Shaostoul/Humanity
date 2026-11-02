@@ -1,8 +1,8 @@
 # Object Format
 
 > **Shipped.** This is the real, implemented wire format for the Humanity Network
-> signed-objects substrate (`src/relay/core/object.rs`, `src/relay/api_v2_objects.rs`).
-> `src/relay/core/object.rs` itself points back at this file as its canonical spec —
+> signed-objects substrate (`crates/humanity-protocol/src/object.rs`, `src/relay/api_v2_objects.rs`).
+> `crates/humanity-protocol/src/object.rs` itself points back at this file as its canonical spec —
 > keep them in sync. Consumers in production today: P2P groups
 > ([docs/design/p2p-groups.md](../design/p2p-groups.md): `group_v1`, `group_member_v1`,
 > `group_invite_v1`, `group_join_v1`, `group_disband_v1`, `group_epoch_key_v1`,
@@ -24,7 +24,7 @@ Large attachments (voice/file transfer) use separate mechanisms; see
 [native_voice.md](native_voice.md) and [file_sharing.md](file_sharing.md).
 
 ## Normative standards
-Canonical encoding is implemented in `src/relay/core/encoding.rs` (Rust) and
+Canonical encoding is implemented in `crates/humanity-protocol/src/encoding.rs` (Rust) and
 `web/shared/canonical-cbor.js` (JS), locked byte-identical by
 `scripts/group-object-kat.mjs`.
 
@@ -48,7 +48,7 @@ Edits are new objects referencing prior objects.
 
 ## Object structure (logical fields)
 Objects are encoded as a CBOR map with these fields (matches `Object` in
-`src/relay/core/object.rs` exactly):
+`crates/humanity-protocol/src/object.rs` exactly):
 
 - protocol_version: integer
 - object_type: text

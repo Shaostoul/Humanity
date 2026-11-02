@@ -16,7 +16,7 @@
 //! server-side. The UI says so before the user commits.
 
 use egui::{RichText, ScrollArea};
-use crate::i18n::{t, t_marked, tf, tn};
+use humanity_core::i18n::{t, t_marked, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, with_hint, Hint};
 use crate::gui::GuiState;
@@ -136,7 +136,7 @@ fn fmt_window(opens_at: i64, closes_at: i64, now: i64) -> (bool, String) {
 fn payload_texts(payload_b64: &str) -> Option<(String, String)> {
     use base64::Engine as _;
     let bytes = base64::engine::general_purpose::STANDARD.decode(payload_b64).ok()?;
-    let value = crate::relay::core::encoding::from_canonical_bytes(&bytes).ok()?;
+    let value = humanity_protocol::encoding::from_canonical_bytes(&bytes).ok()?;
     let ciborium::Value::Map(entries) = value else { return None };
     let mut title = String::new();
     let mut body = String::new();
@@ -255,12 +255,12 @@ fn fetch_proposals_blocking(base: &str) -> Result<Vec<ProposalView>, String> {
 
 /// Build + Dilithium-sign a `vote_v1` object referencing `proposal_id`.
 /// Uses the exact same ObjectBuilder/keypair code the relay verifies with.
-fn build_vote(seed32: &[u8], proposal_id: &str, choice: &str) -> Result<crate::relay::core::object::Object, String> {
-    use crate::relay::core::encoding::{cbor_map, cbor_text};
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
-    let kp = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+fn build_vote(seed32: &[u8], proposal_id: &str, choice: &str) -> Result<humanity_protocol::object::Object, String> {
+    use humanity_protocol::encoding::{cbor_map, cbor_text};
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    let kp = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     let payload = cbor_map(vec![("choice", cbor_text(choice))]);
-    crate::relay::core::object::ObjectBuilder::new("vote_v1")
+    humanity_protocol::object::ObjectBuilder::new("vote_v1")
         .reference(proposal_id)
         .created_at(now_ms() as u64)
         .payload_cbor(&payload)
@@ -277,10 +277,10 @@ fn build_proposal(
     title: &str,
     body: &str,
     window_days: f32,
-) -> Result<crate::relay::core::object::Object, String> {
-    use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text};
-    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
-    let kp = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+) -> Result<humanity_protocol::object::Object, String> {
+    use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
+    let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(seed32);
+    let kp = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     let now = now_ms() as u64;
     // Clamp FIRST, then convert whole+fraction together in f64 -- the previous
     // split (`max(0.04) as u64` + unclamped `.fract()`) truncated a sub-day
@@ -295,7 +295,7 @@ fn build_proposal(
         ("opens_at", cbor_int(now)),
         ("closes_at", cbor_int(closes)),
     ]);
-    crate::relay::core::object::ObjectBuilder::new("proposal_v1")
+    humanity_protocol::object::ObjectBuilder::new("proposal_v1")
         .created_at(now)
         .payload_cbor(&payload)
         .map_err(|e| format!("encode proposal: {e:?}"))?
@@ -306,7 +306,7 @@ fn build_proposal(
 /// The SignedObjectSubmission JSON the relay's POST /api/v2/objects expects.
 /// Field names are locked by the `submission_json_matches_the_relay_wire_struct`
 /// test, which deserializes this into the relay's own struct.
-fn submission_json(obj: &crate::relay::core::object::Object) -> serde_json::Value {
+fn submission_json(obj: &humanity_protocol::object::Object) -> serde_json::Value {
     use base64::Engine as _;
     let b64 = &base64::engine::general_purpose::STANDARD;
     serde_json::json!({
@@ -325,7 +325,7 @@ fn submission_json(obj: &crate::relay::core::object::Object) -> serde_json::Valu
 }
 
 /// Blocking: POST a signed object to the relay as a SignedObjectSubmission.
-fn post_signed_object(base: &str, obj: &crate::relay::core::object::Object) -> Result<(), String> {
+fn post_signed_object(base: &str, obj: &humanity_protocol::object::Object) -> Result<(), String> {
     let submission = submission_json(obj);
     match ureq::post(&format!("{base}/api/v2/objects"))
         .timeout(std::time::Duration::from_secs(10))
@@ -838,7 +838,7 @@ mod tests {
         assert_eq!(obj.object_type, "vote_v1");
         assert_eq!(obj.references, vec!["abc123".to_string()]);
         obj.verify_signature().expect("relay-side verification accepts the native-built vote");
-        let value = crate::relay::core::encoding::from_canonical_bytes(&obj.payload).expect("payload decodes");
+        let value = humanity_protocol::encoding::from_canonical_bytes(&obj.payload).expect("payload decodes");
         let ciborium::Value::Map(entries) = value else { panic!("payload is a map") };
         let choice = entries.iter().find_map(|(k, v)| match (k, v) {
             (ciborium::Value::Text(k), ciborium::Value::Text(v)) if k == "choice" => Some(v.clone()),
@@ -856,7 +856,7 @@ mod tests {
             .expect("proposal builds");
         assert_eq!(obj.object_type, "proposal_v1");
         obj.verify_signature().expect("relay-side verification accepts the native-built proposal");
-        let value = crate::relay::core::encoding::from_canonical_bytes(&obj.payload).expect("payload decodes");
+        let value = humanity_protocol::encoding::from_canonical_bytes(&obj.payload).expect("payload decodes");
         let ciborium::Value::Map(entries) = value else { panic!("payload is a map") };
         let keys: Vec<String> = entries.iter().filter_map(|(k, _)| match k {
             ciborium::Value::Text(t) => Some(t.clone()),
@@ -869,7 +869,7 @@ mod tests {
 
     #[test]
     fn payload_texts_round_trips_title_and_body() {
-        use crate::relay::core::encoding::{cbor_map, cbor_text, to_canonical_bytes};
+        use humanity_protocol::encoding::{cbor_map, cbor_text, to_canonical_bytes};
         use base64::Engine as _;
         let payload = cbor_map(vec![
             ("title", cbor_text("Test title")),
@@ -935,7 +935,7 @@ mod tests {
         let seed = [4u8; 32];
         for bad_days in [0.0f32, -3.0] {
             let obj = build_proposal(&seed, "local_rule", "local", "t", "b", bad_days).expect("builds");
-            let value = crate::relay::core::encoding::from_canonical_bytes(&obj.payload).expect("decodes");
+            let value = humanity_protocol::encoding::from_canonical_bytes(&obj.payload).expect("decodes");
             let ciborium::Value::Map(entries) = value else { panic!("map") };
             let get_int = |name: &str| -> i128 {
                 entries.iter().find_map(|(k, v)| match (k, v) {
@@ -949,7 +949,7 @@ mod tests {
         }
         // And a fractional window converts exactly: 7.5 days.
         let obj = build_proposal(&seed, "local_rule", "local", "t", "b", 7.5).expect("builds");
-        let value = crate::relay::core::encoding::from_canonical_bytes(&obj.payload).expect("decodes");
+        let value = humanity_protocol::encoding::from_canonical_bytes(&obj.payload).expect("decodes");
         let ciborium::Value::Map(entries) = value else { panic!("map") };
         let get_int = |name: &str| -> i128 {
             entries.iter().find_map(|(k, v)| match (k, v) {

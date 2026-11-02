@@ -20,7 +20,7 @@ use egui::{Align2, RichText, Vec2};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
-use crate::i18n::{t, t_dyn, t_marked_dyn, tf};
+use humanity_core::i18n::{t, t_dyn, t_marked_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState, SettingsCategory};
@@ -80,12 +80,12 @@ static STEPS: OnceLock<Vec<Step>> = OnceLock::new();
 pub fn steps() -> &'static [Step] {
     STEPS.get_or_init(|| {
         let parse = |s: &str| serde_json::from_str::<TourFile>(s).map(|f| f.steps);
-        let path = crate::storage::data_dir().join("onboarding").join("tour.json");
+        let path = humanity_core::storage::data_dir().join("onboarding").join("tour.json");
         let disk = match std::fs::read_to_string(&path) {
             Ok(text) => match parse(&text) {
                 Ok(steps) => Some(steps),
                 Err(e) => {
-                    crate::embedded_data::note_builtin_copy(
+                    humanity_core::embedded_data::note_builtin_copy(
                         "onboarding/tour.json",
                         format_args!("{} does not parse ({e})", path.display()),
                     );
@@ -93,14 +93,14 @@ pub fn steps() -> &'static [Step] {
                 }
             },
             Err(e) => {
-                crate::embedded_data::note_builtin_copy(
+                humanity_core::embedded_data::note_builtin_copy(
                     "onboarding/tour.json",
                     format_args!("{} could not be read ({e})", path.display()),
                 );
                 None
             }
         };
-        disk.or_else(|| parse(crate::embedded_data::ONBOARDING_TOUR_JSON).ok()).unwrap_or_default()
+        disk.or_else(|| parse(humanity_core::embedded_data::ONBOARDING_TOUR_JSON).ok()).unwrap_or_default()
     })
 }
 
@@ -258,15 +258,15 @@ mod tests {
     #[test]
     fn the_shipped_tour_parses_and_every_word_is_a_key() {
         let file: TourFile =
-            serde_json::from_str(crate::embedded_data::ONBOARDING_TOUR_JSON).expect("tour.json parses");
+            serde_json::from_str(humanity_core::embedded_data::ONBOARDING_TOUR_JSON).expect("tour.json parses");
         assert!(file.steps.len() >= 4, "the tour has its steps");
         let ids: Vec<&str> = file.steps.iter().map(|s| s.id.as_str()).collect();
         for want in ["phrase", "message", "world"] {
             assert!(ids.contains(&want), "the {want} step is there: {ids:?}");
         }
         for step in &file.steps {
-            assert!(crate::i18n::has(&step.title), "{} title key {}", step.id, step.title);
-            assert!(crate::i18n::has(&step.text), "{} text key {}", step.id, step.text);
+            assert!(humanity_core::i18n::has(&step.title), "{} title key {}", step.id, step.title);
+            assert!(humanity_core::i18n::has(&step.text), "{} text key {}", step.id, step.text);
             if let Some(page) = step.native.as_ref().and_then(|p| p.page.as_deref()) {
                 assert!(
                     crate::gui::dispatch::page_from_id(page).is_some(),

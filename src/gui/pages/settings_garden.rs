@@ -17,7 +17,7 @@ use egui::RichText;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;
 use crate::gui::{widgets, GuiState, HintDisplay};
-use crate::i18n::t;
+use humanity_core::i18n::t;
 use crate::systems::farming::clock;
 
 /// Draw the Garden updates choice. Marks the settings dirty when it changes.
@@ -45,7 +45,7 @@ mod tests {
     #[test]
     fn every_choice_has_its_words_and_the_default_is_offered() {
         let en: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/i18n/en.json")).unwrap()).unwrap();
+            serde_json::from_str(&std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/i18n/en.json")).unwrap()).unwrap();
         for (_, key) in crate::systems::farming::clock::CHOICES {
             let mut v = &en;
             for part in key.split('.') {

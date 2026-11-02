@@ -2,7 +2,7 @@
 //! save made fresh, carrying only the look across.
 
 use super::*;
-use crate::ecs::components::{
+use humanity_core::ecs::components::{
     AsteroidBody, Battery, Controllable, CropInstance, Drone, DronePhase, Health, HomeMachine, MachineInstanceId,
     Name, Transform, Vehicle, Wallet,
 };
@@ -11,13 +11,13 @@ use crate::systems::quests::QuestTracker;
 use crate::systems::skills::{PlayerSkills, SkillProgress};
 
 fn data_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The DataStore a load reads (the registries `resume_home` reaches for), as the save_load tests
 /// build it.
-fn data_store() -> crate::hot_reload::data_store::DataStore {
-    let mut data = crate::hot_reload::data_store::DataStore::new();
+fn data_store() -> humanity_core::hot_reload::data_store::DataStore {
+    let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
     crate::systems::crafting::register(&mut data);
     crate::systems::livestock::register(&mut data);
@@ -64,7 +64,7 @@ fn summed(kit: &[(String, u32)]) -> Vec<(String, u32)> {
 fn a_fresh_server_save_carries_only_the_look() {
     let data_dir = data_dir();
     let starts = Starts::load(&data_dir);
-    let saves = crate::test_temp::dir("fresh_server_save");
+    let saves = humanity_core::test_temp::dir("fresh_server_save");
     let mut data = data_store();
     let mut gui = crate::gui::GuiState::default();
     gui.settings.fresh_world_each_launch = true;
@@ -81,8 +81,8 @@ fn a_fresh_server_save_carries_only_the_look() {
         q.completed_quests.push("gs_first_steps".into());
     }
     world.get::<&mut Name>(player).unwrap().0 = "Ann".into();
-    world.get::<&mut crate::ecs::components::Appearance>(player).unwrap().height_scale = 1.2;
-    world.get::<&mut crate::ecs::components::Outfit>(player).unwrap().equipped.insert("chest".into(), "work_jacket".into());
+    world.get::<&mut humanity_core::ecs::components::Appearance>(player).unwrap().height_scale = 1.2;
+    world.get::<&mut humanity_core::ecs::components::Outfit>(player).unwrap().equipped.insert("chest".into(), "work_jacket".into());
     world.get::<&mut Health>(player).unwrap().current = 20.0;
     world.spawn((CropInstance {
         crop_def_id: "tomato".into(),
@@ -173,9 +173,9 @@ fn a_fresh_server_save_carries_only_the_look() {
     );
     // The look crossed.
     assert_eq!(world.get::<&Name>(player).unwrap().0, "Ann");
-    assert_eq!(world.get::<&crate::ecs::components::Appearance>(player).unwrap().height_scale, 1.2);
+    assert_eq!(world.get::<&humanity_core::ecs::components::Appearance>(player).unwrap().height_scale, 1.2);
     assert_eq!(
-        world.get::<&crate::ecs::components::Outfit>(player).unwrap().equipped.get("chest").map(String::as_str),
+        world.get::<&humanity_core::ecs::components::Outfit>(player).unwrap().equipped.get("chest").map(String::as_str),
         Some("work_jacket")
     );
     assert_eq!(gui.character_name, "Ann");
@@ -271,7 +271,7 @@ fn your_own_home_with_a_fresh_start_each_session_comes_back_as_the_default_home(
 fn an_unreadable_server_save_is_set_aside_and_a_fresh_one_made() {
     let data_dir = data_dir();
     let starts = Starts::load(&data_dir);
-    let saves = crate::test_temp::dir("unreadable_server_save");
+    let saves = humanity_core::test_temp::dir("unreadable_server_save");
     let slot = SaveSlot::Server { server: "https://example.test".into(), identity: "cd".repeat(32) };
     let path = crate::persistence::slot_path(&saves, &slot);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();

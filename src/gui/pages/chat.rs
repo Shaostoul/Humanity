@@ -1095,11 +1095,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // The icon_glyph_lint test still catches U+FE0F
                         // variation selectors and known-broken glyphs.
                         // Palette lives in data/reactions.json (one source for
-                        // native, relay allowlist, and web) via crate::reactions.
+                        // native, relay allowlist, and web) via humanity_core::reactions.
                         // No reactions in a DM or a P2P group: the server would tell everyone who reacted to
                         // whom there (BUG-178), so the popup offers none.
-                        let top_reactions: &'static [String] = if is_private_channel(&msg.channel) { &[] } else { crate::reactions::top() };
-                        let all_reactions: &'static [String] = if is_private_channel(&msg.channel) { &[] } else { crate::reactions::all() };
+                        let top_reactions: &'static [String] = if is_private_channel(&msg.channel) { &[] } else { humanity_core::reactions::top() };
+                        let all_reactions: &'static [String] = if is_private_channel(&msg.channel) { &[] } else { humanity_core::reactions::all() };
                         let is_own = msg.sender_key == state.profile_public_key;
 
                         // Estimated popup geometry — needed for the sticky
@@ -2500,7 +2500,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                     .size(theme.font_size_small),
                                 );
                                 let (btn_label, target_mode) = match state.auto_unlock_mode {
-                                    crate::auto_unlock::AutoUnlockMode::KeychainPin
+                                    humanity_core::auto_unlock::AutoUnlockMode::KeychainPin
                                         if !state.pin_encrypted_seed.is_empty() =>
                                     {
                                         ("Unlock with PIN", crate::gui::PassphraseMode::PinUnlock)
@@ -2900,7 +2900,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                 let json_str_opt: Option<String> = if channel.starts_with("dm:") {
                     match dm_prepared.take() {
                         Some((recipient_put, self_put)) => {
-                            crate::debug::push_debug(format!("WS >>> {}", self_put));
+                            humanity_core::debug::push_debug(format!("WS >>> {}", self_put));
                             client.send(&self_put);
                             Some(recipient_put)
                         }
@@ -2943,7 +2943,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                     Some(chat_obj.to_string())
                 };
                 if let Some(json_str) = json_str_opt {
-                    crate::debug::push_debug(format!("WS >>> {}", json_str));
+                    humanity_core::debug::push_debug(format!("WS >>> {}", json_str));
                     client.send(&json_str);
                     room_line_sent = line_limit::measured(&channel);
                     state.chat_sent_timestamps.push(ts);
@@ -2993,7 +2993,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         let now = chrono_now_str();
         let conn = &mut state.connections[ci];
         if let Some(ws) = conn.ws.as_ref() {
-            crate::debug::push_debug(format!("WS(bg) >>> {}", json_str));
+            humanity_core::debug::push_debug(format!("WS(bg) >>> {}", json_str));
             ws.send(&json_str);
         }
         conn.sent_timestamps.push(ts);

@@ -49,7 +49,7 @@ pub const HYBRID_ALG: &str = "hybrid-ed25519-mldsa65-v1";
 /// strings mean "signing not provisioned yet" (pre-keygen) → verification is
 /// skipped with a warning. Once the operator runs `--gen-release-key` and
 /// commits the file, these are non-empty and verification is ENFORCED.
-const EMBEDDED_PUBKEYS_JSON: &str = include_str!("../data/release/signing_pubkeys.json");
+const EMBEDDED_PUBKEYS_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/release/signing_pubkeys.json"));
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SigningPubkeys {
@@ -189,7 +189,7 @@ pub fn verify_manifest_bytes_with(
         let sig_bytes = b64()
             .decode(sig.dilithium.as_bytes())
             .map_err(|e| format!("bad dilithium signature base64: {e}"))?;
-        crate::relay::core::pq_crypto::verify_dilithium(&pk_bytes, manifest_bytes, &sig_bytes)
+        humanity_protocol::pq_crypto::verify_dilithium(&pk_bytes, manifest_bytes, &sig_bytes)
             .map_err(|_| "dilithium3 signature verification FAILED".to_string())?;
     }
 
@@ -285,7 +285,7 @@ pub fn handoff_blocked_now() -> Option<&'static str> {
     let env = std::env::var(NO_HANDOFF_ENV).ok();
     let marker = std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join(crate::storage::PORTABLE_MARKER).exists()))
+        .and_then(|p| p.parent().map(|d| d.join(humanity_core::storage::PORTABLE_MARKER).exists()))
         .unwrap_or(false);
     handoff_block_reason(env.as_deref(), marker)
 }
@@ -377,7 +377,7 @@ pub fn gen_release_key(pubkeys_path: &str, vault_path: &str) -> Result<(), Strin
     let ed_sk = ed25519_dalek::SigningKey::from_bytes(&ed_seed);
     let ed_pub = ed_sk.verifying_key();
 
-    let dil = crate::relay::core::pq_crypto::DilithiumKeypair::generate()
+    let dil = humanity_protocol::pq_crypto::DilithiumKeypair::generate()
         .map_err(|e| format!("dilithium keygen failed: {e}"))?;
     let dil_seed = dil.to_seed();
     let dil_pub = dil.public_key();
@@ -478,7 +478,7 @@ pub fn sign_manifest_bytes(
         sk.sign(manifest_bytes).to_bytes().to_vec()
     };
     let dil_sig = {
-        let kp = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let kp = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         kp.sign(manifest_bytes)
     };
 
@@ -571,7 +571,7 @@ mod tests {
             ed_sk.sign(bytes).to_bytes().to_vec()
         };
         // Dilithium from a fixed seed.
-        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&[9u8; 32]);
+        let dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&[9u8; 32]);
         let dil_pub = dil.public_key();
         let dil_sig = dil.sign(bytes);
 
@@ -631,7 +631,7 @@ mod tests {
         let (_pubs, sig) = make_signed(bytes);
         // A DIFFERENT pubkey set must not verify the signature.
         let other_ed = ed25519_dalek::SigningKey::from_bytes(&[1u8; 32]).verifying_key();
-        let other_dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&[2u8; 32]);
+        let other_dil = humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&[2u8; 32]);
         let wrong = SigningPubkeys {
             ed25519: hex::encode(other_ed.as_bytes()),
             dilithium: hex::encode(other_dil.public_key()),

@@ -31,7 +31,7 @@ const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 fn opening_styles() -> &'static [String] {
     static REG: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../../../data/blueprints/opening_styles.ron");
+        const SRC: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/opening_styles.ron"));
         match ron::from_str::<Vec<String>>(SRC) {
             Ok(v) if !v.is_empty() => v,
             Ok(_) | Err(_) => {
@@ -1512,8 +1512,8 @@ fn held_machine_cost(state: &GuiState, machine_type: &str, name: &str) -> Option
 /// ASCII direction markers: U+2190 (left) and U+2194 (both) tofu in the app
 /// font (snapshot-proof 2026-07-06, BROKEN_GLYPHS). Only U+2192 renders, and
 /// mixing one real arrow with ASCII fallbacks reads worse than all-ASCII.
-fn port_line(p: &crate::utilities::Port) -> String {
-    use crate::utilities::{PortDir, Utility};
+fn port_line(p: &humanity_core::utilities::Port) -> String {
+    use humanity_core::utilities::{PortDir, Utility};
     let arrow = match p.dir {
         PortDir::In => "<-",            // consumes
         PortDir::Out => "->",           // supplies
@@ -3400,13 +3400,13 @@ fn draw_machines_and_connections(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         .unwrap_or_default();
     // The electrical cable choices for the per-power-connection picker (v0.615): "auto" + every
     // electrical conduit in the registry (copper AWG ... the room-temp superconductor).
-    let cable_choices: Vec<(String, String)> = crate::utilities::conduit_types()
+    let cable_choices: Vec<(String, String)> = humanity_core::utilities::conduit_types()
         .iter()
-        .filter(|c| c.utility == crate::utilities::Utility::Electricity)
+        .filter(|c| c.utility == humanity_core::utilities::Utility::Electricity)
         .map(|c| (c.id.clone(), c.label.clone()))
         .collect();
     // The data-medium choices for the per-data-connection picker (v0.621): ethernet / fibre / WiFi.
-    let data_choices: Vec<(String, String)> = crate::utilities::data_media()
+    let data_choices: Vec<(String, String)> = humanity_core::utilities::data_media()
         .map(|c| (c.id.clone(), c.label.clone()))
         .collect();
     egui::CollapsingHeader::new(RichText::new(format!("Utility lines ({})", conns.len())).strong().color(theme.text_primary()))

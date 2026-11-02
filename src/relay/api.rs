@@ -2386,7 +2386,7 @@ pub async fn get_signed_profile(
     State(state): State<Arc<RelayState>>,
     Path(key): Path<String>,
 ) -> impl IntoResponse {
-    use crate::relay::core::profile_copy::{is_withdrawal, unlisted, FIELDS_FOR_FRIENDS};
+    use humanity_protocol::profile_copy::{is_withdrawal, unlisted, FIELDS_FOR_FRIENDS};
     let not_found = || (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Profile not found" }))).into_response();
     let failed = |e: rusqlite::Error| {
         (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Database error: {}", e) }))).into_response()

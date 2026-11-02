@@ -64,10 +64,10 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-use crate::ecs::components::AreaPests;
+use humanity_core::ecs::components::AreaPests;
 
 /// The shipped copy, so a bare exe with no data folder still has pests.
-pub const PESTS_RON: &str = include_str!("../../../data/garden/pests.ron");
+pub const PESTS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/pests.ron"));
 
 /// The lowest pests can take a crop's health: 20 of 100, the same floor a
 /// nutrient shortage has (soil::NUTRIENT_HEALTH_FLOOR, from Rothamsted's
@@ -324,7 +324,7 @@ impl PestData {
     /// if that is missing or does not parse. The shipped copy always parses:
     /// a test pins it.
     pub fn load() -> Self {
-        let path = crate::storage::data_dir().join("garden").join("pests.ron");
+        let path = humanity_core::storage::data_dir().join("garden").join("pests.ron");
         // Disk first; the shipped copy only when the file is missing or does not
         // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
         // refuses a run that served a built-in copy, BUG-133).
@@ -335,7 +335,7 @@ impl PestData {
             },
             Err(e) => format!("{} could not be read ({e})", path.display()),
         };
-        crate::embedded_data::note_builtin_copy("garden/pests.ron", why);
+        humanity_core::embedded_data::note_builtin_copy("garden/pests.ron", why);
         Self::parse(PESTS_RON).expect("the shipped data/garden/pests.ron parses")
     }
 
@@ -832,7 +832,7 @@ pub fn outcome_notice(
 /// is when UMN says to) and gives its pieces back.
 pub(super) fn handle_request(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     pests: &PestData,
     air: &super::humidity::HumidityData,
     area: &str,
@@ -840,7 +840,7 @@ pub(super) fn handle_request(
     creative: bool,
     water_available: bool,
 ) {
-    use crate::ecs::components::{CropInstance, STAGE_DEAD};
+    use humanity_core::ecs::components::{CropInstance, STAGE_DEAD};
     let Some(control) = pests.control(control_id) else {
         log::warn!("[Farming] no pest control '{control_id}' in data/garden/pests.ron");
         return;
@@ -932,7 +932,7 @@ pub(super) fn handle_request(
         let mut have = 0;
         for (_e, (inv, _ctrl)) in world.query_mut::<(
             &mut crate::systems::inventory::Inventory,
-            &crate::ecs::components::Controllable,
+            &humanity_core::ecs::components::Controllable,
         )>() {
             have = inv.count_item(&control.item);
             if have >= need {
@@ -962,7 +962,7 @@ pub(super) fn handle_request(
         }
     }
     let memory = super::soil::soil_memory_entity(world);
-    let (out, state) = match world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
+    let (out, state) = match world.get::<&mut humanity_core::ecs::components::SoilMemory>(memory) {
         Ok(mut mem) => {
             let st = mem.pests.entry(area.to_string()).or_default();
             if control.is_cover() {
@@ -988,7 +988,7 @@ pub(super) fn handle_request(
 /// Does `area` grow in soil (data/garden/soil_ph.ron: a bed, tray or field,
 /// or the hand-planted crops), rather than a tower's mist or a rack's
 /// substrate? The loaded copy from the DataStore, else the file.
-pub fn has_soil(data: &crate::hot_reload::data_store::DataStore, area: &str) -> bool {
+pub fn has_soil(data: &humanity_core::hot_reload::data_store::DataStore, area: &str) -> bool {
     match data.get::<super::soil_ph::SoilPhData>("garden_soil_ph") {
         Some(d) => d.soil_for(area).is_some(),
         None => super::soil_ph::SoilPhData::load().soil_for(area).is_some(),
@@ -999,7 +999,7 @@ pub fn has_soil(data: &crate::hot_reload::data_store::DataStore, area: &str) -> 
 /// cannot reach (UMN: "row covers prevent pollinators from reaching the
 /// flowers"), for the pollination model to ask. Empty with no covers.
 pub fn covered_areas(world: &hecs::World, data: &PestData) -> HashSet<String> {
-    let mut q = world.query::<&crate::ecs::components::SoilMemory>();
+    let mut q = world.query::<&humanity_core::ecs::components::SoilMemory>();
     let areas = q
         .iter()
         .next()
@@ -1016,7 +1016,7 @@ pub fn covered_areas(world: &hecs::World, data: &PestData) -> HashSet<String> {
 
 /// Is `cover` on `area` now?
 fn cover_on(world: &hecs::World, area: &str, cover: &ControlDef) -> bool {
-    let mut q = world.query::<&crate::ecs::components::SoilMemory>();
+    let mut q = world.query::<&humanity_core::ecs::components::SoilMemory>();
     let on = q.iter().next().map_or(false, |(_, m)| m.pests.get(area).map_or(false, |a| a.releases.contains_key(&cover.id)));
     on
 }
@@ -1028,8 +1028,8 @@ fn cover_on(world: &hecs::World, area: &str, cover: &ControlDef) -> bool {
 /// each living crop's own ground: its plants.csv `area_per_plant_m2` times
 /// its plants, a quarter square metre a plant where that is blank (a game
 /// estimate, the one the sulfur note in pests.ron uses).
-fn cover_ground_m2(world: &hecs::World, data: &crate::hot_reload::data_store::DataStore, area: &str) -> f64 {
-    use crate::ecs::components::{CropInstance, STAGE_DEAD};
+fn cover_ground_m2(world: &hecs::World, data: &humanity_core::hot_reload::data_store::DataStore, area: &str) -> f64 {
+    use humanity_core::ecs::components::{CropInstance, STAGE_DEAD};
     if let Some(plot) = super::soil_ph::plot_area(data, area).filter(|a| *a > 0.0) {
         return plot * f64::from(super::weeds::area_plots(data, area));
     }
@@ -1055,7 +1055,7 @@ fn cover_ground_m2(world: &hecs::World, data: &crate::hot_reload::data_store::Da
 /// The crops among `plants` (plants.csv ids) that need insects to carry
 /// their pollen (data/garden/pollination.ron, `by: Insects`), by display
 /// name, once each: a cover keeps the bees off their flowers.
-fn insect_pollinated(data: &crate::hot_reload::data_store::DataStore, plants: &[String]) -> Vec<String> {
+fn insect_pollinated(data: &humanity_core::hot_reload::data_store::DataStore, plants: &[String]) -> Vec<String> {
     let owned;
     let pol = match data.get::<super::pollination::PollinationData>(super::pollination::DATA_KEY) {
         Some(p) => p,
@@ -1137,7 +1137,7 @@ fn cover_notice(
 /// cover left on, when there is none there or the pack has no room.
 fn take_off_cover(
     world: &mut hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
     pests: &PestData,
     off: &ControlDef,
     area: &str,
@@ -1155,7 +1155,7 @@ fn take_off_cover(
     // ground under it now: the crops under a hand-planted cover can change.
     let memory = super::soil::soil_memory_entity(world);
     let pieces = world
-        .get::<&crate::ecs::components::SoilMemory>(memory)
+        .get::<&humanity_core::ecs::components::SoilMemory>(memory)
         .ok()
         .and_then(|m| m.pests.get(area).and_then(|a| a.cover_pieces.get(&cover.id).copied()))
         .unwrap_or(0);
@@ -1165,7 +1165,7 @@ fn take_off_cover(
     if pieces > 0 && !creative {
         let stack = items.map_or(99, |r| r.max_stack_for(&cover.item)).max(1);
         let mut fitted = false;
-        for (_e, (inv, _c)) in world.query_mut::<(&mut crate::systems::inventory::Inventory, &crate::ecs::components::Controllable)>() {
+        for (_e, (inv, _c)) in world.query_mut::<(&mut crate::systems::inventory::Inventory, &humanity_core::ecs::components::Controllable)>() {
             let left = inv.add_item(&cover.item, pieces, stack);
             if left == 0 {
                 fitted = true;
@@ -1184,7 +1184,7 @@ fn take_off_cover(
         back = format!(" and folded {pieces} x {item_name} back into your pack");
     }
     let memory = super::soil::soil_memory_entity(world);
-    if let Ok(mut mem) = world.get::<&mut crate::ecs::components::SoilMemory>(memory) {
+    if let Ok(mut mem) = world.get::<&mut humanity_core::ecs::components::SoilMemory>(memory) {
         if let Some(a) = mem.pests.get_mut(area) {
             a.releases.remove(&cover.id);
             a.cover_pieces.remove(&cover.id);
@@ -1215,10 +1215,10 @@ pub struct CoverRow {
 /// off), sorted by area. None with pests off, or with no cover in the data.
 pub fn cover_rows(
     world: &hecs::World,
-    store: &crate::hot_reload::data_store::DataStore,
+    store: &humanity_core::hot_reload::data_store::DataStore,
     data: &PestData,
 ) -> Vec<CoverRow> {
-    use crate::ecs::components::{CropInstance, SoilMemory, STAGE_DEAD};
+    use humanity_core::ecs::components::{CropInstance, SoilMemory, STAGE_DEAD};
     // Each area's living crops: (plant id, stage).
     let mut crops: std::collections::BTreeMap<String, Vec<(String, String)>> = std::collections::BTreeMap::new();
     {
@@ -1250,7 +1250,7 @@ pub fn cover_rows(
 /// living crops as (plant id, stage). None when the area shows no row: pests off, no cover in the
 /// data, no soil data, or an area that neither grows a living crop in soil nor still has a cover on.
 pub fn cover_row(
-    store: &crate::hot_reload::data_store::DataStore,
+    store: &humanity_core::hot_reload::data_store::DataStore,
     data: &PestData,
     area: &str,
     on: Option<&AreaPests>,
@@ -1319,7 +1319,7 @@ pub fn area_report<'a>(
     area: &str,
 ) -> (Vec<(&'a PestDef, f64, bool)>, Vec<(&'a ControlDef, f64)>) {
     let a = {
-        let mut q = world.query::<&crate::ecs::components::SoilMemory>();
+        let mut q = world.query::<&humanity_core::ecs::components::SoilMemory>();
         let found = q.iter().next().and_then(|(_, m)| m.pests.get(area).cloned());
         found
     };
@@ -1343,7 +1343,7 @@ pub fn area_report<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::PestPressure;
+    use humanity_core::ecs::components::PestPressure;
 
     fn shipped() -> PestData {
         PestData::parse(PESTS_RON).expect("the shipped pests.ron parses")
@@ -1378,7 +1378,7 @@ mod tests {
     #[test]
     fn the_shipped_pests_name_real_plants_items_and_pests() {
         let d = shipped();
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let plants = crate::systems::farming::PlantRegistry::from_csv(
             &std::fs::read(root.join("data/plants.csv")).unwrap(),
         )

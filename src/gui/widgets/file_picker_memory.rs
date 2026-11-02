@@ -159,7 +159,7 @@ pub fn save(path: &Path, memory: &PickerMemory) -> std::io::Result<()> {
 /// undecided (nothing may be written yet).
 #[cfg(not(test))]
 fn store_path() -> Option<PathBuf> {
-    if crate::storage::mode() == crate::storage::StorageMode::Undecided {
+    if humanity_core::storage::mode() == humanity_core::storage::StorageMode::Undecided {
         return None;
     }
     Some(crate::config::AppConfig::config_path().with_file_name(FILE_NAME))
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn the_next_picker_opens_where_the_last_file_was_picked_while_that_folder_is_there() {
-        let dir = crate::test_temp::dir("fpm_start");
+        let dir = humanity_core::test_temp::dir("fpm_start");
         let mut m = PickerMemory::default();
         assert_eq!(m.start_folder(), None, "nothing picked yet");
         m.remember_pick(&dir.join("part.blend"));
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn the_memory_is_saved_and_read_back_and_a_damaged_file_is_an_empty_memory() {
-        let dir = crate::test_temp::dir("fpm_save");
+        let dir = humanity_core::test_temp::dir("fpm_save");
         let path = dir.join(FILE_NAME);
         assert_eq!(load(&path), PickerMemory::default(), "no file yet");
         let m = PickerMemory { favorites: vec![dir.join("models")], last_folder: Some(dir.join("parts")), post_favorites: vec!["https://h\ngeneral".into()], view: PickerView::Pictures, across: Some(2) };

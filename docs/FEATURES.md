@@ -30,7 +30,7 @@ Each feature lists:
 
 ### Post-Quantum Crypto Core
 ML-DSA-65 (Dilithium3) + ML-KEM-768 (Kyber768) + Argon2id + BLAKE3.
-- Native: `src/relay/core/pq_crypto.rs`, `src/relay/core/kdf.rs`, `src/relay/core/canonical.rs`, `src/relay/core/object.rs`
+- Native: `crates/humanity-protocol/src/pq_crypto.rs`, `crates/humanity-protocol/src/kdf.rs`, `crates/humanity-protocol/src/canonical.rs`, `crates/humanity-protocol/src/object.rs`
 - Tests: 14 PQ + 7 KDF + 5 object roundtrip
 - Cargo deps: `ml-dsa = 0.1.0-rc.8`, `ml-kem = 0.3.0-rc.2` (with `getrandom` feature), `argon2 = 0.6.0-rc.8`
 
@@ -42,7 +42,7 @@ Generic SQLite-backed table that every higher-level domain (VCs, governance, rec
 
 ### DID Resolver
 `did:hum:<base58(BLAKE3(pubkey)[..16])>` format. Short enough for QR codes.
-- Core: `src/relay/core/did.rs` (parse, format, fingerprint, hex conversion)
+- Core: `crates/humanity-protocol/src/did.rs` (parse, format, fingerprint, hex conversion)
 - Storage: `src/relay/storage/dids.rs` (resolve to current pubkey + activity metadata)
 - API: `GET /api/v2/did/{did}` in `src/relay/api_v2_did.rs`
 
@@ -116,7 +116,7 @@ split the phrase, and the people-facing words say so ("Recovery through trusted 
 - Web: `web/pages/recovery.html`, linked from the website's Settings > Security.
 - Storage: `src/relay/storage/recovery.rs`
 - Recovery through trusted people (built 2026-10-21, docs/design/recovery-through-trusted-people.md): choose 2 to 10 friends and how many must help; pieces of the recovery phrase sealed to each, posted as `recovery_share_v1` (the server never learns who they are); a new device asks with a one-time key and a 16-character code read aloud; trusted people check it is really them and send their piece sealed to that key; the account is restored from the rebuilt phrase. Desktop: Settings > Account (`src/gui/pages/settings/recovery.rs`, `recovery_net.rs`); website: /recovery (`web/pages/recovery-app.js`, `web/shared/recovery.js`). API in `src/relay/api_v2_recovery.rs`: `GET /api/v2/recovery/setup/{account}`, `POST .../withdraw`, `POST .../ask`, `GET .../ask/{code}`, `GET .../asks`, `POST .../answer`, `POST .../close`, `POST .../not-me`
-- Key cards (built 2026-10-22, docs/design/key-cards.md): each person's Kyber768 key signed by their own Dilithium3 identity, sent with every sign-in (`identify.key_card`), kept one per person (`key_cards`), served with `key_card_request`/`key_cards` and `GET /api/key-card/{key}`, passed between linked servers as `key_card_gossip`. Every seal to a person on both apps uses only a key from a card the app checked and pinned; a newer card with another key is a change shown in the conversation with "Accept the new key", and nothing is sealed to them until it is accepted. Card: `src/relay/core/key_card.rs`, `web/shared/key-card.js`; relay: `src/relay/handlers/key_cards.rs`, `src/relay/storage/key_cards.rs`; desktop: `src/engine/key_cards.rs`, `src/net/key_pins.rs`, `src/gui/pages/chat/key_change.rs`; website: `web/chat/chat-key-cards.js` (pins in `chat-dm-store.js`)
+- Key cards (built 2026-10-22, docs/design/key-cards.md): each person's Kyber768 key signed by their own Dilithium3 identity, sent with every sign-in (`identify.key_card`), kept one per person (`key_cards`), served with `key_card_request`/`key_cards` and `GET /api/key-card/{key}`, passed between linked servers as `key_card_gossip`. Every seal to a person on both apps uses only a key from a card the app checked and pinned; a newer card with another key is a change shown in the conversation with "Accept the new key", and nothing is sealed to them until it is accepted. Card: `crates/humanity-protocol/src/key_card.rs`, `web/shared/key-card.js`; relay: `src/relay/handlers/key_cards.rs`, `src/relay/storage/key_cards.rs`; desktop: `src/engine/key_cards.rs`, `src/net/key_pins.rs`, `src/gui/pages/chat/key_change.rs`; website: `web/chat/chat-key-cards.js` (pins in `chat-dm-store.js`)
 
 ### Federation v2
 Generic signed-object gossip + per-issuer continuous trust + dispute objects + multi-hop with cycle-breaking via dedup.
@@ -246,7 +246,7 @@ machine in release mode, RGBA conversion included: 1080p AV1 decodes at
 28 fps on one thread and 69 fps with rav1d's threads (the fixture, 320x180,
 at 1154 and 1802 fps). Design, licence audit and numbers:
 `docs/design/media-player.md`.
-- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread, `attach_audio_with` + `AudioAttach` (looping, the initial mix), `set_audio_mix`, `audio_position_s`, `audio_state`), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `src/audio/mod.rs` (`play_stream` at an absolute amplitude and pan, `master_volume`, `sfx_volume`)
+- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread, `attach_audio_with` + `AudioAttach` (looping, the initial mix), `set_audio_mix`, `audio_position_s`, `audio_state`), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `crates/humanity-core/src/audio/mod.rs` (`play_stream` at an absolute amplitude and pan, `master_volume`, `sfx_volume`)
 - Data: `tests/fixtures/media/*.webm` (synthetic fixtures from `scripts/make-media-fixtures.sh`)
 - Tests: `src/media/tests.rs` (demux, decode, pixels, samples, clock, seek, thread join, ignored fps benchmark)
 
@@ -807,7 +807,7 @@ off the admin role first. Works regardless of server feature toggles.
 Every uploaded JPEG/PNG/WebP is stripped of EXIF/XMP/IPTC/text metadata before
 the bytes touch disk, losslessly (whole-segment removal, no re-encode), so a
 phone photo never publishes GPS coordinates or a camera serial.
-- Server: `src/relay/core/strip_metadata.rs`, hooked in `api.rs::upload_file`
+- Server: `crates/humanity-protocol/src/strip_metadata.rs`, hooked in `api.rs::upload_file`
 
 ### Encrypted Backups (server, 2026-08-23)
 Both backup layers sealed at rest (in-process 6h AES-256-GCM `.db.enc`; VPS
@@ -863,7 +863,7 @@ Reply threads on messages.
 ### Dilithium3 / ML-DSA-65 Identity
 Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No sign-up, no passwords stored on any server. (Ed25519 survives only as the seed scalar and Solana wallet address, see the canonical crypto table in `CLAUDE.md`.)
 - Web: `web/chat/crypto.js` (key derivation), `web/shared/pq-identity.js` (Dilithium signing)
-- Server: `src/relay/relay.rs` (signature verification), `src/relay/core/pq_crypto.rs`
+- Server: `src/relay/relay.rs` (signature verification), `crates/humanity-protocol/src/pq_crypto.rs`
 
 ### BIP39 Recovery Phrase
 Since v0.1506.0 the 24 words, and the device-link code that carries the same key, start covered
@@ -1385,7 +1385,7 @@ As of 2026-10-22 every word of a converted page (both apps) comes from
 `data/i18n/en.json` by key, a missing word falls back to English then to the
 key, and ratchets keep the hardcoded words shrinking (`tests/i18n_lint.rs`,
 `scripts/tests/i18n-web.test.js`). The language picker is in Settings.
-- Native: `src/i18n.rs` (`t`, `tf`, `tn`, `t_marked`)
+- Native: `crates/humanity-core/src/i18n.rs` (`t`, `tf`, `tn`, `t_marked`)
 - Web: `web/shared/i18n.js`, `web/shared/i18n-en.js` (generated by `scripts/gen-i18n.js`)
 - Data: `data/i18n/*.json`
 - Plain-language hints on every control, three hint modes (Full / Hover / Off):
@@ -1452,7 +1452,7 @@ Server-side game world with entity management, position validation, player sync.
 - Server: `src/relay/handlers/game_state.rs`, `src/relay/handlers/ship_world.rs`
 
 ### Moving aboard: the speed check, transit links, delivery by view (ship homes increment 4, 2026-10-04)
-The relay checks every position update against how far anyone can go in the time since (`data/ship/shared_world.ron`: 25 m/s on foot with a margin, 1.5 s banked) and answers a move past it with `game_position_correction`, which the game applies by standing the player back where the relay holds them: corrected, never frozen. The real fast moves are told apart: spawning, a reconnect (as far as the time away allows, at most 90 m), a teleporter by its link ids, shutting the build editor onto one's own plot, driving a vehicle at its own speed. Placed structures have stable ids and pairs name ids (the shipped homestead's west teleporter used to be paired with its ladder by list index). Game news reaches only the players who have the mover in view (250 m, out at 300), never a socket that is only chatting. "Aboard" is inside the ship's bounds, and each home breathes its own air, sized from its design. Nobody is told which plot another player lives on. Declared jumps come at most one a second; the teleporter pads re-arm only once you have stepped off them. The rig walks the game (showcase `walk_to`) the way a person walks with the mouse and W: it turns to face the way it goes, walks, and turns to the facing asked for at the end, at most 150 degrees a second, easing in and out (BUG-165, `src/turning.rs`); it judges one deliberate oversized jump, and walks onto the home's own teleporter and shuts the build editor away from the build spot, each a jump only its declaration explains (the increment 4 review, 2026-10-04).
+The relay checks every position update against how far anyone can go in the time since (`data/ship/shared_world.ron`: 25 m/s on foot with a margin, 1.5 s banked) and answers a move past it with `game_position_correction`, which the game applies by standing the player back where the relay holds them: corrected, never frozen. The real fast moves are told apart: spawning, a reconnect (as far as the time away allows, at most 90 m), a teleporter by its link ids, shutting the build editor onto one's own plot, driving a vehicle at its own speed. Placed structures have stable ids and pairs name ids (the shipped homestead's west teleporter used to be paired with its ladder by list index). Game news reaches only the players who have the mover in view (250 m, out at 300), never a socket that is only chatting. "Aboard" is inside the ship's bounds, and each home breathes its own air, sized from its design. Nobody is told which plot another player lives on. Declared jumps come at most one a second; the teleporter pads re-arm only once you have stepped off them. The rig walks the game (showcase `walk_to`) the way a person walks with the mouse and W: it turns to face the way it goes, walks, and turns to the facing asked for at the end, at most 150 degrees a second, easing in and out (BUG-165, `crates/humanity-core/src/turning.rs`); it judges one deliberate oversized jump, and walks onto the home's own teleporter and shuts the build editor away from the build spot, each a jump only its declaration explains (the increment 4 review, 2026-10-04).
 - Shared: `src/ship/moves.rs`, `src/ship/transit.rs`, `src/ship/ship_space.rs`
 - Server: `src/relay/handlers/move_check.rs`, `src/relay/handlers/game_interest.rs`
 - Game: `src/engine/move_check.rs`
@@ -1483,7 +1483,7 @@ The operator: "the fleet has unlimited of everything and just track what they pl
 ### Crew Chore AI (v0.663; nameplates v0.667)
 Relay-side crew NPCs work through a data-driven chore rotation instead of the old Brownian wander: walk (straight line, no pathfinding yet) to a chore's site (a spot in a room of the ship: the Commons or its mess hall since ship homes increment 3, never on a plot, every walk clear of walls), dwell there "working" for its duration, rotate to the next chore allowed for their role; a crew member who eats goes to the mess hall for its meals (the ship's food stores). Deterministic rotation staggered per crew member; chore state + the human-readable label live in the entity's components (`chore`, `activity`, `chores_done`) so world snapshots / AI perception carry them automatically. State transitions plus 2 Hz travel positions go out as `game_npc_update` to the players who have that crew member in view (since ship homes increment 4; every socket before). Native client spawns/interpolates `RemoteNpc` entities and renders amber humanoid markers for them; each figure turns as a person turns (at most 360 degrees a second, easing in and out) to face the way it is drawn walking, and keeps that facing when it stops, worked out on each screen and never sent (BUG-166). Nameplates SHIPPED (v0.667): the HUD floats each crew member's name over their head out to 40 m, plus the live chore line ("Taking reactor readings") within 15 m -- accent-colored while working at the site, muted while walking to it. Rebuilt every frame from the RemoteNpc components via `GuiState::crew_labels`, drawn through the machine-label world_to_screen path.
 - Server: `src/relay/handlers/game_state.rs` (ChoreDef, tick, tick_chore_agent, next_chore_index, step_toward), `src/relay/mod.rs` (broadcast loop)
-- Native: `src/net/protocol.rs` (NetMessage::NpcUpdate), `src/net/sync.rs` (RemoteNpc, and its facing), `src/turning.rs` (how a figure turns), `src/lib.rs` (route_game_message + render pass + crew_labels refresh), `src/gui/pages/hud.rs` (crew_label_lines + nameplate draw)
+- Native: `src/net/protocol.rs` (NetMessage::NpcUpdate), `src/net/sync.rs` (RemoteNpc, and its facing), `crates/humanity-core/src/turning.rs` (how a figure turns), `src/lib.rs` (route_game_message + render pass + crew_labels refresh), `src/gui/pages/hud.rs` (crew_label_lines + nameplate draw)
 - Data: `data/npc/chores.ron` (14 chores across 6 rooms), `schemas/chore.toml`
 
 ### AI Perception API (v0.131.0)
@@ -1569,9 +1569,9 @@ a need shows once below half; air and body temperature whenever out of range) / 
 
 ### Maps Page
 Multi-scale map with celestial navigation (nav label "Maps", `GuiPage::Maps`; the
-duplicate `GuiPage::Cosmos` variant merged into it in v0.1145). Real Kepler orbital mechanics (`src/cosmos.rs`,
+duplicate `GuiPage::Cosmos` variant merged into it in v0.1145). Real Kepler orbital mechanics (`crates/humanity-core/src/cosmos.rs`,
 one `SolBody` set + one propagator shared by the Maps page, FPS world spawn,
-and the ECS position resolver -- see `src/ecs/cosmos.rs`), a "Focus" button
+and the ECS position resolver -- see `crates/humanity-core/src/ecs/cosmos.rs`), a "Focus" button
 (since Maps increment 1 a flight to the body that then stays with it; it was a
 one-shot snap-to) and a "Track" button (continuous camera follow as the body
 orbits, v0.647.0).
@@ -2159,7 +2159,7 @@ The two pipelines that bake the volumetric cloud march (the cloud shell's transp
 - Measured on `scripts/boot-timing.js`, 3 boots per arm on the same quiet machine the same day (2026-10-19, i7-8700K + RTX 4070, DX12/DXC): to playable median 13.3 s for the v0.1516.0 archive (12.9 to 13.4), 8.7 s with this (8.6 to 8.9); `pipeline_new` 8.3 s to 2.9 s. The clouds compile in 8.3 s and land a median 2.2 s after playable on an autopilot entry that skips the menu; the boot timer reports them as BACKGROUND spans (`cloud_psos_compile`, `clouds_ready_after_open`), never as part of the time to playable. `[Pipelines] clouds ready after N s, in the background` in run.log says when.
 - `scripts/probe-sweep.js` waits for that line before its first capture.
 - Every PSO compile runs on a thread with a 64 MiB stack (a reservation), and none on the main thread. An exe with no `dxcompiler.dll` + `dxil.dll` beside it compiles with FXC, and FXC overflows its thread stack on the Cloud Transparent PSO about 8.4 minutes in whatever the size (64 MiB and 1 GiB both, 2026-10-18), which aborts the process; so an FXC run builds everything else (the world in about 3 minutes) and leaves the clouds OFF, saying so once in run.log. `HUMANITY_FXC_CLOUDS=1` tries the cloud pair under FXC anyway (dev knob).
-- Native: `src/renderer/pipeline.rs` (`CloudPsos`, `spawn_cloud_build`, `poll_clouds`), `src/renderer/deferred_build.rs`, `src/renderer/celestial.rs`, `src/renderer/scene_draw.rs`, `src/boot_timing.rs` (background spans)
+- Native: `src/renderer/pipeline.rs` (`CloudPsos`, `spawn_cloud_build`, `poll_clouds`), `src/renderer/deferred_build.rs`, `src/renderer/celestial.rs`, `src/renderer/scene_draw.rs`, `crates/humanity-core/src/boot_timing.rs` (background spans)
 
 ### Startup: the planet surfaces are prebuilt at boot (v0.1517.0)
 Reading `data/planets/*.ron`, loading or synthesizing each elevation grid, loading each colour grid and baking each surface texture (about 1.2 s) used to run on world entry. It is CPU work on files, so a boot thread does it beside the star-sky prebuild (`net_route::bake_planet_defs`), and the first world entry only installs the result and uploads the textures (`install_planet_defs`, about 60 ms). A planet RON hot reload before world entry drops the prebuild so a stale one is never installed; later entries and hot reloads bake on the main thread as before (`reload_planet_defs`). Measured the same day as the cloud entry above, 3 boots: `planet_defs_bake` 1.22 s to 0.62 s on an autopilot entry that skips the menu (it waits out the rest of the 1.29 s prebuild, reported as the BACKGROUND span `planet_defs_prebuild`), and to playable 8.7 s to 8.4 s (8.3 to 8.6). With anyone on the menu for over a second, the wait is gone.
@@ -2272,7 +2272,7 @@ NOT spawned by anything: fire, smoke, explosion, welding, engine_exhaust, healin
 - Data: `data/particles.ron`, read once at startup (edits take effect on the next launch; it is not hot-reloaded)
 
 ### Bloom Post-Process (v0.90.0, built but not run)
-Half-resolution bright-pixel extraction, Gaussian blur, composite. The pass is built at startup and resized with the window, but nothing calls `BloomPass::apply`: the call site was removed when `bloom_intensity` was set to 0.0 (`src/renderer/mod.rs`), so there is no bloom in the frame and no setting that turns it on. Switching it back on means restoring the call site; the `gpu.bloom` timing row is kept for that (`src/frame_costs.rs`).
+Half-resolution bright-pixel extraction, Gaussian blur, composite. The pass is built at startup and resized with the window, but nothing calls `BloomPass::apply`: the call site was removed when `bloom_intensity` was set to 0.0 (`src/renderer/mod.rs`), so there is no bloom in the frame and no setting that turns it on. Switching it back on means restoring the call site; the `gpu.bloom` timing row is kept for that (`crates/humanity-core/src/frame_costs.rs`).
 - Native: `src/renderer/bloom.rs`
 - Shaders: `assets/shaders/bloom.wgsl`
 
@@ -2364,19 +2364,19 @@ Ship layouts from RON, room mesh generation, BFS pathfinding between rooms.
 
 ### Physics (rapier3d)
 Rigid bodies, colliders, raycasting, simulation stepping.
-- Native: `src/physics/mod.rs`
+- Native: `crates/humanity-core/src/physics/mod.rs`
 
 ### Audio (kira)
 Sound effects, music, spatial audio with distance falloff, volume controls.
-- Native: `src/audio/mod.rs`, `src/audio/sounds.rs`
+- Native: `crates/humanity-core/src/audio/mod.rs`, `crates/humanity-core/src/audio/sounds.rs`
 
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
-- Native: `src/ecs/systems.rs`, `src/ecs/components.rs`
+- Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`
 
 ### Hot-Reload
 File watcher (notify) invalidates asset cache per frame.
-- Native: `src/hot_reload/`, `src/assets/mod.rs`
+- Native: `crates/humanity-core/src/hot_reload/`, `src/assets/mod.rs`
 
 ### Homes on the ship: plots (increment 1a of docs/design/ship-homes-and-logistics.md, v0.1442.0)
 The ship and the home are separate files: `data/blueprints/ship_structure.ron`
@@ -2443,8 +2443,8 @@ up to the running game's copy and keeps each edited one (a stamp,
 linked folder; Settings > Data > "Data folder" lists what the last update did,
 the files it kept with "Use the game's copy", and the files this run did not
 use (BUG-163 part 2, `docs/design/data-folder-updates.md`).
-- Native: `src/mods/mod.rs`, `src/embedded_data.rs` (`load_data_or_embedded`),
-  `src/data_parse.rs` (`refusing_rows`), `src/storage/refresh.rs` (the
+- Native: `crates/humanity-core/src/mods/mod.rs`, `crates/humanity-core/src/embedded_data.rs` (`load_data_or_embedded`),
+  `crates/humanity-core/src/data_parse.rs` (`refusing_rows`), `crates/humanity-core/src/storage/refresh.rs` (the
   refresh), `src/gui/pages/settings/data_folder.rs` (the Settings block)
 - Data: `data/mods/README.md`, `data/mods/example-mod/mod.json`
 
@@ -2500,7 +2500,7 @@ Help and Services since 2026-10-19).
 
 ### Data-Driven Sounds (v0.90.7)
 sounds.rs loads sound configuration from TOML instead of hardcoded data.
-- Native: `src/audio/sounds.rs`
+- Native: `crates/humanity-core/src/audio/sounds.rs`
 - Data: `data/sounds.toml`
 
 ### Chat Tint Colors in Theme (v0.90.7)
@@ -2558,7 +2558,7 @@ lissajous graze paths. Walk-up `[E]` collects the regrown product (egg/milk/wool
 volume-gated into the pack, grants farming XP + a `harvest_<creature>` quest event.
 Placeholder block bodies sized from real species mass.
 - Native: `src/systems/livestock.rs` (registry, spawn list, collect, LivestockSystem),
-  `src/ecs/components.rs` (`Creature`, `Harvestable`), lib.rs walk-up + collect bridges + render pass
+  `crates/humanity-core/src/ecs/components.rs` (`Creature`, `Harvestable`), lib.rs walk-up + collect bridges + render pass
 - Data: `data/creatures.csv`, `data/entities/livestock.ron`, `wool_0` in `data/items.csv`
 - **Animal care (2026-10-12, first-hour audit S6):** each kept animal eats real dry matter a
   day from home storage (the machines' `home_stock` channel; which items are feed is
@@ -2896,7 +2896,7 @@ an "Auto-build:" recipe dropdown (v0.725): same-station recipes.csv rows,
 selection rewrites the entity's AutoRefine (home.ron auto_recipe = default
 only). The dropdown is its own interactable Area — the HUD layer is
 deliberately paint-only (v0.461 click-eating lesson).
-- Native: `src/gui/pages/hud.rs` (cards + `draw_machine_recipe_selector`), `src/lib.rs` (live-stat + selector bridges), `src/ecs/components.rs` (`MachineInstanceId`)
+- Native: `src/gui/pages/hud.rs` (cards + `draw_machine_recipe_selector`), `src/lib.rs` (live-stat + selector bridges), `crates/humanity-core/src/ecs/components.rs` (`MachineInstanceId`)
 
 ### Crafting
 Recipe matching from CSV, input validation, timed crafting.
@@ -3226,7 +3226,7 @@ becomes finished tools on its own. Three pieces:
   (previously they all ran on raw frame dt and ignored the time scale).
 Locked by 5 new tests, incl. `full_chain_drone_ore_becomes_a_hammer_untouched`: one
 drone commission -> ore -> auto-smelted ingot -> auto-crafted hammer, untouched.
-- Native: `src/systems/crafting/mod.rs` (AutoRefine arm + completion redirect), `src/systems/mining.rs` (standing order), `src/systems/time.rs` (`scaled_dt`), `src/systems/manufacturing.rs`, `src/ecs/components.rs` (`AutoRefine`), `src/machines.rs` (`MachineDef::auto_recipe`), `src/lib.rs` (spawn + bridge), `src/gui/pages/inventory.rs` ("Keep mining")
+- Native: `src/systems/crafting/mod.rs` (AutoRefine arm + completion redirect), `src/systems/mining.rs` (standing order), `src/systems/time.rs` (`scaled_dt`), `src/systems/manufacturing.rs`, `crates/humanity-core/src/ecs/components.rs` (`AutoRefine`), `src/machines.rs` (`MachineDef::auto_recipe`), `src/lib.rs` (spawn + bridge), `src/gui/pages/inventory.rs` ("Keep mining")
 - Data: `data/machines/home.ron` (smelter `auto_recipe` + the new workbench machine)
 
 ### Economy Automation Phase 2, Stage 1: Vehicle Kits (v0.677)
@@ -3293,7 +3293,7 @@ pad lanes automatically reuse the slot a summoned vehicle vacates.
 Remaining Stage 3: follow-cam, take-over driving (VehicleSystem's dormant
 enter/exit arms), the buy-side order flow (gated on the wallet/currency decision).
 - Native: `src/systems/vehicles/mod.rs` (summon + `tick_routes`), `src/systems/crafting/mod.rs` (`auto_craft_status`), `src/gui/pages/inventory.rs` (Vehicles section), `src/net/sync.rs` (crew grounding, v0.681), `src/lib.rs` (sync + bridges + `drone_dock_anim`)
-- Native: `src/systems/vehicles/mod.rs` (registry + deploy arm), `src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
+- Native: `src/systems/vehicles/mod.rs` (registry + deploy arm), `crates/humanity-core/src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
 - Data: `data/vehicles/kits.ron`, `data/items.csv` (kit rows), `data/recipes.csv` (kit recipes)
 
 > The old "Navigation" and "Logistics" support-module entries were removed 2026-07-02:
@@ -3869,7 +3869,7 @@ buildability check sizes each data run (bandwidth + range via `check_data_link`)
 exactly like a wired one wherever its bandwidth and range suffice. (Until 2026-09-27 it also warned that
 a wireless link's RF can harm a grow; that warning went with the crop harm, see below.) The seed home
 wires its uplink to its server over Cat6.
-- Native: `src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
+- Native: `crates/humanity-core/src/utilities.rs` (`Port.mbps`, `Port::data_in`/`data_out`), `src/machines.rs` (`data_demand_mbps`, the "Data links" check), `src/gui/pages/construction.rs` (the "data" kind + the data-medium picker)
 - Data: `data/machines/home.ron` (`network_uplink`, `home_server`, a `data` connection on `eth_cat6`)
 
 ### Telecom RF -> Plant Harm (v0.620) -- REMOVED 2026-09-27
@@ -3888,7 +3888,7 @@ The internet/telecom utility: teach real telecommunications. Data is `Utility::D
 emission. Stage 1 ships the data model + link physics + 3 core media; emissions becoming detection
 signatures + the full media catalog are later stages. (RF harming plants was built in v0.620 and removed
 2026-09-27; the medium's `rf_emission` stays as the real property a detection layer would read.)
-- Native: `src/utilities.rs` (`ConduitType` data fields `bandwidth_mbps`/`range_m`/`latency_ms`/`wireless`/`rf_emission`, `ConductorMaterial::{Glass,Radio}`, `check_data_link`/`cheapest_data_link_for`/`data_media`)
+- Native: `crates/humanity-core/src/utilities.rs` (`ConduitType` data fields `bandwidth_mbps`/`range_m`/`latency_ms`/`wireless`/`rf_emission`, `ConductorMaterial::{Glass,Radio}`, `check_data_link`/`cheapest_data_link_for`/`data_media`)
 - Data: `data/utilities/conduits.ron` (`eth_cat6` quiet wired workhorse, `fiber_om4` high-bandwidth no-RF, `wifi_6` convenient but RF-loud)
 - Design: `docs/design/telecom.md` (the 21-media catalog + the emissions-as-signature design + the staged plan)
 
@@ -3898,7 +3898,7 @@ A closed `Utility` enum (Electricity, Water, HotWater, Air, Data, Fuel, Nutrient
 NEC-ish copper specs (AWG, ampacity, voltage rating, ohm/m, cost/m, grade). `check_cable` computes amps +
 round-trip voltage drop into Pass/Warn/Fail; `cheapest_cable_for` is the auto-picker; `awg_to_mm2` for
 display.
-- Native: `src/utilities.rs` (`Utility`, `Port`, `ConduitType`, `ConductorMaterial`, `Grade`, `check_cable`, `cheapest_cable_for`, `conduit_types`)
+- Native: `crates/humanity-core/src/utilities.rs` (`Utility`, `Port`, `ConduitType`, `ConductorMaterial`, `Grade`, `check_cable`, `cheapest_cable_for`, `conduit_types`)
 - Data: `data/utilities/conduits.ron` (copper 14/12/10 AWG home, 6 AWG industrial shielded, the `sc_room_temp` superconductor upgrade target, two water pipes)
 - Design: `docs/design/utility-wiring.md`
 
@@ -3914,21 +3914,21 @@ The utility-lines editor gives every POWER run a cable dropdown: "auto (cheapest
 type from the registry (copper 14/12/10/6 AWG ... the room-temp superconductor). Picking sets the
 connection's `spec`; the Conduits buildability check then validates it (over-ampacity or >5% voltage drop
 -> warn/fail), so the whole cable-physics system is finally interactive in the editor.
-- Native: `src/gui/pages/construction.rs` (`draw_machines_and_connections`, the cable ComboBox writing `MachineConnection.spec`), choices from `src/utilities.rs::conduit_types`
+- Native: `src/gui/pages/construction.rs` (`draw_machines_and_connections`, the cable ComboBox writing `MachineConnection.spec`), choices from `crates/humanity-core/src/utilities.rs::conduit_types`
 
 ### Machine Ports + Conduit Checks (v0.605 - v0.606)
 `MachineDef` gained `ports: Vec<Port>` + a `derive_ports()` fallback (electrical ports inferred from the
 power role; fluid ports declared); `MachineConnection` gained `spec: Option<String>` (a pinned cable id,
 else auto-pick). The Conduits + Power circuit buildability checks consume these. The seed `home.ron` is a
 physically connected network (PV + wind + generator to battery bus to loads).
-- Native: `src/machines.rs` (`MachineDef::derive_ports`, `MachineConnection.spec`), `src/utilities.rs`
+- Native: `src/machines.rs` (`MachineDef::derive_ports`, `MachineConnection.spec`), `crates/humanity-core/src/utilities.rs`
 
 ### Runtime Power-Flow Gating (v0.607)
 Each spawned power entity carries a `PowerCircuit { island }` from `MachineHome::electrical_islands`, so
 `ElectricalSystem` balances + sheds PER ISLAND instead of summing the whole world. A load on an
 unconnected circuit is shed (no magic transmission). Entities without the component fall into one shared
 bucket (the old global behaviour, for tests/legacy).
-- Native: `src/ecs/components.rs` (`PowerCircuit`), `src/machines.rs` (`electrical_islands`, `power_component_roots`), `src/systems/electrical.rs`
+- Native: `crates/humanity-core/src/ecs/components.rs` (`PowerCircuit`), `src/machines.rs` (`electrical_islands`, `power_component_roots`), `src/systems/electrical.rs`
 
 ### Live Water / Plumbing Sim + Power Coupling (v0.608)
 The water mirror of the electrical sim, and the first POWER -> WATER consequence chain. A machine's
@@ -3937,7 +3937,7 @@ water producers/consumers derive from its PORTS (`flow_lpm`); a cistern's capaci
 cistern per island and publishes a live `WaterStatus` (production, demand, stored, days autonomy). A
 producer/consumer flagged `needs_power` only flows while the SAME entity is powered -- cut the power and
 the pump stops, the cistern drains. Shown on the Home page next to Live power.
-- Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
+- Native: `src/systems/plumbing.rs` (`PlumbingSystem`, `WaterStatus`), `crates/humanity-core/src/ecs/components.rs` (`WaterTank`, `WaterProducer`, `WaterConsumer`, `PlumbingCircuit`), `src/machines.rs` (`water_islands`, `MachineStorage`, `water_production_lpm`/`water_demand_lpm`/`water_capacity_l`), `src/gui/pages/homes.rs` (Live water card)
 - Data: `data/machines/home.ron` (cistern storage + rain inflow, pump water-out, tower/irrigation water-in)
 
 ### Live Air / Atmosphere Sim + power -> air -> Vitals (v0.617 - v0.618)
@@ -4235,7 +4235,7 @@ error line), `panic`, and `mark`. F8 on any page (or the dev IPC's `{"action": "
 a numbered mark with that frame's picture (`marks/<n>.png`, the last 30 kept). A Claude session
 reads it through the dev MCP, even after the game closed: `dev_play_marks` lists the marks,
 `dev_play_journal {since_mark: 12}` gives everything after one. Never in it: message words, keys,
-tokens, recovery phrases. `src/play_journal.rs` (its frame half `src/engine/play_journal_frame.rs`), `data/dev/journal_kinds.json`,
+tokens, recovery phrases. `crates/humanity-core/src/play_journal.rs` (its frame half `src/engine/play_journal_frame.rs`), `data/dev/journal_kinds.json`,
 `scripts/mcp-server.js`. In the app: Dev > Journal (`src/gui/pages/dev_journal.rs`, rung 2): each
 kind's count and newest event, the marks with Open picture, Mark this moment, Open the folder and
 Clear the journal. Rung 3 (the same day): `page` (each page change), `frame` (hitches: 100 ms and
@@ -4370,7 +4370,7 @@ means from the data (at 1x a day takes a real day and a lettuce its real 45 days
 and a lettuce grows in about 15 hours). The relay applies it to the running world at
 once and sends a `game_time_sync` carrying `time_scale` to every game (`handlers/server_settings_update.rs`
 `set_world_clock`); a game runs at the host's speed between words (`time::HostClock`). Only the clock is scaled: the
-crew walk and do their chores in real seconds. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their
+crew walk and do their chores in real seconds. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `crates/humanity-core/src/player_look.rs`): their
 skin tone, hair colour and height travel in `game_join` (clamped by the relay and the client), and their figure's head
 and a cap of hair wear them, sized by their height (`net_route::remote_figure_parts`); the body stays teal.
 - Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`
@@ -4432,7 +4432,7 @@ timed in parts so a spike names its cause: a home rebuild (`cpu.home_rebuild.*`,
 "Homestead rebuilt: N rooms in X ms (...)"), a page screen's turns up to its first picture
 (`cpu.screen_first.*`, and a `[Screens]` log line), and the save (`cpu.save.read`, `.extract`,
 `.serialize`, `.disk`, `.write`). These are parts of stages already counted, never rows of their own.
-- Native: `src/frame_costs.rs` (`note_spike`, `spikes()`, `SPIKE_OVER_MS`, `SPIKES_KEPT`;
+- Native: `crates/humanity-core/src/frame_costs.rs` (`note_spike`, `spikes()`, `SPIKE_OVER_MS`, `SPIKES_KEPT`;
   `spikes` in `snapshot_json`, read by the dev MCP's `game_frame_costs`), the timers in
   `src/engine/home_meshes.rs` (`RebuildParts`), `src/gui/screen_surface.rs`
   (`note_first_turn`), `src/persistence.rs` and `src/save_load.rs`; test

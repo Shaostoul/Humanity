@@ -7,9 +7,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::CargoVehicle;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::CargoVehicle;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Game seconds in a day: 24 hours of the one game clock (2026-09-27).
 const REAL_SECONDS_PER_GAME_DAY: f32 = crate::systems::time::EARTH_DAY_S as f32;
@@ -83,7 +83,7 @@ mod tests {
     /// error. Every list the shipped file writes must arrive.
     #[test]
     fn the_shipped_transportation_file_fills_every_list() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let s = TransportationSystem::new(&dir);
         assert!(!s.data.roads.is_empty(), "data/transportation.ron's roads arrive");
         assert!(!s.data.rail.is_empty(), "data/transportation.ron's rail arrives");

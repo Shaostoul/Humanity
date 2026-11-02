@@ -18,8 +18,8 @@ pub mod workstations;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::containers;
 use crate::systems::inventory::Inventory;
 
@@ -117,7 +117,7 @@ impl RecipeRegistry {
     /// populate `DataStore["recipe_registry"]` — before v0.323 the CSV was loaded
     /// then discarded, so CraftingSystem found no recipes and could craft nothing.
     pub fn from_csv(data: &[u8]) -> Result<Self, String> {
-        let rows: Vec<RecipeRow> = crate::data_parse::parse_csv(data)?;
+        let rows: Vec<RecipeRow> = humanity_core::data_parse::parse_csv(data)?;
         let mut recipes = HashMap::new();
         for row in rows {
             let station = row.station_required.trim();
@@ -214,8 +214,8 @@ mod recipe_registry_csv_tests {
 #[cfg(test)]
 mod crafting_end_to_end_tests {
     use super::*;
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
     /// A FINISHED CRAFT REPORTS EVERY UNIT IT MADE (2026-10-02), for quest
@@ -226,7 +226,7 @@ mod crafting_end_to_end_tests {
     #[test]
     fn a_finished_craft_reports_each_unit_it_made_for_quests() {
         let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/recipes.csv"
         )))
         .expect("recipes.csv parses");
@@ -258,12 +258,12 @@ mod crafting_end_to_end_tests {
         // that silently no-op'd before the registries were wired into the runtime
         // DataStore (v0.323) — recipe_registry was always None, so nothing crafted.
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv parses");
         let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/recipes.csv"
         )))
         .expect("recipes.csv parses");
@@ -315,9 +315,9 @@ mod crafting_end_to_end_tests {
 #[cfg(test)]
 mod crafting_bridge_tests {
     use super::*;
-    use crate::ecs::components::Controllable;
-    use crate::ecs::systems::System;
-    use crate::hot_reload::data_store::DataStore;
+    use humanity_core::ecs::components::Controllable;
+    use humanity_core::ecs::systems::System;
+    use humanity_core::hot_reload::data_store::DataStore;
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
     /// Full GUI->ECS loop: the dev "stock all materials" flag provisions the player
@@ -327,12 +327,12 @@ mod crafting_bridge_tests {
     #[test]
     fn dev_stock_then_gui_craft_request_runs_the_full_loop() {
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
         let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/recipes.csv"
         )))
         .expect("recipes.csv");
@@ -587,7 +587,7 @@ impl CraftingSystem {
     pub fn station_unpowered(world: &hecs::World, machine_type: &str) -> Option<String> {
         let mut electric = false;
         for (_e, (mt, pc)) in world
-            .query::<(&crate::ecs::components::MachineType, &crate::ecs::components::PowerConsumer)>()
+            .query::<(&humanity_core::ecs::components::MachineType, &humanity_core::ecs::components::PowerConsumer)>()
             .iter()
         {
             if mt.0 == machine_type {
@@ -612,7 +612,7 @@ impl CraftingSystem {
         machine_type: &str,
         frame: Option<&crate::systems::construction::PlanetSite>,
     ) -> Option<String> {
-        use crate::ecs::components::{MachineType, PowerConsumer, StationLoad};
+        use humanity_core::ecs::components::{MachineType, PowerConsumer, StationLoad};
         use crate::systems::construction::{site::in_frame, PlanetSite};
         let (mut electric, mut off_grid) = (false, false);
         for (_e, (mt, pc, load, site)) in world
@@ -934,7 +934,7 @@ impl System for CraftingSystem {
         // pending-craft loop further down.
         let mut player: Option<hecs::Entity> = None;
         for (entity, (inv, _ctrl)) in
-            world.query_mut::<(&mut Inventory, &crate::ecs::components::Controllable)>()
+            world.query_mut::<(&mut Inventory, &humanity_core::ecs::components::Controllable)>()
         {
             player = Some(entity);
             if do_stock {
@@ -958,7 +958,7 @@ impl System for CraftingSystem {
             // player stands in: completion keys auto outputs on the `auto`
             // flag and busy-checks on machine_id, so the stand-in is inert.
             let machines: std::collections::HashMap<String, hecs::Entity> = world
-                .query::<&crate::ecs::components::MachineInstanceId>()
+                .query::<&humanity_core::ecs::components::MachineInstanceId>()
                 .iter()
                 .map(|(e, id)| (id.0.clone(), e))
                 .collect();
@@ -1065,8 +1065,8 @@ impl System for CraftingSystem {
             let mut auto_starts: Vec<(hecs::Entity, String, Option<u32>)> = Vec::new();
             for (machine, (auto, inst)) in world
                 .query::<(
-                    &crate::ecs::components::AutoRefine,
-                    Option<&crate::ecs::components::MachineInstanceId>,
+                    &humanity_core::ecs::components::AutoRefine,
+                    Option<&humanity_core::ecs::components::MachineInstanceId>,
                 )>()
                 .iter()
             {
@@ -1153,7 +1153,7 @@ impl System for CraftingSystem {
                 // The machine's pose IS the factory pad for vehicle outputs;
                 // captured now because the machine may despawn mid-batch.
                 let pad = world
-                    .get::<&crate::ecs::components::Transform>(machine)
+                    .get::<&humanity_core::ecs::components::Transform>(machine)
                     .ok()
                     .map(|t| (t.position, t.rotation));
                 // Vehicle recipes also need a FREE pad lane before consuming
@@ -1196,7 +1196,7 @@ impl System for CraftingSystem {
                 }
                 statuses.push(format!("{} — starting", recipe.name));
                 let machine_id = world
-                    .get::<&crate::ecs::components::MachineInstanceId>(machine)
+                    .get::<&humanity_core::ecs::components::MachineInstanceId>(machine)
                     .ok()
                     .map(|i| i.0.clone());
                 self.active_crafts.push(ActiveCraft {
@@ -1407,7 +1407,7 @@ impl System for CraftingSystem {
                 // The crafter's pose is the pad for vehicle outputs (a manual
                 // vehicle craft rolls out in front of the PLAYER).
                 let pad = world
-                    .get::<&crate::ecs::components::Transform>(request.crafter)
+                    .get::<&humanity_core::ecs::components::Transform>(request.crafter)
                     .ok()
                     .map(|t| (t.position, t.rotation));
 
@@ -1463,7 +1463,7 @@ impl System for CraftingSystem {
         // captured when it started: a restored batch, or one whose machine was
         // respawned, holds a stale entity (2026-09-26).
         let machines_by_id: std::collections::HashMap<String, hecs::Entity> = world
-            .query::<&crate::ecs::components::MachineInstanceId>()
+            .query::<&humanity_core::ecs::components::MachineInstanceId>()
             .iter()
             .map(|(e, id)| (id.0.clone(), e))
             .collect();
@@ -1474,7 +1474,7 @@ impl System for CraftingSystem {
                 if c.auto {
                     let machine = c.machine_id.as_ref().and_then(|id| machines_by_id.get(id)).copied().unwrap_or(c.crafter);
                     world
-                        .get::<&crate::ecs::components::PowerConsumer>(machine)
+                        .get::<&humanity_core::ecs::components::PowerConsumer>(machine)
                         .map(|pc| !pc.enabled)
                         .unwrap_or(false)
                 } else {
@@ -1607,9 +1607,9 @@ impl System for CraftingSystem {
             .collect();
         let mut claimed: std::collections::HashSet<String> = std::collections::HashSet::new();
         for (e, (mt, load, pc)) in world.query_mut::<(
-            &crate::ecs::components::MachineType,
-            &crate::ecs::components::StationLoad,
-            &mut crate::ecs::components::PowerConsumer,
+            &humanity_core::ecs::components::MachineType,
+            &humanity_core::ecs::components::StationLoad,
+            &mut humanity_core::ecs::components::PowerConsumer,
         )>() {
             // A station with a craft on it keeps its working demand even while
             // shed (2026-09-26): dropping it would let the station switch back
@@ -1658,7 +1658,7 @@ impl CraftingSystem {
         'lanes: for lane in 0..MAX_PAD_LANES {
             let slot = Self::pad_lane_pos(base, rot, lane);
             for (_e, (_v, t)) in world
-                .query::<(&crate::ecs::components::Vehicle, &crate::ecs::components::Transform)>()
+                .query::<(&humanity_core::ecs::components::Vehicle, &humanity_core::ecs::components::Transform)>()
                 .iter()
             {
                 if (t.position - slot).length_squared() < clearance_sq {
@@ -1727,7 +1727,7 @@ impl CraftingSystem {
             let (base, rot) = pad
                 .or_else(|| {
                     world
-                        .get::<&crate::ecs::components::Transform>(target)
+                        .get::<&humanity_core::ecs::components::Transform>(target)
                         .ok()
                         .map(|t| (t.position, t.rotation))
                 })
@@ -1752,18 +1752,18 @@ impl CraftingSystem {
                     });
                     let pos = Self::pad_lane_pos(base, rot, lane);
                     world.spawn((
-                        crate::ecs::components::Vehicle { item_id: item_id.clone() },
-                        crate::ecs::components::Transform {
+                        humanity_core::ecs::components::Vehicle { item_id: item_id.clone() },
+                        humanity_core::ecs::components::Transform {
                             position: pos,
                             rotation: rot,
                             scale: glam::Vec3::ONE,
                         },
-                        crate::ecs::components::Velocity::default(),
-                        crate::ecs::components::VehicleSeat {
+                        humanity_core::ecs::components::Velocity::default(),
+                        humanity_core::ecs::components::VehicleSeat {
                             occupant_key: None,
                             seat_type: "pilot".to_string(),
                         },
-                        crate::ecs::components::Name(def.display_name.clone()),
+                        humanity_core::ecs::components::Name(def.display_name.clone()),
                     ));
                     log::info!("Factory pad: {} rolled out at {pos}", def.display_name);
                 }
@@ -1834,12 +1834,12 @@ mod refining_chain_tests {
     #[test]
     fn nickel_platinum_refining_chain_is_wired() {
         let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/recipes.csv"
         )))
         .expect("recipes.csv");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -1880,7 +1880,7 @@ mod refining_chain_tests {
 #[cfg(test)]
 mod skill_xp_tests {
     use super::*;
-    use crate::ecs::components::Controllable;
+    use humanity_core::ecs::components::Controllable;
     use crate::systems::inventory::{Inventory, ItemRegistry};
     use crate::systems::skills::SkillXPEvent;
 
@@ -1894,7 +1894,7 @@ mod skill_xp_tests {
             test_smelt,Test Smelt,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metalworking,2,test\n";
         let recipes = RecipeRegistry::from_csv(recipe_csv).expect("recipes");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -1946,7 +1946,7 @@ mod skill_xp_tests {
             test_forge,Test Forge,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metalworking,3,test\n";
         let recipes = RecipeRegistry::from_csv(recipe_csv).expect("recipes");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .expect("items.csv");
@@ -2056,7 +2056,7 @@ mod skill_xp_tests {
         let mut inv = Inventory::new(16);
         inv.add_item("flour_0", 4, 20);
         let player = world.spawn((inv, Controllable));
-        let tank = world.spawn((crate::ecs::components::WaterTank { liters: 1.5, capacity_l: 100.0 },));
+        let tank = world.spawn((humanity_core::ecs::components::WaterTank { liters: 1.5, capacity_l: 100.0 },));
         let craft = |world: &mut hecs::World| {
             *data.get::<std::sync::Mutex<Option<String>>>("craft_request").unwrap().lock().unwrap() =
                 Some("knead".into());
@@ -2064,7 +2064,7 @@ mod skill_xp_tests {
         };
         craft(&mut world);
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("dough_0"), 1, "made with tank water");
-        let left = world.get::<&crate::ecs::components::WaterTank>(tank).unwrap().liters;
+        let left = world.get::<&humanity_core::ecs::components::WaterTank>(tank).unwrap().liters;
         assert!((left - 0.5).abs() < 1e-4, "one litre came out of the tank: {left}");
         craft(&mut world);
         let inv = world.get::<&Inventory>(player).unwrap();
@@ -2125,7 +2125,7 @@ mod skill_xp_tests {
     /// the craft runs, dropping back to idle when it finishes.
     #[test]
     fn an_electric_station_needs_power_and_draws_it_only_while_working() {
-        use crate::ecs::components::{MachineType, PowerConsumer, StationLoad};
+        use humanity_core::ecs::components::{MachineType, PowerConsumer, StationLoad};
         let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
              fry,Fry,cooking,egg_0:1,fried_egg_0:1,2,stove_0,,0,test\n";
         let mut data = DataStore::new();
@@ -2196,7 +2196,7 @@ mod skill_xp_tests {
         data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
         let mut world = hecs::World::new();
         let player = world.spawn((Inventory::new(16), Controllable));
-        world.spawn((crate::ecs::components::AutoRefine { recipe_id: "mill".to_string(), keep: Some(6) },));
+        world.spawn((humanity_core::ecs::components::AutoRefine { recipe_id: "mill".to_string(), keep: Some(6) },));
         let mut sys = CraftingSystem::new();
         let filed = |data: &DataStore| -> u32 {
             data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
@@ -2247,7 +2247,7 @@ mod skill_xp_tests {
             "item_registry",
             ItemRegistry::from_csv(b"id,name,weight_kg,stack_size,volume_l,durability\niron_0,Iron,1,20,0.2,0\nhammer_0,Hammer,0.8,1,0.3,200\nchips_0,Chips,0.1,50,0.1,0\n").unwrap(),
         );
-        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/manufacturing.ron")).unwrap();
+        let bytes = std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/manufacturing.ron")).unwrap();
         data.insert("quality_levels", quality::QualityLevels::from_ron(&bytes).unwrap());
         data.insert("dev_stock_materials", std::sync::Mutex::new(false));
         data.insert("craft_request", std::sync::Mutex::new(Option::<String>::None));
@@ -2273,7 +2273,7 @@ mod skill_xp_tests {
     /// every tick, start more crafts and repeat the notice.
     #[test]
     fn a_stove_short_of_power_pauses_once_and_stays_paused() {
-        use crate::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
+        use humanity_core::ecs::components::{MachineType, PowerCircuit, PowerConsumer, PowerGenerator, StationLoad};
         use crate::systems::electrical::{ElectricalSystem, PowerStatus};
         let recipe_csv = "id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
              fry,Fry,cooking,egg_0:1,fried_egg_0:1,2,stove_0,,0,test\n";
@@ -2317,7 +2317,7 @@ mod skill_xp_tests {
     /// respawns, so the power hold must look the machine up by id.
     #[test]
     fn a_restored_batch_holds_on_its_own_machines_power() {
-        use crate::ecs::components::{MachineInstanceId, PowerConsumer};
+        use humanity_core::ecs::components::{MachineInstanceId, PowerConsumer};
         let (data, mut world, player) = big_output_world(5.0);
         let machine = world.spawn((MachineInstanceId("bench_1".into()), PowerConsumer { draw_watts: 0.0, priority: 2, enabled: false }));
         let mut sys = CraftingSystem::new();
@@ -2386,7 +2386,7 @@ mod skill_xp_tests {
 #[cfg(test)]
 mod auto_refine_tests {
     use super::*;
-    use crate::ecs::components::{AutoRefine, Controllable};
+    use humanity_core::ecs::components::{AutoRefine, Controllable};
     use crate::systems::inventory::{Inventory, ItemRegistry};
 
     fn real_data() -> DataStore {
@@ -2394,7 +2394,7 @@ mod auto_refine_tests {
         data.insert(
             "recipe_registry",
             RecipeRegistry::from_csv(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/recipes.csv"
             )))
             .expect("recipes.csv"),
@@ -2402,7 +2402,7 @@ mod auto_refine_tests {
         data.insert(
             "item_registry",
             ItemRegistry::from_csv(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/items.csv"
             )))
             .expect("items.csv"),
@@ -2445,8 +2445,8 @@ mod auto_refine_tests {
         data.insert(
             "container_registry",
             ContainerRegistry::from_bytes(
-                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/types.csv")),
-                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/containers/content_classes.ron")),
+                include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/containers/types.csv")),
+                include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/containers/content_classes.ron")),
             )
             .expect("container registry"),
         );
@@ -2500,7 +2500,7 @@ mod auto_refine_tests {
         let recipes = data.get::<RecipeRegistry>("recipe_registry").unwrap();
         let items = data.get::<ItemRegistry>("item_registry").unwrap();
         let home = crate::systems::grow_machines::load_home(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines/home.ron"),
+            &std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/machines/home.ron"),
         )
         .expect("home.ron");
         let auto = home.catalog["fuel_refinery"].auto_recipe.clone().expect("the refinery runs by itself");
@@ -2532,7 +2532,7 @@ mod auto_refine_tests {
         assert!(!items.items.contains_key("fuel_refined_0"), "Refined Fuel is retired");
         for file in ["home.ron", "home_solo.ron"] {
             let h = crate::systems::grow_machines::load_home(
-                &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/machines").join(file),
+                &std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/machines").join(file),
             )
             .expect("home");
             assert_eq!(h.catalog["generator_portable"].fuels(), ["gasoline_0".to_string()], "{file}");
@@ -2573,7 +2573,7 @@ mod auto_refine_tests {
     /// (each tick, what was filed is put away). The backpack is never touched.
     #[test]
     fn full_chain_drone_ore_becomes_a_hammer_untouched() {
-        use crate::ecs::components::AsteroidBody;
+        use humanity_core::ecs::components::AsteroidBody;
 
         let mut data = real_data();
         data.insert(
@@ -2714,7 +2714,7 @@ mod auto_refine_tests {
     /// beside it. Stock for two batches, so a double start would show.
     #[test]
     fn in_flight_batch_survives_a_restart_without_doubling_up() {
-        use crate::ecs::components::MachineInstanceId;
+        use humanity_core::ecs::components::MachineInstanceId;
         let mut data = real_data();
         data.insert("active_crafts_export", std::sync::Mutex::new(Vec::<CraftSave>::new()));
         data.insert("restore_active_crafts", std::sync::Mutex::new(Option::<Vec<CraftSave>>::None));
@@ -2821,7 +2821,7 @@ mod auto_refine_tests {
 #[cfg(test)]
 mod vehicle_factory_tests {
     use super::*;
-    use crate::ecs::components::{AutoRefine, Controllable, Name, Transform, Vehicle};
+    use humanity_core::ecs::components::{AutoRefine, Controllable, Name, Transform, Vehicle};
     use crate::systems::inventory::{Inventory, ItemRegistry};
     use crate::systems::vehicles::VehicleKitRegistry;
 
@@ -2832,7 +2832,7 @@ mod vehicle_factory_tests {
         data.insert(
             "recipe_registry",
             RecipeRegistry::from_csv(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/recipes.csv"
             )))
             .expect("recipes.csv"),
@@ -2840,7 +2840,7 @@ mod vehicle_factory_tests {
         data.insert(
             "item_registry",
             ItemRegistry::from_csv(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/items.csv"
             )))
             .expect("items.csv"),
@@ -2848,7 +2848,7 @@ mod vehicle_factory_tests {
         data.insert(
             "vehicle_kit_registry",
             VehicleKitRegistry::from_ron(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/vehicles/kits.ron"
             )))
             .expect("kits.ron"),
@@ -3113,12 +3113,12 @@ mod vehicle_factory_tests {
     #[test]
     fn assembler_data_is_wired() {
         let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/recipes.csv"
         )))
         .expect("recipes.csv");
         let kits = VehicleKitRegistry::from_ron(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/vehicles/kits.ron"
         )))
         .expect("kits.ron");
@@ -3139,7 +3139,7 @@ mod vehicle_factory_tests {
             );
         }
         let home_ron = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/machines/home.ron"
         ));
         assert!(
@@ -3156,7 +3156,7 @@ mod vehicle_factory_tests {
 #[cfg(test)]
 mod factory_review_fix_tests {
     use super::*;
-    use crate::ecs::components::{AutoRefine, Controllable, Transform, Vehicle, VehicleSeat, Velocity};
+    use humanity_core::ecs::components::{AutoRefine, Controllable, Transform, Vehicle, VehicleSeat, Velocity};
     use crate::systems::inventory::{Inventory, ItemRegistry};
     use crate::systems::vehicles::VehicleKitRegistry;
 
@@ -3165,7 +3165,7 @@ mod factory_review_fix_tests {
         data.insert(
             "recipe_registry",
             RecipeRegistry::from_csv(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/recipes.csv"
             )))
             .expect("recipes.csv"),
@@ -3173,7 +3173,7 @@ mod factory_review_fix_tests {
         data.insert(
             "item_registry",
             ItemRegistry::from_csv(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/items.csv"
             )))
             .expect("items.csv"),
@@ -3181,7 +3181,7 @@ mod factory_review_fix_tests {
         data.insert(
             "vehicle_kit_registry",
             VehicleKitRegistry::from_ron(include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
+                env!("HUMANITY_REPO_ROOT"),
                 "/data/vehicles/kits.ron"
             )))
             .expect("kits.ron"),

@@ -6,7 +6,7 @@ use super::*;
 
 /// The preset built into the exe (the same bytes as data/gui/safety_presets.json).
 fn preset() -> Preset {
-    parse_presets(crate::embedded_data::SAFETY_PRESETS_JSON.as_bytes()).expect("the built-in presets parse")
+    parse_presets(humanity_core::embedded_data::SAFETY_PRESETS_JSON.as_bytes()).expect("the built-in presets parse")
 }
 
 /// A verifier at few iterations, so the tests of what is done WITH a verifier stay quick; one
@@ -25,9 +25,9 @@ fn quick(pin: &str) -> PinVerifier {
 /// the preset's rows after the call row was changed in a copy: "the preset's call row" failed.
 #[test]
 fn the_preset_is_read_from_the_real_file() {
-    let on_disk = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join(PRESETS_FILE)).expect("data/gui/safety_presets.json");
-    assert_eq!(crate::embedded_data::SAFETY_PRESETS_JSON.as_bytes(), on_disk.as_slice(), "the built-in copy is the file in data/");
-    assert_eq!(crate::embedded_data::get_embedded(PRESETS_FILE), Some(crate::embedded_data::SAFETY_PRESETS_JSON), "and the lookup finds it");
+    let on_disk = std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join(PRESETS_FILE)).expect("data/gui/safety_presets.json");
+    assert_eq!(humanity_core::embedded_data::SAFETY_PRESETS_JSON.as_bytes(), on_disk.as_slice(), "the built-in copy is the file in data/");
+    assert_eq!(humanity_core::embedded_data::get_embedded(PRESETS_FILE), Some(humanity_core::embedded_data::SAFETY_PRESETS_JSON), "and the lookup finds it");
     let p = preset();
     assert_eq!(p.id, "protected");
     assert_eq!(p.reach_settings(), Some(ReachSettings { message: Audience::Friends, call: Audience::Chosen, trade: Audience::Friends }), "10h's rows");
@@ -64,7 +64,7 @@ fn the_preset_is_read_from_the_real_file() {
 /// word" parsed.
 #[test]
 fn a_preset_this_version_cannot_use_is_refused() {
-    let file: serde_json::Value = serde_json::from_str(crate::embedded_data::SAFETY_PRESETS_JSON).unwrap();
+    let file: serde_json::Value = serde_json::from_str(humanity_core::embedded_data::SAFETY_PRESETS_JSON).unwrap();
     let with = |path: &[&str], value: serde_json::Value| {
         let mut f = file.clone();
         let mut at = &mut f["presets"][0];
@@ -300,7 +300,7 @@ fn every_string_the_feature_shows_avoids_the_words() {
     for w in p.shown_words() {
         checked.push(("the preset".into(), w.to_string()));
     }
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
     for file in ["src/gui/pages/safety_protected.rs", "src/gui/pages/chat/protected.rs", "src/engine/protected.rs", "src/net/protected.rs"] {
         let src = std::fs::read_to_string(root.join(file)).expect(file);
         let literals = string_literals(&src);
@@ -414,7 +414,7 @@ fn passes_go_only_to_approved_friends_while_it_is_on() {
 #[test]
 fn nothing_asks_the_operating_system_for_an_age() {
     let needles = [["GetUserAge", "Range"].concat(), ["Declared", "AgeRange"].concat(), ["Declared", "Age", "Range"].join(" ")];
-    let mut stack = vec![std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
+    let mut stack = vec![std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src")];
     let mut seen = 0;
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).expect("src/ reads") {

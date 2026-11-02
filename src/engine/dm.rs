@@ -375,7 +375,7 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                         // echo never changes the choice and never withdraws another pass: echoes
                         // arrive late, out of order, or never, and rebuilding the choice from them
                         // is what lost or reversed choices across devices before 10n.
-                        match crate::relay::core::pq_crypto::parse_friend_cert(cert) {
+                        match humanity_protocol::pq_crypto::parse_friend_cert(cert) {
                             // Already on the record: this device's own pass, whose self-copy goes
                             // out once the server took it (10l) and so comes back after it was
                             // recorded. Nothing to learn.
@@ -404,7 +404,7 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                         }
                     } else {
                         let server = store.pass_server().unwrap_or("").to_string();
-                        match crate::relay::core::pq_crypto::verify_friend_cert(&server, &inner.from, &me, cert) {
+                        match humanity_protocol::pq_crypto::verify_friend_cert(&server, &inner.from, &me, cert) {
                             Ok(_) => {
                                 store.store_cert_from(&inner.from, cert);
                                 // Their pass gets us past their gate now: the refusal notice in
@@ -584,7 +584,7 @@ pub(crate) fn send_held(gui_state: &mut GuiState, peer: &str, mut theirs: serde_
 /// and the record to keep once it has gone out. Nothing is recorded here. None until the server's
 /// identity is known (its `identify_challenge`), or while the identity is locked.
 pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Option<(String, SentPass)> {
-    use crate::relay::core::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay};
+    use humanity_protocol::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay};
     // Step G: with the protected setup on, a pass goes only to a friend the PIN holder let be one
     // (kept in its review, or befriended with the PIN), so no route makes a friend without it: not
     // even a follow made before the setup and followed back after it.
@@ -929,7 +929,7 @@ mod pace_tests;
 #[cfg(test)]
 mod pass_tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
+    use humanity_protocol::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
 
     fn identity(n: u8) -> (Vec<u8>, String) {
         let seed = vec![n; 32];

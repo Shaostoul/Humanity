@@ -475,7 +475,7 @@ mod tests {
     #[test]
     fn region_kinds_parse_from_ron_and_hold_their_invariants() {
         let src = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/environment/region_kinds.ron"
         ))
         .expect("the kind table ships with the repo");
@@ -542,7 +542,7 @@ mod tests {
     #[test]
     fn the_wgsl_struct_matches_the_rust_record() {
         let src = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/assets/shaders/pbr/00-bindings-vertex.wgsl"
         ))
         .expect("the bindings shader ships with the repo");

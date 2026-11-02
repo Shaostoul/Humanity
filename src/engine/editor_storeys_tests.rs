@@ -308,7 +308,7 @@ fn the_editors_save_writes_the_spawn_only_from_an_avatar_moved_onto_the_ground()
 #[test]
 fn the_editors_save_never_puts_the_spawn_inside_a_stair() {
     use crate::ship::ship_structure::ShipStructure;
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let hz = ship.home_zone_index();
     let mut g = crate::gui::GuiState::default();
@@ -370,7 +370,7 @@ fn the_editors_save_never_puts_the_spawn_inside_a_built_box() {
 /// upstairs, the ground storey chosen / left: Some(\"bed_1\") / right: None".
 #[test]
 fn a_machine_selection_follows_the_storey() {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let hz = ship.home_zone_index();
     let mut g = crate::gui::GuiState::default();
@@ -406,7 +406,7 @@ fn a_machine_selection_follows_the_storey() {
 #[test]
 fn the_cut_away_leaves_out_what_stands_over_it() {
     use std::collections::HashMap;
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let hz = ship.home_zone_index();
     let cut = cut_away_of(&ship, hz, 0).expect("the homestead's ground storey has the upper floor over it");

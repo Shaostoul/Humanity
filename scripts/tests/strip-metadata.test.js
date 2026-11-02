@@ -2,8 +2,8 @@
 // device (web/shared/strip-metadata.js, 2026-10-11; docs/design/files-showcase.md, the
 // operator's answers of 2026-10-11, answer 4), with the same rules and the same results as the
 // relay's own strips, which are the specification:
-//   src/relay/core/strip_metadata.rs        JPEG, PNG, WebP (GIF passed through)
-//   src/relay/core/strip_video_metadata.rs  MP4, MOV, 3GP
+//   crates/humanity-protocol/src/strip_metadata.rs        JPEG, PNG, WebP (GIF passed through)
+//   crates/humanity-protocol/src/strip_video_metadata.rs  MP4, MOV, 3GP
 //
 // Run: node --test scripts/tests/strip-metadata.test.js
 //
@@ -987,7 +987,7 @@ test("random pictures never throw, never grow, and only lose what the report nam
 
 /** A tiny program around the relay's two real source files: strips every input both ways. */
 function harnessSource() {
-  const src = (f) => JSON.stringify(path.join(REPO, "src", "relay", "core", f).replace(/\\/g, "/"));
+  const src = (f) => JSON.stringify(path.join(REPO, "crates", "humanity-protocol", "src", f).replace(/\\/g, "/"));
   return `
 #[path = ${src("strip_metadata.rs")}]
 mod strip_metadata;

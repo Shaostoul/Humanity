@@ -815,7 +815,7 @@ mod tests {
     #[test]
     fn shader_fft_constants_match_cpu_twin() {
         let src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("assets/shaders/pbr/00-bindings-vertex.wgsl"),
         )
         .expect("vertex shader part readable");
@@ -888,7 +888,7 @@ mod tests {
         }
         // And the fragment side actually consumes both cascades.
         let fs = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
                 .join("assets/shaders/pbr/90-fragment-main.wgsl"),
         )
         .expect("fragment shader part readable");

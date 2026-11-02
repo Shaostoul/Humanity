@@ -22,8 +22,8 @@
 //! bedroom's bed, 2026-10-04, `built_uses::use_machine`).
 //! The FoodSystem, which owns the vitals, runs `tick` every frame.
 
-use crate::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::time::{GameTime, SECONDS_PER_HOUR};
 use std::sync::Mutex;
 
@@ -220,7 +220,7 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::Health;
+    use humanity_core::ecs::components::Health;
 
     fn store(elapsed: f64) -> DataStore {
         let mut data = DataStore::new();

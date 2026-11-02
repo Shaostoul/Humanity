@@ -9,7 +9,7 @@ use crate::how_to::runs::{Run, RunStore};
 use crate::how_to::view::View;
 
 fn repo() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(env!("HUMANITY_REPO_ROOT"))
 }
 
 /// Every quoted literal in `text` written as `f("key"` or `f('key'`, for each call name in `calls`.

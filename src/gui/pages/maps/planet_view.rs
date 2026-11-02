@@ -29,7 +29,7 @@ static MAP_REGIONS: OnceLock<Vec<OsmRegion>> = OnceLock::new();
 /// installed; the view shows how to fetch one.
 fn map_regions() -> &'static [OsmRegion] {
     MAP_REGIONS.get_or_init(|| {
-        let dir = crate::storage::DATA_DIR
+        let dir = humanity_core::storage::DATA_DIR
             .get()
             .cloned()
             .unwrap_or_else(|| std::path::PathBuf::from("data"))
@@ -264,7 +264,7 @@ pub(super) fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut Gui
             roads_drawn,
             buildings_drawn,
             water_drawn,
-            crate::credits::OSM_NOTICE,
+            humanity_core::credits::OSM_NOTICE,
         ),
     );
 

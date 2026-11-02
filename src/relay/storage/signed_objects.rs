@@ -2,7 +2,7 @@
 //!
 //! Generic SQLite-backed store for any post-quantum-signed canonical-CBOR object.
 //! The object format is defined in `docs/network/object_format.md` and implemented
-//! in `crate::relay::core::object`.
+//! in `humanity_protocol::object`.
 //!
 //! Higher-level domains (signed_profiles, vouches, VCs, votes, governance proposals,
 //! recovery shares, etc.) are projections of this table — they keep their own
@@ -15,9 +15,9 @@
 use rusqlite::{OptionalExtension, params};
 
 use super::Storage;
-use crate::relay::core::error::{Error, Result as CoreResult};
-use crate::relay::core::object::Object;
-use crate::relay::core::pq_crypto::DILITHIUM_PK_LEN;
+use humanity_protocol::error::{Error, Result as CoreResult};
+use humanity_protocol::object::Object;
+use humanity_protocol::pq_crypto::DILITHIUM_PK_LEN;
 
 /// Maximum stored payload size for a signed object. The per-author submission
 /// quota (api_v2_objects.rs) caps object COUNT (30/60s); this caps object SIZE so
@@ -118,7 +118,7 @@ impl Storage {
         // land on a later gossip round once the provider arrived.
         match object.object_type.as_str() {
             "provider_v1" => {
-                crate::relay::core::market_payloads::validate_provider_v1(&object.payload)
+                humanity_protocol::market_payloads::validate_provider_v1(&object.payload)
                     .map_err(|e| {
                         rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
                             format!("invalid provider_v1 payload: {e}"),
@@ -126,10 +126,10 @@ impl Storage {
                     })?;
             }
             "offering_v1" => {
-                crate::relay::core::market_payloads::validate_offering_v1(
+                humanity_protocol::market_payloads::validate_offering_v1(
                     &object.payload,
                     &object.references,
-                    crate::relay::core::market_payloads::shared_categories(),
+                    humanity_protocol::market_payloads::shared_categories(),
                 )
                 .map_err(|e| {
                     rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
@@ -192,7 +192,7 @@ impl Storage {
         // /api/v2/objects and passed to other servers, and a setup must stay on the one server
         // it was given to, so that taking it back takes it away. A piece from another server is
         // refused for the same reason.
-        if object.object_type == crate::relay::core::recovery::SHARE_OBJECT_TYPE {
+        if object.object_type == humanity_protocol::recovery::SHARE_OBJECT_TYPE {
             let refused = |why: String| {
                 rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(format!("invalid recovery_share_v1: {why}"))))
             };
@@ -306,7 +306,7 @@ impl Storage {
                 | "member_v1" | "account_age_v1"
             ) {
                 let issuer_did =
-                    crate::relay::core::did::did_for_pubkey(&object.author_public_key);
+                    humanity_protocol::did::did_for_pubkey(&object.author_public_key);
                 let observer = source_server.unwrap_or("self");
                 let _ = self.issuer_trust_good(observer, &issuer_did, 0.005);
             }
@@ -314,7 +314,7 @@ impl Storage {
             if object.object_type == "revocation_v1" {
                 if let Some(target_id) = first_reference(object) {
                     let author_did =
-                        crate::relay::core::did::did_for_pubkey(&object.author_public_key);
+                        humanity_protocol::did::did_for_pubkey(&object.author_public_key);
                     if let Ok(Some(vc)) = self.get_credential(&target_id) {
                         if vc.issuer_did == author_did {
                             let _ = self.revoke_credential(&target_id, &object_id_hex);
@@ -326,7 +326,7 @@ impl Storage {
             if object.object_type == "withdrawal_v1" {
                 if let Some(target_id) = first_reference(object) {
                     let author_did =
-                        crate::relay::core::did::did_for_pubkey(&object.author_public_key);
+                        humanity_protocol::did::did_for_pubkey(&object.author_public_key);
                     if let Ok(Some(vc)) = self.get_credential(&target_id) {
                         if vc.subject_did == author_did {
                             let _ = self.withdraw_credential(&target_id);
@@ -516,9 +516,9 @@ fn _import_anchor(e: Error) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::object::ObjectBuilder;
-    use crate::relay::core::pq_crypto::DilithiumKeypair;
-    use crate::relay::core::encoding::{cbor_map, cbor_text};
+    use humanity_protocol::object::ObjectBuilder;
+    use humanity_protocol::pq_crypto::DilithiumKeypair;
+    use humanity_protocol::encoding::{cbor_map, cbor_text};
     use std::path::PathBuf;
     use std::sync::Mutex;
 

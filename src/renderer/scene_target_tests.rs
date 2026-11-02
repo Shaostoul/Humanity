@@ -9,7 +9,7 @@ use super::*;
 /// class). Parse and validate it here, as ssao.rs does its own.
 #[test]
 fn present_shader_parses_and_validates() {
-    let src = include_str!("../../assets/shaders/present.wgsl");
+    let src = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/present.wgsl"));
     let module =
         wgpu::naga::front::wgsl::parse_str(src).unwrap_or_else(|e| panic!("present.wgsl failed to parse: {e}"));
     let mut validator =
@@ -51,10 +51,10 @@ const DISPLAY_FORMATS: [wgpu::TextureFormat; 4] = [
     wgpu::TextureFormat::Rgba8Unorm,
 ];
 
-/// A device, or None (no adapter, or the operator's GPU game is running: src/test_gpu.rs).
+/// A device, or None (no adapter, or the operator's GPU game is running: crates/humanity-core/src/test_gpu.rs).
 #[cfg(feature = "native")]
 fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    if !crate::test_gpu::may_use() {
+    if !humanity_core::test_gpu::may_use() {
         return None;
     }
     let instance = wgpu::Instance::default();

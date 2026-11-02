@@ -514,7 +514,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn aboard() -> Aboard {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = Path::new(env!("HUMANITY_REPO_ROOT"));
         let ship = ShipStructure::load_and_assemble_shipped(&root.join("data"), None).expect("the shipped ship assembles");
         let hz = &ship.zones[ship.home_zone_index()];
         let origin = Vec3::new(hz.origin.0, hz.origin.1, hz.origin.2);
@@ -839,7 +839,7 @@ pub(crate) mod tests {
     /// lib.rs added them: "src/lib.rs never has crate::ship::sight::ship_solid_pieces(".
     #[test]
     fn the_sight_test_is_wired_into_the_walk_up_and_the_hud() {
-        let lib = include_str!("../lib.rs").replace("\r\n", "\n");
+        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
         for wired in [
             "crate::ship::sight::walk_up_target(",
             "crate::ship::sight::ship_solid_slabs(",
@@ -848,7 +848,7 @@ pub(crate) mod tests {
         ] {
             assert!(lib.contains(wired), "src/lib.rs never has {wired}");
         }
-        let hud = include_str!("../gui/pages/hud.rs").replace("\r\n", "\n");
+        let hud = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pages/hud.rs")).replace("\r\n", "\n");
         assert_eq!(hud.matches("state.sight_blockers.blocked(").count(), 2, "the HUD tests the machine labels and the crew nameplates in 3-D");
         assert!(!hud.contains("wall_collision::sight_blocked("), "the HUD still tests a label in plan only");
     }

@@ -6,7 +6,7 @@ Date: 2026-10-12. Read against main at 401d21114 (v0.1487.1). Sources: docs/desi
 
 - **Increment 5 is built and released (v0.1464.0).** The relay already checks household permits on `game_build` / `game_unbuild` (src/relay/handlers/shared_build.rs:396-409). The game neither mints nor sends one: both its requests go out with `permit: None` (src/engine/shared_build.rs:1061, :1084).
 - **A permit travels as a sealed DM note.** The text is `[[hum:permit:v1]]` followed by the contract's `Permit` JSON, which the DM's inner signature covers (the house's newer "marker plus JSON" notes, like `[[hum:offer:v1]]`).
-  - The giver mints it with the existing `build_plot_permit` (src/relay/core/pq_crypto.rs:569-584).
+  - The giver mints it with the existing `build_plot_permit` (crates/humanity-protocol/src/pq_crypto.rs:569-584).
   - It is sealed and sent with `control_puts` (src/engine/dm.rs:469-486), carrying the friend's pass so it gets past their gate.
   - It counts as given only on `dm_put_ok` (the 10l rule).
   - Its self-copy tells the giver's other devices.
@@ -76,7 +76,7 @@ Date: 2026-10-12. Read against main at 401d21114 (v0.1487.1). Sources: docs/desi
   - `ToRelay` :562-594 (`permit` on Build/Unbuild);
   - `FromRelay` :596-659;
   - the `msg` type strings from :445.
-- **Crypto.** src/relay/core/pq_crypto.rs:
+- **Crypto.** crates/humanity-protocol/src/pq_crypto.rs:
   - `plot_permit_preimage` :527-529;
   - `build_plot_permit` :569-584, whose minting refuses what the check refuses;
   - `verify_plot_permit` :594-612, with one day of slack on "too long";
@@ -147,7 +147,7 @@ Date: 2026-10-12. Read against main at 401d21114 (v0.1487.1). Sources: docs/desi
   | src/gui/state_types.rs | 1,836 | 1,850 |
 
   gui/mod.rs must shed lines before `GuiState` can gain a field.
-- **BUG-133:** a data file with a built-in copy is read through `embedded_data::load_data_or_embedded` (src/embedded_data.rs:429-470), which calls `note_builtin_copy`.
+- **BUG-133:** a data file with a built-in copy is read through `embedded_data::load_data_or_embedded` (crates/humanity-core/src/embedded_data.rs:429-470), which calls `note_builtin_copy`.
 - **Lints:** theme tokens only (theme_token_lint); no em dashes (emdash_lint); account words (terminology_lint).
 - **Rigs:** one GPU and one game at a time (machine guard). The other rig modes stay green: `--plots`, `--build`.
 
@@ -407,7 +407,7 @@ Files:
 - NEW src/net/household.rs and src/net/mod.rs: the note, `HeldPermit` / `GivenPermit` / `GivenState`, `PermitKey`, `Verdict`, `Household`, `judge_arrival`, keep and record rules, `prune`, `usable`, `date_words`, `Lengths` / `load_lengths`.
 - src/net/dm_store.rs: the two fields, `permits_held`, `keep_permit`, `permits_given`, `record_given`, `set_given_state`, `prune_permits`; `set_pass_server` clears them.
 - src/ship/ship_structure.rs: `OpenPlots` and the `open` field.
-- NEW data/ship/household.ron; src/embedded_data.rs (const and match arm).
+- NEW data/ship/household.ron; crates/humanity-core/src/embedded_data.rs (const and match arm).
 
 Tests:
 - shared.rs `the_permit_check_and_its_answer_read_as_the_wire_says`: exact JSON, `why` / `again` / `message` absent when empty. Red with `req_id` renamed in PermitStatus.

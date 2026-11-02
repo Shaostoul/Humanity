@@ -40,7 +40,7 @@
 //!   `textureSampleLevel`, which decodes sRGB back to linear - the round trip
 //!   is exact only if nothing hand-encodes in between.
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::terrain::plant_mesh::{Organ, PlantMeshBuilder};
 use super::tree_mesh::{self, ClusterCards};
 use crate::terrain::tree_registry::{CardFootprint, ClusterLayer, ATLAS_COLS, ATLAS_ROWS};
@@ -1347,7 +1347,7 @@ pub mod leaf_colour {
                 },
                 Err(e) => format!("data/vegetation/trees.ron could not be read ({e})"),
             };
-            crate::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
+            humanity_core::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
             parse(super::leaf_shape::EMBEDDED_TREES).unwrap_or_default()
         })
     }
@@ -1869,7 +1869,7 @@ pub mod leaf_shape {
     /// The shipped rows, compiled in so a build with no `data/` still knows
     /// what a maple leaf looks like. Same file and same precedence as
     /// `tree_registry::registry` (disk wins in a dev checkout).
-    pub(super) const EMBEDDED_TREES: &str = include_str!("../../data/vegetation/trees.ron");
+    pub(super) const EMBEDDED_TREES: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/vegetation/trees.ron"));
 
     #[derive(serde::Deserialize)]
     struct SilhouetteRegistry {
@@ -1899,7 +1899,7 @@ pub mod leaf_shape {
                 },
                 Err(e) => format!("data/vegetation/trees.ron could not be read ({e})"),
             };
-            crate::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
+            humanity_core::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
             parse(EMBEDDED_TREES).unwrap_or_default()
         })
     }
@@ -4084,7 +4084,7 @@ mod tests {
         // the thing being looked at there is detail, not area.
         let (bake, sprite) = (512u32, 128u32);
         let dump = std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok();
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("debug/leaf_shapes");
         let rows = if dump {
             // The env var doubles as the page size when it parses as one. A
             // maple leaf is legible at 512; a conifer shoot is 48 needle
@@ -4189,7 +4189,7 @@ mod tests {
         // apples to apples rather than two similar-sounding numbers. Dev
         // checkout only (the release bundle ships no assets/models), so it is
         // informational and never gates.
-        let refpath = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        let refpath = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join(
             "assets/models/plants/pine_sapling_small/textures/\
              pine_sapling_small_twig_diff_a_1k.png",
         );
@@ -4219,7 +4219,7 @@ mod tests {
                         // A rising distinct count is NOT evidence the crown looks better;
                         // the PNG is.
                         if std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok() {
-                            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
+                            let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("debug/leaf_shapes");
                             let _ = std::fs::create_dir_all(&dir);
                             // BOTH layers. The blossom sprite is not measured here (its
                             // spread is a bud-to-open population, not a leaf's), but the

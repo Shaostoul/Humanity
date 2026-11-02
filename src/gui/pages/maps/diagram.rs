@@ -23,7 +23,7 @@
 
 use glam::DVec3;
 
-use crate::cosmos::M_PER_AU;
+use humanity_core::cosmos::M_PER_AU;
 
 /// The distance, AU, where the diagram's logarithm turns from linear to
 /// logarithmic: inside it orbits keep roughly their true spacing.

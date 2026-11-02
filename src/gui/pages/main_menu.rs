@@ -50,7 +50,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // of identity creation, so the encrypted identity lands in the chosen
     // place. Existing installs never see this (they detect Installed /
     // LegacyBesideExe / Portable from what's already on disk).
-    if crate::storage::mode() == crate::storage::StorageMode::Undecided
+    if humanity_core::storage::mode() == humanity_core::storage::StorageMode::Undecided
         && !state.onboarding_complete
     {
         draw_storage_chooser(ctx, theme);
@@ -95,7 +95,7 @@ fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
                 ui.add_space(18.0);
 
                 if widgets::Button::primary("My user folder (recommended)").show(ui, theme) {
-                    crate::storage::choose_installed();
+                    humanity_core::storage::choose_installed();
                 }
                 ui.label(
                     RichText::new(
@@ -108,7 +108,7 @@ fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
                 ui.add_space(14.0);
 
                 if widgets::Button::secondary("Next to the app (portable)").show(ui, theme) {
-                    crate::storage::choose_portable();
+                    humanity_core::storage::choose_portable();
                 }
                 ui.label(
                     RichText::new(

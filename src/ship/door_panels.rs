@@ -606,7 +606,7 @@ pub(crate) mod tests {
     #[test]
     fn an_open_plots_corridor_doors_open_for_this_player() {
         use crate::ship::ship_structure::OpenPlots;
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let closed = ShipStructure::load_and_assemble_shipped(&data, Some("p2")).expect("the shipped ship assembles");
         let mut open = closed.clone();
         open.open = OpenPlots { plots: ["p1".to_string()].into_iter().collect(), lit: None };

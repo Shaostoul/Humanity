@@ -11,12 +11,12 @@ use super::settings::{LocalSettings, Show};
 use super::toast::{linux_args, mac_args, tag_for, toast_xml, Toast};
 
 fn fixture() -> Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/notify-cases.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/notify-cases.json");
     serde_json::from_str(&std::fs::read_to_string(&path).expect("the shared cases")).expect("they parse")
 }
 
 fn shipped() -> File {
-    File::parse(crate::embedded_data::get_embedded("notifications/notifications.json").expect("built into the exe")).expect("it parses")
+    File::parse(humanity_core::embedded_data::get_embedded("notifications/notifications.json").expect("built into the exe")).expect("it parses")
 }
 
 /// `over`'s keys replace `base`'s (a shallow merge of one part).
@@ -367,29 +367,29 @@ fn the_data_file_parses_and_every_word_it_names_is_in_english() {
         keys.push(snd.label.as_str());
     }
     for key in keys {
-        assert!(crate::i18n::has(key), "data/notifications/notifications.json names {key}, which en.json lacks");
+        assert!(humanity_core::i18n::has(key), "data/notifications/notifications.json names {key}, which en.json lacks");
     }
     assert!(file.mute_for.iter().any(|m| m.seconds == 0), "until I unmute");
     // Rung 3: every kind's default sound is one the file lists, and every game event's words exist.
     for k in &file.kinds {
         assert!(file.sounds.iter().any(|s| s.id == k.sound), "{}'s sound {} is listed", k.id, k.sound);
         for v in k.variants.values() {
-            assert!(crate::i18n::has(v), "{}'s variant title {v} is in en.json", k.id);
+            assert!(humanity_core::i18n::has(v), "{}'s variant title {v} is in en.json", k.id);
         }
     }
     assert!(!file.game_events.is_empty(), "the starting set of game events");
     for e in &file.game_events {
         for key in [e.label.as_str(), e.hint.as_str(), e.title.as_str()] {
-            assert!(crate::i18n::has(key), "{key} is in en.json");
+            assert!(humanity_core::i18n::has(key), "{key} is in en.json");
         }
         for form in ["one", "other"] {
-            assert!(crate::i18n::has(&format!("{}.{form}", e.body)), "{}.{form} is in en.json", e.body);
+            assert!(humanity_core::i18n::has(&format!("{}.{form}", e.body)), "{}.{form} is in en.json", e.body);
         }
         assert!(e.every_secs > 0, "{} folds over an interval", e.id);
         assert!(e.opens.is_empty() || crate::gui::dispatch::page_from_id(&e.opens).is_some(), "{} opens a page that exists", e.id);
     }
-    let disk = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/notifications/notifications.json")).unwrap();
-    assert_eq!(disk, crate::embedded_data::get_embedded("notifications/notifications.json").unwrap(), "the exe's copy is the data folder's");
+    let disk = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/notifications/notifications.json")).unwrap();
+    assert_eq!(disk, humanity_core::embedded_data::get_embedded("notifications/notifications.json").unwrap(), "the exe's copy is the data folder's");
 }
 
 /// This device's choices survive a restart, and a config.json from before them loads with the safe
@@ -484,7 +484,7 @@ fn the_tray_tooltip_says_muted_and_waiting() {
     let t = Look { muted: Some(0), unread: 3 }.tooltip();
     let lines: Vec<&str> = t.lines().collect();
     assert_eq!(lines.len(), 3, "{t}");
-    assert!(lines[1].contains(crate::i18n::t("notifications.muted_until_unmuted")), "{t}");
+    assert!(lines[1].contains(humanity_core::i18n::t("notifications.muted_until_unmuted")), "{t}");
     assert!(lines[2].contains('3'), "{t}");
     assert_eq!(cut_units(&"\u{1F600}".repeat(100), 127).chars().count(), 63, "never inside a character");
 }

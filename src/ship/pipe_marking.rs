@@ -360,7 +360,7 @@ pub fn contrast_ratio(a: [f32; 4], b: [f32; 4]) -> f32 {
 }
 
 /// The shipped file, the fallback when the data folder's copy is missing or does not parse.
-const SHIPPED_MARKING_SCHEMES: &str = include_str!("../../data/piping/marking_schemes.ron");
+const SHIPPED_MARKING_SCHEMES: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/piping/marking_schemes.ron"));
 
 /// The registry, loaded once: the data folder's copy first, the shipped copy if that is missing
 /// or does not parse (and the log says so, BUG-133).
@@ -376,16 +376,16 @@ pub fn settings_hint_text() -> &'static str {
 }
 
 fn load_marking() -> MarkingSchemes {
-    let path = crate::storage::data_dir().join("piping").join("marking_schemes.ron");
+    let path = humanity_core::storage::data_dir().join("piping").join("marking_schemes.ron");
     match std::fs::read_to_string(&path) {
         Ok(text) => match MarkingSchemes::parse(&text) {
             Ok(m) => return m,
-            Err(e) => crate::embedded_data::note_builtin_copy(
+            Err(e) => humanity_core::embedded_data::note_builtin_copy(
                 "piping/marking_schemes.ron",
                 format_args!("{} does not parse ({e})", path.display()),
             ),
         },
-        Err(e) => crate::embedded_data::note_builtin_copy(
+        Err(e) => humanity_core::embedded_data::note_builtin_copy(
             "piping/marking_schemes.ron",
             format_args!("{} could not be read ({e})", path.display()),
         ),
@@ -604,7 +604,7 @@ mod tests {
     }
 
     fn routed_lines() -> Vec<RoutedLine> {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         let mut out = Vec::new();
         for file in ["home.ron", "home_solo.ron", "ship.ron"] {
             let home = crate::machines::MachineHome::load(&dir.join(file)).unwrap_or_else(|| panic!("data/machines/{file} loads"));
@@ -633,7 +633,7 @@ mod tests {
     /// build editor's legend has always coloured.
     fn routed_contents() -> std::collections::BTreeSet<String> {
         let mut out: std::collections::BTreeSet<String> =
-            crate::utilities::Utility::ALL.iter().map(|u| u.id().to_string()).collect();
+            humanity_core::utilities::Utility::ALL.iter().map(|u| u.id().to_string()).collect();
         for legend in ["water", "hot_water", "air", "gas", "fuel", "nutrient", "waste", "greywater", "power", "data"] {
             out.insert(legend.to_string());
         }

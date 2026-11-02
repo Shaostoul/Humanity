@@ -16,7 +16,7 @@
  * other client. That failure is quiet, which is exactly why it needs a KAT.
  *
  * Asserts, against the Rust goldens in
- * src/relay/core/moderation.rs::cross_language_kat (duplicated here on purpose,
+ * crates/humanity-protocol/src/moderation.rs::cross_language_kat (duplicated here on purpose,
  * so editing the encoding must break BOTH or neither):
  *   1. payload bytes are byte-identical for both object types,
  *   2. the SIGNABLE bytes are byte-identical (length + BLAKE3),
@@ -39,7 +39,7 @@ const CBOR = join(REPO, 'web', 'shared', 'canonical-cbor.js');
 const OBJ = join(REPO, 'web', 'shared', 'pq-object.js');
 const BUNDLE = join(REPO, 'web', 'shared', 'vendor', 'noble-pq.bundle.js');
 
-// GOLDEN — must equal src/relay/core/moderation.rs::cross_language_kat.
+// GOLDEN — must equal crates/humanity-protocol/src/moderation.rs::cross_language_kat.
 const KAT_CREATED_AT = 1_751_328_000_000;
 const KAT_SPACE = 'united-humanity.us';
 const KAT_TARGET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -53,7 +53,7 @@ const GOLD = {
     signableLen: 5684,
     signableBlake3: 'f4c5e89ab9c8edca0eb1f7e3a0c6cd6dfefe76c64b69484982e760d9da2b6c20',
     objectId: '8fc28ee60cb7b2bf9201bfacbe26a8b1a414a7c0cd7da60b45e65eefdea03dcf',
-    sigFixture: join(REPO, 'src', 'relay', 'core', 'pq_kat_mod_action_sig.hex'),
+    sigFixture: join(REPO, 'crates', 'humanity-protocol', 'src', 'pq_kat_mod_action_sig.hex'),
   },
   space_policy: {
     payloadHex:
@@ -61,7 +61,7 @@ const GOLD = {
     signableLen: 5904,
     signableBlake3: 'd07496f0b69220adeab8640616d735d247ec2f8410c67df86a6484dd9de73b03',
     objectId: 'e56f6806d31ab08523cae62a5831535cb0faae634f122c9f38ea3d8aa4b00749',
-    sigFixture: join(REPO, 'src', 'relay', 'core', 'pq_kat_space_policy_sig.hex'),
+    sigFixture: join(REPO, 'crates', 'humanity-protocol', 'src', 'pq_kat_space_policy_sig.hex'),
   },
 };
 

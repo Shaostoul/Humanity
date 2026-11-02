@@ -42,13 +42,13 @@ fn serve(head: &'static str, chunks: Vec<Vec<u8>>, gap: Duration) -> (String, Ar
     (format!("http://127.0.0.1:{port}/api/files/file/7"), seen)
 }
 
-fn dest(tag: &str) -> crate::test_temp::TempPath {
-    crate::test_temp::file(tag, "bin")
+fn dest(tag: &str) -> humanity_core::test_temp::TempPath {
+    humanity_core::test_temp::file(tag, "bin")
 }
 
 /// A folder for a test's transfers, deleted with the guard.
-fn folder(tag: &str) -> crate::test_temp::TempPath {
-    crate::test_temp::dir(tag)
+fn folder(tag: &str) -> humanity_core::test_temp::TempPath {
+    humanity_core::test_temp::dir(tag)
 }
 
 /// The names in `dir`.
@@ -197,7 +197,7 @@ fn play_heres_copy_goes_with_its_card() {
     drop(card);
     assert!(!copy.exists(), "the copy goes with the card");
 
-    let dir = crate::test_temp::dir("media_open_sweep");
+    let dir = humanity_core::test_temp::dir("media_open_sweep");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("a.video"), b"1").unwrap();
     std::fs::write(dir.join("b.video"), b"2").unwrap();

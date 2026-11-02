@@ -58,28 +58,28 @@ pub(crate) mod wgsl_eval;
 /// docs/design/frame-cost-arc.md section 1(c), and the P3 outcome for what
 /// the entry split itself moved.
 pub const PBR_PARTS: &[(&str, &str)] = &[
-    ("00-bindings-vertex.wgsl", include_str!("../../assets/shaders/pbr/00-bindings-vertex.wgsl")),
-    ("05-overrides.wgsl", include_str!("../../assets/shaders/pbr/05-overrides.wgsl")),
-    ("10-lighting-patterns.wgsl", include_str!("../../assets/shaders/pbr/10-lighting-patterns.wgsl")),
-    ("20-surface-detail.wgsl", include_str!("../../assets/shaders/pbr/20-surface-detail.wgsl")),
-    ("30-atmosphere.wgsl", include_str!("../../assets/shaders/pbr/30-atmosphere.wgsl")),
-    ("40-clouds.wgsl", include_str!("../../assets/shaders/pbr/40-clouds.wgsl")),
+    ("00-bindings-vertex.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/00-bindings-vertex.wgsl"))),
+    ("05-overrides.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/05-overrides.wgsl"))),
+    ("10-lighting-patterns.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/10-lighting-patterns.wgsl"))),
+    ("20-surface-detail.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/20-surface-detail.wgsl"))),
+    ("30-atmosphere.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/30-atmosphere.wgsl"))),
+    ("40-clouds.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/40-clouds.wgsl"))),
     (
         "41-cloud-bodies.wgsl",
-        include_str!("../../assets/shaders/pbr/41-cloud-bodies.wgsl"),
+        include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/41-cloud-bodies.wgsl")),
     ),
-    ("45-cloud-temporal.wgsl", include_str!("../../assets/shaders/pbr/45-cloud-temporal.wgsl")),
-    ("50-brdf.wgsl", include_str!("../../assets/shaders/pbr/50-brdf.wgsl")),
-    ("80-fragment-shared.wgsl", include_str!("../../assets/shaders/pbr/80-fragment-shared.wgsl")),
+    ("45-cloud-temporal.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/45-cloud-temporal.wgsl"))),
+    ("50-brdf.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/50-brdf.wgsl"))),
+    ("80-fragment-shared.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/80-fragment-shared.wgsl"))),
     // Room GI rung 1 (2026-09-27): the per-room probe sample frag_tail reads
     // behind HAS_ROOM_GI. SHARED TEXT: the probe update compute shader
     // compiles this same file (renderer::room_probes_gpu::UPDATE_SHADER).
-    ("85-room-gi.wgsl", include_str!("../../assets/shaders/pbr/85-room-gi.wgsl")),
-    ("90-fragment-main.wgsl", include_str!("../../assets/shaders/pbr/90-fragment-main.wgsl")),
+    ("85-room-gi.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/85-room-gi.wgsl"))),
+    ("90-fragment-main.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/90-fragment-main.wgsl"))),
     // The fullscreen ADDITIVE emission pass (aurora, 2026-09-27): light that
     // lives above the cloud deck, drawn after the composite. A pass entry
     // (`fs_emission_pass`), not a material class; see renderer::emission_pass.
-    ("95-emission-pass.wgsl", include_str!("../../assets/shaders/pbr/95-emission-pass.wgsl")),
+    ("95-emission-pass.wgsl", include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/pbr/95-emission-pass.wgsl"))),
 ];
 
 /// Every entry point the megashader must declare: the vertex entry, the

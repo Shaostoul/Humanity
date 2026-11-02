@@ -8,9 +8,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::ActiveVote;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::ActiveVote;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Top-level RON schema for `data/governance.ron`.
 #[derive(Debug, Deserialize)]

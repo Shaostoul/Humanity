@@ -2913,7 +2913,7 @@ pub async fn handle_game_join(
     // backward-compatible with existing persisted snapshots.
     // How they look (2026-09-29): clamped here too, then kept on the entity
     // like the name, so a later joiner's snapshot shows them as they are.
-    let look = raw.get("appearance").and_then(crate::player_look::PlayerLook::from_json);
+    let look = raw.get("appearance").and_then(humanity_core::player_look::PlayerLook::from_json);
     if let Some(e) = world.entities.get_mut(&player_id) {
         if let Some(obj) = e.components.as_object_mut() {
             obj.insert("name".to_string(), serde_json::json!(player_name));
@@ -3946,9 +3946,9 @@ mod dm_mailbox_tests {
     /// be actual public keys, not fake strings).
     fn identity(seed_byte: u8) -> (Vec<u8>, String) {
         let seed = vec![seed_byte; 32];
-        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil_seed = humanity_protocol::pq_crypto::derive_dilithium_seed(&seed);
         let hex_pk = hex::encode(
-            crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key(),
+            humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key(),
         );
         (seed, hex_pk)
     }

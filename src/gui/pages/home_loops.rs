@@ -23,7 +23,7 @@
 use egui::{Align, Color32, Layout, RichText, Ui};
 
 use super::homes::{CannotCloseData, HomeOutline, OutlineLoop, OutlineRequirement};
-use crate::i18n::{t, tf, tn};
+use humanity_core::i18n::{t, tf, tn};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, cards, data_table, view_toggle};
 

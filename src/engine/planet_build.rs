@@ -45,7 +45,7 @@
 //! [`body_render_rot`]), so a piece stands exactly on the ground it was set
 //! on.
 
-use crate::ecs::components::Transform;
+use humanity_core::ecs::components::Transform;
 use crate::engine::state::EngineState;
 use crate::renderer::camera::CameraMode;
 use crate::renderer::RenderObject;
@@ -124,8 +124,8 @@ pub(crate) fn body_world_rot(body_id: &str, earth_spin: f64, sim_t: f64) -> DQua
     if body_id == "earth" {
         return DQuat::from_rotation_y(earth_spin);
     }
-    crate::cosmos::find_body(body_id)
-        .map(|b| crate::cosmos::body_orientation(b, sim_t))
+    humanity_core::cosmos::find_body(body_id)
+        .map(|b| humanity_core::cosmos::body_orientation(b, sim_t))
         .unwrap_or(DQuat::IDENTITY)
 }
 
@@ -418,7 +418,7 @@ pub(crate) fn player_at_site(
 ) -> Option<PlayerFrame> {
     let site = site::nearest_site(world, body, eye_body, site::SITE_JOIN_M)?;
     let up = eye_body.normalize_or_zero();
-    let eye_h = crate::ecs::components::EYE_HEIGHT_M;
+    let eye_h = humanity_core::ecs::components::EYE_HEIGHT_M;
     let feet_body = match ground_r() {
         Some(g) if eye_body.length() - g <= MAX_EYE_OVER_GROUND_M => up * g,
         _ => eye_body - up * eye_h,
@@ -724,9 +724,9 @@ pub(crate) fn dev_stand(state: &mut EngineState, spec: &str, at: Option<&str>) -
     // (clearing it would make the frame lock re-capture the anchor).
     let look = look_render.as_vec3();
     let (cam_yaw, cam_pitch) = if state.camera.surface_mode {
-        crate::camera_angles::surface_look_angles(state.camera.up, look)
+        humanity_core::camera_angles::surface_look_angles(state.camera.up, look)
     } else {
-        crate::camera_angles::world_look_angles(look)
+        humanity_core::camera_angles::world_look_angles(look)
     };
     state.camera.yaw = cam_yaw;
     state.camera.pitch = cam_pitch;
@@ -833,8 +833,8 @@ pub(crate) fn built_floor_radius(
         }
         let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| crate::systems::construction::doorway::piece_parts(bp, tf, open.is_some()));
         let boxes: Vec<(Vec3, Vec3)> = match parts {
-            Some(parts) => parts.iter().map(|(p, _)| crate::ecs::components::world_aabb(p)).collect(),
-            None => vec![crate::ecs::components::world_aabb(tf)],
+            Some(parts) => parts.iter().map(|(p, _)| humanity_core::ecs::components::world_aabb(p)).collect(),
+            None => vec![humanity_core::ecs::components::world_aabb(tf)],
         };
         for (lo, hi) in boxes {
             let top_r = (base + f64::from(hi.y)) / cos;
@@ -858,7 +858,7 @@ mod tests {
     const EARTH_R: f64 = 6_371_000.0;
 
     fn shipped() -> BlueprintRegistry {
-        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap()
+        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap()
     }
 
     /// A site on flat ground (a sphere of Earth's radius) at a latitude and
@@ -903,7 +903,7 @@ mod tests {
             let spin = 0.4 + 0.35 * k as f64;
             // The player walks 3 m east and 2 m north each frame.
             let eye = site.to_body(Vec3::new(3.0 * k as f32, 1.7, -2.0 * k as f32));
-            let ship = crate::dev_travel::frame_lock_ship_pos(body_center, DQuat::from_rotation_y(spin), eye, cam_local);
+            let ship = humanity_core::dev_travel::frame_lock_ship_pos(body_center, DQuat::from_rotation_y(spin), eye, cam_local);
             let rot = body_render_rot(false, DQuat::IDENTITY, DQuat::from_rotation_y(spin));
             let (p, r) = site.render_pose(&wall, body_center - ship, rot);
             let world = ship + p.as_dvec3();
@@ -1132,7 +1132,7 @@ mod body_rot_tests {
                 let t = orbit::sim_seconds(hour * 3600.0, day);
                 let (ship, vel) = orbit::propagate(&o, orbit::MU_EARTH, orbit::REAL_SECONDS_PER_DAY, t, day);
                 let ship_rot = orbit::attitude(&def.attitude, ship, vel);
-                let spin = crate::dev_travel::planet_spin_from_time(hour, sun_az);
+                let spin = humanity_core::dev_travel::planet_spin_from_time(hour, sun_az);
                 // Earth's centre in the render frame, exactly as site 1 places it.
                 let centre = crate::station::to_hull(true, ship_rot, DVec3::ZERO - ship);
                 let m = body_model_rot(true, ship_rot, body_world_rot("earth", spin, t));
@@ -1178,8 +1178,8 @@ mod body_rot_tests {
     /// with Earth's day".
     #[test]
     fn the_moon_keeps_one_face_to_earth_whatever_the_hour() {
-        let moon = crate::cosmos::find_body("moon").expect("moon in sol.json");
-        let earth = crate::cosmos::find_body("earth").expect("earth in sol.json");
+        let moon = humanity_core::cosmos::find_body("moon").expect("moon in sol.json");
+        let earth = humanity_core::cosmos::find_body("earth").expect("earth in sol.json");
         // 2026-10-21 00:00 UTC, seconds from J2000.
         let t0 = 1_792_540_800.0 - 946_728_000.0;
         let wrap = |d: f64| (d + 180.0).rem_euclid(360.0) - 180.0;
@@ -1189,10 +1189,10 @@ mod body_rot_tests {
             let t = t0 + k as f64 * 6.0 * 3600.0;
             // A game hour that has nothing to do with the real clock.
             let hour = (k as f64 * 7.3).rem_euclid(24.0);
-            let spin = crate::dev_travel::planet_spin_from_time(hour, 1.1 + 0.017 * k as f64);
-            let to_earth = ((crate::cosmos::body_world_position_3d_au(earth, t)
-                - crate::cosmos::body_world_position_3d_au(moon, t))
-                * crate::cosmos::M_PER_AU)
+            let spin = humanity_core::dev_travel::planet_spin_from_time(hour, 1.1 + 0.017 * k as f64);
+            let to_earth = ((humanity_core::cosmos::body_world_position_3d_au(earth, t)
+                - humanity_core::cosmos::body_world_position_3d_au(moon, t))
+                * humanity_core::cosmos::M_PER_AU)
                 .normalize();
             let local = body_world_rot("moon", spin, t).inverse() * to_earth;
             let (lat, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg_f64(local);
@@ -1228,7 +1228,7 @@ mod site_collision_tests {
     /// `collide_on_site` walks through the wall and fails the first assertion.
     #[test]
     fn a_wall_on_a_planet_site_stops_the_walk() {
-        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
         let site = PlanetSite { body: "earth".into(), origin: DVec3::new(6.371e6, 0.0, 0.0) };
         let mut world = hecs::World::new();
         let bp = reg.get("wood_wall").unwrap();

@@ -541,7 +541,7 @@ mod tests {
     #[test]
     fn upgrade_from_pre_v0261_roles_schema_does_not_panic() {
         use rusqlite::Connection;
-        let path = crate::test_temp::db("rolesupg");
+        let path = humanity_core::test_temp::db("rolesupg");
 
         // 1. Fully migrate a fresh DB (creates roles + server_settings).
         drop(Storage::open(&path).expect("fresh open"));
@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn an_existing_roles_table_gains_can_edit_ship_and_only_admin_has_it() {
         use rusqlite::Connection;
-        let path = crate::test_temp::db("roles_ship_rank");
+        let path = humanity_core::test_temp::db("roles_ship_rank");
         drop(Storage::open(&path).expect("fresh open"));
         {
             let c = Connection::open(&path).expect("raw open");
@@ -724,7 +724,7 @@ mod tests {
     #[test]
     fn an_existing_roles_table_gains_the_upload_limits() {
         use rusqlite::Connection;
-        let path = crate::test_temp::db("roles_upload_limits");
+        let path = humanity_core::test_temp::db("roles_upload_limits");
         drop(Storage::open(&path).expect("fresh open"));
         let fresh = Storage::open(&path).unwrap();
         let tiers = |db: &Storage| -> Vec<(String, i64, i64, i64, i64, i64)> {
@@ -914,7 +914,7 @@ mod tests {
     #[test]
     fn an_existing_roles_table_gains_the_forwarded_limit() {
         use rusqlite::Connection;
-        let path = crate::test_temp::db("roles_forwarded_limit");
+        let path = humanity_core::test_temp::db("roles_forwarded_limit");
         drop(Storage::open(&path).expect("fresh open"));
         {
             let c = Connection::open(&path).expect("raw open");

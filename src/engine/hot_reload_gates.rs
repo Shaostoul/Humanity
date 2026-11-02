@@ -1,6 +1,6 @@
 //! What a changed data file rebuilds in the running game (the engine's half of hot reload).
 //!
-//! The file watcher and its coordinator are the core's (`crate::hot_reload`: they only report
+//! The file watcher and its coordinator are the core's (`humanity_core::hot_reload`: they only report
 //! which files changed). Which change rebuilds what is the engine's, because every rebuild here
 //! works on the engine's state: the planet defs and their cached meshes, the procedural plants,
 //! the showcase garden, the hull, the interior gravity. Here since the crate split's rung 0, part

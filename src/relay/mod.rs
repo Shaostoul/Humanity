@@ -56,7 +56,6 @@ pub mod storage;
 /// Continuous backup of the database: WAL shipping to a folder, a bucket or another server (2026-10-22).
 pub mod backup_stream;
 pub mod handlers;
-pub mod core;
 /// The server capability manifest (v0.1113): which features this owner offers,
 /// and the maps the two enforcement points read. See the module docs.
 pub mod features;
@@ -329,7 +328,7 @@ pub fn hidden_upload_path(path: &str) -> bool {
     lower.contains("/.") || lower.contains("/%2e")
 }
 
-// Epoch days to a calendar date (`epoch_days_to_ymd`) is the core's, `crate::civil_date`, since
+// Epoch days to a calendar date (`epoch_days_to_ymd`) is the core's, `humanity_core::civil_date`, since
 // the crate split's rung 0: the app's household page writes dates with it too.
 
 /// The environment variable that says which address the relay listens on.
@@ -1138,7 +1137,7 @@ pub async fn run_relay() {
                 let days = now / secs_per_day;
                 let time_of_day = now % secs_per_day;
                 // Simple date calculation (accurate enough for filenames).
-                let (year, month, day) = crate::civil_date::epoch_days_to_ymd(days as i64);
+                let (year, month, day) = humanity_core::civil_date::epoch_days_to_ymd(days as i64);
                 let hours = time_of_day / 3600;
                 let minutes = (time_of_day % 3600) / 60;
                 let seconds = time_of_day % 60;

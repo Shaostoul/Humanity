@@ -3,8 +3,8 @@
 // held there"). `just verify` and CI run our crate's checks through this, and a change that adds a
 // warning fails them.
 //
-// Usage: node scripts/warnings-ratchet.js native   cargo check --features native --lib --bins --tests
-//        node scripts/warnings-ratchet.js relay    cargo check --features relay --no-default-features --lib --bins --tests
+// Usage: node scripts/warnings-ratchet.js native   cargo check --workspace --features native --lib --bins --tests
+//        node scripts/warnings-ratchet.js relay    cargo check --workspace --features relay --no-default-features --lib --bins --tests
 //        node scripts/warnings-ratchet.js --count <cargo-json-file> [native|relay]
 //                                                   count a saved `--message-format=json` stream (no cargo)
 //
@@ -17,15 +17,17 @@
 //      `--message-format=json` added (the message format is not part of cargo's fingerprint, so
 //      nothing rebuilds; a different RUSTFLAGS value WOULD rebuild everything, which is why this
 //      never adds `-D warnings` itself). Cargo replays a cached crate's warnings, so a warm run
-//      counts the same warnings a cold one does. It counts the warnings in OUR crate only (the
-//      package whose manifest is this checkout's Cargo.toml), each one once: the lib and its test
-//      build report the same warning twice. The count is compared with scripts/warnings-budget.json
+//      counts the same warnings a cold one does. It counts the warnings in OUR crates only (every
+//      member of the workspace: the root package and each crate the root Cargo.toml's [workspace]
+//      lists, since the crate split's rung 1, 2026-11-01; `--workspace` checks every member's own
+//      targets, its tests included), each one once: the lib and its test build report the same
+//      warning twice. The count is compared with scripts/warnings-budget.json
 //      and the run fails when it is higher.
 //
 //   2. NEVER PASS BECAUSE THE WARNINGS ARE HIDDEN. Before cargo runs, it reads every place cargo
 //      takes rustc flags from (RUSTFLAGS, CARGO_ENCODED_RUSTFLAGS, CARGO_BUILD_RUSTFLAGS, any
 //      CARGO_TARGET_<triple>_RUSTFLAGS, and `rustflags` in every .cargo/config(.toml) from here up
-//      and in CARGO_HOME), and the crate roots and Cargo.toml for a crate-wide allow. Any lint
+//      and in CARGO_HOME), and every member's crate roots and Cargo.toml for a crate-wide allow. Any lint
 //      allow (`-A...`, `--allow`) or `--cap-lints` there FAILS the run loudly, saying the count
 //      cannot be read and how to fix it, instead of reporting a 0 that proves nothing.
 //
@@ -42,11 +44,39 @@ const { spawn } = require("child_process");
 const ROOT = path.resolve(__dirname, "..");
 const BUDGET_FILE = path.join(__dirname, "warnings-budget.json");
 
-/** The two checks, exactly as `just verify` runs them (plus the JSON message format). */
+/** The two checks, exactly as `just verify` runs them (plus the JSON message format). Every member
+ * of the workspace (rung 1 of the crate split): a member's own test targets are not checked by a
+ * command that names only the root package. */
 const CHECKS = {
-  native: ["check", "--features", "native", "--lib", "--bins", "--tests"],
-  relay: ["check", "--features", "relay", "--no-default-features", "--lib", "--bins", "--tests"],
+  native: ["check", "--workspace", "--features", "native", "--lib", "--bins", "--tests"],
+  relay: ["check", "--workspace", "--features", "relay", "--no-default-features", "--lib", "--bins", "--tests"],
 };
+
+/** The workspace's member folders, from the root Cargo.toml's text (pure, tested): ["."] when it has
+ * no [workspace], else its `members` (the root package is "."). */
+function workspaceMembers(toml) {
+  const lines = String(toml || "").replace(/\r\n/g, "\n").split("\n");
+  let table = "";
+  for (let i = 0; i < lines.length; i++) {
+    const h = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(lines[i]);
+    if (h) {
+      table = h[1].trim();
+      continue;
+    }
+    const m = table === "workspace" && /^\s*members\s*=\s*\[(.*)$/.exec(lines[i]);
+    if (m) {
+      let body = m[1];
+      while (!body.includes("]") && i + 1 < lines.length) body += lines[++i];
+      return [...body.slice(0, body.indexOf("]")).matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    }
+  }
+  return ["."];
+}
+
+/** Every member's manifest path under `root`. */
+function memberManifests(root = ROOT) {
+  return workspaceMembers(readOrNull(path.join(root, "Cargo.toml"))).map((m) => path.join(root, m, "Cargo.toml"));
+}
 
 // ---------------------------------------------------------------------------------------------
 // Hidden warnings.
@@ -129,16 +159,19 @@ function hiddenBy(env, { cwd = ROOT, root = ROOT, readFile = readOrNull } = {}) 
     if (text == null) continue;
     for (const flags of configRustflags(text)) note(f, flags);
   }
-  // A crate-wide allow in the code or the manifest hides them just as well.
-  for (const rel of ["src/lib.rs", "src/main.rs"]) {
-    const text = readFile(path.join(root, rel));
-    if (text != null && /#!\[\s*allow\s*\([^)]*\bwarnings\b/.test(text)) found.push(`${rel}: #![allow(warnings)]`);
-  }
-  const manifest = readFile(path.join(root, "Cargo.toml"));
-  if (manifest != null) {
-    const lints = manifest.match(/^\[(?:workspace\.)?lints\.rust\][\s\S]*?(?=^\[|(?![\s\S]))/m);
-    if (lints && /^\s*warnings\s*=\s*(?:"allow"|\{[^}]*level\s*=\s*"allow")/m.test(lints[0])) {
-      found.push('Cargo.toml: [lints.rust] warnings = "allow"');
+  // A crate-wide allow in the code or the manifest hides them just as well: every member's.
+  for (const member of workspaceMembers(readFile(path.join(root, "Cargo.toml")))) {
+    const base = member === "." ? "" : `${member.replace(/\\/g, "/").replace(/\/$/, "")}/`;
+    for (const rel of [`${base}src/lib.rs`, `${base}src/main.rs`]) {
+      const text = readFile(path.join(root, rel));
+      if (text != null && /#!\[\s*allow\s*\([^)]*\bwarnings\b/.test(text)) found.push(`${rel}: #![allow(warnings)]`);
+    }
+    const manifest = readFile(path.join(root, base, "Cargo.toml"));
+    if (manifest != null) {
+      const lints = manifest.match(/^\[(?:workspace\.)?lints\.rust\][\s\S]*?(?=^\[|(?![\s\S]))/m);
+      if (lints && /^\s*warnings\s*=\s*(?:"allow"|\{[^}]*level\s*=\s*"allow")/m.test(lints[0])) {
+        found.push(`${base}Cargo.toml: [lints.rust] warnings = "allow"`);
+      }
     }
   }
   return found;
@@ -155,11 +188,15 @@ function readOrNull(f) {
 // ---------------------------------------------------------------------------------------------
 // Counting.
 
-/** Is this cargo message about OUR crate (the package whose manifest is `manifest`)? */
-function isOurs(msg, manifest, pkgName) {
-  if (msg.manifest_path) return path.resolve(msg.manifest_path).toLowerCase() === path.resolve(manifest).toLowerCase();
+/** Is this cargo message about one of OUR crates (a package whose manifest is one of `manifests`,
+ * or, with no manifest path, one named in `pkgNames`)? */
+function isOurs(msg, manifests, pkgNames) {
+  if (msg.manifest_path) {
+    const m = path.resolve(msg.manifest_path).toLowerCase();
+    return manifests.some((x) => path.resolve(x).toLowerCase() === m);
+  }
   const id = String(msg.package_id || "");
-  return id.startsWith(`${pkgName} `) || id.includes(`#${pkgName}@`);
+  return pkgNames.some((n) => id.startsWith(`${n} `) || id.includes(`#${n}@`) || new RegExp(`[/\\\\]${n}#\\d`).test(id));
 }
 
 /** rustc's own "N warnings emitted" summary, which is not a warning. */
@@ -178,7 +215,7 @@ function warningKey(m) {
  * Returns { ours: Map(key -> message), others: Map, rendered: [text] } where `rendered` is every
  * distinct diagnostic's text (warnings and errors, ours and other local packages'), in order.
  */
-function countLines(lines, { manifest = path.join(ROOT, "Cargo.toml"), pkgName = packageName() } = {}) {
+function countLines(lines, { manifests = memberManifests(), pkgNames = packageNames() } = {}) {
   const ours = new Map();
   const others = new Map();
   const seenText = new Set();
@@ -200,18 +237,22 @@ function countLines(lines, { manifest = path.join(ROOT, "Cargo.toml"), pkgName =
       rendered.push(text);
     }
     if (m.level !== "warning") continue;
-    const into = isOurs(msg, manifest, pkgName) ? ours : others;
+    const into = isOurs(msg, manifests, pkgNames) ? ours : others;
     const key = warningKey(m);
     if (!into.has(key)) into.set(key, m);
   }
   return { ours, others, rendered };
 }
 
-/** Our crate's name, from Cargo.toml's [package] table. */
-function packageName(root = ROOT) {
-  const text = readOrNull(path.join(root, "Cargo.toml")) || "";
-  const m = text.match(/^\[package\][\s\S]*?^name\s*=\s*"([^"]+)"/m);
-  return m ? m[1] : "humanity-engine";
+/** Our crates' names, from each member's Cargo.toml [package] table. */
+function packageNames(root = ROOT) {
+  const out = [];
+  for (const manifest of memberManifests(root)) {
+    const text = readOrNull(manifest) || "";
+    const m = text.match(/^\[package\][\s\S]*?^name\s*=\s*"([^"]+)"/m);
+    if (m) out.push(m[1]);
+  }
+  return out.length ? out : ["humanity-engine"];
 }
 
 /** A short "kind: count" table of the warnings, most first (by lint code, else by message). */
@@ -242,7 +283,7 @@ function judge(which, ours, others, budget) {
   if (n > limit) {
     lines.push(`FAILED: ${n} Rust warning(s) in the ${which} build, over its budget of ${limit} (scripts/warnings-budget.json).`);
     for (const [k, c] of byKind(ours).slice(0, 12)) lines.push(`     ${String(c).padStart(5)}  ${k}`);
-    lines.push("   Fix the warnings printed above (each is in our crate). The budget is a ratchet: it only goes down.");
+    lines.push("   Fix the warnings printed above (each is in one of our crates). The budget is a ratchet: it only goes down.");
     return { ok: false, lines };
   }
   lines.push(`>> warnings ok (${which}): ${n}, budget ${limit}`);
@@ -334,7 +375,7 @@ async function main(argv) {
   return r.ok ? 0 : 1;
 }
 
-module.exports = { hidingFlags, configRustflags, configFiles, hiddenBy, countLines, judge, byKind, warningKey, CHECKS };
+module.exports = { hidingFlags, configRustflags, configFiles, hiddenBy, countLines, judge, byKind, warningKey, workspaceMembers, CHECKS };
 
 if (require.main === module) {
   main(process.argv.slice(2)).then(

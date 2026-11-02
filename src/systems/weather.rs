@@ -9,8 +9,8 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::body_environment::{self, BodyEnvironment};
 use crate::systems::env_layer1::{self, ClimateTable};
 use crate::systems::time::{GameTime, Season};
@@ -943,7 +943,7 @@ mod tests {
     #[test]
     fn events_eventually_fire_from_the_shipped_registry() {
         let bytes = std::fs::read(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/weather/events.ron"),
+            std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/weather/events.ron"),
         )
         .unwrap();
         let reg =

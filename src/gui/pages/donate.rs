@@ -12,7 +12,7 @@ use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::i18n::{t, t_marked, tf};
+use humanity_core::i18n::{t, t_marked, tf};
 use crate::gui::widgets::{with_hint, Hint};
 use std::cell::RefCell;
 
@@ -588,7 +588,7 @@ mod tests {
     /// flag to true: the "no direct route (the maintainer)" assertion fired.
     #[test]
     fn every_shipped_route_says_what_its_tax_flag_says() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let routes = crate::gui::load_donate_routes(&data);
         assert!(routes.iter().any(|r| r.tax_deductible), "no tax-deductible route (the nonprofit) in data/donate/routes.json");
         assert!(routes.iter().any(|r| !r.tax_deductible), "no direct route (the maintainer) in data/donate/routes.json");

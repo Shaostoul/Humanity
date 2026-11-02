@@ -98,7 +98,7 @@ Read before designing (all checked 2026-11-01 on main at `0d9526099`):
 | The drawn pipes: one cached unit cylinder per straight leg, hangers and wall gaskets deduped by position, the selected machine's flow beads | `rebuild_connection_objects` (about line 2668), `connection_objects`, `connection_flow_paths` | Replaced by swept meshes merged per cell (9); the dedup idea survives as shared anchors (12) |
 | `ConduitKind`, a closed enum of four kinds with a fixed radius each and `for_resource` choosing copper for potable water | `src/ship/conduits.rs` | Removed: behaviour, size and look become material rows (5.3); the potable rule becomes a rule row (7.1) |
 | Pipe materials (the look) and marker bands per ISO 14726 at each end, past each bend and every 6.1 m | `data/piping/pipe_materials.ron`, `marking_schemes.ron`, `src/ship/pipe_materials.rs`, `pipe_marking.rs`, `src/engine/pipe_markers.rs` | Kept and extended: the material file becomes the one catalog (5.3); bands are placed by arc length on the curve (9.2) |
-| Ports with anchors, watts, flow, Mbps; the cable registry with AWG, ampacity, ohm per metre, bandwidth, range, RF emission; `check_cable`, `check_data_link`, the auto-pickers | `src/utilities.rs`, `data/utilities/conduits.ron` | Kept; the cable rows merge into the material catalog as its size rows; the checks run on the real routed length (10) |
+| Ports with anchors, watts, flow, Mbps; the cable registry with AWG, ampacity, ohm per metre, bandwidth, range, RF emission; `check_cable`, `check_data_link`, the auto-pickers | `crates/humanity-core/src/utilities.rs`, `data/utilities/conduits.ron` | Kept; the cable rows merge into the material catalog as its size rows; the checks run on the real routed length (10) |
 | Connections and the junction-node graph: `MachineConnection {from, to, kind, spec}`, `ConduitNode {id, pos, tier, kind, grid_tie}`, `ConduitEdge` | `src/machines.rs` | Replaced by `runs` (5.1, 5.5); nodes become features (11) |
 | Per-connection cable picker, superconductor bulk upgrade | `src/gui/pages/construction.rs` `draw_machines_and_connections` | Grows into the material and size picker for every run (15) |
 | Drag-to-connect, port node gizmos, clickable pipes (picked by sampling each polyline every 0.35 m) | `src/engine/editor.rs` `try_pick_port`, `try_pick_connection`; `src/lib.rs` | Kept as gestures; the gizmos and the rubber band become AR items (16); picking becomes per-run capsules by arc length (9.3) |
@@ -233,7 +233,7 @@ with a `source` naming a finding (R1 to R44, D1 to D19) or `ours` with a reason:
 | `data/piping/benders.ron` | bending tools: which material and sizes, centreline radius, the angle marks (R1, R24) | new |
 | `data/gui/ar_layers.ron` | the AR layer's categories (section 16) | new; "Sky / map lines" becomes rows here |
 
-`Utility` stays a closed enum (`src/utilities.rs`: each utility has its own physics); everything
+`Utility` stays a closed enum (`crates/humanity-core/src/utilities.rs`: each utility has its own physics); everything
 under it is rows.
 
 ### 5.4 One word for the thing

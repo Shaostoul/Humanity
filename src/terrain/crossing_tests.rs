@@ -4,8 +4,8 @@
 //! changed but its paths. From dev_travel.rs: the sun and the moon over the ground, placed by the
 //! heightmap's latitude and longitude.
 
-use crate::dev_travel::*;
-use crate::dev_travel::tests::model_sun_from_earth;
+use humanity_core::dev_travel::*;
+use humanity_core::dev_travel::fixtures::model_sun_from_earth;
 use glam::DVec3;
 
 /// Where a world direction stands over the spinning planet at game hour
@@ -125,7 +125,7 @@ fn the_moon_crosses_the_meridian_at_the_hour_its_phase_says() {
         ("2026-11-01 20:28", "Last Quarter", 846_836_880.0, 6.0),
     ] {
         let at = |id: &str| {
-            crate::cosmos::body_world_position_3d_au(crate::cosmos::find_body(id).expect(id), t)
+            humanity_core::cosmos::body_world_position_3d_au(humanity_core::cosmos::find_body(id).expect(id), t)
         };
         let moon = (at("moon") - at("earth")).normalize();
         let sun = model_sun_from_earth(t);

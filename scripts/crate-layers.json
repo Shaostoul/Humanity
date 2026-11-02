@@ -1,58 +1,16 @@
 {
-  "_comment": "The planned crate split (docs/design/crate-split.md): which crate each part of src/ goes to, and which crates each may use. ONE source for the plan: scripts/crate-graph.js --edges reads it to list the references that point the wrong way, and the layer lint of rung 0 will read it to refuse new ones. A path is a top-level module (\"systems\") or a folder or file inside one (\"relay/core\", \"engine/protected\"); the most specific path wins. `uses` lists only the crates a crate may reach DIRECTLY; reaching one of theirs is fine too (it is transitive). Decided 2026-10-30 by the operator: the split, the ten crates and the humanity- names (docs/design/crate-split.md).",
+  "_comment": "The planned crate split (docs/design/crate-split.md): which crate each part of src/ goes to, and which crates each may use. ONE source for the plan: scripts/crate-graph.js --edges reads it to list the references that point the wrong way, and the layer lint of rung 0 will read it to refuse new ones. A crate already cut (rung 1, 2026-11-01: the core and the protocol) gives its \"dir\" instead of paths: every .rs under <dir>/src is its, and code names it by its library name (humanity_core::storage::...). A path is a top-level module (\"systems\") or a folder or file inside one (\"relay/core\", \"engine/protected\"); the most specific path wins. `uses` lists only the crates a crate may reach DIRECTLY; reaching one of theirs is fine too (it is transitive). Decided 2026-10-30 by the operator: the split, the ten crates and the humanity- names (docs/design/crate-split.md).",
   "crates": [
     {
       "name": "humanity-core",
       "why": "The basics every other crate uses: the ECS, the data loading, small leaves. Rarely edited, so every edit above it skips it.",
-      "paths": [
-        "input",
-        "audio",
-        "utilities",
-        "physics",
-        "debug",
-        "platform",
-        "turning",
-        "reactions",
-        "lod_registry",
-        "boot_timing",
-        "credits",
-        "scenic_views",
-        "showroom",
-        "mods",
-        "player_look",
-        "cosmetics",
-        "auto_unlock",
-        "embedded_data",
-        "data_parse",
-        "vertex",
-        "camera_angles",
-        "frame_costs",
-        "play_journal",
-        "raw_frame",
-        "i18n",
-        "build_permission",
-        "atomic_write",
-        "weather_map",
-        "civil_date",
-        "ecs",
-        "hot_reload",
-        "storage",
-        "cosmos",
-        "dev_travel",
-        "test_temp",
-        "test_log",
-        "test_clock",
-        "test_gpu",
-        "reuse"
-      ],
+      "dir": "crates/humanity-core",
       "uses": []
     },
     {
       "name": "humanity-protocol",
       "why": "What the app and the server both speak: keys, signatures, sealed messages, signed objects, encodings. Small, security-critical, easy to review on its own; lets net and the relay compile side by side.",
-      "paths": [
-        "relay/core"
-      ],
+      "dir": "crates/humanity-protocol",
       "uses": [
         "humanity-core"
       ]

@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 
 /// The built-in copy of `data/bugs/taxonomy.json`: a relay checks reports against the list it
 /// was built with, so an edit on a server's disk never changes what it accepts.
-const TAXONOMY_JSON: &str = include_str!("../../data/bugs/taxonomy.json");
+const TAXONOMY_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/bugs/taxonomy.json"));
 
 #[derive(serde::Deserialize)]
 struct Taxonomy {

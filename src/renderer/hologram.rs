@@ -10,7 +10,7 @@ use std::f32::consts::PI;
 use std::path::Path;
 
 use super::mesh::Mesh;
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 
 // ── RON data structures ─────────────────────────────────────
 
@@ -113,9 +113,9 @@ pub fn load_solar_system(data_dir: &Path) -> Option<SolarSystemData> {
         }
         Err(e) => {
             // Fall back to embedded data
-            match crate::embedded_data::get_embedded("world/solar_system.ron") {
+            match humanity_core::embedded_data::get_embedded("world/solar_system.ron") {
                 Some(embedded) => {
-                    crate::embedded_data::note_builtin_copy(
+                    humanity_core::embedded_data::note_builtin_copy(
                         "world/solar_system.ron",
                         format_args!("{} could not be read ({e})", path.display()),
                     );
@@ -304,7 +304,7 @@ pub fn generate_hologram_from_data(data: &SolarSystemData) -> SolarSystemHologra
     SolarSystemHologram { bodies }
 }
 
-/// Build the in-home holo-orrery from the CANONICAL `crate::cosmos`
+/// Build the in-home holo-orrery from the CANONICAL `humanity_core::cosmos`
 /// model (v0.262.13, map-sync increment C).
 ///
 /// The old `generate_hologram_from_data` read the drifted
@@ -327,10 +327,10 @@ pub fn generate_hologram_from_data(data: &SolarSystemData) -> SolarSystemHologra
 /// unchanged. `parent` is emitted with the legacy capitalised "Sun" /
 /// display-name convention that loop matches on.
 pub fn generate_hologram_from_cosmos(sim_time_seconds: f64) -> SolarSystemHologram {
-    let m_per_au = crate::cosmos::M_PER_AU;
-    let all = crate::cosmos::sol_bodies();
+    let m_per_au = humanity_core::cosmos::M_PER_AU;
+    let all = humanity_core::cosmos::sol_bodies();
 
-    // Color by body_type (crate::cosmos carries no per-body color).
+    // Color by body_type (humanity_core::cosmos carries no per-body color).
     // Earth gets a distinct blue so the HOME marker reads against it.
     let color_for = |id: &str, bt: &str| -> [f32; 4] {
         if id == "earth" {
@@ -380,7 +380,7 @@ pub fn generate_hologram_from_cosmos(sim_time_seconds: f64) -> SolarSystemHologr
         let (orbit_radius, pos) = if is_sun {
             (0.0, Vec3::ZERO)
         } else {
-            let helio = crate::cosmos::body_world_position_3d_au(b, sim_time_seconds);
+            let helio = humanity_core::cosmos::body_world_position_3d_au(b, sim_time_seconds);
             // The body's direction in the ecliptic plane (world XZ), as an
             // angle in the room's XZ: the same direction, not a longitude.
             let angle = (helio.z as f32).atan2(helio.x as f32);
@@ -414,15 +414,15 @@ pub fn generate_hologram_from_cosmos(sim_time_seconds: f64) -> SolarSystemHologr
             Some(p) => *p,
             None => continue,
         };
-        let helio_m = crate::cosmos::body_world_position_3d_au(b, sim_time_seconds);
-        let helio_p = crate::cosmos::find_body(&parent_id)
-            .map(|p| crate::cosmos::body_world_position_3d_au(p, sim_time_seconds))
+        let helio_m = humanity_core::cosmos::body_world_position_3d_au(b, sim_time_seconds);
+        let helio_p = humanity_core::cosmos::find_body(&parent_id)
+            .map(|p| humanity_core::cosmos::body_world_position_3d_au(p, sim_time_seconds))
             .unwrap_or(glam::DVec3::ZERO);
         let rel = helio_m - helio_p;
         let angle = (rel.z as f32).atan2(rel.x as f32);
         let orbit_r = 0.07_f32; // fixed small ring; room can't show true ratio
         let pos = parent_pos + Vec3::new(orbit_r * angle.cos(), 0.0, orbit_r * angle.sin());
-        let parent_name = crate::cosmos::find_body(&parent_id)
+        let parent_name = humanity_core::cosmos::find_body(&parent_id)
             .map(|p| p.name.clone())
             .unwrap_or(parent_id);
         bodies.push(HologramBody {
@@ -642,7 +642,7 @@ pub(crate) fn orbit_ring_data(radius: f32, segments: u32) -> (Vec<Vertex>, Vec<u
 /// the log-scaled tabletop hologram, useless for a real Keplerian orbit
 /// (eccentric + inclined). This sweeps a round tube of radius `tube_r`
 /// along `points` (the true ellipse from
-/// `crate::cosmos::sample_orbit_points`, in metres, parent-frame). Used
+/// `humanity_core::cosmos::sample_orbit_points`, in metres, parent-frame). Used
 /// for the faint orbit-path lines in the real-scale FPS world
 /// (v0.262.12, map-sync punch list). `points` must be a closed loop
 /// (first ≈ last, as `sample_orbit_points` returns) with ≥ 3 entries;

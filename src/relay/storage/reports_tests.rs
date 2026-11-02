@@ -42,7 +42,7 @@ const DAY: i64 = 86_400_000;
 /// reports_v2".
 #[test]
 fn a_database_from_before_reports_v2_gains_it_and_loses_the_old_table() {
-    let dir = crate::test_temp::dir("reports_premigration");
+    let dir = humanity_core::test_temp::dir("reports_premigration");
     let path = dir.join("relay.db");
     let db = Storage::open(&path).expect("open");
     db.with_conn(|c| {

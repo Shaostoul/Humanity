@@ -2,14 +2,14 @@
 //! before it passed; the failure text is in its comment.
 
 use super::*;
-use crate::ecs::components::{Controllable, Health, StatusEffects, Vitals};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Health, StatusEffects, Vitals};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::food::FoodSystem;
 use std::sync::Mutex;
 
 fn data_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// The DataStore as lib.rs wires it for the FoodSystem, with the quest events channel the
@@ -18,7 +18,7 @@ fn store() -> DataStore {
     let mut data = DataStore::new();
     data.insert(
         "status_effect_registry",
-        crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!("../../data/status_effects.csv")).expect("status_effects.csv"),
+        crate::systems::status_effects::StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/status_effects.csv"))).expect("status_effects.csv"),
     );
     for slot in ["consume_request", "drink_request", "use_item_request"] {
         data.insert(slot, Mutex::new(Option::<String>::None));

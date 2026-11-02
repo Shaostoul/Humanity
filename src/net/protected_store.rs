@@ -65,7 +65,7 @@ pub fn save(path: &Path, setup: &ProtectedSetup) -> Result<(), String> {
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     }
-    crate::atomic_write::write_atomic(path, &json)
+    humanity_core::atomic_write::write_atomic(path, &json)
 }
 
 #[cfg(test)]

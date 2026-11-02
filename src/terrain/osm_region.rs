@@ -43,7 +43,7 @@
 use glam::DVec3;
 
 #[cfg(feature = "native")]
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 
 // ───────────────────────────── Region data types ────────────────────────────
 
@@ -1274,7 +1274,7 @@ mod tests {
     #[test]
     fn shipped_silverdale_dem_is_real() {
         let bytes = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/maps/regions/silverdale.dem.bin"
         ))
         .expect("data/maps/regions/silverdale.dem.bin ships with the repo");
@@ -1501,7 +1501,7 @@ mod tests {
     #[test]
     fn shipped_seattle_region_is_real() {
         let bytes = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/maps/regions/seattle-center.bin"
         ))
         .expect("data/maps/regions/seattle-center.bin ships with the repo");
@@ -1543,7 +1543,7 @@ mod tests {
     #[test]
     fn shipped_silverdale_region_has_its_water() {
         let bytes = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/maps/regions/silverdale.bin"
         ))
         .expect("data/maps/regions/silverdale.bin ships with the repo");
@@ -1862,7 +1862,7 @@ mod tests {
     #[test]
     fn mesher_handles_the_shipped_seattle_region() {
         let bytes = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/maps/regions/seattle-center.bin"
         ))
         .expect("data/maps/regions/seattle-center.bin ships with the repo");

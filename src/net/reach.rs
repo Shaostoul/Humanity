@@ -374,7 +374,7 @@ pub fn intended_may(ticks: FriendTicks) -> Vec<&'static str> {
 
 /// The canonical `may` (sorted, comma-joined) of [`intended_may`], as passes carry it.
 pub fn intended_may_wire(ticks: FriendTicks) -> String {
-    crate::relay::core::pq_crypto::FriendMay::from_words(intended_may(ticks)).map(|m| m.wire()).unwrap_or_default()
+    humanity_protocol::pq_crypto::FriendMay::from_words(intended_may(ticks)).map(|m| m.wire()).unwrap_or_default()
 }
 
 /// Does a pass allowing `may` let its holder through for a kind the relay checks today that
@@ -538,7 +538,7 @@ mod tests {
         let d = FriendTicks::default();
         assert!(d.message && d.trade, "Message and Trade are ticked by default");
         assert!(!d.call, "Call is not ticked by default");
-        let step_a = crate::relay::core::pq_crypto::FriendMay::from_words(crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap().wire();
+        let step_a = humanity_protocol::pq_crypto::FriendMay::from_words(humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap().wire();
         assert_eq!(intended_may_wire(d), step_a, "the same pass a new friend gets");
         assert_eq!(intended_may_wire(d), "invite,message,trade,voice_message");
         assert_eq!(FriendTicks::from_may(&step_a), d, "and that pass reads back as the defaults");
@@ -596,7 +596,7 @@ mod tests {
     /// format accepts" failed (the may was empty).
     #[test]
     fn all_three_unticked_still_gives_a_valid_pass() {
-        use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, verify_friend_cert, DilithiumKeypair, FriendMay};
+        use humanity_protocol::pq_crypto::{build_friend_cert, derive_dilithium_seed, verify_friend_cert, DilithiumKeypair, FriendMay};
         let none = FriendTicks { message: false, call: false, trade: false };
         let may = intended_may_wire(none);
         assert!(FriendMay::parse(&may).is_ok(), "a may the format accepts, got {may:?}");

@@ -71,8 +71,8 @@
 //! Everything here is pure data and math with no engine state, so it compiles
 //! in every feature set (the relay build includes `systems/`).
 
-use crate::ecs::components::{EnvironmentContext, MET_SPRINTING, MET_STANDING, MET_WALKING};
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{EnvironmentContext, MET_SPRINTING, MET_STANDING, MET_WALKING};
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::precipitation::Falling;
 
 // -- Medical thresholds (the core temperature, C) ------------------------------------
@@ -777,7 +777,7 @@ pub struct HeatOutcome {
 pub fn vitals_tick(
     tracked: &mut Tracked,
     core_c: &mut f32,
-    effects: &mut crate::ecs::components::StatusEffects,
+    effects: &mut humanity_core::ecs::components::StatusEffects,
     ex: &Exposure,
     clo: f32,
     met: f32,

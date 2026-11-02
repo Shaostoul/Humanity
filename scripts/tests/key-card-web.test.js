@@ -1,6 +1,6 @@
 // Key cards, the website's half of the card itself (2026-10-22, docs/design/key-cards.md):
 // web/shared/key-card.js (the words signed, the one spelling, the check, the pin rule and the
-// sentences), held to the relay's src/relay/core/key_card.rs.
+// sentences), held to the relay's crates/humanity-protocol/src/key_card.rs.
 //
 // Run: node --test scripts/tests/key-card-web.test.js   (in `just rig-tests`)
 //
@@ -21,7 +21,7 @@ const path = require("node:path");
 const REPO = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(REPO, "web");
 const K = require(path.join(WEB, "shared", "key-card.js"));
-const RUST = fs.readFileSync(path.join(REPO, "src", "relay", "core", "key_card.rs"), "utf8");
+const RUST = fs.readFileSync(path.join(REPO, "crates", "humanity-protocol", "src", "key_card.rs"), "utf8");
 const FX = JSON.parse(fs.readFileSync(path.join(REPO, "scripts", "tests", "fixtures", "key-card-v1.json"), "utf8"));
 
 const enc = (s) => new TextEncoder().encode(s);

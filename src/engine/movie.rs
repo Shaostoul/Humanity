@@ -483,7 +483,7 @@ pub(crate) fn steer(state: &mut EngineState) {
         for (_e, (tr, _c)) in state
             .game_world
             .world
-            .query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+            .query_mut::<(&mut humanity_core::ecs::components::Transform, &humanity_core::ecs::components::Controllable)>()
         {
             tr.position = at;
         }
@@ -723,8 +723,8 @@ mod tests {
     }
 
     /// A scratch folder standing in for the game's working directory.
-    fn scratch(name: &str) -> crate::test_temp::TempPath {
-        let d = crate::test_temp::dir(&format!("movie_{name}"));
+    fn scratch(name: &str) -> humanity_core::test_temp::TempPath {
+        let d = humanity_core::test_temp::dir(&format!("movie_{name}"));
         std::fs::create_dir_all(d.join("debug")).unwrap();
         d
     }

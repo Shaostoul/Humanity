@@ -22,7 +22,7 @@
 
 use std::sync::Arc;
 
-use crate::relay::core::pq_crypto::{friend_cert_serial_ok, verify_friend_cert, FriendPass};
+use humanity_protocol::pq_crypto::{friend_cert_serial_ok, verify_friend_cert, FriendPass};
 use crate::relay::relay::{RelayMessage, RelayState};
 use crate::relay::storage::FriendCertWithdrawal;
 
@@ -43,7 +43,7 @@ pub fn friend_pass(state: &Arc<RelayState>, issuer: &str, grantee: &str, cert: O
 /// THIS relay, with a fresh serial and the defaults two new friends get. Returns (pass, serial).
 #[cfg(test)]
 pub(crate) fn test_pass(state: &Arc<RelayState>, issuer_seed: &[u8], issuer_hex: &str, grantee: &str) -> (String, String) {
-    use crate::relay::core::pq_crypto::{build_friend_cert, new_friend_cert_serial, FRIEND_PASS_DEFAULT_MAY};
+    use humanity_protocol::pq_crypto::{build_friend_cert, new_friend_cert_serial, FRIEND_PASS_DEFAULT_MAY};
     let server = state.db.server_did().expect("the relay's own did:hum");
     let serial = new_friend_cert_serial().expect("randomness");
     let pass = build_friend_cert(issuer_seed, &server, issuer_hex, grantee, &serial, &FRIEND_PASS_DEFAULT_MAY).expect("a pass");

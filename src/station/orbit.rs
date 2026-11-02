@@ -184,7 +184,7 @@ pub fn propagate(
     let n = (mu / (a * a * a)).sqrt();
     let dt = t_sim_s - sim_seconds(def.epoch_game_seconds, game_day_s);
     let m = def.mean_anomaly_at_epoch_deg.to_radians() + n * dt;
-    let ea = crate::cosmos::kepler_solve(m.rem_euclid(std::f64::consts::TAU), e);
+    let ea = humanity_core::cosmos::kepler_solve(m.rem_euclid(std::f64::consts::TAU), e);
 
     // Perifocal frame.
     let (se, ce) = ea.sin_cos();

@@ -1031,7 +1031,7 @@ impl DmStore {
 mod tests {
     use super::*;
     use crate::net::dm_pq;
-    use crate::relay::core::pq_crypto;
+    use humanity_protocol::pq_crypto;
 
     fn identity(seed_byte: u8) -> (Vec<u8>, String) {
         let seed = vec![seed_byte; 32];
@@ -1167,7 +1167,7 @@ mod tests {
         let server = temp_server();
         let mut store = DmStore::load(&seed, &me, &server);
         assert!(store.set_pass_server("did:hum:one"));
-        let permit = crate::build_permission::Permit {
+        let permit = humanity_core::build_permission::Permit {
             issuer: "ada".into(),
             server: "did:hum:one".into(),
             plot: "p1".into(),

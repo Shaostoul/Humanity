@@ -153,8 +153,8 @@ mod tests {
 
     /// A folder of its own, for a test that opens its database more than once or puts a secret
     /// file beside it first (the guard outlives the storages declared after it).
-    fn fresh_dir(tag: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("friend_passes_{tag}"))
+    fn fresh_dir(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("friend_passes_{tag}"))
     }
 
     /// A withdrawal is recorded once, read back for its issuer only, and a resend is harmless.

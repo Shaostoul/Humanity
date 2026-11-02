@@ -95,7 +95,7 @@ pub(crate) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     // falls back to the passphrase modal which is the
                     // recovery path.
                     let (btn_label, target_mode) = match state.auto_unlock_mode {
-                        crate::auto_unlock::AutoUnlockMode::KeychainPin if !state.pin_encrypted_seed.is_empty() => {
+                        humanity_core::auto_unlock::AutoUnlockMode::KeychainPin if !state.pin_encrypted_seed.is_empty() => {
                             ("Unlock with PIN", crate::gui::PassphraseMode::PinUnlock)
                         }
                         _ => ("Unlock with Passphrase", crate::gui::PassphraseMode::Unlock),
@@ -404,11 +404,11 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             // it would flip the defaults, not what the person chose.
                             let loaded = state.notif_prefs_loaded;
                             let dm_notif_label = if !loaded {
-                                crate::i18n::t("notifications.dm_wait")
+                                humanity_core::i18n::t("notifications.dm_wait")
                             } else if state.notif_dm_enabled {
-                                crate::i18n::t("notifications.dm_on")
+                                humanity_core::i18n::t("notifications.dm_on")
                             } else {
-                                crate::i18n::t("notifications.dm_off")
+                                humanity_core::i18n::t("notifications.dm_off")
                             };
                             let hint = if loaded { "notifications.kind_dm_hint" } else { "notifications.dm_wait_hint" };
                             if ui.add_enabled(loaded, egui::Button::new(dm_notif_label)).hint(hint).clicked() {

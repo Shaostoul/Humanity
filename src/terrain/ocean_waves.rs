@@ -194,7 +194,7 @@ mod tests {
         // v0.973 source split: scan the CONCATENATION of the megashader's
         // parts, so a constant moved between parts can never dodge this
         // lockstep check.
-        let parts_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let parts_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("assets/shaders/pbr");
         let mut names: Vec<std::path::PathBuf> = std::fs::read_dir(&parts_dir)
             .expect("shader parts dir readable")

@@ -2,7 +2,7 @@
 
 use crate::surface_move::{radial_step, MoveMode};
 use crate::systems::food::wounds_tests::SURFACE_SETTLE;
-use crate::input::bindings::GameAction;
+use humanity_core::input::bindings::GameAction;
 use crate::renderer::camera::Camera;
 use crate::renderer::camera::CameraController;
 use crate::renderer::camera::JUMP_SPEED_MPS;
@@ -13,7 +13,7 @@ use crate::systems::food::wounds_tests::free_fall;
 use crate::systems::food::wounds_tests::ids;
 use crate::systems::food::wounds_tests::land;
 use crate::systems::illness::Mode;
-use crate::ecs::components::StatusEffects;
+use humanity_core::ecs::components::StatusEffects;
 use crate::systems::food::wounds_tests::MOON_G;
 use crate::systems::food::wounds_tests::registry;
 use crate::systems::food::wounds_tests::shipped;

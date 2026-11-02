@@ -288,7 +288,7 @@ mod tests {
     use crate::systems::inventory::Inventory;
 
     fn read(rel: &str) -> Vec<u8> {
-        std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join(rel)).unwrap()
+        std::fs::read(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join(rel)).unwrap()
     }
 
     /// The shipped items, recipes, grades and trade goods, each through the

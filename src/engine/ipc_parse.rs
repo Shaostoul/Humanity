@@ -102,11 +102,11 @@ pub(crate) fn planet_tooltip_info(name: &str) -> (String, String) {
         // Disk first (so an operator can edit it live), embedded fallback for a
         // distributed exe shipped without the data/ folder.
         let text = std::fs::read_to_string("data/planets/tooltips.json").unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy(
+            humanity_core::embedded_data::note_builtin_copy(
                 "planets/tooltips.json",
                 format_args!("data/planets/tooltips.json could not be read ({e})"),
             );
-            crate::embedded_data::PLANET_TOOLTIPS_JSON.to_string()
+            humanity_core::embedded_data::PLANET_TOOLTIPS_JSON.to_string()
         });
         {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {

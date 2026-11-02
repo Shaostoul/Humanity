@@ -51,7 +51,7 @@ Each one is required between planets, and each one already pays off on Earth.
    (`DmStore::choose` in src/net/dm_store.rs, and the web's chat-dm-store.js). Signed profiles do
    the same since 2026-10-12 (BUG-191): the person's own app dates each copy after its clock,
    after the copy the server holds and after the last one it signed for that server
-   (`next_copy_time` in src/relay/core/profile_copy.rs), and a server keeps a copy only when it is
+   (`next_copy_time` in crates/humanity-protocol/src/profile_copy.rs), and a server keeps a copy only when it is
    newer than the one held and at most 24 hours ahead of its own clock
    (src/relay/storage/signed_profiles.rs). Before that the time was the origin SERVER's clock, so
    between servers whichever clock ran fast won every conflict (and no app signed a profile, so

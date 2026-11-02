@@ -48,7 +48,7 @@
 // spawns, so no rig can boot without the pin, and a rig written later gets it for nothing.
 // scripts/tests/rig-gameplay.test.js runs it.
 //
-// WHICH CONFIG (src/config.rs AppConfig::config_path, src/storage.rs portable mode):
+// WHICH CONFIG (src/config.rs AppConfig::config_path, crates/humanity-core/src/storage.rs portable mode):
 // HUMANITY_DATA_DIR/config.json when that is set; else config.json beside the exe when
 // portable.txt is there; else the player's own (%APPDATA%\HumanityOS\config.json), which a rig
 // never writes: sandboxConfigPath returns null and nothing is pinned. The operator's own config

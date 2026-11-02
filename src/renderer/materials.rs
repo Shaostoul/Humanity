@@ -205,7 +205,7 @@ impl Renderer {
         let bg = self.build_albedo_group_from_view(view, &self.albedo_sampler);
         self.materials[idx].albedo_bind_group = Some(bg);
         self.materials[idx].albedo_texture = None;
-        crate::frame_costs::set_vram_keyed("vram.textures", idx as u64, 0);
+        humanity_core::frame_costs::set_vram_keyed("vram.textures", idx as u64, 0);
     }
 
     /// Write new pixels into material `idx`'s RETAINED albedo texture. When
@@ -232,7 +232,7 @@ impl Renderer {
         let bg = self.build_albedo_group_from_view(&view, &self.albedo_sampler);
         self.materials[idx].albedo_bind_group = Some(bg);
         self.materials[idx].albedo_texture = Some((texture, width, height));
-        crate::frame_costs::set_vram_keyed(
+        humanity_core::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             (width as u64) * (height as u64) * 4,
@@ -266,7 +266,7 @@ impl Renderer {
         // VRAM inventory (resource budgets increment 1). Keyed by material
         // index so a later in-place albedo swap REPLACES this figure instead of
         // adding to it.
-        crate::frame_costs::set_vram_keyed(
+        humanity_core::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             (width as u64) * (height as u64) * 4,
@@ -304,7 +304,7 @@ impl Renderer {
         self.materials[idx].albedo_bind_group = Some(bg);
         self.bark_materials.insert(def.id.clone(), idx);
         // VRAM inventory: the whole mip chain, not just the base level.
-        crate::frame_costs::set_vram_keyed(
+        humanity_core::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             levels.iter().map(|l| l.len() as u64).sum(),
@@ -341,7 +341,7 @@ impl Renderer {
         self.materials[idx].albedo_texture = Some((texture, width, height));
         // The old texture is freed with its bind group, so the inventory
         // REPLACES this material's contribution rather than accumulating.
-        crate::frame_costs::set_vram_keyed(
+        humanity_core::frame_costs::set_vram_keyed(
             "vram.textures",
             idx as u64,
             (width as u64) * (height as u64) * 4,

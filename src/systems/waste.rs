@@ -10,9 +10,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::{Transform, WasteAccumulator, WasteSource};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Transform, WasteAccumulator, WasteSource};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Max distance (meters) a WasteSource will travel to deposit into an
 /// accumulator. Beyond this, waste is treated as ambient pollution.

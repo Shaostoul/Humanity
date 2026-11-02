@@ -5,7 +5,7 @@
 use super::*;
 
 pub(crate) fn shipped() -> ClimateTable {
-    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/environment/climate.ron"))
+    let src = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/environment/climate.ron"))
         .expect("the climate table ships with the repo");
     ClimateTable::from_ron(&src).expect("the shipped climate table must parse and validate")
 }
@@ -52,7 +52,7 @@ fn climate_table_parses_from_ron_and_holds_its_invariants() {
 
     // A longer wind series than the shader unrolls must be refused, not
     // silently truncated on the GPU side only.
-    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/environment/climate.ron")).unwrap();
+    let src = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/environment/climate.ron")).unwrap();
     let broken = src.replacen("wind_u_mean: [-0.358,", "wind_u_mean: [9.0, -0.358,", 1);
     assert!(broken != src, "the test's edit must land");
     assert!(ClimateTable::from_ron(&broken).is_err(), "17 wind terms must be refused");

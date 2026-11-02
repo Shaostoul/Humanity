@@ -22,7 +22,7 @@
 //! The ECS is read, not the HUD's copy: the HUD can lag a frame or be fed by another path, and
 //! the question a rig asks is what the body itself holds.
 
-use crate::ecs::components::{Controllable, Dead, Health, StatusEffects};
+use humanity_core::ecs::components::{Controllable, Dead, Health, StatusEffects};
 use crate::systems::status_effects::StatusEffectRegistry;
 
 /// The player's health now: the one Controllable with a Health that is not dead. None with no
@@ -63,7 +63,7 @@ pub(crate) fn vitals_json(
     satiation: f32,
     hydration: f32,
     world: &hecs::World,
-    data: &crate::hot_reload::data_store::DataStore,
+    data: &humanity_core::hot_reload::data_store::DataStore,
 ) -> serde_json::Value {
     let registry = data.get::<StatusEffectRegistry>("status_effect_registry");
     let hp = health(world);
@@ -167,7 +167,7 @@ mod tests {
     use super::*;
 
     fn registry() -> StatusEffectRegistry {
-        StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/status_effects.csv")))
+        StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/status_effects.csv")))
             .expect("status_effects.csv")
     }
 
@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(w[0]["name"], reg.get("sprained_ankle").unwrap().name.as_str());
         assert!(wounds(&world, None).is_empty(), "no registry: nothing can be named a wound");
 
-        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let mut data = humanity_core::hot_reload::data_store::DataStore::new();
         data.insert("status_effect_registry", reg);
         let v = vitals_json(70.0, 80.0, &world, &data);
         assert_eq!((v["satiation"].as_f64(), v["hydration"].as_f64()), (Some(70.0), Some(80.0)), "the old fields unchanged");

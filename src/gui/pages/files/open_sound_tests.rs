@@ -15,7 +15,7 @@ fn the_pages_video_gets_its_sound_and_mute_silences_it() {
         println!("skipped: this copy of Windows has no Media Foundation");
         return;
     }
-    let mut audio = match crate::audio::AudioManager::try_new() {
+    let mut audio = match humanity_core::audio::AudioManager::try_new() {
         Ok(a) => a,
         Err(e) => {
             println!("skipped: no audio device ({e})");
@@ -23,7 +23,7 @@ fn the_pages_video_gets_its_sound_and_mute_silences_it() {
         }
     };
     audio.set_master_volume(0.3);
-    let mp4 = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
+    let mp4 = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests/fixtures/media/moving-box-h264-aac.mp4");
     let mut opened = Opened::new(Item::default());
     opened.video.player = Some(crate::media::VideoPlayer::open(&mp4).expect("open"));
     sync_sound(&mut opened, &mut audio);

@@ -24,7 +24,7 @@
 //! like every homestead slot) and the render loop draws it in the opaque pass, gated by
 //! `GuiState::show_hull` (H key + the Settings toggle, mirroring the show_roof pattern).
 
-use crate::vertex::Vertex;
+use humanity_core::vertex::Vertex;
 use crate::ship::ship_structure::{CorridorAxis, ShipStructure};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
@@ -165,9 +165,9 @@ impl HullProfile {
             },
             Err(e) => format!("the file on disk could not be read ({e})"),
         };
-        let text = crate::embedded_data::get_embedded(HULL_PROFILE_REL)?;
+        let text = humanity_core::embedded_data::get_embedded(HULL_PROFILE_REL)?;
         // Says so in the log: a rig refuses a run that served a built-in copy (BUG-133).
-        crate::embedded_data::note_builtin_copy(HULL_PROFILE_REL, why);
+        humanity_core::embedded_data::note_builtin_copy(HULL_PROFILE_REL, why);
         match Self::parse(text) {
             Ok(p) => Some(p),
             Err(e) => {
@@ -803,7 +803,7 @@ mod tests {
     }
 
     fn shipped_profile_path() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("blueprints")
             .join("hull_profile.ron")
@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn embedded_hull_profile_parses_and_matches_the_shipped_file() {
-        let embedded = crate::embedded_data::get_embedded(HULL_PROFILE_REL)
+        let embedded = humanity_core::embedded_data::get_embedded(HULL_PROFILE_REL)
             .expect("hull profile has an embedded fallback");
         let p = HullProfile::parse(embedded).expect("embedded hull profile parses + validates");
         assert!(p.validate().is_ok());
@@ -1083,7 +1083,7 @@ mod tests {
     #[test]
     fn shipped_hull_profile_wraps_the_shipped_ship() {
         // The ship the game runs: the ship file plus the homestead on its default plot (p1).
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let ship = ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
         let text = std::fs::read_to_string(shipped_profile_path()).expect("shipped profile exists");
         let profile = HullProfile::parse(&text).expect("shipped profile parses");

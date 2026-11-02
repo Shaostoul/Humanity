@@ -6,8 +6,8 @@ use crate::gui::widgets::file_browser::{file_picker_modal, list_dir, FilePickerR
 use crate::gui::widgets::file_picker_memory as memory;
 
 /// A folder holding a sub-folder, three pictures and a text file, written for the test.
-fn folder(tag: &str) -> crate::test_temp::TempPath {
-    let dir = crate::test_temp::dir(tag);
+fn folder(tag: &str) -> humanity_core::test_temp::TempPath {
+    let dir = humanity_core::test_temp::dir(tag);
     std::fs::create_dir_all(dir.join("trips")).unwrap();
     for (i, name) in ["a-dawn.png", "b-noon.png", "c-dusk.png"].iter().enumerate() {
         image::RgbaImage::from_fn(60 + i as u32 * 20, 40, |x, _| image::Rgba([(x * 3) as u8, 80, 140, 255])).save(dir.join(name)).unwrap();

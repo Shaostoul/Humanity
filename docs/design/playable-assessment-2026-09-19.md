@@ -304,7 +304,7 @@ Add a `model` column to `plants.csv` so every tomato cultivar can point at
 Manhattan path, places brackets every 1.5 m and at bends, adds elbows for rigid
 kinds, gaskets where a run crosses a wall, and dedupes overlapping fittings
 (`src/engine/home_meshes.rs:1133-1141`). It is unit-tested. There is real
-electrical engineering behind it (`src/utilities.rs`: AWG, ampacity, voltage
+electrical engineering behind it (`crates/humanity-core/src/utilities.rs`: AWG, ampacity, voltage
 drop, NEC derating).
 
 **What is missing is entirely on the render side.**

@@ -11,7 +11,7 @@
 //! order; the only test-side code is the sequencing, which is why each step
 //! carries the lib.rs line it mirrors.
 
-use crate::dev_travel::frame_lock_capture;
+use humanity_core::dev_travel::frame_lock_capture;
 use crate::engine::frame_lock::ground_radius_m;
 use crate::surface_move::ground_sample_dir;
 use crate::surface_walk::{walk_ground_radius, DRAWN_CLEARANCE_M, LOD_CLEARANCE_M};
@@ -39,7 +39,7 @@ const PATCH_BUDGET: usize = 2048;
 const VIEWPORT_H: f32 = 1080.0;
 
 fn real_earth() -> (PlanetHeightmap, OceanMask, PlanetDef) {
-    let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+    let base = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("planets");
     let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin")).expect("heightmap");
     let om = OceanMask::load(&base.join("earth_ocean_mask.bin")).expect("ocean mask");
     let text = std::fs::read_to_string(base.join("earth.ron")).expect("earth.ron");

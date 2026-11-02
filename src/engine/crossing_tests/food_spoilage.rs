@@ -16,17 +16,17 @@ use crate::systems::inventory::placed::PlacedItem;
 /// right: 7200.0".
 #[test]
 fn food_keeps_its_age_through_a_save() {
-    use crate::ecs::components::MachineInstanceId;
+    use humanity_core::ecs::components::MachineInstanceId;
     let mut world = hecs::World::new();
     let mut inv = Inventory::new(8);
     inv.add_item_aged("bread_0", 2, 99, 0, 7200.0);
     world.spawn((
-        crate::ecs::components::Controllable,
+        humanity_core::ecs::components::Controllable,
         inv,
         crate::systems::skills::PlayerSkills::new(),
-        crate::ecs::components::Name("Astra".to_string()),
-        crate::ecs::components::Appearance::default(),
-        crate::ecs::components::Outfit::default(),
+        humanity_core::ecs::components::Name("Astra".to_string()),
+        humanity_core::ecs::components::Appearance::default(),
+        humanity_core::ecs::components::Outfit::default(),
     ));
     let mut pantry = Container::new("pantry_cabinet_bin", 700.0);
     pantry.current_content_item = Some("bread_0".into());
@@ -39,12 +39,12 @@ fn food_keeps_its_age_through_a_save() {
 
     let mut fresh = hecs::World::new();
     let p = fresh.spawn((
-        crate::ecs::components::Controllable,
+        humanity_core::ecs::components::Controllable,
         Inventory::new(8),
         crate::systems::skills::PlayerSkills::new(),
-        crate::ecs::components::Name("X".to_string()),
-        crate::ecs::components::Appearance::default(),
-        crate::ecs::components::Outfit::default(),
+        humanity_core::ecs::components::Name("X".to_string()),
+        humanity_core::ecs::components::Appearance::default(),
+        humanity_core::ecs::components::Outfit::default(),
     ));
     let vessel = fresh.spawn((MachineInstanceId("pantry_1".into()), Container::new("pantry_cabinet_bin", 700.0)));
     crate::save_load::apply_save_to_world(&mut fresh, &save);

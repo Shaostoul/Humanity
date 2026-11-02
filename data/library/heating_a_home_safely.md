@@ -657,7 +657,7 @@ carbon monoxide this guide is about.
   the home's air stays at about 20 C (`src/systems/atmosphere.rs`), the
   grow rooms at 21 C (`data/garden/humidity.ron`, `room_temp_c`), and the
   ship's shared spaces, such as the Commons, at 21 C
-  (`src/ecs/components.rs`); holding them there costs you nothing. The
+  (`crates/humanity-core/src/ecs/components.rs`); holding them there costs you nothing. The
   home's electric water heater draws power for the hot water its fixtures
   use, but it warms no room (`data/machines/home.ron`).
 - **A space heater you build warms the air it stands in.** The Crafting
@@ -1135,7 +1135,7 @@ used here and the wording is not.
 - The home's air held at about 20 C (`src/systems/atmosphere.rs`, its
   default of 293 K, and `src/engine/survival_env.rs`), the grow rooms at
   21 C (`room_temp_c` in `data/garden/humidity.ron`), and the ship's
-  shared spaces at the default 21 C (`src/ecs/components.rs`); the
+  shared spaces at the default 21 C (`crates/humanity-core/src/ecs/components.rs`); the
   home's electric water heater (`data/machines/home.ron`); the Build
   Heater recipe and the Heater, Smoke Detector and Fire Extinguisher items
   (`data/recipes.csv`, `data/items.csv`); the space heater machine, its

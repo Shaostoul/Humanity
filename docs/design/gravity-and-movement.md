@@ -238,7 +238,7 @@ closed in v0.745 and v0.749.)
   the structural-load analysis module is orphaned. The one live precedent is
   `Container.damage_ratio` (`systems/inventory/containers.rs:159`).
 
-`EnvironmentContext` (`src/ecs/components.rs:146-164`, built at
+`EnvironmentContext` (`crates/humanity-core/src/ecs/components.rs:146-164`, built at
 `src/lib.rs:5501-5561`) is the natural carrier: it already has exactly three
 fields and one real gameplay consumer, so adding `g_load: f32` with a safe
 default is short plumbing. Farming does not read it, so the plant path needs its

@@ -8,14 +8,14 @@
 //! names, on this change's own code, and the test then passed with the break taken out.
 
 use super::*;
-use crate::ecs::components::{Creature, Dead, Harvestable, Name, Transform, WaterTank};
-use crate::ecs::systems::System;
+use humanity_core::ecs::components::{Creature, Dead, Harvestable, Name, Transform, WaterTank};
+use humanity_core::ecs::systems::System;
 use crate::systems::livestock::{CreatureRegistry, HerdSlot, LivestockSystem};
 use glam::Vec3;
 use std::path::Path;
 
 fn data_dir() -> &'static Path {
-    Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+    Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data"))
 }
 
 fn shipped_care() -> CareData {

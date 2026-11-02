@@ -81,6 +81,31 @@ test("a config file's rustflags, a crate-wide allow and a manifest allow are fou
   assert.deepStrictEqual(R.configRustflags('[build]\nrustc-workspace-wrapper = ".cargo/hos-build-slot.exe"\njobs = 4\n'), []);
 });
 
+// THE WORKSPACE (2026-11-01, the crate split's rung 1): every member is ours. A ratchet that counted
+// only the root package's warnings would pass a warning in the core or the protocol, and a crate-wide
+// allow in a member's lib.rs would hide its warnings from every count.
+test("every workspace member's warnings are counted, and a member's crate-wide allow is found", () => {
+  const toml = '[workspace]\nmembers = [".", "crates/humanity-core",\n  "crates/humanity-protocol"]\n\n[package]\nname = "humanity-engine"\n';
+  assert.deepStrictEqual(R.workspaceMembers(toml), [".", "crates/humanity-core", "crates/humanity-protocol"]);
+  assert.deepStrictEqual(R.workspaceMembers('[package]\nname = "x"\n'), ["."]);
+  const CORE = path.join(ROOT, "crates", "humanity-core", "Cargo.toml");
+  const manifests = [MANIFEST, CORE];
+  const { ours, others } = R.countLines([msg({ line: 3 }), msg({ manifest: CORE, file: "crates/humanity-core/src/a.rs" }), msg({ manifest: OTHER, line: 9 })], { manifests, pkgNames: ["humanity-engine", "humanity-core"] });
+  assert.strictEqual(ours.size, 2, "the root's and the core's");
+  assert.strictEqual(others.size, 1, "vendor/ is printed, not counted");
+  // Red: the same stream read as if the core were not a member loses its warning.
+  assert.strictEqual(R.countLines([msg({ manifest: CORE, file: "crates/humanity-core/src/a.rs" })], { manifests: [MANIFEST], pkgNames: ["humanity-engine"] }).ours.size, 0);
+  const files = {
+    [path.join(ROOT, "Cargo.toml")]: toml,
+    [path.join(ROOT, "crates/humanity-core/src/lib.rs")]: "#![allow(warnings)]\n",
+    [path.join(ROOT, "crates/humanity-protocol/Cargo.toml")]: '[package]\nname = "humanity-protocol"\n[lints.rust]\nwarnings = "allow"\n',
+  };
+  assert.deepStrictEqual(R.hiddenBy({}, { cwd: path.parse(ROOT).root, readFile: (f) => (f in files ? files[f] : null) }), [
+    "crates/humanity-core/src/lib.rs: #![allow(warnings)]",
+    'crates/humanity-protocol/Cargo.toml: [lints.rust] warnings = "allow"',
+  ]);
+});
+
 test("this checkout's own sources hide nothing", () => {
   // The repo-side half only (src/lib.rs, src/main.rs, Cargo.toml); the environment is the machine's.
   const repoOnly = R.hiddenBy({}, { cwd: path.parse(ROOT).root }).filter((f) => !/[\\/]\.cargo[\\/]/.test(f));
@@ -99,7 +124,7 @@ test("our warnings are counted once each; other packages, summaries and errors a
     "not json at all",
     "",
   ];
-  const { ours, others, rendered } = R.countLines(lines, { manifest: MANIFEST, pkgName: "humanity-engine" });
+  const { ours, others, rendered } = R.countLines(lines, { manifests: [MANIFEST], pkgNames: ["humanity-engine"] });
   assert.strictEqual(ours.size, 2);
   assert.strictEqual(others.size, 1);
   // Every distinct diagnostic is printed, the error included; the summary line is not.
@@ -108,7 +133,7 @@ test("our warnings are counted once each; other packages, summaries and errors a
 });
 
 test("the same lint at two places is two warnings", () => {
-  const { ours } = R.countLines([msg({ line: 3 }), msg({ line: 4 })], { manifest: MANIFEST, pkgName: "humanity-engine" });
+  const { ours } = R.countLines([msg({ line: 3 }), msg({ line: 4 })], { manifests: [MANIFEST], pkgNames: ["humanity-engine"] });
   assert.strictEqual(ours.size, 2);
 });
 
@@ -116,13 +141,13 @@ test("a message without a manifest path is placed by its package id", () => {
   const line = JSON.parse(msg({}));
   delete line.manifest_path;
   const theirs = { ...line, package_id: "registry+https://github.com/rust-lang/crates.io-index#egui@0.31.1" };
-  const { ours, others } = R.countLines([JSON.stringify(line), JSON.stringify({ ...theirs, message: { ...line.message, line_start: 7, message: "other" } })], { manifest: MANIFEST, pkgName: "humanity-engine" });
+  const { ours, others } = R.countLines([JSON.stringify(line), JSON.stringify({ ...theirs, message: { ...line.message, line_start: 7, message: "other" } })], { manifests: [MANIFEST], pkgNames: ["humanity-engine"] });
   assert.strictEqual(ours.size, 1);
   assert.strictEqual(others.size, 1);
 });
 
 test("over the budget fails, at or under passes, under asks for the budget to come down", () => {
-  const two = R.countLines([msg({ line: 1 }), msg({ line: 2 })], { manifest: MANIFEST, pkgName: "humanity-engine" });
+  const two = R.countLines([msg({ line: 1 }), msg({ line: 2 })], { manifests: [MANIFEST], pkgNames: ["humanity-engine"] });
   const over = R.judge("native", two.ours, two.others, { native: 1, relay: 0 });
   assert.strictEqual(over.ok, false);
   assert.match(over.lines.join("\n"), /FAILED: 2 Rust warning\(s\) in the native build, over its budget of 1/);

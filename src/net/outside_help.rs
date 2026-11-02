@@ -190,7 +190,7 @@ pub fn parse(bytes: &[u8]) -> Result<OutsideHelp, String> {
 /// Load the file from the data folder, or the copy built into the exe when the folder's copy is
 /// missing or this version cannot read it.
 pub fn load(data_dir: &std::path::Path) -> Result<OutsideHelp, String> {
-    crate::embedded_data::load_data_or_embedded(data_dir, OUTSIDE_HELP_FILE, parse)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, OUTSIDE_HELP_FILE, parse)
 }
 
 /// Which country the block starts on (10e-ii): the one last picked on this device (`saved`, from

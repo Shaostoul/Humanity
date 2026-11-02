@@ -63,7 +63,7 @@ impl GodrayPass {
     pub fn new(device: &wgpu::Device, scene_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Godray Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/godrays.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/godrays.wgsl")).into()),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

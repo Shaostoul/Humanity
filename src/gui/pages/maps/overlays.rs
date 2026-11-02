@@ -20,7 +20,7 @@ use egui::{Align2, Pos2, Rect, RichText, Stroke, Vec2};
 use glam::DVec3;
 use serde::Deserialize;
 
-use crate::cosmos::{body_world_position_3d_au, find_body, SolBody};
+use humanity_core::cosmos::{body_world_position_3d_au, find_body, SolBody};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::label_placer::LabelPlacer;
 use crate::gui::GuiState;
@@ -112,7 +112,7 @@ pub struct LagrangeFile {
 }
 
 fn load<T: for<'de> Deserialize<'de>>(rel: &str) -> Option<T> {
-    match crate::embedded_data::load_text_or_embedded(&crate::storage::data_dir(), rel, |t| ron::from_str::<T>(t).map_err(|e| e.to_string())) {
+    match humanity_core::embedded_data::load_text_or_embedded(&humanity_core::storage::data_dir(), rel, |t| ron::from_str::<T>(t).map_err(|e| e.to_string())) {
         Ok(v) => Some(v),
         Err(e) => {
             log::warn!("Maps: {e}; that overlay is left out");
@@ -355,7 +355,7 @@ fn lagrange_m(scene: &MapScene, parent: &SolBody, p_au: DVec3) -> Option<DVec3> 
     if parent.id == "sun" {
         return Some(scene.au_to_m(p_au));
     }
-    let rel = (p_au - body_world_position_3d_au(parent, scene.sim_time)) * crate::cosmos::M_PER_AU;
+    let rel = (p_au - body_world_position_3d_au(parent, scene.sim_time)) * humanity_core::cosmos::M_PER_AU;
     scene.near_m(&parent.id, rel)
 }
 

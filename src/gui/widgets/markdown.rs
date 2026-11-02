@@ -766,7 +766,7 @@ mod tests {
     /// until someone follows one. This pins the grammar both walks share.
     #[test]
     fn the_shipped_constitution_has_unique_anchors_for_every_section() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data/library/us-constitution.md");
         // No silent skip on a read error. The first version of this test looked
         // for `us_constitution.md`, could not find it, and returned early, so it

@@ -1,0 +1,1815 @@
+//! Core ECS components shared across all game systems.
+//!
+//! Everything in the game is an entity with a combination of these components.
+//! A human, a cow, an alien, and a mech are all entities with different component sets.
+
+use glam::{Quat, Vec3};
+use serde::{Deserialize, Serialize};
+
+// ── Transform & Physics ──────────────────────────────────────
+
+/// 3D transform: position, rotation, scale.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Transform {
+    pub position: Vec3,
+    pub rotation: Quat,
+    pub scale: Vec3,
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+        }
+    }
+}
+
+/// The world-space box a structure's transform covers, (min, max): `position` is the box's
+/// base centre, `scale` its size, turned by `rotation`. Exact for the quarter turns placement
+/// makes; for any other rotation it is the box around the turned box.
+///
+/// A function of a `Transform` alone, so it sits beside it (it was
+/// `systems::construction::placement`'s until the crate split's rung 0, and the ship's build
+/// frames reached up into the simulation for it). Placement and the build frames both read it.
+pub fn world_aabb(tf: &Transform) -> (Vec3, Vec3) {
+    let m = glam::Mat3::from_quat(tf.rotation);
+    let half = tf.scale * 0.5;
+    let center = tf.position + tf.rotation * Vec3::new(0.0, half.y, 0.0);
+    let ext = Vec3::new(
+        m.x_axis.x.abs() * half.x + m.y_axis.x.abs() * half.y + m.z_axis.x.abs() * half.z,
+        m.x_axis.y.abs() * half.x + m.y_axis.y.abs() * half.y + m.z_axis.y.abs() * half.z,
+        m.x_axis.z.abs() * half.x + m.y_axis.z.abs() * half.y + m.z_axis.z.abs() * half.z,
+    );
+    (center - ext, center + ext)
+}
+
+/// Standing eye height above the ground (metres): where a person's eyes are over their feet.
+/// The planet walk rests the camera this far over the ground (`surface_walk`), and every
+/// position a game sends and the relay holds for a player is the eye (`ship::moves::feet_y`).
+/// Here, a fact about the body, since the crate split's rung 0 (it was `surface_walk`'s, and the
+/// ship and the terrain's tests reached up into the simulation for it).
+pub const EYE_HEIGHT_M: f64 = 1.7;
+
+/// Linear and angular velocity.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Velocity {
+    pub linear: Vec3,
+    pub angular: Vec3,
+}
+
+/// Links an entity to a Rapier3d rigid body for physics simulation.
+/// The handle indexes into PhysicsWorld's RigidBodySet.
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicsBody {
+    pub handle: rapier3d::dynamics::RigidBodyHandle,
+}
+
+// ── Rendering ────────────────────────────────────────────────
+
+/// Links an entity to a mesh and material for rendering.
+/// mesh_id and material_id are string keys into the asset registries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Renderable {
+    pub mesh_id: String,
+    pub material_id: String,
+}
+
+// ── Identity & Stats ─────────────────────────────────────────
+
+/// Human-readable name for any entity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Name(pub String);
+
+/// Health pool with current and max values.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Health {
+    pub current: f32,
+    pub max: f32,
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self {
+            current: 100.0,
+            max: 100.0,
+        }
+    }
+}
+
+// ── Survival vitals & status effects ─────────────────────────
+
+/// Survival baseline: satiation (fullness) and hydration. Both decay over time
+/// and are replenished by eating/drinking. When either hits zero, Health drains
+/// (starvation / dehydration). Low levels apply the `hungry` / `thirsty` conditions.
+///
+/// The meters are f32, and a frame's share of a day's need at time speed 1 is
+/// below an f32's step near 100, so a change made every frame goes through the
+/// food system's `change_exactly`, which carries what rounding holds back to the
+/// next frame (BUG-164, 2026-10-05). A one-off change (a meal, a nap) needs none.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Vitals {
+    /// Fullness, 0..=satiation_max. 0 = starving.
+    pub satiation: f32,
+    /// Hydration, 0..=hydration_max. 0 = dehydrated.
+    pub hydration: f32,
+    /// Energy / rest, 0..=energy_max. Drains while awake; restored by resting.
+    /// Low energy applies the `fatigued` speed debuff.
+    #[serde(default = "default_vital_full")]
+    pub energy: f32,
+    /// Blood oxygen, 0..=oxygen_max. Drains when exposed to vacuum / no breathable
+    /// air; low = hypoxia, 0 = suffocation.
+    #[serde(default = "default_vital_full")]
+    pub oxygen: f32,
+    /// Core body temperature (Celsius, ~37 healthy). Drifts toward ambient when
+    /// exposed; far from baseline → hypothermia / heat exhaustion.
+    #[serde(default = "default_body_temp")]
+    pub body_temp_c: f32,
+    /// Accumulated organic waste, 0..=waste_max. RISES over time + when eating;
+    /// high waste → the `unsanitary` debuff. Compost it into fertilizer to clear it.
+    #[serde(default)]
+    pub waste: f32,
+    pub satiation_max: f32,
+    pub hydration_max: f32,
+    #[serde(default = "default_vital_full")]
+    pub energy_max: f32,
+    #[serde(default = "default_vital_full")]
+    pub oxygen_max: f32,
+    #[serde(default = "default_vital_full")]
+    pub waste_max: f32,
+}
+
+/// Default for a vital that starts full (serde fallback for older saves).
+fn default_vital_full() -> f32 {
+    100.0
+}
+
+/// Healthy baseline core body temperature (Celsius).
+fn default_body_temp() -> f32 {
+    37.0
+}
+
+impl Default for Vitals {
+    fn default() -> Self {
+        // Start comfortably fed (not full) so the player has headroom but will need
+        // to eat/drink/rest within a session; oxygen full + body temperature healthy.
+        Self {
+            satiation: 80.0,
+            hydration: 80.0,
+            energy: 100.0,
+            oxygen: 100.0,
+            body_temp_c: 37.0,
+            waste: 0.0,
+            satiation_max: 100.0,
+            hydration_max: 100.0,
+            energy_max: 100.0,
+            oxygen_max: 100.0,
+            waste_max: 100.0,
+        }
+    }
+}
+
+/// The player's current environment, recomputed each frame from their position vs the
+/// sealed homestead volume. Lives in the DataStore under "environment_context" and
+/// drives oxygen + body temperature in FoodSystem. Its `Default` is safe
+/// (sealed/oxygenated/comfortable), so absent data never harms the player.
+#[derive(Debug, Clone)]
+pub struct EnvironmentContext {
+    /// True inside a sealed/pressurized space (the homestead); outside = vacuum.
+    pub sealed: bool,
+    /// True if breathable oxygen is available at the player's location.
+    pub oxygenated: bool,
+    /// Air temperature (Celsius) around the player: the home's air inside,
+    /// the weather at the player's position outside. The body heat model
+    /// (`systems::body_heat`) reads it with everything below.
+    pub ambient_temp_c: f32,
+    /// Relative humidity of that air, 0 to 1.
+    pub relative_humidity: f32,
+    /// Wind, m/s, as the weather reports it (at 10 m). Ignored when sealed or
+    /// sheltered (still air).
+    pub wind_m_s: f32,
+    /// Rain or snow landing on the player, 0 to 1 (`body_heat::precipitation`).
+    pub precipitation: f32,
+    /// Under a roof, out of the wind and the rain, while not in a sealed
+    /// space. NOTHING SETS IT YET (2026-09-27): it is the input the built
+    /// structures' `shelter` provision will drive (docs/design/body-heat.md).
+    pub sheltered: bool,
+    /// Mean radiant temperature (Celsius) of the surroundings: a fire, the
+    /// sun, a cold sky. None = the air temperature, which is all that is
+    /// known today.
+    pub radiant_temp_c: Option<f32>,
+    /// Air pressure, kPa (101.325 at sea level; about 0 in vacuum).
+    pub pressure_kpa: f32,
+    /// What the player is doing, in met (`MET_*` below): standing,
+    /// walking, sprinting. The heat a body makes.
+    pub activity_met: f32,
+    /// Felt gravity in g, AFTER inertial dampening (see `systems::flight`).
+    /// This is the acceleration the occupant's body actually experiences: the
+    /// hypotenuse of the drive's thrust and any rotating section's spin, minus
+    /// whatever the dampeners cancelled.
+    ///
+    /// Defaults to 1.0, a comfortable Earth-normal, so any code path that has
+    /// not been taught about flight yet reports a safe value rather than a
+    /// weightless or a lethal one.
+    pub g_load: f32,
+}
+
+impl Default for EnvironmentContext {
+    fn default() -> Self {
+        Self {
+            sealed: true,
+            oxygenated: true,
+            ambient_temp_c: 21.0,
+            // The home's air default (atmosphere.rs `Atmosphere::default`).
+            relative_humidity: 0.4,
+            wind_m_s: 0.0,
+            precipitation: 0.0,
+            sheltered: false,
+            radiant_temp_c: None,
+            pressure_kpa: 101.325,
+            activity_met: MET_STANDING,
+            g_load: 1.0,
+        }
+    }
+}
+
+// -- Activity (met; 1 met = 58.2 W per square metre of skin) -------------------------
+//
+// ASHRAE Handbook Fundamentals chapter 9, Table 4 (typical metabolic heat
+// generation): sleeping 0.7, standing relaxed 1.2, walking on the level at
+// 0.9 m/s 2.0, at 1.8 m/s 3.8; driving a car 1.0 to 2.0. The game's walking
+// pace is faster than a real walk (a pacing choice), so its gait is billed
+// by what the player is doing, not by the speed on screen.
+//
+// Beside `EnvironmentContext::activity_met`, the field whose unit they are, since the crate
+// split's rung 0 (they were `systems::body_heat`'s, and the default above reached up for one).
+// The body heat model reads them from here.
+
+/// Asleep (ASHRAE: sleeping, 0.7 met).
+pub const MET_SLEEPING: f32 = 0.7;
+/// Standing still (ASHRAE: standing, relaxed, 1.2 met).
+pub const MET_STANDING: f32 = 1.2;
+/// Walking (ASHRAE: walking on the level at 0.9 m/s, 2.0 met).
+pub const MET_WALKING: f32 = 2.0;
+/// Sprinting (ASHRAE: walking at 1.8 m/s, 3.8 met; heavy work is 3 to 4).
+pub const MET_SPRINTING: f32 = 3.8;
+/// Driving (ASHRAE: automobile, 1.0 to 2.0 met; the middle).
+pub const MET_DRIVING: f32 = 1.5;
+
+/// One active status effect on an entity, with its remaining duration in seconds.
+/// Timed buffs/debuffs count down to 0 and expire; condition-type effects (e.g.
+/// `hungry`) are refreshed each tick by the system that owns their trigger and
+/// fade a few seconds after the trigger clears. Always finite (JSON-save-safe).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveEffect {
+    /// Effect id from `data/status_effects.csv`.
+    pub id: String,
+    /// Seconds remaining before this effect expires: game seconds for an
+    /// illness (a `disease` row, `systems::illness`), real seconds for the rest.
+    ///
+    /// f64, so a frame's step always comes off it (BUG-164, 2026-10-05): as an
+    /// f32, a two-day illness (172,800 s) moved in steps of 1/64 s, so at time
+    /// speed 1 a frame shorter than 1/128 s took nothing off and the illness
+    /// never passed at 144 frames a second, and longer frames were rounded to
+    /// whole steps. A save written with the f32 reads into it unchanged.
+    pub remaining: f64,
+}
+
+/// Active buffs / debuffs / conditions on an entity (food, environment, medical…).
+/// Systems that own a stat (movement, vision, regen) read this plus the
+/// `StatusEffectRegistry` to apply each effect's `stat:value:op` modifier.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StatusEffects {
+    pub active: Vec<ActiveEffect>,
+}
+
+impl StatusEffects {
+    /// True if an effect with this id is currently active.
+    pub fn has(&self, id: &str) -> bool {
+        self.active.iter().any(|e| e.id == id)
+    }
+
+    /// Add the effect, or refresh its timer to at least `duration` seconds if already present.
+    pub fn apply(&mut self, id: &str, duration: impl Into<f64>) {
+        let duration = duration.into();
+        if let Some(e) = self.active.iter_mut().find(|e| e.id == id) {
+            e.remaining = e.remaining.max(duration);
+        } else {
+            self.active.push(ActiveEffect {
+                id: id.to_string(),
+                remaining: duration,
+            });
+        }
+    }
+
+    /// Seconds an effect has left, or None when it is not on.
+    pub fn remaining(&self, id: &str) -> Option<f64> {
+        self.active.iter().find(|e| e.id == id).map(|e| e.remaining)
+    }
+
+    /// Remove an effect by id (e.g. when its triggering condition clears).
+    pub fn remove(&mut self, id: &str) {
+        self.active.retain(|e| e.id != id);
+    }
+
+    /// Count down every effect and drop the ones that have expired.
+    pub fn tick(&mut self, dt: f32) {
+        self.tick_with(|_| dt);
+    }
+
+    /// Count each effect down by its own clock's step, `step(id)` seconds, and
+    /// drop the ones that have expired. An illness counts game seconds and the
+    /// rest real ones (BUG-162, `systems::illness`). The step comes off an f64,
+    /// so all of every frame's step counts (BUG-164).
+    pub fn tick_with(&mut self, step: impl Fn(&str) -> f32) {
+        for e in &mut self.active {
+            e.remaining -= f64::from(step(&e.id));
+        }
+        self.active.retain(|e| e.remaining > 0.0);
+    }
+}
+
+/// Faction/allegiance for PvP/PvE.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Faction {
+    pub id: String,
+}
+
+// ── Player & Control ─────────────────────────────────────────
+
+/// Marks the entity the player is currently controlling.
+/// Only one entity should have this at a time.
+/// Moving this component to a different entity = possessing that entity
+/// (mech, alien, vehicle, creature for PvP modes, etc.).
+#[derive(Debug, Clone, Default)]
+pub struct Controllable;
+
+// ── AI & Behavior ────────────────────────────────────────────
+
+/// AI behavior for NPCs and creatures.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIBehavior {
+    /// Behavior type from data file (e.g., "passive", "aggressive", "herd", "predator").
+    pub behavior_type: String,
+    /// Current state (e.g., "idle", "wandering", "fleeing", "attacking", "following").
+    pub state: String,
+    /// Target entity (if chasing/following).
+    pub target: Option<u64>,
+}
+
+// ── Interaction ──────────────────────────────────────────────
+
+/// Makes an entity interactable by the player (click/hover).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Interactable {
+    /// What kind of interaction (e.g., "harvest", "mine", "open", "use", "build", "talk").
+    pub interaction_type: String,
+    /// Max distance from which the player can interact (meters).
+    pub range: f32,
+}
+
+/// Resource that can be harvested from an entity (milk, wool, fruit, etc.).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Harvestable {
+    /// Resource ID from items.csv.
+    pub resource: String,
+    /// Amount per harvest.
+    pub amount: f32,
+    /// Seconds until resource regenerates.
+    pub regrow_time: f32,
+    /// Seconds since last harvest (for regrowth tracking).
+    pub time_since_harvest: f32,
+}
+
+/// A living animal in the world (v0.751, closure ladder rung 7). Spawned from
+/// data/entities/livestock.ron rows against creatures.csv definitions; the
+/// LivestockSystem wanders it around its anchor and ages its Harvestable.
+/// Presentation fields (tint, body_side) are copied in at spawn so the render
+/// pass never needs a registry lookup per frame.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Creature {
+    /// creatures.csv id (e.g. "chicken").
+    pub def_id: String,
+    /// Home point the animal grazes around (world space).
+    pub anchor: Vec3,
+    /// Max wander distance from the anchor (metres).
+    pub range: f32,
+    /// Per-animal phase offset so a flock does not move in lockstep.
+    pub phase: f32,
+    /// Amble speed (m/s) - a fraction of the species' movement_speed.
+    pub speed: f32,
+    /// Placeholder body colour until real models land.
+    pub tint: [f32; 3],
+    /// Body-box side length (metres), derived from the species' weight.
+    pub body_side: f32,
+}
+
+// ── Farming ──────────────────────────────────────────────────
+
+/// Default growth stages used when a plant definition doesn't specify its own.
+pub const DEFAULT_GROWTH_STAGES: &[&str] = &[
+    "seed", "sprout", "vegetative", "flowering", "fruiting", "harvest",
+];
+
+/// Reserved stage name for dead crops (set when health reaches zero).
+pub const STAGE_DEAD: &str = "dead";
+
+/// A planted crop instance tied to a crop definition from data files.
+/// Growth stage is a String so each plant species can define its own
+/// stage names in plants.csv (e.g. "spore|mycelium|fruiting_body|spore_release").
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CropInstance {
+    /// Crop definition ID from plants.csv.
+    pub crop_def_id: String,
+    /// Current growth stage name (data-driven, from PlantDef.growth_stages).
+    pub growth_stage: String,
+    /// When this crop was planted (game time seconds).
+    pub planted_at: f64,
+    /// Current water level (0.0 = dry, 1.0 = saturated).
+    pub water_level: f32,
+    /// Current health (affected by disease, pests, weather).
+    pub health: f32,
+    /// The grow machine this crop stands in: a tower's design id ("nutrition")
+    /// or a machine's instance id ("ntower_3", "potato_grow_bed_1"). Lets the
+    /// inventory group crops by machine (v0.389), and the renderer, the water,
+    /// the light and the soil find it. Every way the game plants sets it, a
+    /// seed from the backpack too since 2026-10-12 (farming::sowing); None is
+    /// only a crop from a save before that, which nothing draws.
+    /// #[serde(default)] keeps pre-v0.389 saves loading.
+    #[serde(default)]
+    pub tower_id: Option<String>,
+    /// Which SLOT of the tower this crop occupies (0-based), if planted in a tower.
+    /// Lets "Plant this tower" FILL fixed slots (idempotent) instead of stacking new
+    /// crops on every replant (v0.410). A bed's plot or a rack's shelf the same way.
+    #[serde(default)]
+    pub tower_slot: Option<u32>,
+    /// The crop's growing-season health record (2026-09-26): the sum of
+    /// `health / 100 x dt` over every tick it spent growing, from planting
+    /// to maturity. Divided by `growing_seconds` it is the SEASON health the
+    /// harvest reads (`farming::season_health`), because a crop's yield is
+    /// set by the stress it carried through its season, not by how it looks
+    /// on the day it is picked: health recovers in a few minutes once the
+    /// water comes back, but the lost growth does not. f64 because a long
+    /// season is hundreds of thousands of seconds and f32 would drop a
+    /// 16 ms tick. #[serde(default)]: a save without it reads as "no
+    /// record", and the harvest then falls back to the current health.
+    #[serde(default)]
+    pub health_seconds: f64,
+    /// Seconds of growth the crop has been ticked through: the denominator
+    /// for `health_seconds`. Zero for a crop that has never ticked (a
+    /// showcase crop spawned already mature, or one read from an older
+    /// save).
+    #[serde(default)]
+    pub growing_seconds: f64,
+}
+
+/// Grams of plant-available nitrogen, phosphate and potash (2026-09-26,
+/// gardening depth rung 3: nutrients). Counted as N, P2O5 and K2O, the
+/// convention every fertilizer label and every extension-service removal
+/// table uses, so a number here can be checked against a bag or a table
+/// with no conversion. (For the element: P = 0.436 x P2O5, K = 0.830 x K2O,
+/// from the molar masses.) f64 because a crop's draw in one tick at 1x
+/// growth is a few micrograms against a store of grams, which f32 would
+/// round to nothing. See `farming::soil` for the model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct Npk {
+    #[serde(default)]
+    pub n: f64,
+    #[serde(default)]
+    pub p2o5: f64,
+    #[serde(default)]
+    pub k2o: f64,
+}
+
+// The arithmetic farming::soil works the nutrients with (moved from systems/farming/soil.rs in the
+// crate split's rung 1, unchanged: a crate may define methods only on its own types).
+impl Npk {
+    pub const ZERO: Npk = Npk { n: 0.0, p2o5: 0.0, k2o: 0.0 };
+
+    pub fn new(n: f64, p2o5: f64, k2o: f64) -> Self {
+        Self { n, p2o5, k2o }
+    }
+
+    /// Each nutrient times `k`.
+    pub fn scaled(self, k: f64) -> Self {
+        Self::new(self.n * k, self.p2o5 * k, self.k2o * k)
+    }
+
+    /// Nutrient by nutrient sum.
+    pub fn plus(self, o: Npk) -> Self {
+        Self::new(self.n + o.n, self.p2o5 + o.p2o5, self.k2o + o.k2o)
+    }
+
+    /// Nutrient by nutrient product: an index vector times a per-index scale.
+    pub fn times(self, o: Npk) -> Self {
+        Self::new(self.n * o.n, self.p2o5 * o.p2o5, self.k2o * o.k2o)
+    }
+}
+
+/// The nutrient state of the unit of growing space a crop sits in: one
+/// tower slot, one bed, tray or field unit, or the pot of a hand-planted
+/// crop (2026-09-26). The code already treats one unit as holding exactly
+/// one crop (`CropInstance::tower_slot` is the unit index), so the unit's
+/// soil rides on the crop's entity while it grows and passes to the next
+/// crop sown in that unit through `SoilMemory`.
+///
+/// A separate component rather than fields on `CropInstance` because a new
+/// field there would have to be named in every struct literal that builds
+/// one, and two of those live outside the farming lane. Saved alongside the
+/// crop in `WorldSave::crop_soil` (v0.1355.0).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CropSoil {
+    /// Plant-available grams left in the unit.
+    #[serde(default)]
+    pub store: Npk,
+    /// Share (0..1) of this crop's season need it has already drawn. A
+    /// high-water mark on its growth clock, so the draw is the season need
+    /// spread over the season however the clock got there (light, the
+    /// growth-speed setting, the offline catch-up).
+    #[serde(default)]
+    pub uptake: f32,
+}
+
+/// A flowering crop's pollination for its season (2026-09-26,
+/// `farming::pollination`, data/garden/pollination.ron): how many garden days
+/// it has spent flowering, how many of those its flowers were pollinated (by
+/// a bumblebee hive, or a hand pollination still in effect), and what is left
+/// of the last hand pollination. At harvest its fruit set is its unhelped
+/// share plus the rest in proportion to the pollinated days
+/// (`pollination::fruit_set`). Only indoor crops that need help carry one.
+/// A separate component for the same reason as `CropSoil`; saved alongside
+/// the crop in `WorldSave::crop_pollination`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CropPollination {
+    #[serde(default)]
+    pub flowering_days: f64,
+    #[serde(default)]
+    pub pollinated_days: f64,
+    #[serde(default)]
+    pub hand_days_left: f64,
+}
+
+/// A ripe crop that is PICKED over a season, not harvested once (2026-09-26,
+/// `farming::picking`, data/garden/harvest_windows.ron): a tomato, a pepper,
+/// a cut herb. Its window is split into picks at the crop's cited interval;
+/// pick `k` comes ripe `k x every_days` garden days after the plant first
+/// ripened. Given to a picked crop the first time it is seen ripe. A separate
+/// component for the same reason as `CropSoil`; saved alongside the crop in
+/// `WorldSave::crop_picking`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CropPicking {
+    /// Garden days since the plant first ripened.
+    #[serde(default)]
+    pub days_ripe: f64,
+    /// One past the last share picked (0-based): shares from here on are
+    /// still to pick, unless (Realistic mode) they have passed over.
+    #[serde(default)]
+    pub next_pick: u32,
+    /// Shares picked so far (one press can take several in Forgiving mode),
+    /// so the card can say how many passed over unpicked.
+    #[serde(default)]
+    pub taken: u32,
+    /// Where this plant's season fell in the plants.csv yield range, 0..1,
+    /// rolled at its first pick: one plant has one season, so its picks share
+    /// one roll the way a crop harvested once has one.
+    #[serde(default)]
+    pub roll: Option<f32>,
+    /// Items this plant has grown that its picks have not yet handed over
+    /// (below one), so whole items come out and the season adds up.
+    #[serde(default)]
+    pub carry: f64,
+}
+
+/// What is left in the soil of units whose crop was harvested or died,
+/// keyed by grow-area tag then unit index (2026-09-26). The next crop sown
+/// in that unit starts from it instead of fresh soil, so a bed that fed one
+/// crop is poorer for the next until it is fertilized. One per world,
+/// spawned by FarmingSystem on first use. Saved whole in `WorldSave`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SoilMemory {
+    #[serde(default)]
+    pub units: std::collections::HashMap<String, std::collections::HashMap<u32, Npk>>,
+    /// Each unit's ORGANIC nitrogen: the part of the compost put into it that
+    /// was not plant-available in its first season and releases slowly over
+    /// the years after (2026-09-26, closing the nitrogen loop). Keyed like
+    /// `units`, but never taken away: a unit's organic matter belongs to the
+    /// unit, not to the crop growing in it, so it stays here while crops come
+    /// and go, and the farming tick releases it into whichever crop grows
+    /// there. Kept on `SoilMemory` rather than `CropSoil` because the whole
+    /// `SoilMemory` is already saved, so this is saved with no save-format
+    /// change. See `farming::soil::release_organic` for the schedule.
+    #[serde(default)]
+    pub organic: std::collections::HashMap<String, std::collections::HashMap<u32, Vec<OrganicCohort>>>,
+    /// The pests in each grow area, keyed by grow-area tag (2026-09-26,
+    /// gardening depth: pests, `farming::pests`). A pest belongs to the
+    /// PLACE, not to the crop: it lives on the area's plants and in its soil
+    /// and comes back to whatever is sown there next, which is what makes
+    /// rotating crops a control. Kept here, like `organic`, because the whole
+    /// `SoilMemory` is already saved in `WorldSave`, so this is saved with no
+    /// save-format change; a save from before it loads with no pests.
+    #[serde(default)]
+    pub pests: std::collections::HashMap<String, AreaPests>,
+    /// Each soil unit's pH, keyed like `units` (2026-09-26, gardening depth:
+    /// soil pH, `farming::soil_ph`). Like `organic`, it belongs to the unit
+    /// and stays while crops come and go, and it is saved with no save-format
+    /// change; a save from before it loads with none, and every unit then
+    /// reads its medium's starting pH (data/garden/soil_ph.ron).
+    #[serde(default)]
+    pub ph: std::collections::HashMap<String, std::collections::HashMap<u32, UnitPh>>,
+    /// The air of each grow room, keyed by room id (2026-09-26, gardening
+    /// depth: greenhouse humidity, `farming::humidity`). It belongs to the
+    /// room, not to a crop, and is saved with no save-format change, like
+    /// `pests`; a save from before it loads with none, and each room then
+    /// starts at the home's air.
+    #[serde(default)]
+    pub rooms: std::collections::HashMap<String, RoomAir>,
+    /// Each bumblebee hive's colony, keyed by the hive's machine instance id
+    /// (2026-09-27, `farming::pollination`). A colony belongs to the hive,
+    /// not to a crop, and is saved with no save-format change, like `rooms`;
+    /// a hive with no entry has no colony, so it pollinates nothing until
+    /// the player introduces one (a bought `bumblebee_colony_0`).
+    #[serde(default)]
+    pub hives: std::collections::HashMap<String, HiveColony>,
+    /// The weeds in each SOIL grow area, keyed by grow-area tag (2026-09-26,
+    /// gardening depth: weeds, `farming::weeds`). Like `pests`, they belong to
+    /// the place: the weeds and the seed bank stay in the soil while crops
+    /// come and go. Saved with no save-format change; a save from before it
+    /// loads with none, and each soil area then starts from its seed bank.
+    #[serde(default)]
+    pub weeds: std::collections::HashMap<String, AreaWeeds>,
+    /// The home's own air and its water and carbon loops (2026-09-26, ship
+    /// life support, `systems::life_support`). Saved like `rooms`; a save from
+    /// before it loads with none, and the home's air then starts from its
+    /// `EnclosedSpace`.
+    #[serde(default)]
+    pub home_air: HomeAirState,
+}
+
+/// One bumblebee hive's colony (2026-09-27, `farming::pollination`,
+/// data/garden/pollination.ron `colony_life_days`): the garden days since the
+/// player introduced it. It works the flowers until it reaches its working
+/// life and is then spent: its bees no longer pollinate and the player must
+/// introduce a new colony. Kept in `SoilMemory::hives`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct HiveColony {
+    /// Garden days since it was introduced.
+    #[serde(default)]
+    pub age_days: f64,
+    /// True once the player has been told it is spent.
+    #[serde(default)]
+    pub told: bool,
+}
+
+/// One soil grow area's weeds (2026-09-26, `farming::weeds`,
+/// data/garden/weeds.ron): the weed cover, the seed bank it comes up from,
+/// whether the player was told, and the mulches still working there.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AreaWeeds {
+    /// Weed cover, 0 (none) to 1 (as weedy as an uncontrolled stand).
+    #[serde(default)]
+    pub level: f64,
+    /// Weed seeds in the soil, 1.0 being a typical field's.
+    #[serde(default)]
+    pub bank: f64,
+    /// True once the player has been told weeds are coming up here; cleared
+    /// when the cover falls below half the level at which they are noticed.
+    #[serde(default)]
+    pub told: bool,
+    /// Garden days left on each mulch laid here (a control id from weeds.ron).
+    #[serde(default)]
+    pub mulch: std::collections::HashMap<String, f64>,
+}
+
+/// One grow room's air (2026-09-26, `farming::humidity`): its water vapour,
+/// grams per cubic metre, what its exhaust fans are doing, and whether the
+/// player has been told it is humid enough for gray mold. f64 for the same
+/// reason as `Npk`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct RoomAir {
+    /// Absolute humidity, g of water vapour per m3 of air.
+    #[serde(default)]
+    pub vapour_g_m3: f64,
+    /// Its fans' speed, 0 (idle or none) to 1 (full), as the controller last
+    /// set it.
+    #[serde(default)]
+    pub fan_speed: f64,
+    /// Litres a day its crops were breathing out at the last step, for the
+    /// Garden panel and the Ventilate notice.
+    #[serde(default)]
+    pub breathed_l_day: f64,
+    /// True once the player has been told the room is humid enough for the
+    /// damp-loving diseases; cleared when it dries out again.
+    #[serde(default)]
+    pub told: bool,
+    /// Its humidifiers' output, 0 (idle, off or none) to 1 (full), as their
+    /// controller last set it (2026-09-26).
+    #[serde(default)]
+    pub humidifier: f64,
+    /// Litres a day of the home's water its humidifiers were turning into
+    /// vapour at the last step: what the tanks are billed for them.
+    #[serde(default)]
+    pub humidifier_l_day: f64,
+    /// True when its humidifiers wanted to run but had no water (the tanks dry
+    /// or the garden's irrigation off), for the Garden panel.
+    #[serde(default)]
+    pub humidifier_dry: bool,
+    /// Its carbon dioxide, g per m3 of air (2026-09-26, ship life support). 0
+    /// is "not known yet": the room then starts at the air around it.
+    #[serde(default)]
+    pub co2_g_m3: f64,
+    /// Its air handlers' share of full airflow, 0..1, as their controller last
+    /// set it, and the litres a day their coils were condensing (and sending
+    /// back to the tanks) at the last step.
+    #[serde(default)]
+    pub air_handler: f64,
+    #[serde(default)]
+    pub condensate_l_day: f64,
+    /// Its CO2 scrubbers' share of the time they run, 0..1.
+    #[serde(default)]
+    pub scrubber: f64,
+    /// Its CO2 fans' share of the time their controller has them on, 0..1
+    /// (2026-09-27, `Ventilator::co2_setpoint_ppm`).
+    #[serde(default)]
+    pub co2_fan: f64,
+    /// Grams of carbon dioxide a day its crops were taking up, and its
+    /// fruiting substrate breathing out, at the last step (the Garden panel).
+    #[serde(default)]
+    pub co2_uptake_g_day: f64,
+    #[serde(default)]
+    pub co2_out_g_day: f64,
+    /// How far its heaters have warmed it above the rooms' own temperature,
+    /// K (2026-10-05, BUG-155, `farming::heat`): 0 with no heater, the room
+    /// then at `HumidityData::room_temp_c` exactly. Its air's temperature is
+    /// that plus this.
+    #[serde(default)]
+    pub warmed_k: f64,
+    /// Its heaters' share of the time their thermostat has them on, 0..1, at
+    /// the last step.
+    #[serde(default)]
+    pub heater: f64,
+}
+
+/// Litres the home's air side has moved since the save began, each on the
+/// air's own clock (2026-09-26, `systems::life_support`): what went into the
+/// air as vapour and what left it. Nothing is created or lost inside the air:
+/// in minus out is exactly what the air still holds, which a test checks. The
+/// tanks settle these flows on their own clock, as litres a day.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct AirWaterLedger {
+    /// In: the crops' transpiration, the humidifiers' mist, the people's breath
+    /// and sweat.
+    #[serde(default)]
+    pub breathed_l: f64,
+    #[serde(default)]
+    pub humidified_l: f64,
+    #[serde(default)]
+    pub people_l: f64,
+    /// Out: condensed by the air handlers (back to the tanks), condensed on the
+    /// walls and glazing of a saturated room (lost to the tanks), leaked
+    /// overboard with the air.
+    #[serde(default)]
+    pub condensed_l: f64,
+    #[serde(default)]
+    pub surface_l: f64,
+    #[serde(default)]
+    pub leaked_l: f64,
+}
+
+/// The home's own air (2026-09-26, `systems::life_support`): the part of the
+/// sealed home that no grow room keeps separately, and the loops through it.
+/// Saved in `SoilMemory` with the grow rooms' air. Zeros are "not known yet":
+/// the first step starts it from the home's `EnclosedSpace`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct HomeAirState {
+    /// Water vapour, carbon dioxide and oxygen, g per m3.
+    #[serde(default)]
+    pub vapour_g_m3: f64,
+    #[serde(default)]
+    pub co2_g_m3: f64,
+    #[serde(default)]
+    pub o2_g_m3: f64,
+    /// Its own air handlers' share of full airflow and the litres a day they
+    /// return to the tanks; its scrubbers' share and the carbon dioxide they
+    /// vent, kg a day; all at the last step.
+    #[serde(default)]
+    pub air_handler: f64,
+    #[serde(default)]
+    pub condensate_l_day: f64,
+    #[serde(default)]
+    pub scrubber: f64,
+    #[serde(default)]
+    pub scrubbed_kg_day: f64,
+    /// The loops at the last step, per day: carbon dioxide breathed out by the
+    /// people and the mushrooms and taken up by the crops (kg), oxygen the
+    /// crops gave out and the people and mushrooms took in (kg), air leaked
+    /// overboard (kg).
+    #[serde(default)]
+    pub co2_out_kg_day: f64,
+    #[serde(default)]
+    pub co2_uptake_kg_day: f64,
+    #[serde(default)]
+    pub o2_made_kg_day: f64,
+    #[serde(default)]
+    pub o2_used_kg_day: f64,
+    #[serde(default)]
+    pub leak_kg_day: f64,
+    /// The water ledger of the whole air (the grow rooms and this).
+    #[serde(default)]
+    pub ledger: AirWaterLedger,
+    /// How far heaters have warmed it above its own temperature, K
+    /// (2026-10-05, BUG-155, `farming::heat`): the heaters standing in it and
+    /// the heat the grow rooms pass it. 0 with no heater anywhere.
+    #[serde(default)]
+    pub warmed_k: f64,
+    /// Its own heaters' share of the time their thermostat has them on, 0..1,
+    /// at the last step.
+    #[serde(default)]
+    pub heater: f64,
+    /// The oxygen the stoves' fires took out of it at the last step, kg a day
+    /// (2026-10-20, `farming::heat`), part of `o2_used_kg_day`: only stoves
+    /// that take their room's air (`CombustionAir::Room`). A stove fed from
+    /// outside through its kit takes none of it (`stove_ship_o2_kg_day`).
+    #[serde(default)]
+    pub stove_o2_kg_day: f64,
+    /// The oxygen the stoves fed from outside burned at the last step, kg a day
+    /// (2026-10-20, `CombustionAir::Outside`): taken from the ship's air beyond
+    /// the home, not from this air, so it is not in `o2_used_kg_day`.
+    #[serde(default)]
+    pub stove_ship_o2_kg_day: f64,
+}
+
+/// One soil unit's pH (2026-09-26): what it is now, and what is still
+/// reacting toward it, in pH units by pool ("nitrification" for the acidity of
+/// added ammonium, or an amendment id from soil_ph.ron such as "lime" or
+/// "sulfur"; positive raises the pH, negative lowers it). Each pool reaches the
+/// pH over garden days at its own half-life. f64 for the same reason as `Npk`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct UnitPh {
+    #[serde(default)]
+    pub ph: f64,
+    #[serde(default)]
+    pub pending: std::collections::HashMap<String, f64>,
+}
+
+/// One grow area's pests (2026-09-26): the pressure of each pest there, and
+/// any release of natural enemies still working. See `farming::pests`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AreaPests {
+    /// Pressure per pest id (data/garden/pests.ron).
+    #[serde(default)]
+    pub pressure: std::collections::HashMap<String, PestPressure>,
+    /// Garden days left on each lasting control released here (a control id
+    /// from pests.ron, such as the predatory mites), ended early when its
+    /// prey is gone or a soap spray kills it.
+    #[serde(default)]
+    pub releases: std::collections::HashMap<String, f64>,
+    /// Pieces of fabric each row cover laid here took (control id ->
+    /// pieces), so taking it off hands back exactly those (2026-09-27).
+    /// Recounting from the ground covered at take-off let pieces appear or
+    /// vanish when the crops under a hand-planted cover changed.
+    #[serde(default)]
+    pub cover_pieces: std::collections::HashMap<String, u32>,
+}
+
+/// How bad one pest is in one grow area (2026-09-26): 0 is none, 1 is as bad
+/// as it gets. f64 for the same reason as `Npk`: a tick's growth at 1x is a
+/// few millionths.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct PestPressure {
+    #[serde(default)]
+    pub level: f64,
+    /// True once the player has been told this pest is here, so the notice is
+    /// said once; cleared when the pest falls back below half the level at
+    /// which it is noticed, so a later outbreak is announced again. Saved, so
+    /// loading a game does not repeat it.
+    #[serde(default)]
+    pub told: bool,
+}
+
+/// Grams of organic nitrogen that went into a unit at about the same time,
+/// and how long ago in garden days (2026-09-26). Compost releases a smaller
+/// share of what is left each year it ages (data/garden/nutrients.ron,
+/// `organic_n_release`), so the pool is kept as a few cohorts by age rather
+/// than one lump. f64 for the same reason as `Npk`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct OrganicCohort {
+    /// Garden days since this organic N went into the unit.
+    #[serde(default)]
+    pub age_days: f64,
+    /// Grams of organic N still locked up.
+    #[serde(default)]
+    pub n: f64,
+}
+
+// ── Vehicles & Mechs ─────────────────────────────────────────
+
+/// A deployed vehicle standing in the world (economy Phase 2 Stage 1, v0.677).
+/// Spawned by VehicleSystem's deploy arm when a vehicle KIT item is deployed
+/// from the inventory. `item_id` is the ASSEMBLED vehicle's items.csv id (e.g.
+/// "truck_pickup_0"); the kit registry (data/vehicles/kits.ron) maps it to the
+/// primitive body proportions the renderer draws. Persisted across restarts
+/// via WorldSave.deployed_vehicles.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Vehicle {
+    pub item_id: String,
+}
+
+/// A vehicle in TRANSIT (economy Phase 2 Stage 3, v0.680): drives itself in a
+/// straight line toward `dest` at `speed_mps` on game time, yawing to face its
+/// travel direction; VehicleSystem removes this on arrival (within
+/// `arrive_radius` so a summoned vehicle pulls up NEXT to you, not onto you).
+/// Deliberately NOT persisted: a save mid-transit restores the vehicle parked
+/// where it was -- transit is ephemeral motion, not owned state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleRoute {
+    pub dest: Vec3,
+    pub speed_mps: f32,
+    pub arrive_radius: f32,
+}
+
+/// A seat in a vehicle/mech that a player can occupy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleSeat {
+    /// Public key of the occupant (empty = unoccupied).
+    pub occupant_key: Option<String>,
+    /// Seat type: "pilot", "gunner", "passenger".
+    pub seat_type: String,
+}
+
+/// Weapon/tool mount point on a mech or ship.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HardpointSlot {
+    /// Slot name (e.g., "left_arm", "right_arm", "torso", "turret_1").
+    pub name: String,
+    /// Item ID of the mounted weapon/tool (None = empty).
+    pub mounted_item: Option<String>,
+    /// Offset from entity center (for rendering the weapon).
+    pub offset: Vec3,
+}
+
+/// Collection of hardpoints on a mech, ship, or turret.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Hardpoints {
+    pub slots: Vec<HardpointSlot>,
+}
+
+// ── Voxel & Terrain ──────────────────────────────────────────
+
+/// Marks an entity as a voxel body (asteroid or modified terrain chunk).
+#[derive(Debug, Clone)]
+pub struct VoxelBody {
+    /// Unique ID for looking up voxel data in the voxel store.
+    pub voxel_id: String,
+    /// Whether this voxel body has been modified by the player.
+    pub modified: bool,
+}
+
+// ── Aging & Life Stage ──────────────────────────────────────
+
+/// Tracks an entity's age in game-years and current life stage.
+/// Driven by `AgingSystem::tick`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Age {
+    /// Current age in game-years (1 game day = 20 real minutes; 1 game year = 365 game days).
+    pub years: f32,
+    /// Current life stage (e.g. "child", "teen", "young_adult", "adult", "senior", "elder").
+    pub life_stage: String,
+}
+
+impl Default for Age {
+    fn default() -> Self {
+        Self { years: 25.0, life_stage: "young_adult".into() }
+    }
+}
+
+// ── Waste Management ────────────────────────────────────────
+
+/// Marks an entity as a waste-producing source. Rate is kg per game-day.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WasteSource {
+    /// kg of waste produced per game-day.
+    pub rate_per_day: f32,
+    /// Category id from data/waste_management.ron (e.g. "organic", "metal", "plastic").
+    pub category: String,
+}
+
+/// Accumulates waste of various categories on an entity (typically a room or container).
+/// `WasteSystem::tick` adds emissions from nearby `WasteSource` entities.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WasteAccumulator {
+    /// Per-category accumulated kg.
+    pub by_category: std::collections::HashMap<String, f32>,
+    /// Total capacity in kg before pollution effects apply.
+    pub capacity: f32,
+}
+
+// ── Manufacturing ───────────────────────────────────────────
+
+/// A production facility producing one recipe at a time.
+/// `ManufacturingSystem::tick` advances `progress` toward 1.0; when it
+/// reaches 1.0, `output_count` increments and progress resets to 0.0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductionFacility {
+    /// Recipe id from `data/recipes.csv`.
+    pub recipe_id: String,
+    /// Progress toward completing one unit (0.0 to 1.0).
+    pub progress: f32,
+    /// Recipe duration in game-days. 1.0 = one unit per day.
+    pub days_per_unit: f32,
+    /// Total units produced since the facility started.
+    pub output_count: u32,
+    /// Whether the facility is currently running (off if missing inputs/power).
+    pub running: bool,
+}
+
+impl Default for ProductionFacility {
+    fn default() -> Self {
+        Self {
+            recipe_id: String::new(),
+            progress: 0.0,
+            days_per_unit: 1.0,
+            output_count: 0,
+            running: true,
+        }
+    }
+}
+
+// ── Plumbing & Water ────────────────────────────────────────
+// The live water components (WaterTank, WaterProducer, WaterConsumer, PlumbingCircuit) live further
+// down next to PowerCircuit (v0.608). The old distance-based WaterTank/WaterFixture scaffold was
+// replaced by the island-coupled PlumbingSystem.
+
+// ── Fire ────────────────────────────────────────────────────
+
+/// An active fire on an entity. `FireSystem` consumes fuel each tick;
+/// when `fuel_remaining` reaches zero, the fire is removed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Fire {
+    /// 0.0 to 1.0. Higher = hotter, more damage, longer spread reach.
+    pub intensity: f32,
+    /// Game-seconds of fuel left before the fire dies naturally.
+    pub fuel_remaining: f32,
+}
+
+/// Marks an entity as flammable. `FireSystem` may ignite this entity if a
+/// nearby `Fire` rolls a spread check within `ignition_dist`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Flammable {
+    /// Distance from a Fire at which spread becomes possible (meters).
+    pub ignition_dist: f32,
+    /// Game-seconds of fuel this entity provides if ignited.
+    pub fuel_seconds: f32,
+}
+
+/// A fire suppressor (sprinkler, foam nozzle, fire extinguisher mount).
+/// `FireSystem` reduces intensity of nearby fires each tick.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FireSuppressor {
+    /// Suppression range (meters).
+    pub range: f32,
+    /// Intensity reduction per game-second when active.
+    pub strength: f32,
+}
+
+// ── Combat: Armor & Death ───────────────────────────────────
+
+/// Per-damage-type damage reduction (0.0 = no resistance, 1.0 = immune).
+/// `CombatSystem::tick` applies these before subtracting from `Health`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Armor {
+    /// Resistance per damage type id ("kinetic", "thermal", "energy", "chemical", "radiation").
+    pub resistance: std::collections::HashMap<String, f32>,
+}
+
+/// Marks an entity as dead. Death-handling systems remove rendering, drop loot,
+/// and may schedule respawn. `CombatSystem` adds this when Health hits zero.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Dead {
+    /// Game-seconds since death (used by respawn timers + cleanup).
+    pub since: f32,
+    /// Whether loot has been dropped (prevents double-drop).
+    pub looted: bool,
+    /// What killed the player: the line the death screen shows ("dehydration"). Saved with
+    /// the body, so a player who quit on the death screen comes back to it (first-hour audit
+    /// S1, 2026-10-04). Empty for anything else that dies.
+    #[serde(default)]
+    pub cause: String,
+}
+
+impl Default for Dead {
+    fn default() -> Self {
+        Self { since: 0.0, looted: false, cause: String::new() }
+    }
+}
+
+/// The player's credit balance (v0.747, closure ladder rung 3). Credits are
+/// the atomic unit (economy.ron: no decimal subdivision). Earned by selling to
+/// vendors + passive income (EconomySystem, 1 CR per game day); spent at
+/// vendors. Persisted in WorldSave. The age-based starting-credits formula
+/// (EconomySystem::calculate_starting_credits) applies once identity profiles
+/// carry a birth date; until then new players start with trade_goods.ron's
+/// design default of 10,000 CR.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Wallet {
+    pub credits: i64,
+}
+
+impl Default for Wallet {
+    fn default() -> Self {
+        Self { credits: 10_000 }
+    }
+}
+
+/// Loot table — items dropped on death. Each entry is (item_id, drop_chance, count).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LootTable {
+    /// (item id, drop chance 0..1, min count, max count) - count rolled
+    /// uniformly at drop time. Parsed from creatures.csv loot_table rows
+    /// (`raw_poultry:100:1:2`) with item ids resolved against items.csv.
+    pub entries: Vec<(String, f32, u32, u32)>,
+}
+
+// Medical conditions are status effects (`StatusEffects`): an illness is a `disease` row
+// (`systems::illness`), a wound a `wound` row (`systems::wounds`). The separate
+// `MedicalConditions` list and its never-run `MedicalSystem` were deleted 2026-10-12.
+
+// ── Electrical ──────────────────────────────────────────────
+
+/// A power source. Outputs `output_watts` while `active` and consumes fuel
+/// at `fuel_per_second` (kg/sec, 0 = solar/wind/grid). `ElectricalSystem::tick`
+/// shuts down generators when their fuel inventory is empty.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PowerGenerator {
+    pub output_watts: f32,
+    pub fuel_per_second: f32,
+    pub active: bool,
+}
+
+impl Default for PowerGenerator {
+    fn default() -> Self {
+        Self { output_watts: 100.0, fuel_per_second: 0.0, active: true }
+    }
+}
+
+/// The fuels a fuelled generator's engine is built to burn: item ids from
+/// `data/items.csv`, named by its machine's data (`fuels` on
+/// `machines::MachinePower::Generator`) and put on the machine entity when it
+/// spawns (`engine::home_spawn`). BUG-154 (2026-10-05): the generator burned
+/// any item of the "flammable" class, so Paint, Glue and Crude Oil ran the
+/// house, its drum took them and its Store button offered them. Now only
+/// these run it (`systems::electrical`), and the drum on the same entity takes
+/// and offers only these (`containers::vessel_takes`), the way a real
+/// engine runs on the fuel it was made for and nothing else.
+///
+/// Empty = it burns nothing. A machine that names no fuel never runs and its
+/// drum takes nothing: there is no fuel it can safely be assumed to run on,
+/// and guessing from a broad class is exactly what put the paint in the drum.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct BurnsFuels(pub Vec<String>);
+
+impl BurnsFuels {
+    /// True when this engine is built to burn `item_id`.
+    pub fn burns(&self, item_id: &str) -> bool {
+        self.0.iter().any(|f| f == item_id)
+    }
+}
+
+/// A power consumer. Draws `draw_watts` while `enabled`. Higher `priority`
+/// stays on first when supply < demand (1 = critical, 5 = optional).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PowerConsumer {
+    pub draw_watts: f32,
+    pub priority: u8,
+    pub enabled: bool,
+}
+
+impl Default for PowerConsumer {
+    fn default() -> Self {
+        Self { draw_watts: 50.0, priority: 3, enabled: true }
+    }
+}
+
+/// Marks a `PowerGenerator` as solar: its `output_watts` is set each frame to
+/// `peak_watts * sun_factor(hour)` by `SolarSystem`, so it climbs at noon and falls
+/// to zero at night. `peak_watts` is the nameplate output at full sun.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolarPanel {
+    pub peak_watts: f32,
+}
+
+/// A battery bank that buffers the home's power: it CHARGES from a surplus and DISCHARGES into a
+/// deficit, so the day/night solar swing becomes consequential (the "2.8 days autonomy" stops being
+/// a static string and starts draining). `charge_wh` is the live state of charge in watt-hours;
+/// `ElectricalSystem` integrates the grid balance into it each tick (clamped by capacity + the
+/// charge/discharge power limits). (v0.473, live-home-sim increment 1b)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Battery {
+    pub charge_wh: f32,
+    pub capacity_wh: f32,
+    pub max_charge_w: f32,
+    pub max_discharge_w: f32,
+}
+
+/// Marks an ECS entity as belonging to the placed home layout (spawned from
+/// `data/machines/home.ron`). Used to despawn the old set before re-spawning so
+/// re-entering the world never duplicates the live machine entities.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct HomeMachine;
+
+/// The placed machine's instance id (`data/machines/home.ron` `id`) carried on
+/// its ECS entity, so per-frame UI (the walk-up cards) can find THIS machine's
+/// live state — WaterTank fill, Battery charge — instead of the static RON
+/// placeholder stats. (v0.724, machine info-window overhaul)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MachineInstanceId(pub String);
+
+/// The placed machine's TYPE (its `data/machines/*.ron` catalog key, e.g.
+/// "stove"), so the crafting system can find the station a recipe names
+/// (2026-09-26, station power).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MachineType(pub String);
+
+/// A work station's two power draws (2026-09-26): `active_watts` while a
+/// craft runs at it, `idle_watts` otherwise. The crafting system sets the
+/// station's `PowerConsumer::draw_watts` from these every tick.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct StationLoad {
+    pub active_watts: f32,
+    pub idle_watts: f32,
+}
+
+/// A home machine that CONTINUOUSLY runs one recipe against the HOME inventory
+/// (economy automation Phase 1, v0.663): whenever the recipe's inputs are
+/// present in the player/home stock and this machine has no craft already in
+/// flight, `CraftingSystem` consumes the inputs and queues a timed craft whose
+/// outputs land back in the home stock. Data-driven: spawned when a machine def
+/// in `data/machines/*.ron` carries `auto_recipe` (e.g. the smelter auto-runs
+/// `smelt_iron`, the workbench `craft_hammer`). Deliberately NOT gated on the
+/// player's skill level: owning the machine is the unlock -- the machine does
+/// the work, not the player's hands.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoRefine {
+    /// Recipe id from `data/recipes.csv` this machine keeps running.
+    pub recipe_id: String,
+    /// Stop while this many of the recipe's first output are on hand (in the
+    /// backpack and home storage together), 2026-09-26: the grain mill keeps
+    /// some flour ready instead of milling the whole store of grain (whole
+    /// grain keeps for years, flour for months). None = run whenever it can.
+    #[serde(default)]
+    pub keep: Option<u32>,
+}
+
+/// The electrical ISLAND (connected power component) a power entity belongs to (v0.607). Attached to
+/// every spawned generator/consumer/battery from `MachineHome::electrical_islands`, so the
+/// `ElectricalSystem` balances + sheds PER ISLAND instead of summing the whole world -- power flows
+/// only along real cabling, no magic transmission across unconnected circuits. Entities WITHOUT this
+/// component (legacy / test spawns) fall into one shared bucket, preserving the old global behaviour.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PowerCircuit {
+    pub island: u32,
+}
+
+/// The home's garden irrigation (2026-09-25, `MachineDef::irrigates`). While
+/// its `WaterConsumer` is powered, FarmingSystem tops up grow-area crops, and
+/// PlumbingSystem sets that consumer's draw to what the crops actually need
+/// (the "irrigation_demand_lpm" FarmingSystem publishes).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Irrigator;
+
+/// An electric grow light (2026-09-26, `MachineDef::lights_crops`). While
+/// its `PowerConsumer` is enabled, it lights the grow machines nearest its
+/// `Transform`, as much canopy as its watts can serve (about 0.58 m2 per
+/// 100 W, `farming::lighting`), so green crops there keep growing after the
+/// sun sets; shed or switched off, it gives no light and they pause until
+/// sunrise. It runs on the garden's timer (lighting.ron `lamp_photoperiod_h`):
+/// FarmingSystem sets its PowerConsumer's draw to `watts` while the timer has
+/// it on and to 0 otherwise, by day included (2026-09-26 review: the timer
+/// gated the light but the light drew its 100 W around the clock).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct GrowLight {
+    /// Its rated draw while lit, W (the machine's Consumer watts).
+    #[serde(default)]
+    pub watts: f32,
+}
+
+/// A bumblebee hive (2026-09-26, `MachineDef::pollinates_crops`): its bees
+/// pollinate the flowers of the indoor grow areas around its `Transform`
+/// (`farming::pollination::hive_cover`, as far as one colony's cited floor
+/// area reaches). Needs no power.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct PollinatorHive;
+
+/// An exhaust fan (2026-09-26, `MachineDef::ventilation_m3_h`): while its
+/// `PowerConsumer` is enabled it exchanges the air of the grow room (or
+/// fruiting tent) its `Transform` stands in with the air around it (the
+/// home's, or the tent's room), up to `airflow_m3_h` at full speed. Its
+/// humidity controller runs it only as fast as the room needs
+/// (`farming::humidity`), and it draws `watts` times the cube of its speed.
+/// With `co2_setpoint_ppm` above 0 (2026-09-27, `MachineDef::co2_setpoint_ppm`)
+/// a CO2 controller switches it instead: on above that, on for the share of
+/// the time that holds it there, off below, drawing `watts` for that share.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Ventilator {
+    pub airflow_m3_h: f32,
+    pub watts: f32,
+    #[serde(default)]
+    pub co2_setpoint_ppm: f32,
+}
+
+/// A humidifier (2026-09-26, `MachineDef::humidifies_l_h`): while its
+/// `PowerConsumer` is enabled and the home has water for the garden, it puts
+/// up to `output_l_h` litres of water an hour into the air of the grow room
+/// its `Transform` stands in. Its controller holds the room at its setpoint
+/// (`farming::humidity`); it draws `watts` in proportion to its output, and
+/// the litres are drawn from the home's tanks with the irrigation.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Humidifier {
+    pub output_l_h: f32,
+    pub watts: f32,
+}
+
+/// A space heater (2026-10-05, BUG-155, `MachineDef::heats_w`): while it
+/// runs it puts up to `heat_w` watts of heat into the air its `Transform`
+/// stands in (a grow room's or a fruiting tent's, else the home's own air).
+/// Its thermostat runs it for the share of the time that holds that air at
+/// `setpoint_c`, and off above it (`farming::heat`); it draws `watts` for that
+/// share. An electric resistance heater runs while its `PowerConsumer` is
+/// enabled and turns every watt it draws into heat, so its `heat_w` is its
+/// `watts`. With a `HeatPump` its heat is its watts times its coefficient of
+/// performance; with a `FuelStove` it draws no power (`watts` 0) and runs
+/// while its box holds fuel (2026-10-20).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct SpaceHeater {
+    pub heat_w: f32,
+    pub watts: f32,
+    pub setpoint_c: f32,
+}
+
+/// A heat pump (2026-10-20, `MachineDef::heat_cop`), beside its
+/// `SpaceHeater`: the heat it puts into the air it stands in is the power it
+/// draws times its coefficient of performance, read from this table at the
+/// temperature of the air it takes the heat from (`machines::cop_at`,
+/// `farming::heat`). Its draw is charged as electricity, never its heat.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HeatPump {
+    /// (source air C, COP), ascending.
+    pub cop_by_source_c: Vec<(f32, f32)>,
+}
+
+/// A stove (2026-10-20, `MachineDef::burns_fuel`), beside its `SpaceHeater`
+/// (which draws no power), its `Container` (its box) and the `BurnsFuels` its
+/// box takes only those fuels by. It runs while its box holds fuel, burning
+/// `kg_per_h` at its full heat and in proportion to the share of the time its
+/// thermostat runs it, and each kilogram takes `o2_kg_per_kg` of oxygen out of
+/// the air its fire draws on, which `combustion_air` names (`farming::heat`):
+/// the home's own air for a stove that takes its room's air, the ship's air
+/// beyond the home for one fed from outside through a duct. `burned_kg` is how
+/// much of the piece at the front of its box has burned: a whole piece leaves
+/// the box as this passes its mass, so the box counts the pieces not yet
+/// burned through. It is kept in f64 and changed exactly, so the same game
+/// hours burn the same wood at any frame rate.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct FuelStove {
+    pub kg_per_h: f32,
+    pub o2_kg_per_kg: f32,
+    pub burned_kg: f64,
+    pub combustion_air: CombustionAir,
+}
+
+/// Where a stove's fire gets the air it burns (2026-10-20,
+/// `machines::FuelBurn::combustion_air`; the dated finding is
+/// docs/reference/findings/2026-10-20-stove-combustion-air.md).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CombustionAir {
+    /// From the room it stands in: a stove with no outside air kit, the way
+    /// most stoves in ordinary houses are fitted. Its fire takes its oxygen out
+    /// of the home's own air (the one air that keeps oxygen, even where the
+    /// stove stands in a grow room). The default, because a stove takes its
+    /// room's air unless a duct brings it other air.
+    #[default]
+    Room,
+    /// From outside the home, through an outside air kit: a sealed duct that
+    /// takes air from outside and leads it straight into the firebox, as the
+    /// US manufactured-home standard requires of a solid-fuel stove (24 CFR
+    /// 3280.709(g)) and its maker requires of this one in a mobile home. Aboard,
+    /// outside is the ship's air beyond the home, which the ship's life support
+    /// keeps and the game does not model, so the fire takes none of the home's
+    /// oxygen; what it burns is metered against the home in the ship's supply
+    /// ledger (`ship_power::OXYGEN`).
+    Outside,
+}
+
+/// An air handler (2026-09-26, `MachineDef::dehumidifies_m3_h`, ship life
+/// support): a fan pushing the air of the room its `Transform` stands in (the
+/// home's own air when that is no grow room) over a cold coil on the station's
+/// cooling loop. The water the coil condenses goes back to the tanks through
+/// the plumbing sim (its `WaterProducer`, whose litres a minute the farming tick
+/// sets). Its controller holds the air at its setpoint (`systems::life_support`),
+/// moving up to `airflow_m3_h` and drawing up to `watts` along its fan's
+/// published speed curve.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct AirHandler {
+    pub airflow_m3_h: f32,
+    pub watts: f32,
+}
+
+/// A CO2 scrubber (2026-09-26, `MachineDef::scrubs_co2_kg_day`, ship life
+/// support): takes carbon dioxide out of the air of the room it stands in (the
+/// home's own air when that is no grow room) and vents it overboard, up to
+/// `rated_kg_day` at its rated inlet concentration and proportionally less in
+/// thinner air. Its controller runs it only above its setpoint
+/// (`systems::life_support`), drawing `watts` for the share of time it runs.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Co2Scrubber {
+    pub rated_kg_day: f32,
+    pub watts: f32,
+}
+
+/// A bulk water store (a cistern/tank) (v0.608). `liters` is the live level; `PlumbingSystem` fills it
+/// from powered producers and drains it for consumers, so the day's water budget is a draining number.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WaterTank {
+    pub liters: f32,
+    pub capacity_l: f32,
+}
+
+/// Produces `lpm` litres/min of water into its plumbing island (a purifier/well) (v0.608). If
+/// `needs_power`, it only produces while the SAME entity's `PowerConsumer` is enabled -- the first real
+/// power -> water consequence chain (cut the power, the pump stops, the cistern stops filling).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WaterProducer {
+    pub lpm: f32,
+    pub needs_power: bool,
+}
+
+/// Draws `lpm` litres/min of water from its plumbing island (household / irrigation / a tower) (v0.608).
+/// If `needs_power`, it only draws while the same entity is powered.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WaterConsumer {
+    pub lpm: f32,
+    pub needs_power: bool,
+}
+
+/// A HOUSEHOLD FIXTURE's share of the household's water (2026-10-20, ship homes increment 7,
+/// decision 7; `machines::MachineDef::household_use`): `household_lpm` is what the household draws
+/// at fixtures of this kind, and every entity of the same `kind` shares it, so each one's
+/// `WaterConsumer` draws `household_lpm / n` (`PlumbingSystem` sets it every tick, the way the
+/// irrigation's consumers share the garden's draw). A second shower room adds taps, not a second
+/// day of showers. `kind` names the zone and the machine ("home/shower"), so a fixture of another
+/// household's never shares this one's.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HouseholdUse {
+    pub household_lpm: f32,
+    pub kind: String,
+}
+
+/// The plumbing ISLAND (connected water-pipe component) a water entity belongs to (v0.608). Parallels
+/// `PowerCircuit`: the `PlumbingSystem` balances production/storage/demand PER ISLAND so water cannot
+/// teleport between unconnected pipe runs. Entities without it share the `None` bucket.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PlumbingCircuit {
+    pub island: u32,
+}
+
+/// The player's visual appearance (v0.440, the avatar foundation). Drives the blockman
+/// avatar mesh and, later, the character-select showroom + the wetroom mirror editor + the
+/// bedroom wardrobe. `body_type` / `hair_style` are ids into future data/appearance/*.ron;
+/// colors are linear RGB. Designed to persist in WorldSave (the public half can later ride
+/// the signed-profile gossip so visitors render each other).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Appearance {
+    pub body_type: String,
+    /// Avatar height multiplier (1.0 = ~1.7 m).
+    pub height_scale: f32,
+    pub skin_tone: [f32; 3],
+    pub hair_style: String,
+    pub hair_color: [f32; 3],
+    pub eye_color: [f32; 3],
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            body_type: "default".to_string(),
+            height_scale: 1.0,
+            skin_tone: [0.80, 0.62, 0.50],
+            hair_style: "short".to_string(),
+            hair_color: [0.25, 0.18, 0.10],
+            eye_color: [0.30, 0.45, 0.55],
+        }
+    }
+}
+
+/// The player's equipped cosmetic outfit (v0.440): slot id -> cosmetic item id. Slots are
+/// the ids in data/inventory/equipment_slots.json (head/chest/legs/feet/hands/back) -- reuse,
+/// never fork. Persisted in WorldSave; the public half can later ride the signed-profile
+/// gossip so visitors see what you wear. Empty = the default blockman with no cosmetics.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Outfit {
+    #[serde(default)]
+    pub equipped: std::collections::HashMap<String, String>,
+}
+
+// ── Geology / Mining ────────────────────────────────────────
+
+/// An ore deposit attached to a terrain entity. `GeologySystem` doesn't
+/// deplete this on its own — `MiningInteraction` handlers extract from it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OreDeposit {
+    /// Ore type id from `data/geology.ron::ore_veins[].id`.
+    pub ore_id: String,
+    /// Remaining yield in kg.
+    pub yield_remaining: f32,
+    /// Original yield (so depletion can compute `0.0..1.0` progress).
+    pub yield_initial: f32,
+}
+
+/// A mineable asteroid as an ECS entity — a FINITE multi-ore body. A mining drone
+/// depletes its `ores`; when nothing remains (fully consumed) the entity is deleted
+/// by `DroneSystem`. (The 3D voxel `terrain::asteroid::Asteroid` octree is a separate
+/// visualization layer for #5b; this is the logical resource the mining loop runs on.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AsteroidBody {
+    /// Stable id used to TARGET this asteroid for mining (e.g. "m12"). A drone mines
+    /// exactly one asteroid per trip, identified by this.
+    #[serde(default)]
+    pub id: String,
+    /// Display name (e.g. "Asteroid X-12").
+    pub name: String,
+    /// Spectral class: C (carbonaceous), S (silicaceous), M (metallic).
+    pub classification: String,
+    /// Remaining ore by item id, e.g. ("iron_ore_0", 80.0). Units = inventory items.
+    pub ores: Vec<(String, f32)>,
+    /// World position (km, arbitrary frame) for travel distance + the map. (0,0,0) if unset.
+    #[serde(default)]
+    pub position: [f32; 3],
+}
+
+impl AsteroidBody {
+    /// Total ore remaining across all types.
+    pub fn total_remaining(&self) -> f32 {
+        self.ores.iter().map(|(_, q)| *q).sum()
+    }
+
+    /// Mine up to `amount` of one ore; returns the whole units actually extracted
+    /// and decrements the remaining stock.
+    pub fn take(&mut self, ore_id: &str, amount: f32) -> u32 {
+        if let Some(slot) = self.ores.iter_mut().find(|(id, _)| id == ore_id) {
+            let taken = slot.1.min(amount).max(0.0);
+            slot.1 -= taken;
+            taken.floor() as u32
+        } else {
+            0
+        }
+    }
+
+    /// True if this asteroid still holds at least one unit of a given ore.
+    pub fn has_ore(&self, ore_id: &str) -> bool {
+        self.ores.iter().any(|(id, q)| id == ore_id && *q >= 1.0)
+    }
+}
+
+/// A mining drone's mission phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DronePhase {
+    /// Flying out to the target asteroid.
+    Outbound,
+    /// At the asteroid, extracting ore.
+    Mining,
+    /// Flying home with cargo.
+    Returning,
+    /// Arrived home; cargo delivered — ready to despawn.
+    Done,
+}
+
+/// An autonomous mining drone — ONE per player. Commissioned with a MANIFEST (which
+/// ores + how many units of its fixed capacity to allocate to each), it flies out,
+/// fills its hold per the manifest from available asteroids, returns, and drops the
+/// cargo into the home entity's inventory. `DroneSystem` drives the phase machine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Drone {
+    /// Entity bits of the home to deliver cargo to (the player's inventory).
+    pub home: u64,
+    /// The asteroid id this drone is mining. ONE asteroid per trip: the drone pulls
+    /// its manifest ores only from this asteroid, bounded by what it holds.
+    #[serde(default)]
+    pub target: String,
+    /// The fetch order: `(ore_id, requested units)`. The units sum to ≤ the drone's
+    /// capacity. The drone pulls each ore from its target asteroid.
+    pub manifest: Vec<(String, u32)>,
+    /// Current mission phase.
+    pub phase: DronePhase,
+    /// Seconds elapsed in the current phase.
+    pub phase_time: f32,
+    /// Ore collected so far: `(ore_id, units)`.
+    pub cargo: Vec<(String, u32)>,
+    /// Home + target world positions, so travel time scales with distance and the map
+    /// can animate the drone along its journey.
+    #[serde(default)]
+    pub home_pos: [f32; 3],
+    #[serde(default)]
+    pub target_pos: [f32; 3],
+}
+
+impl Drone {
+    /// Total units currently in the hold (across all ores).
+    pub fn cargo_total(&self) -> u32 {
+        self.cargo.iter().map(|(_, q)| q).sum()
+    }
+
+    /// Straight-line distance from home to the target asteroid.
+    pub fn distance(&self) -> f32 {
+        let d = [
+            self.target_pos[0] - self.home_pos[0],
+            self.target_pos[1] - self.home_pos[1],
+            self.target_pos[2] - self.home_pos[2],
+        ];
+        (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
+    }
+
+    /// Seconds the given phase lasts for THIS drone: travel scales with distance
+    /// (a base plus a per-km factor), mining is flat.
+    pub fn phase_duration(&self, phase: DronePhase) -> f32 {
+        match phase {
+            DronePhase::Outbound | DronePhase::Returning => 2.0 + self.distance() * 0.05,
+            DronePhase::Mining => 5.0,
+            DronePhase::Done => 0.0,
+        }
+    }
+
+    /// Current world position, interpolated along the journey (for the map dot).
+    pub fn current_pos(&self) -> [f32; 3] {
+        let dur = self.phase_duration(self.phase).max(0.01);
+        let t = (self.phase_time / dur).clamp(0.0, 1.0);
+        let lerp = |a: [f32; 3], b: [f32; 3]| {
+            [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+        };
+        match self.phase {
+            DronePhase::Outbound => lerp(self.home_pos, self.target_pos),
+            DronePhase::Mining => self.target_pos,
+            DronePhase::Returning => lerp(self.target_pos, self.home_pos),
+            DronePhase::Done => self.home_pos,
+        }
+    }
+}
+
+/// A soil patch — slowly accumulates nutrients from organic matter.
+/// `GeologySystem::tick` increments fertility based on adjacent decomposing waste.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoilPatch {
+    /// Nutrient density 0.0 to 1.0. Affects farming yield.
+    pub fertility: f32,
+    /// Soil type id from `data/geology.ron::soil_types[].id`.
+    pub soil_type: String,
+}
+
+impl Default for SoilPatch {
+    fn default() -> Self { Self { fertility: 0.5, soil_type: "loam".into() } }
+}
+
+// ── Oceanography / Marine Resources ─────────────────────────
+
+/// A marine resource population (fish stock, kelp bed, oyster reef).
+/// `OceanographySystem::tick` regenerates the population toward `carrying_capacity`
+/// at `regen_rate_per_day` while not at cap. Harvest interactions deplete it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarineResource {
+    /// Resource id from `data/oceanography.ron::marine_resources[].id`.
+    pub resource_id: String,
+    /// Current population in kg (or count, as the resource type defines).
+    pub current: f32,
+    /// Maximum sustainable population.
+    pub carrying_capacity: f32,
+    /// Per-day regeneration rate when below capacity (kg/day).
+    pub regen_per_day: f32,
+}
+
+// ── Astronomy / Telescopes ──────────────────────────────────
+
+/// A telescope or sensor array. Each tick, it accumulates `observation_seconds`
+/// while pointed at a target. Useful for science / navigation gameplay.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Telescope {
+    /// Currently aimed target id (e.g. "earth", "mars", "alpha_centauri") or empty.
+    pub target_id: String,
+    /// Game-seconds of accumulated observation time on the current target.
+    pub observation_seconds: f32,
+    /// Magnification / sensitivity (1.0 = naked-eye, 1000.0 = research-grade).
+    pub power: f32,
+}
+
+// ── Governance ──────────────────────────────────────────────
+
+/// An active vote/proposal in a settlement. `GovernanceSystem::tick` resolves
+/// it when `deadline_seconds_remaining` reaches 0.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveVote {
+    /// Proposal text or id from data/governance.ron.
+    pub proposal: String,
+    /// Game-seconds until the vote closes.
+    pub deadline_seconds_remaining: f32,
+    /// Yes votes accumulated so far.
+    pub yes: u32,
+    /// No votes.
+    pub no: u32,
+    /// Whether the vote has been resolved (set to true on close).
+    #[serde(default)]
+    pub resolved: bool,
+}
+
+// ── Creative Arts ───────────────────────────────────────────
+
+/// An artistic work in progress (painting, song, sculpture, performance).
+/// `CreativeArtsSystem::tick` advances `progress` toward 1.0 at
+/// `progress_per_day` rate while `working` is true. On completion, `quality`
+/// is computed from creator skill (game code sets this when starting work).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreativeWork {
+    /// Output type id from data/creative_arts.ron::outputs[].id.
+    pub work_type: String,
+    /// Progress toward completion (0.0 to 1.0).
+    pub progress: f32,
+    /// Days to complete one unit of work at full speed.
+    pub days_to_complete: f32,
+    /// Quality 0.0 to 1.0 — set on creation by skill check.
+    pub quality: f32,
+    /// Whether the artist is actively working on it.
+    pub working: bool,
+    /// Whether the work has been finished.
+    #[serde(default)]
+    pub completed: bool,
+}
+
+// ── Docking & Airlocks ──────────────────────────────────────
+
+/// An airlock chamber. `DockingSystem::tick` runs the cycle state machine:
+/// open_outer → sealed → cycling → other_side_open → sealed → ...
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AirlockChamber {
+    /// Current state: "open_outer", "open_inner", "sealed_pressurized",
+    /// "sealed_vacuum", "cycling_to_pressurized", "cycling_to_vacuum".
+    pub state: String,
+    /// 0.0 to 1.0 progress within the current cycling state.
+    pub cycle_progress: f32,
+    /// Game-seconds for one full cycle (vacuum to pressurized or vice versa).
+    pub cycle_seconds: f32,
+}
+
+impl Default for AirlockChamber {
+    fn default() -> Self {
+        Self { state: "sealed_pressurized".into(), cycle_progress: 0.0, cycle_seconds: 8.0 }
+    }
+}
+
+// ── Transportation / Cargo Vehicles ─────────────────────────
+
+/// A cargo vehicle traveling along a route. `TransportationSystem` advances
+/// `progress` from 0.0 (origin) to 1.0 (destination) at `speed_per_day`.
+/// On arrival, the vehicle is marked `arrived` and game code unloads cargo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CargoVehicle {
+    /// Route id from `data/transportation.ron::roads[].id` or similar.
+    pub route_id: String,
+    /// Progress along route (0.0 to 1.0).
+    pub progress: f32,
+    /// Speed in route-fractions per game-day (1.0 = full route per day).
+    pub speed_per_day: f32,
+    /// Payload — list of (item_id, count).
+    pub payload: Vec<(String, u32)>,
+    /// Whether this vehicle has reached its destination.
+    #[serde(default)]
+    pub arrived: bool,
+}
+
+// ── Offline / Autonomous Agents ─────────────────────────────
+
+/// An autonomous task scheduled to run on an entity periodically.
+/// `OfflineSystem` increments `seconds_since_last` each tick and fires the
+/// task action when `interval_seconds` is reached. Used for AFK NPC chores
+/// (patrol, gather, build) without needing a full BehaviorTree.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutonomousTask {
+    /// Preset id from `data/offline_behaviors.ron::presets[].id`
+    /// (e.g. "patrol", "gather_food", "build_shelter").
+    pub preset_id: String,
+    /// Game-seconds between task firings.
+    pub interval_seconds: f32,
+    /// Time accumulated since the last firing.
+    pub seconds_since_last: f32,
+    /// Total times the task has fired (lifetime stat for this agent).
+    #[serde(default)]
+    pub fire_count: u32,
+}
+
+// ── Genetics ────────────────────────────────────────────────
+
+/// Diploid genome — one allele pair per trait.
+/// `GeneticsSystem` is event-driven; `breed(parent_a, parent_b)` returns
+/// a child Genome rather than mutating during tick.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Genome {
+    /// trait_id → (allele_a, allele_b). Allele strings are domain-defined
+    /// (e.g. "tall"/"short", "red"/"green", "fast"/"slow").
+    pub alleles: std::collections::HashMap<String, (String, String)>,
+}

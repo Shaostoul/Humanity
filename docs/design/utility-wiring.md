@@ -1,7 +1,7 @@
 # Utility wiring -- connection ports + cables/conduit with real specs
 
 > **Status:** Stage 1 SHIPPED (v0.604): the data model + cable registry + physics, isolated + tested
-> (`src/utilities.rs`, `data/utilities/conduits.ron`). Stages 2-4 below are the wiring-in plan. Read
+> (`crates/humanity-core/src/utilities.rs`, `data/utilities/conduits.ron`). Stages 2-4 below are the wiring-in plan. Read
 > this before touching any cable / port / conduit code. Companion: `docs/design/sim-realism-roadmap.md`
 > (gap #2, #11, #15), `docs/design/conduits-node-graph.md` (the routing graph this sits on top of).
 > **Next layer (planned 2026-11-01):** [spline-routing.md](spline-routing.md), runs laid along
@@ -19,7 +19,7 @@ grounded in real NEC ampacity; a late-game mission upgrades all copper to a **ro
 superconductor**. Home-grade vs industrial-grade is a real distinction (a home doesn't need a 55 A
 shielded industrial feeder for a lamp).
 
-## Data model (`src/utilities.rs`)
+## Data model (`crates/humanity-core/src/utilities.rs`)
 
 - **`Utility`** -- a deliberately CLOSED enum (Electricity, Water, HotWater, Air, Data, Fuel, Nutrient,
   Waste). Closed on purpose: each utility has *distinct physics* (electricity = ampacity + voltage
@@ -69,7 +69,7 @@ shielded industrial feeder for a lamp).
   A producer/consumer flagged `needs_power` only flows while the SAME entity's `PowerConsumer` is enabled
   -- cut the power (or shed it) and the pump stops, the cistern drains, `days_autonomy` ticks down. The
   live `WaterStatus` shows on the Home page next to Live power. (`src/systems/plumbing.rs`,
-  `src/ecs/components.rs` WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit.)
+  `crates/humanity-core/src/ecs/components.rs` WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit.)
 - **Stage 3c (next):** generalise the runtime gate so a powered TRANSPORT machine (pump) gates delivery
   across a chain, and add a water buildability check (every fixture reaches a source/tank).
 - **Stage 4:** editor UX -- wire port A -> port B with a gizmo, pick the cable type, per-port render

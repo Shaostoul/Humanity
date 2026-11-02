@@ -225,7 +225,7 @@ mod tests {
     use super::*;
 
     fn data_dir() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+        std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
     }
 
     /// The shipped events file parses, validates, and every emitter it

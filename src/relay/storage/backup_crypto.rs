@@ -242,8 +242,8 @@ pub fn key_dir_for_db(db_path: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
-    fn tmp_dir(tag: &str) -> crate::test_temp::TempPath {
-        crate::test_temp::dir(&format!("bkcrypt_{tag}"))
+    fn tmp_dir(tag: &str) -> humanity_core::test_temp::TempPath {
+        humanity_core::test_temp::dir(&format!("bkcrypt_{tag}"))
     }
 
     #[test]

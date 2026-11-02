@@ -204,7 +204,7 @@ mod tests {
         let l = (280.460 + 0.985_647_4 * n).to_radians();
         let g = (357.528 + 0.985_600_3 * n).to_radians();
         let lambda = l + (1.915 * g.sin() + 0.020 * (2.0 * g).sin()).to_radians();
-        crate::cosmos::world_from_ecliptic(DVec3::new(lambda.cos(), lambda.sin(), 0.0))
+        humanity_core::cosmos::world_from_ecliptic(DVec3::new(lambda.cos(), lambda.sin(), 0.0))
     }
 
     /// Altitude and compass azimuth (degrees) of a catalogue direction for an
@@ -214,7 +214,7 @@ mod tests {
     /// turned by that spin, east and north from that up.
     fn game_alt_az(star: DVec3, n: f64, lat: f64, lon: f64, hour: f64) -> (f64, f64) {
         let sun = model_sun(n);
-        let spin = crate::dev_travel::planet_spin_from_time(hour, (-sun.z).atan2(sun.x));
+        let spin = humanity_core::dev_travel::planet_spin_from_time(hour, (-sun.z).atan2(sun.x));
         let turn = DQuat::from_rotation_y(spin);
         let up = turn * crate::terrain::osm_region::latlon_to_dir_f64(lat, lon);
         let east = DVec3::Y.cross(up).normalize();

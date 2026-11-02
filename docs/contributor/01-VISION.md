@@ -23,13 +23,13 @@ in v0.197.0; see docs/design/two-realities.md for the model that replaced it.
 
 ## Design doctrine
 
-- **Shared foundations, one crate.** `src/` is a single Rust crate; feature flags
-  (`native`, `relay`, `wasm`) decide what's compiled in, not crate boundaries. Domain
-  logic (math, physics, materials, progression) lives in focused modules under
-  `src/systems/`, `src/relay/storage/`, etc., organized by responsibility, kept
-  loosely coupled by convention and code review, not by Cargo's dependency graph.
-  Splitting into real sub-crates is a possible FUTURE step once the boundaries have
-  proven stable in practice, not a current requirement, don't force it prematurely.
+- **Shared foundations, ten crates by layer.** The code is one Cargo workspace whose crates
+  follow the dependency layers (`docs/design/crate-split.md`, decided 2026-10-30: the core at
+  the bottom, the engine on top; the plan is `scripts/crate-layers.json`). The core and the
+  protocol are crates of their own since 2026-11-01; the rest of `src/` is cut rung by rung.
+  Feature flags (`native`, `relay`, `wasm`) decide what's compiled in. Domain logic (math,
+  physics, materials, progression) lives in focused modules inside its crate, organized by
+  responsibility; a reference that points up the layers fails `just lints`.
 - **Data-first development.** Anything that can exist more than once (items, quests,
   recipes, planets, ...) is a data file, not a hardcoded array, see
   `../design/infinite-of-x.md`. New domains should be addable by dropping in data,

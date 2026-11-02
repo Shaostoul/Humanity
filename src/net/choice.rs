@@ -15,7 +15,7 @@
 //! The web client builds the same bytes (web/chat/crypto.js), and both hold the test vector below.
 
 use super::dm_pq::CTL_CHOICE;
-use crate::relay::core::pq_crypto::FriendMay;
+use humanity_protocol::pq_crypto::FriendMay;
 
 /// The longest key a note may carry. A Dilithium3 key in hex is 3,904 characters.
 const MAX_KEY_CHARS: usize = 8_192;

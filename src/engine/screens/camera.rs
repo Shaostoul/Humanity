@@ -581,7 +581,7 @@ mod tests {
     /// path with the home zone's footprint.
     #[test]
     fn shipped_homes_place_a_camera_post_and_the_console_screens_name_it() {
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
             let home = crate::systems::grow_machines::load_home(&data.join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let def = home.catalog.get("camera_post").unwrap_or_else(|| panic!("{file} catalogs a camera_post"));

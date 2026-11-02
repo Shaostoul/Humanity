@@ -117,7 +117,7 @@ There are two loader paths, and they reload differently:
    has a file watcher that notices when you save a change, so many
    edits show up without restarting.
 2. **Ship layouts** also have compile-time copies baked into the game
-   program itself (`C:\Humanity\src\embedded_data.rs`). These are an
+   program itself (`C:\Humanity\crates\humanity-core\src\embedded_data.rs`). These are an
    offline fallback: the asset loader tries the files in your `data`
    folder first, and only uses the baked-in copies if the files are
    missing.

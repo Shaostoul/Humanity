@@ -61,11 +61,11 @@ fn clearing_deletes_every_kind_and_picture_and_keeps_the_folder() {
 
 #[test]
 fn every_kind_in_the_data_has_its_words() {
-    let json = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/dev/journal_kinds.json")).unwrap();
+    let json = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/dev/journal_kinds.json")).unwrap();
     let listed = listed_kinds(&json);
     assert_eq!(listed.len(), 7, "{listed:?}");
     let words: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/i18n/en.json")).unwrap()).unwrap();
+        serde_json::from_str(&std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/i18n/en.json")).unwrap()).unwrap();
     for (id, _) in &listed {
         assert!(words["dev_journal"][format!("kind_{id}")].is_string(), "dev_journal.kind_{id} has words");
     }

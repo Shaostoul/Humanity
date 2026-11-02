@@ -72,13 +72,13 @@ pub fn surface_label(surface: &str) -> &'static str {
 pub fn ops_registry() -> &'static OpsRegistry {
     static REG: std::sync::OnceLock<OpsRegistry> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        let disk = crate::storage::data_dir().join("admin/ops_registry.json");
+        let disk = humanity_core::storage::data_dir().join("admin/ops_registry.json");
         let text = std::fs::read_to_string(&disk).unwrap_or_else(|e| {
-            crate::embedded_data::note_builtin_copy(
+            humanity_core::embedded_data::note_builtin_copy(
                 "admin/ops_registry.json",
                 format_args!("{} could not be read ({e})", disk.display()),
             );
-            include_str!("../../data/admin/ops_registry.json").to_string()
+            include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/admin/ops_registry.json")).to_string()
         });
         match serde_json::from_str::<OpsRegistry>(&text) {
             Ok(r) => r,
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn embedded_registry_parses_and_covers_every_surface() {
         let r: OpsRegistry =
-            serde_json::from_str(include_str!("../../data/admin/ops_registry.json"))
+            serde_json::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/admin/ops_registry.json")))
                 .expect("data/admin/ops_registry.json must parse into OpsRegistry");
         assert!(r.actions.len() >= 50, "registry lost actions: {}", r.actions.len());
         assert!(!r.vps_only.is_empty(), "vps_only section missing");
@@ -129,8 +129,8 @@ mod tests {
     /// src/relay/handlers/msg_handlers.rs has no fn handle_game_release_plot".
     #[test]
     fn every_code_pointer_names_a_function_that_file_defines() {
-        let r: OpsRegistry = serde_json::from_str(include_str!("../../data/admin/ops_registry.json")).expect("the registry parses");
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let r: OpsRegistry = serde_json::from_str(include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/admin/ops_registry.json"))).expect("the registry parses");
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
         let mut bad = Vec::new();
         let mut checked = 0;
         for a in &r.actions {

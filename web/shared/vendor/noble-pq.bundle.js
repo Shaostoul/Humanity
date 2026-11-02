@@ -7,7 +7,7 @@
  * KAT: BLAKE3-derive(hum/dilithium3/v1, 32x0x07) ->
  *      f0dfc6e8cc3eebd2e0f0265d2aae0f339090f2d4f92726884e385a48e81e0cc4
  *      ml_dsa65.keygen(seed).publicKey blake3 = 3f4ff5c7e6505ca7b0dd6cb32c53839f8cff19772e291d4f18b082d1f7dc0126
- *      (matches src/relay/core/pq_crypto.rs::dilithium_cross_language_kat)
+ *      (matches crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat)
  * sha256(body) = 81861d591fd8d5ff7cb3332dfd576ad6b7200c6e60e5cb96658ed34837c8e7c3
  */
 // node_modules/@noble/hashes/utils.js

@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use futures::{SinkExt, StreamExt};
 
-use crate::relay::core::object::Object;
-use crate::relay::core::profile_copy::{self, PublicCopy};
+use humanity_protocol::object::Object;
+use humanity_protocol::profile_copy::{self, PublicCopy};
 use crate::relay::relay::{FederatedConnection, FederationServerStatus, RelayMessage, RelayState};
 use crate::relay::storage::Storage;
 
@@ -18,7 +18,7 @@ use crate::relay::storage::Storage;
 /// here the same way a user's identity is, so the signing key never sits in the
 /// database in expanded form.
 pub fn sign_with_server_key(db: &Storage, message: &str) -> Option<String> {
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
     let (_, seed_hex) = db.get_or_create_server_keypair().ok()?;
     let seed = hex::decode(&seed_hex).ok()?;
     if seed.len() != 32 {
@@ -984,8 +984,8 @@ pub async fn send_own_copies_again(state: &Arc<RelayState>, peer_id: &str) -> us
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
-    use crate::relay::core::profile_copy::{sign_copy, verify_copy, SIGNATURE_HEX_LEN};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::profile_copy::{sign_copy, verify_copy, SIGNATURE_HEX_LEN};
 
     // A profile copy is Dilithium3-signed by its owner's app (BUG-191). The tests use a fixed
     // seed; the verifier under test is the one production uses (`profile_copy::verify_copy`
@@ -1110,8 +1110,8 @@ mod tests {
 #[cfg(test)]
 mod receiving_tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
-    use crate::relay::core::profile_copy::{is_withdrawal, sign_copy, withdrawal};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    use humanity_protocol::profile_copy::{is_withdrawal, sign_copy, withdrawal};
     use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
     /// A person's key: 3,904 lowercase hex characters, a real Dilithium3 public key.
@@ -1400,7 +1400,7 @@ mod server_identity_tests {
         assert!(did.len() < 40, "a server DID must be short, got {} chars", did.len());
         // And it is the SAME derivation a person's DID uses.
         let pk = hex::decode(&pk1).unwrap();
-        assert_eq!(did, crate::relay::core::did::did_for_pubkey(&pk));
+        assert_eq!(did, humanity_protocol::did::did_for_pubkey(&pk));
     }
 }
 

@@ -9,9 +9,9 @@ use super::gardening_tests::make_store;
 use super::picking::{self, HarvestWindows, Plan};
 use super::units::PLOT_AREA_KEY;
 use super::*;
-use crate::ecs::components::{Controllable, CropInstance, CropPicking, CropPollination, CropSoil, SoilMemory};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, CropInstance, CropPicking, CropPollination, CropSoil, SoilMemory};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::inventory::Inventory;
 
 /// The tick length, real seconds, that is `days` garden days at time speed 1
@@ -66,7 +66,7 @@ fn crop(plant: &str, area: Option<&str>, stage: &str) -> CropInstance {
 fn player(world: &mut hecs::World) -> hecs::Entity {
     let mut inv = Inventory::new(64);
     inv.volume_capacity_l = 1.0e9;
-    world.spawn((crate::ecs::components::Irrigator,));
+    world.spawn((humanity_core::ecs::components::Irrigator,));
     world.spawn((inv, Controllable))
 }
 
@@ -107,7 +107,7 @@ fn every_crop_the_homes_grow_says_how_it_is_harvested() {
         }
     }
     let listed: std::collections::HashSet<&str> = d.crops.iter().map(|c| c.plant.as_str()).collect();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let mut grown: Vec<String> = Vec::new();
     for file in ["towers/aeroponic_configs.ron", "world/showcase.ron", "garden/grow_media.ron"] {
         let text = std::fs::read_to_string(root.join(file)).unwrap();
@@ -357,7 +357,7 @@ fn a_mushroom_harvest_returns_no_spawn_and_spawn_is_sold() {
     assert!(picking::harvest_returns_seed(None), "an unknown plant keeps the rule");
     // The edible fungi (the fictional alien ones have no vendor, like every
     // alien plant) can be bought instead.
-    let goods = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/trade_goods.ron")).unwrap();
+    let goods = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/trade_goods.ron")).unwrap();
     for id in &fungi[..3] {
         assert!(goods.contains(&format!("id: \"seed_{id}_0\"")), "the vendor sells {id} spawn");
     }
@@ -432,12 +432,12 @@ fn a_plant_between_picks_reads_bearing_not_ripe() {
         ));
         let flowering = world.spawn((crop("tomato", Some("tomato_bed"), "flower"),));
         let lettuce = world.spawn((crop("lettuce", Some("lettuce_bed"), &last_stage(&data, "lettuce")),));
-        let dead = world.spawn((crop("tomato", Some("tomato_bed"), crate::ecs::components::STAGE_DEAD),));
+        let dead = world.spawn((crop("tomato", Some("tomato_bed"), humanity_core::ecs::components::STAGE_DEAD),));
         let view = picking::GuiView::new(&world, &data);
         // What the crop bridge passes: `mature` is "at its last stage and alive".
         let word = |e: hecs::Entity, long: bool| {
             let c = world.get::<&CropInstance>(e).unwrap();
-            let is_dead = c.growth_stage == crate::ecs::components::STAGE_DEAD;
+            let is_dead = c.growth_stage == humanity_core::ecs::components::STAGE_DEAD;
             let mature = !is_dead && c.growth_stage == last_stage(&data, &c.crop_def_id);
             picking::stage_word(is_dead, view.ready(e, mature), &c.growth_stage, &view.row(e), long)
         };
@@ -511,7 +511,7 @@ fn realistic_picking_loses_what_is_not_picked_in_time() {
 fn the_food_model_counts_a_picked_season_once_per_window() {
     use crate::systems::self_sufficiency::{food_supply_kcal_per_day, CropNutrition};
     let nutrition = CropNutrition::load(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("food").join("crop_nutrition.ron"),
+        &std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("food").join("crop_nutrition.ron"),
     )
     .unwrap();
     let data = store();

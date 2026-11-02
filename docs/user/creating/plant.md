@@ -93,9 +93,9 @@ it reads `plants.csv` right away: the startup code in
 the file to `PlantRegistry::from_csv` in `src/systems/farming/mod.rs`, and
 the result is stored in the game's data store under the name
 `plant_registry`. The file is read by a shared parser (`parse_csv` in
-`src/data_parse.rs`) that skips the `#` comment lines and matches values to
+`crates/humanity-core/src/data_parse.rs`) that skips the `#` comment lines and matches values to
 columns by the header line. The game uses your `plants.csv` only if it can
-read every line of it (`load_data_or_embedded` in `src/embedded_data.rs`). If
+read every line of it (`load_data_or_embedded` in `crates/humanity-core/src/embedded_data.rs`). If
 the file is missing, or one line in it cannot be read, the game uses the copy
 of the plant list that was built into the program instead, so the game always
 has plants and never runs on half a file.

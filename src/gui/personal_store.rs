@@ -124,7 +124,7 @@ pub fn save_if_changed(state: &GuiState) {
     if last.as_deref() == Some(s.as_str()) {
         return;
     }
-    match crate::atomic_write::write_atomic(&path(), s.as_bytes()) {
+    match humanity_core::atomic_write::write_atomic(&path(), s.as_bytes()) {
         Ok(()) => *last = Some(s),
         Err(e) => log::warn!("personal.json could not be written: {e}"),
     }

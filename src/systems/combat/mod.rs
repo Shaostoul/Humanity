@@ -16,9 +16,9 @@ pub mod effects;
 
 use rand::Rng;
 
-use crate::ecs::components::{Armor, Creature, Dead, Health, LootTable, Transform};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Armor, Creature, Dead, Health, LootTable, Transform};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 use damage::{DamageEvent, DamageType};
 use effects::StatusEffect;
 
@@ -63,7 +63,7 @@ pub fn player_swing(
         return "Out of reach - step closer".to_string();
     }
     let target_name = world
-        .get::<&crate::ecs::components::Name>(target)
+        .get::<&humanity_core::ecs::components::Name>(target)
         .map(|n| n.0.clone())
         .unwrap_or_else(|_| "the target".to_string());
     if let Some(chan) = data.get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events") {
@@ -154,7 +154,7 @@ impl System for CombatSystem {
             let bite = !event.source_is_player
                 && event.damage_type == DamageType::Kinetic
                 && mitigated > 0.0
-                && world.get::<&crate::ecs::components::StatusEffects>(entity).is_ok();
+                && world.get::<&humanity_core::ecs::components::StatusEffects>(entity).is_ok();
             if bite {
                 crate::systems::wounds::injure(world, entity, crate::systems::wounds::Injury::Bite);
             }
@@ -179,7 +179,7 @@ impl System for CombatSystem {
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
         let mut rng = rand::rng();
         for (entity, source_name, source_is_player, killing_type) in deaths_to_handle {
-            let is_player = world.get::<&crate::ecs::components::Controllable>(entity).is_ok();
+            let is_player = world.get::<&humanity_core::ecs::components::Controllable>(entity).is_ok();
             let cause = match &source_name {
                 Some(n) => format!("killed by a {n}"),
                 None => "killed in combat".to_string(),
@@ -508,7 +508,7 @@ mod tests {
         );
 
         let player = world.spawn((
-            crate::ecs::components::Controllable,
+            humanity_core::ecs::components::Controllable,
             Health { current: 8.0, max: 100.0 },
         ));
         let hen = spawn_hen(&mut world);

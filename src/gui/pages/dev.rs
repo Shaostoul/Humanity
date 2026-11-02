@@ -36,8 +36,8 @@ fn species() -> &'static Vec<SpeciesRow> {
     static CACHE: std::sync::OnceLock<Vec<SpeciesRow>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut rows: Vec<SpeciesRow> =
-            match crate::embedded_data::load_data_or_embedded(
-                &crate::storage::data_dir(),
+            match humanity_core::embedded_data::load_data_or_embedded(
+                &humanity_core::storage::data_dir(),
                 "creatures.csv",
                 crate::systems::livestock::CreatureRegistry::from_csv,
             ) {
@@ -303,7 +303,7 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 egui::Slider::new(&mut state.dev_fly_speed_mult, 1.0..=1.0e9)
                     .logarithmic(true)
                     .custom_formatter(|v, _| {
-                        crate::dev_travel::format_multiplier(v as f32)
+                        humanity_core::dev_travel::format_multiplier(v as f32)
                     }),
             );
             if ui.small_button("1x").on_hover_text("Reset to walking speed.").clicked() {
@@ -332,7 +332,7 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             {
                 state.pending_dev_teleport = Some("home".to_string());
             }
-            for b in crate::cosmos::sol_bodies() {
+            for b in humanity_core::cosmos::sol_bodies() {
                 // Mirror the celestial-pass visibility filter (lib.rs): the
                 // Sun, direct sun-orbiters, and our Moon.
                 let is_sun = b.body_type == "star";
@@ -368,7 +368,7 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .color(theme.text_secondary()),
         );
         ui.horizontal_wrapped(|ui| {
-            for b in crate::cosmos::sol_bodies() {
+            for b in humanity_core::cosmos::sol_bodies() {
                 let is_sun = b.body_type == "star";
                 let direct_solar = b.parent.as_deref() == Some("sun");
                 if is_sun || (!direct_solar && b.id != "moon") {

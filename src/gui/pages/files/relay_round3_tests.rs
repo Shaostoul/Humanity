@@ -23,10 +23,10 @@ use std::time::{Duration, Instant};
 
 /// The relay's four folders, of this test's own.
 struct Dirs {
-    uploads: crate::test_temp::TempPath,
-    members: crate::test_temp::TempPath,
-    resume: crate::test_temp::TempPath,
-    waiting: crate::test_temp::TempPath,
+    uploads: humanity_core::test_temp::TempPath,
+    members: humanity_core::test_temp::TempPath,
+    resume: humanity_core::test_temp::TempPath,
+    waiting: humanity_core::test_temp::TempPath,
 }
 
 impl Dirs {
@@ -56,7 +56,7 @@ fn relay(tag: &str) -> Relay {
     let clock = Arc::new(AtomicI64::new(1_000_000_000_000)); // 2001-09-09 01:46 UTC, by the relay's clock
     let read = clock.clone();
     assert!(state.upload_clock.set(Box::new(move || read.load(Ordering::SeqCst))).is_ok());
-    let d = |what: &str| crate::test_temp::dir(&format!("{tag}_{what}"));
+    let d = |what: &str| humanity_core::test_temp::dir(&format!("{tag}_{what}"));
     let dirs = Arc::new(Dirs { uploads: d("uploads"), members: d("members"), resume: d("resume"), waiting: d("waiting") });
     for p in [&dirs.uploads, &dirs.members, &dirs.resume, &dirs.waiting] {
         std::fs::create_dir_all(p).unwrap();
@@ -117,8 +117,8 @@ fn bytes(n: usize) -> Vec<u8> {
 }
 
 /// A file of `n` such bytes to upload as "clip.mp4", and its plan.
-fn clip(tag: &str, n: usize) -> (crate::test_temp::TempPath, resumable::Plan, Vec<u8>) {
-    let path = crate::test_temp::file(tag, "mp4");
+fn clip(tag: &str, n: usize) -> (humanity_core::test_temp::TempPath, resumable::Plan, Vec<u8>) {
+    let path = humanity_core::test_temp::file(tag, "mp4");
     let data = bytes(n);
     std::fs::write(&path, &data).unwrap();
     let plan = resumable::Plan { path: path.to_path_buf(), name: "clip.mp4".into(), size: n as u64, content_type: "video/mp4".into(), resume: None, file_changed: false, clean: false, keep_metadata: false };
@@ -333,7 +333,7 @@ fn a_members_only_file_comes_through_a_ticket_from_the_real_relay() {
     let address = origin.address().unwrap_or_else(|e| panic!("the relay's ticket is accepted: {e}"));
     // Round 5: the ticket names which of the item's files it opens (`file=0`, the item's own).
     assert!(address.starts_with(&format!("{}/api/files/file/{}?file=0&ticket=", r.base, item.id)) && !address.contains("tok_ann"), "{address}");
-    let dir = crate::test_temp::dir("desk_r3_ticket_dl");
+    let dir = humanity_core::test_temp::dir("desk_r3_ticket_dl");
     let saved = open::fetch_to(&open::transfer_agent(Duration::from_secs(10)), &address, None, &dir, &open::download_name(&item), 1 << 20).expect("downloaded");
     assert_eq!(std::fs::read(&saved).unwrap(), b"0123456789", "the file, through the ticket alone");
     assert_eq!(saved.file_name().and_then(|n| n.to_str()), Some("dusk.mp4"), "under the uploader's own name");

@@ -18,16 +18,16 @@ edit re-checks the least.
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 94,854 lines in 130 files, 12,940 of them in 45 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,390 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,652 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 35, `relay` 5, `wasm` 1.
+- **Size:** 94,762 lines in 130 files, 12,940 of them in 45 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,298 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 716 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,652 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 30, `relay` 5, `wasm` 1.
 - **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui. **Uses today** (references in non-test code): core 601, systems 554, gui 521, ship 323, renderer 308, terrain 131, net 97, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 695 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib engine:: save_load:: wasm_entry:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::quiet_allow:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::
+just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::quiet_allow:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::
 ```
 
 **Interface:** no other crate references anything in it.
@@ -53,7 +53,7 @@ just test-lib engine:: save_load:: wasm_entry:: --skip engine::block:: --skip en
 - **Every system the simulation defines is registered in `lib.rs`,** or listed in
   `DEFERRED_SYSTEMS` with its reason. Source: [engine_wiring_lint.rs](../../tests/engine_wiring_lint.rs).
 - **Every reuse in the frame asks `reuse::enabled()`** (the draw lists, the dev request reader, the
-  Garden mirror): a new one that does not ask is a bug. Source: [reuse.rs](../../src/reuse.rs) and
+  Garden mirror): a new one that does not ask is a bug. Source: [reuse.rs](../../crates/humanity-core/src/reuse.rs) and
   [CLAUDE.md](../../CLAUDE.md), "No caches kept across runs during development".
 - **The dev tooling is permanent:** the dev IPC, the dev MCP endpoint (on 127.0.0.1,
   [mcp.md](../ai/mcp.md)), the play journal's frame half and the overlays are load-bearing, never
@@ -98,11 +98,12 @@ just test-lib engine:: save_load:: wasm_entry:: --skip engine::block:: --skip en
   HERE, "Increment 7 follow-ups".
 - **BUG-217, open:** `frame_ws_poll.rs` replaces the desktop's task list with the server's, so a
   task made in the app is lost (the gui card has the fix's shape). Source: [BUGS.md](../BUGS.md).
-- **For the split:** `lib.rs` keeps one line for the fenced files of 2026-10-31,
-  `pub(crate) use crate::storage::data_dir;` (the data folder's path is the core's,
-  `storage::data_dir()`): delete it once engine/home_meshes.rs, gui/pages/inventory.rs and the nine
-  farming files read the new path. Rung 4 leaves the engine on top once gui is cut. Source:
-  [crate-split.md](../design/crate-split.md), rung 0, "Not counted".
+- **For the split:** since rung 1 the core and the protocol are crates of their own, so this
+  crate names them (`humanity_core::storage::data_dir()`, `humanity_protocol::kdf`) and keeps no
+  re-export of either. Tests still make 88 references into the test-only modules of modules cut
+  later (`node scripts/crate-graph.js --fixtures`): each becomes that crate's `test-support`
+  feature at its cut. Rung 4
+  leaves the engine on top once gui is cut. Source: [crate-split.md](../design/crate-split.md).
 
 ## Requests from other crates
 

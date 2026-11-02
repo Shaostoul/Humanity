@@ -17,9 +17,9 @@
 //!
 //! (Replaced the v0.x distance-based `WaterFixture`/`WaterTank` scaffold, which was never registered.)
 
-use crate::ecs::components::{PlumbingCircuit, PowerConsumer, WaterConsumer, WaterProducer, WaterTank};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{PlumbingCircuit, PowerConsumer, WaterConsumer, WaterProducer, WaterTank};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Live water readout, published to the DataStore each tick (key `water_status`) so the GUI can show the
 /// home's running water balance. Litres + litres/min.
@@ -128,7 +128,7 @@ impl System for PlumbingSystem {
             .and_then(|m| m.lock().ok().map(|v| *v))
         {
             let pumps: Vec<(hecs::Entity, bool)> = world
-                .query::<(&crate::ecs::components::Irrigator, &WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>()
+                .query::<(&humanity_core::ecs::components::Irrigator, &WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>()
                 .iter()
                 .map(|(e, (_i, c, pc, power))| (e, draws(c, pc, power)))
                 .collect();
@@ -145,7 +145,7 @@ impl System for PlumbingSystem {
         //     that kind (`HouseholdUse`), so a second shower room adds taps,
         //     not a second day of showers, and a shed one adds nothing.
         let fixtures: Vec<(hecs::Entity, String, f32, bool)> = world
-            .query::<(&crate::ecs::components::HouseholdUse, &WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>()
+            .query::<(&humanity_core::ecs::components::HouseholdUse, &WaterConsumer, Option<&PlumbingCircuit>, Option<&PowerConsumer>)>()
             .iter()
             .map(|(e, (h, c, pc, power))| (e, h.kind.clone(), h.household_lpm, draws(c, pc, power)))
             .collect();
@@ -290,8 +290,8 @@ impl System for PlumbingSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ecs::components::{PlumbingCircuit, PowerConsumer, WaterConsumer, WaterProducer, WaterTank};
-    use crate::ecs::systems::System;
+    use humanity_core::ecs::components::{PlumbingCircuit, PowerConsumer, WaterConsumer, WaterProducer, WaterTank};
+    use humanity_core::ecs::systems::System;
 
     fn status(data: &DataStore) -> WaterStatus {
         *data.get::<std::sync::Mutex<WaterStatus>>("water_status").unwrap().lock().unwrap()
@@ -451,7 +451,7 @@ mod tests {
     /// (0.10209)".
     #[test]
     fn a_households_fixtures_share_its_water() {
-        use crate::ecs::components::HouseholdUse;
+        use humanity_core::ecs::components::HouseholdUse;
         let mut data = DataStore::new();
         data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
         let mut world = hecs::World::new();
@@ -494,7 +494,7 @@ mod tests {
     /// not its 0.02292".
     #[test]
     fn a_fixture_that_cannot_draw_passes_its_share_to_the_ones_that_can() {
-        use crate::ecs::components::{HouseholdUse, Irrigator};
+        use humanity_core::ecs::components::{HouseholdUse, Irrigator};
         let mut data = DataStore::new();
         data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
         let mut world = hecs::World::new();
@@ -585,7 +585,7 @@ mod tests {
     /// fullest tank.
     #[test]
     fn irrigation_draws_what_the_crops_need_and_hand_watering_draws_too() {
-        use crate::ecs::components::Irrigator;
+        use humanity_core::ecs::components::Irrigator;
         let mut data = DataStore::new();
         data.insert("water_status", std::sync::Mutex::new(WaterStatus::default()));
         data.insert("irrigation_demand_lpm", std::sync::Mutex::new(3.0_f32));

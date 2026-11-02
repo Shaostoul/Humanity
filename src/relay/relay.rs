@@ -23,7 +23,7 @@ pub use crate::relay::handlers::start_federation_connections;
 #[path = "push_send.rs"]
 mod push_send;
 
-// Reaction allowlist now lives in data/reactions.json via crate::reactions
+// Reaction allowlist now lives in data/reactions.json via humanity_core::reactions
 // (one source for native picker + relay + web). Incoming reactions are
 // normalized (FE0F stripped) before validation and storage, so the bare
 // native form and the FE0F web form of the same emoji count as one reaction.
@@ -235,7 +235,7 @@ pub struct RelayState {
     /// how long this machine took, whether two messages arrived "at once".
     /// Never set in the product (`perception_now`).
     #[cfg(test)]
-    pub(crate) perception_clock: std::sync::OnceLock<Arc<crate::test_clock::ManualClock>>,
+    pub(crate) perception_clock: std::sync::OnceLock<Arc<humanity_core::test_clock::ManualClock>>,
     /// Active stream (only one at a time for MVP).
     pub active_stream: RwLock<Option<ActiveStream>>,
     /// Active federation connections (server_id → FederatedConnection).
@@ -2224,7 +2224,7 @@ pub enum RelayMessage {
     /// handlers/key_cards.rs): signed by the person's own app, so which server sent it never has
     /// to be trusted. Kept by the same rule as one from a sign-in.
     #[serde(rename = "key_card_gossip")]
-    KeyCardGossip { card: crate::relay::core::key_card::KeyCard },
+    KeyCardGossip { card: humanity_protocol::key_card::KeyCard },
 
     /// Generic signed-object gossip (Phase 3 PR 1).
     ///
@@ -3250,7 +3250,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         let privacy = if privacy.is_empty() { "{}".to_string() } else { privacy };
                         // Whether this device should sign its profile's copy for other servers
                         // (BUG-191): on connect only to narrow what is out there (`just_saved` false).
-                        let copy = crate::relay::core::profile_copy::public_copy(
+                        let copy = humanity_protocol::profile_copy::public_copy(
                             name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, &privacy,
                         );
                         let ask = crate::relay::handlers::profile::ask_for_copy(&state, &public_key, &copy, &privacy, false);
@@ -5296,12 +5296,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // Reaction — persist and broadcast to all peers.
                             RelayMessage::Reaction { target_from, target_timestamp, emoji, channel: reaction_channel, .. } => {
                                 // L-5: Whitelist-only emoji reactions (data/reactions.json).
-                                if !crate::reactions::is_allowed(&emoji) {
+                                if !humanity_core::reactions::is_allowed(&emoji) {
                                     continue; // Silently drop reactions not in whitelist
                                 }
                                 // Canonical bare form: web sends FE0F variants, native sends
                                 // bare; store/broadcast ONE form so pickers and pills agree.
-                                let emoji = crate::reactions::normalize(&emoji);
+                                let emoji = humanity_core::reactions::normalize(&emoji);
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
                                 let ch = if reaction_channel.is_empty() { "general".to_string() } else { reaction_channel };

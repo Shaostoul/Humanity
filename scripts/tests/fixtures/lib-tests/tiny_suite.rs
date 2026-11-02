@@ -1,10 +1,12 @@
 // A tiny test program standing in for the library's (scripts/tests/lib-tests-policy.test.js).
 //   TINY_FLAKE_MARKER=<file>  flaky_once fails the first time (it creates the file), then passes
 //   TINY_REAL_FAIL=1          always_fails fails every time
+//   TINY_REAL_FAIL_IN=<text>  always_fails fails only in a program whose path holds <text> (one workspace
+//                             member's program of several, 2026-11-01)
 //   TINY_RUN_LOG=<file>       every run appends one line, so a test can see whether it ran
 //   TINY_SILENT_HANG=1        hangs_silently_when_asked reports its result, then its thread never exits
 //   HUMANITY_TEST_GPU_BUSY    set by lib-tests.js beside the operator's GPU game: gpu_device_test stands
-//                             down and writes its name to HUMANITY_TEST_GPU_SKIPPED, as src/test_gpu.rs does
+//                             down and writes its name to HUMANITY_TEST_GPU_SKIPPED, as crates/humanity-core/src/test_gpu.rs does
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -38,12 +40,14 @@ fn flaky_once() {
 #[test]
 fn always_fails() {
     note("always_fails");
-    if std::env::var("TINY_REAL_FAIL").as_deref() == Ok("1") {
+    let here = std::env::var("TINY_REAL_FAIL_IN")
+        .map_or(false, |s| std::env::current_exe().map_or(false, |p| p.to_string_lossy().contains(s.as_str())));
+    if std::env::var("TINY_REAL_FAIL").as_deref() == Ok("1") || here {
         panic!("a real failure: 2 + 2 is not 5");
     }
 }
 
-/// Stands in for a test that opens a GPU device: it asks first, the way src/test_gpu.rs answers.
+/// Stands in for a test that opens a GPU device: it asks first, the way crates/humanity-core/src/test_gpu.rs answers.
 #[test]
 fn gpu_device_test() {
     let busy = std::env::var("HUMANITY_TEST_GPU_BUSY").unwrap_or_default();

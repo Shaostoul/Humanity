@@ -3,8 +3,8 @@
 //! each taking the signed `created_at`, because these tests turn on which object is older.
 
 use super::*;
-use crate::relay::core::object::ObjectBuilder;
-use crate::relay::core::pq_crypto::DilithiumKeypair;
+use humanity_protocol::object::ObjectBuilder;
+use humanity_protocol::pq_crypto::DilithiumKeypair;
 use ciborium::Value;
 
 fn db(tag: &str) -> Storage {
@@ -88,7 +88,7 @@ fn fp(who: &DilithiumKeypair) -> String {
 fn with_kyber(db: &Storage, who: &DilithiumKeypair, name: &str) {
     let key = hex::encode(who.public_key());
     db.register_name(name, &key).unwrap();
-    let card = crate::relay::core::key_card::sign_card_with(who, &[7u8; crate::relay::core::pq_crypto::KYBER_EK_LEN], super::now_millis());
+    let card = humanity_protocol::key_card::sign_card_with(who, &[7u8; humanity_protocol::pq_crypto::KYBER_EK_LEN], super::now_millis());
     db.store_key_card(&card).unwrap();
     assert!(db.has_key_card(&key), "precondition: {name}'s key card is on file");
 }

@@ -73,7 +73,7 @@ These are not opinions. Each changes at least one option.
 
 ### A2. Close the 40 minute gap with a local deferred signer
 
-**How:** a small watcher on your machine that notices when CI has uploaded binaries for a tag and runs the existing signing flow with no human present. The passphrase comes from the OS keychain rather than an exported env var. `keyring` is already a dependency (`Cargo.toml:84`) and the store/load pattern already ships in `src/auto_unlock.rs:117-167`, though note that path stores exactly 32 bytes, so you would be storing a derived key or the vault blob, not literally reusing it.
+**How:** a small watcher on your machine that notices when CI has uploaded binaries for a tag and runs the existing signing flow with no human present. The passphrase comes from the OS keychain rather than an exported env var. `keyring` is already a dependency (`Cargo.toml:84`) and the store/load pattern already ships in `crates/humanity-core/src/auto_unlock.rs:117-167`, though note that path stores exactly 32 bytes, so you would be storing a derived key or the vault blob, not literally reusing it.
 
 **This is the option that actually fixes A-F3**, and it needs one guard the research passes got wrong.
 

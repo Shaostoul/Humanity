@@ -213,8 +213,8 @@ impl ProposalTypeRegistry {
         let text = match std::fs::read_to_string("data/governance/proposal_types.ron") {
             Ok(t) => t,
             Err(e) => {
-                let built_in = crate::embedded_data::get_embedded("governance/proposal_types.ron")?;
-                crate::embedded_data::note_builtin_copy(
+                let built_in = humanity_core::embedded_data::get_embedded("governance/proposal_types.ron")?;
+                humanity_core::embedded_data::note_builtin_copy(
                     "governance/proposal_types.ron",
                     format_args!("data/governance/proposal_types.ron could not be read ({e})"),
                 );
@@ -289,7 +289,7 @@ mod proposal_rules_tests {
     /// offers all resolve.
     #[test]
     fn shipped_proposal_types_parse_and_are_sane() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT"))
             .join("data")
             .join("governance")
             .join("proposal_types.ron");

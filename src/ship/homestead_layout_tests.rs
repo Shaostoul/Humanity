@@ -39,7 +39,7 @@ type Rect = (f32, f32, f32, f32);
 
 /// The shipped homestead, read from data/homes/shipped/homestead.ron in the checkout rather than
 /// the copy compiled into the test program, so a check can be rerun against an edited file
-/// without a rebuild. They are the same file (`include_str!` in src/embedded_data.rs), which the
+/// without a rebuild. They are the same file (`include_str!` in crates/humanity-core/src/embedded_data.rs), which the
 /// first test below holds.
 fn home() -> HomeDesign {
     let text = std::fs::read_to_string(shipped_path()).expect("data/homes/shipped/homestead.ron");
@@ -47,7 +47,7 @@ fn home() -> HomeDesign {
 }
 
 fn shipped_path() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("homes").join("shipped").join("homestead.ron")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("homes").join("shipped").join("homestead.ron")
 }
 
 fn zone_rect(z: &Zone) -> Rect {
@@ -142,7 +142,7 @@ fn ceiling_over(h: &HomeDesign, x: f32, z: f32, y: f32) -> f32 {
 fn the_homestead_has_two_storeys_and_no_two_rooms_overlap() {
     let h = home();
     let on_disk = std::fs::read_to_string(shipped_path()).unwrap().replace("\r\n", "\n");
-    assert_eq!(on_disk, crate::embedded_data::HOME_HOMESTEAD_RON.replace("\r\n", "\n"), "data/homes/shipped/homestead.ron is not what the exe embeds: rebuild");
+    assert_eq!(on_disk, humanity_core::embedded_data::HOME_HOMESTEAD_RON.replace("\r\n", "\n"), "data/homes/shipped/homestead.ron is not what the exe embeds: rebuild");
     let b = &h.body;
     let storeys = b.storeys();
     assert_eq!(
@@ -607,7 +607,7 @@ fn every_open_edge_upstairs_is_guarded_and_no_way_leads_onto_the_roofs() {
 /// corridor makes through its east wall: the shipped ship with the homestead on p1, whose home
 /// stands at the ship's origin.
 fn shell_walls(h: &HomeDesign) -> Vec<crate::ship::wall_collision::WallSegment> {
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship assembles");
     let cuts = ship.shell_cuts_for_zone(ship.home_zone_index());
     assert!(!cuts.is_empty(), "the plot's door corridor cuts no hole in the homestead's shell");
@@ -638,7 +638,7 @@ fn machine_height(def: &crate::machines::MachineDef) -> f32 {
 fn every_machine_stands_in_its_room_on_its_storey_under_its_ceiling() {
     let h = home();
     let storeys = h.body.storeys();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+    let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
     for file in ["home.ron", "home_solo.ron"] {
         let machines = crate::machines::MachineHome::load(&root.join(file)).unwrap_or_else(|| panic!("{file} parses"));
         let mut ids = BTreeSet::new();

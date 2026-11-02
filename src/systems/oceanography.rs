@@ -10,9 +10,9 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::MarineResource;
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::MarineResource;
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Game seconds in a day: 24 hours of the one game clock (2026-09-27).
 const REAL_SECONDS_PER_GAME_DAY: f32 = crate::systems::time::EARTH_DAY_S as f32;

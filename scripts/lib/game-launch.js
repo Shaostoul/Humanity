@@ -28,7 +28,7 @@
 //      missing or fails to parse makes its loader serve the copy built into the
 //      exe, the rig stays green, and the next build (which embeds the tree's
 //      file) behaves differently. Every such fallback logs one marker line
-//      (src/embedded_data.rs note_builtin_copy; scripts/lib/compiled-in.js
+//      (crates/humanity-core/src/embedded_data.rs note_builtin_copy; scripts/lib/compiled-in.js
 //      refuses a loader that does not), and builtinDataLines() finds them in a
 //      run.log so the rig can refuse the run.
 //
@@ -85,7 +85,7 @@ const REPO = path.resolve(__dirname, "..", "..");
 /** The FXC banner is printed once per rig process, however many games it starts. */
 let fxcBannerArmed = false;
 
-/** The marker src/embedded_data.rs BUILTIN_COPY_MARKER writes (a test pins the two). */
+/** The marker crates/humanity-core/src/embedded_data.rs BUILTIN_COPY_MARKER writes (a test pins the two). */
 const BUILTIN_COPY_MARKER = "[built-in data copy]";
 
 /** The run.log lines that say the run served a built-in copy of a data file. */

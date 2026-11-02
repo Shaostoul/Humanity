@@ -18,7 +18,7 @@ use glam::Vec3;
 #[test]
 fn an_older_game_is_refused_as_another_ship() {
     use crate::engine::home_plot::{plan_welcome, WelcomeContext, WelcomeHome};
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let now = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
     let mut older = now.clone();
     for p in older.plots.iter_mut().filter(|p| p.kind == "homestead") {

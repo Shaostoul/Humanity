@@ -100,7 +100,7 @@ mod tests {
     /// reach_settings".
     #[test]
     fn a_database_from_before_the_table_gains_it_on_open() {
-        let dir = crate::test_temp::dir("reach_premigration");
+        let dir = humanity_core::test_temp::dir("reach_premigration");
         let path = dir.join("relay.db");
         let db = Storage::open(&path).expect("open");
         db.with_conn(|c| c.execute_batch("DROP TABLE IF EXISTS reach_settings;")).unwrap();

@@ -24,7 +24,7 @@ static check cannot see.
 - **Its lib tests:** 499 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib renderer:: assets:: --skip gui::crossing_tests::assets:: --skip relay::storage::assets::
+just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_tests::assets:: --skip relay::storage::assets::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):

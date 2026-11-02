@@ -63,7 +63,7 @@ fn on_reach_refused(gs: &mut GuiState, frame: &serde_json::Value) {
     let Some(to) = frame.get("to").and_then(|v| v.as_str()).filter(|t| !t.is_empty()) else { return };
     // The play journal's net kind: what kind of reach was refused, never who (the never-in-it list).
     let kind = frame.get("kind").and_then(|v| v.as_str()).unwrap_or("");
-    crate::play_journal::record("net", &format!("Refused by the other person's choices: {kind}"), serde_json::json!({ "kind": kind, "server": gs.server_url }));
+    humanity_core::play_journal::record("net", &format!("Refused by the other person's choices: {kind}"), serde_json::json!({ "kind": kind, "server": gs.server_url }));
     match frame.get("kind").and_then(|v| v.as_str()).and_then(ReachKind::from_wire) {
         // Not a notice of its own: our own control messages (a follow, a pass) are refused the
         // same way, and a notice for each would read as an error the person never made. The
@@ -200,7 +200,7 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner,
     if inner.from == me {
         // Ours, from another device: the pass it gave is ours to withdraw later, and asking is
         // following.
-        let Ok((given, _)) = crate::relay::core::pq_crypto::parse_friend_cert(&pass) else { return Arrival::Dropped };
+        let Ok((given, _)) = humanity_protocol::pq_crypto::parse_friend_cert(&pass) else { return Arrival::Dropped };
         // 10n N4, the same echo rule as for any pass of ours: one this device is withdrawing
         // (10m R5) brings nothing back, not even the follow; one allowing more than the choice for
         // them is withdrawn at once, never recorded.
@@ -218,7 +218,7 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner,
         return Arrival::OwnEcho;
     }
     let server = store.pass_server().unwrap_or("").to_string();
-    if let Err(e) = crate::relay::core::pq_crypto::verify_friend_cert(&server, &inner.from, me, &pass) {
+    if let Err(e) = humanity_protocol::pq_crypto::verify_friend_cert(&server, &inner.from, me, &pass) {
         log::warn!("contact request from {}… dropped: its pass failed its check ({e:?})", &inner.from[..12.min(inner.from.len())]);
         return Arrival::Dropped;
     }
@@ -314,7 +314,7 @@ pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_j
     if crate::engine::warnings::holds_own_phrase(gs, &[&gs.user_name]) {
         return Err(crate::net::warnings::GUARD_LINE.into());
     }
-    let (pass, sent) = crate::engine::dm::mint_pass(gs, peer, &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY)
+    let (pass, sent) = crate::engine::dm::mint_pass(gs, peer, &humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY)
         .ok_or("The request could not be made yet: this server's identity is not known. Try again in a moment.")?;
     let text = crate::net::reach::contact_request_text(&gs.user_name, &pass);
     let (mut theirs, ours) = crate::engine::dm::control_puts(gs, peer, &text, None).ok_or("The request could not be sealed.")?;
@@ -416,7 +416,7 @@ pub(crate) fn set_tick(gs: &mut GuiState, peer: &str, kind: ReachKind, on: bool)
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::relay::core::pq_crypto::{derive_dilithium_seed, verify_friend_cert, DilithiumKeypair};
+    use humanity_protocol::pq_crypto::{derive_dilithium_seed, verify_friend_cert, DilithiumKeypair};
 
     const SERVER: &str = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
 
@@ -502,11 +502,11 @@ pub(crate) mod tests {
         assert!(store.is_following(&ben), "asking is following");
 
         // A pass that is not the signed sender's, or not for Ben, is dropped with the request.
-        let cy_pass = crate::relay::core::pq_crypto::build_friend_cert(&cy_seed, SERVER, &cy, &ben, &"cc".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let cy_pass = humanity_protocol::pq_crypto::build_friend_cert(&cy_seed, SERVER, &cy, &ben, &"cc".repeat(16), &humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let forged = inner(&ann, &ben, &crate::net::reach::contact_request_text("Ann", &cy_pass));
         let mut ben_fresh = app(&ben, &ben_seed, "reach-ben2");
         assert_eq!(contact_request_in(ben_fresh.dm_store.as_mut().unwrap(), &ben, &forged, true), Arrival::Dropped, "someone else's pass");
-        let for_cy = crate::relay::core::pq_crypto::build_friend_cert(&ann_seed, SERVER, &ann, &cy, &"dd".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let for_cy = humanity_protocol::pq_crypto::build_friend_cert(&ann_seed, SERVER, &ann, &cy, &"dd".repeat(16), &humanity_protocol::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let misaddressed = inner(&ann, &ben, &crate::net::reach::contact_request_text("Ann", &for_cy));
         assert_eq!(contact_request_in(ben_fresh.dm_store.as_mut().unwrap(), &ben, &misaddressed, true), Arrival::Dropped, "a pass for someone else");
         assert!(ben_fresh.dm_store.as_ref().unwrap().requests().is_empty());
@@ -581,7 +581,7 @@ pub(crate) mod tests {
     #[test]
     fn an_echo_never_changes_the_choice_and_is_withdrawn_when_beyond_it() {
         use crate::net::reach::FriendTicks;
-        use crate::relay::core::pq_crypto::build_friend_cert;
+        use humanity_protocol::pq_crypto::build_friend_cert;
         let (my_seed, me) = identity(95);
         let (_b, ben) = identity(96);
         let mut gs = app(&me, &my_seed, "reach-echo");

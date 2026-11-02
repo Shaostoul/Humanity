@@ -67,7 +67,7 @@ jobs:
           echo "The running program was built from: ${built_from:-unknown}; last restart at: ${started_at:-unknown}"
           known() { [ -n "$1" ] && git cat-file -e "$1^{commit}" 2>/dev/null; }
           build=true
-          if known "$built_from" && git diff --quiet "$built_from" "$GITHUB_SHA" -- src Cargo.toml Cargo.lock build.rs rust-toolchain.toml .cargo; then
+          if known "$built_from" && git diff --quiet "$built_from" "$GITHUB_SHA" -- src crates Cargo.toml Cargo.lock build.rs rust-toolchain.toml .cargo; then
             build=false
           fi
           restart=$build

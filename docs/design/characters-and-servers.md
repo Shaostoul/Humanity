@@ -24,7 +24,7 @@ with different owners and different forge-resistance:
    and never a server row. The cosmetic fields (`character_name`, `appearance`, `outfit`, `design`)
    already exist as plain fields on `WorldSave` (`src/persistence.rs:14-48`), explicitly decoupled
    from the chat name. The design promotes these to a new **`character_v1` signed object** built via
-   the existing `ObjectBuilder` (`src/relay/core/object.rs`: canonical CBOR + Dilithium3 sig + BLAKE3
+   the existing `ObjectBuilder` (`crates/humanity-protocol/src/object.rs`: canonical CBOR + Dilithium3 sig + BLAKE3
    id -- the same substrate that carries `signed_profile_v1`/`vouch_v1`), so a character cannot be
    claimed/renamed/re-skinned without the seed, and it replicates over `gossip_signed_object`
    (`federation.rs:539`) with no home server -- just like profiles. The on-disk `WorldSave` JSON stays
@@ -145,7 +145,7 @@ select, your homes, and an Enter-World button. Concretely:
   (first-playable.md) lands.
 
 ## Data-model changes (grounded; mostly additive)
-- **`character_v1` signed object** via `ObjectBuilder` (`src/relay/core/object.rs`): payload =
+- **`character_v1` signed object** via `ObjectBuilder` (`crates/humanity-protocol/src/object.rs`): payload =
   `{schema:'character_v1', character_name, appearance, outfit, design, home_layout_ref?, updated_at}`;
   `author_public_key` IS the owner; replicates over `gossip_signed_object`. The four fields ARE the
   existing `WorldSave` cosmetic fields; add `sign_character()` + re-sign on showroom edit + cache bytes

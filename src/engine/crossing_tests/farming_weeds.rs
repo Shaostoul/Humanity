@@ -1,6 +1,6 @@
 //! From systems/farming/weed_tests.rs: an area's weeds through a save and load (`save_load`).
 
-use crate::ecs::components::{AreaWeeds, SoilMemory};
+use humanity_core::ecs::components::{AreaWeeds, SoilMemory};
 use crate::systems::farming::weed_tests::*;
 
 /// The weeds are saved: they live on `SoilMemory`, which the world save

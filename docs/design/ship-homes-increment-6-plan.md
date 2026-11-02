@@ -358,7 +358,7 @@ One widget, NEW src/gui/pages/where_you_live.rs, theme tokens only (`text_primar
 Files:
 - NEW src/ship/starts.rs and src/ship/mod.rs (3.1, wire shapes and words); NEW data/homes/starts.ron.
 - NEW data/homes/shipped/cabin.ron, data/homes/cabin.ron, data/machines/cabin.ron, data/places/cabin_seed.json (3.2).
-- src/embedded_data.rs: `STARTS_RON`, `HOME_CABIN_RON` and its `SHIPPED_HOMES` row, `MACHINES_CABIN_RON`, `PLACES_CABIN_SEED_JSON`, `get_embedded` arms (with `own_home_text` for homes/cabin.ron), the EMBEDDED list.
+- crates/humanity-core/src/embedded_data.rs: `STARTS_RON`, `HOME_CABIN_RON` and its `SHIPPED_HOMES` row, `MACHINES_CABIN_RON`, `PLACES_CABIN_SEED_JSON`, `get_embedded` arms (with `own_home_text` for homes/cabin.ron), the EMBEDDED list.
 - src/persistence.rs: the fields of 3.6, `ShipPlace`, `ShipMeals`, `SaveSlot`, `slot_path`; `new_offline` defaults.
 - src/save_load.rs: `ActiveHome` thread-local with `active_home()`/`set_active_home()`; `active_home_path` reads it; `starting_kit(data_dir, start)`; `SHIP_MEALS_KEY`.
 - src/machines.rs: `home_ron_path` from `ActiveHome` and starts.ron.
@@ -410,7 +410,7 @@ Tests:
 - Checks: `just verify-relay`; `cargo check --features relay --no-default-features`; `just rig-tests`.
 
 **1C Save slots (the core).** Player-visible: nothing new yet; the game can keep a separate save for each server, made fresh.
-Files: src/engine/save_slot.rs (`wanted`, `fresh_save`, the swap's save half: `write_active`, `take_up`), src/save_load.rs (`apply_onto_running_world`, `spawn_fresh_player`, `fresh_asteroids`, the apply's kind gate admits "server", Restore reloads the active slot by path, `ShipMeals` round trip), NEW data/asteroids/belt.ron with its built-in copy in src/embedded_data.rs, src/systems/machine_levels.rs (`reset_all`).
+Files: src/engine/save_slot.rs (`wanted`, `fresh_save`, the swap's save half: `write_active`, `take_up`), src/save_load.rs (`apply_onto_running_world`, `spawn_fresh_player`, `fresh_asteroids`, the apply's kind gate admits "server", Restore reloads the active slot by path, `ShipMeals` round trip), NEW data/asteroids/belt.ron with its built-in copy in crates/humanity-core/src/embedded_data.rs, src/systems/machine_levels.rs (`reset_all`).
 Tests:
 - `a_fresh_server_save_carries_only_the_look`: from an offline world with a full backpack, skills, 50,000 CR, an own home, quests done, crops, a vehicle, a drone and a charged battery, the fresh save holds the cabin kit only, no skills, the default credits, no own home, the cabin opening active, no crops, vehicles or drone, the fresh asteroids, a fresh body, and the same name, look and outfit. Red with the inventory copied: "the offline backpack's 7 gold ingots came into the server's save".
 - `the_slot_follows_the_pairing_not_a_step_out`: home:, server:, empty, no identity; a server pairing with `copresence_solo` set by Dev travel stays the server slot. Red with `wanted` reading `copresence_solo`.

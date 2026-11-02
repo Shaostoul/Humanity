@@ -16,7 +16,7 @@ The wallet code is **NOT YET SAFE** for a public Solana grant push. Cryptographi
 
 ### 1. Key generation entropy: PASS
 
-`web/chat/crypto.js:51-55` uses `crypto.subtle.generateKey('Ed25519', ...)` and the fallback at line 105 uses `crypto.getRandomValues()`. Native side `src/relay/core/pq_crypto.rs:55-60` uses the `getrandom` crate. No `Math.random()` in any keypair / BIP39 / vault flow.
+`web/chat/crypto.js:51-55` uses `crypto.subtle.generateKey('Ed25519', ...)` and the fallback at line 105 uses `crypto.getRandomValues()`. Native side `crates/humanity-protocol/src/pq_crypto.rs:55-60` uses the `getrandom` crate. No `Math.random()` in any keypair / BIP39 / vault flow.
 
 **No action required.**
 
@@ -37,7 +37,7 @@ The first path is the right long-term answer if Solana wallets are a first-class
 - `src/config.rs:13` uses **100,000** PBKDF2-SHA256 iterations on the native vault.
 - `web/chat/crypto.js:481` uses **600,000** iterations on the web vault.
 
-The encrypted blob is uploaded via `PUT /api/vault/sync` (`src/relay/api.rs:2197-2226`) and stored opaquely in the `vault_blobs` SQLite table. PBKDF2-SHA256 is GPU-vulnerable. A server breach gives an attacker offline brute-force on every weak passphrase. The server already has Argon2id available (`src/relay/core/kdf.rs`) but the vault sync path does not use it.
+The encrypted blob is uploaded via `PUT /api/vault/sync` (`src/relay/api.rs:2197-2226`) and stored opaquely in the `vault_blobs` SQLite table. PBKDF2-SHA256 is GPU-vulnerable. A server breach gives an attacker offline brute-force on every weak passphrase. The server already has Argon2id available (`crates/humanity-protocol/src/kdf.rs`) but the vault sync path does not use it.
 
 **Fix:**
 1. Bump native PBKDF2 from 100k to 600k as a one-line stopgap (`src/config.rs:13`).
@@ -103,10 +103,10 @@ Attack scenario: User A is a HumanityOS regular with a Patreon-like donation pag
 ### 9. End-to-end test coverage: PARTIAL/HIGH
 
 Good unit-test coverage exists for crypto primitives:
-- `src/relay/core/pq_crypto.rs:233-365`
+- `crates/humanity-protocol/src/pq_crypto.rs:233-365`
 - `src/relay/handlers/federation.rs:582-714`
-- `src/relay/core/kdf.rs:111-164`
-- `src/relay/core/did.rs:123-205`
+- `crates/humanity-protocol/src/kdf.rs:111-164`
+- `crates/humanity-protocol/src/did.rs:123-205`
 - `src/relay/handlers/broadcast.rs:89-105`
 
 **Zero JavaScript unit tests** for `web/chat/crypto.js`. **No integration test** covers the full wallet lifecycle: create → backup → wipe → restore → rotate → spend. `src/config.rs` has no tests at all.
@@ -158,7 +158,7 @@ Good unit-test coverage exists for crypto primitives:
   - `web/shared/wallet.js`
   - `web/pages/wallet.html`, `wallet-app.js`, `wallet-guide-app.js`
   - `src/config.rs`
-  - `src/relay/core/pq_crypto.rs`, `kdf.rs`, `did.rs`
+  - `crates/humanity-protocol/src/pq_crypto.rs`, `kdf.rs`, `did.rs`
   - `src/relay/handlers/msg_handlers.rs`, `federation.rs`
   - `src/relay/storage/vault_sync.rs`
   - `src/relay/relay.rs` (Identify handler)

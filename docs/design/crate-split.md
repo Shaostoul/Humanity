@@ -11,8 +11,10 @@ the wrong-way references in code from 157 to 0, and the ratchet holds every edge
 backlog is cleared the same day** (rung 0, "Not counted", below): the tests' 127 wrong-way
 references are 0 outside six farm test files another session was editing (15 there), and the
 ratchet now holds test code too, file by file; the data folder's path is the core's; `release_update`
-is the GUI's; main.rs and the crate root's own items are counted; one cut-away box. Rung 1 is next
-(Order of work, below), and the backlog lists what it needs first.
+is the GUI's; main.rs and the crate root's own items are counted; one cut-away box. **Rung 1 is
+done (2026-11-01):** the Cargo workspace, with `humanity-core` and `humanity-protocol` cut out into
+`crates/` (Order of work, below, with the build times before and after: unchanged, as a small
+piece off one end of the chain predicts). Rung 2 is next.
 
 The plan's one source is `scripts/crate-layers.json`: which crate every part of `src/` goes to and
 which crates each may use. `node scripts/crate-graph.js --crates` prints each crate's size, and
@@ -306,6 +308,85 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
      renderer nor the engine is under the relay, so none could stay.
 1. **The workspace, `humanity-core` and `humanity-protocol`** (the smallest and lowest). Measure a
    cold build and a one-line edit against 241 s and 56 s.
+   **Done (2026-11-01), in six steps, a commit each:**
+   - **The test helpers across the boundary: a `test-support` feature** of each cut crate, not a
+     dev-only crate. crate-layers.json already filed `test_temp`, `test_clock`, `test_log` (and
+     since BUG-222 `test_gpu`) under the core, so the plan stays true; one mechanism serves the
+     core's helpers and every later crate's fixtures (one pattern, one name: later rungs use
+     `test-support` too, not a separate `fixtures` feature); and it adds no eleventh crate. A
+     dependent turns it on in its `[dev-dependencies]` only, which resolver 2 never unifies into a
+     product build. The fixtures other crates' tests shared moved out of their test modules into
+     `fixtures` modules beside them (`storage::fixtures`, `dev_travel::fixtures`,
+     `pq_crypto::fixtures`, `profile_copy::fixtures`; the protocol's `strip_heif_metadata::build`
+     already was one): a whole test module behind the feature would leave its private helpers
+     unused, and warning, in a non-test build. Of the 409 cross-crate test-helper uses
+     (`--fixtures`, 2026-11-01), the 307 uses of the three helpers and the 14 of the core's and the
+     protocol's fixtures are behind the feature; the other 88 are between crates cut later.
+   - **One way to name the repo root: `env!("HUMANITY_REPO_ROOT")`,** set by each member's build
+     script (the root's `build.rs`; `crates/repo_root.rs`, which both crates share, finds the
+     nearest folder whose Cargo.toml holds `[workspace]`). 566 `env!("CARGO_MANIFEST_DIR")` in 255
+     files and 253 `../` include paths in 77 files changed before any file moved;
+     `tests/repo_root_lint.rs` holds it (819 places red on main's tree, red again on a plant).
+     Not `[env]` with `relative = true` in .cargo/config.toml: that file is machine-local and in
+     the main checkout only, so every worktree would have read the main checkout's data/,
+     silently, and CI has none. Not a const in the core: `include_str!` takes a literal. One path
+     the lint does not refuse broke in the move and was fixed by hand: an include relative to its
+     file but into ANOTHER module's folder (`relay/api_v2_objects.rs` read
+     `core/pq_kat_vote_submission.json`). Rung 2 should look for those (`include_str!("x/...")`
+     whose folder is another crate's) before it moves.
+   - **The workspace:** `[workspace]` with the root package (still `humanity-engine`) and the two
+     crates, files moved with `git mv` (history follows: `git log --follow`). `[workspace.package]`
+     holds the one version (the core's own code reports the app's version, so every member carries
+     it; a bump rebuilds every member, as before) and `[workspace.dependencies]` the version and
+     features of the 40 dependencies more than one member uses. The root's `native` forwards to both
+     crates' `native`, `relay` turns the protocol on, `wasm` the core's; the server build gets the
+     core with no feature and the protocol without `native` (the core then depends on blake3,
+     bytemuck, csv, glam, hecs, log, rapier3d, ron, serde, serde_json and toml only; egui is not in
+     the server's graph; wgpu still is, through the root package, as before). The protocol's code
+     uses no crate of ours (only its tests use the core), so it compiles BESIDE the core. Callers
+     name the crate (3,080 paths in 577 files); no re-export keeps a `crate::` path alive. Made
+     `pub` for another crate: `frame_costs::{publish_gpu_frame, publish_gpu_harvest,
+     set_gpu_untimed, dump_enabled}` (the renderer's half reads them through a glob import) and
+     `storage::extract_embedded_to`, plus the test helpers and fixtures. Moved because a crate may
+     define methods only on its own types: `Npk`'s arithmetic, from farming's soil.rs to the core
+     beside the type. The same 5,586 lib-test names as main (c8f05d953): engine 5,256, core 171,
+     protocol 159, the protocol's with their `relay::core::` prefix dropped and nothing else.
+   - **Every tool that knows where code lives** (the step's commit lists them): the lib-test runner
+     builds and runs every member's program, the warnings ratchet counts every member, the source
+     stamp, the deploy plan, the layer tools (which now also hold each member's Cargo.toml to the
+     plan), the cards, the code map, the include classifier, the build slot's names, the release
+     scripts, and every lint that walks the source, each seen red on a violation planted under
+     crates/ (four of them passed the same plants before the step: blind). Three lib tests that
+     read source paths failed the first full run and were fixed with them.
+   - **The docs that describe the layout:** CLAUDE.md (Architecture: a workspace; the stale-worktree
+     warning kept for `native/src/`, `server/src/` and any `crates/` folder the workspace does not
+     list), builds.md ("The workspace"), the cards, STATUS and the contributor and AI onboarding
+     docs, and every path to a moved file (link targets only in the records).
+   - **Measured: no change worth the name, as "How a split pays" predicts for a small piece off
+     one end of a chain.** Main (c8f05d953) and the branch in the same worktree the same evening,
+     the machine quiet (no other compile, no game, about 23 GB of RAM free), `CARGO_BUILD_JOBS=4`,
+     each compile timed by the build slot's own line (so no memory wait is counted), the same
+     comment line appended to `civil_date.rs` (core) and `engine/launch_focus.rs` (engine);
+     `node scripts/build-ab/split-measure.js` repeats it for each rung:
+
+     | Build | main, one crate | rung 1, the workspace |
+     |---|---|---|
+     | `cargo check --features native`, cold | 74 s (wall 77 s) | core 3 s and protocol 1 s side by side, then the engine 73 s (wall 79 s) |
+     | the same, one line in the core | 18 s (wall 21 s) | core 0 s, engine 18 s (wall 21 s) |
+     | the same, one line in the engine | 18 s (wall 21 s) | engine 18 s (wall 21 s) |
+     | the lib test build, cold | 237 s (wall 241 s) | core and protocol 5 to 8 s, then the engine 242 s (wall 252 s) |
+     | the same, one line in the core | 53 s (wall 56 s) | core and protocol 2 s, engine 55 s (wall 59 s) |
+     | the same, one line in the engine | 53 s (wall 56 s) | engine 55 s (wall 59 s) |
+
+     The engine is still about 95% of the lines, and every edit re-checks it; the two crates
+     (about 27,000 lines) compile in seconds. The test build's 2 s per edit are the engine's test
+     program now linked with its debug file (one `cargo test --no-run` for every member, in place of
+     `cargo rustc ... /DEBUG:NONE`): the old command on the split tree took 53 s, the same as main.
+     Cold, the core's library now sits before the engine on the critical path (6 s). Against the
+     plan's figures: 241 s cold and 56 s for an edit (2026-10-24) read 237 s and 53 s on main a week
+     later. **Compare quiet-machine numbers only:** the first "before" run, beside other sessions'
+     compiles, read 86 and 88 s for the same edits main compiles in 53 s. The gains start at rung 2,
+     which takes ship, terrain and systems (about 137,000 lines) out from under the engine.
 2. **`humanity-ship`, `humanity-terrain`, then `humanity-systems`.** Measure.
 3. **`humanity-relay`, `humanity-net` and `humanity-renderer`.** Measure the server build on
    GitHub.

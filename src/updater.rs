@@ -499,13 +499,13 @@ fn download_and_apply(
     sig_url: Option<String>,
     tx: &std::sync::mpsc::Sender<UpdateMsg>,
 ) -> Result<(), String> {
-    crate::debug::push_debug(format!("Updater: starting download from {}", url));
+    humanity_core::debug::push_debug(format!("Updater: starting download from {}", url));
 
     let response = ureq::get(url)
         .set("User-Agent", "HumanityOS-Updater")
         .call()
         .map_err(|e| {
-            crate::debug::push_debug(format!("Updater: download HTTP error: {}", e));
+            humanity_core::debug::push_debug(format!("Updater: download HTTP error: {}", e));
             format!("Download error: {}", e)
         })?;
 
@@ -514,7 +514,7 @@ fn download_and_apply(
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(0);
 
-    crate::debug::push_debug(format!("Updater: Content-Length = {} bytes", total_size));
+    humanity_core::debug::push_debug(format!("Updater: Content-Length = {} bytes", total_size));
 
     let exe_path = std::env::current_exe().map_err(|e| format!("Can't find exe: {}", e))?;
     let parent = exe_path.parent().unwrap_or(std::path::Path::new("."));
@@ -529,7 +529,7 @@ fn download_and_apply(
             + ".update",
     );
 
-    crate::debug::push_debug(format!("Updater: downloading to {}", update_path.display()));
+    humanity_core::debug::push_debug(format!("Updater: downloading to {}", update_path.display()));
 
     // Stream download in 64KB chunks with progress reporting
     let mut reader = response.into_reader();
@@ -564,7 +564,7 @@ fn download_and_apply(
     let update_size = std::fs::metadata(&update_path)
         .map(|m| m.len())
         .unwrap_or(0);
-    crate::debug::push_debug(format!(
+    humanity_core::debug::push_debug(format!(
         "Updater: download complete, file size = {} bytes",
         update_size
     ));
@@ -574,7 +574,7 @@ fn download_and_apply(
             "Downloaded file too small ({} bytes, expected > {} bytes). Aborting update.",
             update_size, MIN_BINARY_SIZE
         );
-        crate::debug::push_debug(format!("Updater: {}", msg));
+        humanity_core::debug::push_debug(format!("Updater: {}", msg));
         let _ = std::fs::remove_file(&update_path);
         return Err(msg);
     }
@@ -614,20 +614,20 @@ fn download_and_apply(
             &digest_hex,
         ) {
             Ok(crate::release_update::VerifyOutcome::Verified) => {
-                crate::debug::push_debug("Updater: release signature VERIFIED.".to_string());
+                humanity_core::debug::push_debug("Updater: release signature VERIFIED.".to_string());
             }
             // Unreachable: we already confirmed the pubkeys are provisioned.
             Ok(crate::release_update::VerifyOutcome::Unprovisioned) => {}
             Err(e) => {
                 let _ = std::fs::remove_file(&update_path);
-                crate::debug::push_debug(format!("Updater: VERIFICATION FAILED: {e}"));
+                humanity_core::debug::push_debug(format!("Updater: VERIFICATION FAILED: {e}"));
                 return Err(format!(
                     "Release verification FAILED — refusing to install. {e}"
                 ));
             }
         }
     } else {
-        crate::debug::push_debug(
+        humanity_core::debug::push_debug(
             "Updater: WARNING release-signing keys not provisioned; installing UNVERIFIED \
              (legacy). Run `just gen-release-key` to activate signed updates."
                 .to_string(),
@@ -654,12 +654,12 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
     // The .old file will be cleaned up on next launch.
     let old_path = exe_path.with_extension("exe.old");
 
-    crate::debug::push_debug(format!("Updater: exe_path = {}", exe_path.display()));
-    crate::debug::push_debug(format!("Updater: update_path = {}", update_path.display()));
-    crate::debug::push_debug(format!("Updater: old_path = {}", old_path.display()));
+    humanity_core::debug::push_debug(format!("Updater: exe_path = {}", exe_path.display()));
+    humanity_core::debug::push_debug(format!("Updater: update_path = {}", update_path.display()));
+    humanity_core::debug::push_debug(format!("Updater: old_path = {}", old_path.display()));
 
     let update_size = std::fs::metadata(update_path).map(|m| m.len()).unwrap_or(0);
-    crate::debug::push_debug(format!("Updater: update file size = {} bytes", update_size));
+    humanity_core::debug::push_debug(format!("Updater: update file size = {} bytes", update_size));
     log::info!("Updater: exe_path = {}", exe_path.display());
     log::info!("Updater: update_path = {}", update_path.display());
     log::info!("Updater: old_path = {}", old_path.display());
@@ -670,34 +670,34 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
     let parent = exe_path.parent().unwrap_or(std::path::Path::new("."));
     let restart_target_path = parent.join("restart_target.txt");
     if let Err(e) = std::fs::write(&restart_target_path, exe_path.to_string_lossy().as_bytes()) {
-        crate::debug::push_debug(format!("Updater: WARNING could not write restart_target.txt: {}", e));
+        humanity_core::debug::push_debug(format!("Updater: WARNING could not write restart_target.txt: {}", e));
         log::warn!("Updater: could not write restart_target.txt: {}", e);
     } else {
-        crate::debug::push_debug(format!("Updater: wrote restart_target.txt -> {}", exe_path.display()));
+        humanity_core::debug::push_debug(format!("Updater: wrote restart_target.txt -> {}", exe_path.display()));
     }
 
     // Remove any existing .old file first
     if old_path.exists() {
-        crate::debug::push_debug("Updater: removing existing .old file");
+        humanity_core::debug::push_debug("Updater: removing existing .old file");
         log::info!("Updater: removing existing .old file");
         let _ = std::fs::remove_file(&old_path);
     }
 
-    crate::debug::push_debug("Updater: renaming running exe to .old");
+    humanity_core::debug::push_debug("Updater: renaming running exe to .old");
     log::info!("Updater: renaming running exe to .old");
     std::fs::rename(exe_path, &old_path)
         .map_err(|e| {
             let msg = format!("Failed to rename current exe to .old: {}", e);
-            crate::debug::push_debug(format!("Updater: {}", msg));
+            humanity_core::debug::push_debug(format!("Updater: {}", msg));
             msg
         })?;
 
-    crate::debug::push_debug("Updater: renaming .update to exe path");
+    humanity_core::debug::push_debug("Updater: renaming .update to exe path");
     log::info!("Updater: renaming .update to exe path");
     if let Err(e) = std::fs::rename(update_path, exe_path) {
         // Try to restore the original if the swap failed
         let msg = format!("Failed to install update binary: {}", e);
-        crate::debug::push_debug(format!("Updater: swap failed, restoring original: {}", e));
+        humanity_core::debug::push_debug(format!("Updater: swap failed, restoring original: {}", e));
         log::error!("Updater: swap failed, restoring original: {}", e);
         let _ = std::fs::rename(&old_path, exe_path);
         // Clean up restart_target.txt on failure
@@ -708,14 +708,14 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
     // Post-swap verification: confirm the new binary exists at exe_path
     // and has a reasonable file size (> 1 MB)
     let new_size = std::fs::metadata(exe_path).map(|m| m.len()).unwrap_or(0);
-    crate::debug::push_debug(format!(
+    humanity_core::debug::push_debug(format!(
         "Updater: post-swap verification, new binary size = {} bytes",
         new_size
     ));
 
     if new_size < MIN_BINARY_SIZE {
         // Roll back: restore the old binary
-        crate::debug::push_debug(format!(
+        humanity_core::debug::push_debug(format!(
             "Updater: ROLLBACK. New binary too small ({} bytes). Restoring old binary.",
             new_size
         ));
@@ -729,7 +729,7 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
         ));
     }
 
-    crate::debug::push_debug(format!(
+    humanity_core::debug::push_debug(format!(
         "Updater: SUCCESS. New binary at {} ({} bytes), old at {}",
         exe_path.display(),
         new_size,
@@ -767,7 +767,7 @@ pub fn create_restart_script(exe_path: &std::path::Path, behind: bool) -> Result
     );
     std::fs::write(&bat_path, script)
         .map_err(|e| format!("Failed to write restart script: {}", e))?;
-    crate::debug::push_debug(format!("Updater: created restart script at {}", bat_path.display()));
+    humanity_core::debug::push_debug(format!("Updater: created restart script at {}", bat_path.display()));
     Ok(bat_path)
 }
 
@@ -780,11 +780,11 @@ pub fn read_restart_target(exe_path: &std::path::Path) -> PathBuf {
     if let Ok(contents) = std::fs::read_to_string(&target_file) {
         let target = contents.trim().to_string();
         if !target.is_empty() {
-            crate::debug::push_debug(format!("Updater: restart target from file: {}", target));
+            humanity_core::debug::push_debug(format!("Updater: restart target from file: {}", target));
             return PathBuf::from(target);
         }
     }
-    crate::debug::push_debug(format!(
+    humanity_core::debug::push_debug(format!(
         "Updater: no restart_target.txt found, using exe_path: {}",
         exe_path.display()
     ));
@@ -794,7 +794,7 @@ pub fn read_restart_target(exe_path: &std::path::Path) -> PathBuf {
 /// Replace the running executable with the downloaded update (Unix).
 #[cfg(all(feature = "native", not(target_os = "windows")))]
 fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Result<(), String> {
-    crate::debug::push_debug(format!("Updater: applying update (Unix) to {}", exe_path.display()));
+    humanity_core::debug::push_debug(format!("Updater: applying update (Unix) to {}", exe_path.display()));
 
     // On Unix, we can replace the exe directly.
     #[cfg(unix)]
@@ -805,13 +805,13 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
 
     std::fs::rename(update_path, exe_path)
         .map_err(|e| {
-            crate::debug::push_debug(format!("Updater: Unix rename failed: {}", e));
+            humanity_core::debug::push_debug(format!("Updater: Unix rename failed: {}", e));
             format!("Failed to replace executable: {}", e)
         })?;
 
     // Post-swap verification
     let new_size = std::fs::metadata(exe_path).map(|m| m.len()).unwrap_or(0);
-    crate::debug::push_debug(format!(
+    humanity_core::debug::push_debug(format!(
         "Updater: post-swap verification, new binary size = {} bytes",
         new_size
     ));
@@ -821,11 +821,11 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
             "Update verification failed: new binary is {} bytes (expected > {} bytes)",
             new_size, MIN_BINARY_SIZE
         );
-        crate::debug::push_debug(format!("Updater: {}", msg));
+        humanity_core::debug::push_debug(format!("Updater: {}", msg));
         return Err(msg);
     }
 
-    crate::debug::push_debug(format!(
+    humanity_core::debug::push_debug(format!(
         "Updater: SUCCESS. Update applied to {} ({} bytes)",
         exe_path.display(),
         new_size

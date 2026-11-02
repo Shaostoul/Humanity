@@ -44,8 +44,8 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::ecs::components::StatusEffects;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::StatusEffects;
+use humanity_core::hot_reload::data_store::DataStore;
 use crate::systems::status_effects::StatusEffectRegistry;
 
 /// DataStore key of the Settings mode (a plain `Mode`), published each frame by
@@ -161,7 +161,7 @@ impl Illnesses {
     /// neither there is no illness data, which means an illness takes no water: loud in the
     /// log, never a crash.
     pub fn load(data_dir: &Path) -> Self {
-        crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+        humanity_core::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
             log::warn!("{e}; illnesses take no water until it is fixed");
             Self::default()
         })
@@ -297,7 +297,7 @@ pub fn duration_words(s: f32) -> String {
 /// hint, which has no DataStore.
 fn shipped() -> &'static (Illnesses, Option<StatusEffectRegistry>) {
     static SHIPPED: std::sync::OnceLock<(Illnesses, Option<StatusEffectRegistry>)> = std::sync::OnceLock::new();
-    SHIPPED.get_or_init(|| hint_data(&crate::storage::data_dir()))
+    SHIPPED.get_or_init(|| hint_data(&humanity_core::storage::data_dir()))
 }
 
 /// The illnesses and the status effects as the game loads them, by the rule every registry
@@ -305,7 +305,7 @@ fn shipped() -> &'static (Illnesses, Option<StatusEffectRegistry>) {
 /// built-in copy, not an empty table, so the hint never says "about an hour" for want of the
 /// illness's course.
 fn hint_data(dir: &Path) -> (Illnesses, Option<StatusEffectRegistry>) {
-    let effects = crate::embedded_data::load_data_or_embedded(dir, "status_effects.csv", StatusEffectRegistry::from_csv)
+    let effects = humanity_core::embedded_data::load_data_or_embedded(dir, "status_effects.csv", StatusEffectRegistry::from_csv)
         .map_err(|e| log::warn!("{e}; the illness hint has no course to name"))
         .ok();
     (Illnesses::load(dir), effects)
@@ -347,7 +347,7 @@ mod tests {
     use super::*;
 
     fn shipped_data() -> Illnesses {
-        Illnesses::from_ron(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/medical/illnesses.ron")).unwrap())
+        Illnesses::from_ron(&std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/medical/illnesses.ron")).unwrap())
             .expect("illnesses.ron parses")
     }
 
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn shipped_illnesses_parse_and_name_disease_effects() {
         let ill = shipped_data();
-        let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/status_effects.csv")))
+        let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/status_effects.csv")))
             .expect("status_effects.csv");
         assert!(!ill.illnesses.is_empty());
         for i in &ill.illnesses {
@@ -444,8 +444,8 @@ mod tests {
     ///   Realistic: it lasts about an hour ... Forgiving: about an hour and 0.75 L a day. ...
     #[test]
     fn the_settings_hint_names_the_course_with_a_data_folder_older_than_the_game() {
-        let dir = crate::test_temp::dir("illness_hint");
-        let stale = crate::systems::status_effects::with_old_dispel_type_column(crate::embedded_data::STATUS_EFFECTS_CSV);
+        let dir = humanity_core::test_temp::dir("illness_hint");
+        let stale = crate::systems::status_effects::with_old_dispel_type_column(humanity_core::embedded_data::STATUS_EFFECTS_CSV);
         std::fs::write(dir.join("status_effects.csv"), stale).expect("write the file");
         let hint = hint_text(&hint_data(&dir));
         assert!(hint.contains("about 2 days"), "the hint names the course: {hint}");

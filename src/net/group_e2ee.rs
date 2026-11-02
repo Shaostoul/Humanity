@@ -25,8 +25,8 @@ use ciborium::Value;
 use rand::RngCore;
 
 use crate::net::dm_pq::{self, DmPqKeypair};
-use crate::relay::core::encoding::{cbor_bytes, cbor_int, cbor_map, from_canonical_bytes};
-use crate::relay::core::object::ObjectBuilder;
+use humanity_protocol::encoding::{cbor_bytes, cbor_int, cbor_map, from_canonical_bytes};
+use humanity_protocol::object::ObjectBuilder;
 
 fn now_millis() -> u64 {
     std::time::SystemTime::now()
@@ -334,7 +334,7 @@ mod tests {
         let payload_bytes = {
             // Trick: build a dummy keypair just to extract the payload, then drop the sig.
             // ObjectBuilder.payload is private; use the builder's serialization path.
-            use crate::relay::core::pq_crypto::DilithiumKeypair;
+            use humanity_protocol::pq_crypto::DilithiumKeypair;
             let kp = DilithiumKeypair::generate().unwrap();
             let signed = builder.sign(&kp).unwrap();
             signed.payload
@@ -353,7 +353,7 @@ mod tests {
         let msg = "hello, group";
         let msg_builder = build_group_msg_v1("grp_test", 1, &epoch_key, msg).unwrap();
         let msg_payload = {
-            use crate::relay::core::pq_crypto::DilithiumKeypair;
+            use humanity_protocol::pq_crypto::DilithiumKeypair;
             let kp = DilithiumKeypair::generate().unwrap();
             msg_builder.sign(&kp).unwrap().payload
         };
@@ -368,7 +368,7 @@ mod tests {
     /// Mirrors the per-epoch key selection in `api_v2::decrypt_group_messages_raw`.
     #[test]
     fn multi_epoch_history_decrypts_per_epoch() {
-        use crate::relay::core::pq_crypto::DilithiumKeypair;
+        use humanity_protocol::pq_crypto::DilithiumKeypair;
         use std::collections::HashMap;
         let kp = DilithiumKeypair::generate().unwrap();
 
@@ -413,7 +413,7 @@ mod tests {
     /// behavior in `api_v2::rekey_if_creator_needs`.
     #[test]
     fn share_history_flag_round_trips() {
-        use crate::relay::core::encoding::{cbor_int, cbor_map, cbor_text, to_canonical_bytes};
+        use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text, to_canonical_bytes};
         let private = to_canonical_bytes(&cbor_map(vec![("name", cbor_text("g"))])).unwrap();
         assert!(!payload_shares_history(&private), "absent field → private");
         let shared = to_canonical_bytes(&cbor_map(vec![
@@ -441,7 +441,7 @@ mod tests {
         }];
         let builder = build_group_epoch_key_v1("grp_x", 1, &epoch_key, &members).unwrap();
         let payload = {
-            use crate::relay::core::pq_crypto::DilithiumKeypair;
+            use humanity_protocol::pq_crypto::DilithiumKeypair;
             let kp = DilithiumKeypair::generate().unwrap();
             builder.sign(&kp).unwrap().payload
         };

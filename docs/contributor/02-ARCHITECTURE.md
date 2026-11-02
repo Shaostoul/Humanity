@@ -5,11 +5,13 @@
 > **[../../CLAUDE.md](../../CLAUDE.md)**. This page is the orientation; CLAUDE.md is the
 > source of truth.
 
-## One crate, one binary
+## One workspace, one binary
 
-HumanityOS is a **single Rust crate** at `src/`. There is no Cargo workspace and no
-sub-crates. Everything compiles into one binary, `HumanityOS`. **Feature flags** decide
-what is included:
+HumanityOS is a **Cargo workspace**: the root package `humanity-engine` at `src/` and the
+crates cut out of it so far, `crates/humanity-core/` and `crates/humanity-protocol/` (the
+crate split, `docs/design/crate-split.md`; ten crates by layer are planned, each with a card
+in `docs/crates/`). Everything compiles into one binary, `HumanityOS`. **Feature flags**
+decide what is included:
 
 - `native` (default) the full desktop app: renderer, game engine, GUI, and an embedded
   relay.
@@ -35,9 +37,9 @@ HumanityOS --headless     # relay server only (--features relay --no-default-fea
 | `src/relay/` | The axum server: WebSocket relay, REST API, SQLite storage. Runs headless on the VPS. Subfolders: `core/` (crypto), `handlers/`, `storage/` (30 domain modules). |
 | `src/renderer/` | wgpu PBR rendering: camera, sky, bloom, particles, hologram. |
 | `src/gui/` | egui immediate-mode UI: theme, widgets, pages. |
-| `src/ecs/` | The hecs ECS: components, the `System` trait, the `SystemRunner`. |
+| `crates/humanity-core/src/ecs/` | The hecs ECS: components, the `System` trait, the `SystemRunner`. |
 | `src/systems/` | 15-plus game systems (farming, crafting, AI, vehicles, weather, ...). |
-| `src/terrain/`, `src/ship/`, `src/physics/`, `src/audio/` | World, ship layouts, rapier3d physics, kira audio. |
+| `src/terrain/`, `src/ship/`, `crates/humanity-core/src/physics/`, `crates/humanity-core/src/audio/` | World, ship layouts, rapier3d physics, kira audio. |
 | `src/assets/` | Data loading (CSV/TOML/RON/GLTF) with hot-reload. |
 | `src/net/` | Multiplayer networking: WebSocket client, protocol, ECS sync. |
 

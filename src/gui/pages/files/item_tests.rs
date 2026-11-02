@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 /// The shared fixture's licences: the five, the game tick on CC0 and CC BY, the two warnings and
 /// the hosting paragraph, as the relay sends them (scripts/tests/fixtures/files-round5-v1.json).
 pub(crate) fn fixture_licences() -> Licences {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/files-round5-v1.json");
+    let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/files-round5-v1.json");
     let v: Value = serde_json::from_str(&std::fs::read_to_string(path).expect("the shared fixture")).expect("JSON");
     Licences::from_json(Some(&v["licences"]))
 }
@@ -430,7 +430,7 @@ fn add_a_file_uploads_then_attaches() {
     let form = state.files.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the edit form");
     assert!(matches!(form.picker, Some((FileRole::File, _))), "Add a file opens the picker");
 
-    let file = crate::test_temp::file("media_attach", "webm");
+    let file = humanity_core::test_temp::file("media_attach", "webm");
     std::fs::write(&file, (0..20_000u32).map(|i| (i % 251) as u8).collect::<Vec<u8>>()).unwrap();
     let to = AttachTo { id: 7, filename: "7_dusk.glb".into(), role: FileRole::File };
     uploading::start_attach_with(&mut state, &file, "clip.webm", 20_000, to, Fake::new(8192)).expect("it starts");
@@ -571,7 +571,7 @@ fn add_a_file_takes_several_files_at_once() {
     let form = state.files.item.as_ref().and_then(|p| p.edit.as_ref()).expect("the edit form");
     assert!(matches!(&form.picker, Some((FileRole::File, p)) if p.multiple), "Add a file's picker ticks several");
 
-    let dir = crate::test_temp::dir("media_edit_several");
+    let dir = humanity_core::test_temp::dir("media_edit_several");
     let files = vec![dir.join("left.stl"), dir.join("right.stl")];
     for f in &files {
         std::fs::write(f, [9u8; 600]).unwrap();
@@ -680,7 +680,7 @@ fn files_dropped_go_to_add_to_media_or_to_the_item_being_edited() {
     let item = rich_item(("me", "Me"));
     let mut state = page_on(SERVER, answer_of(vec![item.clone()]), "tok");
     state.files.mine = Some(super::super::api::Mine { share_bytes: 1 << 30, budget_left_bytes: 1 << 40, ..Default::default() });
-    let dir = crate::test_temp::dir("media_drop");
+    let dir = humanity_core::test_temp::dir("media_drop");
     let model = dir.join("bracket.stl");
     std::fs::write(&model, b"solid bracket
 endsolid bracket

@@ -32,8 +32,8 @@
 use std::io::{Read, Write};
 use std::time::Duration;
 
-use crate::relay::core::error::{Error, Result};
-use crate::relay::core::object::Object;
+use humanity_protocol::error::{Error, Result};
+use humanity_protocol::object::Object;
 
 /// Configuration for the LoRa transport.
 #[derive(Debug, Clone)]

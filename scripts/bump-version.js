@@ -49,7 +49,9 @@ replaceInFile('Cargo.toml', `version = "${oldVersion}"`, `version = "${newVersio
 // 2b. Cargo.lock's own entry (2026-10-12). Cargo did not always rewrite it on the release build,
 // so the lock lagged a version behind and a later build changed it, which changed the source
 // fingerprint and made the delivered exe look stale. Set to the new version whatever it held.
-replaceInFile('Cargo.lock', /(name = "humanity-engine"\r?\nversion = ")[^"]*(")/, `$1${newVersion}$2`);
+// Every workspace member's entry (2026-11-01, the crate split's rung 1): they all carry the one
+// version in [workspace.package], so a lock entry left behind would change the stamp the same way.
+replaceInFile('Cargo.lock', /(name = "humanity-[a-z-]+"\r?\nversion = ")[^"]*(")/g, `$1${newVersion}$2`);
 
 // 3. web/shared/sw.js — CACHE_NAME bump
 const swPath = path.join(ROOT, 'web/shared/sw.js');

@@ -75,7 +75,7 @@ pub fn load_external_catalog(data_dir: &std::path::Path) -> Vec<CatalogEntry> {
 /// one parse, no duplicated schema to drift.
 #[cfg(feature = "native")]
 pub fn load_planets() -> Vec<GuiPlanet> {
-    crate::cosmos::sol_bodies()
+    humanity_core::cosmos::sol_bodies()
         .iter()
         .filter(|b| {
             // Planets and dwarf planets only: the Maps page draws the
@@ -208,7 +208,7 @@ fn read_data_json<T: serde::de::DeserializeOwned>(
     data_dir: &std::path::Path,
     relative: &str,
 ) -> Option<T> {
-    crate::embedded_data::load_data_or_embedded(data_dir, relative, crate::data_parse::parse_json::<T>)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, relative, humanity_core::data_parse::parse_json::<T>)
         .map_err(|e| log::warn!("{e}"))
         .ok()
 }
@@ -430,7 +430,7 @@ pub struct DesignTier {
 /// neither loads (the Home page then shows an empty state).
 pub fn load_homestead_design(data_dir: &std::path::Path) -> Option<HomesteadDesign> {
     let rel = "blueprints/fibonacci_homestead.ron";
-    crate::embedded_data::load_data_or_embedded(data_dir, rel, crate::data_parse::parse_ron::<HomesteadDesign>)
+    humanity_core::embedded_data::load_data_or_embedded(data_dir, rel, humanity_core::data_parse::parse_ron::<HomesteadDesign>)
         .map_err(|e| log::warn!("{e}"))
         .ok()
 }
@@ -609,7 +609,7 @@ pub fn load_tower_configs(data_dir: &std::path::Path) -> Vec<TowerConfig> {
     }
     // The built-in copy when the data folder's is missing or this version
     // cannot read it (BUG-163).
-    match crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::data_parse::parse_ron::<File>) {
+    match humanity_core::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", humanity_core::data_parse::parse_ron::<File>) {
         Ok(f) => f.towers,
         Err(e) => {
             log::warn!("{e}");
@@ -1213,7 +1213,7 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
     // all of it, else the copy built into the exe (it read the disk alone, so a
     // data folder without recipes.csv listed none).
     let rows: Vec<Row> =
-        match crate::embedded_data::load_data_or_embedded(data_dir, "recipes.csv", crate::data_parse::parse_csv::<Row>) {
+        match humanity_core::embedded_data::load_data_or_embedded(data_dir, "recipes.csv", humanity_core::data_parse::parse_csv::<Row>) {
             Ok(rows) => rows,
             Err(e) => {
                 log::warn!("{e}; the Crafting page lists no recipes");
@@ -1232,11 +1232,11 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         volume_l: f32,
     }
     let items: Vec<Dur> =
-        crate::embedded_data::load_data_or_embedded(data_dir, "items.csv", crate::data_parse::parse_csv::<Dur>)
+        humanity_core::embedded_data::load_data_or_embedded(data_dir, "items.csv", humanity_core::data_parse::parse_csv::<Dur>)
             .unwrap_or_default();
     let durable: std::collections::HashSet<&str> = items.iter().filter(|d| d.durability > 0).map(|d| d.id.as_str()).collect();
     let litres: std::collections::HashMap<&str, f32> = items.iter().map(|d| (d.id.as_str(), d.volume_l)).collect();
-    let kits = crate::embedded_data::load_data_or_embedded(
+    let kits = humanity_core::embedded_data::load_data_or_embedded(
         data_dir,
         "vehicles/kits.ron",
         crate::systems::vehicles::VehicleKitRegistry::from_ron,
@@ -1310,7 +1310,7 @@ mod crafting_recipes_load_tests {
 
     #[test]
     fn load_crafting_recipes_populates_from_real_data() {
-        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let recipes = load_crafting_recipes(&data_dir);
         assert!(
             recipes.len() > 50,
@@ -1333,7 +1333,7 @@ mod crafting_recipes_load_tests {
     ///   the built-in recipes are listed: 0 found
     #[test]
     fn a_data_folder_without_recipes_lists_the_built_in_ones() {
-        let dir = crate::test_temp::dir("craft_list");
+        let dir = humanity_core::test_temp::dir("craft_list");
         let recipes = load_crafting_recipes(&dir);
         assert!(
             recipes.iter().any(|r| r.id == "smelt_iron"),

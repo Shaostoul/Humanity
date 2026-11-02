@@ -14,9 +14,9 @@ use std::collections::HashMap;
 use glam::{Quat, Vec3};
 use serde::Deserialize;
 
-use crate::ecs::components::{Controllable, Transform, Vehicle, Velocity, VehicleSeat};
-use crate::ecs::systems::System;
-use crate::hot_reload::data_store::DataStore;
+use humanity_core::ecs::components::{Controllable, Transform, Vehicle, Velocity, VehicleSeat};
+use humanity_core::ecs::systems::System;
+use humanity_core::hot_reload::data_store::DataStore;
 
 /// Heat dissipation rate per second (fraction of max heat).
 const HEAT_DISSIPATION_RATE: f32 = 0.05;
@@ -293,7 +293,7 @@ impl VehicleSystem {
             },
             Velocity::default(),
             VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
-            crate::ecs::components::Name(name),
+            humanity_core::ecs::components::Name(name),
         ));
         log::info!(
             "Deployed {} ({}) from kit {kit_id} at {position}",
@@ -338,7 +338,7 @@ impl VehicleSystem {
             log::warn!("summon_vehicle: entity {bits:#x} is not a vehicle");
             return;
         };
-        if world.get::<&crate::ecs::components::VehicleRoute>(entity).is_ok() {
+        if world.get::<&humanity_core::ecs::components::VehicleRoute>(entity).is_ok() {
             return; // already in transit
         }
         let speed = data
@@ -349,7 +349,7 @@ impl VehicleSystem {
         let (dest, _yaw) = Self::deploy_pose(world, data); // player's ground spot
         let _ = world.insert_one(
             entity,
-            crate::ecs::components::VehicleRoute {
+            humanity_core::ecs::components::VehicleRoute {
                 dest,
                 speed_mps: speed.max(0.5),
                 arrive_radius: 4.0,
@@ -370,7 +370,7 @@ impl VehicleSystem {
     fn tick_routes(world: &mut hecs::World, dt: f32, _data: &DataStore) {
         let mut arrived: Vec<hecs::Entity> = Vec::new();
         for (e, (tf, route)) in world
-            .query_mut::<(&mut Transform, &crate::ecs::components::VehicleRoute)>()
+            .query_mut::<(&mut Transform, &humanity_core::ecs::components::VehicleRoute)>()
         {
             let to = route.dest - tf.position;
             let dist = to.length();
@@ -384,7 +384,7 @@ impl VehicleSystem {
             tf.rotation = Quat::from_rotation_y((-dir.z).atan2(dir.x));
         }
         for e in arrived {
-            let _ = world.remove_one::<crate::ecs::components::VehicleRoute>(e);
+            let _ = world.remove_one::<humanity_core::ecs::components::VehicleRoute>(e);
             log::info!("Vehicle arrived and parked");
         }
     }
@@ -537,7 +537,7 @@ impl VehicleSystem {
 #[cfg(test)]
 mod deploy_tests {
     use super::*;
-    use crate::ecs::components::Name;
+    use humanity_core::ecs::components::Name;
     use crate::systems::inventory::Inventory;
 
     /// The registry as data/vehicles/kits.ron ships it (a trimmed copy so the
@@ -721,13 +721,13 @@ mod deploy_tests {
         // Lock the REAL data/vehicles/kits.ron: it must parse and every kit +
         // vehicle id it references must exist in items.csv.
         let reg = VehicleKitRegistry::from_ron(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/vehicles/kits.ron"
         )))
         .expect("shipped kits.ron parses");
         assert!(!reg.is_empty(), "at least one kit ships");
         let items = std::str::from_utf8(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/items.csv"
         )))
         .unwrap()
@@ -750,7 +750,7 @@ mod deploy_tests {
 #[cfg(test)]
 mod transit_tests {
     use super::*;
-    use crate::ecs::components::{Name, Vehicle, VehicleRoute};
+    use humanity_core::ecs::components::{Name, Vehicle, VehicleRoute};
     use crate::systems::inventory::Inventory;
 
     const KITS_RON: &str = r#"[
@@ -924,7 +924,7 @@ mod transit_tests {
     #[test]
     fn shipped_kits_have_transit_speeds() {
         let reg = VehicleKitRegistry::from_ron(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/vehicles/kits.ron"
         )))
         .expect("kits.ron parses");

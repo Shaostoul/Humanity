@@ -1232,7 +1232,7 @@ mod tests {
     #[test]
     fn an_open_plot_lets_its_permit_holder_walk_in_and_a_closed_one_does_not() {
         use crate::ship::ship_structure::{OpenPlots, ShipStructure};
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let closed = ShipStructure::load_and_assemble_shipped(&data, Some("p2")).expect("the shipped ship assembles");
         let mut open = closed.clone();
         open.open = OpenPlots { plots: ["p1".to_string()].into_iter().collect(), lit: None };
@@ -1334,7 +1334,7 @@ mod storey_height_tests {
         for (l, p) in local.iter().zip(&placed) {
             assert_eq!((p.a, p.b, p.half_thickness), ((l.a.0 + 100.0, l.a.1 + 20.0), (l.b.0 + 100.0, l.b.1 + 20.0), l.half_thickness), "x and z move as before");
         }
-        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let shipped = ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles");
         for s in everyones_walls(&shipped) {
             assert!(s.y0.is_finite() && s.y1.is_finite() && s.y0 < s.y1, "a shipped segment stands nowhere: {s:?}");

@@ -112,7 +112,7 @@ than the docs suggest.
   already synced and already shows as "Botanist Yara: Inspecting the hydroponic
   racks".
 - **Appearance variety is already modelled.** The `Appearance` component
-  (`src/ecs/components.rs:749`) carries body type, height scale, skin tone, hair
+  (`crates/humanity-core/src/ecs/components.rs:749`) carries body type, height scale, skin tone, hair
   style and colour, eye colour, and there is a 14-row cosmetics catalogue with
   per-slot colours. Hash an agent id into that and 500 people look like 500
   people, using the same component the player uses rather than a fork.
@@ -307,7 +307,7 @@ so that every rung's cost is observable before the next rung depends on it.
    buffers are available (`wgpu::Limits::default()`) but per the v0.782 incident
    that must be proven by a real boot, not by a passing test.
 
-   The impostor rung has a head start and a gap. `src/lod_registry.rs` already
+   The impostor rung has a head start and a gap. `crates/humanity-core/src/lod_registry.rs` already
    parses `data/lod/categories.ron`, which has `animal_small` and `animal_large`
    rows, and `src/renderer/billboard_bake.rs` already bakes side-on sprites into
    an atlas for trees. But **every row in that file has `billboard_m: 0.0`** and

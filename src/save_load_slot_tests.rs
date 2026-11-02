@@ -7,13 +7,13 @@
 use super::*;
 use crate::gui::pages::settings::restore_snapshot_into_game;
 use crate::persistence::live_save::set_active_home;
-use crate::ecs::components::{AsteroidBody, Battery, HomeMachine, MachineInstanceId, Name, WaterTank};
+use humanity_core::ecs::components::{AsteroidBody, Battery, HomeMachine, MachineInstanceId, Name, WaterTank};
 use crate::persistence::{SaveSlot, ShipMeals, ShipPlace};
 use crate::systems::inventory::containers::Container;
 use crate::systems::machine_levels::{HeldMachineLevels, MachineLevels};
 
 fn data_dir() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data")
+    std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data")
 }
 
 /// A player in a world of its own, carrying `items`.
@@ -28,9 +28,9 @@ fn player_with(items: &[(&str, u32)]) -> hecs::World {
         inv,
         PlayerSkills::new(),
         Name("Ann".to_string()),
-        crate::ecs::components::Appearance::default(),
-        crate::ecs::components::Outfit::default(),
-        crate::ecs::components::Wallet::default(),
+        humanity_core::ecs::components::Appearance::default(),
+        humanity_core::ecs::components::Outfit::default(),
+        humanity_core::ecs::components::Wallet::default(),
     ));
     world
 }
@@ -40,8 +40,8 @@ fn items_of(world: &hecs::World) -> Vec<(String, u32)> {
 }
 
 /// The DataStore a load reads, as the save_load tests build it.
-fn data_store() -> crate::hot_reload::data_store::DataStore {
-    let mut data = crate::hot_reload::data_store::DataStore::new();
+fn data_store() -> humanity_core::hot_reload::data_store::DataStore {
+    let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     data.insert("auto_mine_order", std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
     crate::systems::crafting::register(&mut data);
     crate::systems::livestock::register(&mut data);
@@ -148,7 +148,7 @@ fn a_fresh_save_resets_every_machines_level() {
 /// offline_home.json was untouched: the assertion stops the test before the save).
 #[test]
 fn the_active_save_path_follows_the_slot() {
-    let saves = crate::test_temp::dir("active_slot");
+    let saves = humanity_core::test_temp::dir("active_slot");
     let slot = a_server();
     let path = persistence::slot_path(&saves, &slot);
     let place = ShipPlace { ship_id: "mothership-1".into(), ship_hash: "h".into(), plot: "c2".into() };
@@ -163,7 +163,7 @@ fn the_active_save_path_follows_the_slot() {
     assert_eq!(active_home_path(), path, "every save of a server's save went to your own home's file");
 
     let mut world = player_with(&[("water_purified_0", 2)]);
-    let data = crate::hot_reload::data_store::DataStore::new();
+    let data = humanity_core::hot_reload::data_store::DataStore::new();
     save_active_home(&mut world, &[], &data, false, None);
     let written = persistence::load_world(&path).expect("the server's save was written to its own file");
     assert_eq!((written.kind.as_str(), written.start.as_str(), written.household.as_str()), ("server", "cabin", "solo"));
@@ -187,7 +187,7 @@ fn the_active_save_path_follows_the_slot() {
 /// loaded".
 #[test]
 fn a_restore_reloads_the_active_slot() {
-    let root = crate::test_temp::dir("restore_slot");
+    let root = humanity_core::test_temp::dir("restore_slot");
     let saves = root.join("saves");
     let slot = a_server();
     let path = persistence::slot_path(&saves, &slot);
@@ -205,7 +205,7 @@ fn a_restore_reloads_the_active_slot() {
     );
     let mut after = before.clone();
     after.inventory.clear();
-    crate::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&after).unwrap().as_bytes()).unwrap();
+    humanity_core::atomic_write::write_atomic(&path, serde_json::to_string_pretty(&after).unwrap().as_bytes()).unwrap();
 
     set_active_home(ActiveHome::of_save(slot, path.clone(), &before));
     let mut gui = crate::gui::GuiState::default();
@@ -277,7 +277,7 @@ fn the_asteroid_belt_is_data_and_the_same_as_before() {
     assert_eq!(json(&belt), json(&before), "the belt is not the three asteroids lib.rs spawned");
 
     // The copy built into the exe is the file (a data folder without it gets the same belt).
-    let empty = crate::test_temp::dir("no_belt");
+    let empty = humanity_core::test_temp::dir("no_belt");
     assert_eq!(json(&asteroid_belt(&empty)), json(&before), "the built-in belt");
 
     let items = crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(data_dir().join("items.csv")).unwrap()).unwrap();
@@ -304,10 +304,10 @@ fn the_asteroid_belt_is_data_and_the_same_as_before() {
 /// next_at_game_s: 86400.5, water_l: 4.5 }".
 #[test]
 fn the_ship_meals_meter_round_trips() {
-    let root = crate::test_temp::dir("ship_meals");
+    let root = humanity_core::test_temp::dir("ship_meals");
     let path = root.join("saves").join(persistence::OFFLINE_SAVE_FILE);
     let meals = ShipMeals { taken: 3, next_at_game_s: 86_400.5, water_l: 4.5 };
-    let mut data = crate::hot_reload::data_store::DataStore::new();
+    let mut data = humanity_core::hot_reload::data_store::DataStore::new();
     put_ship_meals(&mut data, &meals);
     let world = player_with(&[]);
     save_home_at(&path, &world, &[], &data, true, None);
@@ -324,12 +324,12 @@ fn the_ship_meals_meter_round_trips() {
     assert_eq!(ship_meals(&back), Some(meals.clone()), "a load at startup puts it back");
 
     // Onto the running world (the picker, a restore, a change of save slot), registered or not.
-    let mut running = crate::hot_reload::data_store::DataStore::new();
+    let mut running = humanity_core::hot_reload::data_store::DataStore::new();
     let mut gui = crate::gui::GuiState::default();
     put_save_on_world(&mut fresh, &mut running, &mut gui, &data_dir(), &saved, true);
     assert_eq!(ship_meals(&running), Some(meals.clone()), "a load onto the running world puts it back");
 
     // A session with no meter (nothing counted) keeps what the save had.
-    save_home_at(&path, &world, &[], &crate::hot_reload::data_store::DataStore::new(), true, None);
+    save_home_at(&path, &world, &[], &humanity_core::hot_reload::data_store::DataStore::new(), true, None);
     assert_eq!(persistence::load_world(&path).unwrap().ship_meals, meals, "not written back to zero");
 }

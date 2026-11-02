@@ -3,7 +3,7 @@
 //! compute pass a frame late, the per-view pass ids (`SceneView`), a texture's bytes, and the
 //! `Renderer` plumbing that times passes and walks its own buffers for the VRAM pie.
 //!
-//! Everything it measures is published into the process-wide store, `crate::frame_costs`,
+//! Everything it measures is published into the process-wide store, `humanity_core::frame_costs`,
 //! which is the core's since the crate split's rung 0 (this file and that one were
 //! `renderer::frame_costs` together): the store is std only and every crate records into it;
 //! this half needs wgpu and stays in the renderer.
@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 // The store this half publishes into (record, publish, frame boundaries, the VRAM entries).
-use crate::frame_costs::*;
+use humanity_core::frame_costs::*;
 
 // ────────────────────────────── GPU timestamps ──────────────────────────────
 
@@ -529,7 +529,7 @@ impl Renderer {
         // report both what is RESERVED and what is actually in use.
         let (arena_used, arena_reserved) = match self.patch_arena.as_ref() {
             Some(a) => {
-                let vstride = std::mem::size_of::<crate::vertex::Vertex>() as u64;
+                let vstride = std::mem::size_of::<humanity_core::vertex::Vertex>() as u64;
                 let vused = (a.valloc.cap() - a.valloc.free_total()) as u64 * vstride;
                 let iused = (a.ialloc.cap() - a.ialloc.free_total()) as u64 * 4;
                 let reserved = a.vertex_buf.size()
@@ -607,10 +607,10 @@ impl Renderer {
 mod tests {
     use super::*;
 
-    /// The store is process-global (`crate::frame_costs`), so the tests that publish into it
+    /// The store is process-global (`humanity_core::frame_costs`), so the tests that publish into it
     /// take its one lock, as the store's own tests do.
     fn serial() -> std::sync::MutexGuard<'static, ()> {
-        crate::frame_costs::test_lock()
+        humanity_core::frame_costs::test_lock()
     }
 
     /// The ring remembers whose frame each batch was, all the way to the
@@ -732,7 +732,7 @@ mod tests {
     #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
     fn gpu_timestamps_resolve_a_real_pass_duration() {
         let _g = serial();
-        if !crate::test_gpu::may_use() {
+        if !humanity_core::test_gpu::may_use() {
             return;
         }
         let instance = wgpu::Instance::default();

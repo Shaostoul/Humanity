@@ -356,7 +356,7 @@ mod tests {
     /// Some("3.2.4.0").
     #[test]
     fn the_matcher_against_windows_records() {
-        let dir = crate::test_temp::dir("sw_matcher");
+        let dir = humanity_core::test_temp::dir("sw_matcher");
         let gimp2 = dir.join("GIMP 2");
         let gimp3 = dir.join("GIMP 3");
         let g2 = program(&gimp2, "bin/gimp-2.10.exe");
@@ -410,7 +410,7 @@ mod tests {
     /// "one Steam is still downloading does not count" got Some(Installed { via: Steam, .. }).
     #[test]
     fn a_copy_steam_installed_counts() {
-        let dir = crate::test_temp::dir("sw_steam");
+        let dir = humanity_core::test_temp::dir("sw_steam");
         let folder = dir.join("steamapps").join("common").join("Blender");
         let exe = program(&folder, "blender.exe");
         let game = |state: State| Game {
@@ -473,7 +473,7 @@ mod tests {
         assert_eq!(found.launch, None, "an app id not well formed is never handed on");
         assert_eq!(find(&paint, &Records { store: vec![pkg("Other.App_aaaaaaaaaaaaa", "App")], ..Records::default() }, &[]), None, "another family's package is not Paint.NET");
 
-        let dir = crate::test_temp::dir("sw_store_own");
+        let dir = humanity_core::test_temp::dir("sw_store_own");
         let own = program(&dir, "paint.net/paintdotnet.exe");
         let with_own = Records { uninstall: vec![record("paint.net", Some("5.1.12"), Some(&dir.join("paint.net")), None)], ..records };
         let found = find(&paint, &with_own, &[]).unwrap();
@@ -487,7 +487,7 @@ mod tests {
     /// program" got Some(".../unins000.exe").
     #[test]
     fn an_uninstaller_is_not_the_program() {
-        let dir = crate::test_temp::dir("sw_unins");
+        let dir = humanity_core::test_temp::dir("sw_unins");
         let unins = program(&dir, "unins000.exe");
         let app = program(&dir, "wings3d.exe");
         let e = entry("Wings 3D", Some("^Wings 3D"), &[], None);
@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn which_start_menu_shortcut_is_taken() {
         use super::super::shortcuts::Target;
-        let dir = crate::test_temp::dir("sw_choose");
+        let dir = humanity_core::test_temp::dir("sw_choose");
         let resolve = program(&dir, "DaVinci/Resolve.exe");
         let proxy = program(&dir, "DaVinci/ProxyGenerator.exe");
         let unins = program(&dir, "DaVinci/unins000.exe");
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn davinci_resolve_starts_from_its_start_menu_shortcut() {
         use super::super::shortcuts;
-        let dir = crate::test_temp::dir("sw_resolve_menu");
+        let dir = humanity_core::test_temp::dir("sw_resolve_menu");
         let resolve = program(&dir, "Apps/DaVinci/Resolve.exe");
         let setup = program(&dir, "Apps/DaVinci/Setup Control Panels.exe");
         let menu = dir.join("Start Menu").join("Programs");

@@ -37,7 +37,7 @@ use aes_gcm::{
     AeadCore, Aes256Gcm, Key, Nonce,
 };
 
-use crate::relay::core::pq_crypto::{
+use humanity_protocol::pq_crypto::{
     self, KyberKeypair, KYBER_EK_LEN,
 };
 

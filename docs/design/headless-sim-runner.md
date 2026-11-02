@@ -211,6 +211,6 @@ tree); 6 to 9 can run in parallel afterwards. First real value (game-week soaks)
    until increment 6.
 
 Critical files: `src/lib.rs`, `src/engine/state.rs`, `src/engine/ipc.rs`,
-`src/engine/world_load.rs`, `src/engine/home_meshes.rs`; also `src/main.rs`, `src/ecs/systems.rs`,
+`src/engine/world_load.rs`, `src/engine/home_meshes.rs`; also `src/main.rs`, `crates/humanity-core/src/ecs/systems.rs`,
 `src/engine/rig_walk.rs`, `src/systems/time.rs`, `src/save_load.rs`, `tests/engine_wiring_lint.rs`,
 `scripts/lib/machine-guard.js`.

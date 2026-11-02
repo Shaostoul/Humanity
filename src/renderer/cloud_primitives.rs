@@ -322,7 +322,7 @@ mod tests {
 
     fn table() -> CloudArchetypes {
         let text = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
+            env!("HUMANITY_REPO_ROOT"),
             "/data/clouds/archetypes.ron"
         ))
         .expect("archetypes.ron must ship");
