@@ -16,10 +16,10 @@ the relay rather than on top of it.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `net/`
-- **Size:** 30,651 lines in 55 files, 3,854 of them in 13 test files.
+- **Size:** 30,654 lines in 55 files, 3,854 of them in 13 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 44.
 - **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 46, protocol 29.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 331, engine 97.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 333, engine 97.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 256 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -35,8 +35,8 @@ just test-lib net:: --skip engine::frame_net:: --skip gui::pages::settings::reco
 | `net::warnings::GUARD_LINE` | 13 | gui 12, engine 1 |
 | `net::dm_store::DmStore` | 12 | gui 8, engine 4 |
 | `net::protected::ProtectedAction` | 12 | gui 12 |
+| `net::dm_pq::DmInner` | 11 | gui 7, engine 4 |
 | `net::identity::pq_sign_chat` | 11 | gui 11 |
-| `net::dm_pq::DmInner` | 10 | gui 6, engine 4 |
 | `net::ws_client::WsClient` | 10 | engine 5, gui 5 |
 | `net::webrtc::WebrtcEvent` | 8 | engine 8 |
 | `net::protocol::NetMessage` | 7 | engine 7 |
@@ -47,7 +47,7 @@ just test-lib net:: --skip engine::frame_net:: --skip gui::pages::settings::reco
 | `net::household::PermitKey` | 5 | engine 5 |
 | `net::identity::mnemonic_from_seed` | 5 | gui 5 |
 
-And 180 more items, 293 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
+And 181 more items, 294 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
 <!-- end generated -->
 
 ## Rules

@@ -16,24 +16,25 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
   - no gate (every build): `input/`, `audio/`, `utilities.rs`, `physics/`, `debug.rs`, `platform.rs` + `platform/`, `turning.rs`, `reactions.rs`, `lod_registry.rs`, `boot_timing.rs`, `credits.rs`, `scenic_views.rs`, `showroom.rs`, `player_look.rs`, `cosmetics.rs`, `embedded_data.rs`, `data_parse.rs`, `vertex.rs`, `camera_angles.rs`, `frame_costs.rs`, `build_permission.rs`, `atomic_write.rs`, `weather_map.rs`, `civil_date.rs`, `ecs/`, `hot_reload/`, `storage.rs` + `storage/`, `cosmos.rs`, `dev_travel.rs`, `reuse.rs`
   - `feature = "native"`: `mods/`, `auto_unlock.rs`, `play_journal.rs`, `raw_frame.rs`, `i18n.rs`
   - test builds only: `test_temp.rs`, `test_log.rs`, `test_clock.rs`
-- **Size:** 14,572 lines in 50 files, 859 of them in 4 test files.
+  - `all(test, feature = "native")`: `test_gpu.rs`
+- **Size:** 14,659 lines in 51 files, 946 of them in 5 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 26, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 601, systems 437, gui 349, renderer 61, net 46, ship 36, relay 28, terrain 4.
+- **May be used by** (the plan): protocol, ship, terrain, systems, relay, net, renderer, gui, engine. **Used today by:** engine 601, systems 437, gui 350, renderer 61, net 46, ship 36, relay 28, terrain 4.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 169 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 171 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib input:: audio:: utilities:: physics:: debug:: platform:: turning:: reactions:: lod_registry:: boot_timing:: credits:: scenic_views:: showroom:: mods:: player_look:: cosmetics:: auto_unlock:: embedded_data:: data_parse:: vertex:: camera_angles:: frame_costs:: play_journal:: raw_frame:: i18n:: build_permission:: atomic_write:: weather_map:: civil_date:: ecs:: hot_reload:: storage:: cosmos:: dev_travel:: test_temp:: test_log:: test_clock:: reuse:: --skip engine::input:: --skip gui::pages::showroom:: --skip media::audio:: --skip relay::storage::
+just test-lib input:: audio:: utilities:: physics:: debug:: platform:: turning:: reactions:: lod_registry:: boot_timing:: credits:: scenic_views:: showroom:: mods:: player_look:: cosmetics:: auto_unlock:: embedded_data:: data_parse:: vertex:: camera_angles:: frame_costs:: play_journal:: raw_frame:: i18n:: build_permission:: atomic_write:: weather_map:: civil_date:: ecs:: hot_reload:: storage:: cosmos:: dev_travel:: test_temp:: test_log:: test_clock:: test_gpu:: reuse:: --skip engine::input:: --skip gui::pages::showroom:: --skip media::audio:: --skip relay::storage::
 ```
 
 **Interface: the items other crates reference, most first** (non-test code; a `use a::{x, y}` group counts once, as `a`; an item is a path up to its first capitalised name):
 
 | Item | References | From |
 |---|---:|---|
-| `hot_reload::data_store::DataStore` | 110 | systems 70, engine 38, net 1, ship 1 |
+| `hot_reload::data_store::DataStore` | 111 | systems 71, engine 38, net 1, ship 1 |
 | `debug::push_debug` | 83 | gui 42, net 23, engine 18 |
-| `ecs::components` | 70 | systems 51, engine 18, ship 1 |
+| `ecs::components` | 69 | systems 50, engine 18, ship 1 |
 | `storage::data_dir` | 65 | gui 33, systems 21, engine 6, relay 2, ship 2, net 1 |
 | `ecs::components::Transform` | 57 | engine 38, systems 15, gui 1, net 1, relay 1, ship 1 |
 | `embedded_data::note_builtin_copy` | 53 | systems 14, relay 13, ship 9, gui 8, renderer 6, engine 1, net 1, terrain 1 |
@@ -44,7 +45,7 @@ just test-lib input:: audio:: utilities:: physics:: debug:: platform:: turning::
 | `vertex::Vertex` | 34 | engine 15, renderer 9, ship 7, terrain 3 |
 | `cosmos::find_body` | 32 | engine 26, gui 4, renderer 2 |
 | `embedded_data::load_data_or_embedded` | 32 | systems 13, gui 8, net 6, engine 3, relay 1, ship 1 |
-| `i18n::t` | 31 | gui 26, engine 4, systems 1 |
+| `i18n::t` | 32 | gui 26, engine 5, systems 1 |
 | `i18n` | 29 | gui 29 |
 
 And 214 more items, 785 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).

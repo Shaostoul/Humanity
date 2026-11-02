@@ -109,6 +109,10 @@ pub(crate) mod test_temp;
 /// The warnings a test's own code logs, read back (BUG-163). Test builds only.
 #[cfg(test)]
 pub(crate) mod test_log;
+/// May a test open a GPU device now? No while the operator's GPU-heavy game runs: a GPU test
+/// can hang the whole run beside it, silently (2026-11-01). Native test builds only.
+#[cfg(all(test, feature = "native"))]
+pub(crate) mod test_gpu;
 
 #[cfg(feature = "relay")]
 pub mod relay;

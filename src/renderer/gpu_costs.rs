@@ -732,6 +732,9 @@ mod tests {
     #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
     fn gpu_timestamps_resolve_a_real_pass_duration() {
         let _g = serial();
+        if !crate::test_gpu::may_use() {
+            return;
+        }
         let instance = wgpu::Instance::default();
         let adapter = match pollster::block_on(instance.request_adapter(&Default::default())) {
             Some(a) => a,

@@ -15,7 +15,7 @@ shared ship's rules are the same on both sides.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `ship/`, `machines.rs` + `machines/`, `station/`
-- **Size:** 31,578 lines in 37 files, 1,431 of them in 4 test files.
+- **Size:** 31,581 lines in 37 files, 1,430 of them in 4 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `ship/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 3.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 36.
@@ -43,9 +43,9 @@ just test-lib ship:: machines:: station:: --skip engine::crossing_tests::machine
 | `ship::door_panels::PanelPlacement` | 9 | engine 9 |
 | `ship::home_structure::HomeStructure` | 9 | engine 8, gui 1 |
 | `machines::RoomGeom` | 8 | engine 8 |
-| `ship::home_structure` | 8 | gui 5, engine 3 |
 | `ship::starts::Starts` | 8 | engine 4, relay 4 |
 | `ship::structure::zone_type` | 8 | gui 7, engine 1 |
+| `station::to_hull` | 8 | engine 8 |
 
 And 190 more items, 375 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
 <!-- end generated -->

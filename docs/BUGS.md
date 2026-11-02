@@ -7053,3 +7053,38 @@ led to the same hole. The two fixes were merged into one (main's).
   trusting an enum handler's guard. And a warning that a handler never reads its `my_key` (or any
   parameter that names who is asking) is worth reading as a question about permissions, not as
   tidying: here it was the whole bug.
+
+## BUG-222: the full lib tests froze for two hours beside the operator's GPU game, silently (FIXED 2026-11-01, found 2026-11-01)
+
+**Found by** the orchestrator, verifying the warnings-to-zero merge on main (dde580edd): `node
+scripts/lib-tests.js` stopped at about 3,852 of 5,584 at 19:18 and was still "running" at 21:15,
+the test program using about 0.85 of a core all the while (1 h 42 min of CPU in two hours), with no "has been running for over 60 seconds" line for
+whatever hung. helldivers2.exe was running when the chain started. Stopped by hand; the same test
+program then passed 5,364 (220 ignored) in 232 s with the game closed. Not operator-reported, but
+he noticed the "2+ hour task".
+
+- **Where it stopped.** In name order the run was at the renderer's tests, where
+  `renderer::scene_target::tests` opens a real GPU device in three tests that run in every full
+  run (the other device tests are `#[ignore]`d). The test program had an "NVOGLDC invisible"
+  window: the NVIDIA driver was loaded into it. That the driver is what blocked was not proven (no
+  dump was taken); that the stop was at the GPU tests, beside a GPU game, and gone without it, was
+  measured.
+- **Why it was silent.** libtest's main loop joins each finished test's thread BEFORE it prints
+  that test's result, and prints its 60-second warnings from inside the same loop (library/test,
+  Rust 1.99.1, read from the source). A thread that reports its result and then cannot exit
+  (Windows runs every loaded DLL's per-thread cleanup as a thread exits, the GPU driver's
+  included) stops every line after it. `scripts/tests/fixtures/lib-tests/tiny_suite.rs`
+  `hangs_silently_when_asked` makes that hang on purpose with a thread-local whose destructor
+  never returns: plain libtest printed two of five results and then nothing for 80 s, no warning.
+- **FIXED.** (1) Before a run, `scripts/lib-tests.js` asks `scripts/lib/machine-guard.js` which of
+  the operator's GPU-heavy programs run; when one does, every test that would open a device asks
+  `crate::test_gpu::may_use()` (src/test_gpu.rs) first, before creating a `wgpu::Instance`, and
+  returns early; the script names them in a GPU TESTS NOT RUN banner and records the pass without
+  them, so the next full run on the same tree, once the game has closed, runs just those.
+  `tests/gpu_test_gate_lint.rs` (in `just lints` and CI) holds every instance in test code to
+  asking first; seen red on main's tree (all seven sites) and with one gate removed. (2) A run that
+  prints nothing for 15 minutes is stopped and fails, naming the tests in flight (`--stall-min`).
+  Tests in `scripts/tests/lib-tests-policy.test.js`, both seen red against main's runner.
+- **Lesson.** A long-running task is not a live one: check its log's last write before believing
+  it. And libtest's 60-second warning is not a hang detector: it cannot fire for a test that has
+  finished but whose thread cannot exit.

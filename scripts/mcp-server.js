@@ -469,7 +469,9 @@ async function libTest(args, ctx) {
   const env = { ...process.env, CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS || "4" };
   const r = await run(process.execPath, [path.join(REPO, "scripts", "lib-tests.js"), ...filters], { env, timeoutMs: minutes * 60000, signal: ctx.signal, notify: ctx.notify, label: "lib tests" });
   const result = (r.out.match(/test result: .*/g) || []).pop() || "(no test result line: did it compile? see the last lines)";
-  const failed = [...r.out.matchAll(/^test (\S+) \.\.\. FAILED$/gm)].map((m) => m[1]);
+  // From the failures section: lib-tests.js shows a failed test as an F mark, not a line (2026-11-01:
+  // this read "test x ... FAILED" lines, which -q never printed either, so the list was always empty).
+  const failed = require("./lib/test-pass-ledger.js").parseFailures(r.out);
   const oom = /E0786|os error 1455|STATUS_STACK|out of memory/i.test(r.out) ? "\nThis looks like the machine ran out of memory while compiling (E0786, os error 1455): wait and run again." : "";
   return {
     content: [{ type: "text", text: `${result}${failed.length ? `\nFailed: ${failed.join(", ")}` : ""}${oom}\n\nLast lines:\n${tail(r.out, 60)}` }],

@@ -374,6 +374,10 @@ fn demo_state() -> GuiState {
 pub(crate) fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
+        // Not while the operator's GPU game runs: the page is then not written (src/test_gpu.rs).
+        if !crate::test_gpu::may_use() {
+            return;
+        }
         let instance = wgpu::Instance::default();
         let adapter = match instance
             .request_adapter(&wgpu::RequestAdapterOptions::default())

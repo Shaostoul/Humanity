@@ -4,7 +4,8 @@
 // red edit "passes" by never running), a flake rerun that swallows a real failure, or a quiet
 // mode that hides failures. Each is tried on a throwaway repository with a tiny real test
 // program (fixtures/lib-tests/tiny_suite.rs) run in place of the library's
-// (HOS_LIB_TESTS_ROOT, HOS_LIB_TESTS_EXE).
+// (HOS_LIB_TESTS_ROOT, HOS_LIB_TESTS_EXE). The operator's GPU game is HOS_LIB_TESTS_GPU_APPS, "" (none)
+// unless a test says otherwise, so no result depends on what he happens to be playing.
 
 "use strict";
 
@@ -45,7 +46,7 @@ function repo() {
 function run(root, exe, args = [], env = {}) {
   const r = spawnSync(process.execPath, [LIB_TESTS, ...args], {
     encoding: "utf8",
-    env: { ...process.env, HOS_LIB_TESTS_ROOT: root, HOS_LIB_TESTS_EXE: exe, TINY_RUN_LOG: runLog(root), ...env },
+    env: { ...process.env, HOS_LIB_TESTS_ROOT: root, HOS_LIB_TESTS_EXE: exe, TINY_RUN_LOG: runLog(root), HOS_LIB_TESTS_GPU_APPS: "", ...env },
   });
   return { status: r.status, out: (r.stdout || "") + (r.stderr || "") };
 }
@@ -138,6 +139,69 @@ test("quiet by default, one line per test with --verbose", () => {
     assert.doesNotMatch(q.out, /test always_ok \.\.\. ok/);
     const v = run(root, exe, ["always_ok", "--verbose"]);
     assert.match(v.out, /test always_ok \.\.\. ok/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+test("beside the operator's GPU game the GPU tests stand down, are named, and run alone once it closes", () => {
+  const exe = suiteExe();
+  const root = repo();
+  const passFile = path.join(root, "target", "lib-tests", "last-full-pass.json");
+  const gpuRuns = () => runs(root).filter((x) => x === "gpu_device_test").length;
+  try {
+    // 1. His game runs: the GPU test does nothing, the run passes, and says so loudly.
+    let r = run(root, exe, [], { HOS_LIB_TESTS_GPU_APPS: "helldivers2.exe" });
+    assert.strictEqual(r.status, 0, r.out);
+    assert.match(r.out, /helldivers2\.exe is running: every test that opens a GPU device stands down/);
+    assert.match(r.out, /GPU TESTS NOT RUN: 1 test\(s\) open a GPU device and stood down, because helldivers2\.exe is running/);
+    assert.match(r.out, /!!\s+gpu_device_test/);
+    assert.strictEqual(gpuRuns(), 0, "it stood down");
+    let rec = JSON.parse(fs.readFileSync(passFile, "utf8"));
+    assert.deepStrictEqual(rec.gpu_skipped, ["gpu_device_test"], "recorded as a pass WITHOUT it");
+    assert.strictEqual(rec.gpu_busy, "helldivers2.exe");
+    // 2. Same tree, game still running: nothing runs, and the reason is given.
+    const before = runs(root).length;
+    r = run(root, exe, [], { HOS_LIB_TESTS_GPU_APPS: "helldivers2.exe" });
+    assert.strictEqual(r.status, 0, r.out);
+    assert.match(r.out, /SKIPPED\. This exact tree already passed the full suite, except 1 test\(s\) that open a GPU device/);
+    assert.strictEqual(runs(root).length, before, "nothing ran");
+    // 3. Same tree, game closed: ONLY the GPU test runs, and now the full pass is recorded.
+    r = run(root, exe);
+    assert.strictEqual(r.status, 0, r.out);
+    assert.match(r.out, /running just those now/);
+    assert.strictEqual(gpuRuns(), 1, "the GPU test ran");
+    assert.strictEqual(runs(root).length, before + 1, "and nothing else did");
+    rec = JSON.parse(fs.readFileSync(passFile, "utf8"));
+    assert.strictEqual(rec.gpu_skipped, undefined, "a full pass now");
+    // 4. And then the plain refusal.
+    r = run(root, exe);
+    assert.match(r.out, /SKIPPED\. This exact tree already passed the full suite at/);
+    assert.doesNotMatch(r.out, /except/);
+    // --gpu-anyway runs it beside the game.
+    r = run(root, exe, ["gpu_device_test", "--gpu-anyway"], { HOS_LIB_TESTS_GPU_APPS: "helldivers2.exe" });
+    assert.strictEqual(r.status, 0, r.out);
+    assert.strictEqual(gpuRuns(), 2);
+    assert.doesNotMatch(r.out, /GPU TESTS NOT RUN/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+test("a run that goes silent (a thread that reports, then cannot exit) is stopped and names the test", () => {
+  const exe = suiteExe();
+  const root = repo();
+  try {
+    const t0 = Date.now();
+    const r = run(root, exe, ["--stall-min", "0.05"], { TINY_SILENT_HANG: "1" });
+    const secs = (Date.now() - t0) / 1000;
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.ok(secs < 45, `stopped within seconds, not left to hang (${secs} s)`);
+    assert.match(r.out, /FAILED: the test program printed nothing for 0\.05 minutes, so it was stopped: a hung test/);
+    assert.match(r.out, /the hung test is one of these \d+:[\s\S]*\n  hangs_silently_when_asked/);
+    assert.ok(!fs.existsSync(path.join(root, "target", "lib-tests", "last-full-pass.json")), "a stopped run is not a pass");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(runLog(root), { force: true });

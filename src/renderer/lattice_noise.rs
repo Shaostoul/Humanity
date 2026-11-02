@@ -501,7 +501,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         py: f32,
     }
 
-    fn device() -> (wgpu::Device, wgpu::Queue, String) {
+    /// A device, or None while the operator's GPU game runs (src/test_gpu.rs).
+    fn device() -> Option<(wgpu::Device, wgpu::Queue, String)> {
+        if !crate::test_gpu::may_use() {
+            return None;
+        }
         let dxc = std::env::var("HUMANITY_DXC_DIR").ok().map(std::path::PathBuf::from).filter(|d| {
             d.join("dxcompiler.dll").exists() && d.join("dxil.dll").exists()
         });
@@ -539,7 +543,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         ))
         .expect("no device");
         device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
-        (device, queue, format!("{} / {:?} / {compiler}", info.name, info.backend))
+        Some((device, queue, format!("{} / {:?} / {compiler}", info.name, info.backend)))
     }
 
     fn run(device: &wgpu::Device, queue: &wgpu::Queue, probes: &[Probe]) -> Vec<[u32; 4]> {
@@ -618,7 +622,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     #[test]
     #[ignore]
     fn the_gpu_runs_the_same_lattice_noise() {
-        let (device, queue, what) = device();
+        let Some((device, queue, what)) = device() else {
+            return;
+        };
         println!("[lattice_noise] device: {what}");
         let mut rng = Lcg(0x6E0_1A77);
 

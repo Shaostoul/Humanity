@@ -42,6 +42,7 @@
         "test_temp",
         "test_log",
         "test_clock",
+        "test_gpu",
         "reuse"
       ],
       "uses": []

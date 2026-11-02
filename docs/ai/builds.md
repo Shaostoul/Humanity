@@ -62,7 +62,8 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   tree, every changed or untracked file's content, `rustc -V`, the features). A full run asked
   for on the same identity is refused, exit 0, naming when it passed. `--force` runs it anyway.
   A run with a filter is never refused.
-- The test program runs with `-q` (one character per test); `--verbose` gives the old output.
+- One character per test on the screen (the script turns the test program's line per test into
+  its mark, so it knows which tests finished); `--verbose` gives every line.
 - One to five failures are each run again, alone, by exact name. One that passes alone is
   reported FLAKY (a banner), written to `data/coordination/flaky-tests.jsonl` with its first
   failure's message, and does not fail the run. One that fails again is a REAL FAILURE. More
@@ -73,6 +74,26 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   back to the ledger gets its cause found (run it many times beside a busy machine, before and
   after); the fix is a test that waits for the event it means, never a longer timeout.
 - `--run-timeout-min N` limits the test RUN, not the build before it or a wait in the slot.
+- **A run that prints nothing for 15 minutes is stopped and fails** (`--stall-min N`, 0 = never),
+  naming the tests that were in flight. On 2026-11-01 the full run froze at 3,852 of 5,584 for two
+  hours, burning CPU, without one "has been running for over 60 seconds" line. The silence is
+  libtest's own: its main loop joins each finished test's thread BEFORE printing that test's
+  result, and its 60-second warnings come from the same loop, so a thread that reports and then
+  cannot exit stops every line after it (scripts/tests/fixtures/lib-tests/tiny_suite.rs makes
+  that hang on purpose; plain libtest stays silent past 60 s). libtest starts tests in name order,
+  so the suspects are the first unfinished ones, at most one per test thread.
+- **Beside the operator's GPU game, the tests that open a GPU device stand down.** That freeze
+  was beside helldivers2.exe, at the tests that open a real device (renderer::scene_target's
+  round trips run in every full run), and the same run passed in 232 s once the game closed.
+  Before a run, scripts/lib-tests.js asks scripts/lib/machine-guard.js which of his GPU-heavy
+  programs run (scripts/lib/operator-apps.json, or his own HumanityOS); when one does, every test
+  that would open a device asks `crate::test_gpu::may_use()` (src/test_gpu.rs) first and returns
+  early, and the script names them in a GPU TESTS NOT RUN banner (libtest counts them as passed).
+  The pass is recorded without them: the next full run on the same tree, once the game has
+  closed, runs just those and then records the full pass. `--gpu-anyway` runs them beside it
+  (they may hang the run). `tests/gpu_test_gate_lint.rs` (in `just lints` and CI) fails on a
+  `wgpu::Instance` made with no `test_gpu::may_use()` above it in the same function. A renderer
+  change verified beside his game is not verified on the GPU until that follow-up run: say so.
 
 ## Lints
 

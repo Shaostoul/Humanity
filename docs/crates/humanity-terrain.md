@@ -16,11 +16,11 @@ both it compiles once and stays built.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `terrain/`
-- **Size:** 25,575 lines in 30 files, 446 of them in 2 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `terrain/planet_chunks.rs` 4,635 of 4,740, `terrain/grass.rs` 2,564 of 2,640, `terrain/grass_mesh.rs` 948 of 1,000, `terrain/drawn_surface.rs` 1,023 of 1,100, `terrain/water_patches.rs` 323 of 450, `terrain/grass_fields.rs` 238 of 350.
+- **Size:** 25,569 lines in 30 files, 446 of them in 2 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `terrain/planet_chunks.rs` 4,630 of 4,740, `terrain/grass.rs` 2,564 of 2,640, `terrain/grass_mesh.rs` 948 of 1,000, `terrain/drawn_surface.rs` 1,023 of 1,100, `terrain/water_patches.rs` 323 of 450, `terrain/grass_fields.rs` 238 of 350.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 16.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 4.
-- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 133, renderer 33, gui 25, systems 7.
+- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 131, renderer 33, gui 25, systems 7.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 255 tests, and this runs exactly them, checked against every test's name:
 
@@ -32,7 +32,7 @@ just test-lib terrain::
 
 | Item | References | From |
 |---|---:|---|
-| `terrain::planet::PlanetDef` | 14 | engine 10, systems 2, gui 1, renderer 1 |
+| `terrain::planet::PlanetDef` | 12 | engine 8, systems 2, gui 1, renderer 1 |
 | `terrain::planet_heightmap::PlanetHeightmap` | 10 | engine 9, systems 1 |
 | `terrain::tree_registry::registry` | 9 | engine 6, renderer 3 |
 | `terrain::planet_chunks::DetailNoise` | 8 | engine 8 |

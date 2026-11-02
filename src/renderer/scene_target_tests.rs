@@ -51,8 +51,12 @@ const DISPLAY_FORMATS: [wgpu::TextureFormat; 4] = [
     wgpu::TextureFormat::Rgba8Unorm,
 ];
 
+/// A device, or None (no adapter, or the operator's GPU game is running: src/test_gpu.rs).
 #[cfg(feature = "native")]
 fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
+    if !crate::test_gpu::may_use() {
+        return None;
+    }
     let instance = wgpu::Instance::default();
     let adapter = pollster::block_on(instance.request_adapter(&Default::default()))?;
     Some(

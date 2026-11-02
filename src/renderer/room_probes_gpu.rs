@@ -1166,6 +1166,9 @@ mod tests {
     /// A device, or None (then the test says so and passes).
     #[cfg(feature = "native")]
     fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
+        if !crate::test_gpu::may_use() {
+            return None;
+        }
         let instance = wgpu::Instance::default();
         let adapter = pollster::block_on(instance.request_adapter(&Default::default()))?;
         let (device, queue) =

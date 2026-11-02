@@ -232,6 +232,9 @@ mod tests {
     #[ignore = "needs a GPU adapter"]
     fn gpu_readback_returns_the_rendered_pixels_without_stalling() {
         pollster::block_on(async {
+            if !crate::test_gpu::may_use() {
+                return;
+            }
             let instance = wgpu::Instance::default();
             let Some(adapter) =
                 instance.request_adapter(&wgpu::RequestAdapterOptions::default()).await

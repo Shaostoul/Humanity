@@ -345,6 +345,9 @@ mod device_tests {
     #[test]
     #[ignore]
     fn compute_pipeline_builds_on_a_real_device() {
+        if !crate::test_gpu::may_use() {
+            return;
+        }
         let instance = wgpu::Instance::default();
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,

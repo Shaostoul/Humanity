@@ -14,13 +14,13 @@ core, ship and terrain, draws nothing, and the server compiles it too.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `systems/`, `persistence.rs` + `persistence/`, `surface_walk.rs`, `surface_move.rs`
-- **Size:** 79,368 lines in 145 files, 12,941 of them in 35 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `surface_walk.rs` 461 of 474.
+- **Size:** 79,464 lines in 145 files, 12,943 of them in 35 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `surface_walk.rs` 462 of 474.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 5.
 - **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 437, ship 26, terrain 7.
 - **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 554, gui 157, relay 10.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 851 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 853 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib systems:: persistence:: surface_walk:: surface_move:: --skip ecs::systems:: --skip gui::crossing_tests::surface_move:: --skip relay::storage::game_persistence::
@@ -40,13 +40,13 @@ just test-lib systems:: persistence:: surface_walk:: surface_move:: --skip ecs::
 | `systems::inventory::Inventory` | 10 | engine 10 |
 | `persistence::slot_path` | 9 | engine 8, gui 1 |
 | `systems::inventory::containers::Container` | 9 | engine 9 |
-| `systems::time::GameTime` | 8 | engine 8 |
 | `persistence::live_save::active_home_machines_path` | 7 | engine 7 |
 | `systems::inventory` | 7 | engine 6, gui 1 |
 | `systems::inventory::TransferOp` | 7 | gui 5, engine 2 |
+| `systems::time::GameTime` | 7 | engine 7 |
 | `persistence::now_ms` | 6 | gui 5, engine 1 |
 
-And 351 more items, 552 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
+And 352 more items, 553 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
 <!-- end generated -->
 
 ## Rules
