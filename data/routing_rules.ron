@@ -2,8 +2,10 @@
 // realistic ORTHOGONAL runs with real fittings, the way a plumber and electrician would
 // actually install them on an exposed-services ship interior (submarine / ISS aesthetic).
 //
-// Grounded in real code: IPC 308.5 + NEC 358.30 (support spacing), NEC 300.4 (power runs
-// ABOVE wet lines). Data-driven (infinite-of-X): retune here, no recompile. Loaded by
+// Grounded in real code: IPC 308.5 + NEC 358.30 (support spacing). Power runs ABOVE wet lines
+// for the drip reasoning in findings 28, 29 and 32 of
+// docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md; NEC 300.4, cited here until
+// 2026-11-02, is protection against physical damage and says nothing of order (finding 45). Data-driven (infinite-of-X): retune here, no recompile. Loaded by
 // src/systems/construction/routing.rs::RoutingRules::load.
 //
 // Pipe COLOUR is not set here and never followed ASME A13.1, though this header said so
@@ -31,7 +33,7 @@
     // Collar length (m) of the sleeve over each machine-port joint.
     collar_len: 0.08,
     // Per-kind vertical LANE (m, added to base_run_height: higher = nearer ceiling) and
-    // pipe outer RADIUS (m). Power rides highest (above any wet line, NEC 300.4); waste
+    // pipe outer RADIUS (m). Power rides highest (above any wet line: findings 28, 29, 32); waste
     // lowest. Water pipe is fatter than electrical conduit. Stacking the lanes also stops
     // parallel runs from z-fighting into one another.
     lanes: {

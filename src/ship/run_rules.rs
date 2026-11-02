@@ -6,7 +6,7 @@
 //! pull_limit, fill, allowed_material) with that kind's numbers, what it applies to, the profiles
 //! it belongs to (`dwelling_us`, `ship_us`, `spacecraft`: the same cable is strapped every 4 1/2 ft
 //! in a manufactured home and every 24 in aboard a small passenger vessel), how binding its source
-//! is there (`Standing`), and its `source` (a finding R1..R44 or D1..D19, or `Ours` with a reason;
+//! is there (`Standing`), and its `source` (a numbered finding, R or D, or `Ours` with a reason;
 //! `humanity_core::row_source`). Every length is in metres and every angle in degrees.
 //!
 //! NOTHING EVALUATES THESE YET. Rung 8 (`ship::run_checks`) does, on the computed curve, the

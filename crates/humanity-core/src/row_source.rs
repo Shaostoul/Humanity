@@ -24,7 +24,8 @@ use std::collections::BTreeSet;
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum Source {
     /// A finding of `docs/reference/findings/2026-11-01-pipe-and-cable-routing-rules.md`, by its
-    /// number (R1 to R44 in the design).
+    /// number (the design's R numbers; the document's numbered paragraphs are the list, and
+    /// scripts/check-run-sources.js reads them, so a new finding needs no code change).
     R(u16),
     /// A finding of `docs/reference/findings/2026-11-01-manual-door-releases.md` (D1 to D19).
     D(u16),

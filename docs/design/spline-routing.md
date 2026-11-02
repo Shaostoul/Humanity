@@ -7,7 +7,8 @@ decided once and each rung below is a slice of the real thing (CLAUDE.md, "Plan 
 build it in rungs, keep performance in mind throughout"). The numbers behind the "to code" rules
 are in two dated findings of the same day:
 [pipe and cable routing rules](../reference/findings/2026-11-01-pipe-and-cable-routing-rules.md)
-(cited below as R1 to R44, its finding numbers) and
+(cited below as R1 to R53, its finding numbers; R45 to R53 added by the 2026-11-02 refutation
+pass) and
 [manual door releases](../reference/findings/2026-11-01-manual-door-releases.md) (D1 to D19).
 
 Read with: [utility-wiring.md](utility-wiring.md) (ports, cable physics), [conduits-node-graph.md](conduits-node-graph.md)
@@ -64,7 +65,7 @@ What his direction asks of the plan, point by point, and where each is answered:
 
 | His point | Where |
 |---|---|
-| Real world first; realistic behaviour is the default | 6, 7.4 |
+| Real world first; realistic behaviour is the default | 6, 7.5 |
 | The material of any run changes in place, with one picker | 5.3, 15 |
 | Points move freely, no grid or voxel placement forced; snapping helps, never cages | 8.2 |
 | Curvy hoses and cables, rigid pipe that behaves like rigid pipe | 6 |
@@ -222,7 +223,7 @@ Dev page's "turn off all reuse" switch, `HUMANITY_NO_REUSE=1`):
 ### 5.3 The catalogs (infinite-of-x)
 
 Everything that can exist more than once is a data row (`docs/design/infinite-of-x.md`), each row
-with a `source` naming a finding (R1 to R44, D1 to D19) or `ours` with a reason:
+with a `source` naming a finding (R1 to R53, D1 to D19) or `ours` with a reason:
 
 | File | Rows | Replaces or extends |
 |---|---|---|
@@ -249,7 +250,9 @@ Standard, Specification, Guidance, Maker, Ours) saying how binding its source is
 applies, so the editor (7.3) calls only `Law` "code". Two shapes the table above did not foresee: a
 radio link (WiFi) is a `links` row, not a material, since nothing is laid; and a size is offered to the
 cable and data checks only when its check's own number is known (ampacity, bandwidth, flow), so a
-size with no source for it (NM-B's ampacity: the NEC was not read, R42) is never checked as zero.
+size with no number for its check is never checked as zero. (NM-B's 60 C ampacity is now sourced,
+R45, but not yet added: adding it puts those sizes in the cable check and the pickers, which have no
+cost for them; see 7.4.)
 
 ### 5.4 One word for the thing
 
@@ -391,7 +394,7 @@ to (materials, sizes, contents, wall ratings) and its `source`:
 | `slope` | a drain falls toward its outlet | 1/4 in per foot, 1/8 in with a cleanout or for larger pipe (R36, R37) |
 | `drain_turn` | which fitting may turn a drain which way | R38 |
 | `penetration` | how a run crosses a wall, deck or stud | sleeve and gasket by wall material (today's passthrough); plates within 1 1/2 in of a stud face (R41); bulkhead integrity, no heat-sensitive metal in a fire boundary, glands or transits through watertight bulkheads (R39, R40); fire stops every 7 m vertically for some cable (R40) |
-| `pull_limit` | bends between pull points in a conduit | two 90-degree bends for data conduit (R20); the NEC's 360 degrees once read (R42) |
+| `pull_limit` | bends between pull points in a conduit | two 90-degree bends for data conduit (R20); 360 degrees for power conduit (NEC 358.26, R45) |
 | `fill` | how full a conduit or tray may be | 0.40 (R22) |
 | `allowed_material` | which materials may carry a content | drinking water: copper, the operator's rule recorded in `conduits.rs` (open question 2) |
 
@@ -404,8 +407,12 @@ its services, a home file for its own wiring, so a home aboard the ship follows 
 profile inside its walls and the ship's in the corridors; the editor says which applies where. A
 new profile (another country, an alien ship's) is rows.
 
-Where a rule has no source (the NEC's numbers, R42) the row is marked `ours`, its number the
-maker's or the closest public rule, and the editor's words never call it "code".
+Where a rule has no public source the row is marked `ours`, its number the maker's or the closest
+public rule, and the editor's words never call it "code". Each row also carries its `standing`
+(Law, Standard, Specification, Guidance, Maker, Ours), and only Law is called "code". The NEC was
+first thought unreadable (R42); the 2014 edition, the one 24 CFR 3280 incorporates, was read on
+2026-11-02 from Public.Resource.Org's posting (R45, numbers only), so in the dwelling profile its
+numbers are Law.
 
 ### 7.2 Evaluating them
 
@@ -431,7 +438,35 @@ held every 1.37 m (24 CFR 3280.808)". Each finding carries its **fix** as a butt
 "Add a strap", "Move it 0.15 m from the panel", "Use a 45-degree elbow". An AI reads the same list
 through the construction console and the introspection JSON.
 
-### 7.4 Two modes
+### 7.4 What the refutation pass left for later rungs (2026-11-02)
+
+The pass over rung 0's data (84 of 101 rules confirmed, 6 corrected, 2 refuted; 16 of 67 sizes
+corrected; the findings document's notes of that date) found eight things the data alone cannot
+settle. Each needs code, so each belongs to a rung:
+
+1. **Inside or centreline radius** (rungs 3 and 8). The NEC's NM rule, IEEE 45.8 and Parker
+   measure a bend to its inner edge; the NEC's EMT table and Klein to the centreline; PEX at the
+   bend's mid-point; the CDA does not say. `BendMin` needs a field saying which, and the check
+   converts before comparing with the curve's centreline curvature. run_rules.ron's header records
+   each row's convention meanwhile.
+2. **`no_parallel` only inside the preferred gap** (rung 8). The FAA's rule forbids wiring parallel
+   to a fuel line only where 6 in cannot be kept; applied flatly it would flag a compliant run.
+3. **`penetration_pex_hole`'s `clearance_m`** is a difference in diameter (the hole 1/4 in wider),
+   not a gap on each side (rung 8).
+4. **`bend_data_conduit`'s six diameters**: against the outside diameter it fails 3/4 in EMT on
+   Klein's 5.5 in bender, against the bore it passes. TIA-569 was not read; the rule may need a
+   "times the bore" option (rung 8 or 19).
+5. **The comms-to-power exemption** (NEC 800.133 Exception 1) must count conductors in a raceway
+   as exempt once THHN runs inside EMT (rung 19).
+6. **NM-B ampacity** is sourced (60 C column: 15, 20, 30, 40, 95 A) but not added, because it would
+   put those sizes in the cable check and the pickers with no cost (rung 6, with the material
+   picker).
+7. **Six-diameter pipe bends** (UFGS 22 00 00, DoD projects only) are not applied: they would fail
+   every CDA copper radius. A profile row if a military profile is ever wanted.
+8. **A ship switchboard's working space** (46 CFR 120.340(f): 610 mm in front, 455 mm behind) is not
+   added yet; a `keep_out` row for `ship_us` (rung 8).
+
+### 7.5 Two modes
 
 Settings > Gameplay > **Pipes and cables: Simplified / Realistic**, built like the page's other
 realism switches. **Realistic is the default** (the operator, 2026-11-01: "We should go with what
@@ -801,7 +836,7 @@ GUI-first (CLAUDE.md): everything is a control in the app.
 - **The construction console** (`exec_construction_command`, the AI's act surface) gains `run_add`,
   `run_route`, `run_point_add`, `run_point_move`, `run_point_rm`, `run_material`, `run_feature_add`,
   `run_anchor_add`, `run_check`; the introspection JSON gains each run with its check report.
-- **Settings:** Gameplay > Pipes and cables (7.4); Graphics > AR layer (16.4).
+- **Settings:** Gameplay > Pipes and cables (7.5); Graphics > AR layer (16.4).
 - **The dev IPC** gains run verbs for rigs (a showcase pin of a run's points, the check report as
   JSON), so every gate below can be driven without a hand on the mouse.
 - **Words:** every label and hint from `data/i18n/en.json` by key, glossary terms `[[run]]`,
@@ -994,8 +1029,9 @@ Only the ones that are taste or direction; everything else above is decided, and
 - **The rod solver is the riskiest budget.** It is a worker job with a fixed step count and a
   measured ceiling; if it cannot settle a long cable inside its budget, the segment length grows with
   the run's length (a coarser rod far from any point the person touched), measured, not guessed.
-- **Rules without a primary source.** The NEC's numbers stay `ours` (R42) until someone reads them;
-  the editor must never call such a row "code".
+- **Rules without a primary source.** A row with no public source stays `ours` (the ship drain
+  slope, elbow dimensions and rubber hose radii could not be reached on 2026-11-02, R53); the editor
+  must never call such a row "code".
 - **Checks that pass because they test the setup.** Every gate above is a measurement of the result
   (the settled shape, the delivered voltage, the screenshot), seen failing first.
 

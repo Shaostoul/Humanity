@@ -875,6 +875,11 @@
       "date": "2026-11-02",
       "decision": "Spline routing rung 0 merged (f6bd1c719, squash): run_rules.ron 101 rules in 14 kinds and 3 profiles, fittings/anchors/benders, pipe_materials.ron as the one material catalog with conduits.ron merged in (loader in humanity_core::run_materials), 279 rows each citing a finding or Ours; scripts/check-run-sources.js in lints and CI. A refutation pass over its numbers dispatched (brief orch-runrules-refute-brief.txt; data/piping and the findings document only).",
       "why": "The staged tree equalled the agent's verified tree. Rechecked on main: both ratchets 0, validate-data 238, the source check seen red on a planted R45 and green restored. Refutation before rung 8 puts the rules on screen: the teaching-data rule (48 of 60 species records refuted in 2026). Rung 1 waits for crate split rung 2, since both move ship code."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Run rules refutation pass merged (97caed5b7): 84 of 101 rules confirmed, 6 corrected, 2 refuted; 16 of 67 sizes corrected; findings R45-R53 added. The 2014 NEC is readable (Public.Resource.Org on archive.org) and is law in manufactured homes through 24 CFR 3280, so NM cable bends at least 5x diameter (the maker's ~4x is tighter than code) and several Ours rows became Law. Follow-up: routing_rules.ron no longer cites NEC 300.4 for power above water (refuted: 300.4 is physical damage); the design's new section 7.4 records eight decisions the data cannot settle, each assigned to a rung (inside vs centreline radius on BendMin first, rungs 3 and 8).",
+      "why": "The teaching-data rule: refute before a rule reaches a screen. Checked on main: check-run-sources 286 rows (R53, D19), validate-data 238, doc links 0. Numbers only from the NEC (NFPA copyright)."
     }
   ],
   "active_scopes_to_avoid": [
