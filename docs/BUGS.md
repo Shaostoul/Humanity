@@ -7099,3 +7099,10 @@ he noticed the "2+ hour task".
 - **FIXED (06ce44527).** The line says what is true, from the word source (`onboarding.wizard_messages_privacy`): direct messages are sealed so only the two people can read them; channel posts are public, readable by anyone, even without signing up. The file's word budget dropped 92 -> 91.
 - **Open, the operator's decision:** whether channel reading becomes members-only by default with an admin able to mark a channel public (the safe default; front-door.md recommends it as its own piece of work), and a robots.txt keeping search engines off `/api/` (the live site has none).
 - **Lesson.** A promise in an onboarding screen is a security claim: check it against the code the way docs/reference/cryptography.md is checked.
+
+## BUG-225: Settings > Appearance > Font Size changes nothing (OPEN, found 2026-11-02)
+
+**Found by** the Characters page agent (2026-11-02), measuring whether the page's text reads on the operator's display (a 65-inch TV at 2560x1440, read from a sofa). Not operator-reported.
+- **The defect.** `settings.font_size` is saved and loaded and read nowhere else: moving the slider changes no text anywhere in the desktop app.
+- **Why it matters now.** On a 65-inch screen at 2560x1440 seen from about 2.5 m, small text looks about 0.58 times its size on a 27-inch desk monitor (the geometry is in docs/design/top-menu-and-game-pages.md section 5); the front door design found a headline at 100% is about half Microsoft's TV-distance minimum (docs/design/front-door.md section 3.2). The one setting meant to fix that does nothing.
+- **The fix is app-wide** (egui's zoom factor or the theme's text sizes, applied to every page, the HUD and the in-world screens; the website has its own Aa text size already). Question 6 of the top-menu plan. To be built after crate split rung 2 lands.

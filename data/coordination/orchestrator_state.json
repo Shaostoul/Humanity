@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "2026-11-02 afternoon: in flight: crate split rung 2; the warning-bar mute + Library doc; the Characters page relayout + top-menu plan (message both to merge main when rung 2 lands). Queued: the tasks plan (own tasks private across own devices) and BUG-217, then spline rung 1. Open for the operator: bottom strip 6 and 7, the landing page, the quest-chain review. The other session's web chat store fix (branch claude/zealous-raman-7aba0c) also calls itself BUG-222: renumber to BUG-224 when it merges (BUG-223 is the wizard claim). The batch since v0.1547.0 is unreleased.",
+  "current_focus": "2026-11-02 evening: crate split rung 2 in final gates; then merge Characters (a07b48f5) and tasks (ac989b74, after its unreadable-file fix), each merging main to pick up rung 2's paths. Then BUG-225 (font size) and spline rung 1. Open for the operator: the top-menu plan's A/B/C/D, the front door (adopt, column, signed mark route), his display scaling, the quest-chain review. The other session's web chat store fix (branch claude/zealous-raman-7aba0c) becomes BUG-224 when it merges. The batch since v0.1547.0 is unreleased.",
   "open_questions_for_human": [
     {
       "date": "2026-08-25",
@@ -905,6 +905,11 @@
       "date": "2026-11-02",
       "decision": "Front door: no chat on the front page (\"That's fair. We can just exclude the chat on front page.\"); a signed release's update card gets its own dressing (his request: \"when I sign its widget dressing is slightly different from the normal update ones\"); the front door agent resumed for both plus screenshots at 2560x1440. His display is a 65-inch TV at 2560x1440, 120 fps (memory MEMORY.md Machine); the Characters agent told to size for it.",
       "why": "His screenshots arrive downscaled to 2000x1125, so layouts measured on them were 0.78 of real. The signed-card idea is his own; nothing elsewhere may tell him a release needs signing."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Characters relayout + top-menu plan finished (branch worktree-agent-a07b48f503974bc0d, docs/design/top-menu-and-game-pages.md): columns as shares (WHO a fifth, WHERE 0.44), cards for homes and servers, the character centred in the stage by a camera lens shift, 141 words moved to keys; plan recommends A1 (menu by Real/Sim, Inventory/Crafting/Quests into the game), B1 (an Overview section first on Humanity), C1 (keep Play and Characters, Play says what it repeats), D1 (Worlds and Servers pages, Servers first). Tasks finished too, back for the unreadable-file fix. Both merge AFTER crate split rung 2 (lib.rs, camera, engine files). BUG-225 logged: Settings Font Size does nothing, which matters on his 65-inch TV.",
+      "why": "Rung 2 has been in final gates for hours; landing two Rust branches first would make it re-run them. The Characters agent closed the operator's own game gracefully to take GPU snapshots (allowed, 2026-10-13)."
     }
   ],
   "active_scopes_to_avoid": [
