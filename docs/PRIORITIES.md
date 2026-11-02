@@ -199,9 +199,9 @@ In order:
     source-walking tool reading the crates (four lints and the warnings ratchet were blind to them
     until planted violations showed it), the same 5,586 lib tests and 3,201 relay tests as before.
     Build times unchanged, as planned (the engine is still about 96% of the lines; quiet-machine
-    numbers in crate-split.md). Next: rung 2 (`humanity-ship`, `humanity-terrain`, then
-    `humanity-systems`), where the gains start; after the spline routing's rung 0 (item 15), which
-    edits the ship's catalogs, and on a quiet machine, because it is measured.
+    numbers in crate-split.md). Rung 2 (`humanity-ship`, `humanity-terrain`, then
+    `humanity-systems`), where the gains start, IN FLIGHT since 2026-11-02 (an agent, its own
+    worktree; the operator's PC is free for its timings that day).
 11. **The farm on its own clock (planned 2026-10-30, `docs/design/farm-clock.md`).** The operator
     asked for the farm to update on a configurable interval and for crops to be computed only when
     looked at. Rung 1 DONE 2026-10-30 (50864e49d: every step exact, `step_path.rs`, proven by
@@ -295,8 +295,9 @@ In order:
     `spacecraft`), `fittings.ron`, `anchors.ron`, `benders.ron`, and `pipe_materials.ron` grown into
     the one material catalog with `data/utilities/conduits.ron` merged in (every id kept; its loader
     in the core, `humanity_core::run_materials`, because the cable checks read it); every row cites a
-    finding or `Ours` with a reason, checked against the findings documents. Next: rung 1, the run
-    model. Three questions for him in the design's section 19 (is the
+    finding or `Ours` with a reason, checked against the findings documents (merged f6bd1c719). An
+    adversarial refutation pass over its numbers runs before rung 8 shows them (the teaching-data
+    rule). Next: rung 1, the run model, after crate split rung 2 lands (both move ship code). Three questions for him in the design's section 19 (is the
     AR layer a visor the character wears; copper-only drinking water now that material changes;
     which way a powered door fails on power loss), each with a recommendation.
 

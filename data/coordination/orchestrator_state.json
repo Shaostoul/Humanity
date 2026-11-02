@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "VPS REBUILT AND LIVE 2026-08-11/12. Site, chat, relay all verified from outside; DB restored (3,945 messages, zero loss). provision-vps.sh survived first contact with reality: six landmines found and fixed IN the script (grub-pc tty hang, missing rsync, fail2ban systemd backend, www NXDOMAIN cert, certbot companion files, single-lineage cert paths, nginx hash bucket, undeclared limit zones, pipefail+grep -q SIGPIPE, naive web layout). Web-root layout extracted to scripts/sync-web-root.sh, called by BOTH CI deploy and provision.",
-  "current_focus": "2026-11-02: crate split rung 1 merged (91d131282). Next: the spline routing's rung 0 (agent, its own worktree), then crate split rung 2 on a quiet machine. Stutter next steps: PRIORITIES 12. Waiting on the operator: the spline plan's three questions (design section 19), whether members may add board tasks (BUG-221 made it mods and admins), the bottom-strip plan, the landing page, the quest-chain review, BUG-217. The batch since v0.1547.0 is unreleased.",
+  "current_focus": "2026-11-02: in flight: crate split rung 2 (agent; merge main into it now that spline rung 0 landed) and the run-rules refutation pass (agent, data only). Next: spline rung 1 (the run model) after split rung 2. Waiting on the operator (explained 2026-11-02): the spline plan's three questions, board tasks for members (BUG-221), the bottom strip's seven decisions, the landing page, the quest-chain review, BUG-217's model. The other session's web chat store fix (branch claude/zealous-raman-7aba0c) also calls itself BUG-222: renumber to BUG-223 when it merges. The batch since v0.1547.0 is unreleased.",
   "open_questions_for_human": [
     {
       "date": "2026-08-25",
@@ -865,6 +865,16 @@
       "date": "2026-11-02",
       "decision": "Order: the spline routing's rung 0 (rules and materials as data, PRIORITIES 15) next, then crate split rung 2 (ship, terrain, systems), not in parallel.",
       "why": "Rung 0 edits the cable registry (now crates/humanity-core/src/utilities.rs) and the ship's catalogs, which split rung 2 moves; and rung 2 is measured, which needs a quiet machine. Brief in the scratchpad orch-spline0-brief.txt."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Morning: the spline rung 0 agent (stopped by the overnight shutdown with ~800 lines uncommitted in its worktree) resumed and told to commit first. Crate split rung 2 (ship, terrain, systems) dispatched in parallel with it, brief in the scratchpad orch-split2-brief.txt; it merges main once rung 0 lands and moves rung 0's new ship files with the rest.",
+      "why": "The operator, 2026-11-02: \"I won't be playing any games. Just watching YouTube. So you'll have the PC essentially free for testing.\" That frees the measured rung now instead of after rung 0; the agent checks build-slot-status before each timing pair."
+    },
+    {
+      "date": "2026-11-02",
+      "decision": "Spline routing rung 0 merged (f6bd1c719, squash): run_rules.ron 101 rules in 14 kinds and 3 profiles, fittings/anchors/benders, pipe_materials.ron as the one material catalog with conduits.ron merged in (loader in humanity_core::run_materials), 279 rows each citing a finding or Ours; scripts/check-run-sources.js in lints and CI. A refutation pass over its numbers dispatched (brief orch-runrules-refute-brief.txt; data/piping and the findings document only).",
+      "why": "The staged tree equalled the agent's verified tree. Rechecked on main: both ratchets 0, validate-data 238, the source check seen red on a planted R45 and green restored. Refutation before rung 8 puts the rules on screen: the teaching-data rule (48 of 60 species records refuted in 2026). Rung 1 waits for crate split rung 2, since both move ship code."
     }
   ],
   "active_scopes_to_avoid": [
